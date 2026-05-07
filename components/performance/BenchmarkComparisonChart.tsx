@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { BenchmarkMonthlyReturn, BenchmarkDefinition, FxMonthlyRate } from '@/types/benchmarks';
+import { BenchmarkMonthlyReturn, BenchmarkDefinition, FxMonthlyRate, EcbMonthlyRate } from '@/types/benchmarks';
 import { MonthlyReturnHeatmapData } from '@/types/performance';
 
 interface BenchmarkComparisonChartProps {
@@ -39,6 +39,9 @@ interface BenchmarkComparisonChartProps {
   // When true, benchmark USD returns are converted to EUR using monthly FX rates
   convertToEur: boolean;
   fxRates: FxMonthlyRate[];
+  // Historical ECB deposit facility rates for period-accurate risk-free rate
+  ecbRates: EcbMonthlyRate[];
+  ecbError: boolean;
 }
 
 interface IndexedPoint {
@@ -269,6 +272,33 @@ function computeAllMetrics(
 }
 
 /**
+ * Filters ECB rates to [startDate, endDate] and returns the arithmetic mean
+ * of the annual rate (rounded to 2 dp), or null if fewer than 2 data points.
+ * Used to derive a period-accurate risk-free rate for Sharpe/Sortino.
+ */
+function computePeriodAverageRiskFreeRate(
+  ecbRates: EcbMonthlyRate[],
+  startDate: Date,
+  endDate: Date
+): number | null {
+  const startYear = startDate.getFullYear();
+  const startMonth = startDate.getMonth() + 1;
+  const endYear = endDate.getFullYear();
+  const endMonth = endDate.getMonth() + 1;
+
+  const filtered = ecbRates.filter(r => {
+    if (r.year < startYear || r.year > endYear) return false;
+    if (r.year === startYear && r.month < startMonth) return false;
+    if (r.year === endYear && r.month > endMonth) return false;
+    return true;
+  });
+
+  if (filtered.length < 2) return null;
+  const sum = filtered.reduce((acc, r) => acc + r.rate, 0);
+  return Math.round((sum / filtered.length) * 100) / 100;
+}
+
+/**
  * Indexed growth-of-100 line chart comparing the user's portfolio against
  * selected model benchmarks over the same time period.
  *
@@ -295,7 +325,17 @@ export function BenchmarkComparisonChart({
   riskFreeRate,
   convertToEur,
   fxRates,
+  ecbRates,
+  ecbError,
 }: BenchmarkComparisonChartProps) {
+  // Period-accurate risk-free rate: arithmetic mean of ECB deposit facility rates
+  // over the evaluation window. Falls back to user setting if ECB data unavailable.
+  const effectiveRiskFreeRate = useMemo(
+    () => computePeriodAverageRiskFreeRate(ecbRates, startDate, endDate) ?? riskFreeRate,
+    [ecbRates, startDate, endDate, riskFreeRate]
+  );
+  const usingEcbRate = ecbRates.length >= 2 && effectiveRiskFreeRate !== riskFreeRate;
+
   const chartData = useMemo<IndexedPoint[]>(() => {
     const portfolioFlat = flattenHeatmap(portfolioHeatmapData);
     const portfolioIndexed = buildIndexedSeries(portfolioFlat, startDate, endDate);
@@ -351,7 +391,7 @@ export function BenchmarkComparisonChart({
       })
       .map(r => r.return);
 
-    const portfolioMetricsComputed = computeAllMetrics(portfolioFiltered, portfolioTWR, riskFreeRate);
+    const portfolioMetricsComputed = computeAllMetrics(portfolioFiltered, portfolioTWR, effectiveRiskFreeRate);
 
     // For portfolio we override the cashflow-adjusted values with pre-computed ones
     const portfolioMetrics: BenchmarkMetrics = {
@@ -385,7 +425,7 @@ export function BenchmarkComparisonChart({
             return true;
           })
           .map(r => r.return);
-        benchmarkMetrics[id] = computeAllMetrics(filtered, twr, riskFreeRate);
+        benchmarkMetrics[id] = computeAllMetrics(filtered, twr, effectiveRiskFreeRate);
       }
     }
 
@@ -399,7 +439,7 @@ export function BenchmarkComparisonChart({
     portfolioVolatility,
     portfolioSharpe,
     portfolioMaxDrawdown,
-    riskFreeRate,
+    effectiveRiskFreeRate,
     benchmarkReturns,
     convertToEur,
     fxRates,
@@ -416,6 +456,13 @@ export function BenchmarkComparisonChart({
   }
 
   const activeBenchmarks = benchmarkDefinitions.filter(b => selectedBenchmarkIds.includes(b.id));
+
+  // Recompute portfolio Sharpe with the period-accurate ECB rate for the table.
+  // The KPI card keeps using the pre-computed user-rate value for consistency.
+  const portfolioSharpeEffective =
+    portfolioTWR != null && portfolioVolatility != null && portfolioVolatility !== 0
+      ? (portfolioTWR - effectiveRiskFreeRate) / portfolioVolatility
+      : portfolioSharpe;
 
   const fmtPct = (value: number | null, decimals = 2) => {
     if (value == null) return '–';
@@ -538,7 +585,7 @@ export function BenchmarkComparisonChart({
                   {portfolioVolatility != null ? `${portfolioVolatility.toFixed(1)}%` : '–'}
                 </td>
                 <td className="text-right py-2 px-2 font-medium tabular-nums">
-                  <span className={colorClass(portfolioSharpe)}>{fmtRatio(portfolioSharpe)}</span>
+                  <span className={colorClass(portfolioSharpeEffective)}>{fmtRatio(portfolioSharpeEffective)}</span>
                 </td>
                 <td className="text-right py-2 px-2 font-medium tabular-nums hidden md:table-cell">
                   <span className={colorClass(metricsSummary.portfolioMetrics.sortino)}>
@@ -626,7 +673,10 @@ export function BenchmarkComparisonChart({
             </tbody>
           </table>
           <p className="text-xs text-muted-foreground mt-2">
-            TWR annualizzato sul periodo di {numberOfMonths} mesi. Sharpe e Sortino calcolati con tasso risk-free {riskFreeRate}%.
+            TWR annualizzato sul periodo di {numberOfMonths} mesi.{' '}
+            {usingEcbRate
+              ? `Sharpe e Sortino calcolati con tasso risk-free medio del periodo ${effectiveRiskFreeRate.toFixed(2)}% (BCE deposit facility rate, media ${numberOfMonths} mesi). Il tasso del portafoglio KPI usa il valore configurato in Impostazioni (${riskFreeRate}%).`
+              : `Sharpe e Sortino calcolati con tasso risk-free ${riskFreeRate}% (impostazione utente${ecbError ? ' — dati BCE non disponibili' : ''}).`}
             {convertToEur
               ? ' Benchmark convertiti in EUR (tasso di cambio mensile USD/EUR, fonte: Frankfurter API).'
               : ' Rendimenti benchmark in USD (ETF quotati sul mercato americano).'}
