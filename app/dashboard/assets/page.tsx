@@ -87,7 +87,7 @@ function CashAccountsSection({
             type="button"
             onClick={() => onSelect(asset)}
             className={cn(
-              'cursor-pointer rounded-xl border border-border bg-card p-4 text-left',
+              'cursor-pointer rounded-xl border border-border bg-card p-5 text-left',
               'hover:bg-muted/50 active:bg-muted/70 transition-colors duration-150',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
             )}
@@ -319,8 +319,9 @@ export default function AssetsPage() {
   return (
     <div className="space-y-6 max-desktop:portrait:pb-20">
       {/* ── PAGE HEADER ── */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Patrimonio</h1>
+      <div className="border-b border-border pb-4">
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Portfolio</p>
+        <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">Patrimonio</h1>
         <p className="mt-2 text-muted-foreground">Gestisci e monitora il tuo patrimonio</p>
       </div>
 

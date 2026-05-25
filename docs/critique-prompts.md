@@ -22,10 +22,18 @@ no card-in-card, `useChartColors()` per tutte le serie grafiche, token complianc
 File: app/dashboard/page.tsx
 Componenti: components/dashboard/*
 
-Questa è la home del dashboard: mostra il patrimonio netto in tempo reale
-con sparkline 12 mesi, KPI cards (liquidità, investimenti, costi), variazioni
-periodiche e un riepilogo cashflow con savings rate.
-Confronta con: Rendimenti (hero TWR), Storico (hero patrimonio), Goals (hero allocato).
+Questa è la home del dashboard — layout "Bento Asimmetrico v2":
+- Hero [2fr_1fr]: Patrimonio Totale Lordo (text-[44px]/[54px]) + sparkline 12m
+  edge-to-edge (-mx-[22px]) + variation chips; Liquid card con breakdown flat
+  a 3 righe (Liquidità / Investimenti Liquidabili / Illiquidi) + sezione Impatto
+  Fiscale condizionale. Hero card usa Card Sticky Footer (mt-auto) per TER+Costo su desktop.
+- TER + Costo Annuale: responsive duplication (desktop:hidden / hidden desktop:grid).
+- Cashflow card (full-width): 4 KPI chip (bg-muted/40 rounded-xl, text-[22px]) con
+  delta annotation text-[12px] font-mono + category bar breakdown (h-[3px], 2-col).
+- Charts section: deferred via requestIdleCallback; tab-switched su mobile (layoutId
+  "chart-tab"), 2-col grid su desktop; legend swatch rounded-[2px].
+Confronta con: Patrimonio (stesso hero [2fr_1fr]), Rendimenti (hero TWR),
+Storico (hero patrimonio), Goals (hero allocato).
 Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
 divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
 token compliance su tutti e 6 i temi dell'app.
@@ -45,75 +53,30 @@ servirà come input per il prossimo step:
 
 ## Patrimonio
 
-### Tab "Gestione Asset"
-
 ```
-/impeccable critique il tab "Gestione Asset" della pagina Patrimonio
+/impeccable critique la pagina Patrimonio
 
 File: app/dashboard/assets/page.tsx
 Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetCard.tsx,
             components/assets/AssetMobileSummary.tsx,
             components/assets/AssetSparkline.tsx,
-            components/assets/AssetDialog.tsx
+            components/assets/AssetDialog.tsx,
+            components/dashboard/OverviewAnimatedCurrency.tsx,
+            components/dashboard/NetWorthSparkline.tsx
 
-Questo tab mostra la lista degli asset correnti con add/edit/delete inline,
-sparkline per asset, tabella ordinabile su desktop e AssetMobileSummary
-(ultimi 3 mesi) su mobile. AssetDialog ha un 2-step creation flow.
-Confronta con: AllocationCard (flat divide-y), GoalDetailCard (expand/collapse inline).
-Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
-divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
-token compliance su tutti e 6 i temi dell'app.
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-
-Al termine indica il path esatto del file .impeccable/critique/[slug].md generato —
-servirà come input per il prossimo step:
-- Solo P2/P3 → /impeccable polish (legge il file automaticamente)
-- P0/P1 presenti → /impeccable shape prima, poi /impeccable polish dopo l'implementazione
-- P0/P1 + P2/P3 → shape prima (P0/P1), implementa, poi polish (P2/P3) — i P2/P3 aspettano
-```
-
-### Tab "Anno Corrente"
-
-```
-/impeccable critique il tab "Anno Corrente" della pagina Patrimonio
-
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetPriceHistoryTable.tsx
-
-Questo tab mostra le tabelle storiche dei prezzi per l'anno in corso,
-filtrate su asset con quantity > 0 (nessun asset venduto).
-Confronta con: Storico (history page, narrative order), Hall of Fame (tabelle flat).
-Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
-divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
-token compliance su tutti e 6 i temi dell'app.
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-
-Al termine indica il path esatto del file .impeccable/critique/[slug].md generato —
-servirà come input per il prossimo step:
-- Solo P2/P3 → /impeccable polish (legge il file automaticamente)
-- P0/P1 presenti → /impeccable shape prima, poi /impeccable polish dopo l'implementazione
-- P0/P1 + P2/P3 → shape prima (P0/P1), implementa, poi polish (P2/P3) — i P2/P3 aspettano
-```
-
-### Tab "Storico"
-
-```
-/impeccable critique il tab "Storico" della pagina Patrimonio
-
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetClassHistoryTable.tsx,
-            components/assets/AssetPriceHistoryTable.tsx
-
-Questo tab mostra lo storico completo degli asset inclusi quelli venduti
-(quantity === 0, badge "Venduto"). restrictToPassedAssets è attivo su entrambe le tabelle.
-Confronta con: Storico (history page, tabelle con dati storici), Hall of Fame (tabelle flat).
+La pagina è una singola scroll (nessun tab). Layout:
+- Header
+- Hero [2fr_1fr]: identico a Panoramica — stesso `useDashboardOverview` RQ cache,
+  stessa variazione chips, stessa sparkline edge-to-edge, stessa Liquid card
+  con flat 3-row breakdown. In più: riga G/P non realizzato condizionale.
+- CashAccountsSection: grid cards 2-col/4-col per i conti correnti (type=cash,
+  assetClass=cash), esclusi dalla tabella principale.
+- AssetManagementTab: tabella ordinabile (Valore, G/P%, Peso%, Nome, Classe),
+  group-by-class toggle, sparkline per asset, 2-click delete, AssetDialog 2-step.
+  Mobile: AssetMobileSummary (ultimi 3 mesi).
+Confronta con: Panoramica (stesso hero layout), AllocationCard (flat divide-y),
+GoalDetailCard (expand/collapse inline).
 Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
 divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
 token compliance su tutti e 6 i temi dell'app.
@@ -735,9 +698,9 @@ Dalla meno redesignata alla più redesignata, per trovare i delta maggiori prima
 4. Impostazioni ← redesign parziale
 5. Landing Page ← primo contatto utente, mai critiquata
 6. Login e Register ← già migliorati ma mai critiquati formalmente
-7. Panoramica ← molte feature aggiunte incrementalmente
-8. Patrimonio (3 tab) ← redesignata ma con tab separati da verificare singolarmente
-9. Cashflow / tab "Tracciamento" e "Budget" ← da verificare dopo AnalisiTab
+7. Panoramica ← v2 con KPI chip grid + category bars (verifica delta)
+8. Patrimonio ← pagina unica (nessun tab), hero condiviso con Panoramica
+9. Cashflow / tab "Tracciamento" (mobileLabel: "Spese") e "Budget" ← da verificare dopo AnalisiTab
 10. Allocazione
 11. Rendimenti
 12. Storico

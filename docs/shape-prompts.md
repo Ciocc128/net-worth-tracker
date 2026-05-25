@@ -24,7 +24,8 @@ Priority issues (P0/P1) da: [SLUG]
 File: app/dashboard/page.tsx
 Componenti: components/dashboard/*
 
-Confronta con: Rendimenti (hero TWR), Storico (hero patrimonio), Goals (hero allocato).
+Confronta con: Patrimonio (stesso hero [2fr_1fr] condiviso), Rendimenti (hero TWR),
+Storico (hero patrimonio), Goals (hero allocato).
 Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
 divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
 token compliance su tutti e 6 i temi dell'app.
@@ -40,10 +41,8 @@ Contesto:
 
 ## Patrimonio
 
-### Tab "Gestione Asset"
-
 ```
-/impeccable shape il tab "Gestione Asset" della pagina Patrimonio
+/impeccable shape la pagina Patrimonio
 
 Priority issues (P0/P1) da: [SLUG]
 File: app/dashboard/assets/page.tsx
@@ -51,52 +50,16 @@ Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetCard.tsx,
             components/assets/AssetMobileSummary.tsx,
             components/assets/AssetSparkline.tsx,
-            components/assets/AssetDialog.tsx
+            components/assets/AssetDialog.tsx,
+            components/dashboard/OverviewAnimatedCurrency.tsx,
+            components/dashboard/NetWorthSparkline.tsx
 
-Confronta con: AllocationCard (flat divide-y), GoalDetailCard (expand/collapse inline).
-Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
-divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
-token compliance su tutti e 6 i temi dell'app.
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
-- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
-```
-
-### Tab "Anno Corrente"
-
-```
-/impeccable shape il tab "Anno Corrente" della pagina Patrimonio
-
-Priority issues (P0/P1) da: [SLUG]
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetPriceHistoryTable.tsx
-
-Confronta con: Storico (history page), Hall of Fame (tabelle flat).
-Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
-divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
-token compliance su tutti e 6 i temi dell'app.
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
-- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
-```
-
-### Tab "Storico"
-
-```
-/impeccable shape il tab "Storico" della pagina Patrimonio
-
-Priority issues (P0/P1) da: [SLUG]
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetClassHistoryTable.tsx,
-            components/assets/AssetPriceHistoryTable.tsx
-
-Confronta con: Storico (history page), Hall of Fame (tabelle flat).
+Pagina unica (nessun tab): Header → Hero [2fr_1fr] (identico a Panoramica,
+condivide useDashboardOverview RQ cache) → CashAccountsSection (grid cards
+conti correnti) → AssetManagementTab (tabella ordinabile, group-by-class,
+sparkline per asset, 2-click delete, AssetDialog 2-step).
+Confronta con: Panoramica (stesso hero layout — usa come riferimento primario),
+AllocationCard (flat divide-y), GoalDetailCard (expand/collapse inline).
 Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
 divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
 token compliance su tutti e 6 i temi dell'app.
@@ -160,7 +123,7 @@ Contesto:
 - Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
 ```
 
-### Tab "Tracciamento"
+### Tab "Tracciamento" *(mobileLabel: "Spese")*
 
 ```
 /impeccable shape il tab "Tracciamento" della pagina Cashflow

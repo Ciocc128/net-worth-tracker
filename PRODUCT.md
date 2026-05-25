@@ -22,7 +22,13 @@ I due riferimenti sono complementari: condividono dark mode premium, tipografia 
 
 **Visual tone**: Ultra-clean con personalità. Spazio intenzionale. Gerarchia tipografica netta. Dati che respirano. Animazioni che informano, non intrattengono.
 
-**Layout vocabulary**: La pagina Panoramica definisce il vocabolario di layout per tutte le pagine. Hero asimmetrico `[2fr_1fr]` in cima (numero dominante + contesto); riga bento secondaria `grid-cols-3` per KPI di pari peso; sezioni secondarie collassabili (Radix Collapsible + Framer Motion height:auto) per non sovraccaricare la fold; separatori `border-t border-border/40` tra capitoli. I grafici sono deferiti via `requestIdleCallback` fino al completamento dell'animazione hero, per non competere sul frame budget.
+**Layout vocabulary**: La pagina Panoramica definisce il vocabolario di layout per tutte le pagine:
+- **Hero asimmetrico** `desktop:grid-cols-[2fr_1fr]` in cima: numero dominante a sinistra, card di contesto (breakdown patrimoniale) a destra. L'asimmetria 2:1 comunica gerarchia attraverso lo spazio, non solo la tipografia.
+- **KPI Chip Grid** full-width: sotto l'hero, una sezione a larghezza piena con `grid grid-cols-2 desktop:grid-cols-4 gap-3` di sub-tile `bg-muted/40 rounded-xl`. Quattro metriche di pari peso (Entrate / Spese / Risparmio / Rapporto) con sub-hero value `text-[22px]` + delta annotation `text-[12px] font-mono`. Seguita da category bar breakdown.
+- **Card Sticky Footer**: l'hero card usa `flex flex-col h-full` + `mt-auto` per ancorare il blocco TER/Costo al fondo della card, visivamente allineato col bordo inferiore della companion card.
+- **Responsive duplication**: i blocchi TER/Costo compaiono sia nel footer dell'hero card (desktop, `hidden desktop:grid`) sia come standalone `grid-cols-2` sotto l'hero (mobile, `desktop:hidden`). Lo stesso dato, due posizioni diverse — preferibile alla logica condizionale convoluta.
+- **Sezioni secondarie** collassabili (Radix Collapsible + Framer Motion height:auto) per non sovraccaricare la fold.
+- **Separatori** `border-t border-border/40` tra capitoli. I grafici sono deferiti via `requestIdleCallback` fino al completamento dell'animazione hero, per non competere sul frame budget.
 
 **Direzione**: Overdrive — implementazioni tecnicamente ambiziose che fanno alzare il sopracciglio. Fisica spring su dialog, scroll-driven reveals, counter animati, sparkline edge-to-edge con gradiente, donut SVG animato con `motion.circle`, transizioni che sembrano impossibili per una web app.
 
@@ -32,7 +38,7 @@ I due riferimenti sono complementari: condividono dark mode premium, tipografia 
 
 ### Design Principles
 
-1. **Dati prima, chrome mai** — ogni elemento visivo guadagna il suo spazio comunicando un'informazione. Se togliendolo la pagina è più chiara, va tolto. Box decorative, progress bar estetiche, divisori ridondanti: fuori.
+1. **Dati prima, chrome mai** — ogni elemento visivo guadagna il suo spazio comunicando un'informazione. Se togliendolo la pagina è più chiara, va tolto. Box decorative, progress bar estetiche, divisori ridondanti: fuori. Il donut SVG animato nella Liquid card è stato sostituito da un semplice breakdown flat a 3 righe — tre valori espliciti comunicano più di una forma geometrica animata.
 
 2. **Il numero comanda** — il dato primario di ogni schermata occupa il massimo spazio fisico e visivo disponibile. Gerarchia Trade Republic: valore in `text-[44px] desktop:text-[54px] font-bold font-mono` per hero di pagina, `text-[36px]` per hero di sezione, `text-[22px]` per valori secondari accoppiati. Eyebrow label `text-[10px] uppercase tracking-[0.1em]` sopra il numero. Variazione come chip `text-[15px] font-semibold font-mono rounded-[9px] px-[13px] py-[6px]` sotto il numero. L'utente capisce il numero più importante in meno di 2 secondi, senza cercare.
 

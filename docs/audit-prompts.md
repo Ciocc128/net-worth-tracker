@@ -176,13 +176,20 @@ File: app/dashboard/page.tsx
 Componenti: components/dashboard/*
 
 Assi da verificare:
-- Token: nessun `bg-gray-*`/`dark:bg-*`/hex hardcoded nei KPI cards, sparkline wrapper,
-  cashflow summary, savings rate badge
-- Chart colors: `NetWorthSparkline` e tutti i chart via `useChartColors()`
-- Gerarchia: hero patrimonio `text-4xl font-bold font-mono`, KPI secondary come flat rows
-- Breakpoint: `md:` → `desktop:`, griglia KPI corretta su portrait tablet
-- Skeleton: `OverviewAnimatedCurrency` e `OverviewChartsSection` hanno skeleton strutturale
-- Motion: `requestIdleCallback` per chart mount, `useCountUp` con `once: true`
+- Token: nessun `bg-gray-*`/`dark:bg-*`/hex hardcoded in hero card, liquid card,
+  KPI chip grid (`bg-muted/40`), category bars, TER/Costo cards (mobile), charts section
+- Chart colors: `NetWorthSparkline` usa `color="var(--chart-1)"` (non hex); tutti i
+  chart di composizione via `useChartColors()`; category bar colors da `chartColors[0/1]`
+- Gerarchia: hero `text-[44px] desktop:text-[54px] font-bold font-mono`; liquid card
+  `text-[36px]`; KPI chip `text-[22px]`; delta annotation `text-[12px] font-mono`
+- Muted sub-tile: KPI chips usano `bg-muted/40` (no border) — non `bg-muted border-border`
+  (quello è per parameter tiles nei collapsible)
+- Breakpoint: `md:` → `desktop:`; KPI grid `grid-cols-2 desktop:grid-cols-4`; TER/Costo
+  responsive duplication (`desktop:hidden` su mobile row, `hidden desktop:grid` nel hero footer)
+- Skeleton: `OverviewAnimatedCurrency` isolato in leaf, `OverviewChartsSection` memoized;
+  skeleton inline strutturalmente isomorfo al layout v2 (hero 2fr+1fr, KPI grid 4-col)
+- Motion: `requestIdleCallback` per chart mount; `useCountUp` `once: true`; `heroSettled`
+  → `chartRenderReady` handoff; card-tab `layoutId="chart-tab"` unico nella pagina
 
 Contesto:
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
@@ -193,46 +200,32 @@ Contesto:
 
 ## Patrimonio
 
-### Tab "Gestione Asset"
-
 ```
-/impeccable audit il tab "Gestione Asset" della pagina Patrimonio
+/impeccable audit la pagina Patrimonio
 
 File: app/dashboard/assets/page.tsx
 Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetCard.tsx,
             components/assets/AssetMobileSummary.tsx,
             components/assets/AssetSparkline.tsx,
-            components/assets/AssetDialog.tsx
+            components/assets/AssetDialog.tsx,
+            components/dashboard/OverviewAnimatedCurrency.tsx,
+            components/dashboard/NetWorthSparkline.tsx
 
-Assi da verificare:
-- Token: nessun hardcoded nei badge classe asset, nei valori G/P (usa `text-emerald-*`?
-  → deve essere CSS var o `color-mix()`), nei separatori
-- Chart colors: `AssetSparkline` via `useChartColors()`
-- Gerarchia: valore asset dominante, G/P secondary — nessun card-in-card in AssetCard
-- Breakpoint: tabella ordinabile visibile solo `desktop:`, `AssetMobileSummary` solo portrait
-- ARIA: delete 2-click ha `aria-label` e timeout di disarmo visibile
-- Skeleton: struttura skeleton isomorfa alla lista reale (stessa altezza righe)
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-```
-
-### Tab "Anno Corrente" e "Storico"
-
-```
-/impeccable audit i tab "Anno Corrente" e "Storico" della pagina Patrimonio
-
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetPriceHistoryTable.tsx,
-            components/assets/AssetClassHistoryTable.tsx
-
-Assi da verificare:
-- Token: nessun hardcoded nelle tabelle — header, celle, badge "Venduto"
-- Breakpoint: scroll orizzontale su mobile gestito correttamente (non rompe il layout)
-- ARIA: tabelle con `<caption>` o `aria-label`, header `<th scope="col">`
-- Badge "Venduto": colore via CSS var o `color-mix()`, non hardcoded
+La pagina è una singola scroll — nessun tab. Assi da verificare:
+- Token: hero card e liquid card (condivisi con Panoramica) — nessun hardcoded;
+  CashAccountsSection card grid — nessun `bg-gray-*`; badge classe asset,
+  valori G/P (`color-mix()` non `text-emerald-*`) — nessun hardcoded
+- Gerarchia: hero `text-[44px]/[54px]`; liquid card `text-[36px]`; flat 3-row
+  breakdown con `w-[42px] text-right` per i %; G/P non realizzato come riga border-t
+- Chart colors: `NetWorthSparkline` usa `var(--chart-1)`; `AssetSparkline` via
+  `useChartColors()`
+- CashAccountsSection: `bg-muted/40` (KPI chip variant, no border) — nessun `bg-card`
+  (sarebbe card-in-card); grid `grid-cols-2 desktop:grid-cols-4`
+- AssetManagementTab: tabella ordinabile solo `desktop:`, `AssetMobileSummary` solo
+  portrait; delete 2-click con `aria-label` e disarmo visibile; skeleton isomorfo
+- ARIA: AssetDialog con `DialogDescription`; type picker Step 1 con `role="radio"`
+- Breakpoint: `md:` → `desktop:`; `max-desktop:portrait:pb-20`
 
 Contesto:
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)

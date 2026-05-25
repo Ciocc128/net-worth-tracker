@@ -199,7 +199,8 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 - **Title** (600 weight, 1rem, lh 1.4, ls -0.005em): Sub-section headers, table group labels, the step below Headline.
 - **Body** (400 weight, 0.875rem, lh 1.6): All prose, descriptions, note content. Max line length 65ch.
 - **Label** (500 weight, 0.75rem, lh 1.4, ls +0.01em): Input labels, tags, stat captions, tab text. Slightly tracked for legibility at small sizes.
-- **Eyebrow Label** (600 weight, `10px`, uppercase, ls `0.1em`, muted): Section eyebrow — the small all-caps label placed above a dominant number. In Tailwind: `text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground`. Never competes with the number it names. Use 9px / `tracking-[0.08em]` for sub-eyebrows inside compact cells.
+- **Eyebrow Label** (600 weight, `10px`, uppercase, ls `0.1em`, muted): Section eyebrow — the small all-caps label placed above a dominant number. In Tailwind: `text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground`. Never competes with the number it names. Use 9px / `tracking-[0.08em]` for sub-eyebrows inside compact cells. Context can be appended with a centered-dot separator: `Cashflow · MAGGIO 2026` — the `·` joins without adding another label.
+- **Delta Annotation** (Geist Mono, 400 weight, `12px`, ls 0): The small trend line that appears directly below a sub-hero value inside a KPI chip — e.g. `+5.2% vs mese scorso`. Always `font-mono`. Color follows sign semantics: `text-green-500 dark:text-green-400` for positive, `text-red-500 dark:text-red-400` for negative. **Inverted semantics for expense metrics**: a positive delta on Spese is bad; parameter the color via `positiveGood: boolean`. In Tailwind: `text-[12px] font-mono mt-1.5 text-green-500 dark:text-green-400`. A neutral subline (non-trend) uses `text-[12px] text-muted-foreground mt-1.5`.
 - **Numeric** (Geist Mono, 400 weight, 0.875rem, lh 1.4, `font-feature-settings: "tnum" 1`): All monetary values, percentages, dates, quantities in financial contexts. Tabular figures always enabled.
 
 ### Named Rules
@@ -495,9 +496,32 @@ The pattern for smooth expand/collapse of a section that has variable or unknown
 
 ### Muted Sub-tile
 
-A tinted grid item used inside a collapsible or compact section to present multiple KPIs in a `grid-cols-2` or `grid-cols-4` layout. This is the only permitted departure from flat `divide-y` rows when a compact grid layout is needed.
+A tinted grid item for compact KPI grids. Two variants exist for different contexts.
 
-**Structure:**
+#### Variant A — KPI Chip (prominent, borderless)
+
+Used in persistent full-width sections where the metrics are the primary content (e.g. the cashflow KPI row). Background is semi-transparent so it reads as a zone without visual heaviness.
+
+```tsx
+<div className="bg-muted/40 rounded-xl p-3.5">
+  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">
+    Label
+  </p>
+  <p className="text-[22px] font-bold font-mono tabular-nums text-foreground leading-none">
+    Value
+  </p>
+  <p className="text-[12px] font-mono mt-1.5 text-muted-foreground">
+    Secondary / delta line
+  </p>
+</div>
+```
+
+Grid: `grid grid-cols-2 desktop:grid-cols-4 gap-3`. Value scale: Sub-hero (`text-[22px]`). Delta annotation uses the **Delta Annotation** typographic level (sign-aware color).
+
+#### Variant B — Parameter Tile (dense, bordered)
+
+Used inside collapsible sections where slight extra separation aids readability of many parameters side by side.
+
 ```tsx
 <div className="bg-muted rounded-xl p-3.5 border border-border">
   <p className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1.5">
@@ -507,10 +531,100 @@ A tinted grid item used inside a collapsible or compact section to present multi
 </div>
 ```
 
+**Shared rules:**
+- Background is `bg-muted/40` (Variant A) or `bg-muted` (Variant B) — never `bg-card` (card-within-card violation).
+- Radius is `rounded-xl` (14px), one step below the container's `rounded-2xl`.
+- Variant A (KPI chip): use for persistent, always-visible metrics. No border — the background tint alone provides definition.
+- Variant B (parameter tile): use inside collapsible parameter panels only. The border adds precision in high-density config grids.
+
+### Thin Category Bar
+
+A minimal inline progress bar for category breakdowns inside a KPI card. Shows proportional weight at a glance without mounting a full chart component.
+
+**Structure:**
+```tsx
+<div className="space-y-3">
+  {categories.map(cat => (
+    <div key={cat.name} className="space-y-1">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Dot indicator — circle, always rounded-full */}
+          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+          <span className="text-[13px] text-foreground truncate">{cat.name}</span>
+        </div>
+        <span className="text-[13px] font-mono tabular-nums text-foreground ml-3 flex-shrink-0">
+          {formattedValue}
+        </span>
+      </div>
+      {/* Bar track */}
+      <div className="h-[3px] bg-muted rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${cat.percentage}%`, background: color }} />
+      </div>
+    </div>
+  ))}
+</div>
+```
+
 **Rules:**
-- Background is `bg-muted` (tinted, never `bg-card` — that would be a card-within-card violation).
-- Radius is `rounded-xl` (14px), one step smaller than the containing card's `rounded-2xl`.
-- Use only inside collapsible sections where the grid provides scan-order clarity. Do not use as a persistent visible element on the page.
+- Bar height is exactly `3px` — an accent shape, not the primary data carrier. Category name and value carry the data; the bar adds scannable shape.
+- Color from `useChartColors()` via the parent — never hardcoded hex. Expense categories use `chartColors[0]`; income categories use `chartColors[1]`.
+- Row dot indicator uses `rounded-full` (circle). Contrast this with the chart legend swatch below, which uses `rounded-[2px]` (square) — circles mean "inline indicator," squares mean "color key."
+- Use `truncate` on the category name with `min-w-0` on the flex parent to prevent overflow on long names.
+- Only render the entire block when data is available (`categories.length > 0`) — no placeholder bars with dummy widths.
+- Two-column layout inside a card: expenses left, income right via `grid desktop:grid-cols-2 gap-x-8 gap-y-4`. On mobile they stack.
+
+### Card Sticky Footer
+
+A technique for pinning secondary metric content to the bottom of a variable-height Card. Used when optional data (TER, costs) should align to the card baseline regardless of how much primary content is above it.
+
+**Implementation:**
+```tsx
+<Card className="rounded-2xl overflow-hidden h-full">
+  <CardContent className="p-[22px] flex flex-col h-full">
+    {/* Primary content — fills available space naturally */}
+    <p className="eyebrow">...</p>
+    <div className="value">...</div>
+    {/* Sticky footer — pushed to the bottom via mt-auto */}
+    {hasOptionalData && (
+      <div className="mt-auto pt-4 border-t border-border">
+        {/* secondary metrics */}
+      </div>
+    )}
+  </CardContent>
+</Card>
+```
+
+**Rules:**
+- Requires `flex flex-col h-full` on `CardContent` and `h-full` on `Card`. Without both, `mt-auto` collapses.
+- The containing grid row must also define a height (`h-full` propagates from the row in `desktop:grid-cols-[2fr_1fr]`). On mobile where the grid stacks, each card determines its own height naturally.
+- Use only for **optional/conditional** secondary content. Footer content that always renders should be placed at a fixed spacing from the primary block, not anchored via `mt-auto`.
+- `border-t border-border` provides visual separation; `pt-4` provides breathing room. `mt-auto` creates the push — no explicit `flex-1` spacer element needed.
+- On desktop, pair with the companion card's `h-full` so the sticky footer visually aligns with the companion card's bottom edge.
+
+### Chart Legend Swatch
+
+The color swatch used in pie chart legend rows. At 8×8px, shape matters: a fully round circle reads as a "dot indicator" (inline traffic-light semantics); a slightly rounded square reads as a "color key."
+
+**Structure (LegendRow):**
+```tsx
+<div className="flex items-center gap-2">
+  {/* Square swatch — rounded-[2px], NOT rounded-full */}
+  <div
+    className="w-2 h-2 rounded-[2px] flex-shrink-0"
+    style={{ background: item.color || chartColors[index] }}
+  />
+  <span className="flex-1 text-[11.5px] text-foreground font-medium truncate">{item.name}</span>
+  <span className="text-[11.5px] text-muted-foreground font-mono tabular-nums">
+    {item.percentage.toFixed(1)}%
+  </span>
+</div>
+```
+
+**Rules:**
+- `rounded-[2px]` for legend swatches (color keys). `rounded-full` for inline dot indicators (category bars, status bullets).
+- Filter legend rows to `percentage >= 5` — slices below 5% don't warrant a label at the available width.
+- Value shown is `percentage` (not raw currency) — the chart slice already communicates proportion; the legend reinforces it numerically.
+- Container: `flex flex-col gap-[7px]` with `min-w-0` to handle truncation of long asset names.
 
 ### Deferred Chart Mount (Performance Pattern)
 
@@ -557,6 +671,11 @@ useEffect(() => {
 - **Do** use `-mx-[N]px` negative margin (matching the card padding) to create edge-to-edge charts inside a card — `preserveAspectRatio="none"` on the SVG fills the broken-out container correctly.
 - **Do** use `desktop:grid-cols-[2fr_1fr]` for the primary hero+companion layout at the top of a page. The asymmetric ratio communicates hierarchy through space, not just typography.
 - **Do** use `border-t border-border/40 pt-4` for section separators within a page scroll flow. The 40% opacity is lighter than structural borders — it suggests chapter, not division.
+- **Do** use `bg-muted/40 rounded-xl p-3.5` (no border) for KPI chip grids inside persistent, always-visible sections. Reserve the full-opacity `bg-muted` with `border border-border` for parameter tiles in collapsible zones.
+- **Do** use `mt-auto` inside `flex flex-col h-full` CardContent to pin optional secondary content to the card bottom. The pattern requires `h-full` on both Card and CardContent; without both, `mt-auto` has no space to push against.
+- **Do** use `rounded-[2px]` for chart legend color swatches (color keys). Use `rounded-full` for inline dot indicators (row bullets, status dots). The distinction is semantic: square = color key, circle = inline marker.
+- **Do** duplicate responsive blocks with `desktop:hidden` / `hidden desktop:grid` when the same data must be positioned differently across breakpoints (e.g. TER + cost metrics in the hero card footer on desktop, as standalone cards below the hero on mobile). Redundant DOM is preferable to a convoluted single implementation that degrades at both sizes.
+- **Do** use inverted sign semantics (parameterized `positiveGood: boolean`) for expense delta annotations. A positive Spese delta means spending increased — the color should be red, opposite to the income logic. Never hardcode green-for-positive in components that handle both income and expense metrics.
 
 ### Don't:
 
@@ -578,3 +697,6 @@ useEffect(() => {
 - **Don't** use a Recharts `<ResponsiveContainer>` in compact pie chart mode when the width is known. Pass `width` and `height` directly to `<PieChart>` to avoid the "width: -1" warning and prevent layout reflows during animation.
 - **Don't** place count-up animation logic (`useCountUp`, `rAF` loops) in a page-level component. Every frame tick re-renders the entire tree. Animation state belongs in a dedicated leaf component.
 - **Don't** render a ring or donut chart with `strokeLinecap="round"` when the segment can be near 0% or near 100% — the round caps visually overlap the track ring and distort the reading. Use `strokeLinecap="butt"` for data-accurate arcs.
+- **Don't** use `rounded-full` for pie chart legend swatches. At 8×8px, a circle reads as a traffic-light dot (status indicator), not as a color key. `rounded-[2px]` reads as a color sample. The distinction is visually meaningful.
+- **Don't** use an animated SVG donut or ring chart when flat `divide-y` rows carry the same information more clearly. Chrome reduction is the primary principle — the animated donut in the Liquid card was replaced by a flat 3-row breakdown precisely because the breakdown communicates more (three separate values, individual percentages) with less visual noise.
+- **Don't** use placeholder bars (e.g. dummy `width: 0` category bars) when no data is available. Omit the block entirely — absence communicates "no data" more cleanly than empty chrome.

@@ -37,10 +37,8 @@ Contesto:
 
 ## Patrimonio
 
-### Tab "Gestione Asset"
-
 ```
-/impeccable polish il tab "Gestione Asset" della pagina Patrimonio
+/impeccable polish la pagina Patrimonio
 
 Priority issues (P2/P3) da: [SLUG]
 File: app/dashboard/assets/page.tsx
@@ -48,40 +46,9 @@ Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetCard.tsx,
             components/assets/AssetMobileSummary.tsx,
             components/assets/AssetSparkline.tsx,
-            components/assets/AssetDialog.tsx
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
-- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
-```
-
-### Tab "Anno Corrente"
-
-```
-/impeccable polish il tab "Anno Corrente" della pagina Patrimonio
-
-Priority issues (P2/P3) da: [SLUG]
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetPriceHistoryTable.tsx
-
-Contesto:
-- Leggi AGENTS.md (pattern, convenzioni, gotcha)
-- Leggi CLAUDE.md (stato corrente, known issues)
-- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
-- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
-```
-
-### Tab "Storico"
-
-```
-/impeccable polish il tab "Storico" della pagina Patrimonio
-
-Priority issues (P2/P3) da: [SLUG]
-File: app/dashboard/assets/page.tsx
-Componenti: components/assets/AssetClassHistoryTable.tsx,
-            components/assets/AssetPriceHistoryTable.tsx
+            components/assets/AssetDialog.tsx,
+            components/dashboard/OverviewAnimatedCurrency.tsx,
+            components/dashboard/NetWorthSparkline.tsx
 
 Contesto:
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
@@ -132,7 +99,7 @@ Contesto:
 - Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
 ```
 
-### Tab "Tracciamento"
+### Tab "Tracciamento" *(mobileLabel: "Spese")*
 
 ```
 /impeccable polish il tab "Tracciamento" della pagina Cashflow

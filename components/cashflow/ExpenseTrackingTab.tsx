@@ -90,11 +90,12 @@ const getExpenseDate = (d: Expense['date']): Date => {
 };
 
 // Tailwind dot-color classes keyed by expense type for the mobile list rows.
+// Uses CSS variable references so they stay theme-aware across all 6 colour themes.
 const TYPE_DOT_CLASS: Record<ExpenseType, string> = {
-  income: 'bg-green-500',
-  fixed: 'bg-blue-500',
-  variable: 'bg-purple-500',
-  debt: 'bg-orange-500',
+  income: 'bg-green-500 dark:bg-green-400',
+  fixed: 'bg-[var(--chart-2)]',
+  variable: 'bg-[var(--chart-4)]',
+  debt: 'bg-[var(--chart-3)]',
 };
 
 // ─── MobileExpenseRow ─────────────────────────────────────────────────────────
@@ -797,17 +798,9 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            {selectedMonth !== 'all' ? `${MONTHS.find(m => m.value === selectedMonth)?.label} ` : ''}{selectedYear}
-          </h2>
-          <p className="text-muted-foreground mt-0.5 text-sm">
-            Gestisci le tue entrate e uscite
-          </p>
-        </div>
-        <Button onClick={handleAddExpense} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined} className="hidden desktop:flex">
+      {/* Desktop "Nuova Spesa" button — mobile uses FAB below */}
+      <div className="hidden desktop:flex justify-end">
+        <Button onClick={handleAddExpense} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
           <Plus className="mr-2 h-4 w-4" />
           Nuova Spesa
         </Button>

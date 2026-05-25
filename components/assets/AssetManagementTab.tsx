@@ -461,7 +461,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
       </div>
 
       <Card>
-        <CardContent>
+        <CardContent className="p-0">
           {assets.length === 0 ? (
             <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
               <Wallet className="h-10 w-10 opacity-30" />
@@ -562,7 +562,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                         const isPending = pendingDeleteId === asset.id;
                         const perf = assetPerformanceData[asset.id];
                         return (
-                          <TableRow key={asset.id} className={isManualPrice ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
+                          <TableRow key={asset.id} className={isManualPrice ? 'bg-[color-mix(in_oklch,var(--chart-3)_6%,transparent)]' : ''}>
                             <TableCell className="font-medium max-w-[180px]">
                               <div className="flex items-center gap-2 min-w-0">
                                 <TooltipProvider>
@@ -653,9 +653,9 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                   const isPos = gainLoss > 0;
                                   const isNeg = gainLoss < 0;
                                   const textColor = isPos
-                                    ? 'text-green-600'
+                                    ? 'text-green-600 dark:text-green-400'
                                     : isNeg
-                                    ? 'text-red-600'
+                                    ? 'text-red-600 dark:text-red-400'
                                     : 'text-muted-foreground';
                                   return (
                                     <div className={`${textColor} font-medium tabular-nums`}>

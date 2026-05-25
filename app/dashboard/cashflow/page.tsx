@@ -24,7 +24,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { Wallet, Receipt, Coins, BarChart3, Target, Layers } from 'lucide-react';
+import { Receipt, Coins, BarChart3, Target, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExpenseTrackingTab } from '@/components/cashflow/ExpenseTrackingTab';
@@ -163,12 +163,11 @@ export default function CashflowPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 desktop:p-8 max-desktop:portrait:pb-20">
+    <div className="space-y-6 max-desktop:portrait:pb-20">
       {/* Header */}
       <div className="border-b border-border pb-4">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Operatività</p>
-        <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          <Wallet className="h-7 w-7 text-primary sm:h-8 sm:w-8" />
+        <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
           Cashflow
         </h1>
         <p className="mt-2 text-muted-foreground">
@@ -205,7 +204,7 @@ export default function CashflowPage() {
                       {activeTab === value && (
                         <motion.span
                           layoutId="cashflow-mobile-tab"
-                          className="absolute inset-0 rounded-lg bg-background shadow-sm"
+                          className="absolute inset-0 rounded-lg bg-card shadow-sm"
                           transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                         />
                       )}
