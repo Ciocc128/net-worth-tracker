@@ -511,8 +511,13 @@ export default function HistoryPage() {
           {heroMetrics && (heroMetrics.cagr !== null || heroMetrics.totalGrowthPct !== null) && (
             <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
               {heroMetrics.cagr !== null && (
-                <span className={cn(
-                  'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium',
+                // This CAGR is the raw net-worth growth rate: (endNW / startNW)^(12/months) - 1.
+                // It includes both investment returns and new contributions — it is NOT
+                // cash-flow adjusted. For pure investment return, see the Rendimenti page.
+                <span
+                  title="Crescita annua del patrimonio netto — include sia i rendimenti degli investimenti sia i nuovi versamenti. Non aggiustato per i flussi di cassa. Per il rendimento puro degli investimenti, vedi la pagina Rendimenti."
+                  className={cn(
+                  'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium cursor-help',
                   heroMetrics.cagr >= 0
                     ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                     : 'bg-red-500/10 text-red-600 dark:text-red-400'

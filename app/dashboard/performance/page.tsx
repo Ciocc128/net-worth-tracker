@@ -823,7 +823,7 @@ export default function PerformancePage() {
             value={metrics.cagr}
             format="percentage"
             description="Tasso di crescita annuale composto"
-            tooltip="Rendimento medio annuo che il portafoglio avrebbe dovuto avere per passare dal valore iniziale (+ contributi) al valore finale. Utile per confrontare periodi di durata diversa. Considera i flussi di cassa ma non il loro timing."
+            tooltip="Rendimento medio annuo del portafoglio, trattando tutti i versamenti come capitale investito (aggiunti al valore iniziale nel denominatore). Isola la performance degli investimenti: è più basso rispetto alla crescita grezza del patrimonio (visibile in Storico) perché i contributi appaiono come costo, non come crescita."
           />
           <MetricCard
             title="Money-Weighted Return (IRR)"

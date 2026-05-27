@@ -107,6 +107,13 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - For History month counts, use `netWorthGrowth`, not `investmentGrowth`
 - Zero-change months (`netWorthGrowth === 0`) are excluded from positive/negative month counters
 - Performance heatmap is similar visually but semantically different: it isolates investment returns after cash flows
+- **Two CAGR formulas — intentionally different values**: Storico hero CAGR = `(endNW / startNW)^(12/months) - 1` (raw wealth growth, includes contributions in the numerator growth). Rendimenti CAGR = `(endNW / (startNW + netCashFlow))^(1/years) - 1` (investment return, contributions added to denominator as invested capital). They measure different things and will show different numbers for the same period — this is correct. Storico > Rendimenti when the user is actively contributing.
+
+### Patrimonio: Asset Delta Columns
+- `assetPerformanceData` in `AssetManagementTab.tsx`: for each asset, `currentValue = useTotal ? calculateAssetValue(asset) : asset.currentPrice` (unit price for ticker assets, total value for manual-price assets). Snapshot entries store `price` or `totalValue` accordingly.
+- **Δ Inizio (`allTimeDelta`) base**: for ticker assets with `averageCost` (`!useTotal && averageCost > 0`), use `averageCost` as base — the first monthly snapshot may have been taken days/weeks after purchase with the price already moved. Falls back to `firstEntry.value` for manual-price assets or no cost basis.
+- **All three deltas same value**: happens when the asset has only one historical snapshot for the current year and no previous-year snapshots — Δ Mese, Δ YTD (falls back to first this-year snapshot), and Δ Inizio all point to the same snapshot. Normal for recently added assets.
+- G/P % ≠ Δ Inizio even after the averageCost fix only when the asset was purchased at a price that was already booked in a snapshot on the same day. They are identical for assets where purchase → first snapshot spans the same price point.
 
 ### Budget
 - `autoInitBudgetItems` merges saved amounts with live categories on every mount
