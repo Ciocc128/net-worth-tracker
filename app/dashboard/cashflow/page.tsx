@@ -26,7 +26,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { Receipt, Coins, BarChart3, Target, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TabsContent } from '@/components/ui/tabs';
 import { ExpenseTrackingTab } from '@/components/cashflow/ExpenseTrackingTab';
 import { AnalisiTab } from '@/components/cashflow/AnalisiTab';
 import { DividendTrackingTab } from '@/components/dividends/DividendTrackingTab';
@@ -44,8 +44,8 @@ import { tabPanelSwitch } from '@/lib/utils/motionVariants';
 import { toast } from 'sonner';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { PageTabBar } from '@/components/layout/PageTabBar';
-import type { TabDef } from '@/components/layout/PageTabBar';
+import { PageTabs } from '@/components/layout/PageTabs';
+import type { TabDef } from '@/components/layout/PageTabs';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -175,19 +175,16 @@ export default function CashflowPage() {
         label="Operatività"
         title="Cashflow"
         description="Traccia e analizza le tue entrate e uscite nel tempo"
+        separator={false}
       />
 
-      <Tabs defaultValue="tracking" value={activeTab} onValueChange={handleTabChange} className="w-full">
-        {costCentersEnabled === null ? (
-          <div className="h-10 w-full rounded-md bg-muted animate-pulse mb-4" />
-        ) : (
-          <PageTabBar
-            tabs={allTabs}
-            value={activeTab}
-            onValueChange={handleTabChange}
-            layoutId="cashflow-mobile-tab"
-          />
-        )}
+      <PageTabs
+        tabs={allTabs}
+        value={activeTab}
+        onValueChange={handleTabChange}
+        layoutId="cashflow-tab"
+        loading={costCentersEnabled === null}
+      >
 
         <TabsContent value="tracking" forceMount>
           <motion.div
@@ -266,7 +263,7 @@ export default function CashflowPage() {
             </motion.div>
           </TabsContent>
         )}
-      </Tabs>
+      </PageTabs>
     </PageContainer>
   );
 }

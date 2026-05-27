@@ -56,7 +56,7 @@ import {
 } from '@/components/ui/select';
 import { Save, RotateCcw, Plus, Trash2, ChevronDown, ChevronUp, Edit, Receipt, FlaskConical, Coins, ArrowRightLeft, Settings, PieChart, Palette, Mail, X, Send } from 'lucide-react';
 import { useColorTheme, ColorTheme } from '@/contexts/ColorThemeContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TabsContent } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -72,7 +72,7 @@ import { CategoryMoveDialog } from '@/components/expenses/CategoryMoveDialog';
 import { CreateDummySnapshotModal } from '@/components/CreateDummySnapshotModal';
 import { DeleteDummyDataDialog } from '@/components/DeleteDummyDataDialog';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { PageTabBar } from '@/components/layout/PageTabBar';
+import { PageTabs } from '@/components/layout/PageTabs';
 
 interface SubTarget {
   name: string;
@@ -119,7 +119,7 @@ const roundToTwoDecimals = (value: number): number => {
   return Math.round(value * 100) / 100;
 };
 
-// Module-level tab definitions drive both the mobile pill and the desktop TabsList.
+// Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
 // shortLabel must be ≤8 chars for the iPhone SE pill width.
 const SETTINGS_TABS: { value: string; label: string; shortLabel: string; icon: React.ElementType }[] = [
   { value: 'allocazione', label: 'Allocazione', shortLabel: 'Alloc.',  icon: PieChart },
@@ -1453,13 +1453,12 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <PageTabBar
-          tabs={SETTINGS_TABS}
-          value={activeTab}
-          onValueChange={handleTabChange}
-          layoutId="settings-tab-pill"
-        />
+      <PageTabs
+        tabs={SETTINGS_TABS}
+        value={activeTab}
+        onValueChange={handleTabChange}
+        layoutId="settings-tab-pill"
+      >
 
         {/* Tab: Impostazioni Generali (lazy) */}
         {mountedTabs.has('generale') && (
@@ -2986,7 +2985,7 @@ export default function SettingsPage() {
           </TabsContent>
         )}
 
-      </Tabs>
+      </PageTabs>
 
       {/* Category Management Dialog */}
       <CategoryManagementDialog

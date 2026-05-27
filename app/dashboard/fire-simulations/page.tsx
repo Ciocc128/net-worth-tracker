@@ -18,15 +18,15 @@
 
 import { useState } from 'react';
 import { Flame, Dices, Mountain, Target } from 'lucide-react';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { TabsContent } from '@/components/ui/tabs';
 import { FireCalculatorTab } from '@/components/fire-simulations/FireCalculatorTab';
 import { CoastFireTab } from '@/components/fire-simulations/CoastFireTab';
 import { MonteCarloTab } from '@/components/fire-simulations/MonteCarloTab';
 import { GoalBasedInvestingTab } from '@/components/fire-simulations/GoalBasedInvestingTab';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { PageTabBar } from '@/components/layout/PageTabBar';
-import type { TabDef } from '@/components/layout/PageTabBar';
+import { PageTabs } from '@/components/layout/PageTabs';
+import type { TabDef } from '@/components/layout/PageTabs';
 
 type TabValue = 'fire' | 'coast' | 'montecarlo' | 'goals';
 
@@ -50,16 +50,15 @@ export default function FireSimulationsPage() {
           </span>
         }
         description="Pianifica la tua libertà finanziaria e valuta la sostenibilità del tuo piano di pensionamento"
+        separator={false}
       />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)} className="w-full">
-        <PageTabBar
-          tabs={TABS}
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as TabValue)}
-          layoutId="fire-tab-pill"
-        />
-
+      <PageTabs
+        tabs={TABS}
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as TabValue)}
+        layoutId="fire-tab-pill"
+      >
         {TABS.map((tab) => (
           <TabsContent key={tab.value} value={tab.value} className="mt-0">
             {tab.value === 'fire'       && <FireCalculatorTab />}
@@ -68,7 +67,7 @@ export default function FireSimulationsPage() {
             {tab.value === 'goals'      && <GoalBasedInvestingTab />}
           </TabsContent>
         ))}
-      </Tabs>
+      </PageTabs>
     </PageContainer>
   );
 }
