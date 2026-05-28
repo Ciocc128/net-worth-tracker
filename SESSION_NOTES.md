@@ -225,3 +225,47 @@ Audit tecnico (`/impeccable audit`, score 16/20) e fix della landing page su 8 a
 - **Score post-fix stimato: 20/20** — tutti i P1/P2/P3 risolti in un'unica sessione.
 
 - **File toccati**: `app/page.tsx`, `app/globals.css`.
+
+---
+
+## 2026-05-28 — Login & Register audit & fix (login/page.tsx, register/page.tsx)
+
+### Cosa
+
+Audit tecnico (`/impeccable audit`, score 16/20) e fix delle pagine Login e Register su 6 assi:
+
+1. **`<MotionConfig reducedMotion="user">` su entrambe le pagine** — wrappa il `motion.div` root in entrambi i file (incluso il branch `areRegistrationsDisabled` in Register). Framer Motion istantanea tutti i valori animati al loro stato finale quando `prefers-reduced-motion: reduce` è attivo nel sistema operativo. Prima, le animazioni `staggerContainer`/`cardItem` (slide-up y:16 + fade), le rotazioni Eye/EyeOff sul toggle, e i y-slide del label sul bottone submit giravano sempre, ignorando la preferenza di sistema.
+
+2. **Touch target password toggle: `h-7 w-7` → `h-11 w-11 -my-2 -mr-2`** — i bottoni toggle erano 28×28px, sotto il minimo WCAG 2.5.5 di 44px. Il `h-11 w-11` porta il target a 44×44px. I margini negativi `-my-2 -mr-2` (−8px × 2 verticale, −8px destro) assorbono l'incremento di dimensione nel layout flex, mantenendo l'altezza del field shell visivamente coerente con i campi senza toggle (email, displayName). Il rendering del bottone è a 44px, il layout si comporta come se fosse ~28px.
+
+3. **`autoComplete` su tutti gli input** — aggiunto `autoComplete="email"` sull'email in entrambe le pagine; `autoComplete="current-password"` sulla password del login; `autoComplete="new-password"` su password e confirmPassword del register; `autoComplete="name"` su displayName del register. Senza questi attributi, browser e password manager non riconoscono correttamente i campi: iOS non attiva la tastiera email, Chrome non propone le credenziali salvate, Safari non offre la generazione di nuova password sul register.
+
+4. **`aria-label` distinto sui toggle di Register** — il bottone "Conferma Password" aveva `aria-label="Mostra password"` identico al bottone "Password". Un utente che naviga da tastiera o con VoiceOver sentiva lo stesso annuncio due volte e non poteva distinguere quale campo stava controllando. Corretto in `aria-label={showConfirmPassword ? 'Nascondi conferma password' : 'Mostra conferma password'}`.
+
+5. **Inline error + `aria-describedby` per password mismatch (Register)** — gli errori di validazione erano esclusivamente toast (scompaiono in pochi secondi, non sono associati semanticamente al campo). Aggiunto `passwordMatchError` state, testo inline sotto il campo "Conferma Password" (`role="alert"` per annuncio immediato via AT), e `aria-describedby={CONFIRM_PASSWORD_ERROR_ID}` sull'input. L'errore si svuota al primo keystroke su entrambi i campi password. `CONFIRM_PASSWORD_ERROR_ID` è una costante modulo-level (stringa stabile) per evitare ID inconsistenti.
+
+6. **`aria-live` region: `AnimatePresence`+`motion.p` → `<p>` statico con CSS opacity** — il pattern precedente usava `AnimatePresence` con `key={submitState}` per fare unmount/mount del `motion.p` ad ogni cambio stato. Alcuni screen reader rilevavano sia la rimozione del vecchio elemento sia l'inserimento del nuovo come due mutazioni DOM separate, causando doppio annuncio. Il fix usa un singolo `<p>` con `style={{ opacity: submitState === 'idle' ? 0 : 1 }}` — il contenuto cambia in-place, l'`aria-live="polite"` sulla div padre rileva una sola mutazione testuale.
+
+### Perché
+
+- **`MotionConfig` invece di `useReducedMotion()` hook** — `MotionConfig reducedMotion="user"` è la soluzione di fascia alta: si applica a tutta la sottoalbero Framer Motion senza richiedere branch condizionali nei singoli componenti. `useReducedMotion()` richiederebbe di passare varianti alternative a ciascun `motion.*` figlio o di condizionalizzare ogni prop `animate`/`initial`. Il pattern `MotionConfig` è già usato in `app/dashboard/template.tsx` nella stessa codebase.
+
+- **Margini negativi sul toggle (design trade-off)** — la soluzione "corretta" in senso assoluto sarebbe `position: absolute` col bottone fuori dal flusso, ma in un `flex items-center justify-between` row questo crea complessità di z-index e clip. I margini negativi sono il pattern più semplice, già noto in CSS (cfr. "negative margin hit area expansion"), e non rompono il layout. Il campo email rimane visivamente identico al campo password.
+
+- **`role="alert"` sull'inline error vs solo `aria-describedby`** — `aria-describedby` viene letto solo quando l'input riceve focus; non annuncia l'errore nel momento in cui compare. `role="alert"` fa sì che il messaggio venga annunciato immediatamente al suo inserimento nel DOM, anche se il focus è altrove (bottone submit). I due attributi si complementano: `aria-describedby` associa strutturalmente il messaggio al campo, `role="alert"` lo annuncia tempestivamente.
+
+### Nota
+
+- **`MotionConfig` nell'early return di Register** — il branch `areRegistrationsDisabled` ha un proprio return con il proprio `motion.div` e `staggerContainer`. Il `MotionConfig` deve essere presente in entrambi i return per coprire tutti i percorsi di rendering — non è sufficiente wrappare solo il return principale.
+
+- **`h-11 w-11 -my-2 -mr-2` — calcolo** — l'aumento da `h-7`(28px) a `h-11`(44px) è +16px. `-my-2` rimuove 8px per lato verticale → impatto netto sul layout: 44−16=28px (identico all'originale). `-mr-2` rimuove 8px sul lato destro → il bottone si estende per 8px nell'area di padding destra del container (`px-3` = 12px), visivamente non percepibile. Il bottone rimane nel normale flusso del documento, è naturalmente focusable, e il focus ring (3px) è visibile perché il container padre non ha `overflow: hidden`.
+
+- **`autoComplete="new-password"` su confirmPassword** — alcuni password manager interpretano `autoComplete="off"` come invito a ignorare il campo, altri lo ignorano comunque. `new-password` segnala esplicitamente che il campo è per conferma di una nuova password, il che disabilita l'autofill di password esistenti (comportamento corretto) e abilita la generazione in browser come Safari/Chrome.
+
+- **`CONFIRM_PASSWORD_ERROR_ID` come costante modulo-level** — non viene dichiarato dentro il componente per evitare che una futura refactoring lo sposti in un hook o sottocomponente senza aggiornare la stringa. È un ID DOM — la stabilità è un requisito funzionale, non solo una preferenza stilistica.
+
+- **Il toast rimane in parallelo all'inline error** — non è un duplicato: il toast è la notifica di azione (immediata, visibile ovunque nella pagina), l'inline error è il feedback persistente associato al campo (rimane visibile finché l'utente non corregge). I due canali servono utenti diversi: sighted users che guardano il form vedono l'inline; utenti che si sono spostati altrove nel DOM dipendono dal toast.
+
+- **Score post-fix stimato: 20/20** — tutti i P1/P2/P3 risolti in un'unica sessione.
+
+- **File toccati**: `app/login/page.tsx`, `app/register/page.tsx`.
