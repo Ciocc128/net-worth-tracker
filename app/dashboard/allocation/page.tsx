@@ -66,6 +66,8 @@ import { drillDownShell } from '@/lib/utils/motionVariants';
 import { cn } from '@/lib/utils';
 import { AllocationPageSkeleton } from '@/components/allocation/AllocationPageSkeleton';
 import dynamic from 'next/dynamic';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 const ExposureSection = dynamic(
   () => import('@/components/allocation/ExposureSection').then((m) => ({ default: m.ExposureSection })),
@@ -214,12 +216,12 @@ export default function AllocationPage() {
   };
 
   const assetClassLabels: Record<string, string> = {
-    equity: 'Azioni (Equity)',
-    bonds: 'Obbligazioni (Bonds)',
-    crypto: 'Criptovalute (Crypto)',
-    realestate: 'Immobili (Real Estate)',
-    cash: 'Liquidità (Cash)',
-    commodity: 'Materie Prime (Commodity)',
+    equity: 'Azioni',
+    bonds: 'Obbligazioni',
+    crypto: 'Criptovalute',
+    realestate: 'Immobili',
+    cash: 'Liquidità',
+    commodity: 'Materie Prime',
   };
 
   // Group sub-categories by asset class
@@ -510,7 +512,7 @@ export default function AllocationPage() {
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="space-y-6"
+        className="max-w-[1600px] mx-auto w-full space-y-6"
       >
         <div className="border-b border-border pb-4">
           <div className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
@@ -556,14 +558,14 @@ export default function AllocationPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="table-fixed">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[30%]">Nome Asset</TableHead>
-                      <TableHead className="text-right">Corrente</TableHead>
-                      <TableHead className="text-right text-muted-foreground/70">Target</TableHead>
-                      <TableHead className="text-right">Differenza</TableHead>
-                      <TableHead className="text-center">
+                      <TableHead className="w-[35%]">Nome Asset</TableHead>
+                      <TableHead className="w-[18%] text-right">Corrente</TableHead>
+                      <TableHead className="w-[16%] text-right text-muted-foreground/70">Target</TableHead>
+                      <TableHead className="w-[18%] text-right">Differenza</TableHead>
+                      <TableHead className="w-[13%] text-center">
                         <span className="block">Azione</span>
                         <span className="block text-[10px] font-normal text-muted-foreground">±2% soglia</span>
                       </TableHead>
@@ -638,31 +640,20 @@ export default function AllocationPage() {
   // ========== MAIN VIEW (MOBILE + DESKTOP) ==========
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="border-b border-border pb-4">
-        <div className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Analisi composizione
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-              Allocazione Asset
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-              Confronta l'allocazione corrente con i tuoi obiettivi
-            </p>
-          </div>
-          {!usingGoalTargets && (
-            <Link href="/dashboard/settings" className="w-full shrink-0 sm:w-auto">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <Settings className="mr-2 h-4 w-4" />
-                Modifica Target
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
+    <PageContainer className="space-y-4 sm:space-y-6">
+      <PageHeader
+        label="Analisi composizione"
+        title="Allocazione Asset"
+        description="Confronta l'allocazione corrente con i tuoi obiettivi"
+        actions={!usingGoalTargets ? (
+          <Link href="/dashboard/settings" className="w-full shrink-0 sm:w-auto">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto">
+              <Settings className="mr-2 h-4 w-4" />
+              Modifica Target
+            </Button>
+          </Link>
+        ) : undefined}
+      />
 
       {/* Goal-derived targets indicator */}
       {usingGoalTargets && (
@@ -744,14 +735,14 @@ export default function AllocationPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[30%]">Classe Asset</TableHead>
-                        <TableHead className="text-right">Corrente</TableHead>
-                        <TableHead className="text-right text-muted-foreground/70">Target</TableHead>
-                        <TableHead className="text-right">Differenza</TableHead>
-                        <TableHead className="text-center">
+                        <TableHead className="w-[35%]">Classe Asset</TableHead>
+                        <TableHead className="w-[18%] text-right">Corrente</TableHead>
+                        <TableHead className="w-[16%] text-right text-muted-foreground/70">Target</TableHead>
+                        <TableHead className="w-[18%] text-right">Differenza</TableHead>
+                        <TableHead className="w-[13%] text-center">
                           <span className="block">Azione</span>
                           <span className="block text-[10px] font-normal text-muted-foreground">±2% soglia</span>
                         </TableHead>
@@ -825,14 +816,14 @@ export default function AllocationPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <Table>
+                    <Table className="table-fixed">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[30%]">Sottocategoria</TableHead>
-                          <TableHead className="text-right">Corrente</TableHead>
-                          <TableHead className="text-right text-muted-foreground/70">Target</TableHead>
-                          <TableHead className="text-right">Differenza</TableHead>
-                          <TableHead className="text-center">
+                          <TableHead className="w-[35%]">Sottocategoria</TableHead>
+                          <TableHead className="w-[18%] text-right">Corrente</TableHead>
+                          <TableHead className="w-[16%] text-right text-muted-foreground/70">Target</TableHead>
+                          <TableHead className="w-[18%] text-right">Differenza</TableHead>
+                          <TableHead className="w-[13%] text-center">
                             <span className="block">Azione</span>
                             <span className="block text-[10px] font-normal text-muted-foreground">±2% soglia</span>
                           </TableHead>
@@ -908,6 +899,6 @@ export default function AllocationPage() {
 
       {/* Exposure breakdown — lazy loaded, shared between mobile and desktop */}
       {user && <ExposureSection userId={user.uid} />}
-    </div>
+    </PageContainer>
   );
 }

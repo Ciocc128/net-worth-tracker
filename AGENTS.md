@@ -107,6 +107,13 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - For History month counts, use `netWorthGrowth`, not `investmentGrowth`
 - Zero-change months (`netWorthGrowth === 0`) are excluded from positive/negative month counters
 - Performance heatmap is similar visually but semantically different: it isolates investment returns after cash flows
+- **Two CAGR formulas — intentionally different values**: Storico hero CAGR = `(endNW / startNW)^(12/months) - 1` (raw wealth growth, includes contributions in the numerator growth). Rendimenti CAGR = `(endNW / (startNW + netCashFlow))^(1/years) - 1` (investment return, contributions added to denominator as invested capital). They measure different things and will show different numbers for the same period — this is correct. Storico > Rendimenti when the user is actively contributing.
+
+### Patrimonio: Asset Delta Columns
+- `assetPerformanceData` in `AssetManagementTab.tsx`: for each asset, `currentValue = useTotal ? calculateAssetValue(asset) : asset.currentPrice` (unit price for ticker assets, total value for manual-price assets). Snapshot entries store `price` or `totalValue` accordingly.
+- **Δ Inizio (`allTimeDelta`) base**: for ticker assets with `averageCost` (`!useTotal && averageCost > 0`), use `averageCost` as base — the first monthly snapshot may have been taken days/weeks after purchase with the price already moved. Falls back to `firstEntry.value` for manual-price assets or no cost basis.
+- **All three deltas same value**: happens when the asset has only one historical snapshot for the current year and no previous-year snapshots — Δ Mese, Δ YTD (falls back to first this-year snapshot), and Δ Inizio all point to the same snapshot. Normal for recently added assets.
+- G/P % ≠ Δ Inizio even after the averageCost fix only when the asset was purchased at a price that was already booked in a snapshot on the same day. They are identical for assets where purchase → first snapshot spans the same price point.
 
 ### Budget
 - `autoInitBudgetItems` merges saved amounts with live categories on every mount
@@ -145,10 +152,14 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - Runs server-side — use `adminDb` directly, not client SDK (`getUserSnapshots` etc. require browser auth)
 - All 5 period builders return `AssistantMonthContextBundle`; `selector.month` encoding: `>0`=monthly, `0`=year, `-1`=YTD, `-2`=history. Quarterly: `selector = { year, month: quarter * 3, quarter }`
 - `includeDummySnapshots` flows differently: `stream/route.ts` reads from `body.preferences`; `context/route.ts` must re-read from `getAssistantMemoryDocument()` (GET has no body)
+- `fetchSettings` returns only the fields needed for context building (`dividendIncomeCategoryId`, `cashflowHistoryStartYear`, `targets`) — do NOT expand it to full `AssetAllocationSettings`; add fields here only when a context builder actually needs them
+- `buildTargetAllocation` normalizes `AssetAllocationTarget` to the bundle shape: `subTargets` can be `number` (legacy, % of asset class) or `SubCategoryTarget` (new, object with `.targetPercentage`); both are normalized to plain `number` so prompt builders need no special-casing
+- When adding a new required field to `AssistantMonthContextBundle`, update ALL 5 builders AND any test fixtures that construct the type (e.g. `__tests__/assistantGoalEvaluation.test.ts`); TypeScript will catch missing fields in fixtures but only if the field is non-optional
 
 ### Assistant Prompt Builder (`formatBundleForPrompt`)
 - Always include `--- ALLOCAZIONE CORRENTE ---` from `currentSnapshot.byAssetClass` before the movers section — without it Claude hallucinates "unclassified" gaps for stable asset classes
 - Adding a new field to the prompt requires reading it from `bundle` explicitly — `formatBundleForPrompt` destructures named fields only; new fields are silently missing if not explicitly added
+- `--- ALLOCAZIONE TARGET vs CORRENTE ---` section is rendered when `bundle.targetAllocation` is non-null AND `currentSnapshot.byAssetClass` exists. Shows attuale %, target %, and gap in p.p. per asset class; sub-categories show their portfolio-level target (`subTargetPct / 100 * assetClassTarget`) so all comparisons are on the same scale
 
 ### Assistant Thread Store
 - `deleteAssistantThread` must delete `messages` subcollection in batches (≤400 docs) before deleting parent — Admin SDK does not cascade-delete subcollections
@@ -324,11 +335,15 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 
 ### Mobile Navigation Structure
 - Bottom navigation (portrait mobile): 3 primary routes + "Altro" button (MoreHorizontal icon)
+- **Single source of truth for nav arrays**: `lib/constants/navigation.ts` exports `primaryNav`, `analysisNav`, `planningNav`, `secondaryHrefs`. Sidebar, BottomNavigation, and SecondaryMenuDrawer all import from there — never redeclare nav arrays inline. Adding/removing a route means one file edit.
 - **Bottom nav uses `--sidebar-*` CSS vars** for theme-aware colors — background `var(--sidebar)`, border `var(--sidebar-border)`, active tab `var(--sidebar-primary)` + `var(--sidebar-accent)` bg, inactive `var(--sidebar-foreground)` at opacity 0.65. Use `style={{ ... }}` inline because sidebar vars are not mapped to Tailwind utility classes.
 - **Sidebar active state — Overview exact match**: `Sidebar.tsx` `isActive` for `/dashboard` must use `pathname === item.href` only, never `startsWith`. `startsWith('/dashboard/')` matches every sub-route (`/dashboard/assets`, `/dashboard/history`, etc.) and keeps Panoramica highlighted on all pages. All other routes can use prefix matching safely
-- `secondaryHrefs` array in `BottomNavigation.tsx` must stay in sync with `navigationGroups` hrefs in `SecondaryMenuDrawer.tsx`
-- Secondary drawer uses 3 semantic groups: Analisi (Allocazione, Rendimenti, Storico, Hall of Fame), Pianificazione (FIRE e Simulazioni), Preferenze (Impostazioni)
-- `Assistente AI` belongs in the `Analisi` group and must be included anywhere secondary analytical routes are enumerated
+- **Sidebar icon-collapsed mode**: `collapsible="icon"` on `<Sidebar>`. Content hidden via `group-data-[state=collapsed]:hidden`; icon-only alternatives shown via `group-data-[state=collapsed]:flex`. `SidebarMenuButton size="lg"` in the footer auto-collapses to avatar-only. Toggle button uses `hidden desktop:flex` (desktop only). State persists in localStorage via shadcn `useSidebar()` — no custom persistence needed.
+- `secondaryHrefs` is exported from `navigation.ts` — derived from `analysisNav` + `planningNav` + `['/dashboard/assistant', '/dashboard/settings']`. Do not hardcode in BottomNavigation.
+- Secondary drawer uses 3 semantic groups: **Statistiche** (Analisi, Rendimenti, Storico, Hall of Fame, Assistente AI — read-only views), **Pianificazione** (Allocazione, FIRE e Simulazioni — action-bearing tools), **Preferenze** (Impostazioni)
+- `Assistente AI` belongs in the `Statistiche` group. `Allocazione` belongs in `Pianificazione` (has COMPRA/VENDI/OK action chips — not a read-only stat)
+- Nav item for the cashflow analysis page is "Analisi" (route `/dashboard/analisi`), NOT "Flussi"
+- **Cashflow FAB → ExpenseTrackingTab communication**: the `+` FAB in BottomNavigation has no access to the tab component. Communication uses `window.dispatchEvent(new CustomEvent('cashflow:add-expense'))` in the FAB and `window.addEventListener('cashflow:add-expense', handler)` in `ExpenseTrackingTab`. Pattern: cross-hierarchy components with no shared ancestor → custom DOM events are correct; prop drilling or lifting state to layout would require threading callbacks through multiple unrelated layers.
 - Eyebrow label style for group headers: `text-xs font-semibold uppercase tracking-wider text-muted-foreground/60`
 
 ### Progressive Disclosure on Data-Dense Pages
@@ -430,6 +445,7 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 - `Legend` reads `<Bar fill>`, not `<Cell>`
 - Always set `fill` on `<Bar>` even when per-bar colors are overridden by `<Cell>`
 - Do not set text `color` globally in tooltip style for line/area/bar charts
+- **Recharts `formatter` prop signature is `(value: ValueType | undefined, ...)`**: `ValueType = string | number | (string | number)[]`. Never type the first param as `number` — TypeScript compiles but runtime receives `undefined` for gap points in line charts with `connectNulls={false}`. Correct coercion patterns: `Number(value ?? 0)` for bar charts; `value != null ? Number(value).toFixed(1) : '—'` for nullable line charts.
 - **Recharts tooltip — always use CSS vars, never hardcoded hex**: the correct pattern is to pass `contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--card-foreground)' }}` and `labelStyle={{ fontWeight: 600, color: 'var(--card-foreground)' }}`. Never use `color: '#111827'` — it is invisible in dark mode since the tooltip background becomes dark via `var(--card)`. This applies to every `<Tooltip>` across all pages and charts. Applied in `FireCalculatorTab.tsx`, `FIREProjectionChart.tsx`.
 - **BarChart hover cursor overlay**: the default cursor is an opaque light rectangle — too visible in dark mode. Set `cursor={{ fill: 'rgba(128, 128, 128, 0.1)' }}` on `<Tooltip>` for a subtle semi-transparent overlay that works in both modes.
 

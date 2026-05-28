@@ -54,6 +54,8 @@ import {
 import { toast } from 'sonner';
 import type { Asset } from '@/types/assets';
 import { Timestamp } from 'firebase/firestore';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 // Format a Firebase Timestamp or JS Date as dd/MM/yyyy for display.
 function formatAssetDate(ts: Date | Timestamp | null | undefined): string {
@@ -212,9 +214,14 @@ export default function AssetsPage() {
     return overview.sparklineData.slice(-13);
   }, [overview]);
 
-  // Total unrealized G/P across all assets with cost basis.
+  // Total unrealized G/P across invested assets with cost basis.
+  // Exclude pure cash accounts (type=cash && assetClass=cash): they don't represent
+  // invested capital, so including their cost basis in the denominator would dilute G/P %
+  // without contributing any unrealized gain to the numerator.
   const { totalGainLoss, totalGainPct } = useMemo(() => {
-    const withCost = assets.filter((a) => a.averageCost && a.averageCost > 0);
+    const withCost = assets.filter(
+      (a) => a.averageCost && a.averageCost > 0 && !(a.type === 'cash' && a.assetClass === 'cash')
+    );
     if (withCost.length === 0) return { totalGainLoss: 0, totalGainPct: 0 };
     const gainLoss = withCost.reduce((sum, a) => sum + calculateUnrealizedGains(a), 0);
     const costBasis = withCost.reduce((sum, a) => sum + a.quantity * a.averageCost!, 0);
@@ -281,8 +288,7 @@ export default function AssetsPage() {
   // ─── Loading skeleton ─────────────────────────────────────────────────────────
   if (loading || loadingOverview) {
     return (
-      <div className="space-y-6 max-desktop:portrait:pb-20">
-        {/* Page header */}
+      <PageContainer>
         <div className="space-y-2">
           <div className="h-8 w-40 rounded-lg bg-muted animate-pulse" />
           <div className="h-4 w-56 rounded bg-muted animate-pulse" />
@@ -309,21 +315,19 @@ export default function AssetsPage() {
             </div>
           </div>
         </div>
-        {/* Asset table skeleton */}
         <div className="h-10 w-64 rounded-xl bg-muted animate-pulse" />
         <div className="h-64 rounded-xl bg-muted animate-pulse" />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="space-y-6 max-desktop:portrait:pb-20">
-      {/* ── PAGE HEADER ── */}
-      <div className="border-b border-border pb-4">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Portfolio</p>
-        <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">Patrimonio</h1>
-        <p className="mt-2 text-muted-foreground">Gestisci e monitora il tuo patrimonio</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        label="Portfolio"
+        title="Patrimonio"
+        description="Gestisci e monitora il tuo patrimonio"
+      />
 
       {/* ── HERO + LIQUID — same as Panoramica, data from shared RQ cache ── */}
       <motion.section
@@ -587,6 +591,6 @@ export default function AssetsPage() {
         onRefresh={handleRefresh}
         snapshots={snapshots}
       />
-    </div>
+    </PageContainer>
   );
 }
