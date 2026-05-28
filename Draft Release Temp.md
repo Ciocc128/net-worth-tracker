@@ -67,3 +67,8 @@
 - Improved: Budget tab reorder and delete buttons in edit mode now announce their target category to screen readers
 - Improved: Budget tab over-budget progress bars now follow the active color theme's destructive color instead of a fixed red — adapts correctly across all six themes including Cyberpunk and Solar Dusk
 - Improved: Budget tab delta percentages and table text adapt correctly to all six color themes — no more fixed gray or green values that clashed with non-default themes
+- Fixed: Cost Centers monthly chart tooltip now displays correctly in all dark themes (Cyberpunk, Midnight Bloom, Elegant Luxury, Solar Dusk) — value text was invisible against the dark background
+- Improved: Cost Centers list cards are now fully keyboard-navigable — Tab focuses each center, Enter or Space opens the detail view
+- Improved: Cost Centers color picker now announces color names to screen readers ("Blu", "Verde smeraldo", etc.) instead of raw hex values; the selected color is also announced
+- Improved: Cost Centers "Create / Edit" dialog now provides a contextual description to screen readers when it opens
+- Improved: Cost Centers detail view now shows a structural loading skeleton instead of a plain text message — the skeleton anticipates the KPI grid and chart layout
