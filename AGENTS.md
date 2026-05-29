@@ -410,6 +410,21 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 - `title="Sposta su"` on a `<button>` looks like it provides an accessible label, but `title` is not reliably announced by screen readers (VoiceOver on iOS ignores it entirely; NVDA behaviour varies). Always use `aria-label` as the primary accessible name for icon-only action buttons. Keep `title` only if you also want a hover tooltip for pointer users — but `aria-label` must always be present too.
 - **Demo-mode disabled buttons**: use `aria-label={isDemo ? 'Azione — non disponibile in modalità demo' : 'Azione'}` instead of `title`. Screen readers announce the disabled state automatically; the `aria-label` explains *why*.
 
+### `title` Attribute Is Not a Tooltip on Mobile
+- `title="..."` on any element shows a native browser tooltip on **desktop hover only** after ~1 second delay. On mobile (tap/click) it never fires. `cursor-help` signals intent visually but does not make the content accessible.
+- **Rule**: for any informational content users should be able to access (metric explanations, CAGR footnotes, help text), always use Radix `<Popover>` — same pattern as `MetricCard` in Rendimenti. Pattern:
+  ```tsx
+  <Popover>
+    <PopoverTrigger asChild>
+      <button type="button" className="... cursor-help">chip text</button>
+    </PopoverTrigger>
+    <PopoverContent side="bottom" align="start" className="max-w-[280px] text-sm leading-relaxed">
+      Explanation text here.
+    </PopoverContent>
+  </Popover>
+  ```
+- Applied to History page CAGR chip and total-growth chip (previously used `title` — invisible on mobile).
+
 ### Color Picker Buttons — `aria-label` Must Use Human-Readable Names
 - Color swatch buttons with `aria-label={`Colore ${hexValue}`}` cause screen readers to spell out the hex string (e.g. "Colore hashtag 3 b 8 2 f 6") — meaningless to AT users. Always maintain a `COLOR_LABELS: Record<string, string>` map alongside the palette constant and use it for labels.
 - Pattern: `aria-label={`${COLOR_LABELS[c] ?? c}${color === c ? ' (selezionato)' : ''}`}` + `aria-pressed={color === c}`. The `(selezionato)` suffix tells AT users the current selection without requiring a separate announcement.

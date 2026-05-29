@@ -82,3 +82,9 @@
 - Improved: AI Analysis button hover glow now derives from the theme's accent color instead of a hardcoded purple, adapting correctly to all six color themes
 - Improved: Benchmark comparison table and monthly returns heatmap now have proper semantic column and row headers, enabling screen reader users to navigate them as structured data tables (WCAG 1.3.1)
 - Improved: Screen readers now announce the active custom date range period in the Rendimenti period selector — previously, selecting a custom range left all tab buttons unselected with no announcement of the active state
+- Improved: History page CAGR and total-growth chips are now tappable on mobile — they previously used a native browser `title` attribute that only worked on desktop hover. Both chips now open an explanatory popover on click or tap, matching the tooltip pattern used throughout the Rendimenti page
+- Improved: The total portfolio growth chip on the History page now also has an explanatory tooltip clarifying that the figure is not annualized and includes both contributions and investment returns
+- Improved: Milestone progress bar and badge colors on the History page (Raddoppi section) now follow the active color theme instead of using fixed blue and green — the in-progress card adapts to your selected theme accent color
+- Improved: History page YoY variation chart now shows a color legend on mobile (positive year / negative year) — previously the chart legend was hidden on narrow screens with no replacement
+- Improved: History page monthly savings chart (Risparmio mensile view) now shows a color legend on mobile — the annual view already had one; the monthly view was missing it
+- Improved: History page Labor & Investments chart now shows a color legend on mobile (Guadagnato / Risparmiato / Investimenti) — the Recharts legend was previously shown but truncated the long Italian labels on narrow screens
