@@ -35,10 +35,8 @@ import { queryKeys } from '@/lib/query/queryKeys';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Filter, ChevronDown, Check, X, Trash2, Pencil } from 'lucide-react';
+import { Plus, X, Trash2, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExpenseDialog } from '@/components/expenses/ExpenseDialog';
 import { ExpenseTable } from '@/components/expenses/ExpenseTable';
@@ -58,21 +56,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useChartColors } from '@/lib/hooks/useChartColors';
-
-const MONTHS = [
-  { value: '1', label: 'Gennaio' },
-  { value: '2', label: 'Febbraio' },
-  { value: '3', label: 'Marzo' },
-  { value: '4', label: 'Aprile' },
-  { value: '5', label: 'Maggio' },
-  { value: '6', label: 'Giugno' },
-  { value: '7', label: 'Luglio' },
-  { value: '8', label: 'Agosto' },
-  { value: '9', label: 'Settembre' },
-  { value: '10', label: 'Ottobre' },
-  { value: '11', label: 'Novembre' },
-  { value: '12', label: 'Dicembre' },
-];
+import { PeriodPicker, type Period, periodToRange, periodLabel, currentMonthPeriod } from '@/components/ui/period-picker';
 
 // Coverage ratio → Italian health label (mirrors the same function in the dashboard overview page).
 function coverageHealthLabel(ratio: number): string {
@@ -261,8 +245,6 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
   const chartColors = useChartColors();
-  const currentYear = new Date().getFullYear();
-  const currentMonth = String(new Date().getMonth() + 1); // 1-based month (1-12)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
@@ -272,9 +254,8 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
     window.addEventListener('cashflow:add-expense', handler);
     return () => window.removeEventListener('cashflow:add-expense', handler);
   }, []);
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+  // Unified period filter (replaces separate selectedYear + selectedMonth)
+  const [period, setPeriod] = useState<Period>(currentMonthPeriod);
 
   // Tracks which mobile row is expanded (shows Modifica + Elimina actions).
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -299,137 +280,52 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>('all');
 
-  // Search states for comboboxes
-  const [searchQueryType, setSearchQueryType] = useState<string>('');
-  const [searchQueryCategory, setSearchQueryCategory] = useState<string>('');
-  const [searchQuerySubCategory, setSearchQuerySubCategory] = useState<string>('');
-
-  // Dropdown open states
-  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
-  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isSubCategoryDropdownOpen, setIsSubCategoryDropdownOpen] = useState(false);
-
-  /**
-   * Refs for click-outside detection on custom dropdowns
-   *
-   * Pattern: Listen for document mousedown, check if click target is outside ref
-   * Why mousedown? Fires before blur, prevents race condition with item selection
-   * See useEffect at line ~192 for implementation
-   */
-  const typeDropdownRef = useRef<HTMLDivElement>(null);
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const subCategoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // Generate available years from ALL expenses (not filtered)
   const availableYears = useMemo(() => {
     if (allExpenses.length === 0) return [];
-
-    const years = allExpenses.map(expense => {
-      const date = expense.date instanceof Date ? expense.date : expense.date.toDate();
-      return date.getFullYear();
-    });
-
-    const uniqueYears = Array.from(new Set(years)).sort((a, b) => b - a);
-    return uniqueYears;
+    const years = allExpenses.map(e => getExpenseDate(e.date).getFullYear());
+    return Array.from(new Set(years)).sort((a, b) => b - a);
   }, [allExpenses]);
 
-  const handleYearChange = (year: number) => {
-    setSelectedYear(year);
-    // Reset month when changing year
-    setSelectedMonth('all');
-  };
-
-  const handleCurrentMonth = () => {
-    setSelectedYear(currentYear);
-    setSelectedMonth(currentMonth);
-  };
-
-  /**
-   * Cascading filter reset handler
-   *
-   * Reset Rules:
-   * - Close dropdown (user made selection)
-   * - Clear search query
-   * - Reset downstream filters (Category + Subcategory)
-   *
-   * Why? Prevents invalid combinations when Type changes.
-   * Example: User selects Type="fixed" → Category="rent" → Subcategory="mortgage"
-   *          Then changes Type to "income"
-   *          Result: Category and Subcategory reset (income has different categories)
-   */
   const handleSelectType = (type: string) => {
     setSelectedType(type);
-    setIsTypeDropdownOpen(false);
-    setSearchQueryType('');
-    // Reset category and subcategory when type changes
+    // Reset downstream filters when type changes
     setSelectedCategoryId('all');
     setSelectedSubCategoryId('all');
   };
 
   const handleSelectCategory = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
-    setIsCategoryDropdownOpen(false);
-    setSearchQueryCategory('');
     // Reset subcategory when category changes
     setSelectedSubCategoryId('all');
   };
 
-  const handleSelectSubCategory = (subCategoryId: string) => {
-    setSelectedSubCategoryId(subCategoryId);
-    setIsSubCategoryDropdownOpen(false);
-    setSearchQuerySubCategory('');
-  };
-
   const handleResetFilters = () => {
-    setSelectedMonth('all');
+    setPeriod(currentMonthPeriod());
     setSelectedType('all');
     setSelectedCategoryId('all');
     setSelectedSubCategoryId('all');
-    setSearchQueryType('');
-    setSearchQueryCategory('');
-    setSearchQuerySubCategory('');
   };
 
-  // Clearing Type also clears dependent filters AND their search queries.
-  // Prevents "phantom selections" where UI shows "all" but search input
-  // retains previous query text.
-  const handleClearType = () => {
-    setSelectedType('all');
-    setSelectedCategoryId('all');
-    setSelectedSubCategoryId('all');
-    setSearchQueryType('');
-    setSearchQueryCategory('');
-    setSearchQuerySubCategory('');
-  };
+  // A filter is "active" (non-default) if period ≠ current month or any taxonomy filter is set.
+  const nowForDefaults = new Date();
+  const defaultYear = nowForDefaults.getFullYear();
+  const defaultMonth = nowForDefaults.getMonth() + 1;
+  const isPeriodDefault =
+    period.kind === 'month' &&
+    period.year === defaultYear &&
+    period.month === defaultMonth;
+  const hasActiveFilters = !isPeriodDefault || selectedType !== 'all' || selectedCategoryId !== 'all' || selectedSubCategoryId !== 'all';
 
-  const handleClearCategory = () => {
-    setSelectedCategoryId('all');
-    setSelectedSubCategoryId('all');
-    setSearchQueryCategory('');
-    setSearchQuerySubCategory('');
-  };
-
-  const handleClearSubCategory = () => {
-    setSelectedSubCategoryId('all');
-    setSearchQuerySubCategory('');
-  };
-
-  // Check if any filter is active
-  const hasActiveFilters = selectedMonth !== 'all' || selectedType !== 'all' || selectedCategoryId !== 'all' || selectedSubCategoryId !== 'all';
-
-  // Derive year+month slice from allExpenses synchronously — no extra render on filter change.
+  // Derive period slice from allExpenses synchronously.
   const expenses = useMemo(() => {
+    const { from, to } = periodToRange(period);
     return allExpenses.filter(expense => {
-      const date = expense.date instanceof Date ? expense.date : expense.date.toDate();
-      const expenseYear = date.getFullYear();
-      const expenseMonth = date.getMonth() + 1; // 1-based
-
-      if (expenseYear !== selectedYear) return false;
-      if (selectedMonth !== 'all' && expenseMonth !== parseInt(selectedMonth)) return false;
-
-      return true;
+      const date = getExpenseDate(expense.date);
+      return date >= from && date <= to;
     });
-  }, [allExpenses, selectedYear, selectedMonth]);
+  }, [allExpenses, period]);
 
   // Cleanup pending delete timer on unmount
   useEffect(() => {
@@ -441,33 +337,7 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   // Reset mobile show count when filters change
   useEffect(() => {
     setMobileShowCount(20);
-  }, [selectedYear, selectedMonth, selectedType, selectedCategoryId, selectedSubCategoryId]);
-
-  /**
-   * Click-outside handler for custom dropdowns
-   *
-   * Why mousedown instead of click?
-   * - mousedown fires before blur events
-   * - Prevents race condition where blur closes dropdown before click registers
-   *
-   * Memory Management: Return cleanup function removes listener on unmount
-   */
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target as Node)) {
-        setIsTypeDropdownOpen(false);
-      }
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
-        setIsCategoryDropdownOpen(false);
-      }
-      if (subCategoryDropdownRef.current && !subCategoryDropdownRef.current.contains(event.target as Node)) {
-        setIsSubCategoryDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [period, selectedType, selectedCategoryId, selectedSubCategoryId]);
 
   // Toggling another row collapses the previously expanded one (accordion pattern).
   const handleToggleExpand = useCallback((id: string) => {
@@ -588,65 +458,31 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   };
 
   // Filter options for Type
-  const typeOptions = useMemo(() => {
-    const types = [
-      { value: 'all', label: 'Tutte' },
-      { value: 'income', label: EXPENSE_TYPE_LABELS.income },
-      { value: 'fixed', label: EXPENSE_TYPE_LABELS.fixed },
-      { value: 'variable', label: EXPENSE_TYPE_LABELS.variable },
-      { value: 'debt', label: EXPENSE_TYPE_LABELS.debt },
-    ];
-
-    if (!searchQueryType.trim()) {
-      return types;
-    }
-
-    const query = searchQueryType.toLowerCase();
-    return types.filter(type => type.label.toLowerCase().includes(query));
-  }, [searchQueryType]);
+  const typeOptions = useMemo(() => [
+    { value: 'all', label: 'Tutte' },
+    { value: 'income', label: EXPENSE_TYPE_LABELS.income },
+    { value: 'fixed', label: EXPENSE_TYPE_LABELS.fixed },
+    { value: 'variable', label: EXPENSE_TYPE_LABELS.variable },
+    { value: 'debt', label: EXPENSE_TYPE_LABELS.debt },
+  ], []);
 
   // Filter options for Category based on selected type
   const categoryOptions = useMemo(() => {
-    // Only show categories if a specific type is selected
-    if (selectedType === 'all') {
-      return [];
-    }
-
-    let filtered = categories.filter(cat => cat.type === selectedType);
-
-    // Filter by search query
-    if (searchQueryCategory.trim()) {
-      const query = searchQueryCategory.toLowerCase();
-      filtered = filtered.filter(cat => cat.name.toLowerCase().includes(query));
-    }
-
-    return filtered;
-  }, [categories, selectedType, searchQueryCategory]);
+    if (selectedType === 'all') return [];
+    return categories.filter(cat => cat.type === selectedType);
+  }, [categories, selectedType]);
 
   // Filter options for Subcategory based on selected category
   const subCategoryOptions = useMemo(() => {
-    // Only show subcategories if a specific category is selected
-    if (selectedCategoryId === 'all') {
-      return [];
-    }
-
-    // Show subcategories only from selected category
+    if (selectedCategoryId === 'all') return [];
     const selectedCategory = categories.find(cat => cat.id === selectedCategoryId);
     if (!selectedCategory) return [];
-
-    let filtered = selectedCategory.subCategories.map(sub => ({
+    return selectedCategory.subCategories.map(sub => ({
       ...sub,
       categoryName: selectedCategory.name,
       categoryId: selectedCategory.id,
     }));
-
-    if (searchQuerySubCategory.trim()) {
-      const query = searchQuerySubCategory.toLowerCase();
-      filtered = filtered.filter(sub => sub.name.toLowerCase().includes(query));
-    }
-
-    return filtered;
-  }, [categories, selectedCategoryId, searchQuerySubCategory]);
+  }, [categories, selectedCategoryId]);
 
   /**
    * Cumulative AND filtering (progressive narrowing)
@@ -692,25 +528,21 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
 
   // ─── Hero card derived data ──────────────────────────────────────────────────
 
-  // Header label for the hero card: "MAGGIO 2026" when month selected, else "2026".
-  const heroLabel = useMemo(() => {
-    if (selectedMonth !== 'all')
-      return `${MONTHS.find(m => m.value === selectedMonth)?.label.toUpperCase()} ${selectedYear}`;
-    return String(selectedYear);
-  }, [selectedYear, selectedMonth]);
+  // Header label for the hero card.
+  const heroLabel = useMemo(() => periodLabel(period).toUpperCase(), [period]);
 
-  // Expenses of the period immediately preceding the selected month.
-  // Used to compute MoM delta — only available when a specific month is selected.
+  // Expenses of the period immediately preceding the selected one.
+  // Only available when viewing a single month (for MoM delta).
   const previousPeriodExpenses = useMemo(() => {
-    if (selectedMonth === 'all') return null;
-    const prevMonthNum = parseInt(selectedMonth) - 1;
-    const prevYear = prevMonthNum === 0 ? selectedYear - 1 : selectedYear;
+    if (period.kind !== 'month') return null;
+    const prevMonthNum = period.month - 1;
+    const prevYear = prevMonthNum === 0 ? period.year - 1 : period.year;
     const prevMonth = prevMonthNum === 0 ? 12 : prevMonthNum;
     return allExpenses.filter(e => {
       const date = getExpenseDate(e.date);
       return date.getFullYear() === prevYear && date.getMonth() + 1 === prevMonth;
     });
-  }, [allExpenses, selectedYear, selectedMonth]);
+  }, [allExpenses, period]);
 
   // MoM delta for income and expenses — null when viewing full year (no comparison).
   const heroDelta = useMemo(() => {
@@ -768,8 +600,16 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   if (loading) {
     return (
       <div className="space-y-6">
+        {/* Filters skeleton — matches compact filter card */}
+        <div className="rounded-xl border py-3 desktop:py-4 px-3 desktop:px-4 space-y-2">
+          <div className="h-9 bg-muted animate-pulse rounded-md" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-9 bg-muted animate-pulse rounded-md" />
+            <div className="h-9 bg-muted animate-pulse rounded-md" />
+          </div>
+        </div>
         {/* Hero card skeleton */}
-        <div className="rounded-2xl border p-[22px] space-y-4">
+        <div className="rounded-xl border p-[22px] space-y-4">
           <div className="h-3 w-36 bg-muted animate-pulse rounded" />
           <div className="grid grid-cols-2 desktop:grid-cols-4 gap-3">
             {[0, 1, 2, 3].map(i => (
@@ -781,18 +621,14 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
             ))}
           </div>
         </div>
-        {/* Filters skeleton */}
-        <div className="rounded-lg border p-4">
-          <div className="h-4 w-16 bg-muted animate-pulse rounded mb-3" />
-          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-3">
-            {[0, 1, 2, 3].map(i => <div key={i} className="h-9 bg-muted animate-pulse rounded" />)}
-          </div>
-        </div>
         {/* List skeleton — flat rows */}
-        <div className="rounded-lg border p-4 divide-y divide-border">
-          <div className="h-4 w-32 bg-muted animate-pulse rounded mb-4" />
+        <div className="rounded-xl border divide-y divide-border">
+          <div className="px-6 py-4 flex items-center gap-2">
+            <div className="h-4 w-12 bg-muted animate-pulse rounded" />
+            <div className="h-5 w-6 bg-muted animate-pulse rounded-full" />
+          </div>
           {[0, 1, 2, 3, 4].map(i => (
-            <div key={i} className="flex items-center gap-3 py-3">
+            <div key={i} className="flex items-center gap-3 px-6 py-3">
               <div className="h-2 w-2 rounded-full bg-muted animate-pulse flex-shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3 w-36 bg-muted animate-pulse rounded" />
@@ -808,13 +644,93 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
 
   return (
     <div className="space-y-6">
-      {/* Desktop "Nuova Spesa" button — mobile uses FAB below */}
-      <div className="hidden desktop:flex justify-end">
-        <Button onClick={handleAddExpense} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuova Spesa
-        </Button>
-      </div>
+      {/* ── Filters bar — always visible, commands the whole page ─────────── */}
+      <Card className="py-3 desktop:py-4">
+        <CardContent className="px-3 desktop:px-4">
+          <div className="space-y-2 desktop:flex desktop:items-center desktop:gap-2 desktop:space-y-0">
+            {/* Periodo — full row on mobile, auto-width on desktop */}
+            <PeriodPicker
+              value={period}
+              onChange={setPeriod}
+              availableYears={availableYears}
+              className="w-full desktop:w-auto desktop:flex-shrink-0"
+            />
+
+            {/* Tipo + Categoria — 2-col grid on mobile, inline on desktop */}
+            <div className="grid grid-cols-2 gap-2 desktop:flex desktop:gap-2">
+              <Select value={selectedType} onValueChange={handleSelectType}>
+                <SelectTrigger id="filter-type" aria-label="Filtra per tipo" className="desktop:min-w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {typeOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedCategoryId}
+                onValueChange={handleSelectCategory}
+                disabled={selectedType === 'all' || categoryOptions.length === 0}
+              >
+                <SelectTrigger id="filter-category" aria-label="Filtra per categoria" className="desktop:min-w-[140px]">
+                  <SelectValue placeholder="Tutte" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  {categoryOptions.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      <span className="flex items-center gap-2">
+                        {cat.color && (
+                          <span
+                            className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: cat.color }}
+                          />
+                        )}
+                        {cat.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sottocategoria — full row on mobile, inline on desktop */}
+            {selectedCategoryId !== 'all' && subCategoryOptions.length > 0 && (
+              <Select value={selectedSubCategoryId} onValueChange={setSelectedSubCategoryId}>
+                <SelectTrigger id="filter-subcategory" aria-label="Filtra per sottocategoria" className="w-full desktop:min-w-[150px]">
+                  <SelectValue placeholder="Tutte" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  {subCategoryOptions.map(sub => (
+                    <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Actions — Ripristina chip + desktop Nuova Spesa */}
+            <div className="flex items-center gap-2 desktop:ml-auto">
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={handleResetFilters} className="h-9 gap-1.5 px-2.5 text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                  Ripristina
+                </Button>
+              )}
+              <Button
+                onClick={handleAddExpense}
+                disabled={isDemo}
+                title={isDemo ? 'Non disponibile in modalit\u00e0 demo' : undefined}
+                className="hidden desktop:flex ml-auto"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nuova Spesa
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ── Hero Cashflow Card ─────────────────────────────────────────────── */}
       {/* Mirrors the cashflow card in the Overview/Panoramica page, but driven  */}
@@ -975,314 +891,29 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
         </CardContent>
       </Card>
 
-      {/* Filters — includes year selector (integrated, not a separate card) */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <Card>
-          <CardHeader>
-            {/* asChild with a <button> (not <div>) — CollapsibleTrigger must
-                render as a focusable element so keyboard users can reach it.
-                A <div> is not in the tab order and ignores Enter/Space. */}
-            <CollapsibleTrigger asChild>
-              <button type="button" className="flex items-center justify-between w-full text-left">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-base">Filtri</CardTitle>
-                  {hasActiveFilters && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  )}
-                </div>
-                <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', filtersOpen && 'rotate-180')} />
-              </button>
-            </CollapsibleTrigger>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-3 desktop:flex desktop:flex-wrap desktop:items-end desktop:gap-4">
-                {/* Anno filter (integrated — replaces the separate Year card) */}
-                {availableYears.length > 0 && (
-                  // role="group" + aria-labelledby associates the heading with the
-                  // button set. A plain <label> without htmlFor is not linked to
-                  // anything and is invisible to assistive technology.
-                  <div role="group" aria-labelledby="anno-filter-label" className="flex flex-col gap-2 desktop:min-w-[110px]">
-                    <Label id="anno-filter-label">Anno</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableYears.map(year => (
-                        <Button
-                          key={year}
-                          variant={selectedYear === year ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => handleYearChange(year)}
-                          className="h-8 px-3 text-sm"
-                        >
-                          {year}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Month Filter + current month quick button */}
-                <div className="flex flex-col gap-2 desktop:min-w-[150px]">
-                  <label className="text-sm font-medium">Mese</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleziona mese" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tutti</SelectItem>
-                          {MONTHS.map(month => (
-                            <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button onClick={handleCurrentMonth} variant="secondary" size="default" className="shrink-0">
-                      Corrente
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Type Filter with Search */}
-                <div className="flex flex-col gap-2 desktop:min-w-[150px]">
-                  <Label htmlFor="type-combobox">Tipo</Label>
-                  <div className="relative">
-                    <Input
-                      id="type-combobox"
-                      placeholder="Cerca tipo..."
-                      value={searchQueryType}
-                      onChange={(e) => {
-                        setSearchQueryType(e.target.value);
-                        setIsTypeDropdownOpen(true);
-                      }}
-                      onFocus={() => setIsTypeDropdownOpen(true)}
-                    />
-                    {isTypeDropdownOpen && (
-                      <div
-                        ref={typeDropdownRef}
-                        className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto text-popover-foreground"
-                      >
-                        {typeOptions.length === 0 ? (
-                          <div className="p-3 text-sm text-muted-foreground text-center">
-                            Nessun tipo trovato
-                          </div>
-                        ) : (
-                          typeOptions.map((type) => (
-                            <button
-                              key={type.value}
-                              type="button"
-                              className={cn(
-                                "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
-                                selectedType === type.value && "bg-accent text-accent-foreground"
-                              )}
-                              onClick={() => handleSelectType(type.value)}
-                            >
-                              <span className="flex-1">{type.label}</span>
-                              {selectedType === type.value && (
-                                <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {selectedType !== 'all' && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
-                      <span className="text-sm font-medium">
-                        {typeOptions.find(t => t.value === selectedType)?.label}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleClearType}
-                        className="ml-1 hover:bg-muted rounded-full p-0.5 transition-colors"
-                        aria-label="Rimuovi filtro tipo"
-                      >
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Category Filter with Search */}
-                <div className="flex flex-col gap-2 desktop:min-w-[150px]">
-                  <Label htmlFor="category-combobox">Categoria</Label>
-                  <div className="relative">
-                    <Input
-                      id="category-combobox"
-                      placeholder={selectedType === 'all' ? 'Seleziona prima un tipo' : 'Cerca categoria...'}
-                      value={searchQueryCategory}
-                      onChange={(e) => {
-                        setSearchQueryCategory(e.target.value);
-                        setIsCategoryDropdownOpen(true);
-                      }}
-                      onFocus={() => setIsCategoryDropdownOpen(true)}
-                      disabled={selectedType === 'all' || categoryOptions.length === 0}
-                    />
-                    {isCategoryDropdownOpen && selectedType !== 'all' && categoryOptions.length > 0 && (
-                      <div
-                        ref={categoryDropdownRef}
-                        className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto text-popover-foreground"
-                      >
-                        {/* Always show "Tutte" option */}
-                        <button
-                          type="button"
-                          className={cn(
-                            "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
-                            selectedCategoryId === 'all' && "bg-accent text-accent-foreground"
-                          )}
-                          onClick={() => handleSelectCategory('all')}
-                        >
-                          <span className="flex-1">Tutte</span>
-                          {selectedCategoryId === 'all' && (
-                            <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                          )}
-                        </button>
-                        {categoryOptions.map((category) => (
-                          <button
-                            key={category.id}
-                            type="button"
-                            className={cn(
-                              "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
-                              selectedCategoryId === category.id && "bg-accent text-accent-foreground"
-                            )}
-                            onClick={() => handleSelectCategory(category.id)}
-                          >
-                            {category.color && (
-                              <div
-                                className="w-3 h-3 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: category.color }}
-                              />
-                            )}
-                            <span className="flex-1">{category.name}</span>
-                            {selectedCategoryId === category.id && (
-                              <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {selectedCategoryId !== 'all' && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
-                      {categories.find(c => c.id === selectedCategoryId)?.color && (
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: categories.find(c => c.id === selectedCategoryId)?.color }}
-                        />
-                      )}
-                      <span className="text-sm font-medium">
-                        {categories.find(c => c.id === selectedCategoryId)?.name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleClearCategory}
-                        className="ml-1 hover:bg-muted rounded-full p-0.5 transition-colors"
-                        aria-label="Rimuovi filtro categoria"
-                      >
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Subcategory Filter with Search */}
-                <div className="flex flex-col gap-2 desktop:min-w-[150px]">
-                  <Label htmlFor="subcategory-combobox">Sottocategoria</Label>
-                  <div className="relative">
-                    <Input
-                      id="subcategory-combobox"
-                      placeholder={selectedCategoryId === 'all' ? 'Seleziona prima una categoria' : 'Cerca sottocategoria...'}
-                      value={searchQuerySubCategory}
-                      onChange={(e) => {
-                        setSearchQuerySubCategory(e.target.value);
-                        setIsSubCategoryDropdownOpen(true);
-                      }}
-                      onFocus={() => setIsSubCategoryDropdownOpen(true)}
-                      disabled={selectedCategoryId === 'all' || subCategoryOptions.length === 0}
-                    />
-                    {isSubCategoryDropdownOpen && selectedCategoryId !== 'all' && subCategoryOptions.length > 0 && (
-                      <div
-                        ref={subCategoryDropdownRef}
-                        className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto text-popover-foreground"
-                      >
-                        {/* Always show "Tutte" option */}
-                        <button
-                          type="button"
-                          className={cn(
-                            "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
-                            selectedSubCategoryId === 'all' && "bg-accent text-accent-foreground"
-                          )}
-                          onClick={() => handleSelectSubCategory('all')}
-                        >
-                          <span className="flex-1">Tutte</span>
-                          {selectedSubCategoryId === 'all' && (
-                            <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                          )}
-                        </button>
-                        {subCategoryOptions.map((subCategory) => (
-                          <button
-                            key={subCategory.id}
-                            type="button"
-                            className={cn(
-                              "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left",
-                              selectedSubCategoryId === subCategory.id && "bg-accent text-accent-foreground"
-                            )}
-                            onClick={() => handleSelectSubCategory(subCategory.id)}
-                          >
-                            <span className="flex-1">{subCategory.name}</span>
-                            {selectedSubCategoryId === subCategory.id && (
-                              <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {selectedSubCategoryId !== 'all' && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md border border-border">
-                      <span className="text-sm font-medium">
-                        {subCategoryOptions.find(s => s.id === selectedSubCategoryId)?.name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleClearSubCategory}
-                        className="ml-1 hover:bg-muted rounded-full p-0.5 transition-colors"
-                        aria-label="Rimuovi filtro sottocategoria"
-                      >
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Reset Filters Button */}
-                {hasActiveFilters && (
-                  <div className="flex items-end desktop:flex-none">
-                    <Button
-                      variant="outline"
-                      onClick={handleResetFilters}
-                      className="w-full desktop:w-auto"
-                    >
-                      Ripristina Filtri
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
       {/* Expenses - Desktop Table / Mobile Cards */}
       <Card>
-        <CardHeader>
-          <CardTitle>
-            {selectedMonth !== 'all'
-              ? `Voci di ${MONTHS.find(m => m.value === selectedMonth)?.label} ${selectedYear}`
-              : `Voci del ${selectedYear}`}
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <CardTitle className="text-base">Voci</CardTitle>
+              <Badge variant="secondary" className="tabular-nums text-xs">
+                {filteredExpenses.length}
+              </Badge>
+            </div>
+            {/* Mobile: inline add button — desktop uses the filter bar button */}
+            <Button
+              size="sm"
+              onClick={handleAddExpense}
+              disabled={isDemo}
+              title={isDemo ? 'Non disponibile in modalit\u00e0 demo' : undefined}
+              className="desktop:hidden flex-shrink-0 h-9"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Aggiungi
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">{periodLabel(period)}</p>
         </CardHeader>
         <CardContent>
           {/* Desktop: Table */}
