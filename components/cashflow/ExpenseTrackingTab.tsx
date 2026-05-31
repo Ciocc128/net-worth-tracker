@@ -48,7 +48,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, X, Trash2, Pencil, Search, Download } from 'lucide-react';
+import { Plus, X, Trash2, Pencil, Search, Download, ArrowRightLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExpenseDialog } from '@/components/expenses/ExpenseDialog';
 import { ExpenseTable } from '@/components/expenses/ExpenseTable';
@@ -650,6 +650,14 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   const netBalance = calculateNetBalance(filteredExpenses);
   const incomeExpenseRatio = calculateIncomeExpenseRatio(filteredExpenses);
 
+  // Transfer total — shown separately, not included in income/expenses/savings
+  const totalTransfers = useMemo(() =>
+    filteredExpenses
+      .filter(e => e.type === 'transfer')
+      .reduce((sum, e) => sum + Math.abs(e.amount), 0),
+    [filteredExpenses]
+  );
+
   // ─── Hero card derived data ──────────────────────────────────────────────────
 
   // Header label for the hero card.
@@ -947,6 +955,21 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
               )}
             </div>
           </div>
+
+          {/* Trasferimenti Interni — shown only when transfers exist */}
+          {totalTransfers > 0 && (
+            <div className="mt-3 flex items-center justify-between bg-muted/30 rounded-xl px-3.5 py-2.5">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.06em]">
+                  Trasferimenti Interni
+                </span>
+              </div>
+              <span className="text-[15px] font-mono tabular-nums text-muted-foreground">
+                {cachedFormatCurrencyEUR(totalTransfers, true)}
+              </span>
+            </div>
+          )}
 
           {/* Category breakdowns — only shown when there is data */}
           {(heroExpenseCategories.length > 0 || heroIncomeCategories.length > 0) && (

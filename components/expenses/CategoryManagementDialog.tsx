@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -36,6 +36,8 @@ import {
 import { toast } from 'sonner';
 import { Plus, X, ArrowRightLeft, Check, Tag } from 'lucide-react';
 import { CategoryMoveDialog } from './CategoryMoveDialog';
+import { IconPickerPopover, getLazyIcon } from './IconPickerPopover';
+import { CATEGORY_ICONS } from '@/lib/constants/categoryIcons';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +49,7 @@ const categorySchema = z.object({
   name: z.string().min(1, 'Il nome è obbligatorio'),
   type: z.enum(['fixed', 'variable', 'debt', 'income', 'transfer']),
   color: z.string().optional(),
+  icon: z.string().optional(),
 });
 
 type CategoryFormValues = z.infer<typeof categorySchema>;
@@ -120,10 +123,35 @@ function CategoryFormBody({
   const { register, setValue, control, formState: { errors } } = form;
   const selectedColor = useWatch({ control, name: 'color' });
   const selectedType  = useWatch({ control, name: 'type' });
+  const selectedIcon  = useWatch({ control, name: 'icon' });
   const subInputRef   = useRef<HTMLInputElement>(null);
+
+  // Resolve the icon for the live preview
+  const PreviewIcon = selectedIcon ? getLazyIcon(selectedIcon) : null;
+  const iconLabel = selectedIcon ? (CATEGORY_ICONS[selectedIcon] ?? selectedIcon) : undefined;
 
   return (
     <div className="space-y-6">
+      {/* ---- Live Preview ---- */}
+      <div className="flex flex-col items-center gap-2 py-2">
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-2xl transition-colors duration-200"
+          style={{ backgroundColor: selectedColor ? `${selectedColor}20` : 'var(--muted)' }}
+          aria-label={`Anteprima: ${iconLabel ?? 'nessuna icona'}, ${COLOR_LABELS[selectedColor ?? ''] ?? 'nessun colore'}`}
+        >
+          {PreviewIcon ? (
+            <Suspense fallback={<Tag className="h-7 w-7 text-muted-foreground" aria-hidden="true" />}>
+              <PreviewIcon className="h-7 w-7" style={{ color: selectedColor ?? 'var(--muted-foreground)' }} aria-hidden="true" />
+            </Suspense>
+          ) : (
+            <Tag className="h-7 w-7" style={{ color: selectedColor ?? 'var(--muted-foreground)' }} aria-hidden="true" />
+          )}
+        </div>
+        {iconLabel && (
+          <span className="text-xs text-muted-foreground">{iconLabel}</span>
+        )}
+      </div>
+
       {/* ---- Nome ---- */}
       <div className="space-y-2">
         <Label htmlFor="cat-name">Nome categoria *</Label>
@@ -179,43 +207,58 @@ function CategoryFormBody({
         })()}
       </div>
 
-      {/* ---- Colore ---- */}
-      <div className="space-y-3">
+      {/* ---- Aspetto: Icona + Colore ---- */}
+      <div className="space-y-4 rounded-xl border border-border/60 bg-muted/30 p-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Aspetto</p>
+
+        {/* Icona */}
         <div className="flex items-center justify-between">
-          <Label>Colore</Label>
-          {selectedColor && (
-            <span className="text-xs text-muted-foreground">{COLOR_LABELS[selectedColor] ?? selectedColor}</span>
-          )}
+          <Label>Icona</Label>
+          <IconPickerPopover
+            value={selectedIcon}
+            onChange={(icon) => setValue('icon', icon)}
+            triggerAriaLabel="Scegli icona categoria"
+          />
         </div>
-        <div
-          className="flex flex-wrap gap-2.5"
-          role="radiogroup"
-          aria-label="Colore categoria"
-        >
-          {CATEGORY_COLORS.map((c) => {
-            const isSelected = selectedColor === c.value;
-            return (
-              <button
-                key={c.value}
-                type="button"
-                role="radio"
-                aria-checked={isSelected}
-                aria-label={`${c.label}${isSelected ? ' (selezionato)' : ''}`}
-                onClick={() => setValue('color', c.value)}
-                className={cn(
-                  'w-8 h-8 rounded-full border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  isSelected
-                    ? 'border-foreground scale-110 shadow-md'
-                    : 'border-transparent hover:scale-105'
-                )}
-                style={{ backgroundColor: c.value }}
-              >
-                {isSelected && (
-                  <Check className="w-3.5 h-3.5 text-white mx-auto drop-shadow" aria-hidden="true" />
-                )}
-              </button>
-            );
-          })}
+
+        {/* Colore */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <Label>Colore</Label>
+            {selectedColor && (
+              <span className="text-xs text-muted-foreground">{COLOR_LABELS[selectedColor] ?? selectedColor}</span>
+            )}
+          </div>
+          <div
+            className="flex flex-wrap gap-2.5"
+            role="radiogroup"
+            aria-label="Colore categoria"
+          >
+            {CATEGORY_COLORS.map((c) => {
+              const isSelected = selectedColor === c.value;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={`${c.label}${isSelected ? ' (selezionato)' : ''}`}
+                  onClick={() => setValue('color', c.value)}
+                  className={cn(
+                    'w-8 h-8 rounded-full border-2 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    isSelected
+                      ? 'border-foreground scale-110 shadow-md'
+                      : 'border-transparent hover:scale-105'
+                  )}
+                  style={{ backgroundColor: c.value }}
+                >
+                  {isSelected && (
+                    <Check className="w-3.5 h-3.5 text-white mx-auto drop-shadow" aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -332,10 +375,10 @@ export function CategoryManagementDialog({
   useEffect(() => {
     if (!open) return;
     if (category) {
-      reset({ name: category.name, type: category.type, color: category.color || '#3b82f6' });
+      reset({ name: category.name, type: category.type, color: category.color || '#3b82f6', icon: category.icon });
       setSubCategories(category.subCategories || []);
     } else {
-      reset({ name: initialName || '', type: initialType || 'variable', color: '#3b82f6' });
+      reset({ name: initialName || '', type: initialType || 'variable', color: '#3b82f6', icon: undefined });
       setSubCategories([]);
     }
     setNewSubCategoryName(initialSubCategoryName || '');
@@ -460,6 +503,7 @@ export function CategoryManagementDialog({
         name: data.name.trim(),
         type: data.type,
         color: data.color,
+        icon: data.icon,
         subCategories,
       };
       if (category) {

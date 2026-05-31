@@ -75,11 +75,9 @@ export function ResponsiveModal({
         <DrawerContent>
           <DrawerHeader className="border-b px-6 pb-4 pt-2">
             <DrawerTitle>{title}</DrawerTitle>
-            {resolvedDescription && (
-              <DrawerDescription className="sr-only">
-                {resolvedDescription}
-              </DrawerDescription>
-            )}
+            <DrawerDescription className="sr-only">
+              {resolvedDescription || 'Finestra modale'}
+            </DrawerDescription>
           </DrawerHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
@@ -109,11 +107,9 @@ export function ResponsiveModal({
             </DialogTitle>
             {headerExtra}
           </div>
-          {resolvedDescription && (
-            <DialogDescription className="sr-only">
-              {resolvedDescription}
-            </DialogDescription>
-          )}
+          <DialogDescription className="sr-only">
+            {resolvedDescription || 'Finestra modale'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5">

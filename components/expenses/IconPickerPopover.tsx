@@ -16,7 +16,7 @@ import type { LucideProps } from 'lucide-react';
  */
 const iconCache = new Map<string, React.LazyExoticComponent<React.ComponentType<LucideProps>>>();
 
-function getLazyIcon(name: string): React.LazyExoticComponent<React.ComponentType<LucideProps>> | null {
+export function getLazyIcon(name: string): React.LazyExoticComponent<React.ComponentType<LucideProps>> | null {
   if (!CATEGORY_ICONS[name]) return null;
   if (iconCache.has(name)) return iconCache.get(name)!;
   const LazyIcon = lazy(() =>

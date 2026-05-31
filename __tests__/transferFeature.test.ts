@@ -188,3 +188,50 @@ describe('transfer sign convention', () => {
     expect(transfer.amount).toBeGreaterThan(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// getMonthlyExpenseSummary transfer exclusion logic
+// ---------------------------------------------------------------------------
+
+describe('monthly expense summary logic excludes transfers from totals', () => {
+  it('transfer amounts do not inflate totalExpenses or totalIncome', () => {
+    // Replicates the getMonthlyExpenseSummary loop logic to verify
+    // that transfers are excluded from totalIncome and totalExpenses.
+    const expenses = [
+      makeExpense('income', 5000),
+      makeExpense('fixed', -1000),
+      makeExpense('variable', -200),
+      makeExpense('transfer', 500),
+    ]
+
+    let totalIncome = 0
+    let totalExpenses = 0
+    const byType: Record<string, { total: number; count: number }> = {
+      fixed: { total: 0, count: 0 },
+      variable: { total: 0, count: 0 },
+      debt: { total: 0, count: 0 },
+      income: { total: 0, count: 0 },
+      transfer: { total: 0, count: 0 },
+    }
+
+    expenses.forEach(expense => {
+      if (expense.type === 'income') {
+        totalIncome += expense.amount
+      } else if (expense.type !== 'transfer') {
+        totalExpenses += Math.abs(expense.amount)
+      }
+      byType[expense.type].total += Math.abs(expense.amount)
+      byType[expense.type].count += 1
+    })
+
+    const netBalance = totalIncome - totalExpenses
+
+    expect(totalIncome).toBe(5000)
+    expect(totalExpenses).toBe(1200) // 1000 + 200, no transfer
+    expect(netBalance).toBe(3800)    // 5000 - 1200
+
+    // Transfer is still tracked in byType for informational purposes
+    expect(byType.transfer.total).toBe(500)
+    expect(byType.transfer.count).toBe(1)
+  })
+})

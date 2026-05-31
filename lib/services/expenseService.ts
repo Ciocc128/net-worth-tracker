@@ -613,10 +613,10 @@ export async function getMonthlyExpenseSummary(
     };
 
     expenses.forEach(expense => {
-      // Update totals
+      // Update totals — transfers are internal movements, not real income/expenses
       if (expense.type === 'income') {
         summary.totalIncome += expense.amount;
-      } else {
+      } else if (expense.type !== 'transfer') {
         summary.totalExpenses += Math.abs(expense.amount);
       }
 

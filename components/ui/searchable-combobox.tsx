@@ -66,6 +66,7 @@ export function SearchableCombobox({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // === Filtering and Display Logic ===
 
@@ -92,6 +93,9 @@ export function SearchableCombobox({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Cleanup blur timeout on unmount
+  useEffect(() => () => { if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current); }, []);
+
   // === Event Handlers ===
 
   const handleSelect = (optionValue: string) => {
@@ -103,7 +107,6 @@ export function SearchableCombobox({
 
   const handleCreate = () => {
     const name = searchQuery.trim();
-    if (!name) return;
     setIsDropdownOpen(false);
     setSearchQuery('');
     setIsFocused(false);
@@ -120,7 +123,7 @@ export function SearchableCombobox({
     // before the blur event closes the dropdown. Without this delay, clicking
     // an option would trigger blur first, closing the dropdown and preventing
     // the click handler from firing.
-    setTimeout(() => {
+    blurTimeoutRef.current = setTimeout(() => {
       setIsFocused(false);
       setSearchQuery('');
       setIsDropdownOpen(false);

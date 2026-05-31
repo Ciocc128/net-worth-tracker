@@ -237,15 +237,20 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 		const prevSelectedCount = React.useRef(selectedValues.length);
 		const prevIsOpen = React.useRef(isPopoverOpen);
 		const prevSearchValue = React.useRef(searchValue);
+		const announceTimerRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+		// Cleanup ARIA announcement timer on unmount
+		React.useEffect(() => () => { if (announceTimerRef.current) clearTimeout(announceTimerRef.current); }, []);
 
 		const announce = React.useCallback(
 			(message: string, priority: "polite" | "assertive" = "polite") => {
+				clearTimeout(announceTimerRef.current);
 				if (priority === "assertive") {
 					setAssertiveMessage(message);
-					setTimeout(() => setAssertiveMessage(""), 100);
+					announceTimerRef.current = setTimeout(() => setAssertiveMessage(""), 100);
 				} else {
 					setPoliteMessage(message);
-					setTimeout(() => setPoliteMessage(""), 100);
+					announceTimerRef.current = setTimeout(() => setPoliteMessage(""), 100);
 				}
 			},
 			[]
