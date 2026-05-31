@@ -50,10 +50,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Edit, Trash2, TrendingUp, TrendingDown, Calendar, ChevronLeft, ChevronRight, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { getExpenseDate } from '@/lib/utils/expenseHelpers';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -78,17 +80,18 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false }: Ex
   const [sortCol, setSortCol] = useState<'amount' | 'date' | 'category' | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Delete confirmation dialog state
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    expense: Expense | null;
+    mode: 'simple' | 'installment' | 'recurring' | null;
+  }>({ open: false, expense: null, mode: null });
+
   // ========== Formatting Utilities ==========
 
   const formatDate = (date: Date | string | Timestamp): string => {
     const dateObj = date instanceof Date ? date : (date instanceof Timestamp ? date.toDate() : new Date(date));
     return format(dateObj, 'dd/MM/yyyy', { locale: it });
-  };
-
-  const getExpenseDate = (d: Expense['date']): Date => {
-    if (d instanceof Date) return d;
-    if (d instanceof Timestamp) return d.toDate();
-    return new Date(d as string);
   };
 
   // ========== Delete Handlers ==========
@@ -118,54 +121,13 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false }: Ex
    * First confirm deletes single item (safe default), second confirm required
    * for batch deletion to prevent accidental data loss.
    */
-  const handleDelete = async (expense: Expense) => {
-    // Check if this is an installment expense
+  const handleDelete = (expense: Expense) => {
     if (expense.isInstallment && expense.installmentParentId) {
-      const confirmMessage = `Questa è la rata ${expense.installmentNumber}/${expense.installmentTotal}. Vuoi eliminare:\n\n` +
-        `[SOLO QUESTA RATA] - Solo questa rata singola\n` +
-        `[TUTTE LE RATE] - Tutte le ${expense.installmentTotal} rate\n\n` +
-        `Clicca OK per eliminare solo questa rata, Annulla per tornare indietro.`;
-
-      const deleteSingle = window.confirm(confirmMessage);
-
-      if (deleteSingle) {
-        await deleteSingleExpense(expense);
-      } else {
-        const deleteAll = window.confirm(
-          `Vuoi eliminare TUTTE le ${expense.installmentTotal} rate?`
-        );
-        if (deleteAll) {
-          await deleteAllInstallmentExpenses(expense.installmentParentId);
-        }
-      }
-    }
-    // Check if this is a recurring expense
-    else if (expense.isRecurring && expense.recurringParentId) {
-      const confirmMessage = `Questa è una voce ricorrente. Vuoi eliminare:\n\n` +
-        `[SOLO QUESTA] - Solo questa voce singola\n` +
-        `[TUTTE] - Tutte le voci ricorrenti correlate\n\n` +
-        `Clicca OK per eliminare solo questa, Annulla per tornare indietro.`;
-
-      const deleteSingle = window.confirm(confirmMessage);
-
-      if (deleteSingle) {
-        await deleteSingleExpense(expense);
-      } else {
-        const deleteAll = window.confirm(
-          'Vuoi eliminare TUTTE le voci ricorrenti correlate?'
-        );
-        if (deleteAll) {
-          await deleteAllRecurringExpenses(expense.recurringParentId);
-        }
-      }
+      setDeleteDialog({ open: true, expense, mode: 'installment' });
+    } else if (expense.isRecurring && expense.recurringParentId) {
+      setDeleteDialog({ open: true, expense, mode: 'recurring' });
     } else {
-      // Regular expense
-      const confirmDelete = window.confirm(
-        `Sei sicuro di voler eliminare questa voce?${expense.notes ? `\n\n"${expense.notes}"` : ''}`
-      );
-      if (confirmDelete) {
-        await deleteSingleExpense(expense);
-      }
+      setDeleteDialog({ open: true, expense, mode: 'simple' });
     }
   };
 
@@ -378,7 +340,7 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false }: Ex
     );
   }
 
-  return (
+  const table = (
     <div className="space-y-4">
       <div className="rounded-md border">
         <Table>
@@ -600,5 +562,75 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false }: Ex
       </div>
     )}
   </div>
+  );
+
+  return (
+    <>
+      {table}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialog({ open: false, expense: null, mode: null });
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialog.mode === 'installment'
+                ? 'Elimina rata'
+                : deleteDialog.mode === 'recurring'
+                ? 'Elimina voce ricorrente'
+                : 'Elimina voce'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteDialog.mode === 'installment' && deleteDialog.expense
+                ? `Questa è la rata ${deleteDialog.expense.installmentNumber}/${deleteDialog.expense.installmentTotal}. Vuoi eliminare solo questa rata o tutte le ${deleteDialog.expense.installmentTotal} rate?`
+                : deleteDialog.mode === 'recurring'
+                ? 'Questa è una voce ricorrente. Vuoi eliminare solo questa voce o tutte le occorrenze correlate?'
+                : deleteDialog.expense?.notes
+                ? `Sei sicuro di voler eliminare questa voce?\n\n“${deleteDialog.expense.notes}”`
+                : 'Sei sicuro di voler eliminare questa voce?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            {(deleteDialog.mode === 'installment' || deleteDialog.mode === 'recurring') && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (deleteDialog.expense) void deleteSingleExpense(deleteDialog.expense);
+                  setDeleteDialog({ open: false, expense: null, mode: null });
+                }}
+              >
+                Solo questa
+              </Button>
+            )}
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const exp = deleteDialog.expense;
+                if (!exp) return;
+                if (deleteDialog.mode === 'installment' && exp.installmentParentId) {
+                  void deleteAllInstallmentExpenses(exp.installmentParentId);
+                } else if (deleteDialog.mode === 'recurring' && exp.recurringParentId) {
+                  void deleteAllRecurringExpenses(exp.recurringParentId);
+                } else {
+                  void deleteSingleExpense(exp);
+                }
+                setDeleteDialog({ open: false, expense: null, mode: null });
+              }}
+            >
+              {deleteDialog.mode === 'installment'
+                ? `Tutte le ${deleteDialog.expense?.installmentTotal ?? ''} rate`
+                : deleteDialog.mode === 'recurring'
+                ? 'Tutte le ricorrenti'
+                : 'Elimina'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -61,6 +61,7 @@ import { useAssets } from '@/lib/hooks/useAssets';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import { type Period, periodToRange, periodLabel, currentMonthPeriod, isCurrentMonth } from '@/lib/utils/period';
 import { MultiSelect, type MultiSelectGroup, type MultiSelectOption } from '@/components/ui/multi-select';
+import { getExpenseDate } from '@/lib/utils/expenseHelpers';
 
 // Coverage ratio → Italian health label (mirrors the same function in the dashboard overview page).
 function coverageHealthLabel(ratio: number): string {
@@ -69,13 +70,6 @@ function coverageHealthLabel(ratio: number): string {
   if (ratio >= 1.0) return 'In pareggio';
   return 'In deficit';
 }
-
-// Safely coerce Expense.date (Date | Timestamp | string) to a native Date.
-const getExpenseDate = (d: Expense['date']): Date => {
-  if (d instanceof Date) return d;
-  if (typeof d === 'string') return new Date(d);
-  return (d as { toDate(): Date }).toDate();
-};
 
 // Tailwind dot-color classes keyed by expense type for the mobile list rows.
 // All four entries use CSS variable / semantic token references so they remain
@@ -678,10 +672,12 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   }, [expenses, selectedCategoryIds, soloSelectedCategory, selectedSubCategoryId, searchQuery, selectedAccountId]);
 
   // Sort the filtered list for the mobile/tablet flat list.
+  // date-desc also gets an explicit sort — never rely on Firestore document order.
   const mobileSortedExpenses = useMemo(() => {
-    if (mobileSortKey === 'date-desc') return filteredExpenses;
     return [...filteredExpenses].sort((a, b) => {
       switch (mobileSortKey) {
+        case 'date-desc':
+          return getExpenseDate(b.date).getTime() - getExpenseDate(a.date).getTime();
         case 'date-asc':
           return getExpenseDate(a.date).getTime() - getExpenseDate(b.date).getTime();
         case 'amount-desc':
