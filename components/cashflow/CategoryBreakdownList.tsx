@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import React, { Suspense, useMemo } from 'react';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
+import { EmptyState, ChartEmptyIcon } from '@/components/ui/empty-state';
 import type { ExpenseCategory } from '@/types/expenses';
 
 export interface CategoryBreakdownItem {
@@ -27,22 +28,20 @@ function CategoryIconBadge({
   if (!Icon) {
     return (
       <div
-        className="w-2 h-2 rounded-full flex-shrink-0"
+        className="h-2 w-2 flex-shrink-0 rounded-full"
         style={{ background: color || fallbackColor }}
       />
     );
   }
   return (
     <div
-      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+      className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded"
       style={{ backgroundColor: color ? `${color}20` : 'var(--muted)' }}
     >
       <Suspense
-        fallback={
-          <div className="w-2 h-2 rounded-full" style={{ background: fallbackColor }} />
-        }
+        fallback={<div className="h-2 w-2 rounded-full" style={{ background: fallbackColor }} />}
       >
-        <Icon className="w-3 h-3" style={{ color: color || fallbackColor }} aria-hidden="true" />
+        <Icon className="h-3 w-3" style={{ color: color || fallbackColor }} aria-hidden="true" />
       </Suspense>
     </div>
   );
@@ -55,47 +54,61 @@ interface Props {
   categories: ExpenseCategory[];
 }
 
-/**
- * Renders a list of category breakdown rows: icon/dot · name · % · amount · progress bar.
- * Shared between the dashboard Cashflow widget and the ExpenseTrackingTab hero card.
- */
-export function CategoryBreakdownList({ items, categories }: Props) {
+export function CategoryBreakdownList({ items, categories }: Readonly<Props>) {
   const chartColors = useChartColors();
 
   // name → { icon?, color? } — resolved once per categories change.
   const metaByName = useMemo(
-    () => new Map(categories.map(c => [c.name, { icon: c.icon, color: c.color }])),
-    [categories]
+    () => new Map(categories.map((c) => [c.name, { icon: c.icon, color: c.color }])),
+    [categories],
   );
+
+  if (items.length === 0)
+    return (
+      <EmptyState
+        icon={ChartEmptyIcon}
+        title="Nessun dato disponibile"
+        description="Aggiungi delle voci per vedere il dettaglio per categoria."
+        className="flex-1"
+      />
+    );
 
   return (
     <div className="space-y-3">
       {items.map((cat, i) => {
         const meta = metaByName.get(cat.category);
         // Use category color if set; otherwise cycle through theme chart colors.
-        const color = meta?.color || chartColors[i % chartColors.length] || `var(--chart-${(i % 5) + 1})`;
+        const color =
+          meta?.color || chartColors[i % chartColors.length] || `var(--chart-${(i % 5) + 1})`;
         return (
           <div key={cat.category} className="space-y-1">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-2">
                 {meta?.icon ? (
-                  <CategoryIconBadge iconName={meta.icon} color={meta.color} fallbackColor={color} />
+                  <CategoryIconBadge
+                    iconName={meta.icon}
+                    color={meta.color}
+                    fallbackColor={color}
+                  />
                 ) : (
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                  <div
+                    className="h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ background: color }}
+                  />
                 )}
-                <span className="text-[13px] text-foreground truncate">{cat.category}</span>
+                <span className="text-foreground truncate text-[13px]">{cat.category}</span>
               </div>
-              <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                <span className="text-[11px] text-muted-foreground tabular-nums">
+              <div className="ml-3 flex flex-shrink-0 items-center gap-2">
+                <span className="text-muted-foreground text-[11px] tabular-nums">
                   {Math.round(cat.percentage)}%
                 </span>
-                <span className="text-[13px] font-mono tabular-nums text-foreground">
+                <span className="text-foreground font-mono text-[13px] tabular-nums">
                   {cachedFormatCurrencyEUR(cat.amount, true)}
                 </span>
               </div>
             </div>
             <div
-              className="h-[3px] bg-muted rounded-full overflow-hidden"
+              className="bg-muted h-[3px] overflow-hidden rounded-full"
               role="progressbar"
               aria-valuenow={Math.round(cat.percentage)}
               aria-valuemin={0}

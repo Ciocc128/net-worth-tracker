@@ -40,9 +40,15 @@ function getDeltaArrow(delta: number): string {
 }
 
 function getRatioColorClass(ratio: number | null): string {
-  if (ratio === null) return 'text-foreground';
+  if (ratio === null) return 'text-muted-foreground';
   if (ratio >= 1) return 'text-emerald-600 dark:text-emerald-400';
   return 'text-destructive';
+}
+
+/** Grey for 0, emerald for positive, destructive for negative. */
+function getEuroColor(value: number): string {
+  if (value === 0) return 'text-muted-foreground';
+  return value > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive';
 }
 
 // ─── DeltaRow ─────────────────────────────────────────────────────────────────
@@ -55,10 +61,19 @@ interface DeltaRowProps {
 
 function DeltaRow({ delta, invert = false }: Readonly<DeltaRowProps>) {
   if (delta === null || delta === undefined) {
-    return <p className="text-[11px] text-muted-foreground mt-1.5 leading-none opacity-50">vs mese prec.</p>;
+    return (
+      <p className="text-muted-foreground mt-1.5 text-[11px] leading-none opacity-50">
+        vs mese prec.
+      </p>
+    );
   }
   return (
-    <p className={cn('text-[11px] font-medium mt-1.5 leading-none', getDeltaColorClass(delta, invert))}>
+    <p
+      className={cn(
+        'mt-1.5 text-[11px] leading-none font-medium',
+        getDeltaColorClass(delta, invert),
+      )}
+    >
       {getDeltaArrow(delta)} {Math.abs(delta).toFixed(1)}% vs mese prec.
     </p>
   );
@@ -78,7 +93,13 @@ interface KpiChipProps {
   'aria-label'?: string;
 }
 
-function KpiChip({ label, children, subtext, onClick, 'aria-label': ariaLabel }: Readonly<KpiChipProps>) {
+function KpiChip({
+  label,
+  children,
+  subtext,
+  onClick,
+  'aria-label': ariaLabel,
+}: Readonly<KpiChipProps>) {
   if (onClick) {
     return (
       <button
@@ -86,12 +107,14 @@ function KpiChip({ label, children, subtext, onClick, 'aria-label': ariaLabel }:
         onClick={onClick}
         aria-label={ariaLabel}
         className={cn(
-          'h-full w-full bg-card rounded-2xl p-4 ring-1 ring-border/20 text-left',
-          'active:scale-[0.97] transition-transform duration-100',
+          'bg-card desktop:p-6 ring-border/20 h-full w-full rounded-2xl p-4 text-left ring-1 sm:p-5',
+          'transition-transform duration-100 active:scale-[0.97]',
           CHIP_SHADOW,
         )}
       >
-        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+        <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase sm:text-xs">
+          {label}
+        </p>
         {children}
         {subtext}
       </button>
@@ -99,8 +122,15 @@ function KpiChip({ label, children, subtext, onClick, 'aria-label': ariaLabel }:
   }
 
   return (
-    <div className={cn('h-full bg-card rounded-2xl p-4 ring-1 ring-border/20', CHIP_SHADOW)}>
-      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+    <div
+      className={cn(
+        'bg-card desktop:p-6 ring-border/20 h-full rounded-2xl p-4 ring-1 sm:p-5',
+        CHIP_SHADOW,
+      )}
+    >
+      <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase sm:text-xs">
+        {label}
+      </p>
       {children}
       {subtext}
     </div>
@@ -111,7 +141,11 @@ function KpiChip({ label, children, subtext, onClick, 'aria-label': ariaLabel }:
 
 /** Carousel slot with fixed chip width. Wraps every KpiChip in the carousel. */
 function KpiCarouselItem({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <CarouselItem className="basis-[160px] pl-3">{children}</CarouselItem>;
+  return (
+    <CarouselItem className="desktop:basis-[240px] basis-[160px] pl-3 sm:basis-[200px]">
+      {children}
+    </CarouselItem>
+  );
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -145,6 +179,21 @@ export interface CashflowKpiCarouselProps {
   onDrawerOpenChange?: (open: boolean) => void;
 }
 
+// ─── Card data ────────────────────────────────────────────────────────────────
+
+interface KpiCardData {
+  id: string;
+  label: string;
+  displayValue: string;
+  valueClassName: string;
+  subtext: React.ReactNode;
+  onClick?: () => void;
+  ariaLabel?: string;
+}
+
+const VALUE_CLASS =
+  'desktop:text-3xl mt-1.5 font-mono text-[21px] leading-none font-bold tabular-nums sm:text-2xl';
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CashflowKpiCarousel({
@@ -166,8 +215,55 @@ export function CashflowKpiCarousel({
   const catDrawerOpen = drawerOpen ?? internalDrawerOpen;
   const setCatDrawerOpen = onDrawerOpenChange ?? setInternalDrawerOpen;
 
-  const ratioDisplay = ratio === null ? '—' : `${ratio.toFixed(2)}×`;
-  const ratioLabel = ratio === null ? null : coverageHealthLabel(ratio);
+  const cards: KpiCardData[] = [
+    {
+      id: 'entrate',
+      label: 'Entrate',
+      displayValue: cachedFormatCurrencyEUR(income),
+      valueClassName: getEuroColor(income),
+      subtext: <DeltaRow delta={incomeDelta} />,
+    },
+    {
+      id: 'spese',
+      label: 'Spese',
+      displayValue: cachedFormatCurrencyEUR(Math.abs(expenses)),
+      valueClassName: getEuroColor(expenses),
+      subtext: <DeltaRow delta={expensesDelta} invert />,
+    },
+    {
+      id: 'netto',
+      label: 'Risparmio Netto',
+      displayValue: `${net > 0 ? '+' : ''}${cachedFormatCurrencyEUR(net)}`,
+      valueClassName: getEuroColor(net),
+      subtext: (
+        <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">
+          Tasso {savingsRate.toFixed(1)}%
+        </p>
+      ),
+    },
+    {
+      id: 'rapporto',
+      label: 'Rapporto',
+      displayValue: ratio === null ? '0×' : `${ratio.toFixed(2)}×`,
+      valueClassName: getRatioColorClass(ratio),
+      subtext: (
+        <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">
+          {ratio === null ? 'Nessun dato' : coverageHealthLabel(ratio)}
+        </p>
+      ),
+    },
+    {
+      id: 'categorie',
+      label: 'Spese per categorie',
+      displayValue: expenseCategories.length > 0 ? String(expenseCategories.length) : 'Nessuna',
+      valueClassName: 'text-foreground',
+      subtext: (
+        <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">Vedi dettaglio →</p>
+      ),
+      onClick: () => setCatDrawerOpen(true),
+      ariaLabel: 'Apri dettaglio categorie',
+    },
+  ];
 
   return (
     <>
@@ -178,66 +274,18 @@ export function CashflowKpiCarousel({
           aria-label="Riepilogo cashflow"
         >
           <CarouselContent viewportClassName="px-4 py-3 pb-6" className="items-stretch">
-
-            {/* Entrate */}
-            <KpiCarouselItem>
-              <KpiChip label="Entrate" subtext={<DeltaRow delta={incomeDelta} />}>
-                <p className="text-[21px] font-bold font-mono tabular-nums mt-1.5 leading-none text-emerald-600 dark:text-emerald-400">
-                  {cachedFormatCurrencyEUR(income)}
-                </p>
-              </KpiChip>
-            </KpiCarouselItem>
-
-            {/* Spese */}
-            <KpiCarouselItem>
-              <KpiChip label="Spese" subtext={<DeltaRow delta={expensesDelta} invert />}>
-                <p className="text-[21px] font-bold font-mono tabular-nums mt-1.5 leading-none text-destructive">
-                  {cachedFormatCurrencyEUR(Math.abs(expenses))}
-                </p>
-              </KpiChip>
-            </KpiCarouselItem>
-
-            {/* Risparmio Netto */}
-            <KpiCarouselItem>
-              <KpiChip
-                label="Risparmio Netto"
-                subtext={<p className="text-[11px] text-muted-foreground mt-1.5 leading-none">Tasso {savingsRate.toFixed(1)}%</p>}
-              >
-                <p className={cn(
-                  'text-[21px] font-bold font-mono tabular-nums mt-1.5 leading-none',
-                  net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
-                )}>
-                  {net >= 0 ? '+' : ''}{cachedFormatCurrencyEUR(net)}
-                </p>
-              </KpiChip>
-            </KpiCarouselItem>
-
-            {/* Rapporto */}
-            <KpiCarouselItem>
-              <KpiChip
-                label="Rapporto"
-                subtext={<p className="text-[11px] text-muted-foreground mt-1.5 leading-none">{ratioLabel ?? 'Nessun dato'}</p>}
-              >
-                <p className={cn('text-[21px] font-bold font-mono tabular-nums mt-1.5 leading-none', getRatioColorClass(ratio))}>
-                  {ratioDisplay}
-                </p>
-              </KpiChip>
-            </KpiCarouselItem>
-
-            {/* Categorie — opens drawer */}
-            <KpiCarouselItem>
-              <KpiChip
-                label="Categorie"
-                onClick={() => setCatDrawerOpen(true)}
-                aria-label="Apri dettaglio categorie"
-                subtext={<p className="text-[11px] text-muted-foreground mt-1.5 leading-none">Vedi dettaglio →</p>}
-              >
-                <p className="text-[21px] font-bold tabular-nums mt-1.5 leading-none text-foreground">
-                  {expenseCategories.length}
-                </p>
-              </KpiChip>
-            </KpiCarouselItem>
-
+            {cards.map((card) => (
+              <KpiCarouselItem key={card.id}>
+                <KpiChip
+                  label={card.label}
+                  onClick={card.onClick}
+                  aria-label={card.ariaLabel}
+                  subtext={card.subtext}
+                >
+                  <p className={cn(VALUE_CLASS, card.valueClassName)}>{card.displayValue}</p>
+                </KpiChip>
+              </KpiCarouselItem>
+            ))}
           </CarouselContent>
         </Carousel>
       </div>

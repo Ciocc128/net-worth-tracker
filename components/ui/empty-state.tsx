@@ -19,9 +19,15 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className }: Readonly<EmptyStateProps>) {
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+}: Readonly<EmptyStateProps>) {
   return (
-    <div className={cn('flex flex-col items-center justify-center py-8 px-4 text-center', className)}>
+    <div className={cn('flex flex-col items-center justify-center p-8 text-center', className)}>
       {/* Float keyframes defined inline — avoids globals.css coupling */}
       <style>{`
         @keyframes float {
@@ -30,14 +36,14 @@ export function EmptyState({ icon: Icon, title, description, action, className }
         }
       `}</style>
 
-      <div className="mb-3 text-muted-foreground/50 motion-safe:animate-[float_3s_ease-in-out_infinite]">
-        <Icon className="w-16 h-16 sm:w-20 sm:h-20 desktop:w-26 desktop:h-26" />
+      <div className="text-muted-foreground/50 mb-3 motion-safe:animate-[float_3s_ease-in-out_infinite]">
+        <Icon className="desktop:w-26 desktop:h-26 h-16 w-16 sm:h-20 sm:w-20" />
       </div>
 
-      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <p className="text-muted-foreground text-sm font-medium">{title}</p>
 
       {description && (
-        <p className="mt-1 text-xs text-muted-foreground/70 max-w-xs">{description}</p>
+        <p className="text-muted-foreground/70 mt-1 max-w-xs text-xs">{description}</p>
       )}
 
       {action && <div className="mt-4">{action}</div>}
@@ -66,10 +72,20 @@ export function SeedlingIcon({ className }: Readonly<{ className?: string }>) {
       {/* Stem */}
       <line x1="12" y1="20" x2="12" y2="10" />
       {/* Left leaf */}
-      <path d="M12 14 C9 14 7 12 7 9 C9 9 11 11 12 14Z" fill="currentColor" stroke="none" opacity="0.4" />
+      <path
+        d="M12 14 C9 14 7 12 7 9 C9 9 11 11 12 14Z"
+        fill="currentColor"
+        stroke="none"
+        opacity="0.4"
+      />
       <path d="M12 14 C9 14 7 12 7 9" />
       {/* Right leaf */}
-      <path d="M12 11 C15 11 17 9 17 6 C15 6 13 8 12 11Z" fill="currentColor" stroke="none" opacity="0.4" />
+      <path
+        d="M12 11 C15 11 17 9 17 6 C15 6 13 8 12 11Z"
+        fill="currentColor"
+        stroke="none"
+        opacity="0.4"
+      />
       <path d="M12 11 C15 11 17 9 17 6" />
       {/* Ground line */}
       <path d="M8 20 Q12 18 16 20" />
