@@ -57,7 +57,6 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useChartColors } from '@/lib/hooks/useChartColors';
-import { useAssets } from '@/lib/hooks/useAssets';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import { type Period, periodToRange, periodLabel, currentMonthPeriod, isCurrentMonth } from '@/lib/utils/period';
 import { MultiSelect, type MultiSelectGroup } from '@/components/ui/multi-select';
@@ -230,6 +229,8 @@ interface ExpenseTrackingTabProps {
   categories: ExpenseCategory[];
   loading: boolean;
   onRefresh: () => Promise<void>;
+  /** id→name map for cash assets; built in the parent to avoid a cross-domain subscription here. */
+  assetNameMap: Map<string, string>;
 }
 
 /**
@@ -240,12 +241,11 @@ interface ExpenseTrackingTabProps {
  * 4. Update typeOptions array in this file
  * 5. Add type validation in ExpenseDialog schema
  */
-export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh }: ExpenseTrackingTabProps) {
+export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh, assetNameMap }: ExpenseTrackingTabProps) {
   const { user } = useAuth();
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
   const chartColors = useChartColors();
-  const { data: allAssets = [] } = useAssets(user?.uid);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
@@ -543,13 +543,6 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
     }));
   }, [soloSelectedCategory]);
 
-  // Build id→name lookup from all loaded assets (shared React Query cache — no extra fetch).
-  const assetNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of allAssets) map.set(a.id, a.name);
-    return map;
-  }, [allAssets]);
-
   // Account options: accounts that appear in the current period expenses.
   // Only shown when at least 2 distinct accounts exist (otherwise the filter is useless).
   const accountOptions = useMemo(() => {
@@ -805,7 +798,7 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
             maxCount={2}
             className="w-full"
             popoverClassName="w-[280px] desktop:w-[320px]"
-            resetOnDefaultValueChange={true}
+            resetOnDefaultValueChange={false}
           />
         </div>
 

@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { Receipt, Coins, Target, Layers, Plus } from 'lucide-react';
@@ -37,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dividend } from '@/types/dividend';
 import { Asset } from '@/types/assets';
 import { useExpenses, useExpenseCategories } from '@/lib/hooks/useExpenses';
+import { useAssets } from '@/lib/hooks/useAssets';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
@@ -72,6 +73,13 @@ export default function CashflowPage() {
   // React Query hooks for expenses and categories
   const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(user?.uid);
   const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories(user?.uid);
+  const { data: allAssets = [] } = useAssets(user?.uid);
+
+  const assetNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allAssets) map.set(a.id, a.name);
+    return map;
+  }, [allAssets]);
 
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(new Date().getFullYear() - 1);
 
@@ -177,6 +185,7 @@ export default function CashflowPage() {
       <PageHeader
         label="Operatività"
         title="Cashflow"
+        description="Traccia e analizza le tue entrate e uscite nel tempo"
         separator={false}
         actions={
           activeTab === 'tracking' ? (
@@ -213,6 +222,7 @@ export default function CashflowPage() {
               categories={categories}
               loading={loading}
               onRefresh={handleRefresh}
+              assetNameMap={assetNameMap}
             />
           </motion.div>
         </TabsContent>

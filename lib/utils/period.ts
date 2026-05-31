@@ -6,6 +6,7 @@
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { MONTH_NAMES } from '@/lib/constants/months';
+import { getItalyMonth, getItalyYear } from '@/lib/utils/dateHelpers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,8 +51,7 @@ export function periodToRange(period: Period): { from: Date; to: Date } {
 
 /** Default period: current calendar month. */
 export function currentMonthPeriod(): Period {
-  const now = new Date();
-  return { kind: 'month', year: now.getFullYear(), month: now.getMonth() + 1 };
+  return { kind: 'month', year: getItalyYear(), month: getItalyMonth() };
 }
 
 // ─── Internal helpers (used by usePeriodPicker) ───────────────────────────────
@@ -59,21 +59,20 @@ export function currentMonthPeriod(): Period {
 /** Check if a Period matches the current calendar month. */
 export function isCurrentMonth(p: Period): boolean {
   if (p.kind !== 'month') return false;
-  const now = new Date();
-  return p.year === now.getFullYear() && p.month === now.getMonth() + 1;
+  return p.year === getItalyYear() && p.month === getItalyMonth();
 }
 
 /** Check if a Period matches the previous calendar month. */
 export function isPrevMonth(p: Period): boolean {
   if (p.kind !== 'month') return false;
   const prev = subMonths(new Date(), 1);
-  return p.year === prev.getFullYear() && p.month === prev.getMonth() + 1;
+  return p.year === getItalyYear(prev) && p.month === getItalyMonth(prev);
 }
 
 /** Check if a Period matches the current calendar year. */
 export function isCurrentYear(p: Period): boolean {
   if (p.kind !== 'year') return false;
-  return p.year === new Date().getFullYear();
+  return p.year === getItalyYear();
 }
 
 const DATE_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;

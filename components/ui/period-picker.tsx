@@ -27,11 +27,6 @@ import { type Period, currentMonthPeriod, MONTH_NAMES_SHORT } from '@/lib/utils/
 import { cn } from '@/lib/utils';
 import { Chip } from '@/components/ui/chip';
 
-// ─── Re-exports for consumers (keeps import path stable) ─────────────────────
-
-export type { Period } from '@/lib/utils/period';
-export { periodLabel, periodToRange, currentMonthPeriod } from '@/lib/utils/period';
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface PeriodPickerProps {

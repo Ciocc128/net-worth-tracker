@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -317,30 +318,13 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 			[resetToDefault, selectedValues, onValueChange]
 		);
 
-		const [screenSize, setScreenSize] = React.useState<
-			"mobile" | "tablet" | "desktop"
-		>("desktop");
-
-		React.useEffect(() => {
-			if (typeof window === "undefined") return;
-			const handleResize = () => {
-				const width = window.innerWidth;
-				if (width < 640) {
-					setScreenSize("mobile");
-				} else if (width < 1024) {
-					setScreenSize("tablet");
-				} else {
-					setScreenSize("desktop");
-				}
-			};
-			handleResize();
-			window.addEventListener("resize", handleResize);
-			return () => {
-				if (typeof window !== "undefined") {
-					window.removeEventListener("resize", handleResize);
-				}
-			};
-		}, []);
+		const isMobileScreen = useMediaQuery("(max-width: 639px)");
+		const isTabletScreen = useMediaQuery("(min-width: 640px) and (max-width: 1023px)");
+		const screenSize: "mobile" | "tablet" | "desktop" = isMobileScreen
+			? "mobile"
+			: isTabletScreen
+			? "tablet"
+			: "desktop";
 
 		const getResponsiveSettings = () => {
 			if (!responsive) {
