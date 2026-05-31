@@ -112,12 +112,12 @@ export function MobileFiltersDrawer({
       {/* Spacer pushes all controls to the right */}
       <div className="flex-1" />
 
-      {/* Period picker */}
+      {/* Period picker — max-w caps the button when a custom range label is long */}
       <PeriodPicker
         value={period}
         onChange={onPeriodChange}
         availableYears={availableYears}
-        className="shrink-0"
+        className="shrink-0 max-w-[170px]"
       />
 
       {/* Filter button — badge shows count of active drawer filters */}

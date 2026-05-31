@@ -210,6 +210,7 @@ export function CashflowTrackingMobile({
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className={cn('space-y-5', className)}>
 
       {/* ── 1. Page title + count + add button ───────────────────────────── */}
@@ -268,7 +269,7 @@ export function CashflowTrackingMobile({
       {/*       Negative margin lets chips bleed to the page edge on small screens */}
       <div className="-mx-4 sm:-mx-6">
         <div
-          className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 sm:px-6 pt-1 pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-5 sm:px-7 pt-2 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="list"
           aria-label="Riepilogo cashflow"
         >
@@ -367,59 +368,6 @@ export function CashflowTrackingMobile({
         </div>
       </div>
 
-      {/* ── Categories drawer ──────────────────────────────────────────────── */}
-      <Drawer open={catDrawerOpen} onOpenChange={setCatDrawerOpen}>
-        <DrawerContent className="max-h-[85vh]">
-          <DrawerHeader className="pb-2">
-            <DrawerTitle>
-              Categorie · {format(periodToRange(period).from, 'MMM yyyy', { locale: it })}
-            </DrawerTitle>
-            <DrawerDescription className="sr-only">
-              Breakdown delle categorie per il periodo selezionato
-            </DrawerDescription>
-          </DrawerHeader>
-
-          {/* Spese / Entrate toggle */}
-          <div className="flex gap-1 mx-4 mb-3 bg-muted rounded-lg p-1" role="tablist" aria-label="Tipo di voci">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={catView === 'expense'}
-              onClick={() => setCatView('expense')}
-              className={cn(
-                'flex-1 rounded-md py-1.5 text-sm font-medium transition-colors',
-                catView === 'expense'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              Spese
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={catView === 'income'}
-              onClick={() => setCatView('income')}
-              className={cn(
-                'flex-1 rounded-md py-1.5 text-sm font-medium transition-colors',
-                catView === 'income'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              Entrate
-            </button>
-          </div>
-
-          <div className="overflow-y-auto px-4 pb-8">
-            <CategoryBreakdownList
-              items={catView === 'expense' ? expenseCategories : incomeCategories}
-              categories={categories}
-            />
-          </div>
-        </DrawerContent>
-      </Drawer>
-
       {/* ── 4. Transaction list ─────────────────────────────────────────────── */}
       <div className="space-y-3">
 
@@ -489,5 +437,59 @@ export function CashflowTrackingMobile({
         )}
       </div>
     </div>
+
+    {/* ── Categories drawer — outside space-y-5 to avoid phantom gap ─── */}
+    <Drawer open={catDrawerOpen} onOpenChange={setCatDrawerOpen}>
+      <DrawerContent className="max-h-[85vh]">
+        <DrawerHeader className="pb-2">
+          <DrawerTitle>
+            Categorie · {format(periodToRange(period).from, 'MMM yyyy', { locale: it })}
+          </DrawerTitle>
+          <DrawerDescription className="sr-only">
+            Breakdown delle categorie per il periodo selezionato
+          </DrawerDescription>
+        </DrawerHeader>
+
+        {/* Spese / Entrate toggle */}
+        <div className="flex gap-1 mx-4 mb-3 bg-muted rounded-lg p-1" role="tablist" aria-label="Tipo di voci">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={catView === 'expense'}
+            onClick={() => setCatView('expense')}
+            className={cn(
+              'flex-1 rounded-md py-1.5 text-sm font-medium transition-colors',
+              catView === 'expense'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Spese
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={catView === 'income'}
+            onClick={() => setCatView('income')}
+            className={cn(
+              'flex-1 rounded-md py-1.5 text-sm font-medium transition-colors',
+              catView === 'income'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Entrate
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-4 pb-8">
+          <CategoryBreakdownList
+            items={catView === 'expense' ? expenseCategories : incomeCategories}
+            categories={categories}
+          />
+        </div>
+      </DrawerContent>
+    </Drawer>
+    </>
   );
 }
