@@ -762,9 +762,11 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
   return (
     <div className="space-y-4">
       {/* ── Filters bar — always visible, commands the whole page ─────────── */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Search + Period */}
+        <div className="flex flex-wrap items-center gap-2">
         {/* Ricerca testo */}
-        <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-[400px] sm:mr-auto">
+        <div className="relative flex-1 min-w-[160px]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={searchQuery}
@@ -789,11 +791,14 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
           value={period}
           onChange={setPeriod}
           availableYears={availableYears}
-          className="w-full sm:w-auto sm:flex-shrink-0"
+          className="shrink-0"
         />
+        </div>
 
+        {/* Row 2: Category chips + optional account filter + reset */}
+        <div className="flex flex-wrap items-center gap-2">
         {/* Categorie */}
-        <div className="w-full sm:w-[260px] desktop:w-[320px] sm:shrink-0">
+        <div className="flex-1 min-w-[200px]">
           <MultiSelect
             options={categoryMultiSelectOptions}
             defaultValue={multiSelectValue}
@@ -811,7 +816,7 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
 
         {/* Sottocategoria */}
         {soloSelectedCategory && subCategoryOptions.length > 0 && (
-          <div className="w-full sm:w-[190px] sm:shrink-0">
+          <div className="w-full sm:w-[180px] shrink-0">
             <Select value={selectedSubCategoryId} onValueChange={setSelectedSubCategoryId}>
               <SelectTrigger id="filter-subcategory" aria-label="Filtra per sottocategoria" className="w-full">
                 <SelectValue placeholder="Tutte" />
@@ -828,7 +833,7 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
 
         {/* Conto corrente — only shown when 2+ accounts appear in the period */}
         {accountOptions.length >= 2 && (
-          <div className="w-full sm:w-[190px] sm:shrink-0">
+          <div className="w-full sm:w-[180px] shrink-0">
             <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
               <SelectTrigger id="filter-account" aria-label="Filtra per conto corrente" className="w-full">
                 <SelectValue placeholder="Tutti i conti" />
@@ -845,11 +850,12 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
 
         {/* Ripristina — only when filters are active */}
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={handleResetFilters} className="h-9 gap-1.5 px-2.5 text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="sm" onClick={handleResetFilters} className="h-9 gap-1.5 px-2.5 shrink-0 text-muted-foreground hover:text-foreground">
             <X className="h-3.5 w-3.5" />
             Ripristina
           </Button>
         )}
+        </div>
       </div>
 
       {/* Desktop: sticky KPI summary on left, transaction list on right */}
@@ -1082,6 +1088,7 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
               onEdit={handleEditExpense}
               onRefresh={onRefresh}
               isDemo={isDemo}
+              hasActiveFilters={hasActiveFilters}
             />
           </div>
 
@@ -1091,7 +1098,9 @@ export function ExpenseTrackingTab({ allExpenses, categories, loading, onRefresh
               <div className="rounded-md border border-dashed p-8 text-center">
                 <p className="text-muted-foreground">Nessuna voce trovata</p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Usa il pulsante + per aggiungere la prima voce
+                  {hasActiveFilters
+                    ? 'Nessun risultato per i filtri applicati. Prova ad azzerare i filtri.'
+                    : 'Usa il pulsante + per aggiungere la prima voce'}
                 </p>
               </div>
             ) : (

@@ -65,9 +65,10 @@ interface ExpenseTableProps {
   onEdit: (expense: Expense) => void;
   onRefresh: () => void;
   isDemo?: boolean;
+  hasActiveFilters?: boolean;
 }
 
-export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false }: ExpenseTableProps) {
+export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasActiveFilters = false }: ExpenseTableProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -334,7 +335,9 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false }: Ex
       <div className="rounded-md border border-dashed p-8 text-center">
         <p className="text-muted-foreground">Nessuna voce trovata</p>
         <p className="text-sm text-muted-foreground mt-2">
-          Clicca su "Nuova Spesa" per aggiungere la prima voce
+          {hasActiveFilters
+            ? 'Nessun risultato per i filtri applicati. Prova ad azzerare i filtri.'
+            : 'Clicca su "Nuova Spesa" per aggiungere la prima voce'}
         </p>
       </div>
     );
