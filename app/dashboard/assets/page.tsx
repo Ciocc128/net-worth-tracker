@@ -72,40 +72,56 @@ function formatAssetDate(ts: Date | Timestamp | null | undefined): string {
 function CashAccountsSection({
   assets,
   onSelect,
+  onAdd,
 }: {
   assets: Asset[];
   onSelect: (asset: Asset) => void;
+  onAdd: () => void;
 }) {
-  if (assets.length === 0) return null;
   return (
     <div className="space-y-3">
       <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         Conti Correnti
       </p>
-      <div className="grid grid-cols-2 desktop:grid-cols-4 gap-3">
-        {assets.map((asset) => (
-          <button
-            key={asset.id}
-            type="button"
-            onClick={() => onSelect(asset)}
-            // bg-muted/40 (no border) keeps these as lighter KPI chips, not full cards.
-            // bg-card + border would give them equal visual weight to the hero cards above.
-            className={cn(
-              'cursor-pointer rounded-xl bg-muted/40 p-5 text-left',
-              'hover:bg-muted/60 active:bg-muted/70 transition-colors duration-150',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
-            )}
-          >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted mb-3">
-              <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-            <p className="text-xs text-muted-foreground truncate mb-0.5">{asset.name}</p>
-            <p className="text-lg font-bold font-mono tabular-nums tracking-tight text-foreground">
-              {formatCurrency(calculateAssetValue(asset), asset.currency)}
-            </p>
-          </button>
-        ))}
-      </div>
+      {assets.length === 0 ? (
+        <button
+          type="button"
+          onClick={onAdd}
+          className={cn(
+            'w-full rounded-xl border border-dashed border-border bg-muted/20 p-5 text-left',
+            'hover:bg-muted/40 active:bg-muted/50 transition-colors duration-150',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
+          )}
+        >
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Wallet className="h-4 w-4 shrink-0" />
+            <span className="text-sm">Aggiungi il tuo primo conto corrente</span>
+          </div>
+        </button>
+      ) : (
+        <div className="grid grid-cols-2 desktop:grid-cols-4 gap-3">
+          {assets.map((asset) => (
+            <button
+              key={asset.id}
+              type="button"
+              onClick={() => onSelect(asset)}
+              className={cn(
+                'cursor-pointer rounded-xl bg-muted/40 p-5 text-left',
+                'hover:bg-muted/60 active:bg-muted/70 transition-colors duration-150',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
+              )}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted mb-3">
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground truncate mb-0.5">{asset.name}</p>
+              <p className="text-lg font-bold font-mono tabular-nums tracking-tight text-foreground">
+                {formatCurrency(calculateAssetValue(asset), asset.currency)}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -238,7 +254,7 @@ export default function AssetsPage() {
   // Cash accounts (type=cash AND assetClass=cash, active quantity) are shown in
   // the dedicated "Conti Correnti" section above the table, not in the table.
   const cashAssets = useMemo(
-    () => assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash' && a.quantity > 0),
+    () => assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'),
     [assets]
   );
   const nonCashAssets = useMemo(
@@ -563,6 +579,10 @@ export default function AssetsPage() {
         onSelect={(asset) => {
           setSelectedCashAsset(asset);
           setCashDetailOpen(true);
+        }}
+        onAdd={() => {
+          setSelectedCashAsset(null);
+          setCashEditOpen(true);
         }}
       />
 
