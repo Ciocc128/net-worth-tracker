@@ -108,10 +108,7 @@ export function MobileFiltersDrawer({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex items-center gap-2 desktop:hidden">
-      {/* Spacer pushes all controls to the right */}
-      <div className="flex-1" />
-
+    <div className="flex items-center justify-center gap-2 desktop:hidden">
       {/* Period picker — max-w caps the button when a custom range label is long */}
       <PeriodPicker
         value={period}
@@ -234,7 +231,10 @@ export function MobileFiltersDrawer({
                 singleLine
                 maxCount={2}
                 className="w-full"
-                popoverClassName="w-[280px]"
+                // Render options as a bottom-sheet instead of a Popover: this
+                // MultiSelect lives inside the filters Drawer, where a nested
+                // Popover can't scroll on tablet and breaks focus trapping.
+                forceDrawer
                 resetOnDefaultValueChange={false}
               />
             </div>

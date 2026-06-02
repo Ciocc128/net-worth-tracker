@@ -223,9 +223,9 @@ const meta = {
 Displays income, expenses, net balance, and savings rate for the selected month,
 with month-over-month deltas and a per-category breakdown.
 
-**Responsive layout:**
-- **Mobile** — Embla carousel with one slide per KPI (Income / Expenses / Net / Savings rate).
-- **Desktop** — KPIs laid out side by side + collapsible "Voci per categorie" section.
+**Responsive layout (container-query based):**
+- **Narrow container** — 2×2 KPI grid + full-width "Spese per categorie" cell (opens a drawer).
+- **Wide container** — single row of 4 KPIs; an inline "Voci per categorie" breakdown shows below.
 
 **Health label** — derived from the income/expenses coverage ratio via \`coverageHealthLabel()\`:
 \`Salute ottima\` (≥2×) · \`Salute buona\` (≥1.3×) · \`In pareggio\` (=1×) · \`In deficit\` (<1×).
@@ -273,7 +273,7 @@ export const EmptyState: Story = {
   },
 };
 
-/** Many categories (10 expenses, 3 income) — stress-tests carousel scroll and overflow. */
+/** Many categories (10 expenses, 3 income) — stress-tests the category breakdown overflow. */
 export const ManyCategories: Story = {
   args: {
     income: 4000,

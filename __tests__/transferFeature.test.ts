@@ -122,9 +122,9 @@ describe('expense calculations exclude transfers', () => {
 describe('getCashFlowsFromExpenses excludes transfers', () => {
   it('transfer expenses do not contribute to cash flow data', () => {
     const expenses = [
-      makeExpense('income', 3000, { date: new Date(2025, 0, 15) as unknown as import('firebase/firestore').Timestamp }),
-      makeExpense('fixed', -800, { date: new Date(2025, 0, 20) as unknown as import('firebase/firestore').Timestamp }),
-      makeExpense('transfer', 500, { date: new Date(2025, 0, 25) as unknown as import('firebase/firestore').Timestamp }),
+      makeExpense('income', 3000, { date: new Date(2025, 0, 15) }),
+      makeExpense('fixed', -800, { date: new Date(2025, 0, 20) }),
+      makeExpense('transfer', 500, { date: new Date(2025, 0, 25) }),
     ]
     const start = new Date(2025, 0, 1)
     const end = new Date(2025, 0, 31)
@@ -152,7 +152,7 @@ describe('budget matching excludes transfers', () => {
       order: 0,
     }
     const transferExpense = makeExpense('transfer', 500, {
-      date: new Date(2025, 5, 1) as unknown as import('firebase/firestore').Timestamp,
+      date: new Date(2025, 5, 1),
     })
     const result = getActualForItem(item, [transferExpense], 2025)
     expect(result).toBe(0)
@@ -169,7 +169,7 @@ describe('budget matching excludes transfers', () => {
     }
     const transferExpense = makeExpense('transfer', 500, {
       categoryId: 'cat1',
-      date: new Date(2025, 5, 1) as unknown as import('firebase/firestore').Timestamp,
+      date: new Date(2025, 5, 1),
     })
     const result = getActualForItem(item, [transferExpense], 2025)
     expect(result).toBe(0)

@@ -580,3 +580,12 @@
     animation: none;
   }
 }
+
+/* Hide the scrollbar while keeping the element scrollable (touch + wheel). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chromium, Safari */
+}

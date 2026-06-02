@@ -1210,10 +1210,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           category.name,
           subCategoryName
         );
-        toast.success(data.type === 'transfer' ? 'Trasferimento aggiornato con successo' : 'Spesa aggiornata con successo');
 
         let assetUpdated = false;
 
+        // Reconcile cash balances BEFORE confirming success — a failed transaction
+        // must not show a success toast while balances are left inconsistent.
         if (data.type === 'transfer') {
           assetUpdated = await reconcileTransferEdit({
             oldOriginId: expense.linkedCashAssetId,
@@ -1236,6 +1237,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(user.uid) });
         }
+
+        toast.success(data.type === 'transfer' ? 'Trasferimento aggiornato con successo' : 'Spesa aggiornata con successo');
       } else {
         const result = await createExpense(
           user.uid,
@@ -1244,23 +1247,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           subCategoryName
         );
 
-        if (Array.isArray(result)) {
-          if (expenseData.isInstallment) {
-            const total =
-              expenseData.installmentMode === 'auto'
-                ? expenseData.installmentTotalAmount
-                : expenseData.installmentAmounts?.reduce((sum, amt) => sum + amt, 0);
-            toast.success(
-              `${result.length} rate create con successo (Totale: ${formatCurrency(total || 0)})`
-            );
-          } else {
-            toast.success(`${result.length} voci ricorrenti create con successo`);
-          }
-        } else {
-          toast.success(data.type === 'transfer' ? 'Trasferimento creato con successo' : 'Spesa creata con successo');
-        }
-
         if (data.type === 'transfer') {
+          // Reconcile balances BEFORE confirming success (see edit branch).
           const transferUpdated = await reconcileTransferCreate({
             originId: linkedCashAssetId,
             destId: transferCashAssetId,
@@ -1270,6 +1258,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
             queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(user.uid) });
           }
+          toast.success('Trasferimento creato con successo');
         } else if (linkedCashAssetId) {
           let firstSignedAmount: number;
           if (
@@ -1302,6 +1291,25 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           await reconcileSingleCreate({ linkedAssetId: linkedCashAssetId, signedAmount: firstSignedAmount });
           queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(user.uid) });
+        }
+
+        // Non-transfer success toast — after balances are reconciled.
+        if (data.type !== 'transfer') {
+          if (Array.isArray(result)) {
+            if (expenseData.isInstallment) {
+              const total =
+                expenseData.installmentMode === 'auto'
+                  ? expenseData.installmentTotalAmount
+                  : expenseData.installmentAmounts?.reduce((sum, amt) => sum + amt, 0);
+              toast.success(
+                `${result.length} rate create con successo (Totale: ${formatCurrency(total || 0)})`
+              );
+            } else {
+              toast.success(`${result.length} voci ricorrenti create con successo`);
+            }
+          } else {
+            toast.success('Spesa creata con successo');
+          }
         }
       }
 

@@ -23,6 +23,7 @@ import {
 	DrawerContent,
 	DrawerHeader,
 	DrawerTitle,
+	DrawerDescription,
 	DrawerFooter,
 	DrawerClose,
 } from "@/components/ui/drawer";
@@ -154,6 +155,12 @@ interface MultiSelectProps
 	animationConfig?: AnimationConfig;
 	maxCount?: number;
 	modalPopover?: boolean;
+	/**
+	 * Always render the options inside a bottom-sheet Drawer instead of a Popover,
+	 * regardless of screen size. Use when the MultiSelect lives inside another Drawer
+	 * (a Popover-in-Drawer conflicts with focus trapping and cannot scroll on tablet).
+	 */
+	forceDrawer?: boolean;
 	asChild?: boolean;
 	className?: string;
 	hideSelectAll?: boolean;
@@ -207,6 +214,7 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 			animationConfig,
 			maxCount = 3,
 			modalPopover = false,
+			forceDrawer = false,
 			asChild = false,
 			className,
 			hideSelectAll = false,
@@ -330,6 +338,10 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 			: isTabletScreen
 			? "tablet"
 			: "desktop";
+
+		// Render options in a bottom-sheet Drawer (vs a floating Popover) on small
+		// screens, or whenever the caller forces it (e.g. nested inside another Drawer).
+		const inDrawer = screenSize === "mobile" || forceDrawer;
 
 		const getResponsiveSettings = () => {
 			if (!responsive) {
@@ -910,8 +922,8 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 				)}
 				<CommandList
 					className={cn(
-						"overflow-y-auto multiselect-scrollbar",
-						screenSize === "mobile" ? "max-h-[60vh]" : "max-h-[40vh]",
+						"overflow-y-auto no-scrollbar",
+						inDrawer ? "max-h-[60vh]" : "max-h-[40vh]",
 						"overscroll-behavior-y-contain"
 					)}>
 					<CommandEmpty>
@@ -1125,16 +1137,19 @@ export const MultiSelect = React.forwardRef<MultiSelectRef, MultiSelectProps>(
 								.join(", ")}`}
 				</div>
 
-				{screenSize === "mobile" ? (
+				{inDrawer ? (
 					<>
 						{triggerButton}
 						<Drawer open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
 							<DrawerContent>
 								<DrawerHeader>
 									<DrawerTitle>{placeholder}</DrawerTitle>
+									<DrawerDescription className="sr-only">
+										Seleziona una o più opzioni dalla lista.
+									</DrawerDescription>
 								</DrawerHeader>
 								<div
-									className="px-4 pb-2 overflow-y-auto"
+									className="px-4 pb-2 overflow-y-auto no-scrollbar"
 									id={listboxId}
 									role="listbox"
 									aria-multiselectable="true"

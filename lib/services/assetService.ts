@@ -378,15 +378,28 @@ export async function updateCashAssetBalance(assetId: string, signedDelta: numbe
 export async function updateCashAssetBalancesAtomic(
   updates: { assetId: string; signedDelta: number }[]
 ): Promise<void> {
-  const validUpdates = updates.filter(u => u.signedDelta !== 0);
+  // Aggregate deltas per asset so a single ref is never read/written twice in the
+  // same transaction (e.g. a self-transfer where origin === destination nets to 0).
+  const aggregated = new Map<string, number>();
+  for (const { assetId, signedDelta } of updates) {
+    aggregated.set(assetId, (aggregated.get(assetId) ?? 0) + signedDelta);
+  }
+  const validUpdates = Array.from(aggregated.entries())
+    .map(([assetId, signedDelta]) => ({ assetId, signedDelta }))
+    .filter(u => u.signedDelta !== 0);
   if (validUpdates.length === 0) return;
 
   let userId: string | undefined;
 
   await runTransaction(db, async (tx) => {
-    for (const { assetId, signedDelta } of validUpdates) {
-      const ref = doc(db, ASSETS_COLLECTION, assetId);
-      const snap = await tx.get(ref);
+    // Firestore transactions require ALL reads before ANY writes, so we read every
+    // asset first and only then issue the updates.
+    const refs = validUpdates.map(u => ({ ...u, ref: doc(db, ASSETS_COLLECTION, u.assetId) }));
+    const reads = [];
+    for (const r of refs) {
+      reads.push({ ...r, snap: await tx.get(r.ref) });
+    }
+    for (const { assetId, signedDelta, ref, snap } of reads) {
       if (!snap.exists()) {
         console.warn('Skipping balance update: asset not found', { assetId });
         continue;

@@ -1097,6 +1097,10 @@ export async function getCashFlowsForPeriod(
   const monthlyMap = new Map<string, { income: number; expenses: number; dividendIncome: number }>();
 
   expenses.forEach(expense => {
+    // Transfers are net-zero for portfolio metrics — skip before touching the map
+    // so a transfer-only month never creates a spurious empty cashflow entry.
+    if (expense.type === 'transfer') return;
+
     const date = expense.date;
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -1105,9 +1109,6 @@ export async function getCashFlowsForPeriod(
     }
 
     const entry = monthlyMap.get(key)!;
-
-    // Transfers are net-zero for portfolio metrics — skip entirely
-    if (expense.type === 'transfer') return;
 
     // Separate dividend income from other income
     if (expense.type === 'income') {
@@ -1166,6 +1167,10 @@ export function getCashFlowsFromExpenses(
   const monthlyMap = new Map<string, { income: number; expenses: number; dividendIncome: number }>();
 
   filtered.forEach(expense => {
+    // Transfers are net-zero for portfolio metrics — skip before touching the map
+    // so a transfer-only month never creates a spurious empty cashflow entry.
+    if (expense.type === 'transfer') return;
+
     const date = expense.date;
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -1174,9 +1179,6 @@ export function getCashFlowsFromExpenses(
     }
 
     const entry = monthlyMap.get(key)!;
-
-    // Transfers are net-zero for portfolio metrics — skip entirely
-    if (expense.type === 'transfer') return;
 
     // Separate dividend income from other income
     if (expense.type === 'income') {

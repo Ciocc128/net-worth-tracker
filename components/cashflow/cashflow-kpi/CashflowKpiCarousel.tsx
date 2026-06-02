@@ -1,29 +1,28 @@
 'use client';
 
 /**
- * CashflowKpiCarousel — reusable KPI chip carousel for cashflow data.
+ * CashflowKpiCarousel — reusable KPI grid for cashflow data.
  *
- * Renders five Embla carousel cards: Entrate, Spese, Risparmio Netto,
- * Rapporto, and a "Categorie" button that opens a bottom-sheet drawer.
+ * Renders the cashflow KPIs (Entrate, Spese, Risparmio Netto, Rapporto) plus a
+ * "Spese per categorie" cell that opens a bottom-sheet drawer.
  *
- * Pass `className` for the outer wrapper div (typically a negative-margin
- * bleed like "-mx-4" so the carousel extends to the screen or card edge).
+ * The layout is **container-query responsive** (it adapts to the width of the
+ * nearest `@container` ancestor, NOT the viewport):
+ *   - narrow container  → 2×2 grid + full-width "categorie" cell below
+ *   - wide container (≥ `@2xl`) → single row of 4 KPIs; the "categorie" cell is
+ *     hidden because the wide consumer (CashflowWidget) shows an inline breakdown.
+ *
+ * IMPORTANT: every consumer must wrap this component in an element with the
+ * `@container` class, otherwise the `@2xl:` variants never trigger.
  */
 
 import React, { useState } from 'react';
-import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { type CategoryBreakdownItem } from '../CategoryBreakdownList';
 import { coverageHealthLabel } from './CashflowWidget';
 import type { ExpenseCategory } from '@/types/expenses';
 import { CashflowCategoryDrawer } from './CashflowCategoryDrawer';
-
-// ─── Shadow token ─────────────────────────────────────────────────────────────
-
-const CHIP_SHADOW =
-  'shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.08),0_12px_28px_rgba(0,0,0,0.05)]' +
-  ' dark:shadow-[0_1px_3px_rgba(0,0,0,0.30),0_4px_16px_rgba(0,0,0,0.28),0_12px_28px_rgba(0,0,0,0.20)]';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,14 +74,14 @@ function DeltaRow({ delta, invert = false }: Readonly<DeltaRowProps>) {
         getDeltaColorClass(delta, invert),
       )}
     >
-      {getDeltaArrow(delta)} {Math.abs(delta).toFixed(1)}% vs mese prec.
+      {getDeltaArrow(delta)} {Math.abs(delta).toFixed(1)}% vs prec.
     </p>
   );
 }
 
-// ─── KpiChip ─────────────────────────────────────────────────────────────────
+// ─── KpiCell ──────────────────────────────────────────────────────────────────
 
-interface KpiChipProps {
+interface KpiCellProps {
   label: string;
   /** The large primary value line. */
   children: React.ReactNode;
@@ -92,15 +91,32 @@ interface KpiChipProps {
   onClick?: () => void;
   /** Accessible label — required when `onClick` is set. */
   'aria-label'?: string;
+  className?: string;
 }
 
-function KpiChip({
+/** A single flat grid cell. The parent grid provides the hairline dividers. */
+function KpiCell({
   label,
   children,
   subtext,
   onClick,
   'aria-label': ariaLabel,
-}: Readonly<KpiChipProps>) {
+  className,
+}: Readonly<KpiCellProps>) {
+  const inner = (
+    <>
+      <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+        {label}
+      </p>
+      {children}
+      {subtext}
+    </>
+  );
+
+  // Each cell is its own `@container` so the value font can scale to the cell width
+  // (4-column cells on tablet are much narrower than 2-column ones).
+  const base = '@container min-w-0 bg-card p-4 @[220px]:p-5';
+
   if (onClick) {
     return (
       <button
@@ -108,45 +124,17 @@ function KpiChip({
         onClick={onClick}
         aria-label={ariaLabel}
         className={cn(
-          'bg-card tablet:p-6 ring-border/20 h-full w-full rounded-2xl p-4 text-left ring-1 sm:p-5',
-          'transition-transform duration-100 active:scale-[0.97]',
-          CHIP_SHADOW,
+          base,
+          'flex w-full flex-col text-left transition-transform duration-100 active:scale-[0.99]',
+          className,
         )}
       >
-        <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase sm:text-xs">
-          {label}
-        </p>
-        {children}
-        {subtext}
+        {inner}
       </button>
     );
   }
 
-  return (
-    <div
-      className={cn(
-        'bg-card tablet:p-6 ring-border/20 h-full rounded-2xl p-4 ring-1 sm:p-5',
-        CHIP_SHADOW,
-      )}
-    >
-      <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase sm:text-xs">
-        {label}
-      </p>
-      {children}
-      {subtext}
-    </div>
-  );
-}
-
-// ─── KpiCarouselItem ─────────────────────────────────────────────────────────
-
-/** Carousel slot with fixed chip width. Wraps every KpiChip in the carousel. */
-function KpiCarouselItem({ children, className }: Readonly<{ children: React.ReactNode; className?: string }>) {
-  return (
-    <CarouselItem className={cn('tablet:basis-[240px] basis-[160px] pl-3 sm:basis-[200px]', className)}>
-      {children}
-    </CarouselItem>
-  );
+  return <div className={cn(base, className)}>{inner}</div>;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -172,12 +160,20 @@ export interface CashflowKpiCarouselProps {
   incomeCategories: CategoryBreakdownItem[];
   /** Raw Firestore categories — used for icon/colour lookup in the drawer list. */
   categories: ExpenseCategory[];
-  /** Class on the outermost `<div>`. Typically a negative-margin bleed, e.g. `"-mx-4"`. */
+  /** Class on the grid wrapper `<div>`. */
   className?: string;
   /** Controlled open state for the Categorie drawer. Omit to use internal state. */
   drawerOpen?: boolean;
   /** Called when the drawer requests an open/close transition. Required when `drawerOpen` is set. */
   onDrawerOpenChange?: (open: boolean) => void;
+  /**
+   * Visibility of the "Spese per categorie" drawer-trigger cell:
+   *   - `'always'` (default): always shown full-width below the KPIs. Use when the
+   *     consumer has no inline category breakdown (e.g. the mobile tracking view).
+   *   - `'mobile-only'`: hidden from `tablet:` up, where the consumer shows an inline
+   *     breakdown instead (e.g. CashflowWidget on tablet/desktop).
+   */
+  categoriesCell?: 'always' | 'mobile-only';
 }
 
 // ─── Card data ────────────────────────────────────────────────────────────────
@@ -192,8 +188,10 @@ interface KpiCardData {
   ariaLabel?: string;
 }
 
+// Font size scales to the cell's own width (container query) so large amounts
+// like "+523.677,51 €" don't overflow narrow 4-column cells on tablet.
 const VALUE_CLASS =
-  'tablet:text-3xl mt-1.5 font-mono text-[21px] leading-none font-bold tabular-nums sm:text-2xl';
+  'mt-1.5 font-mono font-bold leading-none tabular-nums break-words text-base @[150px]:text-lg @[190px]:text-xl @[240px]:text-2xl';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -211,6 +209,7 @@ export function CashflowKpiCarousel({
   className,
   drawerOpen,
   onDrawerOpenChange,
+  categoriesCell = 'always',
 }: Readonly<CashflowKpiCarouselProps>) {
   const [internalDrawerOpen, setInternalDrawerOpen] = useState(false);
   const catDrawerOpen = drawerOpen ?? internalDrawerOpen;
@@ -268,27 +267,35 @@ export function CashflowKpiCarousel({
 
   return (
     <>
-      <div className={className}>
-        <Carousel
-          opts={{ align: 'start', dragFree: true, containScroll: false }}
-          className="w-full"
-          aria-label="Riepilogo cashflow"
-        >
-          <CarouselContent viewportClassName="px-4 py-3 pb-6" className="items-stretch">
-            {cards.map((card) => (
-              <KpiCarouselItem key={card.id} className={card.id === 'categorie' ? 'tablet:hidden' : undefined}>
-                <KpiChip
-                  label={card.label}
-                  onClick={card.onClick}
-                  aria-label={card.ariaLabel}
-                  subtext={card.subtext}
-                >
-                  <p className={cn(VALUE_CLASS, card.valueClassName)}>{card.displayValue}</p>
-                </KpiChip>
-              </KpiCarouselItem>
-            ))}
-          </CarouselContent>
-        </Carousel>
+      <div
+        className={cn(
+          'border-border bg-border grid grid-cols-2 gap-px overflow-hidden rounded-xl border',
+          '@2xl:grid-cols-4',
+          className,
+        )}
+        aria-label="Riepilogo cashflow"
+      >
+        {cards.map((card) => {
+          // The "categorie" cell always spans the full row, below the KPIs.
+          // In 'mobile-only' mode it is hidden from `tablet:` up, where the consumer
+          // renders an inline category breakdown instead.
+          const categorieClass =
+            categoriesCell === 'mobile-only'
+              ? 'col-span-2 @2xl:col-span-4 tablet:hidden'
+              : 'col-span-2 @2xl:col-span-4';
+          return (
+            <KpiCell
+              key={card.id}
+              label={card.label}
+              onClick={card.onClick}
+              aria-label={card.ariaLabel}
+              subtext={card.subtext}
+              className={card.id === 'categorie' ? categorieClass : undefined}
+            >
+              <p className={cn(VALUE_CLASS, card.valueClassName)}>{card.displayValue}</p>
+            </KpiCell>
+          );
+        })}
       </div>
 
       <CashflowCategoryDrawer

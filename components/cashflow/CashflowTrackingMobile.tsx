@@ -401,13 +401,15 @@ export function CashflowTrackingMobile({
             {totalCount} risultati
           </p>
         </div>
+        {/* Hidden in portrait, where the bottom-nav FAB already provides "add".
+            In landscape the bottom nav (and its FAB) is hidden, so this button shows. */}
         <Button
           size="sm"
           onClick={onAddExpense}
           disabled={isDemo}
           aria-label={isDemo ? 'Aggiungi — non disponibile in modalità demo' : 'Aggiungi voce'}
           title={isDemo ? 'Non disponibile in modalità demo' : undefined}
-          className="flex-shrink-0 h-9"
+          className="flex-shrink-0 h-9 max-desktop:portrait:hidden"
         >
           <Plus className="h-4 w-4 mr-1.5" />
           Aggiungi
@@ -444,20 +446,21 @@ export function CashflowTrackingMobile({
         ]}
       />
 
-      {/* ── 3. KPI carousel ───────────────────────────────────────────────── */}
-      <CashflowKpiCarousel
-        className="-mx-4 sm:-mx-6"
-        income={income}
-        expenses={expenses}
-        net={net}
-        ratio={ratio}
-        incomeDelta={incomeDelta}
-        expensesDelta={expensesDelta}
-        savingsRate={savingsRate}
-        expenseCategories={expenseCategories}
-        incomeCategories={incomeCategories}
-        categories={categories}
-      />
+      {/* ── 3. KPI grid (2×2; single row of 4 on a wide tablet) ─────────────── */}
+      <div className="@container">
+        <CashflowKpiCarousel
+          income={income}
+          expenses={expenses}
+          net={net}
+          ratio={ratio}
+          incomeDelta={incomeDelta}
+          expensesDelta={expensesDelta}
+          savingsRate={savingsRate}
+          expenseCategories={expenseCategories}
+          incomeCategories={incomeCategories}
+          categories={categories}
+        />
+      </div>
 
       {/* ── 4. Transaction list ─────────────────────────────────────────────── */}
       {transactions.length === 0 ? (
