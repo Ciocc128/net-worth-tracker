@@ -152,10 +152,11 @@ export default function SettingsPage() {
   const [costCentersEnabled, setCostCentersEnabled] = useState<boolean>(false);
   const [monthlyEmailEnabled, setMonthlyEmailEnabled] = useState<boolean>(false);
   const [quarterlyEmailEnabled, setQuarterlyEmailEnabled] = useState<boolean>(false);
+  const [semiAnnualEmailEnabled, setSemiAnnualEmailEnabled] = useState<boolean>(false);
   const [yearlyEmailEnabled, setYearlyEmailEnabled] = useState<boolean>(false);
   const [monthlyEmailRecipients, setMonthlyEmailRecipients] = useState<string[]>([]);
   const [newEmailInput, setNewEmailInput] = useState<string>('');
-  const [sendingTestEmailType, setSendingTestEmailType] = useState<'monthly' | 'quarterly' | 'yearly' | null>(null);
+  const [sendingTestEmailType, setSendingTestEmailType] = useState<'monthly' | 'quarterly' | 'semiannual' | 'yearly' | null>(null);
   const [assetClassStates, setAssetClassStates] = useState<
     Record<AssetClass, AssetClassState>
   >({} as Record<AssetClass, AssetClassState>);
@@ -389,6 +390,7 @@ export default function SettingsPage() {
         setCostCentersEnabled(settingsData.costCentersEnabled ?? false);
         setMonthlyEmailEnabled(settingsData.monthlyEmailEnabled ?? false);
         setQuarterlyEmailEnabled(settingsData.quarterlyEmailEnabled ?? false);
+        setSemiAnnualEmailEnabled(settingsData.semiAnnualEmailEnabled ?? false);
         setYearlyEmailEnabled(settingsData.yearlyEmailEnabled ?? false);
         setMonthlyEmailRecipients(settingsData.monthlyEmailRecipients ?? []);
         // Load dividend settings
@@ -506,6 +508,7 @@ export default function SettingsPage() {
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
           monthlyEmailEnabled: settingsData?.monthlyEmailEnabled ?? false,
           quarterlyEmailEnabled: settingsData?.quarterlyEmailEnabled ?? false,
+          semiAnnualEmailEnabled: settingsData?.semiAnnualEmailEnabled ?? false,
           yearlyEmailEnabled: settingsData?.yearlyEmailEnabled ?? false,
           monthlyEmailRecipients: [...(settingsData?.monthlyEmailRecipients ?? [])].sort(),
         })
@@ -1067,6 +1070,7 @@ export default function SettingsPage() {
         costCentersEnabled,
         monthlyEmailEnabled,
         quarterlyEmailEnabled,
+        semiAnnualEmailEnabled,
         yearlyEmailEnabled,
         monthlyEmailRecipients,
       });
@@ -1381,6 +1385,7 @@ export default function SettingsPage() {
         costCentersEnabled,
         monthlyEmailEnabled,
         quarterlyEmailEnabled,
+        semiAnnualEmailEnabled,
         yearlyEmailEnabled,
         monthlyEmailRecipients: [...monthlyEmailRecipients].sort(),
       }),
@@ -1398,6 +1403,7 @@ export default function SettingsPage() {
       costCentersEnabled,
       monthlyEmailEnabled,
       quarterlyEmailEnabled,
+      semiAnnualEmailEnabled,
       yearlyEmailEnabled,
       monthlyEmailRecipients,
     ]
@@ -1839,6 +1845,25 @@ export default function SettingsPage() {
             />
           </div>
 
+          {/* Semi-annual email toggle */}
+          <div className="flex items-center justify-between border-t pt-4">
+            <div>
+              <Label htmlFor="semiAnnualEmailEnabled" className="text-sm font-medium">
+                Attiva report semestrale
+              </Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Inviato automaticamente il 30 giugno e il 31 dicembre
+              </p>
+            </div>
+            <Switch
+              id="semiAnnualEmailEnabled"
+              checked={semiAnnualEmailEnabled}
+              onCheckedChange={setSemiAnnualEmailEnabled}
+              disabled={isDemo}
+              className={interactiveControlClass}
+            />
+          </div>
+
           {/* Yearly email toggle */}
           <div className="flex items-center justify-between border-t pt-4">
             <div>
@@ -1858,7 +1883,7 @@ export default function SettingsPage() {
             />
           </div>
 
-          {(monthlyEmailEnabled || quarterlyEmailEnabled || yearlyEmailEnabled) && (
+          {(monthlyEmailEnabled || quarterlyEmailEnabled || semiAnnualEmailEnabled || yearlyEmailEnabled) && (
             <div className="space-y-3 border-t pt-4">
               <Label className="text-sm font-medium">Destinatari</Label>
 
@@ -1937,6 +1962,7 @@ export default function SettingsPage() {
                 {([
                   { type: 'monthly' as const, label: 'Invia mensile ora', enabled: monthlyEmailEnabled },
                   { type: 'quarterly' as const, label: 'Invia trimestrale ora', enabled: quarterlyEmailEnabled },
+                  { type: 'semiannual' as const, label: 'Invia semestrale ora', enabled: semiAnnualEmailEnabled },
                   { type: 'yearly' as const, label: 'Invia annuale ora', enabled: yearlyEmailEnabled },
                 ] as const).filter(({ enabled }) => enabled).map(({ type, label }) => (
                   <Button

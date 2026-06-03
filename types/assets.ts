@@ -196,8 +196,9 @@ export interface AssetAllocationSettings {
   costCentersEnabled?: boolean; // When true, Centri di Costo tab appears in Cashflow and the cost center selector appears in ExpenseDialog
   monthlyEmailEnabled?: boolean; // When true, a summary email is sent on the last day of each month
   quarterlyEmailEnabled?: boolean; // When true, a summary email is sent on the last day of each quarter (Mar/Jun/Sep/Dec)
+  semiAnnualEmailEnabled?: boolean; // When true, a summary email is sent on the last day of each half-year (Jun 30 / Dec 31)
   yearlyEmailEnabled?: boolean; // When true, a summary email is sent on December 31
-  monthlyEmailRecipients?: string[]; // Recipient list shared by all periodic summary emails (monthly/quarterly/yearly)
+  monthlyEmailRecipients?: string[]; // Recipient list shared by all periodic summary emails (monthly/quarterly/semiannual/yearly)
   targets: AssetAllocationTarget;
 }
 

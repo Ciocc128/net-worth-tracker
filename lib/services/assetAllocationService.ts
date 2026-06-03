@@ -81,6 +81,7 @@ export async function getSettings(
       costCentersEnabled: data.costCentersEnabled,
       monthlyEmailEnabled: data.monthlyEmailEnabled,
       quarterlyEmailEnabled: data.quarterlyEmailEnabled,
+      semiAnnualEmailEnabled: data.semiAnnualEmailEnabled,
       yearlyEmailEnabled: data.yearlyEmailEnabled,
       monthlyEmailRecipients: data.monthlyEmailRecipients,
       targets: data.targets as AssetAllocationTarget,
@@ -236,6 +237,9 @@ export async function setSettings(
       if (settings.quarterlyEmailEnabled !== undefined) {
         docData.quarterlyEmailEnabled = settings.quarterlyEmailEnabled;
       }
+      if (settings.semiAnnualEmailEnabled !== undefined) {
+        docData.semiAnnualEmailEnabled = settings.semiAnnualEmailEnabled;
+      }
       if (settings.yearlyEmailEnabled !== undefined) {
         docData.yearlyEmailEnabled = settings.yearlyEmailEnabled;
       }
@@ -353,6 +357,9 @@ export async function setSettings(
       }
       if (settings.quarterlyEmailEnabled !== undefined) {
         docData.quarterlyEmailEnabled = settings.quarterlyEmailEnabled;
+      }
+      if (settings.semiAnnualEmailEnabled !== undefined) {
+        docData.semiAnnualEmailEnabled = settings.semiAnnualEmailEnabled;
       }
       if (settings.yearlyEmailEnabled !== undefined) {
         docData.yearlyEmailEnabled = settings.yearlyEmailEnabled;
