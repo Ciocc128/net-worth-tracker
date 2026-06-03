@@ -95,6 +95,13 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - **Fix**: add `parentTypeColor?: string` to state. `handleNodeClick` saves `parentTypeColor: node.color` on the first type-level click and propagates it through category. `handleBack` restores `prev.parentTypeColor || prev.color`.
 - Applied in `CashflowSankeyChart.tsx`.
 
+### Cashflow KPI Disambiguation (Risparmio Netto vs Rapporto)
+- The Cashflow KPI grid (`components/cashflow/cashflow-kpi/CashflowKpiCarousel.tsx`) shows *Risparmio Netto* (€, `net = income + expenses`, subtitle "X% del reddito") and *Rapporto* (`income / |expenses|`, "X.XX×"). These encode the **same** income-vs-expense relationship in different units (`ratio = 1/(1 − savingsRate)`) and are kept as separate KPIs **on purpose** (saved amount vs coverage health) — do NOT "deduplicate" by removing one. A tappable info `Popover` on each label disambiguates them.
+- `KpiCell.info?` is rendered as a `Popover` (NOT `Tooltip`) so it opens on tap on mobile. Pass `info` only to the non-button cells (`netto`/`rapporto`); never to the `categorie` cell, which is already a `<button>` — nesting a `<button>` (the popover trigger) inside it is invalid HTML.
+
+### Cardified Mobile Views Need Their Own Reading Note
+- A matrix/table that collapses to per-row cards on mobile (e.g. `WhatIfSensitivitySection`) must NOT reuse the desktop "rows/columns" framing in its help copy — there are no rows/columns on the card view. Split the note: `hidden desktop:block` for the table version, `desktop:hidden` for a card-oriented version. Also label each card's axes explicitly: an eyebrow for the grouping dimension (e.g. `SPESE ANNUE` on the card header) and a sub-label for the inner cell grid (e.g. `Risparmio annuo`).
+
 ### Expense Sign Convention
 - Income is stored positive
 - Expenses are stored negative

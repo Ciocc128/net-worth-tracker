@@ -5,7 +5,7 @@ Net Worth Tracker is a Next.js app for Italian investors to track net worth, ass
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic
-- Latest (2026-06-02): **What If Analysis tab** (5th tab in FIRE e Simulazioni). New `WhatIfAnalysisTab` simulates life events — job loss, major purchase, savings/expense change, windfall — and shows the before→after impact on **both** traditional FIRE and Coast FIRE. v1 events apply "from now" (year 0): each is a perturbation of baseline net worth / annual savings / annual expenses, then the existing pure `fireService` functions (`calculateFIREMetrics`, `calculateFIREProjection`, `calculateCoastFIREMetrics`) are re-run on baseline vs adjusted inputs and diffed (`lib/services/whatIfService.ts`, unit-tested). The **Sensibilità Anni al FIRE** matrix moved here from the FIRE Calculator (local re-centerable baseline); the **Scenario Pianificato** card + planned-expenses input were removed (subsumed by the cashflow-change event; `plannedAnnualExpenses` setting left dormant). Also: **settings moved to the top** of FIRE Calculator and Coast FIRE, **collapsed when already configured** (FIRE: open when `withdrawalRate == null`/unsaved; Coast: seed-once from persisted `settings.userAge` to avoid the temp-state race). Key files: `components/fire-simulations/{WhatIfAnalysisTab,WhatIfSensitivitySection,WhatIfAnalysisSkeleton}.tsx`, `lib/services/whatIfService.ts`, `types/whatIf.ts`.
+- Latest (2026-06-03): **Cashflow KPI clarity + What If sensitivity matrix mobile legibility.** (1) The Cashflow KPI grid disambiguates *Risparmio Netto* vs *Rapporto*: a tappable info `Popover` (not `Tooltip`, so it works on touch) sits next to each label explaining the metric, and the *Risparmio Netto* subtitle changed from "Tasso X%" to "X% del reddito" (self-describing). `KpiCell` gained an optional `info?: ReactNode` prop; passed only to the `<div>` cells (netto/rapporto), never the `categorie` `<button>` (avoids nested buttons). (2) The **Sensibilità Anni al FIRE** matrix is readable on mobile: the "rows/columns" reading note is now `desktop:`-only and a mobile-specific note ("ogni scheda = livello di spesa annua; le celle = livelli di risparmio annuo") replaces it on phones; each card gained an eyebrow `SPESE ANNUE` (header) and a `Risparmio annuo` label above the cell grid. Key files: `components/cashflow/cashflow-kpi/CashflowKpiCarousel.tsx`, `components/fire-simulations/WhatIfSensitivitySection.tsx`.
 
 ## Architecture Snapshot
 - App Router with protected pages under `app/dashboard/*`
@@ -92,7 +92,7 @@ Net Worth Tracker is a Next.js app for Italian investors to track net worth, ass
 - Mobile perf: `lib/hooks/useMediaQuery.ts`
 - Server-side use cases / processors: `lib/server/assetAdminRepository.ts`, `lib/server/dividendUseCase.ts`, `lib/server/dividendProcessor.ts`, `lib/server/monthlyEmailService.ts`
 
-**Last updated**: 2026-06-02 (What If Analysis tab — life-event scenarios on FIRE + Coast FIRE; Sensibilità matrix relocated; settings-at-top collapsed-when-configured on FIRE/Coast tabs)
+**Last updated**: 2026-06-03 (Cashflow KPI clarity — tappable info popovers for Risparmio Netto/Rapporto + "X% del reddito" subtitle; What If sensitivity matrix mobile legibility — desktop/mobile reading note split + spese/risparmio eyebrows)
 
 ## Design Context
 

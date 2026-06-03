@@ -132,7 +132,8 @@ export function WhatIfSensitivitySection({
 
         {matrix ? (
           <>
-            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            {/* Desktop note: rows/columns only make sense for the table below. */}
+            <div className="hidden rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground desktop:block">
               Leggila cos&igrave;: scendi lungo le{' '}
               <span className="font-medium text-foreground">righe</span> per variare le spese annue,
               spostati sulle <span className="font-medium text-foreground">colonne</span> per cambiare
@@ -140,16 +141,36 @@ export function WhatIfSensitivitySection({
               in quanti anni arrivi al FIRE nello scenario Base.
             </div>
 
+            {/* Mobile note: the matrix becomes a list of cards, so the rows/columns
+                framing does not apply — explain the spese vs risparmio split instead. */}
+            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground desktop:hidden">
+              Ogni scheda raggruppa un livello di{' '}
+              <span className="font-medium text-foreground">spesa annua</span>; le celle interne
+              mostrano in quanti anni arrivi al FIRE per diversi livelli di{' '}
+              <span className="font-medium text-foreground">risparmio annuo</span> (scenario Base).
+            </div>
+
             {/* Mobile: per-row cards */}
             <div className="space-y-3 desktop:hidden">
               {matrix.rows.map((row) => (
                 <div key={row.label} className="rounded-lg border border-border bg-card p-3">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-foreground">{row.label} spese</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatCurrency(row.annualExpenses)}
-                    </span>
+                  {/* Card header = an annual-expenses level. The eyebrow makes the
+                      spese vs risparmio distinction explicit on the cardified mobile view. */}
+                  <div className="mb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                      Spese annue
+                    </p>
+                    <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                      <span className="text-sm font-semibold text-foreground">{row.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatCurrency(row.annualExpenses)}
+                      </span>
+                    </div>
                   </div>
+                  {/* Inner cells = annual-savings levels. */}
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    Risparmio annuo
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     {row.cells.map((cell, index) => (
                       <div

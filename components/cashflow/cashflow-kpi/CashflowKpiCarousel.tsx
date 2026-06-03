@@ -17,10 +17,12 @@
  */
 
 import React, { useState } from 'react';
+import { HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { type CategoryBreakdownItem } from '../CategoryBreakdownList';
 import { coverageHealthLabel } from './CashflowWidget';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { ExpenseCategory } from '@/types/expenses';
 import { CashflowCategoryDrawer } from './CashflowCategoryDrawer';
 
@@ -87,6 +89,12 @@ interface KpiCellProps {
   children: React.ReactNode;
   /** The small third-line subtext. */
   subtext: React.ReactNode;
+  /**
+   * Optional explanation shown in a tappable info popover next to the label.
+   * Used to disambiguate metrics whose meaning overlaps at a glance
+   * (e.g. "Risparmio Netto" vs "Rapporto").
+   */
+  info?: React.ReactNode;
   /** When set, renders as an interactive `<button>` with press feedback. */
   onClick?: () => void;
   /** Accessible label — required when `onClick` is set. */
@@ -99,15 +107,35 @@ function KpiCell({
   label,
   children,
   subtext,
+  info,
   onClick,
   'aria-label': ariaLabel,
   className,
 }: Readonly<KpiCellProps>) {
   const inner = (
     <>
-      <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
-        {label}
-      </p>
+      <div className="flex items-center gap-1">
+        <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+          {label}
+        </p>
+        {/* Popover (not Tooltip) so the explanation is reachable on touch devices. */}
+        {info && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Cosa significa ${label}`}
+                className="text-muted-foreground hover:text-foreground inline-flex items-center justify-center transition-colors"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="top" className="max-w-[15rem] text-xs leading-relaxed">
+              {info}
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
       {children}
       {subtext}
     </>
@@ -152,7 +180,7 @@ export interface CashflowKpiCarouselProps {
   incomeDelta?: number | null;
   /** Month-over-month expense change (%). `null` = no prior month. Colour is inverted (down = good). */
   expensesDelta?: number | null;
-  /** Savings rate 0–100. Shown as "Tasso X%" below the net savings value. */
+  /** Savings rate 0–100. Shown as "X% del reddito" below the net savings value. */
   savingsRate: number;
   /** Aggregated expense categories for the period. Shown in the Categorie drawer. */
   expenseCategories: CategoryBreakdownItem[];
@@ -184,6 +212,8 @@ interface KpiCardData {
   displayValue: string;
   valueClassName: string;
   subtext: React.ReactNode;
+  /** Optional disambiguation copy rendered in the label's info popover. */
+  info?: React.ReactNode;
   onClick?: () => void;
   ariaLabel?: string;
 }
@@ -237,8 +267,14 @@ export function CashflowKpiCarousel({
       valueClassName: getEuroColor(net),
       subtext: (
         <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">
-          Tasso {savingsRate.toFixed(1)}%
+          {savingsRate.toFixed(1)}% del reddito
         </p>
+      ),
+      info: (
+        <>
+          Quanto hai messo da parte nel periodo: entrate − spese. La percentuale è la quota di
+          reddito risparmiata.
+        </>
       ),
     },
     {
@@ -250,6 +286,12 @@ export function CashflowKpiCarousel({
         <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">
           {ratio === null ? 'Nessun dato' : coverageHealthLabel(ratio)}
         </p>
+      ),
+      info: (
+        <>
+          Quante volte le entrate coprono le spese (entrate ÷ spese). 1,0× = pareggio; sopra 1 =
+          avanzo.
+        </>
       ),
     },
     {
@@ -287,6 +329,7 @@ export function CashflowKpiCarousel({
             <KpiCell
               key={card.id}
               label={card.label}
+              info={card.info}
               onClick={card.onClick}
               aria-label={card.ariaLabel}
               subtext={card.subtext}
