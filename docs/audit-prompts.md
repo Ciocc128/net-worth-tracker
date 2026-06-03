@@ -546,6 +546,43 @@ Contesto:
 - Leggi CLAUDE.md (stato corrente, known issues)
 ```
 
+### Tab "What If"
+
+```
+/impeccable audit il tab "What If" della pagina FIRE e Simulazioni
+
+File: app/dashboard/fire-simulations/page.tsx
+Componenti: components/fire-simulations/WhatIfAnalysisTab.tsx,
+            components/fire-simulations/WhatIfSensitivitySection.tsx,
+            components/fire-simulations/WhatIfAnalysisSkeleton.tsx
+
+Assi da verificare (minimum — segnala anche eventuali altri problemi):
+- Token: hero before→after custom block — colori "meno anni = meglio" via token,
+  non sign-based hardcoded; sensitivity matrix — `color-mix()` non hex; event selector
+  + scenario input cards — nessun `bg-gray-*`; empty-state Coast (manca `userAge`) via token
+- Chart colors: eventuali chart before/after e celle sensitivity matrix via
+  `useChartColors()` / `color-mix()` — nessun hex diretto
+- Gerarchia: hero usa il blocco before→after custom (NON `HeroMetricBlock` — il suo
+  coloring sign-based confligge con "meno anni = meglio"); impatto su FIRE e Coast in
+  flat divide-y rows, nessun card-in-card
+- Form-follows-function: ogni elemento dell'output (colore, freccia, delta) deve mappare
+  una funzione — "meno anni al FIRE = meglio"; nessuna decorazione sign-based ereditata
+- Motion: re-run baseline vs adjusted — nessuna animazione che riparte a ogni keystroke
+  degli input scenario (ephemeral state); `layoutId` unico se presente una pill
+- ARIA: event type selector con role appropriato; sensitivity matrix con `scope` su
+  header/righe; empty-state Coast con messaggio descrittivo quando manca `userAge`
+- Breakpoint: scenario inputs + sensitivity matrix non overflow su 375px;
+  `max-desktop:portrait:pb-20`
+- Skeleton: `WhatIfAnalysisSkeleton` isomorfo al layout reale
+- Altro: pattern anomali o violazioni non elencate sopra
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+```
+
+---
+
 ### Tab "Monte Carlo"
 
 ```
@@ -659,6 +696,46 @@ Contesto:
 
 ---
 
+## Cross-cutting: Sistema di Shell e Layout Condivisi
+
+```
+/impeccable audit il sistema di shell e layout condivisi dell'app
+
+Componenti: components/layout/PageContainer.tsx,
+            components/layout/PageHeader.tsx,
+            components/layout/PageTabBar.tsx,
+            components/layout/PageTabs.tsx,
+            components/layout/ThemePicker.tsx,
+            lib/constants/navigation.ts
+
+Questi file sono il guscio "interno" condiviso da tutte le pagine del dashboard
+(9 pagine usano PageContainer/PageHeader; Cashflow, FIRE e Settings usano il pattern
+multi-tab). L'audit verifica la meccanica del guscio, non il contenuto delle pagine.
+
+Assi da verificare (minimum — segnala anche eventuali altri problemi — coerenza cross-pagina):
+- PageContainer: `max-w-[1600px] mx-auto`, `space-y-4 desktop:space-y-6`,
+  `max-desktop:portrait:pb-20` presente su tutte le pagine con bottom nav
+- PageHeader: mobile sticky bar (h-14, backdrop-blur-sm, bg-background/95) non sovrappone
+  il contenuto; desktop full header con border-b; nessun colore hardcoded
+- Multi-tab shell (PageTabBar/PageTabs): desktop (≥1440px) → underline tab bar animata;
+  mobile → Radix Select o segmented pill (`desktop:hidden` / `hidden desktop:block`);
+  stato del tab attivo e deep-link coerenti tra Cashflow/FIRE/Settings
+- ThemePicker: 6 temi, swatch touch-friendly (≥44px), tema attivo via token non hardcoded
+- navigation.ts: single source per primaryNav/analysisNav/planningNav/secondaryHrefs —
+  nessuna voce nav duplicata inline nelle pagine
+- Motion: `layoutId` del tab indicator unico per pagina; spring 400/35; `useReducedMotion()`
+- ARIA: PageTabBar `role="tablist"`/`role="tab"` + `aria-selected`; Select mobile con `aria-label`
+- Form-follows-function: il guscio è chrome che deferisce al contenuto — ogni elemento
+  svolge una funzione di struttura/navigazione, nessuna decorazione che competa col dato
+- Altro: inconsistenze cross-pagina o pattern di shell non previsti dagli assi sopra
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+```
+
+---
+
 ## Cross-cutting: Sistema dei Dialog
 
 ```
@@ -671,9 +748,14 @@ Componenti: components/assets/AssetDialog.tsx,
             components/dividends/DividendDialog.tsx,
             components/dividends/DividendDetailsDialog.tsx,
             components/cashflow/CostCenterDialog.tsx,
-            components/layout/LogoutDialog.tsx
+            components/expenses/CategoryManagementDialog.tsx,
+            components/layout/LogoutDialog.tsx,
+            components/ui/responsive-modal.tsx
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi — coerenza cross-dialog):
+- ResponsiveModal: l'astrazione `components/ui/responsive-modal.tsx` monta Dialog su desktop
+  ↔ vaul Drawer su mobile (≤768px) — stesso breakpoint e comportamento per tutti i dialog
+  che la usano (ExpenseDialog, CategoryManagementDialog)
 - Struttura: tutti i dialog hanno `DialogTitle` + `DialogDescription` (accessibilità Radix)
 - Token: header, footer, overlay backdrop — stessa vocabulary di token su tutti i dialog
 - Footer pattern: bottone primario a destra, ghost/outline a sinistra — coerente?
@@ -699,6 +781,7 @@ Contesto:
 Componenti: components/fire-simulations/FireCalculatorSkeleton.tsx,
             components/fire-simulations/MonteCarloSkeleton.tsx,
             components/fire-simulations/GoalsSkeleton.tsx,
+            components/fire-simulations/WhatIfAnalysisSkeleton.tsx,
             components/allocation/AllocationPageSkeleton.tsx,
             components/settings/SettingsPageSkeleton.tsx,
             components/assistant/AssistantPageSkeleton.tsx

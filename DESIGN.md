@@ -130,6 +130,8 @@ This system is built for one purpose: total clarity about your financial positio
 
 The three references are compatible. All share zero tolerance for decoration that doesn't carry information, strong typography as structure, and the conviction that simplicity is harder to achieve than complexity.
 
+**The Unifying Law — Form Follows Function.** Beneath all three references sits a single conviction, the one Jony Ive carries forward from the modernist tradition: form follows function. Every visual property of every element — its size, weight, color, position, motion, even its corner radius — is a *consequence* of what that element does, never a costume applied to it afterward. A number is large because it is the most important fact on the screen, not because "large" looks impressive. A border is 1px at 10% opacity because that is precisely the contrast required to separate — no more. Motion exists to reveal a relationship the eye would otherwise miss. When form and decoration disagree, function wins, every time. Three corollaries follow Ive's reading of the principle: **honesty** — a surface never fakes a depth, material, or state it doesn't have (no false glass, no invented shadow hierarchy); **deference** — the interface is a quiet instrument that recedes so the data can speak; **inevitability** — a well-resolved element looks like the only possible answer, as if it could not have been otherwise. This law is the *why* behind every rule that follows: zero-chroma, the Mono Mandate, ambient elevation, chrome reduction — each is form bending to function, not the reverse.
+
 Both dark and light modes are primary, equally refined experiences. An Italian investor reviewing portfolio performance deserves precision and premium quality regardless of their environment or preference.
 
 The five named color themes (Solar Dusk, Elegant Luxury, Midnight Bloom, Cyberpunk, Retro Arcade) are personality layers on top of a structural foundation. They change accent and surface palette without touching the underlying type scale, radius, or component API. The default theme is the instrument in its raw state. The themes are its finishes.
@@ -137,6 +139,7 @@ The five named color themes (Solar Dusk, Elegant Luxury, Midnight Bloom, Cyberpu
 This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness (too dense and impersonal for a personal wealth journal), consumer fintech brightness (Revolut-style gradients and playful fills trivialize serious data), Material Design genericism (component conventions that serve any app therefore serve this one poorly), and **ostentated complexity** (UI that demonstrates how hard the domain is rather than hiding that complexity behind a calm surface).
 
 **Key Characteristics:**
+- Form follows function: every visual property is derived from what an element does — honesty over illusion, deference over decoration, inevitability over ornament
 - Achromatic structural palette; data colors carry all chromatic meaning in the default theme
 - Geist Sans for interface text, Geist Mono for every number that matters
 - Radius is refined: 10px (inputs, buttons), 16px (cards) — premium curve without losing authority
@@ -676,6 +679,7 @@ useEffect(() => {
 
 ### Do:
 
+- **Do** derive every visual choice from function — form follows function. Before adding any property (a color, a shadow, a radius, a motion, an extra pixel of size), name the job it does. If the only answer is "it looks nice," remove it. Form is the consequence of function, never its costume.
 - **Do** use Geist Mono with `font-feature-settings: "tnum" 1` for every monetary value, percentage, and structured date. Column alignment is a trust signal.
 - **Do** reference `--sidebar-primary` for active navigation states. In the default theme this is the only sanctioned non-achromatic color in the interface chrome.
 - **Do** use the Float shadow exclusively for elements that leave document flow (modals, the mobile nav pill, dropdown menus). Never apply it to in-flow cards.
@@ -698,6 +702,7 @@ useEffect(() => {
 
 ### Don't:
 
+- **Don't** shape an element for appearance alone. A larger number, a heavier shadow, a brighter accent, or an extra animation that exists "to look good" violates form-follows-function. If a property carries no function, it is decoration — cut it. And never fake what isn't there: no false depth, no invented material, no shadow hierarchy a surface hasn't earned (the honesty corollary).
 - **Don't** add brand color to the default theme's surface chrome (backgrounds, cards, buttons). Zero-chroma is the rule: color belongs to data, not decoration.
 - **Don't** model density after a Bloomberg terminal. Dense presentation serves the user; illegibility or emotional coldness does not.
 - **Don't** use consumer fintech color patterns — colorful fills, playful gradients, bright accents on every interactive element. This tool handles serious long-term wealth management.

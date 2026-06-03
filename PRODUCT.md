@@ -22,6 +22,8 @@ L'app è la Apple dei personal tracker finanziari: non lo strumento più ricco d
 
 I tre riferimenti sono compatibili: condividono zero decorazione, tipografia come struttura, e la convinzione che la semplicità richieda più lavoro della complessità.
 
+**La legge che li unisce — la forma segue la funzione.** Sotto i tre riferimenti c'è una sola convinzione, quella che Jony Ive eredita dalla tradizione modernista: *form follows function*. Ogni proprietà visiva di ogni elemento — dimensione, peso, colore, posizione, movimento, persino il raggio degli angoli — è una *conseguenza* di ciò che quell'elemento fa, mai un costume applicato dopo. Un numero è grande perché è il fatto più importante sullo schermo, non perché "grande" impressiona. Un bordo è 1px al 10% di opacità perché è esattamente il contrasto che serve a separare, niente di più. Quando forma e decorazione sono in disaccordo, vince la funzione. Tre corollari, nella lettura di Ive: **onestà** — una superficie non finge profondità, materiali o stati che non ha (niente finto vetro, niente gerarchie d'ombra inventate); **deferenza** — l'interfaccia è uno strumento silenzioso che si ritira per lasciar parlare i dati; **inevitabilità** — un elemento ben risolto sembra l'unica risposta possibile, come se non potesse essere altrimenti.
+
 **Visual tone**: Ultra-clean · Premium feeling · Personale. Whitespace generoso come lusso. Superfici che hanno materiale e profondità. Gerarchia tipografica limpida. Dati che respirano. Animazioni che rivelano struttura, non intrattengono.
 
 **Layout vocabulary**: La pagina Panoramica definisce il vocabolario di layout per tutte le pagine:
@@ -39,6 +41,8 @@ I tre riferimenti sono compatibili: condividono zero decorazione, tipografia com
 **Tema**: Dark mode come esperienza primaria. Light mode pienamente supportata.
 
 ### Design Principles
+
+> **Principio fondante — la forma segue la funzione.** Gli otto principi qui sotto sono otto modi di applicare un'unica legge: la forma di ogni elemento deriva dalla sua funzione. Onestà invece di illusione, deferenza invece di decorazione, inevitabilità invece di ornamento. Se una proprietà visiva non svolge un compito, è decoro — e va tolta.
 
 1. **Dati prima, chrome mai** — ogni elemento visivo guadagna il suo spazio comunicando un'informazione. Se togliendolo la pagina è più chiara, va tolto. Box decorative, progress bar estetiche, divisori ridondanti: fuori. Il donut SVG animato nella Liquid card è stato sostituito da un semplice breakdown flat a 3 righe — tre valori espliciti comunicano più di una forma geometrica animata.
 

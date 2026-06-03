@@ -270,6 +270,26 @@ Contesto:
 - Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
 ```
 
+### Tab "What If"
+
+```
+/impeccable polish il tab "What If" della pagina FIRE e Simulazioni
+
+Priority issues (P2/P3) da: [SLUG]
+File: app/dashboard/fire-simulations/page.tsx
+Componenti: components/fire-simulations/WhatIfAnalysisTab.tsx,
+            components/fire-simulations/WhatIfSensitivitySection.tsx,
+            components/fire-simulations/WhatIfAnalysisSkeleton.tsx
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
+```
+
+---
+
 ### Tab "Monte Carlo"
 
 ```
@@ -402,6 +422,28 @@ Contesto:
 
 ---
 
+## Cross-cutting: Sistema di Shell e Layout Condivisi
+
+```
+/impeccable polish il sistema di shell e layout condivisi dell'app
+
+Priority issues (P2/P3) da: [SLUG]
+Componenti: components/layout/PageContainer.tsx,
+            components/layout/PageHeader.tsx,
+            components/layout/PageTabBar.tsx,
+            components/layout/PageTabs.tsx,
+            components/layout/ThemePicker.tsx,
+            lib/constants/navigation.ts
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
+```
+
+---
+
 ## Cross-cutting: Sistema dei Dialog
 
 ```
@@ -415,7 +457,9 @@ Componenti: components/assets/AssetDialog.tsx,
             components/dividends/DividendDialog.tsx,
             components/dividends/DividendDetailsDialog.tsx,
             components/cashflow/CostCenterDialog.tsx,
-            components/layout/LogoutDialog.tsx
+            components/expenses/CategoryManagementDialog.tsx,
+            components/layout/LogoutDialog.tsx,
+            components/ui/responsive-modal.tsx
 
 Contesto:
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)

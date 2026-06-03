@@ -442,6 +442,43 @@ servirà come input per il prossimo step:
 - P0/P1 + P2/P3 → shape prima (P0/P1), implementa, poi polish (P2/P3) — i P2/P3 aspettano
 ```
 
+### Tab "What If"
+
+```
+/impeccable critique il tab "What If" della pagina FIRE e Simulazioni
+
+File: app/dashboard/fire-simulations/page.tsx
+Componenti: components/fire-simulations/WhatIfAnalysisTab.tsx,
+            components/fire-simulations/WhatIfSensitivitySection.tsx,
+            components/fire-simulations/WhatIfAnalysisSkeleton.tsx
+
+Questo tab simula eventi di vita (perdita lavoro, acquisto importante, variazione
+risparmio/spesa, windfall) e mostra l'impatto before→after su FIRE tradizionale e
+Coast FIRE. Gli eventi v1 si applicano "da adesso" (anno 0) come perturbazione di
+patrimonio/risparmio/spesa; l'impatto è calcolato ri-eseguendo le pure functions di
+fireService su baseline vs adjusted e diffando. Hero con blocco before→after custom
+(non HeroMetricBlock — il sign-coloring confligge con "meno anni = meglio"). Ospita la
+matrice "Sensibilità Anni al FIRE" rilocata con baseline locale ri-centrabile. L'impatto
+Coast richiede settings.userAge, altrimenti empty-state. Input scenario ephemeral (non persistiti).
+Confronta con: FIRE Calculator + Coast FIRE (riusa le stesse fireService functions, hero pattern),
+Monte Carlo (scenario inputs + collapsible).
+Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
+divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
+token compliance su tutti e 6 i temi dell'app.
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+
+Al termine indica il path esatto del file .impeccable/critique/[slug].md generato —
+servirà come input per il prossimo step:
+- Solo P2/P3 → /impeccable polish (legge il file automaticamente)
+- P0/P1 presenti → /impeccable shape prima, poi /impeccable polish dopo l'implementazione
+- P0/P1 + P2/P3 → shape prima (P0/P1), implementa, poi polish (P2/P3) — i P2/P3 aspettano
+```
+
+---
+
 ### Tab "Monte Carlo"
 
 ```
@@ -664,6 +701,44 @@ servirà come input per il prossimo step:
 
 ---
 
+## Cross-cutting: Sistema di Shell e Layout Condivisi
+
+```
+/impeccable critique il sistema di shell e layout condivisi dell'app
+
+Componenti: components/layout/PageContainer.tsx,
+            components/layout/PageHeader.tsx,
+            components/layout/PageTabBar.tsx,
+            components/layout/PageTabs.tsx,
+            components/layout/ThemePicker.tsx,
+            lib/constants/navigation.ts
+
+Questa critique valuta il guscio "interno" condiviso da tutte le pagine del dashboard
+come unità: PageContainer (wrapper max-w-[1600px], spacing, max-desktop:portrait:pb-20),
+PageHeader (sticky mobile bar h-14 backdrop-blur ↔ desktop full header), il pattern
+multi-tab (PageTabBar underline animata desktop ≥1440px ↔ Radix Select / segmented pill
+mobile, deep-link, stato tab), ThemePicker (6 temi) e navigation.ts (primaryNav/analysisNav/
+planningNav/secondaryHrefs centralizzati). 9 pagine usano queste primitive; Cashflow, FIRE
+e Settings usano il pattern multi-tab.
+Confronta con: App Shell e Navigazione (sidebar/bottom-nav/drawer = guscio "esterno",
+questo è il guscio "interno" della pagina); il benchmark è la coerenza cross-pagina.
+Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
+divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
+token compliance su tutti e 6 i temi dell'app.
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+
+Al termine indica il path esatto del file .impeccable/critique/[slug].md generato —
+servirà come input per il prossimo step:
+- Solo P2/P3 → /impeccable polish (legge il file automaticamente)
+- P0/P1 presenti → /impeccable shape prima, poi /impeccable polish dopo l'implementazione
+- P0/P1 + P2/P3 → shape prima (P0/P1), implementa, poi polish (P2/P3) — i P2/P3 aspettano
+```
+
+---
+
 ## Cross-cutting: Sistema dei Dialog
 
 ```
@@ -676,7 +751,9 @@ Componenti: components/assets/AssetDialog.tsx,
             components/dividends/DividendDialog.tsx,
             components/dividends/DividendDetailsDialog.tsx,
             components/cashflow/CostCenterDialog.tsx,
-            components/layout/LogoutDialog.tsx
+            components/expenses/CategoryManagementDialog.tsx,
+            components/layout/LogoutDialog.tsx,
+            components/ui/responsive-modal.tsx
 
 Questa critique valuta la coerenza del sistema dei dialog come unità: struttura
 (DialogTitle + DialogDescription presente in tutti?), footer pattern (primario destra /
@@ -719,5 +796,6 @@ Dalla meno redesignata alla più redesignata, per trovare i delta maggiori prima
 12. Rendimenti
 13. Storico
 14. Hall of Fame
-15. FIRE e Simulazioni (4 tab)
+15. FIRE e Simulazioni (5 tab — incl. What If)
 16. Assistente AI ← rieseguire dopo redesign (baseline: 25/40)
+17. Cross-cutting: Shell e Layout Condivisi (PageContainer/PageHeader/PageTabBar) ← guscio mai verificato come unità

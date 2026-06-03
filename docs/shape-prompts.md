@@ -340,6 +340,38 @@ Contesto:
 - Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
 ```
 
+### Tab "What If"
+
+```
+/impeccable shape il tab "What If" della pagina FIRE e Simulazioni
+
+Priority issues (P0/P1) da: [SLUG]
+File: app/dashboard/fire-simulations/page.tsx
+Componenti: components/fire-simulations/WhatIfAnalysisTab.tsx,
+            components/fire-simulations/WhatIfSensitivitySection.tsx,
+            components/fire-simulations/WhatIfAnalysisSkeleton.tsx
+
+Tab che simula eventi di vita (perdita lavoro, acquisto importante, variazione
+risparmio/spesa, windfall) e mostra l'impatto before→after su FIRE tradizionale e
+Coast FIRE, ri-eseguendo le pure functions di fireService su baseline vs adjusted.
+Hero con blocco before→after custom (non HeroMetricBlock — il sign-coloring confligge
+con "meno anni = meglio"). Ospita la matrice "Sensibilità Anni al FIRE" rilocata
+(baseline locale ri-centrabile). Impatto Coast richiede settings.userAge, altrimenti empty-state.
+Confronta con: FIRE Calculator + Coast FIRE (riusa le stesse fireService functions +
+hero pattern), Monte Carlo (scenario inputs + collapsible).
+Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
+divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
+token compliance su tutti e 6 i temi dell'app.
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
+```
+
+---
+
 ### Tab "Monte Carlo"
 
 ```
@@ -512,6 +544,39 @@ Contesto:
 
 ---
 
+## Cross-cutting: Sistema di Shell e Layout Condivisi
+
+```
+/impeccable shape il sistema di shell e layout condivisi dell'app
+
+Priority issues (P0/P1) da: [SLUG]
+Componenti: components/layout/PageContainer.tsx,
+            components/layout/PageHeader.tsx,
+            components/layout/PageTabBar.tsx,
+            components/layout/PageTabs.tsx,
+            components/layout/ThemePicker.tsx,
+            lib/constants/navigation.ts
+
+Guscio "interno" condiviso da tutte le pagine: PageContainer (wrapper max-w + spacing +
+bottom-nav clearance), PageHeader (sticky mobile bar ↔ desktop header), pattern multi-tab
+(PageTabBar underline desktop ↔ Radix Select / segmented pill mobile), ThemePicker,
+navigation.ts (nav arrays centralizzati). I P0/P1 qui riguardano tipicamente: meccanica
+tab incoerente tra pagine, sticky header che sovrappone, layoutId duplicati, breakpoint errati.
+Confronta con: App Shell e Navigazione (sidebar/bottom-nav/drawer = guscio "esterno");
+il benchmark è la coerenza del guscio su Cashflow/FIRE/Settings e sulle pagine single-scroll.
+Design language atteso: Trade Republic hierarchy (text-4xl font-bold font-mono hero,
+divide-y flat rows, no card-in-card), useChartColors() per tutte le serie grafiche,
+token compliance su tutti e 6 i temi dell'app.
+
+Contesto:
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALA mentre scrivi codice
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALA mentre scrivi codice
+```
+
+---
+
 ## Cross-cutting: Sistema dei Dialog
 
 ```
@@ -525,7 +590,9 @@ Componenti: components/assets/AssetDialog.tsx,
             components/dividends/DividendDialog.tsx,
             components/dividends/DividendDetailsDialog.tsx,
             components/cashflow/CostCenterDialog.tsx,
-            components/layout/LogoutDialog.tsx
+            components/expenses/CategoryManagementDialog.tsx,
+            components/layout/LogoutDialog.tsx,
+            components/ui/responsive-modal.tsx
 
 Confronta con: ogni dialog rispetto agli altri — il benchmark è la coerenza interna.
 I P0/P1 su questo sistema riguardano tipicamente: struttura mancante (DialogDescription
