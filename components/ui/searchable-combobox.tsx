@@ -77,6 +77,10 @@ export function SearchableCombobox({
     option.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Hide "Aggiungi" when the search query exactly matches an existing option
+  const hasExactMatch = searchQuery.trim().length > 0 &&
+    options.some((opt) => opt.label.toLowerCase() === searchQuery.trim().toLowerCase());
+
   // Get selected option
   const selectedOption = options.find((opt) => opt.value === value);
 
@@ -205,7 +209,7 @@ export function SearchableCombobox({
                 </button>
               ))
             )}
-            {onCreateOption && (
+            {onCreateOption && !hasExactMatch && (
               <button
                 type="button"
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer text-left border-t border-border/50 text-primary"

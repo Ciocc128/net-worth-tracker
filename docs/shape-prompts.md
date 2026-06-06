@@ -154,9 +154,16 @@ Contesto:
 
 Priority issues (P0/P1) da: [SLUG]
 File: app/dashboard/cashflow/page.tsx
-Componenti: components/cashflow/BudgetTab.tsx
+Componenti: components/cashflow/BudgetTab.tsx,
+            components/cashflow/budget/BudgetList.tsx,
+            components/cashflow/budget/BudgetItemDialog.tsx,
+            components/cashflow/budget/BudgetSettingsCard.tsx,
+            components/cashflow/budget/BudgetForecastCard.tsx,
+            components/cashflow/budget/BudgetInsightsCard.tsx,
+            components/cashflow/budget/BudgetAlertsBanner.tsx
 
-Confronta con: Allocazione/RebalancePlan (mosse + target% via TargetTick), GoalDetailCard (% display).
+Confronta con: Allocazione/RebalancePlan (lista firmata con priorità — pattern simile a BudgetList),
+GoalDetailCard (progress bar + target%).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
