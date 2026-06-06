@@ -31,6 +31,9 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed: typing an existing category name in the expense or dividend dialog no longer shows a "+ Aggiungi" create-option alongside the matched result — the option is hidden when typed text is an exact match (case-insensitive), preventing accidental duplicate creation
+- Fixed: new accounts no longer start with a pre-filled set of equity sub-categories (All-World, Momentum, Quality, Value, Pension, Private Equity, High Risk, Single Stocks) and pre-assigned percentage targets. The equity class now starts unconfigured so each user can define their own sub-categories from scratch
+
 - Fixed: editing an asset (cash balance, ETF quantity, manual price, or any other field) on the Portfolio page now immediately updates the portfolio total, monthly/annual variations, and sparkline in the hero block — no manual page refresh required
 - Fixed: column headers in the Analisi page transaction details (Sankey drill-down and pie chart drill-down) no longer overlap with row content when scrolling — the header background was semi-transparent, causing rows scrolling underneath to bleed through
 - Fixed the "Auto-calculate Equity/Bonds" toggle in Settings not persisting after a page refresh — disabling it would revert to enabled on reload because the setting was never saved explicitly

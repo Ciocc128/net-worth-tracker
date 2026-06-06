@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
-import { DEFAULT_SUB_CATEGORIES, DEFAULT_EQUITY_SUB_TARGETS } from '@/lib/constants/defaultSubCategories';
+import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
 
@@ -873,10 +873,9 @@ export function getDefaultTargets(): AssetAllocationTarget {
     equity: {
       targetPercentage: 60,
       subCategoryConfig: {
-        enabled: true,
-        categories: DEFAULT_SUB_CATEGORIES.equity,
+        enabled: false,
+        categories: [],
       },
-      subTargets: DEFAULT_EQUITY_SUB_TARGETS,
     },
     bonds: {
       targetPercentage: 40,

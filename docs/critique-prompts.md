@@ -196,12 +196,24 @@ servirà come input per il prossimo step:
 /impeccable critique il tab "Budget" della pagina Cashflow
 
 File: app/dashboard/cashflow/page.tsx
-Componenti: components/cashflow/BudgetTab.tsx
+Componenti: components/cashflow/BudgetTab.tsx,
+            components/cashflow/budget/BudgetList.tsx,
+            components/cashflow/budget/BudgetItemDialog.tsx,
+            components/cashflow/budget/BudgetSettingsCard.tsx,
+            components/cashflow/budget/BudgetForecastCard.tsx,
+            components/cashflow/budget/BudgetInsightsCard.tsx,
+            components/cashflow/budget/BudgetAlertsBanner.tsx
 
-Questo tab permette di impostare budget per categoria e visualizzare
-l'avanzamento mensile con progress bars. Side-stripe borders rimossi,
-colori blue hardcoded migrati a design tokens.
-Confronta con: Allocazione/RebalancePlan (mosse + target% via TargetTick), GoalDetailCard (% display).
+Questo tab (redesign issue #148, 2026-06-05) è un sistema opt-in: solo i budget creati
+esplicitamente vengono mostrati (nessun auto-fill per categoria). Struttura:
+BudgetSettingsCard (overall ceiling + auto-save 800ms), BudgetAlertsBanner (soglie 50/75/90/100%
++ forecast overrun), BudgetList (split Mensili/Annuali, inline progress, 2-click delete),
+BudgetForecastCard (proiezione fine mese con dampening early-month), BudgetInsightsCard
+(confronto vs expected-to-date). BudgetItemDialog tramite ResponsiveModal. Income budgets
+come target invertiti (progress inverso). Auto-save via useBudgetConfig (debounce 800ms,
+paused su allocazione invalida).
+Confronta con: Allocazione/RebalancePlan (mosse ordinate per priorità — pattern lista firmata
+simile), Goals (progress bar + target%).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero

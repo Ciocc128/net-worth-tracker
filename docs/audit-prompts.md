@@ -335,14 +335,26 @@ Contesto:
 /impeccable audit il tab "Budget" della pagina Cashflow
 
 File: app/dashboard/cashflow/page.tsx
-Componenti: components/cashflow/BudgetTab.tsx
+Componenti: components/cashflow/BudgetTab.tsx,
+            components/cashflow/budget/BudgetList.tsx,
+            components/cashflow/budget/BudgetItemDialog.tsx,
+            components/cashflow/budget/BudgetSettingsCard.tsx,
+            components/cashflow/budget/BudgetForecastCard.tsx,
+            components/cashflow/budget/BudgetInsightsCard.tsx,
+            components/cashflow/budget/BudgetAlertsBanner.tsx
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: progress bars — nessun `bg-blue-*` hardcoded; over-budget → `bg-destructive`
-  o `color-mix()` non hex; under-budget → colore da token
-- Gerarchia: percentuale budget `font-mono`, label categoria plain — nessun card-in-card
-- ARIA: progress bar con `role="progressbar"`, `aria-valuenow`, `aria-valuemin/max`
-- Breakpoint: lista budget non overflow su 375px
+- Token: progress bars (BudgetList) — nessun `bg-blue-*` hardcoded; over-budget →
+  `bg-destructive` o `color-mix()` non hex; under-budget → colore da token;
+  BudgetAlertsBanner alert soglie (50/75/90/100%) — colori via token non hardcoded;
+  BudgetForecastCard e BudgetInsightsCard — nessun `bg-gray-*`
+- Gerarchia: importi in `font-mono tabular-nums`; label categoria plain; nessun card-in-card;
+  BudgetSettingsCard overall ceiling + status indicator auto-save via token
+- ResponsiveModal: BudgetItemDialog usa `ResponsiveModal` (Dialog desktop ↔ Drawer mobile ≤768px)
+- ARIA: progress bar con `role="progressbar"`, `aria-valuenow`, `aria-valuemin/max`;
+  BudgetAlertsBanner ha `aria-live` per aggiornamenti soglia
+- Breakpoint: lista Mensili/Annuali non overflow su 375px; BudgetForecastCard chart
+  altezza corretta su mobile
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:

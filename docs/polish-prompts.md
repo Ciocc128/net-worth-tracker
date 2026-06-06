@@ -110,7 +110,13 @@ Contesto:
 
 Priority issues (P2/P3) da: [SLUG]
 File: app/dashboard/cashflow/page.tsx
-Componenti: components/cashflow/BudgetTab.tsx
+Componenti: components/cashflow/BudgetTab.tsx,
+            components/cashflow/budget/BudgetList.tsx,
+            components/cashflow/budget/BudgetItemDialog.tsx,
+            components/cashflow/budget/BudgetSettingsCard.tsx,
+            components/cashflow/budget/BudgetForecastCard.tsx,
+            components/cashflow/budget/BudgetInsightsCard.tsx,
+            components/cashflow/budget/BudgetAlertsBanner.tsx
 
 Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma) e APPLICALA mentre scrivi codice

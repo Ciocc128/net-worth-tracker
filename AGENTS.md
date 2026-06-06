@@ -699,3 +699,8 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 - **Symptom**: opening the category MultiSelect inside the Cashflow filters Drawer works on mobile but on tablet (640–1023px) the option list can't scroll and overflows; console logs `Blocked aria-hidden on an element because its descendant retained focus`.
 - **Root cause**: `MultiSelect` renders its options in a nested vaul **Drawer** only when `screenSize === "mobile"` (<640px); on tablet/desktop it renders a Radix **Popover**. A Popover nested inside a vaul Drawer fights for focus trapping (the aria-hidden warning) and the floating content is clipped/unscrollable.
 - **Fix**: pass `forceDrawer` to render the options as a bottom-sheet Drawer regardless of screen size (the `inDrawer` flag also bumps the list to `max-h-[60vh]`). Use it for any MultiSelect that lives inside another Drawer/Sheet. The filters Drawer only mounts <1440px, so the category selector is always a bottom-sheet there. Applied in `MobileFiltersDrawer.tsx` → `multi-select.tsx`.
+
+### SearchableCombobox — Suppress "Add" Option on Exact Match
+- **Symptom**: typing an existing option name (e.g. "Abbonamenti") shows both the filtered result AND a `+ Aggiungi "Abbonamenti"` create-option, suggesting the user create a duplicate.
+- **Fix**: compute `hasExactMatch = options.some(opt => opt.label.toLowerCase() === searchQuery.trim().toLowerCase())` and render `{onCreateOption && !hasExactMatch && (...)}`. Guard uses `.toLowerCase()` + `.trim()` for robustness.
+- Applies to all `SearchableCombobox` instances with an `onCreateOption` prop (category + subcategory pickers in `ExpenseDialog`, subcategory in `DividendDialog`, etc.). Applied in `components/ui/searchable-combobox.tsx`.
