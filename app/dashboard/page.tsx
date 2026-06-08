@@ -1,7 +1,7 @@
 'use client';
 
-import { CSSProperties, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   staggerContainer,
   cardItem,
@@ -9,7 +9,6 @@ import {
   springLayoutTransition,
 } from '@/lib/utils/motionVariants';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency } from '@/lib/services/chartService';
 import { updateHallOfFame } from '@/lib/services/hallOfFameService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -128,7 +127,6 @@ export default function DashboardPage() {
 
   // ─── Derived metrics ──────────────────────────────────────────────────────────
   const totalValue = overview?.metrics.totalValue ?? 0;
-  const liquidNetTotal = overview?.metrics.liquidNetTotal ?? 0;
 
   const savingsRate = useMemo(() => {
     if (!overview?.expenseStats) return 0;
@@ -143,13 +141,13 @@ export default function DashboardPage() {
     const { income, expenses } = overview.expenseStats.currentMonth;
     if (expenses <= 0) return null;
     return income / expenses;
-  }, [overview?.expenseStats]);
+  }, [overview]);
 
   // ─── Sparkline — last 13 points (12 months + baseline) ──────────────────────
   const sparkline12m = useMemo(() => {
     if (!overview?.sparklineData) return [];
     return overview.sparklineData.slice(-13);
-  }, [overview?.sparklineData]);
+  }, [overview]);
 
   // ─── Chart sections (stable memoized objects for memo isolation) ──────────────
   // Liquidity chart removed — now shown as the hero donut in the Patrimonio Liquido card.
@@ -178,10 +176,10 @@ export default function DashboardPage() {
 
   // ─── Dialog position animation ────────────────────────────────────────────────
   useEffect(() => {
-    if (!showConfirmDialog || prefersReducedMotion) {
-      setSnapshotDialogStyle(undefined);
-      return;
-    }
+    // When closed or with reduced motion we don't compute a transform-origin.
+    // The style is cleared by the onOpenChange handler on close, so no synchronous
+    // setState is needed here (avoids react-hooks/set-state-in-effect).
+    if (!showConfirmDialog || prefersReducedMotion) return;
     const frameId = requestAnimationFrame(() => {
       const trigger = snapshotButtonRef.current;
       const dialog = snapshotDialogRef.current;
@@ -329,7 +327,7 @@ export default function DashboardPage() {
               variant="default"
               className="w-full sm:w-auto"
             >
-              <Camera className="mr-2 h-4 w-4" />
+              <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
               {creatingSnapshot ? 'Creazione...' : 'Crea Snapshot'}
             </Button>
           </MotionButtonShell>
@@ -377,12 +375,12 @@ export default function DashboardPage() {
                       )}
                     >
                       {overview.variations.monthly.value >= 0 ? (
-                        <TrendingUp className="h-[13px] w-[13px]" />
+                        <TrendingUp className="h-[13px] w-[13px]" aria-hidden="true" />
                       ) : (
-                        <TrendingDown className="h-[13px] w-[13px]" />
+                        <TrendingDown className="h-[13px] w-[13px]" aria-hidden="true" />
                       )}
                       {overview.variations.monthly.value >= 0 ? '+' : ''}
-                      {formatCurrency(overview.variations.monthly.value)} (
+                      {cachedFormatCurrencyEUR(overview.variations.monthly.value)} (
                       {overview.variations.monthly.percentage >= 0 ? '+' : ''}
                       {overview.variations.monthly.percentage.toFixed(2)}%) questo mese
                     </span>
@@ -396,12 +394,12 @@ export default function DashboardPage() {
                       )}
                     >
                       {overview.variations.yearly.value >= 0 ? (
-                        <TrendingUp className="h-[13px] w-[13px]" />
+                        <TrendingUp className="h-[13px] w-[13px]" aria-hidden="true" />
                       ) : (
-                        <TrendingDown className="h-[13px] w-[13px]" />
+                        <TrendingDown className="h-[13px] w-[13px]" aria-hidden="true" />
                       )}
                       {overview.variations.yearly.value >= 0 ? '+' : ''}
-                      {formatCurrency(overview.variations.yearly.value)} (
+                      {cachedFormatCurrencyEUR(overview.variations.yearly.value)} (
                       {overview.variations.yearly.percentage >= 0 ? '+' : ''}
                       {overview.variations.yearly.percentage.toFixed(2)}%) YTD
                     </span>
@@ -462,7 +460,7 @@ export default function DashboardPage() {
                             Costo Annuale Stimato
                           </p>
                           <p className="font-mono text-[22px] leading-none font-bold tracking-[-0.025em] text-amber-600 tabular-nums dark:text-amber-400">
-                            {formatCurrency(annualTotal)}
+                            {cachedFormatCurrencyEUR(annualTotal)}
                           </p>
                           {bothPresent && (
                             <div className="border-border divide-border mt-2 divide-y border-t pt-2">
@@ -471,13 +469,13 @@ export default function DashboardPage() {
                                   Costi di gestione (TER)
                                 </span>
                                 <span className="text-foreground font-mono tabular-nums">
-                                  {formatCurrency(overview.metrics.annualPortfolioCost)}
+                                  {cachedFormatCurrencyEUR(overview.metrics.annualPortfolioCost)}
                                 </span>
                               </div>
                               <div className="flex justify-between py-[4px] text-[11px]">
                                 <span className="text-muted-foreground">Imposta di bollo</span>
                                 <span className="text-foreground font-mono tabular-nums">
-                                  {formatCurrency(overview.metrics.annualStampDuty)}
+                                  {cachedFormatCurrencyEUR(overview.metrics.annualStampDuty)}
                                 </span>
                               </div>
                             </div>
@@ -607,12 +605,14 @@ export default function DashboardPage() {
                       </div>
                     ))}
 
-                    {/* Concluding row: Pat. Netto Totale — styled prominently as the bottom-line figure */}
+                    {/* Concluding row: Pat. Netto Totale — the card's anchor figure, promoted
+                        to the 16px sub-step so the companion has one dominant value (the other
+                        bold rows are sub-section subtotals, not the bottom line). */}
                     <div className="flex items-center justify-between py-[9px]">
                       <span className="text-foreground text-[14px] font-semibold">
                         Pat. Netto Totale
                       </span>
-                      <span className="text-foreground font-mono text-[14px] font-bold tabular-nums">
+                      <span className="text-foreground font-mono text-[16px] font-bold tracking-[-0.01em] tabular-nums">
                         {cachedFormatCurrencyEUR(overview.metrics.netTotal)}
                       </span>
                     </div>
@@ -668,20 +668,20 @@ export default function DashboardPage() {
                 </span>
                 <div>
                   <p className="mt-3 font-mono text-[22px] leading-none font-bold tracking-[-0.025em] text-amber-600 tabular-nums dark:text-amber-400">
-                    {formatCurrency(annualTotal)}
+                    {cachedFormatCurrencyEUR(annualTotal)}
                   </p>
                   {bothPresent && (
                     <div className="border-border divide-border mt-3 space-y-0 divide-y border-t pt-3">
                       <div className="flex justify-between py-[5px] text-[11px]">
                         <span className="text-muted-foreground">Costi di gestione (TER)</span>
                         <span className="text-foreground font-mono tabular-nums">
-                          {formatCurrency(overview.metrics.annualPortfolioCost)}
+                          {cachedFormatCurrencyEUR(overview.metrics.annualPortfolioCost)}
                         </span>
                       </div>
                       <div className="flex justify-between py-[5px] text-[11px]">
                         <span className="text-muted-foreground">Imposta di bollo</span>
                         <span className="text-foreground font-mono tabular-nums">
-                          {formatCurrency(overview.metrics.annualStampDuty)}
+                          {cachedFormatCurrencyEUR(overview.metrics.annualStampDuty)}
                         </span>
                       </div>
                     </div>
@@ -747,7 +747,7 @@ export default function DashboardPage() {
                 Cashflow
               </p>
               <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <Receipt className="h-4 w-4" />
+                <Receipt className="h-4 w-4" aria-hidden="true" />
                 <span>Nessun dato questo mese</span>
               </div>
             </CardContent>

@@ -100,8 +100,10 @@ const OverviewChartsSectionInner = ({
   useEffect(() => {
     if (!heroSettled || chartRenderReady) return;
     if (prefersReducedMotion || isMobile) {
-      setChartRenderReady(true);
-      return;
+      // Defer out of the effect body (setTimeout 0) so the set is not synchronous
+      // — same imperceptible timing, satisfies react-hooks/set-state-in-effect.
+      const id = setTimeout(() => setChartRenderReady(true), 0);
+      return () => clearTimeout(id);
     }
 
     let handle: number | ReturnType<typeof setTimeout> | undefined;
@@ -166,14 +168,16 @@ const OverviewChartsSectionInner = ({
             </p>
 
             {/* Tab switcher */}
-            <div role="tablist" className="flex bg-muted rounded-xl p-[3px] gap-px mb-5">
+            <div role="tablist" aria-label="Composizione portafoglio" className="flex bg-muted rounded-xl p-[3px] gap-px mb-5">
               {CHART_TABS.map(tab => (
                 <button
                   key={tab.id}
+                  id={`chart-tab-${tab.id}`}
                   role="tab"
                   aria-selected={activeTab === tab.id}
+                  aria-controls="chart-tabpanel"
                   onClick={() => setActiveTab(tab.id)}
-                  className="relative flex-1 py-[7px] rounded-[8px] text-[11px] font-medium
+                  className="relative flex flex-1 items-center justify-center min-h-[44px] rounded-[8px] text-[11px] font-medium
                     text-muted-foreground aria-selected:text-foreground transition-colors duration-150"
                 >
                   {activeTab === tab.id && (
@@ -189,6 +193,7 @@ const OverviewChartsSectionInner = ({
             </div>
 
             {/* Chart + legend */}
+            <div role="tabpanel" id="chart-tabpanel" aria-labelledby={`chart-tab-${activeTab}`}>
             {!chartRenderReady ? (
               <LoadingPlaceholder />
             ) : activeSection.data.length === 0 ? (
@@ -219,6 +224,7 @@ const OverviewChartsSectionInner = ({
                 </div>
               </div>
             )}
+            </div>
           </CardContent>
         </Card>
       </motion.div>

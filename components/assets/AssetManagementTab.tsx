@@ -53,7 +53,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Plus, RefreshCw, Pencil, Trash2, Info, Calculator, ArrowUpDown, ChevronUp, ChevronDown, ChevronRight, Wallet, LayoutGrid } from 'lucide-react';
+import { Plus, RefreshCw, Pencil, Trash2, Info, Calculator, ArrowUpDown, ChevronUp, ChevronDown, ChevronRight, Wallet, LayoutGrid, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { AssetCard, type AssetPerformanceData } from '@/components/assets/AssetCard';
@@ -66,11 +66,13 @@ function formatDeltaPct(delta: number | null): string {
   return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
 }
 
-// Tailwind color class for a % delta value in the table.
+// Theme-aware sign color for a % delta value in the table.
+// Uses the --positive / --destructive tokens so the sign color tracks the active
+// theme (raw text-green/red-* would diverge from --destructive on non-default themes).
 function deltaColorClass(delta: number | null): string {
   if (delta === null) return 'text-muted-foreground';
-  if (delta > 0) return 'text-green-600 dark:text-green-400';
-  if (delta < 0) return 'text-red-600 dark:text-red-400';
+  if (delta > 0) return 'text-positive';
+  if (delta < 0) return 'text-destructive';
   return 'text-muted-foreground';
 }
 
@@ -145,6 +147,9 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
   const [taxCalculatorOpen, setTaxCalculatorOpen] = useState(false);
   const [calculatingAsset, setCalculatingAsset] = useState<Asset | null>(null);
   const [sortState, setSortState] = useState<SortState | null>(null);
+  // Δ Mese / Δ YTD / Δ Inizio columns are hidden by default to keep the table narrow
+  // enough to avoid horizontal scroll at 1440px; the "Andamento" toggle reveals them.
+  const [showDeltas, setShowDeltas] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>(undefined);
   const pendingDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -458,6 +463,20 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
               Raggruppa per classe
             </Button>
           )}
+          {/* Andamento — reveals the Δ Mese / YTD / Inizio columns (desktop only) */}
+          {assets.length > 0 && (
+            <Button
+              type="button"
+              variant={showDeltas ? 'default' : 'outline'}
+              size="sm"
+              className="hidden desktop:inline-flex"
+              onClick={() => setShowDeltas((prev) => !prev)}
+              aria-pressed={showDeltas}
+            >
+              <TrendingUp className="mr-2 h-4 w-4" />
+              Andamento
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -561,7 +580,6 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                   <TableHeader>
                     <TableRow>
                       <SortHead column="name" sortState={sortState} onSort={handleSort}>Nome</SortHead>
-                      <TableHead>Ticker</TableHead>
                       <SortHead column="class" sortState={sortState} onSort={handleSort}>Classe</SortHead>
                       <TableHead className="text-right">Quantità</TableHead>
                       <TableHead className="text-right">Prezzo</TableHead>
@@ -570,9 +588,13 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                       <SortHead column="value" className="text-right" sortState={sortState} onSort={handleSort}>Valore Totale</SortHead>
                       <SortHead column="weight" className="text-right" sortState={sortState} onSort={handleSort}>Peso %</SortHead>
                       <SortHead column="gainPct" className="text-right" sortState={sortState} onSort={handleSort}>G/P</SortHead>
-                      <TableHead className="text-right">Δ Mese</TableHead>
-                      <TableHead className="text-right">Δ YTD</TableHead>
-                      <TableHead className="text-right">Δ Inizio</TableHead>
+                      {showDeltas && (
+                        <>
+                          <TableHead className="text-right">Δ Mese</TableHead>
+                          <TableHead className="text-right">Δ YTD</TableHead>
+                          <TableHead className="text-right">Δ Inizio</TableHead>
+                        </>
+                      )}
                       <TableHead className="text-right">Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -587,16 +609,23 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                         const perf = assetPerformanceData[asset.id];
                         return (
                           <TableRow key={asset.id} className={isManualPrice ? 'bg-[color-mix(in_oklch,var(--chart-3)_6%,transparent)]' : ''}>
-                            <TableCell className="font-medium max-w-[180px]">
+                            <TableCell className="font-medium max-w-[200px]">
                               <div className="flex items-center gap-2 min-w-0">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="block truncate">{asset.name}</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>{asset.name}</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                <div className="min-w-0">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="block truncate">{asset.name}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>{asset.name}</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  {asset.ticker && (
+                                    <span className="block truncate text-xs font-mono text-muted-foreground">
+                                      {asset.ticker}
+                                    </span>
+                                  )}
+                                </div>
                                 {asset.quantity === 0 && (
                                   <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground border border-border">
                                     Azzerato
@@ -604,7 +633,6 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell>{asset.ticker}</TableCell>
                             <TableCell>
                               <span
                                 className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
@@ -617,23 +645,23 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                 {formatAssetClassName(asset.assetClass)}
                               </span>
                             </TableCell>
-                            <TableCell className="text-right tabular-nums">{formatNumber(asset.quantity, 2)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{formatCurrency(asset.currentPrice, asset.currency, 4)}</TableCell>
-                            <TableCell className="text-right tabular-nums">
+                            <TableCell className="text-right font-mono tabular-nums">{formatNumber(asset.quantity, 2)}</TableCell>
+                            <TableCell className="text-right font-mono tabular-nums">{formatCurrency(asset.currentPrice, asset.currency, 4)}</TableCell>
+                            <TableCell className="text-right font-mono tabular-nums">
                               {asset.averageCost ? (
                                 formatCurrency(asset.averageCost, asset.currency, 4)
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="text-right tabular-nums">
+                            <TableCell className="text-right font-mono tabular-nums">
                               {asset.totalExpenseRatio ? (
                                 <span className="text-muted-foreground">{asset.totalExpenseRatio.toFixed(2)}%</span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-semibold tabular-nums">
+                            <TableCell className="text-right font-mono font-semibold tabular-nums">
                               {asset.assetClass === 'realestate' &&
                               asset.outstandingDebt &&
                               asset.outstandingDebt > 0 ? (
@@ -665,7 +693,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                 formatCurrency(value)
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-medium tabular-nums">
+                            <TableCell className="text-right font-mono font-medium tabular-nums">
                               {totalValue > 0 ? `${((value / totalValue) * 100).toFixed(2)}%` : '-'}
                             </TableCell>
                             <TableCell className="text-right">
@@ -677,12 +705,12 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                   const isPos = gainLoss > 0;
                                   const isNeg = gainLoss < 0;
                                   const textColor = isPos
-                                    ? 'text-green-600 dark:text-green-400'
+                                    ? 'text-positive'
                                     : isNeg
-                                    ? 'text-red-600 dark:text-red-400'
+                                    ? 'text-destructive'
                                     : 'text-muted-foreground';
                                   return (
-                                    <div className={`${textColor} font-medium tabular-nums`}>
+                                    <div className={`${textColor} font-mono font-medium tabular-nums`}>
                                       <div>
                                         {isPos ? '+' : ''}
                                         {formatCurrency(gainLoss)}
@@ -698,14 +726,15 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            {/* Δ Mese / Δ YTD / Δ Inizio — inline performance columns */}
-                            {(['lastSnapshotDelta', 'ytdDelta', 'allTimeDelta'] as const).map((key) => (
-                              <TableCell key={key} className="text-right tabular-nums">
-                                <span className={`font-mono font-semibold text-sm ${deltaColorClass(perf?.[key] ?? null)}`}>
-                                  {formatDeltaPct(perf?.[key] ?? null)}
-                                </span>
-                              </TableCell>
-                            ))}
+                            {/* Δ Mese / Δ YTD / Δ Inizio — inline performance columns (toggle) */}
+                            {showDeltas &&
+                              (['lastSnapshotDelta', 'ytdDelta', 'allTimeDelta'] as const).map((key) => (
+                                <TableCell key={key} className="text-right font-mono tabular-nums">
+                                  <span className={`font-mono font-semibold text-sm ${deltaColorClass(perf?.[key] ?? null)}`}>
+                                    {formatDeltaPct(perf?.[key] ?? null)}
+                                  </span>
+                                </TableCell>
+                              ))}
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 {hasCostBasisTracking(asset) && (
@@ -770,7 +799,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                               className="bg-muted/40 hover:bg-muted/60 cursor-pointer select-none"
                               onClick={() => toggleGroupCollapsed(cls)}
                             >
-                              <TableCell colSpan={14}>
+                              <TableCell colSpan={showDeltas ? 13 : 10}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <Chevron className="h-3.5 w-3.5 text-muted-foreground" />
@@ -785,7 +814,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                       {formatAssetClassName(cls as Asset['assetClass'])}
                                     </span>
                                     <span className="text-xs text-muted-foreground">
-                                      {groupAssets.length} {groupAssets.length === 1 ? 'asset' : 'asset'}
+                                      {groupAssets.length} asset
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-3 text-xs font-mono tabular-nums text-foreground">
