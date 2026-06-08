@@ -67,6 +67,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - Savings vs Investment Growth comparison (annual and monthly views)
 - **Labor & Investments section**: lifetime KPI cards for Earned from Work, Saved from Work, Investment Growth Gross/Net, plus positive/negative month counters and a monthly breakdown chart — shows a setup prompt linking to Settings when labor categories are not yet configured
 - Year-over-Year variation and raw monthly snapshot data available in a collapsible section (collapsed by default)
+- **Per-instrument value breakdown** ("Valore per Strumento"): pick any recorded month to see each individual holding's value that month (read straight from the saved snapshot, so currency/real-estate/price rules are already applied), select a subset of instruments to total their value and its share of the month, and chart that subset's combined value across every month on record
 
 ### FIRE Planning
 - FIRE calculator with primary residence exclusion; the settings panel sits at the top and stays collapsed once you've set your withdrawal rate
