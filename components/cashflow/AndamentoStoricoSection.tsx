@@ -202,6 +202,9 @@ function CategoryLinesChart({
         />
         <Tooltip
           formatter={(value, name) => [formatCurrency(Number(value ?? 0)), String(name)]}
+          // Order tooltip rows by value (desc) so they mirror the vertical stacking
+          // of the lines at the hovered point, instead of the fixed series order.
+          itemSorter={(item) => -(item.value as number)}
           contentStyle={TOOLTIP_CONTENT_STYLE}
           labelStyle={TOOLTIP_LABEL_STYLE}
           cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
@@ -329,7 +332,7 @@ export function AndamentoStoricoSection({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Andamento storico {granularityLabel} · prime 6 categorie + Altro
+            Andamento storico {granularityLabel} · prime 6 categorie
           </p>
         </CardHeader>
         <CardContent className="pt-0">

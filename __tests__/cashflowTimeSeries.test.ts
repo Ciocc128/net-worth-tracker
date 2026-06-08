@@ -12,7 +12,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTimeBuckets,
   buildCategoryTimeSeries,
-  OTHER_CATEGORY_LABEL,
 } from '@/lib/utils/cashflowTimeSeries';
 import type { Expense } from '@/types/expenses';
 
@@ -101,8 +100,8 @@ describe('buildTimeBuckets', () => {
 });
 
 describe('buildCategoryTimeSeries', () => {
-  it('keeps the top-N categories and folds the rest into "Altro"', () => {
-    // 4 categories with descending totals; topN=2 → keep two, group two into Altro.
+  it('keeps only the top-N categories and drops the rest (no "Altro" residual)', () => {
+    // 4 categories with descending totals; topN=2 → keep two, drop the other two.
     const expenses: Expense[] = [
       makeExpense({ categoryName: 'A', amount: -400, date: d(2025, 1) }),
       makeExpense({ categoryName: 'B', amount: -300, date: d(2025, 1) }),
@@ -112,10 +111,10 @@ describe('buildCategoryTimeSeries', () => {
 
     const { series } = buildCategoryTimeSeries(expenses, 'year', 'expenses', 2025, 2);
 
-    expect(series.map((s) => s.name)).toEqual(['A', 'B', OTHER_CATEGORY_LABEL]);
-    // Altro = C + D in the single 2025 bucket
-    const altro = series.find((s) => s.name === OTHER_CATEGORY_LABEL)!;
-    expect(altro.values).toEqual([300]);
+    // Only the two strongest categories remain; C and D are not plotted at all.
+    expect(series.map((s) => s.name)).toEqual(['A', 'B']);
+    // Each kept series carries only its own total — never the C+D residual (300).
+    expect(series.map((s) => s.values[0])).toEqual([400, 300]);
   });
 
   it('aligns per-category values to the shared bucket axis', () => {

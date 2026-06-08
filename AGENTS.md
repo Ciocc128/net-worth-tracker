@@ -122,6 +122,7 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - For Patrimonio `Anno Corrente` historical tables, include the previous month as a hidden calculation baseline when the first visible month needs a comparison (e.g. January vs previous December), but do not render the baseline month in the UI
 - When a hidden baseline is present and only one month is visible in the current year, both `Mese Prec. %` and `YTD %` should reuse that baseline-backed change instead of showing `-`
 - `MonthlySnapshot` fields built in `createSnapshot()` must also be added to `POST /api/portfolio/snapshot`
+- **Reuse `MonthlySnapshot.byAsset.totalValue` for historical per-instrument value — never recompute client-side**: each snapshot freezes `{ assetId, ticker, name, quantity, price, totalValue }` per asset, with `totalValue` already run through `calculateAssetValue()` at snapshot time. That means the EUR/GBp/real-estate-net-of-debt/quantity-as-value rules are *already baked in*; a "value of instrument X in month M" feature is a pure read over `byAsset`, not a re-derivation. Aggregate it in a tested pure layer (`lib/utils/snapshotAssetBreakdown.ts`) keyed by `assetId` so selection persists across months and a missing asset contributes 0. **Gotcha**: `byAsset` is a newer field — snapshots predating it have it empty/absent, so any month picker built on it must filter to non-empty `byAsset` (`getAvailableSnapshotMonths`); the resulting gaps in the month list are correct, not a bug. Applied in `MonthlyAssetBreakdownSection`.
 
 ### History: Savings vs Labor vs Performance
 - `prepareSavingsVsInvestmentData*()` decomposes monthly/annual net worth growth into `netSavings` and `investmentGrowth`
@@ -568,6 +569,7 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
   <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} cursor={{ fill: 'var(--muted)', opacity: 0.4 }} />
   ```
   Define the three objects as module-level `as const` constants — avoids re-creating objects on every render and keeps usage sites clean. Applied in `ConfrontoAnnualeSection.tsx` (TOOLTIP_CONTENT_STYLE / TOOLTIP_LABEL_STYLE), `CostCenterDetail.tsx` (all three). Never use `color: '#111827'` in any of them — invisible in dark mode. The `#111827` bug was found and fixed in `BenchmarkComparisonChart.tsx` `labelStyle` (2026-05-29).
+- **`itemSorter` to order multi-series tooltip rows by value**: a multi-line chart's tooltip lists rows in fixed series order by default, which rarely matches the on-screen vertical stacking of the lines. Pass `itemSorter={(item) => -(item.value as number)}` to sort rows by value descending so the tooltip mirrors which line is highest at the hovered X (the order then shifts naturally where lines cross — that's the intent). Applied in `AndamentoStoricoSection.tsx` (per-category lines).
 
 ### `sticky` on `tfoot` inside a div-scroll wrapper
 - **Symptom**: the total/summary footer row overlaps the last visible data rows when a table is inside a scrollable `<div>` — the tfoot appears to float on top of content.

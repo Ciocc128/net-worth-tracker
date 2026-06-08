@@ -50,12 +50,9 @@ export interface CategorySeries {
 export interface CategoryTimeSeries {
   /** The shared, ordered X axis. */
   buckets: Array<{ key: string; label: string }>;
-  /** One entry per kept category (top-N) plus an "Altro" bucket when needed. */
+  /** One entry per kept category (the top-N by total over the window). */
   series: CategorySeries[];
 }
-
-/** Label shown for categories grouped beyond the top-N cut. */
-export const OTHER_CATEGORY_LABEL = 'Altro';
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -196,14 +193,16 @@ export function buildTimeBuckets(
 /**
  * Build per-category multi-line series (income or expenses) over the full history.
  *
- * Categories are ranked by total value over the whole window; the top `topN` are kept
- * as individual series and the remainder are folded into a single "Altro" series.
+ * Categories are ranked by total value over the whole window and only the top `topN`
+ * are kept, each as its own series. The remaining (smaller) categories are dropped
+ * rather than folded into an "Altro" residual: that residual was the sum of many
+ * categories and routinely dwarfed every individual line, flattening the chart.
  *
  * @param expenses          All expense/income/transfer records.
  * @param granularity       'month' or 'year' buckets.
  * @param chartType         'income' selects income records, 'expenses' selects costs.
  * @param historyStartYear  Hard lower bound — buckets never start before this year.
- * @param topN              Max number of named categories before grouping into "Altro".
+ * @param topN              Max number of categories to keep (ranked by total).
  * @returns Shared bucket axis + one value array per kept category; empty when no data.
  */
 export function buildCategoryTimeSeries(
@@ -236,29 +235,27 @@ export function buildCategoryTimeSeries(
     .map(([name]) => name);
 
   const keptCategories = new Set(rankedCategories.slice(0, topN));
-  const hasOther = rankedCategories.length > topN;
 
-  // Seed value arrays (zero-filled) for each kept category plus optional "Altro".
+  // Seed a zero-filled value array for each kept category.
   const seriesByName = new Map<string, number[]>();
   for (const name of keptCategories) seriesByName.set(name, new Array(axis.length).fill(0));
-  if (hasOther) seriesByName.set(OTHER_CATEGORY_LABEL, new Array(axis.length).fill(0));
 
   for (const expense of relevant) {
+    // Categories beyond the top-N are dropped entirely (no "Altro" residual).
+    if (!keptCategories.has(expense.categoryName)) continue;
+
     const date = toDate(expense.date);
     const key = bucketKeyFor(getItalyYear(date), getItalyMonth(date), granularity);
     const index = bucketIndex.get(key);
     if (index === undefined) continue;
 
-    const name = keptCategories.has(expense.categoryName) ? expense.categoryName : OTHER_CATEGORY_LABEL;
-    const values = seriesByName.get(name);
-    if (values) values[index] += Math.abs(expense.amount);
+    seriesByName.get(expense.categoryName)![index] += Math.abs(expense.amount);
   }
 
-  // Preserve rank order; append "Altro" last so it reads as the residual bucket.
+  // Preserve rank order so the legend reads strongest-first.
   const series: CategorySeries[] = rankedCategories
     .filter((name) => keptCategories.has(name))
     .map((name) => ({ name, values: seriesByName.get(name)! }));
-  if (hasOther) series.push({ name: OTHER_CATEGORY_LABEL, values: seriesByName.get(OTHER_CATEGORY_LABEL)! });
 
   return {
     buckets: axis.map(({ key, label }) => ({ key, label })),

@@ -413,6 +413,11 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - AndamentoStoricoSection (solo `periodMode === 'history'`): YAxis del ComposedChart usa
   `domain={[(min)=>Math.min(0,min),'auto']}` (la linea Risparmio negativo non viene tagliata);
   asse temporale parte da `cashflowHistoryStartYear` (floor) e non degenera a 1 bucket
+- LineChart per categoria: mostra SOLO le prime 6 categorie per totale — le restanti sono
+  scartate di proposito (niente serie "Altro" residua, che sommando molte categorie sovrastava
+  ogni singola linea). NON re-introdurre un raggruppamento "Altro": è una scelta deliberata, non
+  un dato mancante. Tooltip righe ordinate per valore decrescente (`itemSorter`) per rispecchiare
+  l'impilamento verticale delle linee
 - Breakpoint: pill 3-state (Anno Corrente/Anno/Storico) centrata su mobile/tablet, riga su
   `desktop:`; selettore non overflow su 375px; TopExpensesBlock non overflow su mobile
 - Motion: `key={periodLabel}` su TopExpensesBlock per reset `showAll`; pill animation (400/35);
