@@ -165,3 +165,4 @@
 - CRON_SECRET comparison is now timing-safe (constant-time SHA-256 hash prevents side-channel leaks on cron endpoints)
 - API route handlers now validate all user-controlled inputs server-side (ticker format, ISIN format, snapshot year/month range, dividend payload fields) with zod, returning 400 on malformed data before any service call is made; Borsa Italiana scrapers validate ISIN at the service layer and encode it in URLs to prevent parameter injection
 - Registration email whitelist is no longer exposed in the client JS bundle (SEC-5)
+- HTTP security headers added to all responses: clickjacking protection (`X-Frame-Options: DENY`), content type sniffing prevention, HSTS (2-year), strict referrer policy, minimal Permissions Policy, and a report-only Content Security Policy for Firebase Auth/Firestore (violations logged to browser console for future enforcement)
