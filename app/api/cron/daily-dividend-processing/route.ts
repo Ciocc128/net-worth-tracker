@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import {
+  COUPON_CATCHUP_LOOKBACK_DAYS,
   runDividendScraping,
   runExpenseCreation,
   runNextCouponScheduling,
 } from '@/lib/server/dividendProcessor';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
+import { getItalyDayBoundsUtc } from '@/lib/utils/dateHelpers';
 
 /**
  * GET /api/cron/daily-dividend-processing
@@ -54,21 +56,27 @@ export async function GET(request: NextRequest) {
     const scrapingResult = await runDividendScraping(users, sixtyDaysAgo);
     console.log(`Phase 1 completed: Scraped ${scrapingResult.assetsScraped} assets, created ${scrapingResult.newDividends} new dividends, ${scrapingResult.errors} errors`);
 
-    // Phase 2: Create cashflow expenses for dividends paid today
+    // Phase 2: Create cashflow expenses for dividends due today
     console.log('Phase 2: Starting expense creation for paid dividends...');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
-    const todayStart = Timestamp.fromDate(today);
-    const todayEndTimestamp = Timestamp.fromDate(todayEnd);
+    // Build the "today" window from the Italian calendar day, not UTC midnight:
+    // this cron runs at 18:00 UTC (20:00 Italy), and payment dates are Italian days,
+    // so a UTC window would misclassify coupons near the day boundary.
+    const { start: todayStartDate, end: todayEndDate } = getItalyDayBoundsUtc();
+    const todayStart = Timestamp.fromDate(todayStartDate);
+    const todayEndTimestamp = Timestamp.fromDate(todayEndDate);
+    // Catch-up lower bound: coupons/premiums missed on a past run (cron downtime,
+    // timezone drift) are recovered down to this date so a single miss never
+    // permanently breaks the coupon chain. See dividendProcessor.ts.
+    const lookbackStartDate = new Date(todayStartDate);
+    lookbackStartDate.setDate(lookbackStartDate.getDate() - COUPON_CATCHUP_LOOKBACK_DAYS);
+    const lookbackStart = Timestamp.fromDate(lookbackStartDate);
 
-    const expenseResult = await runExpenseCreation(users, todayStart, todayEndTimestamp);
+    const expenseResult = await runExpenseCreation(users, todayStart, todayEndTimestamp, lookbackStart);
     console.log(`Phase 2 completed: ${expenseResult.processedCount} expenses created, ${expenseResult.errorCount} errors`);
 
-    // Phase 3: Schedule next coupon for bonds paid today
-    console.log('Phase 3: Scheduling next coupons for bonds paid today...');
-    const couponResult = await runNextCouponScheduling(users, todayStart, todayEndTimestamp);
+    // Phase 3: Schedule next coupon for bonds due on or before today
+    console.log('Phase 3: Scheduling next coupons for bonds due today...');
+    const couponResult = await runNextCouponScheduling(users, todayStart, todayEndTimestamp, lookbackStart);
     console.log(`Phase 3 completed: ${couponResult.scheduled} next coupons scheduled, ${couponResult.skipped} skipped, ${couponResult.errors} errors`);
 
     console.log(`Total summary: ${scrapingResult.assetsScraped} assets scraped, ${scrapingResult.newDividends} new dividends, ${expenseResult.processedCount} expense entries`);

@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import { toZonedTime } from 'date-fns-tz';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 // Target timezone for Italian investors
 export const ITALY_TIMEZONE = 'Europe/Rome';
@@ -64,6 +64,32 @@ export function getItalyMonthYear(date: Date | Timestamp | string | undefined | 
 export function formatItalianDate(date: Date | Timestamp | string): string {
   const dateObj = toDate(date);
   return new Intl.DateTimeFormat('it-IT').format(dateObj);
+}
+
+/**
+ * Returns the UTC instants for the start and end of a calendar day in Italy time.
+ *
+ * Why: server-side jobs (e.g. the daily dividend cron) run on UTC infrastructure,
+ * where `new Date().setHours(0,0,0,0)` yields UTC midnight, not Italian midnight.
+ * Payment dates entered by Italian users are conceptually "Italian days", so a
+ * UTC window misclassifies a coupon dated "10/06 in Italy" (stored as
+ * 2026-06-09T22:00:00Z in summer) — it falls outside the UTC 10/06 window.
+ * Building the window from the Italian wall-clock day fixes that boundary.
+ *
+ * @param date - Any instant within the target day (defaults to now)
+ * @returns { start, end } as UTC Date objects spanning the Italian day inclusively
+ */
+export function getItalyDayBoundsUtc(date: Date = new Date()): { start: Date; end: Date } {
+  // Read the Italian wall-clock calendar day for the given instant
+  const italyNow = toZonedTime(date, ITALY_TIMEZONE);
+  const year = italyNow.getFullYear();
+  const month = String(italyNow.getMonth() + 1).padStart(2, '0');
+  const day = String(italyNow.getDate()).padStart(2, '0');
+
+  // Interpret these wall-clock strings as Italian local time, convert back to UTC
+  const start = fromZonedTime(`${year}-${month}-${day}T00:00:00.000`, ITALY_TIMEZONE);
+  const end = fromZonedTime(`${year}-${month}-${day}T23:59:59.999`, ITALY_TIMEZONE);
+  return { start, end };
 }
 
 /**

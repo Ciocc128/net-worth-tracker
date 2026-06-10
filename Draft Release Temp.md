@@ -34,6 +34,7 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed: bond coupons paid today are now reliably recorded in Cashflow and the next coupon is always scheduled. The evening dividend automation used to compare payment dates against a UTC day, so a coupon dated "today" in Italy could fall just outside the window and be skipped — leaving no cashflow entry and, worse, halting all future coupons for that bond. The automation now uses the Italian day and also catches up any coupon it missed on a previous run, so a single hiccup can no longer break the coupon chain
 - Fixed: updating a bond's price no longer records its upcoming coupon as Cashflow income the moment you save, and no longer creates duplicate coupon entries when you re-save the bond. A coupon becomes a cashflow entry only when it is actually paid, handled by the evening dividend automation
 - Fixed: dividend yield metrics (YOC and Current Yield, on both the Rendimenti page and the Dividendi tab's "YOC Portafoglio") no longer count dividends from assets you have fully sold. Those payouts used to inflate the yield while their cost was no longer in the denominator. The dividends still appear in your dividend history as income actually received
 - Fixed: typing an existing category name in the expense or dividend dialog no longer shows a "+ Aggiungi" create-option alongside the matched result — the option is hidden when typed text is an exact match (case-insensitive), preventing accidental duplicate creation

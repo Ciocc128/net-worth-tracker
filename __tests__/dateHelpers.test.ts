@@ -7,6 +7,7 @@ import {
   getItalyMonthYear,
   formatItalianDate,
   isDateOnOrAfter,
+  getItalyDayBoundsUtc,
 } from '@/lib/utils/dateHelpers'
 
 describe('toDate', () => {
@@ -140,5 +141,29 @@ describe('isDateOnOrAfter', () => {
     const d1 = { toDate: () => new Date(2025, 6, 1) }
     const d2 = { toDate: () => new Date(2025, 5, 1) }
     expect(isDateOnOrAfter(d1 as any, d2 as any)).toBe(true)
+  })
+})
+
+describe('getItalyDayBoundsUtc', () => {
+  it('maps an Italian summer day to the correct UTC instants (CEST = +02:00)', () => {
+    // 10 June 2026 in Italy is +02:00, so the Italian day runs 09 Jun 22:00Z → 10 Jun 21:59:59.999Z.
+    const { start, end } = getItalyDayBoundsUtc(new Date('2026-06-10T12:00:00.000Z'))
+    expect(start.toISOString()).toBe('2026-06-09T22:00:00.000Z')
+    expect(end.toISOString()).toBe('2026-06-10T21:59:59.999Z')
+  })
+
+  it('maps an Italian winter day to the correct UTC instants (CET = +01:00)', () => {
+    // 15 January 2026 in Italy is +01:00.
+    const { start, end } = getItalyDayBoundsUtc(new Date('2026-01-15T12:00:00.000Z'))
+    expect(start.toISOString()).toBe('2026-01-14T23:00:00.000Z')
+    expect(end.toISOString()).toBe('2026-01-15T22:59:59.999Z')
+  })
+
+  it('includes a coupon stored at Italian midnight that a UTC window would miss', () => {
+    // Regression: a coupon dated "10/06 in Italy" is stored as 2026-06-09T22:00:00Z.
+    const couponPaymentMs = new Date('2026-06-09T22:00:00.000Z').getTime()
+    const { start, end } = getItalyDayBoundsUtc(new Date('2026-06-10T18:00:00.000Z')) // cron at 18:00Z
+    expect(couponPaymentMs).toBeGreaterThanOrEqual(start.getTime())
+    expect(couponPaymentMs).toBeLessThanOrEqual(end.getTime())
   })
 })
