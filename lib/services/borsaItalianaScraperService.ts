@@ -111,11 +111,17 @@ export async function scrapeDividendsByIsin(
   isin: string,
   assetType: AssetType = 'stock'
 ): Promise<ScrapedDividend[]> {
+  // Validate ISIN format before URL construction to prevent parameter injection.
+  // Assets are stored by the client and could contain crafted values.
+  const isinPattern = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
+  if (!isinPattern.test(isin)) {
+    throw new Error('Invalid ISIN format');
+  }
+
   try {
     // Select correct URL based on asset type
     const baseUrl = assetType === 'etf' ? BORSA_ITALIANA_ETF_URL : BORSA_ITALIANA_STOCK_URL;
-    const url = `${baseUrl}?isin=${isin}&lang=it`;
-    console.log(`[Scraper] Fetching URL for ${assetType.toUpperCase()}: ${url}`);
+    const url = `${baseUrl}?isin=${encodeURIComponent(isin)}&lang=it`;
 
     // Fetch HTML
     const response = await fetch(url);
@@ -124,36 +130,21 @@ export async function scrapeDividendsByIsin(
     }
 
     const html = await response.text();
-    console.log(`[Scraper] Received HTML, length: ${html.length} characters`);
 
     // Parse HTML with cheerio
     const $ = cheerio.load(html);
 
-    // Debug: Try multiple selectors to find the table
-    console.log(`[Scraper] Looking for dividend table...`);
     const tableRows1 = $('table.m-table tbody tr');
     const tableRows2 = $('table tbody tr');
-    const allTables = $('table');
-
-    console.log(`[Scraper] Found with 'table.m-table tbody tr': ${tableRows1.length} rows`);
-    console.log(`[Scraper] Found with 'table tbody tr': ${tableRows2.length} rows`);
-    console.log(`[Scraper] Total tables in page: ${allTables.length}`);
 
     // Use the selector that finds rows
     const tableRows = tableRows1.length > 0 ? tableRows1 : tableRows2;
 
+    console.log(`[Scraper] ISIN ${isin}: found ${tableRows.length} dividend rows`);
+
     if (tableRows.length === 0) {
-      console.log(`[Scraper] No dividend data found for ISIN: ${isin}`);
-      console.log(`[Scraper] Page title: ${$('title').text()}`);
-
-      // Log first 1000 chars of body for debugging
-      const bodyText = $('body').text().substring(0, 1000) || 'No body content';
-      console.log(`[Scraper] Page content preview: ${bodyText}`);
-
       return [];
     }
-
-    console.log(`[Scraper] Processing ${tableRows.length} table rows...`);
 
     const dividends: ScrapedDividend[] = [];
 
@@ -168,14 +159,6 @@ export async function scrapeDividendsByIsin(
             .replace(/\s+/g, ' ')         // Collapse multiple spaces
             .trim();
         }).get();
-
-        // Debug: Log cell contents for first row to understand structure
-        if (i === 0) {
-          console.log(`[Scraper] First row cell count: ${cells.length}`);
-          cellTexts.forEach((text, index) => {
-            console.log(`[Scraper] Cell ${index}: "${text}"`);
-          });
-        }
 
         // Detect table type by column count
         // ETF and stock pages have different HTML table structures on Borsa Italiana:
@@ -331,24 +314,12 @@ export async function scrapeDividendsByIsin(
           currency,
           dividendType,
         });
-
-        // Log successful parse
-        if (i < 3) {
-          console.log(`[Scraper] Row ${i} parsed (${isETFTable ? 'ETF' : 'Stock'} format):`, {
-            exDate: exDateText,
-            paymentDate: paymentDateText,
-            dividendPerShare: dividendPerShareText,
-            currency,
-            type: dividendType,
-          });
-        }
       } catch (rowError) {
         console.warn(`[Scraper] Error parsing row ${i}:`, rowError);
         // Continue processing other rows
       }
     });
 
-    console.log(`Successfully scraped ${dividends.length} dividends for ISIN: ${isin}`);
     return dividends;
   } catch (error) {
     console.error(`Error scraping dividends for ISIN ${isin}:`, error);

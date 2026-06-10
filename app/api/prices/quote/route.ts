@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuote } from '@/lib/services/yahooFinanceService';
 import { convertToEur } from '@/lib/services/currencyConversionService';
+import { getApiAuthErrorResponse, requireFirebaseAuth } from '@/lib/server/apiAuth';
+import { tickerSchema, parseOr400 } from '@/lib/server/validation';
 
 /**
  * GET /api/prices/quote
@@ -26,6 +28,8 @@ import { convertToEur } from '@/lib/services/currencyConversionService';
  */
 export async function GET(request: NextRequest) {
   try {
+    await requireFirebaseAuth(request);
+
     const searchParams = request.nextUrl.searchParams;
     const ticker = searchParams.get('ticker');
 
@@ -36,7 +40,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const quote = await getQuote(ticker);
+    const tickerResult = parseOr400(tickerSchema, ticker);
+    if (!tickerResult.ok) return tickerResult.response;
+
+    const quote = await getQuote(tickerResult.data);
 
     // Normalize GBp (pence) → GBP (pounds) for LSE tickers.
     // Yahoo Finance returns prices in pence for UK-listed assets (e.g. SWDA.L: 4874 GBp = 48.74 GBP).
@@ -64,6 +71,9 @@ export async function GET(request: NextRequest) {
       ...(currentPriceEur !== undefined ? { currentPriceEur } : {}),
     });
   } catch (error) {
+    const authResponse = getApiAuthErrorResponse(error);
+    if (authResponse) return authResponse;
+
     console.error('Error fetching quote:', error);
     return NextResponse.json(
       { error: 'Failed to fetch quote' },

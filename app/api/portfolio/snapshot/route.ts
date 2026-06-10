@@ -15,7 +15,9 @@ import {
   assertSameUser,
   getApiAuthErrorResponse,
   requireFirebaseAuth,
+  verifyCronSecret,
 } from '@/lib/server/apiAuth';
+import { snapshotRequestSchema, parseOr400 } from '@/lib/server/validation';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
 
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
@@ -85,10 +87,12 @@ export async function POST(request: NextRequest) {
   try {
     // Get user ID and optional year/month from request
     const requestBody = await request.json();
-    const { userId, year, month, cronSecret } = requestBody;
+    const bodyResult = parseOr400(snapshotRequestSchema, requestBody);
+    if (!bodyResult.ok) return bodyResult.response;
+    const { userId, year, month, cronSecret } = bodyResult.data;
 
     // Verify cron secret if provided (for scheduled jobs)
-    if (cronSecret && cronSecret !== process.env.CRON_SECRET) {
+    if (cronSecret && !verifyCronSecret(cronSecret)) {
       return NextResponse.json(
         { error: 'Invalid cron secret' },
         { status: 401 }

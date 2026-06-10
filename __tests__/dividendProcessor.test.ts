@@ -180,50 +180,26 @@ describe('runDividendScraping', () => {
 describe('runExpenseCreation', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  const todayStart = Timestamp.fromDate(new Date());
-  const todayEnd = Timestamp.fromDate(new Date());
+  // Fixed Italian-day window so eligibility checks are deterministic.
+  const todayStart = Timestamp.fromDate(new Date('2026-06-10T00:00:00.000Z'));
+  const todayEnd = Timestamp.fromDate(new Date('2026-06-10T23:59:59.999Z'));
+  const lookbackStart = Timestamp.fromDate(new Date('2025-06-05T00:00:00.000Z'));
 
-  it('skips dividends that already have an expenseId (idempotency)', async () => {
+  const dueTodayInstant = () => new Date('2026-06-10T08:00:00.000Z');
+  const pastInstant = () => new Date('2026-06-08T08:00:00.000Z');
+
+  function configureUserCategory() {
     collectionMocks['assetAllocationTargets'] = {
       doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({ dividendIncomeCategoryId: 'cat-1' }) })),
     };
     collectionMocks['expenseCategories'] = {
       doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({ name: 'Dividendi', subCategories: [] }) })),
     };
+  }
 
-    const dividendWithExpense = {
-      id: 'div-1',
-      data: () => ({ expenseId: 'existing-expense', assetTicker: 'ENI', paymentDate: { toDate: () => new Date() } }),
-    };
-    collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([dividendWithExpense]));
-
-    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd);
-
-    expect(createExpenseFromDividendMock).not.toHaveBeenCalled();
-    expect(result.processedCount).toBe(0);
-  });
-
-  it('skips users without dividendIncomeCategoryId configured', async () => {
-    collectionMocks['assetAllocationTargets'] = {
-      doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({}) })), // no category
-    };
-
-    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd);
-
-    expect(createExpenseFromDividendMock).not.toHaveBeenCalled();
-    expect(result.processedCount).toBe(0);
-  });
-
-  it('creates expense for dividend without expenseId', async () => {
-    collectionMocks['assetAllocationTargets'] = {
-      doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({ dividendIncomeCategoryId: 'cat-1' }) })),
-    };
-    collectionMocks['expenseCategories'] = {
-      doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({ name: 'Dividendi', subCategories: [] }) })),
-    };
-
-    const dividendDoc = {
-      id: 'div-1',
+  function makeDividendDoc(overrides: Record<string, any>) {
+    return {
+      id: overrides.id ?? 'div-1',
       data: () => ({
         assetTicker: 'ENI',
         assetName: 'Eni',
@@ -236,21 +212,87 @@ describe('runExpenseCreation', () => {
         netAmount: 37,
         dividendPerShare: 0.5,
         quantity: 100,
-        exDate: { toDate: () => new Date() },
-        paymentDate: { toDate: () => new Date() },
-        createdAt: { toDate: () => new Date() },
-        updatedAt: { toDate: () => new Date() },
-        // no expenseId
+        exDate: { toDate: dueTodayInstant },
+        paymentDate: { toDate: dueTodayInstant },
+        createdAt: { toDate: dueTodayInstant },
+        updatedAt: { toDate: dueTodayInstant },
+        ...overrides,
       }),
     };
-    collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([dividendDoc]));
+  }
+
+  it('skips dividends that already have an expenseId (idempotency)', async () => {
+    configureUserCategory();
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([makeDividendDoc({ expenseId: 'existing-expense' })])
+    );
+
+    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+    expect(createExpenseFromDividendMock).not.toHaveBeenCalled();
+    expect(result.processedCount).toBe(0);
+  });
+
+  it('skips users without dividendIncomeCategoryId configured', async () => {
+    collectionMocks['assetAllocationTargets'] = {
+      doc: vi.fn(() => makeDocRef({ exists: true, data: () => ({}) })), // no category
+    };
+
+    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+    expect(createExpenseFromDividendMock).not.toHaveBeenCalled();
+    expect(result.processedCount).toBe(0);
+  });
+
+  it('creates expense for a dividend due today', async () => {
+    configureUserCategory();
+    collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([makeDividendDoc({})]));
     createExpenseFromDividendMock.mockResolvedValue('new-expense-id');
 
-    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd);
+    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
 
     expect(createExpenseFromDividendMock).toHaveBeenCalledOnce();
     expect(result.processedCount).toBe(1);
     expect(result.processedDividends[0].expenseId).toBe('new-expense-id');
+  });
+
+  it('catches up an auto-generated coupon whose payment date already passed', async () => {
+    configureUserCategory();
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([
+        makeDividendDoc({
+          dividendType: 'coupon',
+          isAutoGenerated: true,
+          paymentDate: { toDate: pastInstant },
+          exDate: { toDate: pastInstant },
+        }),
+      ])
+    );
+    createExpenseFromDividendMock.mockResolvedValue('catchup-expense-id');
+
+    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+    expect(createExpenseFromDividendMock).toHaveBeenCalledOnce();
+    expect(result.processedCount).toBe(1);
+  });
+
+  it('does not back-date a past equity dividend without an expense', async () => {
+    configureUserCategory();
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([
+        makeDividendDoc({
+          dividendType: 'dividend',
+          isAutoGenerated: false,
+          paymentDate: { toDate: pastInstant },
+          exDate: { toDate: pastInstant },
+        }),
+      ])
+    );
+
+    const result = await runExpenseCreation([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+    expect(createExpenseFromDividendMock).not.toHaveBeenCalled();
+    expect(result.processedCount).toBe(0);
   });
 });
 
@@ -260,23 +302,28 @@ describe('runExpenseCreation', () => {
 describe('runNextCouponScheduling', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  const todayStart = Timestamp.fromDate(new Date());
-  const todayEnd = Timestamp.fromDate(new Date());
+  const todayStart = Timestamp.fromDate(new Date('2026-06-10T00:00:00.000Z'));
+  const todayEnd = Timestamp.fromDate(new Date('2026-06-10T23:59:59.999Z'));
+  const lookbackStart = Timestamp.fromDate(new Date('2025-06-05T00:00:00.000Z'));
+  // A date safely after todayEnd, used as the next upcoming coupon.
+  const futureDate = new Date('2026-12-10T00:00:00.000Z');
 
-  it('skips scheduling when bond has matured (getFollowingCouponDate returns null)', async () => {
-    const couponDoc = {
+  function makeCouponDoc(paymentToDate: () => Date) {
+    return {
       id: 'coup-1',
       data: () => ({
         assetId: 'asset-1',
         assetTicker: 'BTP',
-        assetName: 'BTP 2025',
+        assetName: 'BTP 2032',
         currency: 'EUR',
-        paymentDate: { toDate: () => new Date(), instanceof: () => false },
+        dividendType: 'coupon',
+        isAutoGenerated: true,
+        paymentDate: { toDate: paymentToDate },
       }),
     };
-    collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([couponDoc]));
+  }
 
-    const maturityDate = new Date('2020-01-01'); // already matured
+  function makeBondAsset(maturity: Date) {
     const assetDocData = {
       exists: true,
       data: () => ({
@@ -287,60 +334,74 @@ describe('runNextCouponScheduling', () => {
           couponRate: 5,
           couponFrequency: 'annual',
           nominalValue: 1,
-          maturityDate: { toDate: () => maturityDate, instanceof: () => false },
-          issueDate: { toDate: () => new Date('2010-01-01'), instanceof: () => false },
+          maturityDate: { toDate: () => maturity },
+          issueDate: { toDate: () => new Date('2010-01-01') },
         },
       }),
     };
     collectionMocks['assets'] = { doc: vi.fn(() => ({ get: vi.fn().mockResolvedValue(assetDocData) })) };
+  }
 
-    (getFollowingCouponDate as any).mockReturnValue(null); // matured
+  it('skips scheduling when bond has matured (getFollowingCouponDate returns null)', async () => {
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([makeCouponDoc(() => new Date('2026-06-10T00:00:00.000Z'))])
+    );
+    makeBondAsset(new Date('2020-01-01')); // already matured
+    (getFollowingCouponDate as any).mockReturnValue(null);
 
-    const result = await runNextCouponScheduling([makeUserDoc('u1')], todayStart, todayEnd);
+    const result = await runNextCouponScheduling([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
 
     expect(createDividendMock).not.toHaveBeenCalled();
     expect(result.scheduled).toBe(0);
     expect(result.skipped).toBe(1);
   });
 
-  it('skips when next coupon already exists (idempotency)', async () => {
-    const nextDate = new Date('2025-07-01');
-    (getFollowingCouponDate as any).mockReturnValue(nextDate);
+  it('skips when the upcoming coupon already exists (idempotency)', async () => {
+    // The next coupon is in the future and already stored → chain healed, nothing to do.
+    (getFollowingCouponDate as any).mockReturnValue(futureDate);
     isDuplicateDividendMock.mockResolvedValue(true);
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([makeCouponDoc(() => new Date('2026-06-10T00:00:00.000Z'))])
+    );
+    makeBondAsset(new Date('2032-03-10'));
 
-    const couponDoc = {
-      id: 'coup-1',
-      data: () => ({
-        assetId: 'asset-1',
-        assetTicker: 'BTP',
-        assetName: 'BTP 2025',
-        currency: 'EUR',
-        paymentDate: { toDate: () => new Date() },
-      }),
-    };
-    collectionMocks['dividends'] = makeCollection(makeQuerySnapshot([couponDoc]));
-
-    const assetDocData = {
-      exists: true,
-      data: () => ({
-        quantity: 1000,
-        isin: 'IT0001',
-        taxRate: 12.5,
-        bondDetails: {
-          couponRate: 5,
-          couponFrequency: 'annual',
-          nominalValue: 1,
-          maturityDate: { toDate: () => new Date('2030-01-01') },
-          issueDate: { toDate: () => new Date('2010-01-01') },
-        },
-      }),
-    };
-    collectionMocks['assets'] = { doc: vi.fn(() => ({ get: vi.fn().mockResolvedValue(assetDocData) })) };
-
-    const result = await runNextCouponScheduling([makeUserDoc('u1')], todayStart, todayEnd);
+    const result = await runNextCouponScheduling([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
 
     expect(createDividendMock).not.toHaveBeenCalled();
     expect(result.skipped).toBe(1);
     expect(result.scheduled).toBe(0);
+  });
+
+  it('schedules the next coupon for a coupon paid today', async () => {
+    (getFollowingCouponDate as any).mockReturnValue(futureDate);
+    isDuplicateDividendMock.mockResolvedValue(false);
+    createDividendMock.mockResolvedValue('next-coupon-id');
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([makeCouponDoc(() => new Date('2026-06-10T08:00:00.000Z'))])
+    );
+    makeBondAsset(new Date('2032-03-10'));
+
+    const result = await runNextCouponScheduling([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+    expect(createDividendMock).toHaveBeenCalledOnce();
+    expect(result.scheduled).toBe(1);
+    expect(result.skipped).toBe(0);
+  });
+
+  it('heals the chain from a coupon whose payment date already passed', async () => {
+    // A coupon dated a few days ago was never advanced; its successor (future)
+    // is missing and must be created so the bond has an upcoming coupon again.
+    (getFollowingCouponDate as any).mockReturnValue(futureDate);
+    isDuplicateDividendMock.mockResolvedValue(false);
+    createDividendMock.mockResolvedValue('healed-coupon-id');
+    collectionMocks['dividends'] = makeCollection(
+      makeQuerySnapshot([makeCouponDoc(() => new Date('2026-06-07T00:00:00.000Z'))])
+    );
+    makeBondAsset(new Date('2032-03-10'));
+
+    const result = await runNextCouponScheduling([makeUserDoc('u1')], todayStart, todayEnd, lookbackStart);
+
+    expect(createDividendMock).toHaveBeenCalledOnce();
+    expect(result.scheduled).toBe(1);
   });
 });

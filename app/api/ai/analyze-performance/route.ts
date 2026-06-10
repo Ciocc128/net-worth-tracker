@@ -9,6 +9,10 @@ import {
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
+import { checkRateLimit } from '@/lib/server/rateLimit';
+
+const ANALYZE_RATE_LIMIT_MAX = 10;
+const ANALYZE_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * API Route for AI-powered performance analysis using Anthropic Claude
@@ -122,6 +126,21 @@ export async function POST(request: NextRequest) {
     const { userId, metrics: performanceMetrics, timePeriod } = requestBody;
 
     assertSameUser(decodedToken, userId);
+
+    const rateLimitResult = checkRateLimit(
+      `${userId}:analyze`,
+      ANALYZE_RATE_LIMIT_MAX,
+      ANALYZE_RATE_LIMIT_WINDOW_MS
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Hai raggiunto il limite di richieste AI. Riprova piu tardi.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds) },
+        }
+      );
+    }
 
     if (!userId || !performanceMetrics || !timePeriod) {
       console.error('[API /ai/analyze-performance] Missing parameters:', {
