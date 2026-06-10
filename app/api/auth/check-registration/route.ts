@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isRegistrationAllowed } from '@/lib/constants/appConfig';
+import { isRegistrationAllowed } from '@/lib/server/registrationPolicy';
 
 /**
  * POST /api/auth/check-registration
@@ -39,8 +39,14 @@ export async function POST(request: NextRequest) {
     const allowed = isRegistrationAllowed(normalizedEmail);
 
     if (!allowed) {
+      // Mask the email to avoid logging PII: keep first char + *** + @domain
+      const atIdx = normalizedEmail.indexOf('@');
+      const maskedEmail =
+        atIdx > 0
+          ? `${normalizedEmail[0]}***${normalizedEmail.slice(atIdx)}`
+          : '***';
       console.warn(
-        `[REGISTRATION_BLOCKED] Registration attempt blocked for email: ${normalizedEmail} at ${new Date().toISOString()}`
+        `[REGISTRATION_BLOCKED] Registration attempt blocked for email: ${maskedEmail} at ${new Date().toISOString()}`
       );
 
       return NextResponse.json(

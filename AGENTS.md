@@ -249,6 +249,12 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - `z.coerce.date()` is required for date fields in body schemas: JSON serializes dates as ISO strings, not `Date` objects.
 - `dividendDataSchema.partial()` is used for PUT update payloads; the non-empty check precedes schema validation.
 
+### Server-only Registration Policy (SEC-5)
+- `lib/server/registrationPolicy.ts` (`server-only`) is the single source for `isRegistrationAllowed(email)`. It reads the email list from `REGISTRATION_WHITELIST` (no `NEXT_PUBLIC_` prefix) so it is never inlined into the client bundle.
+- **`lib/constants/appConfig.ts` must remain client-safe** — it is imported by `app/register/page.tsx` (`'use client'`). Only boolean flags (`REGISTRATIONS_ENABLED`, `REGISTRATION_WHITELIST_ENABLED`) belong there. Never add sensitive data (email lists, credentials) to `APP_CONFIG`.
+- The two boolean flags stay `NEXT_PUBLIC_*` because the register page needs them to decide which UI variant to render — but they carry no PII.
+- **Deploy note**: after merging, rename `NEXT_PUBLIC_REGISTRATION_WHITELIST` → `REGISTRATION_WHITELIST` on the hosting platform. Until renamed the whitelist is empty — fail-closed if the whitelist flag is enabled.
+
 ### Private API Authorization
 - Any App Router API route that uses Firebase Admin SDK must authenticate server-side; Firestore rules do not protect Admin SDK calls
 - Private routes must verify the Firebase ID token and bind the request to `decodedToken.uid`, not just a client-supplied `userId`
