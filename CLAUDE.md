@@ -5,7 +5,7 @@ Net Worth Tracker is a Next.js app for Italian investors to track net worth, ass
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic
-- Latest (2026-06-10): **SEC-1 implementato** — `GET /api/prices/quote` e `GET /api/prices/bond-quote` ora richiedono autenticazione Firebase (`requireFirebaseAuth`); `AssetDialog` aggiornato a `authenticatedFetch`; 4 test aggiunti in `apiAuthRoutes.test.ts`. Security review completa in `docs/security-review-spec.md` (8 findings, SEC-1 ✅, SEC-2..8 pending); ordine SEC-2→3→5→4→8→6→7.
+- Latest (2026-06-10): **SEC-1 implemented** — `GET /api/prices/quote` and `GET /api/prices/bond-quote` now require Firebase auth (`requireFirebaseAuth`); `AssetDialog` migrated to `authenticatedFetch`; 4 tests added in `apiAuthRoutes.test.ts`. Full security review in `docs/security-review-spec.md` (8 findings, SEC-1 ✅, SEC-2..8 pending); order SEC-2→3→5→4→8→6→7.
 
 ## Architecture Snapshot
 - App Router with protected pages under `app/dashboard/*`
