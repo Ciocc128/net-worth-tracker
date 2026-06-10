@@ -37,6 +37,13 @@ const {
   streamAssistantResponseMock: vi.fn(),
 }));
 
+vi.mock('server-only', () => ({}));
+
+// Allow all requests — rate limiting is unit-tested separately in rateLimit.test.ts
+vi.mock('@/lib/server/rateLimit', () => ({
+  checkRateLimit: vi.fn(() => ({ allowed: true })),
+}));
+
 vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: {
     verifyIdToken: verifyIdTokenMock,

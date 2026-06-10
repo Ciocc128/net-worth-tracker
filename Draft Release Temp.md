@@ -167,3 +167,4 @@
 - Registration email whitelist is no longer exposed in the client JS bundle (SEC-5)
 - HTTP security headers added to all responses: clickjacking protection (`X-Frame-Options: DENY`), content type sniffing prevention, HSTS (2-year), strict referrer policy, minimal Permissions Policy, and a report-only Content Security Policy for Firebase Auth/Firestore (violations logged to browser console for future enforcement)
 - Resolved 8 moderate severity advisories (uuid bounds-check CVE GHSA-w5hq-g745-h8pq) by upgrading firebase-admin to v14 and pinning uuid to a safe version across all transitive dependencies; Docker base image updated from Node 20 (EOL) to Node 22 LTS
+- AI endpoints (assistant stream and performance analysis) are now rate-limited per user (30 req/h and 10 req/h respectively) to prevent runaway Anthropic API costs from looping clients or compromised accounts

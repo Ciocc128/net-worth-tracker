@@ -37,6 +37,10 @@ import {
   parseStructuredGoalFromText,
 } from '@/lib/server/assistant/goalEvaluation';
 import { adminDb } from '@/lib/firebase/admin';
+import { checkRateLimit } from '@/lib/server/rateLimit';
+
+const STREAM_RATE_LIMIT_MAX = 30;
+const STREAM_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Extracts memory candidates from a completed exchange and persists new items.
@@ -158,6 +162,21 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as AssistantStreamRequest;
     assertSameUser(decodedToken, body.userId);
+
+    const rateLimitResult = checkRateLimit(
+      `${body.userId}:stream`,
+      STREAM_RATE_LIMIT_MAX,
+      STREAM_RATE_LIMIT_WINDOW_MS
+    );
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Hai raggiunto il limite di richieste AI. Riprova piu tardi.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimitResult.retryAfterSeconds) },
+        }
+      );
+    }
 
     if (!body.prompt?.trim() || !body.mode) {
       return NextResponse.json(

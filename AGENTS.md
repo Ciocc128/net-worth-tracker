@@ -249,6 +249,13 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - `z.coerce.date()` is required for date fields in body schemas: JSON serializes dates as ISO strings, not `Date` objects.
 - `dividendDataSchema.partial()` is used for PUT update payloads; the non-empty check precedes schema validation.
 
+### AI Endpoint Rate Limiting (SEC-7)
+- `lib/server/rateLimit.ts` (`server-only`) provides `checkRateLimit(key, maxRequests, windowMs)` — sliding window on a module-level `Map<string, number[]>`, lazy cleanup of expired timestamps on every call. Zero external dependencies.
+- Applied on both AI routes **after** `requireFirebaseAuth` + `assertSameUser` (never before — the limit is per-uid). Keys: `${userId}:stream` (30 req/h) and `${userId}:analyze` (10 req/h). Rate limit constants are named at module level — no magic numbers.
+- **Serverless caveat**: the `Map` is per-instance; a cold start resets the window. This is a deliberate trade-off for simplicity — the design comment in `rateLimit.ts` documents it.
+- **Testing new routes that import `rateLimit.ts`**: add `vi.mock('server-only', () => ({}))` and `vi.mock('@/lib/server/rateLimit', () => ({ checkRateLimit: vi.fn(() => ({ allowed: true })) }))` at the top of the test file so the `server-only` guard does not break Vitest. Applied in `__tests__/assistantRoutes.test.ts`.
+- 429 response format: `{ error: 'Hai raggiunto il limite di richieste AI. Riprova piu tardi.' }` with `Retry-After` header.
+
 ### Server-only Registration Policy (SEC-5)
 - `lib/server/registrationPolicy.ts` (`server-only`) is the single source for `isRegistrationAllowed(email)`. It reads the email list from `REGISTRATION_WHITELIST` (no `NEXT_PUBLIC_` prefix) so it is never inlined into the client bundle.
 - **`lib/constants/appConfig.ts` must remain client-safe** — it is imported by `app/register/page.tsx` (`'use client'`). Only boolean flags (`REGISTRATIONS_ENABLED`, `REGISTRATION_WHITELIST_ENABLED`) belong there. Never add sensitive data (email lists, credentials) to `APP_CONFIG`.
