@@ -1,22 +1,37 @@
 /**
- * Dividend tracking with filtering, CSV export, and Borsa Italiana scraping
+ * DividendTrackingTab — "Dividendi & Cedole"
  *
- * Features:
- * - Multi-filter: Asset, Type, Date Range
- * - CSV Export: Proper escaping for Excel/Sheets compatibility
- * - Borsa Italiana Scraping: Sequential API calls to avoid rate limits
+ * Rebuilt around the app's Trade Republic hierarchy, mirroring the Cost Centers
+ * Panoramica: a period axis drives a dominant net-income hero, a KPI chip grid, an
+ * income-reliability read (B2) and a flat ranked leaderboard of payers — then the
+ * working surfaces (table / calendar), the charts and the server-computed advanced
+ * analysis sit below behind progressive disclosure.
  *
- * Scraping Strategy: Sequential (not parallel) to prevent server overload
- * and potential IP blocking from Borsa Italiana.
+ * IA, top to bottom:
+ * 1. Actions (add / scrape / export) + the daily-scrape note.
+ * 2. Period axis (Mese / Anno / 12 mesi / Storico) — drives every figure below.
+ * 3. Hero: net dividends cashed in the period + variation chip + trailing-12m sparkline.
+ * 4. KPI chip grid: Lordo / Tasse / In arrivo / Media mensile.
+ * 5. Reliability strip (B2): income coverage + payer concentration.
+ * 6. Payer leaderboard: flat divide-y ranked by net income with a share bar.
+ * 7. Workspace: Tabella / Calendario, with secondary asset/type filters in "Filtra".
+ * 8. Charts (collapsible): by payer, by year, monthly net.
+ * 9. Advanced analysis (collapsible): YOC, DPS growth, total return (server-computed).
+ *
+ * WHY in-memory derivation: the tab already receives the full dividend list as a prop,
+ * so every period view (hero, KPI, leaderboard, charts, reliability) is derived in the
+ * pure layer (dividendAnalytics) with no refetch — switching period is instant. Only the
+ * advanced YOC/DPS/total-return block needs the server (cost-basis engines); it is fed
+ * the period's date bounds so it stays consistent with the axis.
  */
 'use client';
 
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { cardItem, pageVariants, tableShellSettle } from '@/lib/utils/motionVariants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
+import { useChartColors } from '@/lib/hooks/useChartColors';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { Dividend } from '@/types/dividend';
 import { Asset } from '@/types/assets';
@@ -24,10 +39,16 @@ import { DividendDialog } from './DividendDialog';
 import { DividendTable } from './DividendTable';
 import { DividendCalendar } from './DividendCalendar';
 import { DividendStats } from './DividendStats';
-import { DividendStatsSkeleton } from './DividendStatsSkeleton';
 import { DividendRecordDetailsDialog } from './DividendRecordDetailsDialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   Select,
   SelectContent,
@@ -45,14 +66,52 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
-import { CalendarDays, Download, Filter, Info, ListFilter, Loader2, Plus } from 'lucide-react';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import {
+  ChevronDown,
+  Download,
+  Filter,
+  Info,
+  Loader2,
+  Plus,
+  SlidersHorizontal,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { toDate } from '@/lib/utils/dateHelpers';
+import { formatCurrency } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { dividendTypeLabels } from '@/lib/constants/dividendTypes';
+import {
+  DividendPeriod,
+  computePeriodSummary,
+  computeNetComparison,
+  computeUpcomingNet,
+  rankPayers,
+  buildMonthlyNetSeries,
+  buildYearlySeries,
+  computeReliability,
+  periodToDateBounds,
+  PayerRow,
+} from '@/lib/utils/dividendAnalytics';
 
 interface DividendTrackingTabProps {
   dividends: Dividend[];
@@ -61,18 +120,53 @@ interface DividendTrackingTabProps {
   onRefresh: () => Promise<void>;
 }
 
+const PERIOD_OPTIONS: { value: DividendPeriod; label: string }[] = [
+  { value: 'month', label: 'Mese' },
+  { value: 'year', label: 'Anno' },
+  { value: 'rolling12', label: '12 mesi' },
+  { value: 'all', label: 'Storico' },
+];
+
+const PERIOD_NOUN: Record<DividendPeriod, string> = {
+  month: 'questo mese',
+  year: "quest'anno",
+  rolling12: 'ultimi 12 mesi',
+  all: 'da sempre',
+};
+
+const TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: 'var(--popover)',
+  border: '1px solid var(--border)',
+  color: 'var(--popover-foreground)',
+  fontSize: 12,
+  borderRadius: 8,
+} as const;
+
 export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: DividendTrackingTabProps) {
   const { user } = useAuth();
   const isDemo = useDemoMode();
+  const chartColors = useChartColors();
   const [scraping, setScraping] = useState(false);
   const [scrapeDialogOpen, setScrapeDialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Pre-computed so the AlertDialog description can show the count without re-filtering
   const assetsWithIsinCount = useMemo(
     () => assets.filter((a) => a.isin && a.isin.trim() !== '').length,
     [assets]
   );
+
+  // Asset filter options come from the dividends themselves, not the live portfolio:
+  // only instruments that actually paid at least one dividend appear, and a sold asset
+  // that paid in the past stays filterable (ticker/name are denormalized on each record).
+  const assetFilterOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const d of dividends) {
+      if (!byId.has(d.assetId)) byId.set(d.assetId, d.assetTicker || d.assetName);
+    }
+    return [...byId.entries()]
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'it'));
+  }, [dividends]);
   const [selectedDividend, setSelectedDividend] = useState<Dividend | null>(null);
   const [detailDividend, setDetailDividend] = useState<Dividend | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
@@ -80,77 +174,72 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
   const detailDialogRef = useRef<HTMLDivElement | null>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
 
-  // Filters
+  // --- Primary control: period axis ---
+  const [period, setPeriod] = useState<DividendPeriod>('year');
+
+  // --- Secondary filters (narrow the workspace list only) ---
   const [assetFilter, setAssetFilter] = useState<string>('__all__');
   const [typeFilter, setTypeFilter] = useState<string>('__all__');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [focusedDate, setFocusedDate] = useState<Date | null>(null);
+  const [refineOpen, setRefineOpen] = useState(false);
 
-  // View mode (table or calendar)
+  // --- Disclosure ---
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
-  const hasActiveFilters = assetFilter !== '__all__' || typeFilter !== '__all__' || startDate !== undefined || endDate !== undefined;
+  const [chartsOpen, setChartsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  // Derive filtered list synchronously — no extra render on filter change.
-  const filteredDividends = useMemo(() => {
-    let filtered = [...dividends];
+  const now = useMemo(() => new Date(), []);
 
-    // Filter by asset
-    if (assetFilter && assetFilter !== '__all__') {
-      filtered = filtered.filter((d) => d.assetId === assetFilter);
+  // --- In-memory period derivations (pure layer) ---
+  const summary = useMemo(() => computePeriodSummary(dividends, period, now), [dividends, period, now]);
+  const comparison = useMemo(() => computeNetComparison(dividends, period, now), [dividends, period, now]);
+  const upcomingNet = useMemo(() => computeUpcomingNet(dividends, now), [dividends, now]);
+  const payers = useMemo(() => rankPayers(dividends, period, now), [dividends, period, now]);
+  const reliability = useMemo(() => computeReliability(dividends, period, now), [dividends, period, now]);
+  const sparkline = useMemo(() => buildMonthlyNetSeries(dividends, now, 12), [dividends, now]);
+  const monthlySeries = useMemo(() => buildMonthlyNetSeries(dividends, now), [dividends, now]);
+  const yearlySeries = useMemo(() => buildYearlySeries(dividends, now), [dividends, now]);
+  const maxPayerNet = payers[0]?.net ?? 0;
+
+  // Period → date bounds, fed to the server-computed advanced block so it tracks the axis.
+  const { startDate: periodStart, endDate: periodEnd } = useMemo(
+    () => periodToDateBounds(period, now),
+    [period, now]
+  );
+
+  // --- Workspace list: dividends scoped to the period, plus secondary filters ---
+  const hasSecondaryFilters = assetFilter !== '__all__' || typeFilter !== '__all__' || focusedDate !== null;
+  const workspaceDividends = useMemo(() => {
+    let list = dividends;
+
+    // Scope to the period window by payment date. "all" keeps everything; bounded
+    // periods keep the window start onward (no upper bound, so upcoming payments stay
+    // visible in the working list).
+    if (period !== 'all' && periodStart) {
+      list = list.filter((d) => toDate(d.paymentDate) >= periodStart);
     }
-
-    // Filter by type
-    if (typeFilter && typeFilter !== '__all__') {
-      filtered = filtered.filter((d) => d.dividendType === typeFilter);
+    if (assetFilter !== '__all__') list = list.filter((d) => d.assetId === assetFilter);
+    if (typeFilter !== '__all__') list = list.filter((d) => d.dividendType === typeFilter);
+    if (focusedDate) {
+      list = list.filter((d) => {
+        const p = toDate(d.paymentDate);
+        return (
+          p.getFullYear() === focusedDate.getFullYear() &&
+          p.getMonth() === focusedDate.getMonth() &&
+          p.getDate() === focusedDate.getDate()
+        );
+      });
     }
+    return list;
+  }, [dividends, period, periodStart, assetFilter, typeFilter, focusedDate]);
 
-    // Filter by date range (using paymentDate for better UX - users care when money arrives)
-    if (startDate) {
-      filtered = filtered.filter((d) => toDate(d.paymentDate) >= startDate);
-    }
-
-    if (endDate) {
-      filtered = filtered.filter((d) => toDate(d.paymentDate) <= endDate);
-    }
-
-    return filtered;
-  }, [dividends, assetFilter, typeFilter, startDate, endDate]);
-
-  const focusedDate = useMemo(() => {
-    if (!startDate || !endDate) return null;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    if (
-      start.getFullYear() === end.getFullYear() &&
-      start.getMonth() === end.getMonth() &&
-      start.getDate() === end.getDate()
-    ) {
-      return start;
-    }
-
-    return null;
-  }, [startDate, endDate]);
   const focusSummary = useMemo(() => {
     if (!focusedDate) return null;
+    const totalNet = workspaceDividends.reduce((sum, d) => sum + (d.netAmountEur ?? d.netAmount), 0);
+    return { count: workspaceDividends.length, totalNet };
+  }, [workspaceDividends, focusedDate]);
 
-    const matchingDividends = filteredDividends.filter((dividend) => {
-      const paymentDate = toDate(dividend.paymentDate);
-      return (
-        paymentDate.getFullYear() === focusedDate.getFullYear() &&
-        paymentDate.getMonth() === focusedDate.getMonth() &&
-        paymentDate.getDate() === focusedDate.getDate()
-      );
-    });
-    const totalNet = matchingDividends.reduce((sum, dividend) => sum + (dividend.netAmountEur ?? dividend.netAmount), 0);
-
-    return {
-      count: matchingDividends.length,
-      totalNet,
-    };
-  }, [filteredDividends, focusedDate]);
-
+  // --- Handlers ---
   const handleCreate = () => {
     setSelectedDividend(null);
     setDialogOpen(true);
@@ -170,6 +259,24 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
     await onRefresh();
   };
 
+  const clearSecondaryFilters = () => {
+    setAssetFilter('__all__');
+    setTypeFilter('__all__');
+    setFocusedDate(null);
+  };
+
+  const handleCalendarDateClick = (date: Date) => {
+    const day = new Date(date);
+    day.setHours(12, 0, 0, 0);
+    setFocusedDate(day);
+  };
+
+  const handleOpenDetails = (dividend: Dividend, triggerElement: HTMLElement) => {
+    detailTriggerRef.current = triggerElement;
+    setDetailDividend(dividend);
+    setDetailDialogOpen(true);
+  };
+
   useEffect(() => {
     if (!detailDialogOpen) {
       setDetailDialogStyle(undefined);
@@ -184,29 +291,20 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
     const frameId = requestAnimationFrame(() => {
       const trigger = detailTriggerRef.current;
       const dialog = detailDialogRef.current;
-
       if (!trigger || !dialog) {
         setDetailDialogStyle(undefined);
         return;
       }
-
       const triggerRect = trigger.getBoundingClientRect();
       const dialogRect = dialog.getBoundingClientRect();
-      const originX = triggerRect.left + (triggerRect.width / 2) - dialogRect.left;
-      const originY = triggerRect.top + (triggerRect.height / 2) - dialogRect.top;
-
-      setDetailDialogStyle({
-        transformOrigin: `${originX}px ${originY}px`,
-      });
+      const originX = triggerRect.left + triggerRect.width / 2 - dialogRect.left;
+      const originY = triggerRect.top + triggerRect.height / 2 - dialogRect.top;
+      setDetailDialogStyle({ transformOrigin: `${originX}px ${originY}px` });
     });
 
     return () => cancelAnimationFrame(frameId);
   }, [detailDialogOpen]);
 
-  /**
-   * Opens the AlertDialog confirmation before executing scraping.
-   * Scraping is sequential (not parallel) to avoid rate-limiting from Borsa Italiana.
-   */
   const handleScrapeAll = () => {
     if (!user) return;
     if (assetsWithIsinCount === 0) {
@@ -218,7 +316,6 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
 
   const executeScrapeAll = async () => {
     if (!user) return;
-
     const assetsWithIsin = assets.filter((a) => a.isin && a.isin.trim() !== '');
 
     try {
@@ -233,7 +330,6 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.uid, assetId: asset.id }),
           });
-
           if (response.ok) {
             const result = await response.json();
             if (result.scraped > 0) successCount++;
@@ -252,7 +348,6 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
       } else {
         toast.warning('Nessun nuovo dividendo trovato');
       }
-
       if (failedCount > 0) {
         toast.warning(`${failedCount} asset hanno fallito lo scraping`);
       }
@@ -265,61 +360,37 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
   };
 
   const handleExportCSV = () => {
-    if (filteredDividends.length === 0) {
+    if (workspaceDividends.length === 0) {
       toast.error('Nessun dividendo da esportare');
       return;
     }
 
-    // CSV headers
     const headers = [
-      'Asset Ticker',
-      'Asset Name',
-      'Ex-Date',
-      'Payment Date',
-      'Dividend Per Share',
-      'Quantity',
-      'Gross Amount',
-      'Tax Amount',
-      'Net Amount',
-      'Currency',
-      'Type',
-      'Notes',
+      'Asset Ticker', 'Asset Name', 'Ex-Date', 'Payment Date', 'Dividend Per Share',
+      'Quantity', 'Gross Amount', 'Tax Amount', 'Net Amount', 'Currency', 'Type', 'Notes',
     ];
+    const rows = workspaceDividends.map((d) => [
+      d.assetTicker,
+      d.assetName,
+      format(toDate(d.exDate), 'dd/MM/yyyy', { locale: it }),
+      format(toDate(d.paymentDate), 'dd/MM/yyyy', { locale: it }),
+      d.dividendPerShare.toFixed(4),
+      d.quantity.toString(),
+      d.grossAmount.toFixed(2),
+      d.taxAmount.toFixed(2),
+      d.netAmount.toFixed(2),
+      d.currency,
+      dividendTypeLabels[d.dividendType],
+      d.notes || '',
+    ]);
 
-    // CSV rows
-    const rows = filteredDividends.map((d) => {
-      const exDate = toDate(d.exDate);
-      const paymentDate = toDate(d.paymentDate);
-
-      return [
-        d.assetTicker,
-        d.assetName,
-        format(exDate, 'dd/MM/yyyy', { locale: it }),
-        format(paymentDate, 'dd/MM/yyyy', { locale: it }),
-        d.dividendPerShare.toFixed(4),
-        d.quantity.toString(),
-        d.grossAmount.toFixed(2),
-        d.taxAmount.toFixed(2),
-        d.netAmount.toFixed(2),
-        d.currency,
-        dividendTypeLabels[d.dividendType],
-        d.notes || '',
-      ];
-    });
-
-    // Create CSV content
     const csvContent = [
       headers.join(','),
       ...rows.map((row) =>
-        row.map((cell) => {
-          // Escape commas and quotes in cell content
-          const escaped = cell.toString().replace(/"/g, '""');
-          return `"${escaped}"`;
-        }).join(',')
+        row.map((cell) => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
       ),
     ].join('\n');
 
-    // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -330,47 +401,23 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
     link.click();
     document.body.removeChild(link);
 
-    toast.success(`Esportati ${filteredDividends.length} dividendi in CSV`);
+    toast.success(`Esportati ${workspaceDividends.length} dividendi in CSV`);
   };
 
-  const clearFilters = () => {
-    setAssetFilter('__all__');
-    setTypeFilter('__all__');
-    setStartDate(undefined);
-    setEndDate(undefined);
-  };
-
-  /**
-   * Handle date click from calendar view
-   * Filters dividends to show only those on the selected date.
-   * A visual indicator is shown to make the filter clear to users.
-   */
-  const handleCalendarDateClick = (date: Date) => {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    setStartDate(startOfDay);
-    setEndDate(endOfDay);
-  };
-
-  const handleOpenDetails = (dividend: Dividend, triggerElement: HTMLElement) => {
-    detailTriggerRef.current = triggerElement;
-    setDetailDividend(dividend);
-    setDetailDialogOpen(true);
-  };
-
-  // Use the same skeleton as DividendStats so the outer fetch (dividends/assets)
-  // and the inner fetch (stats API) share a continuous visual — no flash between the two.
   if (loading) {
-    return <DividendStatsSkeleton />;
+    return <DividendTabSkeleton />;
   }
 
+  const deltaText =
+    comparison.deltaPct !== null
+      ? `${comparison.deltaPct >= 0 ? '+' : ''}${(comparison.deltaPct * 100).toFixed(1)}% vs periodo precedente`
+      : null;
+  const deltaPositive = (comparison.deltaPct ?? 0) >= 0;
+
   return (
-    <motion.div variants={pageVariants} initial="hidden" animate="visible" className="space-y-6">
-      {/* Action Buttons Row */}
-      <motion.div variants={cardItem} initial="hidden" animate="visible" transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1], delay: 0 }} className="space-y-2">
+    <div className="space-y-6">
+      {/* Actions */}
+      <div className="space-y-2">
         <div className="flex flex-col desktop:flex-row desktop:flex-wrap desktop:items-center gap-2">
           <Button onClick={handleCreate} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
             <Plus className="h-4 w-4 mr-2" />
@@ -383,15 +430,9 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
             title={isDemo ? 'Non disponibile in modalità demo' : 'Scarica manualmente tutti i dividendi storici per i tuoi asset con ISIN'}
           >
             {scraping ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Scaricamento...
-              </>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Scaricamento...</>
             ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" />
-                Scarica Tutti (Manuale)
-              </>
+              <><Download className="h-4 w-4 mr-2" />Scarica Tutti (Manuale)</>
             )}
           </Button>
           <Button onClick={handleExportCSV} variant="outline">
@@ -401,222 +442,254 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
         </div>
         <p className="text-xs text-muted-foreground flex items-start gap-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0" aria-hidden="true" />
-          I dividendi recenti vengono scaricati automaticamente ogni giorno.
-          Usa "Scarica Tutti" solo per importare dividendi storici o forzare un refresh.
+          I dividendi recenti vengono scaricati automaticamente ogni giorno. Usa &quot;Scarica Tutti&quot; solo per importare dividendi storici o forzare un refresh.
         </p>
-      </motion.div>
+      </div>
 
-      {/* Filters Row — positioned at top so they affect both charts and table */}
-      <motion.div variants={cardItem} initial="hidden" animate="visible" transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1], delay: 0.1 }} className="rounded-md border p-4 bg-muted/50">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="font-semibold">Filtri</h3>
-            <p className="text-xs text-muted-foreground">
-              Calendario, metriche e lista restano allineati sullo stesso contesto.
-            </p>
-          </div>
-          {hasActiveFilters && (
-            <div className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-muted-foreground">
-              {filteredDividends.length} risultati
-            </div>
+      {/* Period axis */}
+      <SegmentedControl
+        options={PERIOD_OPTIONS}
+        value={period}
+        onChange={setPeriod}
+        aria-label="Periodo"
+        className="max-w-md"
+      />
+
+      {/* HERO — net dividends cashed in the period. */}
+      <section>
+        <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+          Dividendi netti incassati · {PERIOD_NOUN[period]}
+        </p>
+        <div className="mt-1 flex flex-wrap items-end gap-3">
+          <span className="text-[40px] desktop:text-[48px] leading-none font-bold font-mono tabular-nums">
+            {formatCurrency(summary.net)}
+          </span>
+          {deltaText && (
+            <span
+              className={cn(
+                'mb-1 inline-flex items-center gap-1 rounded-[9px] px-[10px] py-[5px] text-[13px] font-semibold font-mono tabular-nums',
+                deltaPositive ? 'bg-positive/10 text-positive' : 'bg-destructive/10 text-destructive'
+              )}
+            >
+              {deltaPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+              {deltaText}
+            </span>
           )}
         </div>
-        <div className="grid gap-4 desktop:grid-cols-4">
-          {/* Asset Filter */}
-          <div className="space-y-2">
-            <Label htmlFor="assetFilter">Asset</Label>
-            <Select value={assetFilter} onValueChange={setAssetFilter}>
-              <SelectTrigger id="assetFilter" className="w-full">
-                <SelectValue placeholder="Tutti gli asset" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Tutti gli asset</SelectItem>
-                {assets.map((asset) => (
-                  <SelectItem key={asset.id} value={asset.id}>
-                    {asset.ticker || asset.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          {summary.count} {summary.count === 1 ? 'pagamento' : 'pagamenti'} · {formatCurrency(summary.gross)} lordi
+        </p>
 
-          {/* Type Filter */}
-          <div className="space-y-2">
-            <Label htmlFor="typeFilter">Tipo</Label>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger id="typeFilter" className="w-full">
-                <SelectValue placeholder="Tutti i tipi" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Tutti i tipi</SelectItem>
-                {Object.entries(dividendTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Start Date */}
-          <div className="space-y-2">
-            <Label htmlFor="startDate">Data Inizio</Label>
-            <Input
-              id="startDate"
-              type="date"
-              value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-              onChange={(e) => {
-                const dateString = e.target.value;
-                if (dateString) {
-                  const date = new Date(dateString + 'T00:00:00');
-                  if (!isNaN(date.getTime())) {
-                    setStartDate(date);
-                  }
-                } else {
-                  setStartDate(undefined);
-                }
-              }}
-            />
-          </div>
-
-          {/* End Date */}
-          <div className="space-y-2">
-            <Label htmlFor="endDate">Data Fine</Label>
-            <Input
-              id="endDate"
-              type="date"
-              value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-              onChange={(e) => {
-                const dateString = e.target.value;
-                if (dateString) {
-                  const date = new Date(dateString + 'T00:00:00');
-                  if (!isNaN(date.getTime())) {
-                    setEndDate(date);
-                  }
-                } else {
-                  setEndDate(undefined);
-                }
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Clear Filters Button */}
-        {hasActiveFilters && (
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              {focusedDate
-                ? `Focus attivo su ${format(focusedDate, 'dd/MM/yyyy', { locale: it })}`
-                : 'I filtri attivi aggiornano statistiche, calendario e tabella in modo coerente.'}
-            </p>
-            <Button onClick={clearFilters} variant="ghost" size="sm">
-              Cancella Filtri
-            </Button>
+        {/* Edge-to-edge trailing-12m sparkline — visual shape only. */}
+        {sparkline.length >= 2 && (
+          <div className="mt-4 h-16 -mx-1">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <AreaChart data={sparkline} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="divHeroFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                {/* Hidden X axis so the tooltip header reads the month, not the point index. */}
+                <XAxis dataKey="label" hide />
+                <RechartsTooltip
+                  formatter={(value) => [formatCurrency(value as number), 'Netto']}
+                  contentStyle={TOOLTIP_CONTENT_STYLE}
+                  cursor={{ stroke: 'var(--muted-foreground)', strokeOpacity: 0.3 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="net"
+                  stroke="var(--chart-1)"
+                  strokeWidth={2}
+                  fill="url(#divHeroFill)"
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         )}
-      </motion.div>
+      </section>
 
-      {/* Stats Component — receives active filters so charts reflect current selection */}
-      <motion.div variants={cardItem} initial="hidden" animate="visible" transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1], delay: 0.2 }}>
-      <DividendStats
-        startDate={startDate}
-        endDate={endDate}
-        assetId={assetFilter !== '__all__' ? assetFilter : undefined}
-      />
-      </motion.div>
+      {/* KPI chip grid. */}
+      <div className="grid grid-cols-2 desktop:grid-cols-4 gap-3">
+        <KpiChip label="Lordo" value={formatCurrency(summary.gross)} />
+        <KpiChip label="Tasse" value={formatCurrency(summary.tax)} subline="ritenute nel periodo" />
+        <KpiChip label="In arrivo" value={formatCurrency(upcomingNet)} subline="netto annunciato" />
+        <KpiChip label="Media mensile" value={formatCurrency(summary.averageMonthlyNet)} subline="netto / mese" />
+      </div>
 
-      {/* View Mode Toggle */}
-      <motion.div variants={cardItem} initial="hidden" animate="visible" transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1], delay: 0.3 }}>
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 border-b border-border pb-3 desktop:flex-row desktop:items-end desktop:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Workspace</p>
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === 'table' ? 'default' : 'ghost'}
-                onClick={() => setViewMode('table')}
-                className="rounded-b-none"
-              >
-                <ListFilter className="mr-2 h-4 w-4" />
-                Tabella
-              </Button>
-              <Button
-                variant={viewMode === 'calendar' ? 'default' : 'ghost'}
-                onClick={() => setViewMode('calendar')}
-                className="rounded-b-none"
-              >
-                <CalendarDays className="mr-2 h-4 w-4" />
-                Calendario
-              </Button>
-            </div>
+      {/* Reliability strip (B2) — only meaningful with income over more than one month. */}
+      {period !== 'month' && reliability.payerCount > 0 && (
+        <ReliabilityStrip reliability={reliability} />
+      )}
+
+      {/* Payer leaderboard — flat divide-y ranked by net income. */}
+      {payers.length > 0 ? (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Chi paga di più</h3>
+          <div className="divide-y divide-border/60 rounded-xl border border-border/60 overflow-hidden">
+            {payers.map((row, i) => (
+              <PayerListRow key={row.assetId} row={row} maxNet={maxPayerNet} index={i} color={chartColors[i % Math.max(1, chartColors.length)] ?? 'var(--chart-1)'} />
+            ))}
           </div>
-          <div className="text-xs text-muted-foreground">
-            {viewMode === 'table'
-              ? 'Apri un record per leggere il dettaglio senza entrare subito in modifica.'
-              : 'Seleziona un giorno per filtrare la lista sullo stesso contesto temporale.'}
-          </div>
+        </section>
+      ) : (
+        <p className="text-sm text-muted-foreground py-6 text-center">
+          Nessun dividendo incassato {PERIOD_NOUN[period]}.
+        </p>
+      )}
+
+      {/* Workspace: table / calendar + secondary filters. */}
+      <section className="space-y-4">
+        {/* 3-column grid keeps the view pill optically centered regardless of the
+            "Filtra" button width; stacks on mobile (pill centered, button below). */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+          <span className="hidden sm:block" aria-hidden="true" />
+          <SegmentedControl
+            options={[
+              { value: 'table', label: 'Tabella' },
+              { value: 'calendar', label: 'Calendario' },
+            ]}
+            value={viewMode}
+            onChange={(v) => setViewMode(v as 'table' | 'calendar')}
+            aria-label="Vista"
+            className="w-full max-w-xs justify-self-center"
+          />
+          <button
+            type="button"
+            onClick={() => setRefineOpen((o) => !o)}
+            className="inline-flex items-center gap-1.5 justify-self-center sm:justify-self-end rounded-lg border border-border/60 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            aria-expanded={refineOpen}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filtra
+            {hasSecondaryFilters && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-foreground" aria-hidden="true" />}
+          </button>
         </div>
 
+        {/* Secondary filters (asset / type) — narrow the working list, not the metrics. */}
+        <Collapsible open={refineOpen} onOpenChange={setRefineOpen}>
+          <CollapsibleContent>
+            <div className="rounded-xl border border-border/60 p-4 grid gap-4 sm:grid-cols-2 desktop:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="assetFilter">Asset</Label>
+                <Select value={assetFilter} onValueChange={setAssetFilter}>
+                  <SelectTrigger id="assetFilter" className="w-full">
+                    <SelectValue placeholder="Tutti gli asset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tutti gli asset</SelectItem>
+                    {assetFilterOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="typeFilter">Tipo</Label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger id="typeFilter" className="w-full">
+                    <SelectValue placeholder="Tutti i tipi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tutti i tipi</SelectItem>
+                    {Object.entries(dividendTypeLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {hasSecondaryFilters && (
+                <Button onClick={clearSecondaryFilters} variant="ghost" size="sm" className="justify-self-start">
+                  Azzera filtri
+                </Button>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Day focus banner — tokenized, set by clicking a calendar day. */}
         {focusedDate && focusSummary && (
-          <motion.div
-            variants={tableShellSettle}
-            initial="inactive"
-            animate="visible"
-            className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:bg-blue-950/20 desktop:flex-row desktop:items-center desktop:justify-between"
-          >
+          <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <Filter className="mt-0.5 h-4 w-4 text-blue-700 dark:text-blue-400" />
+              <Filter className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div className="text-sm">
-                <p className="font-medium text-blue-900 dark:text-blue-200">
-                  Focus attivo: {format(focusedDate, 'dd/MM/yyyy', { locale: it })}
-                </p>
-                <p className="text-blue-800/80 dark:text-blue-300/80">
-                  {focusSummary.count} {focusSummary.count === 1 ? 'pagamento' : 'pagamenti'} · netto previsto {focusSummary.totalNet.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+                <p className="font-medium">Focus: {format(focusedDate, 'dd MMMM yyyy', { locale: it })}</p>
+                <p className="text-muted-foreground">
+                  {focusSummary.count} {focusSummary.count === 1 ? 'pagamento' : 'pagamenti'} · netto {formatCurrency(focusSummary.totalNet)}
                 </p>
               </div>
             </div>
-            <Button
-              onClick={clearFilters}
-              variant="ghost"
-              size="sm"
-              className="h-auto px-2 py-1 text-blue-700 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/30"
-            >
-              Cancella
+            <Button onClick={() => setFocusedDate(null)} variant="ghost" size="sm" className="self-start">
+              Rimuovi focus
             </Button>
-          </motion.div>
+          </div>
         )}
 
-        {/* Conditional Rendering: Table or Calendar */}
         {viewMode === 'table' ? (
           <DividendTable
-            dividends={filteredDividends}
+            dividends={workspaceDividends}
             onEdit={handleEdit}
             onOpenDetails={handleOpenDetails}
             onRefresh={onRefresh}
-            showTotals={hasActiveFilters}
+            showTotals={hasSecondaryFilters || period !== 'all'}
             activeDividendId={detailDividend?.id ?? null}
             isDemo={isDemo}
           />
         ) : (
           <DividendCalendar
-            dividends={filteredDividends}
+            dividends={workspaceDividends}
             onDateClick={handleCalendarDateClick}
             selectedDate={focusedDate}
           />
         )}
-      </div>
+      </section>
 
-      </motion.div>
+      {/* Charts — collapsed by default (progressive disclosure). */}
+      {(monthlySeries.length > 0 || yearlySeries.length > 0) && (
+        <Collapsible open={chartsOpen} onOpenChange={setChartsOpen}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/60 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors">
+            <span>Grafici</span>
+            <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', chartsOpen && 'rotate-180')} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4">
+            <DividendCharts
+              payers={payers}
+              yearlySeries={yearlySeries}
+              monthlySeries={monthlySeries}
+              chartColors={chartColors}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
-      {/* Scrape confirmation — replaces window.confirm() with an accessible AlertDialog */}
+      {/* Advanced analysis — server-computed YOC / DPS / total return, period-scoped. */}
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/60 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors">
+          <span>Analisi avanzata · rendimento e crescita</span>
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', advancedOpen && 'rotate-180')} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4">
+          {advancedOpen && (
+            <DividendStats
+              startDate={periodStart}
+              endDate={periodEnd}
+              assetId={assetFilter !== '__all__' ? assetFilter : undefined}
+            />
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Scrape confirmation */}
       <AlertDialog open={scrapeDialogOpen} onOpenChange={setScrapeDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Scarica dividendi storici</AlertDialogTitle>
             <AlertDialogDescription>
-              Verranno scaricati i dividendi per {assetsWithIsinCount}{' '}
-              {assetsWithIsinCount === 1 ? 'asset con ISIN' : 'asset con ISIN'}.
-              {' '}Questa operazione potrebbe richiedere alcuni minuti.
+              Verranno scaricati i dividendi per {assetsWithIsinCount} asset con ISIN. Questa operazione potrebbe richiedere alcuni minuti.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -626,7 +699,6 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dividend Dialog */}
       <DividendDialog
         open={dialogOpen}
         onClose={handleDialogClose}
@@ -639,14 +711,219 @@ export function DividendTrackingTab({ dividends, assets, loading, onRefresh }: D
         dividend={detailDividend}
         onOpenChange={(open) => {
           setDetailDialogOpen(open);
-          if (!open) {
-            setDetailDialogStyle(undefined);
-          }
+          if (!open) setDetailDialogStyle(undefined);
         }}
         onEdit={handleEdit}
         dialogRef={detailDialogRef}
         style={detailDialogStyle}
       />
+    </div>
+  );
+}
+
+// --- KPI chip ---------------------------------------------------------------
+
+function KpiChip({ label, value, subline }: { label: string; value: string; subline?: string }) {
+  return (
+    <div className="bg-muted/40 rounded-xl p-3.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">{label}</p>
+      <p className="text-[22px] font-bold font-mono tabular-nums text-foreground leading-none">{value}</p>
+      {subline && <p className="text-[12px] text-muted-foreground mt-1.5">{subline}</p>}
+    </div>
+  );
+}
+
+// --- Reliability strip (B2) -------------------------------------------------
+
+/**
+ * Two risk reads on the income stream: how many months actually paid (smoothness) and
+ * how concentrated the income is on the top payer. Both come straight from the pure
+ * layer; the meters are functional shape, not decoration.
+ */
+function ReliabilityStrip({
+  reliability,
+}: {
+  reliability: ReturnType<typeof computeReliability>;
+}) {
+  const coverage = Math.round(reliability.coveragePct * 100);
+  const topShare = Math.round(reliability.topPayerSharePct * 100);
+  // HHI bands: < 0.15 diversified, 0.15–0.25 moderate, > 0.25 concentrated.
+  const concentrationLabel =
+    reliability.concentrationHhi > 0.25 ? 'Concentrato' : reliability.concentrationHhi > 0.15 ? 'Moderato' : 'Diversificato';
+
+  return (
+    <section className="grid gap-3 sm:grid-cols-2">
+      <div className="rounded-xl border border-border/60 p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Copertura mensile</p>
+          <p className="text-[20px] font-bold font-mono tabular-nums leading-none">{coverage}%</p>
+        </div>
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+          <div className="h-full rounded-full bg-[var(--chart-2)]" style={{ width: `${coverage}%` }} />
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          {reliability.monthsWithIncome} di {reliability.monthsInWindow} mesi con almeno un incasso
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-border/60 p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Concentrazione</p>
+          <Badge variant="outline" className="font-normal text-muted-foreground">{concentrationLabel}</Badge>
+        </div>
+        <p className="text-[20px] font-bold font-mono tabular-nums leading-none mt-3">{topShare}%</p>
+        <p className="text-xs text-muted-foreground mt-2">
+          dal pagatore principale{reliability.topPayerTicker ? ` (${reliability.topPayerTicker})` : ''} · {reliability.payerCount} {reliability.payerCount === 1 ? 'strumento' : 'strumenti'}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// --- Payer leaderboard row --------------------------------------------------
+
+/**
+ * A single payer as a flat list row: identity dot + name on the left, dominant net
+ * number + share bar (relative to the top payer) on the right.
+ */
+function PayerListRow({
+  row,
+  maxNet,
+  index,
+  color,
+}: {
+  row: PayerRow;
+  maxNet: number;
+  index: number;
+  color: string;
+}) {
+  const sharePct = maxNet > 0 ? Math.round((row.net / maxNet) * 100) : 0;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(index * 0.03, 0.2), duration: 0.18 }}
+      className="flex items-center gap-4 px-4 py-3.5"
+    >
+      <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium truncate">{row.assetTicker}</p>
+        <p className="text-xs text-muted-foreground truncate">{row.assetName}</p>
+      </div>
+      <div className="flex flex-col items-end gap-1.5 w-32 flex-shrink-0">
+        <span className="font-mono font-semibold tabular-nums">{formatCurrency(row.net)}</span>
+        <span className="h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+          <span className="block h-full rounded-full" style={{ width: `${sharePct}%`, backgroundColor: color, opacity: 0.7 }} />
+        </span>
+      </div>
     </motion.div>
+  );
+}
+
+// --- Charts -----------------------------------------------------------------
+
+function DividendCharts({
+  payers,
+  yearlySeries,
+  monthlySeries,
+  chartColors,
+}: {
+  payers: PayerRow[];
+  yearlySeries: ReturnType<typeof buildYearlySeries>;
+  monthlySeries: ReturnType<typeof buildMonthlyNetSeries>;
+  chartColors: string[];
+}) {
+  const color = (i: number) => chartColors[i % Math.max(1, chartColors.length)] ?? 'var(--chart-1)';
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 desktop:grid-cols-2">
+        {/* By payer (pie). */}
+        {payers.length > 0 && (
+          <div className="rounded-xl border border-border/60 p-4">
+            <h4 className="text-sm font-semibold mb-2">Dividendi per asset</h4>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={payers} dataKey="net" nameKey="assetTicker" cx="50%" cy="45%" outerRadius={72} animationDuration={500}>
+                  {payers.map((_, i) => (
+                    <Cell key={i} fill={color(i)} />
+                  ))}
+                </Pie>
+                <RechartsTooltip formatter={(value, name) => [formatCurrency(value as number), name as string]} contentStyle={TOOLTIP_CONTENT_STYLE} />
+                <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* By year (bar). */}
+        {yearlySeries.length > 0 && (
+          <div className="rounded-xl border border-border/60 p-4">
+            <h4 className="text-sm font-semibold mb-2">Dividendi per anno</h4>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={yearlySeries} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <XAxis dataKey="year" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(v) => `${Math.round(v as number)}€`} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={55} />
+                <RechartsTooltip formatter={(value, name) => [formatCurrency(value as number), name as string]} contentStyle={TOOLTIP_CONTENT_STYLE} cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="gross" name="Lordo" fill={color(0)} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="net" name="Netto" fill={color(1)} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Monthly net (line). */}
+      {monthlySeries.length > 1 && (
+        <div className="rounded-xl border border-border/60 p-4">
+          <h4 className="text-sm font-semibold mb-2">Reddito mensile netto</h4>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={monthlySeries} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
+              <YAxis tickFormatter={(v) => `${Math.round(v as number)}€`} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={55} />
+              <RechartsTooltip formatter={(value) => [formatCurrency(value as number), 'Netto']} contentStyle={TOOLTIP_CONTENT_STYLE} cursor={{ stroke: 'var(--muted-foreground)', strokeOpacity: 0.3 }} />
+              <Line type="monotone" dataKey="net" name="Netto" stroke={color(0)} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Skeleton ---------------------------------------------------------------
+
+function DividendTabSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse" aria-hidden="true">
+      <div className="flex gap-2">
+        <div className="h-9 w-40 bg-muted rounded-md" />
+        <div className="h-9 w-44 bg-muted rounded-md" />
+        <div className="h-9 w-32 bg-muted rounded-md" />
+      </div>
+      <div className="h-9 w-full max-w-md bg-muted rounded-lg" />
+      <div className="space-y-2">
+        <div className="h-3 w-40 bg-muted rounded" />
+        <div className="h-12 w-56 bg-muted rounded" />
+      </div>
+      <div className="grid grid-cols-2 desktop:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-20 bg-muted/60 rounded-xl" />
+        ))}
+      </div>
+      <div className="rounded-xl border border-border/60 divide-y divide-border/60">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+            <div className="h-2.5 w-2.5 bg-muted rounded-full" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-1/4 bg-muted rounded" />
+              <div className="h-3 w-1/3 bg-muted rounded" />
+            </div>
+            <div className="h-4 w-20 bg-muted rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -41,6 +41,8 @@
 - **"Where to put the next deposit"** — enter an amount and it's split across your under-funded goals, weighted by how much each still needs and its priority — the same logic the Allocation page uses for asset classes
 - **Order of achievement timeline** — a sequenced view shows the order in which you'll reach your goals at the current pace (e.g. Auto 2026 → Casa 2029 → Pensione 2041), with reached goals marked done
 - **Free capital, surfaced** — the "Non assegnato" figure now expands to list exactly which holdings still have unassigned value, so you can see what's free to commit to a goal
+- **Dividends & coupons tab, redesigned** — the Cashflow "Dividendi" tab now opens with the one number that matters: the net dividends you actually cashed, with a period switch (this month / this year / last 12 months / all time) that updates everything instantly. Below it, a Lordo / Tasse / In arrivo / monthly-average grid, a clean ranked list of who pays you the most, and a trailing-12-month income sparkline. The old wall of charts and tables is now tucked behind "Grafici" and "Analisi avanzata" so the page opens calm. The asset filter now lists only the instruments that have actually paid you a dividend (including ones you've since sold), instead of your whole portfolio
+- **New "income reliability" read on dividends** — two at-a-glance signals for anyone building a dividend income stream: *monthly coverage* (how many months in the period actually paid something) and *concentration* (how much of your income leans on a single payer, labelled Diversificato / Moderato / Concentrato). Both update with the period switch
 
 ## 🐛 Bug Fixes
 

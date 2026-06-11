@@ -759,3 +759,8 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 - **Symptom**: typing an existing option name (e.g. "Abbonamenti") shows both the filtered result AND a `+ Aggiungi "Abbonamenti"` create-option, suggesting the user create a duplicate.
 - **Fix**: compute `hasExactMatch = options.some(opt => opt.label.toLowerCase() === searchQuery.trim().toLowerCase())` and render `{onCreateOption && !hasExactMatch && (...)}`. Guard uses `.toLowerCase()` + `.trim()` for robustness.
 - Applies to all `SearchableCombobox` instances with an `onCreateOption` prop (category + subcategory pickers in `ExpenseDialog`, subcategory in `DividendDialog`, etc.). Applied in `components/ui/searchable-combobox.tsx`.
+
+### Recharts Tooltip Header Shows Point Index (0,1,2…) Without an XAxis
+- **Symptom**: a minimal Area/Line chart (e.g. a hero sparkline) with a tooltip shows `0`, `1`, `2`… as the tooltip header instead of the category label (month name), even though each datum has a `label` field.
+- **Root cause**: Recharts derives the tooltip header from the category (X) axis. With no `<XAxis dataKey="…">` rendered, the category axis defaults to the array index, so the header is the point index. A `labelFormatter={(l) => String(l)}` can't fix it because `l` is already the index.
+- **Fix**: render a hidden axis bound to the label field: `<XAxis dataKey="label" hide />`. The tooltip header then reads the real category; the axis stays invisible. Applied in `DividendTrackingTab.tsx` hero sparkline.
