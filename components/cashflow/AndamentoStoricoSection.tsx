@@ -27,6 +27,8 @@ import {
   ComposedChart,
   LineChart,
   Line,
+  Area,
+  AreaChart,
   Bar,
   XAxis,
   YAxis,
@@ -39,6 +41,7 @@ import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartServi
 import {
   buildTimeBuckets,
   buildCategoryTimeSeries,
+  buildTypeTimeSeries,
   type TimeGranularity,
 } from '@/lib/utils/cashflowTimeSeries';
 import { cn } from '@/lib/utils';
@@ -56,6 +59,7 @@ const TOOLTIP_CONTENT_STYLE = {
 const TOOLTIP_LABEL_STYLE = { fontWeight: 600, color: 'var(--card-foreground)' } as const;
 
 type CategoryChartType = 'expenses' | 'income';
+type TypeChartView = 'absolute' | 'percent';
 
 // ── PillToggle ────────────────────────────────────────────────────────────────
 // Generic two/three-option segmented control. Module-level for a stable reference.
@@ -229,6 +233,68 @@ function CategoryLinesChart({
   );
 }
 
+// ── TypeCompositionChart ──────────────────────────────────────────────────────
+// 100%-stacked area: the spending mix (Fisse/Variabili/Debiti) as a share of total
+// per bucket, so diversification reads independently of the absolute spend level.
+// Module-level (React Compiler).
+
+function TypeCompositionChart({
+  series,
+  rows,
+  colors,
+  height,
+}: {
+  series: ReturnType<typeof buildTypeTimeSeries>['series'];
+  // Rows are pre-normalised to percentages (0-100) per bucket in the parent.
+  rows: Array<Record<string, string | number>>;
+  colors: string[];
+  height: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={rows} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+          axisLine={false}
+          tickLine={false}
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          tickFormatter={(v: number) => `${v.toFixed(0)}%`}
+          tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+          axisLine={false}
+          tickLine={false}
+          domain={[0, 100]}
+        />
+        <Tooltip
+          formatter={(value, name) => [`${Number(value ?? 0).toFixed(1)}%`, String(name)]}
+          itemSorter={(item) => -(item.value as number)}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
+          labelStyle={TOOLTIP_LABEL_STYLE}
+          cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
+        />
+        <Legend wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
+        {series.map((s, i) => (
+          <Area
+            key={s.name}
+            type="monotone"
+            dataKey={s.name}
+            stackId="type-composition"
+            stroke={colors[i % colors.length] ?? '#6366f1'}
+            fill={colors[i % colors.length] ?? '#6366f1'}
+            fillOpacity={0.7}
+            strokeWidth={1.5}
+            animationDuration={600}
+            animationEasing="ease-out"
+          />
+        ))}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── EmptyState ────────────────────────────────────────────────────────────────
 
 function EmptyState({ message }: { message: string }) {
@@ -255,6 +321,7 @@ export function AndamentoStoricoSection({
 
   const [granularity, setGranularity] = useState<TimeGranularity>('year');
   const [categoryType, setCategoryType] = useState<CategoryChartType>('expenses');
+  const [typeView, setTypeView] = useState<TypeChartView>('absolute');
 
   const flowData = useMemo(
     () => buildTimeBuckets(allExpenses, granularity, historyStartYear),
@@ -276,9 +343,37 @@ export function AndamentoStoricoSection({
     });
   }, [categorySeries]);
 
+  const typeSeries = useMemo(
+    () => buildTypeTimeSeries(allExpenses, granularity, historyStartYear),
+    [allExpenses, granularity, historyStartYear],
+  );
+
+  // Absolute-€ rows: one numeric field per spending type, aligned to the bucket axis.
+  const typeRows = useMemo(() => {
+    return typeSeries.buckets.map((bucket, i) => {
+      const row: Record<string, string | number> = { label: bucket.label };
+      for (const s of typeSeries.series) row[s.name] = s.values[i];
+      return row;
+    });
+  }, [typeSeries]);
+
+  // Percent-composition rows: each type as a share (0-100) of the bucket's total spend.
+  // A zero-total bucket maps every type to 0 to avoid 0/0 = NaN.
+  const typePercentRows = useMemo(() => {
+    return typeSeries.buckets.map((bucket, i) => {
+      const total = typeSeries.series.reduce((sum, s) => sum + s.values[i], 0);
+      const row: Record<string, string | number> = { label: bucket.label };
+      for (const s of typeSeries.series) {
+        row[s.name] = total > 0 ? (s.values[i] / total) * 100 : 0;
+      }
+      return row;
+    });
+  }, [typeSeries]);
+
   // A single bucket can't show a trend — treat it as "not enough data".
   const hasFlowTrend = flowData.length >= 2;
   const hasCategoryTrend = categorySeries.buckets.length >= 2 && categorySeries.series.length > 0;
+  const hasTypeTrend = typeSeries.buckets.length >= 2 && typeSeries.series.length > 0;
 
   const granularityLabel = granularity === 'year' ? 'per anno' : 'per mese';
 
@@ -343,6 +438,53 @@ export function AndamentoStoricoSection({
               colors={chartColors}
               height={isMobile ? 240 : 300}
             />
+          ) : (
+            <EmptyState message="Servono almeno due periodi per mostrare l'andamento" />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Chart C — Per tipo di spesa (assoluto € o composizione 100%) */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+              Uscite per Tipo
+            </CardTitle>
+            <PillToggle
+              options={[
+                ['absolute', '€'],
+                ['percent', '%'],
+              ] as const}
+              value={typeView}
+              onChange={setTypeView}
+              layoutId="andamento-type-view-pill"
+              ariaLabel="Vista valore o composizione"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {typeView === 'percent'
+              ? `Composizione spesa ${granularityLabel} · Fisse / Variabili / Debiti`
+              : `Andamento storico ${granularityLabel} · Fisse / Variabili / Debiti`}
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {hasTypeTrend ? (
+            typeView === 'percent' ? (
+              <TypeCompositionChart
+                series={typeSeries.series}
+                rows={typePercentRows}
+                colors={chartColors}
+                height={isMobile ? 240 : 300}
+              />
+            ) : (
+              <CategoryLinesChart
+                series={typeSeries.series}
+                rows={typeRows}
+                colors={chartColors}
+                height={isMobile ? 240 : 300}
+              />
+            )
           ) : (
             <EmptyState message="Servono almeno due periodi per mostrare l'andamento" />
           )}

@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildTimeBuckets,
   buildCategoryTimeSeries,
+  buildTypeTimeSeries,
 } from '@/lib/utils/cashflowTimeSeries';
 import type { Expense } from '@/types/expenses';
 
@@ -145,6 +146,66 @@ describe('buildCategoryTimeSeries', () => {
 
   it('returns empty axis and series when no matching data exists', () => {
     const result = buildCategoryTimeSeries([], 'month', 'expenses', 2025, 6);
+    expect(result.buckets).toEqual([]);
+    expect(result.series).toEqual([]);
+  });
+});
+
+describe('buildTypeTimeSeries', () => {
+  it('groups expenses by type in canonical order (Fisse → Variabili → Debiti)', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'debt', amount: -100, date: d(2025, 1) }),
+      makeExpense({ type: 'fixed', amount: -400, date: d(2025, 1) }),
+      makeExpense({ type: 'variable', amount: -250, date: d(2025, 1) }),
+    ];
+
+    const { series } = buildTypeTimeSeries(expenses, 'year', 2025);
+
+    // Order is fixed by EXPENSE_TYPE_ORDER, not by total — unlike categories.
+    expect(series.map((s) => s.name)).toEqual(['Spese Fisse', 'Spese Variabili', 'Debiti']);
+    expect(series.map((s) => s.values[0])).toEqual([400, 250, 100]);
+  });
+
+  it('excludes income and transfer records', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'income', amount: 2000, date: d(2025, 1) }),
+      makeExpense({ type: 'transfer', amount: 800, date: d(2025, 1) }),
+      makeExpense({ type: 'fixed', amount: -300, date: d(2025, 1) }),
+    ];
+
+    const { series } = buildTypeTimeSeries(expenses, 'year', 2025);
+
+    expect(series.map((s) => s.name)).toEqual(['Spese Fisse']);
+    expect(series[0].values).toEqual([300]);
+  });
+
+  it('drops a type with no spend over the whole window (no flat zero line)', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'fixed', amount: -300, date: d(2025, 1) }),
+      makeExpense({ type: 'variable', amount: -200, date: d(2025, 1) }),
+      // no debt records at all
+    ];
+
+    const { series } = buildTypeTimeSeries(expenses, 'year', 2025);
+
+    expect(series.map((s) => s.name)).toEqual(['Spese Fisse', 'Spese Variabili']);
+  });
+
+  it('aligns per-type values to the shared, gap-free monthly axis', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'fixed', amount: -100, date: d(2025, 1) }),
+      makeExpense({ type: 'fixed', amount: -150, date: d(2025, 3) }),
+    ];
+
+    const { buckets, series } = buildTypeTimeSeries(expenses, 'month', 2025);
+
+    expect(buckets.map((b) => b.key)).toEqual(['2025-01', '2025-02', '2025-03']);
+    // Jan=100, Feb=0 (gap), Mar=150
+    expect(series[0]).toMatchObject({ name: 'Spese Fisse', values: [100, 0, 150] });
+  });
+
+  it('returns empty axis and series when no expense data exists', () => {
+    const result = buildTypeTimeSeries([], 'month', 2025);
     expect(result.buckets).toEqual([]);
     expect(result.series).toEqual([]);
   });

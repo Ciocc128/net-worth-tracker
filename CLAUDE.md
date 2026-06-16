@@ -5,8 +5,8 @@ Net Worth Tracker is a Next.js app for Italian investors to track net worth, ass
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic
-- Latest (2026-06-13): **YOC holding-continuity + Firestore deep-sanitize** — dividend yields (YOC/Current-Yield + Rendimento Totale per Asset) scope to the CURRENT holding, so a sold-then-rebought instrument (same `assetId`) no longer credits its prior-holding dividends against the new cost. `Asset.holdingStartDate` is stamped at (re)purchase + a snapshot-derived fallback. `removeUndefinedDeep` (`lib/utils/firestoreData.ts`) fixes the icon-less-subcategory save crash. See Known Issues.
-- Recent: inflation-linked bonds (BTP Italia Sì — additive FOI coupons + provisional handling); Trade-Republic IA redesigns of Dividendi, Obiettivi, Allocazione, Patrimonio, Rendimenti, Storico, Hall of Fame (each with a tested pure layer). Detail in the relevant **Key Features** entry.
+- Latest (2026-06-16): **Analisi "Uscite per Tipo" + email Hall of Fame & year-end report** — (1) Analisi → Storico gains an "Uscite per Tipo" chart (Fisse/Variabili/Debiti lines with an €/% 100%-composition toggle, `buildTypeTimeSeries`); (2) "Andamento Risparmio" gets a 12m/24m/Tutto window toggle (default Tutto = full history) replacing the hardcoded 24-month cap; (3) periodic emails now show a deterministic **Hall of Fame** standing under the NW KPI (monthly/yearly, e.g. "4° miglior mese per crescita") via the extracted pure `lib/utils/hallOfFameRecords.ts`, also fed to the AI comment; (4) the **yearly** email is extended (not duplicated) with Spese per Tipo, Top 10 spese, Top 10 entrate.
+- Recent: YOC holding-continuity + Firestore deep-sanitize (dividend yields scoped to the current holding via `Asset.holdingStartDate`); inflation-linked bonds (BTP Italia Sì); Trade-Republic IA redesigns of Dividendi, Obiettivi, Allocazione, Patrimonio, Rendimenti, Storico, Hall of Fame (each with a tested pure layer). Detail in the relevant **Key Features** entry.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`
@@ -75,7 +75,7 @@ Each entry = what it is + key file(s). Detailed gotchas/conventions live in AGEN
 - **Layout / nav**: `components/layout/*`, `components/ui/responsive-modal.tsx` (`ResponsiveModal`), `lib/constants/navigation.ts`, `lib/hooks/useMediaQuery.ts`
 - **Server use cases / emails**: `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor,monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`, `app/api/cron/monthly-snapshot/route.ts` (Phases 2-6)
 
-**Last updated**: 2026-06-13 (YOC holding-continuity — dividends scoped to the current holding via `holdingStartDate` + snapshot fallback, extended to Rendimento Totale per Asset; Firestore `removeUndefinedDeep`. CLAUDE.md condensed ~40k→~20k. See Current Status → Latest.)
+**Last updated**: 2026-06-16 (Analisi "Uscite per Tipo" chart + savings-window toggle; periodic-email Hall of Fame standing + extended year-end yearly report. Pure layers `buildTypeTimeSeries` and `lib/utils/hallOfFameRecords.ts`. See Current Status → Latest.)
 
 ## Design Context
 Authoritative aesthetic spec is **DESIGN.md** (Apple + Linear/Vercel + Trade Republic; Jony Ive form-follows-function). Users: Italian self-directed investors who want to understand their position quickly and confidently. Brand: elegant, sophisticated, personal. Principles: (1) data first, decoration second; (2) motion with purpose; (3) density is a feature; (4) precision builds trust; (5) personality lives in the details.

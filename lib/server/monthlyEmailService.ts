@@ -26,7 +26,14 @@ import type { PeriodComparison, MetricDelta, ComparisonSet } from '@/lib/server/
 import { evaluateBudgetAlerts } from '@/lib/utils/budgetUtils';
 import { DEFAULT_ALERT_THRESHOLDS } from '@/types/budget';
 import type { BudgetAlert, BudgetItem } from '@/types/budget';
-import type { Expense } from '@/types/expenses';
+import { type Expense, type ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { getUserSnapshotsAdmin } from '@/lib/server/assetAdminRepository';
+import {
+  calculateMonthlyRecords,
+  calculateYearlyRecords,
+  rankPeriodByNetWorthGrowth,
+  type PeriodGrowthRank,
+} from '@/lib/utils/hallOfFameRecords';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,9 +70,14 @@ export interface MonthlyEmailData {
   totalExpenses: number; // always positive (raw amounts are negative)
   topExpenseCategories: Array<{ name: string; amount: number }>; // all expense categories sorted desc
   allIncomeCategories: Array<{ name: string; amount: number }>; // all income categories sorted desc
-  topIndividualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top 5 transactions
+  topIndividualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top transactions (5, or 10 for yearly)
+  topIndividualIncome: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top income transactions (used only in the yearly report)
+  expensesByType: Array<{ type: ExpenseType; label: string; amount: number }>; // Fisse/Variabili/Debiti, sorted desc
   dividendTotal: number; // gross EUR
   dividendCount: number;
+  // Hall of Fame standing of this period's net-worth change — only for monthly/yearly
+  // (the Hall of Fame tracks months and years); undefined when not computable.
+  hallOfFameRank?: PeriodGrowthRank & { scope: 'month' | 'year' };
   // AI-generated markdown comment; undefined when generation failed or AI key is absent
   aiComment?: string;
   // Threshold alerts for the period's expense budgets — monthly emails only,
@@ -323,11 +335,24 @@ function incomeCategoryLabel(data: MonthlyEmailData): string {
   return 'Entrate per Categoria';
 }
 
+function expenseTypeLabel(data: MonthlyEmailData): string {
+  if (data.periodType === 'quarterly') return 'Spese per Tipo (Trimestre)';
+  if (data.periodType === 'semiannual') return 'Spese per Tipo (Semestre)';
+  if (data.periodType === 'yearly') return 'Spese per Tipo (Anno)';
+  return 'Spese per Tipo';
+}
+
 function topExpenseTransactionLabel(data: MonthlyEmailData): string {
+  // The yearly report widens the list to Top 10 (see buildPeriodEmailData).
   if (data.periodType === 'quarterly') return 'Top 5 Spese del Trimestre';
   if (data.periodType === 'semiannual') return 'Top 5 Spese del Semestre';
-  if (data.periodType === 'yearly') return "Top 5 Spese dell'Anno";
+  if (data.periodType === 'yearly') return "Top 10 Spese dell'Anno";
   return 'Top 5 Spese del Mese';
+}
+
+/** Yearly-only — the income Top 10 is not rendered for shorter periods. */
+function topIncomeTransactionLabel(): string {
+  return "Top 10 Entrate dell'Anno";
 }
 
 // ─── AI comment generation ────────────────────────────────────────────────────
@@ -463,6 +488,24 @@ function buildEmailAiPrompt(
         .join('\n')
     : '- Nessuna spesa individuale di rilievo nel periodo.';
 
+  // Spending mix by type — lets the comment reason about structural (fisse) vs
+  // compressible (variabili) vs debt, which the per-category lines don't capture.
+  const typeLines = emailData.expensesByType.length
+    ? emailData.expensesByType
+        .map((t) => {
+          const pct = emailData.totalExpenses > 0 ? ((t.amount / emailData.totalExpenses) * 100).toFixed(1) : '0.0';
+          return `- ${t.label}: ${formatEur(t.amount)} (${pct}% delle uscite)`;
+        })
+        .join('\n')
+    : '- Nessuna spesa categorizzata per tipo nel periodo.';
+
+  // Hall of Fame standing — deterministic, so the comment can cite it without inventing.
+  const hallOfFameLine = emailData.hallOfFameRank
+    ? emailData.hallOfFameRank.trend === 'growth'
+      ? `Hall of Fame: è il ${emailData.hallOfFameRank.rank}° ${emailData.hallOfFameRank.scope === 'month' ? 'mese' : 'anno'} per crescita del patrimonio (su ${emailData.hallOfFameRank.total} con crescita).`
+      : `Hall of Fame: ${emailData.hallOfFameRank.scope === 'month' ? 'mese' : 'anno'} in calo del patrimonio.`
+    : null;
+
   const memoryBlock = preferences.memoryEnabled
     ? formatMemoryForPrompt(memoryItems)
     : 'Non fare affidamento su memoria persistente; usa solo il contesto esplicito di questo messaggio.';
@@ -490,6 +533,10 @@ function buildEmailAiPrompt(
     `Uscite totali: ${formatEur(emailData.totalExpenses)}`,
     `Risparmio netto (Entrate − Uscite): ${formatEur(savedAmount)} (${savingsRate}% del reddito)`,
     `Dividendi e cedole: ${formatEur(emailData.dividendTotal)} (${emailData.dividendCount} pagamenti)`,
+    ...(hallOfFameLine ? [hallOfFameLine] : []),
+    '',
+    '--- SPESE PER TIPO (Fisse / Variabili / Debiti) ---',
+    typeLines,
     '',
     formatComparisonForPrompt('CONFRONTO COL PERIODO PRECEDENTE', comparison.vsPrevious),
     '',
@@ -503,10 +550,10 @@ function buildEmailAiPrompt(
     topExpenseDetailLines,
     '',
     'Struttura la risposta in markdown con queste sezioni:',
-    '1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo',
+    `1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo${hallOfFameLine ? '; se presente, cita il piazzamento Hall of Fame indicato nei dati (non inventare la posizione)' : ''}`,
     `2. **Rispetto al ${comparison.vsPrevious.baselineLabel}** — cosa è cambiato rispetto al periodo precedente, citando i numeri forniti`,
     yoySectionInstruction,
-    '4. **Entrate e spese: di quanto e perché** — quantifica di quanto sono aumentate o diminuite entrate e spese e ipotizza le probabili cause basandoti sui dati per categoria; per il patrimonio puoi citare il contesto macro di mercato',
+    '4. **Entrate e spese: di quanto e perché** — quantifica di quanto sono aumentate o diminuite entrate e spese e ipotizza le probabili cause basandoti sui dati per categoria; commenta anche il mix per tipo (Fisse/Variabili/Debiti) quando rilevante; per il patrimonio puoi citare il contesto macro di mercato',
     "5. **Azioni o attenzioni** — 1-2 osservazioni pratiche per l'investitore",
     '',
     'Rispetta questi vincoli:',
@@ -650,26 +697,43 @@ export interface CashflowAggregation {
   topExpenseCategories: Array<{ name: string; amount: number }>;
   allIncomeCategories: Array<{ name: string; amount: number }>;
   topIndividualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>;
+  topIndividualIncome: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>;
+  expensesByType: Array<{ type: ExpenseType; label: string; amount: number }>;
 }
 
+// The three real spending types, in the order shown in the email (structural first).
+const EMAIL_EXPENSE_TYPE_ORDER: ExpenseType[] = ['fixed', 'variable', 'debt'];
+
 /**
- * Aggregates a set of expense docs into income/expense totals and per-category breakdowns.
+ * Aggregates a set of expense docs into income/expense totals and per-category /
+ * per-type breakdowns plus the largest individual transactions.
+ *
  * Transfers (type === 'transfer') are skipped — they are net-zero, not real income/expense.
  * Exported for reuse by the period-comparison builder.
+ *
+ * @param docs              The period's expense documents.
+ * @param topIndividualLimit How many largest transactions to keep per side (default 5;
+ *                           the yearly report passes 10). The Top-N income list is only
+ *                           rendered for yearly emails but is always computed here.
  */
 export function aggregateExpenses(
-  docs: FirebaseFirestore.QueryDocumentSnapshot[]
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  topIndividualLimit = 5
 ): CashflowAggregation {
   let totalIncome = 0;
   let totalExpenses = 0;
   const expenseCategoryTotals: Record<string, { name: string; amount: number }> = {};
   const incomeCategoryTotals: Record<string, { name: string; amount: number }> = {};
+  const expenseTypeTotals: Record<string, number> = {};
   const individualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }> =
+    [];
+  const individualIncome: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }> =
     [];
 
   for (const doc of docs) {
     const data = doc.data() as {
       amount: number;
+      type?: ExpenseType;
       categoryName?: string;
       categoryId?: string;
       subCategoryName?: string;
@@ -679,15 +743,23 @@ export function aggregateExpenses(
 
     const key = data.categoryId ?? data.categoryName ?? 'Altro';
     const categoryName = data.categoryName ?? 'Altro';
+    // Notes carry the human description; fall back to the category name.
+    const description = data.notes?.trim() || categoryName;
 
     if (amount > 0) {
       // Skip transfers — net-zero, not real income
-      if ((data as { type?: string }).type === 'transfer') continue;
+      if (data.type === 'transfer') continue;
       totalIncome += amount;
       if (!incomeCategoryTotals[key]) {
         incomeCategoryTotals[key] = { name: categoryName, amount: 0 };
       }
       incomeCategoryTotals[key].amount += amount;
+      individualIncome.push({
+        description,
+        categoryName,
+        subCategoryName: data.subCategoryName,
+        amount,
+      });
     } else {
       const absAmount = Math.abs(amount);
       totalExpenses += absAmount;
@@ -697,9 +769,13 @@ export function aggregateExpenses(
       }
       expenseCategoryTotals[key].amount += absAmount;
 
-      // Individual transaction — use notes when available, fall back to category name.
-      // subCategoryName is carried through so the AI cause analysis has finer granularity.
-      const description = data.notes?.trim() || categoryName;
+      // Per-type totals — only the three real spending types contribute.
+      if (data.type && EMAIL_EXPENSE_TYPE_ORDER.includes(data.type)) {
+        expenseTypeTotals[data.type] = (expenseTypeTotals[data.type] ?? 0) + absAmount;
+      }
+
+      // Individual transaction — subCategoryName carried through so the AI cause
+      // analysis has finer granularity.
       individualExpenses.push({
         description,
         categoryName,
@@ -718,9 +794,26 @@ export function aggregateExpenses(
 
   const topIndividualExpenses = individualExpenses
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5);
+    .slice(0, topIndividualLimit);
 
-  return { totalIncome, totalExpenses, topExpenseCategories, allIncomeCategories, topIndividualExpenses };
+  const topIndividualIncome = individualIncome
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, topIndividualLimit);
+
+  // Keep canonical type order, dropping types with no spend in the period.
+  const expensesByType = EMAIL_EXPENSE_TYPE_ORDER.filter((type) => (expenseTypeTotals[type] ?? 0) > 0).map(
+    (type) => ({ type, label: EXPENSE_TYPE_LABELS[type], amount: expenseTypeTotals[type] })
+  );
+
+  return {
+    totalIncome,
+    totalExpenses,
+    topExpenseCategories,
+    allIncomeCategories,
+    topIndividualExpenses,
+    topIndividualIncome,
+    expensesByType,
+  };
 }
 
 interface DividendAggregation {
@@ -788,6 +881,42 @@ async function buildBudgetAlertsForMonth(
   const thresholds = (data.alertThresholds as number[] | undefined) ?? DEFAULT_ALERT_THRESHOLDS;
   const periodNow = new Date(year, month - 1, new Date(year, month, 0).getDate(), 12);
   return evaluateBudgetAlerts(items, data.overallMonthlyAmount, expenses, thresholds, periodNow);
+}
+
+/**
+ * Computes the Hall of Fame standing of a period's net-worth change, matching the
+ * in-app ranking definition (same pure layer). Only monthly and yearly periods are
+ * ranked — the Hall of Fame tracks months and years, not quarters/semesters.
+ *
+ * Reads all of the user's real snapshots once; ranking needs only net-worth deltas,
+ * so expenses are not fetched here (passed empty to the record builders). Returns
+ * undefined on any failure or when the period has no baseline — the mention is then
+ * simply omitted and the email is unaffected.
+ */
+async function computeHallOfFameRank(
+  userId: string,
+  periodType: EmailPeriodType,
+  year: number,
+  month: number
+): Promise<(PeriodGrowthRank & { scope: 'month' | 'year' }) | undefined> {
+  if (periodType !== 'monthly' && periodType !== 'yearly') return undefined;
+
+  try {
+    const snapshots = (await getUserSnapshotsAdmin(userId)).filter((s) => !s.isDummy);
+
+    if (periodType === 'yearly') {
+      const records = calculateYearlyRecords(snapshots, []);
+      const rank = rankPeriodByNetWorthGrowth(records, { year });
+      return rank ? { ...rank, scope: 'year' } : undefined;
+    }
+
+    const records = calculateMonthlyRecords(snapshots, []);
+    const rank = rankPeriodByNetWorthGrowth(records, { year, month });
+    return rank ? { ...rank, scope: 'month' } : undefined;
+  } catch (error) {
+    console.error(`[hallOfFameRank] Computation failed for user ${userId}:`, error);
+    return undefined;
+  }
 }
 
 // ─── Core data builder ────────────────────────────────────────────────────────
@@ -888,8 +1017,17 @@ export async function buildPeriodEmailData(
   const byAssetClass: Record<string, number> = current.byAssetClass ?? {};
   const previousByAssetClass: Record<string, number> = previous?.byAssetClass ?? {};
 
-  const { totalIncome, totalExpenses, topExpenseCategories, allIncomeCategories, topIndividualExpenses } =
-    aggregateExpenses(expensesSnap.docs);
+  // The yearly report surfaces the Top 10 transactions; shorter periods keep 5.
+  const topIndividualLimit = periodType === 'yearly' ? 10 : 5;
+  const {
+    totalIncome,
+    totalExpenses,
+    topExpenseCategories,
+    allIncomeCategories,
+    topIndividualExpenses,
+    topIndividualIncome,
+    expensesByType,
+  } = aggregateExpenses(expensesSnap.docs, topIndividualLimit);
   const { dividendTotal, dividendCount } = aggregateDividends(dividendsSnap.docs);
 
   // Budget alerts are month-centric — only attach them to monthly emails.
@@ -897,6 +1035,9 @@ export async function buildPeriodEmailData(
     periodType === 'monthly'
       ? await buildBudgetAlertsForMonth(userId, year, month, expensesSnap.docs)
       : undefined;
+
+  // Hall of Fame standing (monthly/yearly only) — never blocks the email on failure.
+  const hallOfFameRank = await computeHallOfFameRank(userId, periodType, year, month);
 
   return {
     periodType,
@@ -917,8 +1058,11 @@ export async function buildPeriodEmailData(
     topExpenseCategories,
     allIncomeCategories,
     topIndividualExpenses,
+    topIndividualIncome,
+    expensesByType,
     dividendTotal,
     dividendCount,
+    hallOfFameRank,
     budgetAlerts,
   };
 }
@@ -1041,6 +1185,32 @@ function buildBudgetAlertsSectionHtml(alerts: BudgetAlert[] | undefined): string
         </tr>`;
 }
 
+/**
+ * Builds the Hall of Fame mention shown under the Net Worth KPI.
+ *
+ * Growth → "🏆 È il N° miglior mese/anno per crescita del patrimonio (su M)".
+ * Decline → "📉 Mese/Anno in calo" (with the decline rank when more than one).
+ * Returns '' when there is no ranking (first period, flat change, or scope absent),
+ * so the badge simply disappears rather than rendering an empty box.
+ */
+function buildHallOfFameLineHtml(data: MonthlyEmailData): string {
+  const rank = data.hallOfFameRank;
+  if (!rank) return '';
+
+  const periodNoun = rank.scope === 'month' ? 'mese' : 'anno';
+  const periodNounCap = rank.scope === 'month' ? 'Mese' : 'Anno';
+
+  const text =
+    rank.trend === 'growth'
+      ? `🏆 È il ${rank.rank}° miglior ${periodNoun} per crescita del patrimonio${rank.total > 1 ? ` (su ${rank.total})` : ''}`
+      : `📉 ${periodNounCap} in calo${rank.total > 1 ? ` — ${rank.rank}° calo più marcato` : ''}`;
+
+  const bg = rank.trend === 'growth' ? '#f0fdf4' : '#fef2f2';
+  const fg = rank.trend === 'growth' ? '#16a34a' : '#dc2626';
+
+  return `<p style="margin:10px 0 0;display:inline-block;font-size:12px;font-weight:600;color:${fg};background:${bg};border-radius:6px;padding:4px 10px;">${text}</p>`;
+}
+
 export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: PeriodComparison): string {
   const title = periodTitle(data);
   const comparison = comparisonLabel(data);
@@ -1048,6 +1218,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
   const deltaPositive = data.netWorthDelta >= 0;
   const deltaColor = deltaPositive ? '#16a34a' : '#dc2626';
   const deltaArrow = deltaPositive ? '▲' : '▼';
+  const hallOfFameLine = buildHallOfFameLineHtml(data);
 
   // Asset class table — with % column and Δ% delta
   const totalValue = Object.values(data.byAssetClass).reduce(
@@ -1108,6 +1279,18 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
         </tr>`
       : '';
 
+  // Expenses by type (Fisse/Variabili/Debiti) with % of total — the spending-mix view.
+  const typeRows = data.expensesByType
+    .map((entry) => {
+      const pct = data.totalExpenses > 0 ? ((entry.amount / data.totalExpenses) * 100).toFixed(1) : '0.0';
+      return `<tr>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;">${entry.label}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;text-align:right;">${formatEur(entry.amount)}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;text-align:right;color:#64748b;font-size:12px;">${pct}%</td>
+        </tr>`;
+    })
+    .join('');
+
   // All expense categories with % of total
   const categoryRows = data.topExpenseCategories
     .map((cat) => {
@@ -1132,7 +1315,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
     })
     .join('');
 
-  // Top 5 individual expense transactions
+  // Top individual expense transactions (5, or 10 for the yearly report)
   const individualExpenseRows = data.topIndividualExpenses
     .map((exp) => {
       // Show category prominently; note below in muted text only when it differs from category
@@ -1146,6 +1329,23 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
         </tr>`;
     })
     .join('');
+
+  // Top 10 individual income transactions — yearly report only.
+  const individualIncomeRows =
+    data.periodType === 'yearly'
+      ? data.topIndividualIncome
+          .map((inc) => {
+            const hasNote = inc.description && inc.description !== inc.categoryName;
+            return `<tr>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;">
+            <span style="display:block;">${inc.categoryName}</span>
+            ${hasNote ? `<span style="display:block;font-size:11px;color:#94a3b8;margin-top:2px;">${inc.description}</span>` : ''}
+          </td>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;text-align:right;vertical-align:top;color:#16a34a;">${formatEur(inc.amount)}</td>
+        </tr>`;
+          })
+          .join('')
+      : '';
 
   const savedAmount = data.totalIncome - data.totalExpenses;
   const savingsColor = savedAmount >= 0 ? '#16a34a' : '#dc2626';
@@ -1203,6 +1403,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
                 ? `<p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">${comparisonPrevLabel}: ${formatEur(data.previousNetWorth)} &nbsp;·&nbsp; Liquido: ${formatEur(data.liquidNetWorth)}</p>`
                 : ''
             }
+            ${hallOfFameLine ? `<br />${hallOfFameLine}` : ''}
           </td>
         </tr>
 
@@ -1275,6 +1476,27 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
             : ''
         }
 
+        <!-- Expenses by type (Fisse/Variabili/Debiti) -->
+        ${
+          typeRows
+            ? `<tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #f1f5f9;">
+            <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#0f172a;">${expenseTypeLabel(data)}</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:#374151;">
+              <thead>
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 12px;text-align:left;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Tipo</th>
+                  <th style="padding:6px 12px;text-align:right;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Totale</th>
+                  <th style="padding:6px 12px;text-align:right;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">%</th>
+                </tr>
+              </thead>
+              <tbody>${typeRows}</tbody>
+            </table>
+          </td>
+        </tr>`
+            : ''
+        }
+
         <!-- Expense categories -->
         ${
           categoryRows
@@ -1296,7 +1518,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
             : ''
         }
 
-        <!-- Top 5 individual expense transactions -->
+        <!-- Top individual expense transactions (5, or 10 for yearly) -->
         ${
           individualExpenseRows
             ? `<tr>
@@ -1310,6 +1532,26 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
                 </tr>
               </thead>
               <tbody>${individualExpenseRows}</tbody>
+            </table>
+          </td>
+        </tr>`
+            : ''
+        }
+
+        <!-- Top 10 individual income transactions (yearly report only) -->
+        ${
+          individualIncomeRows
+            ? `<tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #f1f5f9;">
+            <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#0f172a;">${topIncomeTransactionLabel()}</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:#374151;">
+              <thead>
+                <tr style="background:#f8fafc;">
+                  <th style="padding:6px 12px;text-align:left;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Entrata</th>
+                  <th style="padding:6px 12px;text-align:right;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Importo</th>
+                </tr>
+              </thead>
+              <tbody>${individualIncomeRows}</tbody>
             </table>
           </td>
         </tr>`
