@@ -1,10 +1,8 @@
 import { adminDb } from '@/lib/firebase/admin';
-import { Timestamp } from 'firebase-admin/firestore';
-import { HallOfFameData, MonthlyRecord, YearlyRecord } from '@/types/hall-of-fame';
 import { MonthlySnapshot } from '@/types/assets';
-import { calculateTotalIncome, calculateTotalExpenses } from './expenseService';
 import { Expense } from '@/types/expenses';
-import { getItalyMonthYear, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
+import { toDate } from '@/lib/utils/dateHelpers';
+import { calculateMonthlyRecords, calculateYearlyRecords } from '@/lib/utils/hallOfFameRecords';
 
 const COLLECTION_NAME = 'hall-of-fame';
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
@@ -62,119 +60,6 @@ async function getAllExpensesServer(userId: string): Promise<Expense[]> {
     console.error('Error getting expenses (server):', error);
     throw error;
   }
-}
-
-/**
- * Formatta mese e anno in formato MM/YYYY
- */
-function formatMonthYear(month: number, year: number): string {
-  return `${month.toString().padStart(2, '0')}/${year}`;
-}
-
-/**
- * Calcola i record mensili da tutti gli snapshot
- */
-function calculateMonthlyRecords(
-  snapshots: MonthlySnapshot[],
-  expenses: Expense[]
-): MonthlyRecord[] {
-  // Ordina snapshot per data (più vecchio prima)
-  const sortedSnapshots = [...snapshots].sort((a, b) => {
-    if (a.year !== b.year) return a.year - b.year;
-    return a.month - b.month;
-  });
-
-  const monthlyRecords: MonthlyRecord[] = [];
-
-  for (let i = 1; i < sortedSnapshots.length; i++) {
-    const current = sortedSnapshots[i];
-    const previous = sortedSnapshots[i - 1];
-
-    // Calcola differenza NW
-    const netWorthDiff = current.totalNetWorth - previous.totalNetWorth;
-    const previousNetWorth = previous.totalNetWorth;
-
-    // Filtra spese del mese corrente
-    const monthExpenses = expenses.filter(expense => {
-      const { month, year } = getItalyMonthYear(toDate(expense.date));
-      return year === current.year && month === current.month;
-    });
-
-    const totalIncome = calculateTotalIncome(monthExpenses);
-    const totalExpenses = Math.abs(calculateTotalExpenses(monthExpenses));
-
-    monthlyRecords.push({
-      year: current.year,
-      month: current.month,
-      monthYear: formatMonthYear(current.month, current.year),
-      netWorthDiff,
-      previousNetWorth,
-      totalIncome,
-      totalExpenses,
-    });
-  }
-
-  return monthlyRecords;
-}
-
-/**
- * Calcola i record annuali da tutti gli snapshot
- */
-function calculateYearlyRecords(
-  snapshots: MonthlySnapshot[],
-  expenses: Expense[]
-): YearlyRecord[] {
-  // Raggruppa snapshot per anno
-  const snapshotsByYear = snapshots.reduce((acc, snapshot) => {
-    if (!acc[snapshot.year]) {
-      acc[snapshot.year] = [];
-    }
-    acc[snapshot.year].push(snapshot);
-    return acc;
-  }, {} as Record<number, MonthlySnapshot[]>);
-
-  const expensesByYear = expenses.reduce((acc, expense) => {
-    const year = getItalyYear(toDate(expense.date));
-    if (!acc[year]) {
-      acc[year] = [];
-    }
-    acc[year].push(expense);
-    return acc;
-  }, {} as Record<number, Expense[]>);
-
-  const yearlyRecords: YearlyRecord[] = [];
-  const years = new Set<number>([
-    ...Object.keys(snapshotsByYear).map(Number),
-    ...Object.keys(expensesByYear).map(Number),
-  ]);
-
-  for (const year of Array.from(years).sort((a, b) => a - b)) {
-    const yearSnapshots = snapshotsByYear[year] ?? [];
-    const sorted = [...yearSnapshots].sort((a, b) => a.month - b.month);
-    const lastSnapshot = sorted[sorted.length - 1];
-
-    // Use December of previous year as baseline so January is included in the delta.
-    // Falls back to first snapshot of this year when prior December doesn't exist.
-    const prevSorted = [...(snapshotsByYear[year - 1] ?? [])].sort((a, b) => a.month - b.month);
-    const baselineSnapshot = prevSorted.at(-1) ?? sorted[0];
-
-    const hasNetWorthData = !!(lastSnapshot && baselineSnapshot);
-    const netWorthDiff = hasNetWorthData ? lastSnapshot.totalNetWorth - baselineSnapshot.totalNetWorth : 0;
-    const startOfYearNetWorth = baselineSnapshot?.totalNetWorth ?? 0;
-    const yearExpenses = expensesByYear[year] ?? [];
-    const totalIncome = calculateTotalIncome(yearExpenses);
-    const totalExpenses = Math.abs(calculateTotalExpenses(yearExpenses));
-
-    yearlyRecords.push({
-      year,
-      netWorthDiff,
-      startOfYearNetWorth,
-      totalIncome,
-      totalExpenses,
-    });
-  }
-
-  return yearlyRecords;
 }
 
 /**

@@ -1145,7 +1145,6 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
           <SavingsRateTrendSection
             allExpenses={allExpenses}
             historyStartYear={historyStartYear}
-            monthsToShow={24}
           />
 
           <CategoryTrendsGrid

@@ -12,9 +12,11 @@
  */
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { Expense } from '@/types/expenses';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   LineChart,
@@ -123,17 +125,70 @@ function SavingsRateLineChart({
   );
 }
 
+// ── Range toggle ──────────────────────────────────────────────────────────────
+// 'all' shows the entire history (default) so the long-term savings trend isn't
+// truncated; 12m/24m give a focused recent window. Reuses the Framer layoutId +
+// spring(400/35) pill pattern shared across the Analisi tab.
+
+type TrendRange = '12m' | '24m' | 'all';
+
+const RANGE_OPTIONS: ReadonlyArray<readonly [TrendRange, string]> = [
+  ['12m', '12m'],
+  ['24m', '24m'],
+  ['all', 'Tutto'],
+] as const;
+
+function RangePillToggle({
+  value,
+  onChange,
+}: {
+  value: TrendRange;
+  onChange: (value: TrendRange) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Finestra temporale"
+      className="inline-flex items-center gap-1 rounded-full bg-muted p-1"
+    >
+      {RANGE_OPTIONS.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={value === key}
+          onClick={() => onChange(key)}
+          className={cn(
+            'relative px-3 py-1 text-xs font-medium rounded-full transition-colors',
+            value !== key && 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {value === key && (
+            <motion.span
+              layoutId="savings-range-pill"
+              className="absolute inset-0 rounded-full bg-background shadow-sm"
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            />
+          )}
+          <span className="relative z-10">{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── SavingsRateTrendSection ───────────────────────────────────────────────────
 
 interface SavingsRateTrendSectionProps {
   allExpenses: Expense[];
   historyStartYear: number;
-  /** Number of months to show. Defaults to 24. */
-  monthsToShow?: number;
 }
 
 /**
- * Renders the "Andamento Risparmio" card with a 24-month savings rate trend.
+ * Renders the "Andamento Risparmio" card with a savings rate trend.
+ *
+ * A 12m/24m/Tutto range toggle (default Tutto) controls the window; 'Tutto'
+ * spans the full history from historyStartYear to the current month.
  *
  * The section is always present in the DOM — it shows a placeholder message
  * when fewer than 3 months of income data are available.
@@ -141,9 +196,9 @@ interface SavingsRateTrendSectionProps {
 export function SavingsRateTrendSection({
   allExpenses,
   historyStartYear,
-  monthsToShow = 24,
 }: SavingsRateTrendSectionProps) {
   const chartColors = useChartColors();
+  const [range, setRange] = useState<TrendRange>('all');
 
   const trendData = useMemo(() => {
     const today = new Date();
@@ -152,12 +207,21 @@ export function SavingsRateTrendSection({
     const currentMonth = italyToday.getMonth() + 1; // 1-12
     const currentYear = italyToday.getFullYear();
 
+    // 'all' walks back far enough to reach January of historyStartYear; the loop
+    // already skips months before that floor, so no empty leading buckets appear.
+    const effectiveMonthsToShow =
+      range === '12m'
+        ? 12
+        : range === '24m'
+        ? 24
+        : (currentYear - historyStartYear) * 12 + currentMonth;
+
     const result: Array<{ label: string; rate: number | null; month: number; year: number }> = [];
 
     let m = currentMonth;
     let y = currentYear;
 
-    for (let i = 0; i < monthsToShow; i++) {
+    for (let i = 0; i < effectiveMonthsToShow; i++) {
       const month = m;
       const year = y;
 
@@ -196,19 +260,29 @@ export function SavingsRateTrendSection({
     }
 
     return result;
-  }, [allExpenses, historyStartYear, monthsToShow]);
+  }, [allExpenses, historyStartYear, range]);
 
   // Need at least 3 months with actual income data to show a meaningful trend
   const hasEnoughData = trendData.filter(d => d.rate !== null).length >= 3;
 
+  const rangeSubtitle =
+    range === '12m'
+      ? 'ultimi 12 mesi'
+      : range === '24m'
+      ? 'ultimi 24 mesi'
+      : 'intero storico';
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          Andamento Risparmio
-        </CardTitle>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            Andamento Risparmio
+          </CardTitle>
+          <RangePillToggle value={range} onChange={setRange} />
+        </div>
         <p className="text-xs text-muted-foreground">
-          Tasso di risparmio mensile — ultimi {monthsToShow} mesi
+          Tasso di risparmio mensile — {rangeSubtitle}
         </p>
       </CardHeader>
       <CardContent className="pt-0">

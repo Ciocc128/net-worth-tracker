@@ -68,6 +68,8 @@ function makeEmailData(overrides: Partial<MonthlyEmailData> = {}): MonthlyEmailD
     ],
     allIncomeCategories: [],
     topIndividualExpenses: [],
+    topIndividualIncome: [],
+    expensesByType: [],
     dividendTotal: 0,
     dividendCount: 0,
     ...overrides,

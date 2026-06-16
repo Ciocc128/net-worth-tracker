@@ -20,7 +20,7 @@
  * amounts are negative — expense magnitudes are taken via Math.abs.
  */
 
-import { type Expense } from '@/types/expenses';
+import { type Expense, type ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { getItalyMonth, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES } from '@/lib/constants/months';
 
@@ -256,6 +256,69 @@ export function buildCategoryTimeSeries(
   const series: CategorySeries[] = rankedCategories
     .filter((name) => keptCategories.has(name))
     .map((name) => ({ name, values: seriesByName.get(name)! }));
+
+  return {
+    buckets: axis.map(({ key, label }) => ({ key, label })),
+    series,
+  };
+}
+
+/**
+ * The three real spending types, in the canonical order used across the app
+ * (structural → discretionary → debt). Mirrors budgetUtils' SECTION_ORDER so the
+ * "Uscite per Tipo" chart reads the same direction as the budget sections.
+ */
+const EXPENSE_TYPE_ORDER: ExpenseType[] = ['fixed', 'variable', 'debt'];
+
+/**
+ * Build per-type multi-line series (Fisse / Variabili / Debiti) over the full history.
+ *
+ * Answers a different question than buildCategoryTimeSeries: how the spending *mix*
+ * (structural vs discretionary vs debt) evolves over time. Unlike categories there is
+ * no top-N ranking — the type domain is fixed and small — but a type with zero spend
+ * across the whole window is dropped so a user with no debt doesn't get a flat line at 0.
+ *
+ * @param expenses          All expense/income/transfer records.
+ * @param granularity       'month' or 'year' buckets.
+ * @param historyStartYear  Hard lower bound — buckets never start before this year.
+ * @returns Shared bucket axis + one value array per non-empty type; empty when no data.
+ */
+export function buildTypeTimeSeries(
+  expenses: Expense[],
+  granularity: TimeGranularity,
+  historyStartYear: number,
+): CategoryTimeSeries {
+  const relevant = expenses.filter(
+    (e) => isExpenseRecord(e) && getItalyYear(toDate(e.date)) >= historyStartYear,
+  );
+
+  const axis = buildBucketAxis(relevant, granularity, historyStartYear);
+  if (axis.length === 0) return { buckets: [], series: [] };
+
+  const bucketIndex = new Map<string, number>();
+  axis.forEach((b, i) => bucketIndex.set(b.key, i));
+
+  // One zero-filled value array per spending type, in canonical order.
+  const seriesByType = new Map<ExpenseType, number[]>();
+  for (const type of EXPENSE_TYPE_ORDER) seriesByType.set(type, new Array(axis.length).fill(0));
+
+  for (const expense of relevant) {
+    const values = seriesByType.get(expense.type as ExpenseType);
+    // isExpenseRecord guarantees the type is one of fixed/variable/debt.
+    if (!values) continue;
+
+    const date = toDate(expense.date);
+    const key = bucketKeyFor(getItalyYear(date), getItalyMonth(date), granularity);
+    const index = bucketIndex.get(key);
+    if (index === undefined) continue;
+
+    values[index] += Math.abs(expense.amount);
+  }
+
+  // Drop types with no spend over the whole window (e.g. a user with no debt).
+  const series: CategorySeries[] = EXPENSE_TYPE_ORDER.filter((type) =>
+    seriesByType.get(type)!.some((v) => v > 0),
+  ).map((type) => ({ name: EXPENSE_TYPE_LABELS[type], values: seriesByType.get(type)! }));
 
   return {
     buckets: axis.map(({ key, label }) => ({ key, label })),
