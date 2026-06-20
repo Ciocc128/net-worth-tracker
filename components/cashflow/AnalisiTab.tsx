@@ -1137,23 +1137,21 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
       )}
 
       {/* ── Andamento Risparmio + Trend per Categoria ────────────────── */}
-      {/* Hidden in "Anno" mode — the rolling windows (24m / 12m from today)
-          are discordant with a specific past-year filter. "Anno" always shows
-          a past year now (currentYear is handled by "Anno Corrente"). */}
-      {periodMode !== 'year' && (
-        <>
-          <SavingsRateTrendSection
-            allExpenses={allExpenses}
-            historyStartYear={historyStartYear}
-          />
+      {/* Year-scoped whenever a year is selected (Anno Corrente → current year,
+          Anno → the chosen past year), so the windows match the period filter;
+          full history (with the 12m/24m/Tutto toggle) only in "Storico". */}
+      <SavingsRateTrendSection
+        allExpenses={allExpenses}
+        historyStartYear={historyStartYear}
+        scopeYear={selectedYear}
+      />
 
-          <CategoryTrendsGrid
-            allExpenses={allExpenses}
-            historyStartYear={historyStartYear}
-            monthsToShow={12}
-          />
-        </>
-      )}
+      <CategoryTrendsGrid
+        allExpenses={allExpenses}
+        historyStartYear={historyStartYear}
+        monthsToShow={12}
+        scopeYear={selectedYear}
+      />
     </div>
   );
 }

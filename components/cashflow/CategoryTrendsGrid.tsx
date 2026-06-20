@@ -139,7 +139,7 @@ function FullCategoryBarChart({
             borderRadius: 8,
           }}
           labelStyle={{ fontWeight: 600, color: 'var(--card-foreground)' }}
-          cursor={{ fill: 'rgba(128,128,128,0.1)' }}
+          cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
         />
         <Bar
           dataKey="amount"
@@ -246,6 +246,12 @@ interface CategoryTrendsGridProps {
   historyStartYear: number;
   /** Number of months to include per category. Defaults to 12. */
   monthsToShow?: number;
+  /**
+   * When set, the window is restricted to a single calendar year (Jan → Dec, or
+   * Jan → current month for the current year), overriding `monthsToShow`.
+   * null/undefined → rolling last-`monthsToShow`-months behavior.
+   */
+  scopeYear?: number | null;
 }
 
 /**
@@ -264,6 +270,7 @@ export function CategoryTrendsGrid({
   allExpenses,
   historyStartYear,
   monthsToShow = 12,
+  scopeYear,
 }: CategoryTrendsGridProps) {
   const chartColors = useChartColors();
 
@@ -276,11 +283,18 @@ export function CategoryTrendsGrid({
     const currentMonth = italyToday.getMonth() + 1;
     const currentYear = italyToday.getFullYear();
 
+    // When scoped to a year, lock the window to Jan → Dec of that year (or Jan →
+    // current month for the ongoing year), overriding the rolling monthsToShow.
+    const isScoped = scopeYear != null;
+    const refYear = isScoped ? scopeYear : currentYear;
+    const refMonth = isScoped ? (scopeYear === currentYear ? currentMonth : 12) : currentMonth;
+    const windowCount = isScoped ? refMonth : monthsToShow;
+
     // Build the ordered month window (oldest first)
     const months: Array<{ year: number; month: number; label: string }> = [];
-    let m = currentMonth;
-    let y = currentYear;
-    for (let i = 0; i < monthsToShow; i++) {
+    let m = refMonth;
+    let y = refYear;
+    for (let i = 0; i < windowCount; i++) {
       months.unshift({
         year: y,
         month: m,
@@ -332,7 +346,7 @@ export function CategoryTrendsGrid({
 
     // Highest total first — users care most about where money goes
     return result.sort((a, b) => b.total - a.total);
-  }, [allExpenses, historyStartYear, monthsToShow]);
+  }, [allExpenses, historyStartYear, monthsToShow, scopeYear]);
 
   const emptyState = (
     <Card className="overflow-hidden">

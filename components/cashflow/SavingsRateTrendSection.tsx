@@ -92,19 +92,19 @@ function SavingsRateLineChart({
         />
 
         {/* Red tint below target — signals "needs improvement" zone */}
-        <ReferenceArea y1={-100} y2={SAVINGS_TARGET} fill="rgba(239,68,68,0.06)" fillOpacity={1} />
+        <ReferenceArea y1={-100} y2={SAVINGS_TARGET} fill="var(--destructive)" fillOpacity={0.06} />
 
         {/* Dashed green reference line at 20% target */}
         <ReferenceLine
           y={SAVINGS_TARGET}
-          stroke="rgb(16 185 129)"
+          stroke="var(--positive)"
           strokeDasharray="4 4"
           strokeWidth={1.5}
           label={{
             value: `${SAVINGS_TARGET}% obiettivo`,
             position: 'insideTopRight',
             fontSize: 10,
-            fill: 'rgb(16 185 129)',
+            fill: 'var(--positive)',
           }}
         />
 
@@ -182,13 +182,21 @@ function RangePillToggle({
 interface SavingsRateTrendSectionProps {
   allExpenses: Expense[];
   historyStartYear: number;
+  /**
+   * When set, the chart is restricted to a single calendar year (Jan → Dec, or
+   * Jan → current month for the current year) and the range toggle is hidden.
+   * null/undefined → full-history behavior with the 12m/24m/Tutto toggle.
+   */
+  scopeYear?: number | null;
 }
 
 /**
  * Renders the "Andamento Risparmio" card with a savings rate trend.
  *
- * A 12m/24m/Tutto range toggle (default Tutto) controls the window; 'Tutto'
- * spans the full history from historyStartYear to the current month.
+ * When `scopeYear` is set the window is locked to that calendar year and the
+ * toggle is hidden. Otherwise a 12m/24m/Tutto range toggle (default Tutto)
+ * controls the window; 'Tutto' spans the full history from historyStartYear to
+ * the current month.
  *
  * The section is always present in the DOM — it shows a placeholder message
  * when fewer than 3 months of income data are available.
@@ -196,9 +204,11 @@ interface SavingsRateTrendSectionProps {
 export function SavingsRateTrendSection({
   allExpenses,
   historyStartYear,
+  scopeYear,
 }: SavingsRateTrendSectionProps) {
   const chartColors = useChartColors();
   const [range, setRange] = useState<TrendRange>('all');
+  const isScoped = scopeYear != null;
 
   const trendData = useMemo(() => {
     const today = new Date();
@@ -207,26 +217,38 @@ export function SavingsRateTrendSection({
     const currentMonth = italyToday.getMonth() + 1; // 1-12
     const currentYear = italyToday.getFullYear();
 
-    // 'all' walks back far enough to reach January of historyStartYear; the loop
-    // already skips months before that floor, so no empty leading buckets appear.
-    const effectiveMonthsToShow =
-      range === '12m'
-        ? 12
-        : range === '24m'
-        ? 24
-        : (currentYear - historyStartYear) * 12 + currentMonth;
+    // When scoped to a single year, walk back from December of that year (or the
+    // current month if it's the ongoing year) down to January; the range toggle
+    // is irrelevant. Otherwise 'all' walks back to January of historyStartYear;
+    // the loop already skips months before that floor, so no empty leading
+    // buckets appear.
+    const refYear = isScoped ? (scopeYear as number) : currentYear;
+    const refMonth = isScoped
+      ? (scopeYear as number) === currentYear
+        ? currentMonth
+        : 12
+      : currentMonth;
+    const floorYear = isScoped ? (scopeYear as number) : historyStartYear;
+
+    const effectiveMonthsToShow = isScoped
+      ? refMonth
+      : range === '12m'
+      ? 12
+      : range === '24m'
+      ? 24
+      : (currentYear - historyStartYear) * 12 + currentMonth;
 
     const result: Array<{ label: string; rate: number | null; month: number; year: number }> = [];
 
-    let m = currentMonth;
-    let y = currentYear;
+    let m = refMonth;
+    let y = refYear;
 
     for (let i = 0; i < effectiveMonthsToShow; i++) {
       const month = m;
       const year = y;
 
-      // Respect historyStartYear — skip months before user's data window
-      if (year >= historyStartYear) {
+      // Respect the floor year — skip months before the active data window
+      if (year >= floorYear) {
         const monthExpenses = allExpenses.filter(e => {
           const d = toDate(e.date);
           return getItalyYear(d) === year && getItalyMonth(d) === month;
@@ -260,17 +282,21 @@ export function SavingsRateTrendSection({
     }
 
     return result;
-  }, [allExpenses, historyStartYear, range]);
+  }, [allExpenses, historyStartYear, range, isScoped, scopeYear]);
 
   // Need at least 3 months with actual income data to show a meaningful trend
   const hasEnoughData = trendData.filter(d => d.rate !== null).length >= 3;
 
-  const rangeSubtitle =
-    range === '12m'
-      ? 'ultimi 12 mesi'
-      : range === '24m'
-      ? 'ultimi 24 mesi'
-      : 'intero storico';
+  const currentYear = getItalyYear(new Date());
+  const subtitle = isScoped
+    ? scopeYear === currentYear
+      ? 'anno corrente'
+      : `anno ${scopeYear}`
+    : range === '12m'
+    ? 'ultimi 12 mesi'
+    : range === '24m'
+    ? 'ultimi 24 mesi'
+    : 'intero storico';
 
   return (
     <Card className="overflow-hidden">
@@ -279,10 +305,10 @@ export function SavingsRateTrendSection({
           <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             Andamento Risparmio
           </CardTitle>
-          <RangePillToggle value={range} onChange={setRange} />
+          {!isScoped && <RangePillToggle value={range} onChange={setRange} />}
         </div>
         <p className="text-xs text-muted-foreground">
-          Tasso di risparmio mensile — {rangeSubtitle}
+          Tasso di risparmio mensile — {subtitle}
         </p>
       </CardHeader>
       <CardContent className="pt-0">
