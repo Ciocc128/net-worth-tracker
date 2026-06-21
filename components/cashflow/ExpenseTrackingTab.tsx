@@ -17,7 +17,7 @@
  */
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -26,13 +26,12 @@ import {
   calculateTotalIncome,
   calculateTotalExpenses,
   calculateNetBalance,
-  calculateIncomeExpenseRatio,
   getExpensesByRecurringParentId,
   getExpensesByInstallmentParentId,
 } from '@/lib/services/expenseService';
 import { updateCashAssetBalance } from '@/lib/services/assetService';
+import { reconcileTransferDelete } from '@/lib/services/cashBalanceReconciliation';
 import { queryKeys } from '@/lib/query/queryKeys';
-import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,18 +53,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, X, Search, Download } from 'lucide-react';
+import { X, Search, Download } from 'lucide-react';
 
 import { ExpenseDialog } from '@/components/expenses/ExpenseDialog';
 import { ExpenseTable } from '@/components/expenses/ExpenseTable';
+import { TransactionFeed } from '@/components/cashflow/TransactionFeed';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 
-import { CategoryBreakdownList } from '@/components/cashflow/CategoryBreakdownList';
-import { CashflowWidget } from '@/components/cashflow/cashflow-kpi/CashflowWidget';
+import { CashflowHero } from '@/components/cashflow/cashflow-kpi/CashflowHero';
 import { Badge } from '@/components/ui/badge';
 
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import {
   type Period,
@@ -123,19 +122,15 @@ export function ExpenseTrackingTab({
   // Unified period filter (replaces separate selectedYear + selectedMonth)
   const [period, setPeriod] = useState<Period>(() => currentMonthPeriod());
 
-  // Tracks which mobile row is expanded (shows Modifica + Elimina actions).
-  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-
-  // 2-click inline delete state
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const pendingDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // AlertDialog for bulk delete (installments / recurring)
   const [bulkDeleteDialog, setBulkDeleteDialog] = useState<{
     open: boolean;
     expense: Expense | null;
     mode: 'installment' | 'recurring' | null;
   }>({ open: false, expense: null, mode: null });
+
+  // Desktop list view: the day-grouped feed (default, shared with mobile) or the dense table.
+  const [desktopListView, setDesktopListView] = useState<'feed' | 'table'>('feed');
 
   // Mobile load-more state
   const [mobileShowCount, setMobileShowCount] = useState<number>(20);
@@ -223,14 +218,7 @@ export function ExpenseTrackingTab({
     });
   }, [allExpenses, period]);
 
-  // Cleanup pending delete timer on unmount
-  useEffect(() => {
-    return () => {
-      if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current);
-    };
-  }, []);
-
-  // Reset mobile show count when filters change
+  // Reset visible-feed window when filters change
   useEffect(() => {
     setMobileShowCount(20);
   }, [
@@ -241,11 +229,6 @@ export function ExpenseTrackingTab({
     searchQuery,
     selectedAccountId,
   ]);
-
-  // Toggling another row collapses the previously expanded one (accordion pattern).
-  const handleToggleExpand = useCallback((id: string) => {
-    setExpandedRowId((prev) => (prev === id ? null : id));
-  }, []);
 
   const handleAddExpense = () => {
     setEditingExpense(null);
@@ -315,10 +298,20 @@ export function ExpenseTrackingTab({
   const deleteSingleExpense = useCallback(
     async (expense: Expense) => {
       try {
-        // Reverse the balance effect on the linked cash asset before deleting
-        if (expense.linkedCashAssetId) {
+        // Reverse the balance effect before deleting. Transfers move money between two
+        // accounts, so both sides must be reconciled (mirror of ExpenseTable's delete) —
+        // a plain origin-only reversal would leave the destination balance wrong.
+        if (expense.type === 'transfer') {
+          await reconcileTransferDelete({
+            originId: expense.linkedCashAssetId,
+            destId: expense.transferCashAssetId,
+            amount: Math.abs(expense.amount),
+          });
+        } else if (expense.linkedCashAssetId) {
           await updateCashAssetBalance(expense.linkedCashAssetId, -expense.amount);
-          if (user) queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
+        }
+        if (user && (expense.linkedCashAssetId || expense.transferCashAssetId)) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
         }
         const { deleteExpense } = await import('@/lib/services/expenseService');
         await deleteExpense(expense.id);
@@ -334,9 +327,10 @@ export function ExpenseTrackingTab({
   );
 
   /**
-   * 2-click inline delete: first click arms the button (3s disarm timer),
-   * second click executes. For installments/recurring, opens AlertDialog
-   * so the user can choose between single or bulk delete.
+   * Delete a transaction from the feed's detail drawer. The drawer already showed an
+   * explicit destructive confirmation, so a simple expense is deleted immediately. For
+   * installments/recurring, open the AlertDialog so the user can choose single vs. the
+   * whole series.
    */
   const handleDeleteExpense = useCallback(
     (expense: Expense) => {
@@ -345,28 +339,14 @@ export function ExpenseTrackingTab({
         (expense.isRecurring && expense.recurringParentId);
 
       if (isComplex) {
-        // Open AlertDialog for bulk delete choice
         const mode = expense.isInstallment ? 'installment' : 'recurring';
         setBulkDeleteDialog({ open: true, expense, mode });
         return;
       }
 
-      // 2-click inline for regular expenses
-      if (pendingDeleteId === expense.id) {
-        // Second click: confirm
-        if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current);
-        setPendingDeleteId(null);
-        void deleteSingleExpense(expense);
-      } else {
-        // First click: arm
-        if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current);
-        setPendingDeleteId(expense.id);
-        pendingDeleteTimerRef.current = setTimeout(() => {
-          setPendingDeleteId(null);
-        }, 3000);
-      }
+      void deleteSingleExpense(expense);
     },
-    [pendingDeleteId, deleteSingleExpense],
+    [deleteSingleExpense],
   );
 
   const deleteAllRecurringExpenses = async (recurringParentId: string) => {
@@ -563,7 +543,6 @@ export function ExpenseTrackingTab({
   const totalIncome = calculateTotalIncome(filteredExpenses);
   const totalExpenses = calculateTotalExpenses(filteredExpenses);
   const netBalance = calculateNetBalance(filteredExpenses);
-  const incomeExpenseRatio = calculateIncomeExpenseRatio(filteredExpenses);
 
   // Transfer total — shown separately, not included in income/expenses/savings
   const totalTransfers = useMemo(
@@ -603,12 +582,6 @@ export function ExpenseTrackingTab({
       expenses: calcDelta(totalExpenses, prevExpenses),
     };
   }, [previousPeriodExpenses, totalIncome, totalExpenses]);
-
-  // Savings rate as a percentage of income (shown in RISPARMIO chip).
-  const heroSavingsRate = useMemo(() => {
-    if (totalIncome <= 0) return 0;
-    return Math.round(((totalIncome - totalExpenses) / totalIncome) * 100);
-  }, [totalIncome, totalExpenses]);
 
   // Top-5 expense categories aggregated from filteredExpenses for the hero bar chart.
   const heroExpenseCategories = useMemo(() => {
@@ -711,10 +684,8 @@ export function ExpenseTrackingTab({
         income={totalIncome}
         expenses={totalExpenses}
         net={netBalance}
-        ratio={incomeExpenseRatio}
         incomeDelta={heroDelta?.income}
         expensesDelta={heroDelta?.expenses}
-        savingsRate={heroSavingsRate}
         expenseCategories={heroExpenseCategories}
         incomeCategories={heroIncomeCategories}
         categories={categories}
@@ -727,143 +698,34 @@ export function ExpenseTrackingTab({
         onSortChange={setMobileSortKey}
         onEdit={handleEditExpense}
         onDelete={handleDeleteExpense}
-        pendingDeleteId={pendingDeleteId}
         isDemo={isDemo}
         hasActiveFilters={hasActiveFilters}
         onAddExpense={handleAddExpense}
         categoryMetaMap={categoryMetaMap}
       />
 
-      {/* ── DESKTOP: filter bar ─────────────────────────────────────────────── */}
-      <div className="desktop:flex hidden flex-col gap-2">
-        {/* Row 1: Search + Period */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Ricerca testo */}
-          <div className="relative min-w-[160px] flex-1">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cerca note, categorie..."
-              className="h-9 pr-8 pl-8 text-sm"
-              aria-label="Cerca nelle note, categoria o sottocategoria"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 transition-colors"
-                aria-label="Cancella ricerca"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Periodo */}
-          <PeriodPicker
-            value={period}
-            onChange={setPeriod}
-            availableYears={availableYears}
-            className="shrink-0"
-          />
-        </div>
-
-        {/* Row 2: Category chips + optional account filter + reset */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Categorie */}
-          <div className="min-w-[200px] flex-1">
-            <MultiSelect
-              options={categoryMultiSelectOptions}
-              defaultValue={multiSelectValue}
-              onValueChange={handleSelectCategories}
-              placeholder="Tutte le categorie"
-              searchable
-              hideSelectAll
-              singleLine
-              maxCount={2}
-              className="w-full"
-              popoverClassName="w-[280px] desktop:w-[320px]"
-              resetOnDefaultValueChange={false}
-            />
-          </div>
-
-          {/* Sottocategoria */}
-          {soloSelectedCategory && subCategoryOptions.length > 0 && (
-            <div className="w-full shrink-0 sm:w-[180px]">
-              <Select value={selectedSubCategoryId} onValueChange={setSelectedSubCategoryId}>
-                <SelectTrigger
-                  id="filter-subcategory"
-                  aria-label="Filtra per sottocategoria"
-                  className="w-full"
-                >
-                  <SelectValue placeholder="Tutte" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  {subCategoryOptions.map((sub) => (
-                    <SelectItem key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Conto corrente — only shown when 2+ accounts appear in the period */}
-          {accountOptions.length >= 2 && (
-            <div className="w-full shrink-0 sm:w-[180px]">
-              <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                <SelectTrigger
-                  id="filter-account"
-                  aria-label="Filtra per conto corrente"
-                  className="w-full"
-                >
-                  <SelectValue placeholder="Tutti i conti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i conti</SelectItem>
-                  {accountOptions.map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Ripristina — only when filters are active */}
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetFilters}
-              className="text-muted-foreground hover:text-foreground h-9 shrink-0 gap-1.5 px-2.5"
-            >
-              <X className="h-3.5 w-3.5" />
-              Ripristina
-            </Button>
-          )}
-        </div>
+      {/* ── DESKTOP: period scopes the whole tab; finer filters live on the list ── */}
+      <div className="desktop:flex hidden items-center justify-end">
+        <PeriodPicker
+          value={period}
+          onChange={setPeriod}
+          availableYears={availableYears}
+          className="shrink-0"
+        />
       </div>
-      {/* end desktop filter bar */}
 
       {/* ── DESKTOP: sticky KPI left + transaction list right ────────────────── */}
       <div className="desktop:grid desktop:grid-cols-[360px_1fr] desktop:gap-6 desktop:items-start hidden">
         <div className="desktop:sticky desktop:top-4">
-          {/* ── Hero Cashflow Card ─────────────────────────────────────────────── */}
-          <CashflowWidget
+          {/* ── Hero: dominant Risparmio Netto + health verdict + top spese ──────── */}
+          <CashflowHero
             monthLabel={heroLabel}
             income={totalIncome}
             expenses={totalExpenses}
             net={netBalance}
-            ratio={incomeExpenseRatio}
             incomeDelta={heroDelta?.income}
             expensesDelta={heroDelta?.expenses}
-            savingsRate={heroSavingsRate}
             expenseCategories={heroExpenseCategories}
-            incomeCategories={heroIncomeCategories}
             categories={categories}
             transfers={totalTransfers}
           />
@@ -872,16 +734,27 @@ export function ExpenseTrackingTab({
 
         {/* RIGHT: transaction list */}
         <Card className="gap-0 py-0">
-          <CardHeader className="px-5 pt-5 pb-3">
+          <CardHeader className="gap-3 px-5 pt-5 pb-3">
+            {/* Title + count + export */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <CardTitle className="text-base">Elenco delle spese</CardTitle>
+                <CardTitle className="text-base">Movimenti</CardTitle>
                 <Badge variant="secondary" className="text-xs tabular-nums">
                   {filteredExpenses.length}
                 </Badge>
-                <span className="text-muted-foreground text-sm">{periodLabel(period)}</span>
               </div>
-              <div className="flex flex-shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
+                {/* Feed (default, shared with mobile) vs the dense table for power users. */}
+                <SegmentedControl
+                  options={[
+                    { value: 'feed', label: 'Feed' },
+                    { value: 'table', label: 'Tabella' },
+                  ]}
+                  value={desktopListView}
+                  onChange={setDesktopListView}
+                  aria-label="Vista elenco movimenti"
+                  className="w-[150px]"
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -895,16 +768,154 @@ export function ExpenseTrackingTab({
                 </Button>
               </div>
             </div>
+
+            {/* Contextual filter toolbar — attached to the list it narrows. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Ricerca testo */}
+              <div className="relative min-w-[160px] flex-1">
+                <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cerca note, categorie..."
+                  className="h-9 pr-8 pl-8 text-sm"
+                  aria-label="Cerca nelle note, categoria o sottocategoria"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 transition-colors"
+                    aria-label="Cancella ricerca"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Categorie */}
+              <div className="min-w-[180px] flex-1">
+                <MultiSelect
+                  options={categoryMultiSelectOptions}
+                  defaultValue={multiSelectValue}
+                  onValueChange={handleSelectCategories}
+                  placeholder="Tutte le categorie"
+                  searchable
+                  hideSelectAll
+                  singleLine
+                  maxCount={2}
+                  className="w-full"
+                  popoverClassName="w-[280px] desktop:w-[320px]"
+                  resetOnDefaultValueChange={false}
+                />
+              </div>
+
+              {/* Sottocategoria — only when a single category is selected */}
+              {soloSelectedCategory && subCategoryOptions.length > 0 && (
+                <div className="w-full shrink-0 sm:w-[160px]">
+                  <Select value={selectedSubCategoryId} onValueChange={setSelectedSubCategoryId}>
+                    <SelectTrigger
+                      id="filter-subcategory"
+                      aria-label="Filtra per sottocategoria"
+                      className="w-full"
+                    >
+                      <SelectValue placeholder="Tutte" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutte</SelectItem>
+                      {subCategoryOptions.map((sub) => (
+                        <SelectItem key={sub.id} value={sub.id}>
+                          {sub.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Conto corrente — only shown when 2+ accounts appear in the period */}
+              {accountOptions.length >= 2 && (
+                <div className="w-full shrink-0 sm:w-[160px]">
+                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                    <SelectTrigger
+                      id="filter-account"
+                      aria-label="Filtra per conto corrente"
+                      className="w-full"
+                    >
+                      <SelectValue placeholder="Tutti i conti" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti i conti</SelectItem>
+                      {accountOptions.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Ordina — feed only; the table sorts via its own column headers. */}
+              {desktopListView === 'feed' && (
+                <div className="w-full shrink-0 sm:w-[150px]">
+                  <Select
+                    value={mobileSortKey}
+                    onValueChange={(v) => setMobileSortKey(v as typeof mobileSortKey)}
+                  >
+                    <SelectTrigger aria-label="Ordina movimenti" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date-desc">Più recente</SelectItem>
+                      <SelectItem value="date-asc">Meno recente</SelectItem>
+                      <SelectItem value="amount-desc">Importo maggiore</SelectItem>
+                      <SelectItem value="amount-asc">Importo minore</SelectItem>
+                      <SelectItem value="category-asc">Categoria A→Z</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Ripristina — only when filters are active */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  className="text-muted-foreground hover:text-foreground h-9 shrink-0 gap-1.5 px-2.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Ripristina
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="px-5 pb-5">
-            <ExpenseTable
-              expenses={filteredExpenses}
-              onEdit={handleEditExpense}
-              onRefresh={onRefresh}
-              isDemo={isDemo}
-              hasActiveFilters={hasActiveFilters}
-              categories={categories}
-            />
+            {desktopListView === 'feed' ? (
+              <TransactionFeed
+                transactions={mobileSortedExpenses}
+                totalCount={filteredExpenses.length}
+                showCount={mobileShowCount}
+                onLoadMore={() => setMobileShowCount((prev) => prev + 20)}
+                grouped={mobileSortKey === 'date-desc' || mobileSortKey === 'date-asc'}
+                onEdit={handleEditExpense}
+                onDelete={handleDeleteExpense}
+                isDemo={isDemo}
+                hasActiveFilters={hasActiveFilters}
+                categoryMetaMap={categoryMetaMap}
+                emptyHint={'Aggiungi una voce con "Nuova Spesa".'}
+                surface="flat"
+              />
+            ) : (
+              <ExpenseTable
+                expenses={filteredExpenses}
+                onEdit={handleEditExpense}
+                onRefresh={onRefresh}
+                isDemo={isDemo}
+                hasActiveFilters={hasActiveFilters}
+                categories={categories}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
