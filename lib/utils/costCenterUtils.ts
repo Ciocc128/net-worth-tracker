@@ -25,6 +25,7 @@ import {
   CostCenterAnnualForecast,
   CostCenterBudgetVerdict,
   CostCenterCategorySlice,
+  CostCenterSubCategorySlice,
   CostCenterRecurringSplit,
   CostCenterMonthlySeries,
   CostCenterMonthlyBucket,
@@ -353,6 +354,49 @@ export function buildCategoryComposition(expenses: Expense[]): CostCenterCategor
   }
 
   return slices;
+}
+
+// Sentinel for expenses that carry no subcategory, so they still get a row a user can
+// inspect (and exclude) rather than silently vanishing from the breakdown.
+const NO_SUBCATEGORY_KEY = '__none__';
+const NO_SUBCATEGORY_LABEL = 'Senza sottocategoria';
+
+/**
+ * Breaks the center's spend down by subcategory, sorted by amount descending.
+ *
+ * Keyed by `subCategoryId` (not name) so two subcategories sharing a label under
+ * different categories stay distinct; expenses without a subcategory collapse into a
+ * single "Senza sottocategoria" slice. Unlike the category composition this does NOT
+ * cap into an "Altro" bucket — every subcategory stays its own row so the caller can
+ * toggle each one on/off when answering "how much net of subcategory X?".
+ *
+ * Returns absolute totals + counts; the net total and per-row share are derived by the
+ * caller over the currently-included subset.
+ */
+export function buildSubCategoryComposition(expenses: Expense[]): CostCenterSubCategorySlice[] {
+  if (expenses.length === 0) return [];
+
+  const bySubCategory = new Map<string, { subCategoryName: string; categoryName: string; total: number; count: number }>();
+  for (const e of expenses) {
+    const key = e.subCategoryId?.trim() || NO_SUBCATEGORY_KEY;
+    const subCategoryName =
+      key === NO_SUBCATEGORY_KEY ? NO_SUBCATEGORY_LABEL : e.subCategoryName?.trim() || NO_SUBCATEGORY_LABEL;
+    const categoryName = e.categoryName?.trim() || OTHER_CATEGORY_LABEL;
+    const entry = bySubCategory.get(key) ?? { subCategoryName, categoryName, total: 0, count: 0 };
+    entry.total += absAmount(e);
+    entry.count += 1;
+    bySubCategory.set(key, entry);
+  }
+
+  return [...bySubCategory.entries()]
+    .map(([key, v]) => ({
+      key,
+      subCategoryName: v.subCategoryName,
+      categoryName: v.categoryName,
+      total: v.total,
+      transactionCount: v.count,
+    }))
+    .sort((a, b) => b.total - a.total);
 }
 
 /**

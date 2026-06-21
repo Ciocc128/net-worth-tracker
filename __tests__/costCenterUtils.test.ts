@@ -7,6 +7,7 @@ import {
   projectAnnualCost,
   evaluateCenterBudget,
   buildCategoryComposition,
+  buildSubCategoryComposition,
   splitRecurringVsOneOff,
   buildMonthlySeriesByCategory,
   buildComparisonSeries,
@@ -186,6 +187,44 @@ describe('buildCategoryComposition', () => {
     expect(comp[comp.length - 1].total).toBe(5);
     const totalPct = comp.reduce((s, c) => s + c.pct, 0);
     expect(totalPct).toBeCloseTo(1);
+  });
+});
+
+describe('buildSubCategoryComposition', () => {
+  it('aggregates by subcategory id and sorts by amount descending', () => {
+    const expenses = [
+      expense({ date: NOW, amount: -50, subCategoryId: 's1', subCategoryName: 'Benzina' }),
+      expense({ date: NOW, amount: -130, subCategoryId: 's1', subCategoryName: 'Benzina' }),
+      expense({ date: NOW, amount: -120, subCategoryId: 's2', subCategoryName: 'Manutenzione' }),
+    ];
+    const comp = buildSubCategoryComposition(expenses);
+    expect(comp).toHaveLength(2);
+    expect(comp[0]).toMatchObject({ key: 's1', subCategoryName: 'Benzina', total: 180, transactionCount: 2 });
+    expect(comp[1]).toMatchObject({ key: 's2', subCategoryName: 'Manutenzione', total: 120 });
+  });
+
+  it('keys by id so same-named subcategories under different categories stay distinct', () => {
+    const expenses = [
+      expense({ date: NOW, amount: -40, categoryName: 'Auto', subCategoryId: 's1', subCategoryName: 'Varie' }),
+      expense({ date: NOW, amount: -60, categoryName: 'Casa', subCategoryId: 's2', subCategoryName: 'Varie' }),
+    ];
+    const comp = buildSubCategoryComposition(expenses);
+    expect(comp).toHaveLength(2);
+    expect(comp.map((s) => s.categoryName).sort()).toEqual(['Auto', 'Casa']);
+  });
+
+  it('collapses expenses without a subcategory into a single "Senza sottocategoria" slice', () => {
+    const expenses = [
+      expense({ date: NOW, amount: -30, subCategoryName: undefined }),
+      expense({ date: NOW, amount: -20, subCategoryName: undefined }),
+    ];
+    const comp = buildSubCategoryComposition(expenses);
+    expect(comp).toHaveLength(1);
+    expect(comp[0]).toMatchObject({ subCategoryName: 'Senza sottocategoria', total: 50, transactionCount: 2 });
+  });
+
+  it('returns an empty array for no expenses', () => {
+    expect(buildSubCategoryComposition([])).toEqual([]);
   });
 });
 

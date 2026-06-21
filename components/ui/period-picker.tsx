@@ -48,7 +48,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className }
     calendarRange, calendarMonth, setCalendarMonth,
     fromText, toText,
     canApply, label, isCustom, rangeLabel,
-    last3Years, last5Months,
+    last3Years, recentMonths,
     isCurrentMonthActive, isPrevMonthActive, isCurrentYearActive,
     handlePreset, handleRangeSelect, handleApply,
     handleFromTextChange, handleToTextChange,
@@ -111,7 +111,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className }
 
       <div className="border-t border-border my-1" />
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1 px-1">Mesi</p>
-      {last5Months.map(({ year, month }) => (
+      {recentMonths.map(({ year, month }) => (
         <PresetButton
           key={`${year}-${month}`}
           label={`${MONTH_NAMES_SHORT[month - 1]} ${year}`}
@@ -163,7 +163,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className }
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Mesi</p>
         <div className="flex flex-wrap gap-2">
-          {last5Months.map(({ year, month }) => (
+          {recentMonths.map(({ year, month }) => (
             <Chip
               key={`${year}-${month}`}
               label={`${MONTH_NAMES_SHORT[month - 1]} ${year}`}

@@ -35,7 +35,7 @@ export interface UsePeriodPickerReturn {
   isCustom: boolean;
   rangeLabel: string;
   last3Years: number[];
-  last5Months: { year: number; month: number }[];
+  recentMonths: { year: number; month: number }[];
   // State predicate helpers (for active highlighting in preset list)
   isCurrentMonthActive: boolean;
   isPrevMonthActive: boolean;
@@ -146,11 +146,16 @@ export function usePeriodPicker({
     [availableYears],
   );
 
-  // Computed once at hook initialisation — `new Date()` is stable enough for
-  // the lifetime of the picker session (opened/closed within the same page view).
-  const [last5Months] = React.useState(() =>
-    Array.from({ length: 5 }, (_, i) => {
-      const d = subMonths(new Date(), i);
+  // The "Mesi" preset list skips the current and previous month — those already have
+  // dedicated "Questo mese" / "Mese precedente" shortcuts — and lists the 6 months
+  // before them, so older months (incl. January) stay reachable.
+  // Computed once at hook initialisation — `new Date()` is stable enough for the
+  // lifetime of the picker session (opened/closed within the same page view).
+  const RECENT_MONTHS_OFFSET = 2;
+  const RECENT_MONTHS_COUNT = 6;
+  const [recentMonths] = React.useState(() =>
+    Array.from({ length: RECENT_MONTHS_COUNT }, (_, i) => {
+      const d = subMonths(new Date(), i + RECENT_MONTHS_OFFSET);
       return { year: d.getFullYear(), month: d.getMonth() + 1 };
     })
   );
@@ -172,7 +177,7 @@ export function usePeriodPicker({
     isCustom: value.kind === 'custom',
     rangeLabel,
     last3Years,
-    last5Months,
+    recentMonths,
     isCurrentMonthActive: isCurrentMonth(value),
     isPrevMonthActive: isPrevMonth(value),
     isCurrentYearActive: isCurrentYear(value),

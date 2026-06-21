@@ -73,6 +73,15 @@ export interface CostCenterCategorySlice {
   transactionCount: number;
 }
 
+// One slice of the per-subcategory breakdown in the center detail.
+export interface CostCenterSubCategorySlice {
+  key: string;              // subCategoryId, or a sentinel for expenses without a subcategory
+  subCategoryName: string;  // display name ("Senza sottocategoria" fallback)
+  categoryName: string;     // parent category, for disambiguation across categories
+  total: number;            // Always positive
+  transactionCount: number;
+}
+
 // Fixed (recurring/installment) vs one-off split (A4).
 export interface CostCenterRecurringSplit {
   recurring: number;        // isRecurring || isInstallment

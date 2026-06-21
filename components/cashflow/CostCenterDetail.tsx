@@ -10,7 +10,8 @@
  * What it answers, top to bottom:
  * 1. How much has this cost, in the selected period, and is it up or down? (hero)
  * 2. Am I within my ceiling, and what will the full year cost? (budget verdict + forecast)
- * 3. What is the cost MADE of? (stacked-by-category chart + composition + fixed/one-off)
+ * 3. What is the cost MADE of? (per-category composition + per-subcategory breakdown
+ *    with a "net of X" exclusion toggle + stacked-by-category chart)
  * 4. Which transactions drove it? (table)
  *
  * All derivation lives in lib/utils/costCenterUtils.ts; this component only fetches,
@@ -34,6 +35,7 @@ import {
   evaluateCenterBudget,
   projectAnnualCost,
   buildCategoryComposition,
+  buildSubCategoryComposition,
   splitRecurringVsOneOff,
   buildMonthlySeriesByCategory,
 } from '@/lib/utils/costCenterUtils';
@@ -106,6 +108,14 @@ export function CostCenterDetail({
   // Defer chart mount one RAF so ResponsiveContainer measures after layout.
   const [chartReady, setChartReady] = useState(false);
   const chartRafRef = useRef<number | null>(null);
+  // Subcategories the user has toggled off in the breakdown card to read a "net of X"
+  // total. Session-only (resets when switching center); never persisted nor applied to
+  // the hero/budget/chart — those always reflect the real spend.
+  const [excludedSubKeys, setExcludedSubKeys] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setExcludedSubKeys(new Set());
+  }, [costCenter.id]);
 
   useEffect(() => {
     if (loading) return;
@@ -135,7 +145,30 @@ export function CostCenterDetail({
   const budget = useMemo(() => evaluateCenterBudget(costCenter, allExpenses), [costCenter, allExpenses]);
   const forecast = useMemo(() => projectAnnualCost(allExpenses), [allExpenses]);
   const composition = useMemo(() => buildCategoryComposition(periodExpenses), [periodExpenses]);
+  const subComposition = useMemo(() => buildSubCategoryComposition(periodExpenses), [periodExpenses]);
   const recurringSplit = useMemo(() => splitRecurringVsOneOff(periodExpenses), [periodExpenses]);
+
+  // Net total + share are derived over the still-included subcategories so excluding a
+  // row recomputes the breakdown without touching the hero/budget figures above.
+  const hasMultipleCategories = useMemo(
+    () => new Set(subComposition.map((s) => s.categoryName)).size > 1,
+    [subComposition],
+  );
+  const netSubTotal = useMemo(
+    () => subComposition.filter((s) => !excludedSubKeys.has(s.key)).reduce((sum, s) => sum + s.total, 0),
+    [subComposition, excludedSubKeys],
+  );
+  const excludedSlices = useMemo(
+    () => subComposition.filter((s) => excludedSubKeys.has(s.key)),
+    [subComposition, excludedSubKeys],
+  );
+
+  const toggleSubKey = (key: string) =>
+    setExcludedSubKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   const series = useMemo(
     () => buildMonthlySeriesByCategory(allExpenses, showFullHistory ? undefined : 12),
     [allExpenses, showFullHistory],
@@ -365,6 +398,78 @@ export function CostCenterDetail({
                     </span>
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {/* SUBCATEGORY BREAKDOWN — one level deeper, with per-subcategory exclusion so
+              the user can read a "net of X" total (e.g. car spend net of fuel). */}
+          {subComposition.length > 0 && (
+            <section>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Dettaglio per sottocategoria</h3>
+                  {excludedSubKeys.size > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Totale al netto{' '}
+                      <span className="font-mono text-foreground">{formatCurrency(netSubTotal)}</span>
+                      {' · '}
+                      {excludedSlices.length === 1
+                        ? `escl. ${excludedSlices[0].subCategoryName}`
+                        : `${excludedSlices.length} escluse`}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Tocca una voce per escluderla dal totale</p>
+                  )}
+                </div>
+                {excludedSubKeys.size > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs shrink-0"
+                    onClick={() => setExcludedSubKeys(new Set())}
+                  >
+                    Reimposta
+                  </Button>
+                )}
+              </div>
+              <div className="divide-y divide-border/60 rounded-xl border border-border/60">
+                {subComposition.map((slice) => {
+                  const excluded = excludedSubKeys.has(slice.key);
+                  const pct = !excluded && netSubTotal > 0 ? slice.total / netSubTotal : 0;
+                  return (
+                    <button
+                      key={slice.key}
+                      type="button"
+                      aria-pressed={excluded}
+                      onClick={() => toggleSubKey(slice.key)}
+                      className={cn(
+                        'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 motion-reduce:transition-none',
+                        excluded && 'opacity-50',
+                      )}
+                    >
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className={cn('truncate text-sm', excluded && 'line-through')}>
+                          {slice.subCategoryName}
+                        </span>
+                        {hasMultipleCategories && (
+                          <span className="truncate text-[11px] text-muted-foreground">{slice.categoryName}</span>
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
+                        {excluded ? '—' : `${Math.round(pct * 100)}%`}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-sm font-mono tabular-nums w-24 text-right',
+                          excluded && 'line-through',
+                        )}
+                      >
+                        {formatCurrency(slice.total)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}
