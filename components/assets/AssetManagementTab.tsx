@@ -388,15 +388,11 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
         : entries.find((e) => e.year === italyYear);
       const firstEntry = entries[0];
 
-      // Δ Inizio base: prefer averageCost (actual purchase price) over the first snapshot
-      // price when cost basis is tracked and the asset uses unit prices (not useTotal).
-      // This gives the true return since purchase — the first snapshot may have been taken
-      // days/weeks after the buy, already reflecting some price movement.
-      // Falls back to first snapshot price for manual-price assets or when no cost basis exists.
-      const allTimeBase =
-        !useTotal && asset.averageCost && asset.averageCost > 0
-          ? asset.averageCost
-          : firstEntry.value;
+      // Δ Inizio base: always the first available snapshot value for this asset.
+      // This answers "how has this position moved since I started tracking it",
+      // which is deliberately distinct from G/P (return vs averageCost / purchase
+      // price). Using averageCost here would make Δ Inizio mirror the G/P column.
+      const allTimeBase = firstEntry.value;
 
       result[asset.id] = {
         lastSnapshotDelta: prevMonthEntry ? calcDelta(prevMonthEntry.value) : null,
@@ -592,7 +588,26 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                         <>
                           <TableHead className="text-right">Δ Mese</TableHead>
                           <TableHead className="text-right">Δ YTD</TableHead>
-                          <TableHead className="text-right">Δ Inizio</TableHead>
+                          <TableHead className="text-right">
+                            {/* The three Δ columns are price variations over time windows,
+                                not profit/loss. The tooltip on Δ Inizio clarifies the whole
+                                group and its distinction from G/P (return vs PMC). */}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-1 cursor-help">
+                                    Δ Inizio
+                                    <Info className="h-3 w-3 text-muted-foreground" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[240px] text-left font-normal">
+                                  Variazione di prezzo nel periodo (dal primo dato registrato,
+                                  per Δ Inizio). Diverso dal G/P, che confronta col prezzo medio
+                                  di carico (PMC).
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableHead>
                         </>
                       )}
                       <TableHead className="text-right">Azioni</TableHead>

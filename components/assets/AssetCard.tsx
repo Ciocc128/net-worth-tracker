@@ -223,12 +223,30 @@ export function AssetCard({
         {performance && (
           <div className="mt-2 mb-1 divide-y divide-border border-t border-border">
             {[
-              { label: 'Mese', delta: performance.lastSnapshotDelta },
-              { label: 'YTD', delta: performance.ytdDelta },
-              { label: 'Inizio', delta: performance.allTimeDelta },
-            ].map(({ label, delta }) => (
+              { label: 'Mese', delta: performance.lastSnapshotDelta, hint: false },
+              { label: 'YTD', delta: performance.ytdDelta, hint: false },
+              // Δ Inizio carries the info hint: these rows are price variations over
+              // time, not profit/loss — clarifies the distinction from G/P (vs PMC).
+              { label: 'Inizio', delta: performance.allTimeDelta, hint: true },
+            ].map(({ label, delta, hint }) => (
               <div key={label} className="flex items-center justify-between py-1">
-                <span className="text-[11px] text-muted-foreground">{label}</span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  {label}
+                  {hint && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[240px] text-left font-normal">
+                          Variazione di prezzo nel periodo (dal primo dato registrato,
+                          per Inizio). Diverso dal G/P, che confronta col prezzo medio
+                          di carico (PMC).
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </span>
                 <span className={`text-[11px] font-mono font-semibold tabular-nums ${deltaColorClass(delta)}`}>
                   {formatDeltaPct(delta)}
                 </span>
