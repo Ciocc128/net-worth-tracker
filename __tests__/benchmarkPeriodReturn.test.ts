@@ -79,4 +79,15 @@ describe('computeBenchmarkAnnualizedReturn', () => {
   it('should return null when the window holds no months', () => {
     expect(computeBenchmarkAnnualizedReturn(series, new Date(2030, 0, 1), new Date(2030, 11, 31), 12)).toBeNull();
   });
+
+  it('should use the last AVAILABLE month when the window extends past the data (current incomplete month)', () => {
+    // Window Jan→Apr 2025 but the series only has data through March (April is the
+    // current, still-incomplete month with no benchmark return yet). The result must
+    // still be non-null, indexing through March — this is what keeps the benchmark
+    // comparison table populated when a timeframe ends at the current month.
+    const out = computeBenchmarkAnnualizedReturn(series, new Date(2025, 0, 1), new Date(2025, 3, 30), 4);
+    expect(out).not.toBeNull();
+    // Cumulative through March (1.10 * 0.95 * 1.02 ≈ 1.0659) annualized over 4 months.
+    expect(out!).toBeCloseTo((Math.pow(1.0659, 12 / 4) - 1) * 100, 1);
+  });
 });

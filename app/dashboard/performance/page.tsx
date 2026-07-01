@@ -566,9 +566,9 @@ export default function PerformancePage() {
   const chartData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
 
-    // YTD/1Y/3Y/5Y periods include an extra baseline snapshot before the range;
+    // YTD/1Y/3Y/5Y/CUSTOM periods include an extra baseline snapshot before the range;
     // skip it so the chart starts at the first actual month of the selected period.
-    const hasBaseline = ['YTD', '1Y', '3Y', '5Y'].includes(metrics.timePeriod);
+    const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(metrics.timePeriod);
     return preparePerformanceChartData(periodSnapshots, metrics.cashFlows, hasBaseline);
   }, [metrics, periodSnapshots]);
 
@@ -580,7 +580,7 @@ export default function PerformancePage() {
   const underwaterData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
 
-    const hasBaseline = ['YTD', '1Y', '3Y', '5Y'].includes(metrics.timePeriod);
+    const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(metrics.timePeriod);
     return prepareUnderwaterDrawdownData(periodSnapshots, metrics.cashFlows, hasBaseline);
   }, [metrics, periodSnapshots]);
 
