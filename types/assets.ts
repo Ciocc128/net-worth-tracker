@@ -8,7 +8,7 @@
 // - crypto -> crypto
 // - cash -> cash
 // - realestate -> realestate
-export type AssetType = 'stock' | 'etf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate';
+export type AssetType = 'stock' | 'etf' | 'leveragedEtf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate';
 export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity';
 
 // Coupon payment frequency for bonds.
@@ -63,7 +63,9 @@ export interface BondDetails {
 
 export interface AssetComposition {
   assetClass: AssetClass;
-  percentage: number;
+  percentage: number; // Percentage of this asset class in the composite asset
+  // For normal asset equals to 100%.
+  // For leveragedETF could be >100% (e.g., 200% for 2x leveraged ETF) or <100% (e.g., 50% for 0.5x leveraged ETF)
   subCategory?: string; // Specific sub-category for this component of the composite asset
 }
 
@@ -89,6 +91,7 @@ export interface Asset {
   currentPriceEur?: number; // currentPrice converted to EUR via Frankfurter FX; populated during price updates for non-EUR assets
   isLiquid?: boolean; // Default: true - indicates whether the asset is liquid or illiquid
   autoUpdatePrice?: boolean; // Default: true - indicates whether price should be automatically updated via Yahoo Finance
+  leverageRatio?: number; // For leveraged ETFs: 2 for 2x, 3 for 3x, 1 for regular ETF
   composition?: AssetComposition[]; // For composite assets (e.g., pension funds with mixed allocation: 60% equity, 40% bonds)
   outstandingDebt?: number; // Outstanding mortgage/loan for real estate. Net value calculation: value - outstandingDebt
   isPrimaryResidence?: boolean; // Indicates if this real estate is the primary residence (excluded from FIRE calculations based on user setting)
@@ -121,6 +124,7 @@ export interface AssetFormData {
   currentPriceEur?: number; // currentPrice converted to EUR via FX; set at creation for non-EUR assets
   isLiquid?: boolean;
   autoUpdatePrice?: boolean;
+  leverageRatio?: number;
   composition?: AssetComposition[];
   outstandingDebt?: number;
   isPrimaryResidence?: boolean;
