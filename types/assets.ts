@@ -291,6 +291,7 @@ export interface MonthlySnapshot {
   assetAllocation: {
     [assetClass: string]: number;
   };
+  portfolioLeverageRatio?: number;
   createdAt: Date;
   note?: string; // Optional note to document significant financial events (max 500 characters)
 }

@@ -52,13 +52,13 @@ describe('assetExposure utils', () => {
   });
 
   it('expands a composite asset without leverage', () => {
-    const asset = {
+    const asset = createMockAsset({
       assetClass: 'equity',
       composition: [
         { assetClass: 'equity', percentage: 60, subCategory: 'Value' },
         { assetClass: 'bonds', percentage: 40, subCategory: 'Treasury' },
       ],
-    } as Asset;
+    });
 
     mockedCalculateAssetValue.mockReturnValue(1000);
 
@@ -79,7 +79,7 @@ describe('assetExposure utils', () => {
   });
 
   it('expands a leveraged ETF using leverageRatio on all components', () => {
-    const asset = {
+    const asset = createMockAsset({
       assetClass: 'equity',
       type: 'leveragedEtf',
       leverageRatio: 1.5,
@@ -87,7 +87,7 @@ describe('assetExposure utils', () => {
         { assetClass: 'equity', percentage: 60, subCategory: 'US Stocks' },
         { assetClass: 'bonds', percentage: 40, subCategory: 'Treasury' },
       ],
-    } as Asset;
+    });
 
     mockedCalculateAssetValue.mockReturnValue(1000);
 

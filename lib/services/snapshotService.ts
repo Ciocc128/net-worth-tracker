@@ -70,6 +70,13 @@ export async function createSnapshot(
     const fireNetWorth = calculateFIRENetWorth(assets, false);
     const allocation = calculateCurrentAllocation(assets);
 
+    const totalNotionalExposure = Object.values(allocation.byAssetClass).reduce(
+      (sum, value) => sum + value,
+      0
+    );
+
+    const portfolioLeverageRatio = totalNetWorth > 0 ? totalNotionalExposure / totalNetWorth : 1;
+
     // Convert allocation values (absolute EUR amounts) to percentages
     // This allows comparing allocation trends over time even as portfolio size changes
     const assetAllocation: { [assetClass: string]: number } = {};
@@ -109,6 +116,7 @@ export async function createSnapshot(
       byAssetClass: allocation.byAssetClass,
       byAsset,
       assetAllocation,
+      portfolioLeverageRatio,
       createdAt: Timestamp.now(),
     };
 

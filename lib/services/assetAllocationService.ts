@@ -4,6 +4,7 @@ import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOver
 import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
+import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
 
@@ -403,7 +404,7 @@ export async function setTargets(
 /**
  * Calculate current allocation from assets
  *
- * Handles both simple assets and composite assets (e.g., mixed pension funds).
+ * Handles both simple assets and composite assets (e.g., mixed pension funds or leveraged ETF).
  * For composite assets, distributes value across multiple asset classes based
  * on the composition percentages.
  *
@@ -429,49 +430,28 @@ export function calculateCurrentAllocation(assets: Asset[]): {
   const bySubCategory: { [subCategory: string]: number } = {};
 
   assets.forEach((asset) => {
-    const value = calculateAssetValue(asset);
+    const exposureComponents = expandAssetExposure(asset);
 
-    // For composite assets, distribute value across multiple asset classes
-    if (asset.composition && asset.composition.length > 0) {
-      asset.composition.forEach((comp) => {
-        const compValue = (value * comp.percentage) / 100;
-
-        // Aggregate by asset class
-        if (!byAssetClass[comp.assetClass]) {
-          byAssetClass[comp.assetClass] = 0;
-        }
-        byAssetClass[comp.assetClass] += compValue;
-
-        // Aggregate by sub-category if present in composition
-        // Each component can have its own specific sub-category
-        // Use composite key "assetClass:subCategory" to avoid collisions
-        if (comp.subCategory) {
-          const subCategoryKey = `${comp.assetClass}:${comp.subCategory}`;
-          if (!bySubCategory[subCategoryKey]) {
-            bySubCategory[subCategoryKey] = 0;
-          }
-          bySubCategory[subCategoryKey] += compValue;
-        }
-      });
-    } else {
-      // Simple asset (no composition) - standard aggregation
+    exposureComponents.forEach((comp) => {
+      const exposureValue = comp.notionalValue ?? comp.marketValue;
 
       // Aggregate by asset class
-      if (!byAssetClass[asset.assetClass]) {
-        byAssetClass[asset.assetClass] = 0;
+      if (!byAssetClass[comp.assetClass]) {
+        byAssetClass[comp.assetClass] = 0;
       }
-      byAssetClass[asset.assetClass] += value;
+      byAssetClass[comp.assetClass] += exposureValue;
 
-      // Aggregate by sub-category if present
+      // Aggregate by sub-category if present in composition
+      // Each component can have its own specific sub-category
       // Use composite key "assetClass:subCategory" to avoid collisions
-      if (asset.subCategory) {
-        const subCategoryKey = `${asset.assetClass}:${asset.subCategory}`;
+      if (comp.subCategory) {
+        const subCategoryKey = `${comp.assetClass}:${comp.subCategory}`;
         if (!bySubCategory[subCategoryKey]) {
           bySubCategory[subCategoryKey] = 0;
         }
-        bySubCategory[subCategoryKey] += value;
+        bySubCategory[subCategoryKey] += exposureValue;
       }
-    }
+    });
   });
 
   return {

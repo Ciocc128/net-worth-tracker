@@ -210,22 +210,32 @@ function buildAssetFormDataFromValues(
   fetchedCurrentPriceEur: number | undefined,
   isComposite: boolean,
   composition: AssetComposition[],
-  isBondWithIsin: boolean
+  isBondWithIsin: boolean,
 ): AssetFormData {
   return {
     ticker: data.ticker,
     name: data.name,
-    isin: data.isin && data.isin.trim() !== '' ? data.isin.trim().toUpperCase() : undefined,
+    isin: 
+      data.isin && data.isin.trim() !== '' 
+        ? data.isin.trim().toUpperCase() 
+        : undefined,
     type: data.type,
     assetClass: data.assetClass,
     subCategory: data.subCategory || undefined,
+    leverageRatio: 
+      data.leverageRatio && !isNaN(data.leverageRatio) && data.leverageRatio > 1 
+        ? data.leverageRatio
+        : undefined,
     currency: data.currency,
     quantity: data.quantity,
     averageCost:
       data.averageCost && !isNaN(data.averageCost) && data.averageCost > 0
         ? resolveBondPrice(data.averageCost, data.bondNominalValue, isBondWithIsin)
         : undefined,
-    taxRate: data.taxRate && !isNaN(data.taxRate) && data.taxRate >= 0 ? data.taxRate : undefined,
+    taxRate: 
+      data.taxRate && !isNaN(data.taxRate) && data.taxRate >= 0
+        ? data.taxRate
+        : undefined,
     totalExpenseRatio:
       data.totalExpenseRatio && !isNaN(data.totalExpenseRatio) && data.totalExpenseRatio >= 0
         ? data.totalExpenseRatio
@@ -283,6 +293,7 @@ async function scheduleCouponDividends(
 const TYPE_TO_CLASS: Record<AssetType, AssetClass> = {
   stock: 'equity',
   etf: 'equity',
+  leveragedEtf: 'equity',
   bond: 'bonds',
   crypto: 'crypto',
   cash: 'cash',
@@ -294,6 +305,7 @@ const TYPE_TO_CLASS: Record<AssetType, AssetClass> = {
 const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.ElementType; description: string }[] = [
   { type: 'stock', label: 'Azione', title: 'Nuova Azione', Icon: TrendingUp, description: 'Titoli azionari quotati in borsa' },
   { type: 'etf', label: 'ETF', title: 'Nuovo ETF', Icon: BarChart3, description: 'Fondi indicizzati diversificati' },
+  { type: 'leveragedEtf', label: 'ETF a Leva', title: 'Nuovo ETF a Leva', Icon: BarChart3, description: 'ETF con esposizione a leva, anche su più asset class' },
   { type: 'bond', label: 'Obbligazione', title: 'Nuova Obbligazione', Icon: Landmark, description: 'Titoli di debito con cedole' },
   { type: 'crypto', label: 'Criptovaluta', title: 'Nuova Criptovaluta', Icon: Bitcoin, description: 'Asset digitali decentralizzati' },
   { type: 'cash', label: 'Liquidità', title: 'Nuova Liquidità', Icon: Wallet, description: 'Conti correnti e conti deposito' },
@@ -307,9 +319,10 @@ const assetSchema = z.object({
   ticker: z.string(),
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
-  type: z.enum(['stock', 'etf', 'bond', 'crypto', 'commodity', 'cash', 'realestate']),
+  type: z.enum(['stock', 'etf', 'leveragedEtf', 'bond', 'crypto', 'commodity', 'cash', 'realestate']),
   assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity']),
   subCategory: z.string().optional(),
+  leverageRatio: z.number().gt(1, 'Leverage ratio must be greater than 1').optional().or(z.nan()),
   currency: z.string().min(1, 'Currency is required'),
   quantity: z.number().min(0, 'La quantità non può essere negativa'),
   manualPrice: z.number().positive('Price must be positive').optional().or(z.nan()),
@@ -357,6 +370,7 @@ interface AssetDialogProps {
 const assetTypes: { value: AssetType; label: string }[] = [
   { value: 'stock', label: 'Azione' },
   { value: 'etf', label: 'ETF' },
+  { value: 'leveragedEtf', label: 'ETF a Leva'},
   { value: 'bond', label: 'Obbligazione' },
   { value: 'crypto', label: 'Criptovaluta' },
   { value: 'commodity', label: 'Materia Prima' },
@@ -409,6 +423,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
       isComposite: false,
       outstandingDebt: undefined,
       isPrimaryResidence: false,
+      leverageRatio: undefined,
     },
   });
 
@@ -434,6 +449,9 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
   const watchAverageCost = useWatch({ control, name: 'averageCost' });
   const watchIsPrimaryResidence = useWatch({ control, name: 'isPrimaryResidence' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
+
+  const isLeveragedEtf = selectedType === 'leveragedEtf';
+
   // True when the bond qualifies for % of par ↔ EUR conversion:
   // must have ISIN (triggers Borsa Italiana pricing) AND nominalValue > 1.
   // Used to conditionally show % labels and apply the conversion on save.
@@ -445,12 +463,13 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
 
   // Field visibility based on asset type — applies to both create and edit modes.
   const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate';
-  const newAsset_showISIN = selectedType === 'stock' || selectedType === 'etf' || selectedType === 'bond';
+  const newAsset_showISIN = selectedType === 'stock' || selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'bond';
   const newAsset_quantityLabel = selectedType === 'cash' ? 'Saldo' : selectedType === 'realestate' ? 'Valore stimato' : 'Quantità';
   const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate';
   const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate';
-  const newAsset_showTER = selectedType === 'etf' || selectedType === 'stock';
-  const newAsset_showComposition = selectedType === 'etf';
+  const newAsset_showTER = selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'stock';
+  const newAsset_showComposition = selectedType === 'etf' || selectedType === 'leveragedEtf';
+  const newAsset_showLeverageRatio = isLeveragedEtf;
 
   // Determine price source based on asset type
   const priceSource = selectedType === 'bond' && selectedAssetClass === 'bonds'
@@ -500,6 +519,12 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
       setComposition([]);
     }
   }, [watchIsComposite]);
+
+  useEffect(() => {
+    if (selectedType !== 'leveragedEtf') {
+      setValue('leverageRatio', undefined);
+    }
+  }, [selectedType, setValue]);
 
   // Load allocation targets when dialog opens
   useEffect(() => {
@@ -575,6 +600,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
         outstandingDebt: asset.outstandingDebt || undefined,
         isPrimaryResidence: asset.isPrimaryResidence || false,
         isin: asset.isin || undefined,
+        leverageRatio: asset.leverageRatio || undefined,
       });
 
       if (asset.composition && asset.composition.length > 0) {
@@ -630,6 +656,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
         type: 'etf',
         assetClass: 'equity',
         subCategory: '',
+        leverageRatio: undefined,
         currency: 'EUR',
         quantity: 0,
         manualPrice: undefined,
@@ -802,6 +829,11 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     }
 
     if (isComposite && !validateComposition()) {
+      return;
+    }
+
+    if (data.type === 'leveragedEtf' && (!data.leverageRatio || data.leverageRatio <= 1)) {
+      toast.error('Il leverage ratio deve essere maggiore di 1 per un ETF a leva');
       return;
     }
 
@@ -978,7 +1010,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               placeholder="IE00B3RBWM25"
               disabled={
                 // Enable for stocks/ETFs in equity class (dividends)
-                !((selectedType === 'stock' || selectedType === 'etf') && selectedAssetClass === 'equity') &&
+                !((selectedType === 'stock' || selectedType === 'etf' || selectedType === 'leveragedEtf') && selectedAssetClass === 'equity') &&
                 // Enable for bonds in bonds class (price scraping)
                 !(selectedType === 'bond' && selectedAssetClass === 'bonds')
               }
@@ -1194,6 +1226,31 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           </div>
           )}
 
+          {/* LeverageRatio — only shown for LeveragedETF */}
+          {newAsset_showLeverageRatio && (
+            <div className="space-y-2 rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="leverageRatio">Leverage Ratio</Label>
+                <p className="text-xs text-muted-foreground">
+                  Indica la leva del prodotto. Esempi: 2 per un ETF 2x, 1.5 per un ETF con esposizione al 150%.
+                </p>
+              </div>
+
+              <Input
+                id="leverageRatio"
+                type="number"
+                step="0.1"
+                min="1"
+                placeholder="Es. 1.5"
+                {...register('leverageRatio', { valueAsNumber: true })}
+              />
+
+              {errors.leverageRatio && (
+                <p className="text-sm text-red-500">{errors.leverageRatio.message}</p>
+              )}
+            </div>
+          )}
+
           {/* Composizione — only shown for ETF */}
           {newAsset_showComposition && (
           <div className="space-y-2 rounded-lg border p-4">
@@ -1201,7 +1258,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               <div className="space-y-0.5">
                 <Label htmlFor="isComposite">Asset Composto</Label>
                 <p className="text-xs text-muted-foreground">
-                  Es. fondo pensione con mix di azioni e obbligazioni
+                Usa questa sezione se l’asset ha un’esposizione sottostante distribuita su più asset class, ad esempio ETF multi-asset o fondi pensione.
                 </p>
               </div>
               <Switch
