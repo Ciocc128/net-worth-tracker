@@ -252,6 +252,29 @@ export interface AllocationResult {
   totalValue: number;
 }
 
+// New Asset Allocation contracts related to migration to calculate notional-based allocation targets
+export type AllocationBucketMap = Record<string, number>;
+
+export interface AllocationBasisSnapshot {
+  totalValue: number;
+  byAssetClass: AllocationBucketMap;
+  bySubCategory: Record<string,AllocationBucketMap>;
+  bySpecificAsset?: Record<string,AllocationBucketMap>;
+}
+
+export interface CurrentAllocationSnapshot {
+  market: AllocationBasisSnapshot;
+  notional: AllocationBasisSnapshot;
+  metadata: {
+    marketValue: number;
+    notionalValue: number;
+    leverageRatio: number;
+    hasLeveragedExposure: boolean;
+  };
+}
+
+export type AllocationBasis = 'market' | 'notional';
+
 export interface PieChartData {
   name: string;
   value: number;
