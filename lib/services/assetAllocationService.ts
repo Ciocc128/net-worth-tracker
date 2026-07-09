@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
-import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
+import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData, CurrentAllocationSnapshot, AllocationBasisSnapshot, AllocationBasis } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
@@ -86,6 +86,7 @@ export async function getSettings(
       yearlyEmailEnabled: data.yearlyEmailEnabled,
       weeklyBudgetEmailEnabled: data.weeklyBudgetEmailEnabled,
       monthlyEmailRecipients: data.monthlyEmailRecipients,
+      targetLeverageRatio: data.targetLeverageRatio,
       targets: data.targets as AssetAllocationTarget,
     };
   } catch (error) {
@@ -251,6 +252,9 @@ export async function setSettings(
       if (settings.monthlyEmailRecipients !== undefined) {
         docData.monthlyEmailRecipients = settings.monthlyEmailRecipients;
       }
+      if (settings.targetLeverageRatio !== undefined) {
+        docData.targetLeverageRatio = settings.targetLeverageRatio;
+      }
 
       // Use setDoc WITHOUT merge to completely replace targets
       await setDoc(targetRef, docData);
@@ -375,6 +379,9 @@ export async function setSettings(
       if (settings.monthlyEmailRecipients !== undefined) {
         docData.monthlyEmailRecipients = settings.monthlyEmailRecipients;
       }
+      if (settings.targetLeverageRatio !== undefined) {
+        docData.targetLeverageRatio = settings.targetLeverageRatio;
+      }
 
       // Use merge: true to preserve existing fields
       await setDoc(targetRef, docData, { merge: true });
@@ -461,6 +468,298 @@ export function calculateCurrentAllocation(assets: Asset[]): {
   };
 }
 
+export function calculateCurrentAllocationSnapshot(
+  assets: Asset[],
+  assetClasses: AssetClass[]
+): CurrentAllocationSnapshot {
+  const createAssetClassMap = (): Record<string, number> =>
+    assetClasses.reduce<Record<string, number>>((acc, assetClass) => {
+      acc[assetClass] = 0;
+      return acc;
+    }, {});
+
+  const marketByAssetClass = createAssetClassMap();
+  const notionalByAssetClass = createAssetClassMap();
+
+  const marketBySubCategory: Record<string, Record<string, number>> = {};
+  const notionalBySubCategory: Record<string, Record<string, number>> = {};
+
+  const marketBySpecificAsset: Record<string, Record<string, number>> = {};
+  const notionalBySpecificAsset: Record<string, Record<string, number>> = {};
+
+  let totalMarketValue = 0;
+  let totalNotionalValue = 0;
+
+  const ensureNestedBucket = (
+    container: Record<string, Record<string, number>>,
+    parentKey: string
+  ): Record<string, number> => {
+    if (!container[parentKey]) {
+      container[parentKey] = {};
+    }
+    return container[parentKey];
+  };
+
+  const addToBucket = (
+    bucket: Record<string, number>,
+    key: string | undefined,
+    value: number
+  ) => {
+    if (!key) return;
+    bucket[key] = (bucket[key] ?? 0) + value;
+  };
+
+  for (const asset of assets) {
+    const components = expandAssetExposure(asset);
+    const specificAssetKey = asset.id || asset.name;
+
+    for (const component of components) {
+      const marketValue = component.marketValue ?? 0;
+      const notionalValue = component.notionalValue ?? marketValue;
+      const assetClass = component.assetClass;
+      const subCategory = component.subCategory?.trim();
+
+      totalMarketValue += marketValue;
+      totalNotionalValue += notionalValue;
+
+      addToBucket(marketByAssetClass, assetClass, marketValue);
+      addToBucket(notionalByAssetClass, assetClass, notionalValue);
+
+      if (subCategory) {
+        addToBucket(
+          ensureNestedBucket(marketBySubCategory, assetClass),
+          subCategory,
+          marketValue
+        );
+        addToBucket(
+          ensureNestedBucket(notionalBySubCategory, assetClass),
+          subCategory,
+          notionalValue
+        );
+      }
+
+      if (specificAssetKey) {
+        addToBucket(
+          ensureNestedBucket(marketBySpecificAsset, assetClass),
+          specificAssetKey,
+          marketValue
+        );
+        addToBucket(
+          ensureNestedBucket(notionalBySpecificAsset, assetClass),
+          specificAssetKey,
+          notionalValue
+        );
+      }
+    }
+  }
+
+  const buildBasisSnapshot = (
+    totalValue: number,
+    byAssetClass: Record<string, number>,
+    bySubCategory: Record<string, Record<string, number>>,
+    bySpecificAsset: Record<string, Record<string, number>>
+  ): AllocationBasisSnapshot => ({
+    totalValue,
+    byAssetClass,
+    bySubCategory,
+    bySpecificAsset,
+  });
+
+  const leverageRatio =
+    totalMarketValue > 0 ? totalNotionalValue / totalMarketValue : 1;
+
+  const hasLeveragedExposure =
+    totalMarketValue > 0 && Math.abs(totalNotionalValue - totalMarketValue) > 0.01;
+
+  return {
+    market: buildBasisSnapshot(
+      totalMarketValue,
+      marketByAssetClass,
+      marketBySubCategory,
+      marketBySpecificAsset
+    ),
+    notional: buildBasisSnapshot(
+      totalNotionalValue,
+      notionalByAssetClass,
+      notionalBySubCategory,
+      notionalBySpecificAsset
+    ),
+    metadata: {
+      marketValue: totalMarketValue,
+      notionalValue: totalNotionalValue,
+      leverageRatio,
+      hasLeveragedExposure,
+    },
+  };
+}
+
+/** Shared ±2 p.p. threshold that decides COMPRA/VENDI/OK everywhere in this file. */
+function classifyAction(difference: number): AllocationData['action'] {
+  if (difference > 2) return 'VENDI';
+  if (difference < -2) return 'COMPRA';
+  return 'OK';
+}
+
+/**
+ * Turn a `CurrentAllocationSnapshot` into the legacy `AllocationResult` shape (current
+ * vs. target, per asset class / sub-category / specific asset), computed self-consistently
+ * on ONE chosen basis — every percentage is relative to that basis's own total, so they
+ * always sum to 100% even when leveraged ETFs inflate notional exposure beyond market value.
+ *
+ * `assets` is only needed for the specific-asset level, which (like the pre-migration
+ * `compareAllocations`) matches by ticker/name via `findMatchingAssets` and sums plain
+ * `calculateAssetValue` — specific-asset targets are individual stocks, not composite/
+ * leveraged instruments, so market value is an adequate proxy there.
+ */
+export function toLegacyAllocationResult(
+  snapshot: CurrentAllocationSnapshot,
+  basis: AllocationBasis,
+  targets: AssetAllocationTarget | null,
+  assets: Asset[]
+): AllocationResult {
+  const source = basis === 'market' ? snapshot.market : snapshot.notional;
+
+  if (!targets || source.totalValue === 0) {
+    return {
+      byAssetClass: {},
+      bySubCategory: {},
+      bySpecificAsset: {},
+      totalValue: source.totalValue,
+    };
+  }
+
+  // Check if cash is using fixed amount
+  const cashTarget = targets['cash'];
+  const useCashFixedAmount = cashTarget?.useFixedAmount || false;
+  const cashFixedAmount = useCashFixedAmount ? (cashTarget?.fixedAmount || 0) : 0;
+
+  // Calculate remaining value (total - fixed cash) — the base on which other asset
+  // classes' percentages are applied.
+  const remainingValue = useCashFixedAmount
+    ? Math.max(0, source.totalValue - cashFixedAmount)
+    : source.totalValue;
+
+  const byAssetClass: AllocationResult['byAssetClass'] = {};
+  const bySubCategory: AllocationResult['bySubCategory'] = {};
+  const bySpecificAsset: AllocationResult['bySpecificAsset'] = {};
+
+  Object.keys(targets).forEach((assetClass) => {
+    const targetData = targets[assetClass];
+    const currentValue = source.byAssetClass[assetClass] || 0;
+    const currentPercentage = source.totalValue > 0 ? (currentValue / source.totalValue) * 100 : 0;
+
+    let targetValue: number;
+    let targetPercentage: number;
+
+    // Special handling for cash if using fixed amount
+    if (assetClass === 'cash' && targetData.useFixedAmount) {
+      targetValue = targetData.fixedAmount || 0;
+      targetPercentage = source.totalValue > 0 ? (targetValue / source.totalValue) * 100 : 0;
+    } else {
+      const baseValue = useCashFixedAmount ? remainingValue : source.totalValue;
+      targetValue = (baseValue * targetData.targetPercentage) / 100;
+      targetPercentage = source.totalValue > 0
+        ? (targetValue / source.totalValue) * 100
+        : targetData.targetPercentage;
+    }
+
+    const difference = currentPercentage - targetPercentage;
+    const differenceValue = currentValue - targetValue;
+
+    byAssetClass[assetClass] = {
+      currentPercentage,
+      currentValue,
+      targetPercentage,
+      targetValue,
+      difference,
+      differenceValue,
+      action: classifyAction(difference),
+    };
+
+    // Compare sub-categories if they exist
+    if (targetData.subTargets) {
+      const assetClassCurrentTotal = currentValue;
+      const assetClassTargetTotal = targetValue;
+      const subCurrentValues = source.bySubCategory[assetClass] ?? {};
+
+      Object.keys(targetData.subTargets).forEach((subCategory) => {
+        const subTargetData = targetData.subTargets![subCategory];
+
+        // Support both old format (number) and new format (SubCategoryTarget)
+        const subTargetPercentage = typeof subTargetData === 'number'
+          ? subTargetData
+          : subTargetData.targetPercentage;
+
+        // Use composite key "assetClass:subCategory" to avoid collisions
+        const subCategoryKey = `${assetClass}:${subCategory}`;
+        const subCurrentValue = subCurrentValues[subCategory] || 0;
+
+        // Sub-category percentage is relative to its asset class current value
+        const subCurrentPercentage =
+          assetClassCurrentTotal > 0 ? (subCurrentValue / assetClassCurrentTotal) * 100 : 0;
+
+        // Target value is percentage of the asset class target value
+        const subTargetValue = (assetClassTargetTotal * subTargetPercentage) / 100;
+        const subDifference = subCurrentPercentage - subTargetPercentage;
+        const subDifferenceValue = subCurrentValue - subTargetValue;
+
+        bySubCategory[subCategoryKey] = {
+          currentPercentage: subCurrentPercentage,
+          currentValue: subCurrentValue,
+          targetPercentage: subTargetPercentage,
+          targetValue: subTargetValue,
+          difference: subDifference,
+          differenceValue: subDifferenceValue,
+          action: classifyAction(subDifference),
+        };
+
+        // Compare specific assets if enabled
+        if (typeof subTargetData === 'object' && subTargetData.specificAssetsEnabled && subTargetData.specificAssets) {
+          subTargetData.specificAssets.forEach((specificAsset) => {
+            // Use composite key "assetClass:subCategory:assetName"
+            const specificAssetKey = `${assetClass}:${subCategory}:${specificAsset.name}`;
+
+            // Find matching assets in the portfolio and sum their (market) value
+            const matchingAssets = findMatchingAssets(assets, specificAsset.name, assetClass, subCategory);
+            const specificCurrentValue = matchingAssets.reduce(
+              (sum, asset) => sum + calculateAssetValue(asset),
+              0
+            );
+
+            // Calculate percentage relative to subcategory current value
+            const specificCurrentPercentage = subCurrentValue > 0
+              ? (specificCurrentValue / subCurrentValue) * 100
+              : 0;
+
+            // Target value is percentage of the subcategory target value
+            const specificTargetValue = (subTargetValue * specificAsset.targetPercentage) / 100;
+            const specificTargetPercentage = specificAsset.targetPercentage;
+            const specificDifference = specificCurrentPercentage - specificTargetPercentage;
+            const specificDifferenceValue = specificCurrentValue - specificTargetValue;
+
+            bySpecificAsset[specificAssetKey] = {
+              currentPercentage: specificCurrentPercentage,
+              currentValue: specificCurrentValue,
+              targetPercentage: specificTargetPercentage,
+              targetValue: specificTargetValue,
+              difference: specificDifference,
+              differenceValue: specificDifferenceValue,
+              action: classifyAction(specificDifference),
+            };
+          });
+        }
+      });
+    }
+  });
+
+  return {
+    byAssetClass,
+    bySubCategory,
+    bySpecificAsset,
+    totalValue: source.totalValue,
+  };
+}
+
 /**
  * Find assets that match a specific asset name/ticker
  *
@@ -496,203 +795,27 @@ function findMatchingAssets(
   });
 }
 
+/** Fixed set of top-level asset classes, used to seed a `CurrentAllocationSnapshot`. */
+export const ALL_ASSET_CLASSES: AssetClass[] = ['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity'];
+
 /**
- * Compare current allocation against targets and generate rebalancing actions
+ * Compare current allocation against targets and generate rebalancing actions.
+ *
+ * Basis: NOTIONAL (leverage-adjusted) exposure, self-consistent — current/target
+ * percentages are always relative to the total notional exposure, so they sum to 100%
+ * even when leveraged ETFs push notional above market value. This is the economically
+ * correct basis for a risk-exposure target (a target says "I want 60% of my exposure in
+ * equity", not "60% of my cash"). The € amounts this implies (`differenceValue`, and the
+ * Ribilancia/Versa plans built from it) close the gap correctly as long as the trade is
+ * executed through an unleveraged instrument — see `buildLeverageAwarePlan` for a version
+ * that reuses the leveraged instruments already in the portfolio instead.
  */
 export function compareAllocations(
   assets: Asset[],
   targets: AssetAllocationTarget | null
 ): AllocationResult {
-  const current = calculateCurrentAllocation(assets);
-
-  if (!targets || current.totalValue === 0) {
-    return {
-      byAssetClass: {},
-      bySubCategory: {},
-      bySpecificAsset: {},
-      totalValue: current.totalValue,
-    };
-  }
-
-  // Check if cash is using fixed amount
-  const cashTarget = targets['cash'];
-  const useCashFixedAmount = cashTarget?.useFixedAmount || false;
-  const cashFixedAmount = useCashFixedAmount ? (cashTarget?.fixedAmount || 0) : 0;
-
-  // Calculate remaining value (total - fixed cash)
-  // This is the value on which other asset classes percentages will be applied
-  const remainingValue = useCashFixedAmount
-    ? Math.max(0, current.totalValue - cashFixedAmount)
-    : current.totalValue;
-
-  const byAssetClass: AllocationResult['byAssetClass'] = {};
-  const bySubCategory: AllocationResult['bySubCategory'] = {};
-  const bySpecificAsset: AllocationResult['bySpecificAsset'] = {};
-
-  // Compare asset classes
-  Object.keys(targets).forEach((assetClass) => {
-    const targetData = targets[assetClass];
-    const currentValue = current.byAssetClass[assetClass] || 0;
-    const currentPercentage = current.totalValue > 0
-      ? (currentValue / current.totalValue) * 100
-      : 0;
-
-    let targetValue: number;
-    let targetPercentage: number;
-
-    // Special handling for cash if using fixed amount
-    if (assetClass === 'cash' && targetData.useFixedAmount) {
-      // For fixed cash, target value is the fixed amount
-      targetValue = targetData.fixedAmount || 0;
-      // Target percentage is calculated as fixed amount / total value
-      targetPercentage = current.totalValue > 0
-        ? (targetValue / current.totalValue) * 100
-        : 0;
-    } else {
-      // For other asset classes:
-      // - If cash is fixed, apply percentage to remaining value
-      // - Otherwise, apply percentage to total value (normal behavior)
-      const baseValue = useCashFixedAmount ? remainingValue : current.totalValue;
-      targetValue = (baseValue * targetData.targetPercentage) / 100;
-      // Target percentage shown is relative to total value
-      targetPercentage = current.totalValue > 0
-        ? (targetValue / current.totalValue) * 100
-        : targetData.targetPercentage;
-    }
-
-    const difference = currentPercentage - targetPercentage;
-    const differenceValue = currentValue - targetValue;
-
-    // Determine action (threshold: ±2%)
-    let action: 'COMPRA' | 'VENDI' | 'OK';
-    if (difference > 2) {
-      action = 'VENDI';
-    } else if (difference < -2) {
-      action = 'COMPRA';
-    } else {
-      action = 'OK';
-    }
-
-    byAssetClass[assetClass] = {
-      currentPercentage,
-      currentValue,
-      targetPercentage,
-      targetValue,
-      difference,
-      differenceValue,
-      action,
-    };
-
-    // Compare sub-categories if they exist
-    if (targetData.subTargets) {
-      const assetClassCurrentTotal = currentValue;
-      const assetClassTargetTotal = targetValue;
-
-      Object.keys(targetData.subTargets).forEach((subCategory) => {
-        const subTargetData = targetData.subTargets![subCategory];
-
-        // Support both old format (number) and new format (SubCategoryTarget)
-        const subTargetPercentage = typeof subTargetData === 'number'
-          ? subTargetData
-          : subTargetData.targetPercentage;
-
-        // Use composite key "assetClass:subCategory" to avoid collisions
-        const subCategoryKey = `${assetClass}:${subCategory}`;
-        const subCurrentValue = current.bySubCategory[subCategoryKey] || 0;
-
-        // Sub-category percentage is relative to its asset class current value
-        const subCurrentPercentage =
-          assetClassCurrentTotal > 0 ? (subCurrentValue / assetClassCurrentTotal) * 100 : 0;
-
-        // Target value is percentage of the asset class target value
-        const subTargetValue = (assetClassTargetTotal * subTargetPercentage) / 100;
-        const subDifference = subCurrentPercentage - subTargetPercentage;
-        const subDifferenceValue = subCurrentValue - subTargetValue;
-
-        let subAction: 'COMPRA' | 'VENDI' | 'OK';
-        if (subDifference > 2) {
-          subAction = 'VENDI';
-        } else if (subDifference < -2) {
-          subAction = 'COMPRA';
-        } else {
-          subAction = 'OK';
-        }
-
-        bySubCategory[subCategoryKey] = {
-          currentPercentage: subCurrentPercentage,
-          currentValue: subCurrentValue,
-          targetPercentage: subTargetPercentage,
-          targetValue: subTargetValue,
-          difference: subDifference,
-          differenceValue: subDifferenceValue,
-          action: subAction,
-        };
-
-        // Compare specific assets if enabled
-        if (typeof subTargetData === 'object' && subTargetData.specificAssetsEnabled && subTargetData.specificAssets) {
-          subTargetData.specificAssets.forEach((specificAsset) => {
-            // Use composite key "assetClass:subCategory:assetName"
-            const specificAssetKey = `${assetClass}:${subCategory}:${specificAsset.name}`;
-
-            // Find matching assets in the portfolio
-            const matchingAssets = findMatchingAssets(
-              assets,
-              specificAsset.name,
-              assetClass,
-              subCategory
-            );
-
-            // Calculate current value by summing matching assets
-            const specificCurrentValue = matchingAssets.reduce(
-              (sum, asset) => sum + calculateAssetValue(asset),
-              0
-            );
-
-            // Calculate percentage relative to subcategory current value
-            const specificCurrentPercentage = subCurrentValue > 0
-              ? (specificCurrentValue / subCurrentValue) * 100
-              : 0;
-
-            // Target value is percentage of the subcategory target value
-            const specificTargetValue = (subTargetValue * specificAsset.targetPercentage) / 100;
-
-            // Target percentage is relative to the subcategory
-            const specificTargetPercentage = specificAsset.targetPercentage;
-
-            const specificDifference = specificCurrentPercentage - specificTargetPercentage;
-            const specificDifferenceValue = specificCurrentValue - specificTargetValue;
-
-            // Determine action based on difference (threshold: ±2%)
-            let specificAction: 'COMPRA' | 'VENDI' | 'OK';
-            if (specificDifference > 2) {
-              specificAction = 'VENDI';
-            } else if (specificDifference < -2) {
-              specificAction = 'COMPRA';
-            } else {
-              specificAction = 'OK';
-            }
-
-            bySpecificAsset[specificAssetKey] = {
-              currentPercentage: specificCurrentPercentage,
-              currentValue: specificCurrentValue,
-              targetPercentage: specificTargetPercentage,
-              targetValue: specificTargetValue,
-              difference: specificDifference,
-              differenceValue: specificDifferenceValue,
-              action: specificAction,
-            };
-          });
-        }
-      });
-    }
-  });
-
-  return {
-    byAssetClass,
-    bySubCategory,
-    bySpecificAsset,
-    totalValue: current.totalValue,
-  };
+  const snapshot = calculateCurrentAllocationSnapshot(assets, ALL_ASSET_CLASSES);
+  return toLegacyAllocationResult(snapshot, 'notional', targets, assets);
 }
 
 /**

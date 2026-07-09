@@ -146,6 +146,9 @@ export default function SettingsPage() {
   const [goalDrivenAllocationEnabled, setGoalDrivenAllocationEnabled] = useState<boolean>(false);
   const [stampDutyEnabled, setStampDutyEnabled] = useState<boolean>(false);
   const [stampDutyRate, setStampDutyRate] = useState<number>(0.2);
+  // Reference leverage (notional/market) for the Versa/Ribilancia instrument optimizer's
+  // soft tie-breaker. Undefined = no preference — the optimizer drops the leverage term.
+  const [targetLeverageRatio, setTargetLeverageRatio] = useState<number | undefined>(undefined);
   const [checkingAccountSubCategory, setCheckingAccountSubCategory] = useState<string>('__none__');
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(2025);
   const [laborIncomeCategoryIds, setLaborIncomeCategoryIds] = useState<string[]>([]);
@@ -385,6 +388,7 @@ export default function SettingsPage() {
         // Load stamp duty settings
         setStampDutyEnabled(settingsData.stampDutyEnabled ?? false);
         setStampDutyRate(settingsData.stampDutyRate ?? 0.2);
+        setTargetLeverageRatio(settingsData.targetLeverageRatio);
         setCheckingAccountSubCategory(settingsData.checkingAccountSubCategory || '__none__');
         setCashflowHistoryStartYear(settingsData.cashflowHistoryStartYear ?? 2025);
         setLaborIncomeCategoryIds(settingsData.laborIncomeCategoryIds ?? []);
@@ -499,6 +503,7 @@ export default function SettingsPage() {
             settingsData?.goalDrivenAllocationEnabled ?? false,
           stampDutyEnabled: settingsData?.stampDutyEnabled ?? false,
           stampDutyRate: roundToTwoDecimals(settingsData?.stampDutyRate ?? 0.2),
+          targetLeverageRatio: settingsData?.targetLeverageRatio ?? null,
           checkingAccountSubCategory:
             settingsData?.checkingAccountSubCategory || '__none__',
           defaultDebitCashAssetId:
@@ -1067,6 +1072,7 @@ export default function SettingsPage() {
         defaultCreditCashAssetId: defaultCreditCashAssetId !== '__none__' ? defaultCreditCashAssetId : undefined,
         stampDutyEnabled,
         stampDutyRate,
+        targetLeverageRatio,
         checkingAccountSubCategory,
         cashflowHistoryStartYear,
         laborIncomeCategoryIds,
@@ -1381,6 +1387,7 @@ export default function SettingsPage() {
         goalDrivenAllocationEnabled,
         stampDutyEnabled,
         stampDutyRate: roundToTwoDecimals(stampDutyRate),
+        targetLeverageRatio: targetLeverageRatio ?? null,
         checkingAccountSubCategory,
         defaultDebitCashAssetId,
         defaultCreditCashAssetId,
@@ -1400,6 +1407,7 @@ export default function SettingsPage() {
       goalDrivenAllocationEnabled,
       stampDutyEnabled,
       stampDutyRate,
+      targetLeverageRatio,
       checkingAccountSubCategory,
       defaultDebitCashAssetId,
       defaultCreditCashAssetId,
@@ -1643,6 +1651,37 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Leverage target — reference for the Versa/Ribilancia instrument optimizer */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Leva Portafoglio</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-2">
+            <Label htmlFor="targetLeverageRatio">Leva target (opzionale)</Label>
+            <Input
+              id="targetLeverageRatio"
+              type="number"
+              step="0.01"
+              min="1"
+              value={targetLeverageRatio ?? ''}
+              onChange={(e) =>
+                setTargetLeverageRatio(e.target.value ? parseFloat(e.target.value) : undefined)
+              }
+              placeholder="es. 1.20 (nessuna preferenza se vuoto)"
+              className={interactiveControlClass}
+            />
+            <p className="text-xs text-muted-foreground">
+              Rapporto esposizione nozionale / valore di mercato che il motore Versa/Ribilancia
+              cerca di avvicinare quando propone quali strumenti a leva già in portafoglio
+              comprare o vendere — non forza mai una scelta peggiore rispetto al target di
+              allocazione, la usa solo per scegliere tra opzioni sostanzialmente equivalenti.
+              Lascia vuoto se non usi ETF a leva o non hai una preferenza.
+            </p>
           </div>
         </CardContent>
       </Card>

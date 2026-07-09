@@ -16,12 +16,12 @@
  */
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { type RebalanceMove } from '@/lib/utils/allocationUtils';
-import type { AllocationData } from '@/types/assets';
+import type { AllocationData, Asset } from '@/types/assets';
 import { RebalancePanel } from './RebalancePanel';
 import { ContributionPanel } from './ContributionPanel';
 
@@ -36,12 +36,36 @@ interface ActionPlannerProps {
   moves: RebalanceMove[];
   byAssetClass: Record<string, AllocationData>;
   bySubCategory: Record<string, AllocationData>;
+  assets: Asset[];
+  currentNotionalByAssetClass: Record<string, number>;
+  currentNotionalTotal: number;
+  currentMarketTotal: number;
+  targetLeverageRatio?: number;
 }
 
-export function ActionPlanner({ moves, byAssetClass, bySubCategory }: ActionPlannerProps) {
+export function ActionPlanner({
+  moves,
+  byAssetClass,
+  bySubCategory,
+  assets,
+  currentNotionalByAssetClass,
+  currentNotionalTotal,
+  currentMarketTotal,
+  targetLeverageRatio,
+}: ActionPlannerProps) {
   const reducedMotion = useReducedMotion();
   const layoutId = useId();
   const [mode, setMode] = useState<Mode>('rebalance');
+
+  // The instrument-aware optimizer works off notional target percentages (0-100), not the
+  // full AllocationData rows — derive that flat map once for both panels below.
+  const targetPercentageByAssetClass = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(byAssetClass).map(([assetClass, data]) => [assetClass, data.targetPercentage])
+      ),
+    [byAssetClass]
+  );
 
   return (
     <Card className="overflow-hidden py-0">
@@ -86,9 +110,26 @@ export function ActionPlanner({ moves, byAssetClass, bySubCategory }: ActionPlan
       </div>
 
       {mode === 'rebalance' ? (
-        <RebalancePanel moves={moves} />
+        <RebalancePanel
+          moves={moves}
+          assets={assets}
+          currentNotionalByAssetClass={currentNotionalByAssetClass}
+          currentNotionalTotal={currentNotionalTotal}
+          currentMarketTotal={currentMarketTotal}
+          targetPercentageByAssetClass={targetPercentageByAssetClass}
+          targetLeverageRatio={targetLeverageRatio}
+        />
       ) : (
-        <ContributionPanel byAssetClass={byAssetClass} bySubCategory={bySubCategory} />
+        <ContributionPanel
+          byAssetClass={byAssetClass}
+          bySubCategory={bySubCategory}
+          assets={assets}
+          currentNotionalByAssetClass={currentNotionalByAssetClass}
+          currentNotionalTotal={currentNotionalTotal}
+          currentMarketTotal={currentMarketTotal}
+          targetPercentageByAssetClass={targetPercentageByAssetClass}
+          targetLeverageRatio={targetLeverageRatio}
+        />
       )}
     </Card>
   );

@@ -20,10 +20,9 @@ vi.mock('@/lib/services/assetService', async (importOriginal) => {
 });
 
 import { compareAllocations } from '@/lib/services/assetAllocationService';
-import { calculateAssetValue, calculateTotalValue } from '@/lib/services/assetService';
+import { calculateAssetValue } from '@/lib/services/assetService';
 
 const mockedCalculateAssetValue = vi.mocked(calculateAssetValue);
-const mockedCalculateTotalValue = vi.mocked(calculateTotalValue);
 
 function createMockAsset(overrides: Partial<Asset> = {}): Asset {
   return {
@@ -69,37 +68,41 @@ describe('compareAllocations', () => {
       }),
     ];
 
+    // Targets sum to 100% of the (self-consistent) notional total: 55% equity / 45% bonds.
     const targets: AssetAllocationTarget = {
-      equity: { targetPercentage: 80 },
+      equity: { targetPercentage: 55 },
       bonds: { targetPercentage: 45 },
     };
 
-    mockedCalculateTotalValue.mockReturnValue(100);
     mockedCalculateAssetValue
-      .mockReturnValueOnce(50) // VT
-      .mockReturnValueOnce(50); // NTSG
+      .mockReturnValueOnce(50) // VT market value
+      .mockReturnValueOnce(50); // NTSG market value
 
     const result = compareAllocations(assets, targets);
 
-    expect(result.totalValue).toBe(100);
+    // VT: 50 market/notional, all equity.
+    // NTSG (1.5x, 60% equity / 40% bonds): equity 30 market / 45 notional, bonds 20 market / 30 notional.
+    // Notional total = (50 + 45) equity + 30 bonds = 125 — this IS the 100% basis, so
+    // percentages below sum to 100 even though notional exceeds the 100 market value.
+    expect(result.totalValue).toBe(125);
 
     expect(result.byAssetClass.equity).toEqual({
-      currentPercentage: 95,
+      currentPercentage: 76,
       currentValue: 95,
-      targetPercentage: 80,
-      targetValue: 80,
-      difference: 15,
-      differenceValue: 15,
+      targetPercentage: expect.closeTo(55, 5),
+      targetValue: 68.75,
+      difference: expect.closeTo(21, 5),
+      differenceValue: 26.25,
       action: 'VENDI',
     });
 
     expect(result.byAssetClass.bonds).toEqual({
-      currentPercentage: 30,
+      currentPercentage: 24,
       currentValue: 30,
       targetPercentage: 45,
-      targetValue: 45,
-      difference: -15,
-      differenceValue: -15,
+      targetValue: 56.25,
+      difference: expect.closeTo(-21, 5),
+      differenceValue: -26.25,
       action: 'COMPRA',
     });
   });

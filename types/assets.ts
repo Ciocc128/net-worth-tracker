@@ -226,6 +226,11 @@ export interface AssetAllocationSettings {
   yearlyEmailEnabled?: boolean; // When true, a summary email is sent on December 31
   weeklyBudgetEmailEnabled?: boolean; // When true, a budget status email is sent every Sunday
   monthlyEmailRecipients?: string[]; // Recipient list shared by all periodic summary emails (monthly/quarterly/semiannual/yearly/weekly-budget)
+  // Target portfolio leverage (notional / market, e.g. 1.2 for +20% notional exposure over market value)
+  // used as a soft tie-breaker by the Versa/Ribilancia instrument optimizer (buildLeverageAwarePlan):
+  // among trades that reach the notional target similarly well, it prefers the one closer to this ratio.
+  // Undefined = no leverage preference (optimizer ignores the leverage term entirely).
+  targetLeverageRatio?: number;
   targets: AssetAllocationTarget;
 }
 

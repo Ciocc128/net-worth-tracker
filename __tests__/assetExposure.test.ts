@@ -78,6 +78,25 @@ describe('assetExposure utils', () => {
     ]);
   });
 
+  it('expands a single-class leveraged ETF applying leverageRatio without any composition', () => {
+    const asset = createMockAsset({
+      assetClass: 'equity',
+      type: 'leveragedEtf',
+      leverageRatio: 2,
+    });
+
+    mockedCalculateAssetValue.mockReturnValue(1000);
+
+    expect(expandAssetExposure(asset)).toEqual([
+      {
+        assetClass: 'equity',
+        subCategory: undefined,
+        marketValue: 1000,
+        notionalValue: 2000,
+      },
+    ]);
+  });
+
   it('expands a leveraged ETF using leverageRatio on all components', () => {
     const asset = createMockAsset({
       assetClass: 'equity',

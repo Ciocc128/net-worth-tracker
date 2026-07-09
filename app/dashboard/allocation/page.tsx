@@ -34,9 +34,11 @@ import {
   compareAllocations,
   getDefaultTargets,
   buildTargetsFromGoalAllocation,
+  calculateCurrentAllocationSnapshot,
+  ALL_ASSET_CLASSES,
 } from '@/lib/services/assetAllocationService';
 import { getGoalData, deriveTargetAllocationFromGoals } from '@/lib/services/goalService';
-import { AllocationResult, AssetAllocationTarget } from '@/types/assets';
+import { AllocationResult, Asset, AssetAllocationTarget } from '@/types/assets';
 import { Button } from '@/components/ui/button';
 import { Settings, Sparkles, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
@@ -66,6 +68,8 @@ export default function AllocationPage() {
   const { user } = useAuth();
   const [targets, setTargets] = useState<AssetAllocationTarget | null>(null);
   const [allocation, setAllocation] = useState<AllocationResult | null>(null);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [targetLeverageRatio, setTargetLeverageRatio] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [usingGoalTargets, setUsingGoalTargets] = useState(false);
 
@@ -115,6 +119,8 @@ export default function AllocationPage() {
       setTargets(effectiveTargets);
       setUsingGoalTargets(fromGoals);
       setAllocation(compareAllocations(assetsData, effectiveTargets));
+      setAssets(assetsData);
+      setTargetLeverageRatio(settings?.targetLeverageRatio);
     } catch (error) {
       console.error('Error loading allocation data:', error);
       toast.error('Errore nel caricamento dei dati');
@@ -146,6 +152,13 @@ export default function AllocationPage() {
   const rebalancePlan = useMemo(
     () => (bandedAllocation ? buildRebalancePlan(bandedAllocation.byAssetClass) : []),
     [bandedAllocation]
+  );
+  // Notional/market split for the instrument-aware Versa/Ribilancia optimizer — same
+  // self-consistent basis compareAllocations already computes internally, exposed here so
+  // RebalancePanel/ContributionPanel can reason about the actual held instruments.
+  const allocationSnapshot = useMemo(
+    () => (assets.length > 0 ? calculateCurrentAllocationSnapshot(assets, ALL_ASSET_CLASSES) : null),
+    [assets]
   );
 
   if (loading) return <AllocationPageSkeleton />;
@@ -221,6 +234,11 @@ export default function AllocationPage() {
             moves={rebalancePlan}
             byAssetClass={bandedAllocation.byAssetClass}
             bySubCategory={bandedAllocation.bySubCategory}
+            assets={assets}
+            currentNotionalByAssetClass={allocationSnapshot?.notional.byAssetClass ?? {}}
+            currentNotionalTotal={allocationSnapshot?.notional.totalValue ?? 0}
+            currentMarketTotal={allocationSnapshot?.market.totalValue ?? 0}
+            targetLeverageRatio={targetLeverageRatio}
           />
 
           {/* DETAIL zone: quieter reference under a labeled divider (A5 rhythm). */}

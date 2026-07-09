@@ -10,17 +10,19 @@ export interface ExposureComponent {
 
 export function expandAssetExposure(asset: Asset): ExposureComponent[] {
     const marketValue = calculateAssetValue(asset);
-    
+    const leverage = asset.leverageRatio ?? 1;
+
+    // Single-class leveraged ETF (e.g. a plain 2x S&P500): no composition legs, the
+    // whole market value sits in the asset's own class, but leverage still multiplies
+    // its notional exposure. Composite legs (below) apply leverage per-leg instead.
     if (!asset.composition || asset.composition.length === 0) {
         return [{
             assetClass: asset.assetClass,
             subCategory: asset.subCategory,
             marketValue,
-            notionalValue: marketValue,
+            notionalValue: marketValue * leverage,
         }];
     }
-
-    const leverage = asset.leverageRatio ?? 1;
 
     return asset.composition.map((comp) => ({
         assetClass: comp.assetClass,

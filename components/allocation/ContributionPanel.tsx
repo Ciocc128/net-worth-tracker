@@ -17,14 +17,30 @@ import { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
 import { allocateContributionHierarchical } from '@/lib/utils/allocationUtils';
-import type { AllocationData } from '@/types/assets';
+import { planInstrumentContribution } from '@/lib/utils/leverageAwareAllocationUtils';
+import type { AllocationData, Asset } from '@/types/assets';
 
 interface ContributionPanelProps {
   byAssetClass: Record<string, AllocationData>;
   bySubCategory: Record<string, AllocationData>;
+  assets: Asset[];
+  currentNotionalByAssetClass: Record<string, number>;
+  currentNotionalTotal: number;
+  currentMarketTotal: number;
+  targetPercentageByAssetClass: Record<string, number>;
+  targetLeverageRatio?: number;
 }
 
-export function ContributionPanel({ byAssetClass, bySubCategory }: ContributionPanelProps) {
+export function ContributionPanel({
+  byAssetClass,
+  bySubCategory,
+  assets,
+  currentNotionalByAssetClass,
+  currentNotionalTotal,
+  currentMarketTotal,
+  targetPercentageByAssetClass,
+  targetLeverageRatio,
+}: ContributionPanelProps) {
   const [amountInput, setAmountInput] = useState('');
   const amount = Number(amountInput) || 0;
 
@@ -33,6 +49,23 @@ export function ContributionPanel({ byAssetClass, bySubCategory }: ContributionP
     () =>
       allocateContributionHierarchical(byAssetClass, bySubCategory, amount).filter((s) => s.add >= 0.5),
     [byAssetClass, bySubCategory, amount]
+  );
+
+  // Which concrete instruments to buy to realize the plan above — reasons over the ACTUAL
+  // held instruments (including leveraged/composite ones). See
+  // lib/utils/leverageAwareAllocationUtils.ts for the full rationale.
+  const instrumentTrades = useMemo(
+    () =>
+      planInstrumentContribution(
+        assets,
+        currentNotionalByAssetClass,
+        currentNotionalTotal,
+        currentMarketTotal,
+        targetPercentageByAssetClass,
+        amount,
+        targetLeverageRatio
+      ).trades,
+    [assets, currentNotionalByAssetClass, currentNotionalTotal, currentMarketTotal, targetPercentageByAssetClass, amount, targetLeverageRatio]
   );
 
   return (
@@ -108,10 +141,30 @@ export function ContributionPanel({ byAssetClass, bySubCategory }: ContributionP
         </p>
       )}
 
+      {instrumentTrades.length > 0 && (
+        <div className="mt-4 rounded-xl border border-border bg-muted/20 px-3.5 py-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            Quali strumenti
+          </p>
+          <div className="space-y-1.5">
+            {instrumentTrades.map((trade) => (
+              <div key={trade.assetId} className="flex items-center justify-between gap-3 text-sm">
+                <span className="truncate text-foreground" title={trade.name}>
+                  {trade.ticker}
+                </span>
+                <span className="shrink-0 font-mono tabular-nums text-foreground">
+                  +{formatCurrency(trade.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground/70">
         Colma prima le classi e sottocategorie sotto target, senza vendere nulla. La % di classe è
-        sul portafoglio, quella di sottocategoria è sulla classe. Stima indicativa, non un consiglio
-        finanziario.
+        sul portafoglio, quella di sottocategoria è sulla classe. Gli strumenti sotto tengono conto
+        della leva di quelli già in portafoglio. Stima indicativa, non un consiglio finanziario.
       </p>
     </div>
   );
