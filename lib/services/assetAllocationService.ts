@@ -796,7 +796,7 @@ function findMatchingAssets(
 }
 
 /** Fixed set of top-level asset classes, used to seed a `CurrentAllocationSnapshot`. */
-export const ALL_ASSET_CLASSES: AssetClass[] = ['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity'];
+export const ALL_ASSET_CLASSES: AssetClass[] = ['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry'];
 
 /**
  * Compare current allocation against targets and generate rebalancing actions.
@@ -945,13 +945,9 @@ export function buildTargetsFromGoalAllocation(
   derived: Partial<Record<AssetClass, number>>,
   existingTargets?: AssetAllocationTarget | null
 ): AssetAllocationTarget {
-  const allClasses: AssetClass[] = [
-    'equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity',
-  ];
-
   const targets: AssetAllocationTarget = {};
 
-  for (const cls of allClasses) {
+  for (const cls of ALL_ASSET_CLASSES) {
     const existing = existingTargets?.[cls];
     targets[cls] = {
       // Override asset class percentage with goal-derived value
@@ -1015,6 +1011,20 @@ export function getDefaultTargets(): AssetAllocationTarget {
       subCategoryConfig: {
         enabled: false,
         categories: DEFAULT_SUB_CATEGORIES.commodity,
+      },
+    },
+    trendFollowing: {
+      targetPercentage: 0,
+      subCategoryConfig: {
+        enabled: false,
+        categories: DEFAULT_SUB_CATEGORIES.trendFollowing,
+      },
+    },
+    carry: {
+      targetPercentage: 0,
+      subCategoryConfig: {
+        enabled: false,
+        categories: DEFAULT_SUB_CATEGORIES.carry,
       },
     },
   };

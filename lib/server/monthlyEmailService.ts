@@ -285,6 +285,8 @@ const ASSET_CLASS_LABELS: Record<string, string> = {
   realestate: 'Immobili',
   cash: 'Liquidità',
   commodity: 'Materie prime',
+  trendFollowing: 'Trend Following',
+  carry: 'Carry',
 };
 
 // ─── Period label helpers (pure) ──────────────────────────────────────────────

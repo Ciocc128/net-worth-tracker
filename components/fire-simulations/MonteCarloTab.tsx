@@ -133,7 +133,7 @@ export function MonteCarloTab() {
 
   /**
    * Initial params use sensible defaults:
-   * - equity/bonds/realEstate/commodities: 60/40/0/0 (classic balanced, backward compatible)
+   * - equity/bonds/realEstate/commodities/trendFollowing/carry: 60/40/0/0/0/0 (classic balanced, backward compatible)
    * - New asset classes default to 0% so existing behavior is unchanged until user opts in
    */
   const [params, setParams] = useState<MonteCarloParams>({
@@ -144,6 +144,8 @@ export function MonteCarloTab() {
     bondsPercentage: 40,
     realEstatePercentage: 0,
     commoditiesPercentage: 0,
+    trendFollowingPercentage: 0,
+    carryPercentage: 0,
     annualWithdrawal: 30000,
     withdrawalAdjustment: 'inflation',
     equityReturn: defaultMarketParams.equityReturn,
@@ -154,6 +156,10 @@ export function MonteCarloTab() {
     realEstateVolatility: defaultMarketParams.realEstateVolatility,
     commoditiesReturn: defaultMarketParams.commoditiesReturn,
     commoditiesVolatility: defaultMarketParams.commoditiesVolatility,
+    trendFollowingReturn: defaultMarketParams.trendFollowingReturn,
+    trendFollowingVolatility: defaultMarketParams.trendFollowingVolatility,
+    carryReturn: defaultMarketParams.carryReturn,
+    carryVolatility: defaultMarketParams.carryVolatility,
     inflationRate: defaultMarketParams.inflationRate,
     numberOfSimulations: 10000,
   });
@@ -161,7 +167,7 @@ export function MonteCarloTab() {
   /**
    * Auto-fill portfolio value, withdrawal, and asset allocation from user data.
    * Allocation is derived from real portfolio proportions, normalized to 100%
-   * across the 4 MC asset classes (excluding crypto and cash).
+   * across the 6 MC asset classes (excluding crypto and cash).
    */
   useEffect(() => {
     if (totalNetWorth > 0) {
@@ -178,7 +184,9 @@ export function MonteCarloTab() {
           const bonds = byAssetClass['bonds'] || 0;
           const realEstate = byAssetClass['realestate'] || 0;
           const commodities = byAssetClass['commodity'] || 0;
-          const total = equity + bonds + realEstate + commodities;
+          const trendFollowing = byAssetClass['trendFollowing'] || 0;
+          const carry = byAssetClass['carry'] || 0;
+          const total = equity + bonds + realEstate + commodities + trendFollowing + carry;
 
           if (total > 0) {
             // Sort descending so rounding residual goes to the smallest class
@@ -187,6 +195,8 @@ export function MonteCarloTab() {
               { key: 'bondsPercentage' as const, value: bonds },
               { key: 'realEstatePercentage' as const, value: realEstate },
               { key: 'commoditiesPercentage' as const, value: commodities },
+              { key: 'trendFollowingPercentage' as const, value: trendFollowing },
+              { key: 'carryPercentage' as const, value: carry },
             ].sort((a, b) => b.value - a.value);
 
             let allocated = 0;
@@ -244,7 +254,9 @@ export function MonteCarloTab() {
       params.equityPercentage +
       params.bondsPercentage +
       params.realEstatePercentage +
-      params.commoditiesPercentage;
+      params.commoditiesPercentage +
+      params.trendFollowingPercentage +
+      params.carryPercentage;
     if (Math.abs(allocationSum - 100) > 0.01) {
       toast.error('La somma delle allocazioni deve essere 100%');
       return false;

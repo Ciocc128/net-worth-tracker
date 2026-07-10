@@ -23,6 +23,8 @@ const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   realestate: 'Immobili',
   cash: 'Liquidita',
   commodity: 'Materie Prime',
+  trendFollowing: 'Trend Following',
+  carry: 'Carry',
 };
 
 function AllocationBar({
@@ -69,6 +71,8 @@ export function AllocationComparisonBar({
 
   // Map asset classes to themed chart colors.
   // Commodity blends equity+bonds to produce a 6th distinct hue without extending the palette.
+  // trendFollowing/carry reuse the static teal/orange fallback slots useChartColors() already
+  // carries at indices 5-6 (see lib/hooks/useChartColors.ts) — always defined, no blend needed.
   const colorMap: Record<AssetClass, string> = {
     equity: chartColors[0] || '#3B82F6',
     bonds: chartColors[1] || '#22C55E',
@@ -79,6 +83,8 @@ export function AllocationComparisonBar({
       chartColors[0] && chartColors[1]
         ? `color-mix(in srgb, ${chartColors[0]} 70%, ${chartColors[1]})`
         : '#F97316',
+    trendFollowing: chartColors[5] || '#14B8A6',
+    carry: chartColors[6] || '#F97316',
   };
 
   const hasActual = Object.values(actualAllocation).some((v) => v && v > 0);

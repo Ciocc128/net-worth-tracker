@@ -66,6 +66,8 @@ export function CreateManualSnapshotModal({
   const [realestate, setRealestate] = useState<string>('0');
   const [cash, setCash] = useState<string>('0');
   const [commodity, setCommodity] = useState<string>('0');
+  const [trendFollowing, setTrendFollowing] = useState<string>('0');
+  const [carry, setCarry] = useState<string>('0');
 
   // Asset entries
   const [assets, setAssets] = useState<AssetEntry[]>([]);
@@ -158,6 +160,8 @@ export function CreateManualSnapshotModal({
     const realestateVal = parseFloat(realestate) || 0;
     const cashVal = parseFloat(cash) || 0;
     const commodityVal = parseFloat(commodity) || 0;
+    const trendFollowingVal = parseFloat(trendFollowing) || 0;
+    const carryVal = parseFloat(carry) || 0;
 
     if (equityVal > 0) byAssetClass.equity = equityVal;
     if (bondsVal > 0) byAssetClass.bonds = bondsVal;
@@ -165,9 +169,11 @@ export function CreateManualSnapshotModal({
     if (realestateVal > 0) byAssetClass.realestate = realestateVal;
     if (cashVal > 0) byAssetClass.cash = cashVal;
     if (commodityVal > 0) byAssetClass.commodity = commodityVal;
+    if (trendFollowingVal > 0) byAssetClass.trendFollowing = trendFollowingVal;
+    if (carryVal > 0) byAssetClass.carry = carryVal;
 
     // Validate asset class sum
-    const assetClassSum = equityVal + bondsVal + cryptoVal + realestateVal + cashVal + commodityVal;
+    const assetClassSum = equityVal + bondsVal + cryptoVal + realestateVal + cashVal + commodityVal + trendFollowingVal + carryVal;
     if (Math.abs(assetClassSum - totalNW) > 0.01) {
       toast.error(
         `La somma delle Asset Class (${assetClassSum.toFixed(2)}) non corrisponde al Patrimonio Totale (${totalNW.toFixed(2)})`
@@ -244,6 +250,8 @@ export function CreateManualSnapshotModal({
     setRealestate('0');
     setCash('0');
     setCommodity('0');
+    setTrendFollowing('0');
+    setCarry('0');
     setAssets([]);
   };
 
@@ -424,6 +432,32 @@ export function CreateManualSnapshotModal({
                   min="0"
                 />
               </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="trendFollowing">Trend Following (€)</Label>
+                <Input
+                  id="trendFollowing"
+                  type="number"
+                  value={trendFollowing}
+                  onChange={(e) => setTrendFollowing(e.target.value)}
+                  placeholder="0"
+                  step="0.01"
+                  min="0"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="carry">Carry (€)</Label>
+                <Input
+                  id="carry"
+                  type="number"
+                  value={carry}
+                  onChange={(e) => setCarry(e.target.value)}
+                  placeholder="0"
+                  step="0.01"
+                  min="0"
+                />
+              </div>
             </div>
 
             <div className="rounded-lg bg-amber-50 dark:bg-amber-950 p-3 border border-amber-200 dark:border-amber-800">
@@ -436,7 +470,9 @@ export function CreateManualSnapshotModal({
                   parseFloat(crypto || '0') +
                   parseFloat(realestate || '0') +
                   parseFloat(cash || '0') +
-                  parseFloat(commodity || '0')
+                  parseFloat(commodity || '0') +
+                  parseFloat(trendFollowing || '0') +
+                  parseFloat(carry || '0')
                 ).toFixed(2)}
               </p>
             </div>

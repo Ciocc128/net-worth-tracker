@@ -25,6 +25,8 @@ const ASSET_CLASS_FIELDS: {
   { label: 'Bonds', returnKey: 'bondsReturn', volatilityKey: 'bondsVolatility' },
   { label: 'Immobili', returnKey: 'realEstateReturn', volatilityKey: 'realEstateVolatility' },
   { label: 'Mat. Prime', returnKey: 'commoditiesReturn', volatilityKey: 'commoditiesVolatility' },
+  { label: 'Trend Foll.', returnKey: 'trendFollowingReturn', volatilityKey: 'trendFollowingVolatility' },
+  { label: 'Carry', returnKey: 'carryReturn', volatilityKey: 'carryVolatility' },
 ];
 
 interface ScenarioParameterCardsProps {

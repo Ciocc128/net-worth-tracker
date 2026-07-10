@@ -141,9 +141,9 @@ export function AssetCard({
         <div className="flex items-center gap-1 shrink-0">
           <Badge
             style={{
-              backgroundColor: `color-mix(in srgb, var(${assetClassCssVar}) 15%, transparent)`,
-              color: `var(${assetClassCssVar})`,
-              border: `1px solid color-mix(in srgb, var(${assetClassCssVar}) 30%, transparent)`,
+              backgroundColor: `color-mix(in srgb, ${assetClassCssVar} 15%, transparent)`,
+              color: assetClassCssVar,
+              border: `1px solid color-mix(in srgb, ${assetClassCssVar} 30%, transparent)`,
             }}
           >
             {formatAssetClassName(asset.assetClass)}

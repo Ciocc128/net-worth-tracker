@@ -17,6 +17,8 @@ const ASSET_CLASS_PATTERNS: Array<{ pattern: string; assetClass: NonNullable<Ass
   { pattern: 'cash|liquidita|liquidità|cassa', assetClass: 'cash' },
   { pattern: 'real estate|immobili|immobiliare', assetClass: 'realestate' },
   { pattern: 'commodity|commodities|materie prime|oro|metalli', assetClass: 'commodity' },
+  { pattern: 'trend following|trend-following|managed futures|cta diversificato', assetClass: 'trendFollowing' },
+  { pattern: 'carry trade|fx carry|carry obbligazionario', assetClass: 'carry' },
 ];
 
 function normalizeGoalText(text: string): string {

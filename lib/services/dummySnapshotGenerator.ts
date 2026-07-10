@@ -155,6 +155,8 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
       realestate,
       cash,
       commodity: 0, // No commodity allocation in dummy data
+      trendFollowing: 0,
+      carry: 0,
     };
 
     // Calculate allocation percentages based on actual values (will vary over time)
@@ -165,6 +167,8 @@ export async function generateDummySnapshots(params: DummySnapshotParams): Promi
       realestate: totalNetWorth > 0 ? (realestate / totalNetWorth) * 100 : 0,
       cash: totalNetWorth > 0 ? (cash / totalNetWorth) * 100 : 0,
       commodity: 0,
+      trendFollowing: 0,
+      carry: 0,
     };
 
     // Generate individual asset snapshots

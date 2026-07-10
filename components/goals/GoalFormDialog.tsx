@@ -54,6 +54,8 @@ const ALLOCATION_CLASSES: { value: AssetClass; label: string }[] = [
   { value: 'realestate', label: 'Immobili' },
   { value: 'crypto', label: 'Crypto' },
   { value: 'commodity', label: 'Materie Prime' },
+  { value: 'trendFollowing', label: 'Trend Following' },
+  { value: 'carry', label: 'Carry' },
 ];
 
 export function GoalFormDialog({

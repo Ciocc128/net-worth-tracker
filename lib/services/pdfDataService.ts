@@ -233,7 +233,7 @@ export function prepareAllocationData(
 
   // Transform compareAllocations output to PDF format
   const assetClassData: AssetClassAllocation[] = [];
-  const assetClasses = ['equity', 'bonds', 'crypto', 'realestate', 'commodity', 'cash'];
+  const assetClasses = ['equity', 'bonds', 'crypto', 'realestate', 'commodity', 'trendFollowing', 'carry', 'cash'];
 
   assetClasses.forEach(assetClass => {
     const comparisonData = comparisonResult.byAssetClass[assetClass];
@@ -317,6 +317,8 @@ export function prepareHistoryData(snapshots: MonthlySnapshot[]): HistoryData {
     crypto: s.byAssetClass?.crypto || 0,
     realestate: s.byAssetClass?.realestate || 0,
     commodity: s.byAssetClass?.commodity || 0,
+    trendFollowing: s.byAssetClass?.trendFollowing || 0,
+    carry: s.byAssetClass?.carry || 0,
     cash: s.byAssetClass?.cash || 0,
   }));
 
@@ -681,6 +683,8 @@ function getAssetClassName(assetClass: string): string {
     crypto: 'Criptovalute',
     realestate: 'Immobiliare',
     commodity: 'Materie Prime',
+    trendFollowing: 'Trend Following',
+    carry: 'Carry',
     cash: 'Liquidità',
   };
   return names[assetClass] || assetClass;

@@ -468,6 +468,8 @@ export default function HistoryPage() {
     realestate: chartColors[3],
     cash: chartColors[4],
     commodity: chartColors[5],
+    trendFollowing: chartColors[6],
+    carry: chartColors[7],
   };
 
   return (
@@ -921,6 +923,8 @@ export default function HistoryPage() {
                             <Line type="monotone" dataKey="realestatePercentage" stroke={acColors.realestate} strokeWidth={2} name="Immobili" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
                             <Line type="monotone" dataKey="cashPercentage" stroke={acColors.cash} strokeWidth={2} name="Liquidità" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
                             <Line type="monotone" dataKey="commodityPercentage" stroke={acColors.commodity} strokeWidth={2} name="Materie Prime" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
+                            <Line type="monotone" dataKey="trendFollowingPercentage" stroke={acColors.trendFollowing} strokeWidth={2} name="Trend Following" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
+                            <Line type="monotone" dataKey="carryPercentage" stroke={acColors.carry} strokeWidth={2} name="Carry" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
                           </LineChart>
                         ) : (
                           <AreaChart data={assetClassHistory} margin={getChartMargins()}>
@@ -935,6 +939,8 @@ export default function HistoryPage() {
                             <Area type="monotone" dataKey="realestate" stroke={acColors.realestate} fill={acColors.realestate} fillOpacity={0.8} name="Immobili" animationDuration={800} animationEasing="ease-out" label={false} />
                             <Area type="monotone" dataKey="cash" stroke={acColors.cash} fill={acColors.cash} fillOpacity={0.8} name="Liquidità" animationDuration={800} animationEasing="ease-out" label={false} />
                             <Area type="monotone" dataKey="commodity" stroke={acColors.commodity} fill={acColors.commodity} fillOpacity={0.8} name="Materie Prime" animationDuration={800} animationEasing="ease-out" label={false} />
+                            <Area type="monotone" dataKey="trendFollowing" stroke={acColors.trendFollowing} fill={acColors.trendFollowing} fillOpacity={0.8} name="Trend Following" animationDuration={800} animationEasing="ease-out" label={false} />
+                            <Area type="monotone" dataKey="carry" stroke={acColors.carry} fill={acColors.carry} fillOpacity={0.8} name="Carry" animationDuration={800} animationEasing="ease-out" label={false} />
                           </AreaChart>
                         )}
                       </ResponsiveContainer>
@@ -950,6 +956,8 @@ export default function HistoryPage() {
                               realestate: 'Immobili',
                               cash: 'Liquidità',
                               commodity: 'Commodity',
+                              trendFollowing: 'Trend Foll.',
+                              carry: 'Carry',
                             };
                             return (
                               <div key={key} className="flex items-center gap-1.5">

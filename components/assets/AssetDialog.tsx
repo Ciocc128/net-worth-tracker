@@ -320,7 +320,7 @@ const assetSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
   type: z.enum(['stock', 'etf', 'leveragedEtf', 'bond', 'crypto', 'commodity', 'cash', 'realestate']),
-  assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity']),
+  assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
   subCategory: z.string().optional(),
   leverageRatio: z.number().gt(1, 'Leverage ratio must be greater than 1').optional().or(z.nan()),
   currency: z.string().min(1, 'Currency is required'),
@@ -385,6 +385,8 @@ const assetClasses: { value: AssetClass; label: string }[] = [
   { value: 'realestate', label: 'Immobili' },
   { value: 'cash', label: 'Liquidità' },
   { value: 'commodity', label: 'Materie Prime' },
+  { value: 'trendFollowing', label: 'Trend Following' },
+  { value: 'carry', label: 'Carry' },
 ];
 
 export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
@@ -470,6 +472,10 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
   const newAsset_showTER = selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'stock';
   const newAsset_showComposition = selectedType === 'etf' || selectedType === 'leveragedEtf';
   const newAsset_showLeverageRatio = isLeveragedEtf;
+  // ETFs can hold any asset class (bond ETF, commodity ETF, Trend Following/Carry ETF, ...) —
+  // TYPE_TO_CLASS only seeds a default ('equity') at step 1, so the class must stay overridable
+  // in create mode too, not just edit mode.
+  const newAsset_showAssetClassOverride = selectedType === 'etf' || selectedType === 'leveragedEtf';
 
   // Determine price source based on asset type
   const priceSource = selectedType === 'bond' && selectedAssetClass === 'bonds'
@@ -1008,12 +1014,6 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               id="isin"
               {...register('isin')}
               placeholder="IE00B3RBWM25"
-              disabled={
-                // Enable for stocks/ETFs in equity class (dividends)
-                !((selectedType === 'stock' || selectedType === 'etf' || selectedType === 'leveragedEtf') && selectedAssetClass === 'equity') &&
-                // Enable for bonds in bonds class (price scraping)
-                !(selectedType === 'bond' && selectedAssetClass === 'bonds')
-              }
             />
             {errors.isin && (
               <p className="text-sm text-red-500">{errors.isin.message}</p>
@@ -1074,6 +1074,37 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
                 </p>
               )}
             </div>
+          </div>
+          )}
+
+          {/* AssetClass override — create mode, ETF/ETF a Leva only (they can hold any class;
+              step 1 only seeds the 'equity' default). Non-ETF types have a fixed type→class
+              mapping (see TYPE_TO_CLASS) so no override is needed for them at creation time. */}
+          {!isEdit && newAsset_showAssetClassOverride && (
+          <div className="space-y-2">
+            <Label htmlFor="assetClass">Classe Asset *</Label>
+            <Select
+              value={selectedAssetClass}
+              onValueChange={(value) =>
+                setValue('assetClass', value as AssetClass)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleziona classe" />
+              </SelectTrigger>
+              <SelectContent>
+                {assetClasses.map((assetClass) => (
+                  <SelectItem key={assetClass.value} value={assetClass.value}>
+                    {assetClass.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.assetClass && (
+              <p className="text-sm text-red-500">
+                {errors.assetClass.message}
+              </p>
+            )}
           </div>
           )}
 

@@ -55,13 +55,17 @@ function runSingleSimulation(
     const bondsReturn = randomNormal(params.bondsReturn, params.bondsVolatility);
     const realEstateReturn = randomNormal(params.realEstateReturn, params.realEstateVolatility);
     const commoditiesReturn = randomNormal(params.commoditiesReturn, params.commoditiesVolatility);
+    const trendFollowingReturn = randomNormal(params.trendFollowingReturn, params.trendFollowingVolatility);
+    const carryReturn = randomNormal(params.carryReturn, params.carryVolatility);
 
-    // Calculate weighted portfolio return across all 4 asset classes
+    // Calculate weighted portfolio return across all 6 asset classes
     const portfolioReturn =
       (equityReturn * params.equityPercentage) / 100 +
       (bondsReturn * params.bondsPercentage) / 100 +
       (realEstateReturn * params.realEstatePercentage) / 100 +
-      (commoditiesReturn * params.commoditiesPercentage) / 100;
+      (commoditiesReturn * params.commoditiesPercentage) / 100 +
+      (trendFollowingReturn * params.trendFollowingPercentage) / 100 +
+      (carryReturn * params.carryPercentage) / 100;
 
     // Apply return to portfolio
     portfolio *= 1 + portfolioReturn / 100;
@@ -244,7 +248,12 @@ export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloRes
  * - Bonds: 3% return, 6% volatility (investment grade)
  * - Real Estate: 5% return, 12% volatility (REITs/residential)
  * - Commodities: 3.5% return, 20% volatility (broad commodity index)
+ * - Trend Following: 5% return, 12% volatility (diversified managed futures/CTA)
+ * - Carry: 4% return, 8% volatility (FX/fixed income carry strategies)
  * - Inflation: 2.5%
+ *
+ * All values are indicative starting points, fully editable in the UI
+ * (single-simulation "Parametri di mercato avanzati" or the Bear/Base/Bull cards).
  *
  * @returns Default market parameter object
  */
@@ -258,6 +267,10 @@ export function getDefaultMarketParameters() {
     realEstateVolatility: 12.0,
     commoditiesReturn: 3.5,
     commoditiesVolatility: 20.0,
+    trendFollowingReturn: 5.0,
+    trendFollowingVolatility: 12.0,
+    carryReturn: 4.0,
+    carryVolatility: 8.0,
     inflationRate: 2.5,
   };
 }
@@ -276,6 +289,10 @@ export function getDefaultMonteCarloScenarios(): MonteCarloScenarios {
       bondsReturn: 2.0, bondsVolatility: 7.0,
       realEstateReturn: 2.0, realEstateVolatility: 14.0,
       commoditiesReturn: 1.0, commoditiesVolatility: 22.0,
+      trendFollowingReturn: 2.0, trendFollowingVolatility: 16.0,
+      // Carry trades tend to unwind together under stress — bear volatility is
+      // proportionally higher than the other classes' bear/base ratio.
+      carryReturn: 0.5, carryVolatility: 13.0,
       inflationRate: 3.5,
     },
     base: {
@@ -283,6 +300,8 @@ export function getDefaultMonteCarloScenarios(): MonteCarloScenarios {
       bondsReturn: 3.0, bondsVolatility: 6.0,
       realEstateReturn: 5.0, realEstateVolatility: 12.0,
       commoditiesReturn: 3.5, commoditiesVolatility: 20.0,
+      trendFollowingReturn: 5.0, trendFollowingVolatility: 12.0,
+      carryReturn: 4.0, carryVolatility: 8.0,
       inflationRate: 2.5,
     },
     bull: {
@@ -290,6 +309,8 @@ export function getDefaultMonteCarloScenarios(): MonteCarloScenarios {
       bondsReturn: 4.0, bondsVolatility: 5.0,
       realEstateReturn: 8.0, realEstateVolatility: 10.0,
       commoditiesReturn: 6.0, commoditiesVolatility: 18.0,
+      trendFollowingReturn: 8.0, trendFollowingVolatility: 9.0,
+      carryReturn: 6.0, carryVolatility: 6.0,
       inflationRate: 1.5,
     },
   };
@@ -313,6 +334,10 @@ export function buildParamsFromScenario(
     realEstateVolatility: scenario.realEstateVolatility,
     commoditiesReturn: scenario.commoditiesReturn,
     commoditiesVolatility: scenario.commoditiesVolatility,
+    trendFollowingReturn: scenario.trendFollowingReturn,
+    trendFollowingVolatility: scenario.trendFollowingVolatility,
+    carryReturn: scenario.carryReturn,
+    carryVolatility: scenario.carryVolatility,
     inflationRate: scenario.inflationRate,
   };
 }

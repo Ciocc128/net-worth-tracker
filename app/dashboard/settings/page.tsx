@@ -105,13 +105,17 @@ const assetClassLabels: Record<AssetClass, string> = {
   realestate: 'Immobili (Real Estate)',
   cash: 'Liquidità (Cash)',
   commodity: 'Materie Prime (Commodity)',
+  trendFollowing: 'Trend Following',
+  carry: 'Carry',
 };
 
-// Order: Azioni → Obbligazioni → Commodities → Real Estate → Cash → Crypto
+// Order: Azioni → Obbligazioni → Commodities → Trend Following → Carry → Real Estate → Cash → Crypto
 const assetClasses: AssetClass[] = [
   'equity',
   'bonds',
   'commodity',
+  'trendFollowing',
+  'carry',
   'realestate',
   'cash',
   'crypto',

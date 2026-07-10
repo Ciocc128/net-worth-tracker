@@ -29,20 +29,22 @@ function getErrorMessage(error: unknown): string {
 
 /**
  * Define asset class ordering priority
- * Order: Azioni → Obbligazioni → Commodities → Real Estate → Cash → Crypto
+ * Order: Azioni → Obbligazioni → Commodities → Trend Following → Carry → Real Estate → Cash → Crypto
  */
 export const ASSET_CLASS_ORDER: Record<string, number> = {
   equity: 1,
   bonds: 2,
   commodity: 3,
-  realestate: 4,
-  cash: 5,
-  crypto: 6,
+  trendFollowing: 4,
+  carry: 5,
+  realestate: 6,
+  cash: 7,
+  crypto: 8,
 };
 
 /**
  * Get all assets for a specific user
- * Assets are sorted by asset class (equity, bonds, realestate, crypto, commodity, cash)
+ * Assets are sorted by ASSET_CLASS_ORDER (equity, bonds, commodity, trendFollowing, carry, realestate, cash, crypto)
  * and then by name within each class
  */
 export async function getAllAssets(userId: string): Promise<Asset[]> {

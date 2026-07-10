@@ -9,7 +9,9 @@
 // - cash -> cash
 // - realestate -> realestate
 export type AssetType = 'stock' | 'etf' | 'leveragedEtf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate';
-export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity';
+// trendFollowing/carry are strategy classes, not instrument types — they're held via
+// existing types (typically 'etf', sometimes 'stock') with assetClass set explicitly.
+export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity' | 'trendFollowing' | 'carry';
 
 // Coupon payment frequency for bonds.
 // Determines how many times per year the coupon is paid.
@@ -342,11 +344,13 @@ export interface MonteCarloParams {
   // Retirement duration
   retirementYears: number;
 
-  // Asset allocation (all 4 must sum to 100%)
+  // Asset allocation (all 6 must sum to 100%)
   equityPercentage: number;
   bondsPercentage: number;
   realEstatePercentage: number;
   commoditiesPercentage: number;
+  trendFollowingPercentage: number;
+  carryPercentage: number;
 
   // Withdrawal settings
   annualWithdrawal: number;
@@ -361,6 +365,10 @@ export interface MonteCarloParams {
   realEstateVolatility: number;
   commoditiesReturn: number;
   commoditiesVolatility: number;
+  trendFollowingReturn: number;
+  trendFollowingVolatility: number;
+  carryReturn: number;
+  carryVolatility: number;
   inflationRate: number;
 
   // Simulation settings
@@ -419,6 +427,10 @@ export interface MonteCarloScenarioParams {
   realEstateVolatility: number;
   commoditiesReturn: number;
   commoditiesVolatility: number;
+  trendFollowingReturn: number;
+  trendFollowingVolatility: number;
+  carryReturn: number;
+  carryVolatility: number;
   inflationRate: number;
 }
 

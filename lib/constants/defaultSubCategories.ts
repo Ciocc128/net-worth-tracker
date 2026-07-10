@@ -24,5 +24,14 @@ export const DEFAULT_SUB_CATEGORIES: Record<AssetClass, string[]> = {
     'Gold',
     'Other Commodities',
   ],
+  trendFollowing: [
+    'Managed Futures',
+    'CTA Diversificato',
+  ],
+  carry: [
+    'FX Carry',
+    'Fixed Income Carry',
+    'Commodity Carry',
+  ],
 };
 

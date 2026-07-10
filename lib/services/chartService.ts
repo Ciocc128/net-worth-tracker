@@ -147,12 +147,16 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
   realestate: number;
   cash: number;
   commodity: number;
+  trendFollowing: number;
+  carry: number;
   equityPercentage: number;
   bondsPercentage: number;
   cryptoPercentage: number;
   realestatePercentage: number;
   cashPercentage: number;
   commodityPercentage: number;
+  trendFollowingPercentage: number;
+  carryPercentage: number;
   month: number;
   year: number;
 }[] {
@@ -166,6 +170,8 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
     const realestate = byAssetClass.realestate || 0;
     const cash = byAssetClass.cash || 0;
     const commodity = byAssetClass.commodity || 0;
+    const trendFollowing = byAssetClass.trendFollowing || 0;
+    const carry = byAssetClass.carry || 0;
 
     return {
       date: `${String(snapshot.month).padStart(2, '0')}/${String(snapshot.year).slice(-2)}`,
@@ -175,12 +181,16 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
       realestate,
       cash,
       commodity,
+      trendFollowing,
+      carry,
       equityPercentage: total > 0 ? (equity / total) * 100 : 0,
       bondsPercentage: total > 0 ? (bonds / total) * 100 : 0,
       cryptoPercentage: total > 0 ? (crypto / total) * 100 : 0,
       realestatePercentage: total > 0 ? (realestate / total) * 100 : 0,
       cashPercentage: total > 0 ? (cash / total) * 100 : 0,
       commodityPercentage: total > 0 ? (commodity / total) * 100 : 0,
+      trendFollowingPercentage: total > 0 ? (trendFollowing / total) * 100 : 0,
+      carryPercentage: total > 0 ? (carry / total) * 100 : 0,
       month: snapshot.month,
       year: snapshot.year,
     };
@@ -198,6 +208,8 @@ function getAssetClassName(assetClass: string): string {
     realestate: 'Immobili',
     cash: 'Liquidità',
     commodity: 'Materie Prime',
+    trendFollowing: 'Trend Following',
+    carry: 'Carry',
   };
 
   return names[assetClass] || assetClass;

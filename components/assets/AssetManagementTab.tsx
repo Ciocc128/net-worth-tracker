@@ -527,7 +527,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                         <div key={cls}>
                           <p
                             className="text-xs font-semibold uppercase tracking-wider mb-2 px-1"
-                            style={{ color: `var(${assetClassCssVar})` }}
+                            style={{ color: assetClassCssVar }}
                           >
                             {formatAssetClassName(cls as Asset['assetClass'])} · {groupAssets.length} asset
                           </p>
@@ -652,9 +652,9 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                               <span
                                 className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
                                 style={{
-                                  backgroundColor: `color-mix(in srgb, var(${assetClassCssVar}) 15%, transparent)`,
-                                  color: `var(${assetClassCssVar})`,
-                                  border: `1px solid color-mix(in srgb, var(${assetClassCssVar}) 30%, transparent)`,
+                                  backgroundColor: `color-mix(in srgb, ${assetClassCssVar} 15%, transparent)`,
+                                  color: assetClassCssVar,
+                                  border: `1px solid color-mix(in srgb, ${assetClassCssVar} 30%, transparent)`,
                                 }}
                               >
                                 {formatAssetClassName(asset.assetClass)}
@@ -821,9 +821,9 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                     <span
                                       className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
                                       style={{
-                                        backgroundColor: `color-mix(in srgb, var(${assetClassCssVar}) 15%, transparent)`,
-                                        color: `var(${assetClassCssVar})`,
-                                        border: `1px solid color-mix(in srgb, var(${assetClassCssVar}) 30%, transparent)`,
+                                        backgroundColor: `color-mix(in srgb, ${assetClassCssVar} 15%, transparent)`,
+                                        color: assetClassCssVar,
+                                        border: `1px solid color-mix(in srgb, ${assetClassCssVar} 30%, transparent)`,
                                       }}
                                     >
                                       {formatAssetClassName(cls as Asset['assetClass'])}

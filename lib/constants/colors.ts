@@ -2,12 +2,14 @@
  * Color palette for asset classes
  */
 export const ASSET_CLASS_COLORS: Record<string, string> = {
-  equity: '#3B82F6',      // blue
-  bonds: '#EF4444',       // red
-  crypto: '#F59E0B',      // amber
-  realestate: '#10B981',  // green
-  cash: '#6B7280',        // gray
-  commodity: '#92400E',   // brown
+  equity: '#3B82F6',         // blue
+  bonds: '#EF4444',          // red
+  crypto: '#F59E0B',         // amber
+  realestate: '#10B981',     // green
+  cash: '#6B7280',           // gray
+  commodity: '#92400E',      // brown
+  trendFollowing: '#14B8A6', // teal
+  carry: '#F97316',          // orange
 };
 
 /**
@@ -36,22 +38,29 @@ export function getAssetClassColor(assetClass: string): string {
 }
 
 /**
- * Fixed mapping from asset class to CSS custom property (e.g. "--chart-1").
+ * Fixed mapping from asset class to a ready-to-use, theme-reactive CSS color value.
  * Use this for badge/chip styling so colours follow the active theme.
  * Recharts components must keep using getAssetClassColor (hex) since they
  * cannot consume CSS variables at render time.
+ *
+ * Most classes map 1:1 to a theme chart slot (`var(--chart-N)`). trendFollowing/carry
+ * have no dedicated theme slot (the design system only defines --chart-1..5), so they
+ * are derived via color-mix() blends of two existing slots — same technique already
+ * used for a 6th color in components/goals/AllocationComparisonBar.tsx.
  */
-const ASSET_CLASS_CSS_VAR: Record<string, string> = {
-  equity:     '--chart-1',
-  bonds:      '--chart-2',
-  realestate: '--chart-3',
-  crypto:     '--chart-4',
-  commodity:  '--chart-5',
-  cash:       '--muted-foreground',
+const ASSET_CLASS_COLOR_VALUE: Record<string, string> = {
+  equity:         'var(--chart-1)',
+  bonds:          'var(--chart-2)',
+  realestate:     'var(--chart-3)',
+  crypto:         'var(--chart-4)',
+  commodity:      'var(--chart-5)',
+  cash:           'var(--muted-foreground)',
+  trendFollowing: 'color-mix(in srgb, var(--chart-2) 65%, var(--chart-4))',
+  carry:          'color-mix(in srgb, var(--chart-3) 65%, var(--chart-1))',
 };
 
 export function getAssetClassCssVar(assetClass: string): string {
-  return ASSET_CLASS_CSS_VAR[assetClass] ?? '--muted-foreground';
+  return ASSET_CLASS_COLOR_VALUE[assetClass] ?? 'var(--muted-foreground)';
 }
 
 /**

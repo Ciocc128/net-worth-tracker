@@ -200,6 +200,8 @@ function getAssetClassShort(assetClass: string): string {
     crypto: 'Crypto',
     realestate: 'Immob.',
     commodity: 'Materie P.',
+    trendFollowing: 'Trend F.',
+    carry: 'Carry',
     cash: 'Liquid.',
   };
   return shorts[assetClass] || assetClass;

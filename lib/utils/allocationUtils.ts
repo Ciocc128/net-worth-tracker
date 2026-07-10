@@ -26,7 +26,7 @@ import type {
 
 export type AllocationAction = 'COMPRA' | 'VENDI' | 'OK';
 
-/** Italian labels for the six asset classes. Local to the feature; other label
+/** Italian labels for the eight asset classes. Local to the feature; other label
  *  maps exist elsewhere (email, history) but consolidating them is out of scope. */
 export const ASSET_CLASS_LABELS: Record<string, string> = {
   equity: 'Azioni',
@@ -35,6 +35,8 @@ export const ASSET_CLASS_LABELS: Record<string, string> = {
   realestate: 'Immobili',
   cash: 'Liquidità',
   commodity: 'Materie Prime',
+  trendFollowing: 'Trend Following',
+  carry: 'Carry',
 };
 
 // ---------------------------------------------------------------------------
@@ -214,6 +216,8 @@ export const ASSET_CLASS_CHART_INDEX: Record<string, number> = {
   realestate: 3,
   cash: 4,
   commodity: 5,
+  trendFollowing: 6,
+  carry: 7,
 };
 
 export interface BalanceScore {

@@ -136,6 +136,8 @@ export interface AssetClassEvolutionPoint {
   crypto: number;
   realestate: number;
   commodity: number;
+  trendFollowing: number;
+  carry: number;
   cash: number;
 }
 
