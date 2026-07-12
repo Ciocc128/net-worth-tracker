@@ -53,6 +53,16 @@ const COLORS = [
   '#14b8a6', // teal
 ];
 
+// Income category nodes are namespaced with this prefix so they can never collide
+// with an expense category node that happens to share the same name. Without this,
+// a same-named income/expense category pair would merge into one node that is both
+// a source into "Budget" and a target from an expense type — closing a loop
+// (Budget → Type → SharedName → Budget) that Nivo's Sankey rejects as "circular link".
+const INCOME_NODE_ID_PREFIX = 'income::';
+const toIncomeNodeId = (name: string) => `${INCOME_NODE_ID_PREFIX}${name}`;
+const isIncomeNodeId = (id: string) => id.startsWith(INCOME_NODE_ID_PREFIX);
+const fromIncomeNodeId = (id: string) => (isIncomeNodeId(id) ? id.slice(INCOME_NODE_ID_PREFIX.length) : id);
+
 interface CashflowSankeyChartProps {
   expenses: Expense[];    // All expenses for the period (income + expenses)
   isMobile: boolean;      // Responsive flag (computed in parent)
@@ -214,9 +224,10 @@ const buildBudgetFlowData = (expenses: Expense[], isMobile: boolean): SankeyData
 
   // Step 8: Build nodes
   const nodes: SankeyNode[] = [
-    // Left: Income categories
+    // Left: Income categories (namespaced id — see INCOME_NODE_ID_PREFIX)
     ...incomeCategories.map(cat => ({
-      id: cat.name,
+      id: toIncomeNodeId(cat.name),
+      label: cat.name,
       nodeColor: incomeColorMap.get(cat.name)!
     })),
     // Center-left: Budget node (green color)
@@ -253,7 +264,7 @@ const buildBudgetFlowData = (expenses: Expense[], isMobile: boolean): SankeyData
   const links: SankeyLink[] = [
     // Income → Budget
     ...incomeCategories.map(cat => ({
-      source: cat.name,
+      source: toIncomeNodeId(cat.name),
       target: 'Budget',
       value: cat.value
     })),
@@ -445,9 +456,10 @@ const buildBudgetFlowDataWithSubcategories = (expenses: Expense[], isMobile: boo
 
   // Step 9: Build nodes (5 layers)
   const nodes: SankeyNode[] = [
-    // Layer 1 (Left): Income categories
+    // Layer 1 (Left): Income categories (namespaced id — see INCOME_NODE_ID_PREFIX)
     ...incomeCategories.map(cat => ({
-      id: cat.name,
+      id: toIncomeNodeId(cat.name),
+      label: cat.name,
       nodeColor: incomeColorMap.get(cat.name)!
     })),
     // Layer 2 (Center-left): Budget node
@@ -502,7 +514,7 @@ const buildBudgetFlowDataWithSubcategories = (expenses: Expense[], isMobile: boo
   const links: SankeyLink[] = [
     // Income → Budget
     ...incomeCategories.map(cat => ({
-      source: cat.name,
+      source: toIncomeNodeId(cat.name),
       target: 'Budget',
       value: cat.value
     })),
@@ -872,16 +884,19 @@ export function CashflowSankeyChart({
           mode: 'type'
         });
       } else {
-        // Category drill-down or transactions: depends on whether category has subcategories
-        const hasSubcategories = checkIfCategoryHasSubcategories(node.id);
-        const isIncome = expenses.some(e => e.categoryName === node.id && e.type === 'income');
+        // Category drill-down or transactions: depends on whether category has subcategories.
+        // Income category nodes carry a namespaced id (INCOME_NODE_ID_PREFIX) — resolve back
+        // to the real category name before looking up expenses.
+        const categoryName = fromIncomeNodeId(node.id);
+        const hasSubcategories = checkIfCategoryHasSubcategories(categoryName);
+        const isIncome = isIncomeNodeId(node.id) || expenses.some(e => e.categoryName === categoryName && e.type === 'income');
 
         setSelectedCategory({
-          name: node.id,
+          name: categoryName,
           color: node.color,
           isIncome,
           mode: hasSubcategories ? 'category' : 'transactions',
-          parentCategory: node.id,
+          parentCategory: categoryName,
         });
       }
     }
