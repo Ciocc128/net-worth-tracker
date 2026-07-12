@@ -51,6 +51,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - **Cost Centers tab** (opt-in): group expenses by object or project (e.g. "Automobile Dacia"). A single Panoramica with a period axis (this month / this year / last 12 months / all time) drives a total headline and a flat list of centers ranked by spend with a share bar. Each center's detail leads with its period total and a change-vs-previous chip, breaks the cost down by category (list + stacked monthly chart) and splits fixed recurring cost from one-off spending. Optional per-center **spending ceiling** (monthly or annual, with a verdict + meter), **projected annual cost**, a cross-center **comparison overlay**, and **archive/restore** for finished centers
 - Bulk move transactions between categories/subcategories (cross-type supported)
 - CSV export
+- **Historical CSV import** (Settings → Spese): migrate past expenses & income from a standardized CSV. Download a template, upload your file, review a preview (transaction count, date range, income/expense totals, new categories to be created, skipped rows) before committing. Tolerant to Italian-Excel exports (semicolon delimiter, `1.234,56` decimals, BOM) and both `YYYY-MM-DD` / `DD/MM/YYYY` dates; missing categories/subcategories are created automatically. Account balances are never modified, and each import is reversible with one click
 
 ### Dividends
 - Multi-currency dividend recording with automatic EUR conversion

@@ -76,6 +76,7 @@ import { DeleteDummyDataDialog } from '@/components/DeleteDummyDataDialog';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageTabs } from '@/components/layout/PageTabs';
 import type { TabDef } from '@/components/layout/PageTabBar';
+import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
 
 interface SubTarget {
   name: string;
@@ -2830,6 +2831,12 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {user && (
+        <div className="mt-6">
+          <ExpenseImportSection userId={user.uid} onImported={loadExpenseCategories} />
+        </div>
+      )}
 
           </TabsContent>
         )}

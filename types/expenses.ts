@@ -84,6 +84,10 @@ export interface Expense {
   // WARNING: If a cost center is renamed, bulk-update all linked expenses via costCenterService.renameCostCenter.
   costCenterId?: string;
   costCenterName?: string;
+  // Set on expenses created via the historical CSV import tool (lib/services/expenseImportService.ts).
+  // All rows of one import share the same importBatchId, enabling a one-click "undo import".
+  importBatchId?: string;
+  importedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

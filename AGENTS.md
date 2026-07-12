@@ -118,6 +118,13 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - Net savings is `sum(income) + sum(expenses)`
 - When moving records across income/expense boundaries, flip the sign
 
+### Historical CSV Import (`lib/utils/expenseImport.ts`, `lib/services/expenseImportService.ts`, `components/settings/ExpenseImportSection.tsx`)
+- **Standardized CSV is the contract**, not a per-source parser. Schema: `data, importo, tipo, categoria, sottocategoria?, note?, valuta?` (Italian headers, English aliases accepted). One row = one already-exploded transaction (no recurring/installment reconstruction). Wizard lives in Settings → "Spese" tab.
+- **Import MUST NOT touch cash-asset balances.** Historical rows write expense docs directly via `commitImportPlan` (bypassing `createExpense`) and never set `linkedCashAssetId` — otherwise they'd corrupt current balances. `transfer` rows are excluded for the same reason (need origin/destination assets a CSV lacks → skipped with a message). Rows still appear in Cashflow/Analisi (read by date); snapshots are untouched.
+- **Italian-locale CSV ≠ standard CSV.** Excel-IT exports use `;` delimiter, `,` decimal (`1.234,56`), sometimes a BOM. Parse with **Papa Parse** (auto-detects delimiter, handles quoting so a note containing a comma doesn't split columns) — never `split(',')`. `parseItalianNumber` handles both `1.234,56` and `1234.56` (single separator grouping exactly 3 digits = thousands; 1–2 digits = decimal). Downloadable template is generated Excel-IT-friendly (`;` + BOM).
+- **Type belongs to the category, not the row.** `buildImportPlan` rejects a category name used with conflicting types (within the file or vs an existing category) — those rows go to `errors` ("Conflitto di tipo"), never creating an ambiguous category. Empty `tipo` → fallback `variable`.
+- **`importBatchId` (+ `importedAt`) on every imported row** enables one-click undo (`deleteExpensesByImportBatch`). Generated via `crypto.randomUUID()` (client-side). Pure parse/validate/plan layer is Firestore-free and tested; the service only creates categories + batched writes (chunk 400, `costCenterService` pattern).
+
 ### History and Snapshot Baselines
 - End date for Firestore month queries must include the full last day
 - Annual deltas use December of the previous year as baseline, not January of the same year
@@ -589,7 +596,7 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
   - Performance: `performanceService` | History: `chartService` | FIRE/Goals: `fireService` + `goalService`
   - Assistant: `assistantRoutes` + `assistantWebSearchPolicy` + `assistantMonthContextService`
   - Dividends/cron: `dividendUseCase` + `dividendProcessor` | Email: `monthlyEmailService`
-  - Assets/bonds: `assetDialogHelpers` + `couponUtils` | Cashflow/Budget: `budgetUtils`
+  - Assets/bonds: `assetDialogHelpers` + `couponUtils` | Cashflow/Budget: `budgetUtils` | CSV import: `expenseImport`
   - Transfers/cash balances: `cashBalanceReconciliation` + `updateCashAssetBalancesAtomic` + `transferFeature`
   - Allocation: `allocationUtils`
 - For motion/perceived-performance changes, compare `npm run dev` vs `npm run build && npm run start` — dev can exaggerate cost
