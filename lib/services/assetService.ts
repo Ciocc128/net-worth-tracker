@@ -271,6 +271,9 @@ export async function updateAsset(
 
     if (updates.averageCost === undefined) cleanedUpdates.averageCost = deleteField();
     if (updates.taxRate === undefined) cleanedUpdates.taxRate = deleteField();
+    // Display alias is clearable: the form sends undefined when the field is emptied, so translate
+    // it to deleteField() (removeUndefinedFields would otherwise just omit it, keeping the old alias).
+    if (updates.displayTicker === undefined) cleanedUpdates.displayTicker = deleteField();
 
     // Rebuy on the same doc: quantity goes from 0 (sold but kept) back to > 0. Stamp the new
     // holding start so YOC ignores the previous holding's dividends (mirrors the ISIN-reuse path

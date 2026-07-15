@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { Search, Loader2 } from 'lucide-react';
 
 interface AssetAssignmentDialogProps {
@@ -62,7 +63,9 @@ export function AssetAssignmentDialog({
     return assets.filter(
       (a) =>
         a.name.toLowerCase().includes(term) ||
-        a.ticker.toLowerCase().includes(term)
+        a.ticker.toLowerCase().includes(term) ||
+        // Also match the display alias so users can search by the label they see.
+        (a.displayTicker?.toLowerCase().includes(term) ?? false)
     );
   }, [assets, searchTerm]);
 
@@ -163,7 +166,7 @@ export function AssetAssignmentDialog({
                         <p className="text-sm font-medium text-foreground">
                           {asset.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">{asset.ticker}</p>
+                        <p className="text-xs text-muted-foreground">{getAssetDisplayTicker(asset)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-mono tabular-nums text-foreground/80">
@@ -189,7 +192,7 @@ export function AssetAssignmentDialog({
           {selectedAsset && (
             <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border">
               <p className="text-sm font-medium text-foreground">
-                {selectedAsset.name} ({selectedAsset.ticker})
+                {selectedAsset.name} ({getAssetDisplayTicker(selectedAsset)})
               </p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 space-y-1">

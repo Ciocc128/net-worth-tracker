@@ -15,6 +15,7 @@ import {
 } from '@/lib/services/assetService';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { Pencil, Trash2, Calculator, ChevronDown, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -130,7 +131,7 @@ export function AssetCard({
             {asset.name}
           </h3>
           {asset.ticker && (
-            <p className="text-sm text-muted-foreground mt-0.5 truncate">{asset.ticker}</p>
+            <p className="text-sm text-muted-foreground mt-0.5 truncate">{getAssetDisplayTicker(asset)}</p>
           )}
           {asset.quantity === 0 && (
             <Badge variant="outline" className="mt-1 text-xs bg-muted text-muted-foreground border-border">

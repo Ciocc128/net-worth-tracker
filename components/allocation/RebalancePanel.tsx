@@ -14,6 +14,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
 import { type RebalanceMove } from '@/lib/utils/allocationUtils';
 import { planInstrumentRebalance } from '@/lib/utils/leverageAwareAllocationUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { useActionColors } from '@/lib/hooks/useActionColors';
 import type { Asset } from '@/types/assets';
 import { ActionChip } from './ActionChip';
@@ -116,7 +117,7 @@ export function RebalancePanel({
               return (
                 <div key={trade.assetId} className="flex items-center justify-between gap-3 text-sm">
                   <span className="truncate text-foreground" title={trade.name}>
-                    {trade.ticker}
+                    {getAssetDisplayTicker(trade)}
                   </span>
                   <span
                     className="shrink-0 font-mono tabular-nums"

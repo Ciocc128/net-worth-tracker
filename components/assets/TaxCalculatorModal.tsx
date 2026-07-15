@@ -37,6 +37,7 @@
 
 import { useState, useEffect } from 'react';
 import { Asset } from '@/types/assets';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   Dialog,
   DialogContent,
@@ -161,7 +162,7 @@ export function TaxCalculatorModal({ open, onClose, asset }: TaxCalculatorModalP
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Ticker:</span>{' '}
-                <span className="font-medium">{asset.ticker}</span>
+                <span className="font-medium">{getAssetDisplayTicker(asset)}</span>
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400">Quantità posseduta:</span>{' '}

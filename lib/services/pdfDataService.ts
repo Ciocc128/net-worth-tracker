@@ -38,6 +38,7 @@ import type {
 } from '@/types/pdf';
 import type { TimePeriod } from '@/types/performance';
 import type { Asset, MonthlySnapshot } from '@/types/assets';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   calculateAssetValue,
   calculateTotalValue,
@@ -176,7 +177,8 @@ export function preparePortfolioData(assets: Asset[]): PortfolioData {
     totalUnrealizedGains += unrealizedGain;
 
     return {
-      ticker: asset.ticker,
+      // Display alias (falls back to the raw ticker) — the PDF is a user-facing recap.
+      ticker: getAssetDisplayTicker(asset),
       name: asset.name,
       assetClass: asset.assetClass,
       assetType: asset.type,

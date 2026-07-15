@@ -45,6 +45,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { toDate } from '@/lib/utils/dateHelpers';
 
 const dividendSchema = z.object({
@@ -315,7 +316,7 @@ export function DividendDialog({ open, onClose, dividend, onSuccess }: DividendD
                     id="assetId"
                     options={assets.map((asset) => ({
                       value: asset.id,
-                      label: `${asset.ticker || asset.name} - ${asset.name}`,
+                      label: `${asset.ticker ? getAssetDisplayTicker(asset) : asset.name} - ${asset.name}`,
                     }))}
                     value={field.value || ''}
                     onValueChange={field.onChange}

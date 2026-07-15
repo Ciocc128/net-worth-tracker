@@ -23,6 +23,7 @@ import { formatCurrency } from '@/lib/utils/formatters';
 import { AllocationComparisonBar } from './AllocationComparisonBar';
 import { GoalProjectionChart } from './GoalProjectionChart';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { slideDown } from '@/lib/utils/motionVariants';
 import {
   VERDICT_META,
@@ -327,7 +328,7 @@ export function GoalDetailCard({
                               {asset.name}
                             </p>
                             <p className="font-mono text-[11px] text-muted-foreground/70">
-                              {asset.ticker}
+                              {getAssetDisplayTicker(asset)}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">

@@ -214,8 +214,10 @@ function buildAssetFormDataFromValues(
 ): AssetFormData {
   return {
     ticker: data.ticker,
+    // Optional display alias; blank → undefined so it's stripped/cleared rather than stored empty.
+    displayTicker: data.displayTicker?.trim() ? data.displayTicker.trim() : undefined,
     name: data.name,
-    isin: 
+    isin:
       data.isin && data.isin.trim() !== '' 
         ? data.isin.trim().toUpperCase() 
         : undefined,
@@ -317,6 +319,7 @@ const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.E
 // Note: .or(z.nan()) allows undefined values for optional numeric fields
 const assetSchema = z.object({
   ticker: z.string(),
+  displayTicker: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
   type: z.enum(['stock', 'etf', 'leveragedEtf', 'bond', 'crypto', 'commodity', 'cash', 'realestate']),
@@ -567,6 +570,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
 
       reset({
         ticker: asset.ticker,
+        displayTicker: asset.displayTicker || '',
         name: asset.name,
         type: asset.type,
         assetClass: asset.assetClass,
@@ -657,6 +661,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     } else {
       reset({
         ticker: '',
+        displayTicker: '',
         name: '',
         isin: undefined,
         type: 'etf',
@@ -1005,6 +1010,23 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               )}
             </div>
           </div>
+
+          {/* Display alias — shown instead of the ticker across the whole app. Only meaningful when
+              there's a ticker (hidden for cash/realestate, same gate as the ticker field). */}
+          {newAsset_showTicker && (
+          <div className="space-y-2">
+            <Label htmlFor="displayTicker">Alias visualizzato</Label>
+            <Input
+              id="displayTicker"
+              {...register('displayTicker')}
+              placeholder="es. CL2 (lascia vuoto per usare il ticker)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Nome breve mostrato al posto del ticker in tutta l&apos;app (Patrimonio, Allocazione,
+              grafici…). Il ticker resta invariato per l&apos;aggiornamento automatico dei prezzi.
+            </p>
+          </div>
+          )}
 
           {/* ISIN — hidden for types that don't use it (crypto, cash, realestate, commodity) */}
           {newAsset_showISIN && (

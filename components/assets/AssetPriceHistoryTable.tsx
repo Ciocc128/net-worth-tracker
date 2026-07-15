@@ -36,6 +36,7 @@ import type {
   AssetHistoryDateFilter
 } from '@/types/assets';
 import { transformPriceHistoryData } from '@/lib/utils/assetPriceHistoryUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { formatCurrency, formatNumber } from '@/lib/services/chartService';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -234,7 +235,7 @@ export function AssetPriceHistoryTable({
                   <TableCell className="sticky left-0 bg-card z-10 border-r">
                     <div className="flex items-center gap-2">
                       <div>
-                        <div className="font-semibold text-sm">{asset.ticker}</div>
+                        <div className="font-semibold text-sm">{getAssetDisplayTicker(asset)}</div>
                         <div className="text-xs text-muted-foreground">{asset.name}</div>
                       </div>
                       {asset.isDeleted && (

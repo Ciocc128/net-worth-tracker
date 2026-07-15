@@ -53,6 +53,8 @@ export const LEVERAGE_TIEBREAKER_WEIGHT = 0.1;
 export interface InstrumentExposure {
   assetId: string;
   ticker: string;
+  /** User-facing alias (falls back to `ticker`), so trade lists can show the label the user set. */
+  displayTicker?: string;
   name: string;
   marketValue: number;
   /** Notional € produced by €1 of market value in this instrument, per class. Values sum to
@@ -82,6 +84,7 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
     instruments.push({
       assetId: asset.id,
       ticker: asset.ticker,
+      displayTicker: asset.displayTicker,
       name: asset.name,
       marketValue,
       exposurePerEuro,
@@ -95,6 +98,8 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
 export interface InstrumentTrade {
   assetId: string;
   ticker: string;
+  /** User-facing alias (falls back to `ticker`) for display in the trade list. */
+  displayTicker?: string;
   name: string;
   amount: number;
 }
@@ -290,7 +295,7 @@ function buildPlanResult(
     const amount = x[i];
     if (Math.abs(amount) < 0.5) return; // ignore sub-50-cent noise from the numerical solve
 
-    trades.push({ assetId: inst.assetId, ticker: inst.ticker, name: inst.name, amount });
+    trades.push({ assetId: inst.assetId, ticker: inst.ticker, displayTicker: inst.displayTicker, name: inst.name, amount });
 
     for (const [assetClass, perEuro] of Object.entries(inst.exposurePerEuro)) {
       const delta = amount * (perEuro ?? 0);

@@ -78,6 +78,10 @@ export interface Asset {
   id: string;
   userId: string;
   ticker: string;
+  // Optional user-facing alias shown INSTEAD of `ticker` everywhere in the UI. `ticker` must stay
+  // in Yahoo format ("CL2.MI") for automatic price retrieval, but the user can display a clean label
+  // ("CL2"). Empty/absent → fall back to `ticker`. Resolve via `getAssetDisplayTicker`.
+  displayTicker?: string;
   name: string;
   type: AssetType;
   assetClass: AssetClass;
@@ -111,6 +115,7 @@ export interface Asset {
 
 export interface AssetFormData {
   ticker: string;
+  displayTicker?: string; // Optional user-facing alias shown instead of the (Yahoo-format) ticker
   name: string;
   type: AssetType;
   assetClass: AssetClass;

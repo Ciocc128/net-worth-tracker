@@ -1072,7 +1072,7 @@ export default function HistoryPage() {
         </div>
 
         <motion.div variants={cardItem} initial="hidden" animate="visible">
-          <MonthlyAssetBreakdownSection snapshots={snapshots} />
+          <MonthlyAssetBreakdownSection snapshots={snapshots} assets={assets} />
         </motion.div>
       </motion.section>
 

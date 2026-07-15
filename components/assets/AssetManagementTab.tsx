@@ -36,6 +36,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -637,7 +638,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                   </TooltipProvider>
                                   {asset.ticker && (
                                     <span className="block truncate text-xs font-mono text-muted-foreground">
-                                      {asset.ticker}
+                                      {getAssetDisplayTicker(asset)}
                                     </span>
                                   )}
                                 </div>

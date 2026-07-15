@@ -25,6 +25,7 @@ export interface MonthDataCell {
 export interface AssetPriceHistoryRow {
   name: string; // Primary key for aggregation (replaces assetId to unify re-acquired assets)
   ticker: string;
+  displayTicker?: string; // Optional user-facing alias (falls back to ticker); absent for snapshot-only rows
   isDeleted: boolean; // True if asset not in current portfolio
   months: {
     [monthKey: string]: MonthDataCell; // monthKey: "2025-1", "2025-2", etc.
@@ -188,7 +189,7 @@ export function transformPriceHistoryData(
   // Use name as key to unify assets that were sold and re-purchased
   const assetMetadata = new Map<
     string,
-    { ticker: string; name: string; isDeleted: boolean; isCash: boolean }
+    { ticker: string; displayTicker?: string; name: string; isDeleted: boolean; isCash: boolean }
   >();
 
   const cashAssetIds = new Set(currentAssets.filter((asset) => asset.assetClass === 'cash').map((asset) => asset.id));
@@ -209,6 +210,7 @@ export function transformPriceHistoryData(
     // qty=0 behaves like sold in price history — show Venduto badge, preserve historical data
     assetMetadata.set(asset.name, {
       ticker: asset.ticker,
+      displayTicker: asset.displayTicker,
       name: asset.name,
       isDeleted: asset.quantity === 0,
       isCash: asset.assetClass === 'cash',
@@ -392,6 +394,7 @@ export function transformPriceHistoryData(
     assetRows.push({
       name: metadata.name, // Use name as primary key (aggregates re-acquired assets)
       ticker: metadata.ticker,
+      displayTicker: metadata.displayTicker,
       isDeleted: metadata.isDeleted,
       months,
       ytd,

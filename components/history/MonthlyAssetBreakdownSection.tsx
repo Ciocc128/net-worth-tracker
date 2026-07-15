@@ -21,7 +21,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
-import type { MonthlySnapshot } from '@/types/assets';
+import type { Asset, MonthlySnapshot } from '@/types/assets';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -177,11 +177,24 @@ function SelectedAssetTrendChart({
 
 interface MonthlyAssetBreakdownSectionProps {
   snapshots: MonthlySnapshot[];
+  // Live assets, used only to resolve the display alias by assetId. Snapshots freeze the raw
+  // (Yahoo-format) ticker; old snapshots have no alias, so we look it up from the current asset.
+  assets?: Asset[];
 }
 
-export function MonthlyAssetBreakdownSection({ snapshots }: MonthlyAssetBreakdownSectionProps) {
+export function MonthlyAssetBreakdownSection({ snapshots, assets }: MonthlyAssetBreakdownSectionProps) {
   const chartColors = useChartColors();
   const isMobile = useMediaQuery('(max-width: 767px)');
+
+  // Map assetId → display alias (only for assets that set one), to relabel the frozen ticker.
+  const aliasByAssetId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const asset of assets ?? []) {
+      const alias = asset.displayTicker?.trim();
+      if (alias) map.set(asset.id, alias);
+    }
+    return map;
+  }, [assets]);
 
   // Months that actually carry a per-asset breakdown (newest first).
   const months = useMemo(() => getAvailableSnapshotMonths(snapshots), [snapshots]);
@@ -343,7 +356,7 @@ export function MonthlyAssetBreakdownSection({ snapshots }: MonthlyAssetBreakdow
                             <p className="truncate font-medium text-foreground">{asset.name}</p>
                             {asset.ticker && (
                               <p className="truncate font-mono text-xs text-muted-foreground">
-                                {asset.ticker}
+                                {aliasByAssetId.get(asset.assetId) ?? asset.ticker}
                               </p>
                             )}
                           </div>

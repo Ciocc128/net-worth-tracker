@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
 import { allocateContributionHierarchical } from '@/lib/utils/allocationUtils';
 import { planInstrumentContribution } from '@/lib/utils/leverageAwareAllocationUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import type { AllocationData, Asset } from '@/types/assets';
 
 interface ContributionPanelProps {
@@ -150,7 +151,7 @@ export function ContributionPanel({
             {instrumentTrades.map((trade) => (
               <div key={trade.assetId} className="flex items-center justify-between gap-3 text-sm">
                 <span className="truncate text-foreground" title={trade.name}>
-                  {trade.ticker}
+                  {getAssetDisplayTicker(trade)}
                 </span>
                 <span className="shrink-0 font-mono tabular-nums text-foreground">
                   +{formatCurrency(trade.amount)}

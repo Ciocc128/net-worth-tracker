@@ -25,6 +25,7 @@ import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { calculateCurrentAllocation } from './assetAllocationService';
 import { getAssetClassColor, getChartColor } from '@/lib/constants/colors';
 import { getItalyYear, getItalyMonth } from '@/lib/utils/dateHelpers';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 
 /**
  * Prepare data for asset class distribution pie chart
@@ -75,10 +76,11 @@ export function prepareAssetDistributionData(
     return [];
   }
 
-  // Calculate value for each asset
+  // Calculate value for each asset. `ticker` here is the slice LABEL, so use the display alias
+  // (falls back to the raw ticker) to match the label shown everywhere else in the app.
   const assetValues = assets.map((asset) => ({
     name: asset.name,
-    ticker: asset.ticker,
+    ticker: getAssetDisplayTicker(asset),
     value: calculateAssetValue(asset),
   }));
 
