@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
-import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData, CurrentAllocationSnapshot, AllocationBasisSnapshot, AllocationBasis } from '@/types/assets';
+import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData, CurrentAllocationSnapshot, AllocationBasisSnapshot, AllocationExclusions, AllocationExcludedClass } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
@@ -87,6 +87,8 @@ export async function getSettings(
       weeklyBudgetEmailEnabled: data.weeklyBudgetEmailEnabled,
       monthlyEmailRecipients: data.monthlyEmailRecipients,
       targetLeverageRatio: data.targetLeverageRatio,
+      excludeCashFromAllocation: data.excludeCashFromAllocation,
+      excludeRealEstateFromAllocation: data.excludeRealEstateFromAllocation,
       targets: data.targets as AssetAllocationTarget,
     };
   } catch (error) {
@@ -255,6 +257,12 @@ export async function setSettings(
       if (settings.targetLeverageRatio !== undefined) {
         docData.targetLeverageRatio = settings.targetLeverageRatio;
       }
+      if (settings.excludeCashFromAllocation !== undefined) {
+        docData.excludeCashFromAllocation = settings.excludeCashFromAllocation;
+      }
+      if (settings.excludeRealEstateFromAllocation !== undefined) {
+        docData.excludeRealEstateFromAllocation = settings.excludeRealEstateFromAllocation;
+      }
 
       // Use setDoc WITHOUT merge to completely replace targets
       await setDoc(targetRef, docData);
@@ -381,6 +389,12 @@ export async function setSettings(
       }
       if (settings.targetLeverageRatio !== undefined) {
         docData.targetLeverageRatio = settings.targetLeverageRatio;
+      }
+      if (settings.excludeCashFromAllocation !== undefined) {
+        docData.excludeCashFromAllocation = settings.excludeCashFromAllocation;
+      }
+      if (settings.excludeRealEstateFromAllocation !== undefined) {
+        docData.excludeRealEstateFromAllocation = settings.excludeRealEstateFromAllocation;
       }
 
       // Use merge: true to preserve existing fields
@@ -601,66 +615,127 @@ function classifyAction(difference: number): AllocationData['action'] {
 }
 
 /**
- * Turn a `CurrentAllocationSnapshot` into the legacy `AllocationResult` shape (current
- * vs. target, per asset class / sub-category / specific asset), computed self-consistently
- * on ONE chosen basis — every percentage is relative to that basis's own total, so they
- * always sum to 100% even when leveraged ETFs inflate notional exposure beyond market value.
+ * The classes kept OUT of the allocation base for a given exclusion config. Cash and real
+ * estate are the only excludable classes (toggled by the user in Settings). See
+ * `AllocationExclusions`.
+ */
+export function getExcludedClasses(exclusions?: AllocationExclusions): Set<string> {
+  const excluded = new Set<string>();
+  if (exclusions?.cash) excluded.add('cash');
+  if (exclusions?.realestate) excluded.add('realestate');
+  return excluded;
+}
+
+/**
+ * The TARGET leverage that a target set encodes. In the leverage-aware model each target % is a
+ * desired notional exposure expressed as a percentage of invested capital, so the SUM over the
+ * investable classes is exactly `leverage × 100` (equity 90% + bonds 60% ⇒ 1.50×). Excluded
+ * classes carry no target and don't count. Returns 1 for an empty/absent target set (no leverage).
+ */
+export function deriveTargetLeverageRatio(
+  targets: AssetAllocationTarget | null,
+  exclusions?: AllocationExclusions
+): number {
+  if (!targets) return 1;
+  const excluded = getExcludedClasses(exclusions);
+  let sum = 0;
+  for (const [assetClass, data] of Object.entries(targets)) {
+    if (excluded.has(assetClass)) continue;
+    sum += Math.max(0, data.targetPercentage || 0);
+  }
+  return sum > 0 ? sum / 100 : 1;
+}
+
+/**
+ * Build the `AllocationResult` (current vs target per class / sub-category / specific asset) on
+ * the LEVERAGE-AWARE basis: every current/target percentage is a NOTIONAL exposure expressed as
+ * a % of the investable MARKET capital, so a leveraged portfolio's weights legitimately sum to
+ * MORE than 100% — their sum is the leverage ratio × 100. This is the "ragionare a leva" the
+ * Allocazione page needs: current and target sit on the same axis and are directly comparable
+ * (a class's `difference` in p.p. still drives COMPRA/VENDI/OK exactly as before).
  *
- * `assets` is only needed for the specific-asset level, which (like the pre-migration
- * `compareAllocations`) matches by ticker/name via `findMatchingAssets` and sums plain
- * `calculateAssetValue` — specific-asset targets are individual stocks, not composite/
- * leveraged instruments, so market value is an adequate proxy there.
+ *   - current value per class = its NOTIONAL exposure (`snapshot.notional`).
+ *   - denominator (`marketBase`) = investable MARKET capital = Σ market value of the
+ *     non-excluded classes. Excluded classes (cash / real estate, per `exclusions`) leave the
+ *     base entirely — neither numerator nor denominator — and carry no target.
+ *   - target value per class = `targetPercentage% × marketBase`, kept as a notional € figure so
+ *     `differenceValue` is a real "how many € of exposure to move".
+ *
+ * For an unleveraged portfolio with no exclusions this reduces to the previous behavior (market
+ * == notional, weights sum to 100), so pre-leverage results are unchanged.
+ *
+ * `assets` is only needed for the specific-asset level (matched by ticker/name via
+ * `findMatchingAssets`, summing plain market value — specific-asset targets are individual
+ * stocks, not leveraged instruments, so market value is an adequate proxy there).
  */
 export function toLegacyAllocationResult(
   snapshot: CurrentAllocationSnapshot,
-  basis: AllocationBasis,
   targets: AssetAllocationTarget | null,
-  assets: Asset[]
+  assets: Asset[],
+  exclusions?: AllocationExclusions
 ): AllocationResult {
-  const source = basis === 'market' ? snapshot.market : snapshot.notional;
+  const excluded = getExcludedClasses(exclusions);
 
-  if (!targets || source.totalValue === 0) {
-    return {
-      byAssetClass: {},
-      bySubCategory: {},
-      bySpecificAsset: {},
-      totalValue: source.totalValue,
-    };
+  // Investable base: market capital (denominator) and notional exposure summed over the
+  // non-excluded classes.
+  let marketBase = 0;
+  for (const [assetClass, marketValue] of Object.entries(snapshot.market.byAssetClass)) {
+    if (!excluded.has(assetClass)) marketBase += marketValue;
+  }
+  let notionalInvestable = 0;
+  for (const [assetClass, notionalValue] of Object.entries(snapshot.notional.byAssetClass)) {
+    if (!excluded.has(assetClass)) notionalInvestable += notionalValue;
   }
 
-  // Check if cash is using fixed amount
-  const cashTarget = targets['cash'];
-  const useCashFixedAmount = cashTarget?.useFixedAmount || false;
-  const cashFixedAmount = useCashFixedAmount ? (cashTarget?.fixedAmount || 0) : 0;
+  // Excluded classes with their market value, for the page's "Fuori allocazione" strip.
+  const excludedClasses: AllocationExcludedClass[] = [];
+  for (const assetClass of excluded) {
+    const marketValue = snapshot.market.byAssetClass[assetClass] ?? 0;
+    if (marketValue > 0) excludedClasses.push({ assetClass, marketValue });
+  }
 
-  // Calculate remaining value (total - fixed cash) — the base on which other asset
-  // classes' percentages are applied.
-  const remainingValue = useCashFixedAmount
-    ? Math.max(0, source.totalValue - cashFixedAmount)
-    : source.totalValue;
+  const baseMetadata = {
+    totalValue: notionalInvestable,
+    marketValue: marketBase,
+    leverageRatio: marketBase > 0 ? notionalInvestable / marketBase : 1,
+    excludedClasses,
+  };
+
+  if (!targets || marketBase === 0) {
+    return { byAssetClass: {}, bySubCategory: {}, bySpecificAsset: {}, ...baseMetadata };
+  }
+
+  // Fixed-amount cash is a legacy alternative to a percentage target and only applies when cash
+  // is INCLUDED — excluding cash disables the fixed reserve (they're two ways of saying the same
+  // thing). The reserved € is carved out of the market base before other classes' targets apply.
+  const cashTarget = targets['cash'];
+  const useCashFixedAmount = !excluded.has('cash') && (cashTarget?.useFixedAmount || false);
+  const cashFixedAmount = useCashFixedAmount ? (cashTarget?.fixedAmount || 0) : 0;
+  const targetBase = useCashFixedAmount ? Math.max(0, marketBase - cashFixedAmount) : marketBase;
 
   const byAssetClass: AllocationResult['byAssetClass'] = {};
   const bySubCategory: AllocationResult['bySubCategory'] = {};
   const bySpecificAsset: AllocationResult['bySpecificAsset'] = {};
 
   Object.keys(targets).forEach((assetClass) => {
+    // Excluded classes carry no target and are not part of the base.
+    if (excluded.has(assetClass)) return;
+
     const targetData = targets[assetClass];
-    const currentValue = source.byAssetClass[assetClass] || 0;
-    const currentPercentage = source.totalValue > 0 ? (currentValue / source.totalValue) * 100 : 0;
+    const currentValue = snapshot.notional.byAssetClass[assetClass] || 0; // notional exposure
+    const currentPercentage = marketBase > 0 ? (currentValue / marketBase) * 100 : 0;
 
     let targetValue: number;
     let targetPercentage: number;
 
-    // Special handling for cash if using fixed amount
-    if (assetClass === 'cash' && targetData.useFixedAmount) {
-      targetValue = targetData.fixedAmount || 0;
-      targetPercentage = source.totalValue > 0 ? (targetValue / source.totalValue) * 100 : 0;
+    // Special handling for cash if using a fixed amount (only reachable when cash is included).
+    if (assetClass === 'cash' && useCashFixedAmount) {
+      targetValue = cashFixedAmount;
+      targetPercentage = marketBase > 0 ? (targetValue / marketBase) * 100 : 0;
     } else {
-      const baseValue = useCashFixedAmount ? remainingValue : source.totalValue;
-      targetValue = (baseValue * targetData.targetPercentage) / 100;
-      targetPercentage = source.totalValue > 0
-        ? (targetValue / source.totalValue) * 100
-        : targetData.targetPercentage;
+      targetPercentage = targetData.targetPercentage;
+      // % of the (possibly fixed-cash-reduced) market base, as a notional € figure.
+      targetValue = (targetBase * targetPercentage) / 100;
     }
 
     const difference = currentPercentage - targetPercentage;
@@ -676,11 +751,11 @@ export function toLegacyAllocationResult(
       action: classifyAction(difference),
     };
 
-    // Compare sub-categories if they exist
+    // Compare sub-categories if they exist (relative to their parent class's notional totals).
     if (targetData.subTargets) {
       const assetClassCurrentTotal = currentValue;
       const assetClassTargetTotal = targetValue;
-      const subCurrentValues = source.bySubCategory[assetClass] ?? {};
+      const subCurrentValues = snapshot.notional.bySubCategory[assetClass] ?? {};
 
       Object.keys(targetData.subTargets).forEach((subCategory) => {
         const subTargetData = targetData.subTargets![subCategory];
@@ -719,7 +794,8 @@ export function toLegacyAllocationResult(
             // Use composite key "assetClass:subCategory:assetName"
             const specificAssetKey = `${assetClass}:${subCategory}:${specificAsset.name}`;
 
-            // Find matching assets in the portfolio and sum their (market) value
+            // Find matching assets in the portfolio and sum their (market) value. Specific-asset
+            // targets are individual unleveraged stocks, so market ≈ notional here.
             const matchingAssets = findMatchingAssets(assets, specificAsset.name, assetClass, subCategory);
             const specificCurrentValue = matchingAssets.reduce(
               (sum, asset) => sum + calculateAssetValue(asset),
@@ -752,12 +828,7 @@ export function toLegacyAllocationResult(
     }
   });
 
-  return {
-    byAssetClass,
-    bySubCategory,
-    bySpecificAsset,
-    totalValue: source.totalValue,
-  };
+  return { byAssetClass, bySubCategory, bySpecificAsset, ...baseMetadata };
 }
 
 /**
@@ -801,21 +872,23 @@ export const ALL_ASSET_CLASSES: AssetClass[] = ['equity', 'bonds', 'crypto', 're
 /**
  * Compare current allocation against targets and generate rebalancing actions.
  *
- * Basis: NOTIONAL (leverage-adjusted) exposure, self-consistent — current/target
- * percentages are always relative to the total notional exposure, so they sum to 100%
- * even when leveraged ETFs push notional above market value. This is the economically
- * correct basis for a risk-exposure target (a target says "I want 60% of my exposure in
- * equity", not "60% of my cash"). The € amounts this implies (`differenceValue`, and the
- * Ribilancia/Versa plans built from it) close the gap correctly as long as the trade is
- * executed through an unleveraged instrument — see `buildLeverageAwarePlan` for a version
- * that reuses the leveraged instruments already in the portfolio instead.
+ * Basis: LEVERAGE-AWARE — current/target percentages are notional exposure over investable
+ * MARKET capital, so they sum to the leverage ratio × 100 (a leveraged portfolio exceeds 100%).
+ * A target says "I want 90% of my capital's worth of equity exposure"; summing the targets
+ * gives the target leverage. `exclusions` removes cash and/or real estate from the base
+ * entirely (they're shown separately, "Fuori allocazione"). The € amounts this implies
+ * (`differenceValue`, and the Ribilancia/Versa plans built from it) close the gap correctly as
+ * long as the trade is executed through an unleveraged instrument — see the instrument-aware
+ * planner (`leverageAwareAllocationUtils.ts`) for a version that reuses the leveraged
+ * instruments already in the portfolio instead.
  */
 export function compareAllocations(
   assets: Asset[],
-  targets: AssetAllocationTarget | null
+  targets: AssetAllocationTarget | null,
+  exclusions?: AllocationExclusions
 ): AllocationResult {
   const snapshot = calculateCurrentAllocationSnapshot(assets, ALL_ASSET_CLASSES);
-  return toLegacyAllocationResult(snapshot, 'notional', targets, assets);
+  return toLegacyAllocationResult(snapshot, targets, assets, exclusions);
 }
 
 /**

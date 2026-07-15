@@ -232,7 +232,19 @@ export interface AssetAllocationSettings {
   // used as a soft tie-breaker by the Versa/Ribilancia instrument optimizer (buildLeverageAwarePlan):
   // among trades that reach the notional target similarly well, it prefers the one closer to this ratio.
   // Undefined = no leverage preference (optimizer ignores the leverage term entirely).
+  //
+  // DERIVED, not user-entered: it equals Σ(target class %) / 100 for the classes that are part of the
+  // allocation (a target set summing to 150% expresses a 1.5× leverage target). Kept on the settings
+  // object so the optimizer can read it, but the source of truth is `targets`. See
+  // `deriveTargetLeverageRatio` in assetAllocationService.ts.
   targetLeverageRatio?: number;
+  // When true, liquidity (cash) is EXCLUDED from the allocation base: it does not count toward the
+  // 100%+ denominator and cannot be assigned a target %. Cash is shown separately ("Fuori allocazione").
+  // Excluding cash also disables its fixed-amount reserve option (the two are alternative treatments).
+  excludeCashFromAllocation?: boolean;
+  // When true, real estate is EXCLUDED from the allocation base (same semantics as cash above). Lets a
+  // user treat their home as not part of the investable portfolio without distorting the target weights.
+  excludeRealEstateFromAllocation?: boolean;
   targets: AssetAllocationTarget;
 }
 
@@ -256,7 +268,32 @@ export interface AllocationResult {
   bySpecificAsset: {
     [specificAsset: string]: AllocationData; // Key format: "assetClass:subCategory:assetName"
   };
+  // NOTIONAL total of the investable base (excludes any excluded classes). This is the
+  // denominator for the composition bar's segment WIDTHS (pure shape). Equals `marketValue`
+  // when the portfolio is unleveraged, so an unleveraged/no-exclusion result is byte-identical
+  // to the pre-leverage behavior.
   totalValue: number;
+  // Leverage/exclusion-aware metadata (optional so legacy consumers keep working).
+  // `marketValue` = investable market capital (the base the % are measured against — every
+  // currentPercentage/targetPercentage below is notional exposure over THIS, so they sum to
+  // leverage×100, not 100). `leverageRatio` = notional / market of the investable base.
+  marketValue?: number;
+  leverageRatio?: number;
+  // Classes removed from the allocation base (cash and/or real estate), with their market
+  // value, so the page can show a "Fuori allocazione" strip without recomputing.
+  excludedClasses?: AllocationExcludedClass[];
+}
+
+/** A class deliberately kept out of the allocation base, shown separately in the UI. */
+export interface AllocationExcludedClass {
+  assetClass: string;
+  marketValue: number;
+}
+
+/** Which classes the user has chosen to keep out of the allocation base. */
+export interface AllocationExclusions {
+  cash?: boolean;
+  realestate?: boolean;
 }
 
 // New Asset Allocation contracts related to migration to calculate notional-based allocation targets

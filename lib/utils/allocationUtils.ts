@@ -100,6 +100,11 @@ export function applyRebalanceBand(
 
   return {
     totalValue: allocation.totalValue,
+    // Preserve the leverage/exclusion-aware metadata — only the per-row `action` changes with
+    // the band; the base totals, leverage ratio and excluded classes are band-independent.
+    marketValue: allocation.marketValue,
+    leverageRatio: allocation.leverageRatio,
+    excludedClasses: allocation.excludedClasses,
     byAssetClass: mapValues(allocation.byAssetClass),
     bySubCategory: mapValues(allocation.bySubCategory),
     bySpecificAsset: mapValues(allocation.bySpecificAsset),

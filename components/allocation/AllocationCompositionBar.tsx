@@ -27,26 +27,35 @@ import type { AllocationData } from '@/types/assets';
 
 interface AllocationCompositionBarProps {
   byAssetClass: Record<string, AllocationData>;
-  /** Total allocated wealth — the denominator the segment widths are relative to. */
+  /** Notional total of the investable base — the denominator the segment WIDTHS are relative to. */
   totalValue: number;
+  /** Notional / market of the base. When > 1 the labels read as % of invested capital (a
+   *  leveraged mix sums to more than 100%) and a clarifying caption is shown. */
+  leverageRatio?: number;
 }
 
 interface Segment {
   assetClass: string;
   label: string;
-  pct: number;
+  /** Segment WIDTH share (of the notional total) — always sums to 100 so the bar stays full. */
+  widthPct: number;
+  /** Displayed weight: notional exposure as % of invested capital (leveraged; sums to >100). */
+  weightPct: number;
   color: string;
 }
+
+const LEVERAGE_EPSILON = 0.005;
 
 export function AllocationCompositionBar({
   byAssetClass,
   totalValue,
+  leverageRatio = 1,
 }: AllocationCompositionBarProps) {
   const reducedMotion = useReducedMotion();
   const chartColors = useChartColors();
 
-  // Widths are computed from value/total (not the stored currentPercentage) so the
-  // segments always sum to the full bar even if rounding left the percentages off 100.
+  // Widths come from value/total (pure shape, always sums to the full bar even after rounding);
+  // the displayed weight is the leverage-aware currentPercentage (% of invested capital).
   const segments = useMemo<Segment[]>(() => {
     if (totalValue <= 0) return [];
     return Object.entries(byAssetClass)
@@ -55,13 +64,16 @@ export function AllocationCompositionBar({
         return {
           assetClass,
           label: ASSET_CLASS_LABELS[assetClass] ?? assetClass,
-          pct: (data.currentValue / totalValue) * 100,
+          widthPct: (data.currentValue / totalValue) * 100,
+          weightPct: data.currentPercentage,
           color: chartColors[index] ?? CHART_COLORS[index] ?? CHART_COLORS[0],
         };
       })
-      .filter((s) => s.pct > 0)
-      .sort((a, b) => b.pct - a.pct);
+      .filter((s) => s.widthPct > 0)
+      .sort((a, b) => b.widthPct - a.widthPct);
   }, [byAssetClass, totalValue, chartColors]);
+
+  const isLeveraged = leverageRatio > 1 + LEVERAGE_EPSILON;
 
   if (segments.length === 0) return null;
 
@@ -72,7 +84,7 @@ export function AllocationCompositionBar({
         className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
         role="img"
         aria-label={`Composizione del portafoglio: ${segments
-          .map((s) => `${s.label} ${formatPercentage(s.pct)}`)
+          .map((s) => `${s.label} ${formatPercentage(s.weightPct)}`)
           .join(', ')}`}
       >
         {segments.map((seg, i) => (
@@ -80,9 +92,9 @@ export function AllocationCompositionBar({
             key={seg.assetClass}
             className="h-full first:rounded-l-full last:rounded-r-full"
             style={{ backgroundColor: seg.color }}
-            title={`${seg.label} · ${formatPercentage(seg.pct)}`}
+            title={`${seg.label} · ${formatPercentage(seg.weightPct)}`}
             initial={reducedMotion ? false : { width: 0 }}
-            animate={{ width: `${seg.pct}%` }}
+            animate={{ width: `${seg.widthPct}%` }}
             transition={
               reducedMotion
                 ? undefined
@@ -92,7 +104,7 @@ export function AllocationCompositionBar({
         ))}
       </div>
 
-      {/* Legend: swatch · class · weight. */}
+      {/* Legend: swatch · class · weight (leverage-aware % of invested capital). */}
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
         {segments.map((seg) => (
           <li key={seg.assetClass} className="flex items-center gap-1.5">
@@ -103,11 +115,17 @@ export function AllocationCompositionBar({
             />
             <span className="text-[11px] text-muted-foreground">{seg.label}</span>
             <span className="font-mono text-[11px] tabular-nums text-foreground">
-              {formatPercentage(seg.pct)}
+              {formatPercentage(seg.weightPct)}
             </span>
           </li>
         ))}
       </ul>
+
+      {isLeveraged && (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Percentuali sul capitale investito (la somma supera 100% per effetto della leva).
+        </p>
+      )}
     </div>
   );
 }

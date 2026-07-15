@@ -34,11 +34,11 @@ import {
   compareAllocations,
   getDefaultTargets,
   buildTargetsFromGoalAllocation,
-  calculateCurrentAllocationSnapshot,
-  ALL_ASSET_CLASSES,
+  deriveTargetLeverageRatio,
+  getExcludedClasses,
 } from '@/lib/services/assetAllocationService';
 import { getGoalData, deriveTargetAllocationFromGoals } from '@/lib/services/goalService';
-import { AllocationResult, Asset, AssetAllocationTarget } from '@/types/assets';
+import { AllocationResult, Asset, AssetAllocationTarget, AllocationExclusions } from '@/types/assets';
 import { Button } from '@/components/ui/button';
 import { Settings, Sparkles, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
@@ -69,7 +69,11 @@ export default function AllocationPage() {
   const [targets, setTargets] = useState<AssetAllocationTarget | null>(null);
   const [allocation, setAllocation] = useState<AllocationResult | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
+  // Target leverage is DERIVED from the target set (Σ target % / 100), not a stored field —
+  // it feeds the instrument optimizer as a soft tie-breaker.
   const [targetLeverageRatio, setTargetLeverageRatio] = useState<number | undefined>(undefined);
+  // Which classes the user keeps out of the allocation base (cash / real estate).
+  const [exclusions, setExclusions] = useState<AllocationExclusions>({});
   const [loading, setLoading] = useState(true);
   const [usingGoalTargets, setUsingGoalTargets] = useState(false);
 
@@ -116,11 +120,21 @@ export default function AllocationPage() {
         effectiveTargets = settings?.targets || getDefaultTargets();
       }
 
+      // Cash / real estate exclusions come from Settings; they drop the class from the
+      // allocation base entirely (numerator + denominator) and disable its target.
+      const activeExclusions: AllocationExclusions = {
+        cash: settings?.excludeCashFromAllocation || false,
+        realestate: settings?.excludeRealEstateFromAllocation || false,
+      };
+
       setTargets(effectiveTargets);
       setUsingGoalTargets(fromGoals);
-      setAllocation(compareAllocations(assetsData, effectiveTargets));
+      setExclusions(activeExclusions);
+      setAllocation(compareAllocations(assetsData, effectiveTargets, activeExclusions));
       setAssets(assetsData);
-      setTargetLeverageRatio(settings?.targetLeverageRatio);
+      // Derived from the target set (a target summing to 150% means a 1.5× leverage target),
+      // consistent with the leverage the class targets encode.
+      setTargetLeverageRatio(deriveTargetLeverageRatio(effectiveTargets, activeExclusions));
     } catch (error) {
       console.error('Error loading allocation data:', error);
       toast.error('Errore nel caricamento dei dati');
@@ -153,12 +167,25 @@ export default function AllocationPage() {
     () => (bandedAllocation ? buildRebalancePlan(bandedAllocation.byAssetClass) : []),
     [bandedAllocation]
   );
-  // Notional/market split for the instrument-aware Versa/Ribilancia optimizer — same
-  // self-consistent basis compareAllocations already computes internally, exposed here so
-  // RebalancePanel/ContributionPanel can reason about the actual held instruments.
-  const allocationSnapshot = useMemo(
-    () => (assets.length > 0 ? calculateCurrentAllocationSnapshot(assets, ALL_ASSET_CLASSES) : null),
-    [assets]
+
+  // The instrument-aware Versa/Ribilancia optimizer must reason over the INVESTABLE base only:
+  // excluded classes (cash / real estate) and their instruments must not participate in trades.
+  // `bandedAllocation.byAssetClass[c].currentValue` is already the per-class notional exposure of
+  // the investable base, so the maps below are excluded-class-free by construction.
+  const investableAssets = useMemo(() => {
+    const excluded = getExcludedClasses(exclusions);
+    return assets.filter((asset) => !excluded.has(asset.assetClass));
+  }, [assets, exclusions]);
+
+  const currentNotionalByAssetClass = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(bandedAllocation?.byAssetClass ?? {}).map(([assetClass, data]) => [
+          assetClass,
+          data.currentValue,
+        ])
+      ),
+    [bandedAllocation]
   );
 
   if (loading) return <AllocationPageSkeleton />;
@@ -222,6 +249,10 @@ export default function AllocationPage() {
           {/* DECISION zone: how much / how close to target / what to do. */}
           <AllocationHero
             totalValue={bandedAllocation.totalValue}
+            marketValue={bandedAllocation.marketValue ?? bandedAllocation.totalValue}
+            leverageRatio={bandedAllocation.leverageRatio ?? 1}
+            targetLeverageRatio={targetLeverageRatio}
+            excludedClasses={bandedAllocation.excludedClasses ?? []}
             byAssetClass={bandedAllocation.byAssetClass}
             summary={balanceSummary}
             balance={balanceScore}
@@ -234,10 +265,10 @@ export default function AllocationPage() {
             moves={rebalancePlan}
             byAssetClass={bandedAllocation.byAssetClass}
             bySubCategory={bandedAllocation.bySubCategory}
-            assets={assets}
-            currentNotionalByAssetClass={allocationSnapshot?.notional.byAssetClass ?? {}}
-            currentNotionalTotal={allocationSnapshot?.notional.totalValue ?? 0}
-            currentMarketTotal={allocationSnapshot?.market.totalValue ?? 0}
+            assets={investableAssets}
+            currentNotionalByAssetClass={currentNotionalByAssetClass}
+            currentNotionalTotal={bandedAllocation.totalValue}
+            currentMarketTotal={bandedAllocation.marketValue ?? bandedAllocation.totalValue}
             targetLeverageRatio={targetLeverageRatio}
           />
 

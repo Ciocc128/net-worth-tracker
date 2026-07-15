@@ -151,9 +151,13 @@ export default function SettingsPage() {
   const [goalDrivenAllocationEnabled, setGoalDrivenAllocationEnabled] = useState<boolean>(false);
   const [stampDutyEnabled, setStampDutyEnabled] = useState<boolean>(false);
   const [stampDutyRate, setStampDutyRate] = useState<number>(0.2);
-  // Reference leverage (notional/market) for the Versa/Ribilancia instrument optimizer's
-  // soft tie-breaker. Undefined = no preference — the optimizer drops the leverage term.
+  // Target leverage (notional/market) — DERIVED from the target set on save (Σ target % / 100),
+  // no longer user-entered. Kept in state only so the derived value round-trips through load.
   const [targetLeverageRatio, setTargetLeverageRatio] = useState<number | undefined>(undefined);
+  // Keep cash / real estate OUT of the allocation base (they're not "investable portfolio").
+  // Excluding a class disables its target input and, for cash, its fixed-amount reserve.
+  const [excludeCashFromAllocation, setExcludeCashFromAllocation] = useState<boolean>(false);
+  const [excludeRealEstateFromAllocation, setExcludeRealEstateFromAllocation] = useState<boolean>(false);
   const [checkingAccountSubCategory, setCheckingAccountSubCategory] = useState<string>('__none__');
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(2025);
   const [laborIncomeCategoryIds, setLaborIncomeCategoryIds] = useState<string[]>([]);
@@ -394,6 +398,8 @@ export default function SettingsPage() {
         setStampDutyEnabled(settingsData.stampDutyEnabled ?? false);
         setStampDutyRate(settingsData.stampDutyRate ?? 0.2);
         setTargetLeverageRatio(settingsData.targetLeverageRatio);
+        setExcludeCashFromAllocation(settingsData.excludeCashFromAllocation ?? false);
+        setExcludeRealEstateFromAllocation(settingsData.excludeRealEstateFromAllocation ?? false);
         setCheckingAccountSubCategory(settingsData.checkingAccountSubCategory || '__none__');
         setCashflowHistoryStartYear(settingsData.cashflowHistoryStartYear ?? 2025);
         setLaborIncomeCategoryIds(settingsData.laborIncomeCategoryIds ?? []);
@@ -479,6 +485,8 @@ export default function SettingsPage() {
             (settingsData?.userAge !== undefined && settingsData?.riskFreeRate !== undefined),
           cashUseFixedAmount: cashTargetData?.useFixedAmount || false,
           cashFixedAmount: roundToTwoDecimals(cashTargetData?.fixedAmount || 0),
+          excludeCashFromAllocation: settingsData?.excludeCashFromAllocation ?? false,
+          excludeRealEstateFromAllocation: settingsData?.excludeRealEstateFromAllocation ?? false,
           assetClassStates: assetClasses.map((assetClass) => ({
             assetClass,
             targetPercentage: roundToTwoDecimals(
@@ -904,9 +912,19 @@ export default function SettingsPage() {
     return expenseCategories.filter(cat => cat.type === type);
   };
 
+  // A class the user has removed from the allocation base. Excluded classes carry no target and
+  // don't count toward the ≥100% total (their target input is disabled below).
+  const isClassExcludedFromAllocation = (assetClass: AssetClass): boolean =>
+    (assetClass === 'cash' && excludeCashFromAllocation) ||
+    (assetClass === 'realestate' && excludeRealEstateFromAllocation);
+
   const calculateTotal = () => {
     return assetClasses.reduce(
       (sum, assetClass) => {
+        // Excluded classes are out of the allocation base entirely.
+        if (isClassExcludedFromAllocation(assetClass)) {
+          return sum;
+        }
         // Exclude cash from percentage total if using fixed amount
         if (assetClass === 'cash' && cashUseFixedAmount) {
           return sum;
@@ -916,6 +934,10 @@ export default function SettingsPage() {
       0
     );
   };
+
+  // Target leverage the current target set encodes: the investable target % sum / 100
+  // (100% = unleveraged, 150% = 1.5× leverage). Shown read-only; drives the optimizer.
+  const derivedTargetLeverage = calculateTotal() / 100;
 
   const calculateSubTargetTotal = (assetClass: AssetClass) => {
     return (
@@ -944,9 +966,11 @@ export default function SettingsPage() {
     });
 
     const total = calculateTotal();
-    if (Math.abs(total - 100) > 0.01) {
+    // In the leverage-aware model the target % are notional exposure over invested capital, so
+    // the sum must be AT LEAST 100% (exactly 100 = unleveraged; above 100 = a leverage target).
+    if (total < 100 - 0.01) {
       toast.error(
-        `Il totale deve essere 100%. Attualmente è ${formatPercentage(total)}`
+        `Il totale deve essere almeno 100% (oltre 100% = portafoglio a leva). Attualmente è ${formatPercentage(total)}`
       );
       return;
     }
@@ -1017,9 +1041,13 @@ export default function SettingsPage() {
 
       assetClasses.forEach((assetClass) => {
         const state = assetClassStates[assetClass];
+        const excluded = isClassExcludedFromAllocation(assetClass);
         targets[assetClass] = {
-          targetPercentage: state.targetPercentage,
-          ...(assetClass === 'cash' && {
+          // Excluded classes carry no target — store 0 so the data stays clean and the
+          // leverage-aware allocation math ignores them regardless of a stale UI value.
+          targetPercentage: excluded ? 0 : state.targetPercentage,
+          // Excluding cash disables its fixed-amount reserve (the two are alternatives).
+          ...(assetClass === 'cash' && !excluded && {
             useFixedAmount: cashUseFixedAmount,
             fixedAmount: cashFixedAmount,
           }),
@@ -1077,7 +1105,10 @@ export default function SettingsPage() {
         defaultCreditCashAssetId: defaultCreditCashAssetId !== '__none__' ? defaultCreditCashAssetId : undefined,
         stampDutyEnabled,
         stampDutyRate,
-        targetLeverageRatio,
+        // Derived from the target set, not user-entered: Σ investable target % / 100.
+        targetLeverageRatio: total / 100,
+        excludeCashFromAllocation,
+        excludeRealEstateFromAllocation,
         checkingAccountSubCategory,
         cashflowHistoryStartYear,
         laborIncomeCategoryIds,
@@ -1363,6 +1394,8 @@ export default function SettingsPage() {
         autoCalculate,
         cashUseFixedAmount,
         cashFixedAmount: roundToTwoDecimals(cashFixedAmount),
+        excludeCashFromAllocation,
+        excludeRealEstateFromAllocation,
         assetClassStates: assetClasses.map((assetClass) => ({
           assetClass,
           targetPercentage: roundToTwoDecimals(
@@ -1381,7 +1414,16 @@ export default function SettingsPage() {
           })),
         })),
       }),
-    [userAge, riskFreeRate, autoCalculate, cashUseFixedAmount, cashFixedAmount, assetClassStates]
+    [
+      userAge,
+      riskFreeRate,
+      autoCalculate,
+      cashUseFixedAmount,
+      cashFixedAmount,
+      excludeCashFromAllocation,
+      excludeRealEstateFromAllocation,
+      assetClassStates,
+    ]
   );
 
   const generalSnapshotKey = useMemo(
@@ -1457,7 +1499,10 @@ export default function SettingsPage() {
   if (loading) return null;
 
   const total = calculateTotal();
-  const isValidTotal = Math.abs(total - 100) < 0.01;
+  // Leverage-aware: the target % (notional exposure over invested capital) must sum to AT LEAST
+  // 100% — exactly 100 = unleveraged, above 100 = a leverage target of total/100.
+  const isValidTotal = total >= 100 - 0.01;
+  const isLeveragedTarget = total > 100 + 0.01;
 
   return (
     <PageContainer className="space-y-4 sm:space-y-6">
@@ -1660,33 +1705,57 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Leverage target — reference for the Versa/Ribilancia instrument optimizer */}
+      {/* Base di allocazione — leverage (derived, read-only) + class exclusions */}
       <Card>
         <CardHeader>
-          <CardTitle>Leva Portafoglio</CardTitle>
+          <CardTitle>Base di Allocazione</CardTitle>
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
-          <div className="space-y-2">
-            <Label htmlFor="targetLeverageRatio">Leva target (opzionale)</Label>
-            <Input
-              id="targetLeverageRatio"
-              type="number"
-              step="0.01"
-              min="1"
-              value={targetLeverageRatio ?? ''}
-              onChange={(e) =>
-                setTargetLeverageRatio(e.target.value ? parseFloat(e.target.value) : undefined)
-              }
-              placeholder="es. 1.20 (nessuna preferenza se vuoto)"
-              className={interactiveControlClass}
-            />
-            <p className="text-xs text-muted-foreground">
-              Rapporto esposizione nozionale / valore di mercato che il motore Versa/Ribilancia
-              cerca di avvicinare quando propone quali strumenti a leva già in portafoglio
-              comprare o vendere — non forza mai una scelta peggiore rispetto al target di
-              allocazione, la usa solo per scegliere tra opzioni sostanzialmente equivalenti.
-              Lascia vuoto se non usi ETF a leva o non hai una preferenza.
-            </p>
+          <div className="space-y-5">
+            {/* Derived target leverage — no longer hand-entered; it's Σ target % / 100. */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Leva target</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Dedotta dalla somma dei target ({formatPercentage(total)} = {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×).
+                  Per impostare una leva, alloca target la cui somma supera 100%.
+                </p>
+              </div>
+              <span className="shrink-0 font-mono text-lg font-semibold text-foreground">
+                {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×
+              </span>
+            </div>
+
+            {/* Class exclusions: keep cash / real estate out of the allocation base. */}
+            <div className="space-y-3 border-t pt-4">
+              <p className="text-sm font-medium">Escludi dall&apos;allocazione</p>
+              <p className="text-xs text-muted-foreground">
+                Le classi escluse non fanno parte della base di allocazione (né dei target né del
+                confronto) e vengono mostrate a parte come &quot;Fuori allocazione&quot;.
+              </p>
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="excludeCash" className="text-sm text-muted-foreground">
+                  Liquidità
+                </Label>
+                <Switch
+                  id="excludeCash"
+                  checked={excludeCashFromAllocation}
+                  onCheckedChange={setExcludeCashFromAllocation}
+                  className={cn('shrink-0', interactiveControlClass)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="excludeRealEstate" className="text-sm text-muted-foreground">
+                  Immobili
+                </Label>
+                <Switch
+                  id="excludeRealEstate"
+                  checked={excludeRealEstateFromAllocation}
+                  onCheckedChange={setExcludeRealEstateFromAllocation}
+                  className={cn('shrink-0', interactiveControlClass)}
+                />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -2187,7 +2256,22 @@ export default function SettingsPage() {
                 </span>
               </div>
             )}
+            {/* Derived target leverage: the target set encodes it (sum/100), shown read-only. */}
+            {isLeveragedTarget && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-muted-foreground">Leva target</span>
+                <span className="text-sm font-semibold font-mono text-foreground">
+                  {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×
+                </span>
+              </div>
+            )}
           </div>
+          {!isValidTotal && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Le percentuali rappresentano l&apos;esposizione sul capitale investito: la somma deve
+              essere almeno 100% (oltre 100% = portafoglio a leva).
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -2296,7 +2380,8 @@ export default function SettingsPage() {
           >
             {formatPercentage(total)}
             {cashUseFixedAmount && ' (excl. cash)'}
-            {!isValidTotal && ' ≠ 100%'}
+            {!isValidTotal && ' < 100%'}
+            {isLeveragedTarget && ` · leva ${derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`}
           </span>
         </div>
         <div className="divide-y">
@@ -2306,6 +2391,7 @@ export default function SettingsPage() {
 
             const isAutoCalculated = autoCalculate && (assetClass === 'equity' || assetClass === 'bonds');
             const isCash = assetClass === 'cash';
+            const isExcluded = isClassExcludedFromAllocation(assetClass);
             const subTotal = calculateSubTargetTotal(assetClass);
             const isValidSubTotal = Math.abs(subTotal - 100) < 0.01;
 
@@ -2318,8 +2404,13 @@ export default function SettingsPage() {
                     {isAutoCalculated && (
                       <p className="text-xs text-primary mt-0.5">Calcolato automaticamente</p>
                     )}
+                    {isExcluded && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Escluso dall&apos;allocazione
+                      </p>
+                    )}
                   </div>
-                  {isCash && !isAutoCalculated && (
+                  {isCash && !isAutoCalculated && !isExcluded && (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Switch
                         id="cashFixedToggle"
@@ -2338,11 +2429,14 @@ export default function SettingsPage() {
                       type="number"
                       step="0.01"
                       min="0"
-                      max={isCash && cashUseFixedAmount ? undefined : '100'}
+                      // No 100 cap: a leveraged single-class target can exceed 100% (e.g. an
+                      // all-equity 1.5× target = 150% equity). Fixed-cash uses € (also uncapped).
                       value={
-                        isCash && cashUseFixedAmount
-                          ? cashFixedAmount
-                          : state.targetPercentage || 0
+                        isExcluded
+                          ? 0
+                          : isCash && cashUseFixedAmount
+                            ? cashFixedAmount
+                            : state.targetPercentage || 0
                       }
                       onChange={(e) => {
                         if (isCash && cashUseFixedAmount) {
@@ -2353,15 +2447,15 @@ export default function SettingsPage() {
                           });
                         }
                       }}
-                      disabled={isAutoCalculated}
+                      disabled={isAutoCalculated || isExcluded}
                       className={cn(
                         'w-28 text-right font-mono',
                         interactiveControlClass,
-                        isAutoCalculated ? 'bg-muted' : ''
+                        isAutoCalculated || isExcluded ? 'bg-muted' : ''
                       )}
                     />
                     <span className="text-sm text-muted-foreground w-4 shrink-0">
-                      {isCash && cashUseFixedAmount ? '€' : '%'}
+                      {isCash && cashUseFixedAmount && !isExcluded ? '€' : '%'}
                     </span>
                   </div>
                   {/* Sub-category expand/collapse */}
