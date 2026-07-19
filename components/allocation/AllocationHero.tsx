@@ -98,7 +98,9 @@ export function AllocationHero({
       <div className="flex flex-col rounded-2xl border border-border bg-card p-[22px]">
         {hasLeverage ? (
           // Two parity figures: market money vs notional exposure, leverage between them.
-          <div className="grid grid-cols-2 gap-4">
+          // Stacked on phones — two 30px mono figures don't fit side by side on a ~390px
+          // viewport and collide; they split into columns only from `tablet:` (768px) up.
+          <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 {marketLabel}
