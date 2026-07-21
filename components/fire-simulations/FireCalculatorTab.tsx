@@ -29,7 +29,9 @@ import {
   calculateFIRENetWorth,
   calculateLiquidFIRENetWorth,
   calculateIlliquidFIRENetWorth,
+  calculateAssetValue,
 } from '@/lib/services/assetService';
+import { calculatePensionLockedValue } from '@/lib/utils/pensionFire';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { getSettings, setSettings, getDefaultTargets } from '@/lib/services/assetAllocationService';
 import {
@@ -121,6 +123,8 @@ export function FireCalculatorTab() {
 
   const [tempWithdrawalRate, setTempWithdrawalRate] = useState<string>('4.0');
   const [includePrimaryResidence, setIncludePrimaryResidence] = useState<boolean>(false);
+  // When on, pension funds not yet unlocked are removed from the FIRE-eligible net worth (§5.3).
+  const [respectPensionLock, setRespectPensionLock] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(false);
 
@@ -139,7 +143,14 @@ export function FireCalculatorTab() {
   });
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
-  const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) : 0;
+  // FIRE-eligible net worth, optionally net of pension funds still locked at their unlock date (§5.3).
+  // The locked value stays in the TOTAL net worth (shown elsewhere) — this only affects FIRE readings.
+  const rawFireNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) : 0;
+  const lockedPensionValue =
+    assets && respectPensionLock
+      ? calculatePensionLockedValue(assets, new Date(), calculateAssetValue)
+      : 0;
+  const currentNetWorth = rawFireNetWorth - lockedPensionValue;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
   const illiquidNetWorth = assets ? calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) : 0;
 
@@ -171,7 +182,8 @@ export function FireCalculatorTab() {
       : withdrawalRate;
   const hasUnsavedChanges =
     tempWithdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
-    includePrimaryResidence !== (settings?.includePrimaryResidenceInFIRE ?? false);
+    includePrimaryResidence !== (settings?.includePrimaryResidenceInFIRE ?? false) ||
+    respectPensionLock !== (settings?.respectPensionLockInFire ?? false);
 
   // Decide the panel's initial state ONCE, after the form has settled to match saved settings
   // (hasUnsavedChanges === false ⇒ temp state has been seeded). Collapsed when a withdrawal rate
@@ -247,17 +259,20 @@ export function FireCalculatorTab() {
     if (isLoadingSettings) return;
     setTempWithdrawalRate((settings?.withdrawalRate ?? 4.0).toString());
     setIncludePrimaryResidence(settings?.includePrimaryResidenceInFIRE ?? false);
+    setRespectPensionLock(settings?.respectPensionLockInFire ?? false);
   }, [isLoadingSettings, settings]);
 
   const handleResetToSaved = () => {
     setTempWithdrawalRate((settings?.withdrawalRate ?? 4.0).toString());
     setIncludePrimaryResidence(settings?.includePrimaryResidenceInFIRE ?? false);
+    setRespectPensionLock(settings?.respectPensionLockInFire ?? false);
   };
 
   const mutation = useMutation({
     mutationFn: (newSettings: {
       withdrawalRate: number;
       includePrimaryResidenceInFIRE?: boolean;
+      respectPensionLockInFire?: boolean;
     }) =>
       setSettings(user!.uid, {
         ...settings,
@@ -285,6 +300,7 @@ export function FireCalculatorTab() {
     mutation.mutate({
       withdrawalRate: newWR,
       includePrimaryResidenceInFIRE: includePrimaryResidence,
+      respectPensionLockInFire: respectPensionLock,
     });
   };
 
@@ -408,6 +424,24 @@ export function FireCalculatorTab() {
                   id="includePrimaryResidence"
                   checked={includePrimaryResidence}
                   onCheckedChange={setIncludePrimaryResidence}
+                  className="mt-0.5 shrink-0"
+                />
+              </div>
+
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                <div className="min-w-0 space-y-0.5">
+                  <Label htmlFor="respectPensionLock" className="leading-normal">
+                    Considera i fondi pensione come capitale bloccato
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Se attivo, i fondi pensione non ancora sbloccati (in base alla loro data di
+                    sblocco) escono dal capitale FIRE ma restano nel patrimonio totale.
+                  </p>
+                </div>
+                <Switch
+                  id="respectPensionLock"
+                  checked={respectPensionLock}
+                  onCheckedChange={setRespectPensionLock}
                   className="mt-0.5 shrink-0"
                 />
               </div>

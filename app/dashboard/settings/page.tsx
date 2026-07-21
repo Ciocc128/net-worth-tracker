@@ -108,9 +108,12 @@ const assetClassLabels: Record<AssetClass, string> = {
   commodity: 'Materie Prime (Commodity)',
   trendFollowing: 'Trend Following',
   carry: 'Carry',
+  pension: 'Fondo Pensione',
 };
 
 // Order: Azioni → Obbligazioni → Commodities → Trend Following → Carry → Real Estate → Cash → Crypto
+// NOTE: `pension` is intentionally absent from the allocatable list below — it is always out of the
+// allocation base (see getExcludedClasses), so it never gets a target row here.
 const assetClasses: AssetClass[] = [
   'equity',
   'bonds',

@@ -151,6 +151,7 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
   commodity: number;
   trendFollowing: number;
   carry: number;
+  pension: number;
   equityPercentage: number;
   bondsPercentage: number;
   cryptoPercentage: number;
@@ -159,6 +160,7 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
   commodityPercentage: number;
   trendFollowingPercentage: number;
   carryPercentage: number;
+  pensionPercentage: number;
   month: number;
   year: number;
 }[] {
@@ -174,6 +176,7 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
     const commodity = byAssetClass.commodity || 0;
     const trendFollowing = byAssetClass.trendFollowing || 0;
     const carry = byAssetClass.carry || 0;
+    const pension = byAssetClass.pension || 0;
 
     return {
       date: `${String(snapshot.month).padStart(2, '0')}/${String(snapshot.year).slice(-2)}`,
@@ -185,6 +188,7 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
       commodity,
       trendFollowing,
       carry,
+      pension,
       equityPercentage: total > 0 ? (equity / total) * 100 : 0,
       bondsPercentage: total > 0 ? (bonds / total) * 100 : 0,
       cryptoPercentage: total > 0 ? (crypto / total) * 100 : 0,
@@ -193,6 +197,7 @@ export function prepareAssetClassHistoryData(snapshots: MonthlySnapshot[]): {
       commodityPercentage: total > 0 ? (commodity / total) * 100 : 0,
       trendFollowingPercentage: total > 0 ? (trendFollowing / total) * 100 : 0,
       carryPercentage: total > 0 ? (carry / total) * 100 : 0,
+      pensionPercentage: total > 0 ? (pension / total) * 100 : 0,
       month: snapshot.month,
       year: snapshot.year,
     };

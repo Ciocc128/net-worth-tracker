@@ -254,7 +254,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
   // Determine if asset requires manual price updates (no market ticker available)
   const requiresManualPricing = (asset: Asset) => {
     if (asset.autoUpdatePrice === false) return true;
-    const manualTypes = ['realestate', 'cash'];
+    const manualTypes = ['realestate', 'cash', 'pension'];
     if (manualTypes.includes(asset.type)) return true;
     if (asset.subCategory === 'Private Equity') return true;
     return false;

@@ -549,7 +549,7 @@ export function ExpenseTrackingTab({
     });
   }, [filteredExpenses, mobileSortKey]);
 
-  // Calculate totals from filtered expenses
+  // Calculate totals from filtered expenses.
   const totalIncome = calculateTotalIncome(filteredExpenses);
   const totalExpenses = calculateTotalExpenses(filteredExpenses);
   const netBalance = calculateNetBalance(filteredExpenses);

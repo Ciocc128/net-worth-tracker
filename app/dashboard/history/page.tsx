@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { HistoryPageSkeleton } from '@/components/history/HistoryPageSkeleton';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { useChartColors } from '@/lib/hooks/useChartColors';
+import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { getAllAssets, calculateTotalEstimatedTaxes } from '@/lib/services/assetService';
 import { getUserSnapshots, updateSnapshotNote } from '@/lib/services/snapshotService';
 import {
@@ -470,6 +471,7 @@ export default function HistoryPage() {
     commodity: chartColors[5],
     trendFollowing: chartColors[6],
     carry: chartColors[7],
+    pension: getAssetClassCssVar('pension'),
   };
 
   return (
@@ -925,6 +927,7 @@ export default function HistoryPage() {
                             <Line type="monotone" dataKey="commodityPercentage" stroke={acColors.commodity} strokeWidth={2} name="Materie Prime" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
                             <Line type="monotone" dataKey="trendFollowingPercentage" stroke={acColors.trendFollowing} strokeWidth={2} name="Trend Following" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
                             <Line type="monotone" dataKey="carryPercentage" stroke={acColors.carry} strokeWidth={2} name="Carry" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
+                            <Line type="monotone" dataKey="pensionPercentage" stroke={acColors.pension} strokeWidth={2} name="Previdenza" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
                           </LineChart>
                         ) : (
                           <AreaChart data={assetClassHistory} margin={getChartMargins()}>
@@ -941,6 +944,7 @@ export default function HistoryPage() {
                             <Area type="monotone" dataKey="commodity" stroke={acColors.commodity} fill={acColors.commodity} fillOpacity={0.8} name="Materie Prime" animationDuration={800} animationEasing="ease-out" label={false} />
                             <Area type="monotone" dataKey="trendFollowing" stroke={acColors.trendFollowing} fill={acColors.trendFollowing} fillOpacity={0.8} name="Trend Following" animationDuration={800} animationEasing="ease-out" label={false} />
                             <Area type="monotone" dataKey="carry" stroke={acColors.carry} fill={acColors.carry} fillOpacity={0.8} name="Carry" animationDuration={800} animationEasing="ease-out" label={false} />
+                            <Area type="monotone" dataKey="pension" stroke={acColors.pension} fill={acColors.pension} fillOpacity={0.8} name="Previdenza" animationDuration={800} animationEasing="ease-out" label={false} />
                           </AreaChart>
                         )}
                       </ResponsiveContainer>

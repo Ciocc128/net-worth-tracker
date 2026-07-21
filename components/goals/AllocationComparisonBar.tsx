@@ -25,6 +25,7 @@ const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   commodity: 'Materie Prime',
   trendFollowing: 'Trend Following',
   carry: 'Carry',
+  pension: 'Fondo Pensione',
 };
 
 function AllocationBar({
@@ -85,6 +86,7 @@ export function AllocationComparisonBar({
         : '#F97316',
     trendFollowing: chartColors[5] || '#14B8A6',
     carry: chartColors[6] || '#F97316',
+    pension: chartColors[7] || '#64748B',
   };
 
   const hasActual = Object.values(actualAllocation).some((v) => v && v > 0);

@@ -37,6 +37,7 @@ export const ASSET_CLASS_LABELS: Record<string, string> = {
   commodity: 'Materie Prime',
   trendFollowing: 'Trend Following',
   carry: 'Carry',
+  pension: 'Fondo Pensione',
 };
 
 // ---------------------------------------------------------------------------
@@ -223,6 +224,7 @@ export const ASSET_CLASS_CHART_INDEX: Record<string, number> = {
   commodity: 5,
   trendFollowing: 6,
   carry: 7,
+  pension: 8,
 };
 
 export interface BalanceScore {

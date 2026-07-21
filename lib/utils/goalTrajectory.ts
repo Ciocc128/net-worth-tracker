@@ -36,6 +36,8 @@ export const GOAL_CLASS_RETURNS: Record<AssetClass, number> = {
   commodity: 3,
   trendFollowing: 5,
   carry: 4,
+  // Blended comparto assumption; conservative since the fund is not user-tradable per goal.
+  pension: 3,
 };
 
 // Used when a goal has no recommended allocation to weight the return.

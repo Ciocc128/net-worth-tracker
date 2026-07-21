@@ -33,5 +33,7 @@ export const DEFAULT_SUB_CATEGORIES: Record<AssetClass, string[]> = {
     'Fixed Income Carry',
     'Commodity Carry',
   ],
+  // Fondo pensione is tracked as a single aggregate balance (no per-comparto split).
+  pension: [],
 };
 
