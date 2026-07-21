@@ -107,9 +107,10 @@ export function calculateGoalProgress(
     const assignedValue = (assetValue * assignment.percentage) / 100;
     currentValue += assignedValue;
 
-    // Track allocation by asset class for comparison with recommended
-    // For composite assets, distribute across their component classes
-    if (asset.composition && asset.composition.length > 0) {
+    // Track allocation by asset class for comparison with recommended.
+    // For composite assets, distribute across their component classes — EXCEPT a fondo pensione,
+    // which is kept whole as class 'pension' everywhere but its dedicated view (spec §2.1).
+    if (asset.type !== 'pension' && asset.composition && asset.composition.length > 0) {
       for (const comp of asset.composition) {
         const compValue = (assignedValue * comp.percentage) / 100;
         allocationByClass[comp.assetClass] =

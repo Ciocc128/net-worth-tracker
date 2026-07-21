@@ -6,10 +6,18 @@
  * `taxOf` injection matches production behaviour, including a deduction that straddles two brackets.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// fireService transitively imports Firebase-coupled services; stub them so importing its pure
+// tax helpers doesn't boot Firebase (mirrors __tests__/fireService.test.ts).
+vi.mock('@/lib/services/expenseService', () => ({}));
+vi.mock('@/lib/services/snapshotService', () => ({}));
+
 import {
   computePensionDeductionState,
   computePensionTaxBenefit,
+  computePensionTaxRecap,
+  deriveBenefitTaxRate,
   getPensionDeductionCeiling,
   getPensionExtraDeductionCap,
   PENSION_DEDUCTION_CEILING_LEGACY,
@@ -175,5 +183,57 @@ describe('computePensionTaxBenefit', () => {
   it('matches a flat injected tax function', () => {
     const flat = (income: number) => income * 0.35;
     expect(computePensionTaxBenefit(4000, 40000, flat)).toBeCloseTo(1400, 6);
+  });
+});
+
+describe('deriveBenefitTaxRate', () => {
+  it('stays at 15% through the first 15 years of participation', () => {
+    expect(deriveBenefitTaxRate(0)).toBe(15);
+    expect(deriveBenefitTaxRate(15)).toBe(15);
+  });
+
+  it('drops 0.30 points per year beyond the 15th', () => {
+    expect(deriveBenefitTaxRate(16)).toBeCloseTo(14.7, 6);
+    expect(deriveBenefitTaxRate(20)).toBeCloseTo(13.5, 6);
+  });
+
+  it('floors at 9% (reached at 35 years) and never goes below', () => {
+    expect(deriveBenefitTaxRate(35)).toBeCloseTo(9, 6);
+    expect(deriveBenefitTaxRate(50)).toBe(9);
+  });
+});
+
+describe('computePensionTaxRecap', () => {
+  const taxOf = (income: number) => calculateProgressiveTax(income, getDefaultCoastFireTaxBrackets());
+
+  it('returns the deduction state and the euro tax saving together', () => {
+    const recap = computePensionTaxRecap(
+      {
+        targetYear: 2026,
+        enrollmentYear: 2026,
+        isFirstJobPost2007: false,
+        deductibleContribByYear: { 2026: 4000 },
+      },
+      40000,
+      taxOf
+    );
+    expect(recap.state.deductedThisYear).toBe(4000);
+    // RAL 40.000 and RAL−4.000 both sit in the 35% band → 4.000 × 35% = 1.400.
+    expect(recap.taxSaving).toBeCloseTo(1400, 6);
+  });
+
+  it('still computes the plafond state when RAL is 0 (saving is 0)', () => {
+    const recap = computePensionTaxRecap(
+      {
+        targetYear: 2026,
+        enrollmentYear: 2026,
+        isFirstJobPost2007: true,
+        deductibleContribByYear: { 2026: 1000 }, // under the ceiling → banks plafond
+      },
+      0,
+      taxOf
+    );
+    expect(recap.taxSaving).toBe(0);
+    expect(recap.state.plafondCreatedThisYear).toBeCloseTo(PENSION_DEDUCTION_CEILING_2026 - 1000, 6);
   });
 });

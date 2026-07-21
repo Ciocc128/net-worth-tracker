@@ -21,6 +21,7 @@ import { getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 import { getSettings } from './assetAllocationService';
 import { computeDividendYieldMetrics } from '@/lib/utils/yieldOnCost';
+import { toPerformanceBaseSnapshots } from '@/lib/utils/performanceBase';
 
 const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
 
@@ -1381,9 +1382,15 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     }
   }
 
+  // ==== STEP 2.5: Project onto the PORTFOLIO base (exclude the fondo pensione, spec §8.3) ====
+  // The Rendimenti page measures investment performance of the portfolio the user manages, so the
+  // pension is removed from the base (like the primary residence). Net-worth accumulation lives in
+  // Storico/Dashboard. `snapshots` (original) is still used for the cache key and snapshot count.
+  const basedSnapshots = toPerformanceBaseSnapshots(snapshots, 'portfolio');
+
   // ==== STEP 3: Pre-fetch all expenses once for entire history ====
   // Single Firestore query, then filtered in-memory for each period calculation.
-  const sortedSnapshots = [...snapshots].sort((a, b) => {
+  const sortedSnapshots = [...basedSnapshots].sort((a, b) => {
     if (a.year !== b.year) return a.year - b.year;
     return a.month - b.month;
   });
@@ -1399,16 +1406,16 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
 
   // ==== STEP 4: Calculate metrics for all time periods ====
   const [ytd, oneYear, threeYear, fiveYear, allTime] = await Promise.all([
-    calculatePerformanceForPeriod(userId, snapshots, 'YTD', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
-    calculatePerformanceForPeriod(userId, snapshots, '1Y', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
-    calculatePerformanceForPeriod(userId, snapshots, '3Y', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
-    calculatePerformanceForPeriod(userId, snapshots, '5Y', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
-    calculatePerformanceForPeriod(userId, snapshots, 'ALL', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
+    calculatePerformanceForPeriod(userId, basedSnapshots, 'YTD', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
+    calculatePerformanceForPeriod(userId, basedSnapshots, '1Y', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
+    calculatePerformanceForPeriod(userId, basedSnapshots, '3Y', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
+    calculatePerformanceForPeriod(userId, basedSnapshots, '5Y', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
+    calculatePerformanceForPeriod(userId, basedSnapshots, 'ALL', riskFreeRate, undefined, undefined, allExpenses, dividendCategoryId),
   ]);
 
   // ==== STEP 5: Calculate rolling periods (reuse allExpenses — no extra Firestore queries) ====
-  const rolling12M = await calculateRollingPeriods(userId, snapshots, 12, riskFreeRate, dividendCategoryId, allExpenses);
-  const rolling36M = await calculateRollingPeriods(userId, snapshots, 36, riskFreeRate, dividendCategoryId, allExpenses);
+  const rolling12M = await calculateRollingPeriods(userId, basedSnapshots, 12, riskFreeRate, dividendCategoryId, allExpenses);
+  const rolling36M = await calculateRollingPeriods(userId, basedSnapshots, 36, riskFreeRate, dividendCategoryId, allExpenses);
 
   const result: PerformanceData = {
     ytd,

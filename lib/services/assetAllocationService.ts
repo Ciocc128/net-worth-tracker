@@ -80,6 +80,10 @@ export async function getSettings(
       assistantMacroContextEnabled: data.assistantMacroContextEnabled,
       assistantMemoryEnabled: data.assistantMemoryEnabled,
       costCentersEnabled: data.costCentersEnabled,
+      grossAnnualIncome: data.grossAnnualIncome,
+      isFirstEmploymentPost2007: data.isFirstEmploymentPost2007,
+      firstEmploymentYear: data.firstEmploymentYear,
+      respectPensionLockInFire: data.respectPensionLockInFire,
       monthlyEmailEnabled: data.monthlyEmailEnabled,
       quarterlyEmailEnabled: data.quarterlyEmailEnabled,
       semiAnnualEmailEnabled: data.semiAnnualEmailEnabled,
@@ -236,6 +240,18 @@ export async function setSettings(
       if (settings.costCentersEnabled !== undefined) {
         docData.costCentersEnabled = settings.costCentersEnabled;
       }
+      if (settings.grossAnnualIncome !== undefined) {
+        docData.grossAnnualIncome = settings.grossAnnualIncome;
+      }
+      if (settings.isFirstEmploymentPost2007 !== undefined) {
+        docData.isFirstEmploymentPost2007 = settings.isFirstEmploymentPost2007;
+      }
+      if (settings.firstEmploymentYear !== undefined) {
+        docData.firstEmploymentYear = settings.firstEmploymentYear;
+      }
+      if (settings.respectPensionLockInFire !== undefined) {
+        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
+      }
       if (settings.monthlyEmailEnabled !== undefined) {
         docData.monthlyEmailEnabled = settings.monthlyEmailEnabled;
       }
@@ -368,6 +384,18 @@ export async function setSettings(
       }
       if (settings.costCentersEnabled !== undefined) {
         docData.costCentersEnabled = settings.costCentersEnabled;
+      }
+      if (settings.grossAnnualIncome !== undefined) {
+        docData.grossAnnualIncome = settings.grossAnnualIncome;
+      }
+      if (settings.isFirstEmploymentPost2007 !== undefined) {
+        docData.isFirstEmploymentPost2007 = settings.isFirstEmploymentPost2007;
+      }
+      if (settings.firstEmploymentYear !== undefined) {
+        docData.firstEmploymentYear = settings.firstEmploymentYear;
+      }
+      if (settings.respectPensionLockInFire !== undefined) {
+        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
       }
       if (settings.monthlyEmailEnabled !== undefined) {
         docData.monthlyEmailEnabled = settings.monthlyEmailEnabled;
@@ -621,6 +649,10 @@ function classifyAction(difference: number): AllocationData['action'] {
  */
 export function getExcludedClasses(exclusions?: AllocationExclusions): Set<string> {
   const excluded = new Set<string>();
+  // Pension is ALWAYS out of the allocation base (not a user toggle): a fondo pensione is locked,
+  // illiquid retirement capital, not a portfolio position to rebalance. It carries no target and
+  // never enters numerator/denominator or the target-leverage sum.
+  excluded.add('pension');
   if (exclusions?.cash) excluded.add('cash');
   if (exclusions?.realestate) excluded.add('realestate');
   return excluded;

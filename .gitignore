@@ -52,6 +52,8 @@ next-env.d.ts
 # Local tool directories (Claude Code, Antigravity CLI)
 .agents/
 .antigravitycli/
+.claude/
+scratchpad/
 skills-lock.json
 
 # Editor

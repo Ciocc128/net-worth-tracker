@@ -49,6 +49,7 @@ import { AllocationHero } from '@/components/allocation/AllocationHero';
 import { RebalanceBandControl } from '@/components/allocation/RebalanceBandControl';
 import { ActionPlanner } from '@/components/allocation/ActionPlanner';
 import { AllocationBreakdown } from '@/components/allocation/AllocationBreakdown';
+import { PensionAllocationCards } from '@/components/allocation/PensionAllocationCards';
 import {
   applyRebalanceBand,
   summarizeBalance,
@@ -282,6 +283,10 @@ export default function AllocationPage() {
             </div>
 
             <AllocationBreakdown allocation={bandedAllocation} targets={targets} />
+
+            {/* Read-only previdenza views (spec §8.1) — the fund is excluded from the actionable pie
+                above; these two cards show its underlying mix and the combined split. */}
+            <PensionAllocationCards assets={assets} />
 
             {user && <ExposureSection userId={user.uid} />}
           </div>

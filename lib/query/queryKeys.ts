@@ -27,6 +27,13 @@ export const queryKeys = {
     categories: (userId: string) => ['expense-categories', userId] as const,
   },
 
+  // Pension contributions (dedicated collection, per user; optionally scoped to one fund asset).
+  pensionContributions: {
+    all: (userId: string) => ['pension-contributions', userId] as const,
+    byAsset: (userId: string, assetId: string) =>
+      ['pension-contributions', userId, assetId] as const,
+  },
+
   // Assistant
   assistant: {
     threads: (userId: string) => ['assistant', 'threads', userId] as const,

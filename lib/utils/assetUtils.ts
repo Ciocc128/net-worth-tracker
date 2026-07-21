@@ -9,6 +9,7 @@ const ASSET_NAME_MAP: Record<string, string> = {
   commodity: 'Commodity',
   trendfollowing: 'Trend Following',
   carry: 'Carry',
+  pension: 'Fondo Pensione',
 };
 
 export function formatAssetClassName(name: string): string {

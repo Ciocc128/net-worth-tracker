@@ -1,3 +1,5 @@
+import type { PensionFundDetails } from './pension';
+
 // AssetType: Granular classification used in UI (stock, ETF, bond, crypto, etc.)
 // AssetClass: Broad financial categories for allocation analysis (equity, bonds, etc.)
 //
@@ -8,10 +10,13 @@
 // - crypto -> crypto
 // - cash -> cash
 // - realestate -> realestate
-export type AssetType = 'stock' | 'etf' | 'leveragedEtf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate';
+// - pension -> pension (fondo pensione: manually-valued, always OUT of allocation, locked for FIRE)
+export type AssetType = 'stock' | 'etf' | 'leveragedEtf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate' | 'pension';
 // trendFollowing/carry are strategy classes, not instrument types — they're held via
 // existing types (typically 'etf', sometimes 'stock') with assetClass set explicitly.
-export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity' | 'trendFollowing' | 'carry';
+// pension is its own class so the fondo pensione is kept out of the target allocation base
+// (see getExcludedClasses) and can be surfaced separately as locked, illiquid wealth.
+export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity' | 'trendFollowing' | 'carry' | 'pension';
 
 // Coupon payment frequency for bonds.
 // Determines how many times per year the coupon is paid.
@@ -99,6 +104,10 @@ export interface Asset {
   autoUpdatePrice?: boolean; // Default: true - indicates whether price should be automatically updated via Yahoo Finance
   leverageRatio?: number; // For leveraged ETFs: 2 for 2x, 3 for 3x, 1 for regular ETF
   composition?: AssetComposition[]; // For composite assets (e.g., pension funds with mixed allocation: 60% equity, 40% bonds)
+  // Populated only for fondo pensione assets (type 'pension'): provider, enrollment/unlock dates and
+  // the caches the tax/FIRE layers need. The contributions themselves live in the dedicated
+  // `pensionContributions` collection (never as expenses). See types/pension.ts. Spec §2.1.
+  pensionFundDetails?: PensionFundDetails;
   outstandingDebt?: number; // Outstanding mortgage/loan for real estate. Net value calculation: value - outstandingDebt
   isPrimaryResidence?: boolean; // Indicates if this real estate is the primary residence (excluded from FIRE calculations based on user setting)
   isin?: string; // ISIN code for dividend scraping (optional)
@@ -137,6 +146,7 @@ export interface AssetFormData {
   isPrimaryResidence?: boolean;
   isin?: string; // ISIN code for dividend scraping (optional)
   bondDetails?: BondDetails; // Optional bond-specific details for coupon scheduling
+  pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (provider, enrollment/unlock dates)
 }
 
 export interface SubCategoryConfig {
@@ -208,6 +218,11 @@ export interface AssetAllocationSettings {
   coastFireCustomExpenses?: number; // User-defined annual retirement expenses for Coast FIRE; undefined = derive from last complete year
   coastFirePensions?: CoastFirePensionInput[]; // Optional state-pension inputs used only by the Coast FIRE tab
   coastFireTaxBrackets?: CoastFireTaxBracket[]; // Progressive IRPEF brackets used to estimate state-pension net income
+  // Pension (fondo pensione) tax parameters — person-level, shared across all funds (spec §3.1/§6.5).
+  grossAnnualIncome?: number; // RAL: authoritative gross annual income for the marginal-rate / tax-benefit estimate
+  isFirstEmploymentPost2007?: boolean; // Enables the extra-deducibilità plafond recovery (§3.4); only for first employment after 2007-01-01
+  firstEmploymentYear?: number; // Calendar year the first employment began — start of the 5-year plafond-accrual window (§3.4)
+  respectPensionLockInFire?: boolean; // When true, pension funds not yet unlocked are removed from FIRE-eligible net worth (§5.3)
   includePrimaryResidenceInFIRE?: boolean; // If true, include primary residences in FIRE calculations; if false, exclude them (FIRE standard)
   dividendIncomeCategoryId?: string; // Category ID for automatic dividend income entries
   dividendIncomeSubCategoryId?: string; // Subcategory ID for automatic dividend income entries

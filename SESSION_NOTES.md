@@ -1,4 +1,246 @@
+# SESSION NOTES — 2026-07-21 — Review compliance vs `spec-fondo-pensione.md`
+
+## Obiettivo della sessione
+Verificare il branch `pension-fund` contro `scratchpad/spec-fondo-pensione.md` (specifiche funzionali
+autorevoli, §7 decisioni prese, §8 viste) e produrre un **piano di review + refactor** per renderlo
+compliant. La spec è la fonte di verità: dove le decisioni del 2026-07-19 (sotto) divergono, **vince
+la spec** salvo diversa indicazione di Giorgio.
+
+## Stato verificato (2026-07-21)
+- `npx tsc --noEmit` **pulito**; `vitest` sui 4 file pension **30/30 verdi**.
+- `firestore.rules`: **nessuna** regola `pensionContributions` (la collection dedicata non esiste).
+- Il **layer fiscale puro è solido e in gran parte compliant**: `types/pension.ts` +
+  `lib/utils/pensionDeduction.ts` (deducibilità ordinaria + fold extra-deducibilità con
+  accumulo/drawdown/scadenza, tetti configurabili per-anno, `taxOf` iniettato). Da mantenere.
+
+## Divergenze modello vs spec (ordinate per gravità)
+
+### 🔴 BLOCCANTI (l'architettura scelta contraddice esplicitamente la spec)
+1. **Contribuzioni come `Expense` taggate (`pensionContributionNature`) invece della collection
+   dedicata `pensionContributions`.** La spec §2.2/§2.3 lo **vieta esplicitamente** ("❌ Non
+   modellare le contribuzioni come `expenses`... inquinerebbero savings rate e budget"). L'impl
+   attuale è costretta a neutralizzare/filtrare i contributi in *ogni* choke point di cashflow —
+   esattamente il "combattere l'architettura" che la spec evita. → serve collection dedicata
+   (pattern `dividends`) + regole + indici.
+2. **`pension` aggiunto come nuovo `AssetClass`.** Spec §2.1: «il fondo **NON** è una nuova asset
+   class» — è equity+bonds via `composition[]`. Va aggiunto solo `AssetType: 'pensionFund'` + blocco
+   `PensionFundDetails`, tenendo il fondo fuori dalla base d'allocazione con un'esclusione dedicata
+   (non una classe fantasma da patchare in ogni `Record<AssetClass,…>`).
+3. **`PensionFundDetails` assente.** Spec §2.1: provider, `enrollmentDate`, `firstEmploymentDate`,
+   `isFirstEmploymentPost2007`, `unlockDate`, `currentBenefitTaxRate`, cumulativi. Nessuno esiste →
+   FIRE/tassazione/plafond non hanno i dati d'ingresso previsti.
+4. **Volontario NON è un transfer.** Spec §4.3/§7.2: flusso dedicato che riusa `reconcileTransferCreate`
+   (decrementa conto, incrementa valore fondo) + crea `PensionContribution`. Impl: spesa `variable`
+   neutralizzata, senza conto di provenienza, senza toccare il NAV.
+5. **Semantica del valore del fondo assente.** Spec §4.2/§7.1: versamento → `valore += importo`
+   immediato; estratto conto → overwrite assoluto. Impl: valore 100% manuale, i contributi non lo
+   toccano → si perde il rendimento money-weighted (§8.3).
+
+### 🟠 IMPORTANTI (default/semantica invertiti o feature mancanti in scope Fase 1-2)
+6. **Toggle cashflow invertito.** Spec §4.1/§7.3: `includePensionContributionsInCashflow`, default
+   **off** (TFR/datoriale NON sono income di default). Impl: `excludePensionAccrualsFromCashflow` —
+   default TFR/datoriale **sono** income, toggle per escluderli. Default opposto alla spec.
+7. **Campo RAL `grossAnnualIncome` in Settings mancante** (spec §3.1/§6.5) → il beneficio fiscale non
+   è calcolabile end-to-end pur avendo la util pronta.
+8. **`PensionContributionDialog` incompleto** (spec §6.3): mancano anno fiscale, selettore conto di
+   provenienza per il volontario, micro-education per natura.
+
+### 🟡 VISTE / FASI SUCCESSIVE (Fase 3-4 spec, non ancora iniziate — coerente con lo stato)
+9. FIRE: toggle "capitale bloccato fino a `unlockDate`" per-fondo + aliquota 15→9% (spec §5). Assente.
+10. Coast FIRE: fondo come terza gamba distinta da INPS (spec §5.4). Assente.
+11. Viste §8: Allocazione (2 card read-only), Storico (segmento previdenza), Rendimenti
+    (`performanceBase` portfolio/netWorth), **vista dedicata "Previdenza complementare" in
+    Pianificazione** con link dalla card in Patrimonio. Assenti.
+
+### ⚠️ Conflitti decisione 2026-07-19 ↔ spec (da confermare con Giorgio)
+- **Casa della feature**: 2026-07-19 → tab "Previdenza" in `fire-simulations`. Spec §8.4 → **vista
+  dedicata nel gruppo Pianificazione** + link dalla card asset. La spec vince salvo diversa scelta.
+- **Contribuzioni via Cashflow** (2026-07-19) ↔ collection dedicata (spec §2.2). La spec vince.
+- Queste erano scelte pragmatiche MVP; la spec, più recente e autorevole, le supera.
+
+## Decisioni Giorgio (2026-07-21)
+- **Contribuzioni → collection dedicata** `pensionContributions` (spec §2.2), refactor completo:
+  rimuovere il tag da `Expense` e tutta la neutralizzazione nei choke point.
+- **Casa feature → vista dedicata in Pianificazione** (spec §8.4) + link dalla card asset; NON più il
+  tab in fire-simulations.
+- **Si parte da R0-R1** (fondamenta dati + migrazione contribuzioni).
+
+## FATTO in questa sessione (R1 completo + C + R0 additivo) — tutto verde
+Verifica finale: `npx tsc --noEmit` **pulito**, suite **1037 test verdi** (60 file).
+
+- **R0 additivo**: `PensionContribution` + `PensionFundDetails` in `types/pension.ts`; `Asset` ha ora
+  `pensionFundDetails?` (`types/assets.ts`). Alias `ContributionSource` = `PensionContributionNature`
+  + helper `isDeductibleSource`.
+- **R1 — collection dedicata `pensionContributions`** (spec §2.2):
+  - `lib/services/pensionContributionService.ts` riscritto → scrive/legge su `pensionContributions`
+    (client Firestore, referenzia il fondo via `assetId`, `taxYear`, `deductible` derivato).
+  - `firestore.rules`: nuovo blocco `pensionContributions` (clone di `expenses`). `firestore.indexes.json`:
+    indici `(userId,date desc)` e `(userId,assetId,date desc)`. **DA DEPLOYARE** (`firebase deploy
+    --only firestore:rules,firestore:indexes`).
+  - `lib/hooks/usePensionContributions.ts` + `queryKeys.pensionContributions`.
+  - `lib/utils/pensionContributions.ts` riscritto per `PensionContribution[]` (chiave = `taxYear`).
+  - `PensionContributionDialog`: selettore fondo + natura + importo + data + anno fiscale; scrive su
+    collection. `PensionTab`: legge da `usePensionContributions`, deriva i fondi da `useAssets`
+    (`type==='pension'`).
+- **C — rimosso tutto l'accoppiamento con `Expense`**: eliminato `pensionContributionNature` da
+  `Expense`/`ExpenseFormData` e la neutralizzazione in `expenseService` (isCountableExpense/summary),
+  `cashflowTimeSeries`, `budgetUtils`, `dashboardOverviewService`, `monthlyEmailService`. Rimosso il
+  selettore natura da `ExpenseDialog`. Rimosso il flag `excludePensionAccrualsFromCashflow`
+  (types/assets, assetAllocationService ×2 write-path, settings page ×6 incl. Switch UI, cashflow
+  page ×3, ExpenseTrackingTab). Eliminati `lib/utils/pensionCashflow.ts`, `__tests__/pensionCashflow.test.ts`,
+  `__tests__/pensionMetricNeutralization.test.ts`. Riscritto `__tests__/pensionContributions.test.ts`.
+  Motivazione: nel modello spec i volontari NON sono expenses (vanno in collection dedicata, e in R2
+  diventano `transfer` già neutralizzati) → tutta la neutralizzazione era codice morto.
+
+## FATTO in questa sessione — parte 2 (R2 + R3 + R4a) — tutto verde
+Verifica: `tsc` pulito, **1042 test verdi** (60 file).
+
+- **R2 — valore fondo + volontario come transfer** (§4.2/§4.3): `pensionContributionService` ora
+  orchestratore. TFR/datoriale → `updateCashAssetBalance(fondo, +importo)` (il valore del fondo vive
+  in `quantity`, prezzo 1, come il cash). Volontario → `ensureTransferCategory` + `createExpense`
+  (transfer conto→fondo) + `reconcileTransferCreate` (conto −importo, fondo +importo, atomico) +
+  `PensionContribution.linkedExpenseId`. Dialog: selettore conto di provenienza (solo volontario) +
+  invalidazione asset/expenses/dashboard. L'estratto conto resta un edit manuale dell'asset (overwrite).
+- **R3 — RAL + beneficio fiscale + plafond** (§3): `computePensionTaxRecap` puro (wrapper su
+  deduction state + `computePensionTaxBenefit` con `taxOf` iniettato) + test. Settings:
+  `grossAnnualIncome` (RAL), `isFirstEmploymentPost2007`, `firstEmploymentYear` (persistiti in
+  `assetAllocationService` 2 write-path). PensionTab: card «Beneficio fiscale {anno}» (deducibili,
+  TFR escluso, risparmio IRPEF via `calculateProgressiveTax` + brackets Coast FIRE) + card «Plafond
+  deducibilità» (creato/residuo/extra) per prima-occupazione-post-2007; RAL/prima-occupazione
+  editabili inline. **NOTA**: il toggle `includePensionContributionsInCashflow` (§4.1) NON è stato
+  fatto — nel nuovo modello (contributi fuori dal cashflow) richiederebbe iniezione di income
+  figurativo cross-superficie; default-off = app corretta senza. Da valutare se serve davvero.
+- **R4a — aliquota prestazione 15→9%** (§5.2): `deriveBenefitTaxRate(yearsEnrolled)` puro + test
+  (15% ≤15 anni, −0,30 p.p./anno, floor 9% a 35 anni).
+- **Storico versamenti + eliminazione** (post-test): lista in PensionTab con delete 2-click che
+  **storna l'effetto**: `deletePensionContribution(contribution)` fa il reverse — TFR/datoriale →
+  `updateCashAssetBalance(fondo, −importo)`; volontario → `reconcileTransferDelete` (conto +importo,
+  fondo −importo) + `deleteExpense(linkedExpenseId)`. `PensionContribution` ha ora `sourceCashAssetId`
+  persistito per lo storno. **Edit versamento: NON ancora fatto** (per ora = elimina + reinserisci).
+
+## FATTO in questa sessione — parte 3 (AssetDialog + R4b + viste §8.2/§8.4) — tutto verde
+Verifica: `tsc` pulito, **1046 test verdi** (61 file). Firestore già deployato.
+
+- **AssetDialog — `PensionFundDetails`**: campi provider / data adesione / data sblocco per il tipo
+  pension (schema zod + reset edit + assemblaggio submit + UI). Date come **stringhe ISO** (round-trip
+  Firestore pulito, niente conversione Timestamp). `AssetFormData` += `pensionFundDetails`.
+- **R4b — FIRE capitale bloccato** (§5.3): setting `respectPensionLockInFire` + toggle nel
+  Calcolatore FIRE. Helper puro `lib/utils/pensionFire.ts::calculatePensionLockedValue` (valueOf
+  iniettato) + test. `FireCalculatorTab`: `currentNetWorth = fireNW − valore fondi bloccati` quando on
+  (il valore resta nel patrimonio totale). Coast FIRE terza gamba + withdrawal netto 15→9% = Fase 2/3
+  spec, **rimandati**.
+- **Vista dedicata «Previdenza»** (§8.4): nuova pagina `/dashboard/pension` (riusa `PensionTab`),
+  registrata in `planningNav` (gruppo Pianificazione), tab rimosso da `fire-simulations`, **link
+  «Vai a Previdenza»** dalla card asset pension in Patrimonio.
+- **Storico segmento previdenza** (§8.2): `prepareAssetClassHistoryData` (`chartService`) aggiungeva
+  6 classi hardcoded e **droppava `pension`** → aggiunto `pension`/`pensionPercentage`; serie
+  «Previdenza» nei due grafici Composizione (Line % + Area). **Conferma**: la classe `pension` è ciò
+  che alimenta il segmento → tenerla era giusto (checkpoint D di rimozione classe è quindi SCONSIGLIATO).
+
+## FATTO in questa sessione — parte 4 (§8.1 + §8.3) — tutto verde
+Verifica: `tsc` pulito, **1049 test verdi** (62 file).
+
+- **§8.3 — Rendimenti base portafoglio**: helper puro `lib/utils/performanceBase.ts`
+  (`toPerformanceBaseSnapshots`, enum `PerformanceBase` estendibile) + test. Applicato in
+  `getAllPerformanceData` (fetch interno) e nella pagina Rendimenti (`cachedSnapshots`) → tutte le
+  metriche di portafoglio (TWR/Sharpe/vol/MaxDD/ROI/CAGR) ora escludono `byAssetClass.pension`. Unico
+  consumer = pagina Rendimenti, nessun impatto altrove. Versione MINIMA come da spec («niente di
+  più»); limite noto documentato nell'helper: il volontario è un outflow di portafoglio non
+  neutralizzato nel TWR (TFR/datoriale non toccano il portafoglio → nessun effetto).
+- **§8.1 — Allocazione 2 card read-only**: `components/allocation/PensionAllocationCards.tsx` —
+  toggle «Mostra previdenza complementare» → Card A (sottostante fondo via `expandAssetExposure`) +
+  Card B (portafoglio + previdenza). Torta principale/action chip **intoccate** (fondo già escluso).
+  Aggiunto dopo il divider «Dettaglio».
+
+## FATTO — parte 5: allocazione sottostante del fondo (composition look-through)
+Verifica: `tsc` pulito, **1049 test verdi**.
+
+Modello (spec §2.1): la `composition` del fondo esprime l'allocazione sottostante (es. 75% azioni /
+20% obbligazioni / 5% REIT) ma va guardata attraverso **solo** nella vista dedicata; ovunque altrove
+il fondo resta INTERO come classe `pension` (allocazione azionabile esclusa, net worth, segmento
+storico §8.2 preservato).
+- **`expandAssetExposure`**: early-return per `type === 'pension'` → un solo componente classe
+  `pension`, IGNORA la composition (niente leak nelle viste aggregate). `goalService` guardato allo
+  stesso modo.
+- **AssetDialog**: editor «Asset Composto» abilitato per il tipo pension (`newAsset_showComposition`);
+  righe classe+% che sommano a 100 (validazione esistente); reset edit già type-agnostico.
+- **PensionAllocationCards**: `assetLegs()` guarda attraverso la composition del fondo (Card A e B);
+  gli altri asset via `expandAssetExposure`. È l'UNICO punto di look-through.
+
+## STATO FEATURE: COMPLETA (tutte le fasi + §8)
+Tutto il documento di specifiche è implementato tranne item esplicitamente rimandati DALLA SPEC
+(Coast FIRE terza gamba §5.4, withdrawal netto asset-aware / Monte Carlo §5.3 fase 2, chiusura del
+cerchio 730 §3.3 fase 2, toggle `includePensionContributionsInCashflow` §4.1 — default-off rende
+l'app corretta senza). Cosmetico SCONSIGLIATO: rename `AssetType pension→pensionFund` (churn inutile;
+`AssetClass pension` va TENUTA — alimenta il segmento Storico §8.2 e l'esclusione allocazione).
+
+### Deviazione consapevole (checkpoint D deferito)
+`AssetType` resta `'pension'` (non ancora `'pensionFund'`) e `AssetClass 'pension'` è **mantenuta**:
+è il meccanismo che oggi (a) esclude il fondo dall'allocazione azionabile (§8.1, via
+`getExcludedClasses`) e (b) fornisce gratis il segmento previdenza distinto nel net worth che §8.2
+richiede. Rimuoverla in isolamento regredirebbe §8.2; va fatta insieme alle viste §8 (R5/D), dove
+l'esclusione diventa type-based e il segmento è renderizzato esplicitamente. È l'unico punto di
+non-compliance-sulla-carta residuo; funzionalmente il comportamento è già quello voluto dalla spec.
+
+## Piano di refactor — vedi risposta in chat (fasi R0→R5)
+Layer fiscale puro = da conservare. Il grosso del lavoro è spostare le contribuzioni sulla collection
+dedicata, introdurre `PensionFundDetails` + `pensionFund` come AssetType (non class), il volontario
+come transfer con incremento NAV, e invertire il default del toggle cashflow.
+
+---
+
 # SESSION NOTES — 2026-07-19
+
+## 🔖 RIPRESA SESSIONE — Handoff
+
+### Cosa (implementato in questa sessione)
+- **Fix UI**: sovrapposizione dei due numeri a leva nell'hero Allocazione su mobile
+  (`AllocationHero.tsx`, `grid-cols-1 … tablet:grid-cols-2`). **Da pushare su main** (branch attuale
+  = `pension-fund`); il resto sta sul branch.
+- **Fondo pensione — Fasi 0→3 complete + Fase 4 parziale**:
+  - Core fiscale puro: `types/pension.ts`, `lib/utils/pensionDeduction.ts` (deducibilità ordinaria +
+    fold extradeducibilità), `lib/utils/pensionContributions.ts` (rollup per anno/natura). Tutti con test.
+  - Asset type `pension` (Patrimonio, valutazione manuale come immobili, sempre fuori allocazione).
+  - Contributi per natura (TFR/Volontario/Datoriale) tracciati via Cashflow (`Expense.pensionContributionNature`).
+  - Flusso dedicato **"Registra versamento"** + tab **Previdenza** (`fire-simulations`): registra i
+    versamenti e mostra il **versato** per natura/anno.
+- **Metriche cashflow**: volontario SEMPRE neutralizzato (tutti i choke point). TFR/datoriale =
+  entrate, con **toggle in Impostazioni** ("Escludi TFR e datoriale dal cashflow") — per ora
+  agganciato solo all'**hero Tracciamento**.
+
+### Perché (motivazioni chiave)
+- Fondo pensione fuori allocazione + valutazione manuale = è capitale bloccato/illiquido, non una
+  posizione da ribilanciare, e non c'è API prezzi (aggiornamento manuale come gli immobili).
+- Volontario neutro = è un trasferimento dei propri risparmi nel fondo, non consumo. TFR/datoriale
+  opzionali = sono entrate reali ma non di immediato accesso, quindi la scelta è dell'utente.
+- Flusso dedicato = il selettore natura nelle "Impostazioni avanzate" dell'ExpenseDialog non era
+  scopribile; il mini-form nasconde la complessità (tipo entry + categoria).
+- Filtro condiviso (`filterCashflowExpenses`) invece di threadare un flag in ogni funzione = non
+  cambia le firme esistenti → rischio minimo, superfici consistenti wrappando l'input.
+
+### Nota (gotcha / dettagli importanti)
+- **Non posso compilare da qui** (shell non monta il repo): tutti i `npx tsc --noEmit` / `vitest` /
+  `npm run build` li lancia Giorgio. Verificato live: il filtro cashflow funziona nel tab.
+- **Test dei service**: importano moduli Firebase → in vitest vanno mockati (`vi.mock` su
+  `@/lib/firebase/config` o sui service), come in `fireService.test.ts`.
+- **Query categorie**: usare `getAllCategories` (indice esistente) + filtro in memoria, NON
+  `getCategoriesByType` (richiede un indice composito non deployato) — vale per chiunque tocchi le categorie.
+- **Union AssetClass/AssetType**: aggiungendo `pension` ho dovuto patchare i `Record<AssetClass,…>`
+  completi (settings, defaultSubCategories, goalTrajectory, AllocationComparisonBar). Se aggiungi
+  altre classi/tipi, cerca gli usi esaustivi.
+- Il tetto deducibilità è **costante per-anno** (`getPensionDeductionCeiling`): 5.164,57 ≤2025, 5.300 ≥2026.
+
+### DA FARE alla ripresa (in ordine)
+1. **Decidere insieme**: a quali altre sezioni estendere il filtro accrual (Analisi, Storico, Anno
+   Corrente, budget, Panoramica/overview, email) e **dove rendere visibile la componente fondo pensione**.
+2. **Estendere il filtro** alle superfici scelte (one-liner `filterCashflowExpenses` per punto — vedi
+   log "Opzione Escludi TFR/datoriale").
+3. **Completare Fase 4**: recap fiscale nel tab Previdenza — input **RAL** + 3 cifre (risparmio
+   fiscale dell'anno, plafond creato, bank residuo) usando `pensionDeduction.ts`.
+4. **Fase 5**: tassazione in uscita (15%→9% per anzianità) → il fondo conta NETTO nel FIRE.
+5. Push fix mobile su main; poi verifiche tsc/build su tutto il branch.
+
+---
 
 ## 1. RISOLTO — Sovrapposizione mobile nell'hero Allocazione (numeri a leva)
 
@@ -356,6 +598,58 @@ Working tree su `main`, NON committato: contiene FEATURE 1 (allocazione a leva) 
 ---
 
 ## Log
+- 2026-07-19: **Opzione "Escludi TFR/datoriale dal cashflow"**. Il volontario resta sempre neutro
+  (default fisso); TFR+datoriale sono entrate bloccate e l'utente sceglie se contarle. Setting
+  `excludePensionAccrualsFromCashflow?` (`types/assets.ts`) + persistenza `getSettings`/`setSettings`
+  (2 write path) in `assetAllocationService`. Helper puro `lib/utils/pensionCashflow.ts`
+  (`filterCashflowExpenses`/`isPensionAccrual`, no-op quando off) + test `__tests__/pensionCashflow.test.ts`.
+  Toggle in Impostazioni (stato+load+snapshot+payload+deps+Switch). Agganciato alla superficie
+  **principale**: hero Tracciamento (`ExpenseTrackingTab` filtra SOLO il calcolo dei totali —
+  income/spese/netto + delta MoM — le voci restano visibili nel feed), prop passata da
+  `app/dashboard/cashflow/page.tsx`. **DA ESTENDERE (stesso helper, one-liner) alle altre superfici**:
+  `AnalisiTab`/`cashflowTimeSeries`, `TotalHistoryTab`, `CurrentYearTab`, budget, overview Panoramica
+  (`dashboardOverviewService`), email (`monthlyEmailService`). Finché non estese, quelle viste
+  contano ancora gli accrual come income (comportamento di default). — verificare tsc/build/test.
+- 2026-07-19: **Fase 4 (parziale) — flusso dedicato "Registra versamento" + tab Previdenza**.
+  Motivazione: il selettore natura nelle "Impostazioni avanzate" dell'ExpenseDialog non era
+  scopribile. Nuovo `lib/services/pensionContributionService.ts` (`recordPensionContribution`:
+  nasconde tipo+categoria — volontario→`variable` neutralizzato, TFR/datoriale→`income`; find-or-create
+  categoria "Fondo Pensione" per tipo). Dialog `components/pension/PensionContributionDialog.tsx`
+  (3 campi: natura/importo/data). Tab `components/fire-simulations/PensionTab.tsx` (versato anno per
+  natura + versato totale + bottone), registrato in `app/dashboard/fire-simulations/page.tsx` (tab
+  "Previdenza", icona PiggyBank). Modello UX confermato da Giorgio: il tab traccia il **versato**, il
+  valore del fondo (versato+rendimento) si aggiorna a mano sull'asset in Patrimonio. **Ancora da
+  fare (Fase 4 completa)**: recap fiscale (RAL + 3 cifre: risparmio fiscale, plafond creato, bank
+  residuo) e tassazione in uscita (Fase 5).
+- 2026-07-19: **Fase 3 — contributi per natura in Cashflow**. Campo tipizzato
+  `pensionContributionNature?` su `Expense` + `ExpenseFormData` (`types/expenses.ts`). Util pura
+  `lib/utils/pensionContributions.ts` (`derivePensionDeductibleByYear` = volontari+datoriali per
+  anno, TFR escluso; `derivePensionContributionsByYearAndNature` = split completo) + test
+  (`__tests__/pensionContributions.test.ts`). UI: selettore natura in "Impostazioni avanzate"
+  dell'ExpenseDialog (schema zod, watch, entrambi i rami di reset, submit, `isAdvancedPrePopulated`).
+  Persistenza: `expenseService.createExpense` (whitelist) + update (spread) + read (spread).
+  **NODO RISOLTO (trattamento metriche, Giorgio 2026-07-19)**: **volontario = neutralizzato** dalle
+  metriche di cashflow (risparmio, non consumo — come un `transfer`); **TFR e datoriale = contano
+  come entrate a tutti gli effetti** (inseriti come voci di tipo "Entrata"; nessun codice extra, e
+  il datoriale resta deducibile via tag). Neutralizzazione del volontario applicata a TUTTI i choke
+  point di spesa: `expenseService.isCountableExpense` + `getMonthlyExpenseSummary` (hero, saldo
+  netto, rapporto, riepilogo), `budgetUtils` (expenseMatchesItem + spesa mensile per item),
+  `cashflowTimeSeries` (isExpenseRecord + buildTimeBuckets), `dashboardOverviewService`,
+  `monthlyEmailService`. Test: `__tests__/pensionMetricNeutralization.test.ts`.
+- 2026-07-19: **Fase 0-1 fondo pensione (branch pension-fund)**. `types/pension.ts` (nature TFR/
+  volontari/datoriali, input/output deduzione), `lib/utils/pensionDeduction.ts` (ordinaria + fold
+  extradeducibilità con accumulo/drawdown/scadenza, beneficio via `taxOf` iniettato), `__tests__/
+  pensionDeduction.test.ts` (12 casi). NON eseguiti (shell non raggiunge il repo) → tsc/vitest da Giorgio.
+- 2026-07-19: **Fase 2 — asset type `pension`**. `AssetType`/`AssetClass` += `pension` (`types/
+  assets.ts`); AssetDialog: type card "Fondo Pensione" (icona PiggyBank), valutazione manuale come
+  realestate (no ticker/auto-update/cost-basis, label "Valore attuale", illiquido di default, nota
+  manuale, `shouldUpdatePrice`=false), zod enum + `tickerRequired` aggiornati, `TYPE_TO_CLASS`.
+  Esclusione: `getExcludedClasses` aggiunge SEMPRE `pension` (fuori base allocazione). Label/colori:
+  `allocationUtils` (ASSET_CLASS_LABELS/CHART_INDEX), `assetUtils.formatAssetClassName`,
+  `colors.getAssetClassCssVar`, `AssetManagementTab.requiresManualPricing`. Breaker `Record<AssetClass>`
+  completi patchati: `settings/page.tsx`, `defaultSubCategories.ts`, `goalTrajectory.ts`,
+  `AllocationComparisonBar.tsx`. **Da verificare da Giorgio: `npx tsc --noEmit` + `npm run build` +
+  test creazione asset in dev.**
 - 2026-07-15: lette AGENTS/COMMENTS/DEVELOPMENT_GUIDELINES/CLAUDE + core allocazione. Avvio brainstorming.
 </content>
 </invoke>

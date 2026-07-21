@@ -57,6 +57,7 @@ const ASSET_CLASS_COLOR_VALUE: Record<string, string> = {
   cash:           'var(--muted-foreground)',
   trendFollowing: 'color-mix(in srgb, var(--chart-2) 65%, var(--chart-4))',
   carry:          'color-mix(in srgb, var(--chart-3) 65%, var(--chart-1))',
+  pension:        'color-mix(in srgb, var(--chart-1) 55%, var(--chart-5))',
 };
 
 export function getAssetClassCssVar(assetClass: string): string {

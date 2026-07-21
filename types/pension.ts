@@ -16,11 +16,94 @@
 /**
  * Origin of a single pension contribution. Only `voluntary` and `employer` are IRPEF-deductible and
  * count toward the annual ceiling; `tfr` is excluded from the deduction computation entirely.
+ *
+ * `ContributionSource` is the spec name (§2.2, field `source`); `PensionContributionNature` is the
+ * historical alias used by the tax layer. They are the same set of values — kept as an alias so both
+ * the domain vocabulary and the existing calculation code read naturally.
  */
 export type PensionContributionNature = 'tfr' | 'voluntary' | 'employer';
+export type ContributionSource = PensionContributionNature;
 
 /** Natures that are IRPEF-deductible and consume the annual ceiling (TFR excluded by law). */
 export const DEDUCTIBLE_PENSION_NATURES: readonly PensionContributionNature[] = ['voluntary', 'employer'];
+
+/** True when a contribution source is IRPEF-deductible (voluntary or employer, never TFR). */
+export function isDeductibleSource(source: ContributionSource): boolean {
+  return DEDUCTIBLE_PENSION_NATURES.includes(source);
+}
+
+/**
+ * A single dated contribution to a fondo pensione, stored in the dedicated `pensionContributions`
+ * Firestore collection (spec §2.2 — NOT as an `Expense`: contributions must never pollute the
+ * cashflow savings-rate / budget metrics). Same event-per-asset shape as `dividends`.
+ *
+ * The value effect on the fund (spec §4.2 — a contribution raises the fund's value immediately) and
+ * the voluntary-as-transfer wiring (§4.3) are layered on top of this record by the service; this type
+ * is just the persisted fact.
+ */
+export interface PensionContribution {
+  id: string;
+  userId: string;
+  /** The fondo pensione asset (AssetType `pensionFund`) this contribution flowed into. */
+  assetId: string;
+  source: ContributionSource;
+  /** Positive magnitude in EUR. */
+  amount: number;
+  date: Date;
+  /** Tax year of competence (for the 730 / deduction estimate); usually the calendar year of `date`. */
+  taxYear: number;
+  /** Derived from `source` (voluntary/employer), persisted for direct per-year deductible queries. */
+  deductible: boolean;
+  notes?: string;
+  /**
+   * When the contribution is a VOLUNTARY payment tracked as a transfer from a cash account
+   * (spec §4.3), the id of the linked cashflow `transfer` entry. Absent for TFR/employer (which
+   * never transit the user's account).
+   */
+  linkedExpenseId?: string;
+  /** Origin cash account for a voluntary contribution — persisted so deletion can reverse the transfer. */
+  sourceCashAssetId?: string;
+  createdAt: Date;
+}
+
+/**
+ * Optional block on `Asset`, populated only for fondo pensione assets (AssetType `pensionFund`).
+ * Mirrors how `bondDetails` extends bond assets. Spec §2.1.
+ *
+ * The fund is NOT a new asset class — its underlying equity/bond mix lives in `Asset.composition`.
+ * These fields carry the pension-specific facts the tax and FIRE layers need: enrollment dates
+ * (drive the benefit tax rate and the extra-deducibilità window), the unlock date (FIRE locked
+ * capital), and caches derivable from the contributions (source of truth = PensionContribution).
+ */
+export interface PensionFundDetails {
+  /** Fund/PIP name, e.g. "Fondo X", "PIP Y". */
+  provider: string;
+  isin?: string;
+  navFrequency?: 'monthly' | 'quarterly' | 'manual';
+  /**
+   * Dates are stored as ISO 'YYYY-MM-DD' strings (not Date/Timestamp): they match the HTML date
+   * input and round-trip cleanly through Firestore without nested-Timestamp conversion.
+   */
+  /** Enrollment date in the complementary pension — drives the benefit tax rate (years enrolled). */
+  enrollmentDate?: string;
+  /**
+   * Start of the FIRST employment relationship. Distinct from `enrollmentDate`: the 5-year window for
+   * the extra-deducibilità (§3.4) runs from here, per the Agenzia clarification. Asked separately.
+   */
+  firstEmploymentDate?: string;
+  /** Enables the plafond-recovery mechanism (§3.4) — only for first employment after 2007-01-01. */
+  isFirstEmploymentPost2007?: boolean;
+  /** Date (ISO 'YYYY-MM-DD') from which the capital is accessible — per-fund (§5.3). */
+  unlockDate?: string;
+  /** Benefit tax rate on the final payout, derived from years enrolled (15% → 9%); cached for FIRE. */
+  currentBenefitTaxRate?: number;
+  /** Cache of cumulative deducted contributions; source of truth = PensionContribution. */
+  cumulativeDeductibleContributions?: number;
+  /** Cache of cumulative non-deducted contributions (TFR + any excess over the ceiling). */
+  cumulativeNonDeductibleContributions?: number;
+  /** Cache of cumulative TFR conferred. */
+  cumulativeTfr?: number;
+}
 
 /**
  * Inputs to the yearly deduction/plafond computation for a single target year.

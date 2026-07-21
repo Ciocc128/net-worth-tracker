@@ -134,6 +134,23 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
+    // Collezione pensionContributions - versamenti al fondo pensione (per-asset, con natura fiscale)
+    match /pensionContributions/{contributionId} {
+      // Lettura: solo se è il proprietario
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Creazione: solo se autenticato e il userId corrisponde
+      allow create: if isAuthenticated() && hasValidUserId();
+
+      // Aggiornamento: solo se è il proprietario e non cambia il userId (se presente)
+      allow update: if isOwner(resource.data.userId) &&
+                       (!('userId' in request.resource.data) ||
+                        request.resource.data.userId == resource.data.userId);
+
+      // Cancellazione: solo se è il proprietario
+      allow delete: if isOwner(resource.data.userId);
+    }
+
     // Collezione hall-of-fame - ranking personali dell'utente
     match /hall-of-fame/{userId} {
       // Lettura: solo il proprietario può leggere i propri ranking

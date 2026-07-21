@@ -33,11 +33,11 @@ import type { TabDef } from '@/components/layout/PageTabs';
 type TabValue = 'fire' | 'coast' | 'whatif' | 'montecarlo' | 'goals';
 
 const TABS: TabDef[] = [
-  { value: 'fire',       label: 'Calcolatore FIRE', icon: Flame    },
-  { value: 'coast',      label: 'Coast FIRE',       icon: Mountain },
+  { value: 'fire',       label: 'Calcolatore FIRE', icon: Flame     },
+  { value: 'coast',      label: 'Coast FIRE',       icon: Mountain  },
   { value: 'whatif',     label: 'What If',          icon: Lightbulb },
-  { value: 'montecarlo', label: 'Monte Carlo',      icon: Dices    },
-  { value: 'goals',      label: 'Obiettivi',        icon: Target   },
+  { value: 'montecarlo', label: 'Monte Carlo',      icon: Dices     },
+  { value: 'goals',      label: 'Obiettivi',        icon: Target    },
 ];
 
 export default function FireSimulationsPage() {

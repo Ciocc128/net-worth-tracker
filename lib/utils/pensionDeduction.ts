@@ -160,3 +160,53 @@ export function computePensionTaxBenefit(
   const reducedTax = taxOf(Math.max(0, annualGrossIncome - deductedAmount));
   return Math.max(0, fullTax - reducedTax);
 }
+
+/**
+ * Benefit (prestazione) tax rate on the deducted contributions at payout — spec §5.2.
+ *
+ * TEACHER: a fondo pensione's final payout is taxed at a favourable, seniority-decreasing rate,
+ * unlike the 26% on ETF capital gains. It starts at 15% and drops 0.30 percentage points for each
+ * year of participation beyond the 15th, down to a 9% floor (reached at 35 years). So €1.000 in the
+ * fund is worth, net, more than €1.000 in a taxed instrument. Kept configurable (constants below) as
+ * the rule can change; ref. art. 11 c.6 D.Lgs. 252/2005.
+ */
+export const PENSION_BENEFIT_TAX_RATE_MAX = 15;
+export const PENSION_BENEFIT_TAX_RATE_MIN = 9;
+/** Participation years after which the rate starts decreasing, and the per-year decrement (points). */
+export const PENSION_BENEFIT_TAX_DECREASE_AFTER_YEAR = 15;
+export const PENSION_BENEFIT_TAX_DECREASE_PER_YEAR = 0.3;
+
+/**
+ * The favourable payout tax rate (as a percentage) for a given number of participation years.
+ * Clamped to [9, 15]. Non-positive or fractional years below the threshold return the 15% max.
+ */
+export function deriveBenefitTaxRate(yearsEnrolled: number): number {
+  const decreasingYears = Math.max(0, yearsEnrolled - PENSION_BENEFIT_TAX_DECREASE_AFTER_YEAR);
+  const rate = PENSION_BENEFIT_TAX_RATE_MAX - decreasingYears * PENSION_BENEFIT_TAX_DECREASE_PER_YEAR;
+  return Math.max(PENSION_BENEFIT_TAX_RATE_MIN, Math.min(PENSION_BENEFIT_TAX_RATE_MAX, rate));
+}
+
+/** The three figures surfaced in the annual "Previdenza" tax recap (spec §3.2/§8.4). */
+export interface PensionTaxRecap {
+  /** Full per-year deduction/plafond state (deducted amount, effective ceiling, plafond, …). */
+  state: PensionDeductionState;
+  /** Estimated IRPEF saving for the year = tax(RAL) − tax(RAL − deducted). */
+  taxSaving: number;
+}
+
+/**
+ * Convenience wrapper that resolves the yearly deduction state AND the euro tax saving in one call.
+ *
+ * `taxOf` is injected (e.g. `(income) => calculateProgressiveTax(income, brackets)`) so this stays
+ * decoupled from the Coast-FIRE tax engine. `annualGrossIncome` (RAL) at 0 yields a 0 saving but the
+ * plafond/deduction state is still computed (it does not depend on income).
+ */
+export function computePensionTaxRecap(
+  input: PensionDeductionInput,
+  annualGrossIncome: number,
+  taxOf: (income: number) => number
+): PensionTaxRecap {
+  const state = computePensionDeductionState(input);
+  const taxSaving = computePensionTaxBenefit(state.deductedThisYear, annualGrossIncome, taxOf);
+  return { state, taxSaving };
+}

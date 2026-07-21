@@ -62,7 +62,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Calculator, Plus, X, BarChart3, Landmark, Bitcoin, Wallet, Home, Package, TrendingUp, ChevronLeft } from 'lucide-react';
+import { Calculator, Plus, X, BarChart3, Landmark, Bitcoin, Wallet, Home, Package, TrendingUp, ChevronLeft, PiggyBank } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
 /**
@@ -81,8 +81,8 @@ import { Switch } from '@/components/ui/switch';
  * @returns true if asset should automatically update prices from Yahoo Finance
  */
 function shouldUpdatePrice(assetType: string, subCategory?: string): boolean {
-  // Real estate and private equity have fixed valuations (no market price)
-  if (assetType === 'realestate' || subCategory === 'Private Equity') {
+  // Real estate, private equity and pension funds have fixed/manual valuations (no market price)
+  if (assetType === 'realestate' || assetType === 'pension' || subCategory === 'Private Equity') {
     return false;
   }
 
@@ -253,6 +253,15 @@ function buildAssetFormDataFromValues(
         ? data.outstandingDebt
         : undefined,
     isPrimaryResidence: data.isPrimaryResidence || false,
+    // Fondo pensione details — only for the pension type; undefined dates are stripped downstream.
+    pensionFundDetails:
+      data.type === 'pension'
+        ? {
+            provider: data.pensionProvider?.trim() || '',
+            enrollmentDate: data.pensionEnrollmentDate || undefined,
+            unlockDate: data.pensionUnlockDate || undefined,
+          }
+        : undefined,
   };
 }
 
@@ -301,6 +310,7 @@ const TYPE_TO_CLASS: Record<AssetType, AssetClass> = {
   cash: 'cash',
   realestate: 'realestate',
   commodity: 'commodity',
+  pension: 'pension',
 };
 
 // Type picker card definitions for step 1 of the create flow
@@ -313,6 +323,7 @@ const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.E
   { type: 'cash', label: 'Liquidità', title: 'Nuova Liquidità', Icon: Wallet, description: 'Conti correnti e conti deposito' },
   { type: 'realestate', label: 'Immobile', title: 'Nuovo Immobile', Icon: Home, description: 'Proprietà immobiliari' },
   { type: 'commodity', label: 'Materia Prima', title: 'Nuova Materia Prima', Icon: Package, description: 'Oro, argento, petrolio, ecc.' },
+  { type: 'pension', label: 'Fondo Pensione', title: 'Nuovo Fondo Pensione', Icon: PiggyBank, description: 'Previdenza complementare' },
 ];
 
 // Zod validation schema for asset form
@@ -322,8 +333,8 @@ const assetSchema = z.object({
   displayTicker: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
-  type: z.enum(['stock', 'etf', 'leveragedEtf', 'bond', 'crypto', 'commodity', 'cash', 'realestate']),
-  assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
+  type: z.enum(['stock', 'etf', 'leveragedEtf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pension']),
+  assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry', 'pension']),
   subCategory: z.string().optional(),
   leverageRatio: z.number().gt(1, 'Leverage ratio must be greater than 1').optional().or(z.nan()),
   currency: z.string().min(1, 'Currency is required'),
@@ -355,8 +366,12 @@ const assetSchema = z.object({
   // Inflation-linked (BTP Italia Sì): coupon = fixed minimum + announced FOI inflation.
   // The announced rates themselves are managed from the Dividendi tab, not this form.
   bondIsInflationLinked: z.boolean().optional(),
+  // Fondo pensione details (optional, only shown for type=pension). Dates are ISO 'YYYY-MM-DD'.
+  pensionProvider: z.string().optional(),
+  pensionEnrollmentDate: z.string().optional(),
+  pensionUnlockDate: z.string().optional(),
 }).superRefine((data, ctx) => {
-  const tickerRequired = data.type !== 'cash' && data.type !== 'realestate';
+  const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pension';
   if (tickerRequired && (!data.ticker || data.ticker.trim().length === 0)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ticker is required', path: ['ticker'] });
   }
@@ -379,6 +394,7 @@ const assetTypes: { value: AssetType; label: string }[] = [
   { value: 'commodity', label: 'Materia Prima' },
   { value: 'cash', label: 'Liquidità' },
   { value: 'realestate', label: 'Immobile' },
+  { value: 'pension', label: 'Fondo Pensione' },
 ];
 
 const assetClasses: { value: AssetClass; label: string }[] = [
@@ -390,6 +406,7 @@ const assetClasses: { value: AssetClass; label: string }[] = [
   { value: 'commodity', label: 'Materie Prime' },
   { value: 'trendFollowing', label: 'Trend Following' },
   { value: 'carry', label: 'Carry' },
+  { value: 'pension', label: 'Fondo Pensione' },
 ];
 
 export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
@@ -467,13 +484,17 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     (watchBondNominalValue ?? 0) > 1;
 
   // Field visibility based on asset type — applies to both create and edit modes.
-  const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate';
+  const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pension';
   const newAsset_showISIN = selectedType === 'stock' || selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'bond';
-  const newAsset_quantityLabel = selectedType === 'cash' ? 'Saldo' : selectedType === 'realestate' ? 'Valore stimato' : 'Quantità';
-  const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate';
-  const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate';
+  const newAsset_quantityLabel =
+    selectedType === 'cash' ? 'Saldo'
+    : selectedType === 'realestate' ? 'Valore stimato'
+    : selectedType === 'pension' ? 'Valore attuale'
+    : 'Quantità';
+  const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pension';
+  const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pension';
   const newAsset_showTER = selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'stock';
-  const newAsset_showComposition = selectedType === 'etf' || selectedType === 'leveragedEtf';
+  const newAsset_showComposition = selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'pension';
   const newAsset_showLeverageRatio = isLeveragedEtf;
   // ETFs can hold any asset class (bond ETF, commodity ETF, Trend Following/Carry ETF, ...) —
   // TYPE_TO_CLASS only seeds a default ('equity') at step 1, so the class must stay overridable
@@ -494,6 +515,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
       // Default for isLiquid: most assets are liquid except real estate and private equity
       const defaultIsLiquid =
         selectedAssetClass !== 'realestate' &&
+        selectedAssetClass !== 'pension' &&
         selectedSubCategory !== 'Private Equity';
 
       // Default for autoUpdatePrice: use shouldUpdatePrice logic
@@ -566,7 +588,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
       // Determine default for isLiquid if not set
       const defaultIsLiquid = asset.isLiquid !== undefined
         ? asset.isLiquid
-        : (asset.assetClass !== 'realestate' && asset.subCategory !== 'Private Equity');
+        : (asset.assetClass !== 'realestate' && asset.assetClass !== 'pension' && asset.subCategory !== 'Private Equity');
 
       reset({
         ticker: asset.ticker,
@@ -611,6 +633,10 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
         isPrimaryResidence: asset.isPrimaryResidence || false,
         isin: asset.isin || undefined,
         leverageRatio: asset.leverageRatio || undefined,
+        // Fondo pensione details (dates stored as ISO strings → used directly by <input type="date">).
+        pensionProvider: asset.pensionFundDetails?.provider || '',
+        pensionEnrollmentDate: asset.pensionFundDetails?.enrollmentDate || '',
+        pensionUnlockDate: asset.pensionFundDetails?.unlockDate || '',
       });
 
       if (asset.composition && asset.composition.length > 0) {
@@ -2056,15 +2082,46 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           )}
 
           {/* color-mix() on --primary so the info box tracks the active theme colour. */}
-          {(selectedType === 'realestate' || selectedSubCategory === 'Private Equity' || shouldUpdatePrice(selectedType, selectedSubCategory)) && (
+          {(selectedType === 'realestate' || selectedType === 'pension' || selectedSubCategory === 'Private Equity' || shouldUpdatePrice(selectedType, selectedSubCategory)) && (
           <div className="rounded-lg bg-[color-mix(in_oklch,var(--primary)_8%,transparent)] border border-[color-mix(in_oklch,var(--primary)_20%,transparent)] p-3">
             <p className="text-sm text-foreground">
               <strong>Nota:</strong>
               {selectedType === 'realestate' && ' Per immobili, il prezzo deve essere aggiornato manualmente.'}
+              {selectedType === 'pension' && ' Per i fondi pensione, il valore deve essere aggiornato manualmente (nessun recupero automatico dei prezzi).'}
               {selectedSubCategory === 'Private Equity' && ' Per Private Equity, il prezzo deve essere aggiornato manualmente.'}
               {shouldUpdatePrice(selectedType, selectedSubCategory) && ` Puoi inserire un prezzo manuale nel campo apposito, oppure il prezzo verrà recuperato automaticamente da ${priceSource}. In caso di errore nel recupero automatico, potrai sempre impostare il prezzo manualmente.`}
             </p>
           </div>
+          )}
+
+          {/* Fondo pensione details — provider + enrollment/unlock dates (feed the tax & FIRE layers). */}
+          {selectedType === 'pension' && (
+            <div className="space-y-4 rounded-lg border border-border p-3">
+              <div className="space-y-2">
+                <Label htmlFor="pensionProvider">Fondo / PIP</Label>
+                <Input
+                  id="pensionProvider"
+                  {...register('pensionProvider')}
+                  placeholder="es. Fondo Cometa, PIP Alleata"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="pensionEnrollmentDate">Data adesione</Label>
+                  <Input id="pensionEnrollmentDate" type="date" {...register('pensionEnrollmentDate')} />
+                  <p className="text-xs text-muted-foreground">
+                    Da qui si stimano gli anni di adesione (aliquota agevolata 15→9%).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pensionUnlockDate">Data di sblocco</Label>
+                  <Input id="pensionUnlockDate" type="date" {...register('pensionUnlockDate')} />
+                  <p className="text-xs text-muted-foreground">
+                    Quando il capitale diventa accessibile (per il vincolo FIRE).
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
           </div>

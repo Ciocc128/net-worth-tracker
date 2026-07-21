@@ -13,6 +13,7 @@ import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { getAllPerformanceData, calculatePerformanceForPeriod, preparePerformanceChartData, getSnapshotsForPeriod, prepareMonthlyReturnsHeatmap, prepareUnderwaterDrawdownData } from '@/lib/services/performanceService';
 import { getUserSnapshots } from '@/lib/services/snapshotService';
+import { toPerformanceBaseSnapshots } from '@/lib/utils/performanceBase';
 import { PerformanceData, PerformanceMetrics, TimePeriod } from '@/types/performance';
 import { MonthlySnapshot } from '@/types/assets';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -349,8 +350,10 @@ export default function PerformancePage() {
       // Fetch snapshots once and cache them in component state.
       // This cache will be reused for all period switches and custom date ranges,
       // eliminating redundant API calls and improving performance by ~85%.
+      // Project onto the PORTFOLIO base (exclude the fondo pensione, spec §8.3) so the custom-period
+      // metrics and charts computed from these cached snapshots agree with getAllPerformanceData.
       const snapshots = await getUserSnapshots(user.uid);
-      setCachedSnapshots(snapshots);
+      setCachedSnapshots(toPerformanceBaseSnapshots(snapshots, 'portfolio'));
 
       // forceRefresh on explicit button click so the cache is bypassed and rewritten
       const isRefresh = hasLoadedOnceRef.current;

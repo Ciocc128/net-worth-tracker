@@ -16,7 +16,8 @@ import {
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
-import { Pencil, Trash2, Calculator, ChevronDown, Info } from 'lucide-react';
+import { Pencil, Trash2, Calculator, ChevronDown, Info, PiggyBank } from 'lucide-react';
+import Link from 'next/link';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import {
@@ -321,6 +322,17 @@ export function AssetCard({
                 {format(lastUpdate, 'dd/MM/yyyy HH:mm', { locale: it })}
               </span>
             </div>
+            {asset.type === 'pension' && (
+              <div className="col-span-2">
+                <Link
+                  href="/dashboard/pension"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  <PiggyBank className="h-3.5 w-3.5" aria-hidden="true" />
+                  Vai a Previdenza
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
