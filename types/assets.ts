@@ -109,6 +109,10 @@ export interface Asset {
   id: string;
   userId: string;
   ticker: string;
+  // User-facing alias for `ticker`, shown everywhere instead of the raw (often Yahoo-formatted,
+  // noisy) ticker. `ticker` itself is never renamed — price retrieval depends on its exact format.
+  // Resolve via `getAssetDisplayTicker` (lib/utils/assetDisplay.ts); never inline `?? ticker`.
+  displayTicker?: string | null;
   name: string;
   type: AssetType;
   assetClass: AssetClass;
@@ -156,6 +160,7 @@ export interface Asset {
 
 export interface AssetFormData {
   ticker: string;
+  displayTicker?: string | null;
   name: string;
   type: AssetType;
   assetClass: AssetClass;

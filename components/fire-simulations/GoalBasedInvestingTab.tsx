@@ -31,6 +31,7 @@ import {
   cleanOrphanedAssignments,
 } from '@/lib/services/goalService';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { GoalBasedInvestingData, InvestmentGoal, GoalAssetAssignment } from '@/types/goals';
 import {
   computeGoalTrajectory,
@@ -150,7 +151,7 @@ export function GoalBasedInvestingTab() {
       .map((asset) => {
         const freePct = getAvailablePercentage(asset.id, cleanedAssignments);
         const freeValue = (calculateAssetValue(asset) * freePct) / 100;
-        return { id: asset.id, name: asset.name, ticker: asset.ticker, freeValue, freePct };
+        return { id: asset.id, name: asset.name, ticker: getAssetDisplayTicker(asset), freeValue, freePct };
       })
       .filter((a) => a.freePct > 0.5 && a.freeValue > 0.5)
       .sort((a, b) => b.freeValue - a.freeValue);

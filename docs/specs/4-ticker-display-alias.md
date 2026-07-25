@@ -1,7 +1,8 @@
 # Alias di visualizzazione strumenti (`displayTicker`) — Spec
 
-> Status: **SPEC — port dal fork `Ciocc128`, adattata a post `asset-transactions`** (2026-07-22).
-> Feature additiva, basso rischio. Riferimento fedele: `ciocc/main:lib/utils/assetDisplay.ts` + lo
+> Status: **DONE** — implementata su `feature/ticker-display-alias` (2026-07-25). Tutte le sezioni
+> (§1-§5) completate come da scope; vedi CLAUDE.md → Current Status e AGENTS.md → *Ticker Display
+> Alias* per il riepilogo finale. Riferimento fedele: `ciocc/main:lib/utils/assetDisplay.ts` + lo
 > sweep in `SESSION_NOTES` del fork (FEATURE 2).
 
 ## Obiettivo

@@ -7,6 +7,7 @@ import type {
   AssetHistoryTransformOptions,
   AssetHistoryTotalRow
 } from '@/types/assets';
+import { getAssetDisplayTicker } from './assetDisplay';
 
 /**
  * Data for a single month in the history table
@@ -25,6 +26,11 @@ export interface MonthDataCell {
 export interface AssetPriceHistoryRow {
   name: string; // Primary key for aggregation (replaces assetId to unify re-acquired assets)
   ticker: string;
+  // Alias-resolved label (getAssetDisplayTicker), set only when the row matches a LIVE current
+  // asset — a fully historical/deleted asset has no live `displayTicker` to resolve, so it's
+  // absent and the row falls back to the raw `ticker`. `ticker` itself stays untouched: it still
+  // drives sort order and the cash-asset key matching above, both machine-identity concerns.
+  displayTicker?: string;
   isDeleted: boolean; // True if asset not in current portfolio
   months: {
     [monthKey: string]: MonthDataCell; // monthKey: "2025-1", "2025-2", etc.
@@ -188,7 +194,7 @@ export function transformPriceHistoryData(
   // Use name as key to unify assets that were sold and re-purchased
   const assetMetadata = new Map<
     string,
-    { ticker: string; name: string; isDeleted: boolean; isCash: boolean }
+    { ticker: string; displayTicker?: string; name: string; isDeleted: boolean; isCash: boolean }
   >();
 
   const cashAssetIds = new Set(currentAssets.filter((asset) => asset.assetClass === 'cash').map((asset) => asset.id));
@@ -209,6 +215,7 @@ export function transformPriceHistoryData(
     // qty=0 behaves like sold in price history — show Venduto badge, preserve historical data
     assetMetadata.set(asset.name, {
       ticker: asset.ticker,
+      displayTicker: getAssetDisplayTicker(asset),
       name: asset.name,
       isDeleted: asset.quantity === 0,
       isCash: asset.assetClass === 'cash',
@@ -392,6 +399,7 @@ export function transformPriceHistoryData(
     assetRows.push({
       name: metadata.name, // Use name as primary key (aggregates re-acquired assets)
       ticker: metadata.ticker,
+      displayTicker: metadata.displayTicker,
       isDeleted: metadata.isDeleted,
       months,
       ytd,

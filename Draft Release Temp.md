@@ -24,12 +24,14 @@
 - Added leverage-aware allocation targets: your per-class targets can now sum to more than 100% to express a desired leverage, and Settings shows the resulting target leverage (e.g. "Leva target 1,50×").
 - Added leverage-aware Ribilancia / Versa / Preleva plans: when you hold leveraged or composite ETFs, the suggested trades reason over your actual instruments (a €1 buy of a 2x fund moves more than €1 of exposure) instead of assuming plain 1x purchases.
 - Added two new asset classes, "Trend Following" and "Carry", selectable as allocation targets and as composition legs of a composite ETF.
+- Added an optional display alias for any investment's ticker: set a readable label (e.g. "CL2" instead of "CL2.MI") from the asset's edit screen, and it now shows everywhere in the app — Portfolio, Allocation, Dividends, Goals, History, PDF exports, and the operations register — while automatic price updates keep using the real ticker underneath.
 
 ## 🐛 Bug Fixes
 
 - Fixed the "Total Return per Asset" table on Dividends excluding fully-sold investments entirely and describing every gain as "unrealized" — it now uses your real buy/sell history for tracked investments, so fully-sold positions (marked "Chiusa") and partial sells show an accurate, correctly-labeled capital-gain figure instead.
 - Fixed the dividend-return figure on that same table for tracked investments with more than one purchase at a different price — it now credits each dividend against the cost basis that was actually in effect when it was paid, instead of a single average across your whole holding period.
 - Fixed the Previdenza tax-benefit estimate for accounts tracking more than one person's pension fund (e.g. both spouses): contributions from every fund were being summed against a single income, understating the deduction for each person. The tax benefit is now calculated once per family member, using their own income and contributions.
+- Fixed a stray leftover ticker value showing under a Fondo Pensione's name in Patrimonio for funds originally tracked as a different investment type before being converted — pension funds never show a ticker line now.
 
 ## 🔧 Improvements
 

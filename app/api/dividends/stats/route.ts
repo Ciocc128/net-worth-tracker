@@ -8,6 +8,7 @@ import {
 import { adminDb } from '@/lib/firebase/admin';
 import { AssetDividendGrowth, Dividend, DividendGrowthData, TotalReturnAsset, YieldOnCostAsset } from '@/types/dividend';
 import { computeDividendYieldMetrics } from '@/lib/utils/yieldOnCost';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { getUserSnapshotsAdmin, getAssetTransactionsAdmin } from '@/lib/server/assetAdminRepository';
 import { deriveHoldingStartDates } from '@/lib/utils/snapshotAssetBreakdown';
 import {
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
     const userAssets = assetsSnapshot.docs.map(doc => ({
       id: doc.id,
       ticker: doc.data().ticker || '',
+      displayTicker: doc.data().displayTicker as string | null | undefined,
       name: doc.data().name || '',
       quantity: doc.data().quantity || 0,
       currentPrice: doc.data().currentPrice || 0,
@@ -258,7 +260,7 @@ export async function GET(request: NextRequest) {
 
           return {
             assetId: asset.id,
-            assetTicker: asset.ticker,
+            assetTicker: getAssetDisplayTicker(asset),
             assetName: asset.name,
             quantity: asset.quantity,
             averageCost: state.averageCostEur ?? asset.averageCost ?? 0,
@@ -289,7 +291,7 @@ export async function GET(request: NextRequest) {
         const dividendReturnPercentage = computeDividendReturnPercentage(assetDividends, asset.averageCost!);
         return {
           assetId: asset.id,
-          assetTicker: asset.ticker,
+          assetTicker: getAssetDisplayTicker(asset),
           assetName: asset.name,
           quantity: asset.quantity,
           averageCost: asset.averageCost!,
@@ -368,7 +370,7 @@ export async function GET(request: NextRequest) {
 
       assetGrowthList.push({
         assetId: aid,
-        assetTicker: asset.ticker,
+        assetTicker: getAssetDisplayTicker(asset),
         assetName: asset.name,
         currency: sampleDiv?.currency ?? 'EUR',
         yearlyDps,
@@ -456,7 +458,10 @@ export async function GET(request: NextRequest) {
       yieldOnCostAssets = ttmMetrics.assets
         .map<YieldOnCostAsset>(a => ({
           assetId: a.assetId,
-          assetTicker: a.assetTicker,
+          // ttmMetrics.assets comes from the shared yieldOnCost.ts engine, which resolves the raw
+          // ticker (also used by performanceService.ts's own YOC surfaces, out of this feature's
+          // scope) — re-resolve the alias here from the live asset instead of the engine's output.
+          assetTicker: assetsMap.has(a.assetId) ? getAssetDisplayTicker(assetsMap.get(a.assetId)!) : a.assetTicker,
           assetName: a.assetName,
           quantity: a.quantity,
           averageCost: a.averageCost,
