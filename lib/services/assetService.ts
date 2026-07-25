@@ -275,6 +275,10 @@ export async function updateAsset(
     if ('leverageRatio' in updates && updates.leverageRatio === undefined) {
       cleanedUpdates.leverageRatio = deleteField();
     }
+    // displayTicker is user-clearable (empty alias → fall back to ticker). The only real caller
+    // is AssetDialog with a complete formData, so a bare undefined check is safe here (same
+    // reasoning as averageCost/taxRate above, unlike leverageRatio's `in` guard).
+    if (updates.displayTicker === undefined) cleanedUpdates.displayTicker = deleteField();
 
     // Rebuy on the same doc: quantity goes from 0 (sold but kept) back to > 0. Stamp the new
     // holding start so YOC ignores the previous holding's dividends (mirrors the ISIN-reuse path
@@ -315,9 +319,10 @@ export type AssetMetadataFormData = Omit<AssetFormData, 'quantity' | 'averageCos
  * (docs/specs/1-asset-transactions/03-service-and-api.md §3). `updateAsset` is unchanged and still
  * used for cash/realestate.
  *
- * `taxRate` keeps the same undefined→deleteField() clearing as `updateAsset` (the form always sends
- * the key, undefined when cleared). quantity/averageCost/holdingStartDate are structurally absent
- * from the payload type, so the ledger-derived fields can never be cleared by a metadata edit.
+ * `taxRate`/`displayTicker` keep the same undefined→deleteField() clearing as `updateAsset` (the
+ * form always sends the key, undefined when cleared). quantity/averageCost/holdingStartDate are
+ * structurally absent from the payload type, so the ledger-derived fields can never be cleared by
+ * a metadata edit.
  */
 export async function updateAssetMetadata(
   assetId: string,
@@ -337,6 +342,8 @@ export async function updateAssetMetadata(
     if ('leverageRatio' in updates && updates.leverageRatio === undefined) {
       cleanedUpdates.leverageRatio = deleteField();
     }
+    // displayTicker is a metadata field too — clearable, same rule as updateAsset.
+    if (updates.displayTicker === undefined) cleanedUpdates.displayTicker = deleteField();
 
     await updateDoc(assetRef, cleanedUpdates);
 

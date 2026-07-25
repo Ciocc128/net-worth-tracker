@@ -25,6 +25,7 @@ import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { calculateCurrentAllocation } from './assetAllocationService';
 import { getAssetClassColor, getChartColor } from '@/lib/constants/colors';
 import { getItalyYear, getItalyMonth } from '@/lib/utils/dateHelpers';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 
 /**
  * Prepare data for asset class distribution pie chart
@@ -82,7 +83,7 @@ export function prepareAssetDistributionData(
   // Calculate value for each asset
   const assetValues = assets.map((asset) => ({
     name: asset.name,
-    ticker: asset.ticker,
+    ticker: getAssetDisplayTicker(asset),
     value: calculateAssetValue(asset),
   }));
 

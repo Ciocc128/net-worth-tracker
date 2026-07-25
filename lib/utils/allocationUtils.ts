@@ -25,6 +25,7 @@ import type {
   Asset,
   AssetAllocationTarget,
 } from '@/types/assets';
+import { getAssetDisplayTicker } from './assetDisplay';
 
 export type AllocationAction = 'COMPRA' | 'VENDI' | 'OK';
 
@@ -531,7 +532,7 @@ export function buildHoldings(
         holdings.push({
           id: `${asset.id}:${index}`,
           label: `${asset.name} · ${ASSET_CLASS_LABELS[component.assetClass] ?? component.assetClass}`,
-          ticker: asset.ticker || undefined,
+          ticker: getAssetDisplayTicker(asset) || undefined,
           assetClass: component.assetClass,
           subCategory: component.subCategory,
           value: (value * component.percentage) / 100,
@@ -542,7 +543,7 @@ export function buildHoldings(
       holdings.push({
         id: asset.id,
         label: asset.name,
-        ticker: asset.ticker || undefined,
+        ticker: getAssetDisplayTicker(asset) || undefined,
         assetClass: asset.assetClass,
         subCategory: asset.subCategory,
         value,

@@ -46,6 +46,7 @@
 
 import type { Asset, AssetClass } from '@/types/assets';
 import { expandAssetExposure } from './assetExposureUtils';
+import { getAssetDisplayTicker } from './assetDisplay';
 
 /**
  * Weight of the leverage-target tie-breaker relative to a single asset class's target-gap
@@ -60,8 +61,8 @@ export const LEVERAGE_TIEBREAKER_WEIGHT = 0.1;
 export interface InstrumentExposure {
   assetId: string;
   ticker: string;
-  /** User-facing alias (falls back to `ticker`), so trade lists can show the label the user set.
-   *  Populated by the rendering layer (ticker-display-alias); unset by the pure builder here. */
+  /** User-facing alias, already fallback-resolved via `getAssetDisplayTicker` — equals `ticker`
+   *  when the asset has no alias set. */
   displayTicker?: string;
   name: string;
   marketValue: number;
@@ -91,6 +92,7 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
     instruments.push({
       assetId: asset.id,
       ticker: asset.ticker,
+      displayTicker: getAssetDisplayTicker(asset),
       name: asset.name,
       marketValue,
       exposurePerEuro,
@@ -104,7 +106,7 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
 export interface InstrumentTrade {
   assetId: string;
   ticker: string;
-  /** User-facing alias (falls back to `ticker`) for display; populated by the rendering layer. */
+  /** User-facing alias, fallback-resolved — carried over from `InstrumentExposure.displayTicker`. */
   displayTicker?: string;
   name: string;
   amount: number;

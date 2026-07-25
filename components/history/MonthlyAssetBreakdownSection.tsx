@@ -21,7 +21,8 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
-import type { MonthlySnapshot } from '@/types/assets';
+import type { Asset, MonthlySnapshot } from '@/types/assets';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -177,11 +178,22 @@ function SelectedAssetTrendChart({
 
 interface MonthlyAssetBreakdownSectionProps {
   snapshots: MonthlySnapshot[];
+  /** Live current assets, used only to resolve an alias for `SnapshotAssetEntry.ticker` by
+   *  `assetId` — the snapshot itself has no `displayTicker` (frozen at snapshot time). Absent for
+   *  an asset since deleted, or when the caller doesn't pass live assets — falls back to the raw
+   *  snapshot ticker either way. */
+  assets?: Asset[];
 }
 
-export function MonthlyAssetBreakdownSection({ snapshots }: MonthlyAssetBreakdownSectionProps) {
+export function MonthlyAssetBreakdownSection({ snapshots, assets }: MonthlyAssetBreakdownSectionProps) {
   const chartColors = useChartColors();
   const isMobile = useMediaQuery('(max-width: 767px)');
+
+  const displayTickerByAssetId = useMemo(() => {
+    const map = new Map<string, string>();
+    (assets ?? []).forEach((asset) => map.set(asset.id, getAssetDisplayTicker(asset)));
+    return map;
+  }, [assets]);
 
   // Months that actually carry a per-asset breakdown (newest first).
   const months = useMemo(() => getAvailableSnapshotMonths(snapshots), [snapshots]);
@@ -343,7 +355,7 @@ export function MonthlyAssetBreakdownSection({ snapshots }: MonthlyAssetBreakdow
                             <p className="truncate font-medium text-foreground">{asset.name}</p>
                             {asset.ticker && (
                               <p className="truncate font-mono text-xs text-muted-foreground">
-                                {asset.ticker}
+                                {displayTickerByAssetId.get(asset.assetId) ?? asset.ticker}
                               </p>
                             )}
                           </div>

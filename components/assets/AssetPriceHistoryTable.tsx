@@ -234,7 +234,7 @@ export function AssetPriceHistoryTable({
                   <TableCell className="sticky left-0 bg-card z-10 border-r">
                     <div className="flex items-center gap-2">
                       <div>
-                        <div className="font-semibold text-sm">{asset.ticker}</div>
+                        <div className="font-semibold text-sm">{asset.displayTicker ?? asset.ticker}</div>
                         <div className="text-xs text-muted-foreground">{asset.name}</div>
                       </div>
                       {asset.isDeleted && (

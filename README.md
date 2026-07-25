@@ -20,6 +20,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - Multi-asset tracking across stocks, ETFs, bonds, crypto, real estate, commodities, pension funds, and cash — added via a guided two-step dialog: pick the asset type first, then fill in only the relevant fields for that type
 - Multi-currency support: assets priced in USD, GBP, CHF, etc. are automatically converted to EUR for all portfolio calculations using live Frankfurter exchange rates; LSE pence (GBp) normalized to GBP automatically
 - Automatic price updates via Yahoo Finance (all assets) and Borsa Italiana (Italian bonds with ISIN)
+- **Ticker display alias**: give any investment a short, readable label (e.g. "CL2" instead of "CL2.MI") shown everywhere across the app instead of the raw ticker — automatic price updates keep using the real ticker underneath, unaffected
 - Bond coupon scheduling: automatic coupon generation with step-up rate tiers and final premium (Premio Finale) support — full BTP Valore compatible
 - Average cost tracking with 4-decimal precision, including a built-in multi-broker PMC calculator for positions spread across multiple brokers
 - **Operations register (Registro operazioni)**: record explicit Buy / Sell / Adjustment operations on each tracked investment (stocks, ETFs, bonds, crypto, commodities), with an optional settlement account whose balance updates automatically — operations are net-worth-neutral (money simply moves between the asset and your cash). A per-asset "Movimenti" view lists your full operation history alongside realized P&L, total return, and money-weighted return (XIRR); a sale shows an estimated realized-P&L preview before you confirm. For tracked investments, quantity and average cost are managed through the register, so editing an asset can never overwrite its cost basis. The register also powers "Capitale investito" and "Plusvalenze realizzate" on Performance and the total-return breakdown on Dividends (see below)
@@ -213,7 +214,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 | Forms | react-hook-form, zod | Form handling and validation |
 | Dates | date-fns, date-fns-tz | Timezone-aware date operations |
 | Scraping | cheerio | Borsa Italiana dividend and bond price data |
-| Testing | Vitest | Unit testing (1102 tests) |
+| Testing | Vitest | Unit testing (1221 tests) |
 
 ## Development
 

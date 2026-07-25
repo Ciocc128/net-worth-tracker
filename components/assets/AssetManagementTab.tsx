@@ -38,6 +38,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -676,9 +677,12 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                       <TooltipContent>{asset.name}</TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
-                                  {asset.ticker && (
+                                  {/* pensionFund has no ticker input (gated like cash/realestate) —
+                                      a leftover raw value from before a type conversion must not
+                                      resurface here. */}
+                                  {asset.ticker && asset.type !== 'pensionFund' && (
                                     <span className="block truncate text-xs font-mono text-muted-foreground">
-                                      {asset.ticker}
+                                      {getAssetDisplayTicker(asset)}
                                     </span>
                                   )}
                                 </div>
