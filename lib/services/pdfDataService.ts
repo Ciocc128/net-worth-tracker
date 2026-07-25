@@ -48,6 +48,7 @@ import {
   calculateAnnualPortfolioCost,
   calculateFIRENetWorth,
 } from './assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   compareAllocations,
   getSettings,
@@ -176,7 +177,7 @@ export function preparePortfolioData(assets: Asset[]): PortfolioData {
     totalUnrealizedGains += unrealizedGain;
 
     return {
-      ticker: asset.ticker,
+      ticker: getAssetDisplayTicker(asset),
       name: asset.name,
       assetClass: asset.assetClass,
       assetType: asset.type,

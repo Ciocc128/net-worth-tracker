@@ -16,6 +16,7 @@ import {
 } from '@/lib/services/assetService';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { Pencil, Trash2, Calculator, ChevronDown, Info, ArrowLeftRight, ScrollText, PiggyBank } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -137,8 +138,10 @@ export function AssetCard({
           <h3 className="font-semibold text-base text-foreground truncate">
             {asset.name}
           </h3>
-          {asset.ticker && (
-            <p className="text-sm text-muted-foreground mt-0.5 truncate">{asset.ticker}</p>
+          {/* pensionFund has no ticker input (gated like cash/realestate) — a leftover raw value
+              from before a type conversion must not resurface here. */}
+          {asset.ticker && asset.type !== 'pensionFund' && (
+            <p className="text-sm text-muted-foreground mt-0.5 truncate">{getAssetDisplayTicker(asset)}</p>
           )}
           {asset.quantity === 0 && (
             <Badge variant="outline" className="mt-1 text-xs bg-muted text-muted-foreground border-border">

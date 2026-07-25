@@ -33,6 +33,7 @@ import {
 } from '@/lib/utils/assetTransactionUtils';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatDate } from '@/lib/utils/formatters';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -167,7 +168,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
           <div>
             <p className="text-sm font-semibold text-foreground">{asset.name}</p>
             {asset.ticker && (
-              <p className="text-xs font-mono text-muted-foreground">{asset.ticker}</p>
+              <p className="text-xs font-mono text-muted-foreground">{getAssetDisplayTicker(asset)}</p>
             )}
           </div>
 
