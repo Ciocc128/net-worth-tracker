@@ -134,7 +134,7 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
 
   // Cash accounts eligible as a settlement target.
   const cashAssets = useMemo(
-    () => allAssets.filter((a) => a.assetClass === 'cash'),
+    () => allAssets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'),
     [allAssets]
   );
 

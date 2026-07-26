@@ -37,7 +37,7 @@ const NATURE_OPTIONS: { value: ContributionSource; label: string; hint: string }
   {
     value: 'voluntary',
     label: 'Volontario',
-    hint: 'Deducibile IRPEF entro il tetto annuo. Esce dal conto scelto sotto, come un trasferimento.',
+    hint: 'Deducibile IRPEF entro il tetto annuo. Se versato da un tuo conto, scegli quale sotto — se invece è trattenuto in busta paga, lascia il campo vuoto.',
   },
   {
     value: 'employer',
@@ -51,25 +51,15 @@ const NATURE_OPTIONS: { value: ContributionSource; label: string; hint: string }
   },
 ];
 
-const contributionSchema = z
-  .object({
-    assetId: z.string().min(1, 'Seleziona un fondo pensione'),
-    source: z.enum(['tfr', 'voluntary', 'employer']),
-    amount: z.number().positive('Inserisci un importo maggiore di zero'),
-    date: z.string().min(1, 'Inserisci una data'),
-    taxYear: z.number().int(),
-    sourceCashAssetId: z.string().optional(),
-    notes: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.source === 'voluntary' && (!data.sourceCashAssetId || data.sourceCashAssetId === '__none__')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Seleziona il conto di provenienza per il versamento volontario',
-        path: ['sourceCashAssetId'],
-      });
-    }
-  });
+const contributionSchema = z.object({
+  assetId: z.string().min(1, 'Seleziona un fondo pensione'),
+  source: z.enum(['tfr', 'voluntary', 'employer']),
+  amount: z.number().positive('Inserisci un importo maggiore di zero'),
+  date: z.string().min(1, 'Inserisci una data'),
+  taxYear: z.number().int(),
+  sourceCashAssetId: z.string().optional(),
+  notes: z.string().optional(),
+});
 
 type ContributionFormValues = z.infer<typeof contributionSchema>;
 
@@ -88,7 +78,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
   const recordMutation = useRecordPensionContribution(ownerId || '');
 
   const funds = assets.filter((a) => a.type === 'pensionFund');
-  const cashAccounts = assets.filter((a) => a.assetClass === 'cash');
+  const cashAccounts = assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
   const todayIso = new Date().toISOString().split('T')[0];
 
   const {
@@ -124,7 +114,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
       amount: undefined,
       date: todayIso,
       taxYear: new Date().getFullYear(),
-      sourceCashAssetId: cashAccounts[0]?.id ?? '__none__',
+      sourceCashAssetId: '__none__',
       notes: '',
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,7 +222,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
 
           {watchSource === 'voluntary' && (
             <div className="space-y-2">
-              <Label htmlFor="pc-source">Conto di provenienza</Label>
+              <Label htmlFor="pc-source">Conto di provenienza (opzionale)</Label>
               {cashAccounts.length > 0 ? (
                 <Select
                   value={watchSourceCashAssetId}
@@ -242,6 +232,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">Nessuno (trattenuto in busta paga)</SelectItem>
                     {cashAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name}
@@ -251,8 +242,8 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
                 </Select>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Nessun conto di liquidità disponibile: crea un asset di tipo «Liquidità» in
-                  Patrimonio per registrare un versamento volontario.
+                  Nessun conto di liquidità disponibile: se il versamento è trattenuto in busta paga
+                  puoi comunque registrarlo senza selezionare un conto.
                 </p>
               )}
               {errors.sourceCashAssetId && (

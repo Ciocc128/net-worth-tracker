@@ -404,8 +404,11 @@ export default function DashboardPage() {
                   className={heroValueClass}
                 />
 
-                {/* Variation chips */}
-                <div className="mt-2 flex flex-wrap gap-2">
+                {/* Variation chips — grid (not flex-wrap) so every chip shares the same column
+                    width regardless of its own text length: 1 column on mobile (each chip spans
+                    the full card width), 2 columns from tablet up (columns size together across
+                    every row, so a lone 3rd chip still matches the first column's width). */}
+                <div className="mt-2 grid grid-cols-1 gap-2 tablet:grid-cols-2">
                   {overview?.variations.monthly && (
                     <span
                       className={cn(

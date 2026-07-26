@@ -166,7 +166,7 @@ function seedAsset(overrides: Record<string, unknown> = {}) {
   });
 }
 function seedCash(id: string, quantity: number) {
-  store.set(docKey('assets', id), { userId: OWNER, assetClass: 'cash', quantity });
+  store.set(docKey('assets', id), { userId: OWNER, assetClass: 'cash', type: 'cash', quantity });
 }
 
 describe('assetTransactionUseCase — atomic write transaction', () => {

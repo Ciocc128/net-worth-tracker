@@ -32,6 +32,8 @@
 - Fixed the dividend-return figure on that same table for tracked investments with more than one purchase at a different price — it now credits each dividend against the cost basis that was actually in effect when it was paid, instead of a single average across your whole holding period.
 - Fixed the Previdenza tax-benefit estimate for accounts tracking more than one person's pension fund (e.g. both spouses): contributions from every fund were being summed against a single income, understating the deduction for each person. The tax benefit is now calculated once per family member, using their own income and contributions.
 - Fixed a stray leftover ticker value showing under a Fondo Pensione's name in Patrimonio for funds originally tracked as a different investment type before being converted — pension funds never show a ticker line now.
+- Fixed account pickers for money transfers (operations register on Patrimonio, pension contributions, expense payment account) offering money-market ETFs alongside real cash accounts — only genuine liquidity accounts are now selectable as a settlement or source account.
+- Fixed the pension contribution form requiring a source account for every voluntary payment — a voluntary contribution can now also be recorded with no source account, for when it's withheld directly from your payslip rather than transferred from a bank account.
 
 ## 🔧 Improvements
 
@@ -47,6 +49,7 @@
 - The spending-anomaly warning banner on Analisi now follows your selected color theme instead of a fixed amber color.
 - Removed two unused fields ("Data di iscrizione", "Prima occupazione dopo il 2007") from the pension fund's own details, now that this information is set once per family member in Settings instead of per fund.
 - The Previdenza page and the "Registra versamento" dialog now explain the correct order for your monthly update: register the month's contributions first, then update the fund's current value from your statement — doing it the other way around double-counts the contributions.
+- The net worth variation badges on the Overview hero (monthly change, YTD, all-time-high) now share the same width on mobile and tablet instead of each sizing to its own text.
 
 ## 🔒 Security
 

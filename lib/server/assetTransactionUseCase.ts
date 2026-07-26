@@ -171,7 +171,7 @@ async function getOwnedTradeOrThrow(ownerId: string, transactionId: string): Pro
 async function assertCashSettlementAsset(ownerId: string, cashAssetId: string): Promise<void> {
   const snap = await adminDb.collection(ASSETS_COLLECTION).doc(cashAssetId).get();
   const data = snap.exists ? snap.data() : undefined;
-  if (!data || data.userId !== ownerId || data.assetClass !== 'cash') {
+  if (!data || data.userId !== ownerId || data.assetClass !== 'cash' || data.type !== 'cash') {
     throw new TradeUseCaseError(422, 'Il conto di regolamento selezionato non è valido.');
   }
 }
