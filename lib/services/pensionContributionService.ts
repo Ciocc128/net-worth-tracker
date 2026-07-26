@@ -171,7 +171,7 @@ async function assertVoluntarySourceIsCashAccount(sourceCashAssetId: string): Pr
   if (!sourceAsset) {
     throw new Error(`Source cash account ${sourceCashAssetId} was not found`);
   }
-  if (sourceAsset.assetClass !== 'cash') {
+  if (sourceAsset.assetClass !== 'cash' || sourceAsset.type !== 'cash') {
     throw new Error('A voluntary pension contribution must come from a cash account');
   }
 }
@@ -259,8 +259,9 @@ export async function recordPensionContribution(
   validatePensionContributionInput(input);
   const amount = Math.abs(input.amount);
 
-  if (input.source !== 'voluntary') {
-    // TFR / employer: the money never transits the user's account — credit the fund standalone.
+  if (input.source !== 'voluntary' || !input.sourceCashAssetId) {
+    // TFR / employer, or a voluntary contribution withheld directly from payroll: the money never
+    // transits the user's account — credit the fund standalone.
     await updateCashAssetBalance(input.assetId, amount);
     try {
       return await writePensionContribution(userId, input);
@@ -273,9 +274,6 @@ export async function recordPensionContribution(
     }
   }
 
-  if (!input.sourceCashAssetId) {
-    throw new Error('A voluntary pension contribution requires a source cash account');
-  }
   await assertVoluntarySourceIsCashAccount(input.sourceCashAssetId);
 
   const transferExpenseId = await createVoluntaryTransferEntry(userId, input);

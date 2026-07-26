@@ -515,7 +515,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     queryFn: () => getSettings(ownerId!),
     enabled: !!ownerId,
   });
-  const ledgerCashAssets = ledgerAllAssets.filter((a) => a.assetClass === 'cash');
+  const ledgerCashAssets = ledgerAllAssets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const [allocationTargets, setAllocationTargets] = useState<AssetAllocationTarget | null>(null);
   const [loadingTargets, setLoadingTargets] = useState(false);

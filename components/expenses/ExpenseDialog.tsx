@@ -998,7 +998,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         getSettings(ownerId),
         getCostCenters(ownerId),
       ]);
-      setCashAssets(allAssets.filter((a) => a.assetClass === 'cash'));
+      setCashAssets(allAssets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'));
       const debitId = settings?.defaultDebitCashAssetId || '__none__';
       const creditId = settings?.defaultCreditCashAssetId || '__none__';
       setDefaultDebitCashAssetId(debitId);

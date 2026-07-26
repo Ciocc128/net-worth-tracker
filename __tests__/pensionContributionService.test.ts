@@ -103,7 +103,7 @@ beforeEach(() => {
   deleteExpenseMock.mockResolvedValue(undefined);
   ensureTransferCategoryMock.mockResolvedValue('category-transfer');
   getCategoryByIdMock.mockResolvedValue({ id: 'category-transfer', name: 'Trasferimenti' });
-  getAssetByIdMock.mockResolvedValue({ id: CASH_ID, assetClass: 'cash' });
+  getAssetByIdMock.mockResolvedValue({ id: CASH_ID, assetClass: 'cash', type: 'cash' });
 });
 
 // ─── getPensionContributions ─────────────────────────────────────────────────
@@ -306,14 +306,16 @@ describe('recordPensionContribution (voluntary)', () => {
     expect(createExpenseMock.mock.calls[0][2]).toBe('Giroconti');
   });
 
-  it('should throw and touch nothing when the source cash account is missing', async () => {
-    await expect(
-      recordPensionContribution(USER_ID, { ...voluntaryInput, sourceCashAssetId: undefined })
-    ).rejects.toThrow('requires a source cash account');
+  it('should credit the fund standalone (no transfer) when no source account is given, e.g. withheld from payroll', async () => {
+    const id = await recordPensionContribution(USER_ID, {
+      ...voluntaryInput,
+      sourceCashAssetId: undefined,
+    });
 
+    expect(id).toBe('new-contribution');
     expect(createExpenseMock).not.toHaveBeenCalled();
     expect(reconcileTransferCreateMock).not.toHaveBeenCalled();
-    expect(addDocMock).not.toHaveBeenCalled();
+    expect(updateCashAssetBalanceMock).toHaveBeenCalledWith(FUND_ID, 500);
   });
 
   it('should reject an origin account that is not a cash asset', async () => {
@@ -322,6 +324,18 @@ describe('recordPensionContribution (voluntary)', () => {
 
     await expect(
       recordPensionContribution(USER_ID, { ...voluntaryInput, sourceCashAssetId: 'etf-1' })
+    ).rejects.toThrow('must come from a cash account');
+
+    expect(createExpenseMock).not.toHaveBeenCalled();
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
+  it('should reject a money-market ETF classified assetClass "cash" but type "etf"', async () => {
+    // assetClass can be user-set independently of type — only a real type:'cash' asset is a bank account.
+    getAssetByIdMock.mockResolvedValue({ id: 'etf-cash-1', assetClass: 'cash', type: 'etf' });
+
+    await expect(
+      recordPensionContribution(USER_ID, { ...voluntaryInput, sourceCashAssetId: 'etf-cash-1' })
     ).rejects.toThrow('must come from a cash account');
 
     expect(createExpenseMock).not.toHaveBeenCalled();
