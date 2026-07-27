@@ -25,6 +25,7 @@
 - Added leverage-aware Ribilancia / Versa / Preleva plans: when you hold leveraged or composite ETFs, the suggested trades reason over your actual instruments (a €1 buy of a 2x fund moves more than €1 of exposure) instead of assuming plain 1x purchases.
 - Added two new asset classes, "Trend Following" and "Carry", selectable as allocation targets and as composition legs of a composite ETF.
 - Added an optional display alias for any investment's ticker: set a readable label (e.g. "CL2" instead of "CL2.MI") from the asset's edit screen, and it now shows everywhere in the app — Portfolio, Allocation, Dividends, Goals, History, PDF exports, and the operations register — while automatic price updates keep using the real ticker underneath.
+- Added a CSV import tool in Settings → Spese to migrate historical income and expense data in bulk: it accepts Italian or English column headers and number/date formats, shows a full preview (what will be imported, what will be skipped and why, which categories will be created) before anything is saved, and the entire import can be undone with one tap. Money transfers aren't supported by the import, and it never changes your account balances.
 
 ## 🐛 Bug Fixes
 
