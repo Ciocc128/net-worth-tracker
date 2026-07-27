@@ -52,6 +52,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
+import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { scheduleNextCoupon, scheduleFinalPremium } from '@/lib/services/couponScheduling';
 import { getTargets, addSubCategory, getSettings } from '@/lib/services/assetAllocationService';
 import type { Settings } from '@/types/settings';
@@ -78,38 +79,14 @@ import { Calculator, Plus, X, BarChart3, Landmark, Bitcoin, Wallet, Home, Packag
 import { Switch } from '@/components/ui/switch';
 
 /**
- * Determines if an asset type should fetch automatic price updates
+ * Determines if an asset type should fetch automatic price updates.
  *
- * Asset types with fixed or manual valuations should not auto-update:
- * - Real estate: Uses property appraisals, not market prices
- * - Private equity: Valuations done periodically by fund managers
- * - Cash: Always has price = 1 (no market fluctuation)
- *
- * All other asset types (stocks, ETFs, bonds, crypto, commodities) fetch prices
- * from Yahoo Finance API for real-time portfolio valuation.
- *
- * @param assetType - The asset type (stock, etf, bond, crypto, commodity, cash, realestate)
- * @param subCategory - Optional subcategory (e.g., "Private Equity" within equity class)
- * @returns true if asset should automatically update prices from Yahoo Finance
+ * Local alias over the shared rule so the ~8 call sites below keep reading in terms of
+ * "should I fetch a price?"; the rule itself lives in `lib/utils/assetPricing.ts` (it is
+ * shared with the price-update cron and with Patrimonio's manual-price row tint, which
+ * used to disagree with this file about `pensionFund`).
  */
-function shouldUpdatePrice(assetType: string, subCategory?: string): boolean {
-  // Real estate and private equity have fixed valuations (no market price)
-  if (assetType === 'realestate' || subCategory === 'Private Equity') {
-    return false;
-  }
-
-  // Cash always has price = 1 (no updates needed)
-  if (assetType === 'cash') {
-    return false;
-  }
-
-  // Fondo pensione: value is a statement (estratto conto) overwrite, like realestate — no market price.
-  if (assetType === 'pensionFund') {
-    return false;
-  }
-
-  return true;
-}
+const shouldUpdatePrice = hasMarketPrice;
 
 /**
  * Converts a raw price to EUR for bonds using Borsa Italiana's % of par convention.
@@ -284,7 +261,12 @@ function buildAssetFormDataFromValues(
     currentPrice,
     currentPriceEur: fetchedCurrentPriceEur,
     isLiquid: data.isLiquid,
-    autoUpdatePrice: data.autoUpdatePrice,
+    // An asset with no market price can never be auto-updated, so never store `true` for one.
+    // The form default is `true` and the switch is hidden for cash/realestate/pensionFund, so
+    // without this clamp those assets were persisted claiming an auto-update they can't have.
+    autoUpdatePrice: hasMarketPrice(data.type, data.subCategory || undefined)
+      ? data.autoUpdatePrice
+      : false,
     composition: isComposite && composition.length > 0 ? composition : undefined,
     outstandingDebt:
       data.outstandingDebt && !isNaN(data.outstandingDebt) && data.outstandingDebt > 0

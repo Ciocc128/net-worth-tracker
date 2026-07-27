@@ -41,12 +41,13 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Wallet, TrendingUp, TrendingDown, Pencil, Trash2, ChevronDown } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Trophy, Pencil, Trash2, ChevronDown } from 'lucide-react';
 import { AssetManagementTab } from '@/components/assets/AssetManagementTab';
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { OverviewAnimatedCurrency } from '@/components/dashboard/OverviewAnimatedCurrency';
 import { NetWorthSparkline } from '@/components/dashboard/NetWorthSparkline';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { signChipClass } from '@/lib/utils/metricColors';
 import { formatCurrency } from '@/lib/services/chartService';
 import { calculateAssetValue, calculateUnrealizedGains } from '@/lib/services/assetService';
 import { formatNumber } from '@/lib/services/chartService';
@@ -402,19 +403,21 @@ export default function AssetsPage() {
                   className="text-[44px] font-bold font-mono tracking-[-0.03em] desktop:text-[54px]"
                 />
 
-                {/* Variation chips */}
-                <div className="mt-2 flex flex-wrap gap-2">
+                {/* Variation chips — grid (not flex-wrap) so every chip shares the same column
+                    width regardless of its own text length: 1 column on mobile (each chip spans
+                    the full card width), 2 columns from tablet up (columns size together across
+                    every row, so a lone 3rd chip still matches the first column's width).
+                    Kept identical to Panoramica's hero — same data, same treatment. */}
+                <div className="mt-2 grid grid-cols-1 gap-2 tablet:grid-cols-2">
                   {overview?.variations.monthly && (
                     <span className={cn(
                       'inline-flex items-center gap-2 rounded-[9px] px-[13px] py-[6px]',
                       'text-[15px] font-semibold font-mono tracking-[-0.01em]',
-                      overview.variations.monthly.value >= 0
-                        ? 'bg-positive/10 text-positive'
-                        : 'bg-destructive/10 text-destructive'
+                      signChipClass(overview.variations.monthly.value)
                     )}>
                       {overview.variations.monthly.value >= 0
-                        ? <TrendingUp className="h-[13px] w-[13px]" />
-                        : <TrendingDown className="h-[13px] w-[13px]" />
+                        ? <TrendingUp className="h-[13px] w-[13px]" aria-hidden="true" />
+                        : <TrendingDown className="h-[13px] w-[13px]" aria-hidden="true" />
                       }
                       {overview.variations.monthly.value >= 0 ? '+' : ''}
                       {cachedFormatCurrencyEUR(overview.variations.monthly.value)}{' '}
@@ -426,18 +429,22 @@ export default function AssetsPage() {
                     <span className={cn(
                       'inline-flex items-center gap-2 rounded-[9px] px-[13px] py-[6px]',
                       'text-[15px] font-semibold font-mono tracking-[-0.01em]',
-                      overview.variations.yearly.value >= 0
-                        ? 'bg-positive/10 text-positive'
-                        : 'bg-destructive/10 text-destructive'
+                      signChipClass(overview.variations.yearly.value)
                     )}>
                       {overview.variations.yearly.value >= 0
-                        ? <TrendingUp className="h-[13px] w-[13px]" />
-                        : <TrendingDown className="h-[13px] w-[13px]" />
+                        ? <TrendingUp className="h-[13px] w-[13px]" aria-hidden="true" />
+                        : <TrendingDown className="h-[13px] w-[13px]" aria-hidden="true" />
                       }
                       {overview.variations.yearly.value >= 0 ? '+' : ''}
                       {cachedFormatCurrencyEUR(overview.variations.yearly.value)}{' '}
                       ({overview.variations.yearly.percentage >= 0 ? '+' : ''}
                       {overview.variations.yearly.percentage.toFixed(2)}%) YTD
+                    </span>
+                  )}
+                  {overview?.ath?.isNewATH && (
+                    <span className="bg-positive/10 text-positive inline-flex items-center gap-2 rounded-[9px] px-[13px] py-[6px] font-mono text-[15px] font-semibold tracking-[-0.01em]">
+                      <Trophy className="h-[13px] w-[13px]" aria-hidden="true" />
+                      Nuovo massimo storico
                     </span>
                   )}
                 </div>

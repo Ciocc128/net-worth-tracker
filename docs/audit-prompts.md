@@ -87,6 +87,11 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
   (`hidden desktop:flex`); logo+nome nascosti (`group-data-[state=collapsed]:hidden`);
   `AssistenteBanner` sostituito dall'icona Bot viola (`group-data-[state=collapsed]:flex`);
   `SidebarMenuButton size="lg"` nel footer collassa automaticamente a sola avatar
+- Switcher account condiviso (`useActiveAccount`): l'account attivo deve essere leggibile a
+  colpo d'occhio quando è diverso dal viewer (label via `getAccountLabel`) — un utente non
+  deve poter modificare i dati di un altro credendo di essere sul proprio; verifica che il
+  controllo resti utilizzabile anche in modalità collassata
+- Voce "Previdenza" presente nel gruppo Pianificazione (`planningNav`)
 - Dark mode: contrasto voce attiva e hover su sfondo `--sidebar-background`
 - Altro: pattern anomali o violazioni non elencate sopra
 
@@ -141,6 +146,9 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - ARIA: `role="dialog"`, `aria-modal="true"`, focus trap, close on Escape
 - Touch targets: ogni voce ≥ 44px height
 - Breakpoint: visibile solo dove previsto (portrait mobile/tablet)
+- Switcher account condiviso: in portrait la Sidebar è irraggiungibile, quindi QUESTO è
+  l'unico switcher esistente sul telefono — verifica che sia presente, raggiungibile senza
+  scroll infinito e che dichiari l'account attivo, non solo la lista di quelli disponibili
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:
@@ -159,14 +167,25 @@ Contesto:
 /impeccable audit la landing page
 
 File: app/page.tsx
+Componenti: components/dashboard/NetWorthSparkline.tsx,
+            components/dashboard/SavingsRingChart.tsx,
+            components/layout/ThemePicker.tsx
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: nessun colore hardcoded su hero, feature cards, CTA — CSS vars ovunque
+- Token: nessun colore hardcoded su hero preview, proof strip, CTA — CSS vars ovunque
+- Zero-Chroma sulla pagina pubblica: headline e icone feature NON accentate con
+  `text-primary`/`bg-primary/10` (in tema default `--primary ≈ --foreground`, quindi
+  l'accento è invisibile lì e colora solo sui 5 temi personalità). Icone feature
+  `text-muted-foreground`; l'unico colore in pagina è il dato (sparkline + chip positiva)
+- Onestà: le preview Panoramica/Cashflow restano etichettate "Dati dimostrativi"
+- Mono Mandate: i numeri delle preview in Geist Mono + tabular-nums, come nell'app vera
+- Chart colors: `NetWorthSparkline` e `SavingsRingChart` via CSS vars, non hex
+- ThemePicker: è lo stesso componente di login/register e la scelta persiste al login
 - Breakpoint: layout responsive da 375px a desktop (≥ 1440px)
 - CTA "Prova la Demo": visibile solo se `NEXT_PUBLIC_DEMO_EMAIL` è definito
 - Motion: entry animations rispettano `useReducedMotion()`
 - ARIA: heading hierarchy (h1 → h2 → h3), bottoni con label descrittivi
-- Dark mode: contrasto su tutti gli elementi del hero e delle feature cards
+- Dark mode: contrasto su tutti gli elementi del hero e della proof strip
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:
@@ -207,21 +226,36 @@ Contesto:
 /impeccable audit la pagina Panoramica
 
 File: app/dashboard/page.tsx
-Componenti: components/dashboard/*
+Componenti: components/dashboard/* (incl. PeriodSelector, SavingsRingChart),
+            components/ui/composition-list.tsx, components/ui/composition-bar.tsx
+Pure layer: lib/utils/dashboardOverviewUtils.ts, lib/utils/sparklinePeriod.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: nessun `bg-gray-*`/`dark:bg-*`/hex hardcoded in hero card, liquid card,
+- Token: nessun `bg-gray-*`/`dark:bg-*`/hex hardcoded in hero card, Sintesi Patrimoniale,
   KPI chip grid (`bg-muted/40`), category bars, TER/Costo cards (mobile), charts section
+- Colori segno: chip di variazione via `signChipClass` e testo via `signTextClass`
+  (`lib/utils/metricColors.ts`) — mai `text-green-*`/`text-red-*` inline, che divergono da
+  `--destructive` sui temi non default
+- TER / Costo Annuale / Tasse Stimate usano `text-warning-foreground`, non amber raw
+  (questa scelta SUPERA la vecchia guida `--chart-3` per questa pagina)
+- Chip di variazione (mensile/YTD/ATH): contenitore `grid grid-cols-1 tablet:grid-cols-2`,
+  NON `flex flex-wrap` — le colonne devono avere larghezza uguale; icone `aria-hidden`.
+  Lo stesso blocco esiste su Patrimonio: se diverge, è una regressione
 - Chart colors: `NetWorthSparkline` usa `color="var(--chart-1)"` (non hex); tutti i
   chart di composizione via `useChartColors()`; category bar colors da `chartColors[0/1]`
-- Gerarchia: hero `text-[44px] desktop:text-[54px] font-bold font-mono`; liquid card
-  `text-[36px]`; KPI chip `text-[22px]`; delta annotation `text-[12px] font-mono`
+- Nessun pie/donut residuo: la composizione usa `CompositionList`/`CompositionBar`
+- Gerarchia: hero `text-[44px] desktop:text-[54px] font-bold font-mono` con step-down a
+  `text-[32px] desktop:text-[40px]` oltre i 13 caratteri; card companion `text-[36px]`;
+  KPI chip `text-[22px]`; delta annotation `text-[12px] font-mono`
 - Muted sub-tile: KPI chips usano `bg-muted/40` (no border) — non `bg-muted border-border`
   (quello è per parameter tiles nei collapsible)
-- Breakpoint: `md:` → `desktop:`; KPI grid `grid-cols-2 desktop:grid-cols-4`; TER/Costo
-  responsive duplication (`desktop:hidden` su mobile row, `hidden desktop:grid` nel hero footer)
+- PeriodSelector sparkline: `role="tablist"` con roving tabindex; periodi 3M/6M/YTD/1A/3A/All
+  (nessun 1M). Nota: ogni periodo termina sul valore LIVE, quindi "6M" rende N+1 punti —
+  è il comportamento atteso, non un off-by-one da segnalare
+- Breakpoint: `md:` → `desktop:`; TER/Costo responsive duplication (`desktop:hidden` su
+  mobile row, `hidden desktop:grid` nel hero footer)
 - Skeleton: `OverviewAnimatedCurrency` isolato in leaf, `OverviewChartsSection` memoized;
-  skeleton inline strutturalmente isomorfo al layout v2 (hero 2fr+1fr, KPI grid 4-col)
+  skeleton inline strutturalmente isomorfo al layout reale (hero 2fr+1fr)
 - Motion: `requestIdleCallback` per chart mount; `useCountUp` `once: true`; `heroSettled`
   → `chartRenderReady` handoff; card-tab `layoutId="chart-tab"` unico nella pagina
 - Altro: pattern anomali o violazioni non elencate sopra
@@ -244,14 +278,22 @@ Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetCard.tsx,
             components/assets/AssetSparkline.tsx,
             components/assets/AssetDialog.tsx,
+            components/assets/TransactionDialog.tsx,
+            components/assets/AssetMovementsDialog.tsx,
+            components/assets/AssetPriceHistoryTable.tsx,
+            components/assets/TaxCalculatorModal.tsx,
             components/dashboard/OverviewAnimatedCurrency.tsx,
             components/dashboard/NetWorthSparkline.tsx
 
 La pagina è una singola scroll — nessun tab. Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: hero card e liquid card (condivisi con Panoramica) — nessun hardcoded;
+- Token: hero card e card companion (condivise con Panoramica) — nessun hardcoded;
   CashAccountsSection card grid — nessun `bg-gray-*`; badge classe asset,
   valori G/P (`color-mix()` non `text-emerald-*`) — nessun hardcoded
-- Gerarchia: hero `text-[44px]/[54px]`; liquid card `text-[36px]`; flat 3-row
+- Chip di variazione: identiche a Panoramica — contenitore `grid grid-cols-1
+  tablet:grid-cols-2` (non `flex-wrap`), chip ATH presente, classi di segno da
+  `signChipClass` (`lib/utils/metricColors.ts`), mai ternari inline. Le due hero leggono lo
+  stesso payload `useDashboardOverview`: ogni divergenza è una regressione
+- Gerarchia: hero `text-[44px]/[54px]`; card companion `text-[36px]`; flat 3-row
   breakdown con `w-[42px] text-right` per i %; G/P non realizzato come riga border-t
 - Chart colors: `NetWorthSparkline` usa `var(--chart-1)`; `AssetSparkline` via
   `useChartColors()`
@@ -261,8 +303,53 @@ La pagina è una singola scroll — nessun tab. Assi da verificare (minimum — 
   grid di `AssetCard` raggruppate per classe (stesso componente della card mobile, reso
   inline in AssetManagementTab, non un componente `AssetMobileSummary` separato); delete
   2-click con `aria-label` e disarmo visibile; skeleton isomorfo
+- Tint riga/card a prezzo manuale: unica regola condivisa `requiresManualPricing`
+  (`lib/utils/assetPricing.ts`) usata sia dalla `TableRow` sia dalla `AssetCard` — nessuna
+  copia locale della lista dei tipi; `color-mix(in oklch, var(--chart-3) 6%, transparent)`,
+  mai amber-50/amber-950 hardcoded
+- Label strumento: sempre via `getAssetDisplayTicker` — mai `displayTicker ?? ticker` inline;
+  i `pensionFund` non mostrano mai un ticker
+- Registro operazioni: azioni di riga gated su `useAssetLedgerMeta` (mai bottoni inerti);
+  TransactionDialog con `DialogDescription` e segmented Compra/Vendi/Rettifica in
+  `role="tablist"`; AssetMovementsDialog è una superficie di lettura e non deve imitare un form
 - ARIA: AssetDialog con `DialogDescription`; type picker Step 1 con `role="radio"`
 - Breakpoint: `md:` → `desktop:`; `max-desktop:portrait:pb-20`
+- Altro: pattern anomali o violazioni non elencate sopra
+
+Contesto:
+- Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+```
+
+---
+
+## Previdenza
+
+```
+/impeccable audit la pagina Previdenza
+
+File: app/dashboard/pension/page.tsx
+Componenti: components/pension/PensionOverview.tsx,
+            components/pension/PensionContributionDialog.tsx
+Pure layer: lib/utils/pensionDeduction.ts, lib/utils/pensionContributions.ts,
+            lib/utils/pensionFamilyMembers.ts
+
+Assi da verificare (minimum — segnala anche eventuali altri problemi):
+- Token: nessun hardcoded su header, card di recap fiscale, meter del plafond;
+  il verdetto fiscale usa i token semantici (`--positive`/`--warning`), non amber raw
+- Gerarchia: valore totale del fondo come page hero `text-[44px] desktop:text-[54px]`;
+  i totali di sezione a `text-[36px]`; righe flat `divide-y`, nessuna card-in-card
+  (le card per membro famiglia sono pari-livello, non annidate nel blocco fiscale)
+- Mono Mandate: importi, RAL, percentuali IRPEF e plafond in Geist Mono + tabular-nums
+- Onestà: un fondo senza membro famiglia collegato mostra un prompt, MAI un numero —
+  verifica che il prompt sia visivamente un'azione, non un errore
+- Storico versamenti: delete 2-click con `aria-label` e disarmo visibile, come altrove
+- ARIA: PensionContributionDialog con `DialogDescription`; il selettore della natura
+  (TFR/Volontario/Datoriale) con `role="radio"`/`role="tablist"` coerente col resto dell'app
+- Skeleton: la vista è async (assets + contributions) — deve avere uno skeleton isomorfo
+- Breakpoint: `md:` → `desktop:`; `max-desktop:portrait:pb-20`
+- Demo mode: ogni mutazione gated su `useDemoMode()` (`disabled={isDemo}`)
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:
@@ -286,8 +373,11 @@ Componenti: components/dividends/DividendTrackingTab.tsx,
             components/dividends/DividendCalendar.tsx,
             components/dividends/DividendTable.tsx,
             components/dividends/DividendRecordDetailsDialog.tsx,
-            components/dividends/DividendDialog.tsx
-Pure layer (logica, non visivo): lib/utils/dividendAnalytics.ts, lib/constants/dividendTypes.ts
+            components/dividends/DividendDialog.tsx,
+            components/dividends/InflationRateDialog.tsx,
+            components/dividends/ProvisionalCouponBanner.tsx
+Pure layer (logica, non visivo): lib/utils/dividendAnalytics.ts, lib/utils/couponUtils.ts,
+            lib/constants/dividendTypes.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - Token: hero net-income, KPI chip grid (`bg-muted/40`), strip income-reliability, leaderboard
@@ -301,6 +391,12 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
   switch NON rifaccia il fetch; `DividendStats` ricevono i bound di data del periodo selezionato
 - Progressive disclosure: Table/Calendario via `SegmentedControl`; filtri asset/tipo + day-focus sotto
   "Filtra"; grafici e analisi avanzata dietro `Collapsible` — stati di default coerenti
+- Onestà sui dati provvisori: `ProvisionalCouponBanner` deve rendere evidente che la cedola
+  indicizzata all'inflazione è STIMATA finché il tasso FOI non è annunciato — non deve
+  presentarsi come un importo certo; l'InflationRateDialog è l'azione che risolve lo stato
+- Total Return per Asset (DividendStats): le posizioni chiuse hanno il badge "Chiusa" e gli
+  asset senza ledger ricadono sul confronto prezzo-vs-PMC — verifica che le due provenienze
+  non siano rese come se avessero la stessa precisione
 - Breakpoint: calendario non overflow su 375px; DividendTable scroll orizzontale su mobile;
   leaderboard e strip reliability non debordano
 - ARIA: SegmentedControl + asse periodo `role="tablist"`/`role="tab"`; calendario con `aria-label`
@@ -321,17 +417,32 @@ Contesto:
 
 File: app/dashboard/cashflow/page.tsx
 Componenti: components/cashflow/ExpenseTrackingTab.tsx,
+            components/cashflow/CashflowTrackingMobile.tsx,
+            components/cashflow/TransactionFeed.tsx,
+            components/cashflow/cashflow-kpi/CashflowHero.tsx,
+            components/cashflow/CategoryBreakdownList.tsx,
+            components/cashflow/MobileFiltersDrawer.tsx,
             components/expenses/ExpenseDialog.tsx
+Pure layer: lib/utils/trackingSummary.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: KPI dominant blocks, badge tipo spesa (Variabile/Fissa/Debito/Entrata),
-  importi negativi (rosso) — via `text-destructive` non hardcoded
-- Gerarchia: delete 2-click con 3s auto-disarm — stato "Conferma?" visivamente distinto
-  ma via token, non via `bg-red-*` hardcoded
-- ExpenseDialog: Step 1 visual type picker — 4 card 2×2 su mobile, bordi/bg via token;
-  Step 2 form fields — focus ring via CSS var
-- Breakpoint: load-more non overflow, filtri pill su 375px non wrappano oltre 2 righe
-- ARIA: ExpenseDialog `DialogDescription` presente; type picker cards `role="radio"`
+- Token: CashflowHero, badge tipo spesa (Variabile/Fissa/Debito/Entrata/Trasferimento),
+  importi negativi — via `text-destructive`/`signTextClass` non hardcoded
+- Gerarchia: UN solo numero dominante nel tab — il Risparmio Netto dell'hero
+  (`text-[44px] desktop:text-[54px]`); il resto scende di scala. La lista top-5 spese e il
+  TransactionFeed sono righe flat `divide-y`, mai card annidate
+- Onestà: i `transfer` non devono comparire come entrata o spesa in nessun totale dell'hero
+- TransactionFeed: il toggle Feed/Tabella è un `SegmentedPill` (`role="tablist"` con roving
+  tabindex), non un pill hand-rolled; day-grouping con header sticky coerente
+- Delete 2-click con 3s auto-disarm — stato "Conferma?" visivamente distinto ma via token,
+  non via `bg-red-*` hardcoded
+- ExpenseDialog: singolo step + Collapsible "Impostazioni avanzate" (`aria-expanded`),
+  reso in `ResponsiveModal` (Drawer ≤768px / Dialog sopra); focus ring via CSS var
+- Portrait: CashflowTrackingMobile e il layout desktop devono restare la stessa IA con resa
+  diversa — segnala ogni informazione presente solo su uno dei due
+- Breakpoint: load-more non overflow, filtri pill su 375px non wrappano oltre 2 righe;
+  `max-desktop:portrait:pb-20`
+- ARIA: ExpenseDialog `DialogDescription` presente; MobileFiltersDrawer focus-trap corretto
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:
@@ -394,6 +505,9 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
   lista centri flat divide-y (no card-in-card); Mono Mandate su tutti i valori
 - Periodo: asse `CostCenterPeriod` (Mese/Anno/12 mesi/Storico) derivato in-memory — verifica
   che lo switch non rifaccia il fetch; lifecycle attivo/dormiente/archiviato coerente
+- Breakdown per sotto-categoria (`buildSubCategoryComposition`): i toggle di esclusione sono
+  di sola sessione e il "Totale al netto" è dichiaratamente una lente di analisi — verifica
+  che non sia reso con lo stesso peso del totale reale e che non alteri hero/budget/grafico
 - ARIA: asse periodo + segmented `role="tablist"`/`role="tab"`; delete/rename con `aria-label`;
   CostCenterDialog con `DialogDescription`; budget meter con `role="progressbar"` + `aria-valuenow`
 - Breakpoint: CostCenterDetail, composizione categoria e overlay confronto non overflow su mobile
@@ -460,6 +574,8 @@ Contesto:
 
 File: app/dashboard/allocation/page.tsx
 Componenti: components/allocation/*
+Pure layer: lib/utils/allocationUtils.ts, lib/utils/leverageAwareAllocationUtils.ts,
+            lib/utils/assetExposureUtils.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - Token: `ActionChip` (COMPRA/VENDI/OK) e `TargetTick` — colori azione via `useActionColors`
@@ -476,6 +592,14 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
   "non ribilanciabili"; nota sotto il target editor in Impostazioni sui ruoli
 - Chart colors: eventuali grafici in ExposureSection via `useChartColors()`; i colori azione
   passano da `useActionColors` (ACTION_CHART_NUMBER COMPRA 3 / VENDI 5 / OK 2)
+- Leva: `AllocationCompositionBar` usa `displayPct` (non la percentuale nozionale grezza), così
+  la barra non mente quando la somma delle esposizioni supera il 100%; `InstrumentTradeList`
+  rende le mosse a livello di strumento con la stessa vocabulary di `PlanRow`, non una tabella
+  a sé; il campo `leverageRatio` in AssetDialog è visibile solo per gli ETF
+- `BalanceScoreGauge`: il punteggio è band-INDIPENDENTE (distanza assoluta dal target) mentre
+  i chip COMPRA/VENDI/OK dipendono dalla banda — verifica che la UI non suggerisca il contrario
+- `PensionAllocationCards`: il fondo pensione resta `frozen` e non deve mai comparire come
+  mossa in un piano, pur restando nelle percentuali
 - ARIA: `AllocationBreakdown` accordion con `aria-expanded` + contenuto `inert` da chiuso
   (incl. il gruppo "Esclusi dall'allocazione"); `RebalanceBandControl` `role="radiogroup"`/
   segmented; `ActionChip` con `aria-label` descrittivo; segmented Ribilancia/Versa/Preleva
@@ -501,16 +625,30 @@ Contesto:
 /impeccable audit la pagina Rendimenti
 
 File: app/dashboard/performance/page.tsx
-Componenti: components/performance/*
+Componenti: components/performance/* (PerformanceHero, HeroMetricBlock, MetricSection,
+            MetricCard, RealizedGainsSection, UnderwaterDrawdownChart,
+            MonthlyReturnsHeatmap, BenchmarkComparisonSection/Chart)
+Pure layer: lib/utils/performanceSummary.ts, lib/utils/benchmarkPeriodReturn.ts,
+            lib/utils/performanceBase.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: `HeroMetricBlock` wrapper, `MetricCard` divider — nessun hardcoded;
-  `UnderwaterDrawdownChart` usa `--destructive` CSS var (non `#ef4444`)
-- Chart colors: rolling charts, growth-of-100 benchmark chart, drawdown chart
+- Token: `PerformanceHero`, `HeroMetricBlock` wrapper, `MetricCard` divider — nessun
+  hardcoded; `UnderwaterDrawdownChart` usa `--destructive` CSS var (non `#ef4444`)
+- Gerarchia: UN solo numero dominante (il TWR dell'hero, `text-[44px] desktop:text-[54px]`);
+  i vital signs e la strip di return-consistency scendono di scala; i MetricSection sono righe
+  `divide-y`, mai card-in-card
+- Amber Watch: `PerformanceHero` tiene di proposito l'amber raw per il tono "fragile" — NON
+  segnalarlo come violazione né convertirlo a `text-warning-foreground` (Panoramica e
+  Rendimenti divergono consapevolmente, vedi AGENTS.md)
+- Collapsible "Mostra tutte le metriche": `aria-expanded` presente, contenuto non
+  focusabile da chiuso; è il pattern `data-[state=open]:animate-in`, non la variante Framer
+- `RealizedGainsSection` e la riga "Capitale investito": entrambe gated su
+  `useAssetLedgerMeta` — verifica che senza ledger non restino sezioni vuote o zeri finti
+- Chart colors: rolling charts, growth-of-100 benchmark chart, drawdown chart, heatmap
   tutti via `useChartColors()`; tooltip via CSS vars
 - ARIA: `?` button in MetricCard con `aria-label`; period selector `role="tablist"`;
   CUSTOM period chip con `aria-pressed`
-- Breakpoint: tabella benchmark 11-col — scroll orizzontale corretto su mobile;
+- Breakpoint: tabella benchmark — scroll orizzontale corretto su mobile;
   period selector non overflow su 375px
 - Motion: `layoutId="performance-mobile-tab"` unico sulla pagina; spring (400/35)
 - Altro: pattern anomali o violazioni non elencate sopra
@@ -536,7 +674,9 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - Token: sezione Lavoro & Investimenti flat rows — nessun hardcoded;
   sezione Driver (3 card: Savings vs Investment, Lavoro & Investimenti, YoY) — nessun `bg-gray-*`
 - Chart colors: tutti i chart (Evoluzione, Composizione, Raddoppi, Labor, YoY bar) via
-  `useChartColors()`; tooltip via CSS vars; mobile inline legend usa stessi colori
+  `useChartColors()`; tooltip via CSS vars; mobile inline legend usa stessi colori.
+  La Composizione per tipo include una banda "Previdenza" — verifica che abbia un colore
+  della scala `--chart-*` come le altre e non un valore fuori palette
 - Valore per Strumento (`MonthlyAssetBreakdownSection`, sotto `components/history/*`): tabella
   per-strumento del mese + sum del sottoinsieme selezionato + trend cross-mese; il `TrendTooltip`
   custom (effetto prezzo vs quantità) usa CSS vars per bg/label e `useChartColors()` per la serie —
@@ -598,7 +738,9 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
   "di cui illiquidi" in amber → `color-mix(in oklch, var(--warning) ...)` non `text-amber-*`
 - Chart colors: `FIREProjectionChart` e scenario chart via `useChartColors()[4,0,1]`;
   tooltip via CSS vars
-- ARIA: Settings `<Collapsible>` con `aria-expanded`; "Annulla" button con `aria-label`
+- ARIA: Settings `<Collapsible>` con `aria-expanded`; "Annulla" button con `aria-label`;
+  il toggle del capitale bloccato nel fondo pensione (`respectPensionLockInFire`) è uno
+  `Switch` con label esplicita — l'effetto sul FIRE Number deve essere visibile, non silente
 - Motion: collapsible auto-open su `hasUnsavedChanges` via `useEffect` — non su ogni render
 - Skeleton: `FireCalculatorSkeleton` isomorfo (hero → Settings → rows → projection)
 - Altro: pattern anomali o violazioni non elencate sopra
@@ -789,13 +931,30 @@ Contesto:
 /impeccable audit la pagina Impostazioni
 
 File: app/dashboard/settings/page.tsx
-Componenti: components/settings/SettingsPageSkeleton.tsx
+Componenti: components/settings/SettingsPageSkeleton.tsx,
+            components/settings/AccountSharingSection.tsx,
+            components/settings/ExpenseImportSection.tsx,
+            components/expenses/CategoryManagementDialog.tsx,
+            components/layout/ThemePicker.tsx
+Pure layer: lib/utils/expenseImport.ts
 
-Assi da verificare (minimum — segnala anche eventuali altri problemi):
+La pagina ha 6 tab (SETTINGS_TABS): Allocazione, Preferenze, Spese, Dividendi,
+Condivisione, Aspetto. Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - Token: tutti i form elements (Switch, Select, Input, Slider) — focus ring via CSS var,
   nessun `ring-blue-*`; sezione "Aspetto" theme selector grid — border active via token
 - ARIA: Switch con `role="switch"`, `aria-checked`; Select con `aria-label`;
   Input con `<label>` associato; sezioni con heading hierarchy corretta (h2 → h3)
+- Tab "Spese" / `ExpenseImportSection`: l'anteprima è OBBLIGATORIA prima di qualsiasi
+  scrittura — verifica che il bottone di commit sia disabilitato finché non esiste un piano;
+  righe scartate mostrate col motivo (non un conteggio muto); Mono Mandate sui totali e sul
+  range date; l'undo per batch è raggiungibile e ha un `aria-label` esplicito;
+  l'input file ha una label associata e uno stato di errore leggibile; demo-gated
+- Tab "Condivisione" / `AccountSharingSection`: gli stati (invito, membro attivo, rimozione)
+  usano token semantici; la rimozione è distruttiva → conferma esplicita, non 1 click
+- Card "Famiglia" (tab Preferenze): righe membro flat `divide-y`, RAL in Geist Mono +
+  tabular-nums, nessuna card-in-card
+- Tab "Allocazione": la validazione "somma ≥100 con leva" comunica il perché, non solo
+  un errore rosso
 - Breakpoint: Tab → Radix Select su mobile (`desktop:hidden`/`hidden desktop:grid`);
   sub-category card headers `flex-col gap-2 desktop:flex-row` (titolo lungo + controlli);
   `max-desktop:portrait:pb-20` per bottom nav clearance
@@ -859,11 +1018,16 @@ Contesto:
 /impeccable audit il sistema dei dialog dell'app
 
 Componenti: components/assets/AssetDialog.tsx,
+            components/assets/TransactionDialog.tsx,
+            components/assets/AssetMovementsDialog.tsx,
+            components/assets/TaxCalculatorModal.tsx,
             components/expenses/ExpenseDialog.tsx,
             components/goals/GoalFormDialog.tsx,
             components/goals/AssetAssignmentDialog.tsx,
             components/dividends/DividendDialog.tsx,
             components/dividends/DividendDetailsDialog.tsx,
+            components/dividends/InflationRateDialog.tsx,
+            components/pension/PensionContributionDialog.tsx,
             components/cashflow/CostCenterDialog.tsx,
             components/expenses/CategoryManagementDialog.tsx,
             components/layout/LogoutDialog.tsx,
@@ -881,6 +1045,12 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi — coere
   spring config (400/35), step indicator coerente tra i due dialog
 - Loading state: `<Loader2 animate-spin>` su tutti i submit pending, non icone statiche
 - Touch targets: close button e footer buttons ≥ 44px
+- Dialog recenti mai valutati insieme agli altri — verificarli contro gli stessi assi:
+  TransactionDialog (segmented Compra/Vendi/Rettifica in `role="tablist"`, anteprima
+  plusvalenza in Geist Mono, sentinella `__none__` per "nessun regolamento" resa come
+  opzione leggibile e non come stringa tecnica), AssetMovementsDialog (superficie di
+  LETTURA: righe flat `divide-y`, non deve imitare un form né avere un footer da submit),
+  PensionContributionDialog, InflationRateDialog, TaxCalculatorModal
 - Altro: inconsistenze cross-dialog o pattern non previsti dagli assi sopra
 
 Contesto:
@@ -966,7 +1136,9 @@ PRE-STEP — renderizza l'HTML prima di auditare (vedi critique): genera l'outpu
 
 File: lib/server/monthlyEmailService.ts
       (buildEmailHtml, simpleMarkdownToHtml, buildComparisonSectionHtml, comparisonCell)
+      lib/server/weeklyBudgetEmailService.ts (email budget settimanale, fase 6 del cron)
 Contesto logico (non visivo): lib/server/emailPeriodComparison.ts,
+      app/api/cron/monthly-snapshot/route.ts,
       app/api/user/monthly-email/send/route.ts (render di test)
 
 Assi da verificare (minimum — propri del medium email, NON gli assi del dashboard):
@@ -982,6 +1154,11 @@ Assi da verificare (minimum — propri del medium email, NON gli assi del dashbo
 - Markdown→HTML: simpleMarkdownToHtml rende le 5 sezioni del commento AI (heading, ol/ul,
   grassetti) senza `<br>` orfani, senza `<p>` vuoti, spacing coerente.
 - Fallback: celle "N/D" pulite su baseline mancante; `previousEqualsYoy` (yearly) → colonna singola.
+- Email budget settimanale: è INVIATA ogni domenica ma le cifre sono month-to-date (budget
+  mensili + complessivo) e year-to-date (budget annuali), con proiezioni di fine periodo.
+  Ogni orizzonte deve essere dichiarato esplicitamente nella caption accanto al numero —
+  una proiezione mensile non deve poter essere letta come "fine anno" (errore già occorso
+  lato prompt AI). Verifica che la resa visiva non riapra l'ambiguità.
 - Dark mode: presenza/assenza di `<meta name="color-scheme">` + `@media (prefers-color-scheme: dark)`
   (oggi assenti → light-only su `#ffffff` fisso; segnala come gap, non come pass/fail bloccante).
 - Mobile: tabella Confronti non deborda a 320–375px; body ≥ 14px; singola colonna leggibile.
@@ -1010,3 +1187,9 @@ Dalla maggiore probabilità di regressione alla minore:
 4. Cross-cutting Skeleton audit — dopo ogni redesign che cambia la struttura di una pagina
 5. Token compliance globale — dopo l'aggiunta di nuovi componenti o temi
 6. Landing + Auth — raramente cambiano, una volta ogni ciclo di redesign maggiore
+
+**Mai auditate (nessuna baseline, priorità alta al primo giro):**
+7. Previdenza — pagina nuova
+8. Impostazioni → tab Spese (import CSV) e tab Condivisione — sezioni recenti
+9. Allocazione → superfici della leva (AllocationCompositionBar, InstrumentTradeList)
+10. Patrimonio → registro operazioni (TransactionDialog, AssetMovementsDialog)

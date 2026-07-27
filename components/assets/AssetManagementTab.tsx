@@ -39,6 +39,7 @@ import { queryKeys } from '@/lib/query/queryKeys';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { requiresManualPricing } from '@/lib/utils/assetPricing';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -286,15 +287,6 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
   // including cash accounts that are shown separately above the table.
   const summaryAssets = allAssets ?? assets;
 
-  // Determine if asset requires manual price updates (no market ticker available)
-  const requiresManualPricing = (asset: Asset) => {
-    if (asset.autoUpdatePrice === false) return true;
-    const manualTypes = ['realestate', 'cash'];
-    if (manualTypes.includes(asset.type)) return true;
-    if (asset.subCategory === 'Private Equity') return true;
-    return false;
-  };
-
   // Sort handler — first click defaults to desc (numerics) or asc (alpha)
   const handleSort = (column: SortColumn) => {
     setSortState((prev) => {
@@ -342,8 +334,8 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
 
 
   // Per-asset sparklines from monthly snapshots (mobile only).
-  // Manual-price assets (cash, real estate, private equity, autoUpdatePrice=false) use
-  // totalValue because their unit price is fixed at €1 — the quantity carries the signal.
+  // Manual-price assets (cash, real estate, pension funds, private equity, autoUpdatePrice=false)
+  // use totalValue because their unit price is fixed at €1 — the quantity carries the signal.
   const assetSparklineData = useMemo(() => {
     if (!snapshots?.length) return {} as Record<string, { value: number }[]>;
     const sorted = [...snapshots].sort((a, b) =>

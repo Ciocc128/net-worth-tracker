@@ -23,11 +23,27 @@
  * `applyRebalanceBand`; the hero balance score is band-INDEPENDENT (absolute distance from
  * target). The page has no mutations, so there is no demo-mode gating.
  *
- * NON-REBALANCEABLE ASSETS: assets flagged `excludeFromAllocation` (a house, a locked pension
- * fund) are partitioned out BEFORE `compareAllocations` — see `isAllocatable` for why the filter
- * cannot live downstream. Consequence: this page's headline is the REBALANCEABLE wealth, which is
- * smaller than the Panoramica net worth. That difference is declared on screen (hero caption +
- * a "Non ribilanciabili" group in the breakdown) rather than left for the user to discover.
+ * ALLOCATION ROLES: every asset carries an `allocationRole` — `tradable`, `frozen`, or `excluded`
+ * — and `partitionByAllocationRole` splits them BEFORE `compareAllocations`, never downstream (see
+ * `allocationUtils.ts` for why the filter cannot live after the comparison: it would break the
+ * Σ(current − target) = 0 invariant the plans rely on).
+ *
+ * The three roles are NOT a rebalanceable/non-rebalanceable binary:
+ *   - `tradable`  — counts in the denominator, and the plans may move it.
+ *   - `frozen`    — counts in the denominator and in the percentages, but never appears in a plan
+ *                   (a locked pension fund, private equity). The plans compensate by moving the
+ *                   tradable assets instead; `capacity` in `splitFromSurplus` and the sell cap in
+ *                   `buildRebalancePlan` keep the result executable.
+ *   - `excluded`  — leaves the page entirely, denominator included (the home you live in).
+ *
+ * Consequence: this page's headline is smaller than the Panoramica net worth, by exactly the
+ * `excluded` slice. That difference is declared on screen (separate hero captions for the frozen
+ * and the excluded share + an "Esclusi dall'allocazione" group in the breakdown) rather than left
+ * for the user to discover.
+ *
+ * `Asset.excludeFromAllocation` is the legacy boolean that predates the roles; it survives only as
+ * a read-fallback in `resolveAllocationRole`, which maps it to `excluded`. Do not reintroduce it
+ * as a write path.
  */
 'use client';
 

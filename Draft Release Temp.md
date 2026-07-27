@@ -35,6 +35,8 @@
 - Fixed a stray leftover ticker value showing under a Fondo Pensione's name in Patrimonio for funds originally tracked as a different investment type before being converted — pension funds never show a ticker line now.
 - Fixed account pickers for money transfers (operations register on Patrimonio, pension contributions, expense payment account) offering money-market ETFs alongside real cash accounts — only genuine liquidity accounts are now selectable as a settlement or source account.
 - Fixed the pension contribution form requiring a source account for every voluntary payment — a voluntary contribution can now also be recorded with no source account, for when it's withheld directly from your payslip rather than transferred from a bank account.
+- Fixed pension funds not being highlighted as manually-priced holdings in Patrimonio. The subtle row (and card) tint marks investments with no market quote — cash accounts, real estate, private equity and pension funds — so you can see at a glance which values you keep up to date yourself. Newly created pension funds were missing it.
+- Fixed the automatic price update queuing pension funds for a market quote they can never have.
 
 ## 🔧 Improvements
 
@@ -51,6 +53,7 @@
 - Removed two unused fields ("Data di iscrizione", "Prima occupazione dopo il 2007") from the pension fund's own details, now that this information is set once per family member in Settings instead of per fund.
 - The Previdenza page and the "Registra versamento" dialog now explain the correct order for your monthly update: register the month's contributions first, then update the fund's current value from your statement — doing it the other way around double-counts the contributions.
 - The net worth variation badges on the Overview hero (monthly change, YTD, all-time-high) now share the same width on mobile and tablet instead of each sizing to its own text.
+- The Patrimonio page header now matches the Overview one: the monthly and YTD badges line up in equal-width columns, and the "Nuovo massimo storico" badge — previously shown only on Overview — now appears here too when you hit a new peak.
 
 ## 🔒 Security
 

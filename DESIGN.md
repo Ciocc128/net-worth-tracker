@@ -22,6 +22,25 @@ colors:
   # Semantic
   destructive: "oklch(0.5771 0.2152 27.325)"
 typography:
+  # The enumerated Trade Republic ramp. The named roles below describe the generic
+  # Geist Sans/Mono hierarchy; this scale is the project's actual step ladder, spelled
+  # out in section 3 (Typography) and enforced by "the jump from 22->36->44->54 is
+  # intentional". It lives here because the roles alone cannot express a ramp, and the
+  # machine-readable layer must agree with the prose — otherwise tooling reads the
+  # documented hero sizes as off-system values.
+  scale:
+    sub-eyebrow: "9px"          # compact-cell eyebrow (section 3)
+    eyebrow: "10px"             # Eyebrow Label above a dominant number
+    metadata: "11px"            # tertiary metadata, invisible at a glance
+    delta: "12px"               # Delta Annotation under a KPI value
+    row: "13px"                 # list/composition row text
+    chip: "15px"                # Variation Chip (canonical pattern, section 5)
+    sub-hero: "22px"            # paired secondary values
+    hero-step-down: "32px"      # hero overflow guard, mobile (see AGENTS.md)
+    section-hero: "36px"        # primary metric of a section or bento card
+    hero-step-down-desktop: "40px"  # hero overflow guard, desktop (see AGENTS.md)
+    page-hero: "44px"           # the single dominant number, mobile
+    page-hero-desktop: "54px"   # the single dominant number, desktop
   display:
     fontFamily: "Geist Sans, system-ui, sans-serif"
     fontSize: "clamp(1.75rem, 3vw, 2.5rem)"
