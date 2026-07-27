@@ -1,42 +1,202 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-05-16T00:00:00.000Z",
+  "generatedAt": "2026-07-27T00:00:00.000Z",
   "title": "Design System: Net Worth Tracker",
   "extensions": {
     "colorMeta": {
-      "deep-void":        { "role": "neutral",  "displayName": "Deep Void",        "canonical": "oklch(0.145 0 0)",           "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.92 0 0)"] },
-      "charcoal-surface": { "role": "neutral",  "displayName": "Charcoal Surface", "canonical": "oklch(0.205 0 0)",           "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.92 0 0)"] },
-      "graphite-lift":    { "role": "neutral",  "displayName": "Graphite Lift",    "canonical": "oklch(0.269 0 0)",           "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.92 0 0)"] },
-      "off-blanc":        { "role": "neutral",  "displayName": "Off-Blanc",        "canonical": "oklch(0.985 0 0)",           "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.985 0 0)"] },
-      "mid-ash":          { "role": "neutral",  "displayName": "Mid-Ash",          "canonical": "oklch(0.708 0 0)",           "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.20 0 0)", "oklch(0.30 0 0)", "oklch(0.42 0 0)", "oklch(0.556 0 0)", "oklch(0.65 0 0)", "oklch(0.708 0 0)", "oklch(0.85 0 0)"] },
-      "indigo-signal":    { "role": "primary",  "displayName": "Indigo Signal",    "canonical": "oklch(0.488 0.243 264.376)", "tonalRamp": ["oklch(0.18 0.08 264)", "oklch(0.26 0.13 264)", "oklch(0.35 0.18 264)", "oklch(0.44 0.22 264)", "oklch(0.488 0.243 264)", "oklch(0.58 0.22 264)", "oklch(0.69 0.17 264)", "oklch(0.82 0.10 264)"] },
-      "jade-return":      { "role": "secondary","displayName": "Jade Return",      "canonical": "oklch(0.696 0.17 162.48)",   "tonalRamp": ["oklch(0.18 0.05 162)", "oklch(0.28 0.08 162)", "oklch(0.38 0.11 162)", "oklch(0.49 0.14 162)", "oklch(0.60 0.16 162)", "oklch(0.696 0.17 162)", "oklch(0.79 0.14 162)", "oklch(0.89 0.08 162)"] },
-      "amber-watch":      { "role": "tertiary", "displayName": "Amber Watch",      "canonical": "oklch(0.769 0.188 70.08)",   "tonalRamp": ["oklch(0.20 0.06 70)", "oklch(0.30 0.09 70)", "oklch(0.42 0.13 70)", "oklch(0.54 0.16 70)", "oklch(0.65 0.18 70)", "oklch(0.769 0.188 70)", "oklch(0.86 0.14 70)", "oklch(0.93 0.08 70)"] },
-      "violet-risk":      { "role": "tertiary", "displayName": "Violet Risk",      "canonical": "oklch(0.627 0.265 303.9)",   "tonalRamp": ["oklch(0.18 0.09 304)", "oklch(0.27 0.14 304)", "oklch(0.37 0.19 304)", "oklch(0.49 0.23 304)", "oklch(0.60 0.255 304)", "oklch(0.627 0.265 304)", "oklch(0.73 0.22 304)", "oklch(0.85 0.13 304)"] },
-      "coral-loss":       { "role": "tertiary", "displayName": "Coral Loss",       "canonical": "oklch(0.645 0.246 16.439)",  "tonalRamp": ["oklch(0.18 0.08 16)", "oklch(0.27 0.13 16)", "oklch(0.37 0.18 16)", "oklch(0.49 0.22 16)", "oklch(0.58 0.24 16)", "oklch(0.645 0.246 16)", "oklch(0.74 0.20 16)", "oklch(0.86 0.12 16)"] },
-      "destructive":      { "role": "neutral",  "displayName": "Destructive Flame","canonical": "oklch(0.5771 0.2152 27.325)","tonalRamp": ["oklch(0.18 0.07 27)", "oklch(0.27 0.11 27)", "oklch(0.37 0.16 27)", "oklch(0.47 0.19 27)", "oklch(0.5771 0.2152 27)", "oklch(0.67 0.19 27)", "oklch(0.76 0.15 27)", "oklch(0.87 0.08 27)"] }
+      "deep-void": {
+        "role": "neutral",
+        "displayName": "Deep Void",
+        "canonical": "oklch(0.145 0 0)",
+        "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.92 0 0)"]
+      },
+      "charcoal-surface": {
+        "role": "neutral",
+        "displayName": "Charcoal Surface",
+        "canonical": "oklch(0.205 0 0)",
+        "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.92 0 0)"]
+      },
+      "graphite-lift": {
+        "role": "neutral",
+        "displayName": "Graphite Lift",
+        "canonical": "oklch(0.269 0 0)",
+        "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.92 0 0)"]
+      },
+      "off-blanc": {
+        "role": "neutral",
+        "displayName": "Off-Blanc",
+        "canonical": "oklch(0.985 0 0)",
+        "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.145 0 0)", "oklch(0.205 0 0)", "oklch(0.269 0 0)", "oklch(0.38 0 0)", "oklch(0.52 0 0)", "oklch(0.70 0 0)", "oklch(0.985 0 0)"]
+      },
+      "near-white": {
+        "role": "neutral",
+        "displayName": "Near White",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.269 0 0)", "oklch(0.437 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.87 0 0)", "oklch(0.985 0 0)", "oklch(1 0 0)"]
+      },
+      "mid-ash": {
+        "role": "neutral",
+        "displayName": "Mid-Ash",
+        "canonical": "oklch(0.708 0 0)",
+        "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.20 0 0)", "oklch(0.30 0 0)", "oklch(0.42 0 0)", "oklch(0.556 0 0)", "oklch(0.65 0 0)", "oklch(0.708 0 0)", "oklch(0.85 0 0)"]
+      },
+      "subtle-ash": {
+        "role": "neutral",
+        "displayName": "Subtle Ash",
+        "canonical": "oklch(0.556 0 0)",
+        "tonalRamp": ["oklch(0.10 0 0)", "oklch(0.20 0 0)", "oklch(0.30 0 0)", "oklch(0.42 0 0)", "oklch(0.556 0 0)", "oklch(0.65 0 0)", "oklch(0.708 0 0)", "oklch(0.85 0 0)"]
+      },
+      "border-ghost": {
+        "role": "neutral",
+        "displayName": "Border Ghost",
+        "canonical": "oklch(1 0 0 / 10%)",
+        "tonalRamp": ["oklch(1 0 0 / 4%)", "oklch(1 0 0 / 6%)", "oklch(1 0 0 / 10%)", "oklch(1 0 0 / 15%)", "oklch(1 0 0 / 22%)", "oklch(1 0 0 / 32%)", "oklch(1 0 0 / 48%)", "oklch(1 0 0 / 70%)"]
+      },
+      "border-stone": {
+        "role": "neutral",
+        "displayName": "Border Stone",
+        "canonical": "oklch(0.922 0 0)",
+        "tonalRamp": ["oklch(0.145 0 0)", "oklch(0.269 0 0)", "oklch(0.437 0 0)", "oklch(0.556 0 0)", "oklch(0.708 0 0)", "oklch(0.87 0 0)", "oklch(0.922 0 0)", "oklch(0.985 0 0)"]
+      },
+      "indigo-signal": {
+        "role": "primary",
+        "displayName": "Indigo Signal",
+        "canonical": "oklch(0.488 0.243 264.376)",
+        "tonalRamp": ["oklch(0.18 0.08 264)", "oklch(0.26 0.13 264)", "oklch(0.35 0.18 264)", "oklch(0.44 0.22 264)", "oklch(0.488 0.243 264)", "oklch(0.58 0.22 264)", "oklch(0.69 0.17 264)", "oklch(0.82 0.10 264)"]
+      },
+      "jade-return": {
+        "role": "secondary",
+        "displayName": "Jade Return",
+        "canonical": "oklch(0.696 0.17 162.48)",
+        "tonalRamp": ["oklch(0.18 0.05 162)", "oklch(0.28 0.08 162)", "oklch(0.38 0.11 162)", "oklch(0.49 0.14 162)", "oklch(0.60 0.16 162)", "oklch(0.696 0.17 162)", "oklch(0.79 0.14 162)", "oklch(0.89 0.08 162)"]
+      },
+      "amber-watch": {
+        "role": "tertiary",
+        "displayName": "Amber Watch",
+        "canonical": "oklch(0.769 0.188 70.08)",
+        "tonalRamp": ["oklch(0.20 0.06 70)", "oklch(0.30 0.09 70)", "oklch(0.42 0.13 70)", "oklch(0.54 0.16 70)", "oklch(0.65 0.18 70)", "oklch(0.769 0.188 70)", "oklch(0.86 0.14 70)", "oklch(0.93 0.08 70)"]
+      },
+      "violet-risk": {
+        "role": "tertiary",
+        "displayName": "Violet Risk",
+        "canonical": "oklch(0.627 0.265 303.9)",
+        "tonalRamp": ["oklch(0.18 0.09 304)", "oklch(0.27 0.14 304)", "oklch(0.37 0.19 304)", "oklch(0.49 0.23 304)", "oklch(0.60 0.255 304)", "oklch(0.627 0.265 304)", "oklch(0.73 0.22 304)", "oklch(0.85 0.13 304)"]
+      },
+      "coral-loss": {
+        "role": "tertiary",
+        "displayName": "Coral Loss",
+        "canonical": "oklch(0.645 0.246 16.439)",
+        "tonalRamp": ["oklch(0.20 0.08 16)", "oklch(0.29 0.13 16)", "oklch(0.38 0.18 16)", "oklch(0.47 0.22 16)", "oklch(0.56 0.24 16)", "oklch(0.645 0.246 16)", "oklch(0.78 0.18 16)", "oklch(0.91 0.08 16)"]
+      },
+      "destructive": {
+        "role": "primary",
+        "displayName": "Destructive Flame",
+        "canonical": "oklch(0.5771 0.2152 27.325)",
+        "tonalRamp": ["oklch(0.19 0.07 27)", "oklch(0.28 0.11 27)", "oklch(0.37 0.15 27)", "oklch(0.47 0.19 27)", "oklch(0.5771 0.2152 27)", "oklch(0.68 0.20 27)", "oklch(0.81 0.14 27)", "oklch(0.93 0.06 27)"]
+      },
+      "positive": {
+        "role": "secondary",
+        "displayName": "Positive Token",
+        "canonical": "oklch(0.627 0.194 149.214)",
+        "tonalRamp": ["oklch(0.18 0.06 149)", "oklch(0.27 0.09 149)", "oklch(0.36 0.13 149)", "oklch(0.45 0.16 149)", "oklch(0.54 0.18 149)", "oklch(0.627 0.194 149)", "oklch(0.77 0.15 149)", "oklch(0.91 0.07 149)"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Warning Fill",
+        "canonical": "oklch(0.986 0.022 90)",
+        "tonalRamp": ["oklch(0.28 0.05 88)", "oklch(0.38 0.07 88)", "oklch(0.468 0.098 75)", "oklch(0.60 0.10 85)", "oklch(0.72 0.09 85)", "oklch(0.855 0.062 85)", "oklch(0.94 0.04 88)", "oklch(0.986 0.022 90)"]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display",  "purpose": "Page heroes, net worth totals. One instance per view maximum." },
-      "headline": { "displayName": "Headline","purpose": "Section headers, dialog titles, authority-demand card titles." },
-      "title":    { "displayName": "Title",   "purpose": "Sub-section headers, table group labels." },
-      "body":     { "displayName": "Body",    "purpose": "Prose, descriptions, notes. Max 65ch line length." },
-      "label":    { "displayName": "Label",   "purpose": "Input labels, tags, stat captions, tab text." },
-      "numeric":  { "displayName": "Numeric", "purpose": "All monetary values, percentages, dates in financial contexts. tnum always on." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page heroes, net worth totals. One instance per view maximum."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headers, dialog titles, authority-demand card titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Sub-section headers, table group labels."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose, descriptions, notes. Max 65ch line length."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Input labels, tags, stat captions, tab text."
+      },
+      "numeric": {
+        "displayName": "Numeric",
+        "purpose": "All monetary values, percentages, dates in financial contexts. tnum always on."
+      },
+      "scale": {
+        "displayName": "Trade Republic Ramp",
+        "purpose": "The enumerated step ladder (9/10/11/12/13/15/22/32/36/40/44/54px) declared in the DESIGN.md frontmatter. The jump 22 -> 36 -> 44 -> 54 is intentional; text-2xl (24px) is never a hero size. The 32/40px pair is the hero overflow step-down, not a step to reach for."
+      }
     },
     "shadows": [
-      { "name": "whisper", "value": "0 1px 2px rgba(0,0,0,0.05)",                                    "purpose": "Inputs, form fields. Faint inset quality without visual weight." },
-      { "name": "lift",    "value": "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)",         "purpose": "Cards, data panels. In-document surfaces that need gentle separation." },
-      { "name": "float",   "value": "0 4px 24px rgba(0,0,0,0.28)",                                   "purpose": "Floating surfaces only: mobile nav pill, dropdown menus, detached modals." }
+      {
+        "name": "whisper",
+        "value": "0 1px 2px rgba(0,0,0,0.05)",
+        "purpose": "Inputs, form fields. Faint inset quality without visual weight."
+      },
+      {
+        "name": "lift",
+        "value": "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)",
+        "purpose": "Cards, data panels. In-document surfaces that need gentle separation."
+      },
+      {
+        "name": "float",
+        "value": "0 4px 24px rgba(0,0,0,0.28)",
+        "purpose": "Floating surfaces only: mobile nav pill, dropdown menus, detached modals. Applying it to an in-flow card is an error (The Float Threshold)."
+      }
     ],
     "motion": [
-      { "name": "ease-standard",    "value": "cubic-bezier(0.4, 0, 0.2, 1)",       "purpose": "Theme toggle view transition, general state changes. 0.45s." },
-      { "name": "ease-out-quart",   "value": "cubic-bezier(0.25, 1, 0.5, 1)",      "purpose": "Exit transitions, panel reveals. Fast end, slow start." },
-      { "name": "spring-dialog",    "value": "type: spring, stiffness: 300, damping: 30", "purpose": "Dialog and sheet entry/exit via Framer Motion. Physics-native feel." },
-      { "name": "stagger-children", "value": "0.05s delay increment",              "purpose": "List item cascade reveals. 50ms between children, 3-8 item max." }
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Theme toggle circle-reveal view transition, general state changes. 0.45s."
+      },
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Exit transitions, panel reveals. Fast end, slow start."
+      },
+      {
+        "name": "spring-standard",
+        "value": "type: spring, stiffness: 400, damping: 35",
+        "purpose": "The project-wide Framer Motion spring: segmented pills, layout shifts, dialogs, hero settle. Snappy without overshooting; the same constant belongs on both motion.button and motion.div."
+      },
+      {
+        "name": "spring-fab",
+        "value": "type: spring, stiffness: 400, damping: 28",
+        "purpose": "The cashflow FAB scale 0.6 -> 1 entry. Lower damping than standard because the element is small and benefits from a touch of overshoot."
+      },
+      {
+        "name": "stagger-children",
+        "value": "0.05s delay increment",
+        "purpose": "List item cascade reveals. 50ms between children, 3-8 item max."
+      },
+      {
+        "name": "deferred-chart-mount",
+        "value": "requestIdleCallback with setTimeout(0) fallback",
+        "purpose": "Heavy SVG/Recharts mount is scheduled only after the hero count-up settles (heroSettled + chartRenderReady), so animation and chart render never compete for the same frame budget."
+      }
     ],
     "breakpoints": [
-      { "name": "desktop", "value": "1440px", "purpose": "Primary layout switch. iPad Mini landscape (1024px) gets mobile layout by design." }
+      {
+        "name": "tablet",
+        "value": "768px",
+        "purpose": "iPad portrait and above. Also the ResponsiveModal switch: Drawer at or below 768px, Dialog above."
+      },
+      {
+        "name": "desktop",
+        "value": "1440px",
+        "purpose": "Primary layout switch. iPad Mini landscape (1024px) gets the mobile layout by design - never use lg: for wide-screen layout changes."
+      }
     ]
   },
   "components": [
@@ -44,104 +204,201 @@
       "name": "Primary Button (Dark)",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Primary action trigger. Off-Blanc on dark background. Hover dims slightly.",
-      "html": "<button class=\"ds-btn-primary\">Salva modifiche</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; background-color: oklch(0.985 0 0); color: oklch(0.205 0 0); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.15s ease, box-shadow 0.15s ease; white-space: nowrap; } .ds-btn-primary:hover { background-color: oklch(0.922 0 0); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.708 0 0 / 50%); } .ds-btn-primary:active { background-color: oklch(0.875 0 0); } .ds-btn-primary:disabled { opacity: 0.5; pointer-events: none; }"
+      "description": "Default action. Inverted surface: near-white fill on a dark page.",
+      "html": "<button class=\"ds-btn-primary\">Salva</button>",
+      "css": ".ds-btn-primary { background: var(--primary, oklch(0.985 0 0)); color: var(--primary-foreground, oklch(0.205 0 0)); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; height: 36px; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s; } .ds-btn-primary:hover { background: oklch(0.922 0 0); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); } .ds-btn-primary:active { opacity: 0.9; }"
     },
     {
       "name": "Outline Button",
       "kind": "button",
       "refersTo": "button-outline",
-      "description": "Secondary action. Transparent with border. Pairs alongside a Primary.",
+      "description": "Secondary action. Border only, no fill - keeps weight off the page.",
       "html": "<button class=\"ds-btn-outline\">Annulla</button>",
-      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; background-color: transparent; color: oklch(0.985 0 0); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; border: 1px solid oklch(1 0 0 / 10%); border-radius: 8px; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease; white-space: nowrap; } .ds-btn-outline:hover { background-color: oklch(0.269 0 0); border-color: oklch(1 0 0 / 20%); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.708 0 0 / 50%); } .ds-btn-outline:disabled { opacity: 0.5; pointer-events: none; }"
+      "css": ".ds-btn-outline { background: transparent; color: var(--foreground, oklch(0.985 0 0)); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; height: 36px; padding: 8px 16px; border: 1px solid var(--border, oklch(1 0 0 / 10%)); border-radius: 8px; cursor: pointer; transition: background 0.2s, border-color 0.2s; } .ds-btn-outline:hover { background: color-mix(in oklch, var(--foreground, oklch(0.985 0 0)) 6%, transparent); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); }"
     },
     {
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "Tertiary action. Invisible at rest. Used in dense tables and toolbars.",
-      "html": "<button class=\"ds-btn-ghost\">Modifica</button>",
-      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 12px; background-color: transparent; color: oklch(0.708 0 0); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease; white-space: nowrap; } .ds-btn-ghost:hover { background-color: oklch(0.269 0 0 / 50%); color: oklch(0.985 0 0); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.708 0 0 / 50%); } .ds-btn-ghost:disabled { opacity: 0.5; pointer-events: none; }"
+      "description": "Tertiary / icon-adjacent action. No chrome until hover.",
+      "html": "<button class=\"ds-btn-ghost\">Dettagli</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: var(--muted-foreground, oklch(0.708 0 0)); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; height: 36px; padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s, color 0.2s; } .ds-btn-ghost:hover { background: color-mix(in oklch, var(--foreground, oklch(0.985 0 0)) 6%, transparent); color: var(--foreground, oklch(0.985 0 0)); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); }"
+    },
+    {
+      "name": "Dominant Value Block",
+      "kind": "custom",
+      "refersTo": "card-default",
+      "description": "The Trade Republic hierarchy in one block: eyebrow label, one commanding mono number, sign-aware variation chips laid out as equal-width grid columns, then tertiary metadata.",
+      "html": "<div class=\"ds-dominant\"><p class=\"ds-dominant-eyebrow\">Patrimonio Totale Lordo</p><p class=\"ds-dominant-value\">283.412,60 &euro;</p><div class=\"ds-dominant-chips\"><span class=\"ds-chip-positive\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 2 17\"/><polyline points=\"16 7 22 7 22 13\"/></svg>+4.812,00 &euro; (+1,73%) questo mese</span><span class=\"ds-chip-positive\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 2 17\"/><polyline points=\"16 7 22 7 22 13\"/></svg>+21.004,10 &euro; (+8,00%) YTD</span></div><p class=\"ds-dominant-meta\">18 asset in portafoglio</p></div>",
+      "css": ".ds-dominant { background: var(--card, oklch(0.205 0 0)); color: var(--card-foreground, oklch(0.985 0 0)); border: 1px solid var(--border, oklch(1 0 0 / 10%)); border-radius: 16px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); } .ds-dominant-eyebrow { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 8px; } .ds-dominant-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 44px; font-weight: 700; letter-spacing: -0.03em; margin: 0; } .ds-dominant-chips { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px; } .ds-chip-positive { display: inline-flex; align-items: center; gap: 8px; background: color-mix(in oklch, var(--positive, oklch(0.627 0.194 149.214)) 10%, transparent); color: var(--positive, oklch(0.627 0.194 149.214)); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; border-radius: 9px; padding: 6px 13px; } .ds-dominant-meta { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 11px; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 12px 0 0; } @media (min-width: 768px) { .ds-dominant-chips { grid-template-columns: 1fr 1fr; } } @media (min-width: 1440px) { .ds-dominant-value { font-size: 54px; } }"
     },
     {
       "name": "Data Card",
       "kind": "card",
       "refersTo": "card-default",
-      "description": "Primary content container for KPI groups, charts, and data panels.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Patrimonio Netto</div><div class=\"ds-card-value\">€ 124.350,00</div><div class=\"ds-card-label\">+2,4% questo mese</div></div>",
-      "css": ".ds-card { background-color: oklch(0.205 0 0); color: oklch(0.985 0 0); border: 1px solid oklch(1 0 0 / 10%); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); } .ds-card-title { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; color: oklch(0.708 0 0); letter-spacing: 0.01em; text-transform: uppercase; } .ds-card-value { font-family: 'Geist Mono', ui-monospace, monospace; font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; font-feature-settings: \"tnum\" 1; } .ds-card-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 400; color: oklch(0.708 0 0); }"
+      "description": "The default container. 16px radius, 1px ghost border, Lift shadow. Never nested inside another card.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-eyebrow\">Liquidit&agrave;</p><p class=\"ds-card-value\">42.180,00 &euro;</p></div>",
+      "css": ".ds-card { background: var(--card, oklch(0.205 0 0)); color: var(--card-foreground, oklch(0.985 0 0)); border: 1px solid var(--border, oklch(1 0 0 / 10%)); border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); } .ds-card-eyebrow { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 6px; } .ds-card-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; margin: 0; }"
+    },
+    {
+      "name": "Muted Sub-tile",
+      "kind": "custom",
+      "refersTo": "card-default",
+      "description": "A KPI chip inside a card. bg-muted/40 with NO border - repeating the card background would be a card-within-card violation. Sub-hero value plus a sign-aware delta annotation.",
+      "html": "<div class=\"ds-subtile\"><p class=\"ds-subtile-label\">Risparmio</p><p class=\"ds-subtile-value\">1.240,00 &euro;</p><p class=\"ds-subtile-delta\">+5,2% vs mese scorso</p></div>",
+      "css": ".ds-subtile { background: color-mix(in oklch, var(--muted, oklch(0.269 0 0)) 40%, transparent); border-radius: 14px; padding: 14px; } .ds-subtile-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 6px; } .ds-subtile-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 22px; font-weight: 700; letter-spacing: -0.025em; line-height: 1; margin: 0; } .ds-subtile-delta { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--positive, oklch(0.627 0.194 149.214)); margin: 6px 0 0; }"
+    },
+    {
+      "name": "Flat List Row",
+      "kind": "custom",
+      "refersTo": "card-default",
+      "description": "Chrome reduction in practice: rows separated by a divider, never one card per item. Label left, mono value right.",
+      "html": "<div class=\"ds-rows\"><div class=\"ds-row\"><span class=\"ds-row-label\">Liquidit&agrave;</span><span class=\"ds-row-value\">42.180,00 &euro;</span></div><div class=\"ds-row\"><span class=\"ds-row-label\">Investimenti</span><span class=\"ds-row-value\">198.402,40 &euro;</span></div><div class=\"ds-row\"><span class=\"ds-row-label\">Illiquidi</span><span class=\"ds-row-value\">42.830,20 &euro;</span></div></div>",
+      "css": ".ds-rows { display: flex; flex-direction: column; } .ds-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border, oklch(1 0 0 / 10%)); } .ds-row:first-child { border-top: none; } .ds-row-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 13px; color: var(--foreground, oklch(0.985 0 0)); } .ds-row-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 13px; color: var(--foreground, oklch(0.985 0 0)); }"
     },
     {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input-default",
-      "description": "Standard form text field. Transparent at rest, border communicates editability.",
-      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-input-eg\">Importo</label><input class=\"ds-input\" id=\"ds-input-eg\" type=\"text\" placeholder=\"€ 0,00\" /></div>",
-      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; } .ds-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; color: oklch(0.708 0 0); letter-spacing: 0.01em; } .ds-input { height: 36px; width: 100%; padding: 0 12px; background-color: oklch(1 0 0 / 4%); color: oklch(0.985 0 0); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.875rem; font-feature-settings: \"tnum\" 1; border: 1px solid oklch(1 0 0 / 10%); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; } .ds-input::placeholder { color: oklch(0.556 0 0); } .ds-input:focus-visible { border-color: oklch(0.708 0 0); box-shadow: 0 0 0 3px oklch(0.708 0 0 / 50%); } .ds-input:disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }"
+      "description": "Transparent at rest, 1px stroke, softened focus ring. Dark mode adds a faint fill to signal editability.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Ticker o ISIN\" aria-label=\"Ticker o ISIN\" />",
+      "css": ".ds-input { background: color-mix(in oklch, var(--input, oklch(1 0 0 / 15%)) 30%, transparent); color: var(--foreground, oklch(0.985 0 0)); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.875rem; height: 36px; padding: 4px 12px; border: 1px solid var(--border, oklch(1 0 0 / 10%)); border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: border-color 0.2s, box-shadow 0.2s; } .ds-input::placeholder { color: var(--muted-foreground, oklch(0.708 0 0)); } .ds-input:focus-visible { outline: none; border-color: var(--ring, oklch(0.708 0 0)); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); }"
     },
     {
       "name": "Badge",
       "kind": "chip",
       "refersTo": "badge-default",
-      "description": "Asset type label, status indicator, filter chip.",
-      "html": "<div style=\"display:flex;gap:8px;align-items:center;\"><span class=\"ds-badge ds-badge--default\">ETF</span><span class=\"ds-badge ds-badge--outline\">Azione</span><span class=\"ds-badge ds-badge--destructive\">Venduto</span></div>",
-      "css": ".ds-badge { display: inline-flex; align-items: center; border-radius: 8px; padding: 2px 10px; font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; line-height: 1.4; letter-spacing: 0.01em; border: 1px solid transparent; transition: background-color 0.15s ease; } .ds-badge--default { background-color: oklch(0.985 0 0); color: oklch(0.205 0 0); } .ds-badge--outline { background-color: transparent; color: oklch(0.985 0 0); border-color: oklch(1 0 0 / 15%); } .ds-badge--destructive { background-color: oklch(0.5771 0.2152 27.325); color: oklch(0.985 0 0); }"
+      "description": "Asset type labels and status indicators. Height follows content.",
+      "html": "<span class=\"ds-badge\">ETF</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; background: var(--primary, oklch(0.985 0 0)); color: var(--primary-foreground, oklch(0.205 0 0)); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; border-radius: 8px; padding: 2px 10px; border: 1px solid transparent; }"
+    },
+    {
+      "name": "Segmented Pill Control",
+      "kind": "nav",
+      "refersTo": "button-ghost",
+      "description": "The shared period/view/range toggle. role=tablist with real roving tabindex; the active pill slides via a Framer layoutId at spring 400/35.",
+      "html": "<div class=\"ds-segmented\" role=\"tablist\" aria-label=\"Periodo\"><button class=\"ds-segmented-item is-active\" role=\"tab\" aria-selected=\"true\" tabindex=\"0\">Mese</button><button class=\"ds-segmented-item\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\">Anno</button><button class=\"ds-segmented-item\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\">Storico</button></div>",
+      "css": ".ds-segmented { display: inline-flex; gap: 2px; background: color-mix(in oklch, var(--muted, oklch(0.269 0 0)) 40%, transparent); border-radius: 9999px; padding: 3px; } .ds-segmented-item { background: transparent; color: var(--muted-foreground, oklch(0.708 0 0)); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; border: none; border-radius: 9999px; padding: 6px 14px; cursor: pointer; transition: background 0.2s, color 0.2s; } .ds-segmented-item:hover { color: var(--foreground, oklch(0.985 0 0)); } .ds-segmented-item.is-active { background: var(--background, oklch(0.145 0 0)); color: var(--foreground, oklch(0.985 0 0)); } .ds-segmented-item:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); }"
     },
     {
       "name": "Mobile Nav Pill",
       "kind": "nav",
-      "description": "Floating bottom navigation. Pill shape, Float shadow, safe-area aware.",
-      "html": "<nav class=\"ds-nav-pill\"><a class=\"ds-nav-item ds-nav-item--active\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/></svg><span>Panoramica</span></a><a class=\"ds-nav-item\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12V7H5a2 2 0 0 1 0-4h14v4\"/><path d=\"M3 5v14a2 2 0 0 0 2 2h16v-5\"/><path d=\"M18 12a2 2 0 0 0 0 4h4v-4Z\"/></svg><span>Patrimonio</span></a><a class=\"ds-nav-item\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z\"/><path d=\"M14 8H8\"/><path d=\"M16 12H8\"/><path d=\"M13 16H8\"/></svg><span>Cashflow</span></a></nav>",
-      "css": ".ds-nav-pill { display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; background-color: oklch(0.205 0 0); border: 1px solid oklch(1 0 0 / 10%); border-radius: 9999px; box-shadow: 0 4px 24px rgba(0,0,0,0.28); } .ds-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 14px; border-radius: 9999px; color: oklch(0.985 0 0 / 55%); font-family: 'Geist Sans', system-ui, sans-serif; font-size: 0.625rem; font-weight: 500; text-decoration: none; transition: color 0.15s ease, background-color 0.15s ease; } .ds-nav-item:hover { color: oklch(0.985 0 0); } .ds-nav-item--active { color: oklch(0.985 0 0); background-color: oklch(0.269 0 0); }"
+      "refersTo": "button-ghost",
+      "description": "The floating bottom navigation. The one place the Float shadow is correct - it genuinely leaves document flow. Hidden entirely in landscape.",
+      "html": "<nav class=\"ds-navpill\" aria-label=\"Navigazione principale\"><a class=\"ds-navpill-item is-active\" href=\"#\" aria-current=\"page\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg></a><a class=\"ds-navpill-item\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"10\"/><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"16\"/></svg></a><a class=\"ds-navpill-item\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/><circle cx=\"5\" cy=\"12\" r=\"1\"/></svg></a></nav>",
+      "css": ".ds-navpill { display: inline-flex; align-items: center; gap: 4px; background: var(--sidebar, oklch(0.205 0 0)); border: 1px solid var(--sidebar-border, oklch(1 0 0 / 10%)); border-radius: 9999px; padding: 8px 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.28); } .ds-navpill-item { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: var(--muted-foreground, oklch(0.708 0 0)); border-radius: 9999px; text-decoration: none; transition: color 0.2s, background 0.2s; } .ds-navpill-item:hover { color: var(--foreground, oklch(0.985 0 0)); } .ds-navpill-item.is-active { color: var(--sidebar-primary, oklch(0.488 0.243 264.376)); background: color-mix(in oklch, var(--sidebar-primary, oklch(0.488 0.243 264.376)) 12%, transparent); } .ds-navpill-item:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring, oklch(0.708 0 0)) 50%, transparent); }"
+    },
+    {
+      "name": "Composition Row (Ranked Bar)",
+      "kind": "custom",
+      "refersTo": "card-default",
+      "description": "The replacement for every pie and donut in the app. Aligned bar lengths compare magnitudes; a 2px-radius square is the color key (a circle would read as a status dot).",
+      "html": "<div class=\"ds-comp\"><div class=\"ds-comp-row\"><span class=\"ds-comp-swatch\"></span><span class=\"ds-comp-label\">Casa</span><span class=\"ds-comp-value\">1.240,00 &euro;</span></div><div class=\"ds-comp-track\"><span class=\"ds-comp-fill\" style=\"width: 72%\"></span></div><div class=\"ds-comp-row\"><span class=\"ds-comp-swatch ds-comp-swatch-2\"></span><span class=\"ds-comp-label\">Trasporti</span><span class=\"ds-comp-value\">410,00 &euro;</span></div><div class=\"ds-comp-track\"><span class=\"ds-comp-fill ds-comp-fill-2\" style=\"width: 24%\"></span></div></div>",
+      "css": ".ds-comp { display: flex; flex-direction: column; gap: 4px; } .ds-comp-row { display: flex; align-items: center; gap: 8px; padding-top: 8px; } .ds-comp-swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--chart-1, oklch(0.488 0.243 264.376)); flex-shrink: 0; } .ds-comp-swatch-2 { background: var(--chart-2, oklch(0.696 0.17 162.48)); } .ds-comp-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 13px; color: var(--foreground, oklch(0.985 0 0)); flex: 1; } .ds-comp-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 13px; color: var(--foreground, oklch(0.985 0 0)); } .ds-comp-track { height: 3px; background: color-mix(in oklch, var(--muted, oklch(0.269 0 0)) 60%, transparent); border-radius: 9999px; overflow: hidden; } .ds-comp-fill { display: block; height: 100%; background: var(--chart-1, oklch(0.488 0.243 264.376)); border-radius: 9999px; } .ds-comp-fill-2 { background: var(--chart-2, oklch(0.696 0.17 162.48)); }"
     }
   ],
   "narrative": {
     "northStar": "Effortless Precision",
-    "overview": "This system is built for one purpose: total clarity about your financial position. The design ambition is to be the Apple of personal finance trackers — not the most feature-rich instrument, but the one that makes you immediately understand your financial situation, beautifully and effortlessly. Every element earns its place by communicating a number, a trend, or a relationship. The aesthetic draws from three co-primary references: Linear/Vercel clarity, Trade Republic data hierarchy, and Apple's effortless premium.\n\nBeneath all three sits one law, the one Jony Ive carries forward from the modernist tradition: form follows function. Every visual property — size, weight, color, position, motion, radius — is a consequence of what an element does, never a costume applied afterward. When form and decoration conflict, function wins. Three corollaries (Ive): honesty over illusion, deference over decoration, inevitability over ornament. It is the why behind every rule below.\n\nBoth dark and light modes are equally premium experiences. The default palette is achromatic by conviction — color belongs to the data, not the chrome.\n\nThe five named color themes (Solar Dusk, Elegant Luxury, Midnight Bloom, Cyberpunk, Retro Arcade) are personality layers on top of a structural foundation. The default theme is the instrument in its raw state. The themes are its finishes.",
+    "overview": "This system is built for one purpose: total clarity about your financial position. The design ambition is to be the Apple of personal finance trackers - not the most feature-rich instrument, but the one that makes you immediately understand your financial situation, beautifully and effortlessly. Every element earns its place by communicating a number, a trend, or a relationship. The aesthetic draws from three co-primary references: Linear/Vercel clarity, Trade Republic data hierarchy, and Apple's effortless premium.\n\nLinear / Vercel provides the structural foundation: tight geometry, achromatic palette, strong typography, physics-native motion, zero decorative chrome. Trade Republic provides the data hierarchy: the primary number dominates physically and visually, layout flows vertically (dominant value, then inline variation chip, then small label metadata), flat divide-y lists instead of card-within-card nesting. Apple (Stocks, Wallet, Health) provides the quality benchmark: complex data made effortlessly readable, generous whitespace as a design material, light mode equally premium to dark, progressive disclosure - the essential at a glance, depth on interaction.\n\nBeneath all three sits a single conviction, the one Jony Ive carries forward from the modernist tradition: form follows function. Every visual property of every element - its size, weight, color, position, motion, even its corner radius - is a consequence of what that element does, never a costume applied afterward. Three corollaries follow: honesty (a surface never fakes a depth, material, or state it doesn't have), deference (the interface is a quiet instrument that recedes so the data can speak), and inevitability (a well-resolved element looks like the only possible answer). Both dark and light modes are primary, equally refined. The five named themes (Solar Dusk, Elegant Luxury, Midnight Bloom, Cyberpunk, Retro Arcade) are personality layers on a structural foundation - the default theme is the instrument in its raw state, the themes are its finishes.\n\nThis system explicitly rejects four aesthetic modes: Bloomberg terminal coldness (too dense and impersonal for a personal wealth journal), consumer fintech brightness (Revolut-style gradients and playful fills trivialize serious data), Material Design genericism (component conventions that serve any app therefore serve this one poorly), and ostentated complexity (UI that demonstrates how hard the domain is rather than hiding that complexity behind a calm surface).",
     "keyCharacteristics": [
-      "Form follows function — every visual property is a consequence of what an element does; honesty over illusion, deference over decoration, inevitability over ornament",
+      "Form follows function: every visual property is derived from what an element does - honesty over illusion, deference over decoration, inevitability over ornament",
       "Achromatic structural palette; data colors carry all chromatic meaning in the default theme",
       "Geist Sans for interface text, Geist Mono for every number that matters",
-      "Radius is refined: 10px (inputs, buttons), 16px (cards) — premium curve without losing authority",
+      "Radius is refined: 10px (inputs, buttons), 16px (cards) - premium curve without losing authority",
       "Elevation is ambient: surfaces layer through background steps, shadows are atmospheric whispers",
       "Motion is physics-native: spring dialogs, ease-out-quart state transitions, circle-reveal theme toggle",
-      "Density is intentional — but legibility comes first; whitespace is a design material, not wasted space",
-      "Progressive disclosure — the essential at a glance, depth on interaction; the interface recedes so numbers speak",
-      "Light and dark modes are equally premium — different materials, same quality standard"
+      "Hierarchy is Trade Republic-style: one dominant value per section, everything else is context",
+      "Chrome reduction is deliberate: flat lists over nested cards, divide-y over borders-on-boxes",
+      "Mobile-first: layouts are designed at 390px first; desktop adds columns, never simplifies"
     ],
     "rules": [
-      { "name": "The Form-Follows-Function Rule", "body": "Every visual property — size, weight, color, position, motion, radius — is a consequence of what the element does, never decoration applied afterward. When form and decoration conflict, function wins. Three corollaries (Ive): honesty (no faked depth, material, or state), deference (chrome recedes so data speaks), inevitability (a resolved element looks like the only possible answer). This is the why behind every rule below.", "section": "overview" },
-      { "name": "The Zero-Chroma Rule",   "body": "The default surface palette has no hue. Adding a brand color to buttons, cards, or navigation in the default theme is forbidden. Color is earned by data, not decoration.", "section": "colors" },
-      { "name": "The Data Owns Color Rule","body": "Chart palettes, performance indicators, and the five named themes are the only sanctioned sources of chromatic energy. Interface chrome in the default theme is always achromatic.", "section": "colors" },
-      { "name": "The Mono Mandate",       "body": "Every number in a financial context uses Geist Mono with tnum features. KPI cards, table cells, chart axis labels, percentage badges. No exceptions.", "section": "typography" },
-      { "name": "The Two-Font Rule",      "body": "The system uses exactly two fonts. No display serif, no decorative typeface, no icon font treated as type.", "section": "typography" },
-      { "name": "The Ambient Rule",       "body": "Shadows are atmospheric, not structural. A card's 1px border at 10% opacity does more compositional work than its shadow.", "section": "elevation" },
-      { "name": "The Float Threshold",    "body": "Float shadow (0 4px 24px rgba(0,0,0,0.28)) is reserved for elements that physically exit document flow. Using it on an in-flow card is an error.", "section": "elevation" }
+      {
+        "name": "The Unifying Law - Form Follows Function",
+        "body": "Every visual property of every element - its size, weight, color, position, motion, even its corner radius - is a consequence of what that element does, never a costume applied to it afterward. A number is large because it is the most important fact on the screen, not because \"large\" looks impressive. A border is 1px at 10% opacity because that is precisely the contrast required to separate - no more. When form and decoration disagree, function wins, every time. Three corollaries: honesty (no false glass, no invented shadow hierarchy), deference (the interface recedes so the data can speak), inevitability (a well-resolved element looks like the only possible answer).",
+        "section": "overview"
+      },
+      {
+        "name": "The Zero-Chroma Rule",
+        "body": "The default surface palette has no hue. Adding a brand color to buttons, cards, or navigation in the default theme is forbidden. Color is earned by data, not decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Data Owns Color Rule",
+        "body": "Chart palettes, performance indicators, and the five named themes are the only sanctioned sources of chromatic energy. Interface chrome in the default theme is always achromatic.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sign-Color Token Rule",
+        "body": "Positive/negative value coloring (gain vs loss, income vs expense, up vs down deltas, variation chips, fiscal gains) always uses the theme-aware semantic tokens: text-positive for positive, text-destructive for negative, with bg-positive/10 and bg-destructive/10 for chip tints. Raw Tailwind text-green-* / text-red-* is forbidden here - those classes stay literal regardless of the active theme and diverge from --destructive on non-default themes (Cyberpunk renders destructive as orange), which would put two different \"negative\" colors on the same screen. getMetricValueColor() in lib/utils/metricColors.ts is the single source of truth; signChipClass and signTextClass in the same module cover the zero-is-positive chip case shared by the Panoramica and Patrimonio heroes. Buy/sell signal chips (COMPRA/VENDI/OK) are a separate case, theme-mapped to the chart palette via useActionColors.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Mandate",
+        "body": "Every number in a financial context uses Geist Mono with tnum features. No exceptions: KPI cards, table cells, chart axis labels, percentage badges. A number set in Geist Sans loses its financial authority.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two-Font Rule",
+        "body": "The system uses exactly two fonts. No display serif, no decorative typeface, no icon font treated as type. Hierarchy is expressed through scale and weight within the same two families.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ambient Rule",
+        "body": "Shadows here are atmospheric, not structural. A card's 1px border at 10% opacity does more compositional work than its shadow. Don't increase shadow size when a lighter border or a background-step change solves the separation problem.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Float Threshold",
+        "body": "The Float shadow is reserved for elements that physically exit the document flow. Using it on an in-flow card creates false depth hierarchy and is an error.",
+        "section": "elevation"
+      }
     ],
     "dos": [
-      "Do derive every visual choice from function (form follows function). Before adding a color, shadow, radius, motion, or extra size, name the job it does; if the only answer is 'it looks nice,' remove it.",
-      "Do use Geist Mono with font-feature-settings: \"tnum\" 1 for every monetary value, percentage, and structured date.",
-      "Do reference --sidebar-primary for active navigation states. In the default theme this is the only sanctioned non-achromatic color in interface chrome.",
-      "Do use the Float shadow exclusively for elements that leave document flow.",
-      "Do respect prefers-reduced-motion. Framer Motion's useReducedMotion() is integrated and must be preserved.",
-      "Do use desktop: (1440px) as the primary responsive breakpoint. Never use lg: for wide-screen layouts.",
-      "Do use oklch() for all custom color definitions. This project is OKLCH-native.",
+      "Do derive every visual choice from function - form follows function. Before adding any property (a color, a shadow, a radius, a motion, an extra pixel of size), name the job it does. If the only answer is \"it looks nice,\" remove it.",
+      "Do use Geist Mono with font-feature-settings: \"tnum\" 1 for every monetary value, percentage, and structured date. Column alignment is a trust signal.",
+      "Do reference --sidebar-primary for active navigation states. In the default theme this is the only sanctioned non-achromatic color in the interface chrome.",
+      "Do use the Float shadow exclusively for elements that leave document flow (modals, the mobile nav pill, dropdown menus). Never apply it to in-flow cards.",
+      "Do respect prefers-reduced-motion. Framer Motion's useReducedMotion() is integrated across all animated components and must be preserved on new additions.",
+      "Do use desktop: (1440px) as the primary responsive breakpoint for layout switches. Never use lg: (1024px) for wide-screen layouts - iPad Mini in landscape is 1024px and receives the mobile treatment by design.",
+      "Do use oklch() for all custom color definitions. This project is OKLCH-native; hex values in CSS are approximations of the canonical color.",
       "Do let the five named themes handle personality. Resist adding theme-like color to the default palette.",
-      "Do use the view-transition circle reveal for dark/light toggling."
+      "Do use the view-transition circle reveal (0.45s cubic-bezier(0.4, 0, 0.2, 1)) for dark/light mode toggling. The origin coordinates are set inline from the click position.",
+      "Do use requestIdleCallback (with setTimeout(0) fallback) to schedule heavy SVG mount after a count-up animation settles. The heroSettled + chartRenderReady pattern prevents frame budget competition between animations and chart render.",
+      "Do isolate count-up animations in leaf components (OverviewAnimatedCurrency), not in the page component. Each rAF tick then re-renders only the leaf.",
+      "Do use useAnimation + useEffect([]) (empty deps) for \"animate once on mount\" ring charts, so the ring doesn't restart when a parent re-renders.",
+      "Do use -mx-[N]px negative margin (matching the card padding) to create edge-to-edge charts inside a card; preserveAspectRatio=\"none\" fills the broken-out container correctly.",
+      "Do use desktop:grid-cols-[2fr_1fr] for the primary hero+companion layout at the top of a page. The asymmetric ratio communicates hierarchy through space, not just typography.",
+      "Do use border-t border-border/40 pt-4 for section separators within a page scroll flow. The 40% opacity suggests chapter, not division.",
+      "Do use bg-muted/40 rounded-xl p-3.5 (no border) for KPI chip grids inside persistent, always-visible sections. Reserve full-opacity bg-muted with border border-border for parameter tiles in collapsible zones.",
+      "Do use mt-auto inside flex flex-col h-full CardContent to pin optional secondary content to the card bottom. The pattern requires h-full on both Card and CardContent.",
+      "Do use rounded-[2px] for chart legend color swatches and rounded-full for inline dot indicators. Square = color key, circle = inline marker.",
+      "Do duplicate responsive blocks with desktop:hidden / hidden desktop:grid when the same data must be positioned differently across breakpoints. Redundant DOM is preferable to a convoluted single implementation that degrades at both sizes.",
+      "Do use inverted sign semantics (parameterized positiveGood: boolean) for expense delta annotations. A positive Spese delta means spending increased, so the color should be text-destructive.",
+      "Do lay out a row of same-purpose, different-length chips as a grid (grid-cols-1 tablet:grid-cols-2), not flex-wrap, so every chip shares the same column width without any JS measurement."
     ],
     "donts": [
-      "Don't shape an element for appearance alone. A larger number, heavier shadow, brighter accent, or extra animation that exists 'to look good' violates form-follows-function — if a property carries no function, it's decoration; cut it. And never fake depth, material, or state a surface hasn't earned (honesty corollary).",
-      "Don't add brand color to the default theme's surface chrome. Zero-chroma is the rule.",
-      "Don't model density after a Bloomberg terminal. Dense, yes; illegible or cold, never.",
-      "Don't use consumer fintech color patterns (colorful fills, playful gradients, bright accents everywhere).",
-      "Don't apply Material Design component conventions.",
-      "Don't use gradient text (background-clip: text with a gradient). Use weight or size for emphasis.",
-      "Don't use side-stripe borders (colored border-left > 1px as a card accent).",
-      "Don't use glassmorphism decoratively.",
-      "Don't use proportional figures for financial numbers in tabular contexts.",
-      "Don't apply Float shadow to in-document cards.",
-      "Don't design UI that demonstrates how complex the domain is. Complexity should be hidden behind a calm, premium surface — the interface should feel simpler than the data it presents."
+      "Don't shape an element for appearance alone. A larger number, a heavier shadow, a brighter accent, or an extra animation that exists \"to look good\" violates form-follows-function. And never fake what isn't there: no false depth, no invented material, no shadow hierarchy a surface hasn't earned.",
+      "Don't add brand color to the default theme's surface chrome (backgrounds, cards, buttons). Zero-chroma is the rule: color belongs to data, not decoration.",
+      "Don't model density after a Bloomberg terminal. Dense presentation serves the user; illegibility or emotional coldness does not.",
+      "Don't use consumer fintech color patterns - colorful fills, playful gradients, bright accents on every interactive element. This tool handles serious long-term wealth management.",
+      "Don't apply Material Design component conventions. Generic patterns that serve any app serve this one poorly.",
+      "Don't use gradient text (background-clip: text with a gradient fill). Use weight or size for emphasis.",
+      "Don't use side-stripe borders (a colored border-left greater than 1px as a card accent). Rewrite with full borders, background tints, or leading icons.",
+      "Don't use glassmorphism (backdrop-filter: blur) decoratively. A blurred surface must be structurally justified.",
+      "Don't use proportional figures for financial numbers in tabular contexts. tabular-nums is required wherever numbers appear in column-aligned positions.",
+      "Don't add shadows larger than Lift to in-document cards. Float creates false depth hierarchy on surfaces that haven't left document flow.",
+      "Don't nest cards inside cards (box-within-box). If a list of items lives inside a Card container, the rows are flat - no individual card per item.",
+      "Don't use progress bars to communicate allocation or weight unless the visual fill carries information the number alone cannot convey.",
+      "Don't give equal visual weight to multiple values when one is the primary takeaway. Apply the Dominant Value Block: one number commands, the rest are context.",
+      "Don't use lg: (1024px) as a layout breakpoint for wide-screen changes. Use desktop: (1440px) for all layout switches.",
+      "Don't design the desktop version first and then adapt it for mobile. Mobile layout is the base; desktop adds columns, tables, and sidebar.",
+      "Don't use bg-card for sub-items nested inside a Card. Sub-tiles must use bg-muted - repeating the card background is a card-within-card violation even without an explicit Card wrapper.",
+      "Don't place count-up animation logic (useCountUp, rAF loops) in a page-level component. Every frame tick would re-render the entire tree.",
+      "Don't render a ring or donut chart with strokeLinecap=\"round\" when the segment can be near 0% or near 100% - the round caps overlap the track and distort the reading. Use strokeLinecap=\"butt\".",
+      "Don't use rounded-full for chart legend swatches. At 8x8px a circle reads as a traffic-light dot (status), not as a color key.",
+      "Don't reach for a pie/donut chart to compare magnitudes across 6+ items. Use CompositionList (ranked rows) for \"which items are biggest\" or CompositionBar (stacked bar) for \"what does the whole composition look like\"; reserve pie/donut for genuine part-of-whole reads with 5 or fewer slices.",
+      "Don't use an animated SVG donut or ring chart when flat divide-y rows carry the same information more clearly.",
+      "Don't use placeholder bars (dummy width: 0 category bars) when no data is available. Omit the block entirely - absence communicates \"no data\" more cleanly than empty chrome."
     ]
   }
 }

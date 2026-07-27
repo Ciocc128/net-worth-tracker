@@ -38,6 +38,7 @@ import { PeriodSelector, SparklinePeriod } from '@/components/dashboard/PeriodSe
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { signChipClass, signTextClass } from '@/lib/utils/metricColors';
 import { ASSET_CLASS_CHART_INDEX } from '@/lib/utils/allocationUtils';
 import { filterSparklineByPeriod } from '@/lib/utils/sparklinePeriod';
 import { cn } from '@/lib/utils';
@@ -75,22 +76,6 @@ const MONTH_NAMES_IT = [
   'Novembre',
   'Dicembre',
 ];
-
-/**
- * Sign-aware theme-token classes for financial values (gain vs loss).
- *
- * Returns the semantic tokens `text-positive` / `text-destructive` (plus the
- * matching `/10` tint for chips) so the sign color follows the active theme on
- * all six themes. Raw `text-green-*` / `text-red-*` is forbidden here: those stay
- * literal and diverge from `--destructive` on non-default themes (e.g. Cyberpunk
- * renders destructive as orange). See DESIGN.md "The Sign-Color Token Rule".
- * Zero is treated as positive, matching the previous chip/fiscal behaviour.
- */
-const signTextClass = (value: number): string =>
-  value >= 0 ? 'text-positive' : 'text-destructive';
-
-const signChipClass = (value: number): string =>
-  value >= 0 ? 'bg-positive/10 text-positive' : 'bg-destructive/10 text-destructive';
 
 export default function DashboardPage() {
   const { user } = useAuth();

@@ -33,20 +33,34 @@ flat `divide-y` rows, no card-in-card), `useChartColors()` per ogni serie, token
 /impeccable critique la pagina Panoramica
 
 File: app/dashboard/page.tsx
-Componenti: components/dashboard/*
+Componenti: components/dashboard/* (OverviewAnimatedCurrency, NetWorthSparkline,
+            PeriodSelector, SavingsRingChart, OverviewChartsSection, ExportPDFButton),
+            components/ui/composition-list.tsx, components/ui/composition-bar.tsx
+Pure layer: lib/utils/dashboardOverviewUtils.ts, lib/utils/sparklinePeriod.ts
+Dati: useDashboardOverview → GET /api/dashboard/overview (cache materialized-summary)
 
-Questa è la home del dashboard — layout "Bento Asimmetrico v2":
-- Hero [2fr_1fr]: Patrimonio Totale Lordo (text-[44px]/[54px]) + sparkline 12m
-  edge-to-edge (-mx-[22px]) + variation chips; Liquid card con breakdown flat
-  a 3 righe (Liquidità / Investimenti Liquidabili / Illiquidi) + sezione Impatto
-  Fiscale condizionale. Hero card usa Card Sticky Footer (mt-auto) per TER+Costo su desktop.
-- TER + Costo Annuale: responsive duplication (desktop:hidden / hidden desktop:grid).
-- Cashflow card (full-width): 4 KPI chip (bg-muted/40 rounded-xl, text-[22px]) con
-  delta annotation text-[12px] font-mono + category bar breakdown (h-[3px], 2-col).
+Questa è la home del dashboard — layout "Bento Asimmetrico" [2fr_1fr], rivisto dopo la
+critique del 2026-07-16:
+- Hero (colonna dominante): Patrimonio Totale Lordo (text-[44px]/[54px], con step-down
+  a text-[32px]/[40px] oltre i 13 caratteri) → chip di variazione mensile/YTD + chip
+  "Nuovo massimo storico" (ATH) disposte in `grid grid-cols-1 tablet:grid-cols-2` (colonne
+  di larghezza uguale, non flex-wrap) → riga "Ultimi 12 mesi" mostrata solo quando la chip
+  mensile è negativa → PeriodSelector della sparkline (3M/6M/YTD/1A/3A/All, niente 1M) →
+  sparkline edge-to-edge (-mx-[22px]) → digest "Guidato da" con i top movers del mese.
+- Sintesi Patrimoniale (colonna companion): breakdown flat a 3 righe (Liquidità /
+  Investimenti / Illiquidi), blocco Impatto Fiscale condizionale, barra di progresso
+  dell'obiettivo in evidenza (solo se goalBasedInvestingEnabled).
+- TER + Costo Annuale: responsive duplication (desktop:hidden / hidden desktop:grid),
+  colorati con `text-warning-foreground` (non amber raw).
+- Cashflow card (full-width): KPI chip (bg-muted/40 rounded-xl, text-[22px]) con delta
+  annotation text-[12px] font-mono + breakdown a barre per categoria.
 - Charts section: deferred via requestIdleCallback; tab-switched su mobile (layoutId
-  "chart-tab"), 2-col grid su desktop; legend swatch rounded-[2px].
-Confronta con: Patrimonio (stesso hero [2fr_1fr]), Rendimenti (hero TWR),
-Storico (hero patrimonio), Goals (hero allocato).
+  "chart-tab"), 2-col grid su desktop; composizione via CompositionList/CompositionBar
+  (i pie/donut sono stati eliminati da tutta l'app).
+Confronta con: Patrimonio (hero gemello — stesse chip, stesso payload), Rendimenti
+(PerformanceHero), Storico (hero patrimonio), Goals (hero allocato).
+Nota: hero rivisto il 2026-07-16 (ATH, PeriodSelector, top movers, goal progress) e chip
+portate a grid il 2026-07-26 — rieseguire la critique per misurare il delta.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -79,22 +93,94 @@ Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetCard.tsx,
             components/assets/AssetSparkline.tsx,
             components/assets/AssetDialog.tsx,
+            components/assets/TransactionDialog.tsx,
+            components/assets/AssetMovementsDialog.tsx,
+            components/assets/AssetPriceHistoryTable.tsx,
+            components/assets/TaxCalculatorModal.tsx,
             components/dashboard/OverviewAnimatedCurrency.tsx,
             components/dashboard/NetWorthSparkline.tsx
+Pure layer: lib/utils/assetTransactionUtils.ts, lib/utils/assetDisplay.ts,
+            lib/utils/assetPricing.ts
 
 La pagina è una singola scroll (nessun tab). Layout:
 - Header
-- Hero [2fr_1fr]: identico a Panoramica — stesso `useDashboardOverview` RQ cache,
-  stessa variazione chips, stessa sparkline edge-to-edge, stessa Liquid card
-  con flat 3-row breakdown. In più: riga G/P non realizzato condizionale.
+- Hero [2fr_1fr]: gemello di Panoramica — stesso `useDashboardOverview` RQ cache, stesse
+  chip di variazione (mensile/YTD/ATH in grid a colonne uguali), stessa sparkline
+  edge-to-edge, stessa card companion con flat 3-row breakdown. In più: riga G/P non
+  realizzato condizionale.
 - CashAccountsSection: grid cards 2-col/4-col per i conti correnti (type=cash,
   assetClass=cash), esclusi dalla tabella principale.
 - AssetManagementTab: tabella ordinabile (Valore, G/P%, Peso%, Nome, Classe),
-  group-by-class toggle, sparkline per asset, 2-click delete, AssetDialog 2-step.
+  group-by-class toggle, colonne Δ Mese/YTD/Inizio dietro il toggle "Andamento",
+  sparkline per asset, 2-click delete, AssetDialog 2-step.
   Mobile: niente tabella — grid di AssetCard raggruppate per classe, rese inline
   nello stesso componente (non un AssetMobileSummary separato).
-Confronta con: Panoramica (stesso hero layout), AllocationBreakdown (flat divide-y rows),
-GoalDetailCard (expand/collapse inline).
+- Registro operazioni: dalle azioni di riga/card, gated su `useAssetLedgerMeta` —
+  "Registra operazione" (TransactionDialog: segmented Compra/Vendi/Rettifica, anteprima
+  della plusvalenza realizzata, regolamento su conto cash opzionale) e "Movimenti"
+  (AssetMovementsDialog: vitals P&L/Rendimento/XIRR + lista movimenti). Le scritture
+  passano solo dalle Admin API; l'asset doc resta autoritativo (quantità/PMC riscritti da
+  un replay completo). Per gli asset a ledger l'edit mostra quantità/PMC in sola lettura.
+- Righe a valutazione manuale (cash, immobili, fondi pensione, Private Equity, o
+  autoUpdatePrice off) hanno un tint `color-mix()` su --chart-3, senza legenda.
+- Alias ticker: la label dello strumento passa sempre da `getAssetDisplayTicker`
+  (displayTicker → ticker); i fondi pensione non mostrano mai un ticker.
+Confronta con: Panoramica (hero gemello), Previdenza (stesso asset visto dal lato
+contributi), AllocationBreakdown (flat divide-y rows), GoalDetailCard (expand/collapse inline).
+Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
+Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
+ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
+text-[44px] desktop:text-[54px] font-bold font-mono tracking-[-0.03em], section hero text-[36px],
+sub-hero text-[22px] (mai text-4xl/text-2xl per un hero). Mono Mandate: ogni numero in Geist Mono
++ tabular-nums. Zero-Chroma + Data Owns Color: chrome achromatica, il colore lo possiede il dato
+(chart e temi). Gerarchia Trade Republic (un numero dominante, flat divide-y rows, no card-in-card),
+useChartColors() per ogni serie grafica, token OKLCH compliance su tutti e 6 i temi.
+
+Contesto:
+- Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
+- Leggi AGENTS.md (pattern, convenzioni, gotcha)
+- Leggi CLAUDE.md (stato corrente, known issues)
+
+Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
+modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
+e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
+in una volta (craft + polish), con test verdi e tsc pulito.
+```
+
+---
+
+## Previdenza
+
+```
+/impeccable critique la pagina Previdenza
+
+File: app/dashboard/pension/page.tsx
+Componenti: components/pension/PensionOverview.tsx,
+            components/pension/PensionContributionDialog.tsx
+Pure layer: lib/utils/pensionDeduction.ts, lib/utils/pensionContributions.ts,
+            lib/utils/pensionFamilyMembers.ts
+
+Vista dedicata al fondo pensione, in `planningNav` (Pianificazione) e non come tab di
+FIRE e Simulazioni: versamenti, beneficio fiscale e plafond sono contenuto di pianificazione
+a sé. È anche il target del link "Vai a Previdenza" da una card asset pensionFund in Patrimonio.
+Quattro blocchi in ordine narrativo:
+1. Header — valore totale dei fondi (somma di TUTTI gli asset `pensionFund`) + totale
+   versato. Aggregato per costruzione: è una cifra di patrimonio, non fiscale.
+2. Versato per natura — contributi dell'anno divisi TFR / Volontario / Datoriale
+   (solo il Volontario esce da un conto cash, modellato come `transfer`; TFR e Datoriale
+   accreditano il fondo standalone).
+3. Beneficio fiscale — UNA card di recap PER membro famiglia con almeno un fondo collegato
+   (il tetto di deducibilità IRPEF è per contribuente, non per conto): importo dedotto,
+   risparmio IRPEF, plafond ed extra-deducibilità. Un fondo senza membro collegato mostra
+   un prompt, mai un numero silenziosamente sbagliato. I membri si gestiscono in
+   Impostazioni → Preferenze → Famiglia.
+4. Storico versamenti — lista con 2-click delete che reversa l'effetto valore/transfer.
+Il fondo pensione è un asset a valutazione manuale (nessun ticker, nessun cost basis,
+nessun auto-update) con `allocationRole: 'frozen'` di default.
+Confronta con: Patrimonio (stesso asset dal lato valore), Allocazione
+(PensionAllocationCards, il fondo resta frozen e non entra mai in un piano),
+Coast FIRE (stesso registro fiscale IRPEF + scaglioni editabili).
+Nota: pagina mai critiquata — nessuna baseline, delta atteso alto.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -130,8 +216,11 @@ Componenti: components/dividends/DividendTrackingTab.tsx,
             components/dividends/DividendCalendar.tsx,
             components/dividends/DividendTable.tsx,
             components/dividends/DividendRecordDetailsDialog.tsx,
-            components/dividends/DividendDialog.tsx
-Pure layer: lib/utils/dividendAnalytics.ts, lib/constants/dividendTypes.ts
+            components/dividends/DividendDialog.tsx,
+            components/dividends/InflationRateDialog.tsx,
+            components/dividends/ProvisionalCouponBanner.tsx
+Pure layer: lib/utils/dividendAnalytics.ts, lib/utils/couponUtils.ts,
+            lib/constants/dividendTypes.ts
 
 Questo tab (redesign "ripensamento" 2026-06-11) traccia dividendi e cedole con IA
 Trade-Republic: asse periodo (DividendPeriod Mese/Anno/12 mesi/Storico, derivato in-memory
@@ -141,8 +230,13 @@ dalla lista — niente refetch sullo switch) → hero net-income (font-mono + ch
 (payer venduti inclusi — assetTicker/assetName denormalizzati per record). Table/Calendario via
 SegmentedControl; filtri secondari asset/tipo + day-focus sotto "Filtra"; grafici e analisi
 avanzata dietro Collapsible. Colori segno via getMetricValueColor. DividendStats è ora solo il
-blocco server-computed YOC/DPS/total-return, alimentato dai bound di data del periodo. Supporta
-conversione EUR per asset in valuta estera e cedole auto-generate per bond.
+blocco server-computed YOC/DPS/total-return, alimentato dai bound di data del periodo; la sua
+tabella "Total Return per Asset" è basata sul registro operazioni (replayTransactions /
+computeAssetTotalReturn) e include le posizioni chiuse con badge "Chiusa" e le vendite parziali —
+gli asset senza doc di ledger ricadono sul confronto statico prezzo-vs-PMC. Supporta conversione
+EUR per asset in valuta estera e cedole auto-generate per bond, incluse le obbligazioni indicizzate
+all'inflazione (BTP Italia): la cedola successiva resta PROVVISORIA (ProvisionalCouponBanner)
+finché l'utente non annuncia il tasso FOI dall'InflationRateDialog.
 Confronta con: Centri di Costo (stesso asse periodo in-memory + hero + leaderboard divide-y),
 Hall of Fame (tabelle flat), Cashflow/Analisi (period-based data).
 Nota: il redesign è stato implementato il 2026-06-11 — rieseguire la critique per misurare il delta.
@@ -173,13 +267,34 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 
 File: app/dashboard/cashflow/page.tsx
 Componenti: components/cashflow/ExpenseTrackingTab.tsx,
-            components/expenses/ExpenseDialog.tsx
+            components/cashflow/CashflowTrackingMobile.tsx,
+            components/cashflow/TransactionFeed.tsx,
+            components/cashflow/cashflow-kpi/CashflowHero.tsx,
+            components/cashflow/CategoryBreakdownList.tsx,
+            components/cashflow/MobileFiltersDrawer.tsx,
+            components/expenses/ExpenseDialog.tsx,
+            components/expenses/CategoryManagementDialog.tsx
+Pure layer: lib/utils/trackingSummary.ts
+Servizi: lib/services/cashBalanceReconciliation.ts
 
-Questo tab mostra la lista delle spese con filtri, KPI dominant blocks,
-load-more e 2-click inline delete. ExpenseDialog ha un 2-step creation flow
-con visual type picker (4 card 2x2) e form contestuale.
-Confronta con: AssetManagementTab (stessa struttura lista + dialog 2-step),
-GoalDetailCard (delete pattern).
+Questo tab è stato ripensato con una IA "single answer": non è più una lista con KPI
+sopra, ma una risposta sola seguita dalla prova.
+- CashflowHero: Risparmio Netto dominante + UN verdetto di salute + top-5 spese del
+  periodo. Derivazione pura e testata in lib/utils/trackingSummary.ts.
+- Toolbar di filtri contestuale sotto l'hero (su mobile: MobileFiltersDrawer).
+- TransactionFeed condiviso: raggruppamento per giorno con toggle Feed/Tabella,
+  load-more e 2-click inline delete. Su portrait il layout passa da
+  CashflowTrackingMobile (stesso stato, resa diversa).
+- I trasferimenti sono un tipo a sé (`transfer`): net-zero per ogni metrica e
+  riconciliazione atomica dei due saldi cash (updateCashAssetBalancesAtomic) — non
+  devono mai comparire come entrata o come spesa in nessun totale.
+- ExpenseDialog: form a singolo step + Collapsible "Impostazioni avanzate", reso in
+  ResponsiveModal (Drawer ≤768px / Dialog sopra), creazione inline di categoria e
+  sottocategoria.
+Confronta con: Analisi (stessi dati, taglio analitico), Centri di Costo (stesso feed di
+spese raggruppato per progetto), AssetManagementTab (delete 2-click).
+Nota: IA single-answer (CashflowHero + TransactionFeed) implementata dopo la stesura del
+prompt originale — la descrizione "lista + KPI blocks" era obsoleta.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -258,6 +373,9 @@ Questo tab raggruppa le spese per oggetto/progetto (es. "Automobile"). Panoramic
 Trade-Republic: asse periodo (Mese/Anno/12 mesi/Storico, derivato in-memory) → hero totale
 + lista flat divide-y dei centri ordinata per spesa con share-bar. Detail = hero totale periodo
 + chip Δ-vs-precedente + righe flat, composizione per categoria, grafico mensile stacked-by-categoria.
+Il Detail ha inoltre una composizione per SOTTO-categoria (buildSubCategoryComposition) con
+toggle di esclusione di sola sessione → "Totale al netto": è una lente di analisi e non altera
+mai hero, budget o grafico.
 Feature: budget ceiling per centro (verdict + meter), costo annuo proiettato (smorzato a inizio anno),
 overlay di confronto cross-centro, lifecycle attivo/dormiente/archiviato. Derivazione pura in
 lib/utils/costCenterUtils.ts. Delete e rename cascadano sulle spese via writeBatch.
@@ -351,11 +469,17 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 
 File: app/dashboard/allocation/page.tsx
 Componenti: components/allocation/*
+Pure layer: lib/utils/allocationUtils.ts, lib/utils/leverageAwareAllocationUtils.ts,
+            lib/utils/assetExposureUtils.ts
 
 Questa pagina (redesign "ripensamento" 2026-06-04, esteso 2026-07-14 con `AllocationRole` +
-"Preleva") risponde a una sola domanda — "sono in linea col target e cosa muovo?" — con:
-AllocationHero (patrimonio allocato + verdetto equilibrio: N classi fuori target + scostamento
-maggiore, più caption cliccabili separate per la quota "frozen" e la quota "esclusa"),
+"Preleva", poi 2026-07-25 con l'allocazione a leva) risponde a una sola domanda — "sono in
+linea col target e cosa muovo?" — organizzata in due zone: una zona DECISIONE (hero → banda →
+azione) e, sotto un divisore "Dettaglio", una zona DETTAGLIO più quieta (composizione →
+esposizione), così che l'azione non pesi mai quanto il materiale di riferimento. Contiene:
+AllocationHero (patrimonio allocato dominante + AllocationCompositionBar + BalanceScoreGauge
+con verdetto equilibrio, più caption cliccabili separate per la quota "frozen" e la quota
+"esclusa"),
 ActionPlanner segmented a 3 stati Ribilancia/Versa/Preleva (possiede la Card; i pannelli sono
 bodyless) → RebalancePanel (lista firmata e ordinata delle mosse per classe, empty-state
 "Tutto in linea", sell cap sulla quota tradable) / ContributionPanel (versamento no-sell
@@ -372,9 +496,20 @@ Panoramica. AllocationBreakdown (una card, accordion inline grid-template-rows s
 breakpoint, AllocationRow + TargetTick per riga, più un gruppo "Esclusi dall'allocazione");
 findOrphanedTargets + stripOrphanedSubTargets individuano e correggono i target rimasti
 orfani per via di un'esclusione, anche a livello di sotto-categoria. Colori azione dal tema
-via useActionColors; pure layer in allocationUtils.ts. Bottom: sezione "Esposizione Portfolio"
-(ExposureSection) lazy-loaded con drill-down per azienda / settore / emittente ETF.
-Confronta con: Rendimenti (MetricSection flat rows), Patrimonio (sortable table).
+via useActionColors.
+ALLOCAZIONE A LEVA: `Asset.leverageRatio` su un ETF espande l'asset nella sua esposizione
+nozionale (assetExposureUtils.ts) e introduce le classi di sola esposizione `trendFollowing`
+e `carry`, raggiungibili solo via `composition` di un ETF composito. La base dei piani diventa
+il nozionale, non il valore di mercato: planInstrumentContribution/Rebalance/Withdrawal
+(leverageAwareAllocationUtils.ts) risolvono un QP per strumento e InstrumentTradeList mostra
+le mosse a livello di strumento. CompositionBar espone `displayPct` per non mentire quando la
+somma nozionale supera il 100%.
+PENSIONE: PensionAllocationCards fa il look-through dei fondi pensione — il fondo resta
+`frozen`, conta nel denominatore, non compare mai in un piano.
+Bottom: sezione "Esposizione Portfolio" (ExposureSection) lazy-loaded con drill-down per
+azienda / settore / emittente ETF.
+Confronta con: Rendimenti (MetricSection flat rows), Patrimonio (sortable table),
+Previdenza (il fondo visto dal lato contributi).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -403,13 +538,34 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 /impeccable critique la pagina Rendimenti
 
 File: app/dashboard/performance/page.tsx
-Componenti: components/performance/*
+Componenti: components/performance/* (PerformanceHero, HeroMetricBlock, MetricSection,
+            MetricCard, RealizedGainsSection, MonthlyReturnsHeatmap,
+            UnderwaterDrawdownChart, BenchmarkComparisonSection/Chart,
+            CustomDateRangeDialog, AIAnalysisDialog)
+Pure layer: lib/utils/performanceSummary.ts, lib/utils/benchmarkPeriodReturn.ts,
+            lib/utils/performanceBase.ts
 
-Questa pagina mostra le metriche di performance del portafoglio: TWR, Sharpe,
-Contributi Netti, YOC Netto come hero blocks, con period selector (1M/3M/YTD/1Y/3Y/5Y/ALL
-+ CUSTOM), rolling charts, underwater drawdown e benchmark comparison (6 portafogli modello,
-tabella 11 colonne, growth-of-100 chart).
-Confronta con: Storico (hero patrimonio + CAGR), Goals (hero allocato).
+Questa pagina è stata ripensata con una IA "single answer": una risposta dominante, poi le
+prove, poi il dettaglio a richiesta.
+- PerformanceHero: TWR dominante + verdetto + delta "vs benchmark" + chip di drawdown +
+  vital signs (Sharpe / MaxDD / Contributi / YOC). Il benchmark di riferimento è
+  BENCHMARKS[0] (60/40) via useBenchmarkReturns a livello di pagina.
+- Strip di return-consistency subito sotto (computeReturnConsistency).
+- Collapsible "Mostra tutte le metriche" che avvolge i MetricSection (HeroMetricBlock +
+  righe divide-y di MetricCard): Rendimento, Rischio, Contesto — quest'ultimo con la riga
+  "Capitale investito" basata sul registro operazioni accanto ai Contributi Netti (gated su
+  useAssetLedgerMeta) — Proventi Finanziari, e una sezione "Plusvalenze Realizzate" per anno
+  fiscale (RealizedGainsSection, aggregazione cross-asset), anch'essa gated sul ledger.
+- Grafici raggruppati in cluster "Andamento" / "Rischio"; period selector
+  1M/3M/YTD/1Y/3Y/5Y/ALL + CUSTOM (il custom è un chip overlay, non uno slot fisso).
+- Benchmark comparison: 6 portafogli modello, tabella risk/return e growth-of-100 chart;
+  Sharpe/Sortino usano la media di periodo del tasso BCE (FRED ECBDFR, cached).
+- I fondi pensione sono esclusi dalla base delle metriche (performanceBase.ts).
+Colori segno via getMetricValueColor; ogni serie grafica via useChartColors.
+Confronta con: Storico (hero patrimonio + CAGR), Allocazione (stessa struttura decisione →
+dettaglio), Goals (hero allocato).
+Nota: la descrizione precedente ("4 hero blocks affiancati") era pre-redesign — oggi c'è un
+solo numero dominante e le metriche stanno dietro un Collapsible.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -445,9 +601,11 @@ Questa pagina mostra l'evoluzione storica del patrimonio con narrative order:
 Hero (patrimonio + CAGR + crescita totale) → Evoluzione → Raddoppi → Composizione
 → Driver (3 sezioni: Savings vs Investment, Lavoro & Investimenti, Variazione Anno su Anno
 sempre visibile). Nessuna Appendice collapsible (eliminata). Include segmented pills
-per view toggles e mobile inline legend sui grafici multi-serie. Include inoltre la sezione
-"Valore per Strumento" (`MonthlyAssetBreakdownSection`): tabella per-strumento del mese scelto +
-somma del sottoinsieme selezionato + trend cross-mese con `TrendTooltip` custom che scompone la
+per view toggles e mobile inline legend sui grafici multi-serie. La Composizione per tipo
+include una banda "Previdenza" dedicata ai fondi pensione (chartService.ts,
+prepareAssetClassHistoryData). Include inoltre la sezione "Valore per Strumento"
+(`MonthlyAssetBreakdownSection`): tabella per-strumento del mese scelto + somma del
+sottoinsieme selezionato + trend cross-mese con `TrendTooltip` custom che scompone la
 variazione in effetto prezzo vs effetto quantità.
 Confronta con: Rendimenti (period selector), Hall of Fame (tabelle flat + hero).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
@@ -523,9 +681,12 @@ Componenti: components/fire-simulations/FireCalculatorTab.tsx,
 
 Questo tab calcola il FIRE Number con hero block, Settings collapsible
 (auto-open su unsaved changes), flat divide-y metric rows, "Annulla" reset button
-e sezione proiezione con sensitivity matrix e scenario chart.
+e sezione proiezione con sensitivity matrix e scenario chart. Include un toggle opzionale
+per il capitale bloccato nel fondo pensione (respectPensionLockInFire /
+lib/utils/pensionFire.ts): quando è attivo il capitale previdenziale non è considerato
+disponibile prima dell'età di accesso.
 Confronta con: Monte Carlo (same hero + collapsible pattern), Goals (hero allocato),
-Coast FIRE (stesso Settings pattern).
+Coast FIRE (stesso Settings pattern), Previdenza (stessa materia, taglio contributi/fiscale).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -722,6 +883,9 @@ in AssistantPreferencesPopover (stile + macro/web + memoria on/off). Follow-up c
 (AssistantFollowUps). Composer slim (AssistantComposer: input+send). Streaming SSE
 (meta|context|status|text|done|error; status:'searching' → "Sto cercando sul web…"),
 thread persistenti period-pinned, memoria con lifecycle attivo/completato/archiviato.
+Il modello vede l'intera tassonomia di categorie spesa dell'utente (expenseCategories), quindi
+le risposte di categorizzazione usano le SUE categorie: verifica che la UI lo renda evidente
+invece di far sembrare la risposta una scelta arbitraria del modello.
 Confronta con: Rendimenti (hero number + data-first hierarchy), Storico (narrative order),
 Goals (flat divide-y list).
 Nota: critique baseline 2026-05-24 = 25/40 (pre-redesign). Il redesign è stato implementato
@@ -754,14 +918,33 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 /impeccable critique la pagina Impostazioni
 
 File: app/dashboard/settings/page.tsx
-Componenti: components/settings/SettingsPageSkeleton.tsx
+Componenti: components/settings/SettingsPageSkeleton.tsx,
+            components/settings/AccountSharingSection.tsx,
+            components/settings/ExpenseImportSection.tsx,
+            components/expenses/CategoryManagementDialog.tsx,
+            components/layout/ThemePicker.tsx
+Pure layer: lib/utils/expenseImport.ts
 
-Questa pagina raccoglie tutte le configurazioni dell'app: profilo utente,
-target di allocazione per classe di asset, categorie cashflow con sub-categorie,
-preferenze dividendi, labor categories per Storico, tema colore, stamp duty e
-opzioni avanzate (dummy snapshots, history start year). Tab su desktop, Radix Select su mobile.
+Questa pagina raccoglie tutte le configurazioni dell'app, in 6 tab (SETTINGS_TABS —
+tab su desktop, Radix Select su mobile):
+- Allocazione: target per classe di asset, con validazione della somma ≥100 quando c'è
+  leva e leva di target derivata (deriveTargetLeverageRatio).
+- Preferenze: profilo utente, labor categories per Storico, stamp duty, card "Famiglia"
+  (membri del nucleo a cui attribuire un fondo pensione: nome, RAL, eleggibilità — è la
+  fonte dei recap fiscali per membro in Previdenza), opzioni avanzate (dummy snapshots,
+  cashflowHistoryStartYear).
+- Spese: categorie cashflow con sotto-categorie + sezione "Importa Dati Storici"
+  (ExpenseImportSection): upload CSV → ANTEPRIMA obbligatoria (righe valide/scartate con
+  motivo, categorie da creare, totali, range date) → commit → undo per batch. Nessuna
+  scrittura su Firestore prima dell'anteprima; i saldi dei conti non vengono mai toccati.
+- Dividendi: preferenze di tracking e cedole.
+- Condivisione: AccountSharingSection — l'owner aggiunge/rimuove co-owner via email; il
+  tema e le userPreferences restano del viewer, non dell'account condiviso.
+- Aspetto: ThemePicker (6 temi), condiviso con landing/login/register.
 Confronta con: nessuna pagina specifica (registro separato), ma verifica che i
-componenti form (Switch, Select, Input) usino la stessa vocabulary degli altri form dell'app.
+componenti form (Switch, Select, Input) usino la stessa vocabulary degli altri form dell'app,
+e che l'anteprima dell'import segua la gerarchia Trade Republic (un numero dominante) invece
+di essere un dump tabellare.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -803,7 +986,11 @@ sidebar desktop collassabile (icon mode, toggle desktop-only, AssistenteBanner �
 in collapsed), bottom navigation mobile portrait con FAB cashflow animato via AnimatePresence
 e theme sync via --sidebar-* CSS vars, secondary menu drawer per voci overflow su mobile.
 Nuovi componenti condivisi: PageContainer, PageHeader (sticky mobile bar), PageTabs/PageTabBar
-(underline tab indicator), ThemePicker, lib/constants/navigation.ts (nav arrays centralizzati).
+(underline tab indicator), ThemePicker, lib/constants/navigation.ts (nav arrays centralizzati,
+inclusa la voce "Previdenza" in planningNav).
+Account condiviso: lo switcher viewer→owner (useActiveAccount) vive SIA nella Sidebar SIA nel
+SecondaryMenuDrawer ("Altro") — la Sidebar è irraggiungibile in portrait, quindi su telefono
+il drawer è l'unico switcher esistente: valutarli come un'unica affordance, non come due.
 Confronta con: nessuna pagina specifica — il benchmark è la coerenza interna tra
 sidebar desktop, bottom nav mobile e secondary drawer.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
@@ -836,12 +1023,24 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 /impeccable critique la landing page
 
 File: app/page.tsx
+Componenti: components/dashboard/NetWorthSparkline.tsx,
+            components/dashboard/SavingsRingChart.tsx,
+            components/layout/ThemePicker.tsx
 
-Questa è la landing page pubblica: mostra il valore dell'app con una hero section,
-feature overview e CTA "Prova la Demo" (condizionale a NEXT_PUBLIC_DEMO_EMAIL).
-È il primo contatto dell'utente con il prodotto — brand impression, motion di entrata,
-gerarchia visiva delle feature, call to action.
-Confronta con: Panoramica (stesso brand, gerarchia coerente), Rendimenti (hero number).
+Questa è la landing page pubblica ed è il primo contatto dell'utente con il prodotto.
+Scelta di fondo: l'hero NON è una illustrazione di marketing ma una anteprima fedele del
+prodotto — preview impilate di Panoramica (numero dominante in Geist Mono + chip di
+variazione + sparkline) e di Cashflow (savings ring) — perché il linguaggio data-first
+dell'app È l'impressione di brand. Le preview sono etichettate "Dati dimostrativi" per non
+fingere mai un account reale (DESIGN.md: onestà prima dell'illusione). Sotto: proof strip,
+ThemePicker (lo stesso condiviso con login/register, così il tema scelto qui sopravvive
+al login) e CTA "Prova la Demo" (condizionale a NEXT_PUBLIC_DEMO_EMAIL: se le env var
+mancano il CTA sparisce, per i self-hosted senza account demo).
+Zero-Chroma vale anche qui: mai accentare headline o icone feature con text-primary/bg-primary
+(in tema default --primary ≈ --foreground, quindi l'accento è invisibile lì e colora solo sui
+5 temi personalità). L'unico colore in pagina è il dato.
+Confronta con: Panoramica (di cui la hero è una anteprima letterale), Login e Register
+(stesso ThemePicker e stesso guscio).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -946,11 +1145,16 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 /impeccable critique il sistema dei dialog dell'app
 
 Componenti: components/assets/AssetDialog.tsx,
+            components/assets/TransactionDialog.tsx,
+            components/assets/AssetMovementsDialog.tsx,
+            components/assets/TaxCalculatorModal.tsx,
             components/expenses/ExpenseDialog.tsx,
             components/goals/GoalFormDialog.tsx,
             components/goals/AssetAssignmentDialog.tsx,
             components/dividends/DividendDialog.tsx,
             components/dividends/DividendDetailsDialog.tsx,
+            components/dividends/InflationRateDialog.tsx,
+            components/pension/PensionContributionDialog.tsx,
             components/cashflow/CostCenterDialog.tsx,
             components/expenses/CategoryManagementDialog.tsx,
             components/layout/LogoutDialog.tsx,
@@ -960,7 +1164,10 @@ Questa critique valuta la coerenza del sistema dei dialog come unità: struttura
 (DialogTitle + DialogDescription presente in tutti?), footer pattern (primario destra /
 ghost sinistra), sizing breakpoint, loading state (Loader2 su tutti i submit pending?),
 2-step flow in AssetDialog e ExpenseDialog (AnimatePresence mode="wait", spring config),
-motion consistency e token compliance cross-dialog.
+motion consistency e token compliance cross-dialog. Il perimetro include i dialog più
+recenti, mai valutati insieme agli altri: TransactionDialog (segmented Compra/Vendi/Rettifica
+con anteprima della plusvalenza), AssetMovementsDialog (lettura, non form — verifica che non
+imiti un form), PensionContributionDialog e InflationRateDialog.
 Convergenza su ResponsiveModal: `components/ui/responsive-modal.tsx` è l'astrazione target —
 Dialog su desktop ↔ vaul bottom-sheet Drawer su mobile (≤768px) da una sola API. Oggi la usano
 solo ExpenseDialog e CategoryManagementDialog; gli altri dialog-form sono `Dialog` plain (centrato
@@ -1012,14 +1219,23 @@ sul solo sorgente TS è cieca su spacing, overflow e resa cross-client.
 
 File: lib/server/monthlyEmailService.ts
       (buildEmailHtml, simpleMarkdownToHtml, buildComparisonSectionHtml, comparisonCell)
+      lib/server/weeklyBudgetEmailService.ts (email budget settimanale)
 Contesto logico (non visivo, solo per capire i dati renderizzati):
       lib/server/emailPeriodComparison.ts,
+      app/api/cron/monthly-snapshot/route.ts (fasi 2-6: è il cron che le invia),
       app/api/user/monthly-email/send/route.ts (per il render di test)
 
-L'email ha: hero patrimonio netto, tabella deterministica "Confronti" (Patrimonio/Entrate/
-Uscite/Risparmio × periodo precedente + stesso periodo anno prima, con nota baseline),
-e un commento AI in 5 sezioni (sintesi / vs periodo precedente / vs anno prima /
-variazione entrate-spese + cause / azioni) reso da markdown via simpleMarkdownToHtml.
+Sono DUE artefatti, entrambi nel perimetro:
+1. Riepilogo periodico (mensile / trimestrale / semestrale / annuale): hero patrimonio netto,
+   tabella deterministica "Confronti" (Patrimonio/Entrate/Uscite/Risparmio × periodo precedente
+   + stesso periodo anno prima, con nota baseline), e un commento AI in 5 sezioni (sintesi /
+   vs periodo precedente / vs anno prima / variazione entrate-spese + cause / azioni) reso da
+   markdown via simpleMarkdownToHtml.
+2. Email budget settimanale (domenica, fase 6 del cron): è INVIATA settimanalmente ma le sue
+   cifre sono month-to-date (budget mensili e complessivo) e year-to-date (budget annuali), con
+   proiezioni di fine periodo. Ogni orizzonte deve restare dichiarato esplicitamente nella
+   caption HTML — il modello aveva già etichettato una volta la proiezione mensile come
+   "fine anno". Verificare che la resa visiva non riapra quell'ambiguità.
 
 Design language atteso (email HTML — il medium impone vincoli OPPOSTI al dashboard):
 Il principio resta quello di DESIGN.md — "Effortless Precision" e la legge Form Follows
@@ -1069,21 +1285,22 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 
 Dalla meno redesignata alla più redesignata, per trovare i delta maggiori prima:
 
-1. Cashflow / tab "Dividendi" ← mai redesignato, delta atteso alto
-2. Analisi ← critiquata 2026-07-21 (25/40), redesign implementato — rieseguire per delta
-3. App Shell e Navigazione ← fondamentale, problemi noti già in layout.tsx
-4. Cross-cutting: Sistema dei Dialog ← usati ovunque, coerenza mai verificata
-5. Impostazioni ← redesign parziale
+1. Previdenza ← pagina nuova, mai critiquata, nessuna baseline: delta atteso massimo
+2. Cashflow / tab "Dividendi" ← mai redesignato, delta atteso alto
+3. Impostazioni ← 6 tab, due sezioni recenti mai valutate (import CSV, Condivisione)
+4. Cross-cutting: Sistema dei Dialog ← usati ovunque, e 4 dialog nuovi mai valutati insieme agli altri
+5. App Shell e Navigazione ← fondamentale, problemi noti già in layout.tsx; ora anche lo switcher account
 6. Landing Page ← primo contatto utente, mai critiquata
 7. Login e Register ← già migliorati ma mai critiquati formalmente
-8. Panoramica ← v2 con KPI chip grid + category bars (verifica delta)
-9. Patrimonio ← pagina unica (nessun tab), hero condiviso con Panoramica
-10. Cashflow / tab "Tracciamento" (mobileLabel: "Spese") e "Budget"
-11. Allocazione
-12. Rendimenti
-13. Storico
-14. Hall of Fame
-15. FIRE e Simulazioni (5 tab — incl. What If)
-16. Assistente AI ← rieseguire dopo redesign (baseline: 25/40)
-17. Cross-cutting: Shell e Layout Condivisi (PageContainer/PageHeader/PageTabBar) ← guscio mai verificato come unità
-18. Email Periodiche ← medium a sé (HTML email, mai critiquato), benchmark proprio + render pre-step obbligatorio
+8. Allocazione ← esteso con l'allocazione a leva, la parte più giovane della pagina
+9. Patrimonio ← hero gemello di Panoramica + registro operazioni mai critiquato
+10. Analisi ← critiquata 2026-07-21 (25/40), redesign implementato — rieseguire per delta
+11. Panoramica ← hero rivisto 2026-07-16 + chip a grid 2026-07-26 (verifica delta)
+12. Cashflow / tab "Tracciamento" (mobileLabel: "Spese") e "Budget"
+13. Rendimenti ← IA single-answer già implementata, verifica delta
+14. Storico
+15. Hall of Fame
+16. FIRE e Simulazioni (5 tab — incl. What If)
+17. Assistente AI ← rieseguire dopo redesign (baseline: 25/40)
+18. Cross-cutting: Shell e Layout Condivisi (PageContainer/PageHeader/PageTabBar) ← guscio mai verificato come unità
+19. Email Periodiche ← medium a sé (HTML email, mai critiquato), 2 artefatti, benchmark proprio + render pre-step obbligatorio
