@@ -59,6 +59,8 @@ import {
 } from '@/components/ui/select';
 import { Save, RotateCcw, Plus, Trash2, ChevronDown, ChevronUp, Edit, Receipt, FlaskConical, Coins, ArrowRightLeft, Settings, PieChart, Palette, Mail, X, Send, Users } from 'lucide-react';
 import { AccountSharingSection } from '@/components/settings/AccountSharingSection';
+import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
+import { queryKeys } from '@/lib/query/queryKeys';
 import { useColorTheme, ColorTheme } from '@/contexts/ColorThemeContext';
 import { TabsContent } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -620,6 +622,19 @@ export default function SettingsPage() {
       toast.error('Errore nel caricamento delle categorie spese');
     } finally {
       setLoadingCategories(false);
+    }
+  };
+
+  // Refresh categories (the import may have created new ones) and invalidate every
+  // Cashflow query key that reads expenses/categories/overview data, so the freshly
+  // imported transactions show up without a manual page reload.
+  const handleExpenseImported = () => {
+    loadExpenseCategories();
+    if (ownerId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(ownerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.categories(ownerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.stats(ownerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(ownerId) });
     }
   };
 
@@ -3039,6 +3054,10 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <div className="mt-6">
+        <ExpenseImportSection onImported={handleExpenseImported} />
+      </div>
 
           </TabsContent>
         )}
