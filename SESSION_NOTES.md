@@ -41,7 +41,7 @@ Sessione di **sola analisi e documentazione**: nessun file di codice modificato.
 - [x] Analisi e diagnosi (2026-07-27)
 - [x] 5 spec scritte
 - [x] Implementazione spec 7 (leva) — 2026-07-27, branch `fix/leverage-target-save`
-- [ ] Implementazione spec 8 (aliquota)
+- [x] Implementazione spec 8 (aliquota) — 2026-07-27, branch `fix/asset-tax-rate-restore`
 - [ ] Implementazione spec 9 (etichette)
 - [ ] Implementazione spec 6 (classe asset)
 - [ ] Implementazione spec 10 (Rendimenti, fasi 1→5)
@@ -74,3 +74,27 @@ Nessuna helper pura estratta in `lib/utils`/`lib/services` (resta un const local
 - **Cosa**: rimosso il guard di salvataggio in `handleSave` (`app/dashboard/settings/page.tsx`) che rifiutava qualunque totale target diverso da 100% esatto; ora blocca solo se `total < 100 - 0.01`, allineandolo alla regola già usata dal render (`isValidTotal`, chip "Leva target"). Estratta la regola in una helper di modulo `isTargetTotalValid(total)` condivisa da entrambi. Aggiornata la copy stantia (header file + "Note e dettagli tecnici") e documentato in CLAUDE.md il limite noto di `computeBalanceScore` con leva target non ancora raggiunta.
 - **Perché**: la UI (chip, badge verde, "Residuo da allocare") trattava già un totale ≥100% come valido — 100% = nessuna leva, sopra 100% = leva target legittima — ma il salvataggio era rimasto alla vecchia regola `=== 100`, svista del commit L2 `990cc56` che aveva aggiornato solo la variabile di render e non `handleSave`. Risultato: un utente non poteva salvare un target di leva anche se la UI glielo mostrava come corretto.
 - **Nota**: le sotto-categorie e gli asset specifici restano a 100% esatto per design (sono percentuali *interne al padre*, non toccate dalla leva) — i 4 input `max="100"` residui verificati uno per uno sono tutti di questo tipo (o percentuali non correlate come aliquota bollo/risk-free rate), quindi lasciati invariati. Non esiste validazione server-side sul totale (invariato rispetto a prima, fuori scope): un totale <100% può ancora arrivare a Firestore da client vecchi/manipolati.
+
+## Implementazione spec 8 — Reintroduzione dell'Aliquota Fiscale per gli Asset a Ledger — 2026-07-27
+
+Branch `fix/asset-tax-rate-restore`. Un solo file di codice (`components/assets/AssetDialog.tsx`) + un test nuovo.
+
+**Cosa è stato fatto**:
+1. **Scorporato `taxRate` dal blocco Cost Basis** in un render helper di modulo, `renderTaxRateField()` (definito nel componente, prima del `return`, non come componente annidato — evita il remount ad ogni render che avrebbe un `<TaxRateField />` dichiarato dentro il corpo del componente). Un'unica istanza del campo (Label + Input + errore + shortcut BTP 12,5% riusato tale e quale), chiamata in tre punti:
+   - **Non-ledger**: resta dentro il blocco "Tracciamento Cost Basis" esistente (gated dal toggle `showCostBasis`, come prima — nessun cambiamento di comportamento per cash/realestate esclusi come oggi/gli altri tipi non a ledger).
+   - **Ledger edit**: renderizzato dentro il riquadro read-only Quantità/PMC (`isLedgerEdit`), gate `newAsset_showCostBasis` da solo.
+   - **Ledger create**: renderizzato nel blocco "Posizione iniziale (primo acquisto)" (`isLedgerCreate`), stesso gate.
+2. **Fix bug valore 0** (riga ~741, ora `asset.taxRate ?? undefined` invece di `asset.taxRate || undefined`): un'aliquota 0 salvata non viene più cancellata al primo giro di edit.
+3. **Fix dello stesso bug nel normalizzatore di submit** (riga ~250, `buildAssetFormDataFromValues`): `data.taxRate && !isNaN(...) && data.taxRate >= 0` aveva lo stesso problema (0 è falsy in JS) — ma qui era più grave perché è il path che scrive su Firestore. Sostituito con `data.taxRate !== undefined && !isNaN(data.taxRate) && data.taxRate >= 0`, che distingue correttamente "vuoto" (NaN da `valueAsNumber` su input vuoto) da "0". Riga ~299 (`scheduleCouponDividends`, passthrough diretto di `data.taxRate` a `couponScheduling.ts`) verificata e lasciata invariata: non ha il pattern `|| undefined`, il fallback 26% vive comunque in `couponScheduling.ts` (non toccato).
+4. **Nessuna modifica** a `lib/services/assetService.ts` (già pronto: `updateAssetMetadata` scrive/cancella `taxRate` via `deleteField()`), `types/assets.ts`, `assetTransactionUtils.ts`, `TransactionDialog`, `AssetMovementsDialog`, `dividendProcessor`, `couponScheduling` (fallback 26% intatti). `AssetCard.tsx:316-319` verificato: legge già `asset.taxRate !== undefined && asset.taxRate >= 0` (distingue 0 correttamente), nessuna modifica necessaria — era davvero solo un problema di UI irraggiungibile, come diagnosticato nella spec.
+5. Test nuovo in `__tests__/assetDialogHelpers.test.ts` (stesso pattern "local copy" già in uso nel file per le altre helper di `onSubmit`, che non sono importabili direttamente essendo `AssetDialog.tsx` un componente `'use client'` con dipendenze Firebase): `resolveTaxRateForPersist` con 6 casi (0 preservato, positivo preservato, 12.5 BTP preservato, NaN→undefined, undefined→undefined, negativo→undefined).
+
+**Gate**: `npx tsc --noEmit` ✅ pulito. `npx vitest run` ✅ 75 file / **1318 test** (1312 + 6 nuovi). `npm run build` ✅ (Next.js 16.2.6, Turbopack).
+
+**Come testare a mano** (i 4 scenari della spec):
+1. **Edit di un ETF/stock/crypto/commodity a ledger** → apri il dialog di modifica → il campo "Aliquota Fiscale (%)" è visibile accanto a Quantità/PMC (read-only) → imposta 26 → salva → riapri l'AssetCard: la riga "Aliquota: 26%" appare → su Panoramica/Patrimonio il blocco "Impatto Fiscale" si valorizza per quell'asset.
+2. **Crea un BTP** (type=bond, a ledger) → nel blocco "Posizione iniziale (primo acquisto)" usa il link "Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%" → salva → apri il simulatore TaxCalculatorModal sull'asset: mostra "Aliquota fiscale: 12,5%" (non più 0%/26% di default).
+3. **Imposta aliquota 0** su un asset a ledger → salva → riapri il dialog di modifica → il campo mostra ancora `0` (non vuoto) — verifica sia il fix di lettura (riga ~741) sia quello di scrittura (riga ~250).
+4. **Svuota il campo** (cancella il valore, lascialo vuoto) → salva → riapri il dialog: il campo è vuoto (non 0) → l'aliquota è stata cancellata (`deleteField`) → le tasse stimate per quell'asset tornano a 0 nel blocco "Impatto Fiscale".
+
+Attendo conferma prima di procedere con la prossima spec (9 — etichette grafici).

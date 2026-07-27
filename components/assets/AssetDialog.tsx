@@ -247,7 +247,9 @@ function buildAssetFormDataFromValues(
       data.averageCost && !isNaN(data.averageCost) && data.averageCost > 0
         ? resolveBondPrice(data.averageCost, data.bondNominalValue, isBondWithIsin)
         : undefined,
-    taxRate: data.taxRate && !isNaN(data.taxRate) && data.taxRate >= 0 ? data.taxRate : undefined,
+    // `data.taxRate &&` would treat an explicit 0 as falsy and drop it like an empty field;
+    // `!== undefined` + `!isNaN` together already exclude the empty-input case (valueAsNumber → NaN).
+    taxRate: data.taxRate !== undefined && !isNaN(data.taxRate) && data.taxRate >= 0 ? data.taxRate : undefined,
     totalExpenseRatio:
       data.totalExpenseRatio && !isNaN(data.totalExpenseRatio) && data.totalExpenseRatio >= 0
         ? data.totalExpenseRatio
@@ -737,7 +739,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               : undefined,
           };
         })(),
-        taxRate: asset.taxRate || undefined,
+        // `?? undefined`, not `||`: a saved taxRate of 0 is legitimate and must survive a
+        // round-trip through edit (`||` would treat 0 as falsy and blank the field).
+        taxRate: asset.taxRate ?? undefined,
         totalExpenseRatio: asset.totalExpenseRatio || undefined,
         leverageRatio: asset.leverageRatio || undefined,
         stampDutyExempt: asset.stampDutyExempt || false,
@@ -1152,6 +1156,41 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     }
   };
 
+  // taxRate is asset metadata, not a ledger concept: the trade ledger derives quantity/PMC from
+  // operations, but a single tax rate covers both capital gains AND dividends/coupons for the
+  // asset (decision: one field, no separate dividendTaxRate). A render helper (not a nested
+  // component) keeps one input registered across the three branches — non-ledger, ledger edit,
+  // ledger create — without remounting it on every parent render.
+  const renderTaxRateField = () => (
+    <div className="space-y-2">
+      <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
+      <Input
+        id="taxRate"
+        type="number"
+        step="0.01"
+        min="0"
+        max="100"
+        {...register('taxRate', { valueAsNumber: true })}
+        placeholder="es. 26"
+      />
+      {errors.taxRate && (
+        <p className="text-sm text-red-500">{errors.taxRate.message}</p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Percentuale di tassazione su plusvalenze e proventi (dividendi/cedole) (es. 26 per 26%)
+      </p>
+      {(selectedType === 'bond' || selectedAssetClass === 'bonds') && (
+        <button
+          type="button"
+          onClick={() => setValue('taxRate', 12.5)}
+          className="text-xs text-primary underline hover:no-underline"
+        >
+          Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
@@ -1476,6 +1515,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                   </p>
                 </div>
               </div>
+              {newAsset_showCostBasis && renderTaxRateField()}
               {onRegisterTrade && (
                 <Button
                   type="button"
@@ -1580,6 +1620,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                   </Select>
                 </div>
               </div>
+              {newAsset_showCostBasis && renderTaxRateField()}
               {!ledgerCreateReady && (
                 <p className="text-xs text-muted-foreground">
                   Il registro operazioni si sta inizializzando: la posizione viene salvata comunque.
@@ -2289,33 +2330,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                     })()}
 
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
-                    <Input
-                      id="taxRate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      {...register('taxRate', { valueAsNumber: true })}
-                      placeholder="es. 26"
-                    />
-                    {errors.taxRate && (
-                      <p className="text-sm text-red-500">{errors.taxRate.message}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Percentuale di tassazione sulle plusvalenze (es. 26 per 26%)
-                    </p>
-                    {(selectedType === 'bond' || selectedAssetClass === 'bonds') && (
-                      <button
-                        type="button"
-                        onClick={() => setValue('taxRate', 12.5)}
-                        className="text-xs text-primary underline hover:no-underline"
-                      >
-                        Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%
-                      </button>
-                    )}
-                  </div>
+                  {renderTaxRateField()}
                 </div>
 
                 {/* Inline multi-broker PMC calculator — full width, outside the 2-col grid */}
