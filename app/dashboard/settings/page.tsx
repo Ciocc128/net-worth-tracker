@@ -224,6 +224,9 @@ export default function SettingsPage() {
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(2025);
   const [laborIncomeCategoryIds, setLaborIncomeCategoryIds] = useState<string[]>([]);
   const [costCentersEnabled, setCostCentersEnabled] = useState<boolean>(false);
+  const [performanceIncludesPensionFunds, setPerformanceIncludesPensionFunds] = useState<boolean>(false);
+  const [performanceIncludesExcludedAssets, setPerformanceIncludesExcludedAssets] = useState<boolean>(false);
+  const [pensionReturnStartMonth, setPensionReturnStartMonth] = useState<string>('');
   const [monthlyEmailEnabled, setMonthlyEmailEnabled] = useState<boolean>(false);
   const [quarterlyEmailEnabled, setQuarterlyEmailEnabled] = useState<boolean>(false);
   const [semiAnnualEmailEnabled, setSemiAnnualEmailEnabled] = useState<boolean>(false);
@@ -464,6 +467,9 @@ export default function SettingsPage() {
         setCashflowHistoryStartYear(settingsData.cashflowHistoryStartYear ?? 2025);
         setLaborIncomeCategoryIds(settingsData.laborIncomeCategoryIds ?? []);
         setCostCentersEnabled(settingsData.costCentersEnabled ?? false);
+        setPerformanceIncludesPensionFunds(settingsData.performanceIncludesPensionFunds ?? false);
+        setPerformanceIncludesExcludedAssets(settingsData.performanceIncludesExcludedAssets ?? false);
+        setPensionReturnStartMonth(settingsData.pensionReturnStartMonth ?? '');
         setMonthlyEmailEnabled(settingsData.monthlyEmailEnabled ?? false);
         setQuarterlyEmailEnabled(settingsData.quarterlyEmailEnabled ?? false);
         setSemiAnnualEmailEnabled(settingsData.semiAnnualEmailEnabled ?? false);
@@ -585,6 +591,9 @@ export default function SettingsPage() {
           cashflowHistoryStartYear: settingsData?.cashflowHistoryStartYear ?? 2025,
           laborIncomeCategoryIds: [...(settingsData?.laborIncomeCategoryIds ?? [])].sort(),
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
+          performanceIncludesPensionFunds: settingsData?.performanceIncludesPensionFunds ?? false,
+          performanceIncludesExcludedAssets: settingsData?.performanceIncludesExcludedAssets ?? false,
+          pensionReturnStartMonth: settingsData?.pensionReturnStartMonth ?? '',
           monthlyEmailEnabled: settingsData?.monthlyEmailEnabled ?? false,
           quarterlyEmailEnabled: settingsData?.quarterlyEmailEnabled ?? false,
           semiAnnualEmailEnabled: settingsData?.semiAnnualEmailEnabled ?? false,
@@ -1185,6 +1194,11 @@ export default function SettingsPage() {
         cashflowHistoryStartYear,
         laborIncomeCategoryIds,
         costCentersEnabled,
+        performanceIncludesPensionFunds,
+        performanceIncludesExcludedAssets,
+        // Stringa vuota = "nessun mese impostato": va salvata come undefined, non come '',
+        // altrimenti pensionReturn la leggerebbe come una data da parsare.
+        pensionReturnStartMonth: pensionReturnStartMonth || undefined,
         monthlyEmailEnabled,
         quarterlyEmailEnabled,
         semiAnnualEmailEnabled,
@@ -1506,6 +1520,9 @@ export default function SettingsPage() {
         cashflowHistoryStartYear,
         laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         costCentersEnabled,
+        performanceIncludesPensionFunds,
+        performanceIncludesExcludedAssets,
+        pensionReturnStartMonth,
         monthlyEmailEnabled,
         quarterlyEmailEnabled,
         semiAnnualEmailEnabled,
@@ -1526,6 +1543,9 @@ export default function SettingsPage() {
       cashflowHistoryStartYear,
       laborIncomeCategoryIds,
       costCentersEnabled,
+      performanceIncludesPensionFunds,
+      performanceIncludesExcludedAssets,
+      pensionReturnStartMonth,
       monthlyEmailEnabled,
       quarterlyEmailEnabled,
       semiAnnualEmailEnabled,
@@ -1697,6 +1717,80 @@ export default function SettingsPage() {
                 />
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Calcolo dei rendimenti — quale capitale entra nelle metriche di Rendimenti, e da quando il
+          rendimento del fondo pensione è misurabile. Entrambe le esclusioni sono OFF di default:
+          Rendimenti risponde a "come va il portafoglio che gestisco", Storico al patrimonio totale. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Calcolo dei rendimenti</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Le metriche di Rendimenti (TWR, Sharpe, volatilità, Max Drawdown) misurano il portafoglio
+            che gestisci attivamente. Il patrimonio completo resta in Storico.
+          </p>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="performanceIncludesPensionFunds" className="text-sm font-medium">
+                  Includi i fondi pensione
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Il fondo pensione è capitale illiquido e non ribilanciabile, che cresce soprattutto
+                  per versamenti (TFR, datoriale, volontario) e non per andamento di mercato.
+                  Includerlo fa leggere quei versamenti come rendimento.
+                </p>
+              </div>
+              <Switch
+                id="performanceIncludesPensionFunds"
+                checked={performanceIncludesPensionFunds}
+                onCheckedChange={setPerformanceIncludesPensionFunds}
+                className={interactiveControlClass}
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t pt-4">
+              <div>
+                <Label htmlFor="performanceIncludesExcludedAssets" className="text-sm font-medium">
+                  Includi gli asset esclusi dall&apos;allocazione
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tipicamente la casa in cui vivi: valutata a mano, resta ferma per mesi e poi si
+                  aggiorna con uno scalino. Includerla abbassa la volatilità misurata e alza lo
+                  Sharpe, perché una quota del patrimonio non si muove mai.
+                </p>
+              </div>
+              <Switch
+                id="performanceIncludesExcludedAssets"
+                checked={performanceIncludesExcludedAssets}
+                onCheckedChange={setPerformanceIncludesExcludedAssets}
+                className={interactiveControlClass}
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-4 border-t pt-4">
+              <div>
+                <Label htmlFor="pensionReturnStartMonth" className="text-sm font-medium">
+                  Rendimento fondo pensione calcolabile da
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Prima di questo mese i versamenti non venivano registrati e il valore del fondo
+                  veniva solo aggiornato a mano: ogni crescita risulterebbe rendimento di mercato.
+                  Lascia vuoto per partire dal primo versamento registrato.
+                </p>
+              </div>
+              <Input
+                id="pensionReturnStartMonth"
+                type="month"
+                value={pensionReturnStartMonth}
+                onChange={(e) => setPensionReturnStartMonth(e.target.value)}
+                className={cn('w-40 shrink-0', interactiveControlClass)}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

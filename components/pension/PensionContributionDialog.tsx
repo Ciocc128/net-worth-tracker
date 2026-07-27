@@ -295,7 +295,9 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
             Il versamento aumenta subito il valore del fondo. Registra prima tutti i versamenti del
             mese (TFR, tuo, datore), poi aggiorna «Valore attuale» dal tuo asset in Patrimonio quando
             arriva l&apos;estratto conto — altrimenti li conti due volte, perché l&apos;estratto conto
-            li include già.
+            li include già. Meglio farlo entro la fine del mese di competenza: lo storico congela una
+            fotografia a fine mese, quindi un versamento registrato in ritardo compare nel valore del
+            mese in cui lo inserisci.
           </p>
         </form>
       )}

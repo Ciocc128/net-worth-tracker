@@ -60,8 +60,15 @@ function buildMonthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
-/** True when a snapshot carries a non-empty per-asset breakdown. */
-function hasAssetBreakdown(snapshot: MonthlySnapshot): boolean {
+/**
+ * True when a snapshot carries a non-empty per-asset breakdown.
+ *
+ * Exported because it is the shared definition of "this snapshot predates `byAsset`", and a second
+ * consumer depends on it: `lib/utils/performanceBase.ts` uses it to decide when to fall back to a
+ * backfilled exclusion value. Keeping one predicate avoids the divergent-copies failure mode that
+ * `lib/utils/assetPricing.ts` was created to fix.
+ */
+export function hasAssetBreakdown(snapshot: MonthlySnapshot): boolean {
   return Array.isArray(snapshot.byAsset) && snapshot.byAsset.length > 0;
 }
 
