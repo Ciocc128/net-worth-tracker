@@ -37,14 +37,36 @@ import {
 } from '@/lib/utils/pensionContributions';
 import { groupFundsByFamilyMember } from '@/lib/utils/pensionFamilyMembers';
 import { computePensionTaxRecap, getPensionDeductionCeiling, type PensionTaxRecap } from '@/lib/utils/pensionDeduction';
+import {
+  buildPensionValueSeries,
+  computePensionReturn,
+  resolvePensionReturnStart,
+  type PensionReturnResult,
+} from '@/lib/utils/pensionReturn';
 import { calculateProgressiveTax, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
+import { getUserSnapshots } from '@/lib/services/snapshotService';
+import { queryKeys } from '@/lib/query/queryKeys';
 import type { ContributionSource, PensionContribution } from '@/types/pension';
-import type { FamilyMember } from '@/types/assets';
+import type { FamilyMember, MonthlySnapshot } from '@/types/assets';
 import type { Settings } from '@/types/settings';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { getMetricValueColor, signTextClass } from '@/lib/utils/metricColors';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
+import { MONTH_NAMES } from '@/lib/constants/months';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { PensionContributionDialog } from '@/components/pension/PensionContributionDialog';
+
+/** 'YYYY-MM' → "Nov 2025", per le etichette di finestra. */
+function formatMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  return `${MONTH_NAMES[month - 1]?.slice(0, 3) ?? month} ${year}`;
+}
+
+/** Percentuale con segno esplicito: il "+" comunica quanto il "−". */
+function formatSignedPercent(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
 
 const NATURE_ROWS: { key: ContributionSource; label: string; hint: string }[] = [
   { key: 'voluntary', label: 'Volontario', hint: 'deducibile · trasferito dal conto' },
@@ -176,6 +198,138 @@ function PensionTaxRecapCard({
   );
 }
 
+/**
+ * "Rendimento del fondo" — la scomposizione della crescita, non una percentuale sola.
+ *
+ * Il valore di un fondo pensione sale per tre motivi che non sono la stessa cosa (versamenti tuoi,
+ * regalo del datore, mercato). La card li tiene separati e mostra il TWR — l'unico numero
+ * confrontabile con un ETF — accanto alle righe in euro che lo spiegano. Quando i versamenti
+ * registrati non bastano a giustificare la crescita, il TWR viene dichiarato inattendibile invece
+ * di essere mostrato come un risultato: vedi `isCoverageSuspicious` in lib/utils/pensionReturn.ts.
+ */
+function PensionReturnCard({
+  result,
+  hasStartMonth,
+}: {
+  result: PensionReturnResult;
+  hasStartMonth: boolean;
+}) {
+  const windowLabel = `${formatMonthLabel(result.windowStart)} → ${formatMonthLabel(result.windowEnd)}`;
+  const showReturn = !result.isCoverageSuspicious;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-[22px]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        Rendimento del fondo · {windowLabel}
+      </p>
+
+      {showReturn ? (
+        <>
+          <p
+            className={cn(
+              'mt-2 font-mono text-[22px] font-bold leading-none tracking-[-0.02em] tabular-nums',
+              getMetricValueColor(result.twr, 'percentage')
+            )}
+          >
+            {formatSignedPercent(result.twr)}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {result.annualizedTwr === null
+              ? `Su ${result.monthsCovered} ${result.monthsCovered === 1 ? 'mese' : 'mesi'}: troppo pochi per annualizzare.`
+              : `${formatSignedPercent(result.annualizedTwr)} annualizzato, al netto dei versamenti.`}
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+          Il fondo è cresciuto di {cachedFormatCurrencyEUR(result.valueGrowth)} ma risultano
+          registrati solo {cachedFormatCurrencyEUR(result.contributions.total)} di versamenti: la
+          differenza verrebbe letta come rendimento di mercato, e non lo è. Registra i versamenti
+          mancanti
+          {hasStartMonth ? (
+            '.'
+          ) : (
+            <>
+              , oppure indica da quale mese il calcolo è affidabile in{' '}
+              <Link href="/dashboard/settings" className="text-primary underline hover:no-underline">
+                Impostazioni → Preferenze
+              </Link>
+              .
+            </>
+          )}
+        </p>
+      )}
+
+      <div className="mt-5 divide-y divide-border/60">
+        <div className="flex items-baseline justify-between gap-3 py-2">
+          <span className="text-sm text-foreground">
+            Crescita del valore
+            <span className="ml-2 text-[11px] text-muted-foreground">versamenti inclusi</span>
+          </span>
+          <span className="font-mono text-sm tabular-nums text-foreground">
+            {cachedFormatCurrencyEUR(result.valueGrowth)}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 py-2">
+          <span className="text-sm text-muted-foreground">
+            Versamenti registrati{' '}
+            <span className="text-[11px]">
+              volontario {cachedFormatCurrencyEUR(result.contributions.voluntary)} · TFR{' '}
+              {cachedFormatCurrencyEUR(result.contributions.tfr)}
+            </span>
+          </span>
+          <span className="font-mono text-sm tabular-nums text-muted-foreground">
+            −{cachedFormatCurrencyEUR(result.contributions.voluntary + result.contributions.tfr)}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 py-2">
+          <span className="text-sm text-muted-foreground">
+            Contributo datoriale <span className="text-[11px]">capitale ricevuto, non rendimento</span>
+          </span>
+          <span className="font-mono text-sm tabular-nums text-muted-foreground">
+            −{cachedFormatCurrencyEUR(result.contributions.employer)}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 py-2">
+          <span className="text-sm font-medium text-foreground">Guadagno di mercato</span>
+          <span
+            className={cn(
+              'font-mono text-sm font-semibold tabular-nums',
+              signTextClass(result.marketGain)
+            )}
+          >
+            {cachedFormatCurrencyEUR(result.marketGain)}
+          </span>
+        </div>
+        {result.personalReturn !== null && showReturn && (
+          <div className="flex items-baseline justify-between gap-3 py-2">
+            <span className="text-sm text-foreground">
+              Ritorno sul tuo capitale
+              <span className="ml-2 text-[11px] text-muted-foreground">
+                mercato + datoriale, sul capitale che hai messo tu
+              </span>
+            </span>
+            <span
+              className={cn(
+                'font-mono text-sm font-semibold tabular-nums',
+                getMetricValueColor(result.personalReturn, 'percentage')
+              )}
+            >
+              {formatSignedPercent(result.personalReturn)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <p className="mt-4 text-[11px] text-muted-foreground">
+        Il rendimento isola il mercato: i versamenti spostano il valore, non la percentuale. Il
+        contributo datoriale è retribuzione — contarlo come rendimento farebbe risultare il fondo a
+        doppia cifra ogni anno. Il risparmio IRPEF, la terza componente di quanto ti conviene il
+        fondo, è nella card qui sotto.
+      </p>
+    </div>
+  );
+}
+
 /** Prompt shown instead of a recap when a fund has no (valid) family member linked. */
 function UnassignedFundsCard({ funds }: { funds: { id: string; name: string }[] }) {
   return (
@@ -207,6 +361,13 @@ export function PensionOverview() {
     queryFn: () => getSettings(ownerId!),
     enabled: !!ownerId,
   });
+  // Il rendimento del fondo si legge dagli snapshot mensili: sono l'unico posto dove il valore del
+  // fondo è congelato mese per mese (l'asset porta solo il valore corrente).
+  const { data: snapshots = [] } = useQuery<MonthlySnapshot[]>({
+    queryKey: queryKeys.snapshots.all(ownerId || ''),
+    queryFn: () => getUserSnapshots(ownerId!),
+    enabled: !!ownerId,
+  });
   const deleteMutation = useDeletePensionContribution(ownerId || '');
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -228,6 +389,18 @@ export function PensionOverview() {
 
   const familyMembers = settings?.familyMembers ?? [];
   const { matched, unassigned } = groupFundsByFamilyMember(funds, familyMembers);
+
+  // Rendimento: aggregato su tutti i fondi (è una domanda di mercato, non fiscale — il beneficio
+  // IRPEF resta l'unica cosa che va spezzata per contribuente).
+  const pensionReturnStart = resolvePensionReturnStart(
+    contributions,
+    settings?.pensionReturnStartMonth
+  );
+  const pensionValueSeries = buildPensionValueSeries(snapshots, funds.map((fund) => fund.id));
+  const pensionReturn = computePensionReturn(pensionValueSeries, contributions, pensionReturnStart);
+  // Serve dire PERCHÉ manca il rendimento, o spostare il mese di partenza in avanti sembra un bug:
+  // la card sparirebbe e basta.
+  const pensionReturnPending = !pensionReturn && pensionValueSeries.length > 0;
 
   // ── Storico versamenti — 2-click delete with 3s auto-disarm ─────────────────────────
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>(undefined);
@@ -275,7 +448,7 @@ export function PensionOverview() {
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           Valore attuale
         </p>
-        <p className="mt-2 font-mono text-[38px] font-bold leading-none tracking-[-0.03em] text-foreground tabular-nums">
+        <p className="mt-2 font-mono text-[44px] font-bold leading-none tracking-[-0.03em] text-foreground tabular-nums">
           {cachedFormatCurrencyEUR(totalFundValue)}
         </p>
         <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
@@ -287,6 +460,27 @@ export function PensionOverview() {
           </span>
         </div>
       </div>
+
+      {/* Rendimento del fondo — la crescita scomposta nelle sue tre cause, con il TWR (l'unica
+          componente confrontabile con il mercato) tenuto separato da versamenti e datoriale. */}
+      {pensionReturn && (
+        <PensionReturnCard
+          result={pensionReturn}
+          hasStartMonth={!!settings?.pensionReturnStartMonth}
+        />
+      )}
+      {pensionReturnPending && (
+        <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-[22px]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            Rendimento del fondo
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {pensionReturnStart
+              ? `Serve un secondo mese dopo ${formatMonthLabel(pensionReturnStart)} per calcolare un rendimento: con un solo valore non c'è nulla da confrontare.`
+              : 'Registra il primo versamento per iniziare a misurare il rendimento: prima di quello la crescita del fondo e i versamenti sono indistinguibili.'}
+          </p>
+        </div>
+      )}
 
       {/* Versato nel {currentYear} — per natura */}
       <div className="rounded-2xl border border-border bg-card p-[22px]">
@@ -395,6 +589,12 @@ export function PensionOverview() {
         in Patrimonio quando arriva l&apos;estratto conto. Ordine corretto: registra prima tutti i
         versamenti del mese qui sopra, poi aggiorna «Valore attuale» — l&apos;estratto conto li
         include già, quindi aggiornarlo prima li farebbe contare due volte.
+        <br />
+        Fallo <strong>entro la fine del mese di competenza</strong>: lo storico salva una fotografia
+        del patrimonio a fine mese e quella dei mesi passati non si riscrive più, quindi un
+        versamento di giugno registrato a luglio compare nel valore di luglio. Il rendimento resta
+        corretto — viene attribuito al mese in cui il valore si è mosso — ma il confronto mese per
+        mese si legge meglio se le due cose coincidono.
       </p>
 
       <PensionContributionDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />

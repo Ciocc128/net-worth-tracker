@@ -54,6 +54,12 @@ function serializeFamilyMembers(
  * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses,
  * coastFireRetirementAge, coastFirePensions, coastFireTaxBrackets,
  * includePrimaryResidenceInFIRE, dividendIncomeCategoryId, dividendIncomeSubCategoryId
+ *
+ * WARNING (checklist comment): the mapping below is an EXPLICIT FIELD WHITELIST, not a spread of
+ * `data`. A new field on `AssetAllocationSettings` that is not added here is written to Firestore
+ * by `setSettings` and then silently dropped on read — the UI shows it saved until the next reload,
+ * when it reverts. Adding a setting means touching, in lock-step: the type in `types/assets.ts`,
+ * this mapping, and the state/load/save/dirty-snapshot wiring in `app/dashboard/settings/page.tsx`.
  */
 export async function getSettings(
   userId: string
@@ -104,6 +110,9 @@ export async function getSettings(
       weeklyBudgetEmailEnabled: data.weeklyBudgetEmailEnabled,
       monthlyEmailRecipients: data.monthlyEmailRecipients,
       familyMembers: data.familyMembers,
+      performanceIncludesPensionFunds: data.performanceIncludesPensionFunds,
+      performanceIncludesExcludedAssets: data.performanceIncludesExcludedAssets,
+      pensionReturnStartMonth: data.pensionReturnStartMonth,
       targets: data.targets as AssetAllocationTarget,
     };
   } catch (error) {
@@ -272,6 +281,21 @@ export async function setSettings(
       if (settings.familyMembers !== undefined) {
         docData.familyMembers = serializeFamilyMembers(settings.familyMembers);
       }
+      if (settings.performanceIncludesPensionFunds !== undefined) {
+        docData.performanceIncludesPensionFunds = settings.performanceIncludesPensionFunds;
+      }
+      if (settings.performanceIncludesExcludedAssets !== undefined) {
+        docData.performanceIncludesExcludedAssets = settings.performanceIncludesExcludedAssets;
+      }
+      // Clearable (empty month input = "parti dal primo versamento"). Same shape as the default
+      // cash accounts above: this branch writes WITHOUT merge, so dropping the key removes it.
+      if ('pensionReturnStartMonth' in settings) {
+        if (settings.pensionReturnStartMonth !== undefined) {
+          docData.pensionReturnStartMonth = settings.pensionReturnStartMonth;
+        } else {
+          delete docData.pensionReturnStartMonth;
+        }
+      }
 
       // Use setDoc WITHOUT merge to completely replace targets
       await setDoc(targetRef, docData);
@@ -398,6 +422,20 @@ export async function setSettings(
       }
       if (settings.familyMembers !== undefined) {
         docData.familyMembers = serializeFamilyMembers(settings.familyMembers);
+      }
+      if (settings.performanceIncludesPensionFunds !== undefined) {
+        docData.performanceIncludesPensionFunds = settings.performanceIncludesPensionFunds;
+      }
+      if (settings.performanceIncludesExcludedAssets !== undefined) {
+        docData.performanceIncludesExcludedAssets = settings.performanceIncludesExcludedAssets;
+      }
+      // Clearable, and this branch merges — omitting the key would leave the old month in place,
+      // so an explicit deleteField() is required (same as the default cash accounts above).
+      if ('pensionReturnStartMonth' in settings) {
+        docData.pensionReturnStartMonth =
+          settings.pensionReturnStartMonth !== undefined
+            ? settings.pensionReturnStartMonth
+            : deleteField();
       }
 
       // Use merge: true to preserve existing fields

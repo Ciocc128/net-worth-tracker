@@ -303,6 +303,21 @@ export interface AssetAllocationSettings {
   // When true, FireCalculatorTab subtracts locked pension-fund capital (unlockDate in the future)
   // from the FIRE-eligible net worth — see lib/utils/pensionFire.ts. Off by default (opt-in, MVP).
   respectPensionLockInFire?: boolean;
+  // Base di calcolo delle metriche Rendimenti (TWR/Sharpe/volatilità/MaxDD/ROI/CAGR).
+  // Entrambi OFF di default = base "portafoglio gestito": fuori i fondi pensione (capitale
+  // illiquido alimentato da versamenti) e gli asset allocationRole 'excluded' (la casa in cui vivi,
+  // valutata a mano). Attivarli riporta quel capitale dentro le metriche.
+  // WARNING (checklist comment): questi flag sono letti da resolvePerformanceBaseOptions
+  // (lib/utils/performanceBase.ts) e consumati da DUE chiamanti che devono restare allineati —
+  // lib/services/performanceService.ts e app/dashboard/performance/page.tsx. Cambiarli invalida
+  // anche la cache metriche (buildCacheKey ne incorpora la firma).
+  performanceIncludesPensionFunds?: boolean;
+  performanceIncludesExcludedAssets?: boolean;
+  // Mese (ISO 'YYYY-MM') da cui il rendimento del fondo pensione è calcolabile: prima di questa
+  // data i versamenti non venivano registrati e il valore del fondo veniva solo aggiornato a mano,
+  // quindi ogni crescita risulterebbe "rendimento di mercato". Assente = si parte dal primo
+  // versamento registrato. Vedi lib/utils/pensionReturn.ts.
+  pensionReturnStartMonth?: string;
   targets: AssetAllocationTarget;
 }
 

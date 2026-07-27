@@ -8,6 +8,7 @@ import {
   chartShellSettle,
   periodContentSettle,
 } from '@/lib/utils/motionVariants';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -15,7 +16,13 @@ import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { getAllPerformanceData, calculatePerformanceForPeriod, preparePerformanceChartData, getSnapshotsForPeriod, prepareMonthlyReturnsHeatmap, prepareUnderwaterDrawdownData } from '@/lib/services/performanceService';
 import { getUserSnapshots } from '@/lib/services/snapshotService';
 import { getAllAssets } from '@/lib/services/assetService';
-import { toPerformanceBaseSnapshots } from '@/lib/utils/performanceBase';
+import { getSettings } from '@/lib/services/assetAllocationService';
+import {
+  resolvePerformanceBaseOptions,
+  resolvePerformanceExclusions,
+  toPerformanceBaseSnapshots,
+  type PerformanceBaseOptions,
+} from '@/lib/utils/performanceBase';
 import { PerformanceData, PerformanceMetrics, TimePeriod } from '@/types/performance';
 import { MonthlySnapshot } from '@/types/assets';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -257,6 +264,25 @@ function PerformancePeriodSelector({
  * - Duplicate chart rendering (heatmap, underwater) vs single unified chart: Separate for clarity and modularity
  */
 
+/**
+ * Frase che dichiara su quale capitale girano le metriche della pagina.
+ *
+ * Esiste perché la domanda ricorrente è "perché il drawdown non torna con il grafico del patrimonio
+ * in Storico?": la risposta è che le due pagine misurano capitali diversi, e va detto sulla pagina,
+ * non lasciato dedurre.
+ */
+function describePerformanceBase(options: PerformanceBaseOptions): string {
+  const excluded = [
+    options.includePensionFunds ? null : 'fondo pensione',
+    options.includeExcludedAssets ? null : 'immobili esclusi dall’allocazione',
+  ].filter(Boolean);
+
+  if (excluded.length === 0) {
+    return 'Base: patrimonio totale, fondo pensione e immobili inclusi.';
+  }
+  return `Base: portafoglio gestito, al netto di ${excluded.join(' e ')}. Il patrimonio completo è in Storico.`;
+}
+
 export default function PerformancePage() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
@@ -268,6 +294,12 @@ export default function PerformancePage() {
   const [showCustomDateDialog, setShowCustomDateDialog] = useState(false);
   const [showAIAnalysisDialog, setShowAIAnalysisDialog] = useState(false);
   const [cachedSnapshots, setCachedSnapshots] = useState<MonthlySnapshot[]>([]);
+  // Kept in state only to name the base in the UI — the numbers themselves already carry it via
+  // cachedSnapshots. Defaults match resolvePerformanceBaseOptions so the caption is right on first paint.
+  const [baseOptions, setBaseOptions] = useState<PerformanceBaseOptions>({
+    includePensionFunds: false,
+    includeExcludedAssets: false,
+  });
   const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
   // Detailed metric sections are collapsed by default — the hero now carries the essentials,
   // so the full 15-metric breakdown is one click away rather than a wall on arrival (A3).
@@ -365,19 +397,22 @@ export default function PerformancePage() {
       // Fetch snapshots once and cache them in component state.
       // This cache will be reused for all period switches and custom date ranges,
       // eliminating redundant API calls and improving performance by ~85%.
-      const [rawSnapshots, assetsForBase] = await Promise.all([
+      const [rawSnapshots, assetsForBase, baseSettings] = await Promise.all([
         getUserSnapshots(ownerId),
         getAllAssets(ownerId),
+        getSettings(ownerId),
       ]);
-      // Same portfolio-base exclusion as getAllPerformanceData (performanceBase.ts): the client-side
+      // Same portfolio base as getAllPerformanceData (performanceBase.ts): the client-side
       // chart/heatmap/custom-range helpers below all read cachedSnapshots directly, so they need the
-      // pension funds excluded too, or a custom period would silently disagree with the pre-computed
-      // YTD/1Y/3Y/5Y/ALL metrics.
-      const pensionAssetIds = assetsForBase
-        .filter((asset) => asset.type === 'pensionFund')
-        .map((asset) => asset.id);
-      const snapshots = toPerformanceBaseSnapshots(rawSnapshots, pensionAssetIds);
+      // exact same exclusions — and the same user settings driving them — or a custom period would
+      // silently disagree with the pre-computed YTD/1Y/3Y/5Y/ALL metrics.
+      const baseOptions = resolvePerformanceBaseOptions(baseSettings);
+      const snapshots = toPerformanceBaseSnapshots(
+        rawSnapshots,
+        resolvePerformanceExclusions(assetsForBase, baseOptions)
+      );
       setCachedSnapshots(snapshots);
+      setBaseOptions(baseOptions);
 
       // forceRefresh on explicit button click so the cache is bypassed and rewritten
       const isRefresh = hasLoadedOnceRef.current;
@@ -927,6 +962,15 @@ export default function PerformancePage() {
         />
       )}
 
+      {/* Base di calcolo — dichiarata, non implicita. Senza questa riga la divergenza da Storico
+          (che mostra il patrimonio intero) resta un mistero da indovinare. */}
+      <p className="px-1 text-xs text-muted-foreground">
+        {describePerformanceBase(baseOptions)}{' '}
+        <Link href="/dashboard/settings" className="underline hover:no-underline">
+          Cambia base
+        </Link>
+      </p>
+
       {/* Return consistency strip (B2) — steadiness from the monthly-returns heatmap.
           NOTE: counts months of investment RETURN (cash-flow-isolated), not net-worth
           growth months like Storico — a different question, a different number. */}
@@ -1425,7 +1469,7 @@ export default function PerformancePage() {
                   Utile per identificare mesi storicamente forti o deboli del portafoglio.
                   <br />
                   <span className="text-xs">
-                    I rendimenti isolano il contributo del singolo mese sottraendo solo il cashflow di quel mese, {' '}<strong>non</strong>{' '} il cumulativo. Per questo i valori mensili possono differire dal Grafico Underwater qui sotto, che usa il cashflow cumulativo dall&apos;inizio.
+                    Ogni mese isola il proprio contributo sottraendo il cashflow di quel mese, così versamenti e prelievi non contano come rendimento. Il Grafico Underwater qui sotto concatena esattamente questi mesi: è la stessa serie, vista come distanza dal massimo storico.
                   </span>
                 </CardDescription>
               </CardHeader>
@@ -1444,7 +1488,7 @@ export default function PerformancePage() {
                   Quando tocca 0% è stato raggiunto un nuovo massimo; si collega a Durata Drawdown e Tempo di Recupero.
                   <br />
                   <span className="text-xs">
-                    Aggiustato per il cashflow{' '}<strong>cumulativo</strong>{' '}dall&apos;inizio, ogni punto mostra la performance pura degli investimenti isolata dai contributi/prelievi. Questo può produrre valori molto diversi dalla heatmap mensile sopra, che considera solo il cashflow del singolo mese.
+                    Ogni punto è il{' '}<strong>cumulato</strong>{' '}dei rendimenti mensili della heatmap qui sopra: la stessa matematica, concatenata invece che mese per mese. Le percentuali non dipendono da quanto capitale hai versato — un versamento sposta il patrimonio, non il drawdown.
                   </span>
                 </CardDescription>
               </CardHeader>
@@ -1524,7 +1568,7 @@ export default function PerformancePage() {
                         <br />
                         <strong>Colori:</strong> Verde = positivo, rosso = negativo. Intensità più scura oltre ±5%.
                         <br />
-                        <strong>Differenza con il Grafico Underwater:</strong> la heatmap misura la variazione mese-su-mese; il drawdown misura quanto sei sotto il picco storico su base cumulativa. I due valori rispondono a domande diverse e non sono direttamente confrontabili.
+                        <strong>Rapporto con il Grafico Underwater:</strong> la heatmap mostra i singoli mesi, l&apos;Underwater il loro prodotto cumulato rispetto al massimo raggiunto. Stessa serie, due letture: moltiplicando i mesi della heatmap si ottiene esattamente la curva dell&apos;Underwater.
                       </p>
                     </div>
                     <div>
@@ -1532,7 +1576,7 @@ export default function PerformancePage() {
                       <p className="text-muted-foreground">
                         <strong>Funzionamento:</strong> A ogni nuovo massimo storico il grafico torna a 0%. Quando il portafoglio scende, mostra la perdita percentuale dal picco.
                         <br />
-                        <strong>Aggiustamento cashflow:</strong> Usa il cashflow <em>cumulativo dall&apos;inizio</em> — la somma di tutti i contributi e prelievi fino a quel momento viene sottratta dal patrimonio. Il picco storico è calcolato sullo stesso valore aggiustato. Questo isola la performance pura degli investimenti eliminando l&apos;effetto dei versamenti. È la ragione per cui i valori possono differire significativamente dalla heatmap mensile sopra.
+                        <strong>Calcolo:</strong> I rendimenti mensili della heatmap vengono concatenati in un indice (base 100 al primo mese del periodo) e il drawdown è la distanza di quell&apos;indice dal proprio massimo. Poiché ogni mese ha già il suo cashflow sottratto, versamenti e prelievi non entrano mai nel drawdown: 100.000 € versati spostano il patrimonio, non la percentuale.
                         <br />
                         <strong>Collegamento:</strong> Si integra con le metriche Durata Drawdown e Recovery Time visibili sopra.
                       </p>
