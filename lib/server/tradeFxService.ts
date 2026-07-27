@@ -3,8 +3,7 @@ import { getExchangeRateToEur } from '@/lib/services/currencyConversionService';
 import type { Asset } from '@/types/assets';
 
 /**
- * Trade FX resolution (Registro operazioni asset — see
- * docs/specs/1-asset-transactions/01-data-model-and-rules.md §6).
+ * Trade FX resolution (Registro operazioni asset).
  *
  * A trade's `priceEur` is resolved SERVER-SIDE only: Frankfurter is silently blocked from the
  * browser (AGENTS.md → FX Conversion), and storing a trade without a trustworthy `priceEur` would
@@ -109,7 +108,7 @@ export async function resolveTradePriceEur(
  * Resolve the baseline (migration) trade's per-unit EUR price.
  *
  * Historical FX for the ORIGINAL purchases is unknowable, so we approximate with the asset's own
- * current conversion ratio (spec 01 §6 baseline formula):
+ * current conversion ratio (the baseline formula):
  *   priceEur = pricePerUnit × (currentPriceEur / currentPrice)   when both are present;
  *   else fetch the current rate;
  *   else priceEur = pricePerUnit                                  (EUR assets / last resort — the

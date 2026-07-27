@@ -115,7 +115,7 @@ const assetClassLabels: Record<AssetClass, string> = {
 };
 
 // Order: Azioni → Obbligazioni → Commodities → Real Estate → Cash → Crypto → Trend Following → Carry.
-// trendFollowing/carry get a settable target here from L2 on (spec 3-leveraged-etf-allocation/03 §3):
+// trendFollowing/carry get a settable target here from L2 on:
 // alt-beta sleeves whose desired notional exposure can push the total above 100% (= target leverage).
 const assetClasses: AssetClass[] = [
   'equity',
@@ -1586,8 +1586,8 @@ export default function SettingsPage() {
 
   const total = calculateTotal();
   // Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
-  // total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage
-  // (spec 3-leveraged-etf-allocation/03 §3). Only an under-allocated set (< 100) is invalid.
+  // total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage.
+  // Only an under-allocated set (< 100) is invalid.
   const isValidTotal = total >= 100 - 0.01;
   // Derived, read-only target leverage = Σtarget / 100 (mirrors deriveTargetLeverageRatio). Shown
   // when the user has actually set leverage (> 1); the app never stores a manual leverage input.
@@ -2654,8 +2654,8 @@ export default function SettingsPage() {
                       type="number"
                       step="0.01"
                       min="0"
-                      // No max cap: a single class can exceed 100% of invested capital under leverage
-                      // (spec 3-leveraged-etf-allocation/03 §3). The fixed-cash case is a € amount.
+                      // No max cap: a single class can exceed 100% of invested capital under leverage.
+                      // The fixed-cash case is a € amount.
                       value={
                         isCash && cashUseFixedAmount
                           ? cashFixedAmount

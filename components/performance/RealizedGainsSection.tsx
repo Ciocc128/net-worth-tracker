@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * "Plusvalenze realizzate" rows for Rendimenti (Fase D, spec 04 §5).
+ * "Plusvalenze realizzate" rows for Rendimenti (Fase D).
  *
  * Aggregates realized P&L by fiscal year across ALL ledger assets. replayTransactions computes
  * ONE asset's position state, so the transactions must be grouped by assetId before folding —
  * summing realizedByYear across assets is the aggregation step this module owns (kept out of the
- * shared engine per the Fase D scope: docs/specs/1-asset-transactions/05-impacts-testing-rollout.md
- * §1 does not list lib/utils/assetTransactionUtils.ts as touched by this phase).
+ * shared engine by the Fase D scope decision: lib/utils/assetTransactionUtils.ts was not to be
+ * touched by that phase).
  */
 
 import { replayTransactions } from '@/lib/utils/assetTransactionUtils';

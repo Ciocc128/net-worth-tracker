@@ -1,6 +1,5 @@
 /**
- * InstrumentTradeList — renders the leverage-aware planner's flat `InstrumentTrade[]`
- * (spec 3-leveraged-etf-allocation/02 §4 "Rendering").
+ * InstrumentTradeList — renders the leverage-aware planner's flat `InstrumentTrade[]`.
  *
  * The instrument-aware engine (leverageAwareAllocationUtils.ts) reasons over the real held
  * instruments, so its output is a flat list of concrete buys/sells — NOT the class → sub → instrument

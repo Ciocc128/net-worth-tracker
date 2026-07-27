@@ -1,5 +1,5 @@
 /**
- * performanceBase — quale capitale misurano le metriche di Rendimenti (spec 2-pension-fund/04 §7).
+ * performanceBase — quale capitale misurano le metriche di Rendimenti.
  *
  * DUE ESCLUSIONI, UNA DOMANDA SOLA
  * Rendimenti risponde a "come sta andando il portafoglio che gestisco", non "quanto vale tutto

@@ -5,7 +5,6 @@
  * `realestate` — no price API), kept OUT of the allocation plans via `allocationRole: 'frozen'`, and
  * fed into FIRE as locked, illiquid capital. This file holds only the types the tax/deduction layer
  * needs; the pure calculation lives in `lib/utils/pensionDeduction.ts`.
- * Spec: docs/specs/2-pension-fund/01-data-model-and-rules.md §1.
  *
  * TAX RULE (why the "nature" distinction matters):
  * Contributions to a fondo pensione are IRPEF-deductible up to an annual ceiling, BUT only some
@@ -24,8 +23,8 @@
  *
  * WARNING (checklist comment): adding a nature here requires updating, in lock-step:
  *   - DEDUCTIBLE_PENSION_NATURES + isDeductibleSource below (is the new nature deductible?)
- *   - the nature selector in components/pension/PensionContributionDialog.tsx (spec 04 §2)
- *   - the per-year/per-nature rollup in lib/utils/pensionContributions.ts (spec 03)
+ *   - the nature selector in components/pension/PensionContributionDialog.tsx
+ *   - the per-year/per-nature rollup in lib/utils/pensionContributions.ts
  */
 export type PensionContributionNature = 'tfr' | 'voluntary' | 'employer';
 export type ContributionSource = PensionContributionNature;
@@ -40,11 +39,11 @@ export function isDeductibleSource(source: ContributionSource): boolean {
 
 /**
  * A single dated contribution to a fondo pensione, stored in the dedicated `pensionContributions`
- * Firestore collection (spec 01 §3 — NOT as an `Expense`: contributions must never pollute the
+ * Firestore collection (NOT as an `Expense`: contributions must never pollute the
  * cashflow savings-rate / budget metrics). Same event-per-asset shape as `dividends`.
  *
  * The value effect on the fund (a contribution raises the fund's value immediately) and the
- * voluntary-as-transfer wiring are layered on top of this record by the service (spec 03); this type
+ * voluntary-as-transfer wiring are layered on top of this record by the service; this type
  * is just the persisted fact.
  */
 export interface PensionContribution {
@@ -76,7 +75,7 @@ export interface PensionContribution {
  * Optional block on `Asset`, populated only for fondo pensione assets (AssetType `pensionFund`).
  * Mirrors how `bondDetails` extends bond assets.
  *
- * The fund is NOT a new asset class (decision D2 in docs/specs/README.md) — its underlying
+ * The fund is NOT a new asset class — its underlying
  * equity/bond mix lives in `Asset.composition`. These fields carry the pension-specific facts the
  * tax and FIRE layers need: enrollment dates (drive the benefit tax rate and the extra-deducibilità
  * window), the unlock date (FIRE locked capital), and caches derivable from the contributions
@@ -99,7 +98,7 @@ export interface PensionFundDetails {
    * this date being after 2007-01-01. Asked separately.
    */
   firstEmploymentDate?: string;
-  /** Enables the plafond-recovery mechanism (spec 02 §2) — only for first employment after 2007-01-01. */
+  /** Enables the plafond-recovery mechanism — only for first employment after 2007-01-01. */
   isFirstEmploymentPost2007?: boolean;
   /** Date (ISO 'YYYY-MM-DD') from which the capital is accessible — per-fund, drives the FIRE lock-in. */
   unlockDate?: string;
@@ -122,7 +121,7 @@ export interface PensionFundDetails {
 }
 
 /**
- * Inputs to the yearly deduction/plafond computation for a single target year (spec 02 §2).
+ * Inputs to the yearly deduction/plafond computation for a single target year.
  *
  * `deductibleContribByYear` is the per-year sum of DEDUCTIBLE contributions (voluntary + employer,
  * TFR already excluded upstream). It must span from `enrollmentYear` up to `targetYear` so the

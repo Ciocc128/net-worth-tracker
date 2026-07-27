@@ -2,8 +2,7 @@
  * Tests for the pure helpers in lib/utils/assetExposureUtils.ts.
  *
  * Covers `expandAssetExposure` (single-class leveraged ETF, composite with per-leg leverage,
- * a plain unleveraged asset, and the pensionFund look-through/fallback cases — see
- * docs/specs/3-leveraged-etf-allocation/02-exposure-and-planning-engine.md §1) and
+ * a plain unleveraged asset, and the pensionFund look-through/fallback cases) and
  * `calculatePortfolioLeverage` (portfolio-wide aggregation).
  *
  * assetExposureUtils imports `calculateAssetValue` from assetService, which pulls in the

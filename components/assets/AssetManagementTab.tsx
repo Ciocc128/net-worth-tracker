@@ -151,7 +151,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
   const deleteAssetMutation = useDeleteAsset(ownerId || '');
 
   // Trade-ledger row actions are shown only once the ledger meta doc exists (migration ran); while
-  // absent the page is exactly today's page (spec 04 §1). Movimenti is read-only (allowed in demo);
+  // absent the page is exactly today's page. Movimenti is read-only (allowed in demo);
   // Registra operazione is a mutation (disabled in demo, like every other mutating control).
   const { data: ledgerMeta } = useAssetLedgerMeta(ownerId);
   const ledgerReady = !!ledgerMeta;

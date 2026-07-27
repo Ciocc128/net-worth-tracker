@@ -127,7 +127,7 @@ async function seedAssets(): Promise<void> {
     {
       // A fondo pensione tracked "the old way", BEFORE the pensionFund AssetType existed: an `etf`
       // whose euro value sits in `quantity` at price 1. This is the exact shape real users have, and
-      // the conversion path of spec 2-pension-fund/04 §1.1 starts from it — a type edit, never a
+      // the pensionFund conversion path starts from it — a type edit, never a
       // delete + recreate, because monthly snapshots are keyed by assetId.
       //
       // It is deliberately a LEDGER type, so the Fase B migration gives it a baseline BUY. That
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
   console.info('   Open the app with `npm run dev:emulator`, then log in with the above.');
   console.info('   Opening /dashboard/assets fires the ledger migration (creates 5 baselines).');
   console.info('   `seed-pension-legacy` is a fondo pensione tracked the OLD way (an etf, value in');
-  console.info('   quantity at price 1) — the starting point of the conversion path (spec 04 §1.1).\n');
+  console.info('   quantity at price 1) — the starting point of the pensionFund conversion path.\n');
 }
 
 main()

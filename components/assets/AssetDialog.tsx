@@ -93,7 +93,7 @@ const shouldUpdatePrice = hasMarketPrice;
  * Example: rawPrice=104.2, nominalValue=1000 → 1042€
  * Passthrough for all other asset types or bonds without a qualifying nominal value.
  *
- * Exported so `TransactionDialog` reuses the SAME conversion (spec 01 §5: reuse, never
+ * Exported so `TransactionDialog` reuses the SAME conversion (reuse, never
  * re-implement) — the trade ledger's `pricePerUnit` must mean exactly what `averageCost` means here.
  */
 export function resolveBondPrice(
@@ -346,19 +346,18 @@ const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.E
 // Note: .or(z.nan()) allows undefined values for optional numeric fields
 const assetSchema = z.object({
   ticker: z.string(),
-  // User-facing alias for `ticker` (spec 4-ticker-display-alias.md). Purely cosmetic — never
+  // User-facing alias for `ticker`. Purely cosmetic — never
   // touches price retrieval, which always reads `ticker`. Gated the same as `ticker` itself.
   displayTicker: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
   // Mirrors the AssetType union in types/assets.ts — keep the two in lock-step (tsc catches drift
   // where the form value is passed back as an AssetType). 'pensionFund' is accepted here from P0 on;
-  // its type card and its dedicated fields land with the pension UI phase (spec 2-pension-fund/04).
+  // its type card and its dedicated fields land with the pension UI phase.
   type: z.enum(['stock', 'etf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pensionFund']),
   // Mirrors the AssetClass union in types/assets.ts (tsc catches drift the same way as `type` above).
   // 'trendFollowing'/'carry' are accepted here from L0 on but have no picker entry yet in the
-  // `assetClasses` composition-leg Select below — that lands with the leverage UI (spec 3-leveraged-
-  // etf-allocation/03, phase L2).
+  // `assetClasses` composition-leg Select below — that lands with the leverage UI (phase L2).
   assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
   subCategory: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
@@ -368,7 +367,7 @@ const assetSchema = z.object({
   taxRate: z.number().min(0, 'Tax rate must be at least 0').max(100, 'Tax rate must be at most 100').optional().or(z.nan()),
   totalExpenseRatio: z.number().min(0, 'TER must be at least 0').max(100, 'TER must be at most 100').optional().or(z.nan()),
   // Leverage multiplier for a leveraged/composite ETF (2 = 2x). Empty/1 = no leverage. Shown for
-  // type 'etf' only (spec 3-leveraged-etf-allocation/03 §4). It is metadata (multiplies notional
+  // type 'etf' only. It is metadata (multiplies notional
   // exposure), independent of quantity/PMC — so for ledger types it rides updateAssetMetadata.
   leverageRatio: z.number().min(1, 'La leva deve essere almeno 1').max(10, 'Leva massima 10').optional().or(z.nan()),
   stampDutyExempt: z.boolean().optional(),
@@ -379,7 +378,7 @@ const assetSchema = z.object({
   isPrimaryResidence: z.boolean().optional(),
   allocationRole: z.enum(['tradable', 'frozen', 'excluded']).optional(),
   // Opening-position fields (ledger create only): the first buy's date + optional settlement account.
-  // The opening quantity/price reuse `quantity`/`averageCost` (spec 04 §3: price feeds both PMC and
+  // The opening quantity/price reuse `quantity`/`averageCost` (the price feeds both PMC and
   // the first buy). Ignored for non-ledger types and in edit mode.
   openingDate: z.string().optional(),
   openingCashAssetId: z.string().optional(),
@@ -590,7 +589,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
   const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
   const newAsset_showTER = selectedType === 'etf' || selectedType === 'stock';
-  // Leva: only ETFs can be leveraged/composite instruments (spec 3-leveraged-etf-allocation/03 §4).
+  // Leva: only ETFs can be leveraged/composite instruments.
   const newAsset_showLeverage = selectedType === 'etf';
   const newAsset_showComposition = selectedType === 'etf' || selectedType === 'pensionFund';
 
@@ -606,7 +605,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   useEffect(() => {
     if (selectedAssetClass) {
       // Default for isLiquid: most assets are liquid except real estate, private equity, and
-      // fondo pensione (locked until retirement — illiquid by nature, spec 04 §1).
+      // fondo pensione (locked until retirement — illiquid by nature).
       const defaultIsLiquid =
         selectedAssetClass !== 'realestate' &&
         selectedSubCategory !== 'Private Equity' &&
@@ -1062,7 +1061,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
       if (ledgerEditFlow && asset) {
         // LEDGER EDIT — metadata only. Ledger types derive quantity/PMC from the trade ledger, so
         // this path MUST NOT go through updateAsset: its undefined→deleteField() for averageCost
-        // would wipe the PMC on every metadata save (spec 03 §3). Strip the derived fields.
+        // would wipe the PMC on every metadata save. Strip the derived fields.
         if (!shouldUpdatePrice(data.type, data.subCategory)) {
           formData.currentPrice = asset.currentPrice;
         }
@@ -1071,7 +1070,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
         savedAssetId = asset.id;
         toast.success('Asset aggiornato con successo');
 
-        // Conversion to pensionFund (spec 2-pension-fund/04 §1.1, option 1): the asset leaves the
+        // Conversion to pensionFund: the asset leaves the
         // ledger for good — pensionFund is not a LEDGER_ASSET_TYPE, so its trades would otherwise
         // sit as an orphan the Rendimenti "Capitale investito" aggregation still sums. Delete them
         // rather than leave a number that quietly stops matching the page it came from. Best-effort:
@@ -1094,8 +1093,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
         toast.success('Asset aggiornato con successo');
       } else if (ledgerCreateFlow) {
         // LEDGER CREATE — the asset opens EMPTY (quantity 0, no PMC); the first buy opens the
-        // position (which writes the derived quantity/PMC back onto the asset). NON-ATOMIC by design
-        // (spec 04 §3): if the buy fails, the asset survives at quantity 0 (recoverable) and the user
+        // position (which writes the derived quantity/PMC back onto the asset). NON-ATOMIC by
+        // design: if the buy fails, the asset survives at quantity 0 (recoverable) and the user
         // retries via «Registra operazione». We accept the two-step gap for a simpler create flow.
         const openingQty = data.quantity;
         if (isNaN(openingQty) || openingQty <= 0) {
@@ -1247,7 +1246,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             </div>
           </div>
 
-          {/* Alias visualizzato — hidden alongside the ticker (spec 4-ticker-display-alias.md) */}
+          {/* Alias visualizzato — hidden alongside the ticker */}
           {newAsset_showTicker && (
           <div className="space-y-2">
             <Label htmlFor="displayTicker">Alias visualizzato</Label>

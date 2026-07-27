@@ -3,7 +3,7 @@ import type { AssetType } from './assets';
 /**
  * Firestore collection names for the trade ledger. Kept in this Firebase-free module so the
  * client service (client SDK reads) and the server use case (Admin SDK writes) resolve them from
- * a single source. See docs/specs/1-asset-transactions/01-data-model-and-rules.md §2.
+ * a single source.
  */
 export const ASSET_TRANSACTIONS_COLLECTION = 'assetTransactions';
 export const ASSET_TRANSACTIONS_META_COLLECTION = 'assetTransactionsMeta';
@@ -12,7 +12,7 @@ export const ASSET_TRANSACTIONS_META_COLLECTION = 'assetTransactionsMeta';
  * Asset types that are managed through the trade ledger.
  * cash (balance-as-quantity), realestate (estimated value) and pensionFund (statement value, fed by
  * `pensionContributions`) are deliberately excluded: their "quantity" is not the result of trading
- * operations. See docs/specs/2-pension-fund/01-data-model-and-rules.md §2 for the pension case.
+ * operations.
  */
 export const LEDGER_ASSET_TYPES = ['stock', 'etf', 'bond', 'crypto', 'commodity'] as const satisfies readonly AssetType[];
 
@@ -38,7 +38,7 @@ export type AssetTransactionType = 'buy' | 'sell' | 'adjustment';
  *
  * Currency convention: pricePerUnit follows the SAME unit basis as Asset.averageCost
  * today (native currency; for Borsa Italiana bonds the already-converted EUR-per-unit
- * value, see spec 01 §5). priceEur is the per-unit EUR value at trade date (== pricePerUnit
+ * value). priceEur is the per-unit EUR value at trade date (== pricePerUnit
  * for EUR-denominated assets).
  */
 export interface AssetTransaction {
@@ -69,7 +69,7 @@ export interface AssetTransactionFormData {
   fees?: number;
   linkedCashAssetId?: string;
   note?: string;
-  // priceEur is NOT part of the form: the server resolves it (see spec 01 §6) so the client
+  // priceEur is NOT part of the form: the server resolves it, so the client
   // can never write an inconsistent FX value.
 }
 

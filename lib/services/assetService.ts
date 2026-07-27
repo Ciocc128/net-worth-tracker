@@ -315,8 +315,7 @@ export type AssetMetadataFormData = Omit<AssetFormData, 'quantity' | 'averageCos
  * replaying `assetTransactions` and rewritten by the trade Admin API — they must NOT be written from
  * a metadata edit. This is the AssetDialog (edit mode) path for ledger assets: `updateAsset`
  * translates an ABSENT `averageCost` into `deleteField()`, so calling it once the dialog stops
- * sending quantity/averageCost would wipe the PMC on every metadata save
- * (docs/specs/1-asset-transactions/03-service-and-api.md §3). `updateAsset` is unchanged and still
+ * sending quantity/averageCost would wipe the PMC on every metadata save. `updateAsset` is unchanged and still
  * used for cash/realestate.
  *
  * `taxRate`/`displayTicker` keep the same undefined→deleteField() clearing as `updateAsset` (the

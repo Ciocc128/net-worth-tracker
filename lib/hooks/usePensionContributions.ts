@@ -46,7 +46,7 @@ export function usePensionContributions(
 /**
  * Invalidate the contribution list, the asset table, the overview hero, and the expense list after a
  * mutation. `expenses.all` joins the triple from P1 here (P2 is the first UI that surfaces this): a
- * voluntary contribution creates a `transfer` Expense (spec 03), so Cashflow's transaction feed goes
+ * voluntary contribution creates a `transfer` Expense, so Cashflow's transaction feed goes
  * stale too if it isn't included.
  */
 function invalidatePensionCaches(queryClient: QueryClient, ownerId: string): void {

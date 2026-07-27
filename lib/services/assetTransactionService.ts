@@ -5,7 +5,7 @@
  *
  * Reads go through the client SDK directly (Firestore rules allow owner/member reads); every WRITE
  * goes through the Admin API via authenticatedFetch, because a trade must atomically rewrite the
- * asset's derived fields from a full replay (docs/specs/1-asset-transactions/03-service-and-api.md).
+ * asset's derived fields from a full replay.
  *
  * Query shape: equality filters only (where userId, optionally where assetId) with NO orderBy — the
  * result is sorted in memory. This avoids a composite index (same reasoning as getUserSnapshotsAdmin).
@@ -162,7 +162,7 @@ export async function deleteAssetTransaction(
 
 /**
  * Delete every trade for one asset, no replay. Only path this exists for: converting a ledger asset
- * to `pensionFund` in AssetDialog (docs/specs/2-pension-fund/04-ui-and-views.md §1.1) — the asset is
+ * to `pensionFund` in AssetDialog — the asset is
  * leaving the ledger for good, so there is nothing left to reconcile.
  */
 export async function deleteAllAssetTransactionsForAsset(

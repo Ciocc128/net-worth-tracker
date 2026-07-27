@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PensionContributionDialog — "Registra versamento" flow (spec 2-pension-fund/04 §2).
+ * PensionContributionDialog — "Registra versamento" flow.
  *
  * Records a contribution into the dedicated `pensionContributions` collection (never as an Expense
  * of consumption — invariant #1). Nature carries an inline micro-education note at the point of

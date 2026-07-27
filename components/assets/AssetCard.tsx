@@ -46,7 +46,7 @@ interface AssetCardProps {
   isDemo?: boolean;
   sparklineData?: { value: number }[];
   performance?: AssetPerformanceData;
-  /** Trade-ledger row actions — shown only for ledger asset types once migration has run (spec 04 §1). */
+  /** Trade-ledger row actions — shown only for ledger asset types once migration has run. */
   showLedgerActions?: boolean;
   onRegisterTrade?: (asset: Asset) => void;
   onMovements?: (asset: Asset) => void;

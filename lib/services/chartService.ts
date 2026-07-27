@@ -145,8 +145,8 @@ export function prepareNetWorthHistoryData(snapshots: MonthlySnapshot[]): {
  * Prepare data for asset class history chart.
  *
  * `pensionAssets` (optional; live `pensionFund`-type assets, e.g. `assets.filter(a => a.type ===
- * 'pensionFund')`) adds a synthetic "Previdenza" series, TYPE-based per decision D2 (spec
- * 2-pension-fund/04 §6) — the fund appears whole as `pension`, never spread across equity/bonds in
+ * 'pensionFund')`) adds a synthetic "Previdenza" series, TYPE-based per decision D2 — the fund
+ * appears whole as `pension`, never spread across equity/bonds in
  * the aggregate classes, even though `byAssetClass` itself may already contain the fund's value
  * split by class (via `composition` look-through — see `calculateCurrentAllocation`, the same
  * function `snapshotService` calls to build `byAssetClass`). Each month's fund value comes from
