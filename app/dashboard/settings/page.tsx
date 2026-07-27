@@ -16,7 +16,8 @@
  * Based on Bogleheads investment principles.
  *
  * PERCENTAGE VALIDATION:
- * - Asset classes must sum to 100% (or remainder if cash uses fixed €)
+ * - Asset classes must sum to AT LEAST 100% (or remainder if cash uses fixed €); above 100% is a
+ *   legitimate target leverage (spec 7 — 100% = no leverage)
  * - Sub-categories must sum to 100% within parent
  * - Specific assets must sum to 100% within parent sub-category
  * All validations run on save with clear error messages.
@@ -132,6 +133,12 @@ const assetClasses: AssetClass[] = [
 const roundToTwoDecimals = (value: number): number => {
   return Math.round(value * 100) / 100;
 };
+
+// Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
+// total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage
+// (spec 7). Only an under-allocated total (< 100) is invalid. Shared by handleSave's guard and the
+// render-time isValidTotal so the two can never drift apart.
+const isTargetTotalValid = (total: number): boolean => total >= 100 - 0.01;
 
 // Famiglia — household members a pension fund can be attributed to (Impostazioni → Preferenze).
 // String-typed draft (never fights the user while typing), same shape as CoastFireTab's pension/tax
@@ -1057,9 +1064,9 @@ export default function SettingsPage() {
     });
 
     const total = calculateTotal();
-    if (Math.abs(total - 100) > 0.01) {
+    if (!isTargetTotalValid(total)) {
       toast.error(
-        `Il totale deve essere 100%. Attualmente è ${formatPercentage(total)}`
+        `Il totale deve essere almeno 100%. Attualmente è ${formatPercentage(total)} — residuo da allocare ${formatPercentage(100 - total)}.`
       );
       return;
     }
@@ -1585,10 +1592,7 @@ export default function SettingsPage() {
   if (loading) return null;
 
   const total = calculateTotal();
-  // Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
-  // total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage.
-  // Only an under-allocated set (< 100) is invalid.
-  const isValidTotal = total >= 100 - 0.01;
+  const isValidTotal = isTargetTotalValid(total);
   // Derived, read-only target leverage = Σtarget / 100 (mirrors deriveTargetLeverageRatio). Shown
   // when the user has actually set leverage (> 1); the app never stores a manual leverage input.
   const derivedTargetLeverage = total > 0 ? total / 100 : 1;
@@ -2999,7 +3003,7 @@ export default function SettingsPage() {
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200">
           <div className="rounded-b-lg border border-t-0 border-border bg-muted/30 px-4 py-4">
             <ul className="space-y-1 text-sm text-muted-foreground">
-              <li>• Il totale delle allocazioni delle asset class deve essere esattamente 100%</li>
+              <li>• Il totale delle allocazioni delle asset class deve essere almeno 100%. Oltre il 100% rappresenta una leva target (es. 110% = leva 1,10×)</li>
               <li>• La liquidità può essere impostata come valore fisso in euro. In questo caso, le percentuali delle altre asset class si applicheranno al patrimonio rimanente (totale - liquidità fissa)</li>
               <li>• Per ogni asset class con sotto-categorie abilitate, il totale delle sotto-categorie deve essere esattamente 100%</li>
               <li>• Le sotto-categorie sono espresse come percentuale della loro asset class di appartenenza</li>
