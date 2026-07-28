@@ -95,7 +95,6 @@ Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetDialog.tsx,
             components/assets/TransactionDialog.tsx,
             components/assets/AssetMovementsDialog.tsx,
-            components/assets/AssetPriceHistoryTable.tsx,
             components/assets/TaxCalculatorModal.tsx,
             components/dashboard/OverviewAnimatedCurrency.tsx,
             components/dashboard/NetWorthSparkline.tsx

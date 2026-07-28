@@ -509,40 +509,6 @@ export interface MonteCarloScenarios {
   bull: MonteCarloScenarioParams;
 }
 
-// Asset Price History Types
-export type AssetHistoryDisplayMode = 'price' | 'totalValue';
-
-export interface AssetHistoryDateFilter {
-  year: number;
-  month: number; // 1-12
-}
-
-export interface AssetHistoryTransformOptions {
-  filterYear?: number;
-  filterStartDate?: AssetHistoryDateFilter;
-  includePreviousMonthBaseline?: boolean;
-  excludeCash?: boolean;
-  // When true, only assets already present in the passed currentAssets array are shown.
-  // Snapshot-only assets (sold/deleted from the portfolio) are not re-introduced from
-  // historical snapshot data. Use this when the caller pre-filters currentAssets (e.g.
-  // to cost-basis-tracked assets only) and doesn't want deleted assets to bypass the filter.
-  restrictToPassedAssets?: boolean;
-}
-
-export interface AssetHistoryTotalRow {
-  monthColumns: string[];
-  totals: {
-    [monthKey: string]: number;
-  };
-  // Optional percentage fields for total row
-  monthlyChanges?: {
-    [monthKey: string]: number | undefined;  // undefined = first month (no previous)
-  };
-  ytd?: number;             // Year-to-date % (undefined if <2 months in current year)
-  fromStart?: number;       // From start % (undefined if <2 months total)
-  lastMonthChange?: number; // Change % of the last available month vs its predecessor
-}
-
 // Doubling Time Metric Types
 // Used by History page to visualize wealth accumulation velocity
 // Tracks when net worth doubles over time (2x, 4x, 8x... or €100k, €200k, €500k...)
