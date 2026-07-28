@@ -44,9 +44,10 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  * WARNING (checklist comment): bump on ANY change that alters what the pipeline computes from
  * unchanged inputs, and only then. History: v2 = baseline data-driven + first-month cash flows +
  * TWR annualization (spec 10 phase 1); v3 = rolling windows (spec 10 phase 3); v4 = IRR signs and
- * timeline (spec 10 phase 4).
+ * timeline (spec 10 phase 4); v5 = volatility without the ±50% filter, 3-observation floor
+ * (spec 10 phase 5).
  */
-const CACHE_MATH_VERSION = 'v4';
+const CACHE_MATH_VERSION = 'v5';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -368,12 +369,37 @@ export function calculateSharpeRatio(
 }
 
 /**
+ * Minimum monthly returns required before a standard deviation means anything.
+ *
+ * Two observations always produce a "volatility" — the two points sit at a fixed distance from
+ * their own mean — but it carries no information about how the portfolio behaves; with n−1 = 1
+ * degree of freedom the estimate is pure noise, and the Sharpe ratio built on it inherits that.
+ * Below this the metric is null, and the card says why instead of showing a confident number.
+ */
+const MIN_RETURNS_FOR_VOLATILITY = 3;
+
+/**
  * Calculate annualized volatility from monthly snapshots
- * Uses month-over-month returns, filters extreme values (±50%)
+ *
+ * Uses the SAME cash-flow-adjusted monthly returns as the heatmap and the drawdown index — the
+ * whole series, unfiltered. There used to be a ±50% cut here (and only here), meant to drop spikes
+ * caused by large contributions. It was solving a problem the formula had already solved: the
+ * return is `(V_end − CF) / V_start − 1`, so a TRACKED contribution is neutralised before it can
+ * become a spike, however large. What the cut actually removed was of two kinds, and both were
+ * wrong to remove:
+ *
+ *  - an UNTRACKED movement (a balance corrected by hand, a transfer nobody recorded) produces the
+ *    same artefact in the heatmap, the Underwater chart and the TWR — hiding it from volatility
+ *    alone made the risk metric tell a different story from the risk chart, which is finding A6;
+ *  - a REAL crash beyond 50% is the single most important thing volatility should report, and it
+ *    was being deleted by the metric whose job is to measure exactly that.
+ *
+ * If artefacts show up here, the fix is in the data (record the movement) or upstream in the base
+ * (see performanceBase.ts), never in a silent filter that makes one card disagree with the others.
  *
  * @param snapshots - Monthly snapshots
  * @param cashFlows - Cash flows to adjust for contributions/withdrawals
- * @returns Annualized volatility (%) or null if insufficient data
+ * @returns Annualized volatility (%) or null with fewer than MIN_RETURNS_FOR_VOLATILITY returns
  */
 export function calculateVolatility(
   snapshots: MonthlySnapshot[],
@@ -400,17 +426,10 @@ export function calculateVolatility(
     const cashFlow = cashFlowMap.get(cfKey) || 0;
 
     // Monthly return = (End NW - Cash Flow) / Start NW - 1
-    const monthlyReturn = ((currNW - cashFlow) / prevNW - 1) * 100;
-
-    // Filter extreme values >±50% to exclude spikes from large contributions/withdrawals
-    // These outliers would distort volatility calculations, making them unrepresentative
-    // of actual investment performance
-    if (Math.abs(monthlyReturn) < 50) {
-      monthlyReturns.push(monthlyReturn);
-    }
+    monthlyReturns.push(((currNW - cashFlow) / prevNW - 1) * 100);
   }
 
-  if (monthlyReturns.length < 2) return null;
+  if (monthlyReturns.length < MIN_RETURNS_FOR_VOLATILITY) return null;
 
   // Calculate standard deviation
   const mean = monthlyReturns.reduce((sum, r) => sum + r, 0) / monthlyReturns.length;
@@ -1605,7 +1624,19 @@ export async function calculateRollingPeriods(
 }
 
 /**
- * Prepare chart data for net worth evolution
+ * Prepare chart data for net worth evolution: net worth broken into where it came from.
+ *
+ * THE THREE BANDS STACK TO THE LINE, and each says what it is:
+ *   initialCapital — the starting valuation, flat for the whole period. It was already there;
+ *                    nothing about it is performance.
+ *   contributions  — cash paid in since then, cumulated.
+ *   returns        — what the market added ON TOP: `netWorth − initialCapital − contributions`.
+ *
+ * `returns` used to be `netWorth − contributions`, which silently included the entire starting
+ * capital: on a portfolio that opened the period at 200k, the band labelled "Investimenti" started
+ * at 200k and read as if the market had produced it (finding A11). The band is now the period's
+ * market growth alone, and can legitimately go NEGATIVE when the market took more than it gave —
+ * that is the honest shape of a losing period, not a rendering accident.
  *
  * @param skipBaseline - When true, drops the first snapshot: it is the month before the period,
  *   included so the first month's return can be computed but outside what the user selected.
@@ -1630,6 +1661,10 @@ export function preparePerformanceChartData(
       ? sortedSnapshots.slice(1)
       : sortedSnapshots;
 
+  // The starting valuation is the FIRST snapshot of the window, baseline included: the same value
+  // the metrics use as startNW, so the chart and the ROI/TWR cards decompose the same period.
+  const initialCapital = sortedSnapshots[0]?.totalNetWorth ?? 0;
+
   let cumulativeContributions = 0;
   const cashFlowMap = new Map<string, number>();
 
@@ -1646,8 +1681,9 @@ export function preparePerformanceChartData(
     return {
       date: `${String(snapshot.month).padStart(2, '0')}/${snapshot.year}`,
       netWorth: snapshot.totalNetWorth,
+      initialCapital,
       contributions: cumulativeContributions,
-      returns: snapshot.totalNetWorth - cumulativeContributions,
+      returns: snapshot.totalNetWorth - initialCapital - cumulativeContributions,
     };
   });
 }

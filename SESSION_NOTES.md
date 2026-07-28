@@ -44,7 +44,7 @@ Sessione di **sola analisi e documentazione**: nessun file di codice modificato.
 - [x] Implementazione spec 8 (aliquota) — 2026-07-27, branch `fix/asset-tax-rate-restore`
 - [x] Implementazione spec 9 (etichette) — 2026-07-28, branch `fix/asset-chart-labels`
 - [x] Implementazione spec 6 (classe asset) — 2026-07-28, branch `feature/asset-class-selection`
-- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fasi 1-4 fatte** (2026-07-28, branch `fix/performance-calculations-phase-{1,2,3,4}`; 1-3 già in `fix/session-bugfixes`); fase 5 da fare
+- [x] Implementazione spec 10 (Rendimenti, fasi 1→5) — 2026-07-28, branch `fix/performance-calculations-phase-{1,2,3,4,5}`; fasi 1-4 già in `fix/session-bugfixes`
 
 Aggiornare questo file al termine di ogni implementazione (i prompt nelle spec lo richiedono).
 
@@ -307,3 +307,67 @@ Branch `fix/performance-calculations-phase-4` (da `fix/session-bugfixes`, che co
 - **Cosa**: l'IRR ora risolve l'equazione giusta — versamenti col segno di un'uscita, timeline ancorata all'inizio del periodo, distanze in mesi trascorsi e non inclusive — e converge con un fallback a bisezione invece di restituire `null` quando Newton si perde.
 - **Perché**: il segno invertito trasformava ogni versamento in un incasso e gonfiava il rendimento personale (fino a +22% su un caso il cui rendimento vero è 0%); l'ancora sul primo mese con movimenti e il conteggio inclusivo spostavano ogni flusso nel tempo, entrambi nella direzione di sottostimare l'IRR quando si versa.
 - **Nota**: il segno non era nella diagnosi della spec (A5 parlava solo di ancora e shift). L'ho trovato scrivendo il primo caso a soluzione nota richiesto dalla fase: un test che verifica un valore calcolato a mano non può passare con l'equazione sbagliata, quindi correggerlo era dentro lo scope della fase, non un'estensione. Non ho toccato la copy della card (`page.tsx`): la spec la offriva come **alternativa** alla bisezione ("altrimenti `null` resta, ma la card spiega..."), e con la bisezione implementata il `null` residuo è un caso di frontiera vero. Se lo si vuole comunque spiegare in UI, è un intervento da fase 5.
+
+## Implementazione spec 10 — FASE 5: coerenza e minori (ULTIMA) — 2026-07-28
+
+Branch `fix/performance-calculations-phase-5` (da `fix/session-bugfixes`, che contiene le fasi 1-4). Finding coperti: **A6, A7, A8, A11, A12**.
+
+### A6 — il filtro ±50%: **rimosso**, non reso uniforme (decisione presa col test, come chiedeva la spec)
+
+La decisione 8 lasciava la scelta a chi implementa, da giustificare con i test. Rimosso, per tre ragioni che i test ora inchiodano:
+
+1. **Risolveva un problema già risolto.** Il rendimento mensile è `(V_fine − CF) / V_inizio − 1`: un versamento **tracciato** è neutralizzato *prima* di poter diventare uno spike, per quanto grande. Test: patrimonio che passa da 100.000 a 301.000 in un mese con 200.000 versati → volatilità identica a quella della stessa serie senza versamento. Il filtro non stava facendo il lavoro che dichiarava.
+2. **Quello che toglieva davvero erano movimenti NON tracciati**, che però producono lo stesso artefatto in heatmap, Underwater e TWR: nasconderlo alla sola volatilità faceva sì che la metrica di rischio raccontasse una storia diversa dal grafico di rischio. È letteralmente il finding A6.
+3. **Un crollo vero oltre il 50% è la cosa più importante che la volatilità debba riportare**, ed era esattamente ciò che veniva cancellato — dalla metrica il cui mestiere è misurarlo.
+
+Renderlo uniforme (l'altra opzione) avrebbe significato applicarlo anche a `buildTwrIndex`, cioè permettere a un crollo reale di sparire dal Max Drawdown: in diretta contraddizione con il fix del "Max Drawdown fantasma" e con l'invariante di riconciliazione (decisione 4). Se in futuro compaiono artefatti, il posto giusto dove intervenire è il dato (registrare il movimento) o la base (`performanceBase.ts`), mai un filtro silenzioso che fa litigare tre card fra loro.
+
+Aggiunta la soglia `MIN_RETURNS_FOR_VOLATILITY = 3` (era 2): con due osservazioni la deviazione standard esiste sempre ma ha un solo grado di libertà e non dice nulla sul portafoglio — e lo Sharpe costruito sopra ne eredita il rumore. Sotto soglia la card mostra "—" e il tooltip spiega perché.
+
+### A7 — sotto i 6 mesi l'hero dice il rendimento del periodo
+
+Nuova pura `resolveHeroReturn` (`lib/utils/performanceSummary.ts`) + `MIN_MONTHS_FOR_ANNUALIZATION = 6`. Sopra soglia: invariato, annualizzato. Sotto: de-annualizza con l'inverso esatto (`(1 + annuo)^(mesi/12) − 1`, nessuna informazione inventata) e l'etichetta accanto al numero passa da "annualizzato" a "nei N mesi" / "nel mese". **Solo il numero mostrato cambia**: verdetto e delta vs benchmark continuano a usare l'annualizzato, perché "batte il tasso privo di rischio" e "vs benchmark" sono confronti su base annua — e il tooltip dello Sharpe ora lo dichiara.
+
+### A8 — le due correzioni per i flussi, dichiarate
+
+Tooltip di ROI e CAGR riscritti: ciascuno riporta la propria formula e dice esplicitamente che l'altro corregge per i flussi in modo diverso (ROI li **sottrae** dal guadagno, CAGR li **aggiunge** al denominatore), quindi **CAGR non è la versione annualizzata del ROI** e i due non sono convertibili l'uno nell'altro. Nessun refactor delle formule, come da decisione 6.
+
+### A11 — la serie "Investimenti" è davvero il rendimento
+
+`returns` era `patrimonio − contributi cumulati`, che includeva silenziosamente **tutto il capitale iniziale**: su un portafoglio che apre il periodo a 200k, la banda etichettata "Investimenti" partiva da 200k e si leggeva come se il mercato li avesse prodotti. Ora è `patrimonio − capitale iniziale − contributi` = la crescita di periodo attribuibile al mercato (decisione 7), e può legittimamente andare **negativa** in un periodo in perdita.
+
+**Aggiunta rispetto alla lettera della spec**: una terza banda `initialCapital` (costante, la valutazione di partenza) sotto le altre due. Senza di essa le aree impilate non sommavano più alla linea del patrimonio, e il grafico avrebbe perso la sua promessa visiva (la linea galleggiante sopra aree scollegate). Con essa ogni banda significa esattamente il suo nome — capitale iniziale + versamenti + mercato = patrimonio — e la nota metodologica lo dichiara riga per riga.
+
+### A12 — minori
+
+- **Copy del drawdown qualificata**: chip dell'hero "dal massimo **del periodo**"; card Max Drawdown, descrizione e tooltip dicono che il picco è il massimo raggiunto *in quel periodo*, non un massimo storico, e che cambiando periodo cambia il riferimento.
+- **`RealizedGainsSection`**: il `catch {}` silenzioso diventa un contatore. `aggregateRealizedByYear` ora ritorna `{ byYear, skippedAssets }`, logga un warning strutturato per ogni asset non ricostruibile, e la card mostra "N asset sono esclusi da questo totale... il totale è quindi incompleto". È un dato **fiscale**: un totale corto di una posizione è peggio di nessun totale.
+- **Commento di `buildIndexedSeries`** (`benchmarkPeriodReturn.ts`) corretto: il primo punto **non** è 100, è 100 × (1 + rendimento del primo mese) — la base sta concettualmente appena prima della finestra, come l'indice TWR dal lato portafoglio, ed è ciò che rende i due lati confrontabili.
+- **`computeDrawdownSeries` — NON modificato, deliberatamente.** La spec chiedeva di non usare il primo punto come picco iniziale. Implementarlo avrebbe mostrato 0% all'inizio di un periodo che scende dal primo mese (cioè "sei sul massimo" mentre stai perdendo) e avrebbe rotto l'invariante di riconciliazione della decisione 4: l'Underwater è il cumulato dei rendimenti della heatmap rispetto al massimo corrente, e quel cumulato parte da 100 *prima* del primo mese misurato. Il comportamento attuale è corretto; il perché è ora scritto nel codice, così chi rilegge A12 non lo "corregge" per errore.
+
+### Rimasti fuori (dalla diagnosi A12, non dalla lista operativa della fase 5)
+
+- **`computeReturnConsistency` con un solo mese** → 0%/100% secchi. Non nella lista operativa della fase; mitigato dal fatto che la striscia mostra sempre il denominatore ("1/1 mesi positivi"), quindi la numerosità è visibile. Candidato a una soglia analoga a quella della volatilità.
+- **L'invariante implicito "un CF per mese" replicato in 4 mappe `YYYY-MM`** (`calculateTimeWeightedReturn`, `calculateVolatility`, `preparePerformanceChartData`, `drawdownSeries.ts`). Refactor da Rule of Three, non nella lista operativa: accorparlo in coda a una fase che cambia comportamento avrebbe mischiato due tipi di rischio nello stesso commit.
+
+**Gate**: `npx tsc --noEmit` pulito. `npx vitest run` **78 file / 1397 test** (+13). `npm run build` ok. `CACHE_MATH_VERSION` → **v5**.
+
+**Test nuovi**: volatilità — versamento tracciato che non produce spike (la prova che il filtro era inutile), crollo del 60% riportato invece che nascosto, stessa serie letta da volatilità e heatmap, soglia a 3 osservazioni. `preparePerformanceChartData` — le tre bande sommano alla linea, banda di mercato negativa in un periodo in perdita, capitale iniziale preso dalla baseline anche quando non è disegnata. `resolveHeroReturn` — soglia a 6 mesi, de-annualizzazione come inverso esatto (ri-annualizzando si torna al punto di partenza), etichette singolare/plurale, negativi, null.
+
+**QUALI numeri cambiano**:
+- **Volatilità e Sharpe** cambiano **solo se** qualche mese del periodo supera ±50% di rendimento (mese non tracciato o crollo vero). Se nessun mese lo fa — il caso normale — sono **identici**. Su periodi con meno di 3 rendimenti mensili diventano "—" invece di un numero senza significato.
+- **Hero**: su periodi sotto i 6 mesi il numero grande cambia (mostra il rendimento del periodo invece dell'annualizzato) e l'etichetta accanto lo dichiara. Sopra i 6 mesi: identico.
+- **Grafico Evoluzione**: tre aree invece di due; "Investimenti" ora è un numero molto più piccolo (la crescita, non il capitale).
+- **Plusvalenze realizzate**: identiche, salvo che ora un asset non ricostruibile viene dichiarato invece che scomparire.
+- **Nient'altro**: TWR, ROI, CAGR, IRR, Max Drawdown, heatmap, Underwater, benchmark, rolling — invariati rispetto alla fase 4.
+
+**Come verificarlo a mano sui dati reali**:
+1. **Volatilità e Sharpe su Storico**: devono restare **identici** alla versione con le fasi 1-4 (nessun mese oltre ±50% sul tuo storico, visto che il Max Drawdown è −10%). Se cambiano, c'è un mese estremo che il filtro stava nascondendo: guardalo nella heatmap, e probabilmente è un movimento non tracciato da registrare in Cashflow.
+2. **Grafico Evoluzione Patrimonio**: ora tre bande. La somma delle aree deve coincidere con la linea "Patrimonio Totale" in ogni punto; la banda "Investimenti" deve partire da zero all'inizio del periodo (prima partiva dal capitale iniziale).
+3. **Periodo corto**: crea un periodo personalizzato di 2-3 mesi. L'hero deve mostrare un numero piccolo con etichetta "nei 2 mesi" invece di un annualizzato a due cifre; Volatilità e Sharpe mostrano "—" se i mesi misurati sono meno di 3.
+4. **Tooltip**: apri quelli di ROI Totale e CAGR — ciascuno riporta la propria formula e avverte che l'altro corregge per i flussi diversamente.
+5. **Chip dell'hero**: se non sei sul massimo, ora legge "dal massimo del periodo".
+
+- **Cosa**: rimosso il filtro ±50% dalla volatilità (con la decisione motivata dai test), soglia minima di 3 osservazioni per volatilità/Sharpe, hero che dichiara il rendimento di periodo sotto i 6 mesi, tooltip di ROI e CAGR che dichiarano entrambe le formule, serie "Investimenti" ridefinita come crescita di mercato con una terza banda "Capitale iniziale" che tiene le aree coerenti con la linea, copy del drawdown qualificata, `catch {}` silenzioso sostituito da un contatore visibile in UI, commento di `buildIndexedSeries` corretto.
+- **Perché**: erano le incoerenze rimaste fra ciò che le card dicono e ciò che calcolano — un filtro che faceva litigare la metrica di rischio col grafico di rischio, un'annualizzazione presentata come misura su finestre troppo corte, due formule affiancate come coppia coerente senza esserlo, una banda etichettata "Investimenti" che conteneva il capitale di partenza, e un totale fiscale che poteva essere incompleto senza dirlo.
+- **Nota**: due voci della diagnosi A12 restano fuori (sopra, con le ragioni). La spec 10 è ora implementata per intero: fasi 1-5, cinque branch, `CACHE_MATH_VERSION` da `v2` a `v5` a segnare i quattro passaggi che cambiano i numeri a input invariati.

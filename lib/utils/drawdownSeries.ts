@@ -97,6 +97,13 @@ export function buildTwrIndex(
 /**
  * Il drawdown puntuale di ogni punto rispetto al massimo raggiunto fino a quel momento.
  *
+ * IL PRIMO PUNTO CONTA COME MASSIMO INIZIALE, ed è corretto che sia così: è il livello da cui il
+ * periodo parte, quindi un portafoglio che scende dal primo mese è davvero sotto il suo massimo.
+ * Far partire il picco dal secondo punto mostrerebbe 0% all'inizio di un periodo in discesa — cioè
+ * "sei sul massimo" mentre stai perdendo — e romperebbe l'invariante che tiene insieme questa
+ * pagina: l'Underwater è il cumulato dei rendimenti mensili della heatmap rispetto al massimo
+ * corrente, e quel cumulato parte da 100 prima del primo mese misurato.
+ *
  * @returns Percentuali ≤ 0, una per punto (0 = il portafoglio è su un nuovo massimo)
  */
 export function computeDrawdownSeries(index: TwrIndexPoint[]): number[] {

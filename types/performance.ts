@@ -135,12 +135,14 @@ export interface PerformanceData {
   snapshotCount: number;
 }
 
-// Chart data for visualizations
+// Chart data for the "Evoluzione Patrimonio" area chart.
+// The three components stack to netWorth: initialCapital + contributions + returns.
 export interface PerformanceChartData {
   date: string; // MM/YYYY format
   netWorth: number;
-  contributions: number; // Cumulative
-  returns: number; // Returns portion (netWorth - contributions)
+  initialCapital: number; // Starting valuation of the period, constant across every point
+  contributions: number; // Cumulative cash paid in since the period start
+  returns: number; // Market growth on top: netWorth - initialCapital - contributions (can be negative)
   [key: string]: any; // For Recharts compatibility
 }
 

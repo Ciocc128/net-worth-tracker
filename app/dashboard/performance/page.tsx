@@ -74,6 +74,7 @@ import { BENCHMARKS } from '@/lib/constants/benchmarks';
 import { computeBenchmarkAnnualizedReturn, applyFxConversion } from '@/lib/utils/benchmarkPeriodReturn';
 import {
   summarizePerformance,
+  resolveHeroReturn,
   computeBenchmarkDelta,
   computeReturnConsistency,
   computeDrawdownStatus,
@@ -665,6 +666,14 @@ export default function PerformancePage() {
     );
   }, [metrics, referenceBenchmarkReturns, fxRates]);
 
+  // The hero states the period return instead of an annualized one when the window is too short for
+  // the extrapolation to mean anything (A7). Verdict and benchmark delta below deliberately keep the
+  // ANNUALIZED figure: "beats the risk-free rate" and "vs benchmark" are per-year comparisons.
+  const heroReturn = resolveHeroReturn(
+    metrics?.timeWeightedReturn ?? null,
+    metrics?.numberOfMonths ?? 0
+  );
+
   const benchmarkDelta = computeBenchmarkDelta(metrics?.timeWeightedReturn ?? null, benchmarkAnnualized);
   const performanceVerdict = metrics
     ? summarizePerformance({
@@ -685,8 +694,8 @@ export default function PerformancePage() {
 
   // Plusvalenze realizzate (Fase D §5): all-time, independent of the selected period — a realized
   // sale belongs to its own fiscal year regardless of which period is currently viewed.
-  const realizedByYear = useMemo(() => aggregateRealizedByYear(ledgerTrades), [ledgerTrades]);
-  const hasRealizedGains = Object.keys(realizedByYear).length > 0;
+  const realizedGains = useMemo(() => aggregateRealizedByYear(ledgerTrades), [ledgerTrades]);
+  const hasRealizedGains = Object.keys(realizedGains.byYear).length > 0;
 
   // Responsive helper function
   const getChartHeight = () => {
@@ -948,7 +957,8 @@ export default function PerformancePage() {
       {/* ── HERO: one answer — TWR + verdict + benchmark/drawdown + vital signs (A1/A2/B1/B3) ── */}
       {performanceVerdict && (
         <PerformanceHero
-          timeWeightedReturn={metrics.timeWeightedReturn}
+          timeWeightedReturn={heroReturn.value}
+          returnQualifier={heroReturn.label}
           periodLabel={periodLabels[selectedPeriod as keyof typeof periodLabels]}
           verdict={performanceVerdict}
           benchmarkLabel={referenceBenchmark.name}
@@ -1044,14 +1054,14 @@ export default function PerformancePage() {
             value={metrics.roi}
             format="percentage"
             description="Rendimento complessivo senza annualizzazione"
-            tooltip="Misura il guadagno/perdita totale del periodo selezionato. Formula: (Valore Finale - Valore Iniziale - Contributi Netti) / Valore Iniziale × 100. IMPORTANTE: Il valore cambia tra periodi diversi (YTD, 1Y, 3Y) perché calcola rendimenti su durate diverse. Per confrontare periodi diversi usa CAGR o TWR che sono annualizzati."
+            tooltip="Misura il guadagno/perdita totale del periodo selezionato. Formula: (Valore Finale − Valore Iniziale − Contributi Netti) / Valore Iniziale × 100: i versamenti vengono TOLTI dal guadagno, perché non sono rendimento. Attenzione: CAGR corregge per i flussi in un altro modo (li aggiunge al denominatore), quindi CAGR non è la versione annualizzata di questo numero — le due formule rispondono a domande diverse e non sono convertibili l'una nell'altra. Il valore cambia tra periodi diversi (YTD, 1Y, 3Y) perché copre durate diverse: per confrontare periodi usa TWR."
           />
           <MetricCard
             title="CAGR"
             value={metrics.cagr}
             format="percentage"
             description="Tasso di crescita annuale composto"
-            tooltip="Rendimento medio annuo del portafoglio, trattando tutti i versamenti come capitale investito (aggiunti al valore iniziale nel denominatore). Isola la performance degli investimenti: è più basso rispetto alla crescita grezza del patrimonio (visibile in Storico) perché i contributi appaiono come costo, non come crescita."
+            tooltip="Rendimento medio annuo del portafoglio. Formula: (Valore Finale / (Valore Iniziale + Contributi Netti))^(1/anni) − 1: i versamenti vengono AGGIUNTI al denominatore, cioè trattati come capitale investito fin dall'inizio. È una correzione per i flussi diversa da quella del ROI Totale (che li sottrae dal guadagno), quindi i due numeri non si convertono l'uno nell'altro. Rispetto alla crescita grezza del patrimonio (visibile in Storico) è più basso, perché lì i contributi appaiono come crescita."
           />
           <MetricCard
             title="Money-Weighted Return (IRR)"
@@ -1074,7 +1084,7 @@ export default function PerformancePage() {
               value={metrics.sharpeRatio}
               format="number"
               subtitle={`Rendimento aggiustato per il rischio — RF ${formatPercentage(metrics.riskFreeRate)}`}
-              tooltip={`Misura quanto rendimento extra si ottiene per ogni unità di rischio assunto. Formula: (TWR - Tasso Risk-Free ${formatPercentage(metrics.riskFreeRate)}) / Volatilità. Interpretazione: <1 = scarso, 1-2 = buono, 2-3 = molto buono, >3 = eccellente.`}
+              tooltip={`Misura quanto rendimento extra si ottiene per ogni unità di rischio assunto. Formula: (TWR annualizzato − Tasso Risk-Free ${formatPercentage(metrics.riskFreeRate)}) / Volatilità — resta sempre su base annua, anche quando il periodo è troppo corto perché l'hero annualizzi. Interpretazione: <1 = scarso, 1-2 = buono, 2-3 = molto buono, >3 = eccellente. Senza volatilità (meno di 3 mesi) non è calcolabile.`}
               badge="Avanzato"
             />
           }
@@ -1084,15 +1094,15 @@ export default function PerformancePage() {
             value={metrics.volatility}
             format="percentage"
             description="Deviazione standard annualizzata"
-            tooltip="Misura la variabilità dei rendimenti mensili (quanto 'ballano' i risultati). Valori bassi = investimento più stabile e prevedibile. Valori alti = maggiori oscillazioni e rischio. Calcolata sui rendimenti mensili ed espressa in forma annualizzata (× √12)."
+            tooltip="Misura la variabilità dei rendimenti mensili (quanto 'ballano' i risultati). Valori bassi = investimento più stabile e prevedibile. Valori alti = maggiori oscillazioni e rischio. Calcolata sugli STESSI rendimenti mensili della heatmap e del grafico Underwater, senza filtri, ed espressa in forma annualizzata (× √12). Servono almeno 3 mesi: sotto quella soglia una deviazione standard non direbbe nulla sul portafoglio e la card mostra '—'."
           />
           <MetricCard
             title="Max Drawdown"
             value={metrics.maxDrawdown}
             subtitle={metrics.maxDrawdownDate}
             format="percentage"
-            description="Massima perdita percentuale dal picco"
-            tooltip="Misura la peggiore perdita (da picco a valle) che il portafoglio ha subito nel periodo selezionato. Esempio: se il portafoglio valeva €100.000 e scese a €85.000 prima di recuperare, il Max Drawdown è -15%. Calcolo aggiustato per flussi di cassa (sottratte le contribuzioni cumulative) per isolare la performance degli investimenti. Valori vicini allo 0% = portafoglio stabile, valori molto negativi = alta volatilità al ribasso."
+            description="Massima perdita percentuale dal massimo del periodo"
+            tooltip="Misura la peggiore perdita (da picco a valle) che il portafoglio ha subito nel periodo selezionato. Il picco è il massimo RAGGIUNTO IN QUEL PERIODO, non un massimo storico: cambiando periodo cambia il riferimento. Esempio: se il portafoglio valeva €100.000 e scese a €85.000 prima di recuperare, il Max Drawdown è -15%. Calcolato concatenando gli stessi rendimenti mensili della heatmap, quindi indipendente da quanto capitale è entrato. Valori vicini allo 0% = portafoglio stabile, valori molto negativi = alta volatilità al ribasso."
           />
           <MetricCard
             title="Durata Drawdown"
@@ -1217,7 +1227,10 @@ export default function PerformancePage() {
             description="Utili e perdite chiuse tramite il registro operazioni, per anno fiscale"
             sectionIndex={4}
           >
-            <RealizedGainsRows byYear={realizedByYear} />
+            <RealizedGainsRows
+              byYear={realizedGains.byYear}
+              skippedAssets={realizedGains.skippedAssets}
+            />
           </MetricSection>
         )}
         </CollapsibleContent>
@@ -1248,8 +1261,9 @@ export default function PerformancePage() {
               <CardHeader>
                 <CardTitle>Evoluzione Patrimonio</CardTitle>
                 <CardDescription>
-                  Area = capitale versato + rendimento generato, linea = patrimonio totale.
-                  Se l&apos;area superiore cresce, gli investimenti stanno performando positivamente.
+                  Il patrimonio scomposto in da dove viene: capitale iniziale del periodo, versamenti
+                  cumulati e rendimento generato dal mercato. Le tre aree sommano alla linea; se
+                  l&apos;area superiore cresce, gli investimenti stanno performando positivamente.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1260,6 +1274,19 @@ export default function PerformancePage() {
                     <YAxis tickFormatter={(value) => formatCurrencyCompact(value)} tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }} stroke="var(--border)" />
                     <Tooltip content={<PerformanceTooltip />} />
                     <Legend />
+                    {/* Bottom band: the capital already there when the period opened. Without it
+                        the "Investimenti" band above would have to absorb it and would claim the
+                        market produced capital the user brought in (A11). */}
+                    <Area
+                      type="monotone"
+                      dataKey="initialCapital"
+                      stackId="1"
+                      stroke={chartColors[3]}
+                      fill={chartColors[3]}
+                      name="Capitale iniziale"
+                      animationDuration={800}
+                      animationEasing="ease-out"
+                    />
                     <Area
                       type="monotone"
                       dataKey="contributions"
@@ -1534,11 +1561,13 @@ export default function PerformancePage() {
                     <div>
                       <h4 className="font-semibold mb-1">Grafico: Evoluzione Patrimonio</h4>
                       <p className="text-muted-foreground">
-                        <strong>Contributi:</strong> Somma cumulativa dei flussi di cassa netti (entrate − uscite) da Cashflow.
+                        <strong>Capitale iniziale:</strong> Il patrimonio all&apos;inizio del periodo selezionato, costante su tutto il grafico. Non è performance: era già lì.
                         <br />
-                        <strong>Investimenti:</strong> Differenza tra patrimonio totale e contributi cumulativi. Mostra il valore generato dagli investimenti.
+                        <strong>Contributi:</strong> Somma cumulativa dei flussi di cassa netti (entrate − uscite) da Cashflow, dal primo mese misurato in poi.
                         <br />
-                        <strong>Patrimonio Totale:</strong> Net worth complessivo = contributi + investimenti.
+                        <strong>Investimenti:</strong> Quello che il mercato ha aggiunto sopra i due precedenti: patrimonio − capitale iniziale − contributi. Può essere negativo in un periodo in perdita.
+                        <br />
+                        <strong>Patrimonio Totale:</strong> Net worth complessivo = capitale iniziale + contributi + investimenti (le tre aree sommano alla linea).
                       </p>
                     </div>
                     <div>

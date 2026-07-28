@@ -24,6 +24,8 @@ import {
   calculateRecoveryTime,
   getSnapshotsForPeriod,
   getCashFlowsFromExpenses,
+  prepareMonthlyReturnsHeatmap,
+  preparePerformanceChartData,
   calculateYocMetrics,
   calculateCurrentYieldMetrics,
 } from '@/lib/services/performanceService'
@@ -165,29 +167,102 @@ describe('calculateVolatility', () => {
     expect(result!).toBeLessThan(5)
   })
 
-  it('should filter extreme values (>±50%)', () => {
-    const snapshots = [
-      makeSnapshot(2025, 1, 100000),
-      makeSnapshot(2025, 2, 200000), // +100% spike (should be filtered)
-      makeSnapshot(2025, 3, 102000),
-      makeSnapshot(2025, 4, 103000),
-    ]
-    const result = calculateVolatility(snapshots, [])
-    // Should still return a result after filtering the spike
-    expect(result).not.toBeNull()
-  })
-
   it('should adjust for cash flows', () => {
     const snapshots = [
       makeSnapshot(2025, 1, 100000),
       makeSnapshot(2025, 2, 150000), // Looks like +50% but CF explains it
       makeSnapshot(2025, 3, 152000),
+      makeSnapshot(2025, 4, 153500),
     ]
     const cashFlows = [makeCashFlow(2025, 2, 49000)] // Large contribution
     const result = calculateVolatility(snapshots, cashFlows)
     expect(result).not.toBeNull()
     // After adjusting for CF, actual return is ~1%, so volatility should be low
     expect(result!).toBeLessThan(10)
+  })
+
+  // ─── A6: perché il filtro ±50% è stato rimosso invece che reso uniforme ───
+
+  it('a tracked contribution produces no spike at all, however large', () => {
+    // Il patrimonio triplica in un mese, ma è tutto denaro versato: il rendimento aggiustato è ~0.
+    // Il filtro ±50% diceva di servire proprio a questo — ma la formula lo risolve già, quindi
+    // toglierlo non cambia una virgola qui. È la prova che il filtro non stava facendo quel lavoro.
+    // Febbraio: +1% di mercato su 100.000 e 200.000 versati → 301.000. Da lì +1% al mese.
+    const snapshots = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 301000), // +201% apparente, ma il rendimento vero è 1%
+      makeSnapshot(2025, 3, 304010),
+      makeSnapshot(2025, 4, 307050.1),
+    ]
+    const withContribution = calculateVolatility(snapshots, [makeCashFlow(2025, 2, 200000)])
+    // Lo stesso portafoglio senza il versamento: +1% al mese, identico rendimento mensile.
+    const steadySeries = calculateVolatility(
+      [
+        makeSnapshot(2025, 1, 100000),
+        makeSnapshot(2025, 2, 101000),
+        makeSnapshot(2025, 3, 102010),
+        makeSnapshot(2025, 4, 103030.1),
+      ],
+      []
+    )
+
+    expect(withContribution).not.toBeNull()
+    expect(withContribution!).toBeCloseTo(steadySeries!, 6) // entrambe ~0: nessuno spike da filtrare
+  })
+
+  it('reports a real crash beyond 50% instead of hiding it', () => {
+    // Un crollo del 60% non aggiustato da nessun cash flow è la cosa più importante che una metrica
+    // di rischio debba riportare. Il filtro lo cancellava proprio dalla volatilità, lasciandolo
+    // visibile in heatmap e Underwater: tre superfici, due storie (A6).
+    const crash = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 40000), // −60%
+      makeSnapshot(2025, 3, 41000),
+      makeSnapshot(2025, 4, 42000),
+    ]
+    const calm = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 101000),
+      makeSnapshot(2025, 3, 102000),
+      makeSnapshot(2025, 4, 103000),
+    ]
+
+    const crashVolatility = calculateVolatility(crash, [])
+    const calmVolatility = calculateVolatility(calm, [])
+
+    expect(crashVolatility).not.toBeNull()
+    expect(crashVolatility!).toBeGreaterThan(calmVolatility! * 10)
+  })
+
+  it('sees exactly the same monthly returns as the heatmap', () => {
+    // L invariante che il filtro rompeva: volatilità, heatmap e indice dei drawdown devono leggere
+    // la STESSA serie. Qui un movimento non tracciato (nessun CashFlowData) crea un mese estremo:
+    // deve comparire in entrambe, o le card di rischio smettono di parlarsi.
+    const snapshots = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 180000), // +80%, nessun cash flow registrato
+      makeSnapshot(2025, 3, 181000),
+      makeSnapshot(2025, 4, 182000),
+    ]
+    const heatmap = prepareMonthlyReturnsHeatmap(snapshots, [])
+    const februaryReturn = heatmap[0].months.find(m => m.month === 2)!.return
+
+    expect(februaryReturn).toBeCloseTo(80, 6)
+    // La deviazione standard di [80, 0.55, 0.55] annualizzata: se il mese fosse filtrato via
+    // resterebbero due sole osservazioni quasi identiche e la volatilità crollerebbe sotto l 1%.
+    expect(calculateVolatility(snapshots, [])!).toBeGreaterThan(100)
+  })
+
+  it('returns null with fewer than 3 monthly returns', () => {
+    // Due osservazioni producono sempre "una" deviazione standard, ma con un solo grado di libertà
+    // non dice niente sul portafoglio — e lo Sharpe costruito sopra ne eredita il rumore.
+    const twoReturns = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 101000),
+      makeSnapshot(2025, 3, 102000),
+    ]
+    expect(calculateVolatility(twoReturns, [])).toBeNull()
+    expect(calculateVolatility([...twoReturns, makeSnapshot(2025, 4, 103000)], [])).not.toBeNull()
   })
 })
 
@@ -1022,8 +1097,8 @@ describe('buildCacheKey', () => {
     // l'utente continua a leggere numeri pre-fix per 6 ore. Il test è qui perché il bump è manuale
     // e va ricordato — se questa asserzione fallisce dopo un cambio di matematica, è corretto
     // aggiornarla; se fallisce senza, qualcuno ha rotto il prefisso.
-    expect(buildCacheKey(baseline).startsWith('v4-')).toBe(true)
-    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v4-')).toBe(true)
+    expect(buildCacheKey(baseline).startsWith('v5-')).toBe(true)
+    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v5-')).toBe(true)
   })
 
   it('ignores the order snapshots arrive in', () => {
@@ -1083,5 +1158,50 @@ describe('buildCacheKey', () => {
     // I centesimi ballano a ogni riconversione FX: farebbero girare la chiave per nulla.
     const noisy = [makeSnapshot(2025, 1, 100000.004), snapshots[1], snapshots[2]]
     expect(buildCacheKey({ ...baseline, snapshots: noisy })).toBe(buildCacheKey(baseline))
+  })
+})
+
+// ─── Evoluzione Patrimonio: le tre bande (A11) ───
+
+describe('preparePerformanceChartData', () => {
+  const snapshots = [
+    makeSnapshot(2025, 1, 200000), // valutazione di partenza
+    makeSnapshot(2025, 2, 215000),
+    makeSnapshot(2025, 3, 225000),
+  ]
+  const cashFlows = [makeCashFlow(2025, 2, 5000), makeCashFlow(2025, 3, 5000)]
+
+  it('splits net worth into initial capital + contributions + market growth', () => {
+    const chart = preparePerformanceChartData(snapshots, cashFlows)
+
+    expect(chart[1].initialCapital).toBe(200000)
+    expect(chart[1].contributions).toBe(5000)
+    expect(chart[1].returns).toBe(10000) // 215000 - 200000 - 5000
+    expect(chart[2].returns).toBe(15000) // 225000 - 200000 - 10000
+  })
+
+  it('keeps the three bands summing to the net worth line', () => {
+    for (const point of preparePerformanceChartData(snapshots, cashFlows)) {
+      expect(point.initialCapital + point.contributions + point.returns).toBeCloseTo(point.netWorth, 6)
+    }
+  })
+
+  it('shows a losing period as a negative market band, not as capital', () => {
+    // Prima del fix la banda "Investimenti" partiva dal capitale iniziale e restava ampiamente
+    // positiva anche perdendo: mostrava come rendimento un capitale che il mercato non aveva creato.
+    const losing = [makeSnapshot(2025, 1, 200000), makeSnapshot(2025, 2, 190000)]
+    const chart = preparePerformanceChartData(losing, [])
+
+    expect(chart[1].returns).toBe(-10000)
+  })
+
+  it('keeps the baseline month as the initial capital when it is skipped from the points', () => {
+    // Con skipBaseline il primo mese non si disegna, ma resta la valutazione da cui il periodo parte:
+    // è lo stesso startNW che alimenta ROI e TWR, quindi grafico e card scompongono lo stesso periodo.
+    const chart = preparePerformanceChartData(snapshots, cashFlows, true)
+
+    expect(chart.length).toBe(2)
+    expect(chart[0].date).toBe('02/2025')
+    expect(chart[0].initialCapital).toBe(200000)
   })
 })
