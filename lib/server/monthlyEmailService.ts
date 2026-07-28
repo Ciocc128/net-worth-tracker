@@ -1685,15 +1685,6 @@ export async function buildAndSendForPeriod(
   return true;
 }
 
-/** Build and send the monthly email for the current Italy month. */
-export async function buildAndSendForCurrentMonth(
-  userId: string,
-  recipients: string[]
-): Promise<boolean> {
-  const { year, month } = getItalyMonthYear(new Date());
-  return buildAndSendForPeriod(userId, recipients, 'monthly', year, month);
-}
-
 /** Build and send quarterly/yearly convenience aliases used by the cron handler. */
 export async function buildAndSendQuarterly(
   userId: string,
