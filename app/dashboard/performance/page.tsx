@@ -13,11 +13,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
-import { getAllPerformanceData, calculatePerformanceForPeriod, preparePerformanceChartData, getSnapshotsForPeriod, prepareMonthlyReturnsHeatmap, prepareUnderwaterDrawdownData } from '@/lib/services/performanceService';
+import { getAllPerformanceData, calculatePerformanceForPeriod, preparePerformanceChartData, selectSnapshotsForMetrics, prepareMonthlyReturnsHeatmap, prepareUnderwaterDrawdownData } from '@/lib/services/performanceService';
 import { getUserSnapshots } from '@/lib/services/snapshotService';
 import { getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import {
+  resolveHasBaseline,
   resolvePerformanceBaseOptions,
   resolvePerformanceExclusions,
   toPerformanceBaseSnapshots,
@@ -614,25 +615,26 @@ export default function PerformancePage() {
     }
   }, [performanceData, selectedPeriod]);
 
+  // The same snapshot window the service measured, read back off the payload — never re-derived
+  // from today's date, which is how the charts and the metrics used to disagree (finding A10).
   const periodSnapshots = useMemo(() => {
     if (!metrics || cachedSnapshots.length === 0) return [];
-
-    return getSnapshotsForPeriod(
-      cachedSnapshots,
-      metrics.timePeriod,
-      metrics.startDate,
-      metrics.endDate
-    );
+    return selectSnapshotsForMetrics(cachedSnapshots, metrics);
   }, [cachedSnapshots, metrics]);
+
+  // Is the first snapshot a month BEFORE the period the user asked for? Then it is only the starting
+  // valuation and must not be drawn as a point of the period. Data-driven and shared with the
+  // service's own definition — a YTD without a December snapshot, or a 3Y on 14 months of history,
+  // legitimately has no baseline and must show its first month.
+  const hasBaseline = useMemo(
+    () => resolveHasBaseline(periodSnapshots, metrics?.nominalPeriodStart),
+    [periodSnapshots, metrics]
+  );
 
   const chartData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
-
-    // YTD/1Y/3Y/5Y/CUSTOM periods include an extra baseline snapshot before the range;
-    // skip it so the chart starts at the first actual month of the selected period.
-    const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(metrics.timePeriod);
     return preparePerformanceChartData(periodSnapshots, metrics.cashFlows, hasBaseline);
-  }, [metrics, periodSnapshots]);
+  }, [metrics, periodSnapshots, hasBaseline]);
 
   const heatmapData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
@@ -641,10 +643,8 @@ export default function PerformancePage() {
 
   const underwaterData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
-
-    const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(metrics.timePeriod);
     return prepareUnderwaterDrawdownData(periodSnapshots, metrics.cashFlows, hasBaseline);
-  }, [metrics, periodSnapshots]);
+  }, [metrics, periodSnapshots, hasBaseline]);
 
   // ── Hero-synthesis values (pure layer) ──
   // Benchmark annualized return over the active period, using the SAME indexing+annualize

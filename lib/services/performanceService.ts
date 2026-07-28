@@ -10,6 +10,7 @@ import {
   RollingPeriodPerformance,
   PerformanceChartData,
   MonthlyReturnHeatmapData,
+  PeriodMonth,
   UnderwaterDrawdownData,
   PerformanceCacheDocument,
   FirestorePerformanceData,
@@ -132,10 +133,9 @@ export function calculateCAGR(
  *
  * @param snapshots - Monthly snapshots for the period (sorted chronologically)
  * @param cashFlows - Monthly cash flows
- * @param periodMonths - Optional override for annualization period length.
- *   When provided, uses this instead of computing from first/last snapshot.
- *   Needed when snapshots include a pre-period baseline (e.g., Dec for YTD)
- *   but annualization should only cover the actual performance period (Jan-Feb).
+ * @param periodMonths - Number of months the returns span, for annualization. Pass it whenever the
+ *   caller already knows the period (it also survives gaps in the snapshot series); omitted, it is
+ *   derived from the first and last snapshot, counting from the END of the first month.
  * @returns Annualized TWR percentage or null if insufficient data
  */
 export function calculateTimeWeightedReturn(
@@ -173,10 +173,11 @@ export function calculateTimeWeightedReturn(
     linkedReturn *= (1 + periodReturn);
   }
 
-  // Annualize the return using the same period duration as calculateCAGR
-  // (calculateMonthsDifference with inclusive counting) to ensure consistency.
-  // When periodMonths is provided, it excludes the baseline month from the count
-  // (e.g., for YTD Feb: Dec is baseline, period = 2 months, not 3)
+  // Annualize over the span the linked returns actually cover: from the END of the first snapshot's
+  // month (its value is the starting valuation, not a return) to the end of the last one. The
+  // inclusive month count minus that first month — with n monthly snapshots and no gaps, n − 1,
+  // matching the n − 1 sub-periods linked above. Counting it inclusively (as this branch used to)
+  // annualizes n − 1 returns over n months and understates the result.
   let totalMonths: number;
   if (periodMonths !== undefined) {
     totalMonths = periodMonths;
@@ -185,9 +186,9 @@ export function calculateTimeWeightedReturn(
     const lastSnap = snapshots[snapshots.length - 1];
     const periodStart = new Date(firstSnap.year, firstSnap.month - 1, 1);
     const periodEnd = new Date(lastSnap.year, lastSnap.month, 0);
-    totalMonths = calculateMonthsDifference(periodEnd, periodStart);
+    totalMonths = calculateMonthsDifference(periodEnd, periodStart) - 1;
   }
-  if (totalMonths === 0) return null;
+  if (totalMonths <= 0) return null;
 
   const years = totalMonths / 12;
   const annualizedTWR = (Math.pow(linkedReturn, 1 / years) - 1) * 100;
@@ -608,61 +609,120 @@ function calculateMonthsDifference(date1: Date, date2: Date): number {
 }
 
 /**
- * Get snapshots for a specific time period
+ * The FIRST month the user asked for, per period — the "nominal" start.
+ *
+ * Nominal, not effective: it is what the selector means (January for YTD, eleven months ago for 1Y),
+ * regardless of whether a snapshot exists that far back. Comparing it with the oldest snapshot
+ * actually available is what tells a pre-period baseline from a genuine first month of history
+ * (`resolveHasBaseline`) — the guess this replaces got that wrong whenever the two differed.
+ *
+ * ALL has no nominal start by definition (it starts wherever the user's history starts), and the
+ * rolling pseudo-periods are not selectable ranges: both return null.
+ *
+ * @param timePeriod - Period selector
+ * @param customStartDate - First month the user picked, required for CUSTOM
+ * @param referenceDate - "Today"; injectable so callers within one computation share a single clock
+ */
+export function resolveNominalPeriodStart(
+  timePeriod: TimePeriod,
+  customStartDate?: Date,
+  referenceDate: Date = new Date()
+): PeriodMonth | null {
+  const toMonth = (date: Date): PeriodMonth => ({
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+  });
+
+  switch (timePeriod) {
+    case 'YTD':
+      return { year: referenceDate.getFullYear(), month: 1 };
+    case '1Y':
+      // 12 months of returns ending with the current month → starts 11 months ago
+      return toMonth(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 11, 1));
+    case '3Y':
+      return toMonth(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 35, 1));
+    case '5Y':
+      return toMonth(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 59, 1));
+    case 'CUSTOM':
+      return customStartDate ? toMonth(customStartDate) : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The snapshot window a period is computed over: every snapshot inside the period, PLUS the single
+ * month right before it.
+ *
+ * That extra month is the starting valuation the first monthly return is measured against — without
+ * it the returns loop (which starts at i=1) would silently skip the first month of the period. It is
+ * only reached back for ONE month: an older snapshot separated by a gap is not a valid starting
+ * valuation for this period and must stay out, or the first "monthly" return would silently span
+ * several months.
+ *
+ * @param allSnapshots - All available snapshots
+ * @param nominalPeriodStart - First month of the period; null means "no lower bound" (ALL)
+ * @param endDate - Upper bound, inclusive
+ */
+function selectSnapshotWindow(
+  allSnapshots: MonthlySnapshot[],
+  nominalPeriodStart: PeriodMonth | null,
+  endDate: Date
+): MonthlySnapshot[] {
+  // month - 2 in a 0-based Date index = the month BEFORE the period start; the Date constructor
+  // rolls a negative index over to the previous year.
+  const lowerBound = nominalPeriodStart
+    ? new Date(nominalPeriodStart.year, nominalPeriodStart.month - 2, 1)
+    : null;
+
+  return allSnapshots.filter(snapshot => {
+    const snapshotDate = new Date(snapshot.year, snapshot.month - 1, 1);
+    return (lowerBound === null || snapshotDate >= lowerBound) && snapshotDate <= endDate;
+  });
+}
+
+/**
+ * Get snapshots for a specific time period (the period itself + one baseline month before it)
  *
  * @param allSnapshots - All available snapshots (including dummy data)
  * @param timePeriod - Time period selector (YTD, 1Y, 3Y, 5Y, ALL, CUSTOM)
  * @param customStartDate - Start date for CUSTOM period
  * @param customEndDate - End date for CUSTOM period
- * @returns Filtered snapshots for the period (excludes dummy data)
+ * @param referenceDate - "Today"; injectable so one computation uses a single clock
+ * @returns Filtered snapshots for the period (empty when CUSTOM is missing its dates)
  */
 export function getSnapshotsForPeriod(
   allSnapshots: MonthlySnapshot[],
   timePeriod: TimePeriod,
   customStartDate?: Date,
-  customEndDate?: Date
+  customEndDate?: Date,
+  referenceDate: Date = new Date()
 ): MonthlySnapshot[] {
-  const now = new Date();
-  let startDate: Date;
-  let endDate = now;
+  // ALL is the whole history — no lower bound to reach back from, and no upper bound to apply.
+  if (timePeriod === 'ALL') return allSnapshots;
 
-  switch (timePeriod) {
-    case 'YTD':
-      // Include Dec of previous year as baseline so January's return is captured
-      startDate = new Date(now.getFullYear() - 1, 11, 1);
-      break;
-    case '1Y':
-      // 13 months back: 1 baseline + 12 months of returns
-      startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-      break;
-    case '3Y':
-      // 37 months back: 1 baseline + 36 months of returns
-      startDate = new Date(now.getFullYear(), now.getMonth() - 36, 1);
-      break;
-    case '5Y':
-      // 61 months back: 1 baseline + 60 months of returns
-      startDate = new Date(now.getFullYear(), now.getMonth() - 60, 1);
-      break;
-    case 'ALL':
-      return allSnapshots;
-    case 'CUSTOM':
-      if (!customStartDate || !customEndDate) return [];
-      // Reach back one month before the range as a baseline, so the FIRST month of
-      // the custom period gets a computed return — parity with YTD/1Y/3Y/5Y. Without
-      // it, the monthly-returns loop (which starts at i=1) would skip the first month.
-      // getMonth() - 1 rolls over to December of the previous year when needed.
-      startDate = new Date(customStartDate.getFullYear(), customStartDate.getMonth() - 1, 1);
-      endDate = customEndDate;
-      break;
-    default:
-      return [];
-  }
+  const nominalPeriodStart = resolveNominalPeriodStart(timePeriod, customStartDate, referenceDate);
+  if (!nominalPeriodStart) return []; // CUSTOM without dates, or a non-selectable period
+  if (timePeriod === 'CUSTOM' && !customEndDate) return [];
 
-  // Filter snapshots by date range
-  return allSnapshots.filter(snapshot => {
-    const snapshotDate = new Date(snapshot.year, snapshot.month - 1, 1);
-    return snapshotDate >= startDate && snapshotDate <= endDate;
-  });
+  const endDate = timePeriod === 'CUSTOM' ? customEndDate! : referenceDate;
+  return selectSnapshotWindow(allSnapshots, nominalPeriodStart, endDate);
+}
+
+/**
+ * Re-select the EXACT snapshot window a metrics payload was computed from.
+ *
+ * For client-side redraws (evolution chart, heatmap, underwater) that must agree with the numbers
+ * the service already produced. It reads the period back off the payload instead of re-deriving it
+ * from `new Date()`: that round trip is how the page and the service ended up reading different
+ * series (finding A10), and for CUSTOM it only worked by accident — the page passed a start date the
+ * service had already advanced past the baseline, which `getSnapshotsForPeriod` then moved back.
+ */
+export function selectSnapshotsForMetrics(
+  allSnapshots: MonthlySnapshot[],
+  metrics: Pick<PerformanceMetrics, 'nominalPeriodStart' | 'endDate'>
+): MonthlySnapshot[] {
+  return selectSnapshotWindow(allSnapshots, metrics.nominalPeriodStart ?? null, metrics.endDate);
 }
 
 /**
@@ -819,17 +879,24 @@ export async function calculatePerformanceForPeriod(
   preFetchedExpenses?: Expense[],
   dividendCategoryId?: string
 ): Promise<PerformanceMetrics> {
+  // One clock for the whole computation: period selection, the nominal start recorded in the
+  // payload and the dividend cap must not disagree because they each called new Date().
+  const now = new Date();
+
   // Get snapshots for period
   const snapshots = getSnapshotsForPeriod(
     allSnapshots,
     timePeriod,
     customStartDate,
-    customEndDate
+    customEndDate,
+    now
   );
+  const nominalPeriodStart = resolveNominalPeriodStart(timePeriod, customStartDate, now);
 
   // Base metrics object (in case of errors)
   const baseMetrics: PerformanceMetrics = {
     timePeriod,
+    nominalPeriodStart,
     startDate: customStartDate || new Date(),
     endDate: customEndDate || new Date(),
     dividendEndDate: new Date(),  // Default to now for error cases
@@ -883,23 +950,38 @@ export async function calculatePerformanceForPeriod(
     return a.month - b.month;
   });
 
-  // For standard periods (YTD, 1Y, 3Y, 5Y), the first snapshot is a pre-period baseline
-  // used only as starting value — the actual performance period starts from the second snapshot.
-  // Example: YTD in Feb 2026 → snapshots [Dec 2025, Jan 2026, Feb 2026],
-  // baseline = Dec (startNW), period = Jan-Feb (2 months, not 3)
-  const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(timePeriod) && sortedSnapshots.length >= 3;
+  // ONE RULE FOR BOTH CASES: the first snapshot is the starting VALUATION, never a measured month.
+  //
+  // A snapshot is an end-of-month photograph, so the measurement can only open where that photograph
+  // was taken — at the END of the first snapshot's month, i.e. on the 1st of the month after it.
+  // That holds whether the first snapshot is a pre-period baseline (Dec for YTD) or the first month
+  // of the user's own history (ALL, or a window longer than the history): the previous code branched
+  // on a guessed `hasBaseline` and got the second case wrong twice over —
+  //   A2: cash flows were collected from the 1st of the first month, but that month's savings were
+  //       ALREADY inside startNW → the same money was subtracted a second time in ROI and CAGR;
+  //   A3: n snapshots produce n−1 monthly returns, but they were annualized over n months.
+  // Both vanish here: the period is [month after the first snapshot .. last snapshot], which is
+  // exactly the span the linked monthly returns cover.
+  //
+  // Gaps are handled too: with [Dec, Mar] the period opens in January (three months of cash flows
+  // affect that return), where taking sortedSnapshots[1] would have opened it in March.
   const startSnapshot = sortedSnapshots[0];
-  const periodStartSnapshot = hasBaseline ? sortedSnapshots[1] : sortedSnapshots[0];
   const endSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
 
-  const startDate = new Date(periodStartSnapshot.year, periodStartSnapshot.month - 1, 1);
+  // month index (0-based) === month number (1-based) → the first day of the FOLLOWING month
+  const startDate = new Date(startSnapshot.year, startSnapshot.month, 1);
   const endDate = new Date(endSnapshot.year, endSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
 
   // For dividend calculations, cap at today to exclude future dividends not yet received
-  const now = new Date();
   const dividendEndDate = endDate > now ? now : endDate;
 
   const numberOfMonths = calculateMonthsDifference(endDate, startDate);
+  if (numberOfMonths < 1) {
+    // Two snapshots in the same month (duplicates): there is no measurable span, and every
+    // annualized metric would divide by zero years.
+    baseMetrics.errorMessage = 'Insufficient data: period shorter than one month';
+    return baseMetrics;
+  }
 
   // Get cash flows for period - use pre-fetched if available, otherwise fetch
   const cashFlows = preFetchedExpenses
@@ -942,8 +1024,9 @@ export async function calculatePerformanceForPeriod(
     numberOfMonths
   );
 
-  // Pass numberOfMonths so TWR annualizes over the performance period,
-  // not the full snapshot range (which includes the baseline month)
+  // numberOfMonths is exactly the number of linked monthly returns, so TWR annualizes over the span
+  // it actually measured — never over the calendar range, which also counts the starting valuation's
+  // month and would flatten the result.
   const timeWeightedReturn = calculateTimeWeightedReturn(
     sortedSnapshots,
     cashFlows,
@@ -993,6 +1076,7 @@ export async function calculatePerformanceForPeriod(
 
   return {
     timePeriod,
+    nominalPeriodStart,
     startDate,
     endDate,
     dividendEndDate,
@@ -1142,8 +1226,13 @@ function buildCacheKey(snapshots: MonthlySnapshot[], baseOptions: PerformanceBas
   // The base composition is part of the identity of the cached numbers: flipping either exclusion
   // rewrites every metric while the snapshots themselves are untouched, so without this suffix the
   // user would keep reading the previous base's figures for up to 6 hours after changing settings.
+  //
+  // The `v2` prefix is a deliberate one-off invalidation: the baseline fix (spec 10 phase 1) changes
+  // ROI/CAGR/TWR/IRR for every period without a baseline snapshot, and the key alone cannot see it —
+  // the snapshots are untouched. Without the bump, users would keep reading pre-fix numbers for up
+  // to 6 hours. Bump it again on any change that rewrites cached metrics from unchanged inputs.
   const baseSignature = `p${baseOptions.includePensionFunds ? 1 : 0}e${baseOptions.includeExcludedAssets ? 1 : 0}`;
-  if (snapshots.length === 0) return `0-${baseSignature}`;
+  if (snapshots.length === 0) return `v2-0-${baseSignature}`;
   const sorted = [...snapshots].sort((a, b) => {
     if (a.year !== b.year) return b.year - a.year;
     return b.month - a.month;
@@ -1151,7 +1240,7 @@ function buildCacheKey(snapshots: MonthlySnapshot[], baseOptions: PerformanceBas
   const last = sorted[0];
   // Include totalNetWorth so that updating an existing snapshot (same count/date)
   // still produces a different key and forces a cache miss.
-  return `${snapshots.length}-${last.year}-${last.month}-${Math.round(last.totalNetWorth)}-${baseSignature}`;
+  return `v2-${snapshots.length}-${last.year}-${last.month}-${Math.round(last.totalNetWorth)}-${baseSignature}`;
 }
 
 /**
@@ -1345,10 +1434,10 @@ async function calculateRollingPeriods(
 /**
  * Prepare chart data for net worth evolution
  *
- * @param skipBaseline - When true, drops the first (baseline) snapshot.
- *   getSnapshotsForPeriod includes an extra month before YTD/1Y/3Y/5Y periods
- *   so the first month's return can be calculated, but that month falls outside
- *   the selected period and should not appear as a chart data point.
+ * @param skipBaseline - When true, drops the first snapshot: it is the month before the period,
+ *   included so the first month's return can be computed but outside what the user selected.
+ *   Decide it with `resolveHasBaseline` (lib/utils/performanceBase.ts) — never from the period type,
+ *   which is wrong exactly when the history is shorter than the window.
  */
 export function preparePerformanceChartData(
   snapshots: MonthlySnapshot[],
@@ -1496,11 +1585,9 @@ export function prepareMonthlyReturnsHeatmap(
  *
  * @param snapshots - Monthly snapshots (will be sorted chronologically)
  * @param cashFlows - Monthly cash flows
- * @param skipBaseline - When true, drops the first (baseline) snapshot from output.
- *   getSnapshotsForPeriod includes an extra month before YTD/1Y/3Y/5Y periods for
- *   return calculations; that month falls outside the selected period and should
- *   not appear as a chart data point. The baseline is still used internally to
- *   seed the index at 100 before being excluded.
+ * @param skipBaseline - When true, drops the first snapshot from the output: it is the month before
+ *   the period, outside what the user selected. It is still used internally to seed the index at 100
+ *   before being excluded. Decide it with `resolveHasBaseline` (lib/utils/performanceBase.ts).
  * @returns Array of underwater drawdown data points
  */
 export function prepareUnderwaterDrawdownData(

@@ -11,6 +11,13 @@ export type TimePeriod =
   | 'ROLLING_36M' // Rolling 36-month periods
   | 'CUSTOM'; // User-defined date range
 
+// A calendar month, 1-based (month 1 = January) — the granularity every snapshot lives at.
+// Used to talk about period boundaries without dragging a Date (and its timezone) around.
+export interface PeriodMonth {
+  year: number;
+  month: number; // 1-12
+}
+
 // Cashflow data for performance calculations.
 // Income and dividends are tracked separately because:
 // - Income (salary, bonuses, gifts) is EXTERNAL capital that increases portfolio value
@@ -30,6 +37,12 @@ export interface CashFlowData {
 export interface PerformanceMetrics {
   // Input data
   timePeriod: TimePeriod;
+  // The month the user ASKED for (Jan for YTD, today − 11 months for 1Y, the picked month for
+  // CUSTOM), null for ALL which has no nominal start. Distinct from `startDate`, which is the first
+  // month actually MEASURED and can be later when the history is shorter than the window.
+  // Consumers need it to tell a pre-period baseline snapshot from a real first month of history —
+  // see resolveHasBaseline in lib/utils/performanceBase.ts.
+  nominalPeriodStart: PeriodMonth | null;
   startDate: Date;
   endDate: Date;
   dividendEndDate: Date; // End date capped at today for dividend calculations

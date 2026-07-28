@@ -465,24 +465,28 @@ describe('calculateTimeWeightedReturn', () => {
     expect(calculateTimeWeightedReturn([makeSnapshot(2025, 3, 100000)], [])).toBeNull()
   })
 
-  it('should equal CAGR when no cashflows (2 snapshots)', () => {
-    // Both should annualize a 5% gain over 2 months the same way
+  it('should equal CAGR over the MEASURED months when no cashflows (2 snapshots)', () => {
+    // Two end-of-month photographs = ONE measured month (end of Mar → end of Apr), not two:
+    // March's value is the starting valuation, not a return. Both metrics annualize that
+    // single +5% over 1 month → 1.05^12 - 1 ≈ 79.6%.
     const snapshots = [makeSnapshot(2025, 3, 100000), makeSnapshot(2025, 4, 105000)]
     const twr = calculateTimeWeightedReturn(snapshots, [])
-    const cagr = calculateCAGR(100000, 105000, 0, 2)
+    const cagr = calculateCAGR(100000, 105000, 0, 1)
     expect(twr).not.toBeNull()
     expect(twr!).toBeCloseTo(cagr!, 4)
+    expect(twr!).toBeCloseTo(79.59, 1)
   })
 
-  it('should equal CAGR when no cashflows (3 snapshots)', () => {
-    // 5% per month for 3 months — TWR and CAGR annualize identically with no cashflows
+  it('should equal CAGR over the MEASURED months when no cashflows (3 snapshots)', () => {
+    // 5% per month over 2 measured months (Apr and May) — TWR and CAGR agree once both
+    // count the same span.
     const snapshots = [
       makeSnapshot(2025, 3, 100000),
       makeSnapshot(2025, 4, 105000),
       makeSnapshot(2025, 5, 110250),
     ]
     const twr = calculateTimeWeightedReturn(snapshots, [])
-    const cagr = calculateCAGR(100000, 110250, 0, 3)
+    const cagr = calculateCAGR(100000, 110250, 0, 2)
     expect(twr).not.toBeNull()
     expect(twr!).toBeCloseTo(cagr!, 4)
   })
@@ -505,22 +509,21 @@ describe('calculateTimeWeightedReturn', () => {
     expect(twr!).toBeLessThan(0)
   })
 
-  it('should be identical to CAGR for YTD 2-month scenario (regression: pre-fix TWR was 2x CAGR)', () => {
-    // This test documents the bug fix: before the fix, TWR annualized by ^12 (1 transition)
-    // while CAGR annualized by ^6 (2 months inclusive). Now both use 2 months.
+  it('should annualize one linked return over one month, not two (A3 regression)', () => {
+    // The measured span is n − 1 months for n snapshots. Counting it inclusively (the pre-fix
+    // else branch) annualized ONE return over TWO months and understated the result by ~45pp
+    // here — the same bias, smaller but systematic, that flattened the Storico TWR.
     const snapshots = [makeSnapshot(2026, 1, 100000), makeSnapshot(2026, 2, 105000)]
     const twr = calculateTimeWeightedReturn(snapshots, [])
-    const cagr = calculateCAGR(100000, 105000, 0, 2)
     expect(twr).not.toBeNull()
-    // Both must be ~34%, NOT twr ~79% (the old broken value)
-    expect(twr!).toBeCloseTo(cagr!, 4)
-    expect(twr!).toBeCloseTo(34.01, 0) // 1.05^6 - 1 ≈ 34%
+    expect(twr!).toBeCloseTo(79.59, 1)  // 1.05^12 - 1, NOT 1.05^6 - 1 ≈ 34%
   })
 
-  it('should use periodMonths override for annualization when baseline included', () => {
-    // YTD Feb scenario: Dec (baseline) + Jan + Feb = 3 snapshots, but period = 2 months
-    // Without override: annualizes over 3 months (wrong for YTD)
-    // With override (2): annualizes over 2 months (correct for YTD)
+  it('should derive the same period length the explicit periodMonths override states', () => {
+    // YTD Feb scenario: Dec (baseline) + Jan + Feb = 3 snapshots, 2 measured months.
+    // The derived length and the explicit override must agree — they disagreed by one month
+    // before the fix, so the same series answered differently depending on the call site
+    // (the rolling windows took the derived path, the period metrics the explicit one).
     const snapshots = [
       makeSnapshot(2025, 12, 100000), // Baseline (Dec)
       makeSnapshot(2026, 1, 102000),  // Jan: +2%
@@ -532,11 +535,14 @@ describe('calculateTimeWeightedReturn', () => {
 
     expect(twrWithOverride).not.toBeNull()
     expect(twrWithout).not.toBeNull()
-
-    // With override (2 months): TWR matches CAGR — both annualize over 2 months
     expect(twrWithOverride!).toBeCloseTo(cagr!, 4)
-    // Without override (3 months): TWR annualizes less aggressively
-    expect(twrWithout!).toBeLessThan(twrWithOverride!)
+    expect(twrWithout!).toBeCloseTo(twrWithOverride!, 10)
+  })
+
+  it('should return null when the snapshots span less than one month', () => {
+    // Duplicate month: no measurable span, and annualizing would divide by zero years.
+    const snapshots = [makeSnapshot(2026, 1, 100000), makeSnapshot(2026, 1, 105000)]
+    expect(calculateTimeWeightedReturn(snapshots, [])).toBeNull()
   })
 })
 
