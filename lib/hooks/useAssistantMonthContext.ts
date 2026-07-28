@@ -79,7 +79,7 @@ async function fetchHistoryContext(userId: string, startYear: number): Promise<A
 
 // ─── Month context hook ───────────────────────────────────────────────────────
 
-export function useAssistantMonthContext(
+function useAssistantMonthContext(
   userId: string | undefined,
   month: AssistantMonthSelectorValue | null
 ): UseQueryResult<AssistantMonthContextBundle> {
@@ -97,7 +97,7 @@ export function useAssistantMonthContext(
 
 // ─── Year context hook ────────────────────────────────────────────────────────
 
-export function useAssistantYearContext(
+function useAssistantYearContext(
   userId: string | undefined,
   year: number | null
 ): UseQueryResult<AssistantMonthContextBundle> {
@@ -115,7 +115,7 @@ export function useAssistantYearContext(
 
 // ─── YTD context hook ─────────────────────────────────────────────────────────
 
-export function useAssistantYtdContext(
+function useAssistantYtdContext(
   userId: string | undefined,
   currentYear: number | null
 ): UseQueryResult<AssistantMonthContextBundle> {
@@ -134,7 +134,7 @@ export function useAssistantYtdContext(
 
 // ─── History context hook ─────────────────────────────────────────────────────
 
-export function useAssistantHistoryContext(
+function useAssistantHistoryContext(
   userId: string | undefined,
   startYear: number | null
 ): UseQueryResult<AssistantMonthContextBundle> {

@@ -547,4 +547,4 @@ export async function deleteAssistantThread(threadId: string, userId: string): P
   await adminDb.collection(THREADS_COLLECTION).doc(threadId).delete();
 }
 
-export { buildThreadTitleFromPrompt, getDefaultThreadTitle };
+export { buildThreadTitleFromPrompt };

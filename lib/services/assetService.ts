@@ -709,7 +709,7 @@ export function calculateUnrealizedGains(asset: Asset): number {
  * Calculate estimated taxes on unrealized gains for a single asset
  * Returns 0 if taxRate is not set or gains are negative/zero
  */
-export function calculateEstimatedTaxes(asset: Asset): number {
+function calculateEstimatedTaxes(asset: Asset): number {
   const gains = calculateUnrealizedGains(asset);
 
   if (gains <= 0 || !asset.taxRate || asset.taxRate <= 0) {

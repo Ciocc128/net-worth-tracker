@@ -573,7 +573,7 @@ function findMatchingAssets(
  * A single basis (market OR notional) of the exposure snapshot: totals and per-class /
  * per-sub-category / per-specific-asset breakdowns, all in the same unit.
  */
-export interface AllocationBasisSnapshot {
+interface AllocationBasisSnapshot {
   totalValue: number;
   byAssetClass: Record<string, number>;
   /** class -> subCategory -> value. */
@@ -588,7 +588,7 @@ export interface AllocationBasisSnapshot {
  * identical. Produced by `calculateCurrentAllocationSnapshot`, consumed by
  * `toLegacyAllocationResult` and by the instrument-aware planner (via the page).
  */
-export interface CurrentAllocationSnapshot {
+interface CurrentAllocationSnapshot {
   market: AllocationBasisSnapshot;
   notional: AllocationBasisSnapshot;
   metadata: {
@@ -600,7 +600,7 @@ export interface CurrentAllocationSnapshot {
 }
 
 /** Fixed set of top-level asset classes, used to seed a `CurrentAllocationSnapshot`. */
-export const ALL_ASSET_CLASSES: AssetClass[] = [
+const ALL_ASSET_CLASSES: AssetClass[] = [
   'equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry',
 ];
 
@@ -610,7 +610,7 @@ export const ALL_ASSET_CLASSES: AssetClass[] = [
  * partitioned out here — the caller decides which set of assets to pass (`compareAllocations`,
  * its only caller, passes the investable base = tradable + frozen).
  */
-export function calculateCurrentAllocationSnapshot(
+function calculateCurrentAllocationSnapshot(
   assets: Asset[],
   assetClasses: AssetClass[]
 ): CurrentAllocationSnapshot {
@@ -731,7 +731,7 @@ export function deriveTargetLeverageRatio(targets: AssetAllocationTarget | null)
  * `findMatchingAssets`, summing plain market value — specific-asset targets are individual
  * stocks, not leveraged instruments, so market value is an adequate proxy there).
  */
-export function toLegacyAllocationResult(
+function toLegacyAllocationResult(
   snapshot: CurrentAllocationSnapshot,
   targets: AssetAllocationTarget | null,
   assets: Asset[]

@@ -45,7 +45,7 @@ import {
 
 export type EmailPeriodType = 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 
-export interface AssetClassEntry {
+interface AssetClassEntry {
   name: string;
   deltaPct: number;
   deltaAbs: number;

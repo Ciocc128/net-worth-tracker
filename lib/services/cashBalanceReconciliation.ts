@@ -32,7 +32,7 @@ export interface TransferCreateParams {
   amount: number;
 }
 
-export interface SingleCreateParams {
+interface SingleCreateParams {
   linkedAssetId: string;
   signedAmount: number;
 }
@@ -43,7 +43,7 @@ export interface TransferDeleteParams {
   amount: number;
 }
 
-export interface SingleDeleteParams {
+interface SingleDeleteParams {
   linkedAssetId: string;
   signedAmount: number;
 }

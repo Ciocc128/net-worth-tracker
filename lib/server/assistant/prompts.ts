@@ -60,7 +60,7 @@ export interface AssistantPromptParts {
  *   month === -1             → "YTD 2025"
  *   month === -2             → "Storico da 2020"
  */
-export function getPeriodLabel(selector: { year: number; month: number; quarter?: number }): string {
+function getPeriodLabel(selector: { year: number; month: number; quarter?: number }): string {
   // Must check quarter before month > 0: quarterly end-months (3,6,9,12) are positive
   if (selector.quarter !== undefined) {
     return `Q${selector.quarter} ${selector.year}`;
