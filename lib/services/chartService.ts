@@ -82,8 +82,7 @@ export function prepareAssetDistributionData(
 
   // Calculate value for each asset
   const assetValues = assets.map((asset) => ({
-    name: asset.name,
-    ticker: getAssetDisplayTicker(asset),
+    label: getAssetDisplayTicker(asset),
     value: calculateAssetValue(asset),
   }));
 
@@ -98,7 +97,7 @@ export function prepareAssetDistributionData(
     colors?.[index] ?? getChartColor(index);
 
   const chartData: PieChartData[] = top10.map((asset, index) => ({
-    name: asset.ticker,
+    name: asset.label,
     value: asset.value,
     percentage: (asset.value / totalValue) * 100,
     color: resolveColor(index),
