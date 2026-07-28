@@ -29,6 +29,7 @@ import {
   buildAssistantYearContext,
   buildAssistantYtdContext,
   buildAssistantHistoryContext,
+  buildAssistantQuarterContext,
 } from '@/lib/services/assistantMonthContextService';
 import { AssistantMonthContextBundle, AssistantStreamEvent, AssistantStreamRequest } from '@/types/assistant';
 import {
@@ -220,6 +221,17 @@ export async function POST(request: NextRequest) {
       contextBundle = await buildAssistantYtdContext(body.userId, includeDummy);
     } else if (body.mode === 'history_analysis') {
       contextBundle = await buildAssistantHistoryContext(body.userId, await fetchHistoryStartYear(body.userId), includeDummy);
+    } else if (body.mode === 'quarter_analysis' && body.month) {
+      // The request carries a month selector, not a quarter number: the quarter is the one the
+      // selected month belongs to (Jan-Mar → Q1, …). Without this branch the request fell through
+      // to the monthly builder below and a quarterly analysis was answered on one month of data —
+      // wrong baseline (previous month instead of previous quarter-end) and a third of the cashflow.
+      contextBundle = await buildAssistantQuarterContext(
+        body.userId,
+        body.month.year,
+        Math.ceil(body.month.month / 3),
+        includeDummy
+      );
     } else if (body.mode === 'chat') {
       // Chat mode: build context only when chatContext is set and not 'none'
       if (body.chatContext === 'year' && body.year) {

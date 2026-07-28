@@ -24,7 +24,7 @@ import { formatCurrencyCompact } from './chartService';
  *
  * @see https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
  */
-export function randomNormal(mean: number, stdDev: number): number {
+function randomNormal(mean: number, stdDev: number): number {
   const u1 = Math.random();
   const u2 = Math.random();
   const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);

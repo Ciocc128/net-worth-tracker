@@ -87,48 +87,6 @@ export async function getAllAssets(userId: string): Promise<Asset[]> {
 }
 
 /**
- * Get all equity assets with ISIN for a specific user
- * Used for automatic dividend scraping
- * Filters: assetClass === 'equity' AND isin exists AND isin is not empty
- */
-export async function getAssetsWithIsin(userId: string): Promise<Asset[]> {
-  try {
-    const assetsRef = collection(db, ASSETS_COLLECTION);
-    const q = query(
-      assetsRef,
-      where('userId', '==', userId),
-      where('assetClass', '==', 'equity')
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    const assets = querySnapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        lastPriceUpdate: doc.data().lastPriceUpdate?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        holdingStartDate: doc.data().holdingStartDate?.toDate(),
-      }))
-      .filter(asset => {
-        // Filter out assets without ISIN or with empty ISIN
-        const assetData = asset as Asset;
-        return assetData.isin && assetData.isin.trim() !== '';
-      }) as Asset[];
-
-    return assets;
-  } catch (error) {
-    console.error('Failed to fetch assets with ISIN', {
-      userId,
-      operation: 'getAssetsWithIsin',
-      error: getErrorMessage(error),
-    });
-    throw new Error(`Failed to fetch assets with ISIN for user ${userId}`, { cause: error });
-  }
-}
-
-/**
  * Get a single asset by ID
  */
 export async function getAssetById(assetId: string): Promise<Asset | null> {
@@ -382,38 +340,6 @@ export async function updateAssetBondDetails(assetId: string, bondDetails: BondD
       error: getErrorMessage(error),
     });
     throw new Error(`Failed to update bond details for asset ${assetId}`, { cause: error });
-  }
-}
-
-/**
- * Update asset price and timestamp
- */
-export async function updateAssetPrice(
-  assetId: string,
-  price: number
-): Promise<void> {
-  try {
-    const assetRef = doc(db, ASSETS_COLLECTION, assetId);
-    const existingAsset = await getDoc(assetRef);
-
-    await updateDoc(assetRef, {
-      currentPrice: price,
-      lastPriceUpdate: new Date(),
-      updatedAt: new Date(),
-    });
-
-    const userId = existingAsset.data()?.userId;
-    if (userId) {
-      await invalidateDashboardOverviewSummary(userId, 'asset_price_updated');
-    }
-  } catch (error) {
-    console.error('Failed to update asset price', {
-      assetId,
-      operation: 'updateAssetPrice',
-      price,
-      error: getErrorMessage(error),
-    });
-    throw new Error(`Failed to update asset price for ${assetId}`, { cause: error });
   }
 }
 
@@ -783,7 +709,7 @@ export function calculateUnrealizedGains(asset: Asset): number {
  * Calculate estimated taxes on unrealized gains for a single asset
  * Returns 0 if taxRate is not set or gains are negative/zero
  */
-export function calculateEstimatedTaxes(asset: Asset): number {
+function calculateEstimatedTaxes(asset: Asset): number {
   const gains = calculateUnrealizedGains(asset);
 
   if (gains <= 0 || !asset.taxRate || asset.taxRate <= 0) {
@@ -825,14 +751,6 @@ export function calculateLiquidEstimatedTaxes(assets: Asset[]): number {
       );
     })
     .reduce((total, asset) => total + calculateEstimatedTaxes(asset), 0);
-}
-
-/**
- * Calculate gross total (current portfolio value)
- * Alias for calculateTotalValue for clarity in cost basis context
- */
-export function calculateGrossTotal(assets: Asset[]): number {
-  return calculateTotalValue(assets);
 }
 
 /**

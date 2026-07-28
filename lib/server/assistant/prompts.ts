@@ -60,7 +60,7 @@ export interface AssistantPromptParts {
  *   month === -1             → "YTD 2025"
  *   month === -2             → "Storico da 2020"
  */
-export function getPeriodLabel(selector: { year: number; month: number; quarter?: number }): string {
+function getPeriodLabel(selector: { year: number; month: number; quarter?: number }): string {
   // Must check quarter before month > 0: quarterly end-months (3,6,9,12) are positive
   if (selector.quarter !== undefined) {
     return `Q${selector.quarter} ${selector.year}`;
@@ -574,8 +574,10 @@ export function buildHistoryAnalysisPrompt(
  * snapshot; end is the current quarter-end snapshot. Same 3-section contract as
  * monthly, with quarterly framing.
  *
- * Used by the email service to generate the AI comment in quarterly emails.
- * Not exposed in the interactive UI (quarter_analysis is email-only).
+ * Reached only through `POST /api/ai/assistant/stream` with `mode: 'quarter_analysis'`; the
+ * period selector does not offer a quarter tab, so no UI surface sends it today. The periodic
+ * quarterly email does NOT use this builder — it has its own (`monthlyEmailService`'s
+ * `buildEmailAiPrompt` + `EMAIL_PERIODIC_FORMAT_CONTRACT`).
  */
 export function buildQuarterAnalysisPrompt(
   bundle: AssistantMonthContextBundle,

@@ -45,7 +45,7 @@ export interface WhatIfScenario {
 }
 
 /** Coast-specific baseline; null when the user has not configured Coast FIRE (no age set). */
-export interface WhatIfCoastBaseline {
+interface WhatIfCoastBaseline {
   currentAge: number;
   retirementAge: number;
   annualExpenses: number; // Coast retirement expenses (custom override or actual)

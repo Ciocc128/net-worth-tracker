@@ -64,25 +64,6 @@ service cloud.firestore {
       allow delete: if canAccess(resource.data.userId);
     }
 
-    // Collezione price-history - storico prezzi (può essere condiviso tra utenti)
-    match /price-history/{priceId} {
-      // Lettura pubblica per tutti gli utenti autenticati
-      allow read: if isAuthenticated();
-
-      // Solo il sistema (admin SDK) può scrivere
-      allow write: if false;
-    }
-
-    // Collezione portfolios - se hai portafogli separati
-    match /portfolios/{portfolioId} {
-      allow read: if canAccess(resource.data.userId);
-      allow create: if canAccess(request.resource.data.userId);
-      allow update: if canAccess(resource.data.userId) &&
-                       (!('userId' in request.resource.data) ||
-                        request.resource.data.userId == resource.data.userId);
-      allow delete: if canAccess(resource.data.userId);
-    }
-
     // Collezione assetAllocationTargets - target di allocazione asset
     match /assetAllocationTargets/{targetId} {
       // Read: usa targetId (doc id) invece di resource.data.userId per consentire

@@ -10,13 +10,12 @@ import { CashflowSection } from './sections/CashflowSection';
 import { PerformanceSection } from './sections/PerformanceSection';
 import { FireSection } from './sections/FireSection';
 import { SummarySection } from './sections/SummarySection';
-import type { PDFDataContext, PDFSectionData, SectionSelection, ChartImage } from '@/types/pdf';
+import type { PDFDataContext, PDFSectionData, SectionSelection } from '@/types/pdf';
 
 interface PDFDocumentProps {
   data: PDFSectionData;
   context: PDFDataContext;
   sections: SectionSelection;
-  chartImages: Map<string, ChartImage>;
 }
 
 /**
@@ -52,13 +51,11 @@ interface PDFDocumentProps {
  * @param data - Prepared data for all sections (from parent component)
  * @param context - Document context (user name, generation timestamp, time filter)
  * @param sections - User selection of which sections to include
- * @param chartImages - Map of pre-captured chart images (base64 PNGs) by chart ID
  */
 export function PDFDocument({
   data,
   context,
   sections,
-  chartImages,
 }: PDFDocumentProps) {
   return (
     <Document
@@ -90,7 +87,7 @@ export function PDFDocument({
 
       {/* History section - Multi-page: net worth evolution and YoY comparison */}
       {sections.history && data.history && (
-        <HistorySection data={data.history} chartImages={chartImages} />
+        <HistorySection data={data.history} />
       )}
 
       {/* Cashflow section - Income/expense metrics with financial health indicator */}

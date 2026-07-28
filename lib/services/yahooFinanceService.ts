@@ -6,8 +6,6 @@
  * Features:
  * - Single ticker quotes: getQuote()
  * - Batch quotes: getMultipleQuotes() (parallel fetching with Promise.allSettled)
- * - Ticker search: searchTicker()
- * - Ticker validation: validateTicker()
  *
  * Error Handling Strategy:
  * Returns null prices on failure rather than throwing errors, allowing callers
@@ -96,52 +94,6 @@ export async function getMultipleQuotes(
   });
 
   return results;
-}
-
-/**
- * Validate if a ticker exists and can be fetched
- *
- * @param ticker - Ticker symbol to validate
- * @returns True if ticker exists and has a price, false otherwise
- */
-export async function validateTicker(ticker: string): Promise<boolean> {
-  try {
-    const quote = await yahooFinance.quote(ticker);
-    return !!quote && !!quote.regularMarketPrice;
-  } catch (error) {
-    console.error(`Error validating ticker ${ticker}:`, error);
-    return false;
-  }
-}
-
-/**
- * Search for tickers by name or symbol
- *
- * @param query - Search query (company name or ticker symbol)
- * @returns Array of matching results (limited to top 10)
- */
-export async function searchTicker(
-  query: string
-): Promise<Array<{ symbol: string; name: string; exchange: string }>> {
-  try {
-    const results = await yahooFinance.search(query);
-
-    if (!results || !results.quotes) {
-      return [];
-    }
-
-    return results.quotes
-      .filter((quote) => quote.symbol && quote.shortname)
-      .map((quote) => ({
-        symbol: (quote.symbol || '') as string,
-        name: (quote.shortname || quote.longname || '') as string,
-        exchange: (quote.exchange || '') as string,
-      }))
-      .slice(0, 10); // Limit to top 10 results
-  } catch (error) {
-    console.error('Error searching ticker:', error);
-    return [];
-  }
 }
 
 /**

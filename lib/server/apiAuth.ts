@@ -46,32 +46,13 @@ export async function requireFirebaseAuth(
 }
 
 /**
- * Enforce that the authenticated Firebase user matches the target userId.
- *
- * This closes the class of bugs where the client can swap userId in query/body
- * while still sending a valid token for a different account.
- */
-export function assertSameUser(
-  decodedToken: DecodedIdToken,
-  requestedUserId: string | null | undefined
-): void {
-  if (!requestedUserId) {
-    throw new ApiAuthError(400, 'User ID is required');
-  }
-
-  if (decodedToken.uid !== requestedUserId) {
-    throw new ApiAuthError(403, 'Authenticated user does not match requested user');
-  }
-}
-
-/**
  * Enforce that the authenticated user may act on `ownerUserId`'s account —
  * either because they ARE the owner, or because the owner granted them
  * delegated access (shared account).
  *
- * This is the delegation-aware replacement for `assertSameUser` on any route
- * whose data is scoped to a data-owner rather than the caller. Membership is
- * read from `account-access/{ownerUserId}.memberUids`.
+ * This is the delegation-aware auth check for any route whose data is scoped
+ * to a data-owner rather than the caller. Membership is read from
+ * `account-access/{ownerUserId}.memberUids`.
  *
  * Performance: the self case (caller === owner) returns immediately WITHOUT a
  * Firestore read, so the common path costs nothing; the read happens only when
@@ -110,22 +91,6 @@ export async function assertCanAccessAccount(
       403,
       'Authenticated user does not have access to requested account'
     );
-  }
-}
-
-/**
- * Enforce resource ownership after loading a document through the Admin SDK.
- */
-export function assertResourceOwner(
-  decodedToken: DecodedIdToken,
-  ownerUserId: string | null | undefined
-): void {
-  if (!ownerUserId) {
-    throw new ApiAuthError(403, 'Resource owner is missing');
-  }
-
-  if (decodedToken.uid !== ownerUserId) {
-    throw new ApiAuthError(403, 'Resource does not belong to authenticated user');
   }
 }
 

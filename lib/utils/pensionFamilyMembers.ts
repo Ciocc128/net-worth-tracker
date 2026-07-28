@@ -13,7 +13,7 @@
 
 import type { Asset, FamilyMember } from '@/types/assets';
 
-export interface FundFamilyMemberGroup {
+interface FundFamilyMemberGroup {
   member: FamilyMember;
   funds: Asset[];
 }

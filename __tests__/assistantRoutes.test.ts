@@ -7,6 +7,7 @@ const {
   buildAssistantYearContextMock,
   buildAssistantYtdContextMock,
   buildAssistantHistoryContextMock,
+  buildAssistantQuarterContextMock,
   listAssistantThreadsMock,
   createAssistantThreadMock,
   getAssistantThreadDetailMock,
@@ -25,6 +26,7 @@ const {
   buildAssistantYearContextMock: vi.fn(),
   buildAssistantYtdContextMock: vi.fn(),
   buildAssistantHistoryContextMock: vi.fn(),
+  buildAssistantQuarterContextMock: vi.fn(),
   listAssistantThreadsMock: vi.fn(),
   createAssistantThreadMock: vi.fn(),
   getAssistantThreadDetailMock: vi.fn(),
@@ -67,6 +69,7 @@ vi.mock('@/lib/services/assistantMonthContextService', () => ({
   buildAssistantYearContext: buildAssistantYearContextMock,
   buildAssistantYtdContext: buildAssistantYtdContextMock,
   buildAssistantHistoryContext: buildAssistantHistoryContextMock,
+  buildAssistantQuarterContext: buildAssistantQuarterContextMock,
 }));
 
 vi.mock('@/lib/server/assistant/store', () => ({
@@ -88,7 +91,7 @@ vi.mock('@/lib/server/assistant/anthropicStream', () => ({
   streamAssistantResponse: streamAssistantResponseMock,
 }));
 
-import { GET as getThreadsRoute, POST as postThreadsRoute } from '@/app/api/ai/assistant/threads/route';
+import { GET as getThreadsRoute } from '@/app/api/ai/assistant/threads/route';
 import { GET as getThreadRoute } from '@/app/api/ai/assistant/threads/[threadId]/route';
 import {
   GET as getMemoryRoute,
@@ -159,6 +162,7 @@ describe('Assistant private API routes', () => {
     buildAssistantYearContextMock.mockResolvedValue(null);
     buildAssistantYtdContextMock.mockResolvedValue(null);
     buildAssistantHistoryContextMock.mockResolvedValue(null);
+    buildAssistantQuarterContextMock.mockResolvedValue(null);
     listAssistantThreadsMock.mockResolvedValue([]);
     createAssistantThreadMock.mockResolvedValue({
       id: 'thread-1',
@@ -288,34 +292,6 @@ describe('Assistant private API routes', () => {
       error: 'Authenticated user does not have access to requested account',
     });
     expect(listAssistantThreadsMock).not.toHaveBeenCalled();
-  });
-
-  it('creates a thread for the authenticated user', async () => {
-    const response = await postThreadsRoute(
-      createJsonRequest('http://localhost/api/ai/assistant/threads', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer valid-token',
-        },
-        body: {
-          userId: 'user-1',
-          mode: 'chat',
-        },
-      })
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      thread: {
-        id: 'thread-1',
-        userId: 'user-1',
-      },
-    });
-    expect(createAssistantThreadMock).toHaveBeenCalledWith({
-      userId: 'user-1',
-      mode: 'chat',
-      pinnedMonth: null,
-    });
   });
 
   it('returns a thread detail for the authenticated user', async () => {
@@ -488,6 +464,28 @@ describe('Assistant private API routes', () => {
     expect(streamText).toContain('"type":"text"');
     expect(streamText).toContain('"type":"done"');
     expect(streamAssistantResponseMock).toHaveBeenCalled();
+  });
+
+  it('builds quarter context (not month context) for a quarter_analysis stream request', async () => {
+    const response = await streamRoute(
+      createJsonRequest('http://localhost/api/ai/assistant/stream', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer valid-token',
+        },
+        body: {
+          userId: 'user-1',
+          mode: 'quarter_analysis',
+          prompt: 'Analizza il trimestre',
+          // May 2026 belongs to Q2 — the builder receives the quarter, not the month.
+          month: { year: 2026, month: 5 },
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(buildAssistantQuarterContextMock).toHaveBeenCalledWith('user-1', 2026, 2, false);
+    expect(buildAssistantMonthContextMock).not.toHaveBeenCalled();
   });
 
   it('returns 403 on stream route when token and userId do not match', async () => {

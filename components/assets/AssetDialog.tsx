@@ -501,7 +501,6 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const ledgerCashAssets = ledgerAllAssets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const [allocationTargets, setAllocationTargets] = useState<AssetAllocationTarget | null>(null);
-  const [loadingTargets, setLoadingTargets] = useState(false);
   const [showNewSubCategory, setShowNewSubCategory] = useState(false);
   const [newSubCategoryName, setNewSubCategoryName] = useState('');
   const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
@@ -599,33 +598,12 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const priceSource = selectedType === 'bond' && selectedAssetClass === 'bonds'
     ? 'Borsa Italiana'
     : 'Yahoo Finance';
-  // Set intelligent defaults for isLiquid and autoUpdatePrice based on asset class
-  // Why intelligent defaults? Reduces user errors and form friction.
-  // - Equity/bonds → liquid, auto-update enabled (traded on markets)
-  // - Real estate → not liquid, manual pricing (property appraisals)
-  // - Cash → liquid, no updates (price always 1)
-  useEffect(() => {
-    if (selectedAssetClass) {
-      // Default for isLiquid: most assets are liquid except real estate, private equity, and
-      // fondo pensione (locked until retirement — illiquid by nature).
-      const defaultIsLiquid =
-        selectedAssetClass !== 'realestate' &&
-        selectedSubCategory !== 'Private Equity' &&
-        selectedType !== 'pensionFund';
-
-      // Default for autoUpdatePrice: use shouldUpdatePrice logic
-      const defaultAutoUpdatePrice = shouldUpdatePrice(selectedType, selectedSubCategory);
-
-      // Only set if user hasn't explicitly changed the value
-      // This preserves user intent when they toggle these fields manually
-      if (watchIsLiquid === undefined) {
-        setValue('isLiquid', defaultIsLiquid);
-      }
-      if (watchAutoUpdatePrice === undefined) {
-        setValue('autoUpdatePrice', defaultAutoUpdatePrice);
-      }
-    }
-  }, [selectedAssetClass, selectedSubCategory, selectedType, watchIsLiquid, watchAutoUpdatePrice, setValue]);
+  // NOTE: there is no type-driven "intelligent default" for `isLiquid`/`autoUpdatePrice`. The
+  // effect that tried to derive them was unreachable (both fields are seeded to `true` by
+  // `defaultValues` and by the create-branch reset, so its `=== undefined` guards never fired) and
+  // was removed in the 2026-07-28 dead-code audit. `autoUpdatePrice` is clamped at the boundary
+  // instead — see `buildAssetFormDataFromValues`. `isLiquid` has no such clamp: it stays whatever
+  // the always-visible switch says.
 
   // Suggest an allocation role for the two archetypal untouchable holdings, each getting the role
   // that actually fits it: a property is `excluded` (it is not an investment), private equity is
@@ -683,13 +661,10 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     if (!user || !ownerId) return;
 
     try {
-      setLoadingTargets(true);
       const targets = await getTargets(ownerId);
       setAllocationTargets(targets);
     } catch (error) {
       console.error('Error loading allocation targets:', error);
-    } finally {
-      setLoadingTargets(false);
     }
   };
 

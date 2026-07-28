@@ -7,8 +7,6 @@
 // - store.ts (getDefaultThreadTitle)
 export type AssistantMode = 'month_analysis' | 'year_analysis' | 'ytd_analysis' | 'history_analysis' | 'quarter_analysis' | 'chat';
 
-export type AssistantWebContextMode = 'portfolio_only' | 'hybrid';
-
 export interface AssistantPromptChip {
   id: string;
   label: string;
@@ -30,30 +28,6 @@ export interface AssistantPreferences {
   // When enabled, dummy (test fixture) snapshots are included in context bundles.
   // Off by default — intended for test accounts only.
   includeDummySnapshots: boolean;
-}
-
-export interface AssistantMonthContext {
-  year: number;
-  month: number;
-  monthLabel: string;
-  hasSnapshot: boolean;
-  hasPreviousBaseline: boolean;
-  hasCashflowData: boolean;
-  summary: {
-    startNetWorth: number | null;
-    endNetWorth: number | null;
-    netWorthDelta: number | null;
-    netWorthDeltaPct: number | null;
-    totalIncome: number;
-    totalExpenses: number;
-    totalDividends: number;
-    netCashFlow: number;
-  };
-  topChanges: {
-    assetClass: string;
-    absoluteChange: number;
-    percentagePointsChange: number | null;
-  }[];
 }
 
 export interface AssistantThread {

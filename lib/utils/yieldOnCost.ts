@@ -51,7 +51,7 @@ export interface AssetInput {
   holdingStartDate?: Date;
 }
 
-export interface YieldOnCostAssetMetrics {
+interface YieldOnCostAssetMetrics {
   assetId: string;
   assetTicker: string;
   assetName: string;

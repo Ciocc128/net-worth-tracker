@@ -7,13 +7,8 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic (Claude Sonnet 5)
-- `tsc` clean; **79 files / 1406 tests** green
-- Latest (2026-07-28): **correzione dei calcoli di Rendimenti** (audit di 12 finding, 5 fasi, una per branch). I numeri di Storico, IRR e dei grafici rolling sono cambiati: non è una regressione, è la correzione. Dettaglio dei pattern in AGENTS.md → *Rendimenti: the measurement window*.
-  - **Finestra di misura**: il primo snapshot di un periodo è **sempre** la valutazione di partenza e la misura si apre il mese dopo. Sostituisce un `hasBaseline` indovinato dal tipo di periodo, che sul ramo senza baseline (cioè sempre per Storico) contava due volte i cash flow del primo mese e annualizzava n−1 rendimenti su n mesi. Storico: TWR 25,41% → **26,07%**; heatmap, Underwater e Max Drawdown invariati.
-  - **IRR**: i versamenti entravano col segno di un incasso — 100k → 110k tutti versati (rendimento vero 0%) dava **+22%**. Segni corretti, timeline ancorata all'inizio periodo, fallback a bisezione. Sui dati reali **36,66% → 15,82%**, coerente con TWR 15,93%.
-  - **Finestre rolling**: il limite superiore era il 1° del mese a mezzanotte e il filtro `date <= endDate` buttava via tutti i movimenti del mese di chiusura. Ora `endOfMonthBound`.
-  - **Cache key**: firma l'intera serie di snapshot + risk-free rate + categoria dividendi (prima solo l'ultimo snapshot). Più `CACHE_MATH_VERSION`, la leva manuale per quando cambia la matematica a input invariati — **da bumpare a ogni modifica dei calcoli**.
-  - **Coerenza**: filtro ±50% rimosso dalla volatilità (nascondeva i crolli veri alla metrica che deve riportarli), soglie minime di osservazioni, hero che sotto i 6 mesi dichiara il rendimento *di periodo*, grafico Evoluzione ridisegnato (area "Capitale immesso" sotto la linea del patrimonio), tooltip di ROI e CAGR che dichiarano entrambe le formule.
+- `tsc` clean; **80 files / 1409 tests** green
+- Latest (2026-07-28): **dead-code cleanup audit, sessione 6/6 (finale)** — sweep completo a 5 controlli di tutte le custom property CSS di `app/globals.css` (protocollo documentato in AGENTS.md → *CSS Custom Property Liveness*), branch `chore/dead-code-06-css-tokens`. Esito: **2 rimozioni** — `--positive-foreground` (raw + mapping `--color-positive-foreground`, coppia custom mai consumata da nessuna utility) e la sola mapping `--color-ai-accent` (il token raw `--ai-accent` resta vivo, consumato via `var()` arbitrary value sul bottone AI di Rendimenti). Tutto il resto confermato vivo o tenuto per policy shadcn (`--destructive-foreground`, famiglia `--sidebar-primary(-foreground)`, superficie standard a zero utilizzo reale — AGENTS.md → *shadcn/ui vendored surface*). Chiude l'audit codice morto durato 6 sessioni, iniziato e concluso lo stesso giorno (2026-07-28); storia completa in `git log`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`
@@ -46,7 +41,8 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - **Hall of Fame**: record e classifiche con switcher periodo+categoria.
 - **Multi-theme**: 6 temi persistiti in `userPreferences/{userId}` + localStorage; grafici theme-aware via `useChartColors` (`--chart-1..5`).
 - **Email periodiche**: mensile/trimestrale/semestrale/annuale + **email budget settimanale** (domenica) — inviata ogni settimana ma con cifre month-to-date e year-to-date, orizzonte dichiarato esplicitamente in ogni caption. Env: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `ANTHROPIC_API_KEY`.
-- **PDF export** e analisi AI della performance.
+- **PDF export**: 7 sezioni configurabili (Portfolio/Allocazione/Storico/Cashflow/Rendimenti/FIRE/Riepilogo) con filtro Totale/Annuale/Mensile. Su Cashflow, **Export Totale** applica `cashflowHistoryStartYear` come floor (stesso setting di Cashflow/Storico, fallback `2025`); Storico/Rendimenti/FIRE restano illimitati. AGENTS.md → *A Function That Always Returns [] Keeps Its Whole Downstream Pipeline "Live" for Knip*.
+- **Analisi AI della performance**: report generato da Claude su richiesta, separato dall'Assistente conversazionale.
 
 ## Testing
 - Vitest. Comandi: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. Rilancia `tsc` **dopo** aver scritto i test, non solo dopo il codice.
@@ -67,6 +63,8 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - **YOC/Current Yield** escludono gli asset venduti (voluto) e sono scoped all'holding corrente via `holdingStartDate` — un rebuy legacy senza stamp resta scoperto finché non viene ri-aggiunto.
 - **Rendimenti pre-`byAsset`: denominatore corretto, numeratore no.** Il backfill di `performanceBase.ts` toglie lo scalino di base sui mesi storici senza breakdown per strumento (2023-01 → 2025-10 sull'account reale), ma in quei mesi la **variazione** degli asset esclusi resta dentro il rendimento misurato: rivalutazione della casa e, in modo sistematico, la quota capitale di ogni rata di mutuo che fa salire l'equity. Non ricostruibile — quegli snapshot non hanno il dettaglio per strumento.
 - **Artefatto di bucket mensile del TWR (per design, non un bug di formula)**: il TWR neutralizza una spesa solo se il calo di patrimonio e il cash flow cadono nello **stesso mese**. Un acquisto grosso pagato dal portafoglio è quindi neutro (l'auto di 03-04/2024 sull'account reale, ~21k: scendono insieme area e linea nel grafico Evoluzione, rendimento esatto). **L'insidia è il caso opposto**: registrare un acquisto sia come spesa sia come **asset** lascia il patrimonio invariato mentre il cash flow scende, e la formula produce un guadagno fantasma `(V + spesa)/V − 1` — vale anche per ogni rata di mutuo se l'immobile sta *dentro* la base. Registrare i saldi nel mese di competenza. AGENTS.md → *History and Snapshot Baselines*.
+- **`firestore.rules` da deployare a mano**: i match block morti `/price-history` e `/portfolios` sono stati rimossi in locale (2026-07-28) ma il deploy delle rules non è automatico — va fatto prima o subito dopo il merge.
+- **Nuovi asset illiquidi nascono `isLiquid: true`**: il form non ha (più) un default per tipo e `buildAssetFormDataFromValues` persiste `data.isLiquid` così com'è, quindi un realestate / Private Equity / fondo pensione creato senza toccare lo switch entra nel patrimonio liquido (`calculateLiquidNetWorth` onora il `true` esplicito). Lo switch è sempre visibile e basta un click; renderlo type-aware è una scelta di prodotto, non pulizia — vedi AGENTS.md → *`AssetDialog` has NO type-driven default*.
 - **`computeBalanceScore` degrada semanticamente con una leva target non ancora raggiunta**: valuta il drift sulle percentuali target grezze, quindi con Σtarget > 100 e leva attuale ~1 il deficit di leva stesso conta come disallineamento. La direzione resta sensata, manca la consapevolezza della leva.
 
 ## Key Files
@@ -89,8 +87,9 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - **Assistant**: `app/dashboard/assistant/page.tsx`, `components/assistant/*`, `app/api/ai/assistant/*`, `lib/server/assistant/*`
 - **Settings / layout**: `app/dashboard/settings/page.tsx`, `lib/services/assetAllocationService.ts`, `components/layout/*`, `lib/constants/navigation.ts`
 - **Server use case / email**: `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor,monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`, `app/api/cron/monthly-snapshot/route.ts` (fasi 2-6)
+- **PDF export**: `lib/utils/pdfGenerator.tsx` (orchestrator) → `lib/services/pdfDataService.ts` (`fetchPDFData` + `prepare*` non esportate) → `components/pdf/{PDFDocument,sections/*,primitives/*}.tsx`; `lib/utils/pdfTimeFilters.ts` (`filterExpensesByTime`'s `cashflowHistoryStartYear` floor su `'total'`); tipi `types/pdf.ts`
 
 ## Design Context
 Spec estetica autoritativa: **DESIGN.md** (Apple + Linear/Vercel + Trade Republic; form-follows-function) — mantenuta a mano, **mai rigenerarla**; il suo frontmatter YAML è lo strato normativo letto dal detector impeccable, `.impeccable/design.json` è solo il sidecar di estensioni. Prompt di review in `docs/{critique,audit}-prompts.md`. Utenti: investitori italiani self-directed che vogliono capire la propria posizione in fretta e con fiducia. Principi: (1) prima il dato, poi la decorazione; (2) motion con uno scopo; (3) la densità è una feature; (4) la precisione costruisce fiducia; (5) la personalità sta nei dettagli.
 
-**Last updated**: 2026-07-28 — correzione dei calcoli di Rendimenti in 5 fasi (finestra di misura, IRR, finestre rolling, cache key + `CACHE_MATH_VERSION`, coerenza delle metriche di rischio). Storia precedente: `git log`.
+**Last updated**: 2026-07-28 — audit codice morto sessione 6/6, finale (sweep `app/globals.css`: rimossi `--positive-foreground` e la mapping `--color-ai-accent`). Storia precedente: `git log`.

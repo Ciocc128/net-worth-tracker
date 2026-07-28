@@ -107,10 +107,18 @@ export async function fetchPDFData(
     }
 
     if (sections.cashflow) {
-      // Filter expenses for cashflow section based on timeFilter and user-selected period
-      const filteredExpenses = timeFilter
-        ? filterExpensesByTime(cachedExpenses!, timeFilter, selectedYear, selectedMonth)
-        : cachedExpenses!;
+      // Filter expenses for cashflow section based on timeFilter and user-selected period.
+      // "Totale" has no period selection of its own to bound it, so it also applies the
+      // same cashflow-history floor the live Cashflow/Storico pages use to exclude
+      // bulk-imported older data (yearly/monthly exports are already bounded by the period).
+      const settings = await getSettings(userId);
+      const filteredExpenses = filterExpensesByTime(
+        cachedExpenses!,
+        timeFilter,
+        selectedYear,
+        selectedMonth,
+        settings?.cashflowHistoryStartYear
+      );
       data.cashflow = prepareCashflowData(filteredExpenses);
     }
 
@@ -150,7 +158,7 @@ export async function fetchPDFData(
 /**
  * Prepare portfolio data with asset details and totals
  */
-export function preparePortfolioData(assets: Asset[]): PortfolioData {
+function preparePortfolioData(assets: Asset[]): PortfolioData {
   if (assets.length === 0) {
     return {
       assets: [],
@@ -213,7 +221,7 @@ export function preparePortfolioData(assets: Asset[]): PortfolioData {
  * Prepare allocation data comparing current vs target
  * Uses compareAllocations() to ensure consistency with allocation page
  */
-export function prepareAllocationData(
+function prepareAllocationData(
   assets: Asset[],
   targets: any
 ): AllocationData {
@@ -283,7 +291,7 @@ export function prepareAllocationData(
 /**
  * Prepare historical data from snapshots
  */
-export function prepareHistoryData(snapshots: MonthlySnapshot[]): HistoryData {
+function prepareHistoryData(snapshots: MonthlySnapshot[]): HistoryData {
   if (snapshots.length === 0) {
     return {
       netWorthEvolution: [],
@@ -394,7 +402,7 @@ function calculateYoYComparison(snapshots: MonthlySnapshot[]): YoYDataPoint[] {
 /**
  * Prepare cashflow data from expenses
  */
-export function prepareCashflowData(expenses: any[]): CashflowData {
+function prepareCashflowData(expenses: any[]): CashflowData {
   if (expenses.length === 0) {
     return {
       totalIncome: 0,
@@ -475,7 +483,7 @@ export function prepareCashflowData(expenses: any[]): CashflowData {
 /**
  * Prepare FIRE data with metrics
  */
-export async function prepareFireData(
+async function prepareFireData(
   userId: string,
   expenses: any[],
   currentNetWorth: number
@@ -517,7 +525,7 @@ export async function prepareFireData(
  * @param selectedYear - User-selected year for yearly exports (affects period label)
  * @returns PerformanceData with metrics and period label, or null if insufficient data
  */
-export async function preparePerformanceData(
+async function preparePerformanceData(
   userId: string,
   snapshots: MonthlySnapshot[],
   timeFilter: TimeFilter = 'total',
@@ -612,7 +620,7 @@ export async function preparePerformanceData(
 /**
  * Prepare summary data aggregating key metrics
  */
-export function prepareSummaryData(
+function prepareSummaryData(
   data: PDFSectionData,
   context: PDFDataContext,
   sections: SectionSelection
@@ -687,10 +695,3 @@ function getAssetClassName(assetClass: string): string {
   return names[assetClass] || assetClass;
 }
 
-/**
- * Clear cached expenses (call when switching users)
- */
-export function clearPDFDataCache(): void {
-  cachedExpenses = null;
-  cachedUserId = null;
-}

@@ -23,7 +23,6 @@ export const queryKeys = {
     all: (userId: string) => ['expenses', userId] as const,
     month: (userId: string, year: number, month: number) =>
       ['expenses', userId, year, month] as const,
-    stats: (userId: string) => ['expense-stats', userId] as const,
     categories: (userId: string) => ['expense-categories', userId] as const,
   },
 

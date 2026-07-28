@@ -327,25 +327,3 @@ export async function scrapeDividendsByIsin(
     return [];
   }
 }
-
-/**
- * Calculate withholding tax amount
- * Default Italian withholding tax rate: 26%
- */
-export function calculateWithholdingTax(
-  grossAmount: number,
-  taxRate: number = 26
-): number {
-  return grossAmount * (taxRate / 100);
-}
-
-/**
- * Calculate net dividend after tax
- */
-export function calculateNetDividend(
-  grossAmount: number,
-  taxRate: number = 26
-): number {
-  const tax = calculateWithholdingTax(grossAmount, taxRate);
-  return grossAmount - tax;
-}

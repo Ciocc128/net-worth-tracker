@@ -26,17 +26,17 @@ import type { Expense } from '@/types/expenses';
 
 const WARNING_RATIO = 0.8;
 
-export type BudgetRowStatus = 'ok' | 'warning' | 'over';
+type BudgetRowStatus = 'ok' | 'warning' | 'over';
 
 /** A single expense contributing to an over-budget category, for the email breakdown. */
-export interface OverspendExpense {
+interface OverspendExpense {
   description: string; // the note when present, otherwise the budget label
   subCategory?: string; // the expense's subcategory; omitted for subcategory-scoped budgets (redundant)
   date: Date;
   amount: number; // absolute EUR
 }
 
-export interface WeeklyBudgetRow {
+interface WeeklyBudgetRow {
   label: string;
   period: BudgetPeriod;
   isIncome: boolean;
@@ -260,7 +260,7 @@ export function buildCommentContext(data: WeeklyBudgetData): string {
  * action) for the weekly email. Non-blocking: returns null on any failure or when no
  * API key is set.
  */
-export async function generateWeeklyBudgetComment(data: WeeklyBudgetData): Promise<string | null> {
+async function generateWeeklyBudgetComment(data: WeeklyBudgetData): Promise<string | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null;
   try {
     const prompt = `Sei un assistente finanziario personale italiano. Questo è lo stato dei budget dell'utente:

@@ -145,33 +145,6 @@ export function FilterEmptyIcon({ className }: Readonly<{ className?: string }>)
   );
 }
 
-/** Trophy / medal outline — use for "no rankings yet" contexts. */
-export function TrophyEmptyIcon({ className }: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {/* Cup body */}
-      <path d="M6 3h12v8a6 6 0 0 1-12 0V3Z" />
-      {/* Left handle */}
-      <path d="M6 6H3a2 2 0 0 0 0 4h3" />
-      {/* Right handle */}
-      <path d="M18 6h3a2 2 0 0 1 0 4h-3" />
-      {/* Stem */}
-      <line x1="12" y1="17" x2="12" y2="20" />
-      {/* Base */}
-      <line x1="8" y1="20" x2="16" y2="20" />
-    </svg>
-  );
-}
-
 /** Bar chart with no bars — use for "no historical data" contexts. */
 export function ChartEmptyIcon({ className }: Readonly<{ className?: string }>) {
   return (
