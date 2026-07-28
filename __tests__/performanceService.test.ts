@@ -1180,10 +1180,23 @@ describe('preparePerformanceChartData', () => {
     expect(chart[2].returns).toBe(15000) // 225000 - 200000 - 10000
   })
 
-  it('keeps the three bands summing to the net worth line', () => {
+  it('keeps the decomposition adding up to the net worth line', () => {
     for (const point of preparePerformanceChartData(snapshots, cashFlows)) {
       expect(point.initialCapital + point.contributions + point.returns).toBeCloseTo(point.netWorth, 6)
+      expect(point.investedBase).toBeCloseTo(point.initialCapital + point.contributions, 6)
+      expect(point.investedBase + point.returns).toBeCloseTo(point.netWorth, 6)
     }
+  })
+
+  it('lets the invested base fall below the initial capital when withdrawals exceed contributions', () => {
+    // Il caso che rompeva il grafico a bande impilate: contributi cumulati negativi. Con un'area e
+    // una linea non c'è niente da impilare, quindi la base scende e basta.
+    const withdrawing = preparePerformanceChartData(snapshots, [makeCashFlow(2025, 2, -30000)])
+
+    expect(withdrawing[1].contributions).toBe(-30000)
+    expect(withdrawing[1].investedBase).toBe(170000)
+    expect(withdrawing[1].investedBase).toBeLessThan(withdrawing[1].initialCapital)
+    expect(withdrawing[1].investedBase + withdrawing[1].returns).toBeCloseTo(withdrawing[1].netWorth, 6)
   })
 
   it('shows a losing period as a negative market band, not as capital', () => {

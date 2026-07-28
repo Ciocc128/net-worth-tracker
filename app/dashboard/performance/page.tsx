@@ -1261,9 +1261,10 @@ export default function PerformancePage() {
               <CardHeader>
                 <CardTitle>Evoluzione Patrimonio</CardTitle>
                 <CardDescription>
-                  Il patrimonio scomposto in da dove viene: capitale iniziale del periodo, versamenti
-                  cumulati e rendimento generato dal mercato. Le tre aree sommano alla linea; se
-                  l&apos;area superiore cresce, gli investimenti stanno performando positivamente.
+                  Area = capitale immesso, cioè il patrimonio all&apos;inizio del periodo più i
+                  versamenti netti registrati in Cashflow. Linea = quanto vale. La distanza fra le due
+                  è il rendimento generato dal mercato: linea sopra l&apos;area = in guadagno, sotto =
+                  in perdita.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1274,36 +1275,20 @@ export default function PerformancePage() {
                     <YAxis tickFormatter={(value) => formatCurrencyCompact(value)} tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }} stroke="var(--border)" />
                     <Tooltip content={<PerformanceTooltip />} />
                     <Legend />
-                    {/* Bottom band: the capital already there when the period opened. Without it
-                        the "Investimenti" band above would have to absorb it and would claim the
-                        market produced capital the user brought in (A11). */}
+                    {/* One area, not stacked bands: cumulative contributions go negative whenever
+                        tracked spending outpaces tracked income, and a stacked chart draws a
+                        negative band downward — the bands stop meeting the line. The gap between
+                        this area and the net-worth line IS the market's contribution.
+                        The name is "Capitale immesso", NOT "Capitale investito": that one already
+                        belongs to the ledger-based card above (buys − sells from the trade
+                        register), which measures a different thing on the same page. */}
                     <Area
                       type="monotone"
-                      dataKey="initialCapital"
-                      stackId="1"
-                      stroke={chartColors[3]}
-                      fill={chartColors[3]}
-                      name="Capitale iniziale"
-                      animationDuration={800}
-                      animationEasing="ease-out"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="contributions"
-                      stackId="1"
+                      dataKey="investedBase"
                       stroke={chartColors[0]}
                       fill={chartColors[0]}
-                      name="Contributi"
-                      animationDuration={800}
-                      animationEasing="ease-out"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="returns"
-                      stackId="1"
-                      stroke={chartColors[1]}
-                      fill={chartColors[1]}
-                      name="Investimenti"
+                      fillOpacity={0.55}
+                      name="Capitale immesso"
                       animationDuration={800}
                       animationEasing="ease-out"
                     />
@@ -1561,13 +1546,13 @@ export default function PerformancePage() {
                     <div>
                       <h4 className="font-semibold mb-1">Grafico: Evoluzione Patrimonio</h4>
                       <p className="text-muted-foreground">
-                        <strong>Capitale iniziale:</strong> Il patrimonio all&apos;inizio del periodo selezionato, costante su tutto il grafico. Non è performance: era già lì.
+                        <strong>Capitale immesso (area):</strong> Il patrimonio all&apos;inizio del periodo (dallo snapshot mensile) + i versamenti netti cumulati (entrate − uscite da Cashflow, dal primo mese misurato in poi, esclusi trasferimenti e dividendi). È tutto il denaro entrato nel portafoglio, non performance. Da non confondere con la card <strong>Capitale investito</strong> sopra, che conta acquisti meno vendite dal registro operazioni: misurano cose diverse.
                         <br />
-                        <strong>Contributi:</strong> Somma cumulativa dei flussi di cassa netti (entrate − uscite) da Cashflow, dal primo mese misurato in poi.
+                        <strong>Patrimonio Totale (linea):</strong> Quanto vale davvero il portafoglio in quel mese.
                         <br />
-                        <strong>Investimenti:</strong> Quello che il mercato ha aggiunto sopra i due precedenti: patrimonio − capitale iniziale − contributi. Può essere negativo in un periodo in perdita.
+                        <strong>Rendimento del mercato:</strong> La distanza fra la linea e l&apos;area — visibile nel tooltip mese per mese. Linea sopra l&apos;area = guadagno, sotto = perdita.
                         <br />
-                        <strong>Patrimonio Totale:</strong> Net worth complessivo = capitale iniziale + contributi + investimenti (le tre aree sommano alla linea).
+                        <strong>Attenzione:</strong> i versamenti netti possono essere negativi se nel periodo le uscite tracciate superano le entrate tracciate. In quel caso l&apos;area scende sotto il capitale iniziale, ed è un segnale da verificare in Cashflow: gli stessi flussi alimentano ROI, CAGR e TWR.
                       </p>
                     </div>
                     <div>

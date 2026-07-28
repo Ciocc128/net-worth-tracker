@@ -1624,19 +1624,23 @@ export async function calculateRollingPeriods(
 }
 
 /**
- * Prepare chart data for net worth evolution: net worth broken into where it came from.
+ * Prepare chart data for net worth evolution: money you put in, versus what it is worth.
  *
- * THE THREE BANDS STACK TO THE LINE, and each says what it is:
- *   initialCapital — the starting valuation, flat for the whole period. It was already there;
- *                    nothing about it is performance.
- *   contributions  — cash paid in since then, cumulated.
- *   returns        — what the market added ON TOP: `netWorth − initialCapital − contributions`.
+ *   investedBase   — `initialCapital + contributions`: every euro that entered the portfolio by
+ *                    that month, drawn as an area. The chart's baseline for "was this me or the
+ *                    market?".
+ *   netWorth       — what it is actually worth, drawn as a line. The GAP between the two is the
+ *                    market's contribution: above the area it gained, below it lost.
+ *   initialCapital / contributions / returns — the same decomposition in numbers, for the tooltip.
  *
- * `returns` used to be `netWorth − contributions`, which silently included the entire starting
- * capital: on a portfolio that opened the period at 200k, the band labelled "Investimenti" started
- * at 200k and read as if the market had produced it (finding A11). The band is now the period's
- * market growth alone, and can legitimately go NEGATIVE when the market took more than it gave —
- * that is the honest shape of a losing period, not a rendering accident.
+ * WHY NOT STACKED BANDS. `returns` used to be `netWorth − contributions`, which silently swallowed
+ * the whole starting capital: on a portfolio opening the period at 200k the band labelled
+ * "Investimenti" started at 200k and read as if the market had produced it (finding A11). The first
+ * fix stacked three bands summing to the line — which works only while every band is positive.
+ * Cumulative contributions go NEGATIVE whenever tracked spending outpaces tracked income over the
+ * window, and a stacked chart renders a negative band downward: the bands stop meeting the line and
+ * the picture becomes unreadable. An area plus a line has no such failure mode — a base that dips
+ * and a value below it are both drawn honestly.
  *
  * @param skipBaseline - When true, drops the first snapshot: it is the month before the period,
  *   included so the first month's return can be computed but outside what the user selected.
@@ -1683,6 +1687,7 @@ export function preparePerformanceChartData(
       netWorth: snapshot.totalNetWorth,
       initialCapital,
       contributions: cumulativeContributions,
+      investedBase: initialCapital + cumulativeContributions,
       returns: snapshot.totalNetWorth - initialCapital - cumulativeContributions,
     };
   });
