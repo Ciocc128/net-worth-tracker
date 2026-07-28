@@ -220,7 +220,7 @@ export default function AssetsPage() {
   const deleteAssetMutation = useDeleteAsset(ownerId || '');
   const queryClient = useQueryClient();
 
-  // ─── Trade-ledger migration trigger (spec 03 §4) ──────────────────────────────
+  // ─── Trade-ledger migration trigger ───────────────────────────────────────────
   // The first time an owner has no ledger meta doc, fire the idempotent one-shot migration. Silent:
   // no modal, no success toast; on failure it degrades to today's behavior (trade affordances stay
   // hidden while meta is absent). The useRef guard (keyed by ownerId so switching accounts re-arms)

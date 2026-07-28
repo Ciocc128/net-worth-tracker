@@ -119,6 +119,62 @@ export function summarizePerformance(params: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// A7 — what the hero number actually is on a short period
+// ---------------------------------------------------------------------------
+
+/**
+ * Below this many months the hero shows the PERIOD return instead of the annualized one.
+ *
+ * Annualizing extrapolates: +4% over two months becomes "+26% a year", a forecast dressed as a
+ * measurement, and two months of a portfolio say nothing about a year of it. Six months is where
+ * the extrapolation stops dominating the number. Above it, annualized stays — it is what makes
+ * periods and benchmarks comparable.
+ */
+const MIN_MONTHS_FOR_ANNUALIZATION = 6;
+
+export interface HeroReturn {
+  /** The figure to display, already in percent. */
+  value: number | null;
+  /** true when `value` is the plain period return because the window is too short to annualize. */
+  isPeriodReturn: boolean;
+  /** Qualifier to print next to the number, so it is never ambiguous which one it is. */
+  label: string;
+}
+
+/**
+ * Decide whether the hero states an annualized rate or the return of the period itself.
+ *
+ * De-annualizing is the exact inverse of the annualization the TWR already applied:
+ * `(1 + annual)^(months/12) − 1`, so no information is invented — the cumulative return the
+ * portfolio actually produced is recovered.
+ *
+ * Only the DISPLAYED number changes. The verdict and the benchmark delta keep using the annualized
+ * TWR, because comparing to a risk-free rate or to a benchmark is only meaningful per year.
+ *
+ * @param annualizedReturn - TWR as computed by the service (annualized), or null
+ * @param numberOfMonths - Length of the measured period
+ */
+export function resolveHeroReturn(
+  annualizedReturn: number | null,
+  numberOfMonths: number
+): HeroReturn {
+  if (annualizedReturn === null) {
+    return { value: null, isPeriodReturn: false, label: 'annualizzato' };
+  }
+
+  if (numberOfMonths >= MIN_MONTHS_FOR_ANNUALIZATION) {
+    return { value: annualizedReturn, isPeriodReturn: false, label: 'annualizzato' };
+  }
+
+  const periodReturn = (Math.pow(1 + annualizedReturn / 100, numberOfMonths / 12) - 1) * 100;
+  return {
+    value: isFinite(periodReturn) ? periodReturn : null,
+    isPeriodReturn: true,
+    label: numberOfMonths === 1 ? 'nel mese' : `nei ${numberOfMonths} mesi`,
+  };
+}
+
 /**
  * Signed gap between the portfolio's annualized TWR and a reference benchmark's
  * annualized return, in percentage points. Null when either side is missing.
@@ -136,11 +192,22 @@ export function computeBenchmarkDelta(
 // B2 — return consistency (from the monthly-returns heatmap)
 // ---------------------------------------------------------------------------
 
+/**
+ * Below this many months the positive-month SHARE is not reported.
+ *
+ * A proportion computed on one or two observations can only come out 0, 50 or 100: it looks like a
+ * statistic and reads like one ("100% di mesi positivi"), while carrying no more information than
+ * the raw count already shown next to it. The counts stay — they are facts — only the percentage,
+ * which is the part that invites over-reading, goes away. Same reasoning as the volatility floor in
+ * performanceService.ts, and the same threshold.
+ */
+const MIN_MONTHS_FOR_POSITIVE_SHARE = 3;
+
 export interface ReturnConsistency {
   positiveMonths: number;
   totalMonths: number;
-  /** Share of months with a positive return, 0–100. 0 when there are no months. */
-  positiveShare: number;
+  /** Share of months with a positive return, 0–100. Null on a sample too small to express one. */
+  positiveShare: number | null;
   best: { label: string; return: number } | null;
   worst: { label: string; return: number } | null;
 }
@@ -160,6 +227,9 @@ function formatMonthLabel(year: number, month: number): string {
  * Read the monthly-returns heatmap for steadiness signals: how many months were
  * positive, and the single best and worst month. A flat month (return exactly 0) is
  * counted as non-positive — it neither grew nor lost. Months with no data are skipped.
+ *
+ * `positiveShare` is null below MIN_MONTHS_FOR_POSITIVE_SHARE months; `best` and `worst` are the
+ * SAME month when there is only one, which the caller should render once rather than twice.
  */
 export function computeReturnConsistency(
   heatmap: MonthlyReturnHeatmapData[]
@@ -183,7 +253,8 @@ export function computeReturnConsistency(
   return {
     positiveMonths,
     totalMonths,
-    positiveShare: totalMonths > 0 ? (positiveMonths / totalMonths) * 100 : 0,
+    positiveShare:
+      totalMonths >= MIN_MONTHS_FOR_POSITIVE_SHARE ? (positiveMonths / totalMonths) * 100 : null,
     best,
     worst,
   };

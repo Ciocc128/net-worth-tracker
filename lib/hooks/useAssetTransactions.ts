@@ -5,8 +5,7 @@
  *
  * Mutations invalidate a TRIPLE: assetTransactions.all + assets.all + dashboard.overview. The dual
  * asset/overview rule becomes a triple here because a trade's optional cash settlement moves a cash
- * asset balance, so both the hero total and the asset table change
- * (docs/specs/1-asset-transactions/03-service-and-api.md §5). Demo mode is gated at the UI (button
+ * asset balance, so both the hero total and the asset table change. Demo mode is gated at the UI (button
  * disable), like every other mutation — not here.
  */
 

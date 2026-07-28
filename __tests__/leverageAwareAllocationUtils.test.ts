@@ -1,8 +1,7 @@
 /**
- * Tests for the instrument-aware planner in lib/utils/leverageAwareAllocationUtils.ts
- * (spec docs/specs/3-leveraged-etf-allocation/02-exposure-and-planning-engine.md §3 + §5).
+ * Tests for the instrument-aware planner in lib/utils/leverageAwareAllocationUtils.ts.
  *
- * The headline is the D5 BUG FIX (§3b): the per-class target must be measured against the
+ * The headline is the D5 BUG FIX: the per-class target must be measured against the
  * post-trade MARKET total, not the current NOTIONAL total, so it stays correct when the current
  * leverage differs from the target leverage. Also covers the budget invariants (Ribilancia
  * net-zero, Versa buys only, Preleva sells only), candidate construction, multi-instrument

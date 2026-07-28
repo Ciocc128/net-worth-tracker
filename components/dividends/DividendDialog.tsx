@@ -318,7 +318,7 @@ export function DividendDialog({ open, onClose, dividend, onSuccess }: DividendD
                     id="assetId"
                     options={assets.map((asset) => ({
                       value: asset.id,
-                      label: `${getAssetDisplayTicker(asset) || asset.name} - ${asset.name}`,
+                      label: `${getAssetDisplayTicker(asset)} - ${asset.name}`,
                     }))}
                     value={field.value || ''}
                     onValueChange={field.onChange}

@@ -526,13 +526,18 @@ export function buildHoldings(
     const value = valueOf(asset);
     if (value <= 0) continue;
     const tradable = resolveAllocationRole(asset) === 'tradable';
+    // holdingLabel() appends this in parens next to the name — only worth showing when it's a
+    // genuine ticker/alias distinct from the name; the resolver's name-fallback would otherwise
+    // duplicate it (e.g. "Conto Corrente (Conto Corrente)" for a tickerless asset).
+    const resolvedTicker = getAssetDisplayTicker(asset);
+    const ticker = resolvedTicker && resolvedTicker !== asset.name ? resolvedTicker : undefined;
 
     if (asset.composition && asset.composition.length > 0) {
       asset.composition.forEach((component, index) => {
         holdings.push({
           id: `${asset.id}:${index}`,
           label: `${asset.name} · ${ASSET_CLASS_LABELS[component.assetClass] ?? component.assetClass}`,
-          ticker: getAssetDisplayTicker(asset) || undefined,
+          ticker,
           assetClass: component.assetClass,
           subCategory: component.subCategory,
           value: (value * component.percentage) / 100,
@@ -543,7 +548,7 @@ export function buildHoldings(
       holdings.push({
         id: asset.id,
         label: asset.name,
-        ticker: getAssetDisplayTicker(asset) || undefined,
+        ticker,
         assetClass: asset.assetClass,
         subCategory: asset.subCategory,
         value,

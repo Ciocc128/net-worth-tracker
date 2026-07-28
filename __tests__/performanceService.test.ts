@@ -12,6 +12,7 @@ vi.mock('@/lib/services/snapshotService', () => ({}))
 vi.mock('@/lib/services/assetAllocationService', () => ({}))
 
 import {
+  buildCacheKey,
   calculateROI,
   calculateCAGR,
   calculateTimeWeightedReturn,
@@ -23,6 +24,8 @@ import {
   calculateRecoveryTime,
   getSnapshotsForPeriod,
   getCashFlowsFromExpenses,
+  prepareMonthlyReturnsHeatmap,
+  preparePerformanceChartData,
   calculateYocMetrics,
   calculateCurrentYieldMetrics,
 } from '@/lib/services/performanceService'
@@ -164,29 +167,102 @@ describe('calculateVolatility', () => {
     expect(result!).toBeLessThan(5)
   })
 
-  it('should filter extreme values (>±50%)', () => {
-    const snapshots = [
-      makeSnapshot(2025, 1, 100000),
-      makeSnapshot(2025, 2, 200000), // +100% spike (should be filtered)
-      makeSnapshot(2025, 3, 102000),
-      makeSnapshot(2025, 4, 103000),
-    ]
-    const result = calculateVolatility(snapshots, [])
-    // Should still return a result after filtering the spike
-    expect(result).not.toBeNull()
-  })
-
   it('should adjust for cash flows', () => {
     const snapshots = [
       makeSnapshot(2025, 1, 100000),
       makeSnapshot(2025, 2, 150000), // Looks like +50% but CF explains it
       makeSnapshot(2025, 3, 152000),
+      makeSnapshot(2025, 4, 153500),
     ]
     const cashFlows = [makeCashFlow(2025, 2, 49000)] // Large contribution
     const result = calculateVolatility(snapshots, cashFlows)
     expect(result).not.toBeNull()
     // After adjusting for CF, actual return is ~1%, so volatility should be low
     expect(result!).toBeLessThan(10)
+  })
+
+  // ─── A6: perché il filtro ±50% è stato rimosso invece che reso uniforme ───
+
+  it('a tracked contribution produces no spike at all, however large', () => {
+    // Il patrimonio triplica in un mese, ma è tutto denaro versato: il rendimento aggiustato è ~0.
+    // Il filtro ±50% diceva di servire proprio a questo — ma la formula lo risolve già, quindi
+    // toglierlo non cambia una virgola qui. È la prova che il filtro non stava facendo quel lavoro.
+    // Febbraio: +1% di mercato su 100.000 e 200.000 versati → 301.000. Da lì +1% al mese.
+    const snapshots = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 301000), // +201% apparente, ma il rendimento vero è 1%
+      makeSnapshot(2025, 3, 304010),
+      makeSnapshot(2025, 4, 307050.1),
+    ]
+    const withContribution = calculateVolatility(snapshots, [makeCashFlow(2025, 2, 200000)])
+    // Lo stesso portafoglio senza il versamento: +1% al mese, identico rendimento mensile.
+    const steadySeries = calculateVolatility(
+      [
+        makeSnapshot(2025, 1, 100000),
+        makeSnapshot(2025, 2, 101000),
+        makeSnapshot(2025, 3, 102010),
+        makeSnapshot(2025, 4, 103030.1),
+      ],
+      []
+    )
+
+    expect(withContribution).not.toBeNull()
+    expect(withContribution!).toBeCloseTo(steadySeries!, 6) // entrambe ~0: nessuno spike da filtrare
+  })
+
+  it('reports a real crash beyond 50% instead of hiding it', () => {
+    // Un crollo del 60% non aggiustato da nessun cash flow è la cosa più importante che una metrica
+    // di rischio debba riportare. Il filtro lo cancellava proprio dalla volatilità, lasciandolo
+    // visibile in heatmap e Underwater: tre superfici, due storie (A6).
+    const crash = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 40000), // −60%
+      makeSnapshot(2025, 3, 41000),
+      makeSnapshot(2025, 4, 42000),
+    ]
+    const calm = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 101000),
+      makeSnapshot(2025, 3, 102000),
+      makeSnapshot(2025, 4, 103000),
+    ]
+
+    const crashVolatility = calculateVolatility(crash, [])
+    const calmVolatility = calculateVolatility(calm, [])
+
+    expect(crashVolatility).not.toBeNull()
+    expect(crashVolatility!).toBeGreaterThan(calmVolatility! * 10)
+  })
+
+  it('sees exactly the same monthly returns as the heatmap', () => {
+    // L invariante che il filtro rompeva: volatilità, heatmap e indice dei drawdown devono leggere
+    // la STESSA serie. Qui un movimento non tracciato (nessun CashFlowData) crea un mese estremo:
+    // deve comparire in entrambe, o le card di rischio smettono di parlarsi.
+    const snapshots = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 180000), // +80%, nessun cash flow registrato
+      makeSnapshot(2025, 3, 181000),
+      makeSnapshot(2025, 4, 182000),
+    ]
+    const heatmap = prepareMonthlyReturnsHeatmap(snapshots, [])
+    const februaryReturn = heatmap[0].months.find(m => m.month === 2)!.return
+
+    expect(februaryReturn).toBeCloseTo(80, 6)
+    // La deviazione standard di [80, 0.55, 0.55] annualizzata: se il mese fosse filtrato via
+    // resterebbero due sole osservazioni quasi identiche e la volatilità crollerebbe sotto l 1%.
+    expect(calculateVolatility(snapshots, [])!).toBeGreaterThan(100)
+  })
+
+  it('returns null with fewer than 3 monthly returns', () => {
+    // Due osservazioni producono sempre "una" deviazione standard, ma con un solo grado di libertà
+    // non dice niente sul portafoglio — e lo Sharpe costruito sopra ne eredita il rumore.
+    const twoReturns = [
+      makeSnapshot(2025, 1, 100000),
+      makeSnapshot(2025, 2, 101000),
+      makeSnapshot(2025, 3, 102000),
+    ]
+    expect(calculateVolatility(twoReturns, [])).toBeNull()
+    expect(calculateVolatility([...twoReturns, makeSnapshot(2025, 4, 103000)], [])).not.toBeNull()
   })
 })
 
@@ -465,24 +541,28 @@ describe('calculateTimeWeightedReturn', () => {
     expect(calculateTimeWeightedReturn([makeSnapshot(2025, 3, 100000)], [])).toBeNull()
   })
 
-  it('should equal CAGR when no cashflows (2 snapshots)', () => {
-    // Both should annualize a 5% gain over 2 months the same way
+  it('should equal CAGR over the MEASURED months when no cashflows (2 snapshots)', () => {
+    // Two end-of-month photographs = ONE measured month (end of Mar → end of Apr), not two:
+    // March's value is the starting valuation, not a return. Both metrics annualize that
+    // single +5% over 1 month → 1.05^12 - 1 ≈ 79.6%.
     const snapshots = [makeSnapshot(2025, 3, 100000), makeSnapshot(2025, 4, 105000)]
     const twr = calculateTimeWeightedReturn(snapshots, [])
-    const cagr = calculateCAGR(100000, 105000, 0, 2)
+    const cagr = calculateCAGR(100000, 105000, 0, 1)
     expect(twr).not.toBeNull()
     expect(twr!).toBeCloseTo(cagr!, 4)
+    expect(twr!).toBeCloseTo(79.59, 1)
   })
 
-  it('should equal CAGR when no cashflows (3 snapshots)', () => {
-    // 5% per month for 3 months — TWR and CAGR annualize identically with no cashflows
+  it('should equal CAGR over the MEASURED months when no cashflows (3 snapshots)', () => {
+    // 5% per month over 2 measured months (Apr and May) — TWR and CAGR agree once both
+    // count the same span.
     const snapshots = [
       makeSnapshot(2025, 3, 100000),
       makeSnapshot(2025, 4, 105000),
       makeSnapshot(2025, 5, 110250),
     ]
     const twr = calculateTimeWeightedReturn(snapshots, [])
-    const cagr = calculateCAGR(100000, 110250, 0, 3)
+    const cagr = calculateCAGR(100000, 110250, 0, 2)
     expect(twr).not.toBeNull()
     expect(twr!).toBeCloseTo(cagr!, 4)
   })
@@ -505,22 +585,21 @@ describe('calculateTimeWeightedReturn', () => {
     expect(twr!).toBeLessThan(0)
   })
 
-  it('should be identical to CAGR for YTD 2-month scenario (regression: pre-fix TWR was 2x CAGR)', () => {
-    // This test documents the bug fix: before the fix, TWR annualized by ^12 (1 transition)
-    // while CAGR annualized by ^6 (2 months inclusive). Now both use 2 months.
+  it('should annualize one linked return over one month, not two (A3 regression)', () => {
+    // The measured span is n − 1 months for n snapshots. Counting it inclusively (the pre-fix
+    // else branch) annualized ONE return over TWO months and understated the result by ~45pp
+    // here — the same bias, smaller but systematic, that flattened the Storico TWR.
     const snapshots = [makeSnapshot(2026, 1, 100000), makeSnapshot(2026, 2, 105000)]
     const twr = calculateTimeWeightedReturn(snapshots, [])
-    const cagr = calculateCAGR(100000, 105000, 0, 2)
     expect(twr).not.toBeNull()
-    // Both must be ~34%, NOT twr ~79% (the old broken value)
-    expect(twr!).toBeCloseTo(cagr!, 4)
-    expect(twr!).toBeCloseTo(34.01, 0) // 1.05^6 - 1 ≈ 34%
+    expect(twr!).toBeCloseTo(79.59, 1)  // 1.05^12 - 1, NOT 1.05^6 - 1 ≈ 34%
   })
 
-  it('should use periodMonths override for annualization when baseline included', () => {
-    // YTD Feb scenario: Dec (baseline) + Jan + Feb = 3 snapshots, but period = 2 months
-    // Without override: annualizes over 3 months (wrong for YTD)
-    // With override (2): annualizes over 2 months (correct for YTD)
+  it('should derive the same period length the explicit periodMonths override states', () => {
+    // YTD Feb scenario: Dec (baseline) + Jan + Feb = 3 snapshots, 2 measured months.
+    // The derived length and the explicit override must agree — they disagreed by one month
+    // before the fix, so the same series answered differently depending on the call site
+    // (the rolling windows took the derived path, the period metrics the explicit one).
     const snapshots = [
       makeSnapshot(2025, 12, 100000), // Baseline (Dec)
       makeSnapshot(2026, 1, 102000),  // Jan: +2%
@@ -532,59 +611,125 @@ describe('calculateTimeWeightedReturn', () => {
 
     expect(twrWithOverride).not.toBeNull()
     expect(twrWithout).not.toBeNull()
-
-    // With override (2 months): TWR matches CAGR — both annualize over 2 months
     expect(twrWithOverride!).toBeCloseTo(cagr!, 4)
-    // Without override (3 months): TWR annualizes less aggressively
-    expect(twrWithout!).toBeLessThan(twrWithOverride!)
+    expect(twrWithout!).toBeCloseTo(twrWithOverride!, 10)
+  })
+
+  it('should return null when the snapshots span less than one month', () => {
+    // Duplicate month: no measurable span, and annualizing would divide by zero years.
+    const snapshots = [makeSnapshot(2026, 1, 100000), makeSnapshot(2026, 1, 105000)]
+    expect(calculateTimeWeightedReturn(snapshots, [])).toBeNull()
   })
 })
 
 // ─── IRR (Money-Weighted Return) ───
 
 describe('calculateIRR', () => {
+  // Il periodo misurato parte a gennaio 2025: un flusso di gennaio sta a t=0, uno di luglio a t=6.
+  const PERIOD_START = new Date(2025, 0, 1)
+
   it('should return null when numberOfMonths < 1', () => {
-    expect(calculateIRR(100000, 110000, [], 0)).toBeNull()
+    expect(calculateIRR(100000, 110000, [], 0, PERIOD_START)).toBeNull()
   })
 
   it('should return null when startNW is 0', () => {
-    expect(calculateIRR(0, 110000, [], 12)).toBeNull()
+    expect(calculateIRR(0, 110000, [], 12, PERIOD_START)).toBeNull()
   })
 
   it('should calculate ~10% for 12-month 10% gain with no cashflows', () => {
     // -100000 at t=0, +110000 at t=12 months → IRR = 10%
-    const result = calculateIRR(100000, 110000, [], 12)
+    const result = calculateIRR(100000, 110000, [], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(10, 0)
+    expect(result!).toBeCloseTo(10, 6)
   })
 
   it('should calculate negative IRR for a loss', () => {
     // -100000 at t=0, +90000 at t=12 months → IRR = -10%
-    const result = calculateIRR(100000, 90000, [], 12)
+    const result = calculateIRR(100000, 90000, [], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(-10, 0)
+    expect(result!).toBeCloseTo(-10, 6)
   })
 
-  it('should differ from CAGR when cashflows exist mid-period', () => {
-    // With a contribution early in the period, IRR gives the investor's actual return
-    // which accounts for when money was actually deployed
-    const cashFlows: CashFlowData[] = [
-      {
-        date: new Date(2025, 0, 1), // Jan (month 1 from start)
-        income: 10000,
-        expenses: 0,
-        dividendIncome: 0,
-        netCashFlow: 10000,
-      },
-    ]
-    // start=100K, contributed 10K at month 1, end=121K over 12 months
-    const irr = calculateIRR(100000, 121000, cashFlows, 12)
+  it('treats a contribution as money PAID IN, not received (sign regression)', () => {
+    // Il patrimonio sale da 100.000 a 110.000, ma i 10.000 sono stati versati: il rendimento per
+    // l investitore è esattamente zero. NPV = −100.000 − 10.000 + 110.000/(1+r) = 0 → r = 0.
+    // Contando il versamento con segno positivo (come faceva prima) l equazione diventa
+    // −100.000 + 10.000/(1+r)^(1/12) + 110.000/(1+r) = 0, la cui radice è +22,00%.
+    const result = calculateIRR(100000, 110000, [makeCashFlow(2025, 1, 10000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(0, 6)
+  })
+
+  it('discounts a mid-period contribution over the time it was actually invested', () => {
+    // −100.000 a t=0, −10.000 a t=6 mesi, +121.000 a t=12. Con x = 1+r la NPV si riduce a
+    // 100.000x + 10.000√x − 121.000 = 0, cioè 100s² + 10s − 121 = 0 con s = √x:
+    // s = (−10 + √48.500)/200 → x = s² → r = 10,488642%. Verificato in forma chiusa, a mano.
+    const result = calculateIRR(100000, 121000, [makeCashFlow(2025, 7, 10000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(10.488642, 5)
+  })
+
+  it('treats a withdrawal as money taken out', () => {
+    // 100.000 → 90.000 dopo aver prelevato 10.000: nessuna perdita, rendimento zero.
+    const result = calculateIRR(100000, 90000, [makeCashFlow(2025, 1, -10000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(0, 6)
+  })
+
+  it('anchors the timeline at the period start, not at the first month with movements', () => {
+    // Stesso versamento, stesso risultato finale, momenti diversi: versare PRIMA significa tenere
+    // il capitale investito più a lungo per lo stesso guadagno, quindi un IRR più basso. Con la
+    // vecchia ancora (primo mese CON movimenti) entrambi finivano allo stesso t e i due casi
+    // davano lo stesso numero.
+    const early = calculateIRR(100000, 121000, [makeCashFlow(2025, 2, 10000)], 12, PERIOD_START)
+    const late = calculateIRR(100000, 121000, [makeCashFlow(2025, 11, 10000)], 12, PERIOD_START)
+
+    expect(early).not.toBeNull()
+    expect(late).not.toBeNull()
+    expect(early!).toBeLessThan(late!)
+  })
+
+  it('ignores flows dated outside the measured window', () => {
+    // Un flusso prima dell inizio o dopo la fine verrebbe scontato su un tempo che non ha passato
+    // investito. I chiamanti filtrano già sulla stessa finestra: questa è una guardia.
+    const withStrays = calculateIRR(
+      100000,
+      110000,
+      [makeCashFlow(2024, 6, 50000), makeCashFlow(2026, 6, 50000)],
+      12,
+      PERIOD_START
+    )
+    expect(withStrays!).toBeCloseTo(10, 6)
+  })
+
+  it('converges on a collapse that Newton alone would struggle with (bisection fallback)', () => {
+    // Prelevati 95.000 su 100.000, ne restano 1.000: −100.000 + 95.000 + 1.000/(1+r) = 0 → r = −80%.
+    const result = calculateIRR(100000, 1000, [makeCashFlow(2025, 1, -95000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(-80, 6)
+  })
+
+  it('reaches an extreme but well-defined rate instead of giving up', () => {
+    // Versato un milione su 100.000, ne restano 1.000: −1.100.000 + 1.000/(1+r) = 0 → r = −99,909%.
+    // È un numero estremo ma vero, e vive dove Newton (che parte dal +10%) fatica ad arrivare.
+    const result = calculateIRR(100000, 1000, [makeCashFlow(2025, 1, 1000000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(-99.909091, 5)
+  })
+
+  it('returns null when no rate can explain the stream', () => {
+    // Patrimonio finale zero: la NPV resta negativa a ogni tasso (il limite sarebbe −100%, che non
+    // è raggiungibile). Meglio nessuna risposta che una inventata.
+    const result = calculateIRR(100000, 0, [], 12, PERIOD_START)
+    expect(result).toBeNull()
+  })
+
+  it('differs from CAGR when the contribution lands mid-period', () => {
+    // CAGR mette tutti i flussi a t=0 per definizione (formula diversa, non un bug: vedi A8);
+    // l IRR li sconta quando sono avvenuti, quindi sopra un versamento tardivo i due divergono.
+    const irr = calculateIRR(100000, 121000, [makeCashFlow(2025, 7, 10000)], 12, PERIOD_START)
     const cagr = calculateCAGR(100000, 121000, 10000, 12)
-    expect(irr).not.toBeNull()
-    expect(cagr).not.toBeNull()
-    // Both should be non-null and in a reasonable range, but they differ
-    // because IRR accounts for the timing of the 10K contribution
-    expect(irr!).not.toBeCloseTo(cagr!, 1)
+    expect(irr!).toBeGreaterThan(cagr!)
   })
 })
 
@@ -923,5 +1068,153 @@ describe('getCashFlowsFromExpenses', () => {
     expect(janEntry!.netCashFlow).toBe(2200)
     // Feb: dividend of 4000 excluded from netCashFlow, expense -200 → netCashFlow = 0 - 200 = -200
     expect(febEntry!.netCashFlow).toBe(-200)
+  })
+})
+
+// ─── Cache key ───
+
+describe('buildCacheKey', () => {
+  // Ogni input che sposta i numeri deve spostare la chiave: una chiave stabile su un input cambiato
+  // significa servire per 6 ore metriche calcolate da qualcos'altro.
+  const snapshots = [
+    makeSnapshot(2025, 1, 100000),
+    makeSnapshot(2025, 2, 105000),
+    makeSnapshot(2025, 3, 110000),
+  ]
+  const baseline = {
+    snapshots,
+    baseOptions: {},
+    riskFreeRate: 2.5,
+    dividendCategoryId: 'div-cat',
+  }
+
+  it('is stable for identical inputs', () => {
+    expect(buildCacheKey(baseline)).toBe(buildCacheKey({ ...baseline }))
+  })
+
+  it('carries the math version, so a formula change can invalidate what inputs cannot', () => {
+    // Nessuna firma degli input può accorgersi che sono cambiate le FORMULE: senza questo token
+    // l'utente continua a leggere numeri pre-fix per 6 ore. Il test è qui perché il bump è manuale
+    // e va ricordato — se questa asserzione fallisce dopo un cambio di matematica, è corretto
+    // aggiornarla; se fallisce senza, qualcuno ha rotto il prefisso.
+    expect(buildCacheKey(baseline).startsWith('v5-')).toBe(true)
+    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v5-')).toBe(true)
+  })
+
+  it('ignores the order snapshots arrive in', () => {
+    // La stessa storia descritta in un altro ordine è la stessa storia.
+    const shuffled = [snapshots[2], snapshots[0], snapshots[1]]
+    expect(buildCacheKey({ ...baseline, snapshots: shuffled })).toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when a HISTORICAL snapshot is corrected (A9)', () => {
+    // Il caso che la vecchia chiave non vedeva: stesso numero di snapshot, stesso ultimo mese,
+    // stesso valore finale — ma un mese di mezzo corretto riscrive rendimenti e drawdown.
+    const corrected = [snapshots[0], makeSnapshot(2025, 2, 106000), snapshots[2]]
+    expect(buildCacheKey({ ...baseline, snapshots: corrected })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when the last snapshot value changes', () => {
+    const updated = [snapshots[0], snapshots[1], makeSnapshot(2025, 3, 111000)]
+    expect(buildCacheKey({ ...baseline, snapshots: updated })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when a snapshot is added', () => {
+    const extended = [...snapshots, makeSnapshot(2025, 4, 112000)]
+    expect(buildCacheKey({ ...baseline, snapshots: extended })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when the risk-free rate changes (A9)', () => {
+    // Muove ogni Sharpe e il verdetto dell hero: prima restava stantio fino a 6 ore.
+    expect(buildCacheKey({ ...baseline, riskFreeRate: 3.94 })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('distinguishes a 0% risk-free rate from the 2.5% default', () => {
+    expect(buildCacheKey({ ...baseline, riskFreeRate: 0 })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when the dividend income category changes (A9)', () => {
+    // Riclassifica i cash flow: cosa è contributo e cosa è rendimento del portafoglio.
+    expect(buildCacheKey({ ...baseline, dividendCategoryId: 'other-cat' })).not.toBe(buildCacheKey(baseline))
+    expect(buildCacheKey({ ...baseline, dividendCategoryId: undefined })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when either exclusion of the metrics base is flipped', () => {
+    const withPension = buildCacheKey({ ...baseline, baseOptions: { includePensionFunds: true } })
+    const withExcluded = buildCacheKey({ ...baseline, baseOptions: { includeExcludedAssets: true } })
+    expect(withPension).not.toBe(buildCacheKey(baseline))
+    expect(withExcluded).not.toBe(buildCacheKey(baseline))
+    expect(withPension).not.toBe(withExcluded)
+  })
+
+  it('handles an empty history without pretending it is the same as any other input', () => {
+    const empty = buildCacheKey({ ...baseline, snapshots: [] })
+    expect(empty).not.toBe(buildCacheKey(baseline))
+    expect(empty).toBe(buildCacheKey({ ...baseline, snapshots: [] }))
+    expect(buildCacheKey({ ...baseline, snapshots: [], riskFreeRate: 0 })).not.toBe(empty)
+  })
+
+  it('ignores sub-euro noise in snapshot values', () => {
+    // I centesimi ballano a ogni riconversione FX: farebbero girare la chiave per nulla.
+    const noisy = [makeSnapshot(2025, 1, 100000.004), snapshots[1], snapshots[2]]
+    expect(buildCacheKey({ ...baseline, snapshots: noisy })).toBe(buildCacheKey(baseline))
+  })
+})
+
+// ─── Evoluzione Patrimonio: le tre bande (A11) ───
+
+describe('preparePerformanceChartData', () => {
+  const snapshots = [
+    makeSnapshot(2025, 1, 200000), // valutazione di partenza
+    makeSnapshot(2025, 2, 215000),
+    makeSnapshot(2025, 3, 225000),
+  ]
+  const cashFlows = [makeCashFlow(2025, 2, 5000), makeCashFlow(2025, 3, 5000)]
+
+  it('splits net worth into initial capital + contributions + market growth', () => {
+    const chart = preparePerformanceChartData(snapshots, cashFlows)
+
+    expect(chart[1].initialCapital).toBe(200000)
+    expect(chart[1].contributions).toBe(5000)
+    expect(chart[1].returns).toBe(10000) // 215000 - 200000 - 5000
+    expect(chart[2].returns).toBe(15000) // 225000 - 200000 - 10000
+  })
+
+  it('keeps the decomposition adding up to the net worth line', () => {
+    for (const point of preparePerformanceChartData(snapshots, cashFlows)) {
+      expect(point.initialCapital + point.contributions + point.returns).toBeCloseTo(point.netWorth, 6)
+      expect(point.investedBase).toBeCloseTo(point.initialCapital + point.contributions, 6)
+      expect(point.investedBase + point.returns).toBeCloseTo(point.netWorth, 6)
+    }
+  })
+
+  it('lets the invested base fall below the initial capital when withdrawals exceed contributions', () => {
+    // Il caso che rompeva il grafico a bande impilate: contributi cumulati negativi. Con un'area e
+    // una linea non c'è niente da impilare, quindi la base scende e basta.
+    const withdrawing = preparePerformanceChartData(snapshots, [makeCashFlow(2025, 2, -30000)])
+
+    expect(withdrawing[1].contributions).toBe(-30000)
+    expect(withdrawing[1].investedBase).toBe(170000)
+    expect(withdrawing[1].investedBase).toBeLessThan(withdrawing[1].initialCapital)
+    expect(withdrawing[1].investedBase + withdrawing[1].returns).toBeCloseTo(withdrawing[1].netWorth, 6)
+  })
+
+  it('shows a losing period as a negative market band, not as capital', () => {
+    // Prima del fix la banda "Investimenti" partiva dal capitale iniziale e restava ampiamente
+    // positiva anche perdendo: mostrava come rendimento un capitale che il mercato non aveva creato.
+    const losing = [makeSnapshot(2025, 1, 200000), makeSnapshot(2025, 2, 190000)]
+    const chart = preparePerformanceChartData(losing, [])
+
+    expect(chart[1].returns).toBe(-10000)
+  })
+
+  it('keeps the baseline month as the initial capital when it is skipped from the points', () => {
+    // Con skipBaseline il primo mese non si disegna, ma resta la valutazione da cui il periodo parte:
+    // è lo stesso startNW che alimenta ROI e TWR, quindi grafico e card scompongono lo stesso periodo.
+    const chart = preparePerformanceChartData(snapshots, cashFlows, true)
+
+    expect(chart.length).toBe(2)
+    expect(chart[0].date).toBe('02/2025')
+    expect(chart[0].initialCapital).toBe(200000)
   })
 })

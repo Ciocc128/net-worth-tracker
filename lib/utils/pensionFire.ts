@@ -1,5 +1,5 @@
 /**
- * Pension <-> FIRE — locked-capital helper (spec 2-pension-fund/04 §8, MVP).
+ * Pension <-> FIRE — locked-capital helper (MVP).
  *
  * A fondo pensione is not freely withdrawable before its unlock date, so a FIRE calculation that
  * assumes "all capital is available now" overstates the runway. When the user turns on the

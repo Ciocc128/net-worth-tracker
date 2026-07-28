@@ -1,6 +1,5 @@
 /**
- * InstrumentTradeList — renders the leverage-aware planner's flat `InstrumentTrade[]`
- * (spec 3-leveraged-etf-allocation/02 §4 "Rendering").
+ * InstrumentTradeList — renders the leverage-aware planner's flat `InstrumentTrade[]`.
  *
  * The instrument-aware engine (leverageAwareAllocationUtils.ts) reasons over the real held
  * instruments, so its output is a flat list of concrete buys/sells — NOT the class → sub → instrument
@@ -8,8 +7,9 @@
  * as what it is: signed instrument trades, largest first, buy vs sell in the shared action colors
  * (`useActionColors`). A positive amount is a COMPRA, a negative one a VENDI.
  *
- * The trade shows the user-facing alias when set (`displayTicker`, ticker-display-alias), else the
- * ticker, else the name. Pure presentation; the panels own the amount input and the empty states.
+ * The trade shows `displayTicker`, which `buildInstrumentExposures` already resolves via
+ * `getAssetDisplayTicker` (alias → ticker → name) — this just guards the optional-field type.
+ * Pure presentation; the panels own the amount input and the empty states.
  */
 'use client';
 
@@ -22,9 +22,8 @@ interface InstrumentTradeListProps {
   trades: InstrumentTrade[];
 }
 
-/** The label a trade shows: user alias → ticker → name. */
 function tradeLabel(trade: InstrumentTrade): string {
-  return trade.displayTicker || trade.ticker || trade.name;
+  return trade.displayTicker || trade.ticker;
 }
 
 export function InstrumentTradeList({ trades }: InstrumentTradeListProps) {

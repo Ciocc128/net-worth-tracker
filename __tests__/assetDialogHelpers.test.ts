@@ -62,6 +62,12 @@ function buildBondDetailsFromForm(
   };
 }
 
+// Mirrors the taxRate branch of `buildAssetFormDataFromValues` in AssetDialog.tsx —
+// A saved taxRate of 0 must survive the submit round-trip (0 is falsy — `||` would erase it).
+function resolveTaxRateForPersist(taxRate: number | undefined): number | undefined {
+  return taxRate !== undefined && !isNaN(taxRate) && taxRate >= 0 ? taxRate : undefined;
+}
+
 // ---------------------------------------------------------------------------
 
 describe('resolveBondPrice', () => {
@@ -174,5 +180,31 @@ describe('buildBondDetailsFromForm', () => {
   it('should omit finalPremiumRate when not provided', () => {
     const result = buildBondDetailsFromForm(validData, true, false);
     expect('finalPremiumRate' in (result ?? {})).toBe(false);
+  });
+});
+
+describe('resolveTaxRateForPersist', () => {
+  it('should preserve an explicit 0 (not treat it as empty)', () => {
+    expect(resolveTaxRateForPersist(0)).toBe(0);
+  });
+
+  it('should preserve a positive tax rate', () => {
+    expect(resolveTaxRateForPersist(26)).toBe(26);
+  });
+
+  it('should preserve the BTP shortcut rate', () => {
+    expect(resolveTaxRateForPersist(12.5)).toBe(12.5);
+  });
+
+  it('should convert an empty field (NaN from valueAsNumber) to undefined', () => {
+    expect(resolveTaxRateForPersist(NaN)).toBeUndefined();
+  });
+
+  it('should convert undefined to undefined', () => {
+    expect(resolveTaxRateForPersist(undefined)).toBeUndefined();
+  });
+
+  it('should reject a negative tax rate', () => {
+    expect(resolveTaxRateForPersist(-5)).toBeUndefined();
   });
 });

@@ -706,7 +706,7 @@ function classifyAction(difference: number): AllocationData['action'] {
 /**
  * The TARGET leverage a target set encodes. Every target % is a desired notional exposure as a
  * percentage of invested capital, so the SUM over the configured classes is exactly
- * `leverage × 100` (equity 90% + bonds 60% ⇒ 1.50×). Read-only / derived (spec 01 §5): the app
+ * `leverage × 100` (equity 90% + bonds 60% ⇒ 1.50×). Read-only / derived: the app
  * never stores a manual leverage input. Returns 1 for an empty/absent target set (no leverage).
  *
  * No exclusions parameter (D1): exclusions live on the asset (`allocationRole`), not on classes,
@@ -886,7 +886,7 @@ export function toLegacyAllocationResult(
 /**
  * Compare current allocation against targets and generate rebalancing actions.
  *
- * LEVERAGE-AWARE (spec 3-leveraged-etf-allocation, invariant #3): current/target percentages
+ * LEVERAGE-AWARE invariant: current/target percentages
  * are notional exposure over investable MARKET capital, so they sum to `leverageRatio × 100`.
  *
  * The investable base is `tradable + frozen` (invariant #5): `excluded`-role assets (the home

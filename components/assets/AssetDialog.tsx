@@ -93,7 +93,7 @@ const shouldUpdatePrice = hasMarketPrice;
  * Example: rawPrice=104.2, nominalValue=1000 → 1042€
  * Passthrough for all other asset types or bonds without a qualifying nominal value.
  *
- * Exported so `TransactionDialog` reuses the SAME conversion (spec 01 §5: reuse, never
+ * Exported so `TransactionDialog` reuses the SAME conversion (reuse, never
  * re-implement) — the trade ledger's `pricePerUnit` must mean exactly what `averageCost` means here.
  */
 export function resolveBondPrice(
@@ -247,7 +247,9 @@ function buildAssetFormDataFromValues(
       data.averageCost && !isNaN(data.averageCost) && data.averageCost > 0
         ? resolveBondPrice(data.averageCost, data.bondNominalValue, isBondWithIsin)
         : undefined,
-    taxRate: data.taxRate && !isNaN(data.taxRate) && data.taxRate >= 0 ? data.taxRate : undefined,
+    // `data.taxRate &&` would treat an explicit 0 as falsy and drop it like an empty field;
+    // `!== undefined` + `!isNaN` together already exclude the empty-input case (valueAsNumber → NaN).
+    taxRate: data.taxRate !== undefined && !isNaN(data.taxRate) && data.taxRate >= 0 ? data.taxRate : undefined,
     totalExpenseRatio:
       data.totalExpenseRatio && !isNaN(data.totalExpenseRatio) && data.totalExpenseRatio >= 0
         ? data.totalExpenseRatio
@@ -346,19 +348,18 @@ const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.E
 // Note: .or(z.nan()) allows undefined values for optional numeric fields
 const assetSchema = z.object({
   ticker: z.string(),
-  // User-facing alias for `ticker` (spec 4-ticker-display-alias.md). Purely cosmetic — never
+  // User-facing alias for `ticker`. Purely cosmetic — never
   // touches price retrieval, which always reads `ticker`. Gated the same as `ticker` itself.
   displayTicker: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
   // Mirrors the AssetType union in types/assets.ts — keep the two in lock-step (tsc catches drift
   // where the form value is passed back as an AssetType). 'pensionFund' is accepted here from P0 on;
-  // its type card and its dedicated fields land with the pension UI phase (spec 2-pension-fund/04).
+  // its type card and its dedicated fields land with the pension UI phase.
   type: z.enum(['stock', 'etf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pensionFund']),
   // Mirrors the AssetClass union in types/assets.ts (tsc catches drift the same way as `type` above).
   // 'trendFollowing'/'carry' are accepted here from L0 on but have no picker entry yet in the
-  // `assetClasses` composition-leg Select below — that lands with the leverage UI (spec 3-leveraged-
-  // etf-allocation/03, phase L2).
+  // `assetClasses` composition-leg Select below — that lands with the leverage UI (phase L2).
   assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
   subCategory: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
@@ -368,7 +369,7 @@ const assetSchema = z.object({
   taxRate: z.number().min(0, 'Tax rate must be at least 0').max(100, 'Tax rate must be at most 100').optional().or(z.nan()),
   totalExpenseRatio: z.number().min(0, 'TER must be at least 0').max(100, 'TER must be at most 100').optional().or(z.nan()),
   // Leverage multiplier for a leveraged/composite ETF (2 = 2x). Empty/1 = no leverage. Shown for
-  // type 'etf' only (spec 3-leveraged-etf-allocation/03 §4). It is metadata (multiplies notional
+  // type 'etf' only. It is metadata (multiplies notional
   // exposure), independent of quantity/PMC — so for ledger types it rides updateAssetMetadata.
   leverageRatio: z.number().min(1, 'La leva deve essere almeno 1').max(10, 'Leva massima 10').optional().or(z.nan()),
   stampDutyExempt: z.boolean().optional(),
@@ -379,7 +380,7 @@ const assetSchema = z.object({
   isPrimaryResidence: z.boolean().optional(),
   allocationRole: z.enum(['tradable', 'frozen', 'excluded']).optional(),
   // Opening-position fields (ledger create only): the first buy's date + optional settlement account.
-  // The opening quantity/price reuse `quantity`/`averageCost` (spec 04 §3: price feeds both PMC and
+  // The opening quantity/price reuse `quantity`/`averageCost` (the price feeds both PMC and
   // the first buy). Ignored for non-ledger types and in edit mode.
   openingDate: z.string().optional(),
   openingCashAssetId: z.string().optional(),
@@ -590,7 +591,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
   const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
   const newAsset_showTER = selectedType === 'etf' || selectedType === 'stock';
-  // Leva: only ETFs can be leveraged/composite instruments (spec 3-leveraged-etf-allocation/03 §4).
+  // Leva: only ETFs can be leveraged/composite instruments.
   const newAsset_showLeverage = selectedType === 'etf';
   const newAsset_showComposition = selectedType === 'etf' || selectedType === 'pensionFund';
 
@@ -606,7 +607,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   useEffect(() => {
     if (selectedAssetClass) {
       // Default for isLiquid: most assets are liquid except real estate, private equity, and
-      // fondo pensione (locked until retirement — illiquid by nature, spec 04 §1).
+      // fondo pensione (locked until retirement — illiquid by nature).
       const defaultIsLiquid =
         selectedAssetClass !== 'realestate' &&
         selectedSubCategory !== 'Private Equity' &&
@@ -738,7 +739,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               : undefined,
           };
         })(),
-        taxRate: asset.taxRate || undefined,
+        // `?? undefined`, not `||`: a saved taxRate of 0 is legitimate and must survive a
+        // round-trip through edit (`||` would treat 0 as falsy and blank the field).
+        taxRate: asset.taxRate ?? undefined,
         totalExpenseRatio: asset.totalExpenseRatio || undefined,
         leverageRatio: asset.leverageRatio || undefined,
         stampDutyExempt: asset.stampDutyExempt || false,
@@ -1062,7 +1065,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
       if (ledgerEditFlow && asset) {
         // LEDGER EDIT — metadata only. Ledger types derive quantity/PMC from the trade ledger, so
         // this path MUST NOT go through updateAsset: its undefined→deleteField() for averageCost
-        // would wipe the PMC on every metadata save (spec 03 §3). Strip the derived fields.
+        // would wipe the PMC on every metadata save. Strip the derived fields.
         if (!shouldUpdatePrice(data.type, data.subCategory)) {
           formData.currentPrice = asset.currentPrice;
         }
@@ -1071,7 +1074,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
         savedAssetId = asset.id;
         toast.success('Asset aggiornato con successo');
 
-        // Conversion to pensionFund (spec 2-pension-fund/04 §1.1, option 1): the asset leaves the
+        // Conversion to pensionFund: the asset leaves the
         // ledger for good — pensionFund is not a LEDGER_ASSET_TYPE, so its trades would otherwise
         // sit as an orphan the Rendimenti "Capitale investito" aggregation still sums. Delete them
         // rather than leave a number that quietly stops matching the page it came from. Best-effort:
@@ -1094,8 +1097,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
         toast.success('Asset aggiornato con successo');
       } else if (ledgerCreateFlow) {
         // LEDGER CREATE — the asset opens EMPTY (quantity 0, no PMC); the first buy opens the
-        // position (which writes the derived quantity/PMC back onto the asset). NON-ATOMIC by design
-        // (spec 04 §3): if the buy fails, the asset survives at quantity 0 (recoverable) and the user
+        // position (which writes the derived quantity/PMC back onto the asset). NON-ATOMIC by
+        // design: if the buy fails, the asset survives at quantity 0 (recoverable) and the user
         // retries via «Registra operazione». We accept the two-step gap for a simpler create flow.
         const openingQty = data.quantity;
         if (isNaN(openingQty) || openingQty <= 0) {
@@ -1152,6 +1155,41 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
       setFetchingPrice(false);
     }
   };
+
+  // taxRate is asset metadata, not a ledger concept: the trade ledger derives quantity/PMC from
+  // operations, but a single tax rate covers both capital gains AND dividends/coupons for the
+  // asset (decision: one field, no separate dividendTaxRate). A render helper (not a nested
+  // component) keeps one input registered across the three branches — non-ledger, ledger edit,
+  // ledger create — without remounting it on every parent render.
+  const renderTaxRateField = () => (
+    <div className="space-y-2">
+      <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
+      <Input
+        id="taxRate"
+        type="number"
+        step="0.01"
+        min="0"
+        max="100"
+        {...register('taxRate', { valueAsNumber: true })}
+        placeholder="es. 26"
+      />
+      {errors.taxRate && (
+        <p className="text-sm text-red-500">{errors.taxRate.message}</p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Percentuale di tassazione su plusvalenze e proventi (dividendi/cedole) (es. 26 per 26%)
+      </p>
+      {(selectedType === 'bond' || selectedAssetClass === 'bonds') && (
+        <button
+          type="button"
+          onClick={() => setValue('taxRate', 12.5)}
+          className="text-xs text-primary underline hover:no-underline"
+        >
+          Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -1218,6 +1256,38 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             </button>
           )}
 
+          {/* Classe Asset — ETF only, create mode.
+              Every other type is silently derived from TYPE_TO_CLASS: an equity ETF, a bond ETF and
+              a money-market ETF (e.g. XEON) are all `type: 'etf'`, and only the class tells them
+              apart — that ambiguity doesn't exist for stock/bond/crypto/etc, so they don't get a
+              picker. Defaults to 'equity' (set by `handleTypeSelect` in step 1), editable here
+              before the class-keyed defaults below (isLiquid/autoUpdatePrice/allocationRole) fire
+              off `selectedAssetClass`. Trend Following/Carry have no dedicated color/target yet in
+              Impostazioni (AGENTS.md → Leva L0) — offered anyway since they exist for leveraged ETFs. */}
+          {!isEdit && selectedType === 'etf' && (
+            <div className="space-y-2">
+              <Label htmlFor="assetClassEtf">Classe Asset *</Label>
+              <Select
+                value={selectedAssetClass}
+                onValueChange={(value) => setValue('assetClass', value as AssetClass)}
+              >
+                <SelectTrigger id="assetClassEtf">
+                  <SelectValue placeholder="Seleziona classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assetClasses.map((assetClass) => (
+                    <SelectItem key={assetClass.value} value={assetClass.value}>
+                      {assetClass.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.assetClass && (
+                <p className="text-sm text-red-500">{errors.assetClass.message}</p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ticker hidden for cash/realestate (no market price needed) */}
             {newAsset_showTicker && (
@@ -1247,7 +1317,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             </div>
           </div>
 
-          {/* Alias visualizzato — hidden alongside the ticker (spec 4-ticker-display-alias.md) */}
+          {/* Alias visualizzato — hidden alongside the ticker */}
           {newAsset_showTicker && (
           <div className="space-y-2">
             <Label htmlFor="displayTicker">Alias visualizzato</Label>
@@ -1293,7 +1363,16 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               <Label htmlFor="type">Tipo *</Label>
               <Select
                 value={selectedType}
-                onValueChange={(value) => setValue('type', value as AssetType)}
+                onValueChange={(value) => {
+                  const newType = value as AssetType;
+                  setValue('type', newType);
+                  // Re-derive the class from the new type, mirroring create's `handleTypeSelect` —
+                  // except for `etf`, whose class stays whatever the user set in the Select below
+                  // (decision 6: only ETF exposes a class choice; every other type is type-derived).
+                  if (newType !== 'etf') {
+                    setValue('assetClass', TYPE_TO_CLASS[newType]);
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona tipo" />
@@ -1477,6 +1556,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                   </p>
                 </div>
               </div>
+              {newAsset_showCostBasis && renderTaxRateField()}
               {onRegisterTrade && (
                 <Button
                   type="button"
@@ -1581,6 +1661,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                   </Select>
                 </div>
               </div>
+              {newAsset_showCostBasis && renderTaxRateField()}
               {!ledgerCreateReady && (
                 <p className="text-xs text-muted-foreground">
                   Il registro operazioni si sta inizializzando: la posizione viene salvata comunque.
@@ -2290,33 +2371,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                     })()}
 
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
-                    <Input
-                      id="taxRate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      {...register('taxRate', { valueAsNumber: true })}
-                      placeholder="es. 26"
-                    />
-                    {errors.taxRate && (
-                      <p className="text-sm text-red-500">{errors.taxRate.message}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Percentuale di tassazione sulle plusvalenze (es. 26 per 26%)
-                    </p>
-                    {(selectedType === 'bond' || selectedAssetClass === 'bonds') && (
-                      <button
-                        type="button"
-                        onClick={() => setValue('taxRate', 12.5)}
-                        className="text-xs text-primary underline hover:no-underline"
-                      >
-                        Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%
-                      </button>
-                    )}
-                  </div>
+                  {renderTaxRateField()}
                 </div>
 
                 {/* Inline multi-broker PMC calculator — full width, outside the 2-col grid */}

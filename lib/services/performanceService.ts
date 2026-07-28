@@ -10,6 +10,7 @@ import {
   RollingPeriodPerformance,
   PerformanceChartData,
   MonthlyReturnHeatmapData,
+  PeriodMonth,
   UnderwaterDrawdownData,
   PerformanceCacheDocument,
   FirestorePerformanceData,
@@ -21,6 +22,8 @@ import { getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 import { getSettings } from './assetAllocationService';
 import { getAllAssets } from './assetService';
+import { buildCashFlowMap, monthKey } from '@/lib/utils/cashFlowMap';
+import { endOfMonthBound } from '@/lib/utils/dateHelpers';
 import { computeDividendYieldMetrics } from '@/lib/utils/yieldOnCost';
 import { buildTwrIndex, computeDrawdownSeries, findMaxDrawdown } from '@/lib/utils/drawdownSeries';
 import {
@@ -31,6 +34,20 @@ import {
 } from '@/lib/utils/performanceBase';
 
 const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
+
+/**
+ * Version token of the cached MATH, prefixed to every cache key.
+ *
+ * The rest of the key fingerprints the inputs; this covers the one thing no input signature can see —
+ * a change to the formulas themselves, which rewrites the numbers while snapshots and settings stay
+ * byte-identical. Without a bump the user keeps reading pre-fix figures until the 6h TTL expires.
+ *
+ * WARNING (checklist comment): bump on ANY change that alters what the pipeline computes from
+ * unchanged inputs, and only then. History: v2 = baseline data-driven + first-month cash flows +
+ * TWR annualization; v3 = rolling windows; v4 = IRR signs and timeline; v5 = volatility without
+ * the ±50% filter, and its 3-observation floor.
+ */
+const CACHE_MATH_VERSION = 'v5';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -132,10 +149,9 @@ export function calculateCAGR(
  *
  * @param snapshots - Monthly snapshots for the period (sorted chronologically)
  * @param cashFlows - Monthly cash flows
- * @param periodMonths - Optional override for annualization period length.
- *   When provided, uses this instead of computing from first/last snapshot.
- *   Needed when snapshots include a pre-period baseline (e.g., Dec for YTD)
- *   but annualization should only cover the actual performance period (Jan-Feb).
+ * @param periodMonths - Number of months the returns span, for annualization. Pass it whenever the
+ *   caller already knows the period (it also survives gaps in the snapshot series); omitted, it is
+ *   derived from the first and last snapshot, counting from the END of the first month.
  * @returns Annualized TWR percentage or null if insufficient data
  */
 export function calculateTimeWeightedReturn(
@@ -145,12 +161,7 @@ export function calculateTimeWeightedReturn(
 ): number | null {
   if (snapshots.length < 2) return null;
 
-  // Create cash flow lookup map (by YYYY-MM)
-  const cashFlowMap = new Map<string, number>();
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   let linkedReturn = 1.0;
 
@@ -162,8 +173,7 @@ export function calculateTimeWeightedReturn(
     const endNW = currSnapshot.totalNetWorth;
 
     // Get cash flow for current month
-    const cfKey = `${currSnapshot.year}-${String(currSnapshot.month).padStart(2, '0')}`;
-    const cashFlow = cashFlowMap.get(cfKey) || 0;
+    const cashFlow = cashFlowMap.get(monthKey(currSnapshot.year, currSnapshot.month)) || 0;
 
     // Calculate sub-period return: (End NW - Cash Flow) / Start NW - 1
     if (startNW === 0) continue; // Skip if zero starting value
@@ -173,10 +183,11 @@ export function calculateTimeWeightedReturn(
     linkedReturn *= (1 + periodReturn);
   }
 
-  // Annualize the return using the same period duration as calculateCAGR
-  // (calculateMonthsDifference with inclusive counting) to ensure consistency.
-  // When periodMonths is provided, it excludes the baseline month from the count
-  // (e.g., for YTD Feb: Dec is baseline, period = 2 months, not 3)
+  // Annualize over the span the linked returns actually cover: from the END of the first snapshot's
+  // month (its value is the starting valuation, not a return) to the end of the last one. The
+  // inclusive month count minus that first month — with n monthly snapshots and no gaps, n − 1,
+  // matching the n − 1 sub-periods linked above. Counting it inclusively (as this branch used to)
+  // annualizes n − 1 returns over n months and understates the result.
   let totalMonths: number;
   if (periodMonths !== undefined) {
     totalMonths = periodMonths;
@@ -184,10 +195,10 @@ export function calculateTimeWeightedReturn(
     const firstSnap = snapshots[0];
     const lastSnap = snapshots[snapshots.length - 1];
     const periodStart = new Date(firstSnap.year, firstSnap.month - 1, 1);
-    const periodEnd = new Date(lastSnap.year, lastSnap.month, 0);
-    totalMonths = calculateMonthsDifference(periodEnd, periodStart);
+    const periodEnd = endOfMonthBound(lastSnap.year, lastSnap.month);
+    totalMonths = monthsElapsed(periodStart, periodEnd);
   }
-  if (totalMonths === 0) return null;
+  if (totalMonths <= 0) return null;
 
   const years = totalMonths / 12;
   const annualizedTWR = (Math.pow(linkedReturn, 1 / years) - 1) * 100;
@@ -195,78 +206,142 @@ export function calculateTimeWeightedReturn(
   return isFinite(annualizedTWR) ? annualizedTWR : null;
 }
 
+/** One dated amount of the investor's cash flow stream, in months from the start of the period. */
+interface DatedFlow {
+  amount: number;
+  monthsFromStart: number;
+}
+
+/** Lowest rate the solver explores: −99,99%, i.e. everything lost bar a rounding crumb. */
+const IRR_MIN_RATE = -0.9999;
+/** Highest rate the solver explores: +100000% a year. Beyond this the answer is not a return. */
+const IRR_MAX_RATE = 1000;
+
+/** Net present value of the stream at a given annual rate. */
+function computeNpv(flows: DatedFlow[], rate: number): number {
+  return flows.reduce(
+    (npv, flow) => npv + flow.amount * Math.pow(1 + rate, -flow.monthsFromStart / 12),
+    0
+  );
+}
+
 /**
- * Calculate Money-Weighted Return (IRR) using Newton-Raphson method
+ * Bracketed fallback: halve an interval that is known to contain a root until it collapses onto it.
  *
- * IRR is the discount rate that makes NPV = 0:
- * NPV = -Start NW + CF1/(1+r)^t1 + CF2/(1+r)^t2 + ... + (End NW)/(1+r)^tn
+ * Teacher note — bisection cannot diverge, which is exactly what Newton-Raphson can do: Newton
+ * follows the tangent, and on a curve as steep as an NPV near −100% a single step can jump past the
+ * root and never come back. The price is speed (one bit of precision per iteration), irrelevant for
+ * a handful of flows. It needs the root bracketed first: NPV must have OPPOSITE signs at the two
+ * ends, which for a normal portfolio stream it does — money in first, value out at the end, so NPV
+ * falls monotonically from a large positive at the floor rate to a negative at the ceiling.
  *
- * @param startNW - Starting net worth (treated as negative cash flow at t=0)
- * @param endNW - Ending net worth (positive cash flow at t=end)
- * @param cashFlows - Cash flows during the period
+ * @returns The rate where NPV crosses zero, or null when the bracket holds no crossing (no rate can
+ *   explain this stream — e.g. contributions that exceed the final value at every discount rate)
+ */
+function solveIrrByBisection(flows: DatedFlow[]): number | null {
+  let low = IRR_MIN_RATE;
+  let high = IRR_MAX_RATE;
+  const npvLow = computeNpv(flows, low);
+  const npvHigh = computeNpv(flows, high);
+
+  if (!isFinite(npvLow) || !isFinite(npvHigh)) return null;
+  if (npvLow === 0) return low;
+  if (npvHigh === 0) return high;
+  if (npvLow > 0 === npvHigh > 0) return null; // same sign at both ends: no crossing to find
+
+  const lowIsPositive = npvLow > 0;
+  // 200 halvings take the interval below any float precision this ever needs.
+  for (let i = 0; i < 200; i++) {
+    const mid = (low + high) / 2;
+    const npvMid = computeNpv(flows, mid);
+    if (npvMid === 0) return mid;
+    if (npvMid > 0 === lowIsPositive) low = mid;
+    else high = mid;
+  }
+
+  return (low + high) / 2;
+}
+
+/**
+ * Calculate Money-Weighted Return (IRR)
+ *
+ * IRR is the annual rate that makes the investor's whole cash flow stream break even — the discount
+ * rate where NPV = 0:
+ *   NPV = −startNW − Σ contribution_i/(1+r)^t_i + endNW/(1+r)^T
+ *
+ * SIGNS: money INTO the portfolio is an outflow for the investor and enters negative — the starting
+ * value and every contribution alike; money out (the final value, and withdrawals, which arrive as a
+ * negative netCashFlow and therefore flip positive) is an inflow. Adding contributions with a plus
+ * sign, as this function used to, asks a different question entirely: it treats money paid in as
+ * money received, which inflates the answer (a contribution that exactly funds the growth read as
+ * +22% a year instead of 0%) and can leave the equation with no root at all, which surfaced as a
+ * blank card.
+ *
+ * TIMELINE: t = 0 is the start of the period, where the starting valuation sits — NOT the first
+ * month that happens to have movements, which is what the previous anchor used and which pulled
+ * every flow forward whenever the early months were quiet. Month distances are counted as elapsed
+ * months, so a flow in the first month of the period sits at t = 0 alongside the starting value, and
+ * the final value sits at t = numberOfMonths.
+ *
+ * WHY IT DIFFERS FROM TWR: TWR neutralises cash flows to judge the strategy; IRR keeps them to judge
+ * the outcome for this investor. Paying in right before a rally makes IRR beat TWR, and vice versa.
+ *
+ * @param startNW - Starting net worth (outflow at t=0)
+ * @param endNW - Ending net worth (inflow at t=numberOfMonths)
+ * @param cashFlows - Monthly net cash flows during the period (positive = paid in)
  * @param numberOfMonths - Duration in months
- * @returns Annualized IRR percentage or null if calculation fails
+ * @param periodStart - First day of the first MEASURED month; the anchor for every flow's date
+ * @returns Annualized IRR percentage, or null when no rate can explain the stream
  */
 export function calculateIRR(
   startNW: number,
   endNW: number,
   cashFlows: CashFlowData[],
-  numberOfMonths: number
+  numberOfMonths: number,
+  periodStart: Date
 ): number | null {
   if (numberOfMonths < 1 || startNW === 0) return null;
 
-  // Build cash flow array with dates
-  const cfArray: { amount: number; monthsFromStart: number }[] = [];
+  const flows: DatedFlow[] = [{ amount: -startNW, monthsFromStart: 0 }];
 
-  // Starting value (negative outflow)
-  cfArray.push({ amount: -startNW, monthsFromStart: 0 });
+  for (const cf of cashFlows) {
+    const monthsFromStart = monthsElapsed(periodStart, cf.date);
+    // A flow dated outside the measured window would be discounted over a time it did not spend
+    // invested; the callers already filter by the same window, so this is a guard, not a policy.
+    if (monthsFromStart < 0 || monthsFromStart > numberOfMonths) continue;
+    flows.push({ amount: -cf.netCashFlow, monthsFromStart });
+  }
 
-  // Find the start date (first cash flow date or approximate from snapshots)
-  const startDate = cashFlows.length > 0 ? cashFlows[0].date : new Date();
+  flows.push({ amount: endNW, monthsFromStart: numberOfMonths });
 
-  // Intermediate cash flows
-  cashFlows.forEach(cf => {
-    const monthsFromStart = calculateMonthsDifference(cf.date, startDate);
-    cfArray.push({ amount: cf.netCashFlow, monthsFromStart });
-  });
-
-  // Ending value (positive inflow)
-  cfArray.push({ amount: endNW, monthsFromStart: numberOfMonths });
-
-  // Newton-Raphson iterative solver
-  // This numerical method finds the rate where NPV = 0 by iteratively refining an initial guess.
-  // Each iteration calculates NPV and its derivative at the current rate, then updates:
-  // new_rate = old_rate - (NPV / derivative)
-  // Convergence is achieved when |NPV| < tolerance
+  // Newton-Raphson first: it converges in a handful of iterations when it converges at all.
+  // Each step follows the tangent to where it crosses zero: r ← r − NPV(r)/NPV'(r).
   let rate = 0.1; // Initial guess: 10%
   const maxIterations = 100;
-  const tolerance = 1e-6;
+  const tolerance = 1e-9;
 
   for (let i = 0; i < maxIterations; i++) {
     let npv = 0;
     let derivative = 0;
 
-    cfArray.forEach(cf => {
-      const years = cf.monthsFromStart / 12;
+    for (const flow of flows) {
+      const years = flow.monthsFromStart / 12;
       const discountFactor = Math.pow(1 + rate, -years);
-      npv += cf.amount * discountFactor;
-      derivative -= cf.amount * years * discountFactor / (1 + rate);
-    });
-
-    if (Math.abs(npv) < tolerance) {
-      return rate * 100; // Convert to percentage
+      npv += flow.amount * discountFactor;
+      derivative -= (flow.amount * years * discountFactor) / (1 + rate);
     }
 
-    if (derivative === 0) break; // Avoid division by zero
+    if (Math.abs(npv) < tolerance) return rate * 100;
+    if (derivative === 0 || !isFinite(derivative)) break;
 
-    rate -= npv / derivative; // Newton-Raphson update
-
-    // Prevent extremely negative rates (< -99%) which are unrealistic for portfolio returns
-    // and can cause numerical instability in the next iteration
-    if (rate < -0.99) rate = -0.99;
+    const nextRate = rate - npv / derivative;
+    if (!isFinite(nextRate) || nextRate <= IRR_MIN_RATE || nextRate >= IRR_MAX_RATE) break;
+    rate = nextRate;
   }
 
-  return null; // Failed to converge
+  // Newton wandered off (or crawled): fall back to the solver that cannot.
+  const bracketed = solveIrrByBisection(flows);
+  return bracketed === null ? null : bracketed * 100;
 }
 
 /**
@@ -288,12 +363,37 @@ export function calculateSharpeRatio(
 }
 
 /**
+ * Minimum monthly returns required before a standard deviation means anything.
+ *
+ * Two observations always produce a "volatility" — the two points sit at a fixed distance from
+ * their own mean — but it carries no information about how the portfolio behaves; with n−1 = 1
+ * degree of freedom the estimate is pure noise, and the Sharpe ratio built on it inherits that.
+ * Below this the metric is null, and the card says why instead of showing a confident number.
+ */
+const MIN_RETURNS_FOR_VOLATILITY = 3;
+
+/**
  * Calculate annualized volatility from monthly snapshots
- * Uses month-over-month returns, filters extreme values (±50%)
+ *
+ * Uses the SAME cash-flow-adjusted monthly returns as the heatmap and the drawdown index — the
+ * whole series, unfiltered. There used to be a ±50% cut here (and only here), meant to drop spikes
+ * caused by large contributions. It was solving a problem the formula had already solved: the
+ * return is `(V_end − CF) / V_start − 1`, so a TRACKED contribution is neutralised before it can
+ * become a spike, however large. What the cut actually removed was of two kinds, and both were
+ * wrong to remove:
+ *
+ *  - an UNTRACKED movement (a balance corrected by hand, a transfer nobody recorded) produces the
+ *    same artefact in the heatmap, the Underwater chart and the TWR — hiding it from volatility
+ *    alone made the risk metric tell a different story from the risk chart, which is finding A6;
+ *  - a REAL crash beyond 50% is the single most important thing volatility should report, and it
+ *    was being deleted by the metric whose job is to measure exactly that.
+ *
+ * If artefacts show up here, the fix is in the data (record the movement) or upstream in the base
+ * (see performanceBase.ts), never in a silent filter that makes one card disagree with the others.
  *
  * @param snapshots - Monthly snapshots
  * @param cashFlows - Cash flows to adjust for contributions/withdrawals
- * @returns Annualized volatility (%) or null if insufficient data
+ * @returns Annualized volatility (%) or null with fewer than MIN_RETURNS_FOR_VOLATILITY returns
  */
 export function calculateVolatility(
   snapshots: MonthlySnapshot[],
@@ -301,12 +401,7 @@ export function calculateVolatility(
 ): number | null {
   if (snapshots.length < 2) return null;
 
-  // Create cash flow lookup
-  const cashFlowMap = new Map<string, number>();
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   const monthlyReturns: number[] = [];
 
@@ -316,21 +411,13 @@ export function calculateVolatility(
 
     if (prevNW === 0) continue;
 
-    const cfKey = `${snapshots[i].year}-${String(snapshots[i].month).padStart(2, '0')}`;
-    const cashFlow = cashFlowMap.get(cfKey) || 0;
+    const cashFlow = cashFlowMap.get(monthKey(snapshots[i].year, snapshots[i].month)) || 0;
 
     // Monthly return = (End NW - Cash Flow) / Start NW - 1
-    const monthlyReturn = ((currNW - cashFlow) / prevNW - 1) * 100;
-
-    // Filter extreme values >±50% to exclude spikes from large contributions/withdrawals
-    // These outliers would distort volatility calculations, making them unrepresentative
-    // of actual investment performance
-    if (Math.abs(monthlyReturn) < 50) {
-      monthlyReturns.push(monthlyReturn);
-    }
+    monthlyReturns.push(((currNW - cashFlow) / prevNW - 1) * 100);
   }
 
-  if (monthlyReturns.length < 2) return null;
+  if (monthlyReturns.length < MIN_RETURNS_FOR_VOLATILITY) return null;
 
   // Calculate standard deviation
   const mean = monthlyReturns.reduce((sum, r) => sum + r, 0) / monthlyReturns.length;
@@ -592,7 +679,22 @@ export function calculateCurrentYieldMetrics(
 }
 
 /**
- * Calculate number of months between two dates (inclusive)
+ * Whole months elapsed from one date to another — month boundaries crossed, days ignored.
+ *
+ * The measure of DISTANCE between two months: Jan → Mar is 2. Use it whenever the question is
+ * "how long", as opposed to "how many months does this range cover" (that is
+ * `calculateMonthsDifference`, which counts both ends). Mixing the two is a systematic off-by-one.
+ *
+ * @param from - Earlier date
+ * @param to - Later date
+ * @returns Months from `from` to `to`; negative when `to` precedes `from`
+ */
+function monthsElapsed(from: Date, to: Date): number {
+  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+}
+
+/**
+ * Calculate number of months a range COVERS, both ends included
  *
  * @param date1 - End date
  * @param date2 - Start date
@@ -602,67 +704,124 @@ export function calculateCurrentYieldMetrics(
  * calculateMonthsDifference(new Date(2025, 11), new Date(2025, 0)) // 12 months (Jan to Dec inclusive)
  */
 function calculateMonthsDifference(date1: Date, date2: Date): number {
-  const years = date1.getFullYear() - date2.getFullYear();
-  const months = date1.getMonth() - date2.getMonth();
-  return years * 12 + months + 1; // +1 to include both start and end month
+  return monthsElapsed(date2, date1) + 1; // +1 to include both start and end month
 }
 
 /**
- * Get snapshots for a specific time period
+ * The FIRST month the user asked for, per period — the "nominal" start.
+ *
+ * Nominal, not effective: it is what the selector means (January for YTD, eleven months ago for 1Y),
+ * regardless of whether a snapshot exists that far back. Comparing it with the oldest snapshot
+ * actually available is what tells a pre-period baseline from a genuine first month of history
+ * (`resolveHasBaseline`) — the guess this replaces got that wrong whenever the two differed.
+ *
+ * ALL has no nominal start by definition (it starts wherever the user's history starts), and the
+ * rolling pseudo-periods are not selectable ranges: both return null.
+ *
+ * @param timePeriod - Period selector
+ * @param customStartDate - First month the user picked, required for CUSTOM
+ * @param referenceDate - "Today"; injectable so callers within one computation share a single clock
+ */
+export function resolveNominalPeriodStart(
+  timePeriod: TimePeriod,
+  customStartDate?: Date,
+  referenceDate: Date = new Date()
+): PeriodMonth | null {
+  const toMonth = (date: Date): PeriodMonth => ({
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+  });
+
+  switch (timePeriod) {
+    case 'YTD':
+      return { year: referenceDate.getFullYear(), month: 1 };
+    case '1Y':
+      // 12 months of returns ending with the current month → starts 11 months ago
+      return toMonth(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 11, 1));
+    case '3Y':
+      return toMonth(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 35, 1));
+    case '5Y':
+      return toMonth(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 59, 1));
+    case 'CUSTOM':
+      return customStartDate ? toMonth(customStartDate) : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The snapshot window a period is computed over: every snapshot inside the period, PLUS the single
+ * month right before it.
+ *
+ * That extra month is the starting valuation the first monthly return is measured against — without
+ * it the returns loop (which starts at i=1) would silently skip the first month of the period. It is
+ * only reached back for ONE month: an older snapshot separated by a gap is not a valid starting
+ * valuation for this period and must stay out, or the first "monthly" return would silently span
+ * several months.
+ *
+ * @param allSnapshots - All available snapshots
+ * @param nominalPeriodStart - First month of the period; null means "no lower bound" (ALL)
+ * @param endDate - Upper bound, inclusive
+ */
+function selectSnapshotWindow(
+  allSnapshots: MonthlySnapshot[],
+  nominalPeriodStart: PeriodMonth | null,
+  endDate: Date
+): MonthlySnapshot[] {
+  // month - 2 in a 0-based Date index = the month BEFORE the period start; the Date constructor
+  // rolls a negative index over to the previous year.
+  const lowerBound = nominalPeriodStart
+    ? new Date(nominalPeriodStart.year, nominalPeriodStart.month - 2, 1)
+    : null;
+
+  return allSnapshots.filter(snapshot => {
+    const snapshotDate = new Date(snapshot.year, snapshot.month - 1, 1);
+    return (lowerBound === null || snapshotDate >= lowerBound) && snapshotDate <= endDate;
+  });
+}
+
+/**
+ * Get snapshots for a specific time period (the period itself + one baseline month before it)
  *
  * @param allSnapshots - All available snapshots (including dummy data)
  * @param timePeriod - Time period selector (YTD, 1Y, 3Y, 5Y, ALL, CUSTOM)
  * @param customStartDate - Start date for CUSTOM period
  * @param customEndDate - End date for CUSTOM period
- * @returns Filtered snapshots for the period (excludes dummy data)
+ * @param referenceDate - "Today"; injectable so one computation uses a single clock
+ * @returns Filtered snapshots for the period (empty when CUSTOM is missing its dates)
  */
 export function getSnapshotsForPeriod(
   allSnapshots: MonthlySnapshot[],
   timePeriod: TimePeriod,
   customStartDate?: Date,
-  customEndDate?: Date
+  customEndDate?: Date,
+  referenceDate: Date = new Date()
 ): MonthlySnapshot[] {
-  const now = new Date();
-  let startDate: Date;
-  let endDate = now;
+  // ALL is the whole history — no lower bound to reach back from, and no upper bound to apply.
+  if (timePeriod === 'ALL') return allSnapshots;
 
-  switch (timePeriod) {
-    case 'YTD':
-      // Include Dec of previous year as baseline so January's return is captured
-      startDate = new Date(now.getFullYear() - 1, 11, 1);
-      break;
-    case '1Y':
-      // 13 months back: 1 baseline + 12 months of returns
-      startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-      break;
-    case '3Y':
-      // 37 months back: 1 baseline + 36 months of returns
-      startDate = new Date(now.getFullYear(), now.getMonth() - 36, 1);
-      break;
-    case '5Y':
-      // 61 months back: 1 baseline + 60 months of returns
-      startDate = new Date(now.getFullYear(), now.getMonth() - 60, 1);
-      break;
-    case 'ALL':
-      return allSnapshots;
-    case 'CUSTOM':
-      if (!customStartDate || !customEndDate) return [];
-      // Reach back one month before the range as a baseline, so the FIRST month of
-      // the custom period gets a computed return — parity with YTD/1Y/3Y/5Y. Without
-      // it, the monthly-returns loop (which starts at i=1) would skip the first month.
-      // getMonth() - 1 rolls over to December of the previous year when needed.
-      startDate = new Date(customStartDate.getFullYear(), customStartDate.getMonth() - 1, 1);
-      endDate = customEndDate;
-      break;
-    default:
-      return [];
-  }
+  const nominalPeriodStart = resolveNominalPeriodStart(timePeriod, customStartDate, referenceDate);
+  if (!nominalPeriodStart) return []; // CUSTOM without dates, or a non-selectable period
+  if (timePeriod === 'CUSTOM' && !customEndDate) return [];
 
-  // Filter snapshots by date range
-  return allSnapshots.filter(snapshot => {
-    const snapshotDate = new Date(snapshot.year, snapshot.month - 1, 1);
-    return snapshotDate >= startDate && snapshotDate <= endDate;
-  });
+  const endDate = timePeriod === 'CUSTOM' ? customEndDate! : referenceDate;
+  return selectSnapshotWindow(allSnapshots, nominalPeriodStart, endDate);
+}
+
+/**
+ * Re-select the EXACT snapshot window a metrics payload was computed from.
+ *
+ * For client-side redraws (evolution chart, heatmap, underwater) that must agree with the numbers
+ * the service already produced. It reads the period back off the payload instead of re-deriving it
+ * from `new Date()`: that round trip is how the page and the service ended up reading different
+ * series (finding A10), and for CUSTOM it only worked by accident — the page passed a start date the
+ * service had already advanced past the baseline, which `getSnapshotsForPeriod` then moved back.
+ */
+export function selectSnapshotsForMetrics(
+  allSnapshots: MonthlySnapshot[],
+  metrics: Pick<PerformanceMetrics, 'nominalPeriodStart' | 'endDate'>
+): MonthlySnapshot[] {
+  return selectSnapshotWindow(allSnapshots, metrics.nominalPeriodStart ?? null, metrics.endDate);
 }
 
 /**
@@ -819,17 +978,24 @@ export async function calculatePerformanceForPeriod(
   preFetchedExpenses?: Expense[],
   dividendCategoryId?: string
 ): Promise<PerformanceMetrics> {
+  // One clock for the whole computation: period selection, the nominal start recorded in the
+  // payload and the dividend cap must not disagree because they each called new Date().
+  const now = new Date();
+
   // Get snapshots for period
   const snapshots = getSnapshotsForPeriod(
     allSnapshots,
     timePeriod,
     customStartDate,
-    customEndDate
+    customEndDate,
+    now
   );
+  const nominalPeriodStart = resolveNominalPeriodStart(timePeriod, customStartDate, now);
 
   // Base metrics object (in case of errors)
   const baseMetrics: PerformanceMetrics = {
     timePeriod,
+    nominalPeriodStart,
     startDate: customStartDate || new Date(),
     endDate: customEndDate || new Date(),
     dividendEndDate: new Date(),  // Default to now for error cases
@@ -883,23 +1049,38 @@ export async function calculatePerformanceForPeriod(
     return a.month - b.month;
   });
 
-  // For standard periods (YTD, 1Y, 3Y, 5Y), the first snapshot is a pre-period baseline
-  // used only as starting value — the actual performance period starts from the second snapshot.
-  // Example: YTD in Feb 2026 → snapshots [Dec 2025, Jan 2026, Feb 2026],
-  // baseline = Dec (startNW), period = Jan-Feb (2 months, not 3)
-  const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(timePeriod) && sortedSnapshots.length >= 3;
+  // ONE RULE FOR BOTH CASES: the first snapshot is the starting VALUATION, never a measured month.
+  //
+  // A snapshot is an end-of-month photograph, so the measurement can only open where that photograph
+  // was taken — at the END of the first snapshot's month, i.e. on the 1st of the month after it.
+  // That holds whether the first snapshot is a pre-period baseline (Dec for YTD) or the first month
+  // of the user's own history (ALL, or a window longer than the history): the previous code branched
+  // on a guessed `hasBaseline` and got the second case wrong twice over —
+  //   A2: cash flows were collected from the 1st of the first month, but that month's savings were
+  //       ALREADY inside startNW → the same money was subtracted a second time in ROI and CAGR;
+  //   A3: n snapshots produce n−1 monthly returns, but they were annualized over n months.
+  // Both vanish here: the period is [month after the first snapshot .. last snapshot], which is
+  // exactly the span the linked monthly returns cover.
+  //
+  // Gaps are handled too: with [Dec, Mar] the period opens in January (three months of cash flows
+  // affect that return), where taking sortedSnapshots[1] would have opened it in March.
   const startSnapshot = sortedSnapshots[0];
-  const periodStartSnapshot = hasBaseline ? sortedSnapshots[1] : sortedSnapshots[0];
   const endSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
 
-  const startDate = new Date(periodStartSnapshot.year, periodStartSnapshot.month - 1, 1);
-  const endDate = new Date(endSnapshot.year, endSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
+  // month index (0-based) === month number (1-based) → the first day of the FOLLOWING month
+  const startDate = new Date(startSnapshot.year, startSnapshot.month, 1);
+  const endDate = endOfMonthBound(endSnapshot.year, endSnapshot.month);
 
   // For dividend calculations, cap at today to exclude future dividends not yet received
-  const now = new Date();
   const dividendEndDate = endDate > now ? now : endDate;
 
   const numberOfMonths = calculateMonthsDifference(endDate, startDate);
+  if (numberOfMonths < 1) {
+    // Two snapshots in the same month (duplicates): there is no measurable span, and every
+    // annualized metric would divide by zero years.
+    baseMetrics.errorMessage = 'Insufficient data: period shorter than one month';
+    return baseMetrics;
+  }
 
   // Get cash flows for period - use pre-fetched if available, otherwise fetch
   const cashFlows = preFetchedExpenses
@@ -942,19 +1123,23 @@ export async function calculatePerformanceForPeriod(
     numberOfMonths
   );
 
-  // Pass numberOfMonths so TWR annualizes over the performance period,
-  // not the full snapshot range (which includes the baseline month)
+  // numberOfMonths is exactly the number of linked monthly returns, so TWR annualizes over the span
+  // it actually measured — never over the calendar range, which also counts the starting valuation's
+  // month and would flatten the result.
   const timeWeightedReturn = calculateTimeWeightedReturn(
     sortedSnapshots,
     cashFlows,
     numberOfMonths
   );
 
+  // startDate anchors the timeline: it is where -startNW sits, so every flow is discounted over the
+  // time it was actually invested — not over its distance from the first month that had movements.
   const moneyWeightedReturn = calculateIRR(
     startSnapshot.totalNetWorth,
     endSnapshot.totalNetWorth,
     cashFlows,
-    numberOfMonths
+    numberOfMonths,
+    startDate
   );
 
   const volatility = calculateVolatility(sortedSnapshots, cashFlows);
@@ -993,6 +1178,7 @@ export async function calculatePerformanceForPeriod(
 
   return {
     timePeriod,
+    nominalPeriodStart,
     startDate,
     endDate,
     dividendEndDate,
@@ -1138,20 +1324,85 @@ async function writePerformanceCache(userId: string, cacheKey: string, data: Per
   }
 }
 
-function buildCacheKey(snapshots: MonthlySnapshot[], baseOptions: PerformanceBaseOptions): string {
-  // The base composition is part of the identity of the cached numbers: flipping either exclusion
-  // rewrites every metric while the snapshots themselves are untouched, so without this suffix the
-  // user would keep reading the previous base's figures for up to 6 hours after changing settings.
+/**
+ * FNV-1a (32 bit) over the WHOLE snapshot series, chronologically ordered.
+ *
+ * Teacher note — FNV-1a is a non-cryptographic hash: start from an offset basis, then for each byte
+ * xor it in and multiply by a prime. Cheap, no dependencies, and well spread over short strings,
+ * which is all a cache key needs (it defends against accidental collisions, not against an attacker
+ * crafting one). `Math.imul` keeps the multiplication in 32-bit integer space, which plain `*` would
+ * not: JS numbers are doubles and would silently lose the low bits.
+ *
+ * Order matters and is fixed by sorting: two accounts with the same months in a different array
+ * order describe the same history and must produce the same key.
+ */
+function hashSnapshotSeries(snapshots: MonthlySnapshot[]): string {
+  const sorted = [...snapshots].sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+
+  let hash = 0x811c9dc5; // FNV offset basis
+  for (const snapshot of sorted) {
+    // Rounded to the euro: cents drift with FX re-conversions and would churn the key for nothing.
+    const token = `${snapshot.year}-${snapshot.month}:${Math.round(snapshot.totalNetWorth)};`;
+    for (let i = 0; i < token.length; i++) {
+      hash ^= token.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193); // FNV prime
+    }
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Everything the cached numbers depend on, condensed into one string.
+ *
+ * WHAT INVALIDATES THE CACHE (DEVELOPMENT_GUIDELINES → Caching):
+ *  - any snapshot added, removed OR corrected, anywhere in the history — the series hash covers all
+ *    of them, where the previous key only fingerprinted the LAST one and happily served stale
+ *    metrics after a historical snapshot was fixed;
+ *  - the base composition (pension funds / excluded assets), which rewrites every metric while the
+ *    snapshots stay untouched;
+ *  - the risk-free rate, which moves every Sharpe ratio and the hero verdict built on it;
+ *  - the dividend income category, which decides what counts as a contribution instead of a
+ *    portfolio return — it reclassifies cash flows, so it changes ROI, CAGR, TWR and IRR too;
+ *  - `CACHE_MATH_VERSION`, the manual lever for when the MATH changes but the inputs do not — the
+ *    only case no input signature can detect. See its declaration for when to bump it.
+ *
+ * WHAT STALE COSTS: nothing is corrupted — the payload is only ever a recomputable projection of
+ * Firestore data, and the 6h TTL in `getAllPerformanceData` bounds any miss of this list. The user
+ * sees numbers that are internally consistent but computed from a previous input, and the Aggiorna
+ * button (`forceRefresh`) always bypasses the cache. Known residual: the period boundaries depend on
+ * TODAY, so on the first visit after a month rollover the cached YTD/1Y/3Y/5Y still describe the
+ * previous month's window until the TTL expires or a new snapshot lands.
+ *
+ * A 32-bit hash can in principle collide; the key also carries the snapshot count and the last
+ * month's value, so a collision would have to match all of them at once.
+ */
+export function buildCacheKey(inputs: {
+  snapshots: MonthlySnapshot[];
+  baseOptions: PerformanceBaseOptions;
+  riskFreeRate: number;
+  dividendCategoryId?: string;
+}): string {
+  const { snapshots, baseOptions, riskFreeRate, dividendCategoryId } = inputs;
+
   const baseSignature = `p${baseOptions.includePensionFunds ? 1 : 0}e${baseOptions.includeExcludedAssets ? 1 : 0}`;
-  if (snapshots.length === 0) return `0-${baseSignature}`;
-  const sorted = [...snapshots].sort((a, b) => {
-    if (a.year !== b.year) return b.year - a.year;
-    return b.month - a.month;
-  });
-  const last = sorted[0];
-  // Include totalNetWorth so that updating an existing snapshot (same count/date)
-  // still produces a different key and forces a cache miss.
-  return `${snapshots.length}-${last.year}-${last.month}-${Math.round(last.totalNetWorth)}-${baseSignature}`;
+  const settingsSignature = `r${riskFreeRate}d${dividendCategoryId ?? 'none'}`;
+
+  if (snapshots.length === 0) return `${CACHE_MATH_VERSION}-0-${baseSignature}-${settingsSignature}`;
+
+  const last = snapshots.reduce((latest, s) =>
+    s.year !== latest.year ? (s.year > latest.year ? s : latest) : s.month > latest.month ? s : latest
+  );
+
+  return [
+    CACHE_MATH_VERSION,
+    snapshots.length,
+    `${last.year}-${last.month}`,
+    Math.round(last.totalNetWorth),
+    hashSnapshotSeries(snapshots),
+    baseSignature,
+    settingsSignature,
+  ].join('-');
 }
 
 /**
@@ -1161,8 +1412,9 @@ function buildCacheKey(snapshots: MonthlySnapshot[], baseOptions: PerformanceBas
  * - YTD, 1Y, 3Y, 5Y, ALL time periods
  * - Rolling 12M and 36M periods
  *
- * On repeated visits with unchanged snapshots, returns cached data from
- * Firestore (performance-cache collection) to avoid re-reading all expenses.
+ * On repeated visits with unchanged inputs (snapshots, metrics base, risk-free rate, dividend
+ * category), returns cached data from Firestore (performance-cache collection) to avoid re-reading
+ * the whole expense history — see buildCacheKey for exactly what invalidates it.
  *
  * @param userId - User ID for fetching data
  * @param forceRefresh - Skip cache and recompute (used by the refresh button)
@@ -1190,13 +1442,15 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     resolvePerformanceExclusions(assets, baseOptions)
   );
 
-  const riskFreeRate = settings?.riskFreeRate || 2.5;
+  // `??`, not `||`: a deliberate 0% risk-free rate is a legitimate setting (it makes Sharpe the raw
+  // return over volatility) and must not be silently replaced by the 2.5% default.
+  const riskFreeRate = settings?.riskFreeRate ?? 2.5;
   const dividendCategoryId = settings?.dividendIncomeCategoryId;
 
   // ==== STEP 2: Check cache before fetching expenses ====
-  // Cache key encodes snapshot count + last snapshot date + the base composition.
-  // If snapshots haven't changed since last computation, skip the expensive expense fetch.
-  const cacheKey = buildCacheKey(snapshots, baseOptions);
+  // The key fingerprints every input the numbers depend on — see buildCacheKey for the full list
+  // and for what a stale hit costs. On a hit we skip the expensive whole-history expense fetch.
+  const cacheKey = buildCacheKey({ snapshots, baseOptions, riskFreeRate, dividendCategoryId });
   if (!forceRefresh) {
     const cached = await readPerformanceCache(userId);
     if (cached && cached.cacheKey === cacheKey) {
@@ -1222,7 +1476,7 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     const firstSnapshot = sortedSnapshots[0];
     const lastSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
     const overallStartDate = new Date(firstSnapshot.year, firstSnapshot.month - 1, 1);
-    const overallEndDate = new Date(lastSnapshot.year, lastSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
+    const overallEndDate = endOfMonthBound(lastSnapshot.year, lastSnapshot.month);
     allExpenses = await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
   }
 
@@ -1265,7 +1519,16 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
  * Calculates performance metrics for sliding windows of fixed length
  * (e.g., 12-month windows sliding through the entire history).
  *
+ * Each window follows the SAME convention as the period metrics (see
+ * calculatePerformanceForPeriod): the snapshot that opens it is the starting valuation, so the
+ * measured months — and the cash flows that belong to them — start the month after it, and the
+ * window closes at the last instant of the end month.
+ *
  * Uses in-memory filtering of pre-fetched expenses to avoid N Firestore queries.
+ *
+ * ASSUMPTION: snapshots are monthly and contiguous, so `windowMonths + 1` snapshots span
+ * `windowMonths` measured months. It is the same assumption the index arithmetic below already
+ * makes; with a hole in the series a window would cover more calendar time than its name says.
  *
  * @param userId - User ID for data fetching
  * @param allSnapshots - All snapshots
@@ -1274,7 +1537,7 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
  * @param dividendCategoryId - Category ID for dividend income (from user settings)
  * @returns Array of rolling period performance data
  */
-async function calculateRollingPeriods(
+export async function calculateRollingPeriods(
   userId: string,
   allSnapshots: MonthlySnapshot[],
   windowMonths: number,
@@ -1295,7 +1558,7 @@ async function calculateRollingPeriods(
   const firstSnapshot = sortedSnapshots[0];
   const lastSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
   const overallStartDate = new Date(firstSnapshot.year, firstSnapshot.month - 1, 1);
-  const overallEndDate = new Date(lastSnapshot.year, lastSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
+  const overallEndDate = endOfMonthBound(lastSnapshot.year, lastSnapshot.month);
 
   // Reuse caller-supplied expenses to avoid a redundant Firestore query
   const allExpenses = prefetchedExpenses ?? await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
@@ -1304,10 +1567,14 @@ async function calculateRollingPeriods(
 
   for (let i = windowMonths; i < sortedSnapshots.length; i++) {
     const endSnapshot = sortedSnapshots[i];
-    const startSnapshot = sortedSnapshots[i - windowMonths];
+    const valuationSnapshot = sortedSnapshots[i - windowMonths];
 
-    const periodEndDate = new Date(endSnapshot.year, endSnapshot.month - 1, 1);
-    const periodStartDate = new Date(startSnapshot.year, startSnapshot.month - 1, 1);
+    // The window opens the month AFTER the starting valuation — that snapshot's own month is
+    // already inside its value, so counting its cash flows again would subtract them twice — and
+    // closes at the LAST INSTANT of the end month: bounded at midnight on the 1st, the filter in
+    // getCashFlowsFromExpenses (`date <= endDate`) threw away every movement of the closing month.
+    const periodStartDate = new Date(valuationSnapshot.year, valuationSnapshot.month, 1);
+    const periodEndDate = endOfMonthBound(endSnapshot.year, endSnapshot.month);
 
     // Get snapshots and cash flows for this window
     const windowSnapshots = sortedSnapshots.slice(i - windowMonths, i + 1);
@@ -1317,15 +1584,17 @@ async function calculateRollingPeriods(
     // Calculate CAGR
     const netCashFlow = cashFlows.reduce((sum, cf) => sum + cf.netCashFlow, 0);
     const cagr = calculateCAGR(
-      startSnapshot.totalNetWorth,
+      valuationSnapshot.totalNetWorth,
       endSnapshot.totalNetWorth,
       netCashFlow,
       windowMonths
     );
 
-    // Calculate volatility and Sharpe
+    // Calculate volatility and Sharpe. windowMonths is passed explicitly so TWR and CAGR annualize
+    // over the SAME span — the derived length would be read off the snapshots, and a rolling Sharpe
+    // built on one basis while its CAGR sits on another is two answers to one question.
     const volatility = calculateVolatility(windowSnapshots, cashFlows);
-    const twr = calculateTimeWeightedReturn(windowSnapshots, cashFlows);
+    const twr = calculateTimeWeightedReturn(windowSnapshots, cashFlows, windowMonths);
     const sharpeRatio = twr !== null && volatility !== null
       ? calculateSharpeRatio(twr, riskFreeRate, volatility)
       : null;
@@ -1343,12 +1612,28 @@ async function calculateRollingPeriods(
 }
 
 /**
- * Prepare chart data for net worth evolution
+ * Prepare chart data for net worth evolution: money you put in, versus what it is worth.
  *
- * @param skipBaseline - When true, drops the first (baseline) snapshot.
- *   getSnapshotsForPeriod includes an extra month before YTD/1Y/3Y/5Y periods
- *   so the first month's return can be calculated, but that month falls outside
- *   the selected period and should not appear as a chart data point.
+ *   investedBase   — `initialCapital + contributions`: every euro that entered the portfolio by
+ *                    that month, drawn as an area. The chart's baseline for "was this me or the
+ *                    market?".
+ *   netWorth       — what it is actually worth, drawn as a line. The GAP between the two is the
+ *                    market's contribution: above the area it gained, below it lost.
+ *   initialCapital / contributions / returns — the same decomposition in numbers, for the tooltip.
+ *
+ * WHY NOT STACKED BANDS. `returns` used to be `netWorth − contributions`, which silently swallowed
+ * the whole starting capital: on a portfolio opening the period at 200k the band labelled
+ * "Investimenti" started at 200k and read as if the market had produced it (finding A11). The first
+ * fix stacked three bands summing to the line — which works only while every band is positive.
+ * Cumulative contributions go NEGATIVE whenever tracked spending outpaces tracked income over the
+ * window, and a stacked chart renders a negative band downward: the bands stop meeting the line and
+ * the picture becomes unreadable. An area plus a line has no such failure mode — a base that dips
+ * and a value below it are both drawn honestly.
+ *
+ * @param skipBaseline - When true, drops the first snapshot: it is the month before the period,
+ *   included so the first month's return can be computed but outside what the user selected.
+ *   Decide it with `resolveHasBaseline` (lib/utils/performanceBase.ts) — never from the period type,
+ *   which is wrong exactly when the history is shorter than the window.
  */
 export function preparePerformanceChartData(
   snapshots: MonthlySnapshot[],
@@ -1368,24 +1653,24 @@ export function preparePerformanceChartData(
       ? sortedSnapshots.slice(1)
       : sortedSnapshots;
 
-  let cumulativeContributions = 0;
-  const cashFlowMap = new Map<string, number>();
+  // The starting valuation is the FIRST snapshot of the window, baseline included: the same value
+  // the metrics use as startNW, so the chart and the ROI/TWR cards decompose the same period.
+  const initialCapital = sortedSnapshots[0]?.totalNetWorth ?? 0;
 
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  let cumulativeContributions = 0;
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   return chartSnapshots.map(snapshot => {
-    const key = `${snapshot.year}-${String(snapshot.month).padStart(2, '0')}`;
-    const cashFlow = cashFlowMap.get(key) || 0;
+    const cashFlow = cashFlowMap.get(monthKey(snapshot.year, snapshot.month)) || 0;
     cumulativeContributions += cashFlow;
 
     return {
       date: `${String(snapshot.month).padStart(2, '0')}/${snapshot.year}`,
       netWorth: snapshot.totalNetWorth,
+      initialCapital,
       contributions: cumulativeContributions,
-      returns: snapshot.totalNetWorth - cumulativeContributions,
+      investedBase: initialCapital + cumulativeContributions,
+      returns: snapshot.totalNetWorth - initialCapital - cumulativeContributions,
     };
   });
 }
@@ -1412,12 +1697,7 @@ export function prepareMonthlyReturnsHeatmap(
     return a.month - b.month;
   });
 
-  // Create cash flow lookup map (by YYYY-MM)
-  const cashFlowMap = new Map<string, number>();
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   // Calculate monthly returns
   const monthlyReturnsMap = new Map<string, number>(); // key: "YYYY-MM", value: return %
@@ -1432,7 +1712,7 @@ export function prepareMonthlyReturnsHeatmap(
     if (startNW === 0) continue; // Skip if zero starting value
 
     // Get cash flow for current month
-    const cfKey = `${currSnapshot.year}-${String(currSnapshot.month).padStart(2, '0')}`;
+    const cfKey = monthKey(currSnapshot.year, currSnapshot.month);
     const cashFlow = cashFlowMap.get(cfKey) || 0;
 
     // Calculate monthly return: (End NW - Cash Flow) / Start NW - 1
@@ -1496,11 +1776,9 @@ export function prepareMonthlyReturnsHeatmap(
  *
  * @param snapshots - Monthly snapshots (will be sorted chronologically)
  * @param cashFlows - Monthly cash flows
- * @param skipBaseline - When true, drops the first (baseline) snapshot from output.
- *   getSnapshotsForPeriod includes an extra month before YTD/1Y/3Y/5Y periods for
- *   return calculations; that month falls outside the selected period and should
- *   not appear as a chart data point. The baseline is still used internally to
- *   seed the index at 100 before being excluded.
+ * @param skipBaseline - When true, drops the first snapshot from the output: it is the month before
+ *   the period, outside what the user selected. It is still used internally to seed the index at 100
+ *   before being excluded. Decide it with `resolveHasBaseline` (lib/utils/performanceBase.ts).
  * @returns Array of underwater drawdown data points
  */
 export function prepareUnderwaterDrawdownData(

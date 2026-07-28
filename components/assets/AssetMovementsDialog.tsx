@@ -12,7 +12,7 @@
  *   - XIRR (money-weighted, date-exact from the real trade dates; "–" when not computable).
  *
  * Reads are lazy: the trade query fires only while the dialog is open (the exposure/lazy-load rule).
- * Deletes use the 2-click / 3s auto-disarm confirm; the baseline row cannot be deleted (spec 03 §1),
+ * Deletes use the 2-click / 3s auto-disarm confirm; the baseline row cannot be deleted,
  * only edited (quantity/PMC/note) via TransactionDialog.
  */
 
@@ -322,7 +322,7 @@ function MovementRow({
         >
           <Pencil className="h-4 w-4" />
         </Button>
-        {/* Baseline cannot be deleted — it is the frozen opening position (spec 03 §1). */}
+        {/* Baseline cannot be deleted — it is the frozen opening position. */}
         {!isBaseline && (
           <Button
             type="button"

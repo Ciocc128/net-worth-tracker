@@ -17,7 +17,7 @@ import type { PensionFundDetails } from './pension';
 // belongs in LEDGER_ASSET_TYPES (types/assetTransactions.ts — tsc does NOT catch that one).
 export type AssetType = 'stock' | 'etf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate' | 'pensionFund';
 // trendFollowing (managed futures) and carry are exposure-only classes reached via a leveraged/
-// composite `etf`'s `composition` legs (spec 3-leveraged-etf-allocation/01-data-model.md §2) — no
+// composite `etf`'s `composition` legs — no
 // AssetType maps to them directly in TYPE_TO_CLASS.
 export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity'
                         | 'trendFollowing' | 'carry';
@@ -247,8 +247,8 @@ export interface CoastFireTaxBracket {
 }
 
 /**
- * A household member the account's pension funds can be attributed to (spec 2-pension-fund
- * follow-up). The IRPEF pension-deduction ceiling is per TAXPAYER, not per account/household, so an
+ * A household member the account's pension funds can be attributed to. The IRPEF
+ * pension-deduction ceiling is per TAXPAYER, not per account/household, so an
  * account tracking more than one person's fondo pensione (e.g. both spouses) needs a per-person RAL
  * and eligibility, not one shared value. `Asset.pensionFundDetails.familyMemberId` links a fund to
  * one of these; a fund with no link, or a stale one (member deleted), is treated as unassigned by
@@ -341,7 +341,7 @@ export interface AllocationResult {
   bySpecificAsset: {
     [specificAsset: string]: AllocationData; // Key format: "assetClass:subCategory:assetName"
   };
-  // Leverage-aware totals (spec 3-leveraged-etf-allocation). For an unleveraged portfolio
+  // Leverage-aware totals. For an unleveraged portfolio
   // notional === market, so every field below collapses to the pre-leverage number and the
   // result is byte-identical to before (invariant #1).
   //
@@ -507,40 +507,6 @@ export interface MonteCarloScenarios {
   bear: MonteCarloScenarioParams;
   base: MonteCarloScenarioParams;
   bull: MonteCarloScenarioParams;
-}
-
-// Asset Price History Types
-export type AssetHistoryDisplayMode = 'price' | 'totalValue';
-
-export interface AssetHistoryDateFilter {
-  year: number;
-  month: number; // 1-12
-}
-
-export interface AssetHistoryTransformOptions {
-  filterYear?: number;
-  filterStartDate?: AssetHistoryDateFilter;
-  includePreviousMonthBaseline?: boolean;
-  excludeCash?: boolean;
-  // When true, only assets already present in the passed currentAssets array are shown.
-  // Snapshot-only assets (sold/deleted from the portfolio) are not re-introduced from
-  // historical snapshot data. Use this when the caller pre-filters currentAssets (e.g.
-  // to cost-basis-tracked assets only) and doesn't want deleted assets to bypass the filter.
-  restrictToPassedAssets?: boolean;
-}
-
-export interface AssetHistoryTotalRow {
-  monthColumns: string[];
-  totals: {
-    [monthKey: string]: number;
-  };
-  // Optional percentage fields for total row
-  monthlyChanges?: {
-    [monthKey: string]: number | undefined;  // undefined = first month (no previous)
-  };
-  ytd?: number;             // Year-to-date % (undefined if <2 months in current year)
-  fromStart?: number;       // From start % (undefined if <2 months total)
-  lastMonthChange?: number; // Change % of the last available month vs its predecessor
 }
 
 // Doubling Time Metric Types

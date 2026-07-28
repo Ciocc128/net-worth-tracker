@@ -4,7 +4,7 @@
  * Commits an ImportPlan produced by the pure lib/utils/expenseImport.ts layer:
  * creates any missing categories/subcategories, then bulk-writes the expenses.
  *
- * Key behaviours (see docs/specs/5-expense-csv-import.md):
+ * Key behaviours:
  * - Every written expense is stamped with a shared `importBatchId`, so an entire
  *   import can be undone in one call (deleteExpensesByImportBatch).
  * - Amount sign convention is applied here (expenses negative, income positive) —

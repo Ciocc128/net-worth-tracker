@@ -1,6 +1,5 @@
 /**
  * Pension deduction & extra-deducibilità — pure calculation layer.
- * Spec: docs/specs/2-pension-fund/02-tax-engine.md.
  *
  * Two conceptually different tax mechanisms, both modelled here:
  *
@@ -188,7 +187,7 @@ export function deriveBenefitTaxRate(yearsEnrolled: number): number {
   return Math.max(PENSION_BENEFIT_TAX_RATE_MIN, Math.min(PENSION_BENEFIT_TAX_RATE_MAX, rate));
 }
 
-/** The figures surfaced in the annual "Previdenza" tax recap (spec 04 §4). */
+/** The figures surfaced in the annual "Previdenza" tax recap. */
 export interface PensionTaxRecap {
   /** Full per-year deduction/plafond state (deducted amount, effective ceiling, plafond, …). */
   state: PensionDeductionState;

@@ -315,8 +315,7 @@ export type AssetMetadataFormData = Omit<AssetFormData, 'quantity' | 'averageCos
  * replaying `assetTransactions` and rewritten by the trade Admin API — they must NOT be written from
  * a metadata edit. This is the AssetDialog (edit mode) path for ledger assets: `updateAsset`
  * translates an ABSENT `averageCost` into `deleteField()`, so calling it once the dialog stops
- * sending quantity/averageCost would wipe the PMC on every metadata save
- * (docs/specs/1-asset-transactions/03-service-and-api.md §3). `updateAsset` is unchanged and still
+ * sending quantity/averageCost would wipe the PMC on every metadata save. `updateAsset` is unchanged and still
  * used for cash/realestate.
  *
  * `taxRate`/`displayTicker` keep the same undefined→deleteField() clearing as `updateAsset` (the
@@ -921,8 +920,14 @@ export function calculateStampDuty(
     .filter(a => !a.stampDutyExempt)
     .reduce((total, asset) => {
       const value = calculateAssetValue(asset);
-      // Conti correnti: apply stamp duty only if value strictly > 5000€
+      // Conti correnti: the flat-fee rule (34,20€ above 5.000€) is a checking-account tax rule,
+      // not a "cash-class asset" one — a money-market ETF (e.g. XEON) can carry `assetClass: 'cash'`
+      // for allocation purposes while remaining a security for tax purposes (0,2% like any other
+      // instrument). Strict convention: `type === 'cash' && assetClass === 'cash'` (spec
+      // 6-asset-class-selection.md decision 4; same rule as the cash-account pickers in AGENTS.md's
+      // 2026-07-26 hardening note).
       if (
+        asset.type === 'cash' &&
         asset.assetClass === 'cash' &&
         checkingAccountSubCategory &&
         asset.subCategory === checkingAccountSubCategory

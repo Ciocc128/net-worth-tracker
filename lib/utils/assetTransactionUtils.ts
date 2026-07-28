@@ -9,11 +9,11 @@
  * Design constraints (repo conventions — do not break):
  *   - ZERO Firebase imports. Types only, plus getItalyYear from dateHelpers (itself pure). The
  *     tests import this module without mocking @/lib/firebase/config — same posture as
- *     allocationUtils.ts. Keeping the money math here (not in the service layer) is system
- *     invariant #6 of docs/specs/1-asset-transactions/README.md.
+ *     allocationUtils.ts. Keeping the money math here (not in the service layer) is a system
+ *     invariant of the ledger design.
  *   - TIME IS INJECTED. Any function needing "now" takes it as an explicit Date parameter.
  *
- * Two invariants govern the PMC math and MUST be preserved (README §invariants):
+ * Two invariants govern the PMC math and MUST be preserved:
  *   #2 The native PMC (`averageCost`) is the weighted average of native trade prices with fees
  *      EXCLUDED — exactly today's Asset.averageCost semantics. Fees and FX live only in the
  *      EUR-side fields (costBasisEur / investedEur / realized P&L).
