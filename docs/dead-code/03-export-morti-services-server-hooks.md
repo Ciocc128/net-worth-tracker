@@ -1,5 +1,19 @@
 # Spec 03 — Export morti: lib/services, lib/server, lib/hooks, lib/firebase
 
+**✅ Implementata (2026-07-28)** — branch `chore/dead-code-03-exports`, sezioni
+A-D tutte completate con un commit convenzionale ciascuna (una per sezione).
+Validazione finale verde: `tsc` pulito dopo ogni file, suite d'area (384 test)
++ suite completa 80 file / 1409 test, `npm run build` ok, `npx knip` non
+segnala più nessuno dei simboli di questa spec. Collaterali applicati:
+`updateExpensesSubCategoryName` (catena di `updateSubCategory`), l'interfaccia
+`DividendsByAsset`, l'indice Firestore `assets(userId, isin)`, e la prosa
+AGENTS.md aggiornata (righe 338/354, docblock `apiAuth.ts`, commento stale
+`assetAllocationService.ts`, più due riferimenti a `createSnapshot`/
+`getCategoriesByType` trovati stale durante la chiusura sessione). Deviazione
+dalla spec: la nota su `apiAuth.ts:72` era in realtà parte del docblock di
+`assertCanAccessAccount`, non una riga a sé — riscritta in linea con
+l'eliminazione di `assertSameUser` invece che "aggiornata sul posto".
+
 **Rischio: medio** — volume alto ma azioni binarie: **CANCELLA** (simbolo a zero
 riferimenti ovunque, test inclusi) o **DE-ESPORTA** (simbolo usato SOLO nel suo
 file: togli `export`, il codice resta). Ogni cancellazione è protetta da tsc.
