@@ -1,5 +1,20 @@
 # Spec 04 — Export morti: lib/utils, lib/constants, types/ + policy components/ui
 
+**✅ Implementata (2026-07-28)** — branch `chore/dead-code-04-utils-types`,
+sezioni A-D tutte completate con un commit convenzionale ciascuna (una per
+sezione). Validazione finale verde: `tsc` pulito dopo ogni sezione, suite
+d'area (215 test) + suite completa 80 file / 1409 test, `npm run build` ok,
+`npx knip` pulito rispetto ai finding di questa spec (residuano 3 unused
+export non di sua competenza: `useColorTheme` — falso positivo noto — e
+`useCreateAssistantThread`/`buildAssistantQuarterContext`, apparsi dopo
+l'audit del 2026-07-28 e da verificare in una sessione futura). Collaterale
+applicato: schema di `BenchmarkCacheDoc` spostato in un commento presso lo
+scrittore Admin SDK (`app/api/benchmarks/returns/route.ts`) prima della
+cancellazione. Nota fuori perimetro segnalata (non toccata): `goalService.ts:246`
+tiene una copia privata duplicata di `GOAL_PRIORITY_WEIGHTS` — Rule of Three,
+non codice morto. Step manuale ancora aperto: deploy `firestore.rules`
+(rimossi i match block `/price-history` e `/portfolios`).
+
 **Rischio: basso** — de-export e piccole cancellazioni tsc-guardate, più UNA
 decisione di policy (shadcn) da applicare in modo uniforme e da codificare in una
 config knip perché i futuri audit non ripropongano lo stesso rumore.

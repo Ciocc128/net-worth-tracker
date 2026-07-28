@@ -231,6 +231,7 @@ npm run dev        # Start dev server with hot-reload
 npm run build      # Production build
 npm run start      # Start production server
 npm run lint       # Run ESLint
+npx knip           # Find unused files, exports, and dependencies (see knip.json)
 npm test           # Run unit tests (single run)
 npm run test:watch # Run tests in watch mode
 
