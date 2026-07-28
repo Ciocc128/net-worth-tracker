@@ -64,5 +64,3 @@ if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
     console.info('[firebase] Connected to LOCAL emulators (Auth :9099, Firestore :8080).');
   }
 }
-
-export default app;

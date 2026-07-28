@@ -21,106 +21,12 @@ import {
   query,
   where,
   orderBy,
-  Timestamp,
   deleteField,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { Asset, MonthlySnapshot } from '@/types/assets';
-import {
-  calculateAssetValue,
-  calculateTotalValue,
-  calculateLiquidNetWorth,
-  calculateIlliquidNetWorth,
-  calculateFIRENetWorth,
-} from './assetService';
-import { calculateCurrentAllocation } from './assetAllocationService';
-import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
+import { MonthlySnapshot } from '@/types/assets';
 
 const SNAPSHOTS_COLLECTION = 'monthly-snapshots';
-
-/**
- * Create a monthly snapshot from current assets
- *
- * Calculates total/liquid/illiquid net worth, asset allocation percentages,
- * and stores a point-in-time record of all assets with their values.
- *
- * @param userId - User ID
- * @param assets - Current asset array (with updated prices)
- * @param year - Optional year override (defaults to current Italy time)
- * @param month - Optional month override (defaults to current Italy time)
- * @returns Snapshot document ID (format: "userId-YYYY-M")
- */
-export async function createSnapshot(
-  userId: string,
-  assets: Asset[],
-  year?: number,
-  month?: number
-): Promise<string> {
-  try {
-    const { month: currentMonth, year: currentYear } = getItalyMonthYear();
-    const snapshotYear = year ?? currentYear;
-    const snapshotMonth = month ?? currentMonth;
-
-    const totalNetWorth = calculateTotalValue(assets);
-    const liquidNetWorth = calculateLiquidNetWorth(assets);
-    const illiquidNetWorth = calculateIlliquidNetWorth(assets);
-    // Always exclude primary residence from FIRE net worth — the flag on the asset
-    // is the source of truth. Stored as a separate field so the chart can use it
-    // going forward without re-deriving it from a potentially stale asset list.
-    const fireNetWorth = calculateFIRENetWorth(assets, false);
-    const allocation = calculateCurrentAllocation(assets);
-
-    // Convert allocation values (absolute EUR amounts) to percentages
-    // This allows comparing allocation trends over time even as portfolio size changes
-    const assetAllocation: { [assetClass: string]: number } = {};
-    Object.keys(allocation.byAssetClass).forEach((assetClass) => {
-      assetAllocation[assetClass] =
-        totalNetWorth > 0
-          ? (allocation.byAssetClass[assetClass] / totalNetWorth) * 100
-          : 0;
-    });
-
-    const byAsset = assets
-      // Skip assets with no quantity — they would store totalValue: 0 with a valid price,
-      // which corrupts the value history display (snapshots are immutable). Sold assets
-      // (quantity=0) already appear in past snapshots taken while they were held.
-      .filter((asset) => asset.quantity > 0)
-      .map((asset) => ({
-        assetId: asset.id,
-        ticker: asset.ticker,
-        name: asset.name,
-        quantity: asset.quantity,
-        price: asset.currentPrice,
-        totalValue: calculateAssetValue(asset),
-      }));
-
-    const snapshotId = `${userId}-${snapshotYear}-${snapshotMonth}`;
-
-    const snapshot: Omit<MonthlySnapshot, 'createdAt'> & {
-      createdAt: Timestamp;
-    } = {
-      userId,
-      year: snapshotYear,
-      month: snapshotMonth,
-      totalNetWorth,
-      liquidNetWorth,
-      illiquidNetWorth,
-      fireNetWorth,
-      byAssetClass: allocation.byAssetClass,
-      byAsset,
-      assetAllocation,
-      createdAt: Timestamp.now(),
-    };
-
-    const snapshotRef = doc(db, SNAPSHOTS_COLLECTION, snapshotId);
-    await setDoc(snapshotRef, snapshot);
-
-    return snapshotId;
-  } catch (error) {
-    console.error('Error creating snapshot:', error);
-    throw new Error('Failed to create snapshot');
-  }
-}
 
 /**
  * Get all snapshots for a user, sorted chronologically (oldest first)
@@ -154,67 +60,6 @@ export async function getUserSnapshots(
   } catch (error) {
     console.error('Error getting snapshots:', error);
     throw new Error('Failed to fetch snapshots');
-  }
-}
-
-/**
- * Get snapshots for a specific time range
- *
- * Filters snapshots between start and end dates (inclusive on both sides).
- *
- * @param userId - User ID
- * @param startYear - Start year
- * @param startMonth - Start month (1-12)
- * @param endYear - End year
- * @param endMonth - End month (1-12)
- * @returns Array of snapshots within the specified range, sorted chronologically
- */
-export async function getSnapshotsInRange(
-  userId: string,
-  startYear: number,
-  startMonth: number,
-  endYear: number,
-  endMonth: number
-): Promise<MonthlySnapshot[]> {
-  try {
-    const allSnapshots = await getUserSnapshots(userId);
-
-    return allSnapshots.filter((snapshot) => {
-      // Convert year/month to comparable integer: YYYYMM format (e.g., 2024*100 + 3 = 202403)
-      // This allows simple numeric comparison for date ranges without Date object overhead
-      const snapshotDate = snapshot.year * 100 + snapshot.month;
-      const startDate = startYear * 100 + startMonth;
-      const endDate = endYear * 100 + endMonth;
-
-      return snapshotDate >= startDate && snapshotDate <= endDate;
-    });
-  } catch (error) {
-    console.error('Error getting snapshots in range:', error);
-    throw new Error('Failed to fetch snapshots');
-  }
-}
-
-/**
- * Get the most recent snapshot for a user
- *
- * @param userId - User ID
- * @returns Latest snapshot, or null if no snapshots exist
- */
-export async function getLatestSnapshot(
-  userId: string
-): Promise<MonthlySnapshot | null> {
-  try {
-    const snapshots = await getUserSnapshots(userId);
-
-    if (snapshots.length === 0) {
-      return null;
-    }
-
-    // Return the last one (already sorted chronologically by getUserSnapshots)
-    return snapshots[snapshots.length - 1];
-  } catch (error) {
-    console.error('Error getting latest snapshot:', error);
-    return null;
   }
 }
 

@@ -17,7 +17,7 @@ interface FredObservation {
  * (ECB decisions can land mid-month), then carry-forwards from 1999-01 to the
  * current month so every month has an explicit rate entry.
  */
-export function buildMonthlyRatesFromFred(observations: FredObservation[]): EcbMonthlyRate[] {
+function buildMonthlyRatesFromFred(observations: FredObservation[]): EcbMonthlyRate[] {
   const lastPerMonth = new Map<string, number>();
   for (const obs of observations) {
     if (obs.value === '.') continue;

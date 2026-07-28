@@ -837,7 +837,7 @@ export function selectSnapshotsForMetrics(
  * @param dividendCategoryId - Category ID for dividend income (from user settings)
  * @returns Array of monthly cash flow data with separated dividend income
  */
-export async function getCashFlowsForPeriod(
+async function getCashFlowsForPeriod(
   userId: string,
   startDate: Date,
   endDate: Date,

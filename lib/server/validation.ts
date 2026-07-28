@@ -71,7 +71,7 @@ export const dividendDataSchema = z.object({
  * a ledger type, date >= baselineDate, linked asset is `cash`, no-negative-position replay) live in
  * the use-case layer, NOT here.
  */
-export const assetTransactionTypeSchema = z.enum(['buy', 'sell', 'adjustment']);
+const assetTransactionTypeSchema = z.enum(['buy', 'sell', 'adjustment']);
 
 /**
  * Base object shape, without cross-field refinements. Extracted so the update schema can build on

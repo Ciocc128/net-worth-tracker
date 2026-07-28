@@ -87,13 +87,13 @@ export interface FIRESensitivityCell {
   relationToBaseline: 'baseline' | 'better' | 'worse' | 'neutral';
 }
 
-export interface FIRESensitivityColumn {
+interface FIRESensitivityColumn {
   annualSavings: number;
   label: string;
   isBaseline: boolean;
 }
 
-export interface FIRESensitivityRow {
+interface FIRESensitivityRow {
   annualExpenses: number;
   multiplier: number;
   label: string;
@@ -138,7 +138,7 @@ export interface CoastFIREPensionBreakdown {
   isActiveAtRetirement: boolean;
 }
 
-export interface CoastFIREScenarioMetrics extends CoastFIREMetrics {
+interface CoastFIREScenarioMetrics extends CoastFIREMetrics {
   scenarioKey: 'bear' | 'base' | 'bull';
   label: string;
   realReturnRate: number;
@@ -799,7 +799,7 @@ export async function getFIREData(
  * period to avoid inconsistencies (e.g., current year expenses with last year savings).
  */
 /** A single income subcategory within a category, with its annualised amount for the period. */
-export interface IncomeSourceSubCategory {
+interface IncomeSourceSubCategory {
   subCategoryId: string; // '__none__' for income recorded without a subcategory
   subCategoryName: string;
   annualAmount: number;
