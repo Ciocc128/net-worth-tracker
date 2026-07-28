@@ -460,7 +460,7 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 - **Portfolio vs benchmark month count asymmetry**: `prepareMonthlyReturnsHeatmap` loops `i=1..N` over snapshots — the first snapshot is baseline only, so for a period of N calendar months the portfolio has N−1 return observations. Benchmark data from Yahoo Finance has a return for every calendar month including the first, so it has N observations. `Mesi+/-` for the portfolio can therefore never sum to `numberOfMonths`. Display "X/Y" format with the actual denominator (`returns.length`) to avoid user confusion. `totalMonths` field in `BenchmarkMetrics` = `returns.length` tracks this per row.
 
 ### Dashboard Data Isolation
-- Do not add `useAllExpenses` or other full-history queries to Overview/Dashboard
+- Do not add full-history expense queries to Overview/Dashboard
 - Full-history expense analysis belongs in History or Cashflow
 - Overview/Panoramica data pipeline should flow through the private `GET /api/dashboard/overview` route and `useDashboardOverview()`; do not reintroduce page-level fan-out queries for assets, snapshots, expense stats, or settings
 - `DashboardOverviewPayload` should stay lean: only KPI, variations, expense stats, chart datasets, flags, and freshness fields actually rendered by Panoramica belong there
@@ -879,6 +879,10 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 ### Census "Keep" Verdicts Need the Same Grep as "Delete" Verdicts
 - When auditing a set of similar surfaces (e.g. "find every pie chart") and marking each one Keep/Replace/Delete, a component marked **Keep** is exactly as likely to be an unmounted orphan as one marked Delete — but the audit habit is to grep importers only for the Delete candidates, since that's the one where being wrong is dangerous. It's backwards: a wrong Delete verdict breaks a build immediately; a wrong Keep verdict (the surface silently has 0 importers) burns effort polishing dead code and only surfaces when the user says "I don't see this in the app."
 - **Fix**: `grep -rn "<ComponentName" --include=*.tsx` for every surface in a census, Keep and Delete alike, before writing verdicts — one extra grep per item beats a wasted commit polishing dead code (case: a goal-allocation donut was marked "keep" during a pie-chart census, polished in its own commit, then found to have 0 importers — a prior session had already dropped it from its parent tab).
+
+### Knip Marks a Dead Chain's Intermediate Links "Live" — Delete the Whole Chain Atomically
+- `knip` flags the seed of a dead call chain (e.g. an unused hook) but reports its callees as used, because the orphan itself is still importing them at scan time. Deleting only the seed and re-running knip on the next pass just walks you one link further down the same chain, one PR at a time.
+- **Fix**: before deleting a flagged orphan, trace its own call graph inward (grep each function/type it imports, one level at a time) and check whether *that* symbol's only caller is the thing you're about to delete. If so, it's part of the same dead chain — delete it in the same commit, not a follow-up one. Verify each intermediate link independently: a chain function can pick up a second, legitimate caller after the orphan was written, in which case it stays. Applied in the `useExpenseStats` chain (dead-code audit session 1): the hook plus 3 service functions plus 2 types plus a query key all had exactly one caller each, all inside the same chain — confirmed one grep at a time, deleted in one commit. See `docs/dead-code/README.md` for the full audit protocol.
 
 ### Recharts Legend and Tooltip Mismatch
 - `Legend` reads `<Bar fill>`, not `<Cell>`

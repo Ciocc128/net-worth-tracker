@@ -652,7 +652,6 @@ export default function SettingsPage() {
     if (ownerId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(ownerId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.categories(ownerId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.stats(ownerId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(ownerId) });
     }
   };

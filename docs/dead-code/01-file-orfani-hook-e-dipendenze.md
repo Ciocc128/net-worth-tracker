@@ -1,5 +1,12 @@
 # Spec 01 — File orfani, hook e dipendenze
 
+**✅ Implementata (2026-07-28)** — branch `chore/dead-code-01-orfani`, sezioni A-G
+tutte completate con un commit convenzionale ciascuna. Validazione finale verde:
+`tsc` pulito, suite completa 79 file / 1406 test, `npm run build` e
+`npm run build-storybook` ok, `npx knip` non segnala più nessuno dei simboli di
+questa spec. Dettagli in `git log` sul branch (`docs: update AGENTS.md and
+CLAUDE.md for dead-code audit session 1/6` e i 7 commit precedenti).
+
 **Rischio: basso** — solo cancellazioni di file mai importati, catene collaterali
 interamente verificate, dipendenze npm senza consumatori. Nessun cambiamento di
 comportamento. `tsc` + vitest + build coprono ogni errore statico.
