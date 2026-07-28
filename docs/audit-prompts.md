@@ -942,8 +942,7 @@ Contesto:
 /impeccable audit la pagina Impostazioni
 
 File: app/dashboard/settings/page.tsx
-Componenti: components/settings/SettingsPageSkeleton.tsx,
-            components/settings/AccountSharingSection.tsx,
+Componenti: components/settings/AccountSharingSection.tsx,
             components/settings/ExpenseImportSection.tsx,
             components/expenses/CategoryManagementDialog.tsx,
             components/layout/ThemePicker.tsx
@@ -971,7 +970,6 @@ Condivisione, Aspetto. Assi da verificare (minimum — segnala anche eventuali a
   `max-desktop:portrait:pb-20` per bottom nav clearance
 - Token selector (Aspetto): theme grid `grid-cols-2 sm:grid-cols-3 desktop:grid-cols-6` —
   swatches touch-friendly (≥ 44px); active theme border via token non hardcoded
-- Skeleton: `SettingsPageSkeleton` isomorfo al layout reale
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:
@@ -1082,7 +1080,6 @@ Componenti: components/fire-simulations/FireCalculatorSkeleton.tsx,
             components/fire-simulations/GoalsSkeleton.tsx,
             components/fire-simulations/WhatIfAnalysisSkeleton.tsx,
             components/allocation/AllocationPageSkeleton.tsx,
-            components/settings/SettingsPageSkeleton.tsx,
             components/assistant/AssistantPageSkeleton.tsx
             (+ skeleton inline in altri tab)
 
