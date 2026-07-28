@@ -1,5 +1,16 @@
 # Spec 02 — Pipeline PDF chart-capture (no-op) e dominio PDF
 
+**✅ Implementata (2026-07-28)** — branch `chore/dead-code-02-pdf`, sezioni A-D
+tutte completate con un commit convenzionale ciascuna. Validazione finale verde:
+`tsc` pulito, suite completa 79 file / 1406 test, `npm run build` ok, `npx knip`
+non segnala più nessuno dei simboli di questa spec. Smoke funzionale: nessun
+account demo configurato in questo ambiente, quindi verificato rendendo
+`<PDFDocument>` con dati sintetici per tutte e 7 le sezioni via
+`@react-pdf/renderer` in Node — PDF valido prodotto. Scoperta oltre la spec:
+`ChartImage`/`ChartCaptureOptions` in `types/pdf.ts` sono diventati orfani solo
+in conseguenza della sezione A e sono stati rimossi nella stessa sessione.
+Dettagli in `git log` sul branch.
+
 **Rischio: medio** — si tocca una feature attiva (export PDF), ma la pipeline
 rimossa è **già oggi un no-op funzionale**: nessun comportamento visibile cambia.
 La verifica finale include uno smoke dell'export PDF.

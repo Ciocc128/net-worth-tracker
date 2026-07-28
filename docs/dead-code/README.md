@@ -14,7 +14,7 @@ confutati sono già stati esclusi.
 | # | Spec | Rischio | Modello | Effort | Stato |
 |---|------|---------|---------|--------|-------|
 | 01 | [File orfani, hook e dipendenze](01-file-orfani-hook-e-dipendenze.md) | Basso | Sonnet 5 | medium | ✅ Implementata (2026-07-28, `chore/dead-code-01-orfani`) |
-| 02 | [Pipeline PDF chart-capture (no-op)](02-pipeline-pdf-chart-capture.md) | Medio | Sonnet 5 | high | |
+| 02 | [Pipeline PDF chart-capture (no-op)](02-pipeline-pdf-chart-capture.md) | Medio | Sonnet 5 | high | ✅ Implementata (2026-07-28, `chore/dead-code-02-pdf`) |
 | 03 | [Export morti: services, server, hooks](03-export-morti-services-server-hooks.md) | Medio | Sonnet 5 | high | |
 | 04 | [Export morti: utils, types e policy UI](04-export-morti-utils-types-e-policy-ui.md) | Basso | Sonnet 5 | medium | |
 | 05 | [Branch morti e decisioni di prodotto](05-branch-morti-e-decisioni-di-prodotto.md) | Alto | Opus 5 | high | |

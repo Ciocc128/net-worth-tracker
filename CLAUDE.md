@@ -8,13 +8,12 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic (Claude Sonnet 5)
 - `tsc` clean; **79 files / 1406 tests** green
-- Latest (2026-07-28): **audit codice morto, sessione 1/6** (`docs/dead-code/01-file-orfani-hook-e-dipendenze.md`). Zero cambi di comportamento (l'unica eccezione è la fix G qui sotto) — solo rimozioni verificate con grep prima di ogni cancellazione, un commit per sezione. `tsc` + build + suite completa invariati (79 file / 1406 test).
-  - **Componenti orfani**: `ExpenseCard`, `GoalSummaryCards`, `SuccessRateCard` (zero importer).
-  - **Catena `useExpenseStats`** cancellata atomicamente (knip segna vivi gli anelli intermedi solo perché importati dall'orfano): l'hook + `getExpenseStats`/`getMonthlyExpenseSummary`/`getExpensesByMonth` in `expenseService.ts` + i tipi `ExpenseStats`/`MonthlyExpenseSummary` + `queryKeys.expenses.stats` e la sua invalidation. Più `useAllExpenses` (duplicato esatto di `useExpenses`), `useDelayedLoading` (mai adottato) e `SettingsPageSkeleton` (orfano by design, coerente con la rimozione dell'anti-flash).
-  - **Storybook/Vitest**: mock Firebase morti (`.storybook/mocks/firebase.ts`, `__mocks__/firebase-config.ts`), `components/ui/carousel.tsx` + `embla-carousel-react`.
-  - **npm**: rimossi `@storybook/react`, `baseline-browser-mapping`, `dotenv`, `png-to-ico`; `@types/canvas-confetti` spostato in devDependencies.
-  - **public/**: SVG starter Next e favicon inutilizzati cancellati; **fix collaterale**: `app/layout.tsx` linkava `/favicon-16x16.png` e `/favicon-32x32.png` a 404 (i file vivevano solo sotto `/favicon/`) — rimossi, restano le convenzioni App Router.
-  - Sessioni 2-6 (pipeline PDF, export morti, branch morti, sweep CSS) restano da fare — vedi `docs/dead-code/README.md`.
+- Latest (2026-07-28): **audit codice morto, sessione 2/6** (`docs/dead-code/02-pipeline-pdf-chart-capture.md`). Behavior-preserving per costruzione: la pipeline rimossa era già un no-op (`getRequiredChartIds()` ritornava incondizionatamente `[]`), confermato con uno smoke funzionale a fine sessione. `tsc` + build + suite completa invariati (79 file / 1406 test).
+  - **Pipeline chart-capture no-op** eliminata end-to-end da `pdfGenerator.tsx`: `getRequiredChartIds`/`captureCharts`/`cleanupChartImages`, il file `lib/utils/chartCapture.ts`, la prop `chartImages`/`chartImage` lungo `PDFDocument` → `HistorySection`/`AllocationSection`, i primitives orfani `PDFChart`/`PDFSection` (non da confondere con il tipo vivo `PDFSectionData`), la dipendenza `html2canvas`, e gli `id="chart-*"` vestigiali sui grafici Storico.
+  - **`types/pdf.ts`**: cancellati `CHART_IDS`/`ChartId`/`PDFGenerationResult`/`ChartImage`/`ChartCaptureOptions` (questi ultimi due orfani solo dopo la rimozione della pipeline); de-esportati `AssetClassEvolutionPoint`/`MonthlyTrendPoint`/`FireHistoricalPoint`.
+  - **`pdfDataService.ts`**: le sette `prepare*` restano ma non più esportate (usate solo da `fetchPDFData` nello stesso file); cancellata `clearPDFDataCache` (0 chiamanti).
+  - **npm**: `@react-pdf/types` promossa da transitiva implicita a devDependency esplicita (import diretto in `PDFTable.tsx`/`PDFText.tsx`).
+  - Sessioni 3-6 (export morti, branch morti, sweep CSS) restano da fare — vedi `docs/dead-code/README.md`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`
@@ -94,4 +93,4 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Design Context
 Spec estetica autoritativa: **DESIGN.md** (Apple + Linear/Vercel + Trade Republic; form-follows-function) — mantenuta a mano, **mai rigenerarla**; il suo frontmatter YAML è lo strato normativo letto dal detector impeccable, `.impeccable/design.json` è solo il sidecar di estensioni. Prompt di review in `docs/{critique,audit}-prompts.md`. Utenti: investitori italiani self-directed che vogliono capire la propria posizione in fretta e con fiducia. Principi: (1) prima il dato, poi la decorazione; (2) motion con uno scopo; (3) la densità è una feature; (4) la precisione costruisce fiducia; (5) la personalità sta nei dettagli.
 
-**Last updated**: 2026-07-28 — audit codice morto sessione 1/6 (file orfani, hook, dipendenze npm, asset `public/`). Storia precedente: `git log`.
+**Last updated**: 2026-07-28 — audit codice morto sessione 2/6 (pipeline PDF chart-capture no-op). Storia precedente: `git log`.
