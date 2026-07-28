@@ -6,7 +6,7 @@ export interface DashboardOverviewSparklinePoint {
   totalNetWorth: number;
 }
 
-export interface DashboardOverviewVariation {
+interface DashboardOverviewVariation {
   value: number;
   percentage: number;
 }
