@@ -3,6 +3,32 @@
 Spec: `docs/dead-code/01-file-orfani-hook-e-dipendenze.md`
 Branch: `chore/dead-code-01-orfani` (base: `chore/dead-code-cleanup`)
 
+## Riepilogo
+
+- **Cosa**: rimossi 3 componenti orfani (`ExpenseCard`, `GoalSummaryCards`,
+  `SuccessRateCard`), l'intera catena morta di `useExpenseStats` (hook +
+  3 funzioni di `expenseService.ts` + 2 tipi + query key + invalidation),
+  l'hook duplicato `useAllExpenses`, l'hook mai adottato `useDelayedLoading`,
+  `SettingsPageSkeleton`, i mock morti di Storybook/Vitest per Firebase,
+  `components/ui/carousel.tsx` + `embla-carousel-react`, 5 dipendenze npm
+  inutilizzate/mal posizionate, e gli asset statici orfani in `public/`
+  (SVG starter di Next + favicon non referenziati). Corretto un bug
+  collaterale (link favicon a 404 in `app/layout.tsx`) e un commento stale.
+- **Perché**: seguire alla lettera `docs/dead-code/01-file-orfani-hook-e-dipendenze.md`,
+  la prima delle 6 sessioni dell'audit codice morto del 2026-07-28. Ogni
+  finding era già stato verificato da due agenti indipendenti in fase di
+  audit; qui il lavoro è stata la ri-verifica puntuale (grep prima di ogni
+  cancellazione, come da protocollo) e l'esecuzione atomica per sezione.
+  Zero cambi di comportamento attesi — è pulizia, non refactor.
+- **Nota**: la catena B va cancellata **tutta insieme** o knip segna vivi gli
+  anelli intermedi (falso positivo già noto). La favicon fix in G è l'unico
+  cambio che tocca comportamento reale (due `<link>` che erano già 404 prima
+  del mio intervento); tutto il resto è rimozione pura di import-graph morto,
+  coperta da `tsc` + build + suite completa (79 file / 1406 test invariati).
+  Nessun test manuale nel browser eseguito in questa sessione (nessun dev
+  server disponibile) — vedi sezione "Not done" più sotto per il dettaglio
+  del rischio residuo.
+
 ## What was done
 
 One conventional commit per section, each preceded by a fresh grep-verify
