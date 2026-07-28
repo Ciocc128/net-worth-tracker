@@ -3,6 +3,31 @@
 Branch: `chore/dead-code-04-utils-types`
 Spec: `docs/dead-code/04-export-morti-utils-types-e-policy-ui.md`
 
+## Riepilogo
+
+- **Cosa**: applicata la spec 04 dell'audit codice morto — codificata la
+  policy shadcn/ui (cancella solo le aggiunte custom di questo repo, la
+  superficie standard del template resta anche se knip la flagga),
+  cancellati export morti e de-esportati simboli usati solo internamente in
+  `lib/utils`, `lib/constants` e `types/*`, rimossi due match block morti in
+  `firestore.rules` (`/price-history`, `/portfolios`), aggiunto `knip.json`
+  alla root per i futuri audit.
+- **Perché**: chiudere il debito di codice morto rimasto dai redesign di
+  Rendimenti/Allocazione e dalla feature price-history già rimossa, e
+  stabilire una policy scritta e uniforme per `components/ui/**` (due batch
+  precedenti dell'audit avevano dato raccomandazioni incoerenti su cosa
+  fare della superficie shadcn non importata).
+- **Nota**: nessuna logica applicativa toccata — solo cancellazioni a zero
+  riferimenti e rimozione di `export`, protette da `tsc` dopo ogni sezione.
+  Lo schema di `BenchmarkCacheDoc` è stato preservato come commento presso
+  lo scrittore Admin SDK prima di cancellare il tipo. Il deploy di
+  `firestore.rules` resta uno step manuale post-merge (vedi sotto).
+  Verificati manualmente post-implementazione: avatar/AlertDialog/empty
+  state Hall of Fame invariati; il comportamento "cachedAt non aggiornato
+  per tutti i benchmark" e "Nessun dato disponibile" su Hall of Fame sono
+  preesistenti (TTL cache 7gg e assenza di anni in calo, rispettivamente),
+  non regressioni di questa sessione.
+
 ## Piano
 
 - [x] A. Policy shadcn/ui: cancella `AlertDialogMedia`, `AvatarBadge`/`AvatarGroup`/`AvatarGroupCount`, `TrophyEmptyIcon`
