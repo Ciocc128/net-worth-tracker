@@ -28,9 +28,9 @@ export const PENSION_DEDUCTION_CEILING_LEGACY = 5164.57;
 export const PENSION_DEDUCTION_CEILING_2026 = 5300;
 
 /** Length of the plafond-accrual window (first N participation years). */
-export const PENSION_ACCRUAL_YEARS = 5;
+const PENSION_ACCRUAL_YEARS = 5;
 /** Length of the plafond-usage window that follows the accrual window (next N years). */
-export const PENSION_USAGE_YEARS = 20;
+const PENSION_USAGE_YEARS = 20;
 
 /**
  * Ordinary annual deduction ceiling in force for a given year.
@@ -171,11 +171,11 @@ export function computePensionTaxBenefit(
  * fund is worth, net, more than €1.000 in a taxed instrument. Kept configurable (constants below) as
  * the rule can change; ref. art. 11 c.6 D.Lgs. 252/2005.
  */
-export const PENSION_BENEFIT_TAX_RATE_MAX = 15;
-export const PENSION_BENEFIT_TAX_RATE_MIN = 9;
+const PENSION_BENEFIT_TAX_RATE_MAX = 15;
+const PENSION_BENEFIT_TAX_RATE_MIN = 9;
 /** Participation years after which the rate starts decreasing, and the per-year decrement (points). */
-export const PENSION_BENEFIT_TAX_DECREASE_AFTER_YEAR = 15;
-export const PENSION_BENEFIT_TAX_DECREASE_PER_YEAR = 0.3;
+const PENSION_BENEFIT_TAX_DECREASE_AFTER_YEAR = 15;
+const PENSION_BENEFIT_TAX_DECREASE_PER_YEAR = 0.3;
 
 /**
  * The favourable payout tax rate (as a percentage) for a given number of participation years.

@@ -56,7 +56,7 @@ export interface PensionValuePoint {
 }
 
 /** Versato nella finestra, per natura. `total` è la somma delle tre. */
-export interface ContributionsByNature {
+interface ContributionsByNature {
   tfr: number;
   voluntary: number;
   employer: number;

@@ -43,7 +43,7 @@ export const DEFAULT_GOAL_RETURN = 4;
 
 // Priority multipliers for the cross-goal contribution split. Mirrors the
 // weighting used by deriveTargetAllocationFromGoals so the two planners agree.
-export const GOAL_PRIORITY_WEIGHTS: Record<GoalPriority, number> = {
+const GOAL_PRIORITY_WEIGHTS: Record<GoalPriority, number> = {
   alta: 3,
   media: 2,
   bassa: 1,

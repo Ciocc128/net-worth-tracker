@@ -1,7 +1,7 @@
 /**
  * Color palette for asset classes
  */
-export const ASSET_CLASS_COLORS: Record<string, string> = {
+const ASSET_CLASS_COLORS: Record<string, string> = {
   equity: '#3B82F6',      // blue
   bonds: '#EF4444',       // red
   crypto: '#F59E0B',      // amber
