@@ -454,16 +454,6 @@ export async function setSettings(
 }
 
 /**
- * Set allocation targets for a user (legacy function for backward compatibility)
- */
-export async function setTargets(
-  userId: string,
-  targets: AssetAllocationTarget
-): Promise<void> {
-  await setSettings(userId, { targets });
-}
-
-/**
  * Calculate current allocation from assets
  *
  * Handles both simple assets and composite assets (e.g., mixed pension funds).
@@ -617,8 +607,8 @@ export const ALL_ASSET_CLASSES: AssetClass[] = [
 /**
  * Expand every asset into per-class market AND notional exposure (`expandAssetExposure`, the
  * single source per invariant #2) and aggregate into a two-basis snapshot. No asset is
- * partitioned out here — the caller decides which set of assets to pass (the Allocazione page
- * and `compareAllocations` pass the investable base = tradable + frozen).
+ * partitioned out here — the caller decides which set of assets to pass (`compareAllocations`,
+ * its only caller, passes the investable base = tradable + frozen).
  */
 export function calculateCurrentAllocationSnapshot(
   assets: Asset[],

@@ -6,7 +6,6 @@ import {
   Dividend,
   DividendFormData,
   DividendStats,
-  DividendsByAsset,
   DividendType,
 } from '@/types/dividend';
 import { convertMultipleToEur, getExchangeRateToEur } from './currencyConversionService';
@@ -478,49 +477,6 @@ export async function calculateDividendStats(
 }
 
 /**
- * Get dividends grouped by asset
- * Returns array of assets with their dividends and totals
- */
-export async function getDividendsByAssetGrouped(
-  userId: string
-): Promise<DividendsByAsset[]> {
-  try {
-    const dividends = await getAllDividends(userId);
-
-    // Group by assetId
-    const groupedMap = new Map<string, DividendsByAsset>();
-
-    dividends.forEach(dividend => {
-      if (!groupedMap.has(dividend.assetId)) {
-        groupedMap.set(dividend.assetId, {
-          assetId: dividend.assetId,
-          assetTicker: dividend.assetTicker,
-          assetName: dividend.assetName,
-          dividends: [],
-          totalGross: 0,
-          totalTax: 0,
-          totalNet: 0,
-        });
-      }
-
-      const group = groupedMap.get(dividend.assetId)!;
-      group.dividends.push(dividend);
-      group.totalGross += dividend.grossAmount;
-      group.totalTax += dividend.taxAmount;
-      group.totalNet += dividend.netAmount;
-    });
-
-    // Convert map to array and sort by total net (highest first)
-    return Array.from(groupedMap.values()).sort(
-      (a, b) => b.totalNet - a.totalNet
-    );
-  } catch (error) {
-    console.error('Error getting dividends grouped by asset:', error);
-    throw new Error('Failed to get dividends grouped by asset');
-  }
-}
-
-/**
  * Get upcoming dividends (payment date in the future)
  * Sorted by payment date (nearest first)
  */
@@ -587,17 +543,6 @@ export async function isDuplicateDividend(
     console.error('Error checking duplicate dividend:', error);
     throw new Error('Failed to check duplicate dividend');
   }
-}
-
-/**
- * Calculate withholding tax amount
- * Default Italian withholding tax rate: 26%
- */
-export function calculateWithholdingTax(
-  grossAmount: number,
-  taxRate: number = 26
-): number {
-  return grossAmount * (taxRate / 100);
 }
 
 /**

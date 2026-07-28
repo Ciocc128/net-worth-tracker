@@ -107,31 +107,6 @@ export async function getExpensesByDateRange(
 }
 
 /**
- * Get a single expense by ID
- */
-export async function getExpenseById(expenseId: string): Promise<Expense | null> {
-  try {
-    const expenseRef = doc(db, EXPENSES_COLLECTION, expenseId);
-    const expenseDoc = await getDoc(expenseRef);
-
-    if (!expenseDoc.exists()) {
-      return null;
-    }
-
-    return {
-      id: expenseDoc.id,
-      ...expenseDoc.data(),
-      date: expenseDoc.data().date?.toDate() || new Date(),
-      createdAt: expenseDoc.data().createdAt?.toDate() || new Date(),
-      updatedAt: expenseDoc.data().updatedAt?.toDate() || new Date(),
-    } as Expense;
-  } catch (error) {
-    console.error('Error getting expense:', error);
-    throw new Error('Failed to fetch expense');
-  }
-}
-
-/**
  * Create a new expense (single, recurring, or installment)
  *
  * Handles three creation modes based on form data:
@@ -561,22 +536,6 @@ export function calculateNetBalance(expenses: Expense[]): number {
 }
 
 /**
- * Calculate income to expense ratio
- * Returns the ratio of total income to total expenses
- * Returns null if total expenses is 0 (to avoid division by zero)
- */
-export function calculateIncomeExpenseRatio(expenses: Expense[]): number | null {
-  const totalIncome = calculateTotalIncome(expenses);
-  const totalExpenses = calculateTotalExpenses(expenses);
-
-  if (totalExpenses === 0) {
-    return null;
-  }
-
-  return totalIncome / totalExpenses;
-}
-
-/**
  * Count expenses associated with a category
  */
 export async function getExpenseCountByCategoryId(
@@ -662,45 +621,6 @@ export async function updateExpensesCategoryName(
   }
 }
 
-/**
- * Update all expenses when a subcategory name changes
- */
-export async function updateExpensesSubCategoryName(
-  categoryId: string,
-  subCategoryId: string,
-  newSubCategoryName: string,
-  userId: string
-): Promise<void> {
-  try {
-    const expensesRef = collection(db, EXPENSES_COLLECTION);
-    const q = query(
-      expensesRef,
-      where('userId', '==', userId),
-      where('categoryId', '==', categoryId),
-      where('subCategoryId', '==', subCategoryId)
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      return; // No expenses to update
-    }
-
-    const batch = writeBatch(db);
-
-    querySnapshot.docs.forEach(docSnapshot => {
-      batch.update(docSnapshot.ref, {
-        subCategoryName: newSubCategoryName,
-        updatedAt: new Date(),
-      });
-    });
-
-    await batch.commit();
-  } catch (error) {
-    console.error('Error updating expenses subcategory name:', error);
-    throw new Error('Failed to update expenses subcategory name');
-  }
-}
 
 /**
  * Reassign all expenses from one category to another
