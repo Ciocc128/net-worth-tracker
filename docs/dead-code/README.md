@@ -16,7 +16,7 @@ confutati sono già stati esclusi.
 | 01 | [File orfani, hook e dipendenze](01-file-orfani-hook-e-dipendenze.md) | Basso | Sonnet 5 | medium | ✅ Implementata (2026-07-28, `chore/dead-code-01-orfani`) |
 | 02 | [Pipeline PDF chart-capture (no-op)](02-pipeline-pdf-chart-capture.md) | Medio | Sonnet 5 | high | ✅ Implementata (2026-07-28, `chore/dead-code-02-pdf`) |
 | 03 | [Export morti: services, server, hooks](03-export-morti-services-server-hooks.md) | Medio | Sonnet 5 | high | ✅ Implementata (2026-07-28, `chore/dead-code-03-exports`) |
-| 04 | [Export morti: utils, types e policy UI](04-export-morti-utils-types-e-policy-ui.md) | Basso | Sonnet 5 | medium | |
+| 04 | [Export morti: utils, types e policy UI](04-export-morti-utils-types-e-policy-ui.md) | Basso | Sonnet 5 | medium | ✅ Implementata (2026-07-28, `chore/dead-code-04-utils-types`) |
 | 05 | [Branch morti e decisioni di prodotto](05-branch-morti-e-decisioni-di-prodotto.md) | Alto | Opus 5 | high | |
 | 06 | [Sweep token CSS (opzionale)](06-sweep-token-css.md) | Medio | Sonnet 5 | high | |
 
