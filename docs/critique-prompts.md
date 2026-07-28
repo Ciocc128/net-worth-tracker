@@ -538,11 +538,12 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 
 File: app/dashboard/performance/page.tsx
 Componenti: components/performance/* (PerformanceHero, HeroMetricBlock, MetricSection,
-            MetricCard, RealizedGainsSection, MonthlyReturnsHeatmap,
+            MetricCard, PerformanceTooltip, RealizedGainsSection, MonthlyReturnsHeatmap,
             UnderwaterDrawdownChart, BenchmarkComparisonSection/Chart,
             CustomDateRangeDialog, AIAnalysisDialog)
 Pure layer: lib/utils/performanceSummary.ts, lib/utils/benchmarkPeriodReturn.ts,
-            lib/utils/performanceBase.ts
+            lib/utils/performanceBase.ts, lib/utils/drawdownSeries.ts,
+            lib/utils/cashFlowMap.ts
 
 Questa pagina è stata ripensata con una IA "single answer": una risposta dominante, poi le
 prove, poi il dettaglio a richiesta.
@@ -556,15 +557,30 @@ prove, poi il dettaglio a richiesta.
   useAssetLedgerMeta) — Proventi Finanziari, e una sezione "Plusvalenze Realizzate" per anno
   fiscale (RealizedGainsSection, aggregazione cross-asset), anch'essa gated sul ledger.
 - Grafici raggruppati in cluster "Andamento" / "Rischio"; period selector
-  1M/3M/YTD/1Y/3Y/5Y/ALL + CUSTOM (il custom è un chip overlay, non uno slot fisso).
+  YTD/1 Anno/3 Anni/5 Anni/Storico + Personalizzato (il custom è un chip overlay, non uno
+  slot fisso).
+- Grafico "Evoluzione Patrimonio": un'area ("Capitale immesso" = patrimonio iniziale del
+  periodo + versamenti netti cumulati) sotto la linea del patrimonio; la forbice fra le due
+  È il rendimento di mercato, e il tooltip la scompone in valore iniziale / versamenti /
+  rendimento. NON è un grafico a bande impilate: i versamenti netti cumulati possono essere
+  negativi e una banda negativa romperebbe la pila.
 - Benchmark comparison: 6 portafogli modello, tabella risk/return e growth-of-100 chart;
   Sharpe/Sortino usano la media di periodo del tasso BCE (FRED ECBDFR, cached).
-- I fondi pensione sono esclusi dalla base delle metriche (performanceBase.ts).
+- Base delle metriche CONFIGURABILE (performanceBase.ts): di default escludono fondi pensione
+  e asset `allocationRole: 'excluded'` (la casa); i due switch stanno in Impostazioni →
+  Preferenze e la base attiva è dichiarata in una riga sotto l'hero, con link a Impostazioni.
+- Onestà dei numeri (correzioni 2026-07-28): sotto i 6 mesi l'hero mostra il
+  rendimento DI PERIODO con etichetta esplicita ("nei 2 mesi") invece di un annualizzato che
+  estrapolerebbe un anno da due mesi; volatilità e Sharpe mostrano "—" sotto 3 rendimenti
+  mensili; la chip di drawdown dice "dal massimo DEL PERIODO"; heatmap, Underwater e Max
+  Drawdown concatenano gli stessi rendimenti mensili e devono riconciliare.
 Colori segno via getMetricValueColor; ogni serie grafica via useChartColors.
 Confronta con: Storico (hero patrimonio + CAGR), Allocazione (stessa struttura decisione →
 dettaglio), Goals (hero allocato).
 Nota: la descrizione precedente ("4 hero blocks affiancati") era pre-redesign — oggi c'è un
-solo numero dominante e le metriche stanno dietro un Collapsible.
+solo numero dominante e le metriche stanno dietro un Collapsible. Il 2026-07-28 la pagina ha
+avuto una revisione profonda dei CALCOLI (non del layout): se emergono numeri che sembrano
+sbagliati, prima di proporre modifiche leggi CLAUDE.md → Current Status e Known Issues.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero

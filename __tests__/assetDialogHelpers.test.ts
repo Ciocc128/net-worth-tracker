@@ -63,7 +63,7 @@ function buildBondDetailsFromForm(
 }
 
 // Mirrors the taxRate branch of `buildAssetFormDataFromValues` in AssetDialog.tsx —
-// spec 8 (asset-tax-rate-restore): a saved taxRate of 0 must survive the submit round-trip.
+// A saved taxRate of 0 must survive the submit round-trip (0 is falsy — `||` would erase it).
 function resolveTaxRateForPersist(taxRate: number | undefined): number | undefined {
   return taxRate !== undefined && !isNaN(taxRate) && taxRate >= 0 ? taxRate : undefined;
 }

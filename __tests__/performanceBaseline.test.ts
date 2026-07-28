@@ -1,5 +1,5 @@
 /**
- * Baseline della finestra di misura — spec 10 fase 1 (finding A1, A2, A3, A10).
+ * Baseline della finestra di misura di Rendimenti.
  *
  * Il primo snapshot di un periodo è SEMPRE la valutazione di partenza, mai un mese misurato: la
  * misura si apre il mese dopo. Questa suite fissa le conseguenze di quella regola unica:

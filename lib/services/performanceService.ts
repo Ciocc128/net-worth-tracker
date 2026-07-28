@@ -44,9 +44,8 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  *
  * WARNING (checklist comment): bump on ANY change that alters what the pipeline computes from
  * unchanged inputs, and only then. History: v2 = baseline data-driven + first-month cash flows +
- * TWR annualization (spec 10 phase 1); v3 = rolling windows (spec 10 phase 3); v4 = IRR signs and
- * timeline (spec 10 phase 4); v5 = volatility without the ±50% filter, 3-observation floor
- * (spec 10 phase 5).
+ * TWR annualization; v3 = rolling windows; v4 = IRR signs and timeline; v5 = volatility without
+ * the ±50% filter, and its 3-observation floor.
  */
 const CACHE_MATH_VERSION = 'v5';
 

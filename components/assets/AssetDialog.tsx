@@ -1256,7 +1256,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             </button>
           )}
 
-          {/* Classe Asset — ETF only, create mode (decision 1-2, spec 6-asset-class-selection.md).
+          {/* Classe Asset — ETF only, create mode.
               Every other type is silently derived from TYPE_TO_CLASS: an equity ETF, a bond ETF and
               a money-market ETF (e.g. XEON) are all `type: 'etf'`, and only the class tells them
               apart — that ambiguity doesn't exist for stock/bond/crypto/etc, so they don't get a

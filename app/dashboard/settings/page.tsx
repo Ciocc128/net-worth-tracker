@@ -17,7 +17,7 @@
  *
  * PERCENTAGE VALIDATION:
  * - Asset classes must sum to AT LEAST 100% (or remainder if cash uses fixed €); above 100% is a
- *   legitimate target leverage (spec 7 — 100% = no leverage)
+ *   legitimate target leverage (exactly 100% = no leverage)
  * - Sub-categories must sum to 100% within parent
  * - Specific assets must sum to 100% within parent sub-category
  * All validations run on save with clear error messages.
@@ -136,7 +136,7 @@ const roundToTwoDecimals = (value: number): number => {
 
 // Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
 // total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage
-// (spec 7). Only an under-allocated total (< 100) is invalid. Shared by handleSave's guard and the
+// Only an under-allocated total (< 100) is invalid. Shared by handleSave's guard and the
 // render-time isValidTotal so the two can never drift apart.
 const isTargetTotalValid = (total: number): boolean => total >= 100 - 0.01;
 
@@ -345,7 +345,7 @@ export default function SettingsPage() {
       getAllAssets(ownerId).then((assets) =>
         // Default debit/credit account picker: an actual conto, not just a "cash-class" asset —
         // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
-        // (spec 6-asset-class-selection.md decision 4, AGENTS.md 2026-07-26 hardening).
+        // (convenzione stretta, AGENTS.md → hardening 2026-07-26).
         setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'))
       );
     }

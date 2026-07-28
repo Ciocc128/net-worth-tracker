@@ -1,5 +1,5 @@
 /**
- * Finestre rolling 12M/36M — spec 10 fase 3 (finding A4).
+ * Finestre rolling 12M/36M.
  *
  * Le tre incoerenze che questa suite inchioda:
  *   1. il limite superiore della finestra era il **1° del mese** a mezzanotte, e il filtro delle

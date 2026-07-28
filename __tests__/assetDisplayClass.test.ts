@@ -1,6 +1,6 @@
 /**
- * Tests for `resolveDisplayAssetClass` (lib/utils/assetDisplayClass.ts) — spec
- * docs/specs/6-asset-class-selection.md §2. Pure module, no Firebase mocks needed.
+ * Tests for `resolveDisplayAssetClass` (lib/utils/assetDisplayClass.ts): la classe PREVALENTE
+ * di un asset composito, per la sola visualizzazione. Modulo puro, nessun mock Firebase.
  */
 import { describe, it, expect } from 'vitest';
 import type { Asset, AssetComposition } from '@/types/assets';

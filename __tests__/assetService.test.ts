@@ -1,7 +1,8 @@
 /**
- * Tests for `calculateStampDuty` (lib/services/assetService.ts) — spec
- * docs/specs/6-asset-class-selection.md decision 4: the checking-account flat-fee rule (34,20€
- * above 5.000€) applies only to a TRUE conto corrente (`type === 'cash' && assetClass === 'cash'`),
+ * Tests for `calculateStampDuty` (lib/services/assetService.ts).
+ *
+ * The rule under test: the checking-account flat fee (34,20€ above 5.000€)
+ * applies only to a TRUE conto corrente (`type === 'cash' && assetClass === 'cash'`),
  * never to a money-market ETF that merely carries `assetClass: 'cash'` for allocation purposes.
  *
  * assetService.ts imports the client Firebase SDK at module load time — mock it out so the suite
