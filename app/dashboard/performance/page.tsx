@@ -990,7 +990,10 @@ export default function PerformancePage() {
             <span className="font-mono font-medium tabular-nums text-foreground">
               {returnConsistency.positiveMonths}/{returnConsistency.totalMonths}
             </span>{' '}
-            mesi positivi ({formatPercentage(returnConsistency.positiveShare)})
+            mesi positivi
+            {/* La percentuale compare solo su un campione che possa esprimerne una: su uno o due
+                mesi darebbe 0/50/100 secchi, che sembra una statistica senza esserlo. */}
+            {returnConsistency.positiveShare !== null && ` (${formatPercentage(returnConsistency.positiveShare)})`}
           </span>
           {returnConsistency.best && (
             <span className="text-muted-foreground">
@@ -1001,7 +1004,9 @@ export default function PerformancePage() {
               </span>
             </span>
           )}
-          {returnConsistency.worst && (
+          {/* Con un mese solo, migliore e peggiore SONO lo stesso mese: mostrarlo due volte
+              suggerirebbe un intervallo che non esiste. */}
+          {returnConsistency.worst && returnConsistency.worst.label !== returnConsistency.best?.label && (
             <span className="text-muted-foreground">
               Peggior mese{' '}
               <span className="font-medium text-foreground">{returnConsistency.worst.label}</span>{' '}

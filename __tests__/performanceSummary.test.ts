@@ -106,10 +106,39 @@ describe('computeReturnConsistency', () => {
     expect(computeReturnConsistency([])).toEqual({
       positiveMonths: 0,
       totalMonths: 0,
-      positiveShare: 0,
+      positiveShare: null,
       best: null,
       worst: null,
     });
+  });
+
+  it('withholds the share on a sample too small to express one', () => {
+    // Un mese solo darebbe 0% o 100% secchi: sembra una statistica, non lo è. I conteggi restano —
+    // sono fatti — e la striscia mostra "1/1 mesi positivi" senza percentuale.
+    const single: MonthlyReturnHeatmapData[] = [
+      { year: 2026, months: [{ month: 1, return: 2.4 }] },
+    ];
+    const c = computeReturnConsistency(single);
+
+    expect(c.totalMonths).toBe(1);
+    expect(c.positiveMonths).toBe(1);
+    expect(c.positiveShare).toBeNull();
+    // Con un mese solo, migliore e peggiore sono lo stesso mese: chi renderizza deve mostrarlo una volta.
+    expect(c.best).toEqual(c.worst);
+  });
+
+  it('reports the share from the third month on', () => {
+    const three: MonthlyReturnHeatmapData[] = [
+      {
+        year: 2026,
+        months: [
+          { month: 1, return: 2.4 },
+          { month: 2, return: -1 },
+          { month: 3, return: 1 },
+        ],
+      },
+    ];
+    expect(computeReturnConsistency(three).positiveShare).toBeCloseTo(66.667, 3);
   });
 });
 

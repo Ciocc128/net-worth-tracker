@@ -25,6 +25,7 @@
 
 import type { MonthlySnapshot } from '@/types/assets';
 import type { CashFlowData } from '@/types/performance';
+import { buildCashFlowMap, monthKey } from '@/lib/utils/cashFlowMap';
 
 /** Valore convenzionale di partenza dell'indice. Solo i rapporti contano, non il livello. */
 const INDEX_BASE = 100;
@@ -46,16 +47,6 @@ export interface MaxDrawdownResult {
   troughIndex: number;
   /** Indice del primo mese che torna al livello del picco; `null` se il recupero non è ancora avvenuto. */
   recoveryIndex: number | null;
-}
-
-/** Cerca il cashflow netto di un mese nella mappa `YYYY-MM`. */
-function buildCashFlowMap(cashFlows: CashFlowData[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const cashFlow of cashFlows) {
-    const key = `${cashFlow.date.getFullYear()}-${String(cashFlow.date.getMonth() + 1).padStart(2, '0')}`;
-    map.set(key, cashFlow.netCashFlow);
-  }
-  return map;
 }
 
 /**
@@ -83,8 +74,7 @@ export function buildTwrIndex(
     const snapshot = snapshots[i];
 
     if (startNetWorth !== 0) {
-      const key = `${snapshot.year}-${String(snapshot.month).padStart(2, '0')}`;
-      const cashFlow = cashFlowMap.get(key) ?? 0;
+      const cashFlow = cashFlowMap.get(monthKey(snapshot.year, snapshot.month)) ?? 0;
       index *= (snapshot.totalNetWorth - cashFlow) / startNetWorth;
     }
 

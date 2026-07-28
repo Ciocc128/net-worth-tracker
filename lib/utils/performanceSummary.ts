@@ -192,11 +192,22 @@ export function computeBenchmarkDelta(
 // B2 — return consistency (from the monthly-returns heatmap)
 // ---------------------------------------------------------------------------
 
+/**
+ * Below this many months the positive-month SHARE is not reported.
+ *
+ * A proportion computed on one or two observations can only come out 0, 50 or 100: it looks like a
+ * statistic and reads like one ("100% di mesi positivi"), while carrying no more information than
+ * the raw count already shown next to it. The counts stay — they are facts — only the percentage,
+ * which is the part that invites over-reading, goes away. Same reasoning as the volatility floor in
+ * performanceService.ts, and the same threshold.
+ */
+const MIN_MONTHS_FOR_POSITIVE_SHARE = 3;
+
 export interface ReturnConsistency {
   positiveMonths: number;
   totalMonths: number;
-  /** Share of months with a positive return, 0–100. 0 when there are no months. */
-  positiveShare: number;
+  /** Share of months with a positive return, 0–100. Null on a sample too small to express one. */
+  positiveShare: number | null;
   best: { label: string; return: number } | null;
   worst: { label: string; return: number } | null;
 }
@@ -216,6 +227,9 @@ function formatMonthLabel(year: number, month: number): string {
  * Read the monthly-returns heatmap for steadiness signals: how many months were
  * positive, and the single best and worst month. A flat month (return exactly 0) is
  * counted as non-positive — it neither grew nor lost. Months with no data are skipped.
+ *
+ * `positiveShare` is null below MIN_MONTHS_FOR_POSITIVE_SHARE months; `best` and `worst` are the
+ * SAME month when there is only one, which the caller should render once rather than twice.
  */
 export function computeReturnConsistency(
   heatmap: MonthlyReturnHeatmapData[]
@@ -239,7 +253,8 @@ export function computeReturnConsistency(
   return {
     positiveMonths,
     totalMonths,
-    positiveShare: totalMonths > 0 ? (positiveMonths / totalMonths) * 100 : 0,
+    positiveShare:
+      totalMonths >= MIN_MONTHS_FOR_POSITIVE_SHARE ? (positiveMonths / totalMonths) * 100 : null,
     best,
     worst,
   };

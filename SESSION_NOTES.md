@@ -381,3 +381,21 @@ Test nuovo: base investita che scende sotto il capitale iniziale con prelievi ne
 **Segnalazione dai dati reali**: che i contributi netti cumulati siano −23.090 € su un patrimonio cresciuto da 81.780 € a 95.349 € significa che, in quella finestra, il rendimento di mercato misurato (+36.658 €) assorbe anche i versamenti non tracciati. È coerente con i limiti già documentati in CLAUDE.md → Known Issues ("Rendimenti pre-`byAsset`" e l'artefatto di bucket mensile del TWR) e non è un bug del calcolo, ma vale la pena verificare in Cashflow se le entrate del 2023-2024 sono tracciate per intero: se non lo sono, ROI/CAGR/TWR di Storico sono sovrastimati della parte mancante.
 
 **Collisione di nomi corretta (stessa sessione, su domanda dell'utente "il capitale investito da dove viene?")**: la serie del grafico si chiamava "Capitale investito", nome che sulla stessa pagina appartiene già alla card alimentata dal **registro operazioni** (acquisti − vendite, `computeInvestedCapital`). Sono due grandezze diverse con due fonti diverse: la card legge `assetTransactions`, il grafico legge `monthly-snapshots` (patrimonio iniziale) + `expenses` via Cashflow (versamenti netti). La serie è stata rinominata **"Capitale immesso"**, e sia la CardDescription sia la nota metodologica ora dichiarano la differenza per esteso.
+
+## Coda della spec 10 — le due voci A12 minori — 2026-07-28
+
+Sviluppata direttamente su `fix/session-bugfixes` (richiesta esplicita dell'utente), a valle del merge delle 5 fasi.
+
+**1. `lib/utils/cashFlowMap.ts` (nuovo) — l'invariante "un flusso per mese" dichiarato e messo al sicuro.**
+La stessa mappa `YYYY-MM → netCashFlow` era ricopiata identica in **cinque** punti, non quattro come diceva la diagnosi: `calculateTimeWeightedReturn`, `calculateVolatility`, `prepareMonthlyReturnsHeatmap` (quella che la diagnosi non contava, ed è proprio la superficie che deve concordare con le altre), `preparePerformanceChartData` e `drawdownSeries.ts`. Sono le funzioni che *devono* leggere la stessa serie — è l'invariante di riconciliazione fra heatmap, Underwater e Max Drawdown — quindi una divergenza fra le copie non si sarebbe manifestata come errore ma come due grafici che raccontano storie diverse.
+- `buildCashFlowMap(cashFlows)`: i flussi dello stesso mese si **sommano**. Le copie facevano `map.set`, cioè il secondo movimento cancellava il primo senza segnalarlo. Sui dati attuali non cambia nulla (`getCashFlowsFromExpenses` aggrega per mese a monte); cambia solo cosa succederebbe se quell'assunzione venisse meno.
+- `monthKey(year, month)` / `monthKeyOf(date)`: una sola formattazione per i due lati della ricerca. Erano due format string separate — chi costruisce parte da una `Date`, chi interroga dai campi `year`/`month` di uno snapshot — e bastava che una perdesse il padding perché la ricerca restituisse 0, cioè "nessun movimento questo mese": il valore più difficile da distinguere da un dato corretto.
+
+**2. `computeReturnConsistency` — niente percentuale su un campione che non può esprimerne una.**
+`MIN_MONTHS_FOR_POSITIVE_SHARE = 3` (stessa soglia e stessa logica di `MIN_RETURNS_FOR_VOLATILITY`): sotto i 3 mesi `positiveShare` è `null` e la striscia mostra solo i conteggi ("1/1 mesi positivi"), che sono fatti. Con un mese solo migliore e peggiore **sono** lo stesso mese: la pagina ora lo stampa una volta, invece di suggerire un intervallo che non esiste.
+
+**Nessun bump di `CACHE_MATH_VERSION`**, e la decisione è deliberata: a parità di dati entrambe le modifiche producono numeri identici (la mappa è behavior-identical finché vale l'assunzione a monte, e `computeReturnConsistency` gira lato client, fuori dalla cache). La leva si bumpa quando cambia la matematica, non quando cambia dove vive il codice.
+
+**Gate**: `npx tsc --noEmit` pulito. `npx vitest run` **79 file / 1406 test** (+8: nuova suite `__tests__/cashFlowMap.test.ts` con i due modi di perdere denaro in silenzio, + 2 casi su `computeReturnConsistency`). `npm run build` ok.
+
+**Come verificarlo a mano**: (1) Rendimenti su un periodo normale — striscia, heatmap, Underwater e Max Drawdown devono essere **identici** a prima: è un refactor, non un cambio di comportamento. (2) Periodo personalizzato di 1-2 mesi — la striscia mostra "1/1 mesi positivi" senza percentuale e un solo mese (non lo stesso due volte come migliore e peggiore).

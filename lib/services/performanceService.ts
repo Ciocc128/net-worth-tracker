@@ -22,6 +22,7 @@ import { getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 import { getSettings } from './assetAllocationService';
 import { getAllAssets } from './assetService';
+import { buildCashFlowMap, monthKey } from '@/lib/utils/cashFlowMap';
 import { endOfMonthBound } from '@/lib/utils/dateHelpers';
 import { computeDividendYieldMetrics } from '@/lib/utils/yieldOnCost';
 import { buildTwrIndex, computeDrawdownSeries, findMaxDrawdown } from '@/lib/utils/drawdownSeries';
@@ -161,12 +162,7 @@ export function calculateTimeWeightedReturn(
 ): number | null {
   if (snapshots.length < 2) return null;
 
-  // Create cash flow lookup map (by YYYY-MM)
-  const cashFlowMap = new Map<string, number>();
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   let linkedReturn = 1.0;
 
@@ -178,8 +174,7 @@ export function calculateTimeWeightedReturn(
     const endNW = currSnapshot.totalNetWorth;
 
     // Get cash flow for current month
-    const cfKey = `${currSnapshot.year}-${String(currSnapshot.month).padStart(2, '0')}`;
-    const cashFlow = cashFlowMap.get(cfKey) || 0;
+    const cashFlow = cashFlowMap.get(monthKey(currSnapshot.year, currSnapshot.month)) || 0;
 
     // Calculate sub-period return: (End NW - Cash Flow) / Start NW - 1
     if (startNW === 0) continue; // Skip if zero starting value
@@ -407,12 +402,7 @@ export function calculateVolatility(
 ): number | null {
   if (snapshots.length < 2) return null;
 
-  // Create cash flow lookup
-  const cashFlowMap = new Map<string, number>();
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   const monthlyReturns: number[] = [];
 
@@ -422,8 +412,7 @@ export function calculateVolatility(
 
     if (prevNW === 0) continue;
 
-    const cfKey = `${snapshots[i].year}-${String(snapshots[i].month).padStart(2, '0')}`;
-    const cashFlow = cashFlowMap.get(cfKey) || 0;
+    const cashFlow = cashFlowMap.get(monthKey(snapshots[i].year, snapshots[i].month)) || 0;
 
     // Monthly return = (End NW - Cash Flow) / Start NW - 1
     monthlyReturns.push(((currNW - cashFlow) / prevNW - 1) * 100);
@@ -1670,16 +1659,10 @@ export function preparePerformanceChartData(
   const initialCapital = sortedSnapshots[0]?.totalNetWorth ?? 0;
 
   let cumulativeContributions = 0;
-  const cashFlowMap = new Map<string, number>();
-
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   return chartSnapshots.map(snapshot => {
-    const key = `${snapshot.year}-${String(snapshot.month).padStart(2, '0')}`;
-    const cashFlow = cashFlowMap.get(key) || 0;
+    const cashFlow = cashFlowMap.get(monthKey(snapshot.year, snapshot.month)) || 0;
     cumulativeContributions += cashFlow;
 
     return {
@@ -1715,12 +1698,7 @@ export function prepareMonthlyReturnsHeatmap(
     return a.month - b.month;
   });
 
-  // Create cash flow lookup map (by YYYY-MM)
-  const cashFlowMap = new Map<string, number>();
-  cashFlows.forEach(cf => {
-    const key = `${cf.date.getFullYear()}-${String(cf.date.getMonth() + 1).padStart(2, '0')}`;
-    cashFlowMap.set(key, cf.netCashFlow);
-  });
+  const cashFlowMap = buildCashFlowMap(cashFlows);
 
   // Calculate monthly returns
   const monthlyReturnsMap = new Map<string, number>(); // key: "YYYY-MM", value: return %
@@ -1735,7 +1713,7 @@ export function prepareMonthlyReturnsHeatmap(
     if (startNW === 0) continue; // Skip if zero starting value
 
     // Get cash flow for current month
-    const cfKey = `${currSnapshot.year}-${String(currSnapshot.month).padStart(2, '0')}`;
+    const cfKey = monthKey(currSnapshot.year, currSnapshot.month);
     const cashFlow = cashFlowMap.get(cfKey) || 0;
 
     // Calculate monthly return: (End NW - Cash Flow) / Start NW - 1
