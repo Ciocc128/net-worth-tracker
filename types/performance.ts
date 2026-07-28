@@ -196,7 +196,8 @@ export interface FirestorePerformanceData {
 // Cache document stored in `performance-cache/{userId}`
 export interface PerformanceCacheDocument {
   userId: string;
-  // Encodes snapshot count + last snapshot date; invalidated automatically when snapshots change
+  // Fingerprints every input the cached numbers depend on: the whole snapshot series, the metrics
+  // base, the risk-free rate and the dividend category. Built by (and documented in) buildCacheKey.
   cacheKey: string;
   cachedAt: Timestamp;
   data: FirestorePerformanceData;

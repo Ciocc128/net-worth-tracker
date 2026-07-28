@@ -420,7 +420,7 @@ describe('invariante Heatmap ↔ Underwater', () => {
       snapshot(2025, 5, 130000), // salita gonfiata da un versamento
       snapshot(2025, 6, 128000),
     ];
-    const expenses = [expense(2025, 5, 'income', 28000), expense(2025, 3, 'expense', 2000)];
+    const expenses = [expense(2025, 5, 'income', 28000), expense(2025, 3, 'variable', 2000)];
     const metrics = await metricsFor(snapshots, 'ALL', expenses);
 
     const heatmap = prepareMonthlyReturnsHeatmap(snapshots, metrics.cashFlows);

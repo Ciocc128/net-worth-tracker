@@ -1222,25 +1222,85 @@ async function writePerformanceCache(userId: string, cacheKey: string, data: Per
   }
 }
 
-function buildCacheKey(snapshots: MonthlySnapshot[], baseOptions: PerformanceBaseOptions): string {
-  // The base composition is part of the identity of the cached numbers: flipping either exclusion
-  // rewrites every metric while the snapshots themselves are untouched, so without this suffix the
-  // user would keep reading the previous base's figures for up to 6 hours after changing settings.
-  //
-  // The `v2` prefix is a deliberate one-off invalidation: the baseline fix (spec 10 phase 1) changes
-  // ROI/CAGR/TWR/IRR for every period without a baseline snapshot, and the key alone cannot see it —
-  // the snapshots are untouched. Without the bump, users would keep reading pre-fix numbers for up
-  // to 6 hours. Bump it again on any change that rewrites cached metrics from unchanged inputs.
+/**
+ * FNV-1a (32 bit) over the WHOLE snapshot series, chronologically ordered.
+ *
+ * Teacher note — FNV-1a is a non-cryptographic hash: start from an offset basis, then for each byte
+ * xor it in and multiply by a prime. Cheap, no dependencies, and well spread over short strings,
+ * which is all a cache key needs (it defends against accidental collisions, not against an attacker
+ * crafting one). `Math.imul` keeps the multiplication in 32-bit integer space, which plain `*` would
+ * not: JS numbers are doubles and would silently lose the low bits.
+ *
+ * Order matters and is fixed by sorting: two accounts with the same months in a different array
+ * order describe the same history and must produce the same key.
+ */
+function hashSnapshotSeries(snapshots: MonthlySnapshot[]): string {
+  const sorted = [...snapshots].sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+
+  let hash = 0x811c9dc5; // FNV offset basis
+  for (const snapshot of sorted) {
+    // Rounded to the euro: cents drift with FX re-conversions and would churn the key for nothing.
+    const token = `${snapshot.year}-${snapshot.month}:${Math.round(snapshot.totalNetWorth)};`;
+    for (let i = 0; i < token.length; i++) {
+      hash ^= token.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193); // FNV prime
+    }
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Everything the cached numbers depend on, condensed into one string.
+ *
+ * WHAT INVALIDATES THE CACHE (DEVELOPMENT_GUIDELINES → Caching):
+ *  - any snapshot added, removed OR corrected, anywhere in the history — the series hash covers all
+ *    of them, where the previous key only fingerprinted the LAST one and happily served stale
+ *    metrics after a historical snapshot was fixed;
+ *  - the base composition (pension funds / excluded assets), which rewrites every metric while the
+ *    snapshots stay untouched;
+ *  - the risk-free rate, which moves every Sharpe ratio and the hero verdict built on it;
+ *  - the dividend income category, which decides what counts as a contribution instead of a
+ *    portfolio return — it reclassifies cash flows, so it changes ROI, CAGR, TWR and IRR too;
+ *  - the `v2` version token, a manual one-off for when the MATH changes but the inputs do not (it
+ *    was introduced by the baseline fix, spec 10 phase 1). Bump it in that case, and only then.
+ *
+ * WHAT STALE COSTS: nothing is corrupted — the payload is only ever a recomputable projection of
+ * Firestore data, and the 6h TTL in `getAllPerformanceData` bounds any miss of this list. The user
+ * sees numbers that are internally consistent but computed from a previous input, and the Aggiorna
+ * button (`forceRefresh`) always bypasses the cache. Known residual: the period boundaries depend on
+ * TODAY, so on the first visit after a month rollover the cached YTD/1Y/3Y/5Y still describe the
+ * previous month's window until the TTL expires or a new snapshot lands.
+ *
+ * A 32-bit hash can in principle collide; the key also carries the snapshot count and the last
+ * month's value, so a collision would have to match all of them at once.
+ */
+export function buildCacheKey(inputs: {
+  snapshots: MonthlySnapshot[];
+  baseOptions: PerformanceBaseOptions;
+  riskFreeRate: number;
+  dividendCategoryId?: string;
+}): string {
+  const { snapshots, baseOptions, riskFreeRate, dividendCategoryId } = inputs;
+
   const baseSignature = `p${baseOptions.includePensionFunds ? 1 : 0}e${baseOptions.includeExcludedAssets ? 1 : 0}`;
-  if (snapshots.length === 0) return `v2-0-${baseSignature}`;
-  const sorted = [...snapshots].sort((a, b) => {
-    if (a.year !== b.year) return b.year - a.year;
-    return b.month - a.month;
-  });
-  const last = sorted[0];
-  // Include totalNetWorth so that updating an existing snapshot (same count/date)
-  // still produces a different key and forces a cache miss.
-  return `v2-${snapshots.length}-${last.year}-${last.month}-${Math.round(last.totalNetWorth)}-${baseSignature}`;
+  const settingsSignature = `r${riskFreeRate}d${dividendCategoryId ?? 'none'}`;
+
+  if (snapshots.length === 0) return `v2-0-${baseSignature}-${settingsSignature}`;
+
+  const last = snapshots.reduce((latest, s) =>
+    s.year !== latest.year ? (s.year > latest.year ? s : latest) : s.month > latest.month ? s : latest
+  );
+
+  return [
+    'v2',
+    snapshots.length,
+    `${last.year}-${last.month}`,
+    Math.round(last.totalNetWorth),
+    hashSnapshotSeries(snapshots),
+    baseSignature,
+    settingsSignature,
+  ].join('-');
 }
 
 /**
@@ -1250,8 +1310,9 @@ function buildCacheKey(snapshots: MonthlySnapshot[], baseOptions: PerformanceBas
  * - YTD, 1Y, 3Y, 5Y, ALL time periods
  * - Rolling 12M and 36M periods
  *
- * On repeated visits with unchanged snapshots, returns cached data from
- * Firestore (performance-cache collection) to avoid re-reading all expenses.
+ * On repeated visits with unchanged inputs (snapshots, metrics base, risk-free rate, dividend
+ * category), returns cached data from Firestore (performance-cache collection) to avoid re-reading
+ * the whole expense history — see buildCacheKey for exactly what invalidates it.
  *
  * @param userId - User ID for fetching data
  * @param forceRefresh - Skip cache and recompute (used by the refresh button)
@@ -1279,13 +1340,15 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     resolvePerformanceExclusions(assets, baseOptions)
   );
 
-  const riskFreeRate = settings?.riskFreeRate || 2.5;
+  // `??`, not `||`: a deliberate 0% risk-free rate is a legitimate setting (it makes Sharpe the raw
+  // return over volatility) and must not be silently replaced by the 2.5% default.
+  const riskFreeRate = settings?.riskFreeRate ?? 2.5;
   const dividendCategoryId = settings?.dividendIncomeCategoryId;
 
   // ==== STEP 2: Check cache before fetching expenses ====
-  // Cache key encodes snapshot count + last snapshot date + the base composition.
-  // If snapshots haven't changed since last computation, skip the expensive expense fetch.
-  const cacheKey = buildCacheKey(snapshots, baseOptions);
+  // The key fingerprints every input the numbers depend on — see buildCacheKey for the full list
+  // and for what a stale hit costs. On a hit we skip the expensive whole-history expense fetch.
+  const cacheKey = buildCacheKey({ snapshots, baseOptions, riskFreeRate, dividendCategoryId });
   if (!forceRefresh) {
     const cached = await readPerformanceCache(userId);
     if (cached && cached.cacheKey === cacheKey) {

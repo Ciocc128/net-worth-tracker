@@ -44,7 +44,7 @@ Sessione di **sola analisi e documentazione**: nessun file di codice modificato.
 - [x] Implementazione spec 8 (aliquota) — 2026-07-27, branch `fix/asset-tax-rate-restore`
 - [x] Implementazione spec 9 (etichette) — 2026-07-28, branch `fix/asset-chart-labels`
 - [x] Implementazione spec 6 (classe asset) — 2026-07-28, branch `feature/asset-class-selection`
-- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fase 1 fatta** (2026-07-28, branch `fix/performance-calculations-phase-1`); fasi 2→5 da fare
+- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fasi 1 e 2 fatte** (2026-07-28, branch `fix/performance-calculations-phase-{1,2}`; la 1 è già in `fix/session-bugfixes`); fasi 3→5 da fare
 
 Aggiornare questo file al termine di ogni implementazione (i prompt nelle spec lo richiedono).
 
@@ -200,4 +200,39 @@ Branch `fix/performance-calculations-phase-1` (da `fix/session-bugfixes`). Findi
 
 - **Cosa**: il primo snapshot di un periodo è ora sempre e solo la valutazione di partenza, e `hasBaseline` non è più indovinato dal tipo di periodo ma calcolato dai dati (`resolveHasBaseline`), con l'inizio nominale del periodo esposto nel payload e la pagina che rilegge da lì la stessa finestra del service invece di ricostruirsela da `new Date()`.
 - **Perché**: l'euristica sbagliava tutte le volte che il primo snapshot disponibile non era quello che il tipo di periodo lasciava supporre — sempre per Storico (nessuna baseline, quindi doppio conteggio dei cash flow del primo mese e annualizzazione su un mese di troppo), e ogni volta che lo storico è più corto della finestra o manca lo snapshot di dicembre (il primo mese vero scartato dai grafici come se fosse una baseline).
+**Verifica manuale utente (2026-07-28)**: confronto affiancato deployata vs localhost su **Storico**. Volatilità (10,90%), Max Drawdown (−10,06% @ 04/25), Durata Drawdown (6m, 01/25–07/25) e Tempo di Recupero (3m, 04/25–07/25) **identici** — la catena dei rendimenti mensili non si è mossa, il fix del Max Drawdown fantasma è intatto. L'unica metrica che cambia è lo **Sharpe, 1,97 → 2,03**: risk-free e volatilità sono uguali, quindi tutto il delta viene dal TWR (25,41% → 26,07%, +0,66pp). Invertendo l'annualizzazione, quel salto corrisponde a una finestra che si accorcia da n+1 a n mesi con **n ≈ 43** — gennaio 2023 → luglio 2026, cioè esattamente lo storico dell'account. Conferma quantitativa, non solo qualitativa.
+
 - **Nota**: la regola unificata rende il branch `hasBaseline` **inutile dentro il service** — lì la domanda non si pone più, il primo snapshot si comporta sempre allo stesso modo. `resolveHasBaseline` resta consumato dalla **pagina**, dove la domanda è genuina (quel mese va disegnato o no?). Il campo `nominalPeriodStart` è `null` per ALL by design, e il codice che lo consuma deve trattarlo come "nessuna baseline possibile", non come dato mancante. `CLAUDE.md` non è stato toccato: la dichiarazione dei numeri che cambiano è qui e nel commit, e ha senso aggiornare Current Status quando la spec 10 sarà completa (o su richiesta).
+
+## Implementazione spec 10 — FASE 2: cache key completa — 2026-07-28
+
+Branch `fix/performance-calculations-phase-2` (da `fix/session-bugfixes`, che nel frattempo contiene la fase 1). Finding coperto: **A9**. Un solo file di codice + un commento di tipo + test.
+
+**Cosa è stato fatto** (`lib/services/performanceService.ts`):
+
+1. **`buildCacheKey` prende ora un oggetto** `{ snapshots, baseOptions, riskFreeRate, dividendCategoryId }` invece di due posizionali, e la chiave include:
+   - **`hashSnapshotSeries`**: FNV-1a a 32 bit su **tutta** la serie ordinata cronologicamente (`anno-mese:round(patrimonio)`). Prima la firma copriva solo l'**ultimo** snapshot: correggere un mese storico non invalidava niente, pur riscrivendo rendimenti mensili, drawdown e TWR. Arrotondato all'euro (i centesimi ballano a ogni riconversione FX e farebbero girare la chiave per nulla) e ordinato prima di digerire (la stessa storia in ordine diverso è la stessa storia). `Math.imul` per restare in interi a 32 bit — con `*` i double perderebbero i bit bassi.
+   - **`riskFreeRate`**: muove ogni Sharpe e il verdetto dell'hero costruito su di esso.
+   - **`dividendIncomeCategoryId`**: decide cosa è contributo e cosa è rendimento del portafoglio → riclassifica i cash flow, quindi cambia ROI, CAGR, TWR e IRR.
+   - Restano `snapshots.length`, ultimo mese e ultimo valore: una collisione del hash a 32 bit dovrebbe coincidere con tutti quelli insieme.
+2. **`settings?.riskFreeRate || 2.5` → `?? 2.5`**: un risk-free rate 0% impostato deliberatamente (Sharpe = rendimento grezzo su volatilità) non viene più mangiato dal default.
+3. **Commento riscritto secondo DEVELOPMENT_GUIDELINES → Caching** ("Always define: what invalidates the cache, and what happens if stale data is served"): elenco esplicito di cosa invalida, e cosa costa una lettura stantia (niente si corrompe — il payload è solo una proiezione ricalcolabile di Firestore; il TTL di 6h limita ogni buco; "Aggiorna" bypassa sempre). Il vecchio commento **mentiva**: diceva che includere `totalNetWorth` copriva l'aggiornamento di uno snapshot esistente, mentre copriva solo l'ultimo. Documentato anche il residuo noto non risolto (vedi sotto).
+4. `types/performance.ts`: aggiornato il commento di `PerformanceCacheDocument.cacheKey`, che descriveva la vecchia composizione.
+
+**Residuo noto, dichiarato ma NON risolto** (fuori dallo scope elencato dalla spec per questa fase): i confini dei periodi dipendono da **oggi**, quindi alla prima visita dopo un cambio di mese la cache descrive ancora la finestra del mese precedente, finché non scade il TTL di 6h o non arriva un nuovo snapshot. Si chiuderebbe aggiungendo l'anno-mese corrente alla chiave (un token), al prezzo di un ricalcolo per tutti a ogni rollover di mese. Da valutare, non incluso qui.
+
+**Gate**: `npx tsc --noEmit` ✅ pulito. `npx vitest run` ✅ **77 file / 1366 test** (11 nuovi su `buildCacheKey`). `npm run build` ✅.
+
+**Test** (`__tests__/performanceService.test.ts`, nuovo describe `buildCacheKey` — la funzione è ora esportata per poterla testare): stabilità a input uguali, indifferenza all'ordine, **cambio di uno snapshot storico** (il caso che la vecchia chiave non vedeva), cambio dell'ultimo valore, snapshot aggiunto, `riskFreeRate` cambiato, **0% distinto dal default 2,5%**, categoria dividendi cambiata (e rimossa), le due esclusioni della base (anche l'una distinta dall'altra), storico vuoto, rumore sotto l'euro ignorato.
+
+**Nota sul gate della fase 1**: la fase 1 riportava "`tsc` pulito" — vero quando l'ho eseguito, ma l'avevo lanciato **prima** di scrivere `__tests__/performanceBaseline.test.ts`, che conteneva un `ExpenseType` inesistente (`'expense'` invece di `'variable'`). L'errore è emerso al primo `tsc` di questa fase ed è corretto qui. Il test passava comunque e le sue asserzioni non cambiano (entrambi i valori finivano nel ramo "non income" dell'aggregazione). Lezione: rilanciare `tsc` **dopo** aver scritto i test, non solo dopo il codice.
+
+**Come verificarlo a mano**:
+1. **Risk-free rate**: Impostazioni → cambia il tasso privo di rischio (es. 3,94 → 3,00) → salva → torna su Rendimenti **senza** premere Aggiorna. Lo Sharpe deve cambiare **subito**; prima restava fermo fino a 6 ore.
+2. **Categoria dividendi**: Impostazioni → cambia la categoria di reddito "dividendi" → Rendimenti si aggiorna subito (Contributi Netti e Proventi Finanziari si riclassificano).
+3. **Snapshot storico**: correggi il valore di un mese passato (non l'ultimo) → Rendimenti ricalcola alla visita successiva; prima serviva premere Aggiorna o aspettare la scadenza.
+4. **Nessun ricalcolo inutile**: apri e riapri Rendimenti senza toccare nulla → deve restare istantaneo (cache hit): se ricalcolasse ogni volta, la chiave sarebbe instabile.
+
+- **Cosa**: la chiave della cache di Rendimenti ora impronta **tutti** gli input da cui dipendono i numeri (intera serie di snapshot via hash FNV-1a, base delle metriche, risk-free rate, categoria dividendi) invece del solo ultimo snapshot + base; `|| 2.5` → `?? 2.5` per non mangiare uno 0% legittimo.
+- **Perché**: la chiave vecchia lasciava passare tre modifiche che riscrivono le metriche a snapshot "uguali" — cambio del tasso privo di rischio, cambio della categoria dividendi, correzione di uno snapshot storico — servendo per 6 ore numeri calcolati da input diversi da quelli attuali.
+- **Nota**: le fasi 1 e 2 messe insieme cambiano la chiave due volte (formato + prefisso `v2`); l'effetto pratico è una singola invalidazione totale al deploy, cioè un ricalcolo per utente. Il prefisso `v2` resta come leva manuale per il caso "stessi input, matematica diversa", che nessuna firma degli input può cogliere.

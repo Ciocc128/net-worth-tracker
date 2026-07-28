@@ -12,6 +12,7 @@ vi.mock('@/lib/services/snapshotService', () => ({}))
 vi.mock('@/lib/services/assetAllocationService', () => ({}))
 
 import {
+  buildCacheKey,
   calculateROI,
   calculateCAGR,
   calculateTimeWeightedReturn,
@@ -929,5 +930,86 @@ describe('getCashFlowsFromExpenses', () => {
     expect(janEntry!.netCashFlow).toBe(2200)
     // Feb: dividend of 4000 excluded from netCashFlow, expense -200 → netCashFlow = 0 - 200 = -200
     expect(febEntry!.netCashFlow).toBe(-200)
+  })
+})
+
+// ─── Cache key ───
+
+describe('buildCacheKey', () => {
+  // Ogni input che sposta i numeri deve spostare la chiave: una chiave stabile su un input cambiato
+  // significa servire per 6 ore metriche calcolate da qualcos'altro.
+  const snapshots = [
+    makeSnapshot(2025, 1, 100000),
+    makeSnapshot(2025, 2, 105000),
+    makeSnapshot(2025, 3, 110000),
+  ]
+  const baseline = {
+    snapshots,
+    baseOptions: {},
+    riskFreeRate: 2.5,
+    dividendCategoryId: 'div-cat',
+  }
+
+  it('is stable for identical inputs', () => {
+    expect(buildCacheKey(baseline)).toBe(buildCacheKey({ ...baseline }))
+  })
+
+  it('ignores the order snapshots arrive in', () => {
+    // La stessa storia descritta in un altro ordine è la stessa storia.
+    const shuffled = [snapshots[2], snapshots[0], snapshots[1]]
+    expect(buildCacheKey({ ...baseline, snapshots: shuffled })).toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when a HISTORICAL snapshot is corrected (A9)', () => {
+    // Il caso che la vecchia chiave non vedeva: stesso numero di snapshot, stesso ultimo mese,
+    // stesso valore finale — ma un mese di mezzo corretto riscrive rendimenti e drawdown.
+    const corrected = [snapshots[0], makeSnapshot(2025, 2, 106000), snapshots[2]]
+    expect(buildCacheKey({ ...baseline, snapshots: corrected })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when the last snapshot value changes', () => {
+    const updated = [snapshots[0], snapshots[1], makeSnapshot(2025, 3, 111000)]
+    expect(buildCacheKey({ ...baseline, snapshots: updated })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when a snapshot is added', () => {
+    const extended = [...snapshots, makeSnapshot(2025, 4, 112000)]
+    expect(buildCacheKey({ ...baseline, snapshots: extended })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when the risk-free rate changes (A9)', () => {
+    // Muove ogni Sharpe e il verdetto dell hero: prima restava stantio fino a 6 ore.
+    expect(buildCacheKey({ ...baseline, riskFreeRate: 3.94 })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('distinguishes a 0% risk-free rate from the 2.5% default', () => {
+    expect(buildCacheKey({ ...baseline, riskFreeRate: 0 })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when the dividend income category changes (A9)', () => {
+    // Riclassifica i cash flow: cosa è contributo e cosa è rendimento del portafoglio.
+    expect(buildCacheKey({ ...baseline, dividendCategoryId: 'other-cat' })).not.toBe(buildCacheKey(baseline))
+    expect(buildCacheKey({ ...baseline, dividendCategoryId: undefined })).not.toBe(buildCacheKey(baseline))
+  })
+
+  it('changes when either exclusion of the metrics base is flipped', () => {
+    const withPension = buildCacheKey({ ...baseline, baseOptions: { includePensionFunds: true } })
+    const withExcluded = buildCacheKey({ ...baseline, baseOptions: { includeExcludedAssets: true } })
+    expect(withPension).not.toBe(buildCacheKey(baseline))
+    expect(withExcluded).not.toBe(buildCacheKey(baseline))
+    expect(withPension).not.toBe(withExcluded)
+  })
+
+  it('handles an empty history without pretending it is the same as any other input', () => {
+    const empty = buildCacheKey({ ...baseline, snapshots: [] })
+    expect(empty).not.toBe(buildCacheKey(baseline))
+    expect(empty).toBe(buildCacheKey({ ...baseline, snapshots: [] }))
+    expect(buildCacheKey({ ...baseline, snapshots: [], riskFreeRate: 0 })).not.toBe(empty)
+  })
+
+  it('ignores sub-euro noise in snapshot values', () => {
+    // I centesimi ballano a ogni riconversione FX: farebbero girare la chiave per nulla.
+    const noisy = [makeSnapshot(2025, 1, 100000.004), snapshots[1], snapshots[2]]
+    expect(buildCacheKey({ ...baseline, snapshots: noisy })).toBe(buildCacheKey(baseline))
   })
 })
