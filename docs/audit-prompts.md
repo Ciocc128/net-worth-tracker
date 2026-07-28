@@ -280,7 +280,6 @@ Componenti: components/assets/AssetManagementTab.tsx,
             components/assets/AssetDialog.tsx,
             components/assets/TransactionDialog.tsx,
             components/assets/AssetMovementsDialog.tsx,
-            components/assets/AssetPriceHistoryTable.tsx,
             components/assets/TaxCalculatorModal.tsx,
             components/dashboard/OverviewAnimatedCurrency.tsx,
             components/dashboard/NetWorthSparkline.tsx
@@ -626,10 +625,11 @@ Contesto:
 
 File: app/dashboard/performance/page.tsx
 Componenti: components/performance/* (PerformanceHero, HeroMetricBlock, MetricSection,
-            MetricCard, RealizedGainsSection, UnderwaterDrawdownChart,
+            MetricCard, PerformanceTooltip, RealizedGainsSection, UnderwaterDrawdownChart,
             MonthlyReturnsHeatmap, BenchmarkComparisonSection/Chart)
 Pure layer: lib/utils/performanceSummary.ts, lib/utils/benchmarkPeriodReturn.ts,
-            lib/utils/performanceBase.ts
+            lib/utils/performanceBase.ts, lib/utils/drawdownSeries.ts,
+            lib/utils/cashFlowMap.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - Token: `PerformanceHero`, `HeroMetricBlock` wrapper, `MetricCard` divider — nessun
@@ -637,13 +637,24 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - Gerarchia: UN solo numero dominante (il TWR dell'hero, `text-[44px] desktop:text-[54px]`);
   i vital signs e la strip di return-consistency scendono di scala; i MetricSection sono righe
   `divide-y`, mai card-in-card
-- Amber Watch: `PerformanceHero` tiene di proposito l'amber raw per il tono "fragile" — NON
-  segnalarlo come violazione né convertirlo a `text-warning-foreground` (Panoramica e
-  Rendimenti divergono consapevolmente, vedi AGENTS.md)
+- Amber Watch: `PerformanceHero` (tono "fragile") e l'avviso "N asset esclusi dal totale" di
+  `RealizedGainsSection` tengono di proposito l'amber raw (`text-amber-600 dark:text-amber-400`)
+  — NON segnalarli come violazione né convertirli a `text-warning-foreground`, che è pensato
+  per stare su un fill `bg-warning` e non su sfondo card (Panoramica e Rendimenti divergono
+  consapevolmente, vedi AGENTS.md)
 - Collapsible "Mostra tutte le metriche": `aria-expanded` presente, contenuto non
   focusabile da chiuso; è il pattern `data-[state=open]:animate-in`, non la variante Framer
 - `RealizedGainsSection` e la riga "Capitale investito": entrambe gated su
-  `useAssetLedgerMeta` — verifica che senza ledger non restino sezioni vuote o zeri finti
+  `useAssetLedgerMeta` — verifica che senza ledger non restino sezioni vuote o zeri finti.
+  ATTENZIONE ai due omonimi: la CARD "Capitale investito" viene dal registro operazioni
+  (acquisti − vendite), mentre l'area del grafico Evoluzione si chiama "Capitale immesso"
+  (patrimonio iniziale + versamenti da Cashflow) — sono grandezze diverse e i nomi NON vanno
+  uniformati
+- `PerformanceTooltip` (grafico Evoluzione): le righe di scomposizione sotto il separatore
+  usano i token di segno (`text-positive`/`text-destructive`), non colori raw
+- Numeri assenti: con periodi troppo corti volatilità/Sharpe valgono `null` e la strip di
+  consistenza non riporta la percentuale — verifica che rendano "—" o omettano il dato, mai
+  uno zero o un "100%" finti
 - Chart colors: rolling charts, growth-of-100 benchmark chart, drawdown chart, heatmap
   tutti via `useChartColors()`; tooltip via CSS vars
 - ARIA: `?` button in MetricCard con `aria-label`; period selector `role="tablist"`;

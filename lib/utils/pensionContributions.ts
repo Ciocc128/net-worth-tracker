@@ -1,13 +1,13 @@
 /**
  * Fondo pensione — pure roll-ups over the recorded `PensionContribution` facts.
  *
- * Contributions live in their own Firestore collection (spec 01 §3), one document per dated event.
+ * Contributions live in their own Firestore collection, one document per dated event.
  * This module is the bridge between those stored facts and the two consumers that need them
  * aggregated per year:
  *   - `derivePensionDeductibleByYear` feeds `PensionDeductionInput.deductibleContribByYear`, i.e. the
  *     multi-year fold in `lib/utils/pensionDeduction.ts`.
- *   - `derivePensionContributionsByYearAndNature` powers the "versato per natura" recap card
- *     (spec 04), which must show TFR too even though it is not deductible.
+ *   - `derivePensionContributionsByYearAndNature` powers the "versato per natura" recap card,
+ *     which must show TFR too even though it is not deductible.
  *
  * Both group by `taxYear` (the year of competence for the deduction), NOT by the calendar year of
  * `date`: a contribution paid in January can legitimately be attributed to the previous tax year, and

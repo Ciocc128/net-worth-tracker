@@ -26,6 +26,7 @@ import type { Asset } from '@/types/assets';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
+import { assetClassLegs } from '@/lib/utils/assetDisplayClass';
 import { CHART_COLORS } from '@/lib/constants/colors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CompositionBar, type CompositionBarSegment } from '@/components/ui/composition-bar';
@@ -38,17 +39,15 @@ interface ClassSlice {
   percentage: number;
 }
 
-/** Split one asset into (assetClass, value) legs, looking through `composition` when present. */
+/**
+ * Split one asset into (assetClass, value) legs, looking through `composition` when present.
+ * Delegates the class/weight split to the shared `assetClassLegs` (lib/utils/assetDisplayClass.ts)
+ * and scales its percentage-based weights by this asset's market VALUE.
+ */
 function assetLegs(asset: Asset): { assetClass: string; value: number }[] {
   const value = calculateAssetValue(asset);
   if (value <= 0) return [];
-  if (asset.composition && asset.composition.length > 0) {
-    return asset.composition.map((comp) => ({
-      assetClass: comp.assetClass,
-      value: (value * comp.percentage) / 100,
-    }));
-  }
-  return [{ assetClass: asset.assetClass, value }];
+  return assetClassLegs(asset, value).map((leg) => ({ assetClass: leg.assetClass, value: leg.weight }));
 }
 
 /** Aggregate the market value of a set of assets by asset class, as sorted slices summing to 100%. */

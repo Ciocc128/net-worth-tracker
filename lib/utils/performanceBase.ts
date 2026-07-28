@@ -1,5 +1,5 @@
 /**
- * performanceBase — quale capitale misurano le metriche di Rendimenti (spec 2-pension-fund/04 §7).
+ * performanceBase — quale capitale misurano le metriche di Rendimenti.
  *
  * DUE ESCLUSIONI, UNA DOMANDA SOLA
  * Rendimenti risponde a "come sta andando il portafoglio che gestisco", non "quanto vale tutto
@@ -54,9 +54,18 @@
  * KNOWN LIMITATION: un versamento VOLONTARIO è un trasferimento dal portafoglio (cassa) verso il
  * fondo escluso, quindi sulla base `portfolio` appare come un piccolo deflusso non neutralizzato.
  * TFR e datoriale non toccano mai il portafoglio e non sono interessati.
+ *
+ * L'ALTRA METÀ DELLA BASE: DA QUALE MESE (`resolveHasBaseline`, 2026-07-28)
+ * La base non è solo *quale capitale* si misura, è anche *da quale mese*. Il primo snapshot di un
+ * periodo può essere due cose diverse — la valutazione di partenza pre-periodo (dicembre per lo YTD)
+ * oppure il primo mese di storia dell'utente — e la distinzione cambia cosa si mostra nei grafici.
+ * `resolveHasBaseline` è l'unica risposta a quella domanda, così che service e pagina non possano
+ * più darsene due (era il finding A10: la pagina usava la lista dei periodi senza il controllo di
+ * lunghezza che il service applicava).
  */
 
 import type { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
+import type { PeriodMonth } from '@/types/performance';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import { hasAssetBreakdown } from '@/lib/utils/snapshotAssetBreakdown';
 
@@ -120,6 +129,38 @@ export function resolvePerformanceExclusions(
   }
 
   return [...excluded];
+}
+
+/**
+ * Il primo snapshot precede l'inizio nominale del periodo? (cioè: è un mese di *baseline*)
+ *
+ * Un mese di baseline è la valutazione da cui parte la misura, non un mese misurato: non produce un
+ * rendimento proprio, non compare nella heatmap e non deve comparire nei grafici del periodo. Un
+ * primo snapshot che invece cade DENTRO il periodo richiesto è il primo mese di storia dell'utente,
+ * e va mostrato.
+ *
+ * Data-driven, non indovinato dal tipo di periodo (finding A1): l'euristica precedente
+ * (`['YTD','1Y','3Y','5Y','CUSTOM'].includes(period)`) sbagliava in due casi reali — uno YTD senza
+ * lo snapshot di dicembre, dove il primo elemento è gennaio ed è dentro il periodo, e un 1Y/3Y/5Y su
+ * uno storico più corto della finestra, dove il primo mese reale veniva scartato come baseline.
+ *
+ * @param snapshots - Snapshot del periodo, in qualsiasi ordine (si guarda il più vecchio)
+ * @param nominalPeriodStart - Il mese richiesto dall'utente; `null` per ALL, che non ha inizio
+ *   nominale e quindi non può avere baseline (il primo snapshot È l'inizio della storia)
+ * @returns `true` se e solo se il mese del primo snapshot è strettamente precedente all'inizio nominale
+ */
+export function resolveHasBaseline(
+  snapshots: Pick<MonthlySnapshot, 'year' | 'month'>[],
+  nominalPeriodStart: PeriodMonth | null | undefined
+): boolean {
+  if (!nominalPeriodStart || snapshots.length === 0) return false;
+
+  const earliest = snapshots.reduce((oldest, s) =>
+    s.year !== oldest.year ? (s.year < oldest.year ? s : oldest) : s.month < oldest.month ? s : oldest
+  );
+
+  // Confronto su un indice mensile assoluto: evita di costruire due Date solo per ordinarle.
+  return earliest.year * 12 + earliest.month < nominalPeriodStart.year * 12 + nominalPeriodStart.month;
 }
 
 /** Somma il valore degli asset esclusi presenti nel breakdown di uno snapshot. */

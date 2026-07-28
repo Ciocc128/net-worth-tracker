@@ -47,7 +47,8 @@ const LoadingPlaceholder = () => (
 // the bar stays the same mounted component instance across those. This means (unlike
 // the old Recharts pie) no revealedCharts/animateOnMount tracking is needed here.
 function toSegments(data: PieChartData[]): CompositionBarSegment[] {
-  return data.map((item) => ({ key: item.name, label: item.name, pct: item.percentage, color: item.color }));
+  // Index-suffixed key: two assets can share a name/label (e.g. two "Conto Corrente" cash accounts).
+  return data.map((item, i) => ({ key: `${item.name}-${i}`, label: item.name, pct: item.percentage, color: item.color }));
 }
 
 const CHART_TABS = [
@@ -209,7 +210,7 @@ const OverviewChartsSectionInner = ({
                   {activeSection.data
                     .filter(item => item.percentage >= 5)
                     .map((item, i) => (
-                      <LegendRow key={item.name} item={item} index={i} />
+                      <LegendRow key={`${item.name}-${i}`} item={item} index={i} />
                     ))}
                 </div>
               </div>

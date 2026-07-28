@@ -1,13 +1,13 @@
 /**
- * assetExposureUtils — the single source of market vs notional exposure (spec
- * docs/specs/3-leveraged-etf-allocation/README.md, invariant #2).
+ * assetExposureUtils — the single source of market vs notional exposure: the market→notional
+ * expansion lives here and nowhere else.
  *
  * A leveraged/composite ETF's market value (what you paid) and notional value (the risk
  * exposure it carries) diverge once `Asset.leverageRatio` is set. `expandAssetExposure`
  * expands a single asset into its per-class components with both figures, so every
  * consumer (allocation snapshot, planners, portfolio-level leverage) reads from one place.
  *
- * No asset type is special-cased — including `pensionFund` (D5 / spec 01 §3 "pensionFund"):
+ * No asset type is special-cased — including `pensionFund` (decision D5):
  * a fund with a `composition` is looked through leg-by-leg exactly like any other composite
  * asset, and a fund without one falls back to its own `asset.assetClass` (already
  * `TYPE_TO_CLASS['pensionFund']` at creation time) exactly like any other single-class asset.

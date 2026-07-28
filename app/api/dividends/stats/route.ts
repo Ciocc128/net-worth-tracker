@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
     // asset's prior-holding dividends must not be credited to the new position — the capital-gain
     // term is already current-holding only, so the dividend term must match (consistent with YOC).
     //
-    // Two paths (Fase D, spec 04 §6) SHARE the dividend-return method (computeDividendReturnPercentage,
+    // Two paths (Fase D) SHARE the dividend-return method (computeDividendReturnPercentage,
     // per-payment historical cost basis) and diverge only on the capital-gain term:
     //   - LEDGER-BASED (asset has trade-ledger entries): replayTransactions + computeAssetTotalReturn
     //     is authoritative — includes CLOSED positions (quantity 0, isClosed: true) and partial

@@ -82,8 +82,7 @@ export function prepareAssetDistributionData(
 
   // Calculate value for each asset
   const assetValues = assets.map((asset) => ({
-    name: asset.name,
-    ticker: getAssetDisplayTicker(asset),
+    label: getAssetDisplayTicker(asset),
     value: calculateAssetValue(asset),
   }));
 
@@ -98,7 +97,7 @@ export function prepareAssetDistributionData(
     colors?.[index] ?? getChartColor(index);
 
   const chartData: PieChartData[] = top10.map((asset, index) => ({
-    name: asset.ticker,
+    name: asset.label,
     value: asset.value,
     percentage: (asset.value / totalValue) * 100,
     color: resolveColor(index),
@@ -145,8 +144,8 @@ export function prepareNetWorthHistoryData(snapshots: MonthlySnapshot[]): {
  * Prepare data for asset class history chart.
  *
  * `pensionAssets` (optional; live `pensionFund`-type assets, e.g. `assets.filter(a => a.type ===
- * 'pensionFund')`) adds a synthetic "Previdenza" series, TYPE-based per decision D2 (spec
- * 2-pension-fund/04 §6) — the fund appears whole as `pension`, never spread across equity/bonds in
+ * 'pensionFund')`) adds a synthetic "Previdenza" series, TYPE-based per decision D2 — the fund
+ * appears whole as `pension`, never spread across equity/bonds in
  * the aggregate classes, even though `byAssetClass` itself may already contain the fund's value
  * split by class (via `composition` look-through — see `calculateCurrentAllocation`, the same
  * function `snapshotService` calls to build `byAssetClass`). Each month's fund value comes from

@@ -11,6 +11,13 @@ export type TimePeriod =
   | 'ROLLING_36M' // Rolling 36-month periods
   | 'CUSTOM'; // User-defined date range
 
+// A calendar month, 1-based (month 1 = January) — the granularity every snapshot lives at.
+// Used to talk about period boundaries without dragging a Date (and its timezone) around.
+export interface PeriodMonth {
+  year: number;
+  month: number; // 1-12
+}
+
 // Cashflow data for performance calculations.
 // Income and dividends are tracked separately because:
 // - Income (salary, bonuses, gifts) is EXTERNAL capital that increases portfolio value
@@ -30,6 +37,12 @@ export interface CashFlowData {
 export interface PerformanceMetrics {
   // Input data
   timePeriod: TimePeriod;
+  // The month the user ASKED for (Jan for YTD, today − 11 months for 1Y, the picked month for
+  // CUSTOM), null for ALL which has no nominal start. Distinct from `startDate`, which is the first
+  // month actually MEASURED and can be later when the history is shorter than the window.
+  // Consumers need it to tell a pre-period baseline snapshot from a real first month of history —
+  // see resolveHasBaseline in lib/utils/performanceBase.ts.
+  nominalPeriodStart: PeriodMonth | null;
   startDate: Date;
   endDate: Date;
   dividendEndDate: Date; // End date capped at today for dividend calculations
@@ -92,7 +105,9 @@ export interface PerformanceMetrics {
   errorMessage?: string; // Error details if calculation failed
 }
 
-// Rolling period performance (for trend analysis)
+// Rolling period performance (for trend analysis).
+// The two dates delimit the MEASURED window and span exactly `windowMonths` months: it opens on the
+// 1st of the month after the starting valuation and closes at the last instant of the end month.
 export interface RollingPeriodPerformance {
   periodEndDate: Date;
   periodStartDate: Date;
@@ -120,12 +135,15 @@ export interface PerformanceData {
   snapshotCount: number;
 }
 
-// Chart data for visualizations
+// Chart data for the "Evoluzione Patrimonio" chart: an area (money in) under a line (what it is
+// worth). initialCapital + contributions + returns === netWorth, always.
 export interface PerformanceChartData {
   date: string; // MM/YYYY format
   netWorth: number;
-  contributions: number; // Cumulative
-  returns: number; // Returns portion (netWorth - contributions)
+  initialCapital: number; // Starting valuation of the period, constant across every point
+  contributions: number; // Cumulative cash paid in since the period start (negative if net withdrawn)
+  investedBase: number; // initialCapital + contributions — the plotted area
+  returns: number; // Market growth: netWorth - investedBase (negative in a losing period)
   [key: string]: any; // For Recharts compatibility
 }
 
@@ -183,7 +201,8 @@ export interface FirestorePerformanceData {
 // Cache document stored in `performance-cache/{userId}`
 export interface PerformanceCacheDocument {
   userId: string;
-  // Encodes snapshot count + last snapshot date; invalidated automatically when snapshots change
+  // Fingerprints every input the cached numbers depend on: the whole snapshot series, the metrics
+  // base, the risk-free rate and the dividend category. Built by (and documented in) buildCacheKey.
   cacheKey: string;
   cachedAt: Timestamp;
   data: FirestorePerformanceData;

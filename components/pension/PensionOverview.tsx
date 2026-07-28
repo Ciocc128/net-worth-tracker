@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * PensionOverview — body of the dedicated `/dashboard/pension` view (spec 2-pension-fund/04 §3-§4,
- * plus a family-member split follow-up).
+ * PensionOverview — body of the dedicated `/dashboard/pension` view (incl. the family-member split
+ * follow-up).
  *
  * Four blocks:
  *  1. Header — total fund value (sum of ALL the user's `pensionFund` assets) + total ever

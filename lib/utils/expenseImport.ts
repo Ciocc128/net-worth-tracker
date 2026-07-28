@@ -5,7 +5,7 @@
  * The Firestore commit/undo lives in lib/services/expenseImportService.ts and the
  * wizard UI in components/settings/ExpenseImportSection.tsx.
  *
- * Design notes (see docs/specs/5-expense-csv-import.md):
+ * Design notes:
  * - Tolerant to Italian-locale CSVs: delimiter auto-detected (`;`/`,`/tab via Papa
  *   Parse), decimal separator handled for both `1.234,56` (IT) and `1234.56` (EN).
  * - Headers accepted in Italian (canonical) or English (alias), case-insensitive.

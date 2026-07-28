@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * "Plusvalenze realizzate" rows for Rendimenti (Fase D, spec 04 §5).
+ * "Plusvalenze realizzate" rows for Rendimenti (Fase D).
  *
  * Aggregates realized P&L by fiscal year across ALL ledger assets. replayTransactions computes
  * ONE asset's position state, so the transactions must be grouped by assetId before folding —
  * summing realizedByYear across assets is the aggregation step this module owns (kept out of the
- * shared engine per the Fase D scope: docs/specs/1-asset-transactions/05-impacts-testing-rollout.md
- * §1 does not list lib/utils/assetTransactionUtils.ts as touched by this phase).
+ * shared engine by the Fase D scope decision: lib/utils/assetTransactionUtils.ts was not to be
+ * touched by that phase).
  */
 
 import { replayTransactions } from '@/lib/utils/assetTransactionUtils';
@@ -15,8 +15,19 @@ import { formatCurrency } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
 import type { AssetTransaction } from '@/types/assetTransactions';
 
+/** Realized P&L per fiscal year, plus how many assets could not be replayed. */
+export interface RealizedGainsAggregate {
+  byYear: Record<number, number>;
+  /**
+   * Assets whose replay threw and were left out of the totals. This is a TAX figure: a total that
+   * is quietly short by one position is worse than no total, so the count reaches the UI instead of
+   * dying in a silent catch.
+   */
+  skippedAssets: number;
+}
+
 /** Sum of realized P&L (EUR) per fiscal year, across every asset's own replay. */
-export function aggregateRealizedByYear(transactions: AssetTransaction[]): Record<number, number> {
+export function aggregateRealizedByYear(transactions: AssetTransaction[]): RealizedGainsAggregate {
   const byAsset = new Map<string, AssetTransaction[]>();
   transactions.forEach((t) => {
     const arr = byAsset.get(t.assetId) ?? [];
@@ -24,19 +35,30 @@ export function aggregateRealizedByYear(transactions: AssetTransaction[]): Recor
     byAsset.set(t.assetId, arr);
   });
 
-  const totals: Record<number, number> = {};
-  byAsset.forEach((assetTransactions) => {
+  const byYear: Record<number, number> = {};
+  let skippedAssets = 0;
+
+  byAsset.forEach((assetTransactions, assetId) => {
     try {
       const { realizedByYear } = replayTransactions(assetTransactions);
       Object.entries(realizedByYear).forEach(([year, amount]) => {
-        totals[Number(year)] = (totals[Number(year)] ?? 0) + amount;
+        byYear[Number(year)] = (byYear[Number(year)] ?? 0) + amount;
       });
-    } catch {
-      // A per-asset sequence is server-validated at write time; an unexpected failure here should
-      // not take down the whole "Plusvalenze realizzate" card — just skip that asset's contribution.
+    } catch (error) {
+      // A per-asset sequence is server-validated at write time, so this should not happen; when it
+      // does, one asset must not take down the whole card — but the total is now incomplete and
+      // both the console and the card have to say so.
+      skippedAssets += 1;
+      console.warn('Realized gains: skipping an asset whose ledger replay failed', {
+        assetId,
+        transactionCount: assetTransactions.length,
+        operation: 'aggregateRealizedByYear',
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   });
-  return totals;
+
+  return { byYear, skippedAssets };
 }
 
 function signClass(value: number): string {
@@ -50,7 +72,14 @@ function formatSigned(value: number): string {
 }
 
 /** Flat divide-y rows (one per fiscal year, newest first) + a total row. Renders nothing when empty. */
-export function RealizedGainsRows({ byYear }: { byYear: Record<number, number> }) {
+export function RealizedGainsRows({
+  byYear,
+  skippedAssets = 0,
+}: {
+  byYear: Record<number, number>;
+  /** Assets left out of the totals because their replay failed; surfaced so the figure is not read as complete. */
+  skippedAssets?: number;
+}) {
   const years = Object.keys(byYear).map(Number).sort((a, b) => b - a);
   if (years.length === 0) return null;
 
@@ -72,6 +101,14 @@ export function RealizedGainsRows({ byYear }: { byYear: Record<number, number> }
           {formatSigned(total)}
         </span>
       </div>
+      {skippedAssets > 0 && (
+        <p className="px-6 py-3 text-xs text-amber-600 dark:text-amber-400">
+          {skippedAssets === 1
+            ? '1 asset è escluso da questo totale: il suo registro operazioni non è ricostruibile.'
+            : `${skippedAssets} asset sono esclusi da questo totale: il loro registro operazioni non è ricostruibile.`}{' '}
+          Il totale è quindi incompleto — controlla i movimenti di quegli asset da Patrimonio.
+        </p>
+      )}
     </>
   );
 }

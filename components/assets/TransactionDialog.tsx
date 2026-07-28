@@ -11,13 +11,13 @@
  *                            settlement, no realized P&L.
  *
  * Correctness notes:
- *   - `priceEur` is server-resolved (spec 01 §6); the client can only ESTIMATE it via the asset's
+ *   - `priceEur` is server-resolved; the client can only ESTIMATE it via the asset's
  *     current conversion ratio (`currentPriceEur / currentPrice`) — hence "stimato" on the preview.
  *     The authoritative realized figure comes back in the mutation response.
  *   - The success toast fires AFTER the request resolves (toast-after-reconcile rule).
- *   - Bond quotes reuse the SAME `resolveBondPrice` helper AssetDialog uses (spec 01 §5) — never a
+ *   - Bond quotes reuse the SAME `resolveBondPrice` helper AssetDialog uses — never a
  *     re-implementation.
- *   - Baseline trades are locked to quantity/PMC/note edits (spec 03 §1); the type selector is
+ *   - Baseline trades are locked to quantity/PMC/note edits; the type selector is
  *     disabled in edit mode (changing a trade's type is a delete+recreate, kept out of v1).
  */
 
@@ -97,7 +97,7 @@ interface TransactionDialogProps {
 
 /**
  * Estimate a trade's per-unit EUR price for the CLIENT-SIDE preview only. The server resolves the
- * authoritative value from historical FX (spec 01 §6); here we scale the native price by the asset's
+ * authoritative value from historical FX; here we scale the native price by the asset's
  * current conversion ratio. GBp is normalized to GBP first, mirroring `calculateAssetValue`.
  */
 function estimateTradePriceEur(asset: Asset, pricePerUnitNative: number): number {
@@ -494,7 +494,7 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
         </div>
 
         {/* Commissioni + Conto di regolamento — buy/sell only, and never for a baseline (its editable
-            fields are limited to quantity/PMC/note, spec 03 §1). */}
+            fields are limited to quantity/PMC/note). */}
         {!isAdjustment && !isBaseline && (
           <>
             <div className="space-y-2">

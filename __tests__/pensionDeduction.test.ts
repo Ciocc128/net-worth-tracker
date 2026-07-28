@@ -2,7 +2,7 @@
  * Unit tests for the fondo pensione deduction/plafond engine (Fase P0).
  * Pure math — no Firebase, no React, no fake timers (the engine takes the target year as a param).
  *
- * Covers the full 18-case matrix of docs/specs/2-pension-fund/02-tax-engine.md §6.
+ * Covers the full 18-case deduction matrix.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -60,7 +60,7 @@ function buildInput(overrides: Partial<PensionDeductionInput> = {}): PensionDedu
 }
 
 // ---------------------------------------------------------------------------
-// Data-model invariant (spec 01 §2) — guards the 18-case matrix below, which assumes the fund's
+// Data-model invariant — guards the 18-case matrix below, which assumes the fund's
 // value is statement-driven rather than replayed from a trade ledger.
 // ---------------------------------------------------------------------------
 

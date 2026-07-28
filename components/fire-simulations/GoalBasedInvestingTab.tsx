@@ -151,7 +151,11 @@ export function GoalBasedInvestingTab() {
       .map((asset) => {
         const freePct = getAvailablePercentage(asset.id, cleanedAssignments);
         const freeValue = (calculateAssetValue(asset) * freePct) / 100;
-        return { id: asset.id, name: asset.name, ticker: getAssetDisplayTicker(asset), freeValue, freePct };
+        // GoalsHero renders name and ticker as two separate lines — only pass a ticker distinct
+        // from the name, else the resolver's name-fallback (tickerless assets) would duplicate it.
+        const resolvedTicker = getAssetDisplayTicker(asset);
+        const ticker = resolvedTicker !== asset.name ? resolvedTicker : undefined;
+        return { id: asset.id, name: asset.name, ticker, freeValue, freePct };
       })
       .filter((a) => a.freePct > 0.5 && a.freeValue > 0.5)
       .sort((a, b) => b.freeValue - a.freeValue);

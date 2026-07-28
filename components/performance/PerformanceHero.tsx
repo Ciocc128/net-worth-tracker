@@ -25,6 +25,8 @@ import type { PerformanceVerdict, DrawdownStatus } from '@/lib/utils/performance
 
 interface PerformanceHeroProps {
   timeWeightedReturn: number | null;
+  /** What the number is: "annualizzato", or "nei N mesi" on a window too short to extrapolate (A7). */
+  returnQualifier: string;
   periodLabel: string;
   verdict: PerformanceVerdict;
   /** Reference benchmark name (e.g. "Portafoglio 60/40") for the delta chip. */
@@ -88,6 +90,7 @@ function VitalSign({
 
 export function PerformanceHero({
   timeWeightedReturn,
+  returnQualifier,
   periodLabel,
   verdict,
   benchmarkLabel,
@@ -124,7 +127,7 @@ export function PerformanceHero({
           >
             {timeWeightedReturn === null ? 'N/D' : <HeroValue value={timeWeightedReturn} />}
           </p>
-          <span className="text-[11px] text-muted-foreground">annualizzato</span>
+          <span className="text-[11px] text-muted-foreground">{returnQualifier}</span>
         </div>
 
         {/* Verdict (B1) */}
@@ -164,7 +167,9 @@ export function PerformanceHero({
                 <span className="font-medium text-positive">Massimo del periodo</span>
               ) : (
                 <>
-                  <span className="text-muted-foreground">dal massimo</span>
+                  {/* "del periodo" is not decoration: the peak is the highest point of the SELECTED
+                      window, not an all-time high — on YTD it can be well below last year's. */}
+                  <span className="text-muted-foreground">dal massimo del periodo</span>
                   <span className="font-mono font-medium tabular-nums text-destructive">
                     {formatPercentage(drawdown.current)}
                   </span>

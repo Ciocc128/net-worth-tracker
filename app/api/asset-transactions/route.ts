@@ -12,7 +12,7 @@ import { getTradeErrorResponse } from './errorResponse';
  *
  * Create one trade in the asset ledger. Body: { userId, transaction: AssetTransactionFormData }.
  * Writes are Admin-API-only because a trade must atomically rewrite the asset's derived fields from
- * a full replay of its trades (docs/specs/1-asset-transactions/03-service-and-api.md).
+ * a full replay of its trades.
  */
 export async function POST(request: NextRequest) {
   try {

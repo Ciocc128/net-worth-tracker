@@ -13,11 +13,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
-import { getAllPerformanceData, calculatePerformanceForPeriod, preparePerformanceChartData, getSnapshotsForPeriod, prepareMonthlyReturnsHeatmap, prepareUnderwaterDrawdownData } from '@/lib/services/performanceService';
+import { getAllPerformanceData, calculatePerformanceForPeriod, preparePerformanceChartData, selectSnapshotsForMetrics, prepareMonthlyReturnsHeatmap, prepareUnderwaterDrawdownData } from '@/lib/services/performanceService';
 import { getUserSnapshots } from '@/lib/services/snapshotService';
 import { getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import {
+  resolveHasBaseline,
   resolvePerformanceBaseOptions,
   resolvePerformanceExclusions,
   toPerformanceBaseSnapshots,
@@ -73,6 +74,7 @@ import { BENCHMARKS } from '@/lib/constants/benchmarks';
 import { computeBenchmarkAnnualizedReturn, applyFxConversion } from '@/lib/utils/benchmarkPeriodReturn';
 import {
   summarizePerformance,
+  resolveHeroReturn,
   computeBenchmarkDelta,
   computeReturnConsistency,
   computeDrawdownStatus,
@@ -614,25 +616,26 @@ export default function PerformancePage() {
     }
   }, [performanceData, selectedPeriod]);
 
+  // The same snapshot window the service measured, read back off the payload — never re-derived
+  // from today's date, which is how the charts and the metrics used to disagree (finding A10).
   const periodSnapshots = useMemo(() => {
     if (!metrics || cachedSnapshots.length === 0) return [];
-
-    return getSnapshotsForPeriod(
-      cachedSnapshots,
-      metrics.timePeriod,
-      metrics.startDate,
-      metrics.endDate
-    );
+    return selectSnapshotsForMetrics(cachedSnapshots, metrics);
   }, [cachedSnapshots, metrics]);
+
+  // Is the first snapshot a month BEFORE the period the user asked for? Then it is only the starting
+  // valuation and must not be drawn as a point of the period. Data-driven and shared with the
+  // service's own definition — a YTD without a December snapshot, or a 3Y on 14 months of history,
+  // legitimately has no baseline and must show its first month.
+  const hasBaseline = useMemo(
+    () => resolveHasBaseline(periodSnapshots, metrics?.nominalPeriodStart),
+    [periodSnapshots, metrics]
+  );
 
   const chartData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
-
-    // YTD/1Y/3Y/5Y/CUSTOM periods include an extra baseline snapshot before the range;
-    // skip it so the chart starts at the first actual month of the selected period.
-    const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(metrics.timePeriod);
     return preparePerformanceChartData(periodSnapshots, metrics.cashFlows, hasBaseline);
-  }, [metrics, periodSnapshots]);
+  }, [metrics, periodSnapshots, hasBaseline]);
 
   const heatmapData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
@@ -641,10 +644,8 @@ export default function PerformancePage() {
 
   const underwaterData = useMemo(() => {
     if (!metrics || periodSnapshots.length === 0) return [];
-
-    const hasBaseline = ['YTD', '1Y', '3Y', '5Y', 'CUSTOM'].includes(metrics.timePeriod);
     return prepareUnderwaterDrawdownData(periodSnapshots, metrics.cashFlows, hasBaseline);
-  }, [metrics, periodSnapshots]);
+  }, [metrics, periodSnapshots, hasBaseline]);
 
   // ── Hero-synthesis values (pure layer) ──
   // Benchmark annualized return over the active period, using the SAME indexing+annualize
@@ -664,6 +665,14 @@ export default function PerformancePage() {
       metrics.numberOfMonths
     );
   }, [metrics, referenceBenchmarkReturns, fxRates]);
+
+  // The hero states the period return instead of an annualized one when the window is too short for
+  // the extrapolation to mean anything (A7). Verdict and benchmark delta below deliberately keep the
+  // ANNUALIZED figure: "beats the risk-free rate" and "vs benchmark" are per-year comparisons.
+  const heroReturn = resolveHeroReturn(
+    metrics?.timeWeightedReturn ?? null,
+    metrics?.numberOfMonths ?? 0
+  );
 
   const benchmarkDelta = computeBenchmarkDelta(metrics?.timeWeightedReturn ?? null, benchmarkAnnualized);
   const performanceVerdict = metrics
@@ -685,8 +694,8 @@ export default function PerformancePage() {
 
   // Plusvalenze realizzate (Fase D §5): all-time, independent of the selected period — a realized
   // sale belongs to its own fiscal year regardless of which period is currently viewed.
-  const realizedByYear = useMemo(() => aggregateRealizedByYear(ledgerTrades), [ledgerTrades]);
-  const hasRealizedGains = Object.keys(realizedByYear).length > 0;
+  const realizedGains = useMemo(() => aggregateRealizedByYear(ledgerTrades), [ledgerTrades]);
+  const hasRealizedGains = Object.keys(realizedGains.byYear).length > 0;
 
   // Responsive helper function
   const getChartHeight = () => {
@@ -948,7 +957,8 @@ export default function PerformancePage() {
       {/* ── HERO: one answer — TWR + verdict + benchmark/drawdown + vital signs (A1/A2/B1/B3) ── */}
       {performanceVerdict && (
         <PerformanceHero
-          timeWeightedReturn={metrics.timeWeightedReturn}
+          timeWeightedReturn={heroReturn.value}
+          returnQualifier={heroReturn.label}
           periodLabel={periodLabels[selectedPeriod as keyof typeof periodLabels]}
           verdict={performanceVerdict}
           benchmarkLabel={referenceBenchmark.name}
@@ -980,7 +990,10 @@ export default function PerformancePage() {
             <span className="font-mono font-medium tabular-nums text-foreground">
               {returnConsistency.positiveMonths}/{returnConsistency.totalMonths}
             </span>{' '}
-            mesi positivi ({formatPercentage(returnConsistency.positiveShare)})
+            mesi positivi
+            {/* La percentuale compare solo su un campione che possa esprimerne una: su uno o due
+                mesi darebbe 0/50/100 secchi, che sembra una statistica senza esserlo. */}
+            {returnConsistency.positiveShare !== null && ` (${formatPercentage(returnConsistency.positiveShare)})`}
           </span>
           {returnConsistency.best && (
             <span className="text-muted-foreground">
@@ -991,7 +1004,9 @@ export default function PerformancePage() {
               </span>
             </span>
           )}
-          {returnConsistency.worst && (
+          {/* Con un mese solo, migliore e peggiore SONO lo stesso mese: mostrarlo due volte
+              suggerirebbe un intervallo che non esiste. */}
+          {returnConsistency.worst && returnConsistency.worst.label !== returnConsistency.best?.label && (
             <span className="text-muted-foreground">
               Peggior mese{' '}
               <span className="font-medium text-foreground">{returnConsistency.worst.label}</span>{' '}
@@ -1044,14 +1059,14 @@ export default function PerformancePage() {
             value={metrics.roi}
             format="percentage"
             description="Rendimento complessivo senza annualizzazione"
-            tooltip="Misura il guadagno/perdita totale del periodo selezionato. Formula: (Valore Finale - Valore Iniziale - Contributi Netti) / Valore Iniziale × 100. IMPORTANTE: Il valore cambia tra periodi diversi (YTD, 1Y, 3Y) perché calcola rendimenti su durate diverse. Per confrontare periodi diversi usa CAGR o TWR che sono annualizzati."
+            tooltip="Misura il guadagno/perdita totale del periodo selezionato. Formula: (Valore Finale − Valore Iniziale − Contributi Netti) / Valore Iniziale × 100: i versamenti vengono TOLTI dal guadagno, perché non sono rendimento. Attenzione: CAGR corregge per i flussi in un altro modo (li aggiunge al denominatore), quindi CAGR non è la versione annualizzata di questo numero — le due formule rispondono a domande diverse e non sono convertibili l'una nell'altra. Il valore cambia tra periodi diversi (YTD, 1Y, 3Y) perché copre durate diverse: per confrontare periodi usa TWR."
           />
           <MetricCard
             title="CAGR"
             value={metrics.cagr}
             format="percentage"
             description="Tasso di crescita annuale composto"
-            tooltip="Rendimento medio annuo del portafoglio, trattando tutti i versamenti come capitale investito (aggiunti al valore iniziale nel denominatore). Isola la performance degli investimenti: è più basso rispetto alla crescita grezza del patrimonio (visibile in Storico) perché i contributi appaiono come costo, non come crescita."
+            tooltip="Rendimento medio annuo del portafoglio. Formula: (Valore Finale / (Valore Iniziale + Contributi Netti))^(1/anni) − 1: i versamenti vengono AGGIUNTI al denominatore, cioè trattati come capitale investito fin dall'inizio. È una correzione per i flussi diversa da quella del ROI Totale (che li sottrae dal guadagno), quindi i due numeri non si convertono l'uno nell'altro. Rispetto alla crescita grezza del patrimonio (visibile in Storico) è più basso, perché lì i contributi appaiono come crescita."
           />
           <MetricCard
             title="Money-Weighted Return (IRR)"
@@ -1074,7 +1089,7 @@ export default function PerformancePage() {
               value={metrics.sharpeRatio}
               format="number"
               subtitle={`Rendimento aggiustato per il rischio — RF ${formatPercentage(metrics.riskFreeRate)}`}
-              tooltip={`Misura quanto rendimento extra si ottiene per ogni unità di rischio assunto. Formula: (TWR - Tasso Risk-Free ${formatPercentage(metrics.riskFreeRate)}) / Volatilità. Interpretazione: <1 = scarso, 1-2 = buono, 2-3 = molto buono, >3 = eccellente.`}
+              tooltip={`Misura quanto rendimento extra si ottiene per ogni unità di rischio assunto. Formula: (TWR annualizzato − Tasso Risk-Free ${formatPercentage(metrics.riskFreeRate)}) / Volatilità — resta sempre su base annua, anche quando il periodo è troppo corto perché l'hero annualizzi. Interpretazione: <1 = scarso, 1-2 = buono, 2-3 = molto buono, >3 = eccellente. Senza volatilità (meno di 3 mesi) non è calcolabile.`}
               badge="Avanzato"
             />
           }
@@ -1084,15 +1099,15 @@ export default function PerformancePage() {
             value={metrics.volatility}
             format="percentage"
             description="Deviazione standard annualizzata"
-            tooltip="Misura la variabilità dei rendimenti mensili (quanto 'ballano' i risultati). Valori bassi = investimento più stabile e prevedibile. Valori alti = maggiori oscillazioni e rischio. Calcolata sui rendimenti mensili ed espressa in forma annualizzata (× √12)."
+            tooltip="Misura la variabilità dei rendimenti mensili (quanto 'ballano' i risultati). Valori bassi = investimento più stabile e prevedibile. Valori alti = maggiori oscillazioni e rischio. Calcolata sugli STESSI rendimenti mensili della heatmap e del grafico Underwater, senza filtri, ed espressa in forma annualizzata (× √12). Servono almeno 3 mesi: sotto quella soglia una deviazione standard non direbbe nulla sul portafoglio e la card mostra '—'."
           />
           <MetricCard
             title="Max Drawdown"
             value={metrics.maxDrawdown}
             subtitle={metrics.maxDrawdownDate}
             format="percentage"
-            description="Massima perdita percentuale dal picco"
-            tooltip="Misura la peggiore perdita (da picco a valle) che il portafoglio ha subito nel periodo selezionato. Esempio: se il portafoglio valeva €100.000 e scese a €85.000 prima di recuperare, il Max Drawdown è -15%. Calcolo aggiustato per flussi di cassa (sottratte le contribuzioni cumulative) per isolare la performance degli investimenti. Valori vicini allo 0% = portafoglio stabile, valori molto negativi = alta volatilità al ribasso."
+            description="Massima perdita percentuale dal massimo del periodo"
+            tooltip="Misura la peggiore perdita (da picco a valle) che il portafoglio ha subito nel periodo selezionato. Il picco è il massimo RAGGIUNTO IN QUEL PERIODO, non un massimo storico: cambiando periodo cambia il riferimento. Esempio: se il portafoglio valeva €100.000 e scese a €85.000 prima di recuperare, il Max Drawdown è -15%. Calcolato concatenando gli stessi rendimenti mensili della heatmap, quindi indipendente da quanto capitale è entrato. Valori vicini allo 0% = portafoglio stabile, valori molto negativi = alta volatilità al ribasso."
           />
           <MetricCard
             title="Durata Drawdown"
@@ -1217,7 +1232,10 @@ export default function PerformancePage() {
             description="Utili e perdite chiuse tramite il registro operazioni, per anno fiscale"
             sectionIndex={4}
           >
-            <RealizedGainsRows byYear={realizedByYear} />
+            <RealizedGainsRows
+              byYear={realizedGains.byYear}
+              skippedAssets={realizedGains.skippedAssets}
+            />
           </MetricSection>
         )}
         </CollapsibleContent>
@@ -1248,8 +1266,10 @@ export default function PerformancePage() {
               <CardHeader>
                 <CardTitle>Evoluzione Patrimonio</CardTitle>
                 <CardDescription>
-                  Area = capitale versato + rendimento generato, linea = patrimonio totale.
-                  Se l&apos;area superiore cresce, gli investimenti stanno performando positivamente.
+                  Area = capitale immesso, cioè il patrimonio all&apos;inizio del periodo più i
+                  versamenti netti registrati in Cashflow. Linea = quanto vale. La distanza fra le due
+                  è il rendimento generato dal mercato: linea sopra l&apos;area = in guadagno, sotto =
+                  in perdita.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1260,23 +1280,20 @@ export default function PerformancePage() {
                     <YAxis tickFormatter={(value) => formatCurrencyCompact(value)} tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }} stroke="var(--border)" />
                     <Tooltip content={<PerformanceTooltip />} />
                     <Legend />
+                    {/* One area, not stacked bands: cumulative contributions go negative whenever
+                        tracked spending outpaces tracked income, and a stacked chart draws a
+                        negative band downward — the bands stop meeting the line. The gap between
+                        this area and the net-worth line IS the market's contribution.
+                        The name is "Capitale immesso", NOT "Capitale investito": that one already
+                        belongs to the ledger-based card above (buys − sells from the trade
+                        register), which measures a different thing on the same page. */}
                     <Area
                       type="monotone"
-                      dataKey="contributions"
-                      stackId="1"
+                      dataKey="investedBase"
                       stroke={chartColors[0]}
                       fill={chartColors[0]}
-                      name="Contributi"
-                      animationDuration={800}
-                      animationEasing="ease-out"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="returns"
-                      stackId="1"
-                      stroke={chartColors[1]}
-                      fill={chartColors[1]}
-                      name="Investimenti"
+                      fillOpacity={0.55}
+                      name="Capitale immesso"
                       animationDuration={800}
                       animationEasing="ease-out"
                     />
@@ -1534,11 +1551,13 @@ export default function PerformancePage() {
                     <div>
                       <h4 className="font-semibold mb-1">Grafico: Evoluzione Patrimonio</h4>
                       <p className="text-muted-foreground">
-                        <strong>Contributi:</strong> Somma cumulativa dei flussi di cassa netti (entrate − uscite) da Cashflow.
+                        <strong>Capitale immesso (area):</strong> Il patrimonio all&apos;inizio del periodo (dallo snapshot mensile) + i versamenti netti cumulati (entrate − uscite da Cashflow, dal primo mese misurato in poi, esclusi trasferimenti e dividendi). È tutto il denaro entrato nel portafoglio, non performance. Da non confondere con la card <strong>Capitale investito</strong> sopra, che conta acquisti meno vendite dal registro operazioni: misurano cose diverse.
                         <br />
-                        <strong>Investimenti:</strong> Differenza tra patrimonio totale e contributi cumulativi. Mostra il valore generato dagli investimenti.
+                        <strong>Patrimonio Totale (linea):</strong> Quanto vale davvero il portafoglio in quel mese.
                         <br />
-                        <strong>Patrimonio Totale:</strong> Net worth complessivo = contributi + investimenti.
+                        <strong>Rendimento del mercato:</strong> La distanza fra la linea e l&apos;area — visibile nel tooltip mese per mese. Linea sopra l&apos;area = guadagno, sotto = perdita.
+                        <br />
+                        <strong>Attenzione:</strong> i versamenti netti possono essere negativi se nel periodo le uscite tracciate superano le entrate tracciate. In quel caso l&apos;area scende sotto il capitale iniziale, ed è un segnale da verificare in Cashflow: gli stessi flussi alimentano ROI, CAGR e TWR.
                       </p>
                     </div>
                     <div>

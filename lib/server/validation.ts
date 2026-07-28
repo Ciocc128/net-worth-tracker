@@ -65,12 +65,11 @@ export const dividendDataSchema = z.object({
 });
 
 /**
- * Asset trade-ledger schemas (Registro operazioni asset — see
- * docs/specs/1-asset-transactions/01-data-model-and-rules.md §4).
+ * Asset trade-ledger schemas (Registro operazioni asset).
  *
  * These are the HTTP-boundary gate. Semantic checks that need Firestore data (asset exists and is
  * a ledger type, date >= baselineDate, linked asset is `cash`, no-negative-position replay) live in
- * the use-case layer, NOT here — see docs/specs/1-asset-transactions/03-service-and-api.md.
+ * the use-case layer, NOT here.
  */
 export const assetTransactionTypeSchema = z.enum(['buy', 'sell', 'adjustment']);
 

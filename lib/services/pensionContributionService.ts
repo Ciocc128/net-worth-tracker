@@ -2,14 +2,14 @@
  * PENSION CONTRIBUTION SERVICE (client SDK)
  *
  * Persistence + value/transfer effects for contributions to a fondo pensione, stored in the
- * dedicated `pensionContributions` collection (spec 01 §3) — NEVER as an `Expense` of consumption:
+ * dedicated `pensionContributions` collection — NEVER as an `Expense` of consumption:
  * a contribution must not enter the savings-rate / budget / Analisi metrics (invariant #1). Same
  * event-per-asset shape as `dividends`.
  *
  * Why the client SDK and not an Admin route (unlike the trade ledger): there is no multi-document
  * replay to serialise here. The one place that touches two balances at once — the voluntary
  * contribution — is already atomic through `reconcileTransferCreate` → `updateCashAssetBalancesAtomic`
- * (a single Firestore transaction). Firestore rules authorise owner + delegated members (spec 01 §4).
+ * (a single Firestore transaction). Firestore rules authorise owner + delegated members.
  *
  * VALUE EFFECT (invariant #2). Every contribution raises the fund's value by `amount` immediately:
  * the fund is a manually-valued asset whose euro value lives in `quantity` at price 1, exactly like a
@@ -134,7 +134,7 @@ export interface PensionContributionInput {
 }
 
 /**
- * Validate the parts of the input that need no I/O (spec 01 §6). Throws on the first violation:
+ * Validate the parts of the input that need no I/O. Throws on the first violation:
  * there is no server route in front of this service, so the service IS the boundary.
  *
  * The `taxYear` rule deserves a word. Deduction follows the cash principle — the ceiling is consumed

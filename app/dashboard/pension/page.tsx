@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Previdenza Complementare — dedicated view for the fondo pensione (spec 2-pension-fund/04 §3, D7).
+ * Previdenza Complementare — dedicated view for the fondo pensione.
  *
  * Lives in `planningNav` (Pianificazione), not as a `fire-simulations` tab: contributions, tax
  * benefit and plafond are planning content in their own right, and this is also the target of the

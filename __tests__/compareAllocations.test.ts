@@ -1,9 +1,8 @@
 /**
- * Tests for the leverage-aware allocation math in lib/services/assetAllocationService.ts
- * (spec docs/specs/3-leveraged-etf-allocation/02-exposure-and-planning-engine.md §2):
+ * Tests for the leverage-aware allocation math in lib/services/assetAllocationService.ts:
  * `compareAllocations` / `toLegacyAllocationResult` / `deriveTargetLeverageRatio`.
  *
- * Focus (per spec 02 §5): current% is on the MARKET base (not the notional total), a target set
+ * Focus: current% is on the MARKET base (not the notional total), a target set
  * summing to 150 encodes leverage 1.5, an `excluded` asset leaves numerator AND denominator, a
  * `frozen` asset stays in the denominator but its on-target delta generates no trade, and the
  * unleveraged case is byte-identical to before (invariant #1). Also: `applyRebalanceBand` must

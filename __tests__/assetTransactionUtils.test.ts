@@ -2,7 +2,7 @@
  * Unit tests for the asset trade-ledger derivation engine (Registro operazioni asset, Fase A).
  * Pure math + derivation — no Firebase, no React. Time is injected via explicit Date params.
  *
- * Covers the full 23-case matrix of docs/specs/1-asset-transactions/02-derivation-engine.md §8.
+ * Covers the full 23-case derivation matrix.
  */
 
 import { describe, it, expect } from 'vitest';

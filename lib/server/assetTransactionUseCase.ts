@@ -28,7 +28,7 @@ import type { AssetType } from '@/types/assets';
 /**
  * Server-side orchestration for the asset trade ledger (Registro operazioni asset).
  *
- * DESIGN (docs/specs/1-asset-transactions/03-service-and-api.md): every trade mutation atomically
+ * DESIGN: every trade mutation atomically
  * (1) writes the trade doc, (2) rewrites the derived fields on assets/{assetId} from a FULL replay
  * of the asset's trades, and (3) optionally moves a linked cash asset's balance. Step (2) depends
  * on a QUERY of all the asset's trades — only the Admin SDK can run a query inside a transaction —
@@ -136,7 +136,7 @@ function buildTradeUpdateDocData(t: AssetTransaction): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Semantic validation (needs Firestore data — kept out of zod, spec 03 §1)
+// Semantic validation (needs Firestore data — kept out of zod)
 // ---------------------------------------------------------------------------
 
 async function getMetaOrThrow(ownerId: string): Promise<{ baselineDate: Date }> {
@@ -187,7 +187,7 @@ function assertDateWithinBounds(date: Date, baselineDate: Date): void {
   }
 }
 
-/** Baseline is the frozen opening position: only quantity/pricePerUnit/note may change (spec 03 §1). */
+/** Baseline is the frozen opening position: only quantity/pricePerUnit/note may change. */
 function assertBaselineEditableFields(updates: Partial<AssetTransactionFormData>): void {
   if (
     updates.type !== undefined ||
@@ -431,7 +431,7 @@ async function commitTradeMutation(
     }
 
     // w2: derived asset fields. NEVER deleteField() holdingStartDate — undefined means "leave
-    // untouched" (spec 02 §holdingStartDate); removeUndefinedDeep drops the undefined key so the
+    // untouched"; removeUndefinedDeep drops the undefined key so the
     // stored value survives. Written directly, NOT via updateAsset (whose undefined→deleteField()
     // for averageCost is exactly the trap we avoid).
     tx.update(
@@ -522,8 +522,8 @@ export async function deleteAssetTransaction(
 
 /**
  * Delete EVERY trade for one asset, no replay — the ledger-orphan fix for converting a ledger asset
- * (stock/etf/bond/crypto/commodity) to `pensionFund` (docs/specs/2-pension-fund/04-ui-and-views.md
- * §1.1, option 1). The asset is about to leave the ledger for good: `pensionFund` is not a
+ * (stock/etf/bond/crypto/commodity) to `pensionFund`. The asset is about to leave the ledger
+ * for good: `pensionFund` is not a
  * LEDGER_ASSET_TYPE, so the caller's metadata write already stopped deriving quantity/PMC from these
  * trades. Left in place, they would still be summed by ledger consumers keyed on `assetId` alone
  * (e.g. Rendimenti "Capitale investito") even though the asset itself no longer looks like a ledger
@@ -554,7 +554,7 @@ export async function deleteAllAssetTransactionsForAsset(
 }
 
 // ---------------------------------------------------------------------------
-// Migration (idempotent, per-user, server-side — spec 03 §4)
+// Migration (idempotent, per-user, server-side)
 // ---------------------------------------------------------------------------
 
 /**

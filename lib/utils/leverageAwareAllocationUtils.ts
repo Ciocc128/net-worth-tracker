@@ -1,6 +1,5 @@
 /**
- * Instrument-aware Versa/Ribilancia/Preleva planner (spec
- * docs/specs/3-leveraged-etf-allocation/02-exposure-and-planning-engine.md §3).
+ * Instrument-aware Versa/Ribilancia/Preleva planner.
  *
  * `allocationUtils.ts` answers "how many € to move per ASSET CLASS" — it has no notion of
  * which concrete instrument the € goes into, so it silently assumes a plain (1x) purchase:
@@ -228,7 +227,7 @@ function solve(params: SolveParams): number[] {
   //   = (currentNotional[c] + Σ_i exposurePerEuro[c][i]·x_i) − targetFraction[c]·marketAfterTrade
   //   = classConst[c] + classCoeff[c] · x, with classCoeff[c][i] = exposurePerEuro[c][i].
   //
-  // D5 BUG FIX (spec 02 §3b). The fork's residual was
+  // D5 BUG FIX. The fork's residual was
   //   notionalAfter[c] − targetFraction[c]·notionalTotalAfter
   // via classConst = currentNotional[c] − tf·currentNotionalTotal AND classCoeff = epe − tf·L.
   // BOTH terms carried the error: the class target must be a fraction of the post-trade MARKET

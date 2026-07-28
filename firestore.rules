@@ -267,8 +267,8 @@ service cloud.firestore {
 
     // Collezione assetTransactions - registro operazioni asset (trade ledger)
     // Leggibile dal proprietario o da un membro delegato; scrittura SOLO via Admin API
-    // (ogni mutazione riscrive atomicamente i campi derivati dell'asset — vedi
-    // docs/specs/1-asset-transactions). Stessa postura "write:false" di account-access.
+    // (ogni mutazione riscrive atomicamente i campi derivati dell'asset).
+    // Stessa postura "write:false" di account-access.
     match /assetTransactions/{transactionId} {
       allow read: if canAccess(resource.data.userId);
       allow create, update, delete: if false;

@@ -10,7 +10,7 @@ import { getTradeErrorResponse } from '../../errorResponse';
  * DELETE /api/asset-transactions/by-asset/[assetId]?userId=...
  *
  * Delete EVERY trade for one asset, no replay. Only path this exists for: converting a ledger asset
- * to `pensionFund` in AssetDialog (docs/specs/2-pension-fund/04-ui-and-views.md §1.1, option 1) —
+ * to `pensionFund` in AssetDialog —
  * the asset is leaving the ledger for good, so there is nothing left to reconcile.
  */
 export async function DELETE(

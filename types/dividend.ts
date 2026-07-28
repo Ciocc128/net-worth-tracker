@@ -135,7 +135,7 @@ export interface YieldOnCostAsset {
 // Per-asset total return combining unrealized capital gain and all-time net dividend income.
 // Both components are expressed as % of the original cost basis (quantity × averageCost).
 //
-// Two computation paths (docs/specs/1-asset-transactions/04-ui.md §6, Fase D):
+// Two computation paths (Fase D):
 //   - LEDGER-BASED: assets with trade-ledger entries — capitalGain* is realized+unrealized from
 //     replayTransactions/computeAssetTotalReturn (includes closed positions and partial sells).
 //     `realizedPnlEur`/`isClosed` are present only on this path — additive fields, so older
