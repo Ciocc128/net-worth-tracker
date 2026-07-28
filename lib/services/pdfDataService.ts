@@ -107,10 +107,18 @@ export async function fetchPDFData(
     }
 
     if (sections.cashflow) {
-      // Filter expenses for cashflow section based on timeFilter and user-selected period
-      const filteredExpenses = timeFilter
-        ? filterExpensesByTime(cachedExpenses!, timeFilter, selectedYear, selectedMonth)
-        : cachedExpenses!;
+      // Filter expenses for cashflow section based on timeFilter and user-selected period.
+      // "Totale" has no period selection of its own to bound it, so it also applies the
+      // same cashflow-history floor the live Cashflow/Storico pages use to exclude
+      // bulk-imported older data (yearly/monthly exports are already bounded by the period).
+      const settings = await getSettings(userId);
+      const filteredExpenses = filterExpensesByTime(
+        cachedExpenses!,
+        timeFilter,
+        selectedYear,
+        selectedMonth,
+        settings?.cashflowHistoryStartYear
+      );
       data.cashflow = prepareCashflowData(filteredExpenses);
     }
 

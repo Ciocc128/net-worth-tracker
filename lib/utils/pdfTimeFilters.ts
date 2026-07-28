@@ -43,26 +43,37 @@ export function filterSnapshotsByTime(
   return snapshots;
 }
 
+// Matches AssetAllocationSettings.cashflowHistoryStartYear's own documented default
+// (types/assets.ts), applied below when a "Totale" export has no configured floor.
+export const DEFAULT_CASHFLOW_HISTORY_START_YEAR = 2025;
+
 /**
  * Filter expenses by time filter.
  *
  * Optional year/month allow exporting past periods.
  * Falls back to current date when not specified.
  *
+ * 'total' has no period of its own to bound it, so it applies
+ * `cashflowHistoryStartYear` as a floor instead — the same setting the live
+ * Cashflow/Storico pages use to exclude bulk-imported older data, falling
+ * back to `DEFAULT_CASHFLOW_HISTORY_START_YEAR` when unset.
+ *
  * @param expenses - Array of all expenses
  * @param timeFilter - Filter type: 'total' | 'yearly' | 'monthly'
  * @param year - Target year (defaults to current year)
  * @param month - Target month 1-12 (defaults to current month)
+ * @param cashflowHistoryStartYear - User's configured floor for 'total' exports (defaults to `DEFAULT_CASHFLOW_HISTORY_START_YEAR` when omitted)
  * @returns Filtered expenses array
  */
 export function filterExpensesByTime(
   expenses: any[],
   timeFilter: TimeFilter = 'total',
   year?: number,
-  month?: number
+  month?: number,
+  cashflowHistoryStartYear: number = DEFAULT_CASHFLOW_HISTORY_START_YEAR
 ): any[] {
   if (timeFilter === 'total') {
-    return expenses;
+    return expenses.filter(expense => expense.date.getFullYear() >= cashflowHistoryStartYear);
   }
 
   const now = new Date();
