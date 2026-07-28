@@ -460,7 +460,7 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 - **Portfolio vs benchmark month count asymmetry**: `prepareMonthlyReturnsHeatmap` loops `i=1..N` over snapshots — the first snapshot is baseline only, so for a period of N calendar months the portfolio has N−1 return observations. Benchmark data from Yahoo Finance has a return for every calendar month including the first, so it has N observations. `Mesi+/-` for the portfolio can therefore never sum to `numberOfMonths`. Display "X/Y" format with the actual denominator (`returns.length`) to avoid user confusion. `totalMonths` field in `BenchmarkMetrics` = `returns.length` tracks this per row.
 
 ### Dashboard Data Isolation
-- Do not add `useAllExpenses` or other full-history queries to Overview/Dashboard
+- Do not add full-history expense queries to Overview/Dashboard
 - Full-history expense analysis belongs in History or Cashflow
 - Overview/Panoramica data pipeline should flow through the private `GET /api/dashboard/overview` route and `useDashboardOverview()`; do not reintroduce page-level fan-out queries for assets, snapshots, expense stats, or settings
 - `DashboardOverviewPayload` should stay lean: only KPI, variations, expense stats, chart datasets, flags, and freshness fields actually rendered by Panoramica belong there

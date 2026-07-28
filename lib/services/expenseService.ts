@@ -37,11 +37,8 @@ import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOver
 import {
   Expense,
   ExpenseFormData,
-  ExpenseStats,
-  MonthlyExpenseSummary,
   ExpenseType
 } from '@/types/expenses';
-import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 
 const EXPENSES_COLLECTION = 'expenses';
 
@@ -71,44 +68,6 @@ export async function getAllExpenses(userId: string): Promise<Expense[]> {
   } catch (error) {
     console.error('Error getting expenses:', error);
     throw new Error('Failed to fetch expenses');
-  }
-}
-
-/**
- * Get expenses for a specific month
- */
-export async function getExpensesByMonth(
-  userId: string,
-  year: number,
-  month: number
-): Promise<Expense[]> {
-  try {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
-
-    const expensesRef = collection(db, EXPENSES_COLLECTION);
-    const q = query(
-      expensesRef,
-      where('userId', '==', userId),
-      where('date', '>=', Timestamp.fromDate(startDate)),
-      where('date', '<=', Timestamp.fromDate(endDate)),
-      orderBy('date', 'desc')
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    const expenses = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      date: doc.data().date?.toDate() || new Date(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-    })) as Expense[];
-
-    return expenses;
-  } catch (error) {
-    console.error('Error getting expenses by month:', error);
-    throw new Error('Failed to fetch expenses by month');
   }
 }
 
@@ -566,121 +525,6 @@ export async function deleteRecurringExpenses(recurringParentId: string): Promis
   }
 }
 
-/**
- * Calculate monthly summary for a specific month
- */
-export async function getMonthlyExpenseSummary(
-  userId: string,
-  year: number,
-  month: number
-): Promise<MonthlyExpenseSummary> {
-  try {
-    const expenses = await getExpensesByMonth(userId, year, month);
-
-    const summary: MonthlyExpenseSummary = {
-      year,
-      month,
-      totalIncome: 0,
-      totalExpenses: 0,
-      netBalance: 0,
-      byCategory: {},
-      byType: {
-        fixed: { total: 0, count: 0 },
-        variable: { total: 0, count: 0 },
-        debt: { total: 0, count: 0 },
-        income: { total: 0, count: 0 },
-        transfer: { total: 0, count: 0 },
-      },
-    };
-
-    expenses.forEach(expense => {
-      // Update totals — transfers are internal movements, not real income/expenses
-      if (expense.type === 'income') {
-        summary.totalIncome += expense.amount;
-      } else if (expense.type !== 'transfer') {
-        summary.totalExpenses += Math.abs(expense.amount);
-      }
-
-      // Update by category
-      if (!summary.byCategory[expense.categoryId]) {
-        summary.byCategory[expense.categoryId] = {
-          categoryName: expense.categoryName,
-          total: 0,
-          count: 0,
-        };
-      }
-      summary.byCategory[expense.categoryId].total += expense.amount;
-      summary.byCategory[expense.categoryId].count += 1;
-
-      // Update by type
-      summary.byType[expense.type].total += Math.abs(expense.amount);
-      summary.byType[expense.type].count += 1;
-    });
-
-    summary.netBalance = summary.totalIncome - summary.totalExpenses;
-
-    return summary;
-  } catch (error) {
-    console.error('Error calculating monthly expense summary:', error);
-    throw new Error('Failed to calculate monthly expense summary');
-  }
-}
-
-/**
- * Get expense statistics with delta from previous month
- */
-export async function getExpenseStats(userId: string): Promise<ExpenseStats> {
-  try {
-    const { month: currentMonth, year: currentYear } = getItalyMonthYear();
-
-    // Calculate previous month
-    let previousYear = currentYear;
-    let previousMonth = currentMonth - 1;
-    if (previousMonth === 0) {
-      previousMonth = 12;
-      previousYear -= 1;
-    }
-
-    const [currentSummary, previousSummary] = await Promise.all([
-      getMonthlyExpenseSummary(userId, currentYear, currentMonth),
-      getMonthlyExpenseSummary(userId, previousYear, previousMonth),
-    ]);
-
-    // Calculate deltas (percentage change)
-    const incomeDelta = previousSummary.totalIncome > 0
-      ? ((currentSummary.totalIncome - previousSummary.totalIncome) / previousSummary.totalIncome) * 100
-      : 0;
-
-    const expensesDelta = previousSummary.totalExpenses > 0
-      ? ((currentSummary.totalExpenses - previousSummary.totalExpenses) / previousSummary.totalExpenses) * 100
-      : 0;
-
-    const netDelta = previousSummary.netBalance !== 0
-      ? ((currentSummary.netBalance - previousSummary.netBalance) / Math.abs(previousSummary.netBalance)) * 100
-      : 0;
-
-    return {
-      currentMonth: {
-        income: currentSummary.totalIncome,
-        expenses: currentSummary.totalExpenses,
-        net: currentSummary.netBalance,
-      },
-      previousMonth: {
-        income: previousSummary.totalIncome,
-        expenses: previousSummary.totalExpenses,
-        net: previousSummary.netBalance,
-      },
-      delta: {
-        income: incomeDelta,
-        expenses: expensesDelta,
-        net: netDelta,
-      },
-    };
-  } catch (error) {
-    console.error('Error getting expense stats:', error);
-    throw new Error('Failed to get expense stats');
-  }
-}
 
 /**
  * Calculate total income for a period
