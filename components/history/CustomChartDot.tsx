@@ -43,18 +43,15 @@ export function CustomChartDot({ cx, cy, payload, isMobile = false }: CustomChar
    * Desktop can use smaller elements for denser information display.
    *
    * Sizing strategy:
-   * - baseRadius: 5px mobile (10px diameter) vs 4px desktop (8px diameter)
    * - noteRadius: 8px mobile (16px diameter) vs 6px desktop (12px diameter)
-   * - iconSize: 10px mobile vs 8px desktop (scales icon path)
-   * - iconOffset: Half of iconSize to center the icon within the circle
+   * - iconOffset: half the icon path's width (10px mobile / 8px desktop), so the icon
+   *   sits centred inside the circle
    *
    * Why larger mobile sizes? Touch accuracy is lower than mouse precision,
    * and smaller targets frustrate mobile users.
    */
-  const baseRadius = isMobile ? 5 : 4;
   const noteRadius = isMobile ? 8 : 6;
   const strokeWidth = isMobile ? 2.5 : 2;
-  const iconSize = isMobile ? 10 : 8;
   const iconOffset = isMobile ? 5 : 4;
 
   return (

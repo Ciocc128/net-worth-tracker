@@ -17,7 +17,7 @@ confutati sono già stati esclusi.
 | 02 | [Pipeline PDF chart-capture (no-op)](02-pipeline-pdf-chart-capture.md) | Medio | Sonnet 5 | high | ✅ Implementata (2026-07-28, `chore/dead-code-02-pdf`) |
 | 03 | [Export morti: services, server, hooks](03-export-morti-services-server-hooks.md) | Medio | Sonnet 5 | high | ✅ Implementata (2026-07-28, `chore/dead-code-03-exports`) |
 | 04 | [Export morti: utils, types e policy UI](04-export-morti-utils-types-e-policy-ui.md) | Basso | Sonnet 5 | medium | ✅ Implementata (2026-07-28, `chore/dead-code-04-utils-types`) |
-| 05 | [Branch morti e decisioni di prodotto](05-branch-morti-e-decisioni-di-prodotto.md) | Alto | Opus 5 | high | |
+| 05 | [Branch morti e decisioni di prodotto](05-branch-morti-e-decisioni-di-prodotto.md) | Alto | Opus 5 | high | ✅ Implementata (2026-07-28, `chore/dead-code-05-decisioni`) — Opzione A su entrambe le decisioni (A e D) |
 | 06 | [Sweep token CSS (opzionale)](06-sweep-token-css.md) | Medio | Sonnet 5 | high | |
 
 **Ordine**: 01 → 02 → 03 → 04 → 05; la 06 è opzionale e va DOPO la 04 (usa la
@@ -73,8 +73,8 @@ spec** (`chore/dead-code-01-orfani`, ecc.), come per l'audit Rendimenti.
   componente `<RealizedGainsSection>` — esporta `RealizedGainsRows` e
   `aggregateRealizedByYear`, entrambi consumati dalla pagina Rendimenti.
 - Tutte le altre route API: censite metodo per metodo, ogni coppia route/metodo ha
-  almeno un chiamante di produzione con metodo HTTP corrispondente — unica
-  eccezione `POST /api/ai/assistant/threads` (vedi spec 05).
+  almeno un chiamante di produzione con metodo HTTP corrispondente — l'unica
+  eccezione era `POST /api/ai/assistant/threads`, rimosso dalla spec 05.
 
 ## Fuori perimetro (valutato e chiuso, NON ri-esplorare)
 

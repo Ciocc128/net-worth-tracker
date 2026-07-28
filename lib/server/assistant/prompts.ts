@@ -574,8 +574,10 @@ export function buildHistoryAnalysisPrompt(
  * snapshot; end is the current quarter-end snapshot. Same 3-section contract as
  * monthly, with quarterly framing.
  *
- * Used by the email service to generate the AI comment in quarterly emails.
- * Not exposed in the interactive UI (quarter_analysis is email-only).
+ * Reached only through `POST /api/ai/assistant/stream` with `mode: 'quarter_analysis'`; the
+ * period selector does not offer a quarter tab, so no UI surface sends it today. The periodic
+ * quarterly email does NOT use this builder — it has its own (`monthlyEmailService`'s
+ * `buildEmailAiPrompt` + `EMAIL_PERIODIC_FORMAT_CONTRACT`).
  */
 export function buildQuarterAnalysisPrompt(
   bundle: AssistantMonthContextBundle,
