@@ -7,14 +7,11 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic (Claude Sonnet 5)
-- `tsc` clean; **79 files / 1406 tests** green
-- Latest (2026-07-28): **audit codice morto, sessione 1/6** (`docs/dead-code/01-file-orfani-hook-e-dipendenze.md`). Zero cambi di comportamento (l'unica eccezione è la fix G qui sotto) — solo rimozioni verificate con grep prima di ogni cancellazione, un commit per sezione. `tsc` + build + suite completa invariati (79 file / 1406 test).
-  - **Componenti orfani**: `ExpenseCard`, `GoalSummaryCards`, `SuccessRateCard` (zero importer).
-  - **Catena `useExpenseStats`** cancellata atomicamente (knip segna vivi gli anelli intermedi solo perché importati dall'orfano): l'hook + `getExpenseStats`/`getMonthlyExpenseSummary`/`getExpensesByMonth` in `expenseService.ts` + i tipi `ExpenseStats`/`MonthlyExpenseSummary` + `queryKeys.expenses.stats` e la sua invalidation. Più `useAllExpenses` (duplicato esatto di `useExpenses`), `useDelayedLoading` (mai adottato) e `SettingsPageSkeleton` (orfano by design, coerente con la rimozione dell'anti-flash).
-  - **Storybook/Vitest**: mock Firebase morti (`.storybook/mocks/firebase.ts`, `__mocks__/firebase-config.ts`), `components/ui/carousel.tsx` + `embla-carousel-react`.
-  - **npm**: rimossi `@storybook/react`, `baseline-browser-mapping`, `dotenv`, `png-to-ico`; `@types/canvas-confetti` spostato in devDependencies.
-  - **public/**: SVG starter Next e favicon inutilizzati cancellati; **fix collaterale**: `app/layout.tsx` linkava `/favicon-16x16.png` e `/favicon-32x32.png` a 404 (i file vivevano solo sotto `/favicon/`) — rimossi, restano le convenzioni App Router.
-  - Sessioni 2-6 (pipeline PDF, export morti, branch morti, sweep CSS) restano da fare — vedi `docs/dead-code/README.md`.
+- `tsc` clean; **80 files / 1409 tests** green
+- Latest (2026-07-28): **audit codice morto, sessione 2/6** (`docs/dead-code/02-pipeline-pdf-chart-capture.md`) + **fix collaterale export PDF**. Behavior-preserving per costruzione sulla parte dead-code (la pipeline rimossa era già un no-op), confermato con uno smoke funzionale; il fix collaterale cambia comportamento apposta. `tsc` + build + suite completa invariati (80 file / 1409 test).
+  - **Pipeline chart-capture no-op** eliminata end-to-end da `pdfGenerator.tsx`: `getRequiredChartIds`/`captureCharts`/`cleanupChartImages`, il file `lib/utils/chartCapture.ts`, la prop `chartImages`/`chartImage` lungo `PDFDocument` → `HistorySection`/`AllocationSection`, i primitives orfani `PDFChart`/`PDFSection` (non da confondere col tipo vivo `PDFSectionData`), la dipendenza `html2canvas`, gli `id="chart-*"` vestigiali sui grafici Storico. `types/pdf.ts` ripulito (`CHART_IDS`/`ChartId`/`PDFGenerationResult`/`ChartImage`/`ChartCaptureOptions` cancellati); le sette `prepare*` di `pdfDataService.ts` non più esportate; `@react-pdf/types` promossa a devDependency esplicita.
+  - **Fix**: "Export Totale" ignorava `cashflowHistoryStartYear` ("Anno inizio storico cashflow") sulla sezione Cashflow, includendo ogni spesa mai registrata. `filterExpensesByTime()` (`lib/utils/pdfTimeFilters.ts`) ora applica quel floor anche sul ramo `'total'`, fallback `2025` se non configurato — stesso comportamento delle pagine live Cashflow/Storico. Storico/Rendimenti/FIRE nel PDF restano volutamente illimitati (le loro controparti live non usano quel setting).
+  - Sessioni 3-6 (export morti, branch morti, sweep CSS) restano da fare — vedi `docs/dead-code/README.md`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`
@@ -47,7 +44,8 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - **Hall of Fame**: record e classifiche con switcher periodo+categoria.
 - **Multi-theme**: 6 temi persistiti in `userPreferences/{userId}` + localStorage; grafici theme-aware via `useChartColors` (`--chart-1..5`).
 - **Email periodiche**: mensile/trimestrale/semestrale/annuale + **email budget settimanale** (domenica) — inviata ogni settimana ma con cifre month-to-date e year-to-date, orizzonte dichiarato esplicitamente in ogni caption. Env: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `ANTHROPIC_API_KEY`.
-- **PDF export** e analisi AI della performance.
+- **PDF export**: 7 sezioni configurabili (Portfolio/Allocazione/Storico/Cashflow/Rendimenti/FIRE/Riepilogo) con filtro Totale/Annuale/Mensile. Su Cashflow, **Export Totale** applica `cashflowHistoryStartYear` come floor (stesso setting di Cashflow/Storico, fallback `2025`); Storico/Rendimenti/FIRE restano illimitati. AGENTS.md → *A Function That Always Returns [] Keeps Its Whole Downstream Pipeline "Live" for Knip*.
+- **Analisi AI della performance**: report generato da Claude su richiesta, separato dall'Assistente conversazionale.
 
 ## Testing
 - Vitest. Comandi: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. Rilancia `tsc` **dopo** aver scritto i test, non solo dopo il codice.
@@ -90,8 +88,9 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - **Assistant**: `app/dashboard/assistant/page.tsx`, `components/assistant/*`, `app/api/ai/assistant/*`, `lib/server/assistant/*`
 - **Settings / layout**: `app/dashboard/settings/page.tsx`, `lib/services/assetAllocationService.ts`, `components/layout/*`, `lib/constants/navigation.ts`
 - **Server use case / email**: `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor,monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`, `app/api/cron/monthly-snapshot/route.ts` (fasi 2-6)
+- **PDF export**: `lib/utils/pdfGenerator.tsx` (orchestrator) → `lib/services/pdfDataService.ts` (`fetchPDFData` + `prepare*` non esportate) → `components/pdf/{PDFDocument,sections/*,primitives/*}.tsx`; `lib/utils/pdfTimeFilters.ts` (`filterExpensesByTime`'s `cashflowHistoryStartYear` floor su `'total'`); tipi `types/pdf.ts`
 
 ## Design Context
 Spec estetica autoritativa: **DESIGN.md** (Apple + Linear/Vercel + Trade Republic; form-follows-function) — mantenuta a mano, **mai rigenerarla**; il suo frontmatter YAML è lo strato normativo letto dal detector impeccable, `.impeccable/design.json` è solo il sidecar di estensioni. Prompt di review in `docs/{critique,audit}-prompts.md`. Utenti: investitori italiani self-directed che vogliono capire la propria posizione in fretta e con fiducia. Principi: (1) prima il dato, poi la decorazione; (2) motion con uno scopo; (3) la densità è una feature; (4) la precisione costruisce fiducia; (5) la personalità sta nei dettagli.
 
-**Last updated**: 2026-07-28 — audit codice morto sessione 1/6 (file orfani, hook, dipendenze npm, asset `public/`). Storia precedente: `git log`.
+**Last updated**: 2026-07-28 — audit codice morto sessione 2/6 (pipeline PDF chart-capture no-op) + fix `cashflowHistoryStartYear` su export PDF Totale. Storia precedente: `git log`.

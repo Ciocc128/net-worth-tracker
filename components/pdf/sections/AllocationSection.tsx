@@ -4,12 +4,11 @@
 import { Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import { PDFText } from '../primitives/PDFText';
 import { PDFTable } from '../primitives/PDFTable';
-import type { AllocationData, ChartImage } from '@/types/pdf';
+import type { AllocationData } from '@/types/pdf';
 import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
 
 interface AllocationSectionProps {
   data: AllocationData;
-  chartImage?: ChartImage;
 }
 
 /**
@@ -32,9 +31,8 @@ interface AllocationSectionProps {
  * actual is 61%, no rebalancing is suggested.
  *
  * @param data - Allocation data with current percentages, targets, and rebalancing actions
- * @param chartImage - Optional pie chart visualization (currently unused in this section)
  */
-export function AllocationSection({ data, chartImage }: AllocationSectionProps) {
+export function AllocationSection({ data }: AllocationSectionProps) {
   if (!data || data.byAssetClass.length === 0) {
     return (
       <Page size="A4" style={styles.page}>
