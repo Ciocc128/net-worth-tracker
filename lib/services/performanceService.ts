@@ -22,6 +22,7 @@ import { getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 import { getSettings } from './assetAllocationService';
 import { getAllAssets } from './assetService';
+import { endOfMonthBound } from '@/lib/utils/dateHelpers';
 import { computeDividendYieldMetrics } from '@/lib/utils/yieldOnCost';
 import { buildTwrIndex, computeDrawdownSeries, findMaxDrawdown } from '@/lib/utils/drawdownSeries';
 import {
@@ -185,7 +186,7 @@ export function calculateTimeWeightedReturn(
     const firstSnap = snapshots[0];
     const lastSnap = snapshots[snapshots.length - 1];
     const periodStart = new Date(firstSnap.year, firstSnap.month - 1, 1);
-    const periodEnd = new Date(lastSnap.year, lastSnap.month, 0);
+    const periodEnd = endOfMonthBound(lastSnap.year, lastSnap.month);
     totalMonths = calculateMonthsDifference(periodEnd, periodStart) - 1;
   }
   if (totalMonths <= 0) return null;
@@ -970,7 +971,7 @@ export async function calculatePerformanceForPeriod(
 
   // month index (0-based) === month number (1-based) → the first day of the FOLLOWING month
   const startDate = new Date(startSnapshot.year, startSnapshot.month, 1);
-  const endDate = new Date(endSnapshot.year, endSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
+  const endDate = endOfMonthBound(endSnapshot.year, endSnapshot.month);
 
   // For dividend calculations, cap at today to exclude future dividends not yet received
   const dividendEndDate = endDate > now ? now : endDate;
@@ -1374,7 +1375,7 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     const firstSnapshot = sortedSnapshots[0];
     const lastSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
     const overallStartDate = new Date(firstSnapshot.year, firstSnapshot.month - 1, 1);
-    const overallEndDate = new Date(lastSnapshot.year, lastSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
+    const overallEndDate = endOfMonthBound(lastSnapshot.year, lastSnapshot.month);
     allExpenses = await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
   }
 
@@ -1417,7 +1418,16 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
  * Calculates performance metrics for sliding windows of fixed length
  * (e.g., 12-month windows sliding through the entire history).
  *
+ * Each window follows the SAME convention as the period metrics (see
+ * calculatePerformanceForPeriod): the snapshot that opens it is the starting valuation, so the
+ * measured months — and the cash flows that belong to them — start the month after it, and the
+ * window closes at the last instant of the end month.
+ *
  * Uses in-memory filtering of pre-fetched expenses to avoid N Firestore queries.
+ *
+ * ASSUMPTION: snapshots are monthly and contiguous, so `windowMonths + 1` snapshots span
+ * `windowMonths` measured months. It is the same assumption the index arithmetic below already
+ * makes; with a hole in the series a window would cover more calendar time than its name says.
  *
  * @param userId - User ID for data fetching
  * @param allSnapshots - All snapshots
@@ -1426,7 +1436,7 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
  * @param dividendCategoryId - Category ID for dividend income (from user settings)
  * @returns Array of rolling period performance data
  */
-async function calculateRollingPeriods(
+export async function calculateRollingPeriods(
   userId: string,
   allSnapshots: MonthlySnapshot[],
   windowMonths: number,
@@ -1447,7 +1457,7 @@ async function calculateRollingPeriods(
   const firstSnapshot = sortedSnapshots[0];
   const lastSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
   const overallStartDate = new Date(firstSnapshot.year, firstSnapshot.month - 1, 1);
-  const overallEndDate = new Date(lastSnapshot.year, lastSnapshot.month, 0, 23, 59, 59, 999); // Last day of month
+  const overallEndDate = endOfMonthBound(lastSnapshot.year, lastSnapshot.month);
 
   // Reuse caller-supplied expenses to avoid a redundant Firestore query
   const allExpenses = prefetchedExpenses ?? await getExpensesByDateRange(userId, overallStartDate, overallEndDate);
@@ -1456,10 +1466,14 @@ async function calculateRollingPeriods(
 
   for (let i = windowMonths; i < sortedSnapshots.length; i++) {
     const endSnapshot = sortedSnapshots[i];
-    const startSnapshot = sortedSnapshots[i - windowMonths];
+    const valuationSnapshot = sortedSnapshots[i - windowMonths];
 
-    const periodEndDate = new Date(endSnapshot.year, endSnapshot.month - 1, 1);
-    const periodStartDate = new Date(startSnapshot.year, startSnapshot.month - 1, 1);
+    // The window opens the month AFTER the starting valuation — that snapshot's own month is
+    // already inside its value, so counting its cash flows again would subtract them twice — and
+    // closes at the LAST INSTANT of the end month: bounded at midnight on the 1st, the filter in
+    // getCashFlowsFromExpenses (`date <= endDate`) threw away every movement of the closing month.
+    const periodStartDate = new Date(valuationSnapshot.year, valuationSnapshot.month, 1);
+    const periodEndDate = endOfMonthBound(endSnapshot.year, endSnapshot.month);
 
     // Get snapshots and cash flows for this window
     const windowSnapshots = sortedSnapshots.slice(i - windowMonths, i + 1);
@@ -1469,15 +1483,17 @@ async function calculateRollingPeriods(
     // Calculate CAGR
     const netCashFlow = cashFlows.reduce((sum, cf) => sum + cf.netCashFlow, 0);
     const cagr = calculateCAGR(
-      startSnapshot.totalNetWorth,
+      valuationSnapshot.totalNetWorth,
       endSnapshot.totalNetWorth,
       netCashFlow,
       windowMonths
     );
 
-    // Calculate volatility and Sharpe
+    // Calculate volatility and Sharpe. windowMonths is passed explicitly so TWR and CAGR annualize
+    // over the SAME span — the derived length would be read off the snapshots, and a rolling Sharpe
+    // built on one basis while its CAGR sits on another is two answers to one question.
     const volatility = calculateVolatility(windowSnapshots, cashFlows);
-    const twr = calculateTimeWeightedReturn(windowSnapshots, cashFlows);
+    const twr = calculateTimeWeightedReturn(windowSnapshots, cashFlows, windowMonths);
     const sharpeRatio = twr !== null && volatility !== null
       ? calculateSharpeRatio(twr, riskFreeRate, volatility)
       : null;

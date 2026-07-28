@@ -44,7 +44,7 @@ Sessione di **sola analisi e documentazione**: nessun file di codice modificato.
 - [x] Implementazione spec 8 (aliquota) — 2026-07-27, branch `fix/asset-tax-rate-restore`
 - [x] Implementazione spec 9 (etichette) — 2026-07-28, branch `fix/asset-chart-labels`
 - [x] Implementazione spec 6 (classe asset) — 2026-07-28, branch `feature/asset-class-selection`
-- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fasi 1 e 2 fatte** (2026-07-28, branch `fix/performance-calculations-phase-{1,2}`; la 1 è già in `fix/session-bugfixes`); fasi 3→5 da fare
+- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fasi 1, 2 e 3 fatte** (2026-07-28, branch `fix/performance-calculations-phase-{1,2,3}`; 1 e 2 già in `fix/session-bugfixes`); fasi 4→5 da fare
 
 Aggiornare questo file al termine di ogni implementazione (i prompt nelle spec lo richiedono).
 
@@ -236,3 +236,37 @@ Branch `fix/performance-calculations-phase-2` (da `fix/session-bugfixes`, che ne
 - **Cosa**: la chiave della cache di Rendimenti ora impronta **tutti** gli input da cui dipendono i numeri (intera serie di snapshot via hash FNV-1a, base delle metriche, risk-free rate, categoria dividendi) invece del solo ultimo snapshot + base; `|| 2.5` → `?? 2.5` per non mangiare uno 0% legittimo.
 - **Perché**: la chiave vecchia lasciava passare tre modifiche che riscrivono le metriche a snapshot "uguali" — cambio del tasso privo di rischio, cambio della categoria dividendi, correzione di uno snapshot storico — servendo per 6 ore numeri calcolati da input diversi da quelli attuali.
 - **Nota**: le fasi 1 e 2 messe insieme cambiano la chiave due volte (formato + prefisso `v2`); l'effetto pratico è una singola invalidazione totale al deploy, cioè un ricalcolo per utente. Il prefisso `v2` resta come leva manuale per il caso "stessi input, matematica diversa", che nessuna firma degli input può cogliere.
+
+## Implementazione spec 10 — FASE 3: finestre rolling 12M/36M — 2026-07-28
+
+Branch `fix/performance-calculations-phase-3` (da `fix/session-bugfixes`, che contiene già le fasi 1 e 2 — mergiate in fast-forward locale su conferma dell'utente). Finding coperto: **A4** (tre incoerenze).
+
+**Cosa è stato fatto**:
+
+1. **`endOfMonthBound(year, month)` in `lib/utils/dateHelpers.ts`** (nuova, come da spec): ultimo istante di un mese di calendario, `new Date(year, month, 0, 23, 59, 59, 999)` — il giorno 0 del mese successivo È l'ultimo di questo, dicembre incluso, senza dover sapere quanti giorni ha febbraio quest'anno. Sostituisce le 4 copie inline in `performanceService.ts`. (`lib/services/fireService.ts` ha una `getMonthEndDate` privata identica: non toccata, fuori scope, candidata a delegare.)
+2. **A4.1 — l'ultimo mese della finestra non si perde più**: `periodEndDate` era `new Date(y, m-1, 1)`, cioè il **1° del mese a mezzanotte**, e il filtro di `getCashFlowsFromExpenses` (`date <= endDate`) buttava via **tutti** i movimenti del mese di chiusura. Ora è `endOfMonthBound(...)`, la stessa convenzione che le metriche di periodo usavano già: erano due convenzioni diverse nello stesso file, una delle due sbagliata.
+3. **A4.2 — TWR e CAGR sulla stessa base temporale**: `calculateTimeWeightedReturn(windowSnapshots, cashFlows)` non riceveva `periodMonths`, quindi annualizzava sui mesi dedotti dagli snapshot mentre il CAGR della stessa riga usava `windowMonths`. Ora `windowMonths` è passato esplicito. (Dopo il fix del ramo `else` in fase 1 il numero coincide già: il passaggio esplicito lo rende dichiarato invece che accidentale, ed è ciò che la spec chiedeva.)
+4. **A4.3 — niente doppio conteggio del primo mese**: i cash flow partivano dal mese dello snapshot di apertura, il cui valore di **fine mese** li contiene già. Ora la finestra si apre il 1° del mese **successivo**, esattamente come `calculatePerformanceForPeriod` dopo la fase 1. Rinominato `startSnapshot` in `valuationSnapshot`, perché è quello che è.
+5. **Conseguenza sul payload**: `periodStartDate` ora è il **primo mese misurato**, quindi `periodStartDate` → `periodEndDate` copre esattamente `windowMonths` mesi (prima ne copriva `windowMonths + 1`). Nessun consumatore lo legge (`page.tsx` usa solo `periodEndDate`, per il filtro di periodo e l'asse X); l'unico effetto visibile è il tooltip dei grafici rolling, che mostra la data completa e ora dice "31/12/2024" invece di "01/12/2024" — cioè la fine vera della finestra. Commentata anche l'assunzione "snapshot mensili contigui" su cui l'aritmetica degli indici si appoggiava già senza dirlo.
+6. `types/performance.ts`: commento sulla convenzione delle due date di `RollingPeriodPerformance`.
+
+**Gate**: `npx tsc --noEmit` pulito (rilanciato **dopo** aver scritto i test, lezione della fase 2). `npx vitest run` **78 file / 1375 test** (9 nuovi). `npm run build` ok.
+
+**Test**: nuova suite `__tests__/performanceRolling.test.ts` (`calculateRollingPeriods` è ora esportata). Le serie sono costruite perché la risposta giusta sia **zero**, così un movimento perso o contato due volte non si nasconde dietro un arrotondamento: patrimonio fermo che sale solo per un versamento nell'**ultimo** mese → CAGR 0 (prima +10%); entrata nel mese della valutazione iniziale → CAGR 0 (se entrasse: −4,76%); versamento a metà finestra neutralizzato; crescita esatta dell'1% mensile → CAGR = TWR = 1,01^12 − 1 su 12 e su 36 mesi; Sharpe ricostruito a mano da (TWR − risk free) / volatilità con TWR annualizzato su `windowMonths`; conteggio delle finestre e ampiezza esatta delle due date.
+
+**Osservazione emersa dai test, non risolta (candidata fase 5)**: una serie con rendimenti mensili *identici* produce volatilità ~1e-14 invece di 0 esatto (rumore in virgola mobile), quindi la guardia `volatility === 0` di `calculateSharpeRatio` non scatta e lo Sharpe esplode a ~2×10^14. Irraggiungibile su dati reali (nessun portafoglio è così regolare), ma è la stessa famiglia dei casi degeneri che la fase 5 deve chiudere (`monthlyReturns.length < 2` → richiedere almeno 3 osservazioni).
+
+**QUALI numeri cambiano**: solo i due grafici rolling in "Andamento"/"Rischio" (CAGR Rolling 12M e Sharpe Rolling 12M, più la serie 36M dove usata).
+- **CAGR rolling**: cambia in tutte le finestre che contengono movimenti nell'ultimo mese (praticamente tutte) e in quelle con movimenti nel primo. La direzione dipende dal segno dei flussi, ma è sistematicamente **più vicina al rendimento vero** — prima un mese di risparmi finiva nel rendimento invece che nei contributi, gonfiandolo.
+- **Sharpe rolling**: cambia sia per il TWR ricalcolato sia per la volatilità, che ora vede i cash flow del mese di chiusura e non legge più un versamento come un balzo di mercato.
+- **Non cambia nient'altro**: hero, metriche di periodo, heatmap, Underwater, Max Drawdown, benchmark.
+
+**Come verificarlo a mano sui dati reali**:
+1. Rendimenti → sezione **Andamento** → "CAGR Rolling 12M": confronta la curva con quella deployata. I punti devono muoversi (di poco, ma muoversi) e la linea deve restare più vicina al TWR di periodo.
+2. Passa il mouse su un punto: il tooltip mostra ora la **fine** del mese (es. 31/12/2024) invece del 1°. È l'unica modifica visibile all'etichetta.
+3. **Controllo mirato**: scegli un mese in cui hai avuto un versamento grosso e isolato. Nella finestra rolling che si **chiude** in quel mese, il CAGR deployato è gonfiato da quel versamento (che non vedeva); in locale deve scendere verso il rendimento reale.
+4. Il numero di punti dei grafici rolling deve restare identico (nessuna finestra guadagnata o persa).
+
+- **Cosa**: le finestre rolling ora seguono la stessa convenzione delle metriche di periodo — si aprono il mese dopo la valutazione iniziale, si chiudono all'ultimo istante del mese finale, e annualizzano TWR e CAGR sugli stessi `windowMonths`. Estratta `endOfMonthBound` in `dateHelpers.ts`, che sostituisce 4 copie inline.
+- **Perché**: il limite superiore a mezzanotte del 1° del mese scartava l'intero ultimo mese di spese ed entrate di ogni finestra, il TWR annualizzava su un mese in più del CAGR che gli stava accanto nella stessa riga, e i cash flow del primo mese venivano contati due volte come nel bug A2 delle metriche di periodo.
+- **Nota**: `periodStartDate` cambia significato (primo mese **misurato** invece del mese della valutazione), ma nessun consumatore lo legge — verificato con grep: `page.tsx` usa solo `periodEndDate`. Se un domani servisse mostrare "da → a" per una finestra rolling, ora le due date sono già coerenti con l'etichetta "12 mesi".

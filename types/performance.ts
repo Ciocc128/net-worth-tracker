@@ -105,7 +105,9 @@ export interface PerformanceMetrics {
   errorMessage?: string; // Error details if calculation failed
 }
 
-// Rolling period performance (for trend analysis)
+// Rolling period performance (for trend analysis).
+// The two dates delimit the MEASURED window and span exactly `windowMonths` months: it opens on the
+// 1st of the month after the starting valuation and closes at the last instant of the end month.
 export interface RollingPeriodPerformance {
   periodEndDate: Date;
   periodStartDate: Date;

@@ -1,0 +1,172 @@
+/**
+ * Finestre rolling 12M/36M — spec 10 fase 3 (finding A4).
+ *
+ * Le tre incoerenze che questa suite inchioda:
+ *   1. il limite superiore della finestra era il **1° del mese** a mezzanotte, e il filtro delle
+ *      spese (`date <= endDate`) buttava via l'intero ultimo mese di movimenti;
+ *   2. il TWR annualizzava su `windowMonths + 1` mesi mentre il CAGR della stessa riga usava
+ *      `windowMonths` → Sharpe rolling e CAGR rolling su basi temporali diverse;
+ *   3. i cash flow partivano dal mese dello snapshot di partenza, il cui valore li contiene già.
+ *
+ * Le serie sono costruite in modo che la risposta giusta sia **zero**: un movimento perso o contato
+ * due volte non può nascondersi dietro un arrotondamento.
+ */
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock Firebase-dependent modules to prevent initialization errors in tests
+vi.mock('@/lib/firebase/config', () => ({
+  auth: { currentUser: null },
+  db: {},
+}));
+vi.mock('@/lib/services/expenseService', () => ({}));
+vi.mock('@/lib/services/snapshotService', () => ({}));
+vi.mock('@/lib/services/assetAllocationService', () => ({}));
+
+import { calculateRollingPeriods } from '@/lib/services/performanceService';
+import type { MonthlySnapshot } from '@/types/assets';
+import type { Expense, ExpenseType } from '@/types/expenses';
+
+const USER = 'user-1';
+const RISK_FREE = 2.5;
+const WINDOW = 12;
+
+function snapshot(year: number, month: number, totalNetWorth: number): MonthlySnapshot {
+  return { year, month, totalNetWorth, isDummy: false } as MonthlySnapshot;
+}
+
+/** `count` mesi consecutivi dal (year, month) dato, con i valori forniti in ordine. */
+function series(year: number, month: number, values: number[]): MonthlySnapshot[] {
+  return values.map((value, k) => {
+    const date = new Date(year, month - 1 + k, 1);
+    return snapshot(date.getFullYear(), date.getMonth() + 1, value);
+  });
+}
+
+/** Movimento a metà mese: il giorno 15 è ciò che un limite a mezzanotte del 1° perdeva. */
+function expense(year: number, month: number, type: ExpenseType, amount: number): Expense {
+  return {
+    id: `exp-${year}-${month}-${type}-${amount}`,
+    userId: USER,
+    type,
+    categoryId: 'cat-salary',
+    categoryName: 'Stipendio',
+    amount,
+    currency: 'EUR',
+    date: new Date(year, month - 1, 15),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as Expense;
+}
+
+function rolling(snapshots: MonthlySnapshot[], expenses: Expense[] = [], windowMonths = WINDOW) {
+  return calculateRollingPeriods(USER, snapshots, windowMonths, RISK_FREE, undefined, expenses);
+}
+
+describe('calculateRollingPeriods — finestra', () => {
+  const flat = series(2025, 1, Array(13).fill(100000)); // gen 2025 → gen 2026, patrimonio fermo
+
+  it('produce una finestra per ogni snapshot oltre il primo blocco', async () => {
+    const result = await rolling(series(2025, 1, Array(15).fill(100000)));
+    expect(result.length).toBe(15 - WINDOW);
+  });
+
+  it('non produce nulla se lo storico non copre la finestra', async () => {
+    expect(await rolling(series(2025, 1, Array(WINDOW).fill(100000)))).toEqual([]);
+  });
+
+  it('le due date delimitano esattamente windowMonths mesi misurati', async () => {
+    const [window] = await rolling(flat);
+
+    // Valutazione di partenza: gen 2025 → primo mese misurato feb 2025, ultimo gen 2026.
+    expect(window.periodStartDate).toEqual(new Date(2025, 1, 1));
+    expect(window.periodEndDate).toEqual(new Date(2026, 0, 31, 23, 59, 59, 999));
+
+    const months =
+      (window.periodEndDate.getFullYear() - window.periodStartDate.getFullYear()) * 12 +
+      (window.periodEndDate.getMonth() - window.periodStartDate.getMonth()) +
+      1;
+    expect(months).toBe(WINDOW);
+  });
+});
+
+describe('calculateRollingPeriods — cash flow', () => {
+  it('include i movimenti dell ULTIMO mese della finestra (A4.1)', async () => {
+    // Patrimonio fermo a 100.000 per un anno, poi 110.000 nell ultimo mese — ma solo perché sono
+    // stati versati 10.000. Rendimento vero: zero.
+    const snapshots = series(2025, 1, [...Array(12).fill(100000), 110000]);
+    const contribution = [expense(2026, 1, 'income', 10000)];
+
+    const [window] = await rolling(snapshots, contribution);
+
+    // Con il limite a mezzanotte del 1° gennaio il versamento spariva e il CAGR diceva +10%.
+    expect(window.cagr).toBeCloseTo(0, 6);
+  });
+
+  it('esclude i movimenti del mese della valutazione di partenza (A4.3)', async () => {
+    // I 5.000 di gennaio sono già dentro il patrimonio di fine gennaio, cioè dentro il valore da
+    // cui la finestra parte: ricontarli li sottrarrebbe due volte.
+    const snapshots = series(2025, 1, Array(13).fill(100000));
+    const januaryIncome = [expense(2025, 1, 'income', 5000)];
+
+    const [window] = await rolling(snapshots, januaryIncome);
+
+    // Se entrassero, il CAGR leggerebbe 100.000 / 105.000 − 1 = −4,76%.
+    expect(window.cagr).toBeCloseTo(0, 6);
+  });
+
+  it('neutralizza un versamento a metà finestra', async () => {
+    const snapshots = series(2025, 1, [
+      ...Array(6).fill(100000),
+      ...Array(7).fill(120000), // il salto è tutto versamento
+    ]);
+    const contribution = [expense(2025, 7, 'income', 20000)];
+
+    const [window] = await rolling(snapshots, contribution);
+
+    expect(window.cagr).toBeCloseTo(0, 6);
+    expect(window.volatility!).toBeCloseTo(0, 6);
+  });
+});
+
+describe('calculateRollingPeriods — annualizzazione', () => {
+  it('TWR e CAGR annualizzano sugli STESSI mesi (A4.2)', async () => {
+    // Crescita esatta dell 1% al mese: su 12 mesi misurati entrambi devono dare 1,01¹² − 1.
+    const values = Array.from({ length: 13 }, (_, k) => 100000 * Math.pow(1.01, k));
+    const expected = (Math.pow(1.01, 12) - 1) * 100;
+
+    const [window] = await rolling(series(2025, 1, values));
+
+    // Con zero cash flow il CAGR È il TWR: stesso rapporto, stessa finestra. Lo Sharpe qui non si
+    // asserisce — i rendimenti identici danno una volatilità di ~1e-14 invece che 0 esatto (rumore
+    // in virgola mobile), la guardia `volatility === 0` non scatta e il rapporto esplode. È un
+    // artefatto solo sintetico (nessun portafoglio reale è così regolare), ma è la stessa famiglia
+    // di casi degeneri che la fase 5 deve chiudere richiedendo abbastanza osservazioni.
+    expect(window.cagr).toBeCloseTo(expected, 6);
+    expect(window.volatility!).toBeCloseTo(0, 6);
+  });
+
+  it('lo Sharpe rolling usa il TWR annualizzato sulla finestra, non su un mese in più', async () => {
+    // Un mese negativo dà volatilità non nulla, così lo Sharpe esiste e si può ricostruire a mano:
+    // (TWR − risk free) / volatilità, con TWR annualizzato su 12 mesi.
+    const values = [
+      100000, 101000, 102010, 103030, 104060, 105101,
+      99000, 100000, 101000, 102010, 103030, 104060, 105101,
+    ];
+    const [window] = await rolling(series(2025, 1, values));
+
+    const linked = values[12] / values[0]; // nessun cash flow → il concatenamento è il rapporto
+    const twr = (Math.pow(linked, 12 / WINDOW) - 1) * 100;
+
+    expect(window.sharpeRatio!).toBeCloseTo((twr - RISK_FREE) / window.volatility!, 6);
+    // Con l annualizzazione su 13 mesi lo Sharpe usciva più basso: stessa finestra, due basi.
+    expect(window.cagr).toBeCloseTo(twr, 6);
+  });
+
+  it('funziona identicamente sulla finestra a 36 mesi', async () => {
+    const values = Array.from({ length: 37 }, (_, k) => 100000 * Math.pow(1.01, k));
+    const [window] = await rolling(series(2023, 1, values), [], 36);
+
+    expect(window.periodStartDate).toEqual(new Date(2023, 1, 1));
+    expect(window.cagr).toBeCloseTo((Math.pow(1.01, 12) - 1) * 100, 6);
+  });
+});

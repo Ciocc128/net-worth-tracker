@@ -20,6 +20,24 @@ export function toDate(date: Date | Timestamp | string | undefined | null): Date
 }
 
 /**
+ * Last instant of a calendar month, in local time.
+ *
+ * Day 0 of the following month IS the last day of this one — the Date constructor rolls it back,
+ * December included, without anyone having to know how many days February has this year.
+ *
+ * Use it for every INCLUSIVE upper bound on a month. A range filter reads `date <= endDate`, so a
+ * bound left at midnight silently drops everything recorded later that day — in practice the whole
+ * closing month of the window, which is exactly how the rolling performance periods used to lose a
+ * month of expenses while the main period metrics (which already used this bound) kept it.
+ *
+ * @param year - Full year
+ * @param month - Month, 1-based (1 = January)
+ */
+export function endOfMonthBound(year: number, month: number): Date {
+  return new Date(year, month, 0, 23, 59, 59, 999);
+}
+
+/**
  * Get date converted to Italy timezone (Europe/Rome)
  * Ensures consistent month/year extraction across client and server
  */
