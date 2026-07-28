@@ -550,48 +550,111 @@ describe('calculateTimeWeightedReturn', () => {
 // ─── IRR (Money-Weighted Return) ───
 
 describe('calculateIRR', () => {
+  // Il periodo misurato parte a gennaio 2025: un flusso di gennaio sta a t=0, uno di luglio a t=6.
+  const PERIOD_START = new Date(2025, 0, 1)
+
   it('should return null when numberOfMonths < 1', () => {
-    expect(calculateIRR(100000, 110000, [], 0)).toBeNull()
+    expect(calculateIRR(100000, 110000, [], 0, PERIOD_START)).toBeNull()
   })
 
   it('should return null when startNW is 0', () => {
-    expect(calculateIRR(0, 110000, [], 12)).toBeNull()
+    expect(calculateIRR(0, 110000, [], 12, PERIOD_START)).toBeNull()
   })
 
   it('should calculate ~10% for 12-month 10% gain with no cashflows', () => {
     // -100000 at t=0, +110000 at t=12 months → IRR = 10%
-    const result = calculateIRR(100000, 110000, [], 12)
+    const result = calculateIRR(100000, 110000, [], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(10, 0)
+    expect(result!).toBeCloseTo(10, 6)
   })
 
   it('should calculate negative IRR for a loss', () => {
     // -100000 at t=0, +90000 at t=12 months → IRR = -10%
-    const result = calculateIRR(100000, 90000, [], 12)
+    const result = calculateIRR(100000, 90000, [], 12, PERIOD_START)
     expect(result).not.toBeNull()
-    expect(result!).toBeCloseTo(-10, 0)
+    expect(result!).toBeCloseTo(-10, 6)
   })
 
-  it('should differ from CAGR when cashflows exist mid-period', () => {
-    // With a contribution early in the period, IRR gives the investor's actual return
-    // which accounts for when money was actually deployed
-    const cashFlows: CashFlowData[] = [
-      {
-        date: new Date(2025, 0, 1), // Jan (month 1 from start)
-        income: 10000,
-        expenses: 0,
-        dividendIncome: 0,
-        netCashFlow: 10000,
-      },
-    ]
-    // start=100K, contributed 10K at month 1, end=121K over 12 months
-    const irr = calculateIRR(100000, 121000, cashFlows, 12)
+  it('treats a contribution as money PAID IN, not received (sign regression)', () => {
+    // Il patrimonio sale da 100.000 a 110.000, ma i 10.000 sono stati versati: il rendimento per
+    // l investitore è esattamente zero. NPV = −100.000 − 10.000 + 110.000/(1+r) = 0 → r = 0.
+    // Contando il versamento con segno positivo (come faceva prima) l equazione diventa
+    // −100.000 + 10.000/(1+r)^(1/12) + 110.000/(1+r) = 0, la cui radice è +22,00%.
+    const result = calculateIRR(100000, 110000, [makeCashFlow(2025, 1, 10000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(0, 6)
+  })
+
+  it('discounts a mid-period contribution over the time it was actually invested', () => {
+    // −100.000 a t=0, −10.000 a t=6 mesi, +121.000 a t=12. Con x = 1+r la NPV si riduce a
+    // 100.000x + 10.000√x − 121.000 = 0, cioè 100s² + 10s − 121 = 0 con s = √x:
+    // s = (−10 + √48.500)/200 → x = s² → r = 10,488642%. Verificato in forma chiusa, a mano.
+    const result = calculateIRR(100000, 121000, [makeCashFlow(2025, 7, 10000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(10.488642, 5)
+  })
+
+  it('treats a withdrawal as money taken out', () => {
+    // 100.000 → 90.000 dopo aver prelevato 10.000: nessuna perdita, rendimento zero.
+    const result = calculateIRR(100000, 90000, [makeCashFlow(2025, 1, -10000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(0, 6)
+  })
+
+  it('anchors the timeline at the period start, not at the first month with movements', () => {
+    // Stesso versamento, stesso risultato finale, momenti diversi: versare PRIMA significa tenere
+    // il capitale investito più a lungo per lo stesso guadagno, quindi un IRR più basso. Con la
+    // vecchia ancora (primo mese CON movimenti) entrambi finivano allo stesso t e i due casi
+    // davano lo stesso numero.
+    const early = calculateIRR(100000, 121000, [makeCashFlow(2025, 2, 10000)], 12, PERIOD_START)
+    const late = calculateIRR(100000, 121000, [makeCashFlow(2025, 11, 10000)], 12, PERIOD_START)
+
+    expect(early).not.toBeNull()
+    expect(late).not.toBeNull()
+    expect(early!).toBeLessThan(late!)
+  })
+
+  it('ignores flows dated outside the measured window', () => {
+    // Un flusso prima dell inizio o dopo la fine verrebbe scontato su un tempo che non ha passato
+    // investito. I chiamanti filtrano già sulla stessa finestra: questa è una guardia.
+    const withStrays = calculateIRR(
+      100000,
+      110000,
+      [makeCashFlow(2024, 6, 50000), makeCashFlow(2026, 6, 50000)],
+      12,
+      PERIOD_START
+    )
+    expect(withStrays!).toBeCloseTo(10, 6)
+  })
+
+  it('converges on a collapse that Newton alone would struggle with (bisection fallback)', () => {
+    // Prelevati 95.000 su 100.000, ne restano 1.000: −100.000 + 95.000 + 1.000/(1+r) = 0 → r = −80%.
+    const result = calculateIRR(100000, 1000, [makeCashFlow(2025, 1, -95000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(-80, 6)
+  })
+
+  it('reaches an extreme but well-defined rate instead of giving up', () => {
+    // Versato un milione su 100.000, ne restano 1.000: −1.100.000 + 1.000/(1+r) = 0 → r = −99,909%.
+    // È un numero estremo ma vero, e vive dove Newton (che parte dal +10%) fatica ad arrivare.
+    const result = calculateIRR(100000, 1000, [makeCashFlow(2025, 1, 1000000)], 12, PERIOD_START)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(-99.909091, 5)
+  })
+
+  it('returns null when no rate can explain the stream', () => {
+    // Patrimonio finale zero: la NPV resta negativa a ogni tasso (il limite sarebbe −100%, che non
+    // è raggiungibile). Meglio nessuna risposta che una inventata.
+    const result = calculateIRR(100000, 0, [], 12, PERIOD_START)
+    expect(result).toBeNull()
+  })
+
+  it('differs from CAGR when the contribution lands mid-period', () => {
+    // CAGR mette tutti i flussi a t=0 per definizione (formula diversa, non un bug: vedi A8);
+    // l IRR li sconta quando sono avvenuti, quindi sopra un versamento tardivo i due divergono.
+    const irr = calculateIRR(100000, 121000, [makeCashFlow(2025, 7, 10000)], 12, PERIOD_START)
     const cagr = calculateCAGR(100000, 121000, 10000, 12)
-    expect(irr).not.toBeNull()
-    expect(cagr).not.toBeNull()
-    // Both should be non-null and in a reasonable range, but they differ
-    // because IRR accounts for the timing of the 10K contribution
-    expect(irr!).not.toBeCloseTo(cagr!, 1)
+    expect(irr!).toBeGreaterThan(cagr!)
   })
 })
 
@@ -959,8 +1022,8 @@ describe('buildCacheKey', () => {
     // l'utente continua a leggere numeri pre-fix per 6 ore. Il test è qui perché il bump è manuale
     // e va ricordato — se questa asserzione fallisce dopo un cambio di matematica, è corretto
     // aggiornarla; se fallisce senza, qualcuno ha rotto il prefisso.
-    expect(buildCacheKey(baseline).startsWith('v3-')).toBe(true)
-    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v3-')).toBe(true)
+    expect(buildCacheKey(baseline).startsWith('v4-')).toBe(true)
+    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v4-')).toBe(true)
   })
 
   it('ignores the order snapshots arrive in', () => {

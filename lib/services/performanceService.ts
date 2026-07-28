@@ -43,9 +43,10 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  *
  * WARNING (checklist comment): bump on ANY change that alters what the pipeline computes from
  * unchanged inputs, and only then. History: v2 = baseline data-driven + first-month cash flows +
- * TWR annualization (spec 10 phase 1); v3 = rolling windows (spec 10 phase 3).
+ * TWR annualization (spec 10 phase 1); v3 = rolling windows (spec 10 phase 3); v4 = IRR signs and
+ * timeline (spec 10 phase 4).
  */
-const CACHE_MATH_VERSION = 'v3';
+const CACHE_MATH_VERSION = 'v4';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -200,7 +201,7 @@ export function calculateTimeWeightedReturn(
     const lastSnap = snapshots[snapshots.length - 1];
     const periodStart = new Date(firstSnap.year, firstSnap.month - 1, 1);
     const periodEnd = endOfMonthBound(lastSnap.year, lastSnap.month);
-    totalMonths = calculateMonthsDifference(periodEnd, periodStart) - 1;
+    totalMonths = monthsElapsed(periodStart, periodEnd);
   }
   if (totalMonths <= 0) return null;
 
@@ -210,78 +211,142 @@ export function calculateTimeWeightedReturn(
   return isFinite(annualizedTWR) ? annualizedTWR : null;
 }
 
+/** One dated amount of the investor's cash flow stream, in months from the start of the period. */
+interface DatedFlow {
+  amount: number;
+  monthsFromStart: number;
+}
+
+/** Lowest rate the solver explores: −99,99%, i.e. everything lost bar a rounding crumb. */
+const IRR_MIN_RATE = -0.9999;
+/** Highest rate the solver explores: +100000% a year. Beyond this the answer is not a return. */
+const IRR_MAX_RATE = 1000;
+
+/** Net present value of the stream at a given annual rate. */
+function computeNpv(flows: DatedFlow[], rate: number): number {
+  return flows.reduce(
+    (npv, flow) => npv + flow.amount * Math.pow(1 + rate, -flow.monthsFromStart / 12),
+    0
+  );
+}
+
 /**
- * Calculate Money-Weighted Return (IRR) using Newton-Raphson method
+ * Bracketed fallback: halve an interval that is known to contain a root until it collapses onto it.
  *
- * IRR is the discount rate that makes NPV = 0:
- * NPV = -Start NW + CF1/(1+r)^t1 + CF2/(1+r)^t2 + ... + (End NW)/(1+r)^tn
+ * Teacher note — bisection cannot diverge, which is exactly what Newton-Raphson can do: Newton
+ * follows the tangent, and on a curve as steep as an NPV near −100% a single step can jump past the
+ * root and never come back. The price is speed (one bit of precision per iteration), irrelevant for
+ * a handful of flows. It needs the root bracketed first: NPV must have OPPOSITE signs at the two
+ * ends, which for a normal portfolio stream it does — money in first, value out at the end, so NPV
+ * falls monotonically from a large positive at the floor rate to a negative at the ceiling.
  *
- * @param startNW - Starting net worth (treated as negative cash flow at t=0)
- * @param endNW - Ending net worth (positive cash flow at t=end)
- * @param cashFlows - Cash flows during the period
+ * @returns The rate where NPV crosses zero, or null when the bracket holds no crossing (no rate can
+ *   explain this stream — e.g. contributions that exceed the final value at every discount rate)
+ */
+function solveIrrByBisection(flows: DatedFlow[]): number | null {
+  let low = IRR_MIN_RATE;
+  let high = IRR_MAX_RATE;
+  const npvLow = computeNpv(flows, low);
+  const npvHigh = computeNpv(flows, high);
+
+  if (!isFinite(npvLow) || !isFinite(npvHigh)) return null;
+  if (npvLow === 0) return low;
+  if (npvHigh === 0) return high;
+  if (npvLow > 0 === npvHigh > 0) return null; // same sign at both ends: no crossing to find
+
+  const lowIsPositive = npvLow > 0;
+  // 200 halvings take the interval below any float precision this ever needs.
+  for (let i = 0; i < 200; i++) {
+    const mid = (low + high) / 2;
+    const npvMid = computeNpv(flows, mid);
+    if (npvMid === 0) return mid;
+    if (npvMid > 0 === lowIsPositive) low = mid;
+    else high = mid;
+  }
+
+  return (low + high) / 2;
+}
+
+/**
+ * Calculate Money-Weighted Return (IRR)
+ *
+ * IRR is the annual rate that makes the investor's whole cash flow stream break even — the discount
+ * rate where NPV = 0:
+ *   NPV = −startNW − Σ contribution_i/(1+r)^t_i + endNW/(1+r)^T
+ *
+ * SIGNS: money INTO the portfolio is an outflow for the investor and enters negative — the starting
+ * value and every contribution alike; money out (the final value, and withdrawals, which arrive as a
+ * negative netCashFlow and therefore flip positive) is an inflow. Adding contributions with a plus
+ * sign, as this function used to, asks a different question entirely: it treats money paid in as
+ * money received, which inflates the answer (a contribution that exactly funds the growth read as
+ * +22% a year instead of 0%) and can leave the equation with no root at all, which surfaced as a
+ * blank card.
+ *
+ * TIMELINE: t = 0 is the start of the period, where the starting valuation sits — NOT the first
+ * month that happens to have movements, which is what the previous anchor used and which pulled
+ * every flow forward whenever the early months were quiet. Month distances are counted as elapsed
+ * months, so a flow in the first month of the period sits at t = 0 alongside the starting value, and
+ * the final value sits at t = numberOfMonths.
+ *
+ * WHY IT DIFFERS FROM TWR: TWR neutralises cash flows to judge the strategy; IRR keeps them to judge
+ * the outcome for this investor. Paying in right before a rally makes IRR beat TWR, and vice versa.
+ *
+ * @param startNW - Starting net worth (outflow at t=0)
+ * @param endNW - Ending net worth (inflow at t=numberOfMonths)
+ * @param cashFlows - Monthly net cash flows during the period (positive = paid in)
  * @param numberOfMonths - Duration in months
- * @returns Annualized IRR percentage or null if calculation fails
+ * @param periodStart - First day of the first MEASURED month; the anchor for every flow's date
+ * @returns Annualized IRR percentage, or null when no rate can explain the stream
  */
 export function calculateIRR(
   startNW: number,
   endNW: number,
   cashFlows: CashFlowData[],
-  numberOfMonths: number
+  numberOfMonths: number,
+  periodStart: Date
 ): number | null {
   if (numberOfMonths < 1 || startNW === 0) return null;
 
-  // Build cash flow array with dates
-  const cfArray: { amount: number; monthsFromStart: number }[] = [];
+  const flows: DatedFlow[] = [{ amount: -startNW, monthsFromStart: 0 }];
 
-  // Starting value (negative outflow)
-  cfArray.push({ amount: -startNW, monthsFromStart: 0 });
+  for (const cf of cashFlows) {
+    const monthsFromStart = monthsElapsed(periodStart, cf.date);
+    // A flow dated outside the measured window would be discounted over a time it did not spend
+    // invested; the callers already filter by the same window, so this is a guard, not a policy.
+    if (monthsFromStart < 0 || monthsFromStart > numberOfMonths) continue;
+    flows.push({ amount: -cf.netCashFlow, monthsFromStart });
+  }
 
-  // Find the start date (first cash flow date or approximate from snapshots)
-  const startDate = cashFlows.length > 0 ? cashFlows[0].date : new Date();
+  flows.push({ amount: endNW, monthsFromStart: numberOfMonths });
 
-  // Intermediate cash flows
-  cashFlows.forEach(cf => {
-    const monthsFromStart = calculateMonthsDifference(cf.date, startDate);
-    cfArray.push({ amount: cf.netCashFlow, monthsFromStart });
-  });
-
-  // Ending value (positive inflow)
-  cfArray.push({ amount: endNW, monthsFromStart: numberOfMonths });
-
-  // Newton-Raphson iterative solver
-  // This numerical method finds the rate where NPV = 0 by iteratively refining an initial guess.
-  // Each iteration calculates NPV and its derivative at the current rate, then updates:
-  // new_rate = old_rate - (NPV / derivative)
-  // Convergence is achieved when |NPV| < tolerance
+  // Newton-Raphson first: it converges in a handful of iterations when it converges at all.
+  // Each step follows the tangent to where it crosses zero: r ← r − NPV(r)/NPV'(r).
   let rate = 0.1; // Initial guess: 10%
   const maxIterations = 100;
-  const tolerance = 1e-6;
+  const tolerance = 1e-9;
 
   for (let i = 0; i < maxIterations; i++) {
     let npv = 0;
     let derivative = 0;
 
-    cfArray.forEach(cf => {
-      const years = cf.monthsFromStart / 12;
+    for (const flow of flows) {
+      const years = flow.monthsFromStart / 12;
       const discountFactor = Math.pow(1 + rate, -years);
-      npv += cf.amount * discountFactor;
-      derivative -= cf.amount * years * discountFactor / (1 + rate);
-    });
-
-    if (Math.abs(npv) < tolerance) {
-      return rate * 100; // Convert to percentage
+      npv += flow.amount * discountFactor;
+      derivative -= (flow.amount * years * discountFactor) / (1 + rate);
     }
 
-    if (derivative === 0) break; // Avoid division by zero
+    if (Math.abs(npv) < tolerance) return rate * 100;
+    if (derivative === 0 || !isFinite(derivative)) break;
 
-    rate -= npv / derivative; // Newton-Raphson update
-
-    // Prevent extremely negative rates (< -99%) which are unrealistic for portfolio returns
-    // and can cause numerical instability in the next iteration
-    if (rate < -0.99) rate = -0.99;
+    const nextRate = rate - npv / derivative;
+    if (!isFinite(nextRate) || nextRate <= IRR_MIN_RATE || nextRate >= IRR_MAX_RATE) break;
+    rate = nextRate;
   }
 
-  return null; // Failed to converge
+  // Newton wandered off (or crawled): fall back to the solver that cannot.
+  const bracketed = solveIrrByBisection(flows);
+  return bracketed === null ? null : bracketed * 100;
 }
 
 /**
@@ -607,7 +672,22 @@ export function calculateCurrentYieldMetrics(
 }
 
 /**
- * Calculate number of months between two dates (inclusive)
+ * Whole months elapsed from one date to another — month boundaries crossed, days ignored.
+ *
+ * The measure of DISTANCE between two months: Jan → Mar is 2. Use it whenever the question is
+ * "how long", as opposed to "how many months does this range cover" (that is
+ * `calculateMonthsDifference`, which counts both ends). Mixing the two is a systematic off-by-one.
+ *
+ * @param from - Earlier date
+ * @param to - Later date
+ * @returns Months from `from` to `to`; negative when `to` precedes `from`
+ */
+function monthsElapsed(from: Date, to: Date): number {
+  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+}
+
+/**
+ * Calculate number of months a range COVERS, both ends included
  *
  * @param date1 - End date
  * @param date2 - Start date
@@ -617,9 +697,7 @@ export function calculateCurrentYieldMetrics(
  * calculateMonthsDifference(new Date(2025, 11), new Date(2025, 0)) // 12 months (Jan to Dec inclusive)
  */
 function calculateMonthsDifference(date1: Date, date2: Date): number {
-  const years = date1.getFullYear() - date2.getFullYear();
-  const months = date1.getMonth() - date2.getMonth();
-  return years * 12 + months + 1; // +1 to include both start and end month
+  return monthsElapsed(date2, date1) + 1; // +1 to include both start and end month
 }
 
 /**
@@ -1047,11 +1125,14 @@ export async function calculatePerformanceForPeriod(
     numberOfMonths
   );
 
+  // startDate anchors the timeline: it is where -startNW sits, so every flow is discounted over the
+  // time it was actually invested — not over its distance from the first month that had movements.
   const moneyWeightedReturn = calculateIRR(
     startSnapshot.totalNetWorth,
     endSnapshot.totalNetWorth,
     cashFlows,
-    numberOfMonths
+    numberOfMonths,
+    startDate
   );
 
   const volatility = calculateVolatility(sortedSnapshots, cashFlows);

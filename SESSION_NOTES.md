@@ -44,7 +44,7 @@ Sessione di **sola analisi e documentazione**: nessun file di codice modificato.
 - [x] Implementazione spec 8 (aliquota) — 2026-07-27, branch `fix/asset-tax-rate-restore`
 - [x] Implementazione spec 9 (etichette) — 2026-07-28, branch `fix/asset-chart-labels`
 - [x] Implementazione spec 6 (classe asset) — 2026-07-28, branch `feature/asset-class-selection`
-- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fasi 1, 2 e 3 fatte** (2026-07-28, branch `fix/performance-calculations-phase-{1,2,3}`; 1 e 2 già in `fix/session-bugfixes`); fasi 4→5 da fare
+- [ ] Implementazione spec 10 (Rendimenti, fasi 1→5) — **fasi 1-4 fatte** (2026-07-28, branch `fix/performance-calculations-phase-{1,2,3,4}`; 1-3 già in `fix/session-bugfixes`); fase 5 da fare
 
 Aggiornare questo file al termine di ogni implementazione (i prompt nelle spec lo richiedono).
 
@@ -276,3 +276,34 @@ Branch `fix/performance-calculations-phase-3` (da `fix/session-bugfixes`, che co
 - un test lo inchioda (`buildCacheKey(...).startsWith('v3-')`), perché il bump è manuale e va ricordato: se fallisce dopo un cambio di matematica è giusto aggiornarlo, se fallisce senza qualcuno ha rotto il prefisso.
 
 Lezione trasversale per le fasi 4 e 5: **ogni fase che cambia i numeri deve bumpare `CACHE_MATH_VERSION`**, e la verifica manuale va fatta premendo **Aggiorna** almeno una volta (bypassa la cache) prima di concludere che "non è cambiato niente".
+
+## Implementazione spec 10 — FASE 4: IRR (Money-Weighted Return) — 2026-07-28
+
+Branch `fix/performance-calculations-phase-4` (da `fix/session-bugfixes`, che contiene le fasi 1-3). Finding coperto: **A5**, più un **errore di segno** trovato durante l'implementazione (vedi sotto).
+
+**Cosa è stato fatto** (`lib/services/performanceService.ts`):
+
+1. **Segno dei versamenti — bug non previsto dalla spec, ma necessario**. I flussi intermedi entravano nell'equazione con `+cf.netCashFlow`: un versamento veniva trattato come denaro *incassato* dall'investitore invece che *versato*. L'IRR si definisce sul flusso di cassa dell'investitore — capitale iniziale e versamenti sono uscite (negativi), valore finale e prelievi sono entrate — quindi l'equazione risolta era un'altra domanda. Effetto misurato sul caso più semplice: patrimonio da 100.000 a 110.000 dove i 10.000 sono interamente versati (rendimento vero **0%**) restituiva **+22,00%**. Non era opzionale correggerlo: il test richiesto dalla spec ("casi a soluzione nota, IRR verificato a mano") non può passare col segno sbagliato. È anche la spiegazione più probabile dei `null` che la spec attribuiva al solver: con abbastanza versamenti positivi la NPV non ha radice e Newton non poteva che fallire.
+2. **A5 — ancora della timeline**: era `cashFlows[0].date`, il primo mese **con movimenti**. Se i primi mesi del periodo erano tranquilli, tutti i flussi risultavano anticipati rispetto a `−startNW` (t=0) e a `endNW` (t=`numberOfMonths`). Ora l'ancora è `periodStart`, passata dal chiamante: è dove sta il capitale iniziale, quindi ogni flusso è scontato sul tempo che ha davvero passato investito.
+3. **A5 — differenza mesi non inclusiva**: `calculateMonthsDifference` conta entrambi gli estremi (Gen→Gen = 1), quindi ogni flusso era spostato in avanti di un mese. Introdotta `monthsElapsed(from, to)` — la **distanza** fra due mesi, Gen→Mar = 2 — e `calculateMonthsDifference` è ora definita come `monthsElapsed + 1`: due nomi per due domande diverse ("quanto dista" vs "quanti mesi copre"), invece di una funzione sola usata per entrambe. Il ramo `else` del TWR, che scriveva `calculateMonthsDifference(...) - 1`, ora dice `monthsElapsed(...)`: stesso calcolo, intenzione leggibile.
+4. **Solver con fallback a bisezione** (opzione raccomandata dalla spec): Newton-Raphson resta il primo tentativo perché converge in poche iterazioni, ma se diverge, esce dall'intervallo ammesso o non converge in 100 giri, si passa alla bisezione su [−99,99%, +100000%]. La bisezione non può divergere (dimezza un intervallo che contiene già la radice) e paga solo in velocità, irrilevante su una manciata di flussi. Risultato: `null` non è più il modo in cui il calcolo si arrende, ma solo la risposta onesta quando **nessun tasso** può spiegare i flussi (patrimonio finale zero: il limite sarebbe −100%, non raggiungibile).
+5. **Guardia sui flussi fuori finestra**: un flusso datato prima dell'inizio o dopo la fine verrebbe scontato su un tempo che non ha passato investito. I chiamanti filtrano già sulla stessa finestra, quindi è una guardia e non una politica.
+6. **`CACHE_MATH_VERSION` → `v4`**: l'IRR cambia a input invariati (lezione della fase 3, ora con un test che lo ricorda).
+
+**Gate**: `npx tsc --noEmit` pulito. `npx vitest run` **78 file / 1384 test** (8 nuovi/riscritti sull'IRR). `npm run build` ok.
+
+**Test** (`__tests__/performanceService.test.ts`, describe `calculateIRR` riscritto — i 5 preesistenti passavano `numberOfMonths` senza ancora e non potevano vedere nessuno dei tre errori): versamento che finanzia esattamente la crescita → **0%** (col segno vecchio: +22%); versamento a metà periodo → **10,488642%**, verificato in forma chiusa risolvendo `100s² + 10s − 121 = 0` con `s = √(1+r)`, non leggendo il risultato dall'implementazione; prelievo → 0%; stesso versamento prima o dopo → l'anticipato dà IRR più basso (stesso guadagno, capitale investito più a lungo); crollo estremo → −99,909%, dove Newton da solo fatica; patrimonio finale zero → `null`; flussi fuori finestra ignorati; IRR ≠ CAGR con versamento tardivo (formule diverse per scelta, vedi A8).
+
+**QUALI numeri cambiano**: **solo la card "Money-Weighted Return (IRR)"**, su tutti i periodi. Nient'altro nella pipeline usa `calculateIRR`.
+- **Direzione attesa: in discesa, anche di molto.** Con versamenti mensili regolari, il segno sbagliato li contava come incassi e gonfiava sistematicamente l'IRR. Dopo il fix l'IRR deve tornare nello stesso ordine di grandezza di TWR e CAGR, discostandosene solo per il *timing* dei versamenti (versare prima di una salita alza l'IRR sopra il TWR, versare prima di un calo lo abbassa).
+- Se prima la card mostrava "—" su qualche periodo, ora dovrebbe mostrare un numero: quel `null` era il solver che si arrendeva su un'equazione senza radice.
+
+**Come verificarlo a mano sui dati reali**:
+1. Premi **Aggiorna** su Rendimenti (il bump `v4` invalida comunque la cache, il pulsante evita l'attesa) e confronta la card IRR con quella deployata: deve **scendere** e avvicinarsi al TWR.
+2. **Test di plausibilità**: IRR e TWR devono ora raccontare la stessa storia. Se l'IRR resta molto sopra il TWR pur avendo versato regolarmente, qualcosa non torna e va segnalato.
+3. **Controllo del segno del timing**: su un periodo in cui hai versato molto poco prima di una salita (es. i mesi attorno al minimo di 04/25), l'IRR deve essere **superiore** al TWR; su un periodo in cui hai versato prima di un calo, inferiore.
+4. Confronta i periodi fra loro: nessuno dovrebbe mostrare "—" salvo storici troppo corti (meno di 2 snapshot).
+
+- **Cosa**: l'IRR ora risolve l'equazione giusta — versamenti col segno di un'uscita, timeline ancorata all'inizio del periodo, distanze in mesi trascorsi e non inclusive — e converge con un fallback a bisezione invece di restituire `null` quando Newton si perde.
+- **Perché**: il segno invertito trasformava ogni versamento in un incasso e gonfiava il rendimento personale (fino a +22% su un caso il cui rendimento vero è 0%); l'ancora sul primo mese con movimenti e il conteggio inclusivo spostavano ogni flusso nel tempo, entrambi nella direzione di sottostimare l'IRR quando si versa.
+- **Nota**: il segno non era nella diagnosi della spec (A5 parlava solo di ancora e shift). L'ho trovato scrivendo il primo caso a soluzione nota richiesto dalla fase: un test che verifica un valore calcolato a mano non può passare con l'equazione sbagliata, quindi correggerlo era dentro lo scope della fase, non un'estensione. Non ho toccato la copy della card (`page.tsx`): la spec la offriva come **alternativa** alla bisezione ("altrimenti `null` resta, ma la card spiega..."), e con la bisezione implementata il `null` residuo è un caso di frontiera vero. Se lo si vuole comunque spiegare in UI, è un intervento da fase 5.
