@@ -32,6 +32,7 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed PDF "Export Totale" including every cashflow entry ever recorded on the Cashflow section, ignoring your "Anno inizio storico cashflow" setting. It now excludes bulk-imported older data below your configured start year, matching what the live Cashflow and Storico pages already show. Net worth history, Performance, and FIRE sections in the PDF are unaffected, since they don't use this setting either.
 - Fixed the "Total Return per Asset" table on Dividends excluding fully-sold investments entirely and describing every gain as "unrealized" — it now uses your real buy/sell history for tracked investments, so fully-sold positions (marked "Chiusa") and partial sells show an accurate, correctly-labeled capital-gain figure instead.
 - Fixed the dividend-return figure on that same table for tracked investments with more than one purchase at a different price — it now credits each dividend against the cost basis that was actually in effect when it was paid, instead of a single average across your whole holding period.
 - Fixed the Previdenza tax-benefit estimate for accounts tracking more than one person's pension fund (e.g. both spouses): contributions from every fund were being summed against a single income, understating the deduction for each person. The tax benefit is now calculated once per family member, using their own income and contributions.
