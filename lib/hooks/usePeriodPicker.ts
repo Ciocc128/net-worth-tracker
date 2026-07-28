@@ -188,7 +188,3 @@ export function usePeriodPicker({
     handleToTextChange,
   };
 }
-
-// Re-export so consumers can import everything from the hook file if needed
-export type { Period } from '@/lib/utils/period';
-export { currentMonthPeriod, MONTH_NAMES_SHORT } from '@/lib/utils/period';
