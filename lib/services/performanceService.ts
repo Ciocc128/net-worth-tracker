@@ -34,6 +34,19 @@ import {
 
 const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
 
+/**
+ * Version token of the cached MATH, prefixed to every cache key.
+ *
+ * The rest of the key fingerprints the inputs; this covers the one thing no input signature can see —
+ * a change to the formulas themselves, which rewrites the numbers while snapshots and settings stay
+ * byte-identical. Without a bump the user keeps reading pre-fix figures until the 6h TTL expires.
+ *
+ * WARNING (checklist comment): bump on ANY change that alters what the pipeline computes from
+ * unchanged inputs, and only then. History: v2 = baseline data-driven + first-month cash flows +
+ * TWR annualization (spec 10 phase 1); v3 = rolling windows (spec 10 phase 3).
+ */
+const CACHE_MATH_VERSION = 'v3';
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -1263,8 +1276,8 @@ function hashSnapshotSeries(snapshots: MonthlySnapshot[]): string {
  *  - the risk-free rate, which moves every Sharpe ratio and the hero verdict built on it;
  *  - the dividend income category, which decides what counts as a contribution instead of a
  *    portfolio return — it reclassifies cash flows, so it changes ROI, CAGR, TWR and IRR too;
- *  - the `v2` version token, a manual one-off for when the MATH changes but the inputs do not (it
- *    was introduced by the baseline fix, spec 10 phase 1). Bump it in that case, and only then.
+ *  - `CACHE_MATH_VERSION`, the manual lever for when the MATH changes but the inputs do not — the
+ *    only case no input signature can detect. See its declaration for when to bump it.
  *
  * WHAT STALE COSTS: nothing is corrupted — the payload is only ever a recomputable projection of
  * Firestore data, and the 6h TTL in `getAllPerformanceData` bounds any miss of this list. The user
@@ -1287,14 +1300,14 @@ export function buildCacheKey(inputs: {
   const baseSignature = `p${baseOptions.includePensionFunds ? 1 : 0}e${baseOptions.includeExcludedAssets ? 1 : 0}`;
   const settingsSignature = `r${riskFreeRate}d${dividendCategoryId ?? 'none'}`;
 
-  if (snapshots.length === 0) return `v2-0-${baseSignature}-${settingsSignature}`;
+  if (snapshots.length === 0) return `${CACHE_MATH_VERSION}-0-${baseSignature}-${settingsSignature}`;
 
   const last = snapshots.reduce((latest, s) =>
     s.year !== latest.year ? (s.year > latest.year ? s : latest) : s.month > latest.month ? s : latest
   );
 
   return [
-    'v2',
+    CACHE_MATH_VERSION,
     snapshots.length,
     `${last.year}-${last.month}`,
     Math.round(last.totalNetWorth),

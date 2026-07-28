@@ -954,6 +954,15 @@ describe('buildCacheKey', () => {
     expect(buildCacheKey(baseline)).toBe(buildCacheKey({ ...baseline }))
   })
 
+  it('carries the math version, so a formula change can invalidate what inputs cannot', () => {
+    // Nessuna firma degli input può accorgersi che sono cambiate le FORMULE: senza questo token
+    // l'utente continua a leggere numeri pre-fix per 6 ore. Il test è qui perché il bump è manuale
+    // e va ricordato — se questa asserzione fallisce dopo un cambio di matematica, è corretto
+    // aggiornarla; se fallisce senza, qualcuno ha rotto il prefisso.
+    expect(buildCacheKey(baseline).startsWith('v3-')).toBe(true)
+    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v3-')).toBe(true)
+  })
+
   it('ignores the order snapshots arrive in', () => {
     // La stessa storia descritta in un altro ordine è la stessa storia.
     const shuffled = [snapshots[2], snapshots[0], snapshots[1]]
