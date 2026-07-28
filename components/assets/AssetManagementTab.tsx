@@ -38,6 +38,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { formatAssetClassName } from '@/lib/utils/assetUtils';
+import { resolveDisplayAssetClass } from '@/lib/utils/assetDisplayClass';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { requiresManualPricing } from '@/lib/utils/assetPricing';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
@@ -325,7 +326,9 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
           cmp = a.name.localeCompare(b.name, 'it');
           break;
         case 'class':
-          cmp = a.assetClass.localeCompare(b.assetClass, 'it');
+          // Display class (composition-prevalent for a fund like pensionFund), not the raw
+          // field — matches what the "Classe" column actually shows (see the badge below).
+          cmp = resolveDisplayAssetClass(a).localeCompare(resolveDisplayAssetClass(b), 'it');
           break;
       }
       return sortState.dir === 'asc' ? cmp : -cmp;
@@ -361,7 +364,9 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
     if (!groupByClass) return null;
     const map = new Map<string, Asset[]>();
     for (const asset of sortedAssets) {
-      const key = asset.assetClass;
+      // Display class, not the raw field — a pensionFund groups under its composition-prevalent
+      // class (e.g. "Obbligazioni"), matching the badge shown in each row/card.
+      const key = resolveDisplayAssetClass(asset);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(asset);
     }
@@ -653,7 +658,10 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                       const renderAssetRow = (asset: Asset) => {
                         const value = calculateAssetValue(asset);
                         const isManualPrice = requiresManualPricing(asset);
-                        const assetClassCssVar = getAssetClassCssVar(asset.assetClass);
+                        // Display class (composition-prevalent), not the raw field — see
+                        // lib/utils/assetDisplayClass.ts. Never rewrites asset.assetClass itself.
+                        const displayAssetClass = resolveDisplayAssetClass(asset);
+                        const assetClassCssVar = getAssetClassCssVar(displayAssetClass);
                         const isPending = pendingDeleteId === asset.id;
                         const perf = assetPerformanceData[asset.id];
                         return (
@@ -694,7 +702,7 @@ export function AssetManagementTab({ assets, allAssets, loading, onRefresh, snap
                                   border: `1px solid color-mix(in srgb, var(${assetClassCssVar}) 30%, transparent)`,
                                 }}
                               >
-                                {formatAssetClassName(asset.assetClass)}
+                                {formatAssetClassName(displayAssetClass)}
                               </span>
                             </TableCell>
                             <TableCell className="text-right font-mono tabular-nums">{formatNumber(asset.quantity, 2)}</TableCell>

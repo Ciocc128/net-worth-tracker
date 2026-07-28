@@ -343,7 +343,10 @@ export default function SettingsPage() {
       loadTargets();
       loadExpenseCategories();
       getAllAssets(ownerId).then((assets) =>
-        setCashAssets(assets.filter((a) => a.assetClass === 'cash'))
+        // Default debit/credit account picker: an actual conto, not just a "cash-class" asset —
+        // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
+        // (spec 6-asset-class-selection.md decision 4, AGENTS.md 2026-07-26 hardening).
+        setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'))
       );
     }
   }, [user, ownerId]);

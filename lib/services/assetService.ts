@@ -920,8 +920,14 @@ export function calculateStampDuty(
     .filter(a => !a.stampDutyExempt)
     .reduce((total, asset) => {
       const value = calculateAssetValue(asset);
-      // Conti correnti: apply stamp duty only if value strictly > 5000€
+      // Conti correnti: the flat-fee rule (34,20€ above 5.000€) is a checking-account tax rule,
+      // not a "cash-class asset" one — a money-market ETF (e.g. XEON) can carry `assetClass: 'cash'`
+      // for allocation purposes while remaining a security for tax purposes (0,2% like any other
+      // instrument). Strict convention: `type === 'cash' && assetClass === 'cash'` (spec
+      // 6-asset-class-selection.md decision 4; same rule as the cash-account pickers in AGENTS.md's
+      // 2026-07-26 hardening note).
       if (
+        asset.type === 'cash' &&
         asset.assetClass === 'cash' &&
         checkingAccountSubCategory &&
         asset.subCategory === checkingAccountSubCategory

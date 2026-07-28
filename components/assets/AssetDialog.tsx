@@ -1256,6 +1256,38 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             </button>
           )}
 
+          {/* Classe Asset — ETF only, create mode (decision 1-2, spec 6-asset-class-selection.md).
+              Every other type is silently derived from TYPE_TO_CLASS: an equity ETF, a bond ETF and
+              a money-market ETF (e.g. XEON) are all `type: 'etf'`, and only the class tells them
+              apart — that ambiguity doesn't exist for stock/bond/crypto/etc, so they don't get a
+              picker. Defaults to 'equity' (set by `handleTypeSelect` in step 1), editable here
+              before the class-keyed defaults below (isLiquid/autoUpdatePrice/allocationRole) fire
+              off `selectedAssetClass`. Trend Following/Carry have no dedicated color/target yet in
+              Impostazioni (AGENTS.md → Leva L0) — offered anyway since they exist for leveraged ETFs. */}
+          {!isEdit && selectedType === 'etf' && (
+            <div className="space-y-2">
+              <Label htmlFor="assetClassEtf">Classe Asset *</Label>
+              <Select
+                value={selectedAssetClass}
+                onValueChange={(value) => setValue('assetClass', value as AssetClass)}
+              >
+                <SelectTrigger id="assetClassEtf">
+                  <SelectValue placeholder="Seleziona classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assetClasses.map((assetClass) => (
+                    <SelectItem key={assetClass.value} value={assetClass.value}>
+                      {assetClass.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.assetClass && (
+                <p className="text-sm text-red-500">{errors.assetClass.message}</p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ticker hidden for cash/realestate (no market price needed) */}
             {newAsset_showTicker && (
@@ -1331,7 +1363,16 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               <Label htmlFor="type">Tipo *</Label>
               <Select
                 value={selectedType}
-                onValueChange={(value) => setValue('type', value as AssetType)}
+                onValueChange={(value) => {
+                  const newType = value as AssetType;
+                  setValue('type', newType);
+                  // Re-derive the class from the new type, mirroring create's `handleTypeSelect` —
+                  // except for `etf`, whose class stays whatever the user set in the Select below
+                  // (decision 6: only ETF exposes a class choice; every other type is type-derived).
+                  if (newType !== 'etf') {
+                    setValue('assetClass', TYPE_TO_CLASS[newType]);
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona tipo" />
