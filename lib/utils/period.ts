@@ -22,9 +22,6 @@ export const MONTH_NAMES_SHORT = [
   'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic',
 ] as const;
 
-// Re-export canonical month names (single source of truth in lib/constants/months.ts).
-export { MONTH_NAMES };
-
 // ─── Public helpers ───────────────────────────────────────────────────────────
 
 /** Human-readable label for a Period. */

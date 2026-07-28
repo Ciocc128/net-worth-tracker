@@ -392,7 +392,7 @@ export function validateBudgetAllocation(
 
 // Below this many elapsed days the linear projection is too noisy to flag a
 // budget as "at risk" / forecast-overrun (one early purchase dominates).
-export const MIN_FORECAST_DAYS = 4;
+const MIN_FORECAST_DAYS = 4;
 
 /** Number of days in the calendar month of `date` (Italy timezone). */
 function daysInMonthFor(date: Date): number {

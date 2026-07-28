@@ -200,19 +200,6 @@ export const tabPanelSwitch: Variants = {
   },
 };
 
-/** Section-level refresh feedback: brief pulse for the active shell only. */
-export const sectionRefreshPulse: Variants = {
-  idle: {
-    opacity: 1,
-    scale: 1,
-  },
-  pulse: {
-    opacity: [1, 1, 1],
-    scale: [1, 1.004, 1],
-    transition: { duration: 0.42, ease: easeOutQuart },
-  },
-};
-
 /** Chart shell settle: short container continuity around data changes. */
 export const chartShellSettle: Variants = {
   idle: {
@@ -274,71 +261,6 @@ export const tableShellSettle: Variants = {
     opacity: 1,
     y: 0,
     transition: { duration: 0.18, ease: easeOutQuart },
-  },
-};
-
-/** Allocation drill-down shell: quick structural swap without animating rows/cells. */
-export const drillDownShell: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 10,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.22, ease: easeOutQuart },
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-    transition: { duration: 0.14, ease: easeOutQuart },
-  },
-};
-
-/** Contextual sheet content swap: settle the shell first, then reveal children. */
-export const contextualSheetPanel: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 12,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.2,
-      ease: easeOutQuart,
-      when: "beforeChildren",
-      staggerChildren: 0.04,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: 8,
-    transition: { duration: 0.14, ease: easeOutQuart },
-  },
-};
-
-/** Dialog surface settle: contextual fallback when transform-origin continuity is available. */
-export const contextualDialogSurface: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 8,
-    scale: 0.975,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      duration: 0.2,
-      ease: easeOutQuart,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: 4,
-    scale: 0.985,
-    transition: { duration: 0.14, ease: easeOutQuart },
   },
 };
 

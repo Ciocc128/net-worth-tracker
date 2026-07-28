@@ -40,10 +40,10 @@ export const DORMANT_THRESHOLD_DAYS = 90;
 
 // Categories beyond this rank collapse into a single "Altro" series so the stacked
 // chart and composition list stay readable instead of sprouting a dozen thin slices.
-export const MAX_COMPOSITION_CATEGORIES = 5;
+const MAX_COMPOSITION_CATEGORIES = 5;
 
 // Centers beyond this rank are dropped from the cross-center comparison overlay.
-export const MAX_COMPARISON_CENTERS = 5;
+const MAX_COMPARISON_CENTERS = 5;
 
 const OTHER_CATEGORY_LABEL = 'Altro';
 

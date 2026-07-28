@@ -54,7 +54,7 @@ import { getAssetDisplayTicker } from './assetDisplay';
  * similarly-good exposure fits. The leverage residual is euro-scaled (see `solve`) so this
  * weight is directly comparable to the class weights, not an arbitrary magic number.
  */
-export const LEVERAGE_TIEBREAKER_WEIGHT = 0.1;
+const LEVERAGE_TIEBREAKER_WEIGHT = 0.1;
 
 /** A held instrument's market value and its notional exposure per €1 traded, per asset class. */
 export interface InstrumentExposure {

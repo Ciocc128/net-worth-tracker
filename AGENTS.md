@@ -72,6 +72,10 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 - **`forceMount` tabs that derive from another tab's data MUST use React Query, not `useState`+`useEffect`**: Cashflow tabs are `forceMount` + `mountedTabs`, so a tab's mount-time `useEffect` runs once and never re-fires when sibling data changes. A `useState`/`useEffect` loader becomes stale until a full page reload. `CostCentersTab` (per-center spend stats derived from expenses) was the symptom — adding an expense in the Monitoraggio tab didn't refresh it. Fix: move the loader to `useQuery` and have the mutating tab invalidate the key. Applied: `CostCentersTab`/`CostCenterDetail` on `queryKeys.costCenters.*`, invalidated by `ExpenseDialog` (every save) and `ExpenseTrackingTab` (every delete path). Invalidate **unconditionally** on expense save/delete — an edit can remove a cost center as easily as add one.
 - **Shared key prefix for list + detail invalidation**: `queryKeys.costCenters.all(uid)` = `['cost-centers', uid]` is a prefix of `costCenters.expenses(uid, centerId)` = `['cost-centers', uid, centerId, 'expenses']`. Invalidating `all` refreshes an open detail view too via React Query prefix match — one invalidation call covers both.
 
+### shadcn/ui vendored surface — policy (dead-code audit session 4)
+- `components/ui/*` is vendored template code: standard shadcn surface (e.g. `DialogTrigger`, `SelectGroup`, the `sidebar.tsx` family) stays even when unimported — it's the library's API and would be regenerated verbatim by the next `npx shadcn add`. Only **custom additions made in this repo** (not part of the shadcn template) get deleted when they reach zero references. Codified in `knip.json` (`ignore: ["components/ui/**"]`) so future audits don't reflag the whole directory.
+- Examples of custom additions already removed for being orphaned: `AlertDialogMedia`, `AvatarBadge`/`AvatarGroup`/`AvatarGroupCount`, `TrophyEmptyIcon`. If you add a new custom extension to a shadcn file, keep it wired to a real consumer — this policy will delete it once it isn't.
+
 ### Dynamic Imports
 - `next/dynamic` with named exports must unwrap via `.then(m => ({ default: m.Named }))`
 - Use `ssr: false` for client-only dialogs and panels
@@ -824,6 +828,7 @@ For pages that aggregate large collections (many snapshots + all expenses) on ev
 ## Testing and Workflow
 ### Commands
 - `npm test -- <file>` or `npx vitest run <file>` for targeted tests; `npx tsc --noEmit` for type checking
+- `npx knip` uses the root `knip.json` (dead-code audit session 4): `components/ui/**` and `public/sw.js` are ignored (shadcn vendored surface stays even if unimported — see *shadcn/ui vendored surface* below — and the URL-convention service worker), `firebase-tools` is an ignored dependency (shelled out by `scripts/emulators.mjs`, invisible to static analysis), `ignoreExportsUsedInFile: true` means remaining EXPORT_ONLY findings are deliberate prop-surface, not dead code.
 - Always run `npx tsc --noEmit` before any PR. For feature area changes, also run the matching test suite:
   - Overview/materialized-summary: `apiAuthRoutes` + `dashboardOverviewService`
   - Performance: `performanceService` | History: `chartService` | FIRE/Goals: `fireService` + `goalService`

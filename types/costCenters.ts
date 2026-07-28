@@ -106,7 +106,7 @@ export interface CostCenterMonthlySeries {
 
 // One bucket of the cross-center comparison series (B3).
 // `byCenter` keys are center ids.
-export interface CostCenterComparisonBucket {
+interface CostCenterComparisonBucket {
   label: string;
   year: number;
   month: number;
@@ -116,23 +116,6 @@ export interface CostCenterComparisonBucket {
 export interface CostCenterComparisonSeries {
   buckets: CostCenterComparisonBucket[];
   centers: { id: string; name: string; color?: string }[];
-}
-
-// Aggregated stats computed client-side from the associated expenses.
-export interface CostCenterStats {
-  totalSpent: number;       // Sum of all expense amounts (always positive for display)
-  transactionCount: number;
-  averageMonthly: number;   // totalSpent / number of active months
-  firstExpenseDate: Date | null;
-  lastExpenseDate: Date | null;
-}
-
-// Monthly data point for the bar chart (one bar per calendar month).
-export interface CostCenterMonthlyData {
-  label: string;  // e.g. "Gen 25"
-  year: number;
-  month: number;  // 1-based
-  total: number;  // Always positive for display
 }
 
 // Palette for the color picker in CostCenterDialog.
@@ -149,4 +132,4 @@ export const COST_CENTER_COLORS = [
   '#84cc16', // lime
 ] as const;
 
-export type CostCenterColor = typeof COST_CENTER_COLORS[number];
+type CostCenterColor = typeof COST_CENTER_COLORS[number];

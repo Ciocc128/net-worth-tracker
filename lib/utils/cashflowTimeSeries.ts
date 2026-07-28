@@ -41,7 +41,7 @@ export interface TimeBucket {
 }
 
 /** One category's value across the bucket axis (aligned by index to the axis). */
-export interface CategorySeries {
+interface CategorySeries {
   name: string;
   /** Per-bucket value; same length and order as the returned `buckets`. */
   values: number[];
