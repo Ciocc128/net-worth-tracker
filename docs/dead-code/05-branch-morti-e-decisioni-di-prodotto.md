@@ -1,5 +1,18 @@
 # Spec 05 — Branch morti in file vivi e decisioni di prodotto
 
+**✅ Implementata (2026-07-28)** — branch `chore/dead-code-05-decisioni`, blocchi
+A-D tutti completati in **un unico commit** (su richiesta esplicita dell'utente,
+invece di uno per blocco). Entrambe le decisioni sono andate sull'**Opzione A**:
+in A cancellare l'effetto irraggiungibile (senza toccare il clamp di
+`buildAssetFormDataFromValues`), in D cablare `buildAssistantQuarterContext` nel
+ramo `quarter_analysis` della stream route, col trimestre derivato dal selettore
+mese (`Math.ceil(month / 3)`) e una regressione in `assistantRoutes`. Validazione
+verde: `tsc` pulito dopo ogni blocco, suite completa 80 file / 1409 test,
+`npm run build` ok, `npx knip` non segnala più nessun simbolo di questa spec
+(resta solo il falso positivo whitelistato `useColorTheme`). Note aperte: il
+default type-aware di `isLiquid` NON è stato introdotto (è una feature — vedi
+CLAUDE.md → Known Issues) e gli smoke manuali restano da fare prima del merge.
+
 **Rischio: alto (relativo)** — è l'unica spec che tocca comportamento potenziale:
 codice morto DENTRO componenti e route vive, più due decisioni dove "morto" e
 "mai cablato" si confondono. Ogni item ha una raccomandazione esplicita; le
