@@ -653,7 +653,7 @@ export default function HistoryPage() {
                   Nessuno storico disponibile. Gli snapshot mensili verranno creati automaticamente.
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={getChartHeight()} id="chart-net-worth-evolution">
+                <ResponsiveContainer width="100%" height={getChartHeight()}>
                   <LineChart data={netWorthHistory} margin={getChartMargins()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
                     <XAxis dataKey="date" />
@@ -912,7 +912,7 @@ export default function HistoryPage() {
                       animate="visible"
                       exit="hidden"
                     >
-                      <ResponsiveContainer key={isLandscape ? 'landscape' : 'portrait'} width="100%" height={getChartHeight()} id="chart-asset-class-evolution">
+                      <ResponsiveContainer key={isLandscape ? 'landscape' : 'portrait'} width="100%" height={getChartHeight()}>
                         {showAssetClassPercentage ? (
                           <LineChart data={assetClassHistory} margin={getChartMargins()}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
@@ -1015,7 +1015,7 @@ export default function HistoryPage() {
                       animate="visible"
                       exit="hidden"
                     >
-                      <ResponsiveContainer key={isLandscape ? 'landscape' : 'portrait'} width="100%" height={getChartHeight()} id="chart-liquidity">
+                      <ResponsiveContainer key={isLandscape ? 'landscape' : 'portrait'} width="100%" height={getChartHeight()}>
                         {showLiquidityPercentage ? (
                           <LineChart data={liquidityHistory} margin={getChartMargins()}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
@@ -1427,7 +1427,7 @@ export default function HistoryPage() {
                       animate="visible"
                       exit="hidden"
                     >
-                      <ResponsiveContainer width="100%" height={getChartHeight()} id="chart-yoy-variation">
+                      <ResponsiveContainer width="100%" height={getChartHeight()}>
                         <BarChart data={yoyVariationData} margin={getChartMargins()}>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
                           <XAxis dataKey="year" />

@@ -45,7 +45,7 @@ import {
 
 export type EmailPeriodType = 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 
-export interface AssetClassEntry {
+interface AssetClassEntry {
   name: string;
   deltaPct: number;
   deltaAbs: number;
@@ -1168,7 +1168,7 @@ function buildBudgetAlertsSectionHtml(alerts: BudgetAlert[] | undefined): string
           <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
             <span style="display:inline-block;font-size:11px;font-weight:700;color:#ffffff;background:${color};border-radius:4px;padding:2px 6px;margin-right:8px;">${badge}</span>
             <span style="font-size:13px;color:#0f172a;">${alert.label}</span>
-            <div style="font-size:12px;color:#64748b;margin-top:2px;font-family:'Geist Mono', ui-monospace, monospace;">
+            <div style="font-size:12px;color:#64748b;margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
               ${formatEur(alert.spent)} / ${formatEur(alert.budgetAmount)} &nbsp;·&nbsp; <span style="color:${color};font-weight:600;">${pct}%</span>${forecastNote}
             </div>
           </td>
@@ -1683,15 +1683,6 @@ export async function buildAndSendForPeriod(
 
   await sendMonthlyEmail(recipients, emailData, comparison);
   return true;
-}
-
-/** Build and send the monthly email for the current Italy month. */
-export async function buildAndSendForCurrentMonth(
-  userId: string,
-  recipients: string[]
-): Promise<boolean> {
-  const { year, month } = getItalyMonthYear(new Date());
-  return buildAndSendForPeriod(userId, recipients, 'monthly', year, month);
 }
 
 /** Build and send quarterly/yearly convenience aliases used by the cron handler. */

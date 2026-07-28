@@ -32,12 +32,9 @@ import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firest
 import {
   ExpenseCategory,
   ExpenseCategoryFormData,
-  ExpenseType,
-  ExpenseSubCategory
 } from '@/types/expenses';
 import {
   updateExpensesCategoryName,
-  updateExpensesSubCategoryName,
   updateExpensesType,
 } from './expenseService';
 
@@ -87,39 +84,6 @@ export async function ensureTransferCategory(userId: string): Promise<string> {
     icon: 'ArrowLeftRight',
     subCategories: [],
   });
-}
-
-/**
- * Get categories by type for a specific user
- */
-export async function getCategoriesByType(
-  userId: string,
-  type: ExpenseType
-): Promise<ExpenseCategory[]> {
-  try {
-    const categoriesRef = collection(db, CATEGORIES_COLLECTION);
-    const q = query(
-      categoriesRef,
-      where('userId', '==', userId),
-      where('type', '==', type),
-      orderBy('name', 'asc')
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    const categories = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-      subCategories: doc.data().subCategories || [],
-    })) as ExpenseCategory[];
-
-    return categories;
-  } catch (error) {
-    console.error('Error getting expense categories by type:', error);
-    throw new Error('Failed to fetch expense categories by type');
-  }
 }
 
 /**
@@ -228,104 +192,3 @@ export async function deleteCategory(categoryId: string): Promise<void> {
   }
 }
 
-/**
- * Add a subcategory to an existing category
- */
-export async function addSubCategory(
-  categoryId: string,
-  subCategoryName: string
-): Promise<void> {
-  try {
-    const category = await getCategoryById(categoryId);
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    // Check if subcategory already exists
-    if (category.subCategories.some(sub => sub.name === subCategoryName)) {
-      throw new Error('Subcategory already exists');
-    }
-
-    // Generate a simple ID for the subcategory
-    const newSubCategory: ExpenseSubCategory = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: subCategoryName,
-    };
-
-    const updatedSubCategories = [...category.subCategories, newSubCategory];
-
-    await updateCategory(categoryId, {
-      subCategories: updatedSubCategories,
-    });
-  } catch (error) {
-    console.error('Error adding subcategory:', error);
-    throw new Error('Failed to add subcategory');
-  }
-}
-
-/**
- * Remove a subcategory from a category
- */
-export async function removeSubCategory(
-  categoryId: string,
-  subCategoryId: string
-): Promise<void> {
-  try {
-    const category = await getCategoryById(categoryId);
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    const updatedSubCategories = category.subCategories.filter(
-      sub => sub.id !== subCategoryId
-    );
-
-    await updateCategory(categoryId, {
-      subCategories: updatedSubCategories,
-    });
-  } catch (error) {
-    console.error('Error removing subcategory:', error);
-    throw new Error('Failed to remove subcategory');
-  }
-}
-
-/**
- * Update a subcategory name
- * Automatically updates all associated expenses with the new subcategory name
- */
-export async function updateSubCategory(
-  categoryId: string,
-  subCategoryId: string,
-  newName: string,
-  userId?: string
-): Promise<void> {
-  try {
-    const category = await getCategoryById(categoryId);
-    if (!category) {
-      throw new Error('Category not found');
-    }
-
-    // Find the old subcategory to check if name is different
-    const oldSubCategory = category.subCategories.find(sub => sub.id === subCategoryId);
-
-    if (oldSubCategory && oldSubCategory.name !== newName && userId) {
-      // Update all expenses with this subcategory
-      await updateExpensesSubCategoryName(categoryId, subCategoryId, newName, userId);
-    }
-
-    const updatedSubCategories = category.subCategories.map(sub =>
-      sub.id === subCategoryId ? { ...sub, name: newName } : sub
-    );
-
-    // Use direct Firestore update to avoid infinite recursion
-    const categoryRef = doc(db, CATEGORIES_COLLECTION, categoryId);
-    const cleanedUpdates = removeUndefinedFields({
-      subCategories: updatedSubCategories,
-      updatedAt: new Date(),
-    });
-    await updateDoc(categoryRef, cleanedUpdates);
-  } catch (error) {
-    console.error('Error updating subcategory:', error);
-    throw new Error('Failed to update subcategory');
-  }
-}

@@ -27,7 +27,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Qualitative tone of the verdict. Maps to a color band in the UI (action colors). */
-export type PerformanceTone = 'strong' | 'solid' | 'fragile' | 'weak' | 'neutral';
+type PerformanceTone = 'strong' | 'solid' | 'fragile' | 'weak' | 'neutral';
 
 export interface PerformanceVerdict {
   tone: PerformanceTone;

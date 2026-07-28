@@ -115,7 +115,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - **Dark mode** — Full dark/light/system theme support. The header toggle cycles through three states: Light, Dark, and System (follows OS preference), using Sun, Moon, and Monitor icons. The same toggle is available on the public landing, login, and registration pages, so visitors can pick their mode before signing in. Every page, chart tooltip, and UI component is properly themed
 - **Authentication flow** — Login and registration screens follow the same visual language as the dashboard, with accessible focus states, 44px keyboard-reachable password toggles, `autoComplete` hints for browsers and password managers, and clearer in-place submit feedback including an inline password mismatch error on Register
 - **Hall of Fame** — Personal records dashboard with an all-time best hero block, monthly and annual ranking tables, current-period spotlight, and contextual notes. Mobile navigation shows one section at a time; desktop tables are full-height with no internal scroll
-- **PDF Export** — 8 configurable sections with custom year/month period selection; sections auto-disabled for past periods when historical data is unavailable
+- **PDF Export** — 7 configurable sections with custom year/month period selection; sections auto-disabled for past periods when historical data is unavailable
 - **Settings** — Trade Republic-inspired layout: the Allocation tab opens with a hero block showing the total allocation percentage, followed by a single unified flat list for all six asset classes (Equity, Bonds, Real Estate, Crypto, Commodities, Cash) — sub-categories expand inline without nested cards. Mobile tab navigation uses a segmented pill control (all five tabs visible at a glance). Unsaved-change feedback, smooth nested allocation editing, and inline two-tap confirmations for sensitive category actions
 
 ## Quick Start
@@ -220,7 +220,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 | Forms | react-hook-form, zod | Form handling and validation |
 | Dates | date-fns, date-fns-tz | Timezone-aware date operations |
 | Scraping | cheerio | Borsa Italiana dividend and bond price data |
-| Testing | Vitest | Unit testing (1222 tests) |
+| Testing | Vitest | Unit testing (1409 tests) |
 
 ## Development
 
@@ -231,6 +231,7 @@ npm run dev        # Start dev server with hot-reload
 npm run build      # Production build
 npm run start      # Start production server
 npm run lint       # Run ESLint
+npx knip           # Find unused files, exports, and dependencies (see knip.json)
 npm test           # Run unit tests (single run)
 npm run test:watch # Run tests in watch mode
 

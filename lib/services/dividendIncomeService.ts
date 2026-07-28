@@ -179,39 +179,3 @@ export async function syncDividendExpenses(
   console.log('Dividend expense sync completed:', results);
   return results;
 }
-
-/**
- * Remove expense associations from dividends
- * Deletes expense entries and clears expenseId references
- * Useful for bulk de-synchronization
- */
-export async function unsyncDividendExpenses(
-  dividends: Dividend[]
-): Promise<{ deleted: number; skipped: number; failed: number }> {
-  const results = {
-    deleted: 0,
-    skipped: 0,
-    failed: 0,
-  };
-
-  for (const dividend of dividends) {
-    try {
-      // Skip if no expense association
-      if (!dividend.expenseId) {
-        results.skipped++;
-        continue;
-      }
-
-      // Delete expense and clear reference
-      await deleteExpenseForDividend(dividend.id, dividend.expenseId);
-
-      results.deleted++;
-    } catch (error) {
-      console.error(`Error unsyncing dividend ${dividend.id}:`, error);
-      results.failed++;
-    }
-  }
-
-  console.log('Dividend expense unsync completed:', results);
-  return results;
-}

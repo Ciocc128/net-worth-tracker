@@ -92,7 +92,7 @@ interface ExpenseTrackingTabProps {
 /**
  * CHECKLIST: When adding new ExpenseType values:
  * 1. Update EXPENSE_TYPE_LABELS in types/expenses.ts
- * 2. Add color mapping in ExpenseCard.tsx badge colors
+ * 2. Add color mapping in CompactExpenseRow.tsx dot-color classes
  * 3. Add dot color entry in TYPE_DOT_CLASS (above)
  * 4. Update typeOptions array in this file
  * 5. Add type validation in ExpenseDialog schema

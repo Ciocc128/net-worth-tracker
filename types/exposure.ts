@@ -1,7 +1,7 @@
 // Source of a holding's contribution from a specific portfolio asset (ETF or stock).
 // Stored fields support an explicit formula display in the UI:
 //   contributionEur = holdingPct * assetValueEur
-export interface ExposureSource {
+interface ExposureSource {
   assetName: string;
   ticker: string;
   contributionEur: number;

@@ -14,7 +14,7 @@ import { ExpenseType } from './expenses';
 // Income budgets are intentionally kept separate from expense budgets so the
 // Overall budget (a spending ceiling) only ever aggregates expense items.
 
-export type BudgetScope = 'type' | 'category' | 'subcategory';
+type BudgetScope = 'type' | 'category' | 'subcategory';
 
 export type BudgetKind = 'expense' | 'income';
 
@@ -58,8 +58,6 @@ export interface BudgetConfig {
 }
 
 export const DEFAULT_ALERT_THRESHOLDS = [50, 75, 90, 100];
-
-export type BudgetViewMode = 'annual' | 'monthly';
 
 // Computed comparison object built from allExpenses for display
 export interface BudgetComparison {
@@ -121,7 +119,7 @@ export interface BudgetInsights {
 
 // ==================== Budget Alerts ====================
 
-export type BudgetAlertLevel = 'warning' | 'exceeded';
+type BudgetAlertLevel = 'warning' | 'exceeded';
 
 // A single fired alert for an expense budget (or the overall budget) that has
 // crossed one of the configured thresholds in the current period.

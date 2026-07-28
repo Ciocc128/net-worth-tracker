@@ -933,8 +933,7 @@ in una volta (craft + polish), con test verdi e tsc pulito.
 /impeccable critique la pagina Impostazioni
 
 File: app/dashboard/settings/page.tsx
-Componenti: components/settings/SettingsPageSkeleton.tsx,
-            components/settings/AccountSharingSection.tsx,
+Componenti: components/settings/AccountSharingSection.tsx,
             components/settings/ExpenseImportSection.tsx,
             components/expenses/CategoryManagementDialog.tsx,
             components/layout/ThemePicker.tsx

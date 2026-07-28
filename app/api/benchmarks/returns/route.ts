@@ -59,7 +59,10 @@ export async function GET(request: NextRequest) {
     // Cache miss or stale — recompute from Yahoo Finance
     const monthlyReturns = await computeBenchmarkReturns(benchmarkId);
 
-    // Persist to Firestore (fire-and-forget, cache failure must never break the response)
+    // Persist to Firestore (fire-and-forget, cache failure must never break the response).
+    // Doc shape (benchmark-cache/{benchmarkId}): { benchmarkId: string, cachedAt: Timestamp,
+    // monthlyReturns: BenchmarkMonthlyReturn[] } — full history from earliest available ETF
+    // data through latest available month; clients filter to the selected period.
     cacheRef.set({
       benchmarkId,
       cachedAt: Timestamp.now(),

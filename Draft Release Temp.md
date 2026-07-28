@@ -32,6 +32,7 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed PDF "Export Totale" including every cashflow entry ever recorded on the Cashflow section, ignoring your "Anno inizio storico cashflow" setting. It now excludes bulk-imported older data below your configured start year, matching what the live Cashflow and Storico pages already show. Net worth history, Performance, and FIRE sections in the PDF are unaffected, since they don't use this setting either.
 - Fixed the "Total Return per Asset" table on Dividends excluding fully-sold investments entirely and describing every gain as "unrealized" — it now uses your real buy/sell history for tracked investments, so fully-sold positions (marked "Chiusa") and partial sells show an accurate, correctly-labeled capital-gain figure instead.
 - Fixed the dividend-return figure on that same table for tracked investments with more than one purchase at a different price — it now credits each dividend against the cost basis that was actually in effect when it was paid, instead of a single average across your whole holding period.
 - Fixed the Previdenza tax-benefit estimate for accounts tracking more than one person's pension fund (e.g. both spouses): contributions from every fund were being summed against a single income, understating the deduction for each person. The tax benefit is now calculated once per family member, using their own income and contributions.
@@ -69,6 +70,7 @@
 - The Performance page explains its two drawdown charts more clearly, now that the monthly heatmap and the Underwater chart genuinely measure the same thing.
 - Note on the new Performance basis: leaving the home you live in out of the calculation means measured volatility rises and Sharpe falls compared with before. A property valued by hand never moves between updates, so it was quietly damping your measured risk. The new figures are lower, and truer.
 - The net worth variation badges on the Overview hero (monthly change, YTD, all-time-high) now share the same width on mobile and tablet instead of each sizing to its own text.
+- The weekly budget email now renders spending figures with your device's standard monospace font instead of requesting a custom web font that most email clients discard anyway.
 - The Patrimonio page header now matches the Overview one: the monthly and YTD badges line up in equal-width columns, and the "Nuovo massimo storico" badge — previously shown only on Overview — now appears here too when you hit a new peak.
 - On periods shorter than six months, the Performance headline now shows the return **of that period** with an explicit label ("nei 2 mesi") instead of an annualized figure. Projecting a full year from two months is a forecast dressed as a measurement; the annualized view returns from six months on, and the verdict and benchmark comparison stay annualized because those are yearly comparisons by nature.
 - Volatility and Sharpe Ratio now show "—" instead of a confident-looking number when the selected period holds fewer than three monthly returns.

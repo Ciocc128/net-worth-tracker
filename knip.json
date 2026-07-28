@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "ignore": ["components/ui/**", "public/sw.js"],
+  "ignoreDependencies": ["firebase-tools"],
+  "ignoreExportsUsedInFile": true
+}

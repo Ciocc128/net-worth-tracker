@@ -129,7 +129,7 @@ export interface NetWorthDataPoint {
   note?: string;
 }
 
-export interface AssetClassEvolutionPoint {
+interface AssetClassEvolutionPoint {
   date: string;
   equity: number;
   bonds: number;
@@ -166,7 +166,7 @@ export interface CategoryBreakdown {
   transactionCount: number;
 }
 
-export interface MonthlyTrendPoint {
+interface MonthlyTrendPoint {
   month: string;                // 'YYYY-MM'
   income: number;
   expenses: number;
@@ -187,7 +187,7 @@ export interface FireData {
   historicalData?: FireHistoricalPoint[];
 }
 
-export interface FireHistoricalPoint {
+interface FireHistoricalPoint {
   month: string;
   netWorth: number;
   expenses: number;
@@ -224,33 +224,6 @@ export interface PerformanceData {
 }
 
 // ============================================
-// Chart Image Types
-// ============================================
-
-export interface ChartImage {
-  id: string;
-  dataUrl: string;              // base64 PNG
-  width: number;
-  height: number;
-}
-
-export interface ChartCaptureOptions {
-  chartId: string;
-  width?: number;
-  height?: number;
-  scale?: number;               // Chart rendering scale for high-DPI displays. Default: 2 (Retina). Use 1 for standard displays.
-}
-
-export const CHART_IDS = {
-  NET_WORTH_EVOLUTION: 'chart-net-worth-evolution',
-  ASSET_CLASS_EVOLUTION: 'chart-asset-class-evolution',
-  LIQUIDITY: 'chart-liquidity',
-  YOY_VARIATION: 'chart-yoy-variation',
-} as const;
-
-export type ChartId = typeof CHART_IDS[keyof typeof CHART_IDS];
-
-// ============================================
 // PDF Generation Types
 // ============================================
 
@@ -264,10 +237,4 @@ export interface PDFGenerateOptions {
   timeFilter?: TimeFilter;     // Optional: default 'total'
   selectedYear?: number;
   selectedMonth?: number;
-}
-
-export interface PDFGenerationResult {
-  success: boolean;
-  fileName?: string;
-  error?: string;
 }

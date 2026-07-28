@@ -15,20 +15,6 @@
       ]
     },
     {
-      "collectionGroup": "assets",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "isin",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "assistantThreads",
       "queryScope": "COLLECTION",
       "fields": [

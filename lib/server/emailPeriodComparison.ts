@@ -51,7 +51,7 @@ export interface ComparisonSet {
 }
 
 /** Per-category expense change, used by the AI to hypothesise causes of expense variation. */
-export interface CategoryDelta {
+interface CategoryDelta {
   name: string;
   current: number;
   vsPrevious: MetricDelta | null;

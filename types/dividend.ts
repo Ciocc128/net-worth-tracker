@@ -197,13 +197,3 @@ export interface ScrapedDividend {
   currency: string;
   dividendType: DividendType;
 }
-
-export interface DividendsByAsset {
-  assetId: string;
-  assetTicker: string;
-  assetName: string;
-  dividends: Dividend[];
-  totalGross: number;
-  totalTax: number;
-  totalNet: number;
-}

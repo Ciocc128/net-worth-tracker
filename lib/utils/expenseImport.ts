@@ -52,7 +52,7 @@ const HEADER_ALIASES: Record<string, keyof Omit<RawRow, 'line'>> = {
 };
 
 /** Template shown/downloaded to guide users. Excel-IT friendly (`;` + BOM). */
-export const TEMPLATE_HEADERS = ['data', 'importo', 'tipo', 'categoria', 'sottocategoria', 'note', 'valuta'] as const;
+const TEMPLATE_HEADERS = ['data', 'importo', 'tipo', 'categoria', 'sottocategoria', 'note', 'valuta'] as const;
 const TEMPLATE_EXAMPLE_ROWS: string[][] = [
   ['2024-01-15', '1200,00', 'fixed', 'Casa', 'Affitto', 'Canone gennaio', 'EUR'],
   ['2024-01-27', '2500,00', 'income', 'Stipendio', '', 'Busta paga', 'EUR'],

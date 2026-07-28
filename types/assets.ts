@@ -186,7 +186,7 @@ export interface AssetFormData {
   pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (type 'pensionFund'); see types/pension.ts
 }
 
-export interface SubCategoryConfig {
+interface SubCategoryConfig {
   enabled: boolean;
   categories: string[];
 }
@@ -405,16 +405,9 @@ export interface MonthlySnapshot {
   note?: string; // Optional note to document significant financial events (max 500 characters)
 }
 
-export interface PriceHistory {
-  ticker: string;
-  price: number;
-  date: Date;
-  currency: string;
-}
-
 // Monte Carlo Simulation Types
-export type PortfolioSource = 'total' | 'liquid' | 'custom';
-export type WithdrawalAdjustment = 'inflation' | 'fixed' | 'percentage';
+type PortfolioSource = 'total' | 'liquid' | 'custom';
+type WithdrawalAdjustment = 'inflation' | 'fixed' | 'percentage';
 export interface MonteCarloParams {
   // Portfolio settings
   portfolioSource: PortfolioSource;
@@ -448,7 +441,7 @@ export interface MonteCarloParams {
   numberOfSimulations: number;
 }
 
-export interface SimulationPath {
+interface SimulationPath {
   year: number;
   value: number;
 }
