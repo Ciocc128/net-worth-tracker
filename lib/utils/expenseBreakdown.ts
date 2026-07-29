@@ -41,6 +41,7 @@ import {
   IndividualExpenseRow,
   NO_SUBCATEGORY_KEY,
   NO_SUBCATEGORY_LABEL,
+  UNCATEGORIZED_LABEL,
 } from '@/types/expenses';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
 
@@ -51,8 +52,6 @@ const BREAKDOWN_TYPE_LABELS: Record<ExpenseBreakdownType, string> = {
   ...EXPENSE_TYPE_LABELS,
   unclassified: 'Non classificate',
 };
-
-const UNCATEGORIZED_LABEL = 'Senza categoria';
 
 /**
  * Turns a magnitude into the negative figure the bundle exposes.

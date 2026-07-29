@@ -6,7 +6,8 @@
  * Single-step form for creating and editing cashflow entries.
  *
  * Layout:
- *   - Type selector (Select dropdown, create mode) or locked Badge (edit mode)
+ *   - Type selector (Select dropdown; in edit mode a transfer stays a locked Badge —
+ *     see EDITABLE_TYPE_OPTIONS for why that one conversion is not offered)
  *   - Primary fields: Importo + Data, Categoria, Sottocategoria, Note, Conto Collegato
  *   - "Impostazioni avanzate" Collapsible: Centro di Costo, Link, Acquisto Rateale, Ricorrenza Mensile
  *
@@ -16,7 +17,7 @@
  * All form logic, Zod schema, and submission paths are preserved unchanged.
  */
 
-import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useForm, Controller, useWatch, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -43,8 +44,9 @@ import {
 } from '@/lib/services/cashBalanceReconciliation';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { getAllCategories, ensureTransferCategory } from '@/lib/services/expenseCategoryService';
+import { resolveEquivalentCategory } from '@/lib/utils/expenseCategoryMatching';
 import { queryKeys } from '@/lib/query/queryKeys';
-import { Timestamp } from 'firebase/firestore';
+import { deleteField } from 'firebase/firestore';
 import { CategoryManagementDialog } from '@/components/expenses/CategoryManagementDialog';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
@@ -140,6 +142,38 @@ const EDIT_TITLES: Record<ExpenseType, string> = {
   transfer: 'Modifica Trasferimento',
 };
 
+interface TypeOption {
+  value: ExpenseType;
+  label: string;
+  description: string;
+  icon?: ReactNode;
+}
+
+const TYPE_OPTIONS: TypeOption[] = [
+  { value: 'variable', label: 'Spesa Variabile', description: 'Ristorante, shopping, svago, imprevisti' },
+  { value: 'fixed', label: 'Spesa Fissa', description: 'Affitto, abbonamenti, bollette, utenze' },
+  { value: 'debt', label: 'Debito / Rata', description: 'Mutuo, prestito, finanziamento ricorrente' },
+  { value: 'income', label: 'Entrata', description: 'Stipendio, bonus, dividendi, rimborsi' },
+  {
+    value: 'transfer',
+    label: 'Trasferimento',
+    description: 'Sposta denaro tra conti',
+    icon: <ArrowLeftRight className="h-3.5 w-3.5" />,
+  },
+];
+
+/**
+ * A transfer is the one type an existing row cannot be converted to or from.
+ *
+ * It is the only type that touches TWO cash accounts, and the balance reconciliation in
+ * handleFormSubmit picks its branch from the NEW type alone: converting a transfer away
+ * would reverse the origin but leave the destination credited, and converting an income
+ * INTO one would re-credit an account that was already credited. Both are silent balance
+ * corruption, so the conversion is not offered until that reconciliation understands the
+ * old shape as well as the new one.
+ */
+const EDITABLE_TYPE_OPTIONS = TYPE_OPTIONS.filter((option) => option.value !== 'transfer');
+
 function isAdvancedPrePopulated(expense: Expense | null | undefined): boolean {
   if (!expense) return false;
   return !!(expense.costCenterId || expense.link || expense.isInstallment || expense.isRecurring);
@@ -219,6 +253,10 @@ interface FormBodyProps {
   availableSubCategories: ComboboxOption[];
   onCreateCategory: (name: string) => void;
   onCreateSubCategory: (name: string) => void;
+  /** Re-points the category selection when the type changes. */
+  onTypeChange: (type: ExpenseType) => void;
+  /** What changing the type will do to this row, or null when it has not changed. */
+  typeChangeNotice: string | null;
   advancedOpen: boolean;
   setAdvancedOpen: (v: boolean) => void;
 }
@@ -253,6 +291,8 @@ function ExpenseFormBody({
   availableSubCategories,
   onCreateCategory,
   onCreateSubCategory,
+  onTypeChange,
+  typeChangeNotice,
   advancedOpen,
   setAdvancedOpen,
 }: Readonly<FormBodyProps>) {
@@ -263,10 +303,10 @@ function ExpenseFormBody({
       {/* ---- Tipo di voce ---- */}
       <div className="space-y-2">
         <Label htmlFor="type">Tipo di voce</Label>
-        {isEdit ? (
+        {isEdit && expense!.type === 'transfer' ? (
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs font-normal h-9 px-3">
-              {EXPENSE_TYPE_LABELS[expense!.type]}
+              {EXPENSE_TYPE_LABELS.transfer}
             </Badge>
             <p className="text-xs text-muted-foreground">Non modificabile</p>
           </div>
@@ -279,8 +319,7 @@ function ExpenseFormBody({
                 value={field.value}
                 onValueChange={(value: ExpenseType) => {
                   field.onChange(value);
-                  setValue('categoryId', '');
-                  setValue('subCategoryId', '');
+                  onTypeChange(value);
                   if (value !== 'debt') {
                     setValue('isRecurring', false);
                   }
@@ -294,40 +333,24 @@ function ExpenseFormBody({
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="variable">
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      <span className="font-medium">Spesa Variabile</span>
-                      <span className="text-xs text-muted-foreground font-normal">Ristorante, shopping, svago, imprevisti</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="fixed">
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      <span className="font-medium">Spesa Fissa</span>
-                      <span className="text-xs text-muted-foreground font-normal">Affitto, abbonamenti, bollette, utenze</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="debt">
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      <span className="font-medium">Debito / Rata</span>
-                      <span className="text-xs text-muted-foreground font-normal">Mutuo, prestito, finanziamento ricorrente</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="income">
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      <span className="font-medium">Entrata</span>
-                      <span className="text-xs text-muted-foreground font-normal">Stipendio, bonus, dividendi, rimborsi</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="transfer">
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      <span className="font-medium flex items-center gap-1.5"><ArrowLeftRight className="h-3.5 w-3.5" />Trasferimento</span>
-                      <span className="text-xs text-muted-foreground font-normal">Sposta denaro tra conti</span>
-                    </div>
-                  </SelectItem>
+                  {(isEdit ? EDITABLE_TYPE_OPTIONS : TYPE_OPTIONS).map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col gap-0.5 py-0.5">
+                        <span className="font-medium flex items-center gap-1.5">
+                          {option.icon}
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-normal">{option.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
           />
+        )}
+        {typeChangeNotice && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">{typeChangeNotice}</p>
         )}
       </div>
 
@@ -1205,6 +1228,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           transferCashAssetId: data.type === 'transfer' ? (transferCashAssetId ?? null) : null,
           costCenterId: resolvedCostCenterId ?? null,
           costCenterName: resolvedCostCenterName ?? null,
+          // `isRecurring: false` above is authoritative, but `recurringDay: undefined` is
+          // stripped by removeUndefinedDeep before the write, leaving the old day behind
+          // in Firestore. Reachable now that a debt can be turned into a plain expense
+          // from this form — see AGENTS.md → Firestore Optional Field Deletion.
+          recurringDay: expenseData.isRecurring ? expenseData.recurringDay : deleteField(),
         };
         await updateExpense(
           expense.id,
@@ -1329,12 +1357,61 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     }
   };
 
-  const dialogTitle = isEdit ? EDIT_TITLES[expense.type] : CREATE_TITLES[selectedType];
+  // Both titles follow the SELECTED type, not the stored one: in edit mode the type is
+  // now changeable, and a header still saying "Modifica Entrata" while the form has
+  // been switched to a spesa would contradict the control right below it.
+  const dialogTitle = isEdit ? EDIT_TITLES[selectedType] : CREATE_TITLES[selectedType];
   const dialogDescription = isEdit
     ? 'Modifica i dettagli della voce selezionata'
     : 'Inserisci i dettagli della nuova voce';
   const baseLabel = isEdit ? 'Salva modifiche' : 'Crea voce';
   const submitLabel = isSubmitting ? 'Salvataggio...' : baseLabel;
+
+  /**
+   * Re-point the category when the type changes.
+   *
+   * Categories belong to exactly one type, so the current selection is always invalid
+   * afterwards. Rather than clearing it outright, look for the same-named category under
+   * the new type — the common reason to change the type at all is that the row was filed
+   * under the wrong one of two same-named categories.
+   */
+  const handleTypeChange = useCallback(
+    (nextType: ExpenseType) => {
+      const match = resolveEquivalentCategory(
+        categories,
+        getValues('categoryId'),
+        getValues('subCategoryId'),
+        nextType
+      );
+      setValue('categoryId', match?.categoryId ?? '');
+      setValue('subCategoryId', match?.subCategoryId ?? '');
+    },
+    [categories, getValues, setValue]
+  );
+
+  /**
+   * What the reader needs to know before saving a type change, and nothing more.
+   *
+   * Crossing the income boundary is the loud one — the amount changes sign and the
+   * linked account is corrected by twice the figure. The budget note is unconditional
+   * because a type-scoped budget silently gains or loses this row with no other signal.
+   * The series note only appears when the row actually belongs to one.
+   */
+  const typeChangeNotice = useMemo(() => {
+    if (!expense || selectedType === expense.type) return null;
+
+    const notices: string[] = [];
+    if ((expense.type === 'income') !== (selectedType === 'income')) {
+      notices.push(
+        `L'importo cambierà segno (da ${EXPENSE_TYPE_LABELS[expense.type]} a ${EXPENSE_TYPE_LABELS[selectedType]}) e il saldo del conto collegato verrà corretto.`
+      );
+    }
+    notices.push('La voce passerà sotto un altro budget per tipo, se ne hai configurati.');
+    if (expense.recurringParentId || expense.installmentParentId) {
+      notices.push('Fa parte di una serie: il cambio riguarda solo questa voce.');
+    }
+    return notices.join(' ');
+  }, [expense, selectedType]);
 
   const formBodyProps: FormBodyProps = {
     form,
@@ -1362,6 +1439,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     availableSubCategories,
     onCreateCategory: handleCreateCategory,
     onCreateSubCategory: handleCreateSubCategory,
+    onTypeChange: handleTypeChange,
+    typeChangeNotice,
     advancedOpen,
     setAdvancedOpen,
   };
@@ -1376,7 +1455,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         headerExtra={
           isEdit ? (
             <Badge variant="outline" className="ml-auto text-xs font-normal">
-              {EXPENSE_TYPE_LABELS[expense.type]}
+              {EXPENSE_TYPE_LABELS[selectedType]}
             </Badge>
           ) : undefined
         }

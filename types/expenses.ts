@@ -23,6 +23,12 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
 export const NO_SUBCATEGORY_KEY = '__none__';
 export const NO_SUBCATEGORY_LABEL = 'Senza sottocategoria';
 
+// Same contract one level up: a row whose category is missing or blank still needs a
+// bucket with a name. Kept here rather than in any single aggregator because the
+// Sankey, the composition lists and the assistant context all have to say it the
+// same way — see lib/utils/expenseGrouping.ts.
+export const UNCATEGORIZED_LABEL = 'Senza categoria';
+
 export interface ExpenseSubCategory {
   id: string;
   name: string;

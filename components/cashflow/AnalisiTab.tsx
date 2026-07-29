@@ -46,13 +46,22 @@ import { ConfrontoAnnualeSection } from '@/components/cashflow/ConfrontoAnnualeS
 import { SavingsRateTrendSection } from '@/components/cashflow/SavingsRateTrendSection';
 import { CategoryTrendsGrid } from '@/components/cashflow/CategoryTrendsGrid';
 import { AndamentoStoricoSection } from '@/components/cashflow/AndamentoStoricoSection';
-import { AnomalieBlock, AnomaliaItem } from '@/components/cashflow/AnomalieBlock';
+import { AnomalieBlock } from '@/components/cashflow/AnomalieBlock';
+import {
+  buildExpenseComposition,
+  buildIncomeComposition,
+  buildSubCategoryComposition,
+  detectSpendingAnomalies,
+  type CategorySlice,
+  type SpendingAnomaly,
+} from '@/lib/utils/cashflowComposition';
+import { selectExpensesForDrillDown, type CategoryScope } from '@/lib/utils/expenseGrouping';
 import { CompositionList, CompositionListItem } from '@/components/ui/composition-list';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
 import { computeShadeOpacities } from '@/lib/utils/compositionShading';
 import { computeTrailingSavingsRateAverage } from '@/lib/utils/cashflowTimeSeries';
-import { chartShellSettle, fadeVariants } from '@/lib/utils/motionVariants';
+import { chartShellSettle } from '@/lib/utils/motionVariants';
 import { cn } from '@/lib/utils';
 
 interface ChartData {
@@ -68,9 +77,14 @@ type ChartType = 'expenses' | 'income';
 interface DrillDownState {
   level: DrillDownLevel;
   chartType: ChartType | null;
-  selectedCategory: string | null;
+  /**
+   * The category document being drilled into, not its name. Two categories can share a
+   * name under different types, and a name-keyed drill-down showed a mix of both.
+   */
+  selectedCategory: (CategoryScope & { label: string }) | null;
   selectedCategoryColor: string | null;
-  selectedSubCategory: string | null;
+  /** Subcategory id, or NO_SUBCATEGORY_KEY for the rows carrying none. */
+  selectedSubCategory: { key: string; label: string } | null;
 }
 
 export type PeriodMode = 'current' | 'year' | 'history';
@@ -160,36 +174,18 @@ function TopExpensesBlock({
 // Each takes `colors` explicitly so useMemo deps are correct when the theme
 // switches — avoids re-renders on unrelated state changes.
 
-function getExpensesByCategory(expenses: Expense[], colors: string[]): ChartData[] {
-  const categoryMap = new Map<string, number>();
-  expenses.filter(e => e.type !== 'income' && e.type !== 'transfer').forEach(e => {
-    categoryMap.set(e.categoryName, (categoryMap.get(e.categoryName) || 0) + Math.abs(e.amount));
-  });
-  const total = Array.from(categoryMap.values()).reduce((s, v) => s + v, 0);
-  return Array.from(categoryMap.entries())
-    .map(([name, value], index) => ({
-      name, value,
-      percentage: total > 0 ? (value / total) * 100 : 0,
-      color: colors[index % colors.length],
-    }))
-    .sort((a, b) => b.value - a.value);
+/**
+ * Attach a palette colour to each slice, in rank order.
+ *
+ * Colours are resolved here rather than inside the pure builders: they come from
+ * useChartColors() and would drag a React hook into a module the tests import.
+ */
+function withColors<T extends { key: string }>(slices: T[], colors: string[]): Array<T & { color: string }> {
+  return slices.map((slice, index) => ({ ...slice, color: colors[index % colors.length] }));
 }
 
-function getIncomeByCategory(expenses: Expense[], colors: string[]): ChartData[] {
-  const categoryMap = new Map<string, number>();
-  expenses.filter(e => e.type === 'income').forEach(e => {
-    categoryMap.set(e.categoryName, (categoryMap.get(e.categoryName) || 0) + e.amount);
-  });
-  const total = Array.from(categoryMap.values()).reduce((s, v) => s + v, 0);
-  return Array.from(categoryMap.entries())
-    .map(([name, value], index) => ({
-      name, value,
-      percentage: total > 0 ? (value / total) * 100 : 0,
-      color: colors[index % colors.length],
-    }))
-    .sort((a, b) => b.value - a.value);
-}
-
+// Keyed by the type itself, which is already unique — no collision to guard against
+// here, unlike the category lists.
 function getExpensesByType(expenses: Expense[], colors: string[]): ChartData[] {
   const typeMap = new Map<string, number>();
   expenses.filter(e => e.type !== 'income' && e.type !== 'transfer').forEach(e => {
@@ -406,11 +402,11 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
   // Memoized pie chart datasets — computed here (before early returns) so hooks
   // are never called conditionally and renders inside drill-down don't recompute.
   const expensesByCategoryData = useMemo(
-    () => getExpensesByCategory(periodFilteredExpenses, COLORS),
+    () => withColors(buildExpenseComposition(periodFilteredExpenses), COLORS),
     [periodFilteredExpenses, COLORS]
   );
   const incomeByCategoryData = useMemo(
-    () => getIncomeByCategory(periodFilteredExpenses, COLORS),
+    () => withColors(buildIncomeComposition(periodFilteredExpenses), COLORS),
     [periodFilteredExpenses, COLORS]
   );
   const expensesByTypeData = useMemo(
@@ -440,77 +436,20 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
    * Flag if delta > 25% AND absolute delta > €50.
    * Skip categories with fewer than 3 months of history.
    */
-  const anomalieData = useMemo<AnomaliaItem[]>(() => {
+  const anomalieData = useMemo<SpendingAnomaly[]>(() => {
     // Anomaly detection is only meaningful at monthly granularity.
     if (!singleMonthContext) return [];
-    const { year: anomalyYear, month: anomalyMonth } = singleMonthContext;
-
-    // Collect non-income expenses for the anomaly month
-    const anomalyExpenses = allExpenses.filter(e => {
-      const d = toDate(e.date);
-      return (
-        e.type !== 'income' && e.type !== 'transfer' &&
-        getItalyYear(d) === anomalyYear &&
-        getItalyMonth(d) === anomalyMonth
-      );
-    });
-
-    // Build per-category totals for the anomaly month
-    const currentTotals = new Map<string, number>();
-    anomalyExpenses.forEach(e => {
-      currentTotals.set(e.categoryName, (currentTotals.get(e.categoryName) ?? 0) + Math.abs(e.amount));
-    });
-
-    if (currentTotals.size === 0) return [];
-
-    // Build 6-month reference window immediately preceding the anomaly month.
-    // We iterate backward from anomalyMonth-1, wrapping across year boundaries.
-    const referenceMonths: Array<{ year: number; month: number }> = [];
-    let refYear = anomalyYear;
-    let refMonth = anomalyMonth - 1;
-    for (let i = 0; i < 6; i++) {
-      if (refMonth < 1) { refMonth = 12; refYear--; }
-      referenceMonths.push({ year: refYear, month: refMonth });
-      refMonth--;
-    }
-
-    // For each category in the anomaly month, check against the reference window
-    const results: AnomaliaItem[] = [];
-
-    currentTotals.forEach((currentTotal, category) => {
-      const monthlyTotals = referenceMonths.map(({ year, month }) => {
-        return allExpenses
-          .filter(e => {
-            const d = toDate(e.date);
-            return (
-              e.type !== 'income' && e.type !== 'transfer' &&
-              e.categoryName === category &&
-              getItalyYear(d) === year &&
-              getItalyMonth(d) === month
-            );
-          })
-          .reduce((s, e) => s + Math.abs(e.amount), 0);
-      });
-
-      const monthsWithData = monthlyTotals.filter(t => t > 0).length;
-      // Skip categories with insufficient history — too new or too irregular
-      if (monthsWithData < 3) return;
-
-      // Average over all 6 months (not just months with data) — penalizes sparse spenders
-      const referenceAverage = monthlyTotals.reduce((s, t) => s + t, 0) / 6;
-      // Skip if category was never spent before — avoids division by zero
-      if (referenceAverage === 0) return;
-
-      const deltaPercent = ((currentTotal - referenceAverage) / referenceAverage) * 100;
-      const absoluteDelta = currentTotal - referenceAverage;
-
-      // Only flag increases: reductions are good news, not anomalies (v1)
-      if (deltaPercent > 25 && absoluteDelta > 50) {
-        results.push({ category, currentTotal, referenceAverage, deltaPercent, absoluteDelta });
+    // The month resolver is injected so the detector stays free of timezone helpers and
+    // can be tested with plain dates.
+    return detectSpendingAnomalies(
+      allExpenses,
+      singleMonthContext.year,
+      singleMonthContext.month,
+      (expense) => {
+        const date = toDate(expense.date);
+        return { year: getItalyYear(date), month: getItalyMonth(date) };
       }
-    });
-
-    return results.sort((a, b) => b.deltaPercent - a.deltaPercent);
+    );
   }, [allExpenses, singleMonthContext]);
 
   // Reassurance figure for a deficit month — the trailing 12-month average savings
@@ -531,17 +470,21 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
    * Scrolls to the distribution section and pre-selects the category.
    * Uses 'instant' (not 'smooth') per AGENTS.md scrollIntoView convention.
    */
-  const handleAnomaliaClick = useCallback((categoryName: string) => {
-    // Use the already-memoized pie data to look up the category color — avoids
-    // re-running the full aggregation inside a callback.
-    const categoryColor = expensesByCategoryData
-      .find(d => d.name === categoryName)?.color ?? COLORS[0];
+  const handleAnomaliaClick = useCallback((anomaly: SpendingAnomaly) => {
+    // Use the already-memoized composition to look up the category color — avoids
+    // re-running the full aggregation inside a callback. Matched on identity, so two
+    // same-named categories keep their own colour and their own drill-down.
+    const categoryColor = expensesByCategoryData.find(d => d.key === anomaly.key)?.color ?? COLORS[0];
 
     // Pre-select the category in the drill-down state machine
     setDrillDown({
       level: 'subcategory',
       chartType: 'expenses',
-      selectedCategory: categoryName,
+      selectedCategory: {
+        expenseType: anomaly.expenseType,
+        key: anomaly.categoryKey,
+        label: anomaly.categoryLabel,
+      },
       selectedCategoryColor: categoryColor,
       selectedSubCategory: null,
     });
@@ -552,48 +495,30 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
     }, 50);
   }, [expensesByCategoryData, COLORS]);
 
-  // ── Pie/drill-down helpers ─────────────────────────────────────────────
-
-  // Subcategory rows share the parent category's color and differentiate only via
-  // barOpacity (computeShadeOpacities) — resolved by the caller, not here, so this
-  // stays independent of whatever color format useChartColors() returns (oklch/hex/rgb).
-  const getSubcategoriesData = (expenses: Expense[], categoryName: string, chartType: ChartType): ChartData[] => {
-    const filtered = expenses.filter(e =>
-      e.categoryName === categoryName &&
-      (chartType === 'income' ? e.type === 'income' : (e.type !== 'income' && e.type !== 'transfer'))
-    );
-    const total = filtered.reduce((s, e) => s + Math.abs(e.amount), 0);
-    const subcategoryMap = new Map<string, number>();
-    filtered.forEach(e => {
-      const name = e.subCategoryName || 'Altro';
-      subcategoryMap.set(name, (subcategoryMap.get(name) || 0) + Math.abs(e.amount));
-    });
-    const data: ChartData[] = [];
-    subcategoryMap.forEach((value, name) => {
-      data.push({ name, value, percentage: total > 0 ? (value / total) * 100 : 0, color: '' });
-    });
-    return data.sort((a, b) => b.value - a.value);
-  };
-
-  const getFilteredExpenses = (): Expense[] => {
-    if (!drillDown.selectedCategory) return [];
-    return periodFilteredExpenses.filter(e => {
-      if (e.categoryName !== drillDown.selectedCategory) return false;
-      if (drillDown.chartType === 'income' ? e.type !== 'income' : (e.type === 'income' || e.type === 'transfer')) return false;
-      if (drillDown.selectedSubCategory) {
-        if (drillDown.selectedSubCategory === 'Altro') return !e.subCategoryName;
-        return e.subCategoryName === drillDown.selectedSubCategory;
-      }
-      return true;
-    });
-  };
+  // ── Drill-down handlers ────────────────────────────────────────────────
+  // Every one of these carries the category's identity, so a click on "Casa (Spese
+  // Fisse)" can never resolve to the variable "Casa" sitting one row below it.
 
   const handleCategoryClick = (item: CompositionListItem, chartType: ChartType) => {
-    setDrillDown({ level: 'subcategory', chartType, selectedCategory: item.name, selectedCategoryColor: item.color, selectedSubCategory: null });
+    const slice = (chartType === 'income' ? incomeByCategoryData : expensesByCategoryData)
+      .find(candidate => candidate.key === item.id);
+    if (!slice) return;
+
+    setDrillDown({
+      level: 'subcategory',
+      chartType,
+      selectedCategory: { expenseType: slice.expenseType, key: slice.categoryKey, label: slice.name },
+      selectedCategoryColor: slice.color,
+      selectedSubCategory: null,
+    });
   };
 
   const handleSubcategoryClick = (item: CompositionListItem) => {
-    setDrillDown(prev => ({ ...prev, level: 'expenseList', selectedSubCategory: item.name }));
+    setDrillDown(prev => ({
+      ...prev,
+      level: 'expenseList',
+      selectedSubCategory: { key: item.id, label: item.name },
+    }));
   };
 
   const handleBack = () => {
@@ -606,27 +531,39 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
 
   // ── Computed chart data ────────────────────────────────────────────────
 
-  const currentSubcategoriesData = drillDown.level === 'subcategory' && drillDown.selectedCategory && drillDown.chartType
-    ? getSubcategoriesData(periodFilteredExpenses, drillDown.selectedCategory, drillDown.chartType)
+  const currentSubcategoriesData = drillDown.level === 'subcategory' && drillDown.selectedCategory
+    ? buildSubCategoryComposition(periodFilteredExpenses, drillDown.selectedCategory)
     : [];
 
-  const currentFilteredExpenses = drillDown.level === 'expenseList' ? getFilteredExpenses() : [];
+  const currentFilteredExpenses = drillDown.level === 'expenseList' && drillDown.selectedCategory
+    ? selectExpensesForDrillDown(
+        periodFilteredExpenses,
+        drillDown.selectedCategory,
+        drillDown.selectedSubCategory ?? undefined
+      )
+    : [];
 
-  // ChartData → CompositionListItem: name doubles as the stable id (unique per Map
-  // construction above); color arrives pre-resolved from useChartColors().
-  const toCompositionItems = (data: ChartData[]): CompositionListItem[] =>
-    data.map(d => ({ id: d.name, name: d.name, value: d.value, percentage: d.percentage, color: d.color }));
+  // Slice → CompositionListItem: `id` is the identity the click resolves through,
+  // `name` the already-disambiguated label; color arrives pre-resolved from useChartColors().
+  const toCompositionItems = (slices: Array<CategorySlice & { color: string }>): CompositionListItem[] =>
+    slices.map(slice => ({
+      id: slice.key,
+      name: slice.name,
+      value: slice.value,
+      percentage: slice.percentage,
+      color: slice.color,
+    }));
 
   // Subcategory rows: color = parent category color, opacity ramps via computeShadeOpacities
   // (format-independent — works whether useChartColors() returns oklch, hex, or rgb).
   const subcategoryCompositionItems: CompositionListItem[] = (() => {
     const baseColor = drillDown.selectedCategoryColor || COLORS[0];
     const opacities = computeShadeOpacities(currentSubcategoriesData.length);
-    return currentSubcategoriesData.map((d, i) => ({
-      id: d.name,
-      name: d.name,
-      value: d.value,
-      percentage: d.percentage,
+    return currentSubcategoriesData.map((slice, i) => ({
+      id: slice.key,
+      name: slice.name,
+      value: slice.value,
+      percentage: slice.percentage,
       color: baseColor,
       barOpacity: opacities[i],
     }));
@@ -678,14 +615,14 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
         { label: drillDown.chartType === 'expenses' ? 'Spese' : 'Entrate', onClick: resetDrillDown },
         ...(drillDown.selectedCategory
           ? [{
-              label: drillDown.selectedCategory,
+              label: drillDown.selectedCategory.label,
               onClick: drillDown.level === 'expenseList'
                 ? () => setDrillDown(prev => ({ ...prev, level: 'subcategory', selectedSubCategory: null }))
                 : undefined,
             }]
           : []),
         ...(drillDown.level === 'expenseList' && drillDown.selectedSubCategory
-          ? [{ label: drillDown.selectedSubCategory }]
+          ? [{ label: drillDown.selectedSubCategory.label }]
           : []),
       ]}
     />
@@ -960,7 +897,7 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
                   <CompositionList
                     items={subcategoryCompositionItems}
                     onItemClick={handleSubcategoryClick}
-                    ariaLabel={`Sottocategorie di ${drillDown.selectedCategory}`}
+                    ariaLabel={`Sottocategorie di ${drillDown.selectedCategory?.label ?? ""}`}
                   />
                 )}
                 {drillDown.level === 'expenseList' && drillDown.chartType === 'expenses' && (
@@ -976,7 +913,8 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
               <CardHeader><CardTitle>Spese per Tipo — {periodLabel}</CardTitle></CardHeader>
               <CardContent>
                 <CompositionList
-                  items={toCompositionItems(expensesByTypeData)}
+                  // Type names are unique, so the label doubles as the id here.
+                  items={expensesByTypeData.map(d => ({ id: d.name, ...d }))}
                   ariaLabel={`Spese per tipo — ${periodLabel}`}
                 />
               </CardContent>
@@ -1017,7 +955,7 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
                   <CompositionList
                     items={subcategoryCompositionItems}
                     onItemClick={handleSubcategoryClick}
-                    ariaLabel={`Sottocategorie di ${drillDown.selectedCategory}`}
+                    ariaLabel={`Sottocategorie di ${drillDown.selectedCategory?.label ?? ""}`}
                   />
                 )}
                 {drillDown.level === 'expenseList' && drillDown.chartType === 'income' && (
