@@ -33,9 +33,21 @@ import { adminDb } from '@/lib/firebase/admin';
 import { getItalyMonthYear, toDate } from '@/lib/utils/dateHelpers';
 import { AssistantMonthContextBundle, AssistantMonthSelectorValue } from '@/types/assistant';
 import { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
-import { Expense, ExpenseCategory } from '@/types/expenses';
+import { CashflowBreakdown, Expense, ExpenseCategory } from '@/types/expenses';
+import { buildCashflowBreakdown } from '@/lib/utils/expenseBreakdown';
 
 const MAX_ALLOCATION_CHANGES = 5;
+
+// How many largest single expenses reach the prompt, by period length. A flat 5 used to
+// apply to every period: five transactions out of five years of history is noise, while
+// five out of one month is a real signal.
+const TOP_INDIVIDUAL_EXPENSES_MONTH = 5;
+const TOP_INDIVIDUAL_EXPENSES_QUARTER = 8;
+const TOP_INDIVIDUAL_EXPENSES_YEAR = 10;
+const TOP_INDIVIDUAL_EXPENSES_HISTORY = 15;
+
+// Above this share of spending without a subcategory, the bundle declares the gap.
+const UNCLASSIFIED_SUBCATEGORY_NOTE_THRESHOLD = 0.3;
 
 /**
  * Returns the first and last moment of the given year/month as Date objects.
@@ -294,72 +306,37 @@ function buildTargetAllocation(
 }
 
 /**
- * Aggregates cashflow from an array of expenses, splitting dividends from regular income.
+ * Maps the pure breakdown onto the bundle fields it feeds.
+ *
+ * Exists so the five period builders don't each spell out the same assignments —
+ * and, more to the point, so they cannot drift apart. Every cashflow figure in the
+ * bundle now comes from one call to one aggregator.
  */
-function aggregateCashflow(
-  expenses: Expense[],
-  dividendCategoryId: string | undefined
-): { totalIncome: number; totalExpenses: number; totalDividends: number; netCashFlow: number } {
-  let totalIncome = 0;
-  let totalExpenses = 0;
-  let totalDividends = 0;
-
-  for (const expense of expenses) {
-    // Transfers are net-zero for metrics — skip entirely
-    if (expense.type === 'transfer') continue;
-    if (expense.amount > 0) {
-      if (dividendCategoryId && expense.categoryId === dividendCategoryId) {
-        totalDividends += expense.amount;
-      } else {
-        totalIncome += expense.amount;
-      }
-    } else {
-      totalExpenses += expense.amount;
-    }
-  }
-
+function toBundleCashflowFields(
+  breakdown: CashflowBreakdown
+): Pick<
+  AssistantMonthContextBundle,
+  'cashflow' | 'expensesByCategory' | 'incomeByCategory' | 'expensesByType' | 'topIndividualExpenses'
+> {
   return {
-    totalIncome,
-    totalExpenses,
-    totalDividends,
-    netCashFlow: totalIncome + totalDividends + totalExpenses,
+    cashflow: { ...breakdown.totals },
+    expensesByCategory: breakdown.expensesByCategory,
+    incomeByCategory: breakdown.incomeByCategory,
+    expensesByType: breakdown.expensesByType,
+    topIndividualExpenses: breakdown.topIndividualExpenses,
   };
 }
 
 /**
- * Builds top expense categories (top 5) and top individual expenses (top 5) from expenses.
+ * Returns a data-quality note when most of the period's spending carries no subcategory.
+ *
+ * Historical months often predate the user's subcategory habit, so "Senza sottocategoria"
+ * can legitimately dominate the breakdown. Saying so turns what reads like a broken
+ * report into a stated limitation.
  */
-function buildExpenseBreakdown(expenses: Expense[]): {
-  topExpensesByCategory: AssistantMonthContextBundle['topExpensesByCategory'];
-  topIndividualExpenses: AssistantMonthContextBundle['topIndividualExpenses'];
-} {
-  const expenseCategoryMap = new Map<string, { total: number; transactionCount: number }>();
-  for (const expense of expenses) {
-    if (expense.amount < 0) {
-      const name = expense.categoryName || expense.categoryId;
-      const entry = expenseCategoryMap.get(name) ?? { total: 0, transactionCount: 0 };
-      entry.total += expense.amount;
-      entry.transactionCount += 1;
-      expenseCategoryMap.set(name, entry);
-    }
-  }
-
-  const topExpensesByCategory = Array.from(expenseCategoryMap.entries())
-    .map(([categoryName, { total, transactionCount }]) => ({ categoryName, total, transactionCount }))
-    .sort((a, b) => a.total - b.total) // most negative first
-    .slice(0, 5);
-
-  const topIndividualExpenses = expenses
-    .filter((e) => e.amount < 0)
-    .sort((a, b) => a.amount - b.amount)
-    .slice(0, 5)
-    .map((e) => ({
-      categoryName: e.categoryName || e.categoryId,
-      amount: e.amount,
-      notes: (e as any).notes || undefined,
-    }));
-
-  return { topExpensesByCategory, topIndividualExpenses };
+function buildUnclassifiedSubCategoryNote(share: number): string | null {
+  if (share <= UNCLASSIFIED_SUBCATEGORY_NOTE_THRESHOLD) return null;
+  return `Il ${Math.round(share * 100)}% delle spese del periodo non ha una sottocategoria assegnata: il dettaglio per sottocategoria è parziale per costruzione.`;
 }
 
 /**
@@ -472,6 +449,14 @@ export async function buildAssistantMonthContext(
     notes.push('Mese in corso: i dati cashflow potrebbero essere parziali.');
   }
 
+  // --- Cashflow: totals and breakdowns, single pass ---
+  const breakdown = buildCashflowBreakdown(monthExpenses, {
+    dividendCategoryId: settings?.dividendIncomeCategoryId,
+    topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_MONTH,
+  });
+  const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
+  if (unclassifiedNote) notes.push(unclassifiedNote);
+
   // --- Net worth ---
   const nwStart = previousSnapshot?.totalNetWorth ?? null;
   const nwEnd = currentSnapshot?.totalNetWorth ?? null;
@@ -481,14 +466,6 @@ export async function buildAssistantMonthContext(
       ? (nwDelta / nwStart) * 100
       : null;
 
-  // --- Cashflow breakdown ---
-  const dividendCategoryId = settings?.dividendIncomeCategoryId;
-  const { totalIncome, totalExpenses, totalDividends, netCashFlow } = aggregateCashflow(
-    monthExpenses,
-    dividendCategoryId
-  );
-
-  const { topExpensesByCategory, topIndividualExpenses } = buildExpenseBreakdown(monthExpenses);
   const allocationChanges = buildAllocationChanges(currentSnapshot, previousSnapshot);
   const bySubCategoryAllocation = buildSubCategoryAllocation(currentSnapshot, assets);
   const targetAllocation = buildTargetAllocation(settings);
@@ -497,13 +474,7 @@ export async function buildAssistantMonthContext(
     selector,
     currentSnapshot,
     previousSnapshot,
-    cashflow: {
-      totalIncome,
-      totalExpenses,
-      totalDividends,
-      netCashFlow,
-      transactionCount: monthExpenses.length,
-    },
+    ...toBundleCashflowFields(breakdown),
     netWorth: {
       start: nwStart,
       end: nwEnd,
@@ -511,8 +482,6 @@ export async function buildAssistantMonthContext(
       deltaPct: nwDeltaPct,
     },
     allocationChanges,
-    topExpensesByCategory,
-    topIndividualExpenses,
     bySubCategoryAllocation,
     targetAllocation,
     expenseCategories: buildCategoryTaxonomy(categories),
@@ -595,13 +564,13 @@ export async function buildAssistantYearContext(
       ? (nwDelta / nwStart) * 100
       : null;
 
-  const dividendCategoryId = settings?.dividendIncomeCategoryId;
-  const { totalIncome, totalExpenses, totalDividends, netCashFlow } = aggregateCashflow(
-    yearExpenses,
-    dividendCategoryId
-  );
+  const breakdown = buildCashflowBreakdown(yearExpenses, {
+    dividendCategoryId: settings?.dividendIncomeCategoryId,
+    topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_YEAR,
+  });
+  const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
+  if (unclassifiedNote) notes.push(unclassifiedNote);
 
-  const { topExpensesByCategory, topIndividualExpenses } = buildExpenseBreakdown(yearExpenses);
   const allocationChanges = buildAllocationChanges(currentSnapshot, previousSnapshot);
   const bySubCategoryAllocation = buildSubCategoryAllocation(currentSnapshot, assets);
   const targetAllocation = buildTargetAllocation(settings);
@@ -611,17 +580,9 @@ export async function buildAssistantYearContext(
     selector: { year, month: 0 },
     currentSnapshot,
     previousSnapshot,
-    cashflow: {
-      totalIncome,
-      totalExpenses,
-      totalDividends,
-      netCashFlow,
-      transactionCount: yearExpenses.length,
-    },
+    ...toBundleCashflowFields(breakdown),
     netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
     allocationChanges,
-    topExpensesByCategory,
-    topIndividualExpenses,
     bySubCategoryAllocation,
     targetAllocation,
     expenseCategories: buildCategoryTaxonomy(categories),
@@ -705,13 +666,13 @@ export async function buildAssistantQuarterContext(
       ? (nwDelta / nwStart) * 100
       : null;
 
-  const dividendCategoryId = settings?.dividendIncomeCategoryId;
-  const { totalIncome, totalExpenses, totalDividends, netCashFlow } = aggregateCashflow(
-    quarterExpenses,
-    dividendCategoryId
-  );
+  const breakdown = buildCashflowBreakdown(quarterExpenses, {
+    dividendCategoryId: settings?.dividendIncomeCategoryId,
+    topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_QUARTER,
+  });
+  const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
+  if (unclassifiedNote) notes.push(unclassifiedNote);
 
-  const { topExpensesByCategory, topIndividualExpenses } = buildExpenseBreakdown(quarterExpenses);
   const allocationChanges = buildAllocationChanges(currentSnapshot, previousSnapshot);
   const bySubCategoryAllocation = buildSubCategoryAllocation(currentSnapshot, assets);
   const targetAllocation = buildTargetAllocation(settings);
@@ -721,17 +682,9 @@ export async function buildAssistantQuarterContext(
     selector: { year, month: lastMonthOfQuarter, quarter },
     currentSnapshot,
     previousSnapshot,
-    cashflow: {
-      totalIncome,
-      totalExpenses,
-      totalDividends,
-      netCashFlow,
-      transactionCount: quarterExpenses.length,
-    },
+    ...toBundleCashflowFields(breakdown),
     netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
     allocationChanges,
-    topExpensesByCategory,
-    topIndividualExpenses,
     bySubCategoryAllocation,
     targetAllocation,
     expenseCategories: buildCategoryTaxonomy(categories),
@@ -803,13 +756,13 @@ export async function buildAssistantYtdContext(
       ? (nwDelta / nwStart) * 100
       : null;
 
-  const dividendCategoryId = settings?.dividendIncomeCategoryId;
-  const { totalIncome, totalExpenses, totalDividends, netCashFlow } = aggregateCashflow(
-    ytdExpenses,
-    dividendCategoryId
-  );
+  const breakdown = buildCashflowBreakdown(ytdExpenses, {
+    dividendCategoryId: settings?.dividendIncomeCategoryId,
+    topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_YEAR,
+  });
+  const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
+  if (unclassifiedNote) notes.push(unclassifiedNote);
 
-  const { topExpensesByCategory, topIndividualExpenses } = buildExpenseBreakdown(ytdExpenses);
   const allocationChanges = buildAllocationChanges(currentSnapshot, previousSnapshot);
   const bySubCategoryAllocation = buildSubCategoryAllocation(currentSnapshot, assets);
   const targetAllocation = buildTargetAllocation(settings);
@@ -819,17 +772,9 @@ export async function buildAssistantYtdContext(
     selector: { year: currentYear, month: -1 },
     currentSnapshot,
     previousSnapshot,
-    cashflow: {
-      totalIncome,
-      totalExpenses,
-      totalDividends,
-      netCashFlow,
-      transactionCount: ytdExpenses.length,
-    },
+    ...toBundleCashflowFields(breakdown),
     netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
     allocationChanges,
-    topExpensesByCategory,
-    topIndividualExpenses,
     bySubCategoryAllocation,
     targetAllocation,
     expenseCategories: buildCategoryTaxonomy(categories),
@@ -907,13 +852,13 @@ export async function buildAssistantHistoryContext(
       ? (nwDelta / nwStart) * 100
       : null;
 
-  const dividendCategoryId = settings?.dividendIncomeCategoryId;
-  const { totalIncome, totalExpenses, totalDividends, netCashFlow } = aggregateCashflow(
-    historyExpenses,
-    dividendCategoryId
-  );
+  const breakdown = buildCashflowBreakdown(historyExpenses, {
+    dividendCategoryId: settings?.dividendIncomeCategoryId,
+    topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_HISTORY,
+  });
+  const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
+  if (unclassifiedNote) notes.push(unclassifiedNote);
 
-  const { topExpensesByCategory, topIndividualExpenses } = buildExpenseBreakdown(historyExpenses);
   const allocationChanges = buildAllocationChanges(currentSnapshot, previousSnapshot);
   const bySubCategoryAllocation = buildSubCategoryAllocation(currentSnapshot, assets);
   const targetAllocation = buildTargetAllocation(settings);
@@ -923,17 +868,9 @@ export async function buildAssistantHistoryContext(
     selector: { year: startYear, month: -2 },
     currentSnapshot,
     previousSnapshot,
-    cashflow: {
-      totalIncome,
-      totalExpenses,
-      totalDividends,
-      netCashFlow,
-      transactionCount: historyExpenses.length,
-    },
+    ...toBundleCashflowFields(breakdown),
     netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
     allocationChanges,
-    topExpensesByCategory,
-    topIndividualExpenses,
     bySubCategoryAllocation,
     targetAllocation,
     expenseCategories: buildCategoryTaxonomy(categories),

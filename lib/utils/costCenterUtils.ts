@@ -17,7 +17,7 @@
 
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Expense } from '@/types/expenses';
+import { Expense, NO_SUBCATEGORY_KEY, NO_SUBCATEGORY_LABEL } from '@/types/expenses';
 import {
   CostCenter,
   CostCenterPeriod,
@@ -355,11 +355,6 @@ export function buildCategoryComposition(expenses: Expense[]): CostCenterCategor
 
   return slices;
 }
-
-// Sentinel for expenses that carry no subcategory, so they still get a row a user can
-// inspect (and exclude) rather than silently vanishing from the breakdown.
-const NO_SUBCATEGORY_KEY = '__none__';
-const NO_SUBCATEGORY_LABEL = 'Senza sottocategoria';
 
 /**
  * Breaks the center's spend down by subcategory, sorted by amount descending.

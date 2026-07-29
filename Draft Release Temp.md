@@ -29,6 +29,9 @@
 - Added a "Rendimento del fondo" card on the Previdenza page that breaks your pension fund's growth into its three real causes: what you paid in, what your employer gave you, and what the market actually produced. The headline percentage measures market performance only — employer contributions are pay, not investment return, and counting them would show your fund at double-digit returns every year — while a separate "ritorno sul tuo capitale" figure includes them, measured against the money you put in yourself (voluntary payments plus TFR). If your recorded contributions don't add up to the growth, the card explains what's missing instead of showing you an invented percentage.
 - Added a "Calcolo dei rendimenti" section in Settings → Preferenze where you choose which capital the Performance metrics measure: pension funds and assets excluded from your allocation (typically the home you live in) are left out by default, and you can bring either back in. The Performance page now states which basis it is using, right under the headline figure.
 - Added a "Rendimento fondo pensione calcolabile da" setting: pick the month from which your pension contributions are fully recorded, and the fund's return is measured only from there — before that date, contributions and market growth are indistinguishable.
+- The AI Assistant can now answer questions about any category and sub-category you track. Ask "how much did I spend on Home last year, broken down by sub-category?" and it lists Electricity, Gas, Waste, Internet and the rest with their amounts and transaction counts, instead of only knowing your five largest categories.
+- The Assistant also now sees your spending split by type (Fixed / Variable / Debt) and your income broken down by category, so it can tell a rise in structural costs from a one-off, and a change in salary from a change in side income.
+- The Assistant's largest-single-expense list now shows each transaction's date and sub-category, and covers more transactions on longer periods (up to 15 over full history, where it previously showed 5 regardless of whether you were asking about one month or five years).
 
 ## 🐛 Bug Fixes
 
@@ -52,6 +55,10 @@
 - Fixed volatility and Sharpe Ratio silently ignoring any month whose return exceeded ±50%. The filter was meant to remove distortions from large contributions, but those are already neutralized — what it actually removed was either an untracked movement (still visible in the heatmap and the Underwater chart, so the risk metric contradicted the risk charts) or a genuine crash, which is precisely what a risk metric must report.
 - Fixed the "Evoluzione Patrimonio" chart showing the capital you already had at the start of the period as if the market had produced it. The chart now separates the money that entered your portfolio from what the market added on top.
 - Fixed the "Plusvalenze realizzate" total silently omitting an investment whose operation history couldn't be replayed. It now tells you how many were excluded, so a tax figure is never quietly incomplete.
+- Fixed the AI Assistant answering "N/D" (not available) when asked about a sub-category, or about any category outside your five largest. The data was in your account all along — it was simply never sent to the assistant, which then correctly refused to guess. It now also distinguishes "no spending recorded" from "I don't have that figure", which are different answers and were being reported as the same one.
+- Fixed the Assistant disagreeing with the Cashflow page on your total spending. A refund recorded on a spending category (a positive amount on a Variable, Fixed or Debt row) was counted as income by the assistant but as spending everywhere else in the app. If you record refunds as Income — the recommended way — your figures are unchanged.
+- Fixed the Assistant's transaction count including transfers between your own accounts, which were already excluded from the income and expense totals shown next to it. The count now also states how many of those transactions are spending.
+- Fixed Assistant replies stopping mid-sentence on longer answers. When a reply does reach the length limit it now says so and invites you to continue, instead of ending mid-word with no explanation.
 
 ## 🔧 Improvements
 
@@ -77,6 +84,8 @@
 - The ROI and CAGR tooltips now state their formulas and warn that each corrects for your contributions in a different way — so CAGR is not the annualized version of ROI, and the two are not meant to reconcile.
 - Drawdown wording now says "from the period's peak" everywhere, since the reference point changes with the period you select — on YTD it can sit well below last year's high.
 - Note on this release's corrected figures: your all-time return, IRR and the rolling charts will move, in some cases noticeably. These are not new calculations but fixes to existing ones, and every change is in the direction of what the numbers were always meant to say.
+- The AI Assistant now has more room for detailed answers: period analyses can run longer, and free-chat replies have four times the previous budget, so a question that needs a list gets one.
+- Note on the Assistant's corrected figures: conversations you had before this release are stored as written and are not recalculated. If you reread an old thread next to a new one, the transaction counts (and, if you record refunds on spending categories, the totals) may differ for the same month. The newer figures are the ones that match the rest of the app.
 
 ## 🔒 Security
 

@@ -13,10 +13,13 @@ function makeBundle(overrides?: Partial<AssistantMonthContextBundle>): Assistant
       totalDividends: 0,
       netCashFlow: 0,
       transactionCount: 0,
+      expenseTransactionCount: 0,
     },
     netWorth: { start: null, end: 120000, delta: null, deltaPct: null },
     allocationChanges: [],
-    topExpensesByCategory: [],
+    expensesByCategory: [],
+    incomeByCategory: [],
+    expensesByType: [],
     topIndividualExpenses: [],
     bySubCategoryAllocation: {},
     targetAllocation: null,
@@ -57,6 +60,7 @@ describe('buildFollowUpSuggestions', () => {
         totalDividends: 0,
         netCashFlow: -2000,
         transactionCount: 5,
+        expenseTransactionCount: 4,
       },
     });
 
@@ -80,6 +84,7 @@ describe('buildFollowUpSuggestions', () => {
         totalDividends: 0,
         netCashFlow: -2000,
         transactionCount: 5,
+        expenseTransactionCount: 4,
       },
     });
 
