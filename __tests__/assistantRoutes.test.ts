@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import type { AssistantMonthContextBundle } from '@/types/assistant';
 
 const {
   verifyIdTokenMock,
@@ -130,6 +131,9 @@ describe('Assistant private API routes', () => {
     verifyIdTokenMock.mockResolvedValue({ uid: 'user-1' });
     // Default: no delegated-access grant, so cross-account calls are denied (403).
     accountAccessDocGetMock.mockResolvedValue({ exists: false, data: () => undefined });
+    // `satisfies` is load-bearing: the mock is an untyped vi.fn(), so without it a
+    // renamed or dropped bundle field leaves this fixture green while it no longer
+    // resembles what the route actually receives.
     buildAssistantMonthContextMock.mockResolvedValue({
       selector: { year: 2026, month: 3 },
       currentSnapshot: null,
@@ -140,6 +144,7 @@ describe('Assistant private API routes', () => {
         totalDividends: 0,
         netCashFlow: 0,
         transactionCount: 0,
+        expenseTransactionCount: 0,
       },
       netWorth: {
         start: null,
@@ -148,9 +153,13 @@ describe('Assistant private API routes', () => {
         deltaPct: null,
       },
       allocationChanges: [],
-      topExpensesByCategory: [],
+      expensesByCategory: [],
+      incomeByCategory: [],
+      expensesByType: [],
       topIndividualExpenses: [],
       bySubCategoryAllocation: {},
+      targetAllocation: null,
+      expenseCategories: [],
       dataQuality: {
         hasSnapshot: false,
         hasPreviousBaseline: false,
@@ -158,7 +167,7 @@ describe('Assistant private API routes', () => {
         isPartialMonth: true,
         notes: [],
       },
-    });
+    } satisfies AssistantMonthContextBundle);
     buildAssistantYearContextMock.mockResolvedValue(null);
     buildAssistantYtdContextMock.mockResolvedValue(null);
     buildAssistantHistoryContextMock.mockResolvedValue(null);
