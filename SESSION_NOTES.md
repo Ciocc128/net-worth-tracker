@@ -50,7 +50,13 @@ Un LLM non distingue "assente dai dati che ho ricevuto" da "assente dal mondo". 
 - [x] `fcbf408` · `feat: add pure cashflow breakdown util with subcategory nesting`
 - [x] `cb1749b` · `fix: give the assistant the full expense breakdown, not a silent top five`
 - [x] `9ad4741` · `feat: tell the assistant its subcategory breakdown is exhaustive`
-- [ ] `docs: record the assistant subcategory breakdown conventions`
+- [x] `582cab5` · `docs: record the assistant subcategory breakdown conventions`
+
+Fuori piano, emersi dalla verifica e dal confronto con l'utente:
+
+- [x] `bd5d550` · `docs: separate the two cashflow changes in the assistant known issue`
+- [x] `e460d17` · `fix: stop the assistant truncating mid-sentence, and say so when it does`
+- [x] `c6d4103` · `feat: double the assistant token budgets`
 
 I due commit "cablaggio" e "rendering" del piano sono **uno solo** (`cb1749b`): la forma del bundle e il suo serializzatore non compilano separatamente, quindi dividerli avrebbe prodotto un commit rosso.
 
@@ -85,3 +91,34 @@ Costo misurato del blocco dati sull'esempio realistico: **2.270 caratteri** (~80
 2. **Il troncamento ora si dichiara.** Il loop dello stream non leggeva mai `stop_reason`, quindi una risposta tagliata era indistinguibile da una finita. Ora `streamAssistantResponse` legge il `message_delta` terminale e appende `TRUNCATION_NOTICE`. Stesso principio della valvola sulle sottocategorie: un limite o non esiste, o si annuncia.
 
 **Da valutare separatamente — le spese singole ricorrenti saturano la loro sezione.** Alzando `topIndividualLimit` a 10 per l'anno, la sezione `SPESE SINGOLE PIU' GRANDI` si riempie di rate di mutuo identiche (9 righe su 10 nell'esempio realistico), che non sono outlier e occupano gli slot degli outlier veri. Non è stato toccato perché deduplicare *silenziosamente* ricreerebbe esattamente il difetto appena corretto: la sezione si chiama "più grandi" e filtrarla senza dirlo la renderebbe una risposta falsa a "quali sono le mie 10 spese più grandi?". La correzione onesta è raggruppare le ricorrenze dichiarandole (`Mutuo: -810 € × 12 nel periodo, totale -9.720 €`), ma è una scelta di prodotto fuori dal piano approvato.
+
+---
+
+## Riepilogo
+
+### Cosa
+
+Un solo aggregatore puro, `buildCashflowBreakdown` in **`lib/utils/expenseBreakdown.ts`**, che sostituisce i due che il context service dell'Assistente usava (`aggregateCashflow` + `buildExpenseBreakdown`, entrambi cancellati). Produce in un unico passaggio: albero **categoria → sottocategoria** senza cap, spese **per tipo** (Fisse / Variabili / Debiti + `Non classificate` per le righe legacy senza `type`), **entrate per categoria**, e le spese singole più grandi con data, sottocategoria e nota. Cablato in tutti e 5 i builder di periodo, con `topIndividualLimit` che scala col periodo (5 mese / 8 trimestre / 10 anno·YTD / 15 storico).
+
+Il prompt (`formatBundleForPrompt`) rende le nuove sezioni con la quota di ciascuna categoria sulle uscite; `ASSISTANT_SYSTEM_CORE` dichiara al modello che il blocco è esaustivo e che una voce assente significa *spesa zero*, non *dato mancante*. Tetti di parole 450/500/550 → 600/700/750.
+
+Emerso dalla verifica sul campo e corretto: budget token (chat 12000, chat+web 16000, strutturate 18000) e lettura di `stop_reason` per dichiarare le risposte troncate.
+
+Copertura: `__tests__/expenseBreakdown.test.ts` (30) e `__tests__/assistantPromptBundle.test.ts` (13) nuovi, `assistantMonthContextService.test.ts` esteso. Suite 82 file / 1457 test verdi, `tsc` pulito.
+
+### Perché
+
+Perché l'assistente rispondeva "N/D" su sottocategorie che erano in Firestore da sempre — e aveva ragione, dato ciò che riceveva. **Un cap che non si dichiara, per un LLM, è indistinguibile dall'assenza del dato**: il modello non può sapere se una voce manca dai dati o dal mondo, e le regole di integrità gli impongono di non speculare. Sembrava un limite del modello, era un bug di serializzazione.
+
+L'aggregatore è **uno solo** per una ragione precisa: i due precedenti attraversavano lo stesso array con classificatori diversi, e nulla garantiva che i risultati quadrassero. Con totali e breakdown che escono dallo stesso `for`, su righe adiacenti, `Σ categorie === totale uscite` è una proprietà del codice, non di un test che qualcuno si è ricordato di scrivere. Conta perché una risposta in cui il modello somma le righe e trova un altro numero non segnala lo scarto: lo racconta.
+
+La classificazione **per `type` invece che per segno** è arrivata di conseguenza: era lo stesso identico bug chiuso nella pipeline email il 2026-07-01, e l'Assistente era l'ultima superficie in disaccordo con la pagina Cashflow.
+
+### Nota
+
+- **La stessa lezione è ricomparsa due volte in una sessione.** Prima il cap sulle categorie, poi `stop_reason` mai letto: in entrambi i casi un limite silenzioso veniva interpretato come "non c'è altro da dire". La regola sta in AGENTS.md → *A Silent Cap in a Context Builder Becomes a Hallucinated "N/D"*, e vale per ogni nuovo `slice()` diretto a un prompt.
+- **`max_tokens` è un budget per thinking *e* testo.** Con `thinking: adaptive` ogni token di ragionamento è tolto alla risposta. Va rivisto ogni volta che si allarga il blocco dati o si alza un tetto di parole — è esattamente ciò che è successo qui.
+- **Cosa cambia per l'utente**: il `transactionCount` scende (non conta più i trasferimenti, che comunque non erano nei totali). I totali di cashflow **non** cambiano se i rimborsi sono registrati come `type: 'income'` — che è il caso di questo account.
+- **Convenzione di segno divergente e voluta**: qui le spese sono negative, in `costCenterUtils` e nell'email sono positive. Motivo nel commento sopra le interfacce in `types/expenses.ts` — nel prompt questi numeri stanno sotto `Uscite: -X €`, e due segni per lo stesso concetto nella stessa pagina di dati fanno sbagliare i confronti al modello.
+- **Trappole di formattazione** che i test hanno intercettato: `-0` renderizzato come `-0 €` (risolto con `asNegative()`), NBSP prima di `€` in ogni asserzione sulle valute, e `it-IT` che non raggruppa le migliaia a 4 cifre (`3000 €`, non `3.000 €`).
+- **Rimane aperto** il rumore delle spese ricorrenti nella sezione delle spese singole (vedi nota sopra) e due prove della checklist: che una domanda generica non produca l'elenco completo, e la ripetizione su Mese e Storico.
