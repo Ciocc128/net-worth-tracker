@@ -33,6 +33,28 @@ function pct(value: number): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
+/**
+ * Formats a share of a total (0-100), with no leading sign.
+ *
+ * Distinct from pct() on purpose: pct() always prepends '+' because it renders a
+ * *change*. Reusing it for a share would print "+18,2% delle uscite", which reads
+ * as growth rather than a proportion.
+ */
+function share(value: number): string {
+  return `${value.toFixed(1).replace('.', ',')}%`;
+}
+
+/** Pluralises the transaction count — "1 transazioni" is a phrasing the model copies. */
+function txn(count: number): string {
+  return `${count} ${count === 1 ? 'transazione' : 'transazioni'}`;
+}
+
+// Safety valve on the subcategory rows rendered into the prompt. Never reached with a
+// realistic taxonomy (~120 rows over five years of history); it exists so a pathological
+// account cannot blow up the context window. When it DOES trip, the omission is stated
+// in the text — a silent cap is precisely the defect this whole section replaces.
+const MAX_SUBCATEGORY_ROWS_IN_PROMPT = 150;
+
 const MEMORY_CATEGORY_LABELS: Record<AssistantMemoryItem['category'], string> = {
   goal: 'Obiettivi finanziari',
   preference: 'Preferenze',
@@ -134,24 +156,74 @@ function formatBundleForPrompt(bundle: AssistantMonthContextBundle): string {
   lines.push(`Dividendi e cedole: ${eur(cashflow.totalDividends)}`);
   lines.push(`Uscite: ${eur(cashflow.totalExpenses)}`);
   lines.push(`Flusso netto: ${eur(cashflow.netCashFlow)}`);
-  lines.push(`Numero transazioni: ${cashflow.transactionCount}`);
+  lines.push(
+    `Numero transazioni: ${cashflow.transactionCount} (di cui ${cashflow.expenseTransactionCount} di spesa; i trasferimenti fra conti sono esclusi)`
+  );
   lines.push('');
 
-  // Top expense categories — lets Claude cite concrete spending drivers by name
-  if (bundle.topExpensesByCategory.length > 0) {
-    lines.push('--- SPESE PER CATEGORIA (top 5 per importo) ---');
-    for (const cat of bundle.topExpensesByCategory) {
-      lines.push(`${cat.categoryName}: ${eur(cat.total)} (${cat.transactionCount} transazioni)`);
+  const totalExpenses = cashflow.totalExpenses;
+  const shareOfExpenses = (value: number): string =>
+    totalExpenses !== 0 ? share((value / totalExpenses) * 100) : share(0);
+
+  // Coarse-grained view first, so the model has the Fisse/Variabili/Debiti mix in mind
+  // before it reads the long category list.
+  if (bundle.expensesByType.length > 0) {
+    lines.push('--- SPESE PER TIPO ---');
+    for (const entry of bundle.expensesByType) {
+      lines.push(`${entry.label}: ${eur(entry.total)} (${shareOfExpenses(entry.total)})`);
     }
     lines.push('');
   }
 
-  // Top individual expenses — lets Claude call out specific large outlier transactions
+  // The exhaustive spending tree. This section replaced a top-5 category list that made
+  // the assistant report "N/D" for subcategories it simply had never been sent.
+  if (bundle.expensesByCategory.length > 0) {
+    lines.push('--- SPESE PER CATEGORIA E SOTTOCATEGORIA (elenco completo del periodo) ---');
+    let renderedSubRows = 0;
+    let omittedSubRows = 0;
+    let omittedSubTotal = 0;
+
+    for (const category of bundle.expensesByCategory) {
+      lines.push(
+        `${category.categoryName}: ${eur(category.total)} (${txn(category.transactionCount)}, ${shareOfExpenses(category.total)} delle uscite)`
+      );
+      for (const sub of category.subCategories) {
+        if (renderedSubRows >= MAX_SUBCATEGORY_ROWS_IN_PROMPT) {
+          omittedSubRows += 1;
+          omittedSubTotal += sub.total;
+          continue;
+        }
+        lines.push(`  › ${sub.subCategoryName}: ${eur(sub.total)} (${txn(sub.transactionCount)})`);
+        renderedSubRows += 1;
+      }
+    }
+
+    if (omittedSubRows > 0) {
+      lines.push(
+        `(${omittedSubRows} sottocategorie minori omesse per brevità, totale ${eur(omittedSubTotal)}; le categorie sopra sono comunque complete)`
+      );
+    }
+    lines.push('');
+  }
+
+  // Income by category. Dividends are reported in the cashflow block above and excluded
+  // here, so these rows add up to "Entrate (esclusi dividendi)".
+  if (bundle.incomeByCategory.length > 0) {
+    lines.push('--- ENTRATE PER CATEGORIA (esclusi i dividendi, riportati sopra) ---');
+    for (const entry of bundle.incomeByCategory) {
+      lines.push(`${entry.categoryName}: ${eur(entry.total)} (${txn(entry.transactionCount)})`);
+    }
+    lines.push('');
+  }
+
+  // Individual outliers — the date and subcategory let Claude tie a spike to one event
+  // rather than to a whole category.
   if (bundle.topIndividualExpenses.length > 0) {
     lines.push('--- SPESE SINGOLE PIU\' GRANDI ---');
     for (const exp of bundle.topIndividualExpenses) {
-      const label = exp.notes ? `${exp.categoryName} – ${exp.notes}` : exp.categoryName;
-      lines.push(`${label}: ${eur(exp.amount)}`);
+      const category = exp.subCategoryName ? `${exp.categoryName} › ${exp.subCategoryName}` : exp.categoryName;
+      const label = exp.notes ? `${category} – ${exp.notes}` : category;
+      lines.push(`${exp.date} · ${label}: ${eur(exp.amount)}`);
     }
     lines.push('');
   }
@@ -317,6 +389,9 @@ export const ASSISTANT_SYSTEM_CORE = [
   '',
   '# Categorizzazione spese',
   "Il blocco CATEGORIE DI SPESA CONFIGURATE elenca l'intera tassonomia impostata dall'utente (non solo quelle usate nel periodo). Usalo per rispondere a domande come \"in che categoria segno questa spesa?\" o \"ha senso creare una nuova categoria?\": suggerisci prima una categoria/sottocategoria già esistente se pertinente, e proponi una nuova categoria solo se davvero non c'è una corrispondenza ragionevole.",
+  "Il blocco SPESE PER CATEGORIA E SOTTOCATEGORIA è ESAUSTIVO: contiene ogni categoria e ogni sottocategoria con spesa nel periodo, non una classifica dei primi cinque. Quando l'utente chiede il dettaglio di una categoria, elenca le sue sottocategorie leggendole da lì — il dato c'è.",
+  "Una sottocategoria che l'utente nomina e che NON compare in quel blocco ha avuto spesa zero nel periodo. Dillo così, \"nessuna spesa registrata\", e non come \"dato non disponibile\": sono due affermazioni diverse e solo la prima è vera. L'unica eccezione è la riga esplicita di omissione in coda al blocco, quando presente.",
+  "Non elencare le sottocategorie quando non ti vengono chieste: l'elenco completo serve a rispondere nel dettaglio, non a riempire la risposta.",
   '',
   '# Casi limite',
   "- Periodo ancora in corso (mese/anno corrente, YTD): i dati sono parziali per definizione — evidenzia le tendenze osservate finora, non presentarle come il risultato finale del periodo",
@@ -325,6 +400,13 @@ export const ASSISTANT_SYSTEM_CORE = [
 ].join('\n');
 
 // ─── Per-mode format contracts (static per mode, cacheable) ──────────────────
+//
+// Word ceilings were raised (450/500/550 → 600/700/750) when the data block became
+// exhaustive: a question like "break Casa down by subcategory, then add these five
+// categories" needs room to answer, and the old ceilings would have truncated exactly
+// the enumeration that was asked for. Structured analyses run at max_tokens 7000 with a
+// 4000-token thinking budget, so ~3000 tokens of output — 750 Italian words is roughly
+// 1300, comfortably inside. Chat mode has no ceiling.
 
 const MONTH_FORMAT_CONTRACT = [
   '# Formato della risposta',
@@ -333,7 +415,7 @@ const MONTH_FORMAT_CONTRACT = [
   '2. **Cosa ha mosso il patrimonio** — i principali driver (mercato, cashflow, allocazione)',
   "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
   '',
-  'Vincoli: massimo 450 parole.',
+  'Vincoli: massimo 600 parole.',
 ].join('\n');
 
 const YEAR_FORMAT_CONTRACT = [
@@ -343,7 +425,7 @@ const YEAR_FORMAT_CONTRACT = [
   "2. **Cosa ha mosso il patrimonio nell'anno** — i principali driver (mercato, cashflow, allocazione, eventi); se l'anno è ancora in corso, precisa che sono i driver osservati finora",
   "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
   '',
-  'Vincoli: massimo 500 parole.',
+  'Vincoli: massimo 700 parole.',
 ].join('\n');
 
 const YTD_FORMAT_CONTRACT = [
@@ -353,7 +435,7 @@ const YTD_FORMAT_CONTRACT = [
   "2. **Cosa ha mosso il patrimonio da inizio anno** — principali driver osservati finora",
   '3. **1-2 azioni o attenzioni** — osservazioni pratiche',
   '',
-  "Vincoli: massimo 450 parole. Non proiettare valori annualizzati salvo esplicita richiesta dell'utente — il periodo è per definizione parziale.",
+  "Vincoli: massimo 600 parole. Non proiettare valori annualizzati salvo esplicita richiesta dell'utente — il periodo è per definizione parziale.",
 ].join('\n');
 
 const HISTORY_FORMAT_CONTRACT = [
@@ -363,7 +445,7 @@ const HISTORY_FORMAT_CONTRACT = [
   '2. **Trend storici principali** — cashflow cumulativo, crescita patrimonio, composizione del portafoglio nel tempo',
   '3. **1-2 osservazioni strategiche** — cosa emerge dal lungo periodo, opportunità o rischi strutturali',
   '',
-  'Vincoli: massimo 550 parole. Privilegia la visione di lungo periodo rispetto ai dettagli di un singolo mese.',
+  'Vincoli: massimo 750 parole. Privilegia la visione di lungo periodo rispetto ai dettagli di un singolo mese.',
 ].join('\n');
 
 const QUARTER_FORMAT_CONTRACT = [
@@ -373,7 +455,7 @@ const QUARTER_FORMAT_CONTRACT = [
   '2. **Cosa ha mosso il patrimonio nel trimestre** — i principali driver (mercato, cashflow, allocazione)',
   "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
   '',
-  'Vincoli: massimo 450 parole.',
+  'Vincoli: massimo 600 parole.',
 ].join('\n');
 
 const CHAT_FORMAT_CONTRACT = [

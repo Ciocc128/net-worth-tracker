@@ -18,6 +18,9 @@
  * - Click Budget/Risparmi → no action
  * - Back button → return to budget view
  *
+ * The graph construction itself lives in lib/utils/cashflowSankey.ts — this file owns
+ * the navigation state, the transaction list and the Nivo wiring.
+ *
  * Used by: AnalisiTab
  */
 'use client';
@@ -29,6 +32,18 @@ import { ResponsiveSankey } from '@nivo/sankey';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Expense, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import {
+  buildBudgetFlowData,
+  buildBudgetFlowDataWithSubcategories,
+  buildDrillDownData,
+  buildTypeDrillDownData,
+  categoryHasRealSubCategories,
+  selectExpensesForDrillDown,
+  type CategoryRef,
+  type SankeyNode,
+  type SankeyView,
+  type SubCategoryRef,
+} from '@/lib/utils/cashflowSankey';
 import { formatCurrency, formatCurrencyForSankey } from '@/lib/services/chartService';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,693 +53,37 @@ import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { chartReveal, fadeVariants } from '@/lib/utils/motionVariants';
 import { cn } from '@/lib/utils';
 
-// Color palette for income category nodes. These are semantic hex values that
-// remain stable across themes — the Sankey uses intentional semantic colors
-// (blue=fixed, red=variable, amber=debt) that should not follow the chart palette.
-const COLORS = [
-  '#3b82f6', // blue
-  '#ef4444', // red
-  '#10b981', // green
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#6366f1', // indigo
-  '#14b8a6', // teal
-];
-
 interface CashflowSankeyChartProps {
   expenses: Expense[];    // All expenses for the period (income + expenses)
   isMobile: boolean;      // Responsive flag (computed in parent)
   title?: string;         // Optional custom title
 }
 
-interface SankeyNode {
-  id: string;
-  nodeColor: string;
-  label?: string; // Optional display label (if different from id)
+/**
+ * The expense-type level, when it is on the navigation path.
+ *
+ * `color` is the TYPE node's own color. Restoring the category's derived shade instead
+ * paints the whole drill-down in near-grays — the bug this pairing exists to prevent.
+ * Presence of the object answers "did we come from a type?", so the answer and the
+ * value it implies can no longer disagree.
+ */
+interface TypeParent {
+  expenseType: ExpenseType;
+  color: string;
 }
 
-interface SankeyLink {
-  source: string;
-  target: string;
-  value: number;
-}
-
-interface SankeyData {
-  nodes: SankeyNode[];
-  links: SankeyLink[];
-}
-
-/**
- * Derive subcategory colors from parent category color
- *
- * Algorithm: Brightness-based variation from base color
- * - Parse hex to RGB
- * - Apply brightness factor (1.0 → 0.55) for gradual darkening
- * - Convert back to hex
- */
-const deriveSubcategoryColors = (baseColor: string, count: number): string[] => {
-  // Parse hex color to RGB
-  const hex = baseColor.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-
-  const colors: string[] = [];
-  for (let i = 0; i < count; i++) {
-    // Create variations by adjusting brightness (gradually darken)
-    const factor = 1 - (i * 0.15);
-    const newR = Math.round(Math.max(0, Math.min(255, r * factor)));
-    const newG = Math.round(Math.max(0, Math.min(255, g * factor)));
-    const newB = Math.round(Math.max(0, Math.min(255, b * factor)));
-    colors.push(`#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`);
-  }
-  return colors;
-};
-
-/**
- * Build Budget Flow Sankey: Income Categories → Budget → Expense Types → Expense Categories + Savings
- *
- * Algorithm:
- * 1. Aggregate income by category (left side)
- * 2. Aggregate expenses by TYPE (Spese Fisse, Variabili, Debiti)
- * 3. Aggregate expenses by TYPE+CATEGORY (Map<ExpenseType, Map<category, amount>>)
- * 4. Calculate savings (income - expenses)
- * 5. Create Budget node (center) with total income value
- * 6. Build links: Income → Budget, Budget → Types, Types → Categories, Budget → Savings
- * 7. Apply mobile filtering (top N categories per type)
- *
- * Structure (4-layer):
- * - Left nodes: Income categories
- * - Center-left node: "Budget" (total income)
- * - Center-right nodes: Expense types (Spese Fisse, Variabili, Debiti)
- * - Right nodes: Expense categories (grouped by type) + "Risparmi" (if positive)
- *
- * @param expenses - All expenses for period (income + expenses)
- * @param isMobile - Apply mobile optimizations (top N filtering)
- * @returns Nivo Sankey data structure { nodes, links }
- */
-const buildBudgetFlowData = (expenses: Expense[], isMobile: boolean): SankeyData => {
-  // Step 1: Aggregate income by category
-  const incomeMap = new Map<string, number>();
-
-  // Step 2: Aggregate expenses by TYPE
-  const expenseTypeMap = new Map<ExpenseType, number>();
-
-  // Step 3: Aggregate expenses by TYPE+CATEGORY
-  const typeAndCategoryMap = new Map<ExpenseType, Map<string, number>>();
-
-  let totalIncome = 0;
-  let totalExpenses = 0;
-
-  expenses.forEach(expense => {
-    const amount = Math.abs(expense.amount);
-    const category = expense.categoryName;
-    const type = expense.type;
-
-    if (type === 'transfer') return;
-    if (type === 'income') {
-      incomeMap.set(category, (incomeMap.get(category) || 0) + amount);
-      totalIncome += amount;
-    } else {
-      // Aggregate by expense type
-      expenseTypeMap.set(type, (expenseTypeMap.get(type) || 0) + amount);
-      totalExpenses += amount;
-
-      // Aggregate by type+category
-      if (!typeAndCategoryMap.has(type)) {
-        typeAndCategoryMap.set(type, new Map<string, number>());
-      }
-      const categoryMap = typeAndCategoryMap.get(type)!;
-      categoryMap.set(category, (categoryMap.get(category) || 0) + amount);
-    }
-  });
-
-  // Step 4: Calculate savings (can be negative if spending > income)
-  const savings = totalIncome - totalExpenses;
-
-  // Step 5: Mobile filtering - keep top N categories
-  let incomeCategories = Array.from(incomeMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ name, value }));
-
-  if (isMobile) {
-    // Mobile: top 5 income categories
-    incomeCategories = incomeCategories.slice(0, 5);
-  }
-
-  // Step 6: Extract expense types and filter categories per type
-  const expenseTypes: ExpenseType[] = ['fixed', 'variable', 'debt'];
-  const typeColors: Record<ExpenseType, string> = {
-    fixed: '#3b82f6',     // blue — intentional semantic color, not theme-dependent
-    variable: '#8b5cf6',  // violet
-    debt: '#f59e0b',      // amber
-    income: '#10b981',    // green (not used in expense flow)
-    transfer: '#6b7280',  // gray
-  };
-
-  // Build category list per type with mobile filtering
-  const categoriesPerType = new Map<ExpenseType, Array<{ name: string; value: number }>>();
-
-  expenseTypes.forEach(type => {
-    const categoryMap = typeAndCategoryMap.get(type);
-    if (!categoryMap) {
-      categoriesPerType.set(type, []);
-      return;
-    }
-
-    let categories = Array.from(categoryMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value]) => ({ name, value }));
-
-    if (isMobile) {
-      // Mobile: top 3-4 categories per type
-      categories = categories.slice(0, 3);
-    }
-
-    categoriesPerType.set(type, categories);
-  });
-
-  // Step 7: Assign colors to income categories
-  const incomeColorMap = new Map<string, string>();
-  incomeCategories.forEach((cat, index) => {
-    incomeColorMap.set(cat.name, COLORS[index % COLORS.length]);
-  });
-
-  // Step 8: Build nodes
-  const nodes: SankeyNode[] = [
-    // Left: Income categories
-    ...incomeCategories.map(cat => ({
-      id: cat.name,
-      nodeColor: incomeColorMap.get(cat.name)!
-    })),
-    // Center-left: Budget node (green color)
-    {
-      id: 'Budget',
-      nodeColor: '#10b981'
-    },
-    // Center-right: Expense type nodes (only if they have expenses)
-    ...expenseTypes
-      .filter(type => expenseTypeMap.has(type) && expenseTypeMap.get(type)! > 0)
-      .map(type => ({
-        id: EXPENSE_TYPE_LABELS[type],
-        nodeColor: typeColors[type]
-      })),
-    // Right: Expense categories (grouped by type, with derived colors)
-    ...expenseTypes.flatMap(type => {
-      const categories = categoriesPerType.get(type) || [];
-      const typeColor = typeColors[type];
-      const derivedColors = deriveSubcategoryColors(typeColor, categories.length);
-
-      return categories.map((cat, index) => ({
-        id: cat.name,
-        nodeColor: derivedColors[index]
-      }));
-    }),
-    // Right: Savings (blue — flows out of the income stream)
-    ...(savings > 0 ? [{
-      id: 'Risparmi',
-      nodeColor: '#3b82f6'
-    }] : [])
-  ];
-
-  // Step 9: Build links
-  const links: SankeyLink[] = [
-    // Income → Budget
-    ...incomeCategories.map(cat => ({
-      source: cat.name,
-      target: 'Budget',
-      value: cat.value
-    })),
-    // Budget → Expense Types
-    ...expenseTypes
-      .filter(type => expenseTypeMap.has(type) && expenseTypeMap.get(type)! > 0)
-      .map(type => ({
-        source: 'Budget',
-        target: EXPENSE_TYPE_LABELS[type],
-        value: expenseTypeMap.get(type)!
-      })),
-    // Expense Types → Categories (per type)
-    ...expenseTypes.flatMap(type => {
-      const categories = categoriesPerType.get(type) || [];
-      return categories.map(cat => ({
-        source: EXPENSE_TYPE_LABELS[type],
-        target: cat.name,
-        value: cat.value
-      }));
-    }),
-    // Budget → Savings (only if positive)
-    ...(savings > 0 ? [{
-      source: 'Budget',
-      target: 'Risparmi',
-      value: savings
-    }] : [])
-  ];
-
-  return { nodes, links };
-};
-
-/**
- * Build 5-layer Budget Flow Sankey with subcategories layer
- *
- * Extends buildBudgetFlowData by adding granular subcategory breakdown.
- * Architecture: Income → Budget → Types → Categories → Subcategories + Savings
- *
- * Algorithm:
- * 1. Aggregate expenses in triple-nested Map (Type → Category → Subcategory → Amount)
- * 2. Build 5-layer node structure with color derivation chain:
- *    - Type colors (fixed)
- *    - Category colors (derived from type, -15% brightness per item)
- *    - Subcategory colors (derived from category, -15% brightness per item)
- * 3. Apply mobile filtering (top 4 subcategories per category)
- * 4. Map expenses without subCategoryName to "Altro" fallback
- *
- * Why 5 layers? Provides granular expense breakdown while maintaining visual hierarchy.
- * Trade-off: More nodes (~40-50 typical) but within Nivo Sankey capacity.
- *
- * @param expenses - All expenses for period
- * @param isMobile - Apply mobile optimizations (top N filtering)
- * @returns Nivo Sankey data structure { nodes, links }
- */
-const buildBudgetFlowDataWithSubcategories = (expenses: Expense[], isMobile: boolean): SankeyData => {
-  // Step 1: Aggregate income by category
-  const incomeMap = new Map<string, number>();
-
-  // Step 2: Aggregate expenses by TYPE
-  const expenseTypeMap = new Map<ExpenseType, number>();
-
-  // Step 3: Aggregate expenses by TYPE+CATEGORY+SUBCATEGORY (triple-nested Map)
-  const typeAndCategoryAndSubcategoryMap = new Map<ExpenseType, Map<string, Map<string, number>>>();
-
-  let totalIncome = 0;
-  let totalExpenses = 0;
-
-  expenses.forEach(expense => {
-    const amount = Math.abs(expense.amount);
-    const category = expense.categoryName;
-    const type = expense.type;
-
-    if (type === 'transfer') return;
-    if (type === 'income') {
-      incomeMap.set(category, (incomeMap.get(category) || 0) + amount);
-      totalIncome += amount;
-    } else {
-      // Aggregate by expense type
-      expenseTypeMap.set(type, (expenseTypeMap.get(type) || 0) + amount);
-      totalExpenses += amount;
-
-      // Aggregate by type+category+subcategory (triple-nested)
-      const subcategory = expense.subCategoryName || 'Altro'; // Fallback for expenses without subcategory
-
-      if (!typeAndCategoryAndSubcategoryMap.has(type)) {
-        typeAndCategoryAndSubcategoryMap.set(type, new Map<string, Map<string, number>>());
-      }
-      const categoryMap = typeAndCategoryAndSubcategoryMap.get(type)!;
-
-      if (!categoryMap.has(category)) {
-        categoryMap.set(category, new Map<string, number>());
-      }
-      const subcategoryMap = categoryMap.get(category)!;
-
-      subcategoryMap.set(subcategory, (subcategoryMap.get(subcategory) || 0) + amount);
-    }
-  });
-
-  // Step 4: Calculate savings
-  const savings = totalIncome - totalExpenses;
-
-  // Step 5: Mobile filtering - income categories
-  let incomeCategories = Array.from(incomeMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ name, value }));
-
-  if (isMobile) {
-    incomeCategories = incomeCategories.slice(0, 5);
-  }
-
-  // Step 6: Extract expense types
-  const expenseTypes: ExpenseType[] = ['fixed', 'variable', 'debt'];
-  const typeColors: Record<ExpenseType, string> = {
-    fixed: '#3b82f6',
-    variable: '#8b5cf6',
-    debt: '#f59e0b',
-    income: '#10b981',
-    transfer: '#6b7280',
-  };
-
-  // Step 7: Build category and subcategory lists per type with mobile filtering
-  const categoriesPerType = new Map<ExpenseType, Array<{ name: string; value: number; color: string }>>();
-  const subcategoriesPerCategory = new Map<string, Array<{ name: string; value: number; color: string }>>();
-
-  expenseTypes.forEach(type => {
-    const categoryMap = typeAndCategoryAndSubcategoryMap.get(type);
-    if (!categoryMap) {
-      categoriesPerType.set(type, []);
-      return;
-    }
-
-    // Calculate category totals (sum of all subcategories)
-    let categories = Array.from(categoryMap.entries())
-      .map(([categoryName, subcategoryMap]) => {
-        const total = Array.from(subcategoryMap.values()).reduce((sum, val) => sum + val, 0);
-        return { name: categoryName, value: total };
-      })
-      .sort((a, b) => b.value - a.value);
-
-    // Mobile filtering for categories
-    if (isMobile) {
-      categories = categories.slice(0, 3);
-    }
-
-    // Derive colors for categories from type color
-    const typeColor = typeColors[type];
-    const categoryColors = deriveSubcategoryColors(typeColor, categories.length);
-
-    // Assign colors to categories and build subcategory lists
-    const categoriesWithColors = categories.map((cat, catIndex) => {
-      const categoryColor = categoryColors[catIndex];
-
-      // Get subcategories for this category
-      const subcategoryMap = categoryMap.get(cat.name)!;
-      let subcategories = Array.from(subcategoryMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, value]) => ({ name, value }));
-
-      // Mobile filtering for subcategories
-      if (isMobile) {
-        subcategories = subcategories.slice(0, 4);
-      }
-
-      // Derive colors for subcategories from category color
-      const subcategoryColors = deriveSubcategoryColors(categoryColor, subcategories.length);
-      const subcategoriesWithColors = subcategories.map((subcat, subcatIndex) => ({
-        name: subcat.name,
-        value: subcat.value,
-        color: subcategoryColors[subcatIndex]
-      }));
-
-      // Store subcategories for later link building
-      subcategoriesPerCategory.set(cat.name, subcategoriesWithColors);
-
-      return {
-        name: cat.name,
-        value: cat.value,
-        color: categoryColor
-      };
-    });
-
-    categoriesPerType.set(type, categoriesWithColors);
-  });
-
-  // Step 8: Assign colors to income categories
-  const incomeColorMap = new Map<string, string>();
-  incomeCategories.forEach((cat, index) => {
-    incomeColorMap.set(cat.name, COLORS[index % COLORS.length]);
-  });
-
-  // Step 9: Build nodes (5 layers)
-  const nodes: SankeyNode[] = [
-    // Layer 1 (Left): Income categories
-    ...incomeCategories.map(cat => ({
-      id: cat.name,
-      nodeColor: incomeColorMap.get(cat.name)!
-    })),
-    // Layer 2 (Center-left): Budget node
-    {
-      id: 'Budget',
-      nodeColor: '#10b981'
-    },
-    // Layer 3 (Center): Expense type nodes
-    ...expenseTypes
-      .filter(type => expenseTypeMap.has(type) && expenseTypeMap.get(type)! > 0)
-      .map(type => ({
-        id: EXPENSE_TYPE_LABELS[type],
-        nodeColor: typeColors[type]
-      })),
-    // Layer 4 (Center-right): Expense categories (grouped by type, with derived colors)
-    // Why: Prevent dangling category nodes in 5-layer view
-    // Categories with only "Altro" subcategories are filtered here to match
-    // the subcategory filtering logic (lines 465-468). This prevents Nivo Sankey
-    // "circular link" errors caused by nodes without incoming/outgoing links.
-    ...expenseTypes.flatMap(type => {
-      const categories = categoriesPerType.get(type) || [];
-      return categories
-        .filter(cat => {
-          const subcategories = subcategoriesPerCategory.get(cat.name) || [];
-          return !(subcategories.length === 1 && subcategories[0].name === 'Altro');
-        })
-        .map(cat => ({
-          id: cat.name,
-          nodeColor: cat.color
-        }));
-    }),
-    // Layer 5 (Right): Subcategories (grouped by category, with derived colors)
-    ...Array.from(subcategoriesPerCategory.entries()).flatMap(([categoryName, subcategories]) => {
-      // Skip subcategories if only "Altro" exists (no real subcategories)
-      if (subcategories.length === 1 && subcategories[0].name === 'Altro') {
-        return [];
-      }
-      return subcategories.map(subcat => ({
-        id: `${categoryName}__${subcat.name}`, // Unique ID to prevent collisions
-        label: subcat.name, // Display only subcategory name, not "Category_Subcategory"
-        nodeColor: subcat.color
-      }));
-    }),
-    // Layer 5 (Right): Savings
-    ...(savings > 0 ? [{
-      id: 'Risparmi',
-      nodeColor: '#3b82f6'
-    }] : [])
-  ];
-
-  // Step 10: Build links (5-layer flow)
-  const links: SankeyLink[] = [
-    // Income → Budget
-    ...incomeCategories.map(cat => ({
-      source: cat.name,
-      target: 'Budget',
-      value: cat.value
-    })),
-    // Budget → Expense Types
-    ...expenseTypes
-      .filter(type => expenseTypeMap.has(type) && expenseTypeMap.get(type)! > 0)
-      .map(type => ({
-        source: 'Budget',
-        target: EXPENSE_TYPE_LABELS[type],
-        value: expenseTypeMap.get(type)!
-      })),
-    // Expense Types → Categories (per type)
-    // Filter links to match filtered category nodes (categories with only "Altro" are excluded)
-    ...expenseTypes.flatMap(type => {
-      const categories = categoriesPerType.get(type) || [];
-      return categories
-        .filter(cat => {
-          const subcategories = subcategoriesPerCategory.get(cat.name) || [];
-          return !(subcategories.length === 1 && subcategories[0].name === 'Altro');
-        })
-        .map(cat => ({
-          source: EXPENSE_TYPE_LABELS[type],
-          target: cat.name,
-          value: cat.value
-        }));
-    }),
-    // Categories → Subcategories (NEW LAYER)
-    ...Array.from(subcategoriesPerCategory.entries()).flatMap(([categoryName, subcategories]) => {
-      // Skip link if only "Altro" exists (no real subcategories)
-      if (subcategories.length === 1 && subcategories[0].name === 'Altro') {
-        return [];
-      }
-      return subcategories.map(subcat => ({
-        source: categoryName,
-        target: `${categoryName}__${subcat.name}`, // Match unique ID from nodes
-        value: subcat.value
-      }));
-    }),
-    // Budget → Savings (only if positive)
-    ...(savings > 0 ? [{
-      source: 'Budget',
-      target: 'Risparmi',
-      value: savings
-    }] : [])
-  ];
-
-  return { nodes, links };
-};
-
-/**
- * Build Type Drill-down Sankey: Expense Type → Categories
- *
- * Algorithm:
- * 1. Filter expenses for selected type (fixed, variable, or debt)
- * 2. Aggregate by category within that type
- * 3. Apply mobile filtering (top N categories)
- * 4. Build nodes: Type + Categories
- * 5. Build links: Type → Categories
- * 6. Derive category colors from type color
- *
- * @param expenses - All expenses for period
- * @param typeName - Selected expense type label (e.g., "Spese Fisse")
- * @param typeColor - Color of selected type
- * @param isMobile - Apply mobile optimizations
- * @returns Nivo Sankey data structure { nodes, links }
- */
-const buildTypeDrillDownData = (
-  expenses: Expense[],
-  typeName: string,
-  typeColor: string,
-  isMobile: boolean
-): SankeyData => {
-  // Find the ExpenseType enum value from the label
-  const typeEntry = Object.entries(EXPENSE_TYPE_LABELS).find(([_, label]) => label === typeName);
-  if (!typeEntry) {
-    return { nodes: [], links: [] };
-  }
-  const expenseType = typeEntry[0] as ExpenseType;
-
-  // Step 1: Filter expenses for selected type
-  const filteredExpenses = expenses.filter(e => e.type === expenseType);
-
-  if (filteredExpenses.length === 0) {
-    return { nodes: [], links: [] };
-  }
-
-  // Step 2: Aggregate by category
-  const categoryMap = new Map<string, number>();
-
-  filteredExpenses.forEach(expense => {
-    const category = expense.categoryName;
-    const amount = Math.abs(expense.amount);
-    categoryMap.set(category, (categoryMap.get(category) || 0) + amount);
-  });
-
-  // Step 3: Sort and filter
-  let categories = Array.from(categoryMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ name, value }));
-
-  if (isMobile && categories.length > 8) {
-    // Mobile: top 8 categories
-    categories = categories.slice(0, 8);
-  }
-
-  // Step 4: Derive colors from type color
-  const derivedColors = deriveSubcategoryColors(typeColor, categories.length);
-  const categoryColorMap = new Map<string, string>();
-  categories.forEach((cat, index) => {
-    categoryColorMap.set(cat.name, derivedColors[index]);
-  });
-
-  // Step 5: Build nodes
-  const nodes: SankeyNode[] = [
-    // Left: Type node
-    {
-      id: typeName,
-      nodeColor: typeColor
-    },
-    // Right: Category nodes
-    ...categories.map(cat => ({
-      id: cat.name,
-      nodeColor: categoryColorMap.get(cat.name)!
-    }))
-  ];
-
-  // Step 6: Build links
-  const links: SankeyLink[] = categories.map(cat => ({
-    source: typeName,
-    target: cat.name,
-    value: cat.value
-  }));
-
-  return { nodes, links };
-};
-
-/**
- * Build Drill-down Sankey: Category → Subcategories
- *
- * Algorithm:
- * 1. Filter expenses for selected category
- * 2. Aggregate by subcategory (map missing to "Altro")
- * 3. Apply mobile filtering (top N subcategories)
- * 4. Build nodes: Category + Subcategories
- * 5. Build links: Category → Subcategories
- * 6. Derive subcategory colors from category color
- *
- * @param expenses - All expenses for period
- * @param categoryName - Selected category name
- * @param categoryColor - Color of selected category
- * @param isIncome - Whether this is an income category
- * @param isMobile - Apply mobile optimizations
- * @returns Nivo Sankey data structure { nodes, links }
- */
-const buildDrillDownData = (
-  expenses: Expense[],
-  categoryName: string,
-  categoryColor: string,
-  isIncome: boolean,
-  isMobile: boolean
-): SankeyData => {
-  // Step 1: Filter expenses for selected category
-  const filteredExpenses = expenses.filter(e =>
-    e.categoryName === categoryName &&
-    (isIncome ? e.type === 'income' : (e.type !== 'income' && e.type !== 'transfer'))
-  );
-
-  if (filteredExpenses.length === 0) {
-    return { nodes: [], links: [] };
-  }
-
-  // Step 2: Aggregate by subcategory
-  const subcategoryMap = new Map<string, number>();
-
-  filteredExpenses.forEach(expense => {
-    // Map undefined subcategories to "Altro"
-    const subcategory = expense.subCategoryName || 'Altro';
-    const amount = Math.abs(expense.amount);
-    subcategoryMap.set(subcategory, (subcategoryMap.get(subcategory) || 0) + amount);
-  });
-
-  // Step 3: Sort and filter
-  let subcategories = Array.from(subcategoryMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ name, value }));
-
-  if (isMobile && subcategories.length > 8) {
-    // Mobile: top 8 subcategories
-    subcategories = subcategories.slice(0, 8);
-  }
-
-  // Step 4: Derive colors from category color
-  const derivedColors = deriveSubcategoryColors(categoryColor, subcategories.length);
-  const subcategoryColorMap = new Map<string, string>();
-  subcategories.forEach((subcat, index) => {
-    subcategoryColorMap.set(subcat.name, derivedColors[index]);
-  });
-
-  // Step 5: Build nodes
-  const nodes: SankeyNode[] = [
-    // Left: Category node
-    {
-      id: categoryName,
-      nodeColor: categoryColor
-    },
-    // Right: Subcategory nodes
-    ...subcategories.map(subcat => ({
-      id: subcat.name,
-      nodeColor: subcategoryColorMap.get(subcat.name)!
-    }))
-  ];
-
-  // Step 6: Build links
-  const links: SankeyLink[] = subcategories.map(subcat => ({
-    source: categoryName,
-    target: subcat.name,
-    value: subcat.value
-  }));
-
-  return { nodes, links };
-};
+type SankeyDrillState =
+  | { mode: 'type'; expenseType: ExpenseType; color: string }
+  | { mode: 'category'; category: CategoryRef; color: string; parent?: TypeParent }
+  | {
+      mode: 'transactions';
+      category: CategoryRef;
+      color: string;
+      parent?: TypeParent;
+      subCategory?: SubCategoryRef;
+    };
+
+const EMPTY_VIEW: SankeyView = { nodes: [], links: [], index: new Map() };
 
 export function CashflowSankeyChart({
   expenses,
@@ -735,68 +94,49 @@ export function CashflowSankeyChart({
   const isDark = resolvedTheme === 'dark';
   const prefersReducedMotion = useReducedMotion();
 
-  // Drill-down state: tracks selected item for drill-down view
-  // mode: 'type' for Type→Categories, 'category' for Category→Subcategories, 'transactions' for transaction list
-  const [selectedCategory, setSelectedCategory] = useState<{
-    name: string;
-    color: string;
-    isIncome: boolean;
-    mode?: 'type' | 'category' | 'transactions';
-    parentType?: string;             // Expense type label for breadcrumb (e.g., "Variabili")
-    parentTypeColor?: string;        // Original type color — restored when navigating back to type view
-    parentCategory?: string;         // Category name for transaction filtering
-    selectedSubcategory?: string;    // Subcategory name for transaction filtering
-  } | null>(null);
+  // Drill-down state.
+  //
+  // A discriminated union, so a level cannot carry fields belonging to another one. The
+  // type level collapses into a single optional `parent`: it used to be spread across
+  // `parentType` (the label), `parentTypeColor` (the color to restore) and the implicit
+  // "did we come from a type?" test on the former being defined. Keeping the answer and
+  // the color in one object is what stops them drifting apart — the drift is exactly how
+  // the gray-panel bug happened (AGENTS.md → Sankey Drill-Down).
+  const [drill, setDrill] = useState<SankeyDrillState | null>(null);
 
   // Toggle for showing subcategories in budget view (5-layer vs 4-layer)
   const [showSubcategories, setShowSubcategories] = useState(false);
 
   // Build Sankey data based on current mode (budget view vs drill-down modes vs transactions)
-  const sankeyData = useMemo(() => {
-    if (selectedCategory) {
-      if (selectedCategory.mode === 'type') {
-        // Type drill-down mode: show expense type → categories
-        return buildTypeDrillDownData(
-          expenses,
-          selectedCategory.name,
-          selectedCategory.color,
-          isMobile
-        );
-      } else if (selectedCategory.mode === 'category') {
-        // Category drill-down mode: show category → subcategories
-        return buildDrillDownData(
-          expenses,
-          selectedCategory.name,
-          selectedCategory.color,
-          selectedCategory.isIncome,
-          isMobile
-        );
-      } else if (selectedCategory.mode === 'transactions') {
-        // Transaction list mode: don't render Sankey, render table instead
-        return { nodes: [], links: [] };
-      }
+  const view = useMemo((): SankeyView => {
+    if (drill?.mode === 'type') {
+      return buildTypeDrillDownData(expenses, drill.expenseType, drill.color, isMobile);
     }
-    // Budget mode: conditional invocation based on subcategories toggle
-    if (showSubcategories) {
-      // 5-layer mode: show income → budget → types → categories → subcategories + savings
-      return buildBudgetFlowDataWithSubcategories(expenses, isMobile);
+    if (drill?.mode === 'category') {
+      return buildDrillDownData(expenses, drill.category, drill.color, isMobile);
     }
-    // 4-layer mode: show income → budget → types → categories + savings
-    return buildBudgetFlowData(expenses, isMobile);
-  }, [expenses, selectedCategory, isMobile, showSubcategories]);
+    if (drill?.mode === 'transactions') {
+      // Transaction list mode: don't render Sankey, render table instead
+      return EMPTY_VIEW;
+    }
+    return showSubcategories
+      ? buildBudgetFlowDataWithSubcategories(expenses, isMobile)
+      : buildBudgetFlowData(expenses, isMobile);
+  }, [expenses, drill, isMobile, showSubcategories]);
+
+  // Nivo receives the graph only — never the descriptor index, which is ours.
+  const chartData = useMemo(() => ({ nodes: view.nodes, links: view.links }), [view]);
 
   // Calculate total amount for percentage display in tooltips
   const totalAmount = useMemo(() => {
-    return sankeyData.links.reduce((sum, link) => {
-      // Avoid double-counting by only summing links from source nodes
-      // In budget view: sum income links (to Budget)
-      // In drill-down: sum all links (they're all from category to subcategories)
-      if (selectedCategory || link.target === 'Budget') {
-        return sum + link.value;
-      }
+    // Avoid double-counting: in the budget view only the income links (which all end at
+    // the Budget node) are summed; in a drill-down every link leaves the same root.
+    const budgetNodeId = view.nodes.find((node) => view.index.get(node.id)?.kind === 'budget')?.id;
+    return view.links.reduce((sum, link) => {
+      if (drill || link.target === budgetNodeId) return sum + link.value;
       return sum;
     }, 0);
-  }, [sankeyData, selectedCategory]);
+  }, [view, drill]);
 
   // Responsive configuration
   const chartConfig = isMobile
@@ -823,231 +163,128 @@ export function CashflowSankeyChart({
         labelOffset: 12,
       };
 
-  // Check if a category has actual subcategories (not just "Altro")
-  // Used to decide whether to show subcategory drill-down or transaction list
-  const checkIfCategoryHasSubcategories = (categoryName: string): boolean => {
-    const categoryExpenses = expenses.filter(e => e.categoryName === categoryName);
-    // Has subcategories if at least one expense has a non-null subCategoryName
-    return categoryExpenses.some(e => e.subCategoryName);
-  };
+  // Handle node click for multi-level drill-down navigation.
+  //
+  // The index says what a node IS, so the handler no longer has to infer it from the
+  // current mode plus string shape — no '__' split, no "is this id one of the type
+  // labels?" probe (which also matched a category literally named "Trasferimento"), no
+  // re-derivation of income-ness by scanning the rows.
+  const handleNodeClick = (node: { id: string; color: string }) => {
+    const descriptor = view.index.get(node.id);
+    // Nivo hands link objects to the same callback, and they carry an id too.
+    if (!descriptor) return;
 
-  // Handle node click for multi-level drill-down navigation
-  const handleNodeClick = (node: any) => {
-    // Don't drill down into Budget or Risparmi nodes
-    if (node.id === 'Budget' || node.id === 'Risparmi') {
-      return;
-    }
+    switch (descriptor.kind) {
+      case 'budget':
+      case 'savings':
+        return;
 
-    // Handle subcategory click in 5-layer view (when showSubcategories is ON)
-    // Subcategory IDs are in format "CategoryName__SubcategoryName"
-    if (node.id.includes('__')) {
-      const [categoryName, subcategoryName] = node.id.split('__');
-      const isIncome = expenses.some(e => e.categoryName === categoryName && e.type === 'income');
+      case 'expenseType':
+        // Clicking the root of the view we are already in is a no-op, not a re-entry.
+        if (drill?.mode === 'type') return;
+        setDrill({ mode: 'type', expenseType: descriptor.expenseType, color: node.color });
+        return;
 
-      setSelectedCategory({
-        name: categoryName,
-        color: node.color,
-        isIncome,
-        mode: 'transactions',
-        parentCategory: categoryName,
-        selectedSubcategory: subcategoryName,
-      });
-      return;
-    }
-
-    // Check if this is an expense type node (Spese Fisse, Variabili, Debiti)
-    const expenseTypeLabels = Object.values(EXPENSE_TYPE_LABELS).filter(label => label !== 'Entrate');
-    const isExpenseType = expenseTypeLabels.includes(node.id);
-
-    // BUDGET VIEW: drill into type or category
-    if (!selectedCategory) {
-      if (isExpenseType) {
-        // Type drill-down: show expense type → categories.
-        // Store parentTypeColor so we can restore the exact type color if the user
-        // drills deeper (to a category/subcategory) and then navigates back.
-        setSelectedCategory({
-          name: node.id,
-          color: node.color,
-          parentTypeColor: node.color,
-          isIncome: false,
-          mode: 'type'
-        });
-      } else {
-        // Category drill-down or transactions: depends on whether category has subcategories
-        const hasSubcategories = checkIfCategoryHasSubcategories(node.id);
-        const isIncome = expenses.some(e => e.categoryName === node.id && e.type === 'income');
-
-        setSelectedCategory({
-          name: node.id,
-          color: node.color,
-          isIncome,
-          mode: hasSubcategories ? 'category' : 'transactions',
-          parentCategory: node.id,
-        });
-      }
-    }
-    // TYPE DRILL-DOWN: drill into category
-    else if (selectedCategory.mode === 'type') {
-      // Check if category has subcategories to decide next mode
-      const hasSubcategories = checkIfCategoryHasSubcategories(node.id);
-      const isIncome = expenses.some(e => e.categoryName === node.id && e.type === 'income');
-
-      setSelectedCategory({
-        name: node.id,
-        color: node.color,
-        // Propagate the original type color so handleBack can restore it correctly
-        // even after drilling down multiple levels.
-        parentTypeColor: selectedCategory.parentTypeColor || selectedCategory.color,
-        isIncome,
-        mode: hasSubcategories ? 'category' : 'transactions',
-        parentType: selectedCategory.name,  // Track the expense type for breadcrumb
-        parentCategory: node.id,
-      });
-    }
-    // CATEGORY DRILL-DOWN: drill into subcategory (show transactions)
-    else if (selectedCategory.mode === 'category') {
-      setSelectedCategory({
-        ...selectedCategory,
-        mode: 'transactions',
-        selectedSubcategory: node.id,
-      });
-    }
-  };
-
-  // Filter expenses for transaction list view
-  // Returns expenses matching the selected category/subcategory
-  const getFilteredExpenses = (): Expense[] => {
-    if (!selectedCategory || selectedCategory.mode !== 'transactions') {
-      return [];
-    }
-
-    return expenses.filter(expense => {
-      // Match category
-      const matchesCategory = expense.categoryName ===
-        (selectedCategory.parentCategory || selectedCategory.name);
-
-      // Match income/expense type
-      const matchesType = selectedCategory.isIncome
-        ? expense.type === 'income'
-        : expense.type !== 'income';
-
-      if (!matchesCategory || !matchesType) return false;
-
-      // If subcategory selected, filter by it
-      if (selectedCategory.selectedSubcategory) {
-        if (selectedCategory.selectedSubcategory === 'Altro') {
-          // "Altro" matches null subcategoryName
-          return !expense.subCategoryName;
+      case 'category': {
+        // Same no-op as above: in category mode the only category node is the one we
+        // already drilled into. Compared on the full identity, not just the key.
+        if (
+          drill?.mode === 'category' &&
+          drill.category.key === descriptor.categoryKey &&
+          drill.category.expenseType === descriptor.expenseType
+        ) {
+          return;
         }
-        return expense.subCategoryName === selectedCategory.selectedSubcategory;
+
+        const category: CategoryRef = {
+          expenseType: descriptor.expenseType,
+          key: descriptor.categoryKey,
+          label: descriptor.categoryLabel,
+        };
+        // node.color here is the category's derived shade; the type node's own color is
+        // what has to be restored on the way back, so it is captured from the level above.
+        const parent: TypeParent | undefined =
+          drill?.mode === 'type' ? { expenseType: drill.expenseType, color: drill.color } : undefined;
+
+        setDrill({
+          mode: categoryHasRealSubCategories(expenses, category) ? 'category' : 'transactions',
+          category,
+          color: node.color,
+          parent,
+        });
+        return;
       }
 
-      return true;
-    });
+      case 'subCategory': {
+        // Reached either from the 5-layer budget view (the category level is not on the
+        // path) or from the category drill-down (it already is).
+        const fromCategoryLevel = drill?.mode === 'category';
+        setDrill({
+          mode: 'transactions',
+          category: fromCategoryLevel
+            ? drill.category
+            : {
+                expenseType: descriptor.expenseType,
+                key: descriptor.categoryKey,
+                label: descriptor.categoryLabel,
+              },
+          color: fromCategoryLevel ? drill.color : node.color,
+          parent: fromCategoryLevel ? drill.parent : undefined,
+          subCategory: { key: descriptor.subCategoryKey, label: descriptor.subCategoryLabel },
+        });
+        return;
+      }
+    }
   };
+
+  // Rows behind the current transaction list.
+  const filteredExpenses = useMemo(
+    () =>
+      drill?.mode === 'transactions'
+        ? selectExpensesForDrillDown(expenses, drill.category, drill.subCategory)
+        : [],
+    [expenses, drill]
+  );
 
   // Handle back button click for multi-level navigation
   const handleBack = () => {
-    if (selectedCategory?.mode === 'transactions') {
-      const categoryName = selectedCategory.parentCategory || selectedCategory.name;
-      const hasSubcategories = checkIfCategoryHasSubcategories(categoryName);
-      const cameFromDirectCategoryPath =
-        !selectedCategory.parentType && !!selectedCategory.selectedSubcategory;
-
-      // Direct category → subcategory drill-down should step back to the category view first.
-      // Skipping that intermediate state makes the back action feel like a context reset.
-      if (cameFromDirectCategoryPath && hasSubcategories) {
-        setSelectedCategory(prev => prev ? {
-          ...prev,
-          mode: 'category',
-          selectedSubcategory: undefined,
-        } : null);
-      } else {
-        // Why: Prevent back navigation to empty category drill-down
-        // Before returning to 'category' mode, verify the category has real subcategories.
-        // Without this check, categories with only "Altro" would show a drill-down with
-        // a single "Altro" node instead of returning to budget/type view.
-        if (hasSubcategories) {
-          // Return to category drill-down view
-          setSelectedCategory(prev => prev ? {
-            ...prev,
-            mode: 'category',
-            selectedSubcategory: undefined
-          } : null);
-        } else {
-          // No real subcategories → return to budget or type view
-          if (selectedCategory.parentType) {
-            // Came from type drill-down → return to type view.
-            // Use parentTypeColor (the original type node color) rather than prev.color
-            // (which is the category's derived color — lighter/darker variant).
-            // Without this, navigating back would show the wrong base color for the
-            // entire drill-down chart, making all nodes appear as shades of gray.
-            setSelectedCategory(prev => prev ? {
-              name: prev.parentType!,
-              color: prev.parentTypeColor || prev.color,
-              isIncome: false,
-              mode: 'type'
-            } : null);
-          } else {
-            // Came from budget view → return to budget view
-            setSelectedCategory(null);
-          }
-        }
-      }
-    } else {
-      // Return to budget view
-      setSelectedCategory(null);
+    if (drill?.mode !== 'transactions') {
+      setDrill(null);
+      return;
     }
+
+    // Why: Prevent back navigation to an empty category drill-down.
+    // A category whose rows carry no subcategory has nothing to show at that level, so
+    // stepping back into it would strand the user on a view that just repeats the
+    // category — skip straight to whatever level brought them here.
+    if (categoryHasRealSubCategories(expenses, drill.category)) {
+      setDrill({ mode: 'category', category: drill.category, color: drill.color, parent: drill.parent });
+      return;
+    }
+
+    // Restore the type node's own color, not the category's derived shade: the shade is
+    // a lighter/darker variant, and using it as the base would render the whole
+    // drill-down chart in near-grays.
+    if (drill.parent) {
+      setDrill({ mode: 'type', expenseType: drill.parent.expenseType, color: drill.parent.color });
+      return;
+    }
+
+    setDrill(null);
   };
 
-  // Build breadcrumb title based on navigation path
-  const getBreadcrumbTitle = (): string => {
-    const baseTitle = title || 'Flusso Cashflow';
+  // The path from the root to the current level, as display labels.
+  const breadcrumbLabels = ((): string[] => {
+    if (!drill) return [];
+    if (drill.mode === 'type') return [EXPENSE_TYPE_LABELS[drill.expenseType]];
 
-    if (!selectedCategory) {
-      // Budget view
-      return baseTitle;
-    }
+    const typeStep = drill.parent ? [EXPENSE_TYPE_LABELS[drill.parent.expenseType]] : [];
+    if (drill.mode === 'category') return [...typeStep, drill.category.label];
+    return [...typeStep, drill.category.label, ...(drill.subCategory ? [drill.subCategory.label] : [])];
+  })();
 
-    if (selectedCategory.mode === 'type') {
-      // Type drill-down: Base - Type
-      return `${baseTitle} - ${selectedCategory.name}`;
-    }
-
-    if (selectedCategory.mode === 'category') {
-      // Category drill-down
-      if (selectedCategory.parentType) {
-        // From type drill-down: Base - Type - Category
-        return `${baseTitle} - ${selectedCategory.parentType} - ${selectedCategory.name}`;
-      } else {
-        // Direct category drill-down: Base - Category
-        return `${baseTitle} - ${selectedCategory.name}`;
-      }
-    }
-
-    if (selectedCategory.mode === 'transactions') {
-      // Transaction list
-      const categoryName = selectedCategory.parentCategory || selectedCategory.name;
-
-      if (selectedCategory.parentType) {
-        // From type → category → subcategory: Base - Type - Category - Subcategory
-        if (selectedCategory.selectedSubcategory) {
-          return `${baseTitle} - ${selectedCategory.parentType} - ${categoryName} - ${selectedCategory.selectedSubcategory}`;
-        }
-        // From type → category (no subs): Base - Type - Category
-        return `${baseTitle} - ${selectedCategory.parentType} - ${categoryName}`;
-      } else {
-        // Direct category → subcategory: Base - Category - Subcategory
-        if (selectedCategory.selectedSubcategory) {
-          return `${baseTitle} - ${categoryName} - ${selectedCategory.selectedSubcategory}`;
-        }
-        // Direct category (no subs): Base - Category
-        return `${baseTitle} - ${categoryName}`;
-      }
-    }
-
-    return baseTitle;
-  };
+  const baseTitle = title || 'Flusso Cashflow';
+  const getBreadcrumbTitle = (): string => [baseTitle, ...breadcrumbLabels].join(' - ');
 
   // ── Breadcrumb jump handlers ─────────────────────────────────────────────
   // Reuse the exact same target states handleBack already produces for each
@@ -1055,53 +292,47 @@ export function CashflowSankeyChart({
   // clicking "Indietro" the corresponding number of times.
 
   const jumpToTypeLevel = () => {
-    setSelectedCategory(prev => (prev?.parentType
-      ? { name: prev.parentType, color: prev.parentTypeColor || prev.color, isIncome: false, mode: 'type' }
-      : null));
+    setDrill(prev =>
+      prev && prev.mode !== 'type' && prev.parent
+        ? { mode: 'type', expenseType: prev.parent.expenseType, color: prev.parent.color }
+        : null
+    );
   };
 
   const jumpToCategoryLevel = () => {
-    setSelectedCategory(prev => (prev ? { ...prev, mode: 'category', selectedSubcategory: undefined } : null));
+    setDrill(prev =>
+      prev?.mode === 'transactions'
+        ? { mode: 'category', category: prev.category, color: prev.color, parent: prev.parent }
+        : prev
+    );
   };
 
   // Build the clickable breadcrumb steps for the current drill-down path. The
-  // last step never has an onClick (it's the current level). Mirrors
-  // getBreadcrumbTitle's path logic but produces separately-clickable segments
-  // instead of one flattened string — lets a user jump straight to an
-  // intermediate level instead of clicking "Indietro" repeatedly (Nielsen
-  // heuristic #6, flagged in the 2026-07-21 impeccable critique).
+  // last step never has an onClick (it's the current level) — lets a user jump
+  // straight to an intermediate level instead of clicking "Indietro" repeatedly
+  // (Nielsen heuristic #6, flagged in the 2026-07-21 impeccable critique).
   const getBreadcrumbSteps = (): DrillBreadcrumbStep[] => {
-    const baseTitle = title || 'Flusso Cashflow';
-    const root: DrillBreadcrumbStep = { label: baseTitle, onClick: () => setSelectedCategory(null) };
+    if (!drill) return [];
 
-    if (!selectedCategory) return [];
+    const root: DrillBreadcrumbStep = { label: baseTitle, onClick: () => setDrill(null) };
+    // One handler per level, in the same order breadcrumbLabels lists them.
+    const jumps: Array<(() => void) | undefined> =
+      drill.mode !== 'type' && drill.parent
+        ? [jumpToTypeLevel, jumpToCategoryLevel, undefined]
+        : [jumpToCategoryLevel, undefined];
 
-    if (selectedCategory.mode === 'type') {
-      return [root, { label: selectedCategory.name }];
-    }
-
-    if (selectedCategory.mode === 'category') {
-      if (selectedCategory.parentType) {
-        return [root, { label: selectedCategory.parentType, onClick: jumpToTypeLevel }, { label: selectedCategory.name }];
-      }
-      return [root, { label: selectedCategory.name }];
-    }
-
-    // mode === 'transactions'
-    const categoryName = selectedCategory.parentCategory || selectedCategory.name;
-    const categorySteps: DrillBreadcrumbStep[] = selectedCategory.parentType
-      ? [root, { label: selectedCategory.parentType, onClick: jumpToTypeLevel }]
-      : [root];
-
-    if (selectedCategory.selectedSubcategory) {
-      return [...categorySteps, { label: categoryName, onClick: jumpToCategoryLevel }, { label: selectedCategory.selectedSubcategory }];
-    }
-    return [...categorySteps, { label: categoryName }];
+    return [
+      root,
+      ...breadcrumbLabels.map((label, position) => ({
+        label,
+        // The current level is never clickable.
+        onClick: position === breadcrumbLabels.length - 1 ? undefined : jumps[position],
+      })),
+    ];
   };
 
   // Empty state: no data to visualize (but allow transactions mode to render table)
-  if ((sankeyData.nodes.length === 0 || sankeyData.links.length === 0) &&
-      selectedCategory?.mode !== 'transactions') {
+  if ((view.nodes.length === 0 || view.links.length === 0) && drill?.mode !== 'transactions') {
     return (
       <Card>
         <CardHeader>
@@ -1116,14 +347,19 @@ export function CashflowSankeyChart({
     );
   }
 
-  const sankeyViewKey = selectedCategory
-    ? `${selectedCategory.mode}-${selectedCategory.parentType ?? 'root'}-${selectedCategory.parentCategory ?? selectedCategory.name}-${selectedCategory.selectedSubcategory ?? 'all'}`
-    : `budget-${showSubcategories ? 'subcategories' : 'categories'}`;
+  // Keyed on identity, not on labels: two same-named categories must not share a
+  // Framer key, or switching between them would skip the remount and the reveal.
+  const sankeyViewKey = (() => {
+    if (!drill) return `budget-${showSubcategories ? 'subcategories' : 'categories'}`;
+    if (drill.mode === 'type') return `type-${drill.expenseType}`;
+    const subKey = drill.mode === 'transactions' ? drill.subCategory?.key ?? 'all' : 'all';
+    return `${drill.mode}-${drill.category.expenseType}-${drill.category.key}-${subKey}`;
+  })();
 
-  const sankeyModeLabel = selectedCategory
-    ? selectedCategory.mode === 'type'
+  const sankeyModeLabel = drill
+    ? drill.mode === 'type'
       ? 'Dettaglio per tipologia'
-      : selectedCategory.mode === 'category'
+      : drill.mode === 'category'
         ? 'Dettaglio per categoria'
         : 'Dettaglio movimenti'
     : showSubcategories
@@ -1136,7 +372,7 @@ export function CashflowSankeyChart({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              {selectedCategory && (
+              {drill && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1147,17 +383,17 @@ export function CashflowSankeyChart({
                   Indietro
                 </Button>
               )}
-              {selectedCategory ? (
+              {drill ? (
                 <DrillBreadcrumb ariaLabel="Posizione nel flusso" steps={getBreadcrumbSteps()} />
               ) : (
                 <CardTitle>{getBreadcrumbTitle()}</CardTitle>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {sankeyModeLabel} · {sankeyData.nodes.length} nodi · {sankeyData.links.length} flussi
+              {sankeyModeLabel} · {view.nodes.length} nodi · {view.links.length} flussi
             </p>
           </div>
-          {!selectedCategory && (
+          {!drill && (
             <Button
               variant="outline"
               size="sm"
@@ -1171,7 +407,7 @@ export function CashflowSankeyChart({
       </CardHeader>
       <CardContent>
         {/* Render Sankey chart only when NOT in transactions mode */}
-        {selectedCategory?.mode !== 'transactions' && (
+        {drill?.mode !== 'transactions' && (
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={sankeyViewKey}
@@ -1182,7 +418,7 @@ export function CashflowSankeyChart({
               style={{ height: chartConfig.height }}
             >
               <ResponsiveSankey
-                data={sankeyData}
+                data={chartData}
                 margin={chartConfig.margin}
                 align="justify"
                 colors={{ datum: 'nodeColor' }}
@@ -1200,40 +436,43 @@ export function CashflowSankeyChart({
                 linkHoverOpacity={isDark ? 0.88 : 0.62}
                 linkContract={3}
                 enableLinkGradient={chartConfig.enableLinkGradient}
-                label={(node: any) => node.label || node.id}
+                // No `|| node.id` fallback anywhere: ids are namespaced now, so a missing
+                // label would put "cat:fixed:aB3xK9" on screen. SankeyNode.label is
+                // required precisely so that cannot happen. The cast is Nivo's doing —
+                // its accessor type omits `label` because the accessor is what normally
+                // produces it, while the datum at runtime is our node, label included.
+                label={(node) => (node as unknown as SankeyNode).label}
                 labelPosition={chartConfig.labelPosition}
                 labelPadding={chartConfig.labelOffset}
                 labelOrientation="horizontal"
                 labelTextColor={isDark ? { from: 'color', modifiers: [['brighter', 1.5]] } : { from: 'color', modifiers: [['darker', 2]] }}
-                // Click handler for drill-down
-                onClick={(node: any) => {
-                  // Only handle node clicks, not link clicks
-                  if (node.id) {
-                    handleNodeClick(node);
-                  }
-                }}
+                // Links reach this callback too; only node data carries an id.
+                onClick={(data) => { if ('id' in data) handleNodeClick(data); }}
                 // Custom tooltip to match existing chart tooltip style
-                nodeTooltip={({ node }) => (
-                  <div className="rounded-md border border-border bg-popover px-3 py-2 shadow-md text-sm text-popover-foreground">
-                    <strong>{node.label || node.id}</strong>
-                    <br />
-                    {formatCurrencyForSankey(node.value || 0)}
-                    <br />
-                    <span className="text-xs text-muted-foreground">
-                      {totalAmount > 0
-                        ? ((node.value || 0) / totalAmount * 100).toFixed(1)
-                        : '0.0'}%
-                    </span>
-                    {!selectedCategory && node.id !== 'Budget' && node.id !== 'Risparmi' && (
-                      <>
-                        <br />
-                        <span className="text-xs text-muted-foreground italic">
-                          Click per dettagli
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )}
+                nodeTooltip={({ node }) => {
+                  const kind = view.index.get(node.id)?.kind;
+                  return (
+                    <div className="rounded-md border border-border bg-popover px-3 py-2 shadow-md text-sm text-popover-foreground">
+                      <strong>{node.label}</strong>
+                      <br />
+                      {formatCurrencyForSankey(node.value || 0)}
+                      <br />
+                      <span className="text-xs text-muted-foreground">
+                        {totalAmount > 0
+                          ? ((node.value || 0) / totalAmount * 100).toFixed(1)
+                          : '0.0'}%
+                      </span>
+                      {!drill && kind !== 'budget' && kind !== 'savings' && (
+                        <>
+                          <br />
+                          <span className="text-xs text-muted-foreground italic">
+                            Click per dettagli
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                }}
                 theme={{
                   tooltip: {
                     container: {
@@ -1250,9 +489,7 @@ export function CashflowSankeyChart({
         )}
 
         {/* Transaction list view: shown when mode='transactions' */}
-        {selectedCategory?.mode === 'transactions' && (() => {
-          const filteredExpenses = getFilteredExpenses();
-
+        {drill?.mode === 'transactions' && (() => {
           // Sum all transaction amounts to display the grand total alongside the row count.
           const listTotal = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 

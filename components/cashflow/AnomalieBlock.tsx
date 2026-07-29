@@ -14,18 +14,16 @@
  */
 import { AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/lib/services/chartService';
-
-export interface AnomaliaItem {
-  category: string;
-  currentTotal: number;
-  referenceAverage: number;
-  deltaPercent: number;
-  absoluteDelta: number;
-}
+import type { SpendingAnomaly } from '@/lib/utils/cashflowComposition';
 
 interface AnomalieBlockProps {
-  anomalie: AnomaliaItem[];
-  onCategoryClick: (category: string) => void;
+  anomalie: SpendingAnomaly[];
+  /**
+   * Receives the whole anomaly, not just a name: the caller drills into a specific
+   * category document, and two same-named categories of different types produce two
+   * distinct chips that must lead to two distinct places.
+   */
+  onCategoryClick: (anomaly: SpendingAnomaly) => void;
 }
 
 export function AnomalieBlock({ anomalie, onCategoryClick }: AnomalieBlockProps) {
@@ -50,12 +48,12 @@ export function AnomalieBlock({ anomalie, onCategoryClick }: AnomalieBlockProps)
       <div className="flex flex-wrap gap-2">
         {anomalie.map((a) => (
           <button
-            key={a.category}
+            key={a.key}
             type="button"
-            onClick={() => onCategoryClick(a.category)}
+            onClick={() => onCategoryClick(a)}
             className="inline-flex items-center gap-1.5 rounded-full border border-warning-border bg-warning-foreground/10 px-3 py-1.5 text-sm font-medium text-warning-foreground hover:bg-warning-foreground/15 transition-colors"
           >
-            <span className="font-semibold">{a.category}</span>
+            <span className="font-semibold">{a.categoryLabel}</span>
             <span className="font-mono">
               +{a.deltaPercent.toFixed(0)}%
             </span>

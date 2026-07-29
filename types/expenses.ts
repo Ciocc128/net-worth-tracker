@@ -15,6 +15,20 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   transfer: 'Trasferimento',
 };
 
+// Sentinel for expenses that carry no subcategory, so they still get a row a reader can
+// inspect rather than silently vanishing from a breakdown.
+// Shared between the Cost Centers UI (costCenterUtils) and the AI assistant context
+// (expenseBreakdown): the two surfaces must name the same thing the same way, otherwise
+// the label the user reads on screen and the one the assistant cites start to drift.
+export const NO_SUBCATEGORY_KEY = '__none__';
+export const NO_SUBCATEGORY_LABEL = 'Senza sottocategoria';
+
+// Same contract one level up: a row whose category is missing or blank still needs a
+// bucket with a name. Kept here rather than in any single aggregator because the
+// Sankey, the composition lists and the assistant context all have to say it the
+// same way — see lib/utils/expenseGrouping.ts.
+export const UNCATEGORIZED_LABEL = 'Senza categoria';
+
 export interface ExpenseSubCategory {
   id: string;
   name: string;
@@ -89,6 +103,70 @@ export interface Expense {
   importBatchId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ─── Cashflow breakdown (see lib/utils/expenseBreakdown.ts) ──────────────────
+//
+// SIGN CONVENTION: expense totals below are NEGATIVE, income totals POSITIVE.
+// This deliberately diverges from costCenterUtils and monthlyEmailService, which
+// both return positive magnitudes. The reason is the consumer: these figures are
+// serialised into an LLM prompt right underneath `Uscite: -23.310 €`, and the same
+// concept carrying two different signs on one page of data is how a model ends up
+// comparing them wrong — or presenting a spending category as income.
+
+// Legacy/imported rows can reach the aggregator with no `type` at all. They still count
+// toward total spending, so they need a bucket of their own — otherwise the per-type
+// breakdown quietly fails to add up to the total, and a reader (human or model) summing
+// the rows lands on a number that contradicts the headline figure.
+export type ExpenseBreakdownType = ExpenseType | 'unclassified';
+
+export interface ExpenseSubCategoryBreakdown {
+  subCategoryName: string; // NO_SUBCATEGORY_LABEL when the expense carries none
+  total: number; // negative
+  transactionCount: number;
+}
+
+export interface ExpenseCategoryBreakdown {
+  categoryName: string;
+  total: number; // negative
+  transactionCount: number;
+  // Sorted by |total| descending. Deliberately UNCAPPED: a silent cap here is what
+  // made the assistant answer "N/D" on subcategories that exist in Firestore.
+  subCategories: ExpenseSubCategoryBreakdown[];
+}
+
+export interface IncomeCategoryBreakdown {
+  categoryName: string;
+  total: number; // positive
+  transactionCount: number;
+}
+
+export interface IndividualExpenseRow {
+  categoryName: string;
+  subCategoryName?: string;
+  amount: number; // negative
+  notes?: string;
+  // 'yyyy-MM-dd', never a Date: this travels to the browser as JSON in the assistant's
+  // SSE `context` event, where a Date would arrive as a string anyway.
+  date: string;
+}
+
+export interface CashflowBreakdown {
+  totals: {
+    totalIncome: number; // positive, dividends excluded
+    totalDividends: number; // positive
+    totalExpenses: number; // negative
+    netCashFlow: number;
+    transactionCount: number; // rows that fed the totals (transfers excluded)
+    expenseTransactionCount: number; // rows classified as spending
+  };
+  expensesByCategory: ExpenseCategoryBreakdown[]; // by |total| desc, uncapped
+  incomeByCategory: IncomeCategoryBreakdown[]; // by total desc, uncapped, dividends excluded
+  expensesByType: { type: ExpenseBreakdownType; label: string; total: number }[]; // negative
+  topIndividualExpenses: IndividualExpenseRow[];
+  // Share of period spending with no subcategory assigned (0-1). Lets the caller declare
+  // a thin breakdown as a known limitation instead of letting it read as a bug.
+  unclassifiedSubCategoryShare: number;
 }
 
 export interface ExpenseFormData {

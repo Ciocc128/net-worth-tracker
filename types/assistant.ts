@@ -155,12 +155,14 @@ export interface AssistantMonthContextBundle {
   selector: { year: number; month: number; quarter?: number };
   currentSnapshot: import('@/types/assets').MonthlySnapshot | null;
   previousSnapshot: import('@/types/assets').MonthlySnapshot | null;
+  // Shape matches CashflowBreakdown['totals'] exactly — the service spreads it across.
   cashflow: {
     totalIncome: number;
     totalExpenses: number;
     totalDividends: number;
     netCashFlow: number;
-    transactionCount: number;
+    transactionCount: number; // rows that fed the totals (transfers excluded)
+    expenseTransactionCount: number; // rows classified as spending
   };
   netWorth: {
     start: number | null;
@@ -175,20 +177,23 @@ export interface AssistantMonthContextBundle {
     absoluteChange: number;
     percentagePointsChange: number | null;
   }[];
-  // Top expense categories by absolute total, sorted descending. Gives Claude
-  // enough detail to cite specific spending drivers without flooding the prompt.
-  topExpensesByCategory: {
-    categoryName: string;
-    total: number; // negative (expense sign convention)
-    transactionCount: number;
+  // EXHAUSTIVE spending tree for the period: every category, every subcategory used.
+  // Replaced a top-5 flat list that made the assistant answer "N/D" on subcategories
+  // sitting in Firestore all along — a model cannot tell "missing from my data" from
+  // "missing from the world" unless the data block says which one it is.
+  expensesByCategory: import('@/types/expenses').ExpenseCategoryBreakdown[];
+  // Income per category, dividends excluded (they are already in cashflow.totalDividends,
+  // so leaving them out keeps Σ incomeByCategory === cashflow.totalIncome).
+  incomeByCategory: import('@/types/expenses').IncomeCategoryBreakdown[];
+  // Fisse / Variabili / Debiti (plus a "Non classificate" bucket for typeless legacy rows).
+  expensesByType: {
+    type: import('@/types/expenses').ExpenseBreakdownType;
+    label: string;
+    total: number; // negative
   }[];
-  // Top 5 individual expenses by absolute amount. Lets Claude cite specific
-  // large outlier transactions (e.g. "Canone mutuo -€1.200").
-  topIndividualExpenses: {
-    categoryName: string;
-    amount: number; // negative
-    notes?: string;
-  }[];
+  // Largest individual expenses; the count scales with the period length. Carries
+  // subcategory, note and date so Claude can attribute a spike to a specific event.
+  topIndividualExpenses: import('@/types/expenses').IndividualExpenseRow[];
   // Sub-category breakdown within each asset class, built from live asset records.
   // Only populated when assets have subCategory set; empty object when no breakdown exists.
   // Claude uses this to cite specific sub-allocations (e.g. "Azioni USA €42.000").

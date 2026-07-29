@@ -36,6 +36,7 @@ function makeBundle(overrides?: Partial<AssistantMonthContextBundle>): Assistant
       totalDividends: 0,
       netCashFlow: 0,
       transactionCount: 0,
+      expenseTransactionCount: 0,
     },
     netWorth: {
       start: null,
@@ -44,7 +45,9 @@ function makeBundle(overrides?: Partial<AssistantMonthContextBundle>): Assistant
       deltaPct: null,
     },
     allocationChanges: [],
-    topExpensesByCategory: [],
+    expensesByCategory: [],
+    incomeByCategory: [],
+    expensesByType: [],
     topIndividualExpenses: [],
     bySubCategoryAllocation: {
       equity: {

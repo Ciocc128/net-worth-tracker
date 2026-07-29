@@ -46,7 +46,10 @@ vi.mock('@/lib/firebase/admin', () => ({
 // firebase/config is imported transitively via dateHelpers — mock to avoid real init
 vi.mock('@/lib/firebase/config', () => ({ auth: { currentUser: null }, db: {} }));
 
-import { buildAssistantMonthContext } from '@/lib/services/assistantMonthContextService';
+import {
+  buildAssistantMonthContext,
+  buildAssistantYearContext,
+} from '@/lib/services/assistantMonthContextService';
 import { MonthlySnapshot } from '@/types/assets';
 import { Expense } from '@/types/expenses';
 
@@ -75,10 +78,19 @@ function makeSnapshotDoc(
   return { data: () => snapshot };
 }
 
+/**
+ * Builds an expense doc.
+ *
+ * `type` is an explicit field on `overrides`, never derived from the sign of `amount`:
+ * deriving it would bake the assumption under test (the aggregator classifies by type,
+ * not by sign) into the fixture, so a regression could never fail here. It defaults to
+ * income for positive amounts purely so the older tests below keep reading naturally.
+ */
 function makeExpenseDoc(
   amount: number,
   categoryId: string,
-  date: Date = new Date(2025, 0, 15)
+  date: Date = new Date(2025, 0, 15),
+  overrides: Partial<Expense> = {}
 ) {
   const expense: Partial<Expense> = {
     id: `exp-${Math.random()}`,
@@ -91,6 +103,7 @@ function makeExpenseDoc(
     date,
     createdAt: date,
     updatedAt: date,
+    ...overrides,
   };
   return { id: expense.id, data: () => expense };
 }
@@ -194,6 +207,84 @@ describe('buildAssistantMonthContext', () => {
     expect(bundle.cashflow.totalExpenses).toBeCloseTo(-300);
     expect(bundle.cashflow.netCashFlow).toBeCloseTo(700 + 1000 - 300);
     expect(bundle.cashflow.transactionCount).toBe(4);
+    expect(bundle.cashflow.expenseTransactionCount).toBe(1);
+  });
+
+  // ── Breakdown granularity ─────────────────────────────────────────────────
+
+  it('exposes every category with its subcategories, not just the top five', async () => {
+    mockSnapshots([makeSnapshotDoc(2025, 3, 100_000)]);
+    mockExpenses([
+      makeExpenseDoc(-1180, 'cat-casa', new Date(2025, 2, 5), {
+        type: 'fixed',
+        categoryName: 'Casa',
+        subCategoryId: 'sub-luce',
+        subCategoryName: 'Elettricità',
+      }),
+      makeExpenseDoc(-390, 'cat-casa', new Date(2025, 2, 12), {
+        type: 'fixed',
+        categoryName: 'Casa',
+        subCategoryId: 'sub-bon',
+        subCategoryName: 'Bonifica',
+      }),
+      // Five other categories, each smaller than Casa: under the old top-5 cap the
+      // sixth would have vanished from the bundle entirely.
+      ...['A', 'B', 'C', 'D', 'E'].map((name, i) =>
+        makeExpenseDoc(-(100 + i), `cat-${name}`, new Date(2025, 2, 20), {
+          type: 'variable',
+          categoryName: name,
+        })
+      ),
+    ]);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.expensesByCategory).toHaveLength(6);
+    const casa = bundle.expensesByCategory.find((c) => c.categoryName === 'Casa');
+    expect(casa?.total).toBeCloseTo(-1570);
+    expect(casa?.subCategories.map((s) => s.subCategoryName)).toEqual(['Elettricità', 'Bonifica']);
+  });
+
+  it('counts a refund booked on a spending category as spending, not income', async () => {
+    mockSnapshots([makeSnapshotDoc(2025, 3, 100_000)]);
+    mockExpenses([
+      makeExpenseDoc(-200, 'cat-cibo', new Date(2025, 2, 5), { type: 'variable' }),
+      makeExpenseDoc(50, 'cat-cibo', new Date(2025, 2, 6), { type: 'variable' }), // refund
+    ]);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.cashflow.totalIncome).toBe(0);
+    expect(bundle.cashflow.totalExpenses).toBeCloseTo(-250);
+  });
+
+  it('adds a data quality note when most spending carries no subcategory', async () => {
+    mockSnapshots([makeSnapshotDoc(2025, 3, 100_000)]);
+    mockExpenses([
+      makeExpenseDoc(-900, 'cat-casa', new Date(2025, 2, 5), { type: 'fixed' }),
+      makeExpenseDoc(-100, 'cat-casa', new Date(2025, 2, 6), {
+        type: 'fixed',
+        subCategoryId: 'sub-luce',
+        subCategoryName: 'Elettricità',
+      }),
+    ]);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.dataQuality.notes.some((n) => n.includes('sottocategoria assegnata'))).toBe(true);
+  });
+
+  it('keeps at most five individual expenses for a month', async () => {
+    mockSnapshots([makeSnapshotDoc(2025, 3, 100_000)]);
+    mockExpenses(
+      Array.from({ length: 8 }, (_, i) =>
+        makeExpenseDoc(-(100 + i), 'cat-cibo', new Date(2025, 2, i + 1), { type: 'variable' })
+      )
+    );
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.topIndividualExpenses).toHaveLength(5);
   });
 
   // ── Dummy snapshot exclusion ──────────────────────────────────────────────
@@ -328,5 +419,25 @@ describe('buildAssistantMonthContext', () => {
     // 2024 is a leap year; February has 29 days
     const endDate = new Date(2024, 2, 0, 23, 59, 59); // Feb 29 in leap year
     expect(endDate.getDate()).toBe(29);
+  });
+});
+
+describe('buildAssistantYearContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSettings(undefined);
+  });
+
+  it('keeps more individual expenses than a month does, since the window is twelve times longer', async () => {
+    mockSnapshots([makeSnapshotDoc(2025, 12, 100_000)]);
+    mockExpenses(
+      Array.from({ length: 20 }, (_, i) =>
+        makeExpenseDoc(-(100 + i), 'cat-cibo', new Date(2025, i % 12, 5), { type: 'variable' })
+      )
+    );
+
+    const bundle = await buildAssistantYearContext('user1', 2025);
+
+    expect(bundle.topIndividualExpenses).toHaveLength(10);
   });
 });
