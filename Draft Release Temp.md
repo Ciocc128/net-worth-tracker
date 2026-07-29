@@ -32,6 +32,8 @@
 - The AI Assistant can now answer questions about any category and sub-category you track. Ask "how much did I spend on Home last year, broken down by sub-category?" and it lists Electricity, Gas, Waste, Internet and the rest with their amounts and transaction counts, instead of only knowing your five largest categories.
 - The Assistant also now sees your spending split by type (Fixed / Variable / Debt) and your income broken down by category, so it can tell a rise in structural costs from a one-off, and a change in salary from a change in side income.
 - The Assistant's largest-single-expense list now shows each transaction's date and sub-category, and covers more transactions on longer periods (up to 15 over full history, where it previously showed 5 regardless of whether you were asking about one month or five years).
+- Added the ability to change the type of an entry you already saved. Filed a bill as a Variable expense when it was a Fixed one? Open it, switch the type, save — the category re-attaches itself to the same-named one under the new type, and the amount's sign and your account balance are corrected automatically when you move an entry between income and spending. Transfers are the one exception and stay locked, since they involve two accounts.
+- Entries whose type you change now tell you what will happen before you save: whether the amount will change sign, that the entry will move under a different per-type budget, and — if it belongs to a recurring or instalment series — that only this one entry is affected.
 
 ## 🐛 Bug Fixes
 
@@ -59,6 +61,14 @@
 - Fixed the Assistant disagreeing with the Cashflow page on your total spending. A refund recorded on a spending category (a positive amount on a Variable, Fixed or Debt row) was counted as income by the assistant but as spending everywhere else in the app. If you record refunds as Income — the recommended way — your figures are unchanged.
 - Fixed the Assistant's transaction count including transfers between your own accounts, which were already excluded from the income and expense totals shown next to it. The count now also states how many of those transactions are spending.
 - Fixed Assistant replies stopping mid-sentence on longer answers. When a reply does reach the length limit it now says so and invites you to continue, instead of ending mid-word with no explanation.
+- Fixed the cash-flow diagram on Analisi merging two categories that share a name under different types (a "Casa" under Spese Fisse and another under Spese Variabili). One branch absorbed both amounts while the other appeared as an empty stub, so the same spending looked duplicated. Each category now gets its own branch carrying only its own money, and where two share a name the diagram spells out which is which — "Casa (Spese Fisse)" and "Casa (Spese Variabili)". Names that don't clash are left alone.
+- Fixed the sub-category level of that diagram losing an entire category's breakdown when another category shared its name: only one of the two kept its sub-categories, and the other's simply disappeared from the chart.
+- Fixed the cash-flow diagram going blank when an income category and a spending category share a name (for example rent you receive and rent you pay).
+- Fixed drilling into a category showing transactions from the same-named category of a different type, so the total at the bottom of the list disagreed with the branch you clicked.
+- Fixed the spending breakdown list on Analisi summing two same-named categories into a single row. They are now two rows, each drilling into its own transactions.
+- Fixed the "Da controllare" spending alerts blending the history of two same-named categories into one baseline. Each category is now compared against its own past, and each alert opens the right one.
+- Fixed drilling into a category with no sub-categories opening an empty sub-category view, which happened whenever another category with the same name had some. Those categories now go straight to their transactions.
+- Fixed transfers between your own accounts appearing in the cash-flow diagram's transaction lists, where they were already excluded from every total shown alongside them.
 
 ## 🔧 Improvements
 
@@ -86,6 +96,7 @@
 - Note on this release's corrected figures: your all-time return, IRR and the rolling charts will move, in some cases noticeably. These are not new calculations but fixes to existing ones, and every change is in the direction of what the numbers were always meant to say.
 - The AI Assistant now has more room for detailed answers: period analyses can run longer, and free-chat replies have four times the previous budget, so a question that needs a list gets one.
 - Note on the Assistant's corrected figures: conversations you had before this release are stored as written and are not recalculated. If you reread an old thread next to a new one, the transaction counts (and, if you record refunds on spending categories, the totals) may differ for the same month. The newer figures are the ones that match the rest of the app.
+- Transactions with no sub-category are now labelled "Senza sottocategoria" on Analisi and in the cash-flow diagram, matching the wording already used on Cost Centers and by the AI Assistant. It previously read "Altro", which elsewhere in the app means something different — the leftover bucket when a chart shows only the largest items.
 
 ## 🔒 Security
 
