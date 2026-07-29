@@ -46,12 +46,13 @@ Un LLM non distingue "assente dai dati che ho ricevuto" da "assente dal mondo". 
 
 ## Checklist commit
 
-- [ ] 0 · `refactor: share the no-subcategory sentinel between cost centers and expenses`
-- [ ] 1 · `feat: add pure cashflow breakdown util with subcategory nesting`
-- [ ] 2 · `fix: build assistant cashflow context from a single type-aware aggregator`
-- [ ] 3 · `feat: render the full expense category and subcategory breakdown in the assistant prompt`
-- [ ] 4 · `feat: tell the assistant its subcategory breakdown is exhaustive`
-- [ ] 5 · `docs: record the assistant subcategory breakdown conventions`
+- [x] `11e0f84` · `refactor: share the no-subcategory sentinel between cost centers and expenses`
+- [x] `fcbf408` · `feat: add pure cashflow breakdown util with subcategory nesting`
+- [x] `cb1749b` · `fix: give the assistant the full expense breakdown, not a silent top five`
+- [x] `9ad4741` · `feat: tell the assistant its subcategory breakdown is exhaustive`
+- [ ] `docs: record the assistant subcategory breakdown conventions`
+
+I due commit "cablaggio" e "rendering" del piano sono **uno solo** (`cb1749b`): la forma del bundle e il suo serializzatore non compilano separatamente, quindi dividerli avrebbe prodotto un commit rosso.
 
 ---
 
@@ -59,15 +60,24 @@ Un LLM non distingue "assente dai dati che ho ricevuto" da "assente dal mondo". 
 
 | # | Prova | Esito |
 |---|---|---|
-| 1 | Test mirati (`expenseBreakdown`, `assistantPromptBundle`, `assistantMonthContextService`) | — |
-| 2 | Suite completa + `npx tsc --noEmit` | — |
-| 3 | Domanda originale verbatim su Anno 2025 → mai "N/D" | — |
-| 4 | Quadratura: Σ categorie === uscite totali | — |
-| 5 | Tono: domanda generica **non** deve produrre l'elenco completo | — |
-| 6 | Ripetere 3-5 su Mese e Storico | — |
+| 1 | Test mirati (`expenseBreakdown` 30, `assistantPromptBundle` 13, `assistantMonthContextService` 18) | ✅ verdi |
+| 2 | Suite completa **82 file / 1457 test** + `npx tsc --noEmit` | ✅ puliti |
+| 3 | Blocco dati renderizzato su bundle realistico (anno 2025, 247 transazioni) | ✅ Casa con tutte e 7 le sottocategorie, incluse Elettricità / Gas / Bonifica / Rifiuti / Internet |
+| 4 | Quadratura sullo stesso bundle | ✅ totale −24.932 € = Σ categorie = Σ per tipo |
+| 5 | Domanda originale verbatim nell'app, modalità Anno 2025 | ⏳ da fare (dev server avviato) |
+| 6 | Tono: domanda generica **non** deve produrre l'elenco completo | ⏳ da fare |
+| 7 | Ripetere 5-6 su Mese e Storico | ⏳ da fare |
+
+Costo misurato del blocco dati sull'esempio realistico: **2.270 caratteri** (~800 token) per un anno con 11 sottocategorie attive — ben sotto la stima prudenziale di ~2.100 token del piano.
 
 ---
 
 ## Note emerse durante il lavoro
 
-_(da compilare)_
+**`-0` nel prompt.** `-totalExpensesAbs` con totale zero produce `-0`, che `Intl.NumberFormat` rende come `-0 €`. Intercettato dai test del layer puro; risolto con `asNegative()`.
+
+**NBSP nelle asserzioni.** `Intl.NumberFormat` inserisce U+00A0 prima di `€`; i test del prompt lo normalizzano in `render()` invece di incorporare un carattere invisibile nelle stringhe attese.
+
+**Raggruppamento migliaia italiano.** `it-IT` non raggruppa a 4 cifre (`3000 €`, non `3.000 €`) ma sì da 5 (`1.234.567 €`). Comportamento ICU corretto, preesistente.
+
+**Da valutare separatamente — le spese singole ricorrenti saturano la loro sezione.** Alzando `topIndividualLimit` a 10 per l'anno, la sezione `SPESE SINGOLE PIU' GRANDI` si riempie di rate di mutuo identiche (9 righe su 10 nell'esempio realistico), che non sono outlier e occupano gli slot degli outlier veri. Non è stato toccato perché deduplicare *silenziosamente* ricreerebbe esattamente il difetto appena corretto: la sezione si chiama "più grandi" e filtrarla senza dirlo la renderebbe una risposta falsa a "quali sono le mie 10 spese più grandi?". La correzione onesta è raggruppare le ricorrenze dichiarandole (`Mutuo: -810 € × 12 nel periodo, totale -9.720 €`), ma è una scelta di prodotto fuori dal piano approvato.
