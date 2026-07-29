@@ -144,20 +144,21 @@ export async function streamAssistantResponse({
 
     // max_tokens is a budget for thinking AND text together: with adaptive thinking the
     // model decides how much to reason, and whatever it spends there is gone from the
-    // answer. That is why these numbers are generous — an unused ceiling costs nothing
-    // (billing is on tokens produced), while a tight one truncates mid-sentence.
+    // answer. A cap sized for the prose alone truncates mid-sentence.
     //
-    // They were raised on 2026-07-29 after the data block became exhaustive: more data
-    // means more to reason about, and chat questions carrying a period context now get
-    // the same rich bundle the structured analyses do. Chat at 3000 started cutting off
-    // real answers. Structured modes also render longer output since the word ceilings
-    // went to 600/700/750.
+    // Raised on 2026-07-29 after the data block became exhaustive (chat was at 3000 and
+    // started cutting real answers off), then doubled again on request to leave room for
+    // long consultative replies. Note the ceiling is not purely free headroom: unused
+    // tokens are never billed, but a larger budget also lets adaptive thinking reason
+    // longer, which is billed and adds latency. These values stay well inside the
+    // model's output limit and inside Vercel's 300s default function duration; if a
+    // future bump goes materially higher, set an explicit `maxDuration` on the route.
     const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'quarter_analysis'].includes(mode);
-    const chatMaxTokens = enableWebSearch ? 8000 : 6000;
+    const chatMaxTokens = enableWebSearch ? 16000 : 12000;
     const { system, userContent } = buildPrompt(mode, prompt, contextBundle, month, preferences, memoryItems);
     const stream = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: isStructuredAnalysis ? 9000 : chatMaxTokens,
+      max_tokens: isStructuredAnalysis ? 18000 : chatMaxTokens,
       // Static role/domain/guardrail/format instructions, identical for every user and
       // every request of this mode. No cache_control: this app's traffic pattern
       // (sporadic single-user requests) rarely lands two calls within the 5-minute
