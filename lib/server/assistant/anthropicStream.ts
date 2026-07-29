@@ -115,6 +115,14 @@ function buildMessagesArray(
   return [...trimmedHistory, { role: 'user', content: currentUserContent }];
 }
 
+/**
+ * Appended when generation stops at max_tokens. Markdown italics so it reads as an
+ * annotation rather than as part of the answer; leading blank line so it lands in its
+ * own paragraph after whatever half-finished sentence precedes it.
+ */
+const TRUNCATION_NOTICE =
+  '\n\n_(Risposta interrotta: ho raggiunto il limite di lunghezza. Chiedimi di continuare o restringi la domanda.)_';
+
 export async function streamAssistantResponse({
   mode,
   prompt,
@@ -129,20 +137,27 @@ export async function streamAssistantResponse({
 }: StreamAssistantResponseArgs): Promise<{ text: string; webSearchUsed: boolean }> {
   let aggregatedText = '';
   let webSearchUsed = false;
+  let stopReason: string | null = null;
 
   try {
     onStatus(enableWebSearch ? 'searching' : 'writing');
 
-    // Structured analysis modes (month/year/ytd/history) use extended thinking (budget 4000)
-    // and more tokens for the structured breakdown. Chat without web search is light (3000).
-    // When chat triggers web search (macro/geopolitical question) the response
-    // is naturally longer — raise the cap to avoid mid-sentence truncation.
+    // max_tokens is a budget for thinking AND text together: with adaptive thinking the
+    // model decides how much to reason, and whatever it spends there is gone from the
+    // answer. That is why these numbers are generous — an unused ceiling costs nothing
+    // (billing is on tokens produced), while a tight one truncates mid-sentence.
+    //
+    // They were raised on 2026-07-29 after the data block became exhaustive: more data
+    // means more to reason about, and chat questions carrying a period context now get
+    // the same rich bundle the structured analyses do. Chat at 3000 started cutting off
+    // real answers. Structured modes also render longer output since the word ceilings
+    // went to 600/700/750.
     const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'quarter_analysis'].includes(mode);
-    const chatMaxTokens = enableWebSearch ? 5000 : 3000;
+    const chatMaxTokens = enableWebSearch ? 8000 : 6000;
     const { system, userContent } = buildPrompt(mode, prompt, contextBundle, month, preferences, memoryItems);
     const stream = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: isStructuredAnalysis ? 7000 : chatMaxTokens,
+      max_tokens: isStructuredAnalysis ? 9000 : chatMaxTokens,
       // Static role/domain/guardrail/format instructions, identical for every user and
       // every request of this mode. No cache_control: this app's traffic pattern
       // (sporadic single-user requests) rarely lands two calls within the 5-minute
@@ -171,6 +186,12 @@ export async function streamAssistantResponse({
         onStatus('searching');
       }
 
+      // The terminal message_delta carries why generation stopped. Without reading it a
+      // truncated answer is indistinguishable from a finished one.
+      if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
+        stopReason = chunk.delta.stop_reason;
+      }
+
       if (
         chunk.type === 'content_block_delta' &&
         chunk.delta.type === 'text_delta'
@@ -184,9 +205,19 @@ export async function streamAssistantResponse({
       }
     }
 
+    // Hitting the ceiling leaves the answer cut off mid-sentence. Saying so turns a
+    // response that looks broken into one the user knows how to continue — the same
+    // reason the prompt's subcategory valve announces itself instead of truncating
+    // quietly (AGENTS.md -> A Silent Cap in a Context Builder...).
+    let text = aggregatedText.trim();
+    if (stopReason === 'max_tokens' && text.length > 0) {
+      onText(TRUNCATION_NOTICE);
+      text += TRUNCATION_NOTICE;
+    }
+
     onStatus('saving');
     return {
-      text: aggregatedText.trim(),
+      text,
       webSearchUsed,
     };
   } catch (error: any) {

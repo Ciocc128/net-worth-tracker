@@ -321,7 +321,8 @@ For architecture and current product status, see [CLAUDE.md](CLAUDE.md).
 ### Assistant Chat Mode Unification
 - `chatContext` field (`'none' | 'month' | 'year' | 'ytd' | 'history'`) selects the period builder; `'none'` sends Claude no portfolio data
 - Web search policy: toggle ON → always active in chat; toggle OFF → keyword detection only (`webSearchPolicy.ts`). Structured modes use toggle only, not keyword detection
-- Chat max_tokens: 3000 normally, 5000 when web search enabled (macro responses need headroom). Structured analysis: 7000 (thinking budget 4000)
+- **`max_tokens` budgets thinking AND text together.** `thinking: { type: 'adaptive' }` lets the model choose how much to reason, and every token it spends there is gone from the answer — so a cap sized for the prose alone truncates mid-sentence. Current values (raised 2026-07-29): chat 6000, chat+web search 8000, structured analysis 9000. An unused ceiling costs nothing (billing is on tokens produced); a tight one costs the end of the answer. **When you enlarge the data block or raise a word ceiling, re-check these** — the 2026-07-29 exhaustive breakdown gave the model more to reason about and started truncating chat replies at the old 3000.
+- **Read `stop_reason` from the terminal `message_delta`.** Until 2026-07-29 the stream loop ignored it, so an answer cut off at `max_tokens` was indistinguishable from a finished one and the user just saw a sentence stop mid-word. `streamAssistantResponse` now appends `TRUNCATION_NOTICE` — same principle as the prompt's subcategory valve: a limit either doesn't exist or announces itself.
 
 ### Assistant Context Panel Persistence
 - Context bundle lives in React state (SSE `context` event). On reload the panel is empty — repopulate via `GET /api/ai/assistant/context` using `useAssistantPeriodContext` hook

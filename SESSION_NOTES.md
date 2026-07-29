@@ -64,7 +64,7 @@ I due commit "cablaggio" e "rendering" del piano sono **uno solo** (`cb1749b`): 
 | 2 | Suite completa **82 file / 1457 test** + `npx tsc --noEmit` | ✅ puliti |
 | 3 | Blocco dati renderizzato su bundle realistico (anno 2025, 247 transazioni) | ✅ Casa con tutte e 7 le sottocategorie, incluse Elettricità / Gas / Bonifica / Rifiuti / Internet |
 | 4 | Quadratura sullo stesso bundle | ✅ totale −24.932 € = Σ categorie = Σ per tipo |
-| 5 | Domanda originale verbatim nell'app, modalità Anno 2025 | ⏳ da fare (dev server avviato) |
+| 5 | Prova reale nell'app sui dati dell'utente | ✅ il breakdown funziona — l'assistente cita "Elettrodomestici (−€2.461, 18 transazioni) dentro Casa [fixed]", "Condominio (−€1.689, 5 transazioni)", la spesa isolata da −€919. **Ma la risposta si è troncata a metà parola** → vedi sotto |
 | 6 | Tono: domanda generica **non** deve produrre l'elenco completo | ⏳ da fare |
 | 7 | Ripetere 5-6 su Mese e Storico | ⏳ da fare |
 
@@ -79,5 +79,9 @@ Costo misurato del blocco dati sull'esempio realistico: **2.270 caratteri** (~80
 **NBSP nelle asserzioni.** `Intl.NumberFormat` inserisce U+00A0 prima di `€`; i test del prompt lo normalizzano in `render()` invece di incorporare un carattere invisibile nelle stringhe attese.
 
 **Raggruppamento migliaia italiano.** `it-IT` non raggruppa a 4 cifre (`3000 €`, non `3.000 €`) ma sì da 5 (`1.234.567 €`). Comportamento ICU corretto, preesistente.
+
+**Troncamento a metà frase in chat (emerso dalla prova reale, corretto).** `max_tokens` è un budget per **thinking + testo insieme**: con `thinking: { type: 'adaptive' }` il modello decide quanto ragionare e quel che spende lì sparisce dalla risposta. Il blocco dati più ricco gli ha dato più materiale su cui ragionare, e i 3000 token della chat non bastavano più. Due correzioni:
+1. Tetti alzati — chat 3000 → **6000**, chat+web 5000 → **8000**, analisi strutturate 7000 → **9000**. Un tetto inutilizzato non costa nulla (si paga sui token prodotti); uno stretto costa la fine della risposta.
+2. **Il troncamento ora si dichiara.** Il loop dello stream non leggeva mai `stop_reason`, quindi una risposta tagliata era indistinguibile da una finita. Ora `streamAssistantResponse` legge il `message_delta` terminale e appende `TRUNCATION_NOTICE`. Stesso principio della valvola sulle sottocategorie: un limite o non esiste, o si annuncia.
 
 **Da valutare separatamente — le spese singole ricorrenti saturano la loro sezione.** Alzando `topIndividualLimit` a 10 per l'anno, la sezione `SPESE SINGOLE PIU' GRANDI` si riempie di rate di mutuo identiche (9 righe su 10 nell'esempio realistico), che non sono outlier e occupano gli slot degli outlier veri. Non è stato toccato perché deduplicare *silenziosamente* ricreerebbe esattamente il difetto appena corretto: la sezione si chiama "più grandi" e filtrarla senza dirlo la renderebbe una risposta falsa a "quali sono le mie 10 spese più grandi?". La correzione onesta è raggruppare le ricorrenze dichiarandole (`Mutuo: -810 € × 12 nel periodo, totale -9.720 €`), ma è una scelta di prodotto fuori dal piano approvato.
