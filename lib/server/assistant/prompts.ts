@@ -389,6 +389,9 @@ export const ASSISTANT_SYSTEM_CORE = [
   '',
   '# Categorizzazione spese',
   "Il blocco CATEGORIE DI SPESA CONFIGURATE elenca l'intera tassonomia impostata dall'utente (non solo quelle usate nel periodo). Usalo per rispondere a domande come \"in che categoria segno questa spesa?\" o \"ha senso creare una nuova categoria?\": suggerisci prima una categoria/sottocategoria già esistente se pertinente, e proponi una nuova categoria solo se davvero non c'è una corrispondenza ragionevole.",
+  "Il blocco SPESE PER CATEGORIA E SOTTOCATEGORIA è ESAUSTIVO: contiene ogni categoria e ogni sottocategoria con spesa nel periodo, non una classifica dei primi cinque. Quando l'utente chiede il dettaglio di una categoria, elenca le sue sottocategorie leggendole da lì — il dato c'è.",
+  "Una sottocategoria che l'utente nomina e che NON compare in quel blocco ha avuto spesa zero nel periodo. Dillo così, \"nessuna spesa registrata\", e non come \"dato non disponibile\": sono due affermazioni diverse e solo la prima è vera. L'unica eccezione è la riga esplicita di omissione in coda al blocco, quando presente.",
+  "Non elencare le sottocategorie quando non ti vengono chieste: l'elenco completo serve a rispondere nel dettaglio, non a riempire la risposta.",
   '',
   '# Casi limite',
   "- Periodo ancora in corso (mese/anno corrente, YTD): i dati sono parziali per definizione — evidenzia le tendenze osservate finora, non presentarle come il risultato finale del periodo",
@@ -397,6 +400,13 @@ export const ASSISTANT_SYSTEM_CORE = [
 ].join('\n');
 
 // ─── Per-mode format contracts (static per mode, cacheable) ──────────────────
+//
+// Word ceilings were raised (450/500/550 → 600/700/750) when the data block became
+// exhaustive: a question like "break Casa down by subcategory, then add these five
+// categories" needs room to answer, and the old ceilings would have truncated exactly
+// the enumeration that was asked for. Structured analyses run at max_tokens 7000 with a
+// 4000-token thinking budget, so ~3000 tokens of output — 750 Italian words is roughly
+// 1300, comfortably inside. Chat mode has no ceiling.
 
 const MONTH_FORMAT_CONTRACT = [
   '# Formato della risposta',
@@ -405,7 +415,7 @@ const MONTH_FORMAT_CONTRACT = [
   '2. **Cosa ha mosso il patrimonio** — i principali driver (mercato, cashflow, allocazione)',
   "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
   '',
-  'Vincoli: massimo 450 parole.',
+  'Vincoli: massimo 600 parole.',
 ].join('\n');
 
 const YEAR_FORMAT_CONTRACT = [
@@ -415,7 +425,7 @@ const YEAR_FORMAT_CONTRACT = [
   "2. **Cosa ha mosso il patrimonio nell'anno** — i principali driver (mercato, cashflow, allocazione, eventi); se l'anno è ancora in corso, precisa che sono i driver osservati finora",
   "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
   '',
-  'Vincoli: massimo 500 parole.',
+  'Vincoli: massimo 700 parole.',
 ].join('\n');
 
 const YTD_FORMAT_CONTRACT = [
@@ -425,7 +435,7 @@ const YTD_FORMAT_CONTRACT = [
   "2. **Cosa ha mosso il patrimonio da inizio anno** — principali driver osservati finora",
   '3. **1-2 azioni o attenzioni** — osservazioni pratiche',
   '',
-  "Vincoli: massimo 450 parole. Non proiettare valori annualizzati salvo esplicita richiesta dell'utente — il periodo è per definizione parziale.",
+  "Vincoli: massimo 600 parole. Non proiettare valori annualizzati salvo esplicita richiesta dell'utente — il periodo è per definizione parziale.",
 ].join('\n');
 
 const HISTORY_FORMAT_CONTRACT = [
@@ -435,7 +445,7 @@ const HISTORY_FORMAT_CONTRACT = [
   '2. **Trend storici principali** — cashflow cumulativo, crescita patrimonio, composizione del portafoglio nel tempo',
   '3. **1-2 osservazioni strategiche** — cosa emerge dal lungo periodo, opportunità o rischi strutturali',
   '',
-  'Vincoli: massimo 550 parole. Privilegia la visione di lungo periodo rispetto ai dettagli di un singolo mese.',
+  'Vincoli: massimo 750 parole. Privilegia la visione di lungo periodo rispetto ai dettagli di un singolo mese.',
 ].join('\n');
 
 const QUARTER_FORMAT_CONTRACT = [
@@ -445,7 +455,7 @@ const QUARTER_FORMAT_CONTRACT = [
   '2. **Cosa ha mosso il patrimonio nel trimestre** — i principali driver (mercato, cashflow, allocazione)',
   "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
   '',
-  'Vincoli: massimo 450 parole.',
+  'Vincoli: massimo 600 parole.',
 ].join('\n');
 
 const CHAT_FORMAT_CONTRACT = [
