@@ -15,6 +15,14 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   transfer: 'Trasferimento',
 };
 
+// Sentinel for expenses that carry no subcategory, so they still get a row a reader can
+// inspect rather than silently vanishing from a breakdown.
+// Shared between the Cost Centers UI (costCenterUtils) and the AI assistant context
+// (expenseBreakdown): the two surfaces must name the same thing the same way, otherwise
+// the label the user reads on screen and the one the assistant cites start to drift.
+export const NO_SUBCATEGORY_KEY = '__none__';
+export const NO_SUBCATEGORY_LABEL = 'Senza sottocategoria';
+
 export interface ExpenseSubCategory {
   id: string;
   name: string;
