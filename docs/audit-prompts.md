@@ -11,7 +11,9 @@ dei P0/P1 emersi da una critique, o come verifica standalone su assi specifici.
 
 **Differenza da critique:**
 Audit = compliance pass/fail su assi precisi. Critique = valutazione olistica con score.
-Audit è più veloce, non produce score, non sostituisce la critique di verifica finale.
+Audit è più veloce, non produce score, non sostituisce la critique di verifica finale —
+che usa la chiusura convergente (score + finding P0/P1/P2) e può terminare il ciclo
+dichiarando la pagina "a regime" (score ≥ 36/40 e zero P0/P1).
 
 **Assi di compliance per questo progetto** (fonte canonica: `DESIGN.md` — leggila sempre):
 - **Form Follows Function** — ogni proprietà visiva (size, weight, color, radius, motion) deriva
@@ -33,10 +35,13 @@ Audit è più veloce, non produce score, non sostituisce la critique di verifica
   `aria-label` su bottoni icon-only, `aria-expanded` su collapsible
 - **Skeleton** — ogni sezione async ha uno skeleton strutturalmente isomorfo al layout reale
 
-**Sequenza corretta (flusso combinato "ripensamento"):**
+**Sequenze corrette (vedi `docs/critique-prompts.md` per le due modalità di critique):**
 ```
-critique → shape combinato (blocco A + blocco B) → implementa tutto (craft + polish) →
-audit (gate compliance) → critique di verifica
+Verifica (default):     critique → fix dei soli finding → audit (gate compliance) →
+                        critique di verifica → stop a score ≥ 36/40 e zero P0/P1 ("a regime")
+Ripensamento (opt-in):  critique → shape combinato (blocco A + blocco B) → implementa tutto
+                        (craft + polish) → audit (gate compliance) → critique di verifica
+                        (chiusura di verifica, NON un altro ripensamento)
 ```
 
 ---
@@ -67,6 +72,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Sidebar Desktop
@@ -99,6 +106,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Bottom Navigation Mobile
@@ -130,6 +139,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Secondary Menu Drawer
@@ -155,6 +166,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -192,6 +205,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Login + Register
@@ -216,6 +231,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -264,6 +281,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -319,6 +338,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -355,6 +376,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -407,6 +430,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Tracciamento"
@@ -448,6 +473,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Budget"
@@ -482,6 +509,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Centri di Costo"
@@ -516,6 +545,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -562,6 +593,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -614,6 +647,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha — vedi "Allocation: AllocationRole" + "Allocation: the two action plans")
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -668,6 +703,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -700,6 +737,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -727,6 +766,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -760,6 +801,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Coast FIRE"
@@ -785,6 +828,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "What If"
@@ -829,6 +874,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -858,6 +905,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Obiettivi"
@@ -896,6 +945,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -932,6 +983,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -976,6 +1029,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1017,6 +1072,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1066,6 +1123,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1096,6 +1155,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1125,6 +1186,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1178,6 +1241,8 @@ Contesto:
 - Leggi DESIGN.md (Mono Mandate, Zero-Chroma, Form Follows Function)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---

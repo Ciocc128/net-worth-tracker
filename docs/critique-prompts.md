@@ -5,10 +5,29 @@ Prompt ottimizzati per eseguire `/impeccable critique` su ogni sezione dell'app.
 **Come usarli:** copia il blocco del prompt e incollalo nella chat con Claude Code.
 Riesegui dopo ogni redesign per misurare il delta di score.
 
-**Workflow (flusso combinato "ripensamento"):** `critique → shape combinato (blocco A nuova IA
-+ blocco B 2-4 nuove feature) → checkpoint approvazione → implementa tutto (craft + polish) →
-test verdi + tsc pulito`. La critique è l'entry point; lo shape e l'implementazione seguono nella
-stessa sessione. L'`audit` (`docs/audit-prompts.md`) resta il gate di compliance dopo l'implementazione.
+**Due modalità, due mestieri.** Una critique che deve sempre proporre qualcosa di nuovo non
+converge mai: lo score smette di essere un criterio di stop perché il bersaglio si sposta a
+ogni run. Per questo la chiusura dei blocchi qui sotto è di **verifica** (default, convergente);
+il **ripensamento** (generativo) è opt-in e si attiva sostituendo il paragrafo finale.
+
+**Critique di verifica (default):** misura e convergenza. Flusso:
+`critique → fix dei soli finding → audit (docs/audit-prompts.md) → critique di verifica`.
+**Criterio di stop: score ≥ 36/40 e zero P0/P1 → pagina "a regime"** — non si riesegue la
+critique finché il codice della pagina non cambia. Sotto soglia si iterano SOLO i finding,
+mai nuove feature: la produzione di novità non è evidenza di un difetto.
+
+**Critique di ripensamento (opt-in):** evoluzione deliberata della pagina. Flusso:
+`critique → shape combinato (blocco A nuova IA + blocco B 2-4 nuove feature) → checkpoint
+approvazione → implementa tutto (craft + polish) → test verdi + tsc pulito → audit →
+critique di verifica`. La critique che CHIUDE un ripensamento è di verifica, non un altro
+ripensamento — è così che il ciclo termina. Per attivare questa modalità, sostituisci il
+paragrafo finale del blocco ("Al termine: …") con:
+
+> Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
+> modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
+> e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
+> in una volta (craft + polish), con test verdi e tsc pulito.
+
 I vecchi file `shape-prompts.md` / `polish-prompts.md` sono stati rimossi: lo shape vive inline qui,
 il polish è parte dell'implementazione.
 
@@ -74,11 +93,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -139,11 +161,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -193,11 +218,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -252,11 +280,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Tab "Tracciamento" *(mobileLabel: "Spese")*
@@ -307,11 +338,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Tab "Budget"
@@ -351,11 +385,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Tab "Centri di Costo" *(visibile solo se costCentersEnabled)*
@@ -393,11 +430,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -452,11 +492,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -522,11 +565,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -594,11 +640,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -636,11 +685,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -672,11 +724,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -715,11 +770,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Tab "Coast FIRE"
@@ -748,11 +806,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Tab "What If"
@@ -792,11 +853,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -828,11 +892,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Tab "Obiettivi"
@@ -869,11 +936,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -918,11 +988,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -972,11 +1045,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -1020,11 +1096,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -1068,11 +1147,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ### Login e Register
@@ -1101,11 +1183,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -1144,11 +1229,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -1202,11 +1290,14 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
@@ -1286,11 +1377,14 @@ Contesto:
 - Leggi DESIGN.md (North Star, Form Follows Function, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 
-Al termine: presenta la critique completa, poi proponi lo shape combinato — blocco A (nuovi
-modi di presentare le info GIÀ presenti) + blocco B (2-4 nuove feature/estensioni coerenti) —
-e fermati al checkpoint per approvazione, senza scrivere codice. Dopo l'ok: implementa tutto
-in una volta (craft + polish), con test verdi e tsc pulito.
+Al termine: presenta la critique completa — score /40 e finding classificati P0/P1/P2.
+Se lo score è ≥36/40 e non ci sono P0/P1, dichiara la pagina "a regime" e fermati lì:
+nessuna proposta ulteriore. Altrimenti proponi SOLO gli interventi che risolvono i finding
+(craft + polish sull'esistente, nessuna nuova feature) e fermati al checkpoint per
+approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc pulito.
 ```
 
 ---
