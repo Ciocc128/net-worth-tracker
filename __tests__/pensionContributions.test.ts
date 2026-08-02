@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   derivePensionDeductibleByYear,
   derivePensionContributionsByYearAndNature,
+  derivePensionContributionYears,
+  resolveActivePensionYear,
 } from '@/lib/utils/pensionContributions';
 import type { ContributionSource, PensionContribution } from '@/types/pension';
 
@@ -131,5 +133,76 @@ describe('derivePensionContributionsByYearAndNature', () => {
       2025: { tfr: 2000, voluntary: 0, employer: 0 },
       2026: { tfr: 0, voluntary: 0, employer: 600 },
     });
+  });
+});
+
+describe('derivePensionContributionYears', () => {
+  it('should offer the current year even with no contribution recorded against it', () => {
+    // Arrange: the user has not registered anything for 2026 yet.
+    const contributions = [makeContribution('voluntary', 1000, 2025)];
+
+    // Act
+    const years = derivePensionContributionYears(contributions, 2026);
+
+    // Assert: 2026 leads, so the selector opens on "this year" instead of last year's plafond.
+    expect(years).toEqual([2026, 2025]);
+  });
+
+  it('should return only the current year when there are no contributions at all', () => {
+    expect(derivePensionContributionYears([], 2026)).toEqual([2026]);
+  });
+
+  it('should de-duplicate years and sort them newest first', () => {
+    const contributions = [
+      makeContribution('tfr', 2000, 2024),
+      makeContribution('voluntary', 500, 2026),
+      makeContribution('employer', 300, 2024),
+      makeContribution('voluntary', 700, 2025),
+    ];
+
+    expect(derivePensionContributionYears(contributions, 2026)).toEqual([2026, 2025, 2024]);
+  });
+
+  it('should group by taxYear, not by the calendar year of the payment date', () => {
+    // Arrange: paid in January 2026 but attributed to the 2025 tax year (the deduction ceiling is
+    // consumed in the year of competence).
+    const contributions = [
+      makeContribution('voluntary', 900, 2025, { date: new Date(2026, 0, 12) }),
+    ];
+
+    // Act
+    const years = derivePensionContributionYears(contributions, 2026);
+
+    // Assert: 2025 is offered because of `taxYear`; the January date never creates a 2026 entry of
+    // its own beyond the always-present current year.
+    expect(years).toEqual([2026, 2025]);
+  });
+});
+
+describe('resolveActivePensionYear', () => {
+  it('should default to the current year before the user has picked anything', () => {
+    expect(resolveActivePensionYear(null, [2026, 2025], 2026)).toBe(2026);
+  });
+
+  it('should honour a selection the axis still offers', () => {
+    expect(resolveActivePensionYear(2025, [2026, 2025], 2026)).toBe(2025);
+  });
+
+  it('should fall back to the current year when the selected year leaves the axis', () => {
+    // Arrange: 2024 was selected, then its last contribution was deleted — the axis no longer
+    // offers it, and staying there would render an empty chapter under a selector highlighting
+    // nothing.
+    const availableYears = [2026, 2025];
+
+    // Act
+    const activeYear = resolveActivePensionYear(2024, availableYears, 2026);
+
+    // Assert
+    expect(activeYear).toBe(2026);
+  });
+
+  it('should keep a selected future tax year that the axis genuinely contains', () => {
+    // A contribution booked to a future taxYear is the user's own data, not an invalid selection.
+    expect(resolveActivePensionYear(2027, [2027, 2026], 2026)).toBe(2027);
   });
 });

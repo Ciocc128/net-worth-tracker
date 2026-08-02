@@ -180,31 +180,51 @@ approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc
 
 File: app/dashboard/pension/page.tsx
 Componenti: components/pension/PensionOverview.tsx,
+            components/pension/PensionHeaderAction.tsx,
             components/pension/PensionContributionDialog.tsx
 Pure layer: lib/utils/pensionDeduction.ts, lib/utils/pensionContributions.ts,
-            lib/utils/pensionFamilyMembers.ts
+            lib/utils/pensionFamilyMembers.ts, lib/utils/pensionReturn.ts
 
 Vista dedicata al fondo pensione, in `planningNav` (Pianificazione) e non come tab di
 FIRE e Simulazioni: versamenti, beneficio fiscale e plafond sono contenuto di pianificazione
 a sé. È anche il target del link "Vai a Previdenza" da una card asset pensionFund in Patrimonio.
-Quattro blocchi in ordine narrativo:
-1. Header — valore totale dei fondi (somma di TUTTI gli asset `pensionFund`) + totale
-   versato. Aggregato per costruzione: è una cifra di patrimonio, non fiscale.
-2. Versato per natura — contributi dell'anno divisi TFR / Volontario / Datoriale
-   (solo il Volontario esce da un conto cash, modellato come `transfer`; TFR e Datoriale
-   accreditano il fondo standalone).
-3. Beneficio fiscale — UNA card di recap PER membro famiglia con almeno un fondo collegato
-   (il tetto di deducibilità IRPEF è per contribuente, non per conto): importo dedotto,
-   risparmio IRPEF, plafond ed extra-deducibilità. Un fondo senza membro collegato mostra
-   un prompt, mai un numero silenziosamente sbagliato. I membri si gestiscono in
-   Impostazioni → Preferenze → Famiglia.
-4. Storico versamenti — lista con 2-click delete che reversa l'effetto valore/transfer.
+Tre capitoli separati da `border-t border-border/40`, con l'asse anno che governa SOLO il
+secondo e il terzo:
+1. Il fondo oggi — nessun asse temporale. Hero `desktop:grid-cols-[2fr_1fr]`: valore totale
+   dei fondi (somma di TUTTI gli asset `pensionFund`, cifra di patrimonio non fiscale) +
+   versato totale ancorato col sticky footer, accanto alla sintesi del rendimento (TWR come
+   section hero). La scomposizione euro-per-euro sta in un Collapsible. Il rendimento tiene
+   separate le tre cause della crescita — versamenti, contributo datoriale (retribuzione, non
+   rendimento) e mercato — e SOSTITUISCE il numero con una spiegazione in due casi:
+   `isCoverageSuspicious` (annualizzato > 20% = versamenti non registrati) e `hasNoMovement`
+   (finestra aperta ma nulla si è mosso: 0% per assenza di dati, non per risultato).
+2. Anno fiscale {Y} — `SegmentedPill` degli anni disponibili (mostrato solo con >1 anno),
+   poi `desktop:grid-cols-2`: versato per natura TFR / Volontario / Datoriale (solo il
+   Volontario esce da un conto cash, modellato come `transfer`; TFR e Datoriale accreditano
+   il fondo standalone) e UNA card di recap PER membro famiglia con almeno un fondo collegato
+   (il tetto di deducibilità IRPEF è per contribuente, non per conto). Il RISPARMIO IRPEF è il
+   numero dominante della sua card — è la risposta per cui la pagina esiste; deducibili e TFR
+   sono righe di supporto. Un fondo senza membro collegato mostra un prompt, mai un numero
+   silenziosamente sbagliato. I membri si gestiscono in Impostazioni → Preferenze → Famiglia.
+   Disclaimer fiscale UNO per capitolo, non uno per contribuente.
+3. Storico versamenti {Y} — filtrato sull'anno selezionato, con conteggio in testa, date in
+   mono e 2-click delete che reversa l'effetto valore/transfer.
+L'azione primaria vive nello slot `actions` di `PageHeader` (`PensionHeaderAction`), non in una
+riga sopra l'hero. La nota operativa sull'ordine "prima i versamenti, poi il valore da estratto
+conto" è in un Collapsible chiuso, non sempre a schermo.
 Il fondo pensione è un asset a valutazione manuale (nessun ticker, nessun cost basis,
-nessun auto-update) con `allocationRole: 'frozen'` di default.
+nessun auto-update) con `allocationRole: 'frozen'` di default, e il suo valore in euro vive in
+`quantity` A PREZZO 1 come un saldo di conto.
 Confronta con: Patrimonio (stesso asset dal lato valore), Allocazione
 (PensionAllocationCards, il fondo resta frozen e non entra mai in un piano),
 Coast FIRE (stesso registro fiscale IRPEF + scaglioni editabili).
-Nota: pagina mai critiquata — nessuna baseline, delta atteso alto.
+Nota: critique baseline 2026-08-01 = 26/40, 5 P1 (empty state falso in caricamento, zero layout
+desktop, tipografia fuori scala, risparmio IRPEF senza dominanza, messaggio zod in inglese).
+Redesign + polish implementati lo stesso giorno con l'asse anno come unica aggiunta funzionale
+approvata; snapshot in `.impeccable/critique/`. Rieseguire la critique per misurare il delta.
+Attenzione: esiste una suite Playwright (`e2e/pension.spec.ts`, `e2e/pension.mobile.spec.ts`)
+che asserisce il layout 2:1 a 1440px, la scala 54px/44px/36px, l'asse anno e il collapsible —
+un redesign che li tocca deve aggiornarla, non aggirarla.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero

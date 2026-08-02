@@ -47,6 +47,12 @@ const SUSPICIOUS_ANNUAL_RETURN = 20;
 /** Sotto questa soglia annualizzare amplifica il rumore invece di informare. */
 const MIN_MONTHS_TO_ANNUALIZE = 3;
 
+/**
+ * Sotto un centesimo non c'è movimento: è la stessa risoluzione a cui il valore viene mostrato, e
+ * un residuo in virgola mobile non deve trasformare una finestra ferma in una che ha "reso".
+ */
+const MOVEMENT_EPSILON_EUR = 0.01;
+
 /** Valore complessivo dei fondi pensione in un dato mese, congelato nello snapshot. */
 export interface PensionValuePoint {
   year: number;
@@ -87,6 +93,13 @@ export interface PensionReturnResult {
   personalReturn: number | null;
   /** Il rendimento è troppo alto per essere vero: mancano versamenti nella finestra. */
   isCoverageSuspicious: boolean;
+  /**
+   * La finestra è aperta ma non è ancora successo nulla dentro: né il valore si è mosso, né sono
+   * stati registrati versamenti. Il `twr` vale allora 0 per ASSENZA di dati, non perché il fondo
+   * abbia reso zero — e presentare "+0,00%" come misura sarebbe la stessa bugia che
+   * `isCoverageSuspicious` evita dal lato opposto.
+   */
+  hasNoMovement: boolean;
 }
 
 /** Chiave mensile 'YYYY-MM'. */
@@ -252,5 +265,8 @@ export function computePensionReturn(
       ownCapital > 0 ? ((marketGain + contributionsInWindow.employer) / ownCapital) * 100 : null,
     isCoverageSuspicious:
       annualizedTwr !== null && annualizedTwr > SUSPICIOUS_ANNUAL_RETURN,
+    hasNoMovement:
+      Math.abs(endValue - startValue) < MOVEMENT_EPSILON_EUR &&
+      contributionsInWindow.total < MOVEMENT_EPSILON_EUR,
   };
 }

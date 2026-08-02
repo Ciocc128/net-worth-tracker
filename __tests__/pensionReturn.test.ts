@@ -309,3 +309,70 @@ describe('computePensionReturn', () => {
     expect(computePensionReturn(series([[2025, 1, 10_000]]), [], '2026-01')).toBeNull();
   });
 });
+
+describe('computePensionReturn — hasNoMovement', () => {
+  const series = (values: [number, number, number][]) =>
+    values.map(([year, month, value]) => ({ year, month, value }));
+
+  it('flags a window where nothing has happened yet', () => {
+    // Lo scenario reale: la finestra parte a luglio, i versamenti di giugno erano già dentro il
+    // valore di apertura (registrati a luglio) e da allora il valore non è stato riaggiornato.
+    // Ogni riga della scomposizione vale zero e il TWR è 0 per assenza di dati, non per risultato.
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 31_031.39],
+        [2026, 8, 31_031.39],
+      ]),
+      [contribution(2026, 6, 382.86, 'tfr', new Date(2026, 6, 24))],
+      '2026-07'
+    );
+
+    expect(result!.contributions.total).toBe(0);
+    expect(result!.valueGrowth).toBe(0);
+    expect(result!.twr).toBeCloseTo(0, 10);
+    expect(result!.hasNoMovement).toBe(true);
+  });
+
+  it('does NOT flag a flat value that had contributions in the window', () => {
+    // Valore fermo NONOSTANTE 500 € versati: il mercato ha perso esattamente quanto è entrato.
+    // È un'informazione, non un'assenza — la scomposizione va mostrata.
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 10_000],
+        [2026, 8, 10_000],
+      ]),
+      [contribution(2026, 8, 500, 'voluntary')],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(false);
+    expect(result!.marketGain).toBe(-500);
+  });
+
+  it('does NOT flag a window whose value moved', () => {
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 10_000],
+        [2026, 8, 10_120],
+      ]),
+      [],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(false);
+  });
+
+  it('treats a sub-cent residual as no movement', () => {
+    // Un residuo in virgola mobile non deve trasformare una finestra ferma in una che ha reso.
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 31_031.39],
+        [2026, 8, 31_031.393],
+      ]),
+      [],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(true);
+  });
+});

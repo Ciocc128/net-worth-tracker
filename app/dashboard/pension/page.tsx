@@ -10,6 +10,7 @@
 
 import { PiggyBank } from 'lucide-react';
 import { PensionOverview } from '@/components/pension/PensionOverview';
+import { PensionHeaderAction } from '@/components/pension/PensionHeaderAction';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 
@@ -17,6 +18,7 @@ export default function PensionPage() {
   return (
     <PageContainer>
       <PageHeader
+        label="Pianificazione"
         title={
           <span className="flex items-center gap-2">
             <PiggyBank className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground" aria-hidden="true" />
@@ -24,6 +26,7 @@ export default function PensionPage() {
           </span>
         }
         description="Versamenti, beneficio fiscale e plafond del tuo fondo pensione"
+        actions={<PensionHeaderAction />}
       />
       <PensionOverview />
     </PageContainer>

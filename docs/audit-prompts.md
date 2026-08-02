@@ -351,26 +351,52 @@ Contesto:
 
 File: app/dashboard/pension/page.tsx
 Componenti: components/pension/PensionOverview.tsx,
+            components/pension/PensionHeaderAction.tsx,
             components/pension/PensionContributionDialog.tsx
 Pure layer: lib/utils/pensionDeduction.ts, lib/utils/pensionContributions.ts,
-            lib/utils/pensionFamilyMembers.ts
+            lib/utils/pensionFamilyMembers.ts, lib/utils/pensionReturn.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: nessun hardcoded su header, card di recap fiscale, meter del plafond;
-  il verdetto fiscale usa i token semantici (`--positive`/`--warning`), non amber raw
+- Token: nessun hardcoded su hero, card di rendimento, card di recap fiscale, blocco plafond;
+  il segno di TWR / guadagno di mercato / ritorno personale via `getMetricValueColor` e
+  `signTextClass`, mai `text-green-*`/`text-red-*` raw
 - Gerarchia: valore totale del fondo come page hero `text-[44px] desktop:text-[54px]`;
-  i totali di sezione a `text-[36px]`; righe flat `divide-y`, nessuna card-in-card
-  (le card per membro famiglia sono pari-livello, non annidate nel blocco fiscale)
-- Mono Mandate: importi, RAL, percentuali IRPEF e plafond in Geist Mono + tabular-nums
-- Onestà: un fondo senza membro famiglia collegato mostra un prompt, MAI un numero —
-  verifica che il prompt sia visivamente un'azione, non un errore
-- Storico versamenti: delete 2-click con `aria-label` e disarmo visibile, come altrove
-- ARIA: PensionContributionDialog con `DialogDescription`; il selettore della natura
-  (TFR/Volontario/Datoriale) con `role="radio"`/`role="tablist"` coerente col resto dell'app
-- Skeleton: la vista è async (assets + contributions) — deve avere uno skeleton isomorfo
+  TWR, versato dell'anno e risparmio IRPEF come section hero `text-[36px]` (nessun gradino
+  fuori scala tipo 28px); righe flat `divide-y`, nessuna card-in-card (le card per membro
+  famiglia sono pari-livello nella griglia, non annidate nel blocco fiscale)
+- Un numero dominante per card: il RISPARMIO IRPEF deve dominare la sua card — se torna a essere
+  una riga come le altre, la pagina ha perso la sua risposta
+- Layout desktop: riga hero `desktop:grid-cols-[2fr_1fr]`, capitolo fiscale `desktop:grid-cols-2`,
+  separatori di capitolo `border-t border-border/40 pt-4`. Una pagina a colonna singola a 1440px
+  è una regressione, non una scelta
+- Mono Mandate: importi, RAL, percentuali IRPEF e plafond **e le date** (storico versamenti,
+  finestra del rendimento) in Geist Mono + tabular-nums
+- Onestà: un fondo senza membro famiglia collegato mostra un prompt, MAI un numero — verifica che
+  il prompt sia visivamente un'azione, non un errore. Idem per i due stati in cui il rendimento
+  sostituisce la percentuale con una spiegazione (`isCoverageSuspicious`, `hasNoMovement`): in
+  quei casi il blocco di scomposizione va OMESSO, non riempito di zeri
+- Asse anno: `SegmentedPill` con `role="tablist"` + `aria-label`, reso solo con più di un anno
+  disponibile; governa versato per natura, recap fiscale e storico — mai il valore del fondo né
+  il rendimento (non sono grandezze annuali)
+- Storico versamenti: delete 2-click con disarmo automatico a 3s, `aria-label` che nomina natura
+  e data, stato armato annunciato via `aria-live`. NIENTE `title` sul bottone armato: l'attributo
+  viene aggiunto mentre il puntatore è già fermo sull'elemento, quindi il tooltip non compare mai
+- Heading: un solo `h1` (dal `PageHeader`), `h2` per i capitoli, `h3` per i titoli di card —
+  non `<p>` con la classe eyebrow
+- Azione primaria: nello slot `actions` di `PageHeader`, non in una riga propria sopra l'hero
+- Collapsible: Radix `Collapsible` + Framer Motion height con `useReducedMotion`, chiuso di default
+- ARIA: PensionContributionDialog con `DialogDescription`; messaggi di validazione in italiano
+  anche sul TYPE CHECK dei campi numerici (un campo vuoto con `valueAsNumber` produce `NaN`, e
+  senza messaggio esplicito zod emette il suo default inglese)
+- Skeleton: la vista è async (assets + settings + contributions + snapshots) — skeleton isomorfo
+  al layout, e l'empty state "nessun fondo" non deve MAI comparire durante il caricamento
 - Breakpoint: `md:` → `desktop:`; `max-desktop:portrait:pb-20`
 - Demo mode: ogni mutazione gated su `useDemoMode()` (`disabled={isDemo}`)
 - Altro: pattern anomali o violazioni non elencate sopra
+
+Nota: la suite Playwright (`e2e/pension.spec.ts`, `e2e/pension.mobile.spec.ts`) copre già
+meccanicamente layout desktop/mobile, scala tipografica, asse anno, collapsible e assenza di
+flash dell'empty state — `npm run test:e2e` prima di aprire un finding su quegli assi.
 
 Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)

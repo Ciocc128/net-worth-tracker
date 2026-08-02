@@ -103,7 +103,13 @@ beforeEach(() => {
   deleteExpenseMock.mockResolvedValue(undefined);
   ensureTransferCategoryMock.mockResolvedValue('category-transfer');
   getCategoryByIdMock.mockResolvedValue({ id: 'category-transfer', name: 'Trasferimenti' });
-  getAssetByIdMock.mockResolvedValue({ id: CASH_ID, assetClass: 'cash', type: 'cash' });
+  // Keyed by id: the write path now reads BOTH the destination fund and (for a voluntary
+  // contribution) the origin account, and the two are validated against opposite rules.
+  getAssetByIdMock.mockImplementation(async (assetId: string) =>
+    assetId === FUND_ID
+      ? { id: FUND_ID, name: 'Fondo Pensione', type: 'pensionFund', quantity: 10_000, currentPrice: 1 }
+      : { id: CASH_ID, assetClass: 'cash', type: 'cash' }
+  );
 });
 
 // ─── getPensionContributions ─────────────────────────────────────────────────
@@ -318,9 +324,21 @@ describe('recordPensionContribution (voluntary)', () => {
     expect(updateCashAssetBalanceMock).toHaveBeenCalledWith(FUND_ID, 500);
   });
 
+  /**
+   * Override only the ORIGIN account, leaving the destination fund valid — otherwise the
+   * destination guard rejects first and the origin rule under test is never reached.
+   */
+  function stubOriginAccount(origin: Record<string, unknown>) {
+    getAssetByIdMock.mockImplementation(async (assetId: string) =>
+      assetId === FUND_ID
+        ? { id: FUND_ID, name: 'Fondo Pensione', type: 'pensionFund', quantity: 10_000, currentPrice: 1 }
+        : origin
+    );
+  }
+
   it('should reject an origin account that is not a cash asset', async () => {
     // Debiting an ETF through updateCashAssetBalance would destroy its share count.
-    getAssetByIdMock.mockResolvedValue({ id: 'etf-1', assetClass: 'equity' });
+    stubOriginAccount({ id: 'etf-1', assetClass: 'equity' });
 
     await expect(
       recordPensionContribution(USER_ID, { ...voluntaryInput, sourceCashAssetId: 'etf-1' })
@@ -332,7 +350,7 @@ describe('recordPensionContribution (voluntary)', () => {
 
   it('should reject a money-market ETF classified assetClass "cash" but type "etf"', async () => {
     // assetClass can be user-set independently of type — only a real type:'cash' asset is a bank account.
-    getAssetByIdMock.mockResolvedValue({ id: 'etf-cash-1', assetClass: 'cash', type: 'etf' });
+    stubOriginAccount({ id: 'etf-cash-1', assetClass: 'cash', type: 'etf' });
 
     await expect(
       recordPensionContribution(USER_ID, { ...voluntaryInput, sourceCashAssetId: 'etf-cash-1' })
@@ -480,5 +498,76 @@ describe('deletePensionContribution', () => {
     expect(deleteDocMock).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+describe('recordPensionContribution — destination fund guard', () => {
+  /** The nature that touches the fewest collaborators, so a rejection is unambiguous. */
+  const tfrInput = {
+    assetId: FUND_ID,
+    source: 'tfr' as const,
+    amount: 500,
+    date: CONTRIBUTION_DATE,
+    taxYear: 2026,
+  };
+
+  it('should refuse a fund whose value is not held in quantity at price 1', async () => {
+    // Arrange: the inverted shape — value in the unit price, quantity 1. Crediting it would add 500
+    // to the QUANTITY, turning a 29.800 € fund into 29.800 × 501.
+    getAssetByIdMock.mockResolvedValue({
+      id: FUND_ID,
+      name: 'Fondo Pensione',
+      type: 'pensionFund',
+      quantity: 1,
+      currentPrice: 29_800,
+    });
+
+    // Act + Assert: the message names the fund and what to do, because it surfaces in a toast.
+    await expect(recordPensionContribution(USER_ID, tfrInput)).rejects.toThrow(
+      /prezzo unitario di 29800 invece di 1/
+    );
+  });
+
+  it('should refuse before writing anything at all', async () => {
+    getAssetByIdMock.mockResolvedValue({
+      id: FUND_ID,
+      name: 'Fondo Pensione',
+      type: 'pensionFund',
+      quantity: 1,
+      currentPrice: 45,
+    });
+
+    await expect(recordPensionContribution(USER_ID, tfrInput)).rejects.toThrow();
+
+    // The guard runs at the boundary: no value effect, no document, nothing to roll back.
+    expect(updateCashAssetBalanceMock).not.toHaveBeenCalled();
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
+  it('should refuse an asset that is not a pension fund', async () => {
+    // Reachable through AssetDialog's type change in the other direction.
+    getAssetByIdMock.mockResolvedValue({
+      id: FUND_ID,
+      name: 'Vanguard FTSE All-World',
+      type: 'etf',
+      quantity: 100,
+      currentPrice: 1,
+    });
+
+    await expect(recordPensionContribution(USER_ID, tfrInput)).rejects.toThrow(/Fondo Pensione/);
+    expect(updateCashAssetBalanceMock).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a fund that no longer exists', async () => {
+    getAssetByIdMock.mockResolvedValue(null);
+
+    await expect(recordPensionContribution(USER_ID, tfrInput)).rejects.toThrow(/non è stato trovato/);
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
+  it('should let a correctly shaped fund through', async () => {
+    // The regression guard for the guard: price 1 with the value in quantity must still work.
+    await expect(recordPensionContribution(USER_ID, tfrInput)).resolves.toBe('new-contribution');
+    expect(updateCashAssetBalanceMock).toHaveBeenCalledWith(FUND_ID, 500);
   });
 });
