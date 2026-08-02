@@ -75,6 +75,13 @@
 - Fixed the Previdenza page reporting a `+0,00%` return as though it were a measurement. When nothing has happened yet inside the measured window — no change in value and no contributions recorded — the card now says so and hides the breakdown, instead of showing five rows of zeros.
 - Fixed an English error message ("Invalid input: expected number, received NaN") appearing in the "Registra versamento" dialog when the amount or tax year was left empty. Both now explain the problem in Italian.
 - Recording a contribution against a pension fund whose value was stored in an unexpected shape — possible if you converted an existing investment into a pension fund — would multiply the fund's value instead of increasing it. This is now blocked before anything is saved, with a message naming the fund and what to correct.
+- Fixed the Previdenza page briefly showing 0,00 € for your total contributions, the year's contributions and your estimated IRPEF saving while its data was still loading. The page now waits for everything it reads before showing any figure — a zero is a statement, and it was being made before the number had been read.
+- Fixed the growth breakdown on Previdenza still listing a "Guadagno di mercato" figure even when the card above it had just explained that the fund's return can't be trusted because contributions are missing. The breakdown is now hidden in that case, instead of showing a number the same page contradicts.
+- Fixed the Previdenza page leaving a blank third of the row on wide screens when a fund has no monthly history yet — the state of every newly created fund until the nightly update. That space now explains why the return isn't available yet.
+- Fixed the Previdenza page showing zeros when its data fails to load, which was indistinguishable from having no contributions at all. Each section now says it couldn't load, and that nothing you recorded has been touched.
+- Fixed the validation messages in the "Registra versamento" dialog being drawn in a fixed red: it was too low-contrast to meet accessibility guidelines in both light and dark mode, and it clashed with the theme's own error colour on Cyberpunk and Solar Dusk.
+- Fixed the "Registra versamento" dialog proposing yesterday's date, and the wrong tax year, when opened late in the evening.
+- Fixed the theme selector briefly highlighting the wrong option when a page first loads.
 
 ## 🔧 Improvements
 
@@ -108,6 +115,9 @@
 - The AI Assistant now has more room for detailed answers: period analyses can run longer, and free-chat replies have four times the previous budget, so a question that needs a list gets one.
 - Note on the Assistant's corrected figures: conversations you had before this release are stored as written and are not recalculated. If you reread an old thread next to a new one, the transaction counts (and, if you record refunds on spending categories, the totals) may differ for the same month. The newer figures are the ones that match the rest of the app.
 - Transactions with no sub-category are now labelled "Senza sottocategoria" on Analisi and in the cash-flow diagram, matching the wording already used on Cost Centers and by the AI Assistant. It previously read "Altro", which elsewhere in the app means something different — the leftover bucket when a chart shows only the largest items.
+- The three sections of the Previdenza page now carry their own headings, set a step above the card titles inside them, so the structure of the page is visible and not only implied by the dividing lines.
+- If you track more than one pension fund — your own and your partner's, for example — the page now says "I fondi oggi" and "Rendimento dei fondi" rather than referring to a single fund.
+- Numbers throughout the app now appear in their final typeface from the first moment they're drawn, instead of briefly using a system fallback on a cold load.
 
 ## 🔒 Security
 

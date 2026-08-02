@@ -25,6 +25,15 @@ const BASE_URL = 'http://localhost:3100';
 /** Where auth.setup.ts parks the signed-in storage state so specs don't each log in. */
 export const STORAGE_STATE = 'e2e/.auth/user.json';
 
+/**
+ * Sessione del secondo account, quello degli scenari degradati.
+ *
+ * Un utente separato e non una risemina dell'account principale: gli scenari degradati riscrivono
+ * snapshot e versamenti, e farlo sull'account condiviso renderebbe ogni altra spec dipendente
+ * dall'ordine di esecuzione — il modo più rapido di ottenere una suite che fallisce solo in CI.
+ */
+export const DEGRADED_STORAGE_STATE = 'e2e/.auth/degraded.json';
+
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
@@ -43,12 +52,25 @@ export default defineConfig({
 
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    { name: 'setup-degraded', testMatch: /auth\.degraded\.setup\.ts/ },
     {
       name: 'desktop',
       // 1440px is the project's `desktop:` breakpoint — the width where the layout switches.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: STORAGE_STATE },
       dependencies: ['setup'],
-      testIgnore: /\.mobile\.spec\.ts/,
+      testIgnore: /\.(mobile|degraded)\.spec\.ts/,
+    },
+    {
+      // Gli stati in cui il rendimento NON è una misura. Stessa larghezza del progetto desktop —
+      // uno di questi test riguarda proprio il layout a 1440px — ma sull'account degradato.
+      name: 'degraded',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        storageState: DEGRADED_STORAGE_STATE,
+      },
+      dependencies: ['setup-degraded'],
+      testMatch: /\.degraded\.spec\.ts/,
     },
     {
       name: 'mobile',
