@@ -47,6 +47,25 @@ export function getItalyDate(date: Date | Timestamp | string | undefined | null 
 }
 
 /**
+ * Today as 'YYYY-MM-DD' in Italian wall-clock time — the value an `<input type="date">` wants.
+ *
+ * `new Date().toISOString().split('T')[0]` is the obvious spelling and is wrong for a whole hour
+ * every evening: `toISOString` is UTC, so from 22:00 Italian summer time (23:00 in winter) it hands
+ * back YESTERDAY, and a form that defaults to "today" proposes the previous day to anyone recording
+ * something late at night.
+ *
+ * Built from the zoned date's own components rather than from `toISOString`: `getItalyDate` returns a
+ * Date whose LOCAL fields carry the Italian wall clock, so re-serialising it through UTC would undo
+ * exactly the shift it just applied.
+ */
+export function getItalyDateIso(date: Date | Timestamp | string | undefined | null = new Date()): string {
+  const italyDate = getItalyDate(date);
+  const month = String(italyDate.getMonth() + 1).padStart(2, '0');
+  const day = String(italyDate.getDate()).padStart(2, '0');
+  return `${italyDate.getFullYear()}-${month}-${day}`;
+}
+
+/**
  * Extract month (1-12) from date in Italy timezone
  * Use this instead of date.getMonth() to ensure consistent behavior
  */

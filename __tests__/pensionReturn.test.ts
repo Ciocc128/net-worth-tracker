@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildPensionValueSeries,
   computePensionReturn,
+  isPensionReturnMeasurable,
   resolvePensionReturnStart,
 } from '@/lib/utils/pensionReturn';
 import type { MonthlySnapshot } from '@/types/assets';
@@ -374,5 +375,69 @@ describe('computePensionReturn — hasNoMovement', () => {
     );
 
     expect(result!.hasNoMovement).toBe(true);
+  });
+});
+
+/**
+ * Il predicato che decide se la pagina può mostrare NUMERI invece di una spiegazione.
+ *
+ * È il contratto che tiene insieme la card di riepilogo e il blocco «Da dove viene la crescita»:
+ * finché erano due espressioni separate sono divergite, e la scomposizione stampava «Guadagno di
+ * mercato» in grassetto sotto un avviso che diceva che quella differenza NON è guadagno di mercato.
+ * Il componente non è testabile qui (nessun renderer), il predicato sì — ed è dove stava il bug.
+ */
+describe('isPensionReturnMeasurable', () => {
+  const series = (values: [number, number, number][]) =>
+    values.map(([year, month, value]) => ({ year, month, value }));
+
+  it('ammette una finestra normale: la scomposizione va mostrata', () => {
+    const result = computePensionReturn(
+      series([
+        [2026, 1, 10_000],
+        [2026, 2, 10_120],
+        [2026, 3, 10_260],
+        [2026, 4, 10_400],
+      ]),
+      [],
+      '2026-01'
+    );
+
+    expect(result!.isCoverageSuspicious).toBe(false);
+    expect(result!.hasNoMovement).toBe(false);
+    expect(isPensionReturnMeasurable(result!)).toBe(true);
+  });
+
+  it('nega una finestra con copertura sospetta — la scomposizione va OMESSA', () => {
+    // Crescita del 30% in tre mesi senza un solo versamento registrato: sono versamenti mancanti,
+    // non mercato. `marketGain` esiste ed è un numero, ma non è un guadagno di mercato: mostrarlo
+    // accanto all'avviso che lo nega è la contraddizione che questo predicato impedisce.
+    const result = computePensionReturn(
+      series([
+        [2026, 1, 10_000],
+        [2026, 2, 11_000],
+        [2026, 3, 12_000],
+        [2026, 4, 13_000],
+      ]),
+      [],
+      '2026-01'
+    );
+
+    expect(result!.isCoverageSuspicious).toBe(true);
+    expect(result!.marketGain).toBe(3_000);
+    expect(isPensionReturnMeasurable(result!)).toBe(false);
+  });
+
+  it('nega una finestra ferma — ogni riga varrebbe zero', () => {
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 29_800],
+        [2026, 8, 29_800],
+      ]),
+      [],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(true);
+    expect(isPensionReturnMeasurable(result!)).toBe(false);
   });
 });

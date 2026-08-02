@@ -21,7 +21,9 @@ export default function PensionPage() {
         label="Pianificazione"
         title={
           <span className="flex items-center gap-2">
-            <PiggyBank className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground" aria-hidden="true" />
+            {/* Dimensionata sul breakpoint reale: `PageHeader` rende lo stesso `title` in una navbar
+                mobile da 17px fino a 1440px, dove un'icona da 32px pesava il doppio del titolo. */}
+            <PiggyBank className="h-5 w-5 text-muted-foreground desktop:h-8 desktop:w-8" aria-hidden="true" />
             Previdenza Complementare
           </span>
         }

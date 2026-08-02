@@ -17,7 +17,10 @@ test.beforeEach(async ({ page }) => {
 
 test('stacks the hero above the return card and steps the type down to 44px', async ({ page }) => {
   const heroValue = page.getByText(FUND_VALUE);
-  const returnCard = page.getByRole('heading', { name: 'Rendimento del fondo' }).locator('..');
+  // Il titolo si accorda al numero di fondi tracciati: la fixture ne ha uno, ma il locator no.
+  const returnCard = page
+    .getByRole('heading', { name: /^Rendimento (del fondo|dei fondi)$/ })
+    .locator('..');
 
   const heroBox = (await heroValue.boundingBox())!;
   const returnBox = (await returnCard.boundingBox())!;

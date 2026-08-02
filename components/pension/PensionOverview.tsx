@@ -24,12 +24,21 @@
  * (`resolvePensionReturnStart`), so putting them under the selector would invent a period they
  * don't have. It also disambiguates the page's three "versato" figures, which previously sat on
  * three different windows with no visible axis to tell them apart.
+ *
+ * OGNI CAPITOLO PORTA IL PROPRIO TITOLO, un gradino tipografico sopra le card che contiene
+ * (`CHAPTER_TITLE_CLASS` vs `EYEBROW_CLASS`): con lo stesso eyebrow da 10px su entrambi i livelli la
+ * struttura esisteva solo nell'albero dei heading.
+ *
+ * NIENTE ZERI CHE NON SONO STATI LETTI. Le quattro query defaultano tutte a `[]`, quindi lo skeleton
+ * le aspetta tutte e quattro (non solo le due che decidono l'empty state) e ogni blocco che dipende
+ * da una query fallita viene sostituito da `PensionErrorNotice`, mai renderizzato a zero: su questa
+ * pagina uno zero è un'affermazione, e «versato 0,00 €» è indistinguibile da un anno senza versamenti.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ChevronDown, PiggyBank, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, ChevronDown, PiggyBank, Trash2, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
@@ -49,6 +58,7 @@ import { computePensionTaxRecap, getPensionDeductionCeiling, type PensionTaxReca
 import {
   buildPensionValueSeries,
   computePensionReturn,
+  isPensionReturnMeasurable,
   resolvePensionReturnStart,
   type PensionReturnResult,
 } from '@/lib/utils/pensionReturn';
@@ -70,6 +80,30 @@ import { Collapsible, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 /** Eyebrow label above a dominant number (DESIGN.md §3). */
 const EYEBROW_CLASS = 'text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground';
+
+/**
+ * Titolo di CAPITOLO — il livello Title di DESIGN.md §3, un gradino sopra l'eyebrow delle card.
+ *
+ * I capitoli e le card che contengono avevano entrambi l'eyebrow da 10px: la struttura a tre
+ * capitoli esisteva per lo screen reader (`h2`/`h3`) e non per l'occhio, e l'unico segnale che
+ * «Anno fiscale 2026» contenesse «Risparmio IRPEF · Marco» era il filo del `border-t`. La forma
+ * segue la funzione: due livelli di contenimento, due livelli tipografici.
+ */
+const CHAPTER_TITLE_CLASS = 'text-[15px] font-semibold tracking-[-0.01em] text-foreground';
+
+/**
+ * Il numero grammaticale delle frasi che hanno il fondo come SOGGETTO.
+ *
+ * Un household può tracciare il fondo di due persone (è il motivo per cui il recap fiscale è già
+ * per contribuente), e sopra due fondi «Il fondo oggi» legge come un errore. Riguarda solo i punti
+ * in cui il fondo è il soggetto: «Valore attuale» e «Versato totale» restano invariati perché sono
+ * grandezze aggregate, non il fondo.
+ */
+function fundNoun(many: boolean): { chapter: string; ofTheFund: string } {
+  return many
+    ? { chapter: 'I fondi oggi', ofTheFund: 'dei fondi' }
+    : { chapter: 'Il fondo oggi', ofTheFund: 'del fondo' };
+}
 
 /** 'YYYY-MM' → "Nov 2025", per le etichette di finestra. */
 function formatMonthLabel(monthKey: string): string {
@@ -175,9 +209,11 @@ function PensionTaxRecapCard({
         </div>
       </div>
 
+      {/* Sub-tile Variante A (DESIGN.md §5): il bordo della Variante B è riservato ai pannelli di
+          parametri dentro un collapsible — qui il blocco è sempre visibile e il tint basta. */}
       {showPlafond && (
-        <div className="mt-auto space-y-2 rounded-xl border border-border/60 bg-muted/30 p-3">
-          <p className={EYEBROW_CLASS}>Plafond deducibilità</p>
+        <div className="mt-auto space-y-2 rounded-xl bg-muted/40 p-3.5">
+          <h4 className={EYEBROW_CLASS}>Plafond deducibilità</h4>
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-xs text-muted-foreground">Plafond creato quest&apos;anno</span>
             <span className="font-mono text-xs tabular-nums text-foreground">
@@ -217,15 +253,18 @@ function PensionTaxRecapCard({
 function PensionReturnSummaryCard({
   result,
   hasStartMonth,
+  manyFunds,
 }: {
   result: PensionReturnResult;
   hasStartMonth: boolean;
+  manyFunds: boolean;
 }) {
-  const showReturn = !result.isCoverageSuspicious && !result.hasNoMovement;
+  const showReturn = isPensionReturnMeasurable(result);
+  const { ofTheFund } = fundNoun(manyFunds);
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-[22px]">
-      <h3 className={EYEBROW_CLASS}>Rendimento del fondo</h3>
+      <h3 className={EYEBROW_CLASS}>Rendimento {ofTheFund}</h3>
       <p className="mt-1 font-mono text-[11px] tabular-nums text-muted-foreground">
         {formatMonthLabel(result.windowStart)} → {formatMonthLabel(result.windowEnd)}
       </p>
@@ -255,15 +294,15 @@ function PensionReturnSummaryCard({
           </div>
         </>
       ) : result.hasNoMovement ? (
-        <p className="mt-3 rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-          Da {formatMonthLabel(result.windowStart)}{' '}
-          il valore del fondo non si è ancora mosso e non risultano versamenti registrati dopo quel
-          mese: non c&apos;è ancora niente da misurare. La prima misura arriva quando aggiorni
-          «Valore attuale» col prossimo estratto conto.
+        <p className="mt-3 rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground">
+          Da {formatMonthLabel(result.windowStart)} il valore {ofTheFund} non si è ancora mosso e non
+          risultano versamenti registrati dopo quel mese: non c&apos;è ancora niente da misurare. La
+          prima misura arriva quando aggiorni «Valore attuale» col prossimo estratto conto.
         </p>
       ) : (
-        <p className="mt-3 rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-          Il fondo è cresciuto di {cachedFormatCurrencyEUR(result.valueGrowth)} ma risultano
+        <p className="mt-3 rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground">
+          {manyFunds ? 'I fondi sono cresciuti' : 'Il fondo è cresciuto'} di{' '}
+          {cachedFormatCurrencyEUR(result.valueGrowth)} ma risultano
           registrati solo {cachedFormatCurrencyEUR(result.contributions.total)} di versamenti: la
           differenza verrebbe letta come rendimento di mercato, e non lo è. Registra i versamenti
           mancanti
@@ -284,10 +323,15 @@ function PensionReturnSummaryCard({
   );
 }
 
-/** The euro-by-euro decomposition behind the TWR — dense, and therefore behind a disclosure. */
+/**
+ * The euro-by-euro decomposition behind the TWR — dense, and therefore behind a disclosure.
+ *
+ * Renderizzato SOLO quando `isPensionReturnMeasurable(result)`: ogni riga qui sotto presuppone che
+ * la finestra sia una misura. Il filtro sta nel chiamante e non qui perché il blocco non ha uno
+ * stato degradato sensato — senza una misura non c'è una scomposizione da mostrare, c'è la
+ * spiegazione che la card di riepilogo sta già dando.
+ */
 function PensionReturnBreakdown({ result }: { result: PensionReturnResult }) {
-  const showReturn = !result.isCoverageSuspicious;
-
   return (
     <div className="px-[22px] pb-[22px]">
       <div className="divide-y divide-border/60 border-t border-border/60">
@@ -326,7 +370,7 @@ function PensionReturnBreakdown({ result }: { result: PensionReturnResult }) {
             {cachedFormatCurrencyEUR(result.marketGain)}
           </span>
         </div>
-        {result.personalReturn !== null && showReturn && (
+        {result.personalReturn !== null && (
           <div className="flex items-baseline justify-between gap-3 py-2">
             <span className="text-sm text-foreground">
               Ritorno sul tuo capitale
@@ -362,7 +406,8 @@ function UnassignedFundsCard({ funds }: { funds: { id: string; name: string }[] 
     <div className="space-y-2 rounded-2xl border border-dashed border-border bg-muted/20 p-[22px]">
       <div className="flex items-center gap-2">
         <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <p className="text-sm font-medium text-foreground">Fondi non assegnati</p>
+        {/* h3 come le card pari-livello della griglia fiscale: è una di quelle, non una nota. */}
+        <h3 className="text-sm font-medium text-foreground">Fondi non assegnati</h3>
       </div>
       <p className="text-xs text-muted-foreground">
         {funds.map((f) => f.name).join(', ')} — collega ciascun fondo a un membro della famiglia
@@ -373,6 +418,64 @@ function UnassignedFundsCard({ funds }: { funds: { id: string; name: string }[] 
         </Link>
         .
       </p>
+    </div>
+  );
+}
+
+/**
+ * Il compagno della card hero quando un rendimento non è ancora calcolabile.
+ *
+ * Esiste per una ragione di layout oltre che di onestà: la riga hero è `desktop:grid-cols-[2fr_1fr]`
+ * e con un solo figlio a 1440px lasciava un terzo di riga bianco, senza che niente spiegasse il
+ * vuoto — lo stato di OGNI fondo appena creato, finché il cron serale non scrive il primo snapshot
+ * che lo contiene. Un capitolo che promette due card ne rende due; quella che non ha un numero dice
+ * perché, come già fanno `hasNoMovement` e `isCoverageSuspicious` dall'altro lato.
+ */
+function PensionReturnPendingCard({
+  hasValueSeries,
+  startMonth,
+  manyFunds,
+}: {
+  hasValueSeries: boolean;
+  startMonth: string | null;
+  manyFunds: boolean;
+}) {
+  const { ofTheFund } = fundNoun(manyFunds);
+  const explanation = !hasValueSeries
+    ? `Nessuna fotografia mensile dello storico contiene ancora ${manyFunds ? 'questi fondi' : 'questo fondo'}: la prima arriva col prossimo aggiornamento serale. Da lì servono due mesi di valori per calcolare un rendimento.`
+    : startMonth
+      ? `Serve un secondo mese dopo ${formatMonthLabel(startMonth)} per calcolare un rendimento: con un solo valore non c'è nulla da confrontare.`
+      : 'Registra il primo versamento per iniziare a misurare il rendimento: prima di quello la crescita del fondo e i versamenti sono indistinguibili.';
+
+  return (
+    <div className="flex h-full flex-col rounded-2xl border border-dashed border-border bg-muted/20 p-[22px]">
+      <h3 className={EYEBROW_CLASS}>Rendimento {ofTheFund}</h3>
+      <p className="mt-2 text-xs text-muted-foreground">{explanation}</p>
+    </div>
+  );
+}
+
+/**
+ * Un fetch fallito non è un insieme vuoto.
+ *
+ * Le quattro query della pagina defaultano a `[]`, quindi un errore di rete si presenterebbe come
+ * «Nessun versamento registrato» e come zeri in `font-mono` — indistinguibili dal caso reale, e su
+ * una pagina la cui tesi è "quando non so, lo dico" la conclusione dell'utente è che i dati sono
+ * andati persi. Il blocco che dipende dai dati mancanti viene OMESSO e sostituito da questo.
+ */
+function PensionErrorNotice({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 rounded-2xl border border-border bg-card p-[22px]"
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+      <div className="space-y-1">
+        <p className="text-sm text-foreground">{message}</p>
+        <p className="text-xs text-muted-foreground">
+          Ricarica la pagina per riprovare. I dati registrati non sono stati toccati.
+        </p>
+      </div>
     </div>
   );
 }
@@ -436,28 +539,34 @@ function DisclosureSection({
 function PensionOverviewSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true" aria-label="Caricamento previdenza">
-      <div className="grid gap-4 desktop:grid-cols-[2fr_1fr]">
-        <div className="rounded-2xl border border-border bg-card p-[22px]">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="mt-3 h-11 w-56" />
-          <Skeleton className="mt-6 h-4 w-full" />
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-[22px]">
-          <Skeleton className="h-3 w-32" />
-          <Skeleton className="mt-3 h-9 w-28" />
-          <Skeleton className="mt-6 h-4 w-full" />
+      <div className="space-y-4">
+        <Skeleton className="h-5 w-32" />
+        <div className="grid gap-4 desktop:grid-cols-[2fr_1fr]">
+          <div className="rounded-2xl border border-border bg-card p-[22px]">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-3 h-11 w-56" />
+            <Skeleton className="mt-6 h-4 w-full" />
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-[22px]">
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="mt-3 h-9 w-28" />
+            <Skeleton className="mt-6 h-4 w-full" />
+          </div>
         </div>
       </div>
-      <div className="grid gap-4 desktop:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-[22px]">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="mt-3 h-9 w-40" />
-          <Skeleton className="mt-6 h-16 w-full" />
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-[22px]">
-          <Skeleton className="h-3 w-36" />
-          <Skeleton className="mt-3 h-9 w-40" />
-          <Skeleton className="mt-6 h-16 w-full" />
+      <div className="space-y-4 border-t border-border/40 pt-4">
+        <Skeleton className="h-5 w-40" />
+        <div className="grid gap-4 desktop:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-[22px]">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="mt-3 h-9 w-40" />
+            <Skeleton className="mt-6 h-16 w-full" />
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-[22px]">
+            <Skeleton className="h-3 w-36" />
+            <Skeleton className="mt-3 h-9 w-40" />
+            <Skeleton className="mt-6 h-16 w-full" />
+          </div>
         </div>
       </div>
     </div>
@@ -467,16 +576,28 @@ function PensionOverviewSkeleton() {
 export function PensionOverview() {
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
-  const { data: assets = [], isLoading: assetsLoading } = useAssets(ownerId);
-  const { data: contributions = [] } = usePensionContributions(ownerId);
-  const { data: settings, isLoading: settingsLoading } = useQuery<Settings | null>({
+  const { data: assets = [], isLoading: assetsLoading, isError: assetsError } = useAssets(ownerId);
+  const {
+    data: contributions = [],
+    isLoading: contributionsLoading,
+    isError: contributionsError,
+  } = usePensionContributions(ownerId);
+  const {
+    data: settings,
+    isLoading: settingsLoading,
+    isError: settingsError,
+  } = useQuery<Settings | null>({
     queryKey: ['settings', ownerId],
     queryFn: () => getSettings(ownerId!),
     enabled: !!ownerId,
   });
   // Il rendimento del fondo si legge dagli snapshot mensili: sono l'unico posto dove il valore del
   // fondo è congelato mese per mese (l'asset porta solo il valore corrente).
-  const { data: snapshots = [] } = useQuery<MonthlySnapshot[]>({
+  const {
+    data: snapshots = [],
+    isLoading: snapshotsLoading,
+    isError: snapshotsError,
+  } = useQuery<MonthlySnapshot[]>({
     queryKey: queryKeys.snapshots.all(ownerId || ''),
     queryFn: () => getUserSnapshots(ownerId!),
     enabled: !!ownerId,
@@ -487,6 +608,8 @@ export function PensionOverview() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   const funds = assets.filter((asset) => asset.type === 'pensionFund');
+  const manyFunds = funds.length > 1;
+  const { chapter: fundChapterTitle, ofTheFund } = fundNoun(manyFunds);
   const fundNameById = new Map(funds.map((f) => [f.id, f.name]));
   const totalFundValue = funds.reduce((sum, fund) => sum + calculateAssetValue(fund), 0);
 
@@ -516,20 +639,31 @@ export function PensionOverview() {
   );
   const pensionValueSeries = buildPensionValueSeries(snapshots, funds.map((fund) => fund.id));
   const pensionReturn = computePensionReturn(pensionValueSeries, contributions, pensionReturnStart);
-  // Serve dire PERCHÉ manca il rendimento, o spostare il mese di partenza in avanti sembra un bug:
-  // la card sparirebbe e basta.
-  const pensionReturnPending = !pensionReturn && pensionValueSeries.length > 0;
+  // Il rendimento va mostrato solo quando è una misura: nei due stati in cui non lo è, la card di
+  // riepilogo dà la spiegazione E la scomposizione in euro sparisce con la percentuale — stampare
+  // «Guadagno di mercato» sotto un avviso che dice che quella differenza NON è guadagno di mercato
+  // contraddiceva l'avviso stesso.
+  const showReturnBreakdown = !!pensionReturn && isPensionReturnMeasurable(pensionReturn);
 
   const yearContributions = contributions.filter((c) => c.taxYear === activeYear);
 
   // ── Storico versamenti — 2-click delete with 3s auto-disarm ─────────────────────────
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>(undefined);
+  const [deleteAnnouncement, setDeleteAnnouncement] = useState('');
   const pendingDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current);
+    };
+  }, []);
 
   const handleDeleteClick = (contribution: PensionContribution) => {
     if (pendingDeleteId === contribution.id) {
       if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current);
       setPendingDeleteId(undefined);
+      // L'esito lo annuncia il toast: lasciare qui il messaggio di armamento lo farebbe rileggere.
+      setDeleteAnnouncement('');
       deleteMutation.mutate(contribution, {
         onSuccess: () => toast.success('Versamento eliminato'),
         onError: () => toast.error("Errore nell'eliminazione del versamento"),
@@ -537,12 +671,31 @@ export function PensionOverview() {
     } else {
       if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current);
       setPendingDeleteId(contribution.id);
-      pendingDeleteTimerRef.current = setTimeout(() => setPendingDeleteId(undefined), 3000);
+      setDeleteAnnouncement(
+        'Eliminazione armata: premi di nuovo per confermare. Si disarma da sola dopo 3 secondi.'
+      );
+      pendingDeleteTimerRef.current = setTimeout(() => {
+        setPendingDeleteId(undefined);
+        setDeleteAnnouncement('Eliminazione disarmata: il versamento non è stato eliminato.');
+      }, 3000);
     }
   };
 
-  if (assetsLoading || settingsLoading) {
+  // Tutte e QUATTRO le query, non solo le due che decidono l'empty state. Ognuna defaulta a `[]`, e
+  // ognuna ha un numero che senza i suoi dati vale zero: «Versato totale 0,00 €» sotto un valore del
+  // fondo corretto, «Versato nel {Y}» a 36px, «~0,00 €» di risparmio IRPEF — cioè l'unica risposta
+  // che questa pagina produce, affermata prima di averla letta. `isLoading` (non `isPending`) è
+  // falso su una query disabilitata, quindi uno `ownerId` assente non blocca lo skeleton per sempre.
+  if (assetsLoading || settingsLoading || contributionsLoading || snapshotsLoading) {
     return <PensionOverviewSkeleton />;
+  }
+
+  // Senza asset o impostazioni non si sa nemmeno se l'utente possiede un fondo: qui l'errore è
+  // bloccante, mentre versamenti e snapshot degradano per capitolo più sotto.
+  if (assetsError || settingsError) {
+    return (
+      <PensionErrorNotice message="Non è stato possibile caricare i tuoi fondi pensione." />
+    );
   }
 
   if (funds.length === 0) {
@@ -554,11 +707,11 @@ export function PensionOverview() {
           Crea un asset di tipo «Fondo Pensione» da Patrimonio per iniziare a registrare i versamenti
           e vedere qui il beneficio fiscale.
         </p>
-        <Link href="/dashboard/assets" className="inline-block pt-1">
-          <Button variant="outline" size="sm">
-            Vai a Patrimonio
-          </Button>
-        </Link>
+        {/* `asChild`: un <Button> dentro un <Link> produce <a><button>, nesting non valido che
+            espone due target sovrapposti all'albero di accessibilità. */}
+        <Button asChild variant="outline" size="sm" className="mt-1">
+          <Link href="/dashboard/assets">Vai a Patrimonio</Link>
+        </Button>
       </div>
     );
   }
@@ -566,52 +719,55 @@ export function PensionOverview() {
   return (
     <div className="space-y-4">
       {/* ── Il fondo oggi — nessun asse temporale ─────────────────────────────────── */}
-      <div className="grid gap-4 desktop:grid-cols-[2fr_1fr]">
-        <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-[22px]">
-          <h2 className={EYEBROW_CLASS}>Valore attuale</h2>
-          <p className="mt-2 font-mono text-[44px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground desktop:text-[54px]">
-            {cachedFormatCurrencyEUR(totalFundValue)}
-          </p>
-          <div className="mt-auto flex items-center justify-between border-t border-border/60 pt-3">
-            <span className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-              Versato totale
-            </span>
-            <span className="font-mono text-sm tabular-nums text-foreground">
-              {cachedFormatCurrencyEUR(totalAllTime)}
-            </span>
+      <section className="space-y-4">
+        <h2 className={CHAPTER_TITLE_CLASS}>{fundChapterTitle}</h2>
+
+        <div className="grid gap-4 desktop:grid-cols-[2fr_1fr]">
+          <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-[22px]">
+            <h3 className={EYEBROW_CLASS}>Valore attuale</h3>
+            <p className="mt-2 font-mono text-[44px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground desktop:text-[54px]">
+              {cachedFormatCurrencyEUR(totalFundValue)}
+            </p>
+            <div className="mt-auto flex items-center justify-between border-t border-border/60 pt-3">
+              <span className="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                Versato totale
+              </span>
+              <span className="font-mono text-sm tabular-nums text-foreground">
+                {contributionsError ? '—' : cachedFormatCurrencyEUR(totalAllTime)}
+              </span>
+            </div>
           </div>
+
+          {/* La colonna 1fr ha SEMPRE un occupante: o il rendimento, o l'errore che lo ha impedito,
+              o la spiegazione del perché non è ancora calcolabile. Mai il vuoto. */}
+          {snapshotsError ? (
+            <PensionErrorNotice message="Non è stato possibile caricare lo storico da cui si calcola il rendimento." />
+          ) : pensionReturn ? (
+            <PensionReturnSummaryCard
+              result={pensionReturn}
+              hasStartMonth={!!settings?.pensionReturnStartMonth}
+              manyFunds={manyFunds}
+            />
+          ) : (
+            <PensionReturnPendingCard
+              hasValueSeries={pensionValueSeries.length > 0}
+              startMonth={pensionReturnStart}
+              manyFunds={manyFunds}
+            />
+          )}
         </div>
 
-        {pensionReturn && (
-          <PensionReturnSummaryCard
-            result={pensionReturn}
-            hasStartMonth={!!settings?.pensionReturnStartMonth}
-          />
+        {showReturnBreakdown && pensionReturn && (
+          <DisclosureSection title="Da dove viene la crescita">
+            <PensionReturnBreakdown result={pensionReturn} />
+          </DisclosureSection>
         )}
-        {pensionReturnPending && (
-          <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-[22px]">
-            <h3 className={EYEBROW_CLASS}>Rendimento del fondo</h3>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {pensionReturnStart
-                ? `Serve un secondo mese dopo ${formatMonthLabel(pensionReturnStart)} per calcolare un rendimento: con un solo valore non c'è nulla da confrontare.`
-                : 'Registra il primo versamento per iniziare a misurare il rendimento: prima di quello la crescita del fondo e i versamenti sono indistinguibili.'}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Con una finestra ancora ferma ogni riga della scomposizione vale zero: il blocco va omesso,
-          non riempito di zeri (DESIGN.md — l'assenza comunica meglio del chrome vuoto). */}
-      {pensionReturn && !pensionReturn.hasNoMovement && (
-        <DisclosureSection title="Da dove viene la crescita">
-          <PensionReturnBreakdown result={pensionReturn} />
-        </DisclosureSection>
-      )}
+      </section>
 
       {/* ── Anno fiscale — versato per natura + beneficio IRPEF per contribuente ──── */}
       <section className="space-y-4 border-t border-border/40 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className={EYEBROW_CLASS}>Anno fiscale {activeYear}</h2>
+          <h2 className={CHAPTER_TITLE_CLASS}>Anno fiscale {activeYear}</h2>
           {availableYears.length > 1 && (
             <SegmentedPill
               options={availableYears.map((year) => ({ value: String(year), label: String(year) }))}
@@ -623,6 +779,12 @@ export function PensionOverview() {
           )}
         </div>
 
+        {/* Ogni numero di questo capitolo deriva dai versamenti: se non sono arrivati, il capitolo
+            non ha una versione degradata onesta — mostrerebbe un versato di zero e un risparmio
+            IRPEF di zero, entrambi indistinguibili da un anno in cui non hai versato nulla. */}
+        {contributionsError ? (
+          <PensionErrorNotice message="Non è stato possibile caricare i versamenti: il versato dell'anno e il beneficio fiscale non sono calcolabili." />
+        ) : (
         <div className="grid gap-4 desktop:grid-cols-2">
           <div className="rounded-2xl border border-border bg-card p-[22px]">
             <h3 className={EYEBROW_CLASS}>Versato nel {activeYear}</h3>
@@ -663,10 +825,11 @@ export function PensionOverview() {
             <UnassignedFundsCard funds={funds} />
           )}
         </div>
+        )}
 
         {/* One disclaimer for the chapter, not one per taxpayer — repeating it per card said the
             same thing twice to a two-person household. */}
-        {matched.length > 0 && (
+        {matched.length > 0 && !contributionsError && (
           <p className="text-[11px] text-muted-foreground">
             Stima informativa, non consulenza fiscale: dipende dalla situazione personale di ciascun
             contribuente (altri oneri deducibili, incapienza, tetto). Verifica con un professionista.
@@ -676,22 +839,29 @@ export function PensionOverview() {
 
       {/* ── Storico versamenti dell'anno selezionato ───────────────────────────────── */}
       <section className="space-y-4 border-t border-border/40 pt-4">
-        <div className="rounded-2xl border border-border bg-card p-[22px]">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className={EYEBROW_CLASS}>Storico versamenti {activeYear}</h2>
+        {/* Titolo e conteggio FUORI dalla card, come negli altri due capitoli: il titolo di capitolo
+            nomina ciò che la card contiene, non è il titolo della card. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className={CHAPTER_TITLE_CLASS}>Storico versamenti {activeYear}</h2>
+          {!contributionsError && (
             <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
               {yearContributions.length}{' '}
               {yearContributions.length === 1 ? 'versamento' : 'versamenti'}
             </span>
-          </div>
+          )}
+        </div>
 
+        {contributionsError ? (
+          <PensionErrorNotice message="Non è stato possibile caricare lo storico dei versamenti." />
+        ) : (
+        <div className="rounded-2xl border border-border bg-card p-[22px]">
           {yearContributions.length === 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Nessun versamento registrato con anno fiscale {activeYear}.
             </p>
           ) : (
             <>
-              <div className="mt-3 divide-y divide-border/60">
+              <div className="divide-y divide-border/60">
                 {yearContributions.map((contribution) => {
                   const isPending = pendingDeleteId === contribution.id;
                   // A January payment booked to the previous tax year would otherwise look like a
@@ -754,11 +924,12 @@ export function PensionOverview() {
               </div>
 
               {/* The armed state is carried by a variant + label swap, which a screen reader would
-                  otherwise never announce. */}
+                  otherwise never announce. Il DISARMO è un annuncio a sé e non il ritorno alla
+                  stringa vuota: svuotare la region non produce nessun annuncio, quindi chi non vede
+                  il bottone tornare grigio resterebbe a credere che l'eliminazione sia ancora armata
+                  per il resto della sessione. */}
               <p className="sr-only" role="status" aria-live="polite">
-                {pendingDeleteId
-                  ? 'Eliminazione armata: premi di nuovo per confermare. Si disarma da sola dopo 3 secondi.'
-                  : ''}
+                {deleteAnnouncement}
               </p>
 
               <p className="mt-3 text-[11px] text-muted-foreground">
@@ -768,11 +939,12 @@ export function PensionOverview() {
             </>
           )}
         </div>
+        )}
       </section>
 
-      <DisclosureSection title="Come aggiornare il valore del fondo">
+      <DisclosureSection title={`Come aggiornare il valore ${ofTheFund}`}>
         <p className="px-[22px] pb-[22px] text-xs text-muted-foreground">
-          Il valore del fondo (versato + rendimento) si aggiorna a mano dal tuo asset «Fondo
+          Il valore {ofTheFund} (versato + rendimento) si aggiorna a mano dal tuo asset «Fondo
           Pensione» in Patrimonio quando arriva l&apos;estratto conto. Ordine corretto: registra
           prima tutti i versamenti del mese qui sopra, poi aggiorna «Valore attuale» —
           l&apos;estratto conto li include già, quindi aggiornarlo prima li farebbe contare due
