@@ -63,3 +63,9 @@ skills-lock.json
 
 # Editor
 .vscode/
+
+# Playwright
+/test-results/
+/playwright-report/
+/e2e/.auth/
+/.next-e2e/

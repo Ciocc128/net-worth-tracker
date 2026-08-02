@@ -51,12 +51,22 @@ const NATURE_OPTIONS: { value: ContributionSource; label: string; hint: string }
   },
 ];
 
+/**
+ * Every numeric field carries its OWN type-error message, not just a constraint message.
+ * `valueAsNumber` turns an empty input into `NaN`, which fails the *type* check — and a message
+ * attached only to `.positive()`/`.int()` leaves zod's English default ("Invalid input: expected
+ * number, received NaN") to surface in an all-Italian form, on the most likely first mistake.
+ */
 const contributionSchema = z.object({
   assetId: z.string().min(1, 'Seleziona un fondo pensione'),
   source: z.enum(['tfr', 'voluntary', 'employer']),
-  amount: z.number().positive('Inserisci un importo maggiore di zero'),
+  amount: z
+    .number({ error: 'Inserisci un importo' })
+    .positive('Inserisci un importo maggiore di zero'),
   date: z.string().min(1, 'Inserisci una data'),
-  taxYear: z.number().int(),
+  taxYear: z
+    .number({ error: "Inserisci l'anno fiscale" })
+    .int("L'anno fiscale deve essere un numero intero"),
   sourceCashAssetId: z.string().optional(),
   notes: z.string().optional(),
 });

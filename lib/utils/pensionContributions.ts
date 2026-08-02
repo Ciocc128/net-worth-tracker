@@ -67,3 +67,49 @@ export function derivePensionContributionsByYearAndNature(
 
   return byYear;
 }
+
+/**
+ * The tax years the Previdenza year axis can offer, newest first.
+ *
+ * `currentYear` is always included even when nothing has been recorded against it yet: the selector
+ * opens on "this year", and a user who has not registered January's contribution would otherwise
+ * land on last year's plafond and IRPEF figures without any signal that the axis had moved.
+ *
+ * Years come from `taxYear` (the year of competence), the same axis every other roll-up in this
+ * module groups by — a contribution paid in January against the previous year belongs to that
+ * previous year here too.
+ */
+export function derivePensionContributionYears(
+  contributions: PensionContribution[],
+  currentYear: number
+): number[] {
+  const years = new Set<number>([currentYear]);
+
+  for (const contribution of contributions) {
+    years.add(contribution.taxYear);
+  }
+
+  return [...years].sort((a, b) => b - a);
+}
+
+/**
+ * Resolve which tax year the Previdenza view is actually showing.
+ *
+ * The selection is held as "what the user picked, or nothing yet", never as a copy of the derived
+ * axis — so no effect has to keep the two in sync. This function is what makes that safe: a
+ * selection the axis no longer offers falls back to `currentYear` instead of leaving the page on a
+ * year with no data behind it. That happens for real — deleting the last contribution of a year
+ * removes that year from `derivePensionContributionYears`, and the previously selected year would
+ * otherwise render an empty chapter with a selector that no longer highlights anything.
+ *
+ * `currentYear` is always a safe fallback because `derivePensionContributionYears` guarantees it is
+ * present in the axis.
+ */
+export function resolveActivePensionYear(
+  selectedYear: number | null,
+  availableYears: number[],
+  currentYear: number
+): number {
+  if (selectedYear !== null && availableYears.includes(selectedYear)) return selectedYear;
+  return currentYear;
+}

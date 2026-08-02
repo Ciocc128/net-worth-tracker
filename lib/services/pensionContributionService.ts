@@ -177,6 +177,41 @@ async function assertVoluntarySourceIsCashAccount(sourceCashAssetId: string): Pr
 }
 
 /**
+ * Validate the DESTINATION fund — the mirror of `assertVoluntarySourceIsCashAccount`, and it exists
+ * for the same reason.
+ *
+ * Every nature credits the fund through `updateCashAssetBalance`, which adds the euro amount to
+ * `quantity`. That is only the fund's value if the fund is priced at 1, the shape both `AssetDialog`
+ * (the "Valore attuale" field writes `quantity`, `currentPrice` keeps its default of 1) and the
+ * legacy tracked-as-an-etf documents have. Against a fund carrying a real unit price the addition
+ * silently multiplies: a 200 € contribution onto `quantity 1 × price 29.800` produced a displayed
+ * value of 5.989.800 € — observed during manual testing, with no error anywhere.
+ *
+ * Reachable without touching Firestore by hand: `AssetDialog` allows a type change, so a genuine ETF
+ * (100 units at 45 €) converted into a `pensionFund` arrives here priced at 45.
+ *
+ * Write-side only. `deletePensionContribution` deliberately has no equivalent guard: blocking a
+ * delete would trap the user in the broken state instead of letting them undo their way out of it
+ * (same reasoning as "deleting a contribution must never be blocked by a failed reversal").
+ */
+async function assertFundValueLivesInQuantity(assetId: string): Promise<void> {
+  const fund = await getAssetById(assetId);
+  if (!fund) {
+    throw new Error(`Il fondo pensione ${assetId} non è stato trovato`);
+  }
+  if (fund.type !== 'pensionFund') {
+    throw new Error('Un versamento può essere registrato solo su un asset di tipo «Fondo Pensione»');
+  }
+  if (fund.currentPrice !== 1) {
+    throw new Error(
+      `Il fondo «${fund.name}» ha un prezzo unitario di ${fund.currentPrice} invece di 1, quindi il ` +
+        'suo valore non è tutto nel campo «Valore attuale». Registrare un versamento ne ' +
+        'moltiplicherebbe il valore: correggi il fondo in Patrimonio prima di continuare.'
+    );
+  }
+}
+
+/**
  * Write the contribution document. `deductible` is derived from `source` and persisted so per-year
  * deductible roll-ups never have to re-derive it; `sourceCashAssetId` is kept only for the nature
  * that has one, so the delete path can reverse the exact transfer.
@@ -258,6 +293,10 @@ export async function recordPensionContribution(
 ): Promise<string> {
   validatePensionContributionInput(input);
   const amount = Math.abs(input.amount);
+
+  // Before any write: a fund whose value is not held in `quantity` at price 1 would be silently
+  // multiplied by this contribution, not incremented.
+  await assertFundValueLivesInQuantity(input.assetId);
 
   if (input.source !== 'voluntary' || !input.sourceCashAssetId) {
     // TFR / employer, or a voluntary contribution withheld directly from payroll: the money never
