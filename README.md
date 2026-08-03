@@ -222,7 +222,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 | Forms | react-hook-form, zod | Form handling and validation |
 | Dates | date-fns, date-fns-tz | Timezone-aware date operations |
 | Scraping | cheerio | Borsa Italiana dividend and bond price data |
-| Testing | Vitest · Playwright | Unit testing (1550 tests) · browser E2E against the Firebase emulator |
+| Testing | Vitest · Playwright | Unit testing (1553 tests) · browser E2E against the Firebase emulator |
 
 ## Development
 
@@ -243,7 +243,7 @@ npm run emulators:seed # Seed a synthetic test account (once) — test@example.c
 npm run dev:emulator   # Run the app against the local emulators
 
 # Browser tests (needs the emulators above running; app served on :3100, so your dev server can stay up)
-npm run test:e2e       # Playwright, desktop 1440px + mobile 390px
+npm run test:e2e       # Playwright: desktop 1440px, mobile 390px, degraded-state scenarios
 npm run test:e2e:ui    # Same, interactive runner
 ```
 
@@ -252,7 +252,9 @@ and [SETUP.md → Step 7](SETUP.md) for the Playwright suite.
 
 Vitest covers the pure utilities and services, where the logic lives. Playwright covers what only a
 real browser can see — the `desktop:` layout switch at 1440px, animated disclosures, and whether a
-loading state ever flashes the wrong content.
+loading state ever flashes the wrong content. A third project exercises the states a healthy fixture
+can never reach (a return that can't be trusted, a window where nothing moved, a fund with no history
+yet), seeded on their own account: `npm run e2e:seed -- suspicious|idle|fresh`.
 
 ### Conventions
 

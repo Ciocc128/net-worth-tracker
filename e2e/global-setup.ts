@@ -45,4 +45,16 @@ export default async function globalSetup(): Promise<void> {
   if (seed.status !== 0) {
     throw new Error('The Previdenza E2E fixture failed to seed — see the output above.');
   }
+
+  // Solo l'ACCOUNT degli scenari degradati, che `auth.degraded.setup.ts` dà per esistente; i dati li
+  // scrive ogni test col proprio scenario. Separati apposta: aggiornare la password di un utente
+  // revoca i suoi refresh token, quindi riseminare l'account a ogni scenario butterebbe fuori la
+  // sessione appena parcheggiata.
+  const degradedSeed = spawnSync('npm', ['run', 'e2e:seed', '--', 'degraded-user'], {
+    stdio: 'inherit',
+    shell: true,
+  });
+  if (degradedSeed.status !== 0) {
+    throw new Error('The degraded-scenario account failed to seed — see the output above.');
+  }
 }

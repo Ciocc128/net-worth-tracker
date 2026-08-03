@@ -34,6 +34,9 @@ const FUND_VALUE = euro('29.800,00');
 /** `valueGrowth (1.800) − contributions recorded in July (821,01)`. */
 const MARKET_GAIN = euro('978,99');
 
+/** Il titolo si accorda al numero di fondi tracciati: la fixture ne ha uno, ma il locator no. */
+const RETURN_CARD_HEADING = /^Rendimento (del fondo|dei fondi)$/;
+
 function heroValue(page: Page): Locator {
   return page.getByText(FUND_VALUE);
 }
@@ -50,18 +53,67 @@ async function fontSizePx(locator: Locator): Promise<number> {
   return parseFloat(raw);
 }
 
-test('never claims the user owns no pension fund, at any point in the load', async ({ page }) => {
-  // Polling after the fact would race the render. A MutationObserver installed before the first
-  // script runs records the empty state even if it flashes for one frame.
+/**
+ * Nessun frame del caricamento afferma qualcosa che la pagina non ha ancora letto.
+ *
+ * Polling after the fact would race the render. A MutationObserver installed before the first
+ * script runs records the offending state even if it flashes for one frame.
+ *
+ * TRE marcatori, non uno. L'empty state è il primo, ma le quattro query della pagina defaultano
+ * tutte a `[]` e ognuna ha un numero che senza i suoi dati vale zero — su una pagina che altrove si
+ * rifiuta di stampare «+0,00%» come misura, uno zero è un'affermazione, non un segnaposto.
+ *
+ * ONESTÀ SULLA PORTATA DI QUESTO TEST: `versato-totale-zero` e `hero-senza-compagno` NON riproducono
+ * la corsa fra le query. Il Web SDK di Firestore multiplexa tutti e quattro i target su UN SOLO
+ * webchannel (verificato ispezionando le richieste: un `addTarget` per `assets`,
+ * `pensionContributions` e `monthly-snapshots` sulla stessa connessione), quindi non sono ritardabili
+ * l'uno rispetto all'altro e sull'emulatore atterrano nello stesso batch di React. Misurato, non
+ * supposto: riportando lo skeleton alle sole due query originali questo test resta verde, e anche
+ * con latenza CDP — che è uniforme, e quindi non apre nessuna finestra. Valgono come guardia sugli
+ * stati DETERMINISTICI (un ramo che rende zero perché è sbagliato, non perché è in ritardo); la
+ * corsa vera è coperta dal gate a quattro query nel codice.
+ */
+test('never states, at any point in the load, something it has not read', async ({ page }) => {
   await page.addInitScript(() => {
-    const marker = 'Nessun fondo pensione ancora tracciato';
-    Object.assign(window, { __emptyStateSeen: false });
+    Object.assign(window, { __violations: [] as string[] });
+    const record = (violation: string) => {
+      const seen = (window as unknown as { __violations: string[] }).__violations;
+      if (!seen.includes(violation)) seen.push(violation);
+    };
+
+    const headingWithText = (text: string) =>
+      [...document.querySelectorAll('h1, h2, h3, h4')].some((h) => h.textContent?.trim() === text);
+
     const check = () => {
-      if (document.body?.innerText?.includes(marker)) {
-        Object.assign(window, { __emptyStateSeen: true });
+      // `innerText` restituisce il testo RENDERIZZATO, quindi applica `text-transform`: un marcatore
+      // preso da una label eyebrow (`uppercase`) non matcherebbe mai. Questo va bene su una frase in
+      // caso normale; per i confronti su titoli si usa `textContent` in `headingWithText`.
+      if (document.body?.innerText?.includes('Nessun fondo pensione ancora tracciato')) {
+        record('empty-state');
+      }
+
+      // «Versato totale» e il suo importo sono fratelli nella riga a piè della card hero.
+      const label = [...document.querySelectorAll('span')].find(
+        (el) => el.textContent?.trim() === 'Versato totale'
+      );
+      if (label && /^0,00/.test(label.nextElementSibling?.textContent?.trim() ?? '')) {
+        record('versato-totale-zero');
+      }
+
+      // La colonna 1fr della riga hero non resta mai vuota: o il rendimento, o la spiegazione del
+      // perché non è ancora calcolabile. Con un solo figlio la griglia [2fr_1fr] lascerebbe un terzo
+      // di riga bianco a 1440px, senza che niente spieghi il vuoto.
+      if (headingWithText('Valore attuale') && !headingWithText('Rendimento del fondo')) {
+        record('hero-senza-compagno');
       }
     };
-    new MutationObserver(check).observe(document.documentElement, {
+
+    // `document`, NON `document.documentElement`: quando `addInitScript` gira il documento è appena
+    // stato creato e `documentElement` è ancora `null`, quindi `observe()` lancia
+    // «parameter 1 is not of type 'Node'», l'init script muore lì e l'observer non si attacca mai —
+    // il test resta verde perché non ha osservato niente. `document` è già un Node a quel punto e
+    // con `subtree: true` copre esattamente lo stesso albero.
+    new MutationObserver(check).observe(document, {
       subtree: true,
       childList: true,
       characterData: true,
@@ -70,15 +122,17 @@ test('never claims the user owns no pension fund, at any point in the load', asy
 
   await gotoPension(page);
 
-  const flashed = await page.evaluate(() => (window as unknown as { __emptyStateSeen: boolean }).__emptyStateSeen);
-  expect(flashed).toBe(false);
+  const violations = await page.evaluate(
+    () => (window as unknown as { __violations: string[] }).__violations
+  );
+  expect(violations).toEqual([]);
 });
 
 test('lays the hero and the return card side by side at 1440px', async ({ page }) => {
   await gotoPension(page);
 
   const hero = page.getByRole('heading', { name: 'Valore attuale' }).locator('..');
-  const returnCard = page.getByRole('heading', { name: 'Rendimento del fondo' }).locator('..');
+  const returnCard = page.getByRole('heading', { name: RETURN_CARD_HEADING }).locator('..');
 
   const heroBox = (await hero.boundingBox())!;
   const returnBox = (await returnCard.boundingBox())!;

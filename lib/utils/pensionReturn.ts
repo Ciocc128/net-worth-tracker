@@ -102,6 +102,23 @@ export interface PensionReturnResult {
   hasNoMovement: boolean;
 }
 
+/**
+ * Il rendimento di questa finestra è una MISURA, o solo un numero che il calcolo ha prodotto?
+ *
+ * I due stati che dicono di no — `isCoverageSuspicious` e `hasNoMovement` — hanno cause opposte ma
+ * la stessa conseguenza sullo schermo: la percentuale va sostituita da una spiegazione, e con essa
+ * TUTTA la scomposizione in euro che la spiegherebbe. «Guadagno di mercato» stampato sotto un avviso
+ * che dice «quella differenza non è rendimento di mercato» contraddice l'avviso a quaranta pixel di
+ * distanza — ed è il numero, non il testo, che l'occhio legge per primo.
+ *
+ * Vive qui e non nel componente perché è una proprietà del risultato, non del layout: la card di
+ * riepilogo e il blocco di scomposizione devono decidere sullo STESSO predicato, e finché erano due
+ * espressioni separate sono divergite (la card guardava entrambi i flag, il blocco solo uno).
+ */
+export function isPensionReturnMeasurable(result: PensionReturnResult): boolean {
+  return !result.isCoverageSuspicious && !result.hasNoMovement;
+}
+
 /** Chiave mensile 'YYYY-MM'. */
 function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;

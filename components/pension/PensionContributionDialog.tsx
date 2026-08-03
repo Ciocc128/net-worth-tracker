@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import { getItalyDateIso, getItalyYear } from '@/lib/utils/dateHelpers';
 
 const NATURE_OPTIONS: { value: ContributionSource; label: string; hint: string }[] = [
   {
@@ -89,7 +90,10 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
 
   const funds = assets.filter((a) => a.type === 'pensionFund');
   const cashAccounts = assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
-  const todayIso = new Date().toISOString().split('T')[0];
+  // Ora italiana, non UTC: dalle 22:00 (23:00 d'inverno) `toISOString` restituisce il giorno prima,
+  // e il form proporrebbe ieri a chi registra un versamento la sera. Stesso motivo per l'anno fiscale.
+  const todayIso = getItalyDateIso();
+  const currentTaxYear = getItalyYear();
 
   const {
     register,
@@ -105,7 +109,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
       source: 'voluntary',
       amount: undefined,
       date: todayIso,
-      taxYear: new Date().getFullYear(),
+      taxYear: currentTaxYear,
       sourceCashAssetId: '__none__',
       notes: '',
     },
@@ -123,7 +127,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
       source: 'voluntary',
       amount: undefined,
       date: todayIso,
-      taxYear: new Date().getFullYear(),
+      taxYear: currentTaxYear,
       sourceCashAssetId: '__none__',
       notes: '',
     });
@@ -205,7 +209,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
                 ))}
               </SelectContent>
             </Select>
-            {errors.assetId && <p className="text-sm text-red-500">{errors.assetId.message}</p>}
+            {errors.assetId && <p className="text-sm text-destructive">{errors.assetId.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -257,7 +261,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
                 </p>
               )}
               {errors.sourceCashAssetId && (
-                <p className="text-sm text-red-500">{errors.sourceCashAssetId.message}</p>
+                <p className="text-sm text-destructive">{errors.sourceCashAssetId.message}</p>
               )}
             </div>
           )}
@@ -274,14 +278,14 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
               {...register('amount', { valueAsNumber: true })}
               placeholder="0,00"
             />
-            {errors.amount && <p className="text-sm text-red-500">{errors.amount.message}</p>}
+            {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="pc-date">Data</Label>
               <Input id="pc-date" type="date" disabled={isDemo} {...register('date')} />
-              {errors.date && <p className="text-sm text-red-500">{errors.date.message}</p>}
+              {errors.date && <p className="text-sm text-destructive">{errors.date.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="pc-taxyear">Anno fiscale</Label>
@@ -292,7 +296,7 @@ export function PensionContributionDialog({ open, onClose, defaultAssetId }: Pen
                 disabled={isDemo}
                 {...register('taxYear', { valueAsNumber: true })}
               />
-              {errors.taxYear && <p className="text-sm text-red-500">{errors.taxYear.message}</p>}
+              {errors.taxYear && <p className="text-sm text-destructive">{errors.taxYear.message}</p>}
             </div>
           </div>
 
