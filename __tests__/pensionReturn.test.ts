@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildPensionValueSeries,
   computePensionReturn,
+  isPensionReturnMeasurable,
   resolvePensionReturnStart,
 } from '@/lib/utils/pensionReturn';
 import type { MonthlySnapshot } from '@/types/assets';
@@ -307,5 +308,136 @@ describe('computePensionReturn', () => {
   it('returns null when the window holds fewer than two months', () => {
     expect(computePensionReturn(series([[2026, 1, 10_000]]), [], '2026-01')).toBeNull();
     expect(computePensionReturn(series([[2025, 1, 10_000]]), [], '2026-01')).toBeNull();
+  });
+});
+
+describe('computePensionReturn — hasNoMovement', () => {
+  const series = (values: [number, number, number][]) =>
+    values.map(([year, month, value]) => ({ year, month, value }));
+
+  it('flags a window where nothing has happened yet', () => {
+    // Lo scenario reale: la finestra parte a luglio, i versamenti di giugno erano già dentro il
+    // valore di apertura (registrati a luglio) e da allora il valore non è stato riaggiornato.
+    // Ogni riga della scomposizione vale zero e il TWR è 0 per assenza di dati, non per risultato.
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 31_031.39],
+        [2026, 8, 31_031.39],
+      ]),
+      [contribution(2026, 6, 382.86, 'tfr', new Date(2026, 6, 24))],
+      '2026-07'
+    );
+
+    expect(result!.contributions.total).toBe(0);
+    expect(result!.valueGrowth).toBe(0);
+    expect(result!.twr).toBeCloseTo(0, 10);
+    expect(result!.hasNoMovement).toBe(true);
+  });
+
+  it('does NOT flag a flat value that had contributions in the window', () => {
+    // Valore fermo NONOSTANTE 500 € versati: il mercato ha perso esattamente quanto è entrato.
+    // È un'informazione, non un'assenza — la scomposizione va mostrata.
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 10_000],
+        [2026, 8, 10_000],
+      ]),
+      [contribution(2026, 8, 500, 'voluntary')],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(false);
+    expect(result!.marketGain).toBe(-500);
+  });
+
+  it('does NOT flag a window whose value moved', () => {
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 10_000],
+        [2026, 8, 10_120],
+      ]),
+      [],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(false);
+  });
+
+  it('treats a sub-cent residual as no movement', () => {
+    // Un residuo in virgola mobile non deve trasformare una finestra ferma in una che ha reso.
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 31_031.39],
+        [2026, 8, 31_031.393],
+      ]),
+      [],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(true);
+  });
+});
+
+/**
+ * Il predicato che decide se la pagina può mostrare NUMERI invece di una spiegazione.
+ *
+ * È il contratto che tiene insieme la card di riepilogo e il blocco «Da dove viene la crescita»:
+ * finché erano due espressioni separate sono divergite, e la scomposizione stampava «Guadagno di
+ * mercato» in grassetto sotto un avviso che diceva che quella differenza NON è guadagno di mercato.
+ * Il componente non è testabile qui (nessun renderer), il predicato sì — ed è dove stava il bug.
+ */
+describe('isPensionReturnMeasurable', () => {
+  const series = (values: [number, number, number][]) =>
+    values.map(([year, month, value]) => ({ year, month, value }));
+
+  it('ammette una finestra normale: la scomposizione va mostrata', () => {
+    const result = computePensionReturn(
+      series([
+        [2026, 1, 10_000],
+        [2026, 2, 10_120],
+        [2026, 3, 10_260],
+        [2026, 4, 10_400],
+      ]),
+      [],
+      '2026-01'
+    );
+
+    expect(result!.isCoverageSuspicious).toBe(false);
+    expect(result!.hasNoMovement).toBe(false);
+    expect(isPensionReturnMeasurable(result!)).toBe(true);
+  });
+
+  it('nega una finestra con copertura sospetta — la scomposizione va OMESSA', () => {
+    // Crescita del 30% in tre mesi senza un solo versamento registrato: sono versamenti mancanti,
+    // non mercato. `marketGain` esiste ed è un numero, ma non è un guadagno di mercato: mostrarlo
+    // accanto all'avviso che lo nega è la contraddizione che questo predicato impedisce.
+    const result = computePensionReturn(
+      series([
+        [2026, 1, 10_000],
+        [2026, 2, 11_000],
+        [2026, 3, 12_000],
+        [2026, 4, 13_000],
+      ]),
+      [],
+      '2026-01'
+    );
+
+    expect(result!.isCoverageSuspicious).toBe(true);
+    expect(result!.marketGain).toBe(3_000);
+    expect(isPensionReturnMeasurable(result!)).toBe(false);
+  });
+
+  it('nega una finestra ferma — ogni riga varrebbe zero', () => {
+    const result = computePensionReturn(
+      series([
+        [2026, 7, 29_800],
+        [2026, 8, 29_800],
+      ]),
+      [],
+      '2026-07'
+    );
+
+    expect(result!.hasNoMovement).toBe(true);
+    expect(isPensionReturnMeasurable(result!)).toBe(false);
   });
 });

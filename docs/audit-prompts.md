@@ -11,7 +11,9 @@ dei P0/P1 emersi da una critique, o come verifica standalone su assi specifici.
 
 **Differenza da critique:**
 Audit = compliance pass/fail su assi precisi. Critique = valutazione olistica con score.
-Audit è più veloce, non produce score, non sostituisce la critique di verifica finale.
+Audit è più veloce, non produce score, non sostituisce la critique di verifica finale —
+che usa la chiusura convergente (score + finding P0/P1/P2) e può terminare il ciclo
+dichiarando la pagina "a regime" (score ≥ 36/40 e zero P0/P1).
 
 **Assi di compliance per questo progetto** (fonte canonica: `DESIGN.md` — leggila sempre):
 - **Form Follows Function** — ogni proprietà visiva (size, weight, color, radius, motion) deriva
@@ -33,10 +35,13 @@ Audit è più veloce, non produce score, non sostituisce la critique di verifica
   `aria-label` su bottoni icon-only, `aria-expanded` su collapsible
 - **Skeleton** — ogni sezione async ha uno skeleton strutturalmente isomorfo al layout reale
 
-**Sequenza corretta (flusso combinato "ripensamento"):**
+**Sequenze corrette (vedi `docs/critique-prompts.md` per le due modalità di critique):**
 ```
-critique → shape combinato (blocco A + blocco B) → implementa tutto (craft + polish) →
-audit (gate compliance) → critique di verifica
+Verifica (default):     critique → fix dei soli finding → audit (gate compliance) →
+                        critique di verifica → stop a score ≥ 36/40 e zero P0/P1 ("a regime")
+Ripensamento (opt-in):  critique → shape combinato (blocco A + blocco B) → implementa tutto
+                        (craft + polish) → audit (gate compliance) → critique di verifica
+                        (chiusura di verifica, NON un altro ripensamento)
 ```
 
 ---
@@ -67,6 +72,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Sidebar Desktop
@@ -99,6 +106,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Bottom Navigation Mobile
@@ -130,6 +139,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Secondary Menu Drawer
@@ -155,6 +166,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -192,6 +205,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Login + Register
@@ -216,6 +231,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -264,6 +281,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -319,6 +338,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -330,31 +351,99 @@ Contesto:
 
 File: app/dashboard/pension/page.tsx
 Componenti: components/pension/PensionOverview.tsx,
+            components/pension/PensionHeaderAction.tsx,
             components/pension/PensionContributionDialog.tsx
 Pure layer: lib/utils/pensionDeduction.ts, lib/utils/pensionContributions.ts,
-            lib/utils/pensionFamilyMembers.ts
+            lib/utils/pensionFamilyMembers.ts, lib/utils/pensionReturn.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: nessun hardcoded su header, card di recap fiscale, meter del plafond;
-  il verdetto fiscale usa i token semantici (`--positive`/`--warning`), non amber raw
+- Token: nessun hardcoded su hero, card di rendimento, card di recap fiscale, blocco plafond;
+  il segno di TWR / guadagno di mercato / ritorno personale via `getMetricValueColor` e
+  `signTextClass`, mai `text-green-*`/`text-red-*` raw
 - Gerarchia: valore totale del fondo come page hero `text-[44px] desktop:text-[54px]`;
-  i totali di sezione a `text-[36px]`; righe flat `divide-y`, nessuna card-in-card
-  (le card per membro famiglia sono pari-livello, non annidate nel blocco fiscale)
-- Mono Mandate: importi, RAL, percentuali IRPEF e plafond in Geist Mono + tabular-nums
-- Onestà: un fondo senza membro famiglia collegato mostra un prompt, MAI un numero —
-  verifica che il prompt sia visivamente un'azione, non un errore
-- Storico versamenti: delete 2-click con `aria-label` e disarmo visibile, come altrove
-- ARIA: PensionContributionDialog con `DialogDescription`; il selettore della natura
-  (TFR/Volontario/Datoriale) con `role="radio"`/`role="tablist"` coerente col resto dell'app
-- Skeleton: la vista è async (assets + contributions) — deve avere uno skeleton isomorfo
+  TWR, versato dell'anno e risparmio IRPEF come section hero `text-[36px]` (nessun gradino
+  fuori scala tipo 28px); righe flat `divide-y`, nessuna card-in-card (le card per membro
+  famiglia sono pari-livello nella griglia, non annidate nel blocco fiscale)
+- Un numero dominante per card: il RISPARMIO IRPEF deve dominare la sua card — se torna a essere
+  una riga come le altre, la pagina ha perso la sua risposta
+- Layout desktop: riga hero `desktop:grid-cols-[2fr_1fr]`, capitolo fiscale `desktop:grid-cols-2`,
+  separatori di capitolo `border-t border-border/40 pt-4`. Una pagina a colonna singola a 1440px
+  è una regressione, non una scelta
+- Mono Mandate: importi, RAL, percentuali IRPEF e plafond **e le date** (storico versamenti,
+  finestra del rendimento) in Geist Mono + tabular-nums
+- Onestà: un fondo senza membro famiglia collegato mostra un prompt, MAI un numero — verifica che
+  il prompt sia visivamente un'azione, non un errore. Idem per i due stati in cui il rendimento
+  sostituisce la percentuale con una spiegazione (`isCoverageSuspicious`, `hasNoMovement`): in
+  quei casi il blocco di scomposizione va OMESSO, non riempito di zeri. **Il predicato è UNO**:
+  `isPensionReturnMeasurable` (`lib/utils/pensionReturn.ts`), consumato sia dalla card di riepilogo
+  sia dalla guardia del collapsible. Finché erano due espressioni separate sono divergite, e la
+  scomposizione stampava «Guadagno di mercato» in grassetto sotto l'avviso che diceva che quella
+  differenza NON è guadagno di mercato — un numero e la sua smentita a quaranta pixel di distanza.
+  Verifica il predicato, non ri-derivarlo
+- Errori: le quattro query defaultano tutte a `[]`, quindi un fetch fallito è indistinguibile da un
+  insieme vuoto. Ogni blocco che dipende da una query in errore va SOSTITUITO da `PensionErrorNotice`
+  (`role="alert"`), mai renderizzato a zero: asset/settings sono bloccanti, versamenti e snapshot
+  degradano per capitolo
+- Riga hero mai monca: la griglia `[2fr_1fr]` ha SEMPRE due occupanti — il rendimento, l'errore che
+  lo ha impedito, oppure `PensionReturnPendingCard` che spiega perché non è ancora calcolabile. Con
+  un solo figlio a 1440px resta un terzo di riga bianco senza che niente spieghi il vuoto: è lo
+  stato di ogni fondo appena creato, finché il cron serale non scrive la prima fotografia
+- Copy al plurale: con più di un asset `pensionFund` le frasi che hanno il fondo come SOGGETTO si
+  accordano (`fundNoun`) — capitolo, titolo della card di rendimento, spiegazioni. «Valore attuale»
+  e «Versato totale» restano invariati: sono grandezze aggregate, non il fondo
+- Asse anno: `SegmentedPill` con `role="tablist"` + `aria-label`, reso solo con più di un anno
+  disponibile; governa versato per natura, recap fiscale e storico — mai il valore del fondo né
+  il rendimento (non sono grandezze annuali)
+- Storico versamenti: delete 2-click con disarmo automatico a 3s, `aria-label` che nomina natura
+  e data, stato armato annunciato via `aria-live`. NIENTE `title` sul bottone armato: l'attributo
+  viene aggiunto mentre il puntatore è già fermo sull'elemento, quindi il tooltip non compare mai
+- Heading: un solo `h1` (dal `PageHeader`), `h2` per i capitoli, `h3` per i titoli di card —
+  non `<p>` con la classe eyebrow. **E i due livelli devono distinguersi anche visivamente**:
+  capitolo al livello Title (`CHAPTER_TITLE_CLASS`, 15px/600 foreground), card all'eyebrow da 10px.
+  Con la stessa classe su entrambi la struttura esiste solo nell'albero dei heading — semantica
+  corretta e gerarchia assente, che è la forma più difficile da vedere di questo difetto
+- Azione primaria: nello slot `actions` di `PageHeader`, non in una riga propria sopra l'hero
+- Collapsible: Radix `Collapsible` + Framer Motion height con `useReducedMotion`, chiuso di default
+- ARIA: PensionContributionDialog con `DialogDescription`; messaggi di validazione in italiano
+  anche sul TYPE CHECK dei campi numerici (un campo vuoto con `valueAsNumber` produce `NaN`, e
+  senza messaggio esplicito zod emette il suo default inglese)
+- Skeleton: la vista è async e lo skeleton deve aspettare TUTTE E QUATTRO le query
+  (assets + settings + contributions + snapshots), non solo le due che decidono l'empty state.
+  L'invariante non è «niente empty state» ma **«nessuno zero che non è stato letto»**: ognuna
+  defaulta a `[]`, e senza i suoi dati «Versato totale», «Versato nel {Y}» e il risparmio IRPEF
+  valgono 0,00 € — cioè l'unica risposta che la pagina produce, affermata prima di averla letta.
+  Skeleton isomorfo al layout, titoli di capitolo inclusi. Usa `isLoading` e non `isPending`: su
+  una query disabilitata `isPending` resta true e lo skeleton non cederebbe mai
+- Fuso orario: i default del dialog (data odierna, anno fiscale) passano da `getItalyDateIso` /
+  `getItalyYear`, non da `toISOString()` né da `getFullYear()` del browser — dalle 22:00 italiane
+  l'UTC è già il giorno dopo e il form proporrebbe ieri
 - Breakpoint: `md:` → `desktop:`; `max-desktop:portrait:pb-20`
 - Demo mode: ogni mutazione gated su `useDemoMode()` (`disabled={isDemo}`)
 - Altro: pattern anomali o violazioni non elencate sopra
+
+Nota: la suite Playwright copre già meccanicamente parte di questi assi — `npm run test:e2e`
+(emulatori attivi) prima di aprire un finding lì. TRE spec, non due:
+- `e2e/pension.spec.ts` — layout 2:1 a 1440px, scala 54/36px, asse anno, collapsible, azione nel
+  PageHeader, e la guardia sul caricamento (empty state, «Versato totale» a zero, colonna del
+  rendimento vuota).
+- `e2e/pension.mobile.spec.ts` — stack a 390px, scala 44px, nessuno scroll orizzontale.
+- `e2e/pension.degraded.spec.ts` — i tre stati in cui il rendimento NON è una misura
+  (`suspicious` / `idle` / `fresh`), su un account isolato con scenari riseminabili a mano:
+  `npm run e2e:seed -- suspicious|idle|fresh`.
+
+Due limiti dichiarati, per non fidarsi più di quanto la suite meriti:
+- la CORSA fra le quattro query non è riproducibile in locale (Firestore multiplexa tutti i target
+  su un solo webchannel, quindi atterrano nello stesso batch di React): quell'invariante è garantita
+  dal gate nel codice, non dai test;
+- lo stato d'ERRORE non è automatizzabile (il Web SDK tratta la rete assente come offline e ritenta
+  invece di rifiutare, quindi la query resta in loading): va verificato a mano.
 
 Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -407,6 +496,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Tracciamento"
@@ -448,6 +539,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Budget"
@@ -482,6 +575,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Centri di Costo"
@@ -516,6 +611,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -562,6 +659,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -614,6 +713,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha — vedi "Allocation: AllocationRole" + "Allocation: the two action plans")
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -668,6 +769,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -700,6 +803,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -727,6 +832,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -760,6 +867,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Coast FIRE"
@@ -785,6 +894,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "What If"
@@ -829,6 +940,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -858,6 +971,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ### Tab "Obiettivi"
@@ -896,6 +1011,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -932,6 +1049,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -976,6 +1095,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1017,6 +1138,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1066,6 +1189,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1096,6 +1221,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1125,6 +1252,8 @@ Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1178,6 +1307,8 @@ Contesto:
 - Leggi DESIGN.md (Mono Mandate, Zero-Chroma, Form Follows Function)
 - Leggi AGENTS.md (pattern, convenzioni, gotcha)
 - Leggi CLAUDE.md (stato corrente, known issues)
+- Leggi COMMENTS.md e APPLICALO durante la scrittura di codice (tipi di commento ammessi, WHY non WHAT)
+- Leggi DEVELOPMENT_GUIDELINES.md e APPLICALO durante la scrittura di codice (struttura, naming, error handling, test)
 ```
 
 ---
@@ -1197,7 +1328,10 @@ Dalla maggiore probabilità di regressione alla minore:
 6. Landing + Auth — raramente cambiano, una volta ogni ciclo di redesign maggiore
 
 **Mai auditate (nessuna baseline, priorità alta al primo giro):**
-7. Previdenza — pagina nuova
-8. Impostazioni → tab Spese (import CSV) e tab Condivisione — sezioni recenti
-9. Allocazione → superfici della leva (AllocationCompositionBar, InstrumentTradeList)
-10. Patrimonio → registro operazioni (TransactionDialog, AssetMovementsDialog)
+7. Impostazioni → tab Spese (import CSV) e tab Condivisione — sezioni recenti
+8. Allocazione → superfici della leva (AllocationCompositionBar, InstrumentTradeList)
+9. Patrimonio → registro operazioni (TransactionDialog, AssetMovementsDialog)
+
+Previdenza esce da questa lista: auditata 2026-08-02 (15/20, 3 P1 chiusi), baseline nella sua
+sezione. È ora l'unica pagina con una suite E2E dedicata, quindi il suo audit successivo parte
+da lì e non dagli assi meccanici.

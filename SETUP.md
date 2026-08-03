@@ -266,6 +266,53 @@ the `.emulator-data/` directory (gitignored) and re-seed.
 - The external integrations (Yahoo Finance, Frankfurter FX, Anthropic, FRED) still call the real
   services — only Firestore and Auth are emulated.
 
+### Step 7 (Optional): Browser tests with Playwright
+
+The Vitest suite (`npm test`) covers the pure utilities and services, which is where this codebase
+keeps its logic. What it cannot see is anything that only exists once a browser lays the page out:
+the `desktop:` layout switch at 1440px, an animated collapsible, or a loading state that briefly
+shows the wrong content. That is what the Playwright suite is for.
+
+**Prerequisite — the emulators from Step 6 must already be running**, seeded once:
+
+```bash
+npm run emulators        # terminal 1, leave running
+npm run emulators:seed   # once, the base test account
+```
+
+Then install the browser (first time only) and run the suite:
+
+```bash
+npx playwright install chromium
+npm run test:e2e         # or: npm run test:e2e:ui  (interactive runner)
+```
+
+Playwright starts its own app server on **port 3100** and seeds its fixture automatically — no third
+terminal needed. If the emulators are not up it fails immediately with the two commands above
+rather than a connection stack trace.
+
+**Why port 3100 and a separate build directory:** Next refuses to start a second `next dev` for the
+same project directory whatever the port, because the lock lives inside the build dir. `npm run
+dev:e2e` therefore sets `NEXT_DIST_DIR=.next-e2e` (a conditional line in `next.config.ts`, inert
+everywhere else), so the tests can run while your normal dev server stays up on port 3000 — which
+also guarantees they never point at production data.
+
+**What it covers** (`e2e/`): the Previdenza page at 1440px and 390px — layout switch, type scale,
+the year axis, the collapsible, the primary action's position, and that the empty state never
+flashes while data loads. The fixture (`scripts/seedPensionE2E.mts`) writes a pension fund, a family
+member and contributions across two tax years, layered on top of the Step 6 seed without touching
+it. Add `npm run e2e:seed` on its own if you want that data in the browser for manual inspection.
+
+**Notes:**
+- Authentication happens once in `e2e/auth.setup.ts` and is reused by every spec via
+  `storageState`. It is captured with `indexedDB: true` because the Firebase Web SDK stores its
+  session there — without that flag the state file looks fine but every spec lands on the login page.
+- The suite runs with `workers: 1`: all specs share one emulator account, so parallel runs would
+  race on it.
+- Chromium only, for both projects. The mobile project is a 390px viewport on Chromium rather than
+  the WebKit-backed iPhone descriptor — one browser to install, and what is under test is the layout
+  at a width, not an engine difference.
+
 ---
 
 ## Vercel Deployment
@@ -363,6 +410,15 @@ The schedule uses standard cron syntax: `minute hour day month dayOfWeek`
 **Suggested production split**:
 - `/api/cron/monthly-snapshot`: `0 18 28-31 * *`
 - `/api/cron/daily-dividend-processing`: keep daily, for example `0 18 * * *`
+
+⚠️ **Trade-off of the month-end schedule.** The daily run is not only a development convenience: it
+is what keeps the *current month's* snapshot close to reality. Anything that changes an asset's
+value immediately — recording a pension contribution is the clearest case — is reflected in the
+asset at once but only reaches the snapshot on the next cron run. Metrics computed from snapshots
+therefore disagree with the live figures until then: a pension contribution understates the fund's
+TWR by its own amount, and the Previdenza hero shows a value the return card is not yet using. With
+the daily schedule that window closes the same evening; with `0 18 28-31 * *` it can last weeks.
+Choose month-end for clean monthly data points, daily for figures that track what you just entered.
 
 **Custom time examples**:
 - `0 22 28-31 * *` - 22:00 UTC (23:00 CET, 00:00 CEST)
