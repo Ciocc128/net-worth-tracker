@@ -14,6 +14,17 @@
  *    with a "net of X" exclusion toggle + stacked-by-category chart)
  * 4. Which transactions drove it? (table)
  *
+ * THE AXIS AND THE FOUR WINDOWS. The period axis is owned by the Panoramica but RENDERED
+ * HERE, because this view used to display a period it had no control over: with "Mese"
+ * selected the hero read «Speso questo mese 340 €» while an untitled box twelve pixels
+ * below read «8.200 € spesi finora», the two disagreeing by an order of magnitude with no
+ * visible control to reconcile them. Three blocks legitimately keep their own window — the
+ * budget follows its own budgetPeriod, the forecast is always year-to-date, the chart has
+ * its own 12-months/all toggle — so each one now NAMES its window in its eyebrow and the
+ * pair that ignores the axis sits behind a chapter separator that says so. Same reasoning
+ * as PensionOverview's year axis: a figure whose window is invisible is a figure the user
+ * cannot reconcile.
+ *
  * All derivation lives in lib/utils/costCenterUtils.ts; this component only fetches,
  * memoizes and renders.
  *
@@ -27,7 +38,7 @@ import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { CostCenter, CostCenterPeriod } from '@/types/costCenters';
 import { getExpensesForCostCenter } from '@/lib/services/costCenterService';
-import { formatCurrency, formatDate } from '@/lib/utils/formatters';
+import { formatCurrency, formatDate, cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { toDate } from '@/lib/utils/dateHelpers';
 import {
   filterExpensesByPeriod,
@@ -40,13 +51,24 @@ import {
   splitRecurringVsOneOff,
   buildMonthlySeriesByCategory,
 } from '@/lib/utils/costCenterUtils';
+import { resolveCostCenterColor } from '@/lib/utils/costCenterColors';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Pencil, Trash2, Archive, ArchiveRestore } from 'lucide-react';
+import { SegmentedPill } from '@/components/ui/segmented-pill';
+import {
+  ArrowLeft,
+  Pencil,
+  Trash2,
+  Archive,
+  ArchiveRestore,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { cn } from '@/lib/utils';
+import { CostCenterErrorNotice } from './CostCenterErrorNotice';
+import { EYEBROW_CLASS, CHAPTER_TITLE_CLASS, CHART_TICK_STYLE } from './costCenterStyles';
 
 // Shared with other cashflow charts. Recharts defaults to a white tooltip that breaks dark mode.
 const TOOLTIP_CONTENT_STYLE = {
@@ -62,15 +84,26 @@ const TOOLTIP_ITEM_STYLE = { color: 'var(--card-foreground)' } as const;
 
 const PERIOD_LABELS: Record<CostCenterPeriod, string> = {
   month: 'questo mese',
-  year: "quest'anno",
+  year: 'quest’anno',
   rolling12: 'ultimi 12 mesi',
   all: 'dall’inizio',
 };
 
+// Section container — the same treatment everywhere on this view. Two blocks used to be
+// <Card> (which composes to 44px vertical / 20px horizontal padding and shares rounded-xl
+// with the flat containers around it), so the two treatments differed by a tint and a
+// shadow and agreed on the radius that should have separated them.
+const SECTION_LIST_CLASS = 'divide-y divide-border/60 rounded-2xl border border-border/60';
+const SECTION_PANEL_CLASS = 'rounded-2xl border border-border/60 p-5';
+
 interface CostCenterDetailProps {
   costCenter: CostCenter;
-  /** Period axis selected on the Panoramica; the hero and figures follow it. */
+  /** Period axis owned by the Panoramica; rendered here so both views share one control. */
   period: CostCenterPeriod;
+  onPeriodChange: (period: CostCenterPeriod) => void;
+  periodOptions: ReadonlyArray<{ value: CostCenterPeriod; label: string }>;
+  /** Expenses linked to this center, for the delete cascade copy. */
+  linkedExpenseCount: number;
   onBack: () => void;
   onEdit: (costCenter: CostCenter) => void;
   onDelete: (costCenter: CostCenter) => void;
@@ -81,6 +114,9 @@ interface CostCenterDetailProps {
 export function CostCenterDetail({
   costCenter,
   period,
+  onPeriodChange,
+  periodOptions,
+  linkedExpenseCount,
   onBack,
   onEdit,
   onDelete,
@@ -93,7 +129,7 @@ export function CostCenterDetail({
 
   // Shares the ['cost-centers', userId] prefix invalidated by ExpenseDialog, so the
   // detail stays in sync with expense mutations elsewhere.
-  const { data: allExpenses = [], isLoading: loading } = useQuery({
+  const { data: allExpenses = [], isLoading: loading, isError } = useQuery({
     queryKey: queryKeys.costCenters.expenses(ownerId ?? '', costCenter.id),
     enabled: !!user,
     queryFn: async () => {
@@ -107,6 +143,11 @@ export function CostCenterDetail({
   const [showFullHistory, setShowFullHistory] = useState(false);
   // Two-click delete safety: first click arms, second executes.
   const [deleteArmed, setDeleteArmed] = useState(false);
+  // The armed state is a variant + label swap, which a screen reader never announces on
+  // a button that already has focus. The DISARM needs its own message rather than an
+  // empty string: emptying a live region announces nothing, so someone who cannot see
+  // the button go grey would keep believing the deletion is still armed.
+  const [deleteAnnouncement, setDeleteAnnouncement] = useState('');
   // Defer chart mount one RAF so ResponsiveContainer measures after layout.
   const [chartReady, setChartReady] = useState(false);
   const chartRafRef = useRef<number | null>(null);
@@ -129,7 +170,10 @@ export function CostCenterDetail({
 
   useEffect(() => {
     if (!deleteArmed) return;
-    const timer = setTimeout(() => setDeleteArmed(false), 3000);
+    const timer = setTimeout(() => {
+      setDeleteArmed(false);
+      setDeleteAnnouncement('Eliminazione annullata.');
+    }, 3000);
     return () => clearTimeout(timer);
   }, [deleteArmed]);
 
@@ -168,7 +212,11 @@ export function CostCenterDetail({
   const toggleSubKey = (key: string) =>
     setExcludedSubKeys((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   const series = useMemo(
@@ -182,11 +230,32 @@ export function CostCenterDetail({
     [series],
   );
 
-  const accentColor = costCenter.color ?? (chartColors[0] || 'var(--chart-1)');
+  const accentColor = resolveCostCenterColor(costCenter.color, costCenter.id, chartColors);
   const colorForCategory = (i: number) =>
     chartColors.length > 0 ? chartColors[i % chartColors.length] : 'var(--chart-1)';
 
   const isArchived = !!costCenter.archivedAt;
+
+  const handleDeleteClick = () => {
+    if (deleteArmed) {
+      onDelete(costCenter);
+      return;
+    }
+    setDeleteArmed(true);
+    setDeleteAnnouncement(
+      linkedExpenseCount > 0
+        ? `Eliminazione armata. Premi di nuovo per eliminare "${costCenter.name}" e scollegare ${linkedExpenseCount} spese.`
+        : `Eliminazione armata. Premi di nuovo per eliminare "${costCenter.name}".`,
+    );
+  };
+
+  const deleteLabel = isDemo
+    ? 'Elimina — non disponibile in modalità demo'
+    : deleteArmed
+      ? linkedExpenseCount > 0
+        ? `Conferma eliminazione — ${linkedExpenseCount} spese perderanno il collegamento`
+        : 'Conferma eliminazione del centro di costo'
+      : 'Elimina centro di costo';
 
   return (
     <div className="space-y-8">
@@ -197,14 +266,13 @@ export function CostCenterDetail({
             <Button variant="ghost" size="icon" onClick={onBack} aria-label="Torna alla lista">
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div className="flex items-center gap-2">
-              {costCenter.color && (
-                <span
-                  className="inline-block h-3 w-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: costCenter.color }}
-                />
-              )}
-              <h2 className="text-xl font-semibold">{costCenter.name}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                style={{ backgroundColor: accentColor }}
+                aria-hidden="true"
+              />
+              <h2 className="text-xl font-semibold tracking-[-0.01em]">{costCenter.name}</h2>
               {isArchived && (
                 <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
                   Archiviato
@@ -216,7 +284,8 @@ export function CostCenterDetail({
             <p className="text-sm text-muted-foreground pl-11">{costCenter.description}</p>
           )}
         </div>
-        <div className="flex gap-2 sm:shrink-0">
+        {/* flex-wrap: three icon+label buttons with whitespace-nowrap had no escape at 390px. */}
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -254,14 +323,8 @@ export function CostCenterDetail({
             size="sm"
             className="flex-1 sm:flex-none"
             disabled={isDemo}
-            aria-label={
-              isDemo
-                ? 'Elimina — non disponibile in modalità demo'
-                : deleteArmed
-                  ? 'Conferma eliminazione del centro di costo'
-                  : 'Elimina centro di costo'
-            }
-            onClick={() => (deleteArmed ? onDelete(costCenter) : setDeleteArmed(true))}
+            aria-label={deleteLabel}
+            onClick={handleDeleteClick}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             {deleteArmed ? 'Conferma' : 'Elimina'}
@@ -269,23 +332,46 @@ export function CostCenterDetail({
         </div>
       </div>
 
+      {/* The arm reveals the consequence: the 2-click guard protected against the click,
+          while the user's actual uncertainty is what the click does. Shown only while armed
+          so the reassurance appears exactly when it is needed. */}
+      {deleteArmed && linkedExpenseCount > 0 && (
+        <p className="-mt-4 text-[11px] text-muted-foreground">
+          Le{' '}
+          <span className="font-mono tabular-nums">{linkedExpenseCount}</span>{' '}
+          {linkedExpenseCount === 1 ? 'spesa collegata non viene cancellata' : 'spese collegate non vengono cancellate'}
+          : {linkedExpenseCount === 1 ? 'perde il collegamento e resta' : 'perdono il collegamento e restano'} in
+          Cashflow.
+        </p>
+      )}
+      <p className="sr-only" role="status" aria-live="polite">
+        {deleteAnnouncement}
+      </p>
+
       {loading ? (
         <DetailSkeleton />
+      ) : isError ? (
+        <CostCenterErrorNotice message="Non è stato possibile caricare le spese di questo centro." />
       ) : allExpenses.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Nessuna spesa assegnata a questo centro di costo ancora.
-          </CardContent>
-        </Card>
+        <div className={cn(SECTION_PANEL_CLASS, 'py-12 text-center text-muted-foreground')}>
+          Nessuna spesa assegnata a questo centro di costo ancora.
+        </div>
       ) : (
         <>
+          {/* Period axis — same control as the Panoramica, state lifted to it. */}
+          <SegmentedPill
+            options={periodOptions}
+            value={period}
+            onChange={onPeriodChange}
+            layoutId="cost-center-period-detail"
+            ariaLabel="Periodo"
+          />
+
           {/* HERO — dominant period total + Δ chip. */}
           <section>
-            <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-              Speso {PERIOD_LABELS[period]}
-            </p>
+            <p className={EYEBROW_CLASS}>Speso {PERIOD_LABELS[period]}</p>
             <div className="mt-1 flex flex-wrap items-end gap-3">
-              <span className="text-[40px] leading-none font-bold font-mono tabular-nums">
+              <span className="text-[36px] leading-none font-bold font-mono tabular-nums tracking-[-0.03em]">
                 {formatCurrency(stats.totalSpent)}
               </span>
               {comparison.deltaPct !== null && (
@@ -294,7 +380,7 @@ export function CostCenterDetail({
             </div>
 
             {/* Secondary metrics as a flat divide-y line — no boxes. */}
-            <dl className="mt-5 divide-y divide-border/60 rounded-xl border border-border/60">
+            <dl className={cn('mt-5', SECTION_LIST_CLASS)}>
               <FlatRow label="Transazioni" value={String(stats.transactionCount)} />
               <FlatRow label="Media mensile" value={formatCurrency(stats.averageMonthly)} />
               <FlatRow
@@ -320,19 +406,26 @@ export function CostCenterDetail({
             </dl>
           </section>
 
-          {/* CONTROL — budget verdict (B1) + annual forecast (B2). */}
+          {/* CONTROL — budget verdict (B1) + annual forecast (B2).
+              Behind a chapter separator because this is where the axis stops applying. */}
           {(budget || forecast.spentYtd > 0) && (
-            <section className="grid gap-4 desktop:grid-cols-2">
-              {budget && (
-                <Card>
-                  <CardContent className="p-5">
+            <section className="border-t border-border/40 pt-6">
+              <h3 className={CHAPTER_TITLE_CLASS}>Tetto e proiezione</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Non seguono il periodo selezionato: hanno una finestra propria, indicata sotto ogni
+                voce.
+              </p>
+              <div className="mt-4 grid gap-4 desktop:grid-cols-2">
+                {budget && (
+                  <div className={SECTION_PANEL_CLASS}>
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                        Tetto {budget.budgetPeriod === 'monthly' ? 'mensile' : 'annuale'}
+                      <p className={EYEBROW_CLASS}>
+                        Tetto {budget.budgetPeriod === 'monthly' ? 'mensile' : 'annuale'} ·{' '}
+                        {budget.budgetPeriod === 'monthly' ? 'Mese in corso' : 'Anno in corso'}
                       </p>
                       <span
                         className={cn(
-                          'text-sm font-semibold font-mono',
+                          'text-sm font-semibold font-mono tabular-nums',
                           budget.status === 'over'
                             ? 'text-destructive'
                             : budget.status === 'warning'
@@ -343,56 +436,70 @@ export function CostCenterDetail({
                         {Math.round(budget.ratio * 100)}%
                       </span>
                     </div>
-                    <p className="mt-1 text-lg font-semibold font-mono tabular-nums">
+                    <p className="mt-2 text-[22px] font-bold font-mono tabular-nums tracking-[-0.025em] leading-none">
                       {formatCurrency(budget.spent)}{' '}
                       <span className="text-sm font-normal text-muted-foreground">
                         / {formatCurrency(budget.budgetAmount)}
                       </span>
                     </p>
-                    <BudgetMeter ratio={budget.ratio} status={budget.status} />
+                    <BudgetMeter
+                      ratio={budget.ratio}
+                      status={budget.status}
+                      budgetPeriod={budget.budgetPeriod}
+                      spent={budget.spent}
+                      budgetAmount={budget.budgetAmount}
+                    />
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {budget.remaining >= 0
-                        ? `${formatCurrency(budget.remaining)} ancora disponibili`
-                        : `${formatCurrency(Math.abs(budget.remaining))} oltre il tetto`}
+                      <span className="font-mono tabular-nums text-foreground">
+                        {formatCurrency(Math.abs(budget.remaining))}
+                      </span>{' '}
+                      {budget.remaining >= 0 ? 'ancora disponibili' : 'oltre il tetto'}
                     </p>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+                )}
 
-              {forecast.spentYtd > 0 && (
-                <Card>
-                  <CardContent className="p-5">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-                      Proiezione costo annuo
-                    </p>
-                    <p className="mt-1 text-lg font-semibold font-mono tabular-nums">
+                {forecast.spentYtd > 0 && (
+                  <div className={SECTION_PANEL_CLASS}>
+                    <p className={EYEBROW_CLASS}>Proiezione costo annuo · Anno in corso</p>
+                    <p className="mt-2 text-[22px] font-bold font-mono tabular-nums tracking-[-0.025em] leading-none">
                       {formatCurrency(forecast.projectedTotal)}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {formatCurrency(forecast.spentYtd)} spesi finora ·{' '}
-                      {forecast.yearProgress < 0.25
-                        ? 'stima iniziale, ancora poco affidabile'
-                        : `${Math.round(forecast.yearProgress * 100)}% dell’anno trascorso`}
+                      <span className="font-mono tabular-nums text-foreground">
+                        {formatCurrency(forecast.spentYtd)}
+                      </span>{' '}
+                      spesi finora ·{' '}
+                      {forecast.yearProgress < 0.25 ? (
+                        'stima iniziale, ancora poco affidabile'
+                      ) : (
+                        <>
+                          <span className="font-mono tabular-nums">
+                            {Math.round(forecast.yearProgress * 100)}%
+                          </span>{' '}
+                          dell’anno trascorso
+                        </>
+                      )}
                     </p>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
           {/* COMPOSITION — what the cost is made of (A4). */}
           {composition.length > 0 && (
             <section>
-              <h3 className="text-sm font-semibold mb-3">Composizione per categoria</h3>
-              <div className="divide-y divide-border/60 rounded-xl border border-border/60">
+              <h3 className={cn(CHAPTER_TITLE_CLASS, 'mb-3')}>Composizione per categoria</h3>
+              <div className={SECTION_LIST_CLASS}>
                 {composition.map((slice, i) => (
                   <div key={slice.categoryName} className="flex items-center gap-3 px-4 py-3">
                     <span
                       className="h-2.5 w-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: colorForCategory(i) }}
+                      aria-hidden="true"
                     />
                     <span className="flex-1 truncate text-sm">{slice.categoryName}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
+                    <span className="text-xs font-mono text-muted-foreground tabular-nums w-10 text-right">
                       {Math.round(slice.pct * 100)}%
                     </span>
                     <span className="text-sm font-mono tabular-nums w-24 text-right">
@@ -410,18 +517,24 @@ export function CostCenterDetail({
             <section>
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
-                  <h3 className="text-sm font-semibold">Dettaglio per sottocategoria</h3>
-                  {excludedSubKeys.size > 0 ? (
-                    <p className="text-xs text-muted-foreground">
+                  <h3 className={CHAPTER_TITLE_CLASS}>Dettaglio per sottocategoria</h3>
+                  {/* The hint stays put once used: it used to be REPLACED by the net-total
+                      line, so the affordance's only explanation was destroyed by its own
+                      first use — and nothing ever said the lens leaves the figures above alone. */}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Seleziona una voce per escluderla dal totale — le cifre sopra non cambiano
+                  </p>
+                  {excludedSubKeys.size > 0 && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       Totale al netto{' '}
-                      <span className="font-mono text-foreground">{formatCurrency(netSubTotal)}</span>
+                      <span className="font-mono tabular-nums text-foreground">
+                        {formatCurrency(netSubTotal)}
+                      </span>
                       {' · '}
                       {excludedSlices.length === 1
                         ? `escl. ${excludedSlices[0].subCategoryName}`
                         : `${excludedSlices.length} escluse`}
                     </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Tocca una voce per escluderla dal totale</p>
                   )}
                 </div>
                 {excludedSubKeys.size > 0 && (
@@ -435,7 +548,7 @@ export function CostCenterDetail({
                   </Button>
                 )}
               </div>
-              <div className="divide-y divide-border/60 rounded-xl border border-border/60">
+              <div className={SECTION_LIST_CLASS}>
                 {subComposition.map((slice) => {
                   const excluded = excludedSubKeys.has(slice.key);
                   const pct = !excluded && netSubTotal > 0 ? slice.total / netSubTotal : 0;
@@ -444,9 +557,11 @@ export function CostCenterDetail({
                       key={slice.key}
                       type="button"
                       aria-pressed={excluded}
+                      aria-label={`${slice.subCategoryName} — ${excluded ? 'includi nel totale' : 'escludi dal totale'}`}
                       onClick={() => toggleSubKey(slice.key)}
                       className={cn(
                         'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 motion-reduce:transition-none',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                         excluded && 'opacity-50',
                       )}
                     >
@@ -458,7 +573,7 @@ export function CostCenterDetail({
                           <span className="truncate text-[11px] text-muted-foreground">{slice.categoryName}</span>
                         )}
                       </span>
-                      <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
+                      <span className="text-xs font-mono text-muted-foreground tabular-nums w-10 text-right">
                         {excluded ? '—' : `${Math.round(pct * 100)}%`}
                       </span>
                       <span
@@ -476,12 +591,12 @@ export function CostCenterDetail({
             </section>
           )}
 
-          {/* TREND — stacked-by-category monthly chart. */}
+          {/* TREND — stacked-by-category monthly chart. Own window, stated below the title. */}
           <section>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between gap-3 mb-2">
               <div>
-                <h3 className="text-sm font-semibold">Spese nel tempo</h3>
-                <p className="text-xs text-muted-foreground">
+                <h3 className={CHAPTER_TITLE_CLASS}>Spese nel tempo</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {showFullHistory ? 'Storico completo' : 'Ultimi 12 mesi'} · per categoria
                 </p>
               </div>
@@ -490,7 +605,7 @@ export function CostCenterDetail({
                 size="sm"
                 onClick={() => setShowFullHistory((p) => !p)}
                 aria-pressed={showFullHistory}
-                className="text-xs"
+                className="text-xs shrink-0"
               >
                 {showFullHistory ? 'Ultimi 12 mesi' : 'Tutto lo storico'}
               </Button>
@@ -499,13 +614,13 @@ export function CostCenterDetail({
               {chartReady && (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="label" tick={CHART_TICK_STYLE} tickLine={false} axisLine={false} />
                     <YAxis
-                      tickFormatter={(v) => `${Math.round(v as number)}€`}
-                      tick={{ fontSize: 11 }}
+                      tickFormatter={(v) => cachedFormatCurrencyEUR(v as number, true)}
+                      tick={CHART_TICK_STYLE}
                       tickLine={false}
                       axisLine={false}
-                      width={55}
+                      width={72}
                     />
                     <Tooltip
                       formatter={(value, name) => [formatCurrency(value as number), name as string]}
@@ -519,10 +634,11 @@ export function CostCenterDetail({
                         key={cat}
                         dataKey={cat}
                         stackId="spesa"
-                        fill={
-                          // Single-category centers keep their own accent; multi-category cycle the palette.
-                          series.categories.length === 1 ? accentColor : colorForCategory(i)
-                        }
+                        // The stack encodes CATEGORY, so the colour is always the category's.
+                        // It used to fall back to the center's accent whenever a period
+                        // happened to contain a single category, so the same chart changed
+                        // its colour source as the axis moved.
+                        fill={colorForCategory(i)}
                         radius={i === series.categories.length - 1 ? [3, 3, 0, 0] : undefined}
                       />
                     ))}
@@ -534,7 +650,7 @@ export function CostCenterDetail({
 
           {/* TRANSACTIONS — drivers for the selected period. */}
           <section>
-            <h3 className="text-sm font-semibold mb-3">
+            <h3 className={cn(CHAPTER_TITLE_CLASS, 'mb-3')}>
               Transazioni collegate{' '}
               <span className="font-normal text-muted-foreground">({PERIOD_LABELS[period]})</span>
             </h3>
@@ -543,7 +659,7 @@ export function CostCenterDetail({
                 Nessuna spesa in questo periodo.
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border/60">
+              <div className="overflow-x-auto rounded-2xl border border-border/60">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
@@ -602,12 +718,13 @@ export function CostCenterDetail({
 
 // --- Presentational helpers -------------------------------------------------
 
-/** One flat label→value row inside the secondary divide-y block. */
+/** One flat label→value row inside the secondary divide-y block. The <div> wrapper keeps the
+ *  parent <dl>'s content model valid, which a bare span pair did not. */
 function FlatRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-mono tabular-nums">{value}</span>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-mono tabular-nums">{value}</dd>
     </div>
   );
 }
@@ -616,10 +733,11 @@ function FlatRow({ label, value }: { label: string; value: string }) {
 function DeltaChip({ deltaPct }: { deltaPct: number }) {
   const up = deltaPct > 0;
   const flat = Math.abs(deltaPct) < 0.005;
+  const Icon = up ? TrendingUp : TrendingDown;
   return (
     <span
       className={cn(
-        'text-[13px] font-semibold font-mono rounded-[9px] px-2.5 py-1',
+        'inline-flex items-center gap-2 rounded-[9px] px-[13px] py-[6px] text-[15px] font-semibold font-mono tabular-nums tracking-[-0.01em]',
         flat
           ? 'bg-muted text-muted-foreground'
           : up
@@ -627,14 +745,27 @@ function DeltaChip({ deltaPct }: { deltaPct: number }) {
             : 'bg-positive/10 text-positive',
       )}
     >
+      {!flat && <Icon className="h-[13px] w-[13px]" aria-hidden="true" />}
       {flat ? '±0%' : `${up ? '+' : ''}${Math.round(deltaPct * 100)}%`}
-      <span className="font-normal text-muted-foreground ml-1">vs precedente</span>
+      <span className="font-sans text-xs font-normal text-muted-foreground">vs precedente</span>
     </span>
   );
 }
 
 /** Thin budget meter. Functional (encodes spend vs ceiling), not decorative. */
-function BudgetMeter({ ratio, status }: { ratio: number; status: 'ok' | 'warning' | 'over' }) {
+function BudgetMeter({
+  ratio,
+  status,
+  budgetPeriod,
+  spent,
+  budgetAmount,
+}: {
+  ratio: number;
+  status: 'ok' | 'warning' | 'over';
+  budgetPeriod: 'monthly' | 'annual';
+  spent: number;
+  budgetAmount: number;
+}) {
   const pct = Math.min(100, Math.round(ratio * 100));
   const color =
     status === 'over' ? 'var(--destructive)' : status === 'warning' ? 'var(--chart-3)' : 'var(--positive)';
@@ -642,9 +773,12 @@ function BudgetMeter({ ratio, status }: { ratio: number; status: 'ok' | 'warning
     <div
       className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"
       role="progressbar"
+      // Without a name a screen reader announces "78, progress bar" — a number with no subject.
+      aria-label={`Tetto ${budgetPeriod === 'monthly' ? 'mensile' : 'annuale'}`}
       aria-valuenow={Math.round(ratio * 100)}
       aria-valuemin={0}
       aria-valuemax={100}
+      aria-valuetext={`${formatCurrency(spent)} di ${formatCurrency(budgetAmount)}`}
     >
       <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, backgroundColor: color }} />
     </div>
@@ -654,17 +788,21 @@ function BudgetMeter({ ratio, status }: { ratio: number; status: 'ok' | 'warning
 /** Structural skeleton matching hero + control + composition + chart. */
 function DetailSkeleton() {
   return (
-    <div className="space-y-8 animate-pulse" aria-hidden="true">
+    <div
+      className="space-y-8 animate-pulse motion-reduce:animate-none"
+      aria-busy="true"
+      aria-label="Caricamento centro di costo"
+    >
       <div className="space-y-3">
         <div className="h-3 w-24 bg-muted rounded" />
         <div className="h-10 w-48 bg-muted rounded" />
-        <div className="h-32 bg-muted rounded-xl" />
+        <div className="h-32 bg-muted rounded-2xl" />
       </div>
       <div className="grid gap-4 desktop:grid-cols-2">
-        <div className="h-28 bg-muted rounded-xl" />
-        <div className="h-28 bg-muted rounded-xl" />
+        <div className="h-28 bg-muted rounded-2xl" />
+        <div className="h-28 bg-muted rounded-2xl" />
       </div>
-      <div className="h-52 bg-muted rounded-xl" />
+      <div className="h-52 bg-muted rounded-2xl" />
     </div>
   );
 }

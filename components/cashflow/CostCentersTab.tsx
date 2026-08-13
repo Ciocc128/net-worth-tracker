@@ -9,8 +9,8 @@
  * glance, which the old equal-weight card grid could not.
  *
  * IA, top to bottom:
- * 1. Period axis (Mese / Anno / 12 mesi / Storico) — drives every figure below.
- * 2. Hero: total allocated to centers in the period + how many are active.
+ * 1. Period axis (Mese / Anno / 12 mesi / Sempre) — drives every figure below.
+ * 2. Hero: total allocated to centers in the period + how many contributed to it.
  * 3. Flat ranked list with per-center number, share bar and budget signal.
  * 4. Cross-center comparison overlay (collapsible).
  * 5. Archived centers, collapsed.
@@ -19,6 +19,11 @@
  * period view in memory (pure layer in costCenterUtils). For a typical 2-10 centers
  * with a few hundred expenses each this is cheap and avoids N waterfall queries per
  * period change.
+ *
+ * The period axis is OWNED HERE and handed to the Detail, which renders its own copy of
+ * the control: one axis, two views. The Detail used to display a period it had no way to
+ * change, which left its hero disagreeing with its own forecast by an order of magnitude
+ * with no visible control to reconcile them.
  */
 
 import { useState, useMemo } from 'react';
@@ -41,8 +46,10 @@ import {
   getLifecycleStatus,
   buildComparisonSeries,
   rankCentersBySpend,
+  resolveLastActivityDate,
 } from '@/lib/utils/costCenterUtils';
-import { formatCurrency } from '@/lib/utils/formatters';
+import { resolveCostCenterColor } from '@/lib/utils/costCenterColors';
+import { formatCurrency, cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -50,9 +57,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { SegmentedControl } from '@/components/ui/segmented-control';
+import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { Plus, Layers, ChevronDown, ChevronRight, TrendingUp } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   LineChart,
   Line,
@@ -66,6 +73,8 @@ import { useChartColors } from '@/lib/hooks/useChartColors';
 import { cn } from '@/lib/utils';
 import { CostCenterDialog } from './CostCenterDialog';
 import { CostCenterDetail } from './CostCenterDetail';
+import { CostCenterErrorNotice } from './CostCenterErrorNotice';
+import { EYEBROW_CLASS, CHART_TICK_STYLE } from './costCenterStyles';
 import { toast } from 'sonner';
 
 const TOOLTIP_CONTENT_STYLE = {
@@ -76,11 +85,15 @@ const TOOLTIP_CONTENT_STYLE = {
   borderRadius: 8,
 } as const;
 
+const LEGEND_STYLE = { fontSize: 12, color: 'var(--muted-foreground)' } as const;
+
+// "Sempre" rather than "Storico": Storico is a top-level page in this app, and the detail
+// chart below has its own "Tutto lo storico" toggle — one word, three scopes, one screen.
 const PERIOD_OPTIONS: { value: CostCenterPeriod; label: string }[] = [
   { value: 'month', label: 'Mese' },
   { value: 'year', label: 'Anno' },
   { value: 'rolling12', label: '12 mesi' },
-  { value: 'all', label: 'Storico' },
+  { value: 'all', label: 'Sempre' },
 ];
 
 // A center plus everything derived for the current period — assembled once and reused
@@ -104,7 +117,7 @@ export function CostCentersTab() {
 
   // Fetch centers + every center's raw expenses once. Period views are derived in memory,
   // so switching period is instant and needs no refetch.
-  const { data, isLoading: loading } = useQuery({
+  const { data, isLoading: loading, isError } = useQuery({
     queryKey: queryKeys.costCenters.all(ownerId ?? ''),
     enabled: !!user,
     queryFn: async () => {
@@ -113,15 +126,22 @@ export function CostCentersTab() {
       const entries = await Promise.all(
         centers.map(async (center) => {
           const expenses = await getExpensesForCostCenter(userId, center.id);
-          return [center.id, expenses.filter((e) => e.amount < 0)] as [string, Expense[]];
+          // Two different numbers, deliberately. Every figure on this tab is about SPENDING,
+          // so the math runs on outgoing rows only — but deleteCostCenter unlinks whatever is
+          // linked, income rows included, so the delete confirmation must count the raw list
+          // or it understates its own consequence.
+          return [
+            center.id,
+            { spending: expenses.filter((e) => e.amount < 0), linkedCount: expenses.length },
+          ] as [string, { spending: Expense[]; linkedCount: number }];
         }),
       );
-      return { centers, expensesByCenter: Object.fromEntries(entries) as Record<string, Expense[]> };
+      return { centers, byCenter: Object.fromEntries(entries) };
     },
   });
 
   const centers = useMemo(() => data?.centers ?? [], [data]);
-  const expensesByCenter = useMemo(() => data?.expensesByCenter ?? {}, [data]);
+  const byCenter = useMemo(() => data?.byCenter ?? {}, [data]);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.costCenters.all(ownerId ?? '') });
@@ -138,7 +158,7 @@ export function CostCentersTab() {
   const rows = useMemo<CenterRow[]>(() => {
     const now = new Date();
     return centers.map((center) => {
-      const expenses = expensesByCenter[center.id] ?? [];
+      const expenses = byCenter[center.id]?.spending ?? [];
       const stats = computeCenterStats(expenses, period, now);
       const budget = evaluateCenterBudget(center, expenses, now);
       return {
@@ -146,12 +166,14 @@ export function CostCentersTab() {
         expenses,
         totalSpent: stats.totalSpent,
         transactionCount: stats.transactionCount,
-        lifecycle: getLifecycleStatus(center, stats.lastActivityDate, now),
+        // Dormancy is a fact about the center, not about the axis — so it reads the
+        // unscoped activity date, not the period-filtered one from `stats`.
+        lifecycle: getLifecycleStatus(center, resolveLastActivityDate(expenses), now),
         budgetRatio: budget?.ratio ?? null,
         budgetStatus: budget?.status ?? null,
       };
     });
-  }, [centers, expensesByCenter, period]);
+  }, [centers, byCenter, period]);
 
   const activeRows = useMemo(
     () => rankCentersBySpend(rows.filter((r) => r.lifecycle !== 'archived')),
@@ -163,8 +185,12 @@ export function CostCentersTab() {
     () => activeRows.reduce((sum, r) => sum + r.totalSpent, 0),
     [activeRows],
   );
-  const activeWithSpendCount = activeRows.filter((r) => r.totalSpent > 0).length;
+  const spendingCount = activeRows.filter((r) => r.totalSpent > 0).length;
   const maxSpend = activeRows[0]?.totalSpent ?? 0;
+  // Archived rows are ranked among themselves: measuring their bars against the active
+  // maximum clipped an archived center that had outspent every active one, and rendered
+  // every archived bar at zero whenever the active list had no spend at all.
+  const archivedMaxSpend = archivedRows[0]?.totalSpent ?? 0;
 
   // Comparison overlay: top centers over time for the period.
   const comparison = useMemo(
@@ -186,6 +212,12 @@ export function CostCentersTab() {
     () => comparison.buckets.map((b) => ({ label: b.label, ...b.byCenter })),
     [comparison],
   );
+  // buildComparisonSeries keeps only the top centers; say so rather than letting the chart
+  // read as the whole picture.
+  const comparisonHiddenCount = Math.max(
+    0,
+    activeRows.filter((r) => r.totalSpent > 0).length - comparison.centers.length,
+  );
 
   // --- Handlers ---
   const handleOpenCreate = () => {
@@ -205,9 +237,16 @@ export function CostCentersTab() {
 
   const handleDelete = async (center: CostCenter) => {
     if (!user || !ownerId) return;
+    const unlinkedCount = byCenter[center.id]?.linkedCount ?? 0;
     try {
       await deleteCostCenter(ownerId, center.id);
-      toast.success(`"${center.name}" eliminato`);
+      // The cascade is the part the user can't see: name the outcome, and name the
+      // reassurance too — the expenses survive, they only lose the tag.
+      toast.success(
+        unlinkedCount > 0
+          ? `"${center.name}" eliminato · ${unlinkedCount} ${unlinkedCount === 1 ? 'spesa scollegata resta' : 'spese scollegate restano'} in Cashflow`
+          : `"${center.name}" eliminato`,
+      );
       setSelectedCenter(null);
       invalidate();
     } catch (error) {
@@ -237,6 +276,9 @@ export function CostCentersTab() {
         <CostCenterDetail
           costCenter={selectedCenter}
           period={period}
+          onPeriodChange={setPeriod}
+          periodOptions={PERIOD_OPTIONS}
+          linkedExpenseCount={byCenter[selectedCenter.id]?.linkedCount ?? 0}
           onBack={() => setSelectedCenter(null)}
           onEdit={handleOpenEdit}
           onDelete={handleDelete}
@@ -259,7 +301,7 @@ export function CostCentersTab() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Centri di Costo</h2>
+          <h2 className="text-xl font-semibold tracking-[-0.01em]">Centri di Costo</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Raggruppa le spese per oggetto o progetto e confronta dove vanno i soldi
           </p>
@@ -278,31 +320,35 @@ export function CostCentersTab() {
 
       {loading ? (
         <PanoramicaSkeleton />
+      ) : isError ? (
+        /* Before the empty-state check, never after: `centers` defaults to [] on failure, so
+           the two are indistinguishable downstream. */
+        <CostCenterErrorNotice message="Non è stato possibile caricare i centri di costo." />
       ) : centers.length === 0 ? (
         <EmptyState onCreate={handleOpenCreate} isDemo={isDemo} />
       ) : (
         <>
           {/* Period axis */}
-          <SegmentedControl
+          <SegmentedPill
             options={PERIOD_OPTIONS}
             value={period}
             onChange={setPeriod}
-            aria-label="Periodo"
-            className="max-w-md"
+            layoutId="cost-center-period-list"
+            ariaLabel="Periodo"
           />
 
           {/* HERO — total allocated in the period. */}
           <section>
-            <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-              Totale nei centri di costo
-            </p>
+            <p className={EYEBROW_CLASS}>Totale nei centri di costo</p>
             <div className="mt-1 flex flex-wrap items-end gap-3">
-              <span className="text-[40px] desktop:text-[48px] leading-none font-bold font-mono tabular-nums">
+              <span className="text-[44px] desktop:text-[54px] leading-none font-bold font-mono tabular-nums tracking-[-0.03em]">
                 {formatCurrency(periodTotal)}
               </span>
-              {activeWithSpendCount > 0 && (
+              {spendingCount > 0 && (
                 <span className="text-xs text-muted-foreground pb-1.5">
-                  su {activeWithSpendCount} {activeWithSpendCount === 1 ? 'centro attivo' : 'centri attivi'}
+                  da{' '}
+                  <span className="font-mono tabular-nums text-foreground">{spendingCount}</span>{' '}
+                  {spendingCount === 1 ? 'centro con spesa' : 'centri con spesa'}
                 </span>
               )}
             </div>
@@ -310,13 +356,15 @@ export function CostCentersTab() {
 
           {/* RANKED LIST — flat divide-y, ordered by spend. */}
           {activeRows.length > 0 ? (
-            <div className="divide-y divide-border/60 rounded-xl border border-border/60 overflow-hidden">
+            <div className="divide-y divide-border/60 rounded-2xl border border-border/60 overflow-hidden">
               {activeRows.map((row, i) => (
                 <CenterListRow
                   key={row.center.id}
                   row={row}
                   maxSpend={maxSpend}
+                  periodTotal={periodTotal}
                   index={i}
+                  palette={chartColors}
                   onOpen={() => setSelectedCenter(row.center)}
                 />
               ))}
@@ -330,40 +378,41 @@ export function CostCentersTab() {
           {/* COMPARISON overlay (B3) — only meaningful with 2+ spending centers. */}
           {comparison.centers.length >= 2 && (
             <Collapsible open={comparisonOpen} onOpenChange={setComparisonOpen}>
-              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border/60 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors">
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border/60 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   Confronta l’andamento dei centri
                 </span>
                 <ChevronDown
                   className={cn('h-4 w-4 text-muted-foreground transition-transform', comparisonOpen && 'rotate-180')}
+                  aria-hidden="true"
                 />
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-4">
                 <div className="h-56 desktop:h-72 min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <LineChart data={comparisonData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                      <XAxis dataKey="label" tick={CHART_TICK_STYLE} tickLine={false} axisLine={false} />
                       <YAxis
-                        tickFormatter={(v) => `${Math.round(v as number)}€`}
-                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => cachedFormatCurrencyEUR(v as number, true)}
+                        tick={CHART_TICK_STYLE}
                         tickLine={false}
                         axisLine={false}
-                        width={55}
+                        width={72}
                       />
                       <Tooltip
                         formatter={(value, name) => [formatCurrency(value as number), name as string]}
                         contentStyle={TOOLTIP_CONTENT_STYLE}
                         cursor={{ stroke: 'var(--muted-foreground)', strokeOpacity: 0.3 }}
                       />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      {comparison.centers.map((c, i) => (
+                      <Legend wrapperStyle={LEGEND_STYLE} />
+                      {comparison.centers.map((c) => (
                         <Line
                           key={c.id}
                           type="monotone"
                           dataKey={c.id}
                           name={c.name}
-                          stroke={c.color ?? chartColors[i % Math.max(1, chartColors.length)] ?? 'var(--chart-1)'}
+                          stroke={resolveCostCenterColor(c.color, c.id, chartColors)}
                           strokeWidth={2}
                           dot={false}
                           activeDot={{ r: 4 }}
@@ -372,6 +421,15 @@ export function CostCentersTab() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
+                {comparisonHiddenCount > 0 && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Mostrati i{' '}
+                    <span className="font-mono tabular-nums">{comparison.centers.length}</span>{' '}
+                    centri con più spesa ·{' '}
+                    <span className="font-mono tabular-nums">{comparisonHiddenCount}</span>{' '}
+                    non {comparisonHiddenCount === 1 ? 'mostrato' : 'mostrati'}
+                  </p>
+                )}
               </CollapsibleContent>
             </Collapsible>
           )}
@@ -379,18 +437,26 @@ export function CostCentersTab() {
           {/* ARCHIVED — collapsed lifecycle bucket (B4). */}
           {archivedRows.length > 0 && (
             <Collapsible open={showArchived} onOpenChange={setShowArchived}>
-              <CollapsibleTrigger className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronRight className={cn('h-4 w-4 transition-transform', showArchived && 'rotate-90')} />
-                Centri archiviati ({archivedRows.length})
+              <CollapsibleTrigger className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
+                <ChevronRight
+                  className={cn('h-4 w-4 transition-transform', showArchived && 'rotate-90')}
+                  aria-hidden="true"
+                />
+                Centri archiviati (
+                <span className="font-mono tabular-nums">{archivedRows.length}</span>)
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-3">
-                <div className="divide-y divide-border/60 rounded-xl border border-border/60 overflow-hidden opacity-70">
+                {/* No opacity dimming here: the section title already says these are archived,
+                    and dimming multiplied with text-muted-foreground put the sub-line below AA. */}
+                <div className="divide-y divide-border/60 rounded-2xl border border-border/60 overflow-hidden">
                   {archivedRows.map((row, i) => (
                     <CenterListRow
                       key={row.center.id}
                       row={row}
-                      maxSpend={maxSpend}
+                      maxSpend={archivedMaxSpend}
+                      periodTotal={periodTotal}
                       index={i}
+                      palette={chartColors}
                       onOpen={() => setSelectedCenter(row.center)}
                     />
                   ))}
@@ -415,33 +481,47 @@ export function CostCentersTab() {
 
 /**
  * A single center as a flat list row: name + lifecycle + sub-line on the left,
- * dominant period number + share bar on the right. The share bar encodes the row's
- * weight relative to the largest center, so the ranking reads at a glance.
+ * dominant period number + share bar on the right.
+ *
+ * The bar encodes RANK (width = spend / largest center) and the sub-line's percentage
+ * encodes SHARE (spend / period total). CompositionList documents why both are needed:
+ * with only the bar, the top row is always full and reads as "this center is the hero
+ * total" when the hero is in fact the sum of every row.
  */
 function CenterListRow({
   row,
   maxSpend,
+  periodTotal,
   index,
+  palette,
   onOpen,
 }: {
   row: CenterRow;
   maxSpend: number;
+  periodTotal: number;
   index: number;
+  palette: string[];
   onOpen: () => void;
 }) {
   const { center, totalSpent, transactionCount, lifecycle, budgetStatus, budgetRatio } = row;
-  const sharePct = maxSpend > 0 ? Math.round((totalSpent / maxSpend) * 100) : 0;
-  const barColor = center.color ?? 'var(--chart-1)';
+  const prefersReducedMotion = useReducedMotion();
+  const rankPct = maxSpend > 0 ? Math.round((totalSpent / maxSpend) * 100) : 0;
+  const sharePct = periodTotal > 0 ? Math.round((totalSpent / periodTotal) * 100) : 0;
+  const barColor = resolveCostCenterColor(center.color, center.id, palette);
 
   return (
     <motion.button
       type="button"
-      initial={{ opacity: 0, y: 6 }}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.03, 0.2), duration: 0.18 }}
+      transition={
+        prefersReducedMotion
+          ? { duration: 0 }
+          : { delay: Math.min(index * 0.03, 0.2), duration: 0.18 }
+      }
       onClick={onOpen}
       aria-label={`Apri ${center.name}`}
-      className="group flex w-full items-center gap-4 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      className="group flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
       <span
         className="h-8 w-1 rounded-full flex-shrink-0"
@@ -449,11 +529,13 @@ function CenterListRow({
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{center.name}</span>
+        {/* Wraps rather than truncates: at 390px a name plus two badges left the name with
+            roughly 50px, and the name is the only thing telling two rows apart. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium">{center.name}</span>
           {lifecycle === 'dormant' && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal text-muted-foreground">
-              Inattivo
+              Nessuna spesa da 90 giorni
             </Badge>
           )}
           {budgetStatus === 'over' && (
@@ -463,17 +545,31 @@ function CenterListRow({
           )}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {transactionCount} {transactionCount === 1 ? 'transazione' : 'transazioni'}
-          {budgetRatio !== null && ` · ${Math.round(budgetRatio * 100)}% del tetto`}
+          <span className="font-mono tabular-nums">{transactionCount}</span>{' '}
+          {transactionCount === 1 ? 'transazione' : 'transazioni'}
+          {totalSpent > 0 && (
+            <>
+              {' · '}
+              <span className="font-mono tabular-nums">{sharePct}%</span> del totale
+            </>
+          )}
+          {budgetRatio !== null && (
+            <>
+              {' · '}
+              <span className="font-mono tabular-nums">{Math.round(budgetRatio * 100)}%</span> del
+              tetto
+            </>
+          )}
         </p>
       </div>
-      <div className="flex flex-col items-end gap-1.5 w-32 flex-shrink-0">
-        <span className="font-mono font-semibold tabular-nums">{formatCurrency(totalSpent)}</span>
-        {/* Share bar relative to the top center — functional weight indicator. */}
+      <div className="flex flex-col items-end gap-1.5 w-24 desktop:w-32 flex-shrink-0">
+        <span className="font-mono font-semibold tabular-nums text-sm">
+          {formatCurrency(totalSpent)}
+        </span>
         <span className="h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
           <span
             className="block h-full rounded-full"
-            style={{ width: `${sharePct}%`, backgroundColor: barColor, opacity: 0.7 }}
+            style={{ width: `${rankPct}%`, backgroundColor: barColor, opacity: 0.7 }}
           />
         </span>
       </div>
@@ -486,7 +582,7 @@ function CenterListRow({
 function EmptyState({ onCreate, isDemo }: { onCreate: () => void; isDemo: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-16 text-center text-muted-foreground">
-      <Layers className="h-10 w-10 opacity-30" />
+      <Layers className="h-10 w-10 opacity-30" aria-hidden="true" />
       <div className="space-y-1">
         <p className="font-medium">Nessun centro di costo</p>
         <p className="text-sm">
@@ -503,15 +599,19 @@ function EmptyState({ onCreate, isDemo }: { onCreate: () => void; isDemo: boolea
 
 function PanoramicaSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse" aria-hidden="true">
-      <div className="h-9 w-full max-w-md bg-muted rounded-lg" />
+    <div
+      className="space-y-6 animate-pulse motion-reduce:animate-none"
+      aria-busy="true"
+      aria-label="Caricamento centri di costo"
+    >
+      <div className="h-9 w-full max-w-md bg-muted rounded-full" />
       <div className="space-y-2">
         <div className="h-3 w-32 bg-muted rounded" />
         <div className="h-12 w-56 bg-muted rounded" />
       </div>
-      <div className="rounded-xl border border-border/60 divide-y divide-border/60">
+      <div className="rounded-2xl border border-border/60 divide-y divide-border/60">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+          <div key={i} className="flex items-center gap-3 px-4 py-3.5">
             <div className="h-8 w-1 bg-muted rounded-full" />
             <div className="flex-1 space-y-2">
               <div className="h-4 w-1/3 bg-muted rounded" />
