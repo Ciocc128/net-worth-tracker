@@ -35,6 +35,7 @@
 - Added the ability to change the type of an entry you already saved. Filed a bill as a Variable expense when it was a Fixed one? Open it, switch the type, save — the category re-attaches itself to the same-named one under the new type, and the amount's sign and your account balance are corrected automatically when you move an entry between income and spending. Transfers are the one exception and stay locked, since they involve two accounts.
 - Entries whose type you change now tell you what will happen before you save: whether the amount will change sign, that the entry will move under a different per-type budget, and — if it belongs to a recurring or instalment series — that only this one entry is affected.
 - Added a year selector to the Previdenza page. Your contributions by nature, the IRPEF tax-saving recap and the contribution history now all follow the year you pick, so you can review last year's deduction in January instead of only ever seeing the current year. The fund's value and its return stay put, since neither is an annual figure.
+- Added the period selector to a cost center's own page. It used to live only on the Centri di Costo overview, so opening a center showed you a period you could read but not change — and the figures below that measure a different window said nothing about it. The selector now travels with you, and the spending ceiling, the annual projection and the monthly chart each state the period they actually cover, so two figures that disagree are telling you they cover different spans rather than contradicting each other.
 
 ## 🐛 Bug Fixes
 
@@ -82,6 +83,9 @@
 - Fixed the validation messages in the "Registra versamento" dialog being drawn in a fixed red: it was too low-contrast to meet accessibility guidelines in both light and dark mode, and it clashed with the theme's own error colour on Cyberpunk and Solar Dusk.
 - Fixed the "Registra versamento" dialog proposing yesterday's date, and the wrong tax year, when opened late in the evening.
 - Fixed the theme selector briefly highlighting the wrong option when a page first loads.
+- Fixed Centri di Costo announcing "Nessun centro di costo", together with an invitation to create your first one, whenever the data had simply failed to load. A dropped connection was indistinguishable from genuinely having none, on a screen whose whole job is to be trusted. It now says the load failed, and that nothing you had recorded was touched.
+- Fixed the inactivity badge on a cost center tracking the period you had selected instead of the center itself. Choosing "Mese" marked every center with no spending this month as inactive, including one you had used a few weeks earlier; and on the longest period the same center was counted among those with spending while still wearing the badge. Inactivity is now measured on the center's real last movement, and the badge says what it means: "Nessuna spesa da 90 giorni".
+- Fixed two of the eight cost-center colours being too faint to make out against a light background. The coloured bar is a row's only visual identity, and the lime and the amber fell well below the contrast level that identity needs. Cost-center colours are now taken from your active theme's own palette instead of being fixed, so they follow the theme you're using and are checked for legibility.
 
 ## 🔧 Improvements
 
@@ -118,6 +122,10 @@
 - The three sections of the Previdenza page now carry their own headings, set a step above the card titles inside them, so the structure of the page is visible and not only implied by the dividing lines.
 - If you track more than one pension fund — your own and your partner's, for example — the page now says "I fondi oggi" and "Rendimento dei fondi" rather than referring to a single fund.
 - Numbers throughout the app now appear in their final typeface from the first moment they're drawn, instead of briefly using a system fallback on a cold load.
+- Deleting a cost center now tells you how many transactions will lose their link to it before you confirm, and says that they stay in Cashflow. Deleting a center has never deleted its expenses — it simply never said so, which left the safest part of the operation as the least obvious.
+- Each row in the Centri di Costo list now shows its share of the period total beside the amount. The bar next to it compares centers against each other, so the largest is always full — which invited you to read the top center as the whole total rather than as one part of it.
+- The "Storico" option in the Centri di Costo period selector is now called "Sempre", so one word no longer means three different things on the same screen: the Storico page, the chart's own "Tutto lo storico" toggle, and the period covering everything.
+- Note on cost-center colours: existing centers will change shade the first time you open the tab after this release. Each one keeps a distinct colour and no two collide, but the shade now comes from your active theme rather than being fixed. Re-saving a center from its edit dialog settles the change for that center.
 
 ## 🔒 Security
 

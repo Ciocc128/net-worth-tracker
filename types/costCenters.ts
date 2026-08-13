@@ -6,7 +6,9 @@ export interface CostCenter {
   userId: string;
   name: string;
   description?: string;
-  // Hex color for visual distinction in list and charts.
+  // Identity colour for list rows and chart series, persisted as a palette SLOT KEY
+  // ('chart-1'…'chart-8'); pre-migration documents still hold a raw hex. Both are resolved
+  // against the active theme by resolveCostCenterColor() — never paint this value directly.
   color?: string;
   // Optional spending ceiling. When set, the detail/list show a budget verdict and
   // the projected annual cost is compared against it. `budgetAmount` is interpreted
@@ -118,18 +120,6 @@ export interface CostCenterComparisonSeries {
   centers: { id: string; name: string; color?: string }[];
 }
 
-// Palette for the color picker in CostCenterDialog.
-// WARNING: If you add or change a color here, also update COLOR_LABELS in CostCenterDialog.tsx
-// (those labels are what screen readers announce — hex values are unpronounceable).
-export const COST_CENTER_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#84cc16', // lime
-] as const;
-
-type CostCenterColor = typeof COST_CENTER_COLORS[number];
+// The picker's palette lives in lib/utils/costCenterColors.ts, because a center's colour is
+// now a theme slot resolved at render time rather than a stored hex — see that module's header
+// for why, and for how legacy hex documents keep their identity without a backfill.
