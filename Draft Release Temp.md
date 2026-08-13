@@ -154,4 +154,4 @@
 
 ## 🔒 Security
 
-- Updated several dependencies to resolve known security advisories (`npm audit fix`), including every high-severity one.
+- Updated several dependencies to resolve known security advisories (`npm audit fix`), including the high-severity ones in the app's own dependency tree. Next.js sits on its security-backport line (16.2.12).
