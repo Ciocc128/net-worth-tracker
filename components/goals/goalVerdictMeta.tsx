@@ -31,7 +31,10 @@ interface PriorityMeta {
 
 export const PRIORITY_META: Record<GoalPriority, PriorityMeta> = {
   alta: { label: 'Alta', chipClass: 'text-destructive bg-destructive/10' },
-  media: { label: 'Media', chipClass: 'text-[var(--chart-3)] bg-[var(--chart-3)]/10' },
+  // The semantic amber PAIR, not a chart slot tinted with itself: --warning is the surface
+  // and --warning-foreground its text arm, and they are designed to clear 4.5:1 together
+  // (6.72 light / 9.94 dark). A chart slot tinted at 10% behind its own hue does not.
+  media: { label: 'Media', chipClass: 'text-warning-foreground bg-warning' },
   bassa: { label: 'Bassa', chipClass: 'text-positive bg-positive/10' },
 };
 

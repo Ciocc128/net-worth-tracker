@@ -684,10 +684,12 @@ critique che aveva chiuso a 20/40 il giorno prima. I due punteggi non sono confr
 critique guarda gerarchia e onestà, l'audit contrasto, target, token e correttezza — assi che su
 questa superficie non erano mai stati misurati. Chiusi nello stesso giorno tutti i P1 locali; NON
 ri-aprirli come nuovi. Restano deliberatamente aperti, e non vanno segnalati come scoperte:
-- **I token di contrasto** (`--positive` mai ridefinito dai cinque temi e sotto 4,5:1 come testo
-  in tutte e sei le modalità chiare; `--chart-3` usato come testo di verdetto, 1,02:1 su
-  midnight-bloom dark; `--destructive` sotto in 6 combinazioni su 12). È un difetto **di token**,
-  non di questo tab: lo consuma `getMetricValueColor` in 29 file, e ha un branch dedicato.
+- **I token di contrasto sono stati CHIUSI** il 2026-08-13 in un branch dedicato: `--positive`
+  chiaro portato a `oklch(0.482 …)`, sette valori di `--destructive` corretti tema per tema (il
+  default era già conforme), `--chart-3`-come-testo sostituito da `--warning-foreground`. Il testo
+  semplice passa ora 4,5:1 in tutte e 24 le combinazioni. **Resta sotto solo il pattern chip**
+  (`bg-positive/10 text-positive`, 3,34–4,40:1 in 15 casi su 24): è strutturale — una tinta della
+  stessa tinta del testo abbassa il contrasto per costruzione — e non va segnalato come scoperta.
 - **Gli slot colore 6-8** non theme-aware (`useChartColors` risolve dal tema solo `--chart-1..5`).
 - **Target da 32px** di `SegmentedPill` e dei Button shadcn: primitive condivise, passata a sé.
 - **Il chip Δ sparisce** quando il predecessore troncato è a zero, e il 28 febbraio confronta un

@@ -487,7 +487,12 @@ export function CostCenterDetail({
                           budget.status === 'over'
                             ? 'text-destructive'
                             : budget.status === 'warning'
-                              ? 'text-[var(--chart-3)]'
+                              // NOT --chart-3: a categorical chart slot is tuned for 3:1
+                              // against a plot area, not 4.5:1 against a card, and nothing
+                              // constrains it per theme — it measured 1.02:1 on
+                              // midnight-bloom dark, i.e. invisible. --warning-foreground is
+                              // the semantic amber and clears 4.5:1 on all twelve.
+                              ? 'text-[var(--warning-foreground)]'
                               : 'text-positive',
                         )}
                       >
