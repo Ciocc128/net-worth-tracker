@@ -7,5 +7,7 @@ export const DASHBOARD_OVERVIEW_SUMMARY_COLLECTION = 'dashboardOverviewSummaries
 // Bumped from 3→4: ath (all-time-high check), topMovers (monthly asset-class digest), and
 // goalProgress (featured Goal-Based Investing progress) added — all needed for the
 // Panoramica critique follow-up (2026-07-16).
-export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 4;
+// Bumped from 4→5: top categories keyed by category id instead of name — two same-named
+// categories are now two rows (with a type qualifier on collision), no longer one merged one.
+export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 5;
 export const DASHBOARD_OVERVIEW_SUMMARY_TTL_MS = 5 * 60 * 1000;

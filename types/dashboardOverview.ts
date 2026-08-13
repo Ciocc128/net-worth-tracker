@@ -13,7 +13,11 @@ interface DashboardOverviewVariation {
 
 // Single category amount used in the cashflow breakdown (top-5 spese/entrate per categoria).
 export interface DashboardOverviewCategoryAmount {
+  // Display label; carries a type qualifier when two same-named categories collide.
   category: string;
+  // Category document id (name-fallback for legacy rows) — the row's identity.
+  // Optional only because payloads cached before source version 5 lack it.
+  categoryKey?: string;
   amount: number;
   // Percentage of the total expenses (or total income) for the current month.
   percentage: number;

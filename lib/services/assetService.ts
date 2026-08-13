@@ -18,6 +18,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
+import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { Asset, AssetFormData, BondDetails } from '@/types/assets';
 
@@ -557,7 +558,8 @@ export function calculateTotalValue(assets: Asset[]): number {
  *
  * Liquidity determination:
  * - If isLiquid field is explicitly defined, use that value (allows user override)
- * - Otherwise use legacy logic: exclude real estate and private equity (for backwards compatibility)
+ * - Otherwise fall back to suggestIsLiquid (type realestate / pensionFund / Private Equity
+ *   are illiquid) for documents saved before the field existed
  *
  * The isLiquid override takes precedence because users may have unique situations
  * (e.g., illiquid bonds, liquid real estate like REITs).
@@ -572,12 +574,9 @@ export function calculateLiquidNetWorth(assets: Asset[]): number {
       if (asset.isLiquid !== undefined) {
         return asset.isLiquid === true;
       }
-      // Otherwise use legacy logic for backwards compatibility
-      // (assets created before isLiquid field was added)
-      return (
-        asset.assetClass !== 'realestate' &&
-        asset.subCategory !== 'Private Equity'
-      );
+      // Legacy fallback for documents saved before the field existed — the same
+      // predicate as the AssetDialog default (see lib/utils/assetLiquidity.ts).
+      return suggestIsLiquid(asset.type, asset.subCategory);
     })
     .reduce((total, asset) => total + calculateAssetValue(asset), 0);
 }
@@ -597,11 +596,9 @@ export function calculateIlliquidNetWorth(assets: Asset[]): number {
       if (asset.isLiquid !== undefined) {
         return asset.isLiquid === false;
       }
-      // Otherwise use legacy logic for backwards compatibility
-      return (
-        asset.assetClass === 'realestate' ||
-        asset.subCategory === 'Private Equity'
-      );
+      // Legacy fallback — exact complement of calculateLiquidNetWorth's, so the
+      // two totals always partition the whole portfolio.
+      return !suggestIsLiquid(asset.type, asset.subCategory);
     })
     .reduce((total, asset) => total + calculateAssetValue(asset), 0);
 }

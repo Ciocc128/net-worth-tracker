@@ -69,7 +69,8 @@ export interface CostCenterBudgetVerdict {
 
 // One slice of the per-category composition breakdown (A4).
 export interface CostCenterCategorySlice {
-  categoryName: string;
+  key: string;              // categoryId (name-fallback for legacy rows), or "Altro" for the tail slice
+  categoryName: string;     // display label; carries a type qualifier when two keys share a name
   total: number;            // Always positive
   pct: number;              // 0..1 share of the center total
   transactionCount: number;

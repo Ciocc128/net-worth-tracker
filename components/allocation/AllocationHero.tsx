@@ -193,6 +193,19 @@ export function AllocationHero({
             <p className="mt-3 text-[11px] text-muted-foreground">
               {assetClassCount} {assetClassCount === 1 ? 'classe di asset' : 'classi di asset'} · valori correnti
             </p>
+            {/* A leveraged TARGET with no leveraged holding yet is exactly the case where
+                the score degrades with nothing on screen to explain it: the chip names the
+                gap the gauge is charging for. */}
+            {targetLeverageRatio > 1.01 && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-foreground">
+                  Leva {formatLeverage(leverageRatio)}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  target {formatLeverage(targetLeverageRatio)}
+                </span>
+              </div>
+            )}
           </>
         )}
 

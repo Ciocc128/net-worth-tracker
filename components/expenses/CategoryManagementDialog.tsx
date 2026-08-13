@@ -19,10 +19,13 @@ import {
   getAllCategories,
 } from '@/lib/services/expenseCategoryService';
 import {
+  getExpenseCountByCategoryId,
   getExpenseCountBySubCategoryId,
   reassignExpensesSubCategory,
   moveExpensesFromSubCategory,
+  TransferBoundaryError,
 } from '@/lib/services/expenseService';
+import { crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
 import { CategoryDeleteConfirmDialog } from './CategoryDeleteConfirmDialog';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
@@ -102,6 +105,8 @@ export interface CategoryManagementDialogProps {
 // ---------------------------------------------------------------------------
 interface FormBodyProps {
   category?: ExpenseCategory | null;
+  /** Expenses linked to the category being edited; null = unknown (still loading). */
+  linkedExpenseCount: number | null;
   subCategories: ExpenseSubCategory[];
   newSubCategoryName: string;
   setNewSubCategoryName: (v: string) => void;
@@ -117,6 +122,7 @@ interface FormBodyProps {
 
 function CategoryFormBody({
   category,
+  linkedExpenseCount,
   subCategories,
   newSubCategoryName,
   setNewSubCategoryName,
@@ -194,22 +200,36 @@ function CategoryFormBody({
             </span>
           </SelectTrigger>
           <SelectContent>
-            {TYPE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                <div className="flex flex-col gap-0.5 py-0.5">
-                  <span className="font-medium">{opt.label}</span>
-                  <span className="text-xs text-muted-foreground font-normal">{opt.description}</span>
-                </div>
-              </SelectItem>
-            ))}
+            {TYPE_OPTIONS.map((opt) => {
+              // Crossing the transfer boundary is blocked while expenses are linked
+              // (or their count is still unknown): those rows touch two cash accounts
+              // and cannot be re-typed in batch — see crossesTransferBoundary.
+              const blocked =
+                !!category &&
+                crossesTransferBoundary(category.type, opt.value) &&
+                (linkedExpenseCount === null || linkedExpenseCount > 0);
+              return (
+                <SelectItem key={opt.value} value={opt.value} disabled={blocked}>
+                  <div className="flex flex-col gap-0.5 py-0.5">
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {blocked
+                        ? 'Non disponibile: le voci collegate toccano due conti e non sono convertibili in blocco'
+                        : opt.description}
+                    </span>
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         {errors.type && (
           <p className="text-xs text-destructive">{errors.type.message}</p>
         )}
         {category && selectedType !== category.type && (() => {
-          const crossesBoundary = (category.type === 'income') !== (selectedType === 'income');
-          return crossesBoundary ? (
+          const flipsSign = (category.type === 'income') !== (selectedType === 'income') &&
+            !crossesTransferBoundary(category.type, selectedType);
+          return flipsSign ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
               Attenzione: tutti gli importi cambieranno segno (da {EXPENSE_TYPE_LABELS[category.type]} a {EXPENSE_TYPE_LABELS[selectedType]}).
             </p>
@@ -409,6 +429,19 @@ export function CategoryManagementDialog({
   const [subCategoryMoveExpenseCount, setSubCategoryMoveExpenseCount] = useState(0);
   const [allCategoriesForMove, setAllCategoriesForMove] = useState<ExpenseCategory[]>([]);
 
+  // A category with linked expenses must not cross the transfer boundary (each such
+  // row touches two cash accounts — see crossesTransferBoundary). null = count not
+  // known yet: the boundary options stay disabled until the fetch resolves, so a
+  // slow or failed count can never let a corrupting conversion through.
+  const [linkedExpenseCount, setLinkedExpenseCount] = useState<number | null>(null);
+  useEffect(() => {
+    setLinkedExpenseCount(null);
+    if (!open || !category || !ownerId) return;
+    getExpenseCountByCategoryId(category.id, ownerId)
+      .then(setLinkedExpenseCount)
+      .catch((error) => console.error('Error counting category expenses:', error));
+  }, [open, category, ownerId]);
+
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
     defaultValues: { type: 'variable', color: '#3b82f6' },
@@ -546,7 +579,9 @@ export function CategoryManagementDialog({
       setSubCategoryMoveExpenseCount(0);
     } catch (error) {
       console.error('Error moving subcategory expenses:', error);
-      toast.error('Errore nello spostamento delle transazioni');
+      toast.error(
+        error instanceof TransferBoundaryError ? error.message : 'Errore nello spostamento delle transazioni'
+      );
     }
   };
 
@@ -571,7 +606,9 @@ export function CategoryManagementDialog({
       onClose();
     } catch (error) {
       console.error('Error saving category:', error);
-      toast.error('Errore nel salvataggio della categoria');
+      toast.error(
+        error instanceof TransferBoundaryError ? error.message : 'Errore nel salvataggio della categoria'
+      );
     }
   };
 
@@ -581,6 +618,7 @@ export function CategoryManagementDialog({
 
   const formBodyProps: FormBodyProps = {
     category,
+    linkedExpenseCount,
     subCategories,
     newSubCategoryName,
     setNewSubCategoryName,

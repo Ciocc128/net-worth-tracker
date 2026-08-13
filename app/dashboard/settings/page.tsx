@@ -72,7 +72,7 @@ import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expen
 import { Asset } from '@/types/assets';
 import { getAllAssets } from '@/lib/services/assetService';
 import { getAllCategories, deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
-import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory } from '@/lib/services/expenseService';
+import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory, TransferBoundaryError } from '@/lib/services/expenseService';
 import { CategoryManagementDialog } from '@/components/expenses/CategoryManagementDialog';
 import { CategoryDeleteConfirmDialog } from '@/components/expenses/CategoryDeleteConfirmDialog';
 import { CategoryMoveDialog } from '@/components/expenses/CategoryMoveDialog';
@@ -866,7 +866,9 @@ export default function SettingsPage() {
       setExpenseCountToMove(0);
     } catch (error) {
       console.error('Error during category move:', error);
-      toast.error('Errore nello spostamento delle transazioni');
+      toast.error(
+        error instanceof TransferBoundaryError ? error.message : 'Errore nello spostamento delle transazioni'
+      );
     }
   };
 

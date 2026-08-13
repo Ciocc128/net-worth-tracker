@@ -80,7 +80,9 @@ interface CashflowMetrics {
   totalIncome: number | null;
   totalExpenses: number | null;
   savings: number | null;
-  // Expense category name → total spent in the period (absolute, positive).
+  // Expense category KEY (categoryId, name-fallback for legacy rows) → total spent
+  // in the period (absolute, positive). Keyed by id so two same-named categories
+  // stay two entries and cross-period lookups match the right document.
   expenseByCategory: Record<string, number>;
 }
 
@@ -172,7 +174,7 @@ async function fetchPeriodMetrics(
   const { totalIncome, totalExpenses, topExpenseCategories } = aggregateExpenses(expensesSnap.docs);
   const expenseByCategory: Record<string, number> = {};
   for (const cat of topExpenseCategories) {
-    expenseByCategory[cat.name] = cat.amount;
+    expenseByCategory[cat.key] = cat.amount;
   }
 
   return {
@@ -257,7 +259,7 @@ export async function buildPeriodComparison(
   // Current-period metrics come straight from the authoritative email data (no extra fetch).
   const currentExpenseByCategory: Record<string, number> = {};
   for (const cat of emailData.topExpenseCategories) {
-    currentExpenseByCategory[cat.name] = cat.amount;
+    currentExpenseByCategory[cat.key] = cat.amount;
   }
   const current: CashflowMetrics = {
     netWorth: emailData.currentNetWorth,
@@ -288,13 +290,15 @@ export async function buildPeriodComparison(
   );
 
   // Top current expense categories with their deltas vs both baselines.
+  // Baseline lookups go through the category KEY: with two same-named categories,
+  // each row compares against its own document's baseline, not a namesake's.
   const categoryDeltas: CategoryDelta[] = emailData.topExpenseCategories
     .slice(0, MAX_CATEGORY_DELTAS)
     .map((cat) => ({
       name: cat.name,
       current: cat.amount,
-      vsPrevious: computeDelta(cat.amount, prevMetrics.expenseByCategory[cat.name] ?? null),
-      vsYoy: computeDelta(cat.amount, resolvedYoyMetrics.expenseByCategory[cat.name] ?? null),
+      vsPrevious: computeDelta(cat.amount, prevMetrics.expenseByCategory[cat.key] ?? null),
+      vsYoy: computeDelta(cat.amount, resolvedYoyMetrics.expenseByCategory[cat.key] ?? null),
     }));
 
   return { vsPrevious, vsYoy, previousEqualsYoy, categoryDeltas };

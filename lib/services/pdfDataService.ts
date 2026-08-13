@@ -49,6 +49,8 @@ import {
   calculateFIRENetWorth,
 } from './assetService';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
+import { EXPENSE_TYPE_LABELS, type ExpenseType } from '@/types/expenses';
 import {
   compareAllocations,
   getSettings,
@@ -419,7 +421,10 @@ function prepareCashflowData(expenses: any[]): CashflowData {
   let totalIncome = 0;
   let totalExpenses = 0;
 
-  const categoryMap: Record<string, CategoryBreakdown> = {};
+  // Keyed by category id (name-fallback for legacy rows): two same-named categories
+  // are two distinct documents and must stay two rows — see lib/utils/expenseGrouping.ts.
+  // The qualifier is transient: it feeds label disambiguation and never reaches the PDF type.
+  const categoryMap: Record<string, CategoryBreakdown & { qualifier: string }> = {};
   const monthsSet = new Set<string>();
 
   expenses.forEach(expense => {
@@ -437,10 +442,11 @@ function prepareCashflowData(expenses: any[]): CashflowData {
       totalExpenses += amount;
 
       // Aggregate by category
-      const key = expense.categoryName;
+      const key = getCategoryKey(expense);
       if (!categoryMap[key]) {
         categoryMap[key] = {
-          categoryName: expense.categoryName,
+          categoryName: getCategoryName(expense),
+          qualifier: EXPENSE_TYPE_LABELS[expense.type as ExpenseType] ?? '',
           amount: 0,
           percent: 0,
           transactionCount: 0,
@@ -452,14 +458,22 @@ function prepareCashflowData(expenses: any[]): CashflowData {
   });
 
   // Calculate percentages and sort by amount
-  const byCategory = Object.values(categoryMap);
+  const byCategory = Object.entries(categoryMap).map(([key, cat]) => ({ key, ...cat }));
   byCategory.forEach(cat => {
     cat.percent = totalExpenses > 0 ? (cat.amount / totalExpenses) * 100 : 0;
   });
   byCategory.sort((a, b) => b.amount - a.amount);
 
-  // Take top 5 categories
-  const topCategories = byCategory.slice(0, 5);
+  // Take top 5 categories; a name shared by two keys in the rendered slice gets its
+  // type qualifier appended ("Casa (Spese Fisse)").
+  const topSlice = byCategory.slice(0, 5);
+  const labels = resolveDisplayLabels(
+    topSlice.map(({ key, categoryName, qualifier }) => ({ key, name: categoryName, qualifier }))
+  );
+  const topCategories: CategoryBreakdown[] = topSlice.map(({ key, qualifier: _qualifier, ...cat }) => ({
+    ...cat,
+    categoryName: labels.get(key) ?? cat.categoryName,
+  }));
 
   const netCashflow = totalIncome - totalExpenses;
   const incomeToExpenseRatio = totalExpenses > 0 ? totalIncome / totalExpenses : 0;
