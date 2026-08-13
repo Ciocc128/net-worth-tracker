@@ -500,7 +500,9 @@ scroll container. Restano aperti PER SCELTA, e non sono scoperte: i token di con
 (`--positive`/`--destructive`/`--chart-3`-come-testo, difetto app-wide con branch dedicato), gli
 slot colore 6-8 non theme-aware, i 32px di `SegmentedPill` e dei Button shadcn, e due decisioni
 di prodotto sul chip Δ (sparisce col predecessore a zero; il 28 febbraio confronta un mese
-completo con un gennaio troncato). Dettaglio in docs/audit-prompts.md.
+completo con un gennaio troncato). Dettaglio in docs/audit-prompts.md. NOTA: i token di contrasto
+sono stati chiusi il 2026-08-13 in un branch a sé — resta sotto soglia solo il pattern chip, per
+una ragione strutturale documentata in CLAUDE.md → Known Issues.
 Trappola scoperta correggendo, da non re-introdurre: la lista archiviati ha un `shareBase`
 PROPRIO (`archivedTotal`) **e** una frase propria («dei centri archiviati»). Dare a quelle righe
 il denominatore giusto ma l'etichetta della lista attiva le fa leggere come se tre centri

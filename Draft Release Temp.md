@@ -92,6 +92,9 @@
 - Fixed the percentages on archived cost centers being measured against the active centers' total, which they are not part of. They are now measured among the archived ones, and the label says so.
 - Fixed an expense dated the day after a year boundary occasionally counting in the previous year in the cost-center comparison, during the months when daylight saving time is in effect.
 - Fixed the cost-center dialog having no way to scroll on a short screen — a phone in landscape, or a small desktop window — where the form could grow past the edge and leave "Annulla" and "Crea" out of reach.
+- Fixed the amber figures — "Tasse Stimate" in Patrimonio, a cost center's spending-ceiling verdict, the "Media" priority tag on a goal — being drawn in a colour borrowed from the chart palette, which no theme constrains for readability. On two themes the ceiling verdict was the same brightness as the card behind it and could not be read at all. They now use the app's own amber, which is legible on every theme.
+- Fixed the green used for positive values being too faint to meet accessibility guidelines in every light theme, while the red met them. Gains, savings and improvements were being drawn more weakly than losses, so the reassuring half of a verdict read fainter than the alarming half. The green is now darker and both halves carry the same weight.
+- Fixed the red used for negative values falling below the readable contrast threshold on the five custom themes. The default theme already met it and is unchanged.
 
 ## 🔧 Improvements
 
@@ -134,6 +137,7 @@
 - Note on cost-center colours: existing centers will change shade the first time you open the tab after this release. Each one keeps a distinct colour and no two collide, but the shade now comes from your active theme rather than being fixed. Re-saving a center from its edit dialog settles the change for that center.
 - Every figure on a cost-center row now names the period it measures — "34% del totale del mese", "87% del tetto annuale" — so one line no longer reads as three facts about the same span.
 - The confirmation step on deleting a cost center no longer expires by itself after three seconds. It stays until you confirm it, press Esc, or click elsewhere, which also means it can no longer disappear while a screen reader is still reading it out.
+- Note on the new green: positive values are drawn in a noticeably darker green than before, on every page and in every theme. Nothing about the numbers changed — only how legible they are. The red moved too, but only on the five custom themes; on the default one it is exactly as it was.
 - Cost-center rows are now read out in full by screen readers. They previously announced only the center's name, silently dropping the amount, the share and the transaction count — the figures the row exists to show.
 
 ## 🔒 Security

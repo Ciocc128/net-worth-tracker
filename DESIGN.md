@@ -19,8 +19,12 @@ colors:
   amber-watch: "oklch(0.769 0.188 70.08)"
   violet-risk: "oklch(0.627 0.265 303.9)"
   coral-loss: "oklch(0.645 0.246 16.439)"
-  # Semantic
-  destructive: "oklch(0.5771 0.2152 27.325)"
+  # Semantic — sign colours. These are the DEFAULT theme's values; the five named themes
+  # override destructive (positive they inherit). All are chosen to clear WCAG AA 4.5:1 as
+  # text against their own theme's --card, which a chart slot is never constrained to do.
+  destructive: "oklch(0.577 0.245 27.325)"
+  positive: "oklch(0.482 0.194 149.214)"
+  warning-foreground: "oklch(0.468 0.098 75)"
 typography:
   # The enumerated Trade Republic ramp. The named roles below describe the generic
   # Geist Sans/Mono hierarchy; this scale is the project's actual step ladder, spelled
@@ -200,7 +204,8 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 
 ### Semantic
 
-- **Destructive Flame** (`oklch(0.5771 0.2152 27.325)`): Destructive actions only. Saturated enough to demand attention without being an emergency siren.
+- **Destructive Flame** (`oklch(0.577 0.245 27.325)`): Destructive actions **and** the negative half of every sign colour. Saturated enough to demand attention without being an emergency siren. The five named themes each declare their own; seven of those twelve declarations were raised or lowered on 2026-08-13 to clear 4.5:1 as text against their own `--card` — the default theme already did and was left untouched.
+- **Positive Jade** (`oklch(0.482 0.194 149.214)` light / `oklch(0.740 0.156 148.655)` dark): the positive half of every sign colour. **No named theme overrides it**, so one pair of values serves all twelve combinations. The light value was darkened from `0.627` on 2026-08-13: at that lightness it measured 2.62–3.22:1 across the light themes, so the reassuring half of every verdict read fainter than the alarming half — an asymmetry in what the interface was emphasising, not just a contrast number.
 
 ### Named Rules
 
