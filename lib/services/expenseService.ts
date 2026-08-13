@@ -34,6 +34,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
+import { needsSignFlip, crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
 import {
   Expense,
   ExpenseFormData,
@@ -41,6 +42,22 @@ import {
 } from '@/types/expenses';
 
 const EXPENSES_COLLECTION = 'expenses';
+
+/**
+ * Raised by the batch re-typing paths (moveExpensesToCategory,
+ * moveExpensesFromSubCategory, updateExpensesType) when a move would cross the
+ * transfer boundary with linked expenses: each of those rows touches two cash
+ * accounts, so no batch reconciliation of balances is possible. Carries a
+ * user-facing message the dialogs surface as-is.
+ */
+export class TransferBoundaryError extends Error {
+  constructor() {
+    super(
+      'Impossibile convertire in blocco da o verso Trasferimento: ogni voce tocca due conti e i saldi non sarebbero riconciliabili. Modifica le singole voci dal Cashflow.'
+    );
+    this.name = 'TransferBoundaryError';
+  }
+}
 
 /**
  * Get all expenses for a specific user
@@ -778,24 +795,13 @@ export async function reassignExpensesSubCategory(
 }
 
 /**
- * Check if a cross-type move requires flipping the amount sign.
- *
- * Sign convention: income = positive, expenses (fixed/variable/debt) = negative.
- * When moving between income ↔ expense types, the amount must be flipped.
- */
-function needsSignFlip(oldType: ExpenseType, newType: ExpenseType): boolean {
-  const isOldIncome = oldType === 'income';
-  const isNewIncome = newType === 'income';
-  return isOldIncome !== isNewIncome;
-}
-
-/**
  * Move all expenses from one category to another, updating type for cross-type moves.
  *
  * Unlike reassignExpensesCategory (used during deletion), this preserves the source
  * category and also updates the expense `type` field to match the destination category.
- * When moving between income ↔ expense types, flips the amount sign to maintain
- * the sign convention (income = positive, expenses = negative).
+ * When crossing the positive/negative sign boundary, flips the amount sign to maintain
+ * the sign convention (income/transfer = positive, expenses = negative).
+ * Refuses to cross the transfer boundary when expenses exist (TransferBoundaryError).
  */
 export async function moveExpensesToCategory(
   oldCategoryId: string,
@@ -821,6 +827,10 @@ export async function moveExpensesToCategory(
       return 0;
     }
 
+    if (crossesTransferBoundary(oldType, newType)) {
+      throw new TransferBoundaryError();
+    }
+
     const flipSign = needsSignFlip(oldType, newType);
     const batch = writeBatch(db);
     let count = 0;
@@ -833,7 +843,7 @@ export async function moveExpensesToCategory(
         updatedAt: new Date(),
       };
 
-      // Flip amount sign when crossing income ↔ expense boundary
+      // Flip amount sign when crossing the positive/negative boundary
       if (flipSign) {
         const currentAmount = docSnapshot.data().amount;
         updates.amount = -currentAmount;
@@ -854,6 +864,7 @@ export async function moveExpensesToCategory(
     await batch.commit();
     return count;
   } catch (error) {
+    if (error instanceof TransferBoundaryError) throw error;
     console.error('Error moving expenses to category:', error);
     throw new Error('Failed to move expenses to category');
   }
@@ -863,7 +874,8 @@ export async function moveExpensesToCategory(
  * Move all expenses from a specific subcategory to another category/subcategory.
  *
  * Supports cross-category and cross-type moves. Source subcategory is preserved.
- * When moving between income ↔ expense types, flips the amount sign.
+ * When crossing the positive/negative sign boundary, flips the amount sign.
+ * Refuses to cross the transfer boundary when expenses exist (TransferBoundaryError).
  */
 export async function moveExpensesFromSubCategory(
   oldCategoryId: string,
@@ -891,6 +903,10 @@ export async function moveExpensesFromSubCategory(
       return 0;
     }
 
+    if (crossesTransferBoundary(oldType, newType)) {
+      throw new TransferBoundaryError();
+    }
+
     const flipSign = needsSignFlip(oldType, newType);
     const batch = writeBatch(db);
     let count = 0;
@@ -903,7 +919,7 @@ export async function moveExpensesFromSubCategory(
         updatedAt: new Date(),
       };
 
-      // Flip amount sign when crossing income ↔ expense boundary
+      // Flip amount sign when crossing the positive/negative boundary
       if (flipSign) {
         const currentAmount = docSnapshot.data().amount;
         updates.amount = -currentAmount;
@@ -924,6 +940,7 @@ export async function moveExpensesFromSubCategory(
     await batch.commit();
     return count;
   } catch (error) {
+    if (error instanceof TransferBoundaryError) throw error;
     console.error('Error moving expenses from subcategory:', error);
     throw new Error('Failed to move expenses from subcategory');
   }
@@ -933,7 +950,8 @@ export async function moveExpensesFromSubCategory(
  * Batch-update the type of all expenses in a category when the category type changes.
  *
  * Keeps categoryId and categoryName unchanged — only updates the `type` field
- * and flips amount signs when crossing the income ↔ expense boundary.
+ * and flips amount signs when crossing the positive/negative sign boundary.
+ * Refuses to cross the transfer boundary when expenses exist (TransferBoundaryError).
  *
  * @param categoryId - The category whose expenses need updating
  * @param oldType - Previous category type
@@ -961,6 +979,10 @@ export async function updateExpensesType(
       return 0;
     }
 
+    if (crossesTransferBoundary(oldType, newType)) {
+      throw new TransferBoundaryError();
+    }
+
     const flipSign = needsSignFlip(oldType, newType);
     const batch = writeBatch(db);
     let count = 0;
@@ -983,6 +1005,7 @@ export async function updateExpensesType(
     await batch.commit();
     return count;
   } catch (error) {
+    if (error instanceof TransferBoundaryError) throw error;
     console.error('Error updating expense types in category:', error);
     throw new Error('Failed to update expense types');
   }

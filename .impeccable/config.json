@@ -35,6 +35,51 @@
         "value": "#9ca3af",
         "createdAt": "2026-07-24T12:14:40.718Z",
         "reason": "Pre-existing 'Altri' bucket gray in prepareAssetDistributionData, predates this session's pension-fund P3 work"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "components/expenses/CategoryManagementDialog.tsx"
+        ],
+        "createdAt": "2026-08-13T00:00:00.000Z",
+        "reason": "User-picked category palette (CATEGORY_COLORS + the #3b82f6 form default): data colours stored per-category in Firestore, not theme tokens. Confirmed intentional by Giuseppe 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "lib/server/monthlyEmailService.ts"
+        ],
+        "createdAt": "2026-08-13T00:00:00.000Z",
+        "reason": "Email HTML renders outside the DOM: CSS custom properties cannot reach it, every colour is a literal hex by construction (CLAUDE.md Known Issue on the email/PDF token-drift surface). Confirmed by Giuseppe 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#10b981",
+        "files": [
+          "lib/services/dashboardOverviewService.ts"
+        ],
+        "createdAt": "2026-08-13T00:00:00.000Z",
+        "reason": "Liquidity-chart slice colour baked into the server payload; remapped to the active theme at render time per AGENTS.md 'Server-cached chart data'. Confirmed by Giuseppe 2026-08-13"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#f59e0b",
+        "files": [
+          "lib/services/dashboardOverviewService.ts"
+        ],
+        "createdAt": "2026-08-13T00:00:00.000Z",
+        "reason": "Liquidity-chart slice colour baked into the server payload; remapped to the active theme at render time per AGENTS.md 'Server-cached chart data'. Confirmed by Giuseppe 2026-08-13"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "34px",
+        "files": [
+          "components/allocation/AllocationHero.tsx"
+        ],
+        "createdAt": "2026-08-13T00:00:00.000Z",
+        "reason": "Paired-number hero variant: two 34px (desktop 40px) figures replace the single 44px hero when leverage shows investito + esposizione side by side. Pre-existing deliberate step, confirmed by Giuseppe 2026-08-13"
       }
     ]
   }

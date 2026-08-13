@@ -174,13 +174,15 @@ describe('evaluateCenterBudget', () => {
 
 describe('buildCategoryComposition', () => {
   it('collapses categories past the cap into Altro and sorts by amount', () => {
+    // Distinct ids: grouping is by category id, and distinct categories always
+    // have distinct documents in real data.
     const expenses = [
-      expense({ date: NOW, amount: -100, categoryName: 'Carburante' }),
-      expense({ date: NOW, amount: -50, categoryName: 'Assicurazione' }),
-      expense({ date: NOW, amount: -30, categoryName: 'Manutenzione' }),
-      expense({ date: NOW, amount: -20, categoryName: 'Bollo' }),
-      expense({ date: NOW, amount: -10, categoryName: 'Pedaggi' }),
-      expense({ date: NOW, amount: -5, categoryName: 'Multe' }), // 6th → Altro
+      expense({ date: NOW, amount: -100, categoryId: 'c-carb', categoryName: 'Carburante' }),
+      expense({ date: NOW, amount: -50, categoryId: 'c-assi', categoryName: 'Assicurazione' }),
+      expense({ date: NOW, amount: -30, categoryId: 'c-manu', categoryName: 'Manutenzione' }),
+      expense({ date: NOW, amount: -20, categoryId: 'c-boll', categoryName: 'Bollo' }),
+      expense({ date: NOW, amount: -10, categoryId: 'c-peda', categoryName: 'Pedaggi' }),
+      expense({ date: NOW, amount: -5, categoryId: 'c-mult', categoryName: 'Multe' }), // 6th → Altro
     ];
     const comp = buildCategoryComposition(expenses);
     expect(comp[0].categoryName).toBe('Carburante');
@@ -188,6 +190,17 @@ describe('buildCategoryComposition', () => {
     expect(comp[comp.length - 1].total).toBe(5);
     const totalPct = comp.reduce((s, c) => s + c.pct, 0);
     expect(totalPct).toBeCloseTo(1);
+  });
+  it('keeps two same-named categories apart, qualifying their labels', () => {
+    // "Casa" exists twice (fixed and variable): two slices, never one merged bucket.
+    const expenses = [
+      expense({ date: NOW, amount: -300, categoryId: 'c-fix', categoryName: 'Casa', type: 'fixed' }),
+      expense({ date: NOW, amount: -100, categoryId: 'c-var', categoryName: 'Casa', type: 'variable' }),
+    ];
+    const comp = buildCategoryComposition(expenses);
+    expect(comp).toHaveLength(2);
+    expect(comp[0]).toMatchObject({ key: 'c-fix', categoryName: 'Casa (Spese Fisse)', total: 300 });
+    expect(comp[1]).toMatchObject({ key: 'c-var', categoryName: 'Casa (Spese Variabili)', total: 100 });
   });
 });
 

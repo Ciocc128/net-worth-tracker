@@ -230,10 +230,17 @@ export const ASSET_CLASS_CHART_INDEX: Record<string, number> = {
 };
 
 export interface BalanceScore {
-  /** 0–100, where 100 = every class exactly on target. */
+  /** 0–100, where 100 = every class exactly on target (composition AND leverage). */
   score: number;
   /** Share of the portfolio sitting in the wrong class, in percentage points (0–100). */
   misallocationPct: number;
+  /**
+   * Signed p.p. of notional exposure vs the leverage target: negative = current
+   * leverage below the target (Σtarget > Σcurrent), positive = excess exposure.
+   * 0 whenever the targets sum to the current exposure — every unlevered portfolio
+   * with plain 100%-sum targets.
+   */
+  leverageGapPp: number;
 }
 
 /**
@@ -242,18 +249,32 @@ export interface BalanceScore {
  * Deliberately built from each class's raw `difference` (current − target p.p.), NOT from
  * the banded `action`: the gauge measures absolute distance from target and must stay
  * stable when the user widens or tightens the rebalance band — only the COMPRA/VENDI/OK
- * verdict and plan react to the band. Because Σ(current − target) = 0 across classes,
- * Σ|difference| is exactly twice the portfolio fraction that is misallocated; halving it
- * gives the intuitive "X% of the portfolio is in the wrong class". The score is its
- * complement, clamped to [0, 100].
+ * verdict and plan react to the band.
+ *
+ * With leveraged targets the drifts do NOT sum to zero: current weights are notional
+ * exposure over the market base (Σ = current leverage × 100) while targets sum to the
+ * target leverage × 100 (deriveTargetLeverageRatio), so Σ(difference) measures the
+ * leverage gap itself. The drift therefore decomposes exactly into two parts:
+ *   leverageGapPp   = |Σ difference|          — exposure missing/excess vs the target leverage
+ *   misallocationPct = (Σ|d| − |Σd|) / 2      — the genuinely offsetting "wrong class" share
+ * For zero-sum drifts (every unlevered portfolio) this reduces to the classic halving.
+ * Both parts subtract from the score, so "perfectly proportioned but not yet levered"
+ * scores below 100 while the caption can name the real cause instead of claiming a
+ * false "X% fuori posizione".
  */
 export function computeBalanceScore(
   byAssetClass: Record<string, AllocationData>
 ): BalanceScore {
   let sumAbsDrift = 0;
-  for (const data of Object.values(byAssetClass)) sumAbsDrift += Math.abs(data.difference);
-  const misallocationPct = Math.min(100, sumAbsDrift / 2);
-  return { score: Math.round(100 - misallocationPct), misallocationPct };
+  let netDriftPp = 0;
+  for (const data of Object.values(byAssetClass)) {
+    sumAbsDrift += Math.abs(data.difference);
+    netDriftPp += data.difference;
+  }
+  const leverageGapPp = Math.abs(netDriftPp) < 1e-9 ? 0 : netDriftPp;
+  const misallocationPct = Math.min(100, (sumAbsDrift - Math.abs(leverageGapPp)) / 2);
+  const score = Math.max(0, Math.round(100 - misallocationPct - Math.abs(leverageGapPp)));
+  return { score, misallocationPct, leverageGapPp };
 }
 
 /** One-glance verdict for the hero: how many classes are off target and the worst one. */
@@ -456,8 +477,8 @@ export function resolveAllocationRole(asset: Asset): AllocationRole {
  *
  * The DENOMINATOR is `tradable + frozen`: frozen wealth is genuinely invested, so leaving it out
  * would understate your true equity/bond exposure and have you tune the risk of only part of your
- * portfolio. Filtering it out downstream instead would also break the Σ(current − target) = 0
- * invariant that `computeBalanceScore` halves.
+ * portfolio. Filtering it out downstream instead would also skew Σ(current − target), which
+ * `computeBalanceScore` decomposes into misallocation and leverage gap.
  *
  * `excluded` leaves entirely: keeping a house in the denominator pegs the realestate class
  * permanently off-target against a trade nobody can execute.

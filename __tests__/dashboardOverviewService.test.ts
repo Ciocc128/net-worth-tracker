@@ -103,6 +103,7 @@ vi.mock('@/lib/utils/dateHelpers', async () => {
 });
 
 import { getDashboardOverview } from '@/lib/services/dashboardOverviewService';
+import { DASHBOARD_OVERVIEW_SOURCE_VERSION } from '@/lib/services/dashboardOverviewConstants';
 
 describe('dashboardOverviewService', () => {
   beforeEach(() => {
@@ -148,9 +149,9 @@ describe('dashboardOverviewService', () => {
         },
         updatedAt: new Date(),
         computedAt: new Date(),
-        // Must match DASHBOARD_OVERVIEW_SOURCE_VERSION (currently 4) for the cache to be
-        // considered fresh. Tests that rely on recompute can use an old version number.
-        sourceVersion: 4,
+        // Must match DASHBOARD_OVERVIEW_SOURCE_VERSION for the cache to be considered
+        // fresh. Tests that rely on recompute can use an old version number.
+        sourceVersion: DASHBOARD_OVERVIEW_SOURCE_VERSION,
         invalidatedAt: null,
       }),
     });

@@ -17,7 +17,8 @@
 
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Expense, NO_SUBCATEGORY_KEY, NO_SUBCATEGORY_LABEL } from '@/types/expenses';
+import { Expense, EXPENSE_TYPE_LABELS, NO_SUBCATEGORY_KEY, NO_SUBCATEGORY_LABEL } from '@/types/expenses';
+import { getCategoryKey, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import {
   CostCenter,
   CostCenterPeriod,
@@ -392,13 +393,21 @@ export function evaluateCenterBudget(
 export function buildCategoryComposition(expenses: Expense[]): CostCenterCategorySlice[] {
   if (expenses.length === 0) return [];
 
-  const byCategory = new Map<string, { total: number; count: number }>();
+  // Keyed by category id (name-fallback for legacy rows): two same-named categories
+  // are two slices, disambiguated with their type qualifier only when both land on
+  // screen — the same identity rule as buildSubCategoryComposition below.
+  const byCategory = new Map<string, { name: string; qualifier: string; total: number; count: number }>();
   for (const e of expenses) {
-    const name = e.categoryName?.trim() || OTHER_CATEGORY_LABEL;
-    const entry = byCategory.get(name) ?? { total: 0, count: 0 };
+    const key = getCategoryKey(e);
+    const entry = byCategory.get(key) ?? {
+      name: e.categoryName?.trim() || OTHER_CATEGORY_LABEL,
+      qualifier: EXPENSE_TYPE_LABELS[e.type],
+      total: 0,
+      count: 0,
+    };
     entry.total += absAmount(e);
     entry.count += 1;
-    byCategory.set(name, entry);
+    byCategory.set(key, entry);
   }
 
   const grandTotal = [...byCategory.values()].reduce((sum, v) => sum + v.total, 0) || 1;
@@ -407,8 +416,13 @@ export function buildCategoryComposition(expenses: Expense[]): CostCenterCategor
   const head = sorted.slice(0, MAX_COMPOSITION_CATEGORIES);
   const tail = sorted.slice(MAX_COMPOSITION_CATEGORIES);
 
-  const slices: CostCenterCategorySlice[] = head.map(([categoryName, v]) => ({
-    categoryName,
+  const labels = resolveDisplayLabels(
+    head.map(([key, v]) => ({ key, name: v.name, qualifier: v.qualifier }))
+  );
+
+  const slices: CostCenterCategorySlice[] = head.map(([key, v]) => ({
+    key,
+    categoryName: labels.get(key) ?? v.name,
     total: v.total,
     pct: v.total / grandTotal,
     transactionCount: v.count,
@@ -418,6 +432,7 @@ export function buildCategoryComposition(expenses: Expense[]): CostCenterCategor
     const total = tail.reduce((sum, [, v]) => sum + v.total, 0);
     const count = tail.reduce((sum, [, v]) => sum + v.count, 0);
     slices.push({
+      key: OTHER_CATEGORY_LABEL,
       categoryName: OTHER_CATEGORY_LABEL,
       total,
       pct: total / grandTotal,
@@ -530,14 +545,16 @@ export function buildMonthlySeriesByCategory(
   });
 
   // Resolve the top categories over what the chart will actually draw.
+  // Identity is the slice's id-based key; the stacked series use the slice's display
+  // label (qualified on collision), so legend and bars agree with the composition list.
   const composition = buildCategoryComposition(windowed);
-  const topNames = new Set(
-    composition.filter((c) => c.categoryName !== OTHER_CATEGORY_LABEL).map((c) => c.categoryName),
+  const labelByKey = new Map(
+    composition
+      .filter((c) => c.key !== OTHER_CATEGORY_LABEL)
+      .map((c) => [c.key, c.categoryName] as const),
   );
-  const categoryKey = (e: Expense) => {
-    const name = e.categoryName?.trim() || OTHER_CATEGORY_LABEL;
-    return topNames.has(name) ? name : OTHER_CATEGORY_LABEL;
-  };
+  const categoryLabel = (e: Expense) =>
+    labelByKey.get(getCategoryKey(e)) ?? OTHER_CATEGORY_LABEL;
 
   const bucketMap = new Map<string, CostCenterMonthlyBucket>();
   for (const { year, month } of axis) {
@@ -550,15 +567,15 @@ export function buildMonthlySeriesByCategory(
     const bucket = bucketMap.get(`${ym.year}-${ym.month}`);
     if (!bucket) continue; // outside the trimmed window
     const amount = absAmount(e);
-    const cat = categoryKey(e);
+    const cat = categoryLabel(e);
     bucket.byCategory[cat] = (bucket.byCategory[cat] ?? 0) + amount;
     bucket.total += amount;
   }
 
   // Preserve composition order; append "Altro" last if present anywhere.
   const orderedCategories = composition
-    .map((c) => c.categoryName)
-    .filter((name) => name !== OTHER_CATEGORY_LABEL);
+    .filter((c) => c.key !== OTHER_CATEGORY_LABEL)
+    .map((c) => c.categoryName);
   const buckets = axis.map(({ year, month }) => bucketMap.get(`${year}-${month}`)!);
   const hasOther = buckets.some((b) => OTHER_CATEGORY_LABEL in b.byCategory);
   if (hasOther) orderedCategories.push(OTHER_CATEGORY_LABEL);

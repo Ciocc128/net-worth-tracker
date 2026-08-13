@@ -92,12 +92,15 @@ test('fondo appena creato: la colonna del rendimento spiega, e non resta vuota a
   seedScenario('fresh');
   await gotoPension(page);
 
-  await expect(returnCard(page)).toContainText('Nessuna fotografia mensile');
+  // Con l'overlay del valore vivo (overlayLivePensionValue) la serie non è mai vuota
+  // finché il fondo ha un valore: per un fondo appena creato il prerequisito mancante
+  // è il primo versamento registrato, non più la prima fotografia del cron serale.
+  await expect(returnCard(page)).toContainText('Registra il primo versamento');
 
   // LA REGRESSIONE DI LAYOUT. Senza una card in colonna 2, la griglia `[2fr_1fr]` con un solo figlio
-  // lasciava un terzo di riga bianco a 1440px — lo stato di ogni fondo appena creato, finché il cron
-  // serale non scrive la prima fotografia che lo contiene. Le stesse asserzioni geometriche della
-  // spec principale, qui su uno scenario che allora non le avrebbe superate.
+  // lasciava un terzo di riga bianco a 1440px — lo stato di ogni fondo appena creato. Le stesse
+  // asserzioni geometriche della spec principale, qui su uno scenario che allora non le avrebbe
+  // superate.
   const hero = page.getByRole('heading', { name: 'Valore attuale' }).locator('..');
   const heroBox = (await hero.boundingBox())!;
   const returnBox = (await returnCard(page).boundingBox())!;

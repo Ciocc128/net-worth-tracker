@@ -171,6 +171,13 @@ vi.mock('@/lib/helpers/priceUpdater', () => ({
   updateUserAssetPrices: updateUserAssetPricesMock,
 }));
 
+// Without this mock, the quote route's server-side USD→EUR pre-conversion reaches the
+// real Frankfurter API from inside the test — usually fast enough to pass, occasionally
+// slow enough under full-suite load to time the test out.
+vi.mock('@/lib/services/currencyConversionService', () => ({
+  convertToEur: vi.fn().mockResolvedValue(185),
+}));
+
 vi.mock('@/lib/services/yahooFinanceService', () => ({
   getQuote: getQuoteMock,
 }));
@@ -217,6 +224,7 @@ import { GET as bondQuoteRoute } from '@/app/api/prices/bond-quote/route';
 import { POST as snapshotRoute } from '@/app/api/portfolio/snapshot/route';
 import { GET as dashboardOverviewRoute } from '@/app/api/dashboard/overview/route';
 import { POST as invalidateDashboardOverviewRoute } from '@/app/api/dashboard/overview/invalidate/route';
+import { DASHBOARD_OVERVIEW_SOURCE_VERSION } from '@/lib/services/dashboardOverviewConstants';
 
 function createJsonRequest(
   url: string,
@@ -387,7 +395,7 @@ describe('Private API route auth', () => {
         },
         updatedAt: new Date(),
         computedAt: new Date(),
-        sourceVersion: 4, // must match DASHBOARD_OVERVIEW_SOURCE_VERSION in dashboardOverviewConstants.ts
+        sourceVersion: DASHBOARD_OVERVIEW_SOURCE_VERSION,
         invalidatedAt: null,
       }),
     });
@@ -407,7 +415,7 @@ describe('Private API route auth', () => {
       },
       freshness: {
         source: 'materialized_summary',
-        sourceVersion: 4, // must match DASHBOARD_OVERVIEW_SOURCE_VERSION in dashboardOverviewConstants.ts
+        sourceVersion: DASHBOARD_OVERVIEW_SOURCE_VERSION,
         stale: false,
       },
     });

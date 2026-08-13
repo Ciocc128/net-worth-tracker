@@ -15,7 +15,8 @@
 
 import { useMemo, useState } from 'react';
 import { useChartColors } from '@/lib/hooks/useChartColors';
-import { type Expense } from '@/types/expenses';
+import { type Expense, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   BarChart,
@@ -344,22 +345,35 @@ export function ConfrontoAnnualeSection({
     const currentExp = filterByYear(currentYearLabel);
     const prevExp = filterByYear(prevYearLabel);
 
-    // Collect all categories present in either year to avoid silent omissions.
-    const categories = new Set([
-      ...currentExp.map((e) => e.categoryName),
-      ...prevExp.map((e) => e.categoryName),
-    ]);
+    // Collect all categories present in either year to avoid silent omissions —
+    // keyed by category id (name-fallback for legacy rows) so two same-named
+    // categories stay two bars (see lib/utils/expenseGrouping.ts).
+    const groupMeta = new Map<string, { name: string; qualifier: string }>();
+    for (const e of [...currentExp, ...prevExp]) {
+      const key = getCategoryKey(e);
+      if (!groupMeta.has(key)) {
+        groupMeta.set(key, { name: getCategoryName(e), qualifier: EXPENSE_TYPE_LABELS[e.type] });
+      }
+    }
 
-    const data = Array.from(categories)
-      .map((cat) => ({
-        // Truncate long labels to keep the horizontal axis readable.
-        category: cat.length > 12 ? cat.slice(0, 11) + '…' : cat,
-        current: currentExp
-          .filter((e) => e.categoryName === cat)
-          .reduce((s, e) => s + Math.abs(e.amount), 0),
-        prev: prevExp
-          .filter((e) => e.categoryName === cat)
-          .reduce((s, e) => s + Math.abs(e.amount), 0),
+    // Truncate long names to keep the horizontal axis readable; the type qualifier is
+    // appended untruncated, and only when two keys collide on the same (truncated) name.
+    const labels = resolveDisplayLabels(
+      [...groupMeta.entries()].map(([key, meta]) => ({
+        key,
+        name: meta.name.length > 12 ? meta.name.slice(0, 11) + '…' : meta.name,
+        qualifier: meta.qualifier,
+      }))
+    );
+
+    const sumFor = (list: typeof currentExp, key: string) =>
+      list.filter((e) => getCategoryKey(e) === key).reduce((s, e) => s + Math.abs(e.amount), 0);
+
+    const data = [...groupMeta.entries()]
+      .map(([key, meta]) => ({
+        category: labels.get(key) ?? meta.name,
+        current: sumFor(currentExp, key),
+        prev: sumFor(prevExp, key),
       }))
       .sort((a, b) => b.current - a.current);
 

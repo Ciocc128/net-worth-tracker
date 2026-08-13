@@ -15,7 +15,7 @@
 
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, Download, FileText, AlertTriangle, CheckCircle2, Undo2, Loader2 } from 'lucide-react';
+import { Upload, Download, FileText, AlertTriangle, CheckCircle2, Undo2, Loader2, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -199,12 +199,30 @@ export default function ExpenseImportSection({ onImported }: ExpenseImportSectio
                 <p className="text-sm font-medium">Categorie che verranno create:</p>
                 <ul className="text-sm text-muted-foreground space-y-0.5">
                   {plan.categoriesToCreate.map((c) => (
-                    <li key={c.name}>
+                    // Keyed by (type, name): two same-named categories of different
+                    // types can legitimately be created by the same import.
+                    <li key={`${c.type}::${c.name}`}>
                       • {c.name} <span className="opacity-70">({TYPE_LABELS[c.type] ?? c.type})</span>
                       {c.subCategories.length > 0 && (
                         <span className="opacity-70"> — {c.subCategories.join(', ')}</span>
                       )}
                     </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Deterministic choices the user must SEE before committing — e.g. two
+                same-named same-typed categories, rows attaching to the oldest one. */}
+            {plan.notices.length > 0 && (
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  Da sapere prima di importare:
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-0.5">
+                  {plan.notices.map((n) => (
+                    <li key={`${n.type}::${n.categoryName}`}>• {n.message}</li>
                   ))}
                 </ul>
               </div>

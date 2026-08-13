@@ -5,7 +5,7 @@
  *
  * Key Features:
  * - Dynamic field visibility based on asset type and class
- * - Intelligent defaults for isLiquid and autoUpdatePrice based on asset characteristics
+ * - Type-aware isLiquid default in create mode (suggestIsLiquid + touched-flag, like allocationRole)
  * - Price fetching: manual entry, Yahoo Finance API, or keep existing price
  * - Composition management for multi-asset portfolios (e.g., funds with multiple holdings)
  * - Inline subcategory creation without leaving the form
@@ -52,6 +52,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
+import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { scheduleNextCoupon, scheduleFinalPremium } from '@/lib/services/couponScheduling';
 import { getTargets, addSubCategory, getSettings } from '@/lib/services/assetAllocationService';
@@ -510,6 +511,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   // True once the user has picked an allocation role by hand — from then on the type/sub-category
   // driven suggestion stops overriding their choice.
   const [allocationRoleTouched, setAllocationRoleTouched] = useState(false);
+  const [isLiquidTouched, setIsLiquidTouched] = useState(false);
   const [showCostBasis, setShowCostBasis] = useState(false);
   const [showTER, setShowTER] = useState(false);
   const [showBondDetails, setShowBondDetails] = useState(false);
@@ -598,12 +600,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const priceSource = selectedType === 'bond' && selectedAssetClass === 'bonds'
     ? 'Borsa Italiana'
     : 'Yahoo Finance';
-  // NOTE: there is no type-driven "intelligent default" for `isLiquid`/`autoUpdatePrice`. The
-  // effect that tried to derive them was unreachable (both fields are seeded to `true` by
-  // `defaultValues` and by the create-branch reset, so its `=== undefined` guards never fired) and
-  // was removed in the 2026-07-28 dead-code audit. `autoUpdatePrice` is clamped at the boundary
-  // instead — see `buildAssetFormDataFromValues`. `isLiquid` has no such clamp: it stays whatever
-  // the always-visible switch says.
+  // `autoUpdatePrice` has no type-driven default: it is clamped at the boundary instead — see
+  // `buildAssetFormDataFromValues`. `isLiquid` gets a create-mode suggestion below (touched-flag
+  // pattern, same as allocationRole); what the switch says at submit is persisted as-is.
 
   // Suggest an allocation role for the two archetypal untouchable holdings, each getting the role
   // that actually fits it: a property is `excluded` (it is not an investment), private equity is
@@ -630,6 +629,18 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     watchAllocationRole,
     setValue,
   ]);
+
+  // Same touched-flag pattern for liquidity: a property, a pension fund or a Private
+  // Equity position created without touching the switch must NOT enter liquid net worth.
+  // FORM default only — visible on the switch before saving, steering stops at the first
+  // manual toggle, and no existing asset changes without the user asking (edit is out).
+  useEffect(() => {
+    if (isEdit || isLiquidTouched) return;
+    const suggested = suggestIsLiquid(selectedType, selectedSubCategory);
+    if (watchIsLiquid !== suggested) {
+      setValue('isLiquid', suggested);
+    }
+  }, [isEdit, isLiquidTouched, selectedType, selectedSubCategory, watchIsLiquid, setValue]);
 
   // Auto-activate bond detail toggles for new bond assets
   // When type=bond and assetClass=bonds, automatically open the bond details and cost basis sections
@@ -674,12 +685,14 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     if (!open) return;
     setStep(asset ? 2 : 1);
     setAllocationRoleTouched(false);
+    setIsLiquidTouched(false);
 
     if (asset) {
-      // Determine default for isLiquid if not set
+      // Legacy fallback for documents saved before `isLiquid` existed — the same
+      // predicate as the create-mode suggestion and calculateLiquidNetWorth.
       const defaultIsLiquid = asset.isLiquid !== undefined
         ? asset.isLiquid
-        : (asset.assetClass !== 'realestate' && asset.subCategory !== 'Private Equity' && asset.type !== 'pensionFund');
+        : suggestIsLiquid(asset.type, asset.subCategory);
 
       reset({
         ticker: asset.ticker,
@@ -1236,8 +1249,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               a money-market ETF (e.g. XEON) are all `type: 'etf'`, and only the class tells them
               apart — that ambiguity doesn't exist for stock/bond/crypto/etc, so they don't get a
               picker. Defaults to 'equity' (set by `handleTypeSelect` in step 1), editable here
-              before the class-keyed defaults below (isLiquid/autoUpdatePrice/allocationRole) fire
-              off `selectedAssetClass`. Trend Following/Carry have no dedicated color/target yet in
+              before the suggestion effects below fire (allocationRole off `selectedAssetClass`,
+              isLiquid off type/subCategory). Trend Following/Carry have no dedicated color/target yet in
               Impostazioni (AGENTS.md → Leva L0) — offered anyway since they exist for leveraged ETFs. */}
           {!isEdit && selectedType === 'etf' && (
             <div className="space-y-2">
@@ -1736,7 +1749,11 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               <Switch
                 id="isLiquid"
                 checked={watchIsLiquid}
-                onCheckedChange={(checked) => setValue('isLiquid', checked)}
+                onCheckedChange={(checked) => {
+                  // A manual toggle ends the type-aware steering for this dialog session.
+                  setIsLiquidTouched(true);
+                  setValue('isLiquid', checked);
+                }}
               />
             </div>
           </div>
@@ -1755,12 +1772,22 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             <Select
               value={watchAllocationRole ?? 'tradable'}
               onValueChange={(value) => {
+                // Radix fires onValueChange('') when the controlled value is set while
+                // the content is unmounted (no item to match — its "selected item
+                // removed" cleanup). A real user pick is never empty: ignoring the
+                // callback keeps the suggested role AND leaves the touched-flag armed.
+                if (!value) return;
                 setAllocationRoleTouched(true);
                 setValue('allocationRole', value as AllocationRole);
               }}
             >
               <SelectTrigger id="allocationRole">
-                <SelectValue />
+                {/* Explicit children: the suggestion effect writes this value while the
+                    content is unmounted, and Radix's SelectValue has no item text to map
+                    it to — it rendered an empty trigger for every suggested role. */}
+                <SelectValue>
+                  {ALLOCATION_ROLE_OPTIONS.find((o) => o.value === (watchAllocationRole ?? 'tradable'))?.label}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {ALLOCATION_ROLE_OPTIONS.map((option) => (

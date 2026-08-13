@@ -74,8 +74,11 @@ export interface MonthlyEmailData {
   assetClassPerformers: AssetClassPerformers;
   totalIncome: number;
   totalExpenses: number; // always positive (raw amounts are negative)
-  topExpenseCategories: Array<{ name: string; amount: number }>; // all expense categories sorted desc
-  allIncomeCategories: Array<{ name: string; amount: number }>; // all income categories sorted desc
+  // Category identity travels as `key` (categoryId, name-fallback for legacy rows):
+  // two same-named categories are two distinct entries, and cross-period lookups in
+  // the comparison builder match by key, never by the display name.
+  topExpenseCategories: Array<{ key: string; name: string; amount: number }>; // all expense categories sorted desc
+  allIncomeCategories: Array<{ key: string; name: string; amount: number }>; // all income categories sorted desc
   topIndividualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top transactions (5, or 10 for yearly)
   topIndividualIncome: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top income transactions (used only in the yearly report)
   expensesByType: Array<{ type: ExpenseType; label: string; amount: number }>; // Fisse/Variabili/Debiti, sorted desc
@@ -686,10 +689,11 @@ export function computeAssetClassPerformers(
 // ─── Expense / dividend aggregation (pure helpers) ───────────────────────────
 
 export interface CashflowAggregation {
+  // Category lists carry `key` (categoryId, name-fallback) — see MonthlyEmailData.
   totalIncome: number;
   totalExpenses: number;
-  topExpenseCategories: Array<{ name: string; amount: number }>;
-  allIncomeCategories: Array<{ name: string; amount: number }>;
+  topExpenseCategories: Array<{ key: string; name: string; amount: number }>;
+  allIncomeCategories: Array<{ key: string; name: string; amount: number }>;
   topIndividualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>;
   topIndividualIncome: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>;
   expensesByType: Array<{ type: ExpenseType; label: string; amount: number }>;
@@ -738,8 +742,8 @@ export function aggregateExpenses(
     };
     const { amount } = data;
 
-    const key = data.categoryId ?? data.categoryName ?? 'Altro';
-    const categoryName = data.categoryName ?? 'Altro';
+    const key = data.categoryId?.trim() || data.categoryName?.trim() || 'Altro';
+    const categoryName = data.categoryName?.trim() || 'Altro';
     // Notes carry the human description; fall back to the category name.
     const description = data.notes?.trim() || categoryName;
 
@@ -787,11 +791,15 @@ export function aggregateExpenses(
     }
   }
 
-  // All categories sorted desc — no cap; callers display the full list
-  const topExpenseCategories = Object.values(expenseCategoryTotals)
+  // All categories sorted desc — no cap; callers display the full list.
+  // The id-based key travels with each entry so downstream cross-period lookups
+  // (emailPeriodComparison) never fall back to the collision-prone display name.
+  const topExpenseCategories = Object.entries(expenseCategoryTotals)
+    .map(([key, totals]) => ({ key, ...totals }))
     .sort((a, b) => b.amount - a.amount);
 
-  const allIncomeCategories = Object.values(incomeCategoryTotals)
+  const allIncomeCategories = Object.entries(incomeCategoryTotals)
+    .map(([key, totals]) => ({ key, ...totals }))
     .sort((a, b) => b.amount - a.amount);
 
   const topIndividualExpenses = individualExpenses

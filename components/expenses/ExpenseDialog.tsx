@@ -6,8 +6,8 @@
  * Single-step form for creating and editing cashflow entries.
  *
  * Layout:
- *   - Type selector (Select dropdown; in edit mode a transfer stays a locked Badge —
- *     see EDITABLE_TYPE_OPTIONS for why that one conversion is not offered)
+ *   - Type selector (Select dropdown; all five types are selectable in edit mode too —
+ *     onSubmit reconciles balances from BOTH the old and the new type's shape)
  *   - Primary fields: Importo + Data, Categoria, Sottocategoria, Note, Conto Collegato
  *   - "Impostazioni avanzate" Collapsible: Centro di Costo, Link, Acquisto Rateale, Ricorrenza Mensile
  *
@@ -41,6 +41,8 @@ import {
   reconcileTransferCreate,
   reconcileSingleEdit,
   reconcileSingleCreate,
+  reconcileTransferToSingleEdit,
+  reconcileSingleToTransferEdit,
 } from '@/lib/services/cashBalanceReconciliation';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { getAllCategories, ensureTransferCategory } from '@/lib/services/expenseCategoryService';
@@ -161,18 +163,6 @@ const TYPE_OPTIONS: TypeOption[] = [
     icon: <ArrowLeftRight className="h-3.5 w-3.5" />,
   },
 ];
-
-/**
- * A transfer is the one type an existing row cannot be converted to or from.
- *
- * It is the only type that touches TWO cash accounts, and the balance reconciliation in
- * handleFormSubmit picks its branch from the NEW type alone: converting a transfer away
- * would reverse the origin but leave the destination credited, and converting an income
- * INTO one would re-credit an account that was already credited. Both are silent balance
- * corruption, so the conversion is not offered until that reconciliation understands the
- * old shape as well as the new one.
- */
-const EDITABLE_TYPE_OPTIONS = TYPE_OPTIONS.filter((option) => option.value !== 'transfer');
 
 function isAdvancedPrePopulated(expense: Expense | null | undefined): boolean {
   if (!expense) return false;
@@ -303,52 +293,43 @@ function ExpenseFormBody({
       {/* ---- Tipo di voce ---- */}
       <div className="space-y-2">
         <Label htmlFor="type">Tipo di voce</Label>
-        {isEdit && expense!.type === 'transfer' ? (
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs font-normal h-9 px-3">
-              {EXPENSE_TYPE_LABELS.transfer}
-            </Badge>
-            <p className="text-xs text-muted-foreground">Non modificabile</p>
-          </div>
-        ) : (
-          <Controller
-            control={control}
-            name="type"
-            render={({ field }) => (
-              <Select
-                value={field.value}
-                onValueChange={(value: ExpenseType) => {
-                  field.onChange(value);
-                  onTypeChange(value);
-                  if (value !== 'debt') {
-                    setValue('isRecurring', false);
-                  }
-                }}
-              >
-                <SelectTrigger id="type" aria-label="Tipo di voce da registrare">
-                  <span className={cn(!field.value && 'text-muted-foreground')}>
-                    {field.value
-                      ? EXPENSE_TYPE_LABELS[field.value as ExpenseType]
-                      : 'Seleziona tipo'}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {(isEdit ? EDITABLE_TYPE_OPTIONS : TYPE_OPTIONS).map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <div className="flex flex-col gap-0.5 py-0.5">
-                        <span className="font-medium flex items-center gap-1.5">
-                          {option.icon}
-                          {option.label}
-                        </span>
-                        <span className="text-xs text-muted-foreground font-normal">{option.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        )}
+        <Controller
+          control={control}
+          name="type"
+          render={({ field }) => (
+            <Select
+              value={field.value}
+              onValueChange={(value: ExpenseType) => {
+                field.onChange(value);
+                onTypeChange(value);
+                if (value !== 'debt') {
+                  setValue('isRecurring', false);
+                }
+              }}
+            >
+              <SelectTrigger id="type" aria-label="Tipo di voce da registrare">
+                <span className={cn(!field.value && 'text-muted-foreground')}>
+                  {field.value
+                    ? EXPENSE_TYPE_LABELS[field.value as ExpenseType]
+                    : 'Seleziona tipo'}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex flex-col gap-0.5 py-0.5">
+                      <span className="font-medium flex items-center gap-1.5">
+                        {option.icon}
+                        {option.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-normal">{option.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
         {typeChangeNotice && (
           <p className="text-xs text-amber-600 dark:text-amber-400">{typeChangeNotice}</p>
         )}
@@ -975,9 +956,16 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
 
   // Auto-set transfer category when type changes to 'transfer'.
   // Guard with a ref to avoid re-fetching if the user toggles type back and forth.
+  // Runs in edit mode too (a row re-typed INTO a transfer needs a transfer category),
+  // but never overrides a transfer category already in place — whether the row's own
+  // (transfer → transfer edits) or one the user picked by hand.
   const transferCategoryIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (selectedType === 'transfer' && user && ownerId && open && !isEdit) {
+    if (selectedType === 'transfer' && user && ownerId && open) {
+      const currentCategoryId = getValues('categoryId');
+      if (categories.some((c) => c.id === currentCategoryId && c.type === 'transfer')) {
+        return;
+      }
       if (transferCategoryIdRef.current) {
         // Already fetched in this dialog session — reuse cached ID
         setValue('categoryId', transferCategoryIdRef.current);
@@ -997,7 +985,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         loadCategories();
       }).catch(console.error);
     }
-  }, [selectedType, user, open, isEdit, setValue, categories]);
+  }, [selectedType, user, open, getValues, setValue, categories]);
 
   const loadCategories = async () => {
     if (!user || !ownerId) return;
@@ -1245,7 +1233,14 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
 
         // Reconcile cash balances BEFORE confirming success — a failed transaction
         // must not show a success toast while balances are left inconsistent.
-        if (data.type === 'transfer') {
+        // The branch is chosen from BOTH the old and the new type: a transfer touches
+        // two accounts, so crossing that boundary needs the cross-shape reconcilers.
+        const wasTransfer = expense.type === 'transfer';
+        const isTransfer = data.type === 'transfer';
+        const newSignedAmount =
+          data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount);
+
+        if (wasTransfer && isTransfer) {
           assetUpdated = await reconcileTransferEdit({
             oldOriginId: expense.linkedCashAssetId,
             oldDestId: expense.transferCashAssetId,
@@ -1254,12 +1249,28 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
             oldAmount: Math.abs(expense.amount),
             newAmount: Math.abs(data.amount),
           });
+        } else if (wasTransfer) {
+          assetUpdated = await reconcileTransferToSingleEdit({
+            oldOriginId: expense.linkedCashAssetId,
+            oldDestId: expense.transferCashAssetId,
+            oldAmount: Math.abs(expense.amount),
+            newLinkedAssetId: linkedCashAssetId,
+            newSignedAmount,
+          });
+        } else if (isTransfer) {
+          assetUpdated = await reconcileSingleToTransferEdit({
+            oldLinkedAssetId: expense.linkedCashAssetId,
+            oldSignedAmount: expense.amount,
+            newOriginId: linkedCashAssetId,
+            newDestId: transferCashAssetId,
+            newAmount: Math.abs(data.amount),
+          });
         } else {
           assetUpdated = await reconcileSingleEdit({
             oldLinkedAssetId: expense.linkedCashAssetId,
             newLinkedAssetId: linkedCashAssetId,
             oldSignedAmount: expense.amount,
-            newSignedAmount: data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount),
+            newSignedAmount,
           });
         }
 
@@ -1392,21 +1403,37 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   /**
    * What the reader needs to know before saving a type change, and nothing more.
    *
-   * Crossing the income boundary is the loud one — the amount changes sign and the
-   * linked account is corrected by twice the figure. The budget note is unconditional
-   * because a type-scoped budget silently gains or loses this row with no other signal.
-   * The series note only appears when the row actually belongs to one.
+   * Crossing a balance boundary is the loud part: leaving or entering the transfer
+   * type re-shapes which accounts move, while crossing the income line flips the
+   * sign and corrects the linked account by twice the figure. The budget note tells
+   * the user which totals silently gain or lose this row. The series note only
+   * appears when the row actually belongs to one.
    */
   const typeChangeNotice = useMemo(() => {
     if (!expense || selectedType === expense.type) return null;
 
+    const wasTransfer = expense.type === 'transfer';
+    const isTransfer = selectedType === 'transfer';
+
     const notices: string[] = [];
-    if ((expense.type === 'income') !== (selectedType === 'income')) {
+    if (wasTransfer && !isTransfer) {
       notices.push(
-        `L'importo cambierà segno (da ${EXPENSE_TYPE_LABELS[expense.type]} a ${EXPENSE_TYPE_LABELS[selectedType]}) e il saldo del conto collegato verrà corretto.`
+        'Era un trasferimento: il movimento verrà stornato da entrambi i conti e il nuovo importo applicato al conto selezionato.'
       );
+      notices.push('La voce entrerà nei totali di spesa/entrata e nei budget per tipo, se configurati.');
+    } else if (!wasTransfer && isTransfer) {
+      notices.push(
+        "Diventerà un trasferimento: l'effetto sul conto attuale verrà stornato e verranno aggiornati i saldi di origine e destinazione."
+      );
+      notices.push('I trasferimenti non rientrano nei totali di spesa/entrata né nei budget.');
+    } else {
+      if ((expense.type === 'income') !== (selectedType === 'income')) {
+        notices.push(
+          `L'importo cambierà segno (da ${EXPENSE_TYPE_LABELS[expense.type]} a ${EXPENSE_TYPE_LABELS[selectedType]}) e il saldo del conto collegato verrà corretto.`
+        );
+      }
+      notices.push('La voce passerà sotto un altro budget per tipo, se ne hai configurati.');
     }
-    notices.push('La voce passerà sotto un altro budget per tipo, se ne hai configurati.');
     if (expense.recurringParentId || expense.installmentParentId) {
       notices.push('Fa parte di una serie: il cambio riguarda solo questa voce.');
     }

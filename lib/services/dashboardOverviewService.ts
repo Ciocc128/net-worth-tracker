@@ -4,7 +4,8 @@ import { fromZonedTime } from 'date-fns-tz';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
 import { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
-import { Expense } from '@/types/expenses';
+import { Expense, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import { GoalAssetAssignment, GoalBasedInvestingData, InvestmentGoal } from '@/types/goals';
 import {
   DashboardOverviewPayload,
@@ -187,32 +188,50 @@ async function getExpensesForMonth(userId: string, year: number, month: number):
   }) as Expense[];
 }
 
+interface CategoryTotal {
+  name: string;
+  // Type label, appended to the name only when two same-named categories collide on screen.
+  qualifier: string;
+  amount: number;
+}
+
 interface ExpenseSummary {
   income: number;
   expenses: number;
   net: number;
-  // Aggregated totals per category name (denormalized on Expense docs).
-  incomeByCategory: Map<string, number>;
-  expensesByCategory: Map<string, number>;
+  // Aggregated totals per category KEY (id, name-fallback — see getCategoryKey):
+  // two same-named categories stay two buckets.
+  incomeByCategory: Map<string, CategoryTotal>;
+  expensesByCategory: Map<string, CategoryTotal>;
 }
 
 function summarizeExpenses(expenses: Expense[]): ExpenseSummary {
   let income = 0;
   let totalExpenses = 0;
-  const incomeByCategory = new Map<string, number>();
-  const expensesByCategory = new Map<string, number>();
+  const incomeByCategory = new Map<string, CategoryTotal>();
+  const expensesByCategory = new Map<string, CategoryTotal>();
+
+  const add = (map: Map<string, CategoryTotal>, expense: Expense, amount: number) => {
+    const key = getCategoryKey(expense);
+    const entry = map.get(key) ?? {
+      name: getCategoryName(expense),
+      qualifier: EXPENSE_TYPE_LABELS[expense.type],
+      amount: 0,
+    };
+    entry.amount += amount;
+    map.set(key, entry);
+  };
 
   for (const expense of expenses) {
-    const category = expense.categoryName ?? 'Altro';
     // Transfers are net-zero — skip entirely
     if (expense.type === 'transfer') continue;
     if (expense.type === 'income') {
       income += expense.amount;
-      incomeByCategory.set(category, (incomeByCategory.get(category) ?? 0) + expense.amount);
+      add(incomeByCategory, expense, expense.amount);
     } else {
       const abs = Math.abs(expense.amount);
       totalExpenses += abs;
-      expensesByCategory.set(category, (expensesByCategory.get(category) ?? 0) + abs);
+      add(expensesByCategory, expense, abs);
     }
   }
 
@@ -225,20 +244,27 @@ function summarizeExpenses(expenses: Expense[]): ExpenseSummary {
   };
 }
 
-// Build a sorted top-5 category list from a category→amount map.
+// Build a sorted top-5 category list from a key→totals map. Labels are resolved over
+// the rendered slice: a name shared by two keys in the top list gets its type qualifier.
 function buildTopCategories(
-  categoryMap: Map<string, number>,
+  categoryMap: Map<string, CategoryTotal>,
   total: number,
   limit = 5
 ): DashboardOverviewCategoryAmount[] {
-  return [...categoryMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([category, amount]) => ({
-      category,
-      amount,
-      percentage: total > 0 ? (amount / total) * 100 : 0,
-    }));
+  const top = [...categoryMap.entries()]
+    .sort((a, b) => b[1].amount - a[1].amount)
+    .slice(0, limit);
+
+  const labels = resolveDisplayLabels(
+    top.map(([key, totals]) => ({ key, name: totals.name, qualifier: totals.qualifier }))
+  );
+
+  return top.map(([key, totals]) => ({
+    category: labels.get(key) ?? totals.name,
+    categoryKey: key,
+    amount: totals.amount,
+    percentage: total > 0 ? (totals.amount / total) * 100 : 0,
+  }));
 }
 
 function buildExpenseStats(

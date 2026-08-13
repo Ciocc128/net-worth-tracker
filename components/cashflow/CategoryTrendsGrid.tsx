@@ -17,7 +17,8 @@
 
 import { useMemo, useState } from 'react';
 import { useChartColors } from '@/lib/hooks/useChartColors';
-import { Expense } from '@/types/expenses';
+import { Expense, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
@@ -40,6 +41,9 @@ import { cn } from '@/lib/utils';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface CategoryTrendData {
+  /** Category id (name-fallback for legacy rows) — the card's identity. */
+  key: string;
+  /** Display label; carries a type qualifier when two categories share a name. */
   name: string;
   /** Sum of absolute expense amounts over the window */
   total: number;
@@ -317,17 +321,27 @@ export function CategoryTrendsGrid({
       return months.some(mo => mo.year === ey && mo.month === em);
     });
 
-    // Group categories from the window
-    const categories = new Set(windowExpenses.map(e => e.categoryName));
+    // Group categories from the window — keyed by category id (name-fallback for
+    // legacy rows), so two same-named categories are two cards, never one merged
+    // trend (see lib/utils/expenseGrouping.ts).
+    const byKey = new Map<string, { name: string; qualifier: string; expenses: Expense[] }>();
+    for (const e of windowExpenses) {
+      const key = getCategoryKey(e);
+      const entry = byKey.get(key) ?? {
+        name: getCategoryName(e),
+        qualifier: EXPENSE_TYPE_LABELS[e.type],
+        expenses: [],
+      };
+      entry.expenses.push(e);
+      byKey.set(key, entry);
+    }
 
-    const result: CategoryTrendData[] = [];
+    const kept: Array<CategoryTrendData & { qualifier: string }> = [];
 
-    categories.forEach(catName => {
-      const catExpenses = windowExpenses.filter(e => e.categoryName === catName);
-
+    byKey.forEach((cat, key) => {
       const monthlyData = months.map(mo => ({
         label: mo.label,
-        amount: catExpenses
+        amount: cat.expenses
           .filter(e => {
             const d = toDate(e.date);
             return getItalyYear(d) === mo.year && getItalyMonth(d) === mo.month;
@@ -341,11 +355,19 @@ export function CategoryTrendsGrid({
       if (monthsWithData < 3) return;
 
       const total = monthlyData.reduce((s, d) => s + d.amount, 0);
-      result.push({ name: catName, total, monthlyData, monthsWithData });
+      kept.push({ key, name: cat.name, qualifier: cat.qualifier, total, monthlyData, monthsWithData });
     });
 
+    // A name shared by two rendered keys gets its type qualifier appended
+    // ("Casa (Spese Fisse)"); a lone name stays bare.
+    const labels = resolveDisplayLabels(
+      kept.map(({ key, name, qualifier }) => ({ key, name, qualifier }))
+    );
+
     // Highest total first — users care most about where money goes
-    return result.sort((a, b) => b.total - a.total);
+    return kept
+      .map(({ qualifier: _qualifier, ...cat }) => ({ ...cat, name: labels.get(cat.key) ?? cat.name }))
+      .sort((a, b) => b.total - a.total);
   }, [allExpenses, historyStartYear, monthsToShow, scopeYear]);
 
   const emptyState = (
@@ -379,13 +401,13 @@ export function CategoryTrendsGrid({
         <div className="grid grid-cols-1 sm:grid-cols-2 desktop:grid-cols-3 gap-3">
           {categoryData.map((cat, index) => (
             <CategoryTrendCard
-              key={cat.name}
+              key={cat.key}
               category={cat}
               colorIndex={index}
               colors={chartColors}
-              isExpanded={expandedCategory === cat.name}
+              isExpanded={expandedCategory === cat.key}
               onToggle={() =>
-                setExpandedCategory(expandedCategory === cat.name ? null : cat.name)
+                setExpandedCategory(expandedCategory === cat.key ? null : cat.key)
               }
             />
           ))}
