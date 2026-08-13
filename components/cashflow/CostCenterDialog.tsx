@@ -128,7 +128,13 @@ export function CostCenterDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      {/* max-h here, scroll on the BODY below — not on this element. The dialog is vertically
+          centred and had no scroll container at all, so on a short viewport (a phone in
+          landscape, a desktop window at ~500px) the form grew past the screen and Annulla/Crea
+          became unreachable: the cancel path itself. Scrolling DialogContent would have fixed
+          that and broken something else, because its close button is `absolute top-4 right-4`
+          and would have scrolled away with the content. */}
+      <DialogContent className="sm:max-w-md max-h-[85dvh]">
         <DialogHeader>
           <DialogTitle>
             {costCenter ? 'Modifica centro di costo' : 'Nuovo centro di costo'}
@@ -140,7 +146,8 @@ export function CostCenterDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        {/* min-h-0 is what lets a grid child actually shrink below its content height. */}
+        <div className="min-h-0 space-y-4 overflow-y-auto py-2">
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="ccName">Nome *</Label>
@@ -178,18 +185,29 @@ export function CostCenterDialog({
                 <button
                   key={key}
                   type="button"
+                  // 44×44 hit area around a 32px swatch: the target meets 2.5.5 without the
+                  // dots growing into each other and losing the palette's compactness.
                   className={cn(
-                    'h-8 w-8 rounded-full border-2 transition-transform duration-100 motion-reduce:transition-none',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                    color === key
-                      ? 'border-foreground scale-110'
-                      : 'border-transparent hover:scale-105'
+                    'group grid h-11 w-11 place-items-center rounded-full',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                   )}
-                  style={{ backgroundColor: resolveCostCenterColor(key, key, chartColors) }}
                   onClick={() => setColor(key)}
                   aria-label={`${colorLabel(i)}${color === key ? ' (selezionato)' : ''}`}
                   aria-pressed={color === key}
-                />
+                >
+                  <span
+                    className={cn(
+                      // group-hover, not hover: the 6px ring that makes the target 44px is
+                      // part of the button, so pointing at it must give the same feedback as
+                      // pointing at the dot.
+                      'block h-8 w-8 rounded-full border-2 transition-transform duration-100 motion-reduce:transition-none',
+                      color === key
+                        ? 'border-foreground scale-110'
+                        : 'border-transparent group-hover:scale-105'
+                    )}
+                    style={{ backgroundColor: resolveCostCenterColor(key, key, chartColors) }}
+                  />
+                </button>
               ))}
             </div>
           </div>

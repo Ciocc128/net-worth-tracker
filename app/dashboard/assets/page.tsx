@@ -596,7 +596,9 @@ export default function AssetsPage() {
                               {
                                 label: 'Tasse Stimate',
                                 value: overview.metrics.estimatedTaxes,
-                                className: 'text-[var(--chart-3)]',
+                                // --warning-foreground, not --chart-3: a chart slot is not a
+                                // text colour and is unconstrained per theme (1.02:1 on one).
+                                className: 'text-[var(--warning-foreground)]',
                                 prefix: '',
                               },
                               {

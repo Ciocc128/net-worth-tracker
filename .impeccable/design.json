@@ -217,7 +217,7 @@
       "destructive": {
         "role": "primary",
         "displayName": "Destructive Flame",
-        "canonical": "oklch(0.5771 0.2152 27.325)",
+        "canonical": "oklch(0.577 0.245 27.325)",
         "tonalRamp": [
           "oklch(0.19 0.07 27)",
           "oklch(0.28 0.11 27)",
@@ -232,7 +232,7 @@
       "positive": {
         "role": "secondary",
         "displayName": "Positive Token",
-        "canonical": "oklch(0.627 0.194 149.214)",
+        "canonical": "oklch(0.482 0.194 149.214)",
         "tonalRamp": [
           "oklch(0.18 0.06 149)",
           "oklch(0.27 0.09 149)",
@@ -383,7 +383,7 @@
       "refersTo": "card-default",
       "description": "The Trade Republic hierarchy in one block: eyebrow label, one commanding mono number, sign-aware variation chips laid out as equal-width grid columns, then tertiary metadata.",
       "html": "<div class=\"ds-dominant\"><p class=\"ds-dominant-eyebrow\">Patrimonio Totale Lordo</p><p class=\"ds-dominant-value\">283.412,60 &euro;</p><div class=\"ds-dominant-chips\"><span class=\"ds-chip-positive\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 2 17\"/><polyline points=\"16 7 22 7 22 13\"/></svg>+4.812,00 &euro; (+1,73%) questo mese</span><span class=\"ds-chip-positive\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 2 17\"/><polyline points=\"16 7 22 7 22 13\"/></svg>+21.004,10 &euro; (+8,00%) YTD</span></div><p class=\"ds-dominant-meta\">18 asset in portafoglio</p></div>",
-      "css": ".ds-dominant { background: var(--card, oklch(0.205 0 0)); color: var(--card-foreground, oklch(0.985 0 0)); border: 1px solid var(--border, oklch(1 0 0 / 10%)); border-radius: 16px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); } .ds-dominant-eyebrow { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 8px; } .ds-dominant-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 44px; font-weight: 700; letter-spacing: -0.03em; margin: 0; } .ds-dominant-chips { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px; } .ds-chip-positive { display: inline-flex; align-items: center; gap: 8px; background: color-mix(in oklch, var(--positive, oklch(0.627 0.194 149.214)) 10%, transparent); color: var(--positive, oklch(0.627 0.194 149.214)); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; border-radius: 9px; padding: 6px 13px; } .ds-dominant-meta { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 11px; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 12px 0 0; } @media (min-width: 768px) { .ds-dominant-chips { grid-template-columns: 1fr 1fr; } } @media (min-width: 1440px) { .ds-dominant-value { font-size: 54px; } }"
+      "css": ".ds-dominant { background: var(--card, oklch(0.205 0 0)); color: var(--card-foreground, oklch(0.985 0 0)); border: 1px solid var(--border, oklch(1 0 0 / 10%)); border-radius: 16px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); } .ds-dominant-eyebrow { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 8px; } .ds-dominant-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 44px; font-weight: 700; letter-spacing: -0.03em; margin: 0; } .ds-dominant-chips { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px; } .ds-chip-positive { display: inline-flex; align-items: center; gap: 8px; background: color-mix(in oklch, var(--positive, oklch(0.482 0.194 149.214)) 10%, transparent); color: var(--positive, oklch(0.482 0.194 149.214)); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; border-radius: 9px; padding: 6px 13px; } .ds-dominant-meta { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 11px; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 12px 0 0; } @media (min-width: 768px) { .ds-dominant-chips { grid-template-columns: 1fr 1fr; } } @media (min-width: 1440px) { .ds-dominant-value { font-size: 54px; } }"
     },
     {
       "name": "Data Card",
@@ -399,7 +399,7 @@
       "refersTo": "card-default",
       "description": "A KPI chip inside a card. bg-muted/40 with NO border - repeating the card background would be a card-within-card violation. Sub-hero value plus a sign-aware delta annotation.",
       "html": "<div class=\"ds-subtile\"><p class=\"ds-subtile-label\">Risparmio</p><p class=\"ds-subtile-value\">1.240,00 &euro;</p><p class=\"ds-subtile-delta\">+5,2% vs mese scorso</p></div>",
-      "css": ".ds-subtile { background: color-mix(in oklch, var(--muted, oklch(0.269 0 0)) 40%, transparent); border-radius: 14px; padding: 14px; } .ds-subtile-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 6px; } .ds-subtile-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 22px; font-weight: 700; letter-spacing: -0.025em; line-height: 1; margin: 0; } .ds-subtile-delta { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--positive, oklch(0.627 0.194 149.214)); margin: 6px 0 0; }"
+      "css": ".ds-subtile { background: color-mix(in oklch, var(--muted, oklch(0.269 0 0)) 40%, transparent); border-radius: 14px; padding: 14px; } .ds-subtile-label { font-family: 'Geist Sans', system-ui, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground, oklch(0.708 0 0)); margin: 0 0 6px; } .ds-subtile-value { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; font-size: 22px; font-weight: 700; letter-spacing: -0.025em; line-height: 1; margin: 0; } .ds-subtile-delta { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--positive, oklch(0.482 0.194 149.214)); margin: 6px 0 0; }"
     },
     {
       "name": "Flat List Row",
@@ -505,6 +505,11 @@
         "name": "The Float Threshold",
         "body": "The Float shadow is reserved for elements that physically exit the document flow. Using it on an in-flow card creates false depth hierarchy and is an error.",
         "section": "elevation"
+      },
+      {
+        "name": "The Equal-Column Chip Rule",
+        "body": "A row of same-purpose chips whose labels are different lengths is laid out as a grid — `grid grid-cols-1 gap-2 tablet:grid-cols-2` — never `flex-wrap`. Chips that say the same *kind* of thing should be the same size; under `flex-wrap` each one shrinks to its own content, so \"questo mese\" and \"da inizio anno\" end up different widths and a wrapped third chip lands at a width unrelated to the two above it. Grid columns size together across every row, so a lone third chip still matches the first column — the alignment is a consequence of the layout, with no JS measurement and no fixed width. One column on mobile (each chip takes the full card width), two from `tablet:` up. `flex-wrap` remains correct where chips are genuinely heterogeneous and are meant to flow, such as filter tags.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -526,6 +531,7 @@
       "**Do** use `bg-muted/40 rounded-xl p-3.5` (no border) for KPI chip grids inside persistent, always-visible sections. Reserve the full-opacity `bg-muted` with `border border-border` for parameter tiles in collapsible zones.",
       "**Do** use `mt-auto` inside `flex flex-col h-full` CardContent to pin optional secondary content to the card bottom. The pattern requires `h-full` on both Card and CardContent; without both, `mt-auto` has no space to push against.",
       "**Do** use `rounded-[2px]` for chart legend color swatches (color keys). Use `rounded-full` for inline dot indicators (row bullets, status dots). The distinction is semantic: square = color key, circle = inline marker.",
+      "**Do** lay out a row of same-purpose, different-length chips as a grid (`grid grid-cols-1 gap-2 tablet:grid-cols-2`), not `flex-wrap`, so every chip shares the same column width without any JS measurement — see **The Equal-Column Chip Rule**. Applied to the variation chips on the Panoramica and Patrimonio heroes, which are declared to mirror each other.",
       "**Do** duplicate responsive blocks with `desktop:hidden` / `hidden desktop:grid` when the same data must be positioned differently across breakpoints (e.g. TER + cost metrics in the hero card footer on desktop, as standalone cards below the hero on mobile). Redundant DOM is preferable to a convoluted single implementation that degrades at both sizes.",
       "**Do** use inverted sign semantics (parameterized `positiveGood: boolean`) for expense delta annotations. A positive Spese delta means spending increased — the color should be `text-destructive`, opposite to the income logic. Never hardcode positive-as-green (raw `text-green-*`) in components that handle both income and expense metrics; use the `text-positive` / `text-destructive` tokens so the sign colors follow the theme."
     ],

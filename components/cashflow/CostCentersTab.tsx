@@ -26,7 +26,7 @@
  * with no visible control to reconcile them.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
@@ -51,7 +51,6 @@ import {
 import { resolveCostCenterColor } from '@/lib/utils/costCenterColors';
 import { formatCurrency, cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Collapsible,
   CollapsibleContent,
@@ -96,6 +95,14 @@ const PERIOD_OPTIONS: { value: CostCenterPeriod; label: string }[] = [
   { value: 'all', label: 'Sempre' },
 ];
 
+// Inline form of the axis, for sentences that must name the window they measure.
+const SHARE_PERIOD_LABEL: Record<CostCenterPeriod, string> = {
+  month: 'del mese',
+  year: 'dell’anno',
+  rolling12: 'dei 12 mesi',
+  all: 'di sempre',
+};
+
 // A center plus everything derived for the current period — assembled once and reused
 // by the hero, the ranked list and the comparison overlay.
 interface CenterRow {
@@ -104,8 +111,11 @@ interface CenterRow {
   totalSpent: number;
   transactionCount: number;
   lifecycle: ReturnType<typeof getLifecycleStatus>;
+  /** Unscoped, so the row can tell "never used" from "idle for 90 days". */
+  lastActivityDate: Date | null;
   budgetRatio: number | null;
   budgetStatus: 'ok' | 'warning' | 'over' | null;
+  budgetPeriod: 'monthly' | 'annual' | null;
 }
 
 export function CostCentersTab() {
@@ -119,9 +129,12 @@ export function CostCentersTab() {
   // so switching period is instant and needs no refetch.
   const { data, isLoading: loading, isError } = useQuery({
     queryKey: queryKeys.costCenters.all(ownerId ?? ''),
-    enabled: !!user,
+    // Reads the OWNER's data, not the viewer's. On a shared account these differ, and the
+    // query used to fetch `user.uid` while keying and mutating on `ownerId` — so a guest
+    // saw their own centers under the owner's cache key and deleted against the owner's.
+    enabled: !!user && !!ownerId,
     queryFn: async () => {
-      const userId = user!.uid;
+      const userId = ownerId!;
       const centers = await getCostCenters(userId);
       const entries = await Promise.all(
         centers.map(async (center) => {
@@ -161,16 +174,19 @@ export function CostCentersTab() {
       const expenses = byCenter[center.id]?.spending ?? [];
       const stats = computeCenterStats(expenses, period, now);
       const budget = evaluateCenterBudget(center, expenses, now);
+      // Dormancy is a fact about the center, not about the axis — so it reads the
+      // unscoped activity date, not the period-filtered one from `stats`.
+      const lastActivityDate = resolveLastActivityDate(expenses);
       return {
         center,
         expenses,
         totalSpent: stats.totalSpent,
         transactionCount: stats.transactionCount,
-        // Dormancy is a fact about the center, not about the axis — so it reads the
-        // unscoped activity date, not the period-filtered one from `stats`.
-        lifecycle: getLifecycleStatus(center, resolveLastActivityDate(expenses), now),
+        lifecycle: getLifecycleStatus(center, lastActivityDate, now),
+        lastActivityDate,
         budgetRatio: budget?.ratio ?? null,
         budgetStatus: budget?.status ?? null,
+        budgetPeriod: budget?.budgetPeriod ?? null,
       };
     });
   }, [centers, byCenter, period]);
@@ -191,6 +207,12 @@ export function CostCentersTab() {
   // maximum clipped an archived center that had outspent every active one, and rendered
   // every archived bar at zero whenever the active list had no spend at all.
   const archivedMaxSpend = archivedRows[0]?.totalSpent ?? 0;
+  // Archived rows are not in `periodTotal` (which sums the active ones), so measuring their
+  // share against it printed a percentage of a total they are not part of.
+  const archivedTotal = useMemo(
+    () => archivedRows.reduce((sum, r) => sum + r.totalSpent, 0),
+    [archivedRows],
+  );
 
   // Comparison overlay: top centers over time for the period.
   const comparison = useMemo(
@@ -279,6 +301,10 @@ export function CostCentersTab() {
           onPeriodChange={setPeriod}
           periodOptions={PERIOD_OPTIONS}
           linkedExpenseCount={byCenter[selectedCenter.id]?.linkedCount ?? 0}
+          // The list already holds this center's spending rows; handing them over seeds the
+          // Detail's cache so opening a center paints immediately instead of showing a full
+          // skeleton while it re-fetches what is already in memory.
+          initialExpenses={byCenter[selectedCenter.id]?.spending}
           onBack={() => setSelectedCenter(null)}
           onEdit={handleOpenEdit}
           onDelete={handleDelete}
@@ -356,13 +382,17 @@ export function CostCentersTab() {
 
           {/* RANKED LIST — flat divide-y, ordered by spend. */}
           {activeRows.length > 0 ? (
-            <div className="divide-y divide-border/60 rounded-2xl border border-border/60 overflow-hidden">
+            <div
+              role="list"
+              className="divide-y divide-border/60 rounded-2xl border border-border/60 overflow-hidden"
+            >
               {activeRows.map((row, i) => (
                 <CenterListRow
                   key={row.center.id}
                   row={row}
                   maxSpend={maxSpend}
-                  periodTotal={periodTotal}
+                  shareBase={periodTotal}
+                  periodLabel={SHARE_PERIOD_LABEL[period]}
                   index={i}
                   palette={chartColors}
                   onOpen={() => setSelectedCenter(row.center)}
@@ -376,7 +406,9 @@ export function CostCentersTab() {
           )}
 
           {/* COMPARISON overlay (B3) — only meaningful with 2+ spending centers. */}
-          {comparison.centers.length >= 2 && (
+          {/* Needs two centers AND two months: on «Mese» the series is a single bucket, and a
+              line chart of one point draws nothing — the disclosure opened onto blank space. */}
+          {comparison.centers.length >= 2 && comparison.buckets.length >= 2 && (
             <Collapsible open={comparisonOpen} onOpenChange={setComparisonOpen}>
               <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border/60 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="flex items-center gap-2">
@@ -391,7 +423,16 @@ export function CostCentersTab() {
               <CollapsibleContent className="pt-4">
                 <div className="h-56 desktop:h-72 min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <LineChart data={comparisonData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    {/* Role on the chart, not a wrapper — see the note on the Detail's chart.
+                        The label names the centers, because role="img" hides the <Legend>
+                        that was the only mapping from colour to center. */}
+                    <LineChart
+                      data={comparisonData}
+                      margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                      accessibilityLayer={false}
+                      role="img"
+                      aria-label={`Andamento mensile di ${comparison.centers.map((c) => c.name).join(', ')}`}
+                    >
                       <XAxis dataKey="label" tick={CHART_TICK_STYLE} tickLine={false} axisLine={false} />
                       <YAxis
                         tickFormatter={(v) => cachedFormatCurrencyEUR(v as number, true)}
@@ -437,7 +478,10 @@ export function CostCentersTab() {
           {/* ARCHIVED — collapsed lifecycle bucket (B4). */}
           {archivedRows.length > 0 && (
             <Collapsible open={showArchived} onOpenChange={setShowArchived}>
-              <CollapsibleTrigger className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
+              {/* py-2.5 -mx-2 px-2: the trigger was a 20px-tall text run, well under the 44px
+                  target rule. The negative margin keeps it optically flush with the list. */}
+              {/* py-3 around a text-sm (20px) line box = 44px. py-2.5 landed at 40. */}
+              <CollapsibleTrigger className="-mx-2 flex items-center gap-1.5 rounded-md px-2 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <ChevronRight
                   className={cn('h-4 w-4 transition-transform', showArchived && 'rotate-90')}
                   aria-hidden="true"
@@ -448,13 +492,20 @@ export function CostCentersTab() {
               <CollapsibleContent className="pt-3">
                 {/* No opacity dimming here: the section title already says these are archived,
                     and dimming multiplied with text-muted-foreground put the sub-line below AA. */}
-                <div className="divide-y divide-border/60 rounded-2xl border border-border/60 overflow-hidden">
+                <div
+                  role="list"
+                  className="divide-y divide-border/60 rounded-2xl border border-border/60 overflow-hidden"
+                >
                   {archivedRows.map((row, i) => (
                     <CenterListRow
                       key={row.center.id}
                       row={row}
                       maxSpend={archivedMaxSpend}
-                      periodTotal={periodTotal}
+                      shareBase={archivedTotal}
+                      // Its own phrase: these rows divide by the archived subtotal, so the
+                      // active list's "del totale del mese" would have claimed three
+                      // archived centers were the whole month.
+                      periodLabel="dei centri archiviati"
                       index={i}
                       palette={chartColors}
                       onOpen={() => setSelectedCenter(row.center)}
@@ -491,25 +542,41 @@ export function CostCentersTab() {
 function CenterListRow({
   row,
   maxSpend,
-  periodTotal,
+  shareBase,
+  periodLabel,
   index,
   palette,
   onOpen,
 }: {
   row: CenterRow;
   maxSpend: number;
-  periodTotal: number;
+  /** Total the row's share is measured against — the active total, or the archived one. */
+  shareBase: number;
+  periodLabel: string;
   index: number;
   palette: string[];
   onOpen: () => void;
 }) {
-  const { center, totalSpent, transactionCount, lifecycle, budgetStatus, budgetRatio } = row;
+  const {
+    center,
+    totalSpent,
+    transactionCount,
+    lifecycle,
+    lastActivityDate,
+    budgetStatus,
+    budgetRatio,
+    budgetPeriod,
+  } = row;
   const prefersReducedMotion = useReducedMotion();
   const rankPct = maxSpend > 0 ? Math.round((totalSpent / maxSpend) * 100) : 0;
-  const sharePct = periodTotal > 0 ? Math.round((totalSpent / periodTotal) * 100) : 0;
+  const sharePct = shareBase > 0 ? Math.round((totalSpent / shareBase) * 100) : 0;
   const barColor = resolveCostCenterColor(center.color, center.id, palette);
+  // `getLifecycleStatus` maps a null activity date to 'dormant' too, so a center that has
+  // never had an expense reached a badge asserting ninety days of silence.
+  const neverUsed = lastActivityDate === null;
 
   return (
+    <div role="listitem">
     <motion.button
       type="button"
       initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
@@ -520,49 +587,55 @@ function CenterListRow({
           : { delay: Math.min(index * 0.03, 0.2), duration: 0.18 }
       }
       onClick={onOpen}
-      aria-label={`Apri ${center.name}`}
+      // No aria-label here: it would REPLACE the row's content, and the numbers in that
+      // content are the entire reason the row exists. The affordance is carried by the
+      // element being a button plus the sr-only verb below.
       className="group flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
+      <span className="sr-only">Apri</span>
       <span
         className="h-8 w-1 rounded-full flex-shrink-0"
         style={{ backgroundColor: barColor }}
         aria-hidden="true"
       />
-      <div className="min-w-0 flex-1">
+      {/* Everything below is phrasing content (span, not div/p/Badge): a <button>'s content
+          model admits nothing else, and shadcn's Badge renders a <div>. */}
+      <span className="block min-w-0 flex-1">
         {/* Wraps rather than truncates: at 390px a name plus two badges left the name with
             roughly 50px, and the name is the only thing telling two rows apart. */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-medium">{center.name}</span>
           {lifecycle === 'dormant' && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal text-muted-foreground">
-              Nessuna spesa da 90 giorni
-            </Badge>
+            <RowBadge>
+              {neverUsed ? 'Nessuna spesa registrata' : 'Nessuna spesa da 90 giorni'}
+            </RowBadge>
           )}
           {budgetStatus === 'over' && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal text-destructive border-destructive/40">
-              Oltre tetto
-            </Badge>
+            <RowBadge className="text-destructive border-destructive/40">Oltre tetto</RowBadge>
           )}
-        </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        </span>
+        {/* The first two figures are the selected period; the budget ratio is NOT — it
+            follows the ceiling's own window. Naming both stops one sentence from reading
+            as three facts about the same span. */}
+        <span className="block text-xs text-muted-foreground mt-0.5">
           <span className="font-mono tabular-nums">{transactionCount}</span>{' '}
           {transactionCount === 1 ? 'transazione' : 'transazioni'}
           {totalSpent > 0 && (
             <>
               {' · '}
-              <span className="font-mono tabular-nums">{sharePct}%</span> del totale
+              <span className="font-mono tabular-nums">{sharePct}%</span> del totale {periodLabel}
             </>
           )}
           {budgetRatio !== null && (
             <>
               {' · '}
               <span className="font-mono tabular-nums">{Math.round(budgetRatio * 100)}%</span> del
-              tetto
+              tetto {budgetPeriod === 'monthly' ? 'mensile' : 'annuale'}
             </>
           )}
-        </p>
-      </div>
-      <div className="flex flex-col items-end gap-1.5 w-24 desktop:w-32 flex-shrink-0">
+        </span>
+      </span>
+      <span className="flex flex-col items-end gap-1.5 w-24 desktop:w-32 flex-shrink-0">
         <span className="font-mono font-semibold tabular-nums text-sm">
           {formatCurrency(totalSpent)}
         </span>
@@ -572,8 +645,23 @@ function CenterListRow({
             style={{ width: `${rankPct}%`, backgroundColor: barColor, opacity: 0.7 }}
           />
         </span>
-      </div>
+      </span>
     </motion.button>
+    </div>
+  );
+}
+
+/** Badge-shaped span. The shared `Badge` renders a `<div>`, which a `<button>` cannot hold. */
+function RowBadge({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-md border border-border px-1.5 text-[10px] font-normal text-muted-foreground',
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }
 

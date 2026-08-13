@@ -475,7 +475,8 @@ Confronta con: Previdenza/PensionOverview (stessa dottrina degli stati d'errore,
 EYEBROW_CLASS / CHAPTER_TITLE_CLASS, capitoli separati da border-t border-border/40),
 GoalBasedInvestingTab (Panoramica + asse periodo + budget meter — pattern analogo),
 ExpenseTrackingTab (transaction style).
-Nota: critique 2026-08-13 = 20/40, 2 P0 e 4 P1, tutti chiusi lo stesso giorno. NON ri-aprirli
+Nota: DUE baseline, non una — misurare il delta dalla seconda.
+- critique 2026-08-13 = 20/40, 2 P0 e 4 P1, tutti chiusi lo stesso giorno. NON ri-aprirli
 come nuovi: sono la nuova linea di partenza.
 - P0 stato d'errore — `isError` non letto in nessuna delle due query, quindi un fetch fallito
   rendeva «Nessun centro di costo» con l'invito a crearne uno: indistinguibile dal caso vero.
@@ -490,7 +491,23 @@ Chiusi anche, come P2: `%` di quota assente nella lista, `maxSpend` degli attivi
 archiviati, `<Card>` in mezzo a contenitori piatti, stagger Framer senza guardia reduced-motion,
 progressbar senza nome accessibile, `<dl>` senza `<dt>/<dd>`, focus-visible assente su due
 `<button>` nudi, apostrofi misti, «Storico» in collisione con la pagina omonima.
-Attenzione: il layer puro è coperto (43 test fra costCenterUtils e costCenterColors), i TRE
+- audit 2026-08-13 = 11/20 (A11y 2 · Perf 2 · Theming 3 · Responsive 2 · Integrity 2), con tutti
+i P1 locali chiusi lo stesso giorno: account condiviso (le query leggevano con l'uid del viewer
+e scrivevano su quello dell'owner), chip Δ che confrontava una finestra parziale con una
+completa, timeout di Livello A sulla conferma di eliminazione, `aria-label` che sopprimevano i
+numeri delle righe, `opacity-50` su controlli operabili, target sotto i 44px, dialog senza
+scroll container. Restano aperti PER SCELTA, e non sono scoperte: i token di contrasto
+(`--positive`/`--destructive`/`--chart-3`-come-testo, difetto app-wide con branch dedicato), gli
+slot colore 6-8 non theme-aware, i 32px di `SegmentedPill` e dei Button shadcn, e due decisioni
+di prodotto sul chip Δ (sparisce col predecessore a zero; il 28 febbraio confronta un mese
+completo con un gennaio troncato). Dettaglio in docs/audit-prompts.md. NOTA: i token di contrasto
+sono stati chiusi il 2026-08-13 in un branch a sé — resta sotto soglia solo il pattern chip, per
+una ragione strutturale documentata in CLAUDE.md → Known Issues.
+Trappola scoperta correggendo, da non re-introdurre: la lista archiviati ha un `shareBase`
+PROPRIO (`archivedTotal`) **e** una frase propria («dei centri archiviati»). Dare a quelle righe
+il denominatore giusto ma l'etichetta della lista attiva le fa leggere come se tre centri
+archiviati fossero l'intero mese.
+Attenzione: il layer puro è coperto (49 test fra costCenterUtils e costCenterColors), i TRE
 componenti no — nessuna spec Vitest né Playwright li tocca. Un redesign qui non ha rete di
 sicurezza meccanica: la verifica è manuale, sui sei temi e a 390px.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
@@ -1479,10 +1496,11 @@ Dalla meno redesignata alla più redesignata, per trovare i delta maggiori prima
 Previdenza esce dalla lista: critiquata 2026-08-01 e auditata 2026-08-02, con entrambe le baseline
 registrate nella sua sezione. Rientra solo per misurare un delta, non come pagina scoperta.
 
-Cashflow / tab "Centri di Costo" non è mai stato in lista ed è già stato fatto: critiquato
-2026-08-13 = 20/40, 2 P0 e 4 P1 chiusi lo stesso giorno (baseline nella sua sezione). Manca
-invece il suo audit, che è il candidato più fresco: il tab è passato da 1 finding del detector
-a zero, ma i tre componenti non hanno alcuna copertura di test.
+Cashflow / tab "Centri di Costo" esce dalla lista: critiquato (20/40) e auditato (11/20) il
+2026-08-13, con entrambe le baseline registrate nella sua sezione e tutti i P0/P1 chiusi.
+Rientra solo per misurare un delta. Quel che resta aperto è deliberato e vive altrove — i token
+di contrasto hanno un branch dedicato — tranne una lacuna vera: i tre componenti non hanno
+ancora alcuna copertura di test, né Vitest né Playwright.
 8. Allocazione ← esteso con l'allocazione a leva, la parte più giovane della pagina
 9. Patrimonio ← hero gemello di Panoramica + registro operazioni mai critiquato
 10. Analisi ← critiquata 2026-07-21 (25/40), redesign implementato — rieseguire per delta

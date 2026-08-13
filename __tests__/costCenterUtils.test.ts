@@ -244,6 +244,21 @@ describe('splitRecurringVsOneOff', () => {
 });
 
 describe('buildMonthlySeriesByCategory', () => {
+  it('ranks categories over the trimmed window, not over full history', () => {
+    // "Ristrutturazione" dominates all time but is absent from the last 2 months; ranking
+    // by full history handed it a band on a chart where it never appears, and pushed the
+    // category that actually fills those months into "Altro".
+    const expenses = [
+      expense({ date: new Date('2020-01-10T12:00:00+01:00'), amount: -90000, categoryName: 'Ristrutturazione' }),
+      expense({ date: new Date('2025-05-10T12:00:00+02:00'), amount: -100, categoryName: 'Carburante' }),
+      expense({ date: new Date('2025-06-10T12:00:00+02:00'), amount: -120, categoryName: 'Carburante' }),
+    ];
+    const series = buildMonthlySeriesByCategory(expenses, 2);
+    expect(series.buckets).toHaveLength(2);
+    expect(series.categories).toEqual(['Carburante']);
+    expect(series.categories).not.toContain('Ristrutturazione');
+  });
+
   it('produces a gap-free month axis with stacked category values', () => {
     const expenses = [
       expense({ date: new Date('2025-01-10T12:00:00+01:00'), amount: -100, categoryName: 'Carburante' }),
@@ -311,6 +326,75 @@ describe('computePeriodComparison', () => {
     const expenses = [expense({ date: new Date('2025-03-10T12:00:00+01:00'), amount: -600 })];
     expect(computePeriodComparison(expenses, 'year', NOW).deltaPct).toBeNull();
     expect(computePeriodComparison(expenses, 'all', NOW).deltaPct).toBeNull();
+  });
+
+  it('truncates the previous month to the same day, so a partial month is not read as a collapse', () => {
+    // NOW is the 15th. Spending is identical day-for-day in both months up to the 15th;
+    // the previous month then keeps going. Comparing the partial current window against
+    // the complete previous one reported -67% purely because the month had not finished.
+    const expenses = [
+      expense({ date: new Date('2025-05-05T12:00:00+02:00'), amount: -100 }),
+      expense({ date: new Date('2025-05-25T12:00:00+02:00'), amount: -200 }), // after the 15th
+      expense({ date: new Date('2025-06-05T12:00:00+02:00'), amount: -100 }),
+    ];
+    const cmp = computePeriodComparison(expenses, 'month', NOW);
+    expect(cmp.current).toBe(100);
+    expect(cmp.previous).toBe(100); // NOT 300
+    expect(cmp.deltaPct).toBe(0);
+  });
+
+  it('truncates the previous year to the same day of year', () => {
+    const expenses = [
+      expense({ date: new Date('2024-02-10T12:00:00+01:00'), amount: -400 }),
+      expense({ date: new Date('2024-11-10T12:00:00+01:00'), amount: -900 }), // past 15 June
+      expense({ date: new Date('2025-02-10T12:00:00+01:00'), amount: -600 }),
+    ];
+    const cmp = computePeriodComparison(expenses, 'year', NOW);
+    expect(cmp.current).toBe(600);
+    expect(cmp.previous).toBe(400); // NOT 1300
+    expect(cmp.deltaPct).toBeCloseTo(0.5);
+  });
+
+  it('keeps the completed months of a rolling12 predecessor and truncates only its trailing one', () => {
+    const expenses = [
+      // Predecessor window (Jul 2023 → Jun 2024): a completed month stays whole...
+      expense({ date: new Date('2023-09-28T12:00:00+02:00'), amount: -50 }),
+      // ...while its trailing month (Jun 2024) is cut at the 15th.
+      expense({ date: new Date('2024-06-10T12:00:00+02:00'), amount: -70 }),
+      expense({ date: new Date('2024-06-25T12:00:00+02:00'), amount: -500 }),
+      expense({ date: new Date('2025-01-10T12:00:00+01:00'), amount: -120 }),
+    ];
+    const cmp = computePeriodComparison(expenses, 'rolling12', NOW);
+    expect(cmp.previous).toBe(120); // 50 + 70, not 620
+    expect(cmp.current).toBe(120);
+  });
+
+  it('does not leak the day after the anniversary into the previous year (DST off-by-one)', () => {
+    // Dates built the way ExpenseDialog builds them: LOCAL midnight, not noon-with-offset.
+    // Every other fixture in this file sits at 12:00, which is twelve hours clear of the DST
+    // edge — so the day-of-year drift that this guards against could never surface.
+    const localMidnight = (iso: string) => new Date(`${iso}T00:00:00`);
+    const now = localMidnight('2026-06-15');
+    const expenses = [
+      expense({ date: localMidnight('2025-06-14'), amount: -10 }), // before the anniversary
+      expense({ date: localMidnight('2025-06-16'), amount: -10 }), // after → must NOT count
+      expense({ date: localMidnight('2026-06-02'), amount: -10 }),
+    ];
+    const cmp = computePeriodComparison(expenses, 'year', now);
+    expect(cmp.previous).toBe(10);
+    expect(cmp.current).toBe(10);
+  });
+
+  it('clamps to the last day of a shorter previous month', () => {
+    // 31 March → the predecessor is February, which has no 31st.
+    const march31 = new Date('2025-03-31T12:00:00+02:00');
+    const expenses = [
+      expense({ date: new Date('2025-02-28T12:00:00+01:00'), amount: -80 }),
+      expense({ date: new Date('2025-03-02T12:00:00+01:00'), amount: -40 }),
+    ];
+    const cmp = computePeriodComparison(expenses, 'month', march31);
+    expect(cmp.previous).toBe(80);
+    expect(cmp.current).toBe(40);
   });
 });
 

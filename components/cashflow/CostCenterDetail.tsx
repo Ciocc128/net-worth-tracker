@@ -38,6 +38,7 @@ import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { CostCenter, CostCenterPeriod } from '@/types/costCenters';
 import { getExpensesForCostCenter } from '@/lib/services/costCenterService';
+import { Expense } from '@/types/expenses';
 import { formatCurrency, formatDate, cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { toDate } from '@/lib/utils/dateHelpers';
 import {
@@ -96,6 +97,10 @@ const PERIOD_LABELS: Record<CostCenterPeriod, string> = {
 const SECTION_LIST_CLASS = 'divide-y divide-border/60 rounded-2xl border border-border/60';
 const SECTION_PANEL_CLASS = 'rounded-2xl border border-border/60 p-5';
 
+/** Stable identity for the empty case: a `= []` default would hand every memo below a new
+ *  array each render and defeat all of them. */
+const EMPTY_EXPENSES: Expense[] = [];
+
 interface CostCenterDetailProps {
   costCenter: CostCenter;
   /** Period axis owned by the Panoramica; rendered here so both views share one control. */
@@ -104,6 +109,8 @@ interface CostCenterDetailProps {
   periodOptions: ReadonlyArray<{ value: CostCenterPeriod; label: string }>;
   /** Expenses linked to this center, for the delete cascade copy. */
   linkedExpenseCount: number;
+  /** The list's already-loaded spending rows for this center, used to seed the query. */
+  initialExpenses?: Expense[];
   onBack: () => void;
   onEdit: (costCenter: CostCenter) => void;
   onDelete: (costCenter: CostCenter) => void;
@@ -117,6 +124,7 @@ export function CostCenterDetail({
   onPeriodChange,
   periodOptions,
   linkedExpenseCount,
+  initialExpenses,
   onBack,
   onEdit,
   onDelete,
@@ -129,15 +137,26 @@ export function CostCenterDetail({
 
   // Shares the ['cost-centers', userId] prefix invalidated by ExpenseDialog, so the
   // detail stays in sync with expense mutations elsewhere.
-  const { data: allExpenses = [], isLoading: loading, isError } = useQuery({
+  const { data, isLoading: loading, isError } = useQuery({
     queryKey: queryKeys.costCenters.expenses(ownerId ?? '', costCenter.id),
-    enabled: !!user,
+    // Owner, not viewer — see the note on the same query in CostCentersTab.
+    enabled: !!user && !!ownerId,
     queryFn: async () => {
-      const data = await getExpensesForCostCenter(user!.uid, costCenter.id);
+      const rows = await getExpensesForCostCenter(ownerId!, costCenter.id);
       // Only outgoing expenses (exclude any income entries linked to this center).
-      return data.filter((e) => e.amount < 0);
+      return rows.filter((e) => e.amount < 0);
     },
+    // placeholderData, NOT initialData. `initialData` is written into the cache and stamped
+    // as freshly fetched, and this app sets a global staleTime of 5 minutes with
+    // refetchOnWindowFocus off — so seeding with it made the detail skip the network
+    // entirely: it would render the list's snapshot, never refresh while open, and never
+    // reach its own error branch. placeholderData paints the same rows immediately and
+    // still fetches underneath.
+    placeholderData: initialExpenses,
   });
+  // A `= []` destructuring default would hand every memo below a fresh array identity on
+  // each render, so they would all recompute; one stable constant does not.
+  const allExpenses = data ?? EMPTY_EXPENSES;
 
   // Chart granularity is independent of the page period: last 12 months vs full history.
   const [showFullHistory, setShowFullHistory] = useState(false);
@@ -151,6 +170,7 @@ export function CostCenterDetail({
   // Defer chart mount one RAF so ResponsiveContainer measures after layout.
   const [chartReady, setChartReady] = useState(false);
   const chartRafRef = useRef<number | null>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement | null>(null);
   // Subcategories the user has toggled off in the breakdown card to read a "net of X"
   // total. Session-only (resets when switching center); never persisted nor applied to
   // the hero/budget/chart — those always reflect the real spend.
@@ -168,13 +188,36 @@ export function CostCenterDetail({
     };
   }, [loading]);
 
+  // The arm used to disarm itself after 3 seconds — a time limit shorter than the
+  // announcement it pushes into the live region, so a screen-reader user was still hearing
+  // "premi di nuovo per eliminare" after the button had already gone back to safe (WCAG
+  // 2.2.1). There is no timer now: Escape, or a pointer landing anywhere outside the
+  // button, releases it — the two gestures that already mean "not this".
+  //
+  // Deliberately NOT onBlur: Safari does not focus a <button> on tap, so a focus-based
+  // release would never fire there and the armed state would stay hot indefinitely — worse
+  // than the timer it replaced. pointerdown-outside works regardless of focus, and the
+  // `contains` check is what keeps it from swallowing the confirming press itself.
   useEffect(() => {
     if (!deleteArmed) return;
-    const timer = setTimeout(() => {
+    const disarm = () => {
       setDeleteArmed(false);
       setDeleteAnnouncement('Eliminazione annullata.');
-    }, 3000);
-    return () => clearTimeout(timer);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') disarm();
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (target && deleteButtonRef.current?.contains(target)) return;
+      disarm();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
   }, [deleteArmed]);
 
   // Expenses scoped to the selected period drive the hero, composition and table.
@@ -238,6 +281,11 @@ export function CostCenterDetail({
 
   const handleDeleteClick = () => {
     if (deleteArmed) {
+      // Disarm before delegating: on success the parent unmounts this view, but on failure
+      // it only raises a toast and leaves the detail mounted — and the button stayed armed,
+      // so the next single click deleted with no confirmation step at all.
+      setDeleteArmed(false);
+      setDeleteAnnouncement('');
       onDelete(costCenter);
       return;
     }
@@ -322,9 +370,19 @@ export function CostCenterDetail({
             variant={deleteArmed ? 'destructive' : 'outline'}
             size="sm"
             className="flex-1 sm:flex-none"
+            ref={deleteButtonRef}
             disabled={isDemo}
             aria-label={deleteLabel}
             onClick={handleDeleteClick}
+            // Alongside the pointerdown listener, not instead of it: pointerdown covers the
+            // browsers that never focus a button, blur covers the keyboard user who Tabs
+            // away. Clicking the button itself fires neither — focus is already on it — so
+            // the confirming press is never swallowed.
+            onBlur={() => {
+              if (!deleteArmed) return;
+              setDeleteArmed(false);
+              setDeleteAnnouncement('Eliminazione annullata.');
+            }}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             {deleteArmed ? 'Conferma' : 'Elimina'}
@@ -429,7 +487,12 @@ export function CostCenterDetail({
                           budget.status === 'over'
                             ? 'text-destructive'
                             : budget.status === 'warning'
-                              ? 'text-[var(--chart-3)]'
+                              // NOT --chart-3: a categorical chart slot is tuned for 3:1
+                              // against a plot area, not 4.5:1 against a card, and nothing
+                              // constrains it per theme — it measured 1.02:1 on
+                              // midnight-bloom dark, i.e. invisible. --warning-foreground is
+                              // the semantic amber and clears 4.5:1 on all twelve.
+                              ? 'text-[var(--warning-foreground)]'
                               : 'text-positive',
                         )}
                       >
@@ -556,13 +619,19 @@ export function CostCenterDetail({
                     <button
                       key={slice.key}
                       type="button"
+                      // No aria-label: it would replace the row's own content — the name,
+                      // the share and the amount — and its old value announced the OPPOSITE
+                      // action to the one aria-pressed reports, so the two contradicted
+                      // each other. Content + aria-pressed is the toggle-button pattern.
                       aria-pressed={excluded}
-                      aria-label={`${slice.subCategoryName} — ${excluded ? 'includi nel totale' : 'escludi dal totale'}`}
                       onClick={() => toggleSubKey(slice.key)}
                       className={cn(
                         'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 motion-reduce:transition-none',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-                        excluded && 'opacity-50',
+                        // NOT opacity: these rows stay operable, so 1.4.3 applies in full and
+                        // a 50% multiplier put both text runs under AA in every theme. The
+                        // line-through already carries the state, and it costs no contrast.
+                        excluded && 'text-muted-foreground',
                       )}
                     >
                       <span className="flex min-w-0 flex-1 flex-col">
@@ -613,7 +682,21 @@ export function CostCenterDetail({
             <div className="h-52 desktop:h-64 min-w-0">
               {chartReady && (
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  {/* The role goes on the chart, not on a wrapper: Recharts 3.x defaults
+                      accessibilityLayer to true and puts tabIndex=0 + role="application" on
+                      its own <svg>, so a role="img" wrapper would leave a tabbable node
+                      inside a subtree it had just told assistive tech to ignore. Naming the
+                      chart as an image is honest here — every number in it is also on the
+                      page as text, in the composition list and the transactions table. */}
+                  <BarChart
+                    data={chartData}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                    accessibilityLayer={false}
+                    role="img"
+                    aria-label={`Spese mensili di ${costCenter.name} per categoria, ${
+                      showFullHistory ? 'storico completo' : 'ultimi 12 mesi'
+                    }`}
+                  >
                     <XAxis dataKey="label" tick={CHART_TICK_STYLE} tickLine={false} axisLine={false} />
                     <YAxis
                       tickFormatter={(v) => cachedFormatCurrencyEUR(v as number, true)}
@@ -775,7 +858,10 @@ function BudgetMeter({
       role="progressbar"
       // Without a name a screen reader announces "78, progress bar" — a number with no subject.
       aria-label={`Tetto ${budgetPeriod === 'monthly' ? 'mensile' : 'annuale'}`}
-      aria-valuenow={Math.round(ratio * 100)}
+      // Clamped like the fill: over the ceiling the raw ratio exceeds aria-valuemax, which
+      // is invalid and makes assistive tech report a nonsense position. The overspend is
+      // stated exactly, in euro, by aria-valuetext and by the line beneath the meter.
+      aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuetext={`${formatCurrency(spent)} di ${formatCurrency(budgetAmount)}`}

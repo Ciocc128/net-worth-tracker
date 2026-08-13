@@ -213,15 +213,27 @@ export interface CostCenterPeriodComparison {
   deltaPct: number | null;
 }
 
-/** A noon Date that lands inside the given {year, month} regardless of timezone. */
-function noonOf({ year, month }: YearMonth): Date {
-  return new Date(year, month - 1, 15, 12, 0, 0);
+/** The same wall-clock day, `months` months earlier, clamped to the target month's length. */
+function sameDayMonthsAgo(now: Date, months: number): Date {
+  const italyNow = getItalyDate(now);
+  const { year, month } = subtractMonths(toYearMonth(now), months);
+  const lastDayOfTarget = new Date(year, month, 0).getDate();
+  const day = Math.min(italyNow.getDate(), lastDayOfTarget);
+  return new Date(year, month - 1, day, 12, 0, 0);
 }
 
 /**
- * Compares the current period total against the immediately preceding comparable
- * window: previous month, previous year, or the 12 months before the trailing year.
+ * Compares the current period total against the immediately preceding comparable window:
+ * previous month, previous year, or the 12 months before the trailing year.
  * Drives the Δ chip on the detail hero. "all" has no predecessor → deltaPct null.
+ *
+ * ELAPSED-MATCHED, and that is the whole point. The current window is almost always
+ * PARTIAL — on the 3rd of the month it holds three days — while the previous one is
+ * complete. Comparing them reported every center as collapsing at the start of every
+ * month and recovering by its end, which is an artifact of the calendar, not a change in
+ * spending. The predecessor is therefore truncated to the same elapsed extent: the same
+ * day-of-month for `month`, the same day-of-year for `year`, and for `rolling12` the same
+ * day-of-month in its trailing month (its first eleven months are complete either way).
  */
 export function computePeriodComparison(
   expenses: Expense[],
@@ -233,14 +245,48 @@ export function computePeriodComparison(
 
   if (period === 'all') return { current, previous: 0, deltaPct: null };
 
-  const currentYm = toYearMonth(now);
-  // month → previous month (1); year/rolling12 → 12 months back (previous year / window).
+  // month → previous month; year/rolling12 → 12 months back (previous year / window).
   const shift = period === 'month' ? 1 : 12;
-  const prevNow = noonOf(subtractMonths(currentYm, shift));
-  const previous = total(filterExpensesByPeriod(expenses, period, prevNow));
+  const prevNow = sameDayMonthsAgo(now, shift);
+
+  const scoped = filterExpensesByPeriod(expenses, period, prevNow);
+  const previous = total(scoped.filter((e) => isWithinElapsedExtent(e, period, prevNow)));
 
   const deltaPct = previous > 0 ? (current - previous) / previous : null;
   return { current, previous, deltaPct };
+}
+
+/**
+ * Is `expense` inside the part of the window that has already elapsed at `windowNow`?
+ *
+ * `filterExpensesByPeriod` returns whole calendar windows, so this trims the predecessor
+ * to the point the current window has actually reached.
+ */
+function isWithinElapsedExtent(
+  expense: Expense,
+  period: CostCenterPeriod,
+  windowNow: Date,
+): boolean {
+  const raw = toDate(expense.date);
+  // dayOfYear converts to Italy time itself — pass it the raw dates, never pre-converted
+  // ones, or toZonedTime is applied twice and the day shifts by the offset.
+  if (period === 'year') return dayOfYear(raw) <= dayOfYear(windowNow);
+
+  const dateYm = toYearMonth(raw);
+  const cursorYm = toYearMonth(windowNow);
+  const sameMonth = dateYm.year === cursorYm.year && dateYm.month === cursorYm.month;
+
+  if (period === 'rolling12' && !sameMonth) {
+    // `filterExpensesByPeriod`'s rolling12 branch applies only a LOWER bound, which is
+    // harmless for the live window but not here: given a past `now` it also returns
+    // everything AFTER that window — the very window we are comparing against, so the
+    // predecessor swallowed the current period and the delta collapsed toward zero.
+    // Anything past the trailing month is out; earlier months are complete and stay whole.
+    return isOnOrAfter(cursorYm, dateYm);
+  }
+
+  // month, and the trailing month of rolling12: compare day-of-month within that month.
+  return getItalyDate(raw).getDate() <= getItalyDate(windowNow).getDate();
 }
 
 // ==================== Annual forecast (B2) ====================
@@ -251,12 +297,21 @@ function daysInYear(year: number): number {
   return isLeap ? 366 : 365;
 }
 
-/** Day-of-year (1-based) for `date` in Italy time. */
+/**
+ * Day-of-year (1-based) for `date` in Italy time.
+ *
+ * The subtraction happens in UTC on purpose. Measuring it between two dates built in the
+ * RUNTIME's local frame lost the DST hour: on a browser in Europe/Rome an expense stamped at
+ * local midnight — which is exactly how `<input type="date">` values are stored — came out a
+ * day short between March and October, and `Math.floor` turned that into an off-by-one.
+ * Reading the calendar fields and re-composing them as UTC removes the offset from the
+ * arithmetic entirely, so only the calendar date matters.
+ */
 function dayOfYear(date: Date): number {
   const italy = getItalyDate(date);
-  const start = new Date(italy.getFullYear(), 0, 0);
-  const diff = italy.getTime() - start.getTime();
-  return Math.floor(diff / 86_400_000);
+  const start = Date.UTC(italy.getFullYear(), 0, 0);
+  const current = Date.UTC(italy.getFullYear(), italy.getMonth(), italy.getDate());
+  return Math.round((current - start) / 86_400_000);
 }
 
 /**
@@ -449,6 +504,11 @@ function monthLabel(year: number, month: number): string {
  *
  * The top categories (by total spend) get their own stacked series; everything else
  * collapses into "Altro". `maxMonths`, when given, keeps only the most recent N months.
+ *
+ * The categories are chosen over the TRIMMED window, not over full history: a chart
+ * captioned «Ultimi 12 mesi» that ranked its series by all-time spend could give a whole
+ * band to a category absent from every month on screen, while folding into "Altro" one that
+ * dominates them. The caption and the legend now describe the same window.
  */
 export function buildMonthlySeriesByCategory(
   expenses: Expense[],
@@ -456,8 +516,21 @@ export function buildMonthlySeriesByCategory(
 ): CostCenterMonthlySeries {
   if (expenses.length === 0) return { buckets: [], categories: [] };
 
-  // Resolve the top categories once; everything else is "Altro".
-  const composition = buildCategoryComposition(expenses);
+  // Determine the month span first — the category ranking depends on it.
+  const dates = expenses.map((e) => toDate(e.date));
+  const first = toYearMonth(dates.reduce((min, d) => (d < min ? d : min), dates[0]));
+  const last = toYearMonth(dates.reduce((max, d) => (d > max ? d : max), dates[0]));
+  let axis = enumerateMonths(first, last);
+  if (maxMonths && axis.length > maxMonths) axis = axis.slice(-maxMonths);
+
+  const inAxis = new Set(axis.map(({ year, month }) => `${year}-${month}`));
+  const windowed = expenses.filter((e) => {
+    const ym = toYearMonth(toDate(e.date));
+    return inAxis.has(`${ym.year}-${ym.month}`);
+  });
+
+  // Resolve the top categories over what the chart will actually draw.
+  const composition = buildCategoryComposition(windowed);
   const topNames = new Set(
     composition.filter((c) => c.categoryName !== OTHER_CATEGORY_LABEL).map((c) => c.categoryName),
   );
@@ -465,13 +538,6 @@ export function buildMonthlySeriesByCategory(
     const name = e.categoryName?.trim() || OTHER_CATEGORY_LABEL;
     return topNames.has(name) ? name : OTHER_CATEGORY_LABEL;
   };
-
-  // Determine the month span.
-  const dates = expenses.map((e) => toDate(e.date));
-  const first = toYearMonth(dates.reduce((min, d) => (d < min ? d : min), dates[0]));
-  const last = toYearMonth(dates.reduce((max, d) => (d > max ? d : max), dates[0]));
-  let axis = enumerateMonths(first, last);
-  if (maxMonths && axis.length > maxMonths) axis = axis.slice(-maxMonths);
 
   const bucketMap = new Map<string, CostCenterMonthlyBucket>();
   for (const { year, month } of axis) {
