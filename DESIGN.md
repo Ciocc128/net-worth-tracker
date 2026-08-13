@@ -329,9 +329,11 @@ Never use raw `bg-green-500/10 text-green-500` / `bg-red-500/10 text-red-500` he
 
 **Content:** `{icon} {+/-}{formattedValue} ({+/-}{pct}%) {period label}` — e.g. `↗ +€1.240,00 (+2.34%) questo mese`
 
-**Rules:** Only render when snapshot data exists (at least one prior period). Never show a placeholder chip — absence communicates "no prior data" cleanly. Icon is `TrendingUp` or `TrendingDown` at `h-[13px] w-[13px]`. Multiple chips wrap naturally via `flex-wrap gap-2`. Use `font-mono` for the value — the chip contains a financial number and must satisfy the Mono Mandate.
+**Rules:** Only render when snapshot data exists (at least one prior period). Never show a placeholder chip — absence communicates "no prior data" cleanly. Icon is `TrendingUp` or `TrendingDown` at `h-[13px] w-[13px]`. A row of several chips is laid out as a grid, not `flex-wrap` — see **The Equal-Column Chip Rule** below. Use `font-mono` for the value — the chip contains a financial number and must satisfy the Mono Mandate.
 
 **Note (delta semantics):** For expense metrics, the sign convention is inverted: a positive delta on Spese is bad (spending went up), a negative delta is good. The color logic must be parameterized, not hard-coded: `positiveGood: boolean` governs the `text-positive` / `text-destructive` assignment.
+
+**The Equal-Column Chip Rule.** A row of same-purpose chips whose labels are different lengths is laid out as a grid — `grid grid-cols-1 gap-2 tablet:grid-cols-2` — never `flex-wrap`. Chips that say the same *kind* of thing should be the same size; under `flex-wrap` each one shrinks to its own content, so "questo mese" and "da inizio anno" end up different widths and a wrapped third chip lands at a width unrelated to the two above it. Grid columns size together across every row, so a lone third chip still matches the first column — the alignment is a consequence of the layout, with no JS measurement and no fixed width. One column on mobile (each chip takes the full card width), two from `tablet:` up. `flex-wrap` remains correct where chips are genuinely heterogeneous and are meant to flow, such as filter tags.
 
 ### Dominant Value Block (Trade Republic Pattern)
 
@@ -341,7 +343,7 @@ The canonical layout for any section where one number is the primary takeaway �
 ```
 [eyebrow label — text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground]
 [primary value — text-[44px] desktop:text-[54px] font-bold font-mono tracking-[-0.03em]]
-[variation chips — inline-flex, wrapped via flex-wrap gap-2]
+[variation chips — inline-flex, laid out as grid grid-cols-1 gap-2 tablet:grid-cols-2]
 [tertiary metadata — text-[11px] text-muted-foreground]
 ```
 
@@ -751,6 +753,7 @@ useEffect(() => {
 - **Do** use `bg-muted/40 rounded-xl p-3.5` (no border) for KPI chip grids inside persistent, always-visible sections. Reserve the full-opacity `bg-muted` with `border border-border` for parameter tiles in collapsible zones.
 - **Do** use `mt-auto` inside `flex flex-col h-full` CardContent to pin optional secondary content to the card bottom. The pattern requires `h-full` on both Card and CardContent; without both, `mt-auto` has no space to push against.
 - **Do** use `rounded-[2px]` for chart legend color swatches (color keys). Use `rounded-full` for inline dot indicators (row bullets, status dots). The distinction is semantic: square = color key, circle = inline marker.
+- **Do** lay out a row of same-purpose, different-length chips as a grid (`grid grid-cols-1 gap-2 tablet:grid-cols-2`), not `flex-wrap`, so every chip shares the same column width without any JS measurement — see **The Equal-Column Chip Rule**. Applied to the variation chips on the Panoramica and Patrimonio heroes, which are declared to mirror each other.
 - **Do** duplicate responsive blocks with `desktop:hidden` / `hidden desktop:grid` when the same data must be positioned differently across breakpoints (e.g. TER + cost metrics in the hero card footer on desktop, as standalone cards below the hero on mobile). Redundant DOM is preferable to a convoluted single implementation that degrades at both sizes.
 - **Do** use inverted sign semantics (parameterized `positiveGood: boolean`) for expense delta annotations. A positive Spese delta means spending increased — the color should be `text-destructive`, opposite to the income logic. Never hardcode positive-as-green (raw `text-green-*`) in components that handle both income and expense metrics; use the `text-positive` / `text-destructive` tokens so the sign colors follow the theme.
 
