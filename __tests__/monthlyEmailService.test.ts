@@ -102,8 +102,8 @@ function makeMonthlyData(overrides: Partial<MonthlyEmailData> = {}): MonthlyEmai
     totalIncome: 3500,
     totalExpenses: 2000,
     topExpenseCategories: [
-      { name: 'Alimentari', amount: 800 },
-      { name: 'Trasporti', amount: 600 },
+      { key: 'cat-alimentari', name: 'Alimentari', amount: 800 },
+      { key: 'cat-trasporti', name: 'Trasporti', amount: 600 },
     ],
     allIncomeCategories: [],
     topIndividualExpenses: [],
@@ -500,8 +500,8 @@ describe('generateEmailHtml', () => {
     const html = generateEmailHtml(
       makeMonthlyData({
         allIncomeCategories: [
-          { name: 'Stipendio', amount: 3000 },
-          { name: 'Freelance', amount: 500 },
+          { key: 'cat-stipendio', name: 'Stipendio', amount: 3000 },
+          { key: 'cat-freelance', name: 'Freelance', amount: 500 },
         ],
       })
     );

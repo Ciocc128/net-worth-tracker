@@ -59,6 +59,7 @@ import {
   buildPensionValueSeries,
   computePensionReturn,
   isPensionReturnMeasurable,
+  overlayLivePensionValue,
   resolvePensionReturnStart,
   type PensionReturnResult,
 } from '@/lib/utils/pensionReturn';
@@ -70,7 +71,7 @@ import type { FamilyMember, MonthlySnapshot } from '@/types/assets';
 import type { Settings } from '@/types/settings';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getMetricValueColor, signTextClass } from '@/lib/utils/metricColors';
-import { getItalyYear } from '@/lib/utils/dateHelpers';
+import { getItalyMonth, getItalyYear } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -637,7 +638,14 @@ export function PensionOverview() {
     contributions,
     settings?.pensionReturnStartMonth
   );
-  const pensionValueSeries = buildPensionValueSeries(snapshots, funds.map((fund) => fund.id));
+  // La serie si chiude sul valore VIVO dei fondi, non sullo snapshot del mese corrente:
+  // dopo un versamento lo snapshot resta stantio fino al cron serale, e il TWR
+  // sottrarrebbe il versamento da un valore che non lo contiene — vedi
+  // overlayLivePensionValue. Stesso perimetro dell'hero (totalFundValue sugli stessi funds).
+  const pensionValueSeries = overlayLivePensionValue(
+    buildPensionValueSeries(snapshots, funds.map((fund) => fund.id)),
+    { year: currentYear, month: getItalyMonth(new Date()), value: totalFundValue }
+  );
   const pensionReturn = computePensionReturn(pensionValueSeries, contributions, pensionReturnStart);
   // Il rendimento va mostrato solo quando è una misura: nei due stati in cui non lo è, la card di
   // riepilogo dà la spiegazione E la scomposizione in euro sparisce con la percentuale — stampare

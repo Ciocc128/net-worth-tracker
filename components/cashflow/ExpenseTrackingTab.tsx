@@ -76,6 +76,7 @@ import {
 } from '@/lib/utils/period';
 import { MultiSelect, type MultiSelectGroup } from '@/components/ui/multi-select';
 import { getExpenseDate } from '@/lib/utils/expenseHelpers';
+import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import { CashflowTrackingMobile } from '@/components/cashflow/CashflowTrackingMobile';
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -97,6 +98,43 @@ interface ExpenseTrackingTabProps {
  * 4. Update typeOptions array in this file
  * 5. Add type validation in ExpenseDialog schema
  */
+/**
+ * Top-5 categories for the hero bar charts, keyed by category id (name-fallback for
+ * legacy rows) so two same-named categories stay two rows; a name shared by two keys
+ * in the rendered slice gets its type qualifier appended ("Casa (Spese Fisse)").
+ * See lib/utils/expenseGrouping.ts for the keying rule.
+ */
+function buildHeroTopCategories(
+  items: Expense[]
+): Array<{ category: string; categoryKey: string; amount: number; percentage: number }> {
+  const total = items.reduce((s, e) => s + Math.abs(e.amount), 0);
+  const byCategory = new Map<string, { name: string; qualifier: string; amount: number }>();
+  for (const e of items) {
+    const key = getCategoryKey(e);
+    const entry = byCategory.get(key) ?? {
+      name: getCategoryName(e),
+      qualifier: EXPENSE_TYPE_LABELS[e.type],
+      amount: 0,
+    };
+    entry.amount += Math.abs(e.amount);
+    byCategory.set(key, entry);
+  }
+
+  const top = Array.from(byCategory.entries())
+    .sort((a, b) => b[1].amount - a[1].amount)
+    .slice(0, 5);
+  const labels = resolveDisplayLabels(
+    top.map(([key, totals]) => ({ key, name: totals.name, qualifier: totals.qualifier }))
+  );
+
+  return top.map(([key, totals]) => ({
+    category: labels.get(key) ?? totals.name,
+    categoryKey: key,
+    amount: totals.amount,
+    percentage: total > 0 ? (totals.amount / total) * 100 : 0,
+  }));
+}
+
 export function ExpenseTrackingTab({
   allExpenses,
   categories,
@@ -596,38 +634,16 @@ export function ExpenseTrackingTab({
   }, [previousPeriodExpenses, totalIncome, totalExpenses]);
 
   // Top-5 expense categories aggregated from filteredExpenses for the hero bar chart.
-  const heroExpenseCategories = useMemo(() => {
-    const items = filteredExpenses.filter((e) => e.type !== 'income' && e.type !== 'transfer');
-    const total = items.reduce((s, e) => s + Math.abs(e.amount), 0);
-    const byCategory = new Map<string, number>();
-    for (const e of items)
-      byCategory.set(e.categoryName, (byCategory.get(e.categoryName) ?? 0) + Math.abs(e.amount));
-    return Array.from(byCategory.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        percentage: total > 0 ? (amount / total) * 100 : 0,
-      }));
-  }, [filteredExpenses]);
+  const heroExpenseCategories = useMemo(
+    () => buildHeroTopCategories(filteredExpenses.filter((e) => e.type !== 'income' && e.type !== 'transfer')),
+    [filteredExpenses]
+  );
 
   // Top-5 income categories aggregated from filteredExpenses for the hero bar chart.
-  const heroIncomeCategories = useMemo(() => {
-    const items = filteredExpenses.filter((e) => e.type === 'income');
-    const total = items.reduce((s, e) => s + Math.abs(e.amount), 0);
-    const byCategory = new Map<string, number>();
-    for (const e of items)
-      byCategory.set(e.categoryName, (byCategory.get(e.categoryName) ?? 0) + Math.abs(e.amount));
-    return Array.from(byCategory.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        percentage: total > 0 ? (amount / total) * 100 : 0,
-      }));
-  }, [filteredExpenses]);
+  const heroIncomeCategories = useMemo(
+    () => buildHeroTopCategories(filteredExpenses.filter((e) => e.type === 'income')),
+    [filteredExpenses]
+  );
 
   if (loading) {
     return (

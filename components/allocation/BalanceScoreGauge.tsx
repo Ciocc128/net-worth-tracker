@@ -38,7 +38,9 @@ export function BalanceScoreGauge({ balance }: BalanceScoreGaugeProps) {
   const actionColors = useActionColors();
   const titleId = useId();
 
-  const { score, misallocationPct } = balance;
+  const { score, misallocationPct, leverageGapPp } = balance;
+  // Below half a point the leverage gap is noise, not something the reader can act on.
+  const hasLeverageGap = Math.abs(leverageGapPp) >= 0.5;
   const color =
     score >= GOOD_SCORE
       ? actionColors.OK
@@ -99,8 +101,22 @@ export function BalanceScoreGauge({ balance }: BalanceScoreGaugeProps) {
       <div className="min-w-0">
         <p className="text-sm font-semibold text-foreground">Equilibrio</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          {misallocationPct < 0.05 ? (
+          {misallocationPct < 0.05 && !hasLeverageGap ? (
             'Allocazione perfettamente in linea col target.'
+          ) : hasLeverageGap ? (
+            // A leveraged target not yet reached is NOT misallocation: name the two
+            // causes separately instead of claiming "X% fuori posizione" for exposure
+            // that is simply missing.
+            <>
+              <span className="font-mono tabular-nums text-foreground">
+                {misallocationPct.toFixed(1)}%
+              </span>{' '}
+              fuori posizione ·{' '}
+              <span className="font-mono tabular-nums text-foreground">
+                {Math.abs(leverageGapPp).toFixed(0)} p.p.
+              </span>{' '}
+              di esposizione {leverageGapPp < 0 ? 'sotto' : 'sopra'} il target di leva.
+            </>
           ) : (
             <>
               <span className="font-mono tabular-nums text-foreground">

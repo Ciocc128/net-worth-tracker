@@ -176,6 +176,33 @@ export function buildPensionValueSeries(
 }
 
 /**
+ * Chiude la serie sul valore VIVO del fondo, al posto dello snapshot del mese corrente.
+ *
+ * Un versamento alza l'asset nel momento in cui viene registrato, ma lo snapshot del mese
+ * corrente viene riscritto solo dal cron serale: finché i due divergono,
+ * `computePensionReturn` sottrarrebbe il versamento da un valore di chiusura che non lo
+ * contiene ancora — il TWR calerebbe esattamente dell'importo versato — mentre l'hero
+ * mostra già il valore vivo. Sostituire (o aggiungere, se il cron non ha ancora scritto il
+ * mese) il punto del mese corrente con il valore vivo chiude la finestra su numeri
+ * coerenti: hero e card del rendimento concordano per costruzione, con qualsiasi schedule
+ * del cron.
+ *
+ * `value <= 0` lascia la serie intatta — stessa regola di `buildPensionValueSeries`: un
+ * fondo a zero non esiste, non vale zero. La serie in ingresso non viene mutata.
+ */
+export function overlayLivePensionValue(
+  series: PensionValuePoint[],
+  live: PensionValuePoint
+): PensionValuePoint[] {
+  if (live.value <= 0) return series;
+
+  const liveKey = monthKey(live.year, live.month);
+  return [...series.filter((point) => monthKey(point.year, point.month) !== liveKey), live].sort(
+    (a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month)
+  );
+}
+
+/**
  * Il mese da cui la serie è affidabile, come 'YYYY-MM'.
  *
  * `configuredStartMonth` (impostazione utente) vince sempre: è l'utente a sapere da quando ha

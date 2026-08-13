@@ -174,9 +174,11 @@ CRON_SECRET=your_secure_random_string_here
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Registration Control (optional - for restricting signups)
+# NOTE: the whitelist itself is server-only (no NEXT_PUBLIC_ prefix) — the email list
+# must never reach the client bundle. Only the two toggles are public.
 NEXT_PUBLIC_REGISTRATIONS_ENABLED=true
 NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=false
-NEXT_PUBLIC_REGISTRATION_WHITELIST=
+REGISTRATION_WHITELIST=
 
 # Development Features (optional - for testing/demo)
 NEXT_PUBLIC_ENABLE_TEST_SNAPSHOTS=false
@@ -214,6 +216,23 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 1. Navigate to `/register`
 2. Create an account with email/password or Google sign-in
 3. Log in and start adding your assets!
+
+### Step 5b (Optional): Shared account — delegated access
+
+A second user can be granted full co-owner read/write on your account (Impostazioni →
+Condivisione account). Three prerequisites, in this order, or the add fails:
+
+1. **The guest must be in the whitelist**: add their email to `REGISTRATION_WHITELIST`
+   (with `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=true`) so they can register at all.
+2. **The guest must register first**: the add resolves their email to a Firebase UID, and
+   a non-existent user returns a 404 («La persona deve prima registrarsi»). Have them
+   complete `/register` before you add them.
+3. **`firestore.rules` must be deployed** (Step 4 of Firebase Setup): enforcement of the
+   delegated access lives in the rules; without the deploy the grant document exists but
+   reads are denied.
+
+The guest's theme stays their own; everything else (data, mutations) operates on the
+owner's account via the account switcher in the sidebar.
 
 ### Step 6 (Optional but recommended): Local testing with the Firebase Emulator Suite
 

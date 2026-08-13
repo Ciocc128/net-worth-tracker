@@ -3,6 +3,7 @@ import {
   buildPensionValueSeries,
   computePensionReturn,
   isPensionReturnMeasurable,
+  overlayLivePensionValue,
   resolvePensionReturnStart,
 } from '@/lib/utils/pensionReturn';
 import type { MonthlySnapshot } from '@/types/assets';
@@ -88,6 +89,61 @@ describe('buildPensionValueSeries', () => {
 
   it('returns nothing when there are no funds', () => {
     expect(buildPensionValueSeries([snapshotWithFund(2026, 1, 10_000)], [])).toEqual([]);
+  });
+});
+
+describe('overlayLivePensionValue', () => {
+  it('replaces the current-month snapshot value with the live fund value', () => {
+    const series = [
+      { year: 2026, month: 7, value: 10_000 },
+      { year: 2026, month: 8, value: 10_000 },
+    ];
+
+    const overlaid = overlayLivePensionValue(series, { year: 2026, month: 8, value: 10_200 });
+
+    expect(overlaid).toEqual([
+      { year: 2026, month: 7, value: 10_000 },
+      { year: 2026, month: 8, value: 10_200 },
+    ]);
+    // Never mutates the input series.
+    expect(series[1].value).toBe(10_000);
+  });
+
+  it('appends the current month when the cron has not written its snapshot yet', () => {
+    const series = [{ year: 2026, month: 7, value: 10_000 }];
+
+    const overlaid = overlayLivePensionValue(series, { year: 2026, month: 8, value: 10_200 });
+
+    expect(overlaid).toEqual([
+      { year: 2026, month: 7, value: 10_000 },
+      { year: 2026, month: 8, value: 10_200 },
+    ]);
+  });
+
+  it('leaves the series untouched when the live value is zero (no funds)', () => {
+    const series = [{ year: 2026, month: 7, value: 10_000 }];
+
+    expect(overlayLivePensionValue(series, { year: 2026, month: 8, value: 0 })).toEqual(series);
+  });
+
+  it('neutralizes a contribution recorded today against a stale snapshot', () => {
+    // Snapshot chain 10 000 → 10 000; a 200 € contribution recorded in August raised
+    // the ASSET immediately, but the August snapshot has not been rewritten yet.
+    // Without the overlay the formula reads (10 000 − 200) / 10 000: a −2% phantom loss.
+    const staleSeries = [
+      { year: 2026, month: 7, value: 10_000 },
+      { year: 2026, month: 8, value: 10_000 },
+    ];
+    const paidIn = [contribution(2026, 8, 200, 'tfr')];
+
+    const stale = computePensionReturn(staleSeries, paidIn, '2026-07');
+    expect(stale?.twr).toBeCloseTo(-2, 5);
+
+    // Overlaying the live value (stale + the 200 just paid in) restores the truth: flat.
+    const overlaid = overlayLivePensionValue(staleSeries, { year: 2026, month: 8, value: 10_200 });
+    const result = computePensionReturn(overlaid, paidIn, '2026-07');
+    expect(result?.twr).toBeCloseTo(0, 5);
+    expect(result?.endValue).toBe(10_200);
   });
 });
 
