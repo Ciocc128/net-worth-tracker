@@ -86,6 +86,12 @@
 - Fixed Centri di Costo announcing "Nessun centro di costo", together with an invitation to create your first one, whenever the data had simply failed to load. A dropped connection was indistinguishable from genuinely having none, on a screen whose whole job is to be trusted. It now says the load failed, and that nothing you had recorded was touched.
 - Fixed the inactivity badge on a cost center tracking the period you had selected instead of the center itself. Choosing "Mese" marked every center with no spending this month as inactive, including one you had used a few weeks earlier; and on the longest period the same center was counted among those with spending while still wearing the badge. Inactivity is now measured on the center's real last movement, and the badge says what it means: "Nessuna spesa da 90 giorni".
 - Fixed two of the eight cost-center colours being too faint to make out against a light background. The coloured bar is a row's only visual identity, and the lime and the amber fell well below the contrast level that identity needs. Cost-center colours are now taken from your active theme's own palette instead of being fixed, so they follow the theme you're using and are checked for legibility.
+- Fixed Centri di Costo showing your own cost centers instead of the account owner's when you are working on a shared account. The tab read one account and wrote to the other, so a co-owner saw the wrong list and any deletion applied to the owner's data. Both now read the account you are actually viewing.
+- Fixed the change-versus-previous figure on a cost center comparing a period that has barely started against a complete one. On the 3rd of the month it measured three days against a full previous month, so almost every center looked like it had collapsed, then recovered by the end of the month. The comparison now stops the previous period at the same point — three days against three days — so what you see is a change in spending rather than a change in the calendar.
+- Fixed a cost center created moments ago being labelled as having had no spending for 90 days. A center that has never recorded anything now says exactly that.
+- Fixed the percentages on archived cost centers being measured against the active centers' total, which they are not part of. They are now measured among the archived ones, and the label says so.
+- Fixed an expense dated the day after a year boundary occasionally counting in the previous year in the cost-center comparison, during the months when daylight saving time is in effect.
+- Fixed the cost-center dialog having no way to scroll on a short screen — a phone in landscape, or a small desktop window — where the form could grow past the edge and leave "Annulla" and "Crea" out of reach.
 
 ## 🔧 Improvements
 
@@ -126,6 +132,9 @@
 - Each row in the Centri di Costo list now shows its share of the period total beside the amount. The bar next to it compares centers against each other, so the largest is always full — which invited you to read the top center as the whole total rather than as one part of it.
 - The "Storico" option in the Centri di Costo period selector is now called "Sempre", so one word no longer means three different things on the same screen: the Storico page, the chart's own "Tutto lo storico" toggle, and the period covering everything.
 - Note on cost-center colours: existing centers will change shade the first time you open the tab after this release. Each one keeps a distinct colour and no two collide, but the shade now comes from your active theme rather than being fixed. Re-saving a center from its edit dialog settles the change for that center.
+- Every figure on a cost-center row now names the period it measures — "34% del totale del mese", "87% del tetto annuale" — so one line no longer reads as three facts about the same span.
+- The confirmation step on deleting a cost center no longer expires by itself after three seconds. It stays until you confirm it, press Esc, or click elsewhere, which also means it can no longer disappear while a screen reader is still reading it out.
+- Cost-center rows are now read out in full by screen readers. They previously announced only the center's name, silently dropping the amount, the share and the transaction count — the figures the row exists to show.
 
 ## 🔒 Security
 
