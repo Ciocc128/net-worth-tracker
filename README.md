@@ -222,7 +222,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 | Forms | react-hook-form, zod | Form handling and validation |
 | Dates | date-fns, date-fns-tz | Timezone-aware date operations |
 | Scraping | cheerio | Borsa Italiana dividend and bond price data |
-| Testing | Vitest · Playwright | Unit testing (1567 tests) · browser E2E against the Firebase emulator |
+| Testing | Vitest · Playwright | Unit testing (1573 tests) · browser E2E against the Firebase emulator |
 
 ## Development
 

@@ -635,17 +635,63 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
 - ARIA: l'asse periodo è `SegmentedPill` (roving tabindex, Arrow/Home/End) e NON
   `SegmentedControl` — tornare indietro perde le frecce in silenzio pur restando
   `role="tablist"`/`role="tab"`. Il budget meter vuole `role="progressbar"` + `aria-valuenow`
-  **+ `aria-label` + `aria-valuetext`**: il check "progressbar con aria-valuenow" è già stato
-  superato una volta da un meter che annunciava «78, progress bar», un numero senza soggetto.
+  **+ `aria-label` + `aria-valuetext`**, con `aria-valuenow` **clampato a `aria-valuemax`**
+  (oltre il tetto il rapporto grezzo supera 100 e la posizione annunciata diventa priva di
+  senso; la cifra vera la porta `aria-valuetext`). Il check "progressbar con aria-valuenow" è
+  già stato superato una volta da un meter che annunciava «78, progress bar», un numero senza
+  soggetto: è il promemoria che un asse soddisfatto non è un difetto assente.
   Delete/rename con `aria-label` che nomina la conseguenza (quante spese si scollegano) e live
   region `sr-only` per armamento E disarmo — svuotare la region non annuncia nulla.
+  **Nessun `aria-label` su una riga che espone numeri**: sostituisce l'intero contenuto
+  accessibile, e i numeri sono la ragione per cui la riga esiste (vale per le righe della lista
+  e per i toggle sottocategoria, dove per giunta annunciava l'azione OPPOSTA ad `aria-pressed`).
   `<dl>` con veri `<dt>/<dd>`; focus-visible su ogni `<button>` nudo (righe sottocategoria e
   swatch colore); `CostCenterDialog` con `DialogDescription`
+- Conferma a 2 click: **nessun timer** (un limite di tempo più corto del proprio annuncio viola
+  WCAG 2.2.1), e il rilascio non deve dipendere dal focus — Safari non dà focus a un `<button>`
+  al tap, quindi un `onBlur` da solo lascia l'armamento caldo a tempo indeterminato. Servono
+  `pointerdown` fuori + Escape + blur insieme, e il disarmo **prima** di delegare la mutazione:
+  su fallimento il componente resta montato e il click successivo eliminerebbe senza conferma
+- Grafici: il ruolo va **sul chart, non su un wrapper**. Recharts 3.x ha `accessibilityLayer`
+  a `true` di default e mette `tabIndex=0` + `role="application"` sul proprio `<svg>`, quindi un
+  `role="img"` su un div esterno lascia un nodo tabbabile dentro un sottoalbero appena
+  dichiarato presentazionale. Se si sceglie `role="img"`, l'`aria-label` deve nominare ciò che
+  la `<Legend>` nascosta mappava (i nomi dei centri), e `accessibilityLayer={false}` toglie il
+  nodo focusabile
+- Dati e cache: `initialData` su una query **azzera il fetch** con lo `staleTime` globale di 5
+  minuti di questo progetto (semina la cache marcandola appena scaricata, e con
+  `refetchOnWindowFocus: false` non si aggiorna mai né raggiunge il proprio ramo d'errore). Per
+  seminare una vista dai dati che il padre ha già si usa `placeholderData`. Verifica anche che
+  ogni query legga con `ownerId` e non con `user.uid`: la chiave e le mutazioni usano l'owner,
+  e su account condiviso i due differiscono
 - Motion: la stagger d'ingresso delle righe è guardata da `useReducedMotion()`
 - Breakpoint (base 390px): il nome del centro va a capo invece di essere schiacciato dai badge;
   la riga azioni del Detail ha `flex-wrap`; composizione categoria, tabella transazioni e
-  overlay confronto non vanno in overflow
+  overlay confronto non vanno in overflow. Target 44px: gli swatch colore sono un'area 44×44
+  attorno a un pallino da 32, il trigger degli archiviati usa `py-3` (con `py-2.5` misura 40)
+- Content model: dentro un `<button>` sta solo phrasing content — niente `<div>`, `<p>` o il
+  `Badge` condiviso, che rende un `<div>`. La lista ha `role="list"` + `role="listitem"`, e un
+  `role="list"` senza figli `listitem` è peggio di nessuna semantica
+- Fusi orari nei test: le fixture di questo progetto stanno a mezzogiorno con offset esplicito,
+  dodici ore lontane dal bordo DST, quindi **non possono** far emergere un off-by-one di
+  `dayOfYear` (che va calcolato in UTC, non per differenza di millisecondi fra date costruite
+  nel frame locale). Le date vere arrivano da `<input type="date">` a mezzanotte LOCALE: una
+  fixture così deve esistere. Esegui la suite anche con `TZ=Europe/Rome`, non solo di default
 - Altro: pattern anomali o violazioni non elencate sopra
+
+Nota: audit 2026-08-13 = 11/20 (A11y 2 · Perf 2 · Theming 3 · Responsive 2 · Integrity 2), su una
+critique che aveva chiuso a 20/40 il giorno prima. I due punteggi non sono confrontabili: la
+critique guarda gerarchia e onestà, l'audit contrasto, target, token e correttezza — assi che su
+questa superficie non erano mai stati misurati. Chiusi nello stesso giorno tutti i P1 locali; NON
+ri-aprirli come nuovi. Restano deliberatamente aperti, e non vanno segnalati come scoperte:
+- **I token di contrasto** (`--positive` mai ridefinito dai cinque temi e sotto 4,5:1 come testo
+  in tutte e sei le modalità chiare; `--chart-3` usato come testo di verdetto, 1,02:1 su
+  midnight-bloom dark; `--destructive` sotto in 6 combinazioni su 12). È un difetto **di token**,
+  non di questo tab: lo consuma `getMetricValueColor` in 29 file, e ha un branch dedicato.
+- **Gli slot colore 6-8** non theme-aware (`useChartColors` risolve dal tema solo `--chart-1..5`).
+- **Target da 32px** di `SegmentedPill` e dei Button shadcn: primitive condivise, passata a sé.
+- **Il chip Δ sparisce** quando il predecessore troncato è a zero, e il 28 febbraio confronta un
+  mese completo con un gennaio troncato al 28. Sono decisioni di prodotto, non bug.
 
 Contesto:
 - Leggi DESIGN.md (fonte canonica del design system — North Star, Form Follows Function, scala tipografica, Mono Mandate, Zero-Chroma)
