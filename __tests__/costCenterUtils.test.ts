@@ -13,6 +13,7 @@ import {
   buildComparisonSeries,
   getLifecycleStatus,
   computePeriodComparison,
+  resolveLastActivityDate,
   DORMANT_THRESHOLD_DAYS,
 } from '@/lib/utils/costCenterUtils';
 
@@ -327,5 +328,37 @@ describe('getLifecycleStatus', () => {
   it('reports active for recent activity', () => {
     const recent = new Date(NOW.getTime() - 5 * 86_400_000);
     expect(getLifecycleStatus({}, recent, NOW)).toBe('active');
+  });
+});
+
+describe('resolveLastActivityDate', () => {
+  it('returns null with no expenses', () => {
+    expect(resolveLastActivityDate([])).toBeNull();
+  });
+
+  it('returns the most recent date regardless of input order', () => {
+    const expenses = [
+      expense({ date: new Date('2025-01-20T12:00:00+01:00'), amount: -200 }),
+      expense({ date: new Date('2025-06-05T12:00:00+02:00'), amount: -300 }),
+      expense({ date: new Date('2024-03-10T12:00:00+01:00'), amount: -100 }),
+    ];
+    expect(resolveLastActivityDate(expenses)?.toISOString()).toBe(
+      new Date('2025-06-05T12:00:00+02:00').toISOString(),
+    );
+  });
+
+  it('keeps a center active when the selected period happens to be empty', () => {
+    // The regression this function exists for: the center last spent 35 days ago — well
+    // inside the dormancy threshold — but nothing landed in the current calendar month.
+    // Reading the period-scoped stats made getLifecycleStatus see null and report 'dormant',
+    // so the badge tracked the axis instead of the center.
+    const lastSpend = new Date(NOW.getTime() - 35 * 86_400_000);
+    const expenses = [expense({ date: lastSpend, amount: -120 })];
+
+    const periodScoped = computeCenterStats(expenses, 'month', NOW);
+    expect(periodScoped.lastActivityDate).toBeNull();
+    expect(getLifecycleStatus({}, periodScoped.lastActivityDate, NOW)).toBe('dormant');
+
+    expect(getLifecycleStatus({}, resolveLastActivityDate(expenses), NOW)).toBe('active');
   });
 });

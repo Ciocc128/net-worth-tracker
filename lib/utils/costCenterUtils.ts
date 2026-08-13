@@ -179,6 +179,23 @@ export function computeCenterStats(
 }
 
 /**
+ * Most recent activity across the center's WHOLE history, ignoring any period window.
+ *
+ * `computeCenterStats().lastActivityDate` is period-scoped, which is right for the stats block
+ * and wrong for dormancy: feeding it to `getLifecycleStatus` made a center with no spend in the
+ * selected window report `null`, and null maps to 'dormant' without ever reaching the 90-day
+ * threshold the status exists to measure — so on "Mese" every center idle this month claimed to
+ * be inactive, and on "Storico" the same center was simultaneously counted as spending. Dormancy
+ * is a fact about the center, not about the axis, so it needs its own unscoped read.
+ */
+export function resolveLastActivityDate(expenses: Expense[]): Date | null {
+  if (expenses.length === 0) return null;
+  return expenses
+    .map((e) => toDate(e.date))
+    .reduce((max, d) => (d > max ? d : max));
+}
+
+/**
  * Sorts centers by their period spend, descending. Pure: takes the precomputed
  * total alongside each center so it doesn't re-aggregate.
  */

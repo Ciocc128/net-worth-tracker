@@ -433,20 +433,66 @@ approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc
 File: app/dashboard/cashflow/page.tsx
 Componenti: components/cashflow/CostCentersTab.tsx,
             components/cashflow/CostCenterDetail.tsx,
-            components/cashflow/CostCenterDialog.tsx
+            components/cashflow/CostCenterDialog.tsx,
+            components/cashflow/CostCenterErrorNotice.tsx,
+            components/cashflow/costCenterStyles.ts
+Pure layer: lib/utils/costCenterUtils.ts, lib/utils/costCenterColors.ts
 
-Questo tab raggruppa le spese per oggetto/progetto (es. "Automobile"). Panoramica
-Trade-Republic: asse periodo (Mese/Anno/12 mesi/Storico, derivato in-memory) → hero totale
-+ lista flat divide-y dei centri ordinata per spesa con share-bar. Detail = hero totale periodo
-+ chip Δ-vs-precedente + righe flat, composizione per categoria, grafico mensile stacked-by-categoria.
+Questo tab raggruppa le spese per oggetto/progetto (es. "Automobile"). Due viste, UN SOLO asse
+periodo (Mese / Anno / 12 mesi / Sempre — `SegmentedPill`, derivato in-memory): lo stato è
+posseduto dalla Panoramica ma il controllo è renderizzato in ENTRAMBE, perché il Detail
+mostrava un periodo che non poteva cambiare.
+1. Panoramica — hero totale del periodo (page hero) + lista flat divide-y dei centri ordinata
+   per spesa. Nella riga la barra codifica il RANGO (spesa / centro maggiore) e la `%` in
+   sub-line codifica la QUOTA (spesa / totale del periodo): sono due domande diverse e servono
+   entrambe, perché con la sola barra la prima riga è sempre piena e si legge come se FOSSE
+   l'hero, che è invece la loro somma. Archiviati in un Collapsible, con un `maxSpend` proprio.
+2. Detail — hero del periodo (section hero) + chip Δ-vs-precedente + righe flat, composizione
+   per categoria, grafico mensile stacked-by-categoria, tabella transazioni.
+   TRE blocchi NON seguono l'asse e devono dirlo: il tetto (finestra del suo `budgetPeriod`),
+   la proiezione (sempre YTD) e il grafico (12 mesi / tutto, toggle proprio). Tetto e proiezione
+   stanno dietro un separatore `border-t border-border/40` col capitolo "Tetto e proiezione" e
+   ogni blocco nomina la propria finestra nell'eyebrow.
 Il Detail ha inoltre una composizione per SOTTO-categoria (buildSubCategoryComposition) con
 toggle di esclusione di sola sessione → "Totale al netto": è una lente di analisi e non altera
-mai hero, budget o grafico.
+mai hero, budget o grafico — e ora lo DICE, con un hint che sopravvive al proprio primo uso.
 Feature: budget ceiling per centro (verdict + meter), costo annuo proiettato (smorzato a inizio anno),
-overlay di confronto cross-centro, lifecycle attivo/dormiente/archiviato. Derivazione pura in
-lib/utils/costCenterUtils.ts. Delete e rename cascadano sulle spese via writeBatch.
-Confronta con: GoalBasedInvestingTab (Panoramica + asse periodo + budget meter — pattern analogo),
+overlay di confronto cross-centro (troncato ai top 5, con il residuo dichiarato),
+lifecycle attivo/dormiente/archiviato.
+Tre invarianti da non rompere:
+- Il lifecycle deriva dall'attività NON filtrata (`resolveLastActivityDate`), non da quella
+  del periodo: la dormienza è un fatto del centro, non dell'asse.
+- Il colore d'identità è uno SLOT di tema (`COST_CENTER_COLOR_KEYS` → `resolveCostCenterColor()`
+  → `useChartColors()`), mai un hex: gli hex legacy sono mappati sullo slot di pari posizione
+  senza backfill. Il picker mostra il token risolto e le etichette screen-reader nominano la
+  POSIZIONE, non la tinta (che cambia con il tema).
+- Un fetch fallito non è un insieme vuoto: `isError` → `CostCenterErrorNotice`, instradato
+  PRIMA del controllo empty-state in entrambe le viste.
+Delete e rename cascadano sulle spese via writeBatch. Il delete SCOLLEGA (non cancella) le
+spese, e ora lo dichiara: conteggio nell'etichetta armata e in `aria-label`, live region per
+armamento e disarmo, nota che compare all'armamento, toast che nomina l'esito.
+Confronta con: Previdenza/PensionOverview (stessa dottrina degli stati d'errore, stesse costanti
+EYEBROW_CLASS / CHAPTER_TITLE_CLASS, capitoli separati da border-t border-border/40),
+GoalBasedInvestingTab (Panoramica + asse periodo + budget meter — pattern analogo),
 ExpenseTrackingTab (transaction style).
+Nota: critique 2026-08-13 = 20/40, 2 P0 e 4 P1, tutti chiusi lo stesso giorno. NON ri-aprirli
+come nuovi: sono la nuova linea di partenza.
+- P0 stato d'errore — `isError` non letto in nessuna delle due query, quindi un fetch fallito
+  rendeva «Nessun centro di costo» con l'invito a crearne uno: indistinguibile dal caso vero.
+- P0 quattro finestre temporali su uno schermo, con l'asse della prima sullo schermo precedente
+  (hero «questo mese 340 €» sopra una proiezione YTD senza titolo, 24× di distanza).
+- P1 «Inattivo» derivato dal `lastActivityDate` filtrato dal periodo: badge che seguiva l'asse
+  e contraddiceva «centri attivi» dodici pixel più su.
+- P1 delete a cascata silenzioso; P1 tipografia fuori ramp (48px inesistente, hero Detail più
+  piccolo su desktop di quello della lista) e ~14 numeri fuori dal Mono Mandate; P1 palette hex
+  grezza fuori tema, con due voci su otto sotto 3:1 in light mode.
+Chiusi anche, come P2: `%` di quota assente nella lista, `maxSpend` degli attivi usato per gli
+archiviati, `<Card>` in mezzo a contenitori piatti, stagger Framer senza guardia reduced-motion,
+progressbar senza nome accessibile, `<dl>` senza `<dt>/<dd>`, focus-visible assente su due
+`<button>` nudi, apostrofi misti, «Storico» in collisione con la pagina omonima.
+Attenzione: il layer puro è coperto (43 test fra costCenterUtils e costCenterColors), i TRE
+componenti no — nessuna spec Vitest né Playwright li tocca. Un redesign qui non ha rete di
+sicurezza meccanica: la verifica è manuale, sui sei temi e a 390px.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -1432,6 +1478,11 @@ Dalla meno redesignata alla più redesignata, per trovare i delta maggiori prima
 
 Previdenza esce dalla lista: critiquata 2026-08-01 e auditata 2026-08-02, con entrambe le baseline
 registrate nella sua sezione. Rientra solo per misurare un delta, non come pagina scoperta.
+
+Cashflow / tab "Centri di Costo" non è mai stato in lista ed è già stato fatto: critiquato
+2026-08-13 = 20/40, 2 P0 e 4 P1 chiusi lo stesso giorno (baseline nella sua sezione). Manca
+invece il suo audit, che è il candidato più fresco: il tab è passato da 1 finding del detector
+a zero, ma i tre componenti non hanno alcuna copertura di test.
 8. Allocazione ← esteso con l'allocazione a leva, la parte più giovane della pagina
 9. Patrimonio ← hero gemello di Panoramica + registro operazioni mai critiquato
 10. Analisi ← critiquata 2026-07-21 (25/40), redesign implementato — rieseguire per delta

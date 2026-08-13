@@ -587,24 +587,64 @@ Contesto:
 File: app/dashboard/cashflow/page.tsx
 Componenti: components/cashflow/CostCentersTab.tsx,
             components/cashflow/CostCenterDetail.tsx,
-            components/cashflow/CostCenterDialog.tsx
+            components/cashflow/CostCenterDialog.tsx,
+            components/cashflow/CostCenterErrorNotice.tsx,
+            components/cashflow/costCenterStyles.ts
+Pure layer: lib/utils/costCenterUtils.ts, lib/utils/costCenterColors.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: hero totale periodo, lista flat divide-y dei centri + share-bar, detail (hero +
-  chip Δ-vs-precedente + righe flat), budget meter/verdict — nessun hardcoded; lo share-bar
-  e il meter usano token/`color-mix()`, non hex
+- Token e colore d'identità: NESSUN hex, nemmeno nella palette del picker. Il colore di un
+  centro è uno slot (`COST_CENTER_COLOR_KEYS`) risolto a runtime da `resolveCostCenterColor()`
+  su `useChartColors()`, così eredita i sei temi E la guardia di luminanza dell'hook; gli hex
+  legacy sono mappati sullo slot di pari posizione senza backfill. Verifica che rail di riga,
+  share-bar, pallino del Detail, stroke del confronto e swatch del dialog passino TUTTI da lì,
+  e che nessun percorso reintroduca un `?? '#hex'` o un fallback dipendente dal rank
 - Chart colors: grafico mensile stacked-by-categoria + overlay confronto cross-centro via
-  `useChartColors()`; tooltip via CSS vars; nessun hex diretto
-- Gerarchia: hero periodo con scala corretta; nessun ritorno al vecchio box-grid 2×4 di KPI;
-  lista centri flat divide-y (no card-in-card); Mono Mandate su tutti i valori
-- Periodo: asse `CostCenterPeriod` (Mese/Anno/12 mesi/Storico) derivato in-memory — verifica
-  che lo switch non rifaccia il fetch; lifecycle attivo/dormiente/archiviato coerente
+  `useChartColors()`; tooltip via CSS vars; `<Legend>` con `color: var(--muted-foreground)`;
+  il grafico impilato colora per CATEGORIA sempre — non deve tornare a cambiare sorgente
+  colore quando il periodo contiene una sola categoria
+- Mono Mandate esteso agli assi: tutti e quattro gli assi Recharts passano `CHART_TICK_STYLE`
+  (`fontFamily: var(--font-geist-mono)`) — le tick label sono numeri e DESIGN.md le nomina
+  esplicitamente. Verifica anche che non resti nessun `tabular-nums` senza `font-mono`
+  (la trappola era una `%` in sans nella stessa riga flex di un euro in mono)
+- Gerarchia: hero Panoramica `text-[44px] desktop:text-[54px]`, hero Detail `text-[36px]`
+  (è un section hero: nomina un centro dentro un tab, sotto un PageHeader che dice già
+  "Cashflow"); nessun valore fuori ramp — 40px e 32px sono guardie di overflow, 48px non
+  esiste. Titoli di capitolo via `CHAPTER_TITLE_CLASS`, eyebrow via `EYEBROW_CLASS` (con
+  `font-semibold`), entrambi da `costCenterStyles.ts` e non ridefiniti inline.
+  Nessun ritorno al vecchio box-grid 2×4 di KPI, e nessun ritorno a `<Card>` per tetto e
+  proiezione: su questa superficie i contenitori sono piatti e `rounded-2xl`
+- Periodo: asse `CostCenterPeriod` (Mese / Anno / 12 mesi / Sempre) derivato in-memory —
+  verifica che lo switch non rifaccia il fetch, e che l'asse sia RENDERIZZATO IN ENTRAMBE le
+  viste con lo stato posseduto dalla Panoramica (un Detail che riceve il periodo come sola
+  prop è la regressione da cui si è partiti)
+- Finestre dichiarate: tetto, proiezione e grafico NON seguono l'asse e ognuno deve nominare
+  la propria finestra nell'eyebrow; tetto e proiezione stanno dietro il separatore di capitolo
+- Lifecycle: deve derivare da `resolveLastActivityDate()` sulle spese NON filtrate. Se torna a
+  leggere `computeCenterStats().lastActivityDate`, ogni centro senza spesa nel periodo si
+  ridichiara "inattivo" e contraddice il conteggio nell'hero
+- Stati: `isError` letto in entrambe le query e instradato a `CostCenterErrorNotice` PRIMA del
+  controllo empty-state; skeleton con `aria-busy` (non `aria-hidden`) e `motion-reduce:animate-none`
 - Breakdown per sotto-categoria (`buildSubCategoryComposition`): i toggle di esclusione sono
   di sola sessione e il "Totale al netto" è dichiaratamente una lente di analisi — verifica
-  che non sia reso con lo stesso peso del totale reale e che non alteri hero/budget/grafico
-- ARIA: asse periodo + segmented `role="tablist"`/`role="tab"`; delete/rename con `aria-label`;
-  CostCenterDialog con `DialogDescription`; budget meter con `role="progressbar"` + `aria-valuenow`
-- Breakpoint: CostCenterDetail, composizione categoria e overlay confronto non overflow su mobile
+  che non sia reso con lo stesso peso del totale reale, che non alteri hero/budget/grafico, e
+  che l'hint che lo spiega non venga sostituito dal risultato del proprio primo uso
+- Lista: la barra codifica il rango e la `%` in sub-line la quota — se la `%` sparisce, la
+  prima riga sempre piena si rilegge come se fosse il totale dell'hero. Gli archiviati usano
+  un `maxSpend` proprio, non quello degli attivi
+- ARIA: l'asse periodo è `SegmentedPill` (roving tabindex, Arrow/Home/End) e NON
+  `SegmentedControl` — tornare indietro perde le frecce in silenzio pur restando
+  `role="tablist"`/`role="tab"`. Il budget meter vuole `role="progressbar"` + `aria-valuenow`
+  **+ `aria-label` + `aria-valuetext`**: il check "progressbar con aria-valuenow" è già stato
+  superato una volta da un meter che annunciava «78, progress bar», un numero senza soggetto.
+  Delete/rename con `aria-label` che nomina la conseguenza (quante spese si scollegano) e live
+  region `sr-only` per armamento E disarmo — svuotare la region non annuncia nulla.
+  `<dl>` con veri `<dt>/<dd>`; focus-visible su ogni `<button>` nudo (righe sottocategoria e
+  swatch colore); `CostCenterDialog` con `DialogDescription`
+- Motion: la stagger d'ingresso delle righe è guardata da `useReducedMotion()`
+- Breakpoint (base 390px): il nome del centro va a capo invece di essere schiacciato dai badge;
+  la riga azioni del Detail ha `flex-wrap`; composizione categoria, tabella transazioni e
+  overlay confronto non vanno in overflow
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:
