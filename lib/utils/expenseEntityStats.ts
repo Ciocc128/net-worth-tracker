@@ -1,9 +1,10 @@
 /**
  * Entity dossier statistics — the numbers behind ONE category (optionally narrowed to a
- * subcategory): per-year table, run-rate strip and monthly series.
+ * subcategory): per-year table, per-subcategory year-over-year deltas, run-rate strip
+ * and monthly series.
  *
  * WHY ONE MODULE
- * The EntityDossier renders three views of the same entity, and they must agree on what
+ * The EntityDossier renders several views of the same entity, and they must agree on what
  * "the entity" is. Row selection is therefore always selectExpensesForDrillDown, so the
  * dossier can never disagree with the drill-down the user clicked through (key by id,
  * label by name — see expenseGrouping). Income entities go through the same code paths:
@@ -20,7 +21,12 @@
 
 import { Expense } from '@/types/expenses';
 import { MONTH_NAMES } from '@/lib/constants/months';
-import { selectExpensesForDrillDown, type CategoryScope } from '@/lib/utils/expenseGrouping';
+import {
+  getSubCategoryKey,
+  getSubCategoryLabel,
+  selectExpensesForDrillDown,
+  type CategoryScope,
+} from '@/lib/utils/expenseGrouping';
 
 /**
  * The entity a dossier is about: a category, optionally narrowed to one subcategory.
@@ -157,6 +163,162 @@ export function buildEntityYearRows(
   }
 
   return rows;
+}
+
+/**
+ * One side of a year-over-year comparison: a calendar year, optionally cut at a month.
+ * `upToMonth: null` means the whole year; a number counts months 1..upToMonth.
+ */
+export interface EntityWindow {
+  year: number;
+  upToMonth: number | null;
+}
+
+/**
+ * The two windows a year row is built from — derived HERE rather than at the call
+ * site so the subcategory breakdown can never compare a different pair of windows
+ * than the row it decomposes (the invariant the UI relies on:
+ * Σ(subcategory delta) === row.delta).
+ *
+ * @param nowMonth Current Italy month (1-12) — the cut applied to BOTH sides of a
+ *                 partial row, exactly as buildEntityYearRows applies it.
+ * @returns `baseline` is null wherever the row itself has no delta (the oldest row,
+ *          or a partial row whose previous year predates the tracked history).
+ */
+export function resolveYearRowWindows(
+  row: EntityYearRow,
+  nowMonth: number
+): { current: EntityWindow; baseline: EntityWindow | null } {
+  if (row.isPartial) {
+    return {
+      current: { year: row.year, upToMonth: nowMonth },
+      baseline:
+        row.prevSameMonthsTotal !== null ? { year: row.year - 1, upToMonth: nowMonth } : null,
+    };
+  }
+  return {
+    current: { year: row.year, upToMonth: null },
+    baseline: row.delta !== null ? { year: row.year - 1, upToMonth: null } : null,
+  };
+}
+
+/** 'new' = nothing in the baseline; 'gone' = nothing left in the current window. */
+export type EntityDeltaStatus = 'ongoing' | 'new' | 'gone';
+
+/** One subcategory of an entity, compared across two windows. */
+export interface EntitySubCategoryDeltaRow {
+  /** Identity — the subcategory key (NO_SUBCATEGORY_KEY for rows carrying none). */
+  key: string;
+  /** Display name; NO_SUBCATEGORY_LABEL for the sentinel bucket. */
+  label: string;
+  /** Magnitude in the current window. */
+  current: number;
+  /** Magnitude in the baseline window; 0 when there is no baseline window at all. */
+  previous: number;
+  /** current − previous, or null when the row has no baseline to compare against. */
+  delta: number | null;
+  /** Delta as a share of the baseline, in percent; null when delta is null or previous is 0. */
+  deltaPercent: number | null;
+  /** 'ongoing' whenever there is no baseline — the badge is a comparison, not a fact. */
+  status: EntityDeltaStatus;
+}
+
+/** Magnitude of a category's rows inside one window, floored at historyStartYear. */
+function sumEntityInWindow(
+  entityRows: Expense[],
+  window: EntityWindow,
+  historyStartYear: number,
+  monthOf: (expense: Expense) => { year: number; month: number },
+  onRow: (key: string, label: string, amount: number) => void
+): void {
+  for (const row of entityRows) {
+    const when = monthOf(row);
+    if (when.year < historyStartYear) continue;
+    if (when.year !== window.year) continue;
+    if (window.upToMonth !== null && when.month > window.upToMonth) continue;
+    onRow(getSubCategoryKey(row), getSubCategoryLabel(row), magnitude(row));
+  }
+}
+
+/**
+ * Break ONE category's year-over-year delta down by subcategory — "how much of
+ * Casa's +820 € is condominio?".
+ *
+ * Rows are the UNION of subcategory keys present in either window, so a
+ * subcategory that stopped (status 'gone') still gets a row: omitting it would
+ * make the surviving rows look like the whole story. Keys at zero on both sides
+ * are dropped. Sorted by |delta| descending when a baseline exists (biggest
+ * movers first, like the Confronto driver ranking), otherwise by magnitude.
+ *
+ * By construction Σ(row.delta) equals the delta of the year row these windows
+ * come from (see resolveYearRowWindows): same selection, same floor, same
+ * magnitudes.
+ *
+ * @param expenses         Every row available; the category is selected here.
+ * @param category         The category — keyed by id, never by name.
+ * @param current          Window under review.
+ * @param baseline         Comparison window, or null when the row has no baseline.
+ * @param historyStartYear Global data floor; rows before January of this year are ignored.
+ * @param monthOf          Injected month resolver for a row (month 1-12).
+ */
+export function buildEntitySubCategoryDeltas(
+  expenses: Expense[],
+  category: CategoryScope,
+  current: EntityWindow,
+  baseline: EntityWindow | null,
+  historyStartYear: number,
+  monthOf: (expense: Expense) => { year: number; month: number }
+): EntitySubCategoryDeltaRow[] {
+  const entityRows = selectExpensesForDrillDown(expenses, category);
+
+  const buckets = new Map<string, { label: string; current: number; previous: number }>();
+  const bucketOf = (key: string, label: string) => {
+    const existing = buckets.get(key);
+    if (existing) return existing;
+    // Label from the first row seen for the key — same "key by id, label by name"
+    // rule as everywhere else; a later row with a renamed label does not re-title it.
+    const created = { label, current: 0, previous: 0 };
+    buckets.set(key, created);
+    return created;
+  };
+
+  sumEntityInWindow(entityRows, current, historyStartYear, monthOf, (key, label, amount) => {
+    bucketOf(key, label).current += amount;
+  });
+  if (baseline) {
+    sumEntityInWindow(entityRows, baseline, historyStartYear, monthOf, (key, label, amount) => {
+      bucketOf(key, label).previous += amount;
+    });
+  }
+
+  return Array.from(buckets.entries())
+    .filter(([, bucket]) => bucket.current > 0 || bucket.previous > 0)
+    .map(([key, bucket]): EntitySubCategoryDeltaRow => {
+      const delta = baseline ? bucket.current - bucket.previous : null;
+      return {
+        key,
+        label: bucket.label,
+        current: bucket.current,
+        previous: bucket.previous,
+        delta,
+        deltaPercent:
+          delta !== null && bucket.previous !== 0 ? (delta / bucket.previous) * 100 : null,
+        // Without a baseline every row would read 'new', which is a claim about
+        // the past this call has no window to support.
+        status: !baseline
+          ? 'ongoing'
+          : bucket.previous === 0
+            ? 'new'
+            : bucket.current === 0
+              ? 'gone'
+              : 'ongoing',
+      };
+    })
+    .sort((a, b) =>
+      baseline
+        ? Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0)
+        : b.current - a.current
+    );
 }
 
 export interface EntityRunRate {

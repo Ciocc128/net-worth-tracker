@@ -16,11 +16,21 @@
  *   makes the dossier answer "this year vs last year" without ever holding two
  *   periods in state.
  *
+ * SUBCATEGORY BREAKDOWN
+ * On a category dossier each year row expands into its per-subcategory deltas
+ * ("how much of Casa's +820 € is condominio?"). It hangs off the year row rather
+ * than sitting in a block of its own precisely so the two windows compared are
+ * the row's own — resolveYearRowWindows owns that pairing, which is what makes
+ * Σ(subcategory delta) === the row's delta true by construction instead of by
+ * vigilance. The most recent row opens by default: "this year vs last year" is
+ * the question the drill-down exists to answer.
+ *
  * All figures come from the pure, tested layer (lib/utils/expenseEntityStats).
  */
 'use client';
 
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import {
   Bar,
   CartesianGrid,
@@ -34,9 +44,12 @@ import {
 import { Expense } from '@/types/expenses';
 import {
   buildEntityMonthlySeries,
+  buildEntitySubCategoryDeltas,
   buildEntityYearRows,
   computeEntityRunRate,
+  resolveYearRowWindows,
   type EntityScope,
+  type EntitySubCategoryDeltaRow,
   type EntityYearRow,
 } from '@/lib/utils/expenseEntityStats';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
@@ -78,6 +91,54 @@ const monthOf = (expense: Expense): { year: number; month: number } => {
   return { year: getItalyYear(date), month: getItalyMonth(date) };
 };
 
+/**
+ * Sign classes for a delta, with spending semantics inverted (DESIGN.md
+ * positiveGood rule): spending UP is bad, income UP is good. Shared by the year
+ * rows and the subcategory rows so the two can never disagree on a colour.
+ */
+const deltaSignClass = (delta: number | null, isIncome: boolean): string => {
+  if (delta === null || delta === 0) return 'text-muted-foreground';
+  return (isIncome ? delta > 0 : delta < 0) ? 'text-positive' : 'text-destructive';
+};
+
+/** Intl already emits the minus sign; only the plus has to be added. */
+const signOf = (value: number): string => (value > 0 ? '+' : '');
+
+// ── CollapseRegion ───────────────────────────────────────────────────────────
+
+/**
+ * Pure-CSS `grid-template-rows: 0fr → 1fr` expansion. AGENTS.md flags Framer
+ * `AnimatePresence` + `height:'auto'` as unreliable for lists of sub-items (it
+ * left rows stuck at opacity 0); this needs no height measurement and nests.
+ * Content stays mounted for the transition to size, so a closed region is
+ * `inert` to keep it out of the focus order and the a11y tree.
+ * (Second call site of the technique — see AllocationBreakdown; kept local
+ * until a third one earns the shared primitive.)
+ */
+function CollapseRegion({
+  open,
+  id,
+  children,
+}: {
+  open: boolean;
+  id: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      className={cn(
+        'grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none',
+        open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+      )}
+    >
+      <div className="overflow-hidden" inert={!open}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── DossierChip ──────────────────────────────────────────────────────────────
 // Module-level component required by React Compiler (no nested components).
 
@@ -103,28 +164,83 @@ function DossierChip({
   );
 }
 
+// ── SubCategoryDeltaRow ──────────────────────────────────────────────────────
+
+/**
+ * One subcategory inside an expanded year row. Both figures the drill-down is
+ * asked for are on screen: the window's own total, and — under it — the signed
+ * change with the baseline it is measured against ("da 920,00 €"), so the
+ * comparison never depends on remembering the previous year's row.
+ */
+function SubCategoryDeltaRow({
+  row,
+  isIncome,
+}: {
+  row: EntitySubCategoryDeltaRow;
+  isIncome: boolean;
+}) {
+  return (
+    <div className="py-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[13px] text-muted-foreground">{row.label}</span>
+          {row.status !== 'ongoing' && (
+            <span className="shrink-0 rounded border border-border px-1 py-px text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {row.status === 'new' ? 'Nuova' : 'Cessata'}
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 text-[13px] font-mono tabular-nums text-foreground">
+          {formatCurrency(row.current)}
+        </span>
+      </div>
+      {/* Baseline LEFT, change RIGHT — one long "+50,00 € (+20.0%) · da 250,00 €"
+          string squeezed the label into an unreadable truncation at 390px. */}
+      {row.delta !== null && (
+        <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono tabular-nums">
+          <span className="text-muted-foreground">da {formatCurrency(row.previous)}</span>
+          <span className={deltaSignClass(row.delta, isIncome)}>
+            {signOf(row.delta)}
+            {formatCurrency(row.delta)}
+            {row.deltaPercent !== null && ` (${signOf(row.delta)}${row.deltaPercent.toFixed(1)}%)`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── YearRow ──────────────────────────────────────────────────────────────────
 
 /**
- * One row of the per-year table. The delta line inverts its sign colors for
- * spending entities (spending UP is bad → destructive), per the DESIGN.md
- * positiveGood rule.
+ * One row of the per-year table, expandable into its per-subcategory deltas.
+ *
+ * The row is only made expandable when the breakdown carries at least two
+ * subcategories: with one, the nested list would restate the row it hangs off.
+ * The chevron is always rendered on an expandable row — the affordance is
+ * invisible without it (AGENTS.md).
  */
 function YearRow({
   row,
   isIncome,
   historyStartYear,
+  subRows,
+  reserveToggleSpace,
+  isExpanded,
+  onToggle,
 }: {
   row: EntityYearRow;
   isIncome: boolean;
   historyStartYear: number;
+  /** Per-subcategory decomposition of THIS row's windows; empty at subcategory level. */
+  subRows: EntitySubCategoryDeltaRow[];
+  /** True when ANY row in the table is expandable — keeps the years aligned in a mixed table. */
+  reserveToggleSpace: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
-  const deltaClass =
-    row.delta === null || row.delta === 0
-      ? 'text-muted-foreground'
-      : (isIncome ? row.delta > 0 : row.delta < 0)
-        ? 'text-positive'
-        : 'text-destructive';
+  const regionId = useId();
+  const isExpandable = subRows.length > 1;
 
   // The partial year compares like-for-like ("stessi mesi"); a partial year whose
   // baseline predates the tracked history says so instead of showing a fake 0.
@@ -133,12 +249,12 @@ function YearRow({
       return <span className="text-muted-foreground">storico dal {historyStartYear}</span>;
     }
     if (row.delta === null) return <span className="text-muted-foreground">—</span>;
-    const sign = row.delta > 0 ? '+' : '';
-    const pct = row.deltaPercent !== null ? ` (${sign}${row.deltaPercent.toFixed(1)}%)` : '';
+    const pct =
+      row.deltaPercent !== null ? ` (${signOf(row.delta)}${row.deltaPercent.toFixed(1)}%)` : '';
     const context = row.isPartial ? ` vs ${row.year - 1} stessi mesi` : ` vs ${row.year - 1}`;
     return (
-      <span className={deltaClass}>
-        {sign}
+      <span className={deltaSignClass(row.delta, isIncome)}>
+        {signOf(row.delta)}
         {formatCurrency(row.delta)}
         {pct}
         <span className="text-muted-foreground">{context}</span>
@@ -146,22 +262,71 @@ function YearRow({
     );
   })();
 
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-sm font-medium font-mono tabular-nums text-foreground">{row.year}</span>
+  const summary = (
+    <>
+      <span className="flex items-center gap-2 shrink-0">
+        {isExpandable ? (
+          <ChevronDown
+            className={cn(
+              'h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
+              isExpanded && 'rotate-180'
+            )}
+            aria-hidden="true"
+          />
+        ) : (
+          // A year with nothing to decompose still holds the chevron's place, or the
+          // years would step in and out by 14px down a mixed table.
+          reserveToggleSpace && <span className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+        <span className="text-sm font-medium font-mono tabular-nums text-foreground">
+          {row.year}
+        </span>
         {row.isPartial && (
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border border-border rounded px-1 py-px">
             YTD
           </span>
         )}
-      </div>
-      <div className="text-right min-w-0">
-        <p className="text-sm font-semibold font-mono tabular-nums text-foreground">
+      </span>
+      <span className="text-right min-w-0">
+        <span className="block text-sm font-semibold font-mono tabular-nums text-foreground">
           {formatCurrency(row.total)}
-        </p>
-        <p className="text-[11px] font-mono tabular-nums">{deltaLine}</p>
+        </span>
+        <span className="block text-[11px] font-mono tabular-nums">{deltaLine}</span>
+      </span>
+    </>
+  );
+
+  if (!isExpandable) {
+    return (
+      <div className={cn('flex items-center justify-between gap-3 py-2.5', reserveToggleSpace && 'px-1')}>
+        {summary}
       </div>
+    );
+  }
+
+  return (
+    <div className="py-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-controls={regionId}
+        className="flex w-full items-center justify-between gap-3 rounded-lg py-2 pl-1 pr-1 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        {summary}
+      </button>
+      <CollapseRegion open={isExpanded} id={regionId}>
+        <div className="ml-1.5 border-l border-border/60 pl-3 pb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-0.5">
+            Per sottocategoria
+          </p>
+          <div className="divide-y divide-border/40">
+            {subRows.map((subRow) => (
+              <SubCategoryDeltaRow key={subRow.key} row={subRow} isIncome={isIncome} />
+            ))}
+          </div>
+        </div>
+      </CollapseRegion>
     </div>
   );
 }
@@ -212,7 +377,54 @@ export function EntityDossier({
     [allExpenses, scope, historyStartYear]
   );
 
+  /**
+   * Per-subcategory decomposition of every year row, keyed by year.
+   *
+   * Only on a CATEGORY dossier: at subcategory level there is nothing left to
+   * break down, and the map stays empty so no row becomes expandable. Each
+   * row's windows come from resolveYearRowWindows, so the nested deltas always
+   * sum back to the delta printed on the row above them.
+   */
+  const subRowsByYear = useMemo(() => {
+    const byYear = new Map<number, EntitySubCategoryDeltaRow[]>();
+    if (scope.subCategory) return byYear;
+    for (const row of yearRows) {
+      const { current, baseline } = resolveYearRowWindows(row, now.month);
+      byYear.set(
+        row.year,
+        buildEntitySubCategoryDeltas(
+          allExpenses,
+          scope.category,
+          current,
+          baseline,
+          historyStartYear,
+          monthOf
+        )
+      );
+    }
+    return byYear;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allExpenses, scope, yearRows, historyStartYear]);
+
+  /**
+   * Which year row is open. Stored WITH the entity it belongs to instead of
+   * being reset by an effect (`react-hooks/set-state-in-effect` bans the
+   * synchronous reset): when the dossier switches entity — same component
+   * instance, the JSX position never changes — the stored key stops matching
+   * and the default takes over again.
+   */
+  const scopeKey = `${scope.category.expenseType}:${scope.category.key}:${scope.subCategory?.key ?? ''}`;
+  const [toggledYear, setToggledYear] = useState<{ scopeKey: string; year: number | null } | null>(
+    null
+  );
+  // The newest row is the "this year vs last year" answer — open by default.
+  const expandedYear =
+    toggledYear && toggledYear.scopeKey === scopeKey ? toggledYear.year : (yearRows[0]?.year ?? null);
+
   const hasAnyData = yearRows.some(row => row.total > 0);
+  // Same threshold YearRow uses to decide it is expandable — one subcategory would
+  // only restate the row, so it earns no chevron and no reserved space.
+  const hasExpandableYear = Array.from(subRowsByYear.values()).some(rows => rows.length > 1);
   const hasTrendData = monthlySeries.some(point => point.value > 0 || (point.prevYearValue ?? 0) > 0);
   const seriesName = isIncome ? 'Entrate' : 'Spesa';
 
@@ -269,7 +481,21 @@ export function EntityDossier({
             <p className={EYEBROW_CLASS}>Per anno</p>
             <div className="divide-y divide-border/60 mt-1">
               {yearRows.map(row => (
-                <YearRow key={row.year} row={row} isIncome={isIncome} historyStartYear={historyStartYear} />
+                <YearRow
+                  key={row.year}
+                  row={row}
+                  isIncome={isIncome}
+                  historyStartYear={historyStartYear}
+                  subRows={subRowsByYear.get(row.year) ?? []}
+                  reserveToggleSpace={hasExpandableYear}
+                  isExpanded={expandedYear === row.year}
+                  onToggle={() =>
+                    setToggledYear({
+                      scopeKey,
+                      year: expandedYear === row.year ? null : row.year,
+                    })
+                  }
+                />
               ))}
             </div>
           </div>

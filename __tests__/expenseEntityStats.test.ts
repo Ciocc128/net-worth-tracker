@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildEntityMonthlySeries,
+  buildEntitySubCategoryDeltas,
   buildEntityYearRows,
   computeEntityRunRate,
+  resolveYearRowWindows,
   type EntityScope,
 } from '@/lib/utils/expenseEntityStats';
 import { Expense, ExpenseType, NO_SUBCATEGORY_KEY } from '@/types/expenses';
@@ -380,5 +382,269 @@ describe('buildEntityMonthlySeries', () => {
 
     // Assert
     expect(points.map((point) => point.value)).toEqual([0, 100]);
+  });
+});
+
+// ── resolveYearRowWindows ────────────────────────────────────────────────────
+
+describe('resolveYearRowWindows', () => {
+  it('should cut BOTH sides of a partial row at the current month', () => {
+    // Arrange — the YTD row of the running year
+    const expenses = [casaFixed(2026, 1, -100), casaFixed(2025, 1, -80)];
+    const [partial] = buildEntityYearRows(expenses, casaFixedScope, 2025, { year: 2026, month: 3 }, monthOf);
+
+    // Act
+    const windows = resolveYearRowWindows(partial, 3);
+
+    // Assert — same cut on both years, or the baseline would include months 2026 has not lived
+    expect(windows.current).toEqual({ year: 2026, upToMonth: 3 });
+    expect(windows.baseline).toEqual({ year: 2025, upToMonth: 3 });
+  });
+
+  it('should compare a completed row against the whole previous year', () => {
+    // Arrange
+    const expenses = [casaFixed(2026, 1, -100), casaFixed(2025, 6, -80), casaFixed(2024, 6, -50)];
+    const rows = buildEntityYearRows(expenses, casaFixedScope, 2024, { year: 2026, month: 3 }, monthOf);
+    const completed = rows.find((row) => row.year === 2025)!;
+
+    // Act
+    const windows = resolveYearRowWindows(completed, 3);
+
+    // Assert
+    expect(windows.current).toEqual({ year: 2025, upToMonth: null });
+    expect(windows.baseline).toEqual({ year: 2024, upToMonth: null });
+  });
+
+  it('should return no baseline wherever the row itself has no delta', () => {
+    // Arrange — the oldest row, plus a partial row whose previous year is pre-floor
+    const expenses = [casaFixed(2026, 1, -100), casaFixed(2025, 6, -80)];
+    const chained = buildEntityYearRows(expenses, casaFixedScope, 2025, { year: 2026, month: 3 }, monthOf);
+    const [flooredPartial] = buildEntityYearRows(
+      [casaFixed(2026, 1, -100)],
+      casaFixedScope,
+      2026,
+      { year: 2026, month: 3 },
+      monthOf
+    );
+
+    // Act
+    const oldestWindows = resolveYearRowWindows(chained[chained.length - 1], 3);
+    const flooredWindows = resolveYearRowWindows(flooredPartial, 3);
+
+    // Assert
+    expect(oldestWindows.baseline).toBeNull();
+    expect(flooredWindows.baseline).toBeNull();
+  });
+});
+
+// ── buildEntitySubCategoryDeltas ─────────────────────────────────────────────
+
+/** Casa (Spese Fisse) row on a named subcategory. */
+function casaSub(year: number, month: number, amount: number, subId: string, subName: string): Expense {
+  return makeExpense({
+    type: 'fixed',
+    amount,
+    date: new Date(year, month - 1, 15),
+    subCategoryId: subId,
+    subCategoryName: subName,
+  });
+}
+
+describe('buildEntitySubCategoryDeltas', () => {
+  it('should compare each subcategory across the two windows and rank the biggest movers first', () => {
+    // Arrange — condominio grew, bollette shrank by less
+    const expenses = [
+      casaSub(2026, 1, -600, 'sub-condominio', 'Condominio'),
+      casaSub(2026, 2, -100, 'sub-bollette', 'Bollette'),
+      casaSub(2025, 1, -400, 'sub-condominio', 'Condominio'),
+      casaSub(2025, 2, -180, 'sub-bollette', 'Bollette'),
+    ];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2026, upToMonth: 3 },
+      { year: 2025, upToMonth: 3 },
+      2025,
+      monthOf
+    );
+
+    // Assert
+    expect(rows.map((row) => row.label)).toEqual(['Condominio', 'Bollette']);
+    expect(rows[0]).toMatchObject({ current: 600, previous: 400, delta: 200, status: 'ongoing' });
+    expect(rows[0].deltaPercent).toBeCloseTo(50);
+    expect(rows[1]).toMatchObject({ current: 100, previous: 180, delta: -80 });
+    expect(rows[1].deltaPercent).toBeCloseTo(-44.44, 1);
+  });
+
+  it('should sum its deltas back to the delta of the year row the windows came from', () => {
+    // Arrange — the invariant the UI leans on: the nested rows explain the row above them
+    const expenses = [
+      casaSub(2026, 1, -600, 'sub-condominio', 'Condominio'),
+      casaSub(2026, 2, -100, 'sub-bollette', 'Bollette'),
+      casaSub(2026, 2, -55, 'sub-manutenzione', 'Manutenzione'),
+      casaSub(2025, 1, -400, 'sub-condominio', 'Condominio'),
+      casaSub(2025, 3, -180, 'sub-bollette', 'Bollette'),
+      casaFixed(2025, 2, -70), // no subcategory at all — must still be accounted for
+    ];
+    const [partial] = buildEntityYearRows(expenses, casaFixedScope, 2025, { year: 2026, month: 3 }, monthOf);
+    const { current, baseline } = resolveYearRowWindows(partial, 3);
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      current,
+      baseline,
+      2025,
+      monthOf
+    );
+
+    // Assert
+    const summed = rows.reduce((total, row) => total + (row.delta ?? 0), 0);
+    expect(summed).toBeCloseTo(partial.delta!);
+    expect(rows.reduce((total, row) => total + row.current, 0)).toBeCloseTo(partial.total);
+  });
+
+  it('should keep a subcategory that stopped, flagged as gone', () => {
+    // Arrange — dropping it would make the surviving rows read as the whole story
+    const expenses = [
+      casaSub(2026, 1, -300, 'sub-condominio', 'Condominio'),
+      casaSub(2025, 1, -300, 'sub-condominio', 'Condominio'),
+      casaSub(2025, 2, -120, 'sub-giardino', 'Giardino'),
+    ];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2026, upToMonth: 3 },
+      { year: 2025, upToMonth: 3 },
+      2025,
+      monthOf
+    );
+
+    // Assert
+    const giardino = rows.find((row) => row.label === 'Giardino');
+    expect(giardino).toMatchObject({ current: 0, previous: 120, delta: -120, status: 'gone' });
+  });
+
+  it('should flag a subcategory with no baseline spending as new, with no percentage', () => {
+    // Arrange
+    const expenses = [
+      casaSub(2026, 1, -250, 'sub-mutuo', 'Mutuo'),
+      casaSub(2025, 1, -100, 'sub-condominio', 'Condominio'),
+    ];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2026, upToMonth: 3 },
+      { year: 2025, upToMonth: 3 },
+      2025,
+      monthOf
+    );
+
+    // Assert
+    const mutuo = rows.find((row) => row.label === 'Mutuo');
+    expect(mutuo).toMatchObject({ current: 250, previous: 0, delta: 250, status: 'new' });
+    expect(mutuo?.deltaPercent).toBeNull();
+  });
+
+  it('should bucket rows without a subcategory under the sentinel key', () => {
+    // Arrange
+    const expenses = [casaFixed(2026, 1, -90), casaFixed(2025, 1, -40)];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2026, upToMonth: 3 },
+      { year: 2025, upToMonth: 3 },
+      2025,
+      monthOf
+    );
+
+    // Assert
+    expect(rows).toHaveLength(1);
+    expect(rows[0].key).toBe(NO_SUBCATEGORY_KEY);
+    expect(rows[0]).toMatchObject({ current: 90, previous: 40, delta: 50 });
+  });
+
+  it('should report totals only, ranked by magnitude, when there is no baseline window', () => {
+    // Arrange — the oldest year row: no previous year to compare against
+    const expenses = [
+      casaSub(2025, 1, -100, 'sub-bollette', 'Bollette'),
+      casaSub(2025, 2, -700, 'sub-condominio', 'Condominio'),
+    ];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2025, upToMonth: null },
+      null,
+      2025,
+      monthOf
+    );
+
+    // Assert — no delta means no status claim either
+    expect(rows.map((row) => row.label)).toEqual(['Condominio', 'Bollette']);
+    expect(rows.every((row) => row.delta === null && row.deltaPercent === null)).toBe(true);
+    expect(rows.every((row) => row.status === 'ongoing')).toBe(true);
+    expect(rows.every((row) => row.previous === 0)).toBe(true);
+  });
+
+  it('should ignore rows of another type or another category with the same name', () => {
+    // Arrange — a variable "Casa" and an income row must not leak into the fixed one
+    const expenses = [
+      casaSub(2026, 1, -300, 'sub-condominio', 'Condominio'),
+      makeExpense({
+        type: 'variable',
+        amount: -999,
+        categoryId: 'cat-casa-variable',
+        categoryName: 'Casa',
+        subCategoryId: 'sub-condominio',
+        subCategoryName: 'Condominio',
+        date: new Date(2026, 0, 20),
+      }),
+    ];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2026, upToMonth: 3 },
+      { year: 2025, upToMonth: 3 },
+      2025,
+      monthOf
+    );
+
+    // Assert
+    expect(rows).toHaveLength(1);
+    expect(rows[0].current).toBeCloseTo(300);
+  });
+
+  it('should ignore rows below the history floor on either side', () => {
+    // Arrange — the baseline window sits before the floor, so it contributes nothing
+    const expenses = [
+      casaSub(2026, 1, -300, 'sub-condominio', 'Condominio'),
+      casaSub(2025, 1, -900, 'sub-condominio', 'Condominio'),
+    ];
+
+    // Act
+    const rows = buildEntitySubCategoryDeltas(
+      expenses,
+      casaFixedScope.category,
+      { year: 2026, upToMonth: 3 },
+      { year: 2025, upToMonth: 3 },
+      2026,
+      monthOf
+    );
+
+    // Assert
+    expect(rows[0]).toMatchObject({ current: 300, previous: 0, delta: 300, status: 'new' });
   });
 });
