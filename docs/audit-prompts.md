@@ -712,20 +712,35 @@ Contesto:
 
 File: app/dashboard/analisi/page.tsx
 Componenti: components/cashflow/AnalisiTab.tsx,
+            components/cashflow/EntityDossier.tsx,
+            components/cashflow/EntitySearch.tsx,
             components/cashflow/CashflowSankeyChart.tsx,
             components/cashflow/AnomalieBlock.tsx,
             components/cashflow/ConfrontoAnnualeSection.tsx,
             components/cashflow/SavingsRateTrendSection.tsx,
-            components/cashflow/CategoryTrendsGrid.tsx,
             components/cashflow/AndamentoStoricoSection.tsx
-Pure layer (logica, non visivo): lib/utils/cashflowTimeSeries.ts
+Pure layer (logica, non visivo): lib/utils/{cashflowTimeSeries,comparisonDeltas,
+            expenseEntityStats,entitySearch}.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: nessun hardcoded nel Sankey (nodi, link, tooltip), nei KPI hero blocks,
-  nel TopExpensesBlock (importi rossi — usa `text-destructive`?)
-- Chart colors: Sankey node colors via `useChartColors()` o CSS vars; tutti i trend charts
-  (incl. AndamentoStoricoSection: ComposedChart Entrate/Uscite/Risparmio + LineChart per
-  categoria) via `useChartColors()`; tooltip via CSS vars — nessun hex diretto
+- Token: nessun hardcoded nel Sankey (nodi, link, tooltip — le palette hex del MODULO
+  cashflowSankey sono sanzionate: mai useChartColors dentro Nivo), nei KPI hero blocks,
+  nel TopExpensesBlock e nell'EntityDossier (importi/delta — sign token
+  `text-positive`/`text-destructive` con positiveGood invertito per le spese?)
+- Chart colors: trend charts (AndamentoStoricoSection, EntityDossier ComposedChart,
+  ConfrontoAnnuale MensileBarChart) via `useChartColors()`; tooltip con TUTTI e tre gli
+  style props (contentStyle/labelStyle/itemStyle) via CSS vars — nessun hex diretto;
+  tick assi con font mono (CHART_TICK_STYLE via prop `tick`)
+- EntityDossier: i blocchi pluriennali (tabella Per anno, media 12m, trend 24m) IGNORANO
+  l'asse periodo per design e ogni blocco dichiara il proprio orizzonte in caption
+  (observedMonths quando <12, YTD "stessi mesi", "storico dal {floor}") — un blocco senza
+  caption di finestra è un finding; il dossier non deve mai apparire vuoto
+- URL focus: `?focusType&focusCat&focusSub` additivi al contratto periodo
+  (`?period&year&month` INVARIATO); parse con degrade (mai crash su valori malformati);
+  il focus sopravvive al cambio periodo (design, non bug)
+- ConfrontoAnnuale: pacing KPI e sottotitolo dallo STESSO modulo (comparisonDeltas,
+  baselineLabel mai ricostruito in UI); delta ranking con badge Nuova/Cessata sull'unione
+  A∪B; caption di onestà quando comparisonYear === historyStartYear
 - AndamentoStoricoSection (solo `periodMode === 'history'`): YAxis del ComposedChart usa
   `domain={[(min)=>Math.min(0,min),'auto']}` (la linea Risparmio negativo non viene tagliata);
   asse temporale parte da `cashflowHistoryStartYear` (floor) e non degenera a 1 bucket
@@ -734,13 +749,17 @@ Assi da verificare (minimum — segnala anche eventuali altri problemi):
   ogni singola linea). NON re-introdurre un raggruppamento "Altro": è una scelta deliberata, non
   un dato mancante. Tooltip righe ordinate per valore decrescente (`itemSorter`) per rispecchiare
   l'impilamento verticale delle linee
+- Sankey: troncamento mobile DICHIARATO in caption (mai silenzioso); click su nodi
+  categoria/sottocategoria → onEntityClick (nessun drill interno di categoria, nessuna
+  lista transazioni nel componente); l'unico drill interno è quello di tipo
 - Breakpoint: pill 3-state (Anno Corrente/Anno/Storico) centrata su mobile/tablet, riga su
-  `desktop:`; selettore non overflow su 375px; TopExpensesBlock non overflow su mobile
+  `desktop:`; EntitySearch full-width su mobile; selettore non overflow su 375px;
+  tabella Per anno e delta ranking come flat list leggibili a 390px
 - Motion: `key={periodLabel}` su TopExpensesBlock per reset `showAll`; pill animation (400/35);
   layoutId unici per pagina (`analisi-period-pill`, `andamento-granularity-pill`,
   `andamento-category-pill`, `confronto-view-pill`) — nessuna collisione
-- ARIA: pill selector `role="tablist"`, Sankey drill-down breadcrumb accessibile;
-  toggle Mese/Anno ed Entrate/Uscite con `role="tablist"`/`role="tab"`
+- ARIA: pill selector `role="tablist"`, breadcrumb accessibile; righe delta e righe
+  entità cliccabili con aria-label parlante; Select "vs" con aria-label
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:

@@ -3,24 +3,31 @@
  *
  * THREE PERIOD MODES:
  * - "Anno Corrente": current year, all months (selectedYear = current, selectedMonth = null)
- * - "Anno": user-selected year + optional month
+ * - "Anno": user-selected past year + optional month
  * - "Storico": all available data (selectedYear = null)
  *
- * Merges the logic from the former CurrentYearTab and TotalHistoryTab into a single
- * component with a segmented pill selector at the top. The drill-down state machine,
- * Sankey chart, and trend charts are preserved in full.
+ * DRILL-DOWN = ENTITY FOCUS (2026-08-14 redesign):
+ * Level 1 (category) → Level 2 (subcategory) → Level 3 (expenseList).
+ * Levels 2/3 lead with an EntityDossier — period total, run-rate, per-year table
+ * with signed deltas, 24-month trend — whose multi-year blocks deliberately IGNORE
+ * the period axis (the period is a cursor over the entity's timeline, not a cage).
+ * Consequently the focus SURVIVES period changes and is exited only via
+ * breadcrumb/Indietro. Every entry point lands through one path
+ * (handleEntitySelect): composition row click, EntitySearch ("Vai a categoria…"),
+ * anomaly chips, Confronto delta rows.
  *
- * DRILL-DOWN STATE MACHINE:
- * Level 1 (category) → Level 2 (subcategory) → Level 3 (expenseList)
- * Back button returns one level at a time; breadcrumb (DrillBreadcrumb) also
- * jumps straight to an intermediate level. Drill-down resets on every period
- * change and is NOT synced to the URL (unlike period, see readPeriodFromSearchParams).
+ * URL: the period (?period&year&month) AND the focused entity
+ * (?focusType&focusCat&focusSub — three flat params, no composite strings) both
+ * round-trip through the querystring, so an entity check is a bookmarkable link.
+ * This is the declared reversal of the earlier "no drill state in the URL"
+ * decision, in the one form it left open: a SINGLE entity, never two machines.
+ * The Sankey's internal drill state stays out of the URL.
  *
- * DETTAGLIO SECTION:
- * Confronto Annuale, Andamento Storico, Andamento Risparmio and Trend per
- * Categoria live inside one Collapsible (open=false by default) below the
- * always-visible KPI trio + Anomalie + Sankey + Spese Maggiori — progressive
- * disclosure to keep the initial view scannable in ~30 seconds.
+ * IA: KPI trio (with YoY pacing rows from comparisonDeltas — the same module the
+ * Confronto section reads, so the same-months rule cannot diverge) → Anomalie →
+ * Spese Maggiori → Sankey + composizioni (with dossier) → Confronto (promoted,
+ * arbitrary comparison year + per-category delta ranking) → Collapsible
+ * "Dettaglio" (Andamento Storico in history mode, Andamento Risparmio).
  */
 'use client';
 
@@ -30,7 +37,14 @@ import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Expense, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import {
+  Expense,
+  ExpenseCategory,
+  ExpenseType,
+  EXPENSE_TYPE_LABELS,
+  NO_SUBCATEGORY_KEY,
+  NO_SUBCATEGORY_LABEL,
+} from '@/types/expenses';
 import { calculateTotalExpenses, calculateTotalIncome } from '@/lib/services/expenseService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,9 +58,10 @@ import { getItalyMonth, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
 import { CashflowSankeyChart } from '@/components/cashflow/CashflowSankeyChart';
 import { ConfrontoAnnualeSection } from '@/components/cashflow/ConfrontoAnnualeSection';
 import { SavingsRateTrendSection } from '@/components/cashflow/SavingsRateTrendSection';
-import { CategoryTrendsGrid } from '@/components/cashflow/CategoryTrendsGrid';
 import { AndamentoStoricoSection } from '@/components/cashflow/AndamentoStoricoSection';
 import { AnomalieBlock } from '@/components/cashflow/AnomalieBlock';
+import { EntityDossier } from '@/components/cashflow/EntityDossier';
+import { EntitySearch } from '@/components/cashflow/EntitySearch';
 import {
   buildExpenseComposition,
   buildIncomeComposition,
@@ -55,12 +70,22 @@ import {
   type CategorySlice,
   type SpendingAnomaly,
 } from '@/lib/utils/cashflowComposition';
-import { selectExpensesForDrillDown, type CategoryScope } from '@/lib/utils/expenseGrouping';
+import {
+  getCategoryKey,
+  getSubCategoryKey,
+  getSubCategoryLabel,
+  selectExpensesForDrillDown,
+  type CategoryScope,
+} from '@/lib/utils/expenseGrouping';
 import { CompositionList, CompositionListItem } from '@/components/ui/composition-list';
+import { CompositionBar } from '@/components/ui/composition-bar';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
 import { computeShadeOpacities } from '@/lib/utils/compositionShading';
 import { computeTrailingSavingsRateAverage } from '@/lib/utils/cashflowTimeSeries';
+import { computeTotalsPacing, resolveComparisonScope, type PacingSide } from '@/lib/utils/comparisonDeltas';
+import { type EntityScope } from '@/lib/utils/expenseEntityStats';
+import { type EntitySearchTarget } from '@/lib/utils/entitySearch';
 import { chartShellSettle } from '@/lib/utils/motionVariants';
 import { cn } from '@/lib/utils';
 
@@ -80,9 +105,12 @@ interface DrillDownState {
   /**
    * The category document being drilled into, not its name. Two categories can share a
    * name under different types, and a name-keyed drill-down showed a mix of both.
+   *
+   * No color is stored here: a focus can now be restored from the URL on a cold load
+   * (before any composition slice has been clicked), so the category color is derived
+   * at render time from the current composition instead.
    */
   selectedCategory: (CategoryScope & { label: string }) | null;
-  selectedCategoryColor: string | null;
   /** Subcategory id, or NO_SUBCATEGORY_KEY for the rows carrying none. */
   selectedSubCategory: { key: string; label: string } | null;
 }
@@ -204,9 +232,106 @@ function getExpensesByType(expenses: Expense[], colors: string[]): ChartData[] {
 
 interface AnalisiTabProps {
   allExpenses: Expense[];
+  /** Full category taxonomy — resolves labels for a URL-restored focus and feeds the entity search. */
+  categories: ExpenseCategory[];
   loading: boolean;
   onRefresh: () => Promise<void>;
   historyStartYear?: number;
+}
+
+// The focusable expense types, used to validate the focusType URL param without
+// trusting arbitrary query input. Transfers are deliberately absent: they are
+// net-zero movements excluded from every Analisi metric, so a transfer "entity"
+// has no dossier semantics — a hand-edited ?focusType=transfer degrades to no focus.
+const EXPENSE_TYPE_SET = new Set<string>(
+  Object.keys(EXPENSE_TYPE_LABELS).filter(type => type !== 'transfer')
+);
+
+// Resolves an expense's Italy-calendar month for the pure comparison/stats layer.
+const monthOfExpense = (expense: Expense): { year: number; month: number } => {
+  const date = toDate(expense.date);
+  return { year: getItalyYear(date), month: getItalyMonth(date) };
+};
+
+// Sign color for a pacing delta, with the DESIGN.md positiveGood inversion:
+// income growing is good, spending growing is bad.
+function pacingToneClass(delta: number, positiveGood: boolean): string {
+  if (delta === 0) return 'text-muted-foreground';
+  const isGood = positiveGood ? delta > 0 : delta < 0;
+  return isGood ? 'text-positive' : 'text-destructive';
+}
+
+// The pacing line under a KPI value: percentage when a rate exists, absent when the
+// baseline is zero (absence = "no comparable data", per the variation-chip rule).
+function pacingLine(side: PacingSide): string | null {
+  if (side.previous === 0 || side.deltaPercent === null) return null;
+  const sign = side.deltaPercent > 0 ? '+' : '';
+  return `${sign}${side.deltaPercent.toFixed(1)}%`;
+}
+
+interface UrlFocus {
+  expenseType: ExpenseType;
+  categoryKey: string;
+  subCategoryKey: string | null;
+}
+
+// Parses the deep-linkable entity focus (?focusType&focusCat&focusSub — three FLAT
+// params, no composite string to split: focusCat can be a legacy name-fallback key,
+// and a name may contain any delimiter we could pick). Returns null on any
+// missing/malformed piece; EXISTENCE validation happens later in resolveFocusLabels,
+// because it needs expenses/categories, which load async.
+function readFocusFromSearchParams(searchParams: URLSearchParams): UrlFocus | null {
+  const typeParam = searchParams.get('focusType');
+  const catParam = searchParams.get('focusCat');
+  if (!typeParam || !catParam || !EXPENSE_TYPE_SET.has(typeParam)) return null;
+  return {
+    expenseType: typeParam as ExpenseType,
+    categoryKey: catParam,
+    subCategoryKey: searchParams.get('focusSub') || null,
+  };
+}
+
+/**
+ * Resolve display labels for a URL-restored focus, or reject it.
+ *
+ * Label source order: the composition over the full (floored) history — so a
+ * "Casa"/"Casa" collision keeps its type qualifier, exactly as a clicked slice
+ * would — then the taxonomy (an entity with zero recorded expenses is still a
+ * legitimate focus). A category resolving in neither place means a stale or foreign
+ * link: the focus is dropped, mirroring readPeriodFromSearchParams' degrade-don't-crash
+ * stance. An unresolvable SUBcategory degrades to the parent category focus instead.
+ */
+function resolveFocusLabels(
+  focus: UrlFocus,
+  expenses: Expense[],
+  categories: ExpenseCategory[]
+): { categoryLabel: string; subCategory: { key: string; label: string } | null } | null {
+  const composition = focus.expenseType === 'income'
+    ? buildIncomeComposition(expenses)
+    : buildExpenseComposition(expenses);
+  const slice = composition.find(
+    candidate => candidate.categoryKey === focus.categoryKey && candidate.expenseType === focus.expenseType
+  );
+  const taxonomyCategory = categories.find(
+    candidate => candidate.id === focus.categoryKey && candidate.type === focus.expenseType
+  );
+  const categoryLabel = slice?.name ?? taxonomyCategory?.name;
+  if (!categoryLabel) return null;
+
+  if (!focus.subCategoryKey) return { categoryLabel, subCategory: null };
+  if (focus.subCategoryKey === NO_SUBCATEGORY_KEY) {
+    return { categoryLabel, subCategory: { key: NO_SUBCATEGORY_KEY, label: NO_SUBCATEGORY_LABEL } };
+  }
+
+  const taxonomySub = taxonomyCategory?.subCategories?.find(sub => sub.id === focus.subCategoryKey);
+  const rowWithSub = expenses.find(
+    expense =>
+      expense.type === focus.expenseType &&
+      getCategoryKey(expense) === focus.categoryKey &&
+      getSubCategoryKey(expense) === focus.subCategoryKey
+  );
+  const subLabel = taxonomySub?.name ?? (rowWithSub ? getSubCategoryLabel(rowWithSub) : undefined);
+  return { categoryLabel, subCategory: subLabel ? { key: focus.subCategoryKey, label: subLabel } : null };
 }
 
 // Parses the "period"/"year"/"month" query params into a valid initial period state.
@@ -229,11 +354,16 @@ function readPeriodFromSearchParams(
 
   const yearParam = searchParams.get('year');
   const parsedYear = yearParam ? parseInt(yearParam, 10) : NaN;
-  const selectedYear = Number.isFinite(parsedYear) ? parsedYear : currentYear - 1;
+  // Only PAST years are valid in 'year' mode — the UI never offers the current
+  // year here (Anno Corrente is its dedicated entry point), and accepting it from
+  // a crafted URL would run a partial year against a FULL previous year under the
+  // fullYear scope, bypassing the same-months rule with a plain "vs" caption.
+  const selectedYear =
+    Number.isFinite(parsedYear) && parsedYear < currentYear ? parsedYear : currentYear - 1;
   return { periodMode, selectedYear, selectedMonth };
 }
 
-export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: AnalisiTabProps) {
+export function AnalisiTab({ allExpenses, categories, loading, historyStartYear = 2024 }: AnalisiTabProps) {
   const COLORS = useChartColors();
   const controlClassName = 'transition-colors duration-200 border-border/70 hover:border-primary/40 focus-visible:ring-primary/30 data-[placeholder]:text-muted-foreground';
 
@@ -245,10 +375,9 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
 
   // Three-state period selector — initial value read once from the URL so a
   // shared/refreshed link reopens on the same period (deep-linkable "monthly
-  // check" for repeat visits). Drill-down state is intentionally NOT synced to
-  // the URL: two independent drill-down machines (this one + the Sankey's) would
-  // need careful joint encoding to round-trip safely, and period is the piece
-  // that actually matters for "come back to the same check next month".
+  // check" for repeat visits). The entity focus is ALSO in the URL
+  // (?focusType&focusCat&focusSub — see the header docstring and the sync effect
+  // below); only the Sankey's internal type-drill state stays out.
   const [periodMode, setPeriodMode] = useState<PeriodMode>(
     () => readPeriodFromSearchParams(searchParams, currentYear).periodMode
   );
@@ -259,60 +388,98 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
     () => readPeriodFromSearchParams(searchParams, currentYear).selectedMonth
   );
 
-  // Keep the URL in sync with the period selection — replace (not push) so
-  // filter changes don't spam browser history with back-button stops.
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (periodMode !== 'current') params.set('period', periodMode);
-    if (periodMode === 'year' && selectedYear !== null) params.set('year', String(selectedYear));
-    if (selectedMonth !== null) params.set('month', String(selectedMonth));
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- router/pathname are stable
-  }, [periodMode, selectedYear, selectedMonth]);
-
-  // useMediaQuery avoids the manual matchMedia + listener pattern and integrates with the
-  // project's standard breakpoint hook (all callers are 'use client' post-login).
-  const isMobile = useMediaQuery('(max-width: 639px)');
-
-  // "Dettaglio" zone (Confronto Annuale, Andamento Storico, Savings trend,
-  // Category trends) — collapsed by default, mirrors Rendimenti's "Mostra tutte
-  // le metriche" pattern.
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-
-  // Drill-down state machine
+  // Drill-down state machine — declared alongside the period state because the URL
+  // sync effect below reads both.
   const [drillDown, setDrillDown] = useState<DrillDownState>({
     level: 'category',
     chartType: null,
     selectedCategory: null,
-    selectedCategoryColor: null,
     selectedSubCategory: null,
   });
 
   const expensesChartRef = useRef<HTMLDivElement>(null);
   const incomeChartRef = useRef<HTMLDivElement>(null);
 
+  // The ONE scroll on entity focus — owned by the landing path (handleEntitySelect
+  // and the URL restore), never by a parallel effect: two mechanisms with mixed
+  // smooth/instant grammars used to fire on the same click.
+  const scrollToFocusCard = useCallback((chartType: ChartType) => {
+    const targetRef = chartType === 'income' ? incomeChartRef : expensesChartRef;
+    setTimeout(() => {
+      targetRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }, 50);
+  }, []);
+
+  // Keep the URL in sync with the period selection AND the entity focus — replace
+  // (not push) so filter changes don't spam browser history with back-button stops.
+  // The focus triple makes "check del condominio" a bookmarkable link; this is the
+  // declared reversal of the "no drill state in the URL" decision, in the one form
+  // that decision left open: a SINGLE focused entity, never two drill machines.
   useEffect(() => {
-    if (drillDown.level !== 'category' && drillDown.chartType) {
-      const targetRef = drillDown.chartType === 'expenses' ? expensesChartRef : incomeChartRef;
-      if (targetRef.current) {
-        setTimeout(() => {
-          targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
+    const params = new URLSearchParams();
+    if (periodMode !== 'current') params.set('period', periodMode);
+    if (periodMode === 'year' && selectedYear !== null) params.set('year', String(selectedYear));
+    if (selectedMonth !== null) params.set('month', String(selectedMonth));
+    if (drillDown.level !== 'category' && drillDown.selectedCategory) {
+      params.set('focusType', drillDown.selectedCategory.expenseType);
+      params.set('focusCat', drillDown.selectedCategory.key);
+      if (drillDown.level === 'expenseList' && drillDown.selectedSubCategory) {
+        params.set('focusSub', drillDown.selectedSubCategory.key);
       }
     }
-  }, [drillDown.level, drillDown.chartType]);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- router/pathname are stable
+  }, [periodMode, selectedYear, selectedMonth, drillDown]);
+
+  // Cold-load focus restore: the URL triple is captured once at mount, then applied
+  // as soon as the data needed to validate it has loaded. Deferred because a focus
+  // must resolve against expenses/taxonomy (both async) before it can carry a label.
+  const initialFocusRef = useRef<UrlFocus | null>(readFocusFromSearchParams(searchParams));
+  useEffect(() => {
+    const focus = initialFocusRef.current;
+    if (!focus || loading) return;
+    initialFocusRef.current = null;
+
+    const withinFloor = allExpenses.filter(e => getItalyYear(toDate(e.date)) >= historyStartYear);
+    const resolved = resolveFocusLabels(focus, withinFloor, categories);
+    if (!resolved) return;
+    setDrillDown({
+      level: resolved.subCategory ? 'expenseList' : 'subcategory',
+      chartType: focus.expenseType === 'income' ? 'income' : 'expenses',
+      selectedCategory: {
+        expenseType: focus.expenseType,
+        key: focus.categoryKey,
+        label: resolved.categoryLabel,
+      },
+      selectedSubCategory: resolved.subCategory,
+    });
+    // A deep link should LAND on the dossier, not leave it below the fold.
+    scrollToFocusCard(focus.expenseType === 'income' ? 'income' : 'expenses');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once when loading settles
+  }, [loading, allExpenses, categories, historyStartYear]);
+
+  // useMediaQuery avoids the manual matchMedia + listener pattern and integrates with the
+  // project's standard breakpoint hook (all callers are 'use client' post-login).
+  const isMobile = useMediaQuery('(max-width: 639px)');
+
+  // "Dettaglio" zone (Andamento Storico in history mode + Savings trend) —
+  // collapsed by default, mirrors Rendimenti's "Mostra tutte le metriche" pattern.
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const resetDrillDown = () => {
     setDrillDown({
       level: 'category',
       chartType: null,
       selectedCategory: null,
-      selectedCategoryColor: null,
       selectedSubCategory: null,
     });
   };
 
+  // Period changes deliberately do NOT reset the drill-down anymore: the focused
+  // entity is an object of study (its dossier spans every year regardless of the
+  // selected window), not a filter of the period. Switching period re-scopes the
+  // period-bound blocks (hero, composition, transactions) around the same focus.
   const handlePeriodModeChange = (mode: PeriodMode) => {
     setPeriodMode(mode);
     if (mode === 'current') {
@@ -327,7 +494,6 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
       setSelectedYear(firstPastYear);
       setSelectedMonth(null);
     }
-    resetDrillDown();
   };
 
   // True whenever a month filter is active — drives the "Ripristina" button
@@ -337,18 +503,15 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
   const handleResetFilters = () => {
     // Clear month only — year is intentional in "Anno" mode, currentYear is fixed in "Anno Corrente"
     setSelectedMonth(null);
-    resetDrillDown();
   };
 
   const handleYearChange = (value: string) => {
     setSelectedYear(parseInt(value));
     setSelectedMonth(null);
-    resetDrillDown();
   };
 
   const handleMonthChange = (value: string) => {
     setSelectedMonth(value === '__all__' ? null : parseInt(value));
-    resetDrillDown();
   };
 
   // Data visible in "Analisi Periodo" section — respects historyStartYear filter
@@ -414,11 +577,96 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
     [periodFilteredExpenses, COLORS]
   );
 
+  // Category color for the active focus, derived from the current composition
+  // instead of stored in state: a focus restored from the URL never went through a
+  // slice click, and a period switch may re-rank (and so re-color) the composition.
+  // Falls back to the first palette slot when the entity has no rows in the period.
+  const focusColor = useMemo(() => {
+    if (!drillDown.selectedCategory) return COLORS[0];
+    const slices = drillDown.chartType === 'income' ? incomeByCategoryData : expensesByCategoryData;
+    const slice = slices.find(
+      candidate =>
+        candidate.categoryKey === drillDown.selectedCategory!.key &&
+        candidate.expenseType === drillDown.selectedCategory!.expenseType
+    );
+    return slice?.color ?? COLORS[0];
+    // Dep is the whole drillDown object (not its sub-properties): the React Compiler
+    // tracks it as a unit and over-narrowed deps make it skip compiling the component.
+  }, [drillDown, incomeByCategoryData, expensesByCategoryData, COLORS]);
+
+  // The entity the drill-down is focused on, in the pure layer's vocabulary — feeds
+  // the dossier. Null at level 1 (no focus).
+  const focusScope = useMemo<EntityScope | null>(() => {
+    if (!drillDown.selectedCategory || drillDown.level === 'category') return null;
+    return {
+      category: {
+        expenseType: drillDown.selectedCategory.expenseType,
+        key: drillDown.selectedCategory.key,
+      },
+      subCategory:
+        drillDown.level === 'expenseList' && drillDown.selectedSubCategory
+          ? { key: drillDown.selectedSubCategory.key }
+          : undefined,
+    };
+  }, [drillDown]);
+
+  const focusPeriod = useMemo(
+    () => ({ year: selectedYear, month: selectedMonth }),
+    [selectedYear, selectedMonth]
+  );
+
+  // YoY pacing for the KPI trio ("−8,4% vs 2025 (stessi mesi)") — scope AND caption
+  // from the SAME pure module the Confronto section reads, so the two can never
+  // disagree on the same-months rule. Null (row absent) in Storico, for a month
+  // that has not started yet, or when the previous year predates the tracked history.
+  const pacing = useMemo(() => {
+    if (selectedYear === null) return null;
+    const comparisonYear = selectedYear - 1;
+    if (comparisonYear < historyStartYear) return null;
+    const scope = resolveComparisonScope(periodMode, selectedMonth, getItalyMonth());
+    if (!scope) return null;
+    return computeTotalsPacing(allExpenses, selectedYear, comparisonYear, scope, monthOfExpense);
+  }, [allExpenses, periodMode, selectedYear, selectedMonth, historyStartYear]);
+
+  // One landing path for every entity entry point (search, Confronto delta rows,
+  // and later the Sankey): resolve labels exactly like a URL-restored focus, then
+  // drill and scroll to the right card.
+  const handleEntitySelect = useCallback(
+    (target: EntitySearchTarget) => {
+      const resolved = resolveFocusLabels(
+        {
+          expenseType: target.expenseType,
+          categoryKey: target.categoryKey,
+          subCategoryKey: target.subCategoryKey ?? null,
+        },
+        baseExpenses,
+        categories
+      );
+      if (!resolved) return;
+      setDrillDown({
+        level: resolved.subCategory ? 'expenseList' : 'subcategory',
+        chartType: target.expenseType === 'income' ? 'income' : 'expenses',
+        selectedCategory: {
+          expenseType: target.expenseType,
+          key: target.categoryKey,
+          label: resolved.categoryLabel,
+        },
+        selectedSubCategory: resolved.subCategory,
+      });
+      scrollToFocusCard(target.expenseType === 'income' ? 'income' : 'expenses');
+    },
+    [baseExpenses, categories, scrollToFocusCard]
+  );
+
   // The single (year, month) this period resolves to — null for "Anno"/"Storico"
   // views spanning more than one month. Shared by anomaly detection and the
   // deficit-month reassurance line so both agree on "which month is this".
   const singleMonthContext = useMemo(() => {
-    if (periodMode === 'current') return { year: getItalyYear(), month: getItalyMonth() };
+    // An explicitly picked month wins; the bare "Anno Corrente" falls back to the
+    // running calendar month (the only month a live check can mean).
+    if (periodMode === 'current') {
+      return { year: getItalyYear(), month: selectedMonth ?? getItalyMonth() };
+    }
     if (periodMode === 'year' && selectedMonth !== null && selectedYear !== null) {
       return { year: selectedYear, month: selectedMonth };
     }
@@ -462,63 +710,33 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
     return computeTrailingSavingsRateAverage(allExpenses, singleMonthContext.year, singleMonthContext.month, 12);
   }, [allExpenses, singleMonthContext, netBalance]);
 
-  // Ref for scrolling to the distribution section (Sankey + Pie) from anomaly chips
-  const distributionRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * Navigate from anomaly chip to the pie chart drill-down for that category.
-   * Scrolls to the distribution section and pre-selects the category.
-   * Uses 'instant' (not 'smooth') per AGENTS.md scrollIntoView convention.
-   */
-  const handleAnomaliaClick = useCallback((anomaly: SpendingAnomaly) => {
-    // Use the already-memoized composition to look up the category color — avoids
-    // re-running the full aggregation inside a callback. Matched on identity, so two
-    // same-named categories keep their own colour and their own drill-down.
-    const categoryColor = expensesByCategoryData.find(d => d.key === anomaly.key)?.color ?? COLORS[0];
-
-    // Pre-select the category in the drill-down state machine
-    setDrillDown({
-      level: 'subcategory',
-      chartType: 'expenses',
-      selectedCategory: {
-        expenseType: anomaly.expenseType,
-        key: anomaly.categoryKey,
-        label: anomaly.categoryLabel,
-      },
-      selectedCategoryColor: categoryColor,
-      selectedSubCategory: null,
-    });
-
-    // Scroll to distribution section after state update settles
-    setTimeout(() => {
-      distributionRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
-    }, 50);
-  }, [expensesByCategoryData, COLORS]);
-
   // ── Drill-down handlers ────────────────────────────────────────────────
-  // Every one of these carries the category's identity, so a click on "Casa (Spese
-  // Fisse)" can never resolve to the variable "Casa" sitting one row below it.
+  // Every entry point converges on handleEntitySelect: it carries the category's
+  // IDENTITY (so a click on "Casa (Spese Fisse)" can never resolve to the variable
+  // "Casa" one row below it), resolves labels once, and owns the single scroll.
+
+  const handleAnomaliaClick = useCallback(
+    (anomaly: SpendingAnomaly) => {
+      // The chip lands on the category's dossier — strictly more context than the chip.
+      handleEntitySelect({ expenseType: anomaly.expenseType, categoryKey: anomaly.categoryKey });
+    },
+    [handleEntitySelect]
+  );
 
   const handleCategoryClick = (item: CompositionListItem, chartType: ChartType) => {
     const slice = (chartType === 'income' ? incomeByCategoryData : expensesByCategoryData)
       .find(candidate => candidate.key === item.id);
     if (!slice) return;
-
-    setDrillDown({
-      level: 'subcategory',
-      chartType,
-      selectedCategory: { expenseType: slice.expenseType, key: slice.categoryKey, label: slice.name },
-      selectedCategoryColor: slice.color,
-      selectedSubCategory: null,
-    });
+    handleEntitySelect({ expenseType: slice.expenseType, categoryKey: slice.categoryKey });
   };
 
   const handleSubcategoryClick = (item: CompositionListItem) => {
-    setDrillDown(prev => ({
-      ...prev,
-      level: 'expenseList',
-      selectedSubCategory: { key: item.id, label: item.name },
-    }));
+    if (!drillDown.selectedCategory) return;
+    handleEntitySelect({
+      expenseType: drillDown.selectedCategory.expenseType,
+      categoryKey: drillDown.selectedCategory.key,
+      subCategoryKey: item.id,
+    });
   };
 
   const handleBack = () => {
@@ -557,7 +775,7 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
   // Subcategory rows: color = parent category color, opacity ramps via computeShadeOpacities
   // (format-independent — works whether useChartColors() returns oklch, hex, or rgb).
   const subcategoryCompositionItems: CompositionListItem[] = (() => {
-    const baseColor = drillDown.selectedCategoryColor || COLORS[0];
+    const baseColor = focusColor;
     const opacities = computeShadeOpacities(currentSubcategoriesData.length);
     return currentSubcategoriesData.map((slice, i) => ({
       id: slice.key,
@@ -742,6 +960,15 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
           </motion.div>
         )}
         </AnimatePresence>
+
+        {/* Entity search — the 1-interaction path to any category/subcategory,
+            including ones with zero expenses in the selected period. */}
+        <EntitySearch
+          categories={categories}
+          expenses={baseExpenses}
+          onSelect={handleEntitySelect}
+          className="w-full sm:w-auto sm:self-center desktop:self-auto"
+        />
       </div>
 
       {/* ── Hero KPI trio ─────────────────────────────────────────────── */}
@@ -766,6 +993,13 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
             <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
               {periodFilteredExpenses.filter(e => e.type === 'income').length} voci
             </p>
+            {/* YoY pacing — income growing is good (positiveGood: true) */}
+            {pacing && pacingLine(pacing.income) && (
+              <p className={cn('text-[12px] font-mono tabular-nums mt-1', pacingToneClass(pacing.income.delta, true))}>
+                {pacingLine(pacing.income)}{' '}
+                <span className="text-muted-foreground">{pacing.baselineLabel}</span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -784,6 +1018,13 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
             <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
               {periodFilteredExpenses.filter(e => e.type !== 'income' && e.type !== 'transfer').length} voci
             </p>
+            {/* YoY pacing — spending growing is bad (positiveGood: false) */}
+            {pacing && pacingLine(pacing.expenses) && (
+              <p className={cn('text-[12px] font-mono tabular-nums mt-1', pacingToneClass(pacing.expenses.delta, false))}>
+                {pacingLine(pacing.expenses)}{' '}
+                <span className="text-muted-foreground">{pacing.baselineLabel}</span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -835,8 +1076,19 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
       </div>
 
       {/* ── Anomalie (condizionale) ───────────────────────────────────── */}
-      {/* Rendered only when anomalies detected — no "all clear" empty state */}
-      <AnomalieBlock anomalie={anomalieData} onCategoryClick={handleAnomaliaClick} />
+      {/* Rendered only when anomalies detected — no "all clear" empty state.
+          The month label declares the actual window: in "Anno Corrente" without a
+          month filter the anomalies run on the CURRENT calendar month while the
+          KPIs above cover the whole year. */}
+      <AnomalieBlock
+        anomalie={anomalieData}
+        monthLabel={
+          singleMonthContext
+            ? `${MONTH_NAMES[singleMonthContext.month - 1]} ${singleMonthContext.year}`
+            : null
+        }
+        onCategoryClick={handleAnomaliaClick}
+      />
 
       {/* ── Spese Maggiori ────────────────────────────────────────────── */}
       {topExpenses.length > 0 && (
@@ -844,24 +1096,31 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
       )}
 
       {/* ── Analisi flusso ────────────────────────────────────────────── */}
-      {periodFilteredExpenses.length === 0 ? (
+      {/* The placeholder only replaces the zone when NO focus is active: a focused
+          dossier stays reachable in an empty period (its multi-year blocks ignore
+          the period axis — the dossier is never empty). */}
+      {periodFilteredExpenses.length === 0 && drillDown.level === 'category' ? (
         <div className="rounded-md border border-dashed p-10 text-center">
           <p className="text-muted-foreground">Nessuna transazione trovata per {periodLabel}.</p>
         </div>
       ) : (
         <motion.div
-          ref={distributionRef}
           variants={chartShellSettle}
           initial={false}
           animate="settle"
           className="space-y-4 sm:space-y-6"
         >
-          {/* Sankey */}
-          <CashflowSankeyChart
-            expenses={periodFilteredExpenses}
-            isMobile={isMobile}
-            title={`Flusso Cashflow ${periodLabel}`}
-          />
+          {/* Sankey — the flow view. Category/subcategory node clicks land on the
+              same entity-focus path as every other entry point (no internal
+              category drill, no third transaction list). */}
+          {periodFilteredExpenses.length > 0 && (
+            <CashflowSankeyChart
+              expenses={periodFilteredExpenses}
+              isMobile={isMobile}
+              title={`Flusso Cashflow ${periodLabel}`}
+              onEntityClick={handleEntitySelect}
+            />
+          )}
 
           {/* Spese per Categoria drill-down */}
           {(expensesByCategoryData.length > 0 || (drillDown.chartType === 'expenses' && drillDown.level !== 'category')) && (
@@ -886,35 +1145,79 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
                 </div>
               </CardHeader>
               <CardContent>
-                {drillDown.level === 'category' && expensesByCategoryData.length > 0 && (
+                {/* The level-1 list also renders while the OTHER side is focused —
+                    a card whose only content requires the sibling's drill state
+                    would otherwise mount as a title-only empty shell. */}
+                {(drillDown.level === 'category' || drillDown.chartType !== 'expenses') &&
+                  expensesByCategoryData.length > 0 && (
                   <CompositionList
                     items={toCompositionItems(expensesByCategoryData)}
                     onItemClick={(item) => handleCategoryClick(item, 'expenses')}
                     ariaLabel={`Spese per categoria — ${periodLabel}`}
                   />
                 )}
-                {drillDown.level === 'subcategory' && drillDown.chartType === 'expenses' && subcategoryCompositionItems.length > 0 && (
-                  <CompositionList
-                    items={subcategoryCompositionItems}
-                    onItemClick={handleSubcategoryClick}
-                    ariaLabel={`Sottocategorie di ${drillDown.selectedCategory?.label ?? ""}`}
-                  />
+                {drillDown.level === 'subcategory' && drillDown.chartType === 'expenses' && focusScope && (
+                  <div className="space-y-5">
+                    <EntityDossier
+                      allExpenses={allExpenses}
+                      scope={focusScope}
+                      color={focusColor}
+                      period={focusPeriod}
+                      periodLabel={periodLabel}
+                      historyStartYear={historyStartYear}
+                      isIncome={false}
+                    />
+                    {subcategoryCompositionItems.length > 0 && (
+                      <div className="border-t border-border/40 pt-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1">
+                          Sottocategorie · {periodLabel}
+                        </p>
+                        <CompositionList
+                          items={subcategoryCompositionItems}
+                          onItemClick={handleSubcategoryClick}
+                          ariaLabel={`Sottocategorie di ${drillDown.selectedCategory?.label ?? ""}`}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
-                {drillDown.level === 'expenseList' && drillDown.chartType === 'expenses' && (
-                  <ExpenseList expenses={currentFilteredExpenses} isIncome={false} />
+                {drillDown.level === 'expenseList' && drillDown.chartType === 'expenses' && focusScope && (
+                  <div className="space-y-5">
+                    <EntityDossier
+                      allExpenses={allExpenses}
+                      scope={focusScope}
+                      color={focusColor}
+                      period={focusPeriod}
+                      periodLabel={periodLabel}
+                      historyStartYear={historyStartYear}
+                      isIncome={false}
+                    />
+                    <div className="border-t border-border/40 pt-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1">
+                        Transazioni · {periodLabel}
+                      </p>
+                      <ExpenseList expenses={currentFilteredExpenses} isIncome={false} />
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
           )}
 
-          {/* Spese per Tipo */}
+          {/* Spese per Tipo — compressed to a single stacked bar (chrome reduction):
+              the type domain is 3 fixed values, a ranked list added no information
+              over the bar + legend. Type names are unique, so the label is the key. */}
           {expensesByTypeData.length > 0 && (
             <Card>
               <CardHeader><CardTitle>Spese per Tipo — {periodLabel}</CardTitle></CardHeader>
               <CardContent>
-                <CompositionList
-                  // Type names are unique, so the label doubles as the id here.
-                  items={expensesByTypeData.map(d => ({ id: d.name, ...d }))}
+                <CompositionBar
+                  segments={expensesByTypeData.map(d => ({
+                    key: d.name,
+                    label: d.name,
+                    pct: d.percentage,
+                    color: d.color,
+                  }))}
                   ariaLabel={`Spese per tipo — ${periodLabel}`}
                 />
               </CardContent>
@@ -944,28 +1247,80 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
                 </div>
               </CardHeader>
               <CardContent>
-                {drillDown.level === 'category' && incomeByCategoryData.length > 0 && (
+                {/* Same sibling rule as the expenses card above. */}
+                {(drillDown.level === 'category' || drillDown.chartType !== 'income') &&
+                  incomeByCategoryData.length > 0 && (
                   <CompositionList
                     items={toCompositionItems(incomeByCategoryData)}
                     onItemClick={(item) => handleCategoryClick(item, 'income')}
                     ariaLabel={`Entrate per categoria — ${periodLabel}`}
                   />
                 )}
-                {drillDown.level === 'subcategory' && drillDown.chartType === 'income' && subcategoryCompositionItems.length > 0 && (
-                  <CompositionList
-                    items={subcategoryCompositionItems}
-                    onItemClick={handleSubcategoryClick}
-                    ariaLabel={`Sottocategorie di ${drillDown.selectedCategory?.label ?? ""}`}
-                  />
+                {drillDown.level === 'subcategory' && drillDown.chartType === 'income' && focusScope && (
+                  <div className="space-y-5">
+                    <EntityDossier
+                      allExpenses={allExpenses}
+                      scope={focusScope}
+                      color={focusColor}
+                      period={focusPeriod}
+                      periodLabel={periodLabel}
+                      historyStartYear={historyStartYear}
+                      isIncome={true}
+                    />
+                    {subcategoryCompositionItems.length > 0 && (
+                      <div className="border-t border-border/40 pt-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1">
+                          Sottocategorie · {periodLabel}
+                        </p>
+                        <CompositionList
+                          items={subcategoryCompositionItems}
+                          onItemClick={handleSubcategoryClick}
+                          ariaLabel={`Sottocategorie di ${drillDown.selectedCategory?.label ?? ""}`}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
-                {drillDown.level === 'expenseList' && drillDown.chartType === 'income' && (
-                  <ExpenseList expenses={currentFilteredExpenses} isIncome={true} />
+                {drillDown.level === 'expenseList' && drillDown.chartType === 'income' && focusScope && (
+                  <div className="space-y-5">
+                    <EntityDossier
+                      allExpenses={allExpenses}
+                      scope={focusScope}
+                      color={focusColor}
+                      period={focusPeriod}
+                      periodLabel={periodLabel}
+                      historyStartYear={historyStartYear}
+                      isIncome={true}
+                    />
+                    <div className="border-t border-border/40 pt-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1">
+                        Transazioni · {periodLabel}
+                      </p>
+                      <ExpenseList expenses={currentFilteredExpenses} isIncome={true} />
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
           )}
         </motion.div>
       )}
+
+      {/* ── Confronto ─────────────────────────────────────────────────── */}
+      {/* Promoted out of the Dettaglio Collapsible (2026-08-14): the year-over-year
+          comparison is a first-class answer (JTBD "meglio o peggio dell'anno
+          scorso?"), not reference material. Its "Per Categoria" view is the delta
+          ranking — the page-level driver list; a row click focuses that category's
+          dossier via the same landing path as search and the composition lists. */}
+      <ConfrontoAnnualeSection
+        allExpenses={allExpenses}
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        periodMode={periodMode}
+        historyStartYear={historyStartYear}
+        availableDataYears={availableYears}
+        onCategoryFocus={handleEntitySelect}
+      />
 
       {/* ── Dettaglio ─────────────────────────────────────────────────── */}
       {/* KPI trio + Anomalie + Sankey + Spese Maggiori above are the 30-second
@@ -993,16 +1348,6 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
         </CollapsibleTrigger>
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200">
           <div className="space-y-6 pt-4">
-            {/* Confronto Annuale — always rendered, shows a placeholder when comparison
-                data is unavailable */}
-            <ConfrontoAnnualeSection
-              allExpenses={allExpenses}
-              selectedYear={selectedYear}
-              selectedMonth={selectedMonth}
-              periodMode={periodMode}
-              historyStartYear={historyStartYear}
-            />
-
             {/* Andamento nel Tempo — history-only: in Anno Corrente/Anno the YoY
                 section above already covers the period, and the Mese/Anno axis would
                 degenerate to one bucket. */}
@@ -1015,17 +1360,14 @@ export function AnalisiTab({ allExpenses, loading, historyStartYear = 2024 }: An
 
             {/* Andamento Risparmio — year-scoped whenever a year is selected (Anno
                 Corrente → current year, Anno → the chosen past year); full history
-                (with the 12m/24m/Tutto toggle) only in "Storico". */}
+                (with the 12m/24m/Tutto toggle) only in "Storico".
+                NOTE: CategoryTrendsGrid used to live here too — removed 2026-08-14:
+                the EntityDossier renders the same answer (a category's trend) with
+                full history instead of 12 months, and two renderings of one answer
+                inevitably drift. */}
             <SavingsRateTrendSection
               allExpenses={allExpenses}
               historyStartYear={historyStartYear}
-              scopeYear={selectedYear}
-            />
-
-            <CategoryTrendsGrid
-              allExpenses={allExpenses}
-              historyStartYear={historyStartYear}
-              monthsToShow={12}
               scopeYear={selectedYear}
             />
           </div>
@@ -1072,10 +1414,12 @@ function ExpenseList({ expenses, isIncome }: { expenses: Expense[]; isIncome: bo
           );
         })}
 
-        {/* Mobile total row — mirrors the desktop tfoot style */}
+        {/* Mobile total row — mirrors the desktop tfoot style. "Netto" because this
+            sums SIGNED amounts (a refund nets off), while the dossier hero above is
+            gross by magnitude — same word on both would collide on refund rows. */}
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 flex items-center justify-between">
           <span className="text-sm font-semibold">
-            Totale ({expenses.length} {expenses.length === 1 ? 'voce' : 'voci'})
+            Totale netto ({expenses.length} {expenses.length === 1 ? 'voce' : 'voci'})
           </span>
           <span className={cn('text-sm font-semibold font-mono', amountClass)}>
             {formatCurrency(totalAmount)}
@@ -1114,11 +1458,12 @@ function ExpenseList({ expenses, isIncome }: { expenses: Expense[]; isIncome: bo
                 );
               })}
             </tbody>
-            {/* Total footer row — not sticky, appears naturally at end of table */}
+            {/* Total footer row — not sticky, appears naturally at end of table.
+                "Netto": signed sum, unlike the gross-by-magnitude dossier hero. */}
             <tfoot className="bg-muted/50 border-t">
               <tr>
                 <td className="px-4 py-3 text-sm font-semibold">
-                  Totale ({expenses.length} {expenses.length === 1 ? 'voce' : 'voci'})
+                  Totale netto ({expenses.length} {expenses.length === 1 ? 'voce' : 'voci'})
                 </td>
                 <td className={cn('px-4 py-3 text-sm text-right font-semibold font-mono', amountClass)}>
                   {formatCurrency(totalAmount)}
