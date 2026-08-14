@@ -35,6 +35,12 @@ dichiarando la pagina "a regime" (score ≥ 36/40 e zero P0/P1).
   `aria-label` su bottoni icon-only, `aria-expanded` su collapsible
 - **Skeleton** — ogni sezione async ha uno skeleton strutturalmente isomorfo al layout reale
 
+**Prima di dichiarare un finding un falso positivo:** verifica che non sia il design system a non
+dichiarare un valore reale — la fonte dei font-size è il frontmatter di `DESIGN.md`
+(`typography` + `typography.scale`), non il sidecar `.impeccable/design.json`. Sopprimere con un
+`ignoreValues` in `.impeccable/config.json` è l'ultima risorsa, non la prima, e ogni voce lì porta
+una `reason` scritta per chi la rileggerà tra sei mesi.
+
 **Sequenze corrette (vedi `docs/critique-prompts.md` per le due modalità di critique):**
 ```
 Verifica (default):     critique → fix dei soli finding → audit (gate compliance) →
