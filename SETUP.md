@@ -7,10 +7,11 @@ This guide will walk you through setting up the Portfolio Tracker web app from s
 1. [Prerequisites](#prerequisites)
 2. [Firebase Setup](#firebase-setup)
 3. [Local Development Setup](#local-development-setup)
-4. [Vercel Deployment](#vercel-deployment)
-5. [Price Data Provider Alternatives](#price-data-provider-alternatives)
-6. [Infrastructure Alternatives](#infrastructure-alternatives)
-7. [Troubleshooting](#troubleshooting)
+4. [Local Verification Troubleshooting](#local-verification-troubleshooting)
+5. [Vercel Deployment](#vercel-deployment)
+6. [Price Data Provider Alternatives](#price-data-provider-alternatives)
+7. [Infrastructure Alternatives](#infrastructure-alternatives)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -322,11 +323,29 @@ dev:e2e` therefore sets `NEXT_DIST_DIR=.next-e2e` (a conditional line in `next.c
 everywhere else), so the tests can run while your normal dev server stays up on port 3000 — which
 also guarantees they never point at production data.
 
-**What it covers** (`e2e/`): the Previdenza page at 1440px and 390px — layout switch, type scale,
-the year axis, the collapsible, the primary action's position, and that the empty state never
-flashes while data loads. The fixture (`scripts/seedPensionE2E.mts`) writes a pension fund, a family
-member and contributions across two tax years, layered on top of the Step 6 seed without touching
-it. Add `npm run e2e:seed` on its own if you want that data in the browser for manual inspection.
+**What it covers** (`e2e/`), across five projects — `desktop` (1440px), `mobile` (390px),
+`degraded` (1440px, second account), `analisi` (1440px) and `analisi-mobile` (390px):
+
+- **Previdenza** — layout switch, type scale, the year axis, the collapsible, the primary action's
+  position, that the empty state never flashes while data loads, and the three degraded states
+  (`suspicious` / `idle` / `fresh`).
+- **Analisi** — the focus-URL cold load, search → dossier (including a zero-spend entity and the
+  transfer exclusion), the focus surviving a period switch, the KPI pacing rows, the driver ranking
+  with `Cessata`, the per-subcategory breakdown inside a year row, and the mobile truncation caption.
+
+Three fixture accounts, each seeded by the global setup:
+
+| Script | Account | Why it is separate |
+| --- | --- | --- |
+| `npm run e2e:seed` | base + `test-user-degraded` | Pension data layered on the Step 6 seed; the degraded scenarios take an argument (`suspicious` \| `idle` \| `fresh`) |
+| `npm run e2e:seed:analisi` | `test-user-analisi` | Every expense dated **January**, so year-to-date windows contain them whatever month the suite runs in and every asserted figure stays exact all year. The base seed's current-month expenses would pollute them |
+
+Run either on its own if you want that data in the browser for manual inspection.
+
+**Area exercise scripts** (emulator, rules enforced, not part of the Playwright run):
+`npm run emulators:pension` drives the pension contribution services end to end;
+`npm run emulators:pension-p3` checks the Rendimenti-exclusion and FIRE lock-in wiring on a
+throwaway synthetic account.
 
 **Notes:**
 - Authentication happens once in `e2e/auth.setup.ts` and is reused by every spec via
@@ -334,9 +353,76 @@ it. Add `npm run e2e:seed` on its own if you want that data in the browser for m
   session there — without that flag the state file looks fine but every spec lands on the login page.
 - The suite runs with `workers: 1`: all specs share one emulator account, so parallel runs would
   race on it.
-- Chromium only, for both projects. The mobile project is a 390px viewport on Chromium rather than
+- Chromium only, for every project. The mobile projects are a 390px viewport on Chromium rather than
   the WebKit-backed iPhone descriptor — one browser to install, and what is under test is the layout
   at a width, not an engine difference.
+
+---
+
+## Local Verification Troubleshooting
+
+Environment traps that look like code defects. If errors cluster in files you never touched, suspect
+this section before the diff.
+
+### `tsc` reports missing modules right after a branch switch
+
+`node_modules` is shared across branches in one working directory and git does not track it. Checking
+out a branch swaps `package.json` back but not what is physically installed, so packages the new
+branch declares can simply be absent. **The tell is WHERE the errors land**: e.g. ~25 errors, all
+inside `e2e/`, `playwright.config.ts` and `lib/utils/expenseImport.ts` — the files owned by the
+missing `@playwright/test` and `papaparse` — and none in the code being changed. Run `npm install`
+before debugging, or `npm install --no-save <pkg>` for a one-off verification run that leaves the
+manifest and lockfile alone.
+
+### All three Playwright auth setups fail with the "npx playwright install" banner
+
+The Chromium build is missing after a Playwright version bump: `npx playwright install chromium`.
+Errors clustered in the *setups* rather than the specs mean environment, not diff.
+
+### A port is still held after stopping a background process
+
+Stopping a process does not kill its children on Windows: the emulator JVM and the dev server survive
+and keep holding 8080 / 9099 / 4000 / 3100, so the next start fails with `EADDRINUSE` *while the
+service still answers*. Find the real owner and stop it by PID:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8080 -State Listen
+```
+
+### `npm run start` refuses to serve the build
+
+`next.config.ts` sets `output: "standalone"`, so Next warns and refuses. Motion and
+perceived-performance work must be judged on a production build (dev exaggerates cost, and its CSS
+arrives via JS — under throttling it shows an unstyled window production does not have). The working
+recipe, including the two copies Next does **not** do for you (skip them and every asset 404s, so the
+page renders with no styles at all — easily mistaken for a rendering defect):
+
+```powershell
+npm run build
+Copy-Item -Recurse -Force .next/static .next/standalone/.next/static
+Copy-Item -Recurse -Force public .next/standalone/public
+node .next/standalone/server.js
+```
+
+### Font-loading changes cannot be verified in dev
+
+`next/font` emits no `<link rel="preload">` in `next dev` (0 on every route). The build filename
+carries the answer instead: `-s.p.` in the hashed woff2 name means preloaded
+(`797e433a….woff2` with `.p.` = preloaded; without `preload: true` the `.p.` is absent).
+
+### Inspecting or cleaning a few emulator documents
+
+An unauthenticated REST call against the Firestore emulator is silently filtered to an empty result
+by the rules engine rather than erroring — which looks exactly like "no documents exist". Use the
+emulator-only admin bypass token:
+
+```bash
+curl -H "Authorization: Bearer owner" \
+  "http://127.0.0.1:8080/v1/projects/demo-net-worth/databases/(default)/documents/expenses"
+```
+
+Same header with `-X DELETE` on a document path removes it, so a handful of leftovers from a manual
+test run do not require wiping `.emulator-data/`.
 
 ---
 
