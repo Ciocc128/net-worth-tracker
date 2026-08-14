@@ -36,6 +36,12 @@
 - Entries whose type you change now tell you what will happen before you save: whether the amount will change sign, that the entry will move under a different per-type budget, and — if it belongs to a recurring or instalment series — that only this one entry is affected.
 - Added a year selector to the Previdenza page. Your contributions by nature, the IRPEF tax-saving recap and the contribution history now all follow the year you pick, so you can review last year's deduction in January instead of only ever seeing the current year. The fund's value and its return stay put, since neither is an annual figure.
 - Added the period selector to a cost center's own page. It used to live only on the Centri di Costo overview, so opening a center showed you a period you could read but not change — and the figures below that measure a different window said nothing about it. The selector now travels with you, and the spending ceiling, the annual projection and the monthly chart each state the period they actually cover, so two figures that disagree are telling you they cover different spans rather than contradicting each other.
+- Redesigned Analisi around the entity dossier: click any spending or income category — or one of its sub-categories — and its complete story opens in place. The dossier shows the total for the selected period with its share of spending, a per-year table with signed year-over-year deltas (the current year compared like-for-like against the same months of last year, marked "YTD"), your monthly average, the trailing-12-month average, a projection for the current year, a 24-month trend with last year's dashed baseline, and the underlying transactions. A question like "how much did I spend on Condominio this year versus last year?" — previously unanswerable without filtering raw expenses by hand — is now one or two clicks away.
+- Added a "Vai a categoria…" search to Analisi that reaches every category and sub-category you track in one step — including ones with no spending in the selected period, which now open an honest empty dossier instead of being unreachable.
+- Added year-over-year pacing lines under the Entrate and Spese totals on Analisi ("−13,3% vs 2025 (stessi mesi, gen–ago)"), so "am I doing better than last year at this point?" is answered before you click anything.
+- The Confronto Annuale section on Analisi is now always visible instead of folded away, lets you pick ANY past year as the comparison baseline, and its per-category view became a ranking of what drove the change: signed deltas sorted by impact, including categories that are new this year or that ceased since the comparison year (marked "Nuova" / "Cessata"), each row opening that category's dossier.
+- The entity you are focused on in Analisi is now part of the page link: bookmark or share your condominio check and it reopens directly on that dossier, data already scoped.
+- The focused entity now survives period switches on Analisi: flip from Anno Corrente to Storico and the dossier re-scopes to the new window instead of resetting you to the top of the page.
 
 ## 🐛 Bug Fixes
 
@@ -104,6 +110,8 @@
 - Fixed new real estate, private equity and pension fund assets counting as liquid net worth unless you remembered to flip the "Asset Liquido" switch yourself. The switch now starts off for those types — a REIT ETF stays liquid, since it trades on an exchange — and remains one click away if your case is different.
 - Fixed the "Ruolo nell'allocazione" suggestion appearing empty in the new-asset form: the suggested role (e.g. "Escluso" for the home you live in) was being silently cleared before you could see it.
 - Fixed the last two cost-center colours (teal and orange) being too faint to make out against a light background; both are slightly darker now and meet the contrast floor on every theme.
+- Fixed the multi-year bars in Confronto Annuale's Storico view running right-to-left in time (newest year first) — the only chart on the page whose axis flowed backwards. Years now run oldest to newest, like every other time chart.
+- Fixed the spending-anomaly banner claiming to analyze the "selected month" when, on Anno Corrente with no month picked, it actually analyzes the current calendar month while the totals above cover the whole year. The banner now names the exact month it measured, and it now honors the month you pick instead of always using the current one.
 
 ## 🔧 Improvements
 
@@ -116,7 +124,7 @@
 - Overview now always shows a 12-month context line next to a negative monthly change, so a down month is never shown without the bigger picture.
 - Large net worth values on the Overview hero no longer risk overflowing on smaller screens.
 - Cost and tax figures (TER, annual cost, estimated taxes) on Overview now follow your selected color theme consistently.
-- The Analisi page is easier to scan: the key numbers, warnings, and cash-flow chart stay up front, while the deeper comparison and trend sections now collapse behind a "Mostra dettaglio" toggle instead of always taking up the whole page.
+- The Analisi page is easier to scan: the key numbers, warnings, and cash-flow chart stay up front, while the deeper trend sections collapse behind a "Mostra dettaglio" toggle instead of always taking up the whole page. (The year comparison later graduated out of that toggle — see the entity-first redesign above.)
 - The cash-flow chart's drill-down breadcrumb is now fully clickable — jump straight back to any earlier step instead of clicking "Indietro" repeatedly.
 - Your selected period on Analisi (Anno Corrente / Anno / Storico, plus year/month) is now saved in the page link, so refreshing or sharing the link keeps your view.
 - When a month ends in deficit, Analisi now also shows your average savings rate over the last 12 months next to it, for context.
@@ -151,6 +159,12 @@
 - The CSV import preview now has a "Da sapere prima di importare" note that discloses any deterministic choice the import is about to make — for example, when two identical categories exist, that the rows will attach to the older one. Nothing is written until you confirm, and the whole import stays undoable in one tap.
 - The entry-type change dialog now explains transfer conversions before you save: leaving the transfer type tells you both accounts will be corrected, entering it reminds you that transfers don't count as income or spending.
 - Note on the balance score with leveraged targets: the score now also subtracts the leverage gap, so if your targets sum above 100% and you haven't built that exposure yet, the number reads lower than before — and the caption tells you exactly why, instead of calling it misallocation.
+- Clicking a category or sub-category in the Analisi cash-flow diagram now opens the same entity dossier as everywhere else on the page, instead of a separate in-chart navigation with its own transaction list. The diagram keeps its per-type flow view.
+- On phones the Analisi cash-flow diagram now says it is showing only the largest flows, instead of silently dropping the smaller ones for legibility.
+- "Spese per Tipo" on Analisi is now a single stacked bar with a legend instead of a full ranked list — three fixed segments never needed a ranking.
+- The "Trend per Categoria" sparkline grid on Analisi was retired: the entity dossier answers the same question with your full history instead of only the last 12 months, for sub-categories too.
+- Comparisons on Analisi now declare their window honestly everywhere: a running month is labelled "(mese in corso)", a month that has not started yet is not compared at all, comparing against your first tracked year warns that the comparison may be partial, and a prior-year month older than your tracked history renders as a gap in the dossier's trend rather than a fabricated zero.
+- The transactions total inside the dossier is labelled "Totale netto": it sums signed amounts (a refund nets off), while the dossier's headline is gross spending — the two legitimately differ when refunds exist, and now they say so.
 
 ## 🔒 Security
 

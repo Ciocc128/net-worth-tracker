@@ -37,13 +37,17 @@ export default function AnalisiPage() {
   const queryClient = useQueryClient();
 
   const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(ownerId);
-  // Categories are loaded so AnalisiTab's sibling components (e.g. ExpenseTrackingTab)
-  // share the same RQ cache; we only need the loading flag here.
-  const { isLoading: categoriesLoading } = useExpenseCategories(ownerId);
+  // The taxonomy feeds AnalisiTab directly (entity search + URL-focus label
+  // resolution) and shares the RQ cache with the Cashflow page's sibling tabs.
+  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories(ownerId);
 
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(
     new Date().getFullYear() - 1
   );
+  // The URL-focus restore in AnalisiTab validates against the floored history, so it
+  // must not fire until the DEFINITIVE floor is known — the restore is one-shot and
+  // a wrong provisional floor would silently drop a valid bookmarked focus.
+  const [settingsSettled, setSettingsSettled] = useState(false);
 
   // Load cashflowHistoryStartYear — same pattern as cashflow/page.tsx. Literal copy intentional:
   // avoid a shared hook abstraction for a one-time read used in two places with the same logic.
@@ -62,6 +66,8 @@ export default function AnalisiPage() {
           operation: 'loadAnalisiSettings',
           error: getErrorMessage(error),
         });
+      } finally {
+        setSettingsSettled(true);
       }
     };
     void loadSettings();
@@ -76,7 +82,7 @@ export default function AnalisiPage() {
     });
   };
 
-  const loading = expensesLoading || categoriesLoading;
+  const loading = expensesLoading || categoriesLoading || !settingsSettled;
 
   return (
     <PageContainer>
@@ -88,6 +94,7 @@ export default function AnalisiPage() {
 
       <AnalisiTab
         allExpenses={allExpenses}
+        categories={categories}
         loading={loading}
         onRefresh={handleRefresh}
         historyStartYear={cashflowHistoryStartYear}

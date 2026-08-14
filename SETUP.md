@@ -240,7 +240,9 @@ Run the app against **local** Auth + Firestore emulators instead of the cloud pr
 development and manual testing never touch production data. The emulator also loads
 `firestore.rules`, so you validate rule changes locally before deploying them.
 
-**Prerequisite — a Java runtime (JDK 11+).** The Firestore emulator runs on Java. On Windows:
+**Prerequisite — a Java runtime, version 21 OR ABOVE.** The Firestore emulator runs on Java,
+and current `firebase-tools` refuses anything older ("no longer supports Java version before 21"
+— an installed JDK 15 that used to work stopped working on 2026-08-14). On Windows:
 
 ```powershell
 winget install Microsoft.OpenJDK.21
@@ -249,6 +251,10 @@ java -version
 ```
 
 (macOS: `brew install temurin` · Debian/Ubuntu: `sudo apt install openjdk-21-jre`.)
+
+If you can't (or don't want to) replace the system Java, a portable JRE works: extract a
+Temurin 21 JRE zip anywhere (e.g. `%USERPROFILE%\.jdk\`) and prepend its `bin` to `PATH`
+just for the emulator terminal — that is how the E2E runs are driven on this machine.
 
 **Usage — three terminals:**
 
