@@ -203,3 +203,52 @@ test('lets the sibling composition stay usable while an entity is focused', asyn
   // never a title-only empty shell.
   await expect(page.getByRole('listitem', { name: /^Stipendio, /, exact: false })).toBeVisible();
 });
+
+test('breaks a category year row down by subcategory, with the previous year alongside', async ({
+  page,
+}) => {
+  await gotoAnalisi(page, '?focusType=fixed&focusCat=e2e-cat-casa');
+
+  const casaYears = perYearTable(page);
+  await expect(
+    casaYears.getByText(new RegExp(`\\+40,00[\\s\\u00a0]*€ \\(\\+11\\.8%\\) vs ${PREVIOUS_YEAR} stessi mesi`))
+  ).toBeVisible();
+
+  // The newest row opens by default: "this year vs last year" is the question the
+  // drill-down exists to answer, so it must not need a click. Every year row keeps
+  // its own breakdown mounted (the collapse is a CSS grid-rows transition, so a
+  // collapsed one still has a bounding box) — scope through aria-controls, which
+  // names exactly the region the OPEN row owns.
+  const openToggle = casaYears.getByRole('button', { expanded: true });
+  const breakdown = page.locator(`[id="${await openToggle.getAttribute('aria-controls')}"]`);
+
+  // Both figures the drill-down was asked for: the change AND the baseline it is
+  // measured against.
+  await expect(breakdown.getByText('Condominio')).toBeVisible();
+  await expect(breakdown.getByText(/^da 250,00[\s\u00a0]*€$/)).toBeVisible();
+  await expect(breakdown.getByText(/^\+50,00[\s\u00a0]*€ \(\+20\.0%\)$/)).toBeVisible();
+  await expect(breakdown.getByText('Elettricità')).toBeVisible();
+  await expect(breakdown.getByText(/^da 90,00[\s\u00a0]*€$/)).toBeVisible();
+  await expect(breakdown.getByText(/^-10,00[\s\u00a0]*€ \(-11\.1%\)$/)).toBeVisible();
+
+  // Σ(subcategory delta) = the row's own delta: +50 − 10 = +40, the figure asserted
+  // on the year row above. That identity is what the block leans on.
+
+  // Collapsing closes the region — measured, because only the browser knows the
+  // grid-rows transition actually reached zero — and leaves the year row untouched.
+  await openToggle.click();
+  await expect.poll(async () => (await breakdown.boundingBox())?.height ?? 0).toBeLessThan(2);
+  await expect(casaYears.getByRole('button', { expanded: true })).toHaveCount(0);
+  await expect(
+    casaYears.getByText(new RegExp(`\\+40,00[\\s\\u00a0]*€ \\(\\+11\\.8%\\) vs ${PREVIOUS_YEAR} stessi mesi`))
+  ).toBeVisible();
+});
+
+test('offers no subcategory breakdown once the focus IS a subcategory', async ({ page }) => {
+  await gotoAnalisi(page, '?focusType=fixed&focusCat=e2e-cat-casa&focusSub=e2e-sub-cond');
+
+  // Nothing left to decompose — the year rows stay plain: no toggle, no chevron.
+  const condYears = perYearTable(page);
+  await expect(condYears.getByRole('button')).toHaveCount(0);
+  await expect(condYears.getByText('Per sottocategoria')).toHaveCount(0);
+});
