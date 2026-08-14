@@ -19,6 +19,13 @@ import type { SpendingAnomaly } from '@/lib/utils/cashflowComposition';
 interface AnomalieBlockProps {
   anomalie: SpendingAnomaly[];
   /**
+   * The month the anomalies were computed for (e.g. "Agosto 2026"). Declared in the
+   * caption because in "Anno Corrente" without a month filter the anomalies run on
+   * the CURRENT calendar month while the KPIs above cover the whole year — a window
+   * mismatch the copy must state, not hide behind "mese selezionato".
+   */
+  monthLabel: string | null;
+  /**
    * Receives the whole anomaly, not just a name: the caller drills into a specific
    * category document, and two same-named categories of different types produce two
    * distinct chips that must lead to two distinct places.
@@ -26,7 +33,7 @@ interface AnomalieBlockProps {
   onCategoryClick: (anomaly: SpendingAnomaly) => void;
 }
 
-export function AnomalieBlock({ anomalie, onCategoryClick }: AnomalieBlockProps) {
+export function AnomalieBlock({ anomalie, monthLabel, onCategoryClick }: AnomalieBlockProps) {
   if (anomalie.length === 0) return null;
 
   return (
@@ -40,7 +47,7 @@ export function AnomalieBlock({ anomalie, onCategoryClick }: AnomalieBlockProps)
           </p>
         </div>
         <p className="text-xs text-warning-foreground/70 pl-6">
-          Spesa superiore alla media degli ultimi 6 mesi · (media → mese selezionato)
+          {monthLabel ?? 'Mese in analisi'}: spesa superiore alla media dei 6 mesi precedenti · (media → mese)
         </p>
       </div>
 

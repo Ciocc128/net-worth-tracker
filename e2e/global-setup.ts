@@ -57,4 +57,11 @@ export default async function globalSetup(): Promise<void> {
   if (degradedSeed.status !== 0) {
     throw new Error('The degraded-scenario account failed to seed — see the output above.');
   }
+
+  // Account + data in one script (safe: it runs BEFORE auth.analisi.setup.ts parks the
+  // session, so the password update cannot revoke a session that does not exist yet).
+  const analisiSeed = spawnSync('npm', ['run', 'e2e:seed:analisi'], { stdio: 'inherit', shell: true });
+  if (analisiSeed.status !== 0) {
+    throw new Error('The Analisi E2E fixture failed to seed — see the output above.');
+  }
 }

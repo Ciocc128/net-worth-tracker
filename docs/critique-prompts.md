@@ -542,36 +542,50 @@ approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc
 
 File: app/dashboard/analisi/page.tsx
 Componenti: components/cashflow/AnalisiTab.tsx,
+            components/cashflow/EntityDossier.tsx,
+            components/cashflow/EntitySearch.tsx,
             components/cashflow/CashflowSankeyChart.tsx,
             components/cashflow/AnomalieBlock.tsx,
             components/cashflow/ConfrontoAnnualeSection.tsx,
             components/cashflow/SavingsRateTrendSection.tsx,
-            components/cashflow/CategoryTrendsGrid.tsx,
             components/cashflow/AndamentoStoricoSection.tsx
-Pure layer: lib/utils/cashflowTimeSeries.ts
+Pure layer: lib/utils/{cashflowTimeSeries,cashflowComposition,cashflowSankey,
+            comparisonDeltas,expenseEntityStats,entitySearch}.ts
 
-Pagina standalone (estratta dal tab "Analisi" di Cashflow). Unifica anno corrente +
-storico in un'unica vista con 3-state period pill (Anno Corrente / Anno / Storico), ora
-sincronizzato in querystring (`?period=&year=&month=`) per check mensili ripetibili via link.
-Sempre visibili: KPI trio Entrate/Spese/Risparmio (section-hero scale) + AnomalieBlock
-(banner `--warning` token) + Sankey (drill-down con `DrillBreadcrumb` cliccabile a livello
-intermedio, condiviso con AnalisiTab) + TopExpensesBlock (top 5 spese espandibile). Dietro un
-"Dettaglio" Collapsible (default chiuso, progressive disclosure): ConfrontoAnnualeSection
-(confronto anno corrente vs anno precedente), SavingsRateTrendSection (trend savings rate),
-CategoryTrendsGrid (sparkline per categoria, ultimi 12 mesi), e solo in modalità Storico
-AndamentoStoricoSection — Chart A ComposedChart (Entrate/Uscite barre + Risparmio netto
-linea) + Chart B LineChart a linee multiple per categoria (sub-toggle Entrate/Uscite),
-con toggle Mese/Anno condiviso; aggregazione pura in cashflowTimeSeries.ts (asse temporale
-con floor `cashflowHistoryStartYear`). Tutti i pill (period/view/range/granularity) usano
-`SegmentedPill` condiviso (`components/ui/segmented-pill.tsx`, roving tabindex). Data
-fetching autonomo via useExpenses / useExpenseCategories — non condivide route lifecycle
-con Cashflow.
+Pagina standalone ENTITY-FIRST (redesign 2026-08-14). L'asse periodo resta il 3-state
+pill (Anno Corrente / Anno / Storico) sincronizzato in querystring, ma la pagina è
+costruita attorno all'ENTITÀ (categoria o sottocategoria) come oggetto di prima classe:
+il drill-down (livelli 2/3) apre un EntityDossier — hero del periodo (22px) + chip
+run-rate (media mensile · media 12m con observedMonths dichiarato · proiezione) +
+tabella "Per anno" con Δ firmati (riga YTD confrontata "stessi mesi") + trend 24 mesi
+con linea ghost anno precedente — i cui blocchi pluriennali IGNORANO deliberatamente
+l'asse periodo (il periodo è un cursore, non una gabbia). Il focus sopravvive al cambio
+periodo e vive nell'URL (`?focusType&focusCat&focusSub`, 3 parametri piatti). OGNI
+ingresso all'entità converge su un solo path: righe di composizione, EntitySearch
+("Vai a categoria…", command palette in ResponsiveModal, 1 interazione, raggiunge anche
+entità a zero spese), chip anomalie, righe delta del Confronto, nodi categoria/
+sottocategoria del Sankey (onEntityClick — il drill interno di categoria e la terza
+lista transazioni sono stati RIMOSSI; resta solo il drill di tipo come vista di flusso,
+troncamento mobile dichiarato in caption). Sempre visibili: pill periodo + ricerca →
+KPI trio Entrate/Spese/Risparmio (36px) con righe di pacing YoY ("−8,4% vs 2025
+(stessi mesi, gen–ago)") → AnomalieBlock → TopExpensesBlock → Sankey + composizioni
+(Spese per Categoria con dossier, Spese per Tipo compressa in CompositionBar, Entrate
+per Categoria) → ConfrontoAnnualeSection PROMOSSA (anno di confronto arbitrario via
+Select "vs", vista Per Categoria = delta ranking firmato con badge Nuova/Cessata
+sull'unione A∪B, click → dossier; caption di onestà quando si confronta col primo anno
+tracciato). Dietro il "Dettaglio" Collapsible (default chiuso): AndamentoStoricoSection
+(solo Storico) + SavingsRateTrendSection. Il pacing KPI e il Confronto leggono lo STESSO
+modulo puro (comparisonDeltas — baselineLabel prodotto dal modulo), quindi la regola
+"stessi mesi" non può divergere. Aggregazione pura con floor `cashflowHistoryStartYear`.
+Tutti i pill usano `SegmentedPill` condiviso. Data fetching autonomo via
+useExpenses / useExpenseCategories — non condivide route lifecycle con Cashflow.
 Confronta con: Cashflow/Tracciamento (dati condivisi via RQ cache),
 Rendimenti (period selector), Storico (narrative order + collapsible appendice).
-Nota: critique baseline 2026-07-21 = 25/40 (pre-redesign, 2 P1: scala tipografica hero,
-assenza di progressive disclosure). Il redesign (Dettaglio collapsible, SegmentedPill,
-DrillBreadcrumb, token warning/positive) è stato implementato lo stesso giorno —
-rieseguire la critique per misurare il delta.
+Nota: critique baseline 2026-07-21 = 25/40 (2 P1: scala tipografica hero, assenza di
+progressive disclosure), risolti lo stesso giorno. Il redesign entity-first del
+2026-08-14 ha poi trasformato l'IA (dossier, focus in URL, ricerca, Confronto promosso,
+CategoryTrendsGrid rimossa) — la prossima critique misura la NUOVA pagina, non il delta
+sulla vecchia.
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
@@ -1503,7 +1517,10 @@ di contrasto hanno un branch dedicato — tranne una lacuna vera: i tre componen
 ancora alcuna copertura di test, né Vitest né Playwright.
 8. Allocazione ← esteso con l'allocazione a leva, la parte più giovane della pagina
 9. Patrimonio ← hero gemello di Panoramica + registro operazioni mai critiquato
-10. Analisi ← critiquata 2026-07-21 (25/40), redesign implementato — rieseguire per delta
+10. Analisi ← critiquata 2026-07-21 (25/40, follow-up stesso giorno); poi TRASFORMATA dal
+    redesign entity-first del 2026-08-14 (dossier, focus in URL, ricerca, Confronto promosso).
+    La prossima critique valuta la NUOVA pagina come prima misurazione, non un delta sulla
+    vecchia baseline — il prompt della sezione è già aggiornato alla nuova IA.
 11. Panoramica ← hero rivisto 2026-07-16 + chip a grid 2026-07-26 (verifica delta)
 12. Cashflow / tab "Tracciamento" (mobileLabel: "Spese") e "Budget"
 13. Rendimenti ← IA single-answer già implementata, verifica delta
