@@ -38,6 +38,9 @@ firebase-admin-key.json
 
 # Firebase local emulator (persisted data exports + debug logs)
 /.emulator-data
+# Staging dir the CLI writes export-on-exit into before moving it to .emulator-data —
+# left behind, and possibly half-written, whenever the emulator is killed by a signal.
+/firebase-export-*
 firebase-debug.log
 firestore-debug.log
 database-debug.log
