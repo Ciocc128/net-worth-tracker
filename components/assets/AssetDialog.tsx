@@ -11,7 +11,7 @@
  * - Inline subcategory creation without leaving the form
  * - Outstanding debt tracking for real estate assets
  * - Cost basis tracking for capital gains calculations
- * - Total Expense Ratio (TER) for ETFs and funds
+ * - Total Expense Ratio (TER) for ETFs, commodities and crypto (ETC wrappers)
  *
  * Form State Management:
  * - 10 useState hooks for UI state (composition, toggles, loading states)
@@ -591,7 +591,11 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const newAsset_quantityLabel = selectedType === 'cash' ? 'Saldo' : selectedType === 'realestate' ? 'Valore stimato' : selectedType === 'pensionFund' ? 'Valore attuale' : 'Quantità';
   const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
   const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
-  const newAsset_showTER = selectedType === 'etf' || selectedType === 'stock';
+  // TER applies to funds/ETC (ongoing management fee), never to a single stock. `commodity` and
+  // `crypto` both double as either a direct spot holding (no TER) or an ETC wrapper around that
+  // same underlying (e.g. WisdomTree Agriculture AIGA.MI, WisdomTree Physical Bitcoin) — the toggle
+  // stays opt-in and off by default, so exposing it costs nothing for the spot case.
+  const newAsset_showTER = selectedType === 'etf' || selectedType === 'commodity' || selectedType === 'crypto';
   // Leva: only ETFs can be leveraged/composite instruments.
   const newAsset_showLeverage = selectedType === 'etf';
   const newAsset_showComposition = selectedType === 'etf' || selectedType === 'pensionFund';
@@ -2465,7 +2469,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
           </div>
           )}
 
-          {/* TER — only shown for ETF and stock */}
+          {/* TER — only shown for ETF, commodity and crypto (all can be ETC wrappers) */}
           {newAsset_showTER && (
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">

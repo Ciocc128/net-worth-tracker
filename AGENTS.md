@@ -66,6 +66,11 @@ Companion documents — do not duplicate their content into this file:
   `desktop:grid-cols-3`. Reserve `sm:grid-cols-2` for content where two columns genuinely help (Bear/Base/Bull cards).
 - `items-end` on a form grid is only safe when every cell is label + input. One cell with hint text makes the hint the
   new "bottom" — use `items-start` there.
+- **A grid item stretches to the row height by default (`align-items: stretch`), but a normal-flow child inside it does
+  not inherit that height without its own `h-full`.** Two side-by-side cards (`grid desktop:grid-cols-2`) whose content
+  differs in length (e.g. legends with a different row count) mismatch in height unless BOTH the grid-item wrapper and
+  the visible card `div` carry `h-full` — the wrapper stretching alone is invisible if nothing inside claims it. Fixed
+  in Panoramica's Composizione cards (`components/dashboard/OverviewChartsSection.tsx`).
 - **Center one flex child without collapsing a `w-full` sibling: `self-center`, not `items-center`** (`items-center`
   shrinks every child to content width). `self-*` acts on the CROSS axis.
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child. Add explicit
