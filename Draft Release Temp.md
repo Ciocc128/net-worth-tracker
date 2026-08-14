@@ -113,6 +113,8 @@
 - Fixed the last two cost-center colours (teal and orange) being too faint to make out against a light background; both are slightly darker now and meet the contrast floor on every theme.
 - Fixed the multi-year bars in Confronto Annuale's Storico view running right-to-left in time (newest year first) — the only chart on the page whose axis flowed backwards. Years now run oldest to newest, like every other time chart.
 - Fixed the spending-anomaly banner claiming to analyze the "selected month" when, on Anno Corrente with no month picked, it actually analyzes the current calendar month while the totals above cover the whole year. The banner now names the exact month it measured, and it now honors the month you pick instead of always using the current one.
+- Fixed the TER (Total Expense Ratio) field not appearing when editing or creating a commodity asset (e.g. a gold or agricultural ETC), while incorrectly appearing for individual stocks, which never carry a TER. The field now shows for ETFs, commodities and crypto — since all three can be structured as ETC-wrapped instruments — and no longer shows for stocks.
+- Fixed the Overview "Composizione" charts hiding any asset class or individual asset under 5% of your portfolio from the legend, while the bar above it kept a colored segment for every one of them — so some segments had no name or percentage listed below. The legend now lists everything the bar shows.
 
 ## 🔧 Improvements
 
@@ -166,6 +168,7 @@
 - The "Trend per Categoria" sparkline grid on Analisi was retired: the entity dossier answers the same question with your full history instead of only the last 12 months, for sub-categories too.
 - Comparisons on Analisi now declare their window honestly everywhere: a running month is labelled "(mese in corso)", a month that has not started yet is not compared at all, comparing against your first tracked year warns that the comparison may be partial, and a prior-year month older than your tracked history renders as a gap in the dossier's trend rather than a fabricated zero.
 - The transactions total inside the dossier is labelled "Totale netto": it sums signed amounts (a refund nets off), while the dossier's headline is gross spending — the two legitimately differ when refunds exist, and now they say so.
+- The two composition cards on Overview ("Distribuzione per Asset Class" and "Distribuzione per Asset") now match heights, so a shorter list no longer leaves one card looking cut short next to a taller one.
 
 ## 🔒 Security
 

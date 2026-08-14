@@ -130,7 +130,7 @@ const OverviewChartsSectionInner = ({
   /**
    * Legend row for a single chart slice.
    * Uses `percentage` (not `value` — which is the raw currency amount).
-   * Only rendered for slices with percentage >= 5 (filtered at call site).
+   * Rendered for every slice, so the legend always matches the bar segments above it.
    */
   const LegendRow = ({ item, index }: { item: PieChartData; index: number }) => (
     <div className="flex items-center gap-2">
@@ -207,11 +207,9 @@ const OverviewChartsSectionInner = ({
                   showLegend={false}
                 />
                 <div className="mt-3 flex flex-col gap-[7px] min-w-0">
-                  {activeSection.data
-                    .filter(item => item.percentage >= 5)
-                    .map((item, i) => (
-                      <LegendRow key={`${item.name}-${i}`} item={item} index={i} />
-                    ))}
+                  {activeSection.data.map((item, i) => (
+                    <LegendRow key={`${item.name}-${i}`} item={item} index={i} />
+                  ))}
                 </div>
               </div>
             )}
@@ -239,8 +237,9 @@ const OverviewChartsSectionInner = ({
             key={section.id}
             layout="position"
             transition={springLayoutTransition}
+            className="h-full"
           >
-            <div className="bg-card border border-border rounded-2xl p-5">
+            <div className="bg-card border border-border rounded-2xl p-5 h-full">
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-[14px]">
                 {section.title}
               </p>
@@ -261,11 +260,9 @@ const OverviewChartsSectionInner = ({
                     showLegend={false}
                   />
                   <div className="mt-3 flex flex-col gap-[7px] min-w-0">
-                    {section.data
-                      .filter(item => item.percentage >= 5)
-                      .map((item, i) => (
-                        <LegendRow key={`${item.name}-${i}`} item={item} index={i} />
-                      ))}
+                    {section.data.map((item, i) => (
+                      <LegendRow key={`${item.name}-${i}`} item={item} index={i} />
+                    ))}
                   </div>
                 </div>
               )}
