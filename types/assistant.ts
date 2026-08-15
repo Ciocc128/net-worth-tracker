@@ -76,13 +76,35 @@ export interface AssistantMemoryItem {
   status: 'active' | 'completed' | 'archived';
 }
 
+export type AssistantStructuredGoalKind =
+  | 'cash_target'
+  | 'liquid_net_worth_target'
+  | 'net_worth_target'
+  | 'asset_class_value_target'
+  | 'sub_category_value_target'
+  | 'asset_class_percentage_target';
+
+/**
+ * The machine-evaluable half of a memory goal. Produced by the Haiku extraction
+ * tool (never parsed from free text) and evaluated against the CURRENT month.
+ *
+ * A goal without this object is legitimate — it is simply not auto-trackable,
+ * and the memory panel says so rather than leaving it indistinguishable from a
+ * goal that is one euro short.
+ */
 export interface AssistantStructuredGoal {
-  kind: 'cash_target' | 'liquid_net_worth_target' | 'net_worth_target' | 'asset_class_value_target' | 'sub_category_value_target' | 'asset_class_percentage_target';
+  kind: AssistantStructuredGoalKind;
   targetValue: number;
+  // Derived from `kind`, never asked of the model: only the percentage kind is 'percent'.
   unit: 'eur' | 'percent';
-  assetClass?: string;
+  // Which side of the target satisfies the goal. Optional for backwards compatibility:
+  // goals stored before SPEC-4B read as 'at_least', the only semantics the old >= had.
+  direction?: 'at_least' | 'at_most';
+  assetClass?: import('@/types/assets').AssetClass;
   subCategory?: string;
-  periodLabel?: string;
+  // YYYY-MM-DD. A passed deadline never changes whether the goal is matched —
+  // it only makes the evaluation summary say so.
+  deadlineIso?: string;
 }
 
 export interface AssistantGoalEvaluationResult {
@@ -91,6 +113,10 @@ export interface AssistantGoalEvaluationResult {
   targetValue: number;
   unit: 'eur' | 'percent';
   evaluatedAgainst: 'cash' | 'liquid_net_worth' | 'total_net_worth' | 'asset_class_value' | 'sub_category_value' | 'asset_class_percentage';
+  // Which period the metric was read from — the evaluation is always run against
+  // the current month, never the period the user happened to be looking at.
+  evaluatedPeriod?: { year: number; month: number };
+  deadlinePassed?: boolean;
   summary: string;
 }
 

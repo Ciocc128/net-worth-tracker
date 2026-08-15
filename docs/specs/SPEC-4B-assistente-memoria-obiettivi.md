@@ -1,6 +1,6 @@
 # SPEC-4B — Assistente AI: memoria e obiettivi v2 (il completamento automatico che funziona)
 
-**Stato**: pronta per implementazione · **Dipendenze**: SPEC-4A (base pulita, scritture consolidate) · **Ordine**: dopo 4A, prima di 4C
+**Stato**: implementata (2026-08-15, branch `feature/assistente-obiettivi-spec-4b`) · **Dipendenze**: SPEC-4A (base pulita, scritture consolidate) · **Ordine**: dopo 4A, prima di 4C
 
 ## Perché il completamento obiettivi "non ha mai funzionato" (diagnosi verificata)
 
@@ -106,6 +106,41 @@ items: Array<{
 
 L'accesso ai goal di Goal-Based Investing (SPEC-4C), il redesign (SPEC-4D), qualunque modifica al
 formato del bundle di contesto.
+
+---
+
+## Esito dell'implementazione (2026-08-15)
+
+Tutti i punti 1-5 implementati. Quattro cose che la spec non prevedeva e che sono servite:
+
+1. **`updatedAt` di un memory item ora marca l'ultima modifica di CONTENUTO, non l'ultima
+   scrittura** (`store.ts` → `mergeMemoryItem`). Senza questo la regola del punto 3 non regge: la
+   rivalutazione giornaliera bumpava `updatedAt`, quindi ogni "Ignora" scadeva al giro di cron
+   successivo e il banner tornava comunque. È l'invariante su cui poggia l'intera durabilità.
+2. **`evaluateActiveGoals` accetta `pendingItems`**, gli item appena estratti e non ancora scritti.
+   Serve a tenere il turno di chat dentro UNA sola transazione Firestore, come impone SPEC-4A:
+   altrimenti sarebbero due (scrittura candidati + valutazione).
+3. **Il chiamante è autorevole su `structuredGoal`**: `mergeMemoryItem` non lo ri-deriva più. Se la
+   ristrutturazione Haiku di un goal modificato a mano fallisce, il goal resta **senza** struttura e
+   il pannello lo dichiara "non tracciabile automaticamente", invece di conservare una struttura che
+   contraddice il nuovo testo. Meglio visibilmente non tracciato che silenziosamente sbagliato.
+   Corollario: la route PATCH ristruttura solo su creazione, su modifica del testo o su goal ancora
+   privo di struttura — un semplice archivia/ripristina non spende una chiamata al modello.
+4. **La descrizione di un enum nel tool schema deve parlare il vocabolario della UI.** Al collaudo,
+   «portare **la liquidità** a 40k» finiva a volte su `liquid_net_worth_target` e a volte su
+   `cash_target`: nel prodotto "Liquidità" è l'etichetta della classe `cash`, ma la descrizione del
+   campo `kind` non lo diceva. Chiarita, tre esecuzioni consecutive da documento vuoto sono
+   identiche. Vale per qualunque tool use futuro.
+
+Scelte minori: `unit` non si chiede al modello (è una conseguenza di `kind`); una `structuredGoal`
+malformata scarta la struttura ma **non** il goal; `periodLabel` rimosso da `AssistantStructuredGoal`
+perché non aveva né lettori né scrittori.
+
+**Collaudo guidato** (WORKFLOW.md): `tsc` pulito, 94 file / 1749 test verdi, tre asserzioni chiave
+viste rosse rompendo il codice di proposito (direzione `at_most`, guardia dell'ignore durevole,
+conservazione di `updatedAt`). Fasi A-E automatizzate sugli emulatori con parole civetta, tutte
+verdi, incluse le chiamate Haiku reali (`1,5M` → 1.500.000, non più 15 milioni) e la coppia
+positivo/negativo sul confine di delega. Controllo visivo del pannello memoria fatto dall'owner.
 
 ---
 

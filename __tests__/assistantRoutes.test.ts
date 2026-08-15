@@ -14,11 +14,14 @@ const {
   getAssistantThreadMock,
   getAssistantMemoryDocumentMock,
   updateAssistantMemoryDocumentMock,
+  applyAssistantMemoryMutationsMock,
   deleteAssistantMemoryDocumentMock,
   setAssistantGoalEvaluationMock,
   appendAssistantMessageMock,
   updateAssistantThreadMetadataMock,
   streamAssistantResponseMock,
+  extractMemoryCandidatesMock,
+  extractStructuredGoalFromTextMock,
   accountAccessDocGetMock,
 } = vi.hoisted(() => ({
   verifyIdTokenMock: vi.fn(),
@@ -32,11 +35,14 @@ const {
   getAssistantThreadMock: vi.fn(),
   getAssistantMemoryDocumentMock: vi.fn(),
   updateAssistantMemoryDocumentMock: vi.fn(),
+  applyAssistantMemoryMutationsMock: vi.fn(),
   deleteAssistantMemoryDocumentMock: vi.fn(),
   setAssistantGoalEvaluationMock: vi.fn(),
   appendAssistantMessageMock: vi.fn(),
   updateAssistantThreadMetadataMock: vi.fn(),
   streamAssistantResponseMock: vi.fn(),
+  extractMemoryCandidatesMock: vi.fn(),
+  extractStructuredGoalFromTextMock: vi.fn(),
   accountAccessDocGetMock: vi.fn(),
 }));
 
@@ -77,6 +83,7 @@ vi.mock('@/lib/server/assistant/store', () => ({
   getAssistantThread: getAssistantThreadMock,
   getAssistantMemoryDocument: getAssistantMemoryDocumentMock,
   updateAssistantMemoryDocument: updateAssistantMemoryDocumentMock,
+  applyAssistantMemoryMutations: applyAssistantMemoryMutationsMock,
   deleteAssistantMemoryDocument: deleteAssistantMemoryDocumentMock,
   setAssistantGoalEvaluation: setAssistantGoalEvaluationMock,
   appendAssistantMessage: appendAssistantMessageMock,
@@ -87,6 +94,14 @@ vi.mock('@/lib/server/assistant/store', () => ({
 
 vi.mock('@/lib/server/assistant/anthropicStream', () => ({
   streamAssistantResponse: streamAssistantResponseMock,
+}));
+
+// Keeps the fire-and-forget memory extraction off the network, and lets the goal
+// structuring path of PATCH be asserted without a real Haiku call.
+vi.mock('@/lib/server/assistant/memoryExtraction', () => ({
+  extractMemoryCandidates: extractMemoryCandidatesMock,
+  extractStructuredGoalFromText: extractStructuredGoalFromTextMock,
+  dedupeMemoryItems: vi.fn((candidates: unknown[]) => candidates),
 }));
 
 import { GET as getThreadsRoute } from '@/app/api/ai/assistant/threads/route';
@@ -239,6 +254,19 @@ describe('Assistant private API routes', () => {
       hasDummySnapshots: false,
     });
     setAssistantGoalEvaluationMock.mockResolvedValue(undefined);
+    applyAssistantMemoryMutationsMock.mockResolvedValue({
+      preferences: {
+        responseStyle: 'balanced',
+        includeMacroContext: false,
+        memoryEnabled: true,
+        includeDummySnapshots: false,
+      },
+      items: [],
+      suggestions: [],
+      updatedAt: new Date(2026, 3, 5),
+    });
+    extractMemoryCandidatesMock.mockResolvedValue([]);
+    extractStructuredGoalFromTextMock.mockResolvedValue(undefined);
     appendAssistantMessageMock
       .mockResolvedValueOnce({
         id: 'user-msg-1',
@@ -358,6 +386,99 @@ describe('Assistant private API routes', () => {
         includeMacroContext: true,
       },
       item: undefined,
+    });
+  });
+
+  it('structures a goal written by hand in the memory panel', async () => {
+    // The panel sends id/text/category only, so without this the goal would never
+    // be auto-trackable — exactly what SPEC-4B set out to fix.
+    extractStructuredGoalFromTextMock.mockResolvedValueOnce({
+      kind: 'cash_target',
+      targetValue: 20000,
+      unit: 'eur',
+      direction: 'at_most',
+    });
+
+    const response = await patchMemoryRoute(
+      createJsonRequest('http://localhost/api/ai/assistant/memory', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer valid-token' },
+        body: {
+          userId: 'user-1',
+          item: { id: 'goal-1', text: 'Ridurre il cash a 20k', category: 'goal' },
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(extractStructuredGoalFromTextMock).toHaveBeenCalledWith(
+      'Ridurre il cash a 20k',
+      expect.anything()
+    );
+    expect(updateAssistantMemoryDocumentMock).toHaveBeenCalledWith('user-1', {
+      preferences: undefined,
+      item: {
+        id: 'goal-1',
+        text: 'Ridurre il cash a 20k',
+        category: 'goal',
+        structuredGoal: {
+          kind: 'cash_target',
+          targetValue: 20000,
+          unit: 'eur',
+          direction: 'at_most',
+        },
+      },
+      suggestion: undefined,
+    });
+  });
+
+  it('does not spend a model call when only the status of a goal changes', async () => {
+    getAssistantMemoryDocumentMock.mockResolvedValueOnce({
+      preferences: {
+        responseStyle: 'balanced',
+        includeMacroContext: false,
+        memoryEnabled: true,
+        includeDummySnapshots: false,
+      },
+      items: [{
+        id: 'goal-1',
+        userId: 'user-1',
+        category: 'goal',
+        text: 'Ridurre il cash a 20k',
+        structuredGoal: { kind: 'cash_target', targetValue: 20000, unit: 'eur', direction: 'at_most' },
+        createdAt: new Date(2026, 3, 5),
+        updatedAt: new Date(2026, 3, 5),
+        status: 'active',
+      }],
+      suggestions: [],
+      updatedAt: null,
+      hasDummySnapshots: false,
+    });
+
+    const response = await patchMemoryRoute(
+      createJsonRequest('http://localhost/api/ai/assistant/memory', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer valid-token' },
+        body: {
+          userId: 'user-1',
+          item: {
+            id: 'goal-1',
+            text: 'Ridurre il cash a 20k',
+            category: 'goal',
+            status: 'archived',
+          },
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(extractStructuredGoalFromTextMock).not.toHaveBeenCalled();
+    // The stored structure survives an archive — it is not re-derived, nor dropped
+    expect(updateAssistantMemoryDocumentMock.mock.calls[0][1].item.structuredGoal).toEqual({
+      kind: 'cash_target',
+      targetValue: 20000,
+      unit: 'eur',
+      direction: 'at_most',
     });
   });
 

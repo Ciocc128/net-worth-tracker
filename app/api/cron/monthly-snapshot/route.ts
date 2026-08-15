@@ -17,6 +17,7 @@ import {
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { refreshEcbRatesIfStale } from '@/lib/server/ecbRatesService';
 import { isWeeklyBudgetDayItaly, buildAndSendWeeklyBudget } from '@/lib/server/weeklyBudgetEmailService';
+import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
 
 /**
@@ -29,7 +30,8 @@ import { verifyCronSecret } from '@/lib/server/apiAuth';
  * the same document throughout the month (upsert via .set()). The last run of
  * the month becomes the permanent historical record.
  * Emails are guarded by isLastDayOfMonthItaly / isLastDayOfQuarterItaly /
- * isLastDayOfYearItaly and are only sent once on the appropriate day.
+ * isLastDayOfYearItaly and are only sent once on the appropriate day. The
+ * assistant's goal re-evaluation (phase 7) runs every day, like the snapshot.
  *
  * Orchestration Pattern:
  *   - Fetches all users from database
@@ -327,6 +329,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Phase 7: Re-evaluate the assistant's structured goals (every day).
+    // Runs after Phase 1 so it reads the snapshot written for the current month a
+    // few lines above. This is what makes a goal reached "by itself" — the market
+    // moved, not the user — surface without anyone opening the assistant.
+    const goalEvaluationResults = { evaluated: 0, suggestions: 0, skipped: 0, errors: 0 };
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+
+      if (userId === process.env.NEXT_PUBLIC_DEMO_USER_ID) {
+        goalEvaluationResults.skipped++;
+        continue;
+      }
+
+      try {
+        const result = await evaluateActiveGoals(userId);
+        if (result.skippedReason) {
+          goalEvaluationResults.skipped++;
+        } else {
+          goalEvaluationResults.evaluated += result.evaluatedGoals;
+          goalEvaluationResults.suggestions += result.suggestionsCreated;
+        }
+      } catch (goalError) {
+        console.error(`Goal re-evaluation failed for user ${userId}:`, goalError);
+        goalEvaluationResults.errors++;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Monthly snapshots job completed`,
@@ -340,6 +369,7 @@ export async function GET(request: NextRequest) {
       semiAnnualEmailSummary: semiAnnualEmailResults,
       yearlyEmailSummary: yearlyEmailResults,
       weeklyBudgetEmailSummary: weeklyBudgetEmailResults,
+      goalEvaluationSummary: goalEvaluationResults,
     });
   } catch (error) {
     console.error('Error in monthly snapshot cron job:', error);
