@@ -69,13 +69,6 @@ const CURATED_FOLLOW_UPS: Record<AssistantMode, AssistantFollowUp[]> = {
       prompt: 'Nello storico, quanto della crescita del patrimonio è venuto dal risparmio e quanto dai rendimenti degli investimenti?',
     },
   ],
-  quarter_analysis: [
-    {
-      id: 'quarter-compare-prev',
-      label: 'Confronta col trimestre precedente',
-      prompt: 'Confronta questo trimestre con il precedente: patrimonio, cashflow e allocazione.',
-    },
-  ],
   chat: [
     {
       id: 'chat-deepen',

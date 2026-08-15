@@ -6,26 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AssistantMonthContextBundle } from '@/types/assistant';
 import { cn } from '@/lib/utils';
-import { MONTH_NAMES } from '@/lib/constants/months';
+import { getAssistantPeriodLabel } from '@/lib/utils/assistantPeriodLabel';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 
 const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
-
-/**
- * Returns a human-readable label for the period encoded in selector.
- * Duplicated from prompts.ts to avoid importing server-only code in this client component.
- *   month > 0  → "Marzo 2025"
- *   month === 0 → "Anno 2025"
- *   month === -1 → "YTD 2025"
- *   month === -2 → "Storico da 2020"
- */
-function getPeriodLabel(selector: { year: number; month: number }): string {
-  if (selector.month > 0) return `${MONTH_NAMES[selector.month - 1]} ${selector.year}`;
-  if (selector.month === 0) return `Anno ${selector.year}`;
-  if (selector.month === -1) return `YTD ${selector.year}`;
-  if (selector.month === -2) return `Storico da ${selector.year}`;
-  return `${selector.year}`;
-}
 
 /** Returns a "in progress" badge label for the period. */
 function getPartialLabel(selector: { year: number; month: number }): string {
@@ -117,7 +101,7 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
   }
 
   const { selector, netWorth, cashflow, allocationChanges, dataQuality } = bundle;
-  const periodLabel = getPeriodLabel(selector);
+  const periodLabel = getAssistantPeriodLabel(selector);
   const deltaPositive = netWorth.delta !== null ? netWorth.delta >= 0 : null;
 
   const DeltaIcon =
@@ -275,7 +259,7 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
  */
 export function AssistantContextPill({ bundle }: { bundle: AssistantMonthContextBundle }) {
   const { selector, netWorth } = bundle;
-  const periodLabel = getPeriodLabel(selector);
+  const periodLabel = getAssistantPeriodLabel(selector);
   const deltaPositive = netWorth.delta !== null ? netWorth.delta >= 0 : null;
 
   return (

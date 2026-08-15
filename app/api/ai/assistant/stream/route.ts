@@ -6,14 +6,15 @@ import {
 } from '@/lib/server/apiAuth';
 import { streamAssistantResponse } from '@/lib/server/assistant/anthropicStream';
 import {
+  AssistantMemoryMutation,
   appendAssistantMessage,
+  applyAssistantMemoryMutations,
   buildThreadTitleFromPrompt,
   createAssistantThread,
   getAssistantMemoryDocument,
   getAssistantThread,
   getAssistantThreadDetail,
   isAssistantStoreError,
-  updateAssistantMemoryDocument,
   updateAssistantThreadMetadata,
 } from '@/lib/server/assistant/store';
 import {
@@ -29,7 +30,6 @@ import {
   buildAssistantYearContext,
   buildAssistantYtdContext,
   buildAssistantHistoryContext,
-  buildAssistantQuarterContext,
 } from '@/lib/services/assistantMonthContextService';
 import { AssistantMonthContextBundle, AssistantStreamEvent, AssistantStreamRequest } from '@/types/assistant';
 import {
@@ -48,6 +48,12 @@ const STREAM_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
  * Runs fire-and-forget after the stream closes — errors are logged but never
  * propagated so they cannot affect the user-facing chat experience.
  *
+ * All new items/evaluations/suggestions for this turn are accumulated into one
+ * mutations array and applied via a SINGLE `applyAssistantMemoryMutations` call —
+ * previously this was up to ~10 separate read-modify-write Firestore round trips
+ * per turn (one per candidate, plus two per active goal), racing with the memory
+ * panel's own PATCH calls.
+ *
  * Anthropic client is instantiated lazily inside this function so module-level
  * initialization does not fail in test environments where ANTHROPIC_API_KEY is absent.
  */
@@ -60,7 +66,7 @@ async function extractAndSaveMemory(
   contextBundle: AssistantMonthContextBundle | null
 ): Promise<void> {
   try {
-    let memoryDoc = await getAssistantMemoryDocument(userId);
+    const memoryDoc = await getAssistantMemoryDocument(userId);
 
     // Respect the user's memoryEnabled toggle — never extract when disabled
     if (!memoryDoc.preferences.memoryEnabled) return;
@@ -74,57 +80,61 @@ async function extractAndSaveMemory(
     const candidates = await extractMemoryCandidates(userMessage, assistantMessage, anthropicClient);
     const newCandidates = dedupeMemoryItems(candidates, memoryDoc.items);
 
-    // Save each new item sequentially to keep Firestore writes simple
-    for (const candidate of newCandidates) {
-      const itemId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      await updateAssistantMemoryDocument(userId, {
-        item: {
-          id: itemId,
-          category: candidate.category,
-          text: candidate.text,
-          structuredGoal:
-            candidate.category === 'goal'
-              ? parseStructuredGoalFromText(candidate.text)
-              : undefined,
-          sourceThreadId: threadId,
-          sourceMessageId: messageId,
-          status: 'active',
-        },
-      });
+    const mutations: AssistantMemoryMutation[] = [];
+    const now = new Date();
+    const newItems = newCandidates.map((candidate) => {
+      const item = {
+        id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userId,
+        category: candidate.category,
+        text: candidate.text,
+        structuredGoal:
+          candidate.category === 'goal' ? parseStructuredGoalFromText(candidate.text) : undefined,
+        sourceThreadId: threadId,
+        sourceMessageId: messageId,
+        createdAt: now,
+        updatedAt: now,
+        status: 'active' as const,
+      };
+      mutations.push({ kind: 'item', item });
+      return item;
+    });
+
+    if (contextBundle) {
+      // Evaluate active structured goals including the ones just extracted this turn —
+      // equivalent to the previous re-fetch-after-write, computed locally instead.
+      const itemsAfterThisTurn = [...memoryDoc.items, ...newItems];
+      const activeStructuredGoals = itemsAfterThisTurn.filter(
+        (item) => item.category === 'goal' && item.status === 'active' && item.structuredGoal
+      );
+
+      let suggestionsSoFar = memoryDoc.suggestions;
+      for (const item of activeStructuredGoals) {
+        const evaluation = evaluateStructuredGoal(item.structuredGoal!, contextBundle);
+        if (evaluation) {
+          mutations.push({
+            kind: 'item',
+            item: { ...item, lastEvaluationAt: new Date(), lastEvaluationResult: evaluation },
+          });
+        }
+
+        const suggestion = buildGoalCompletionSuggestions(
+          userId,
+          [item],
+          contextBundle,
+          suggestionsSoFar,
+          ({ itemId }) => `goal_suggestion_${itemId}`
+        )[0];
+
+        if (suggestion) {
+          mutations.push({ kind: 'suggestion', suggestion });
+          suggestionsSoFar = [suggestion, ...suggestionsSoFar];
+        }
+      }
     }
 
-    memoryDoc = await getAssistantMemoryDocument(userId);
-
-    if (!contextBundle) return;
-
-    const activeStructuredGoals = memoryDoc.items.filter(
-      (item) => item.category === 'goal' && item.status === 'active' && item.structuredGoal
-    );
-
-    for (const item of activeStructuredGoals) {
-      const evaluation = evaluateStructuredGoal(item.structuredGoal!, contextBundle);
-      if (evaluation) {
-        await updateAssistantMemoryDocument(userId, {
-          item: {
-            ...item,
-            lastEvaluationAt: new Date(),
-            lastEvaluationResult: evaluation,
-          },
-        });
-      }
-
-      const suggestion = buildGoalCompletionSuggestions(
-        userId,
-        [item],
-        contextBundle,
-        memoryDoc.suggestions,
-        ({ itemId }) => `goal_suggestion_${itemId}`
-      )[0];
-
-      if (suggestion) {
-        await updateAssistantMemoryDocument(userId, { suggestion });
-        memoryDoc.suggestions = [suggestion, ...memoryDoc.suggestions];
-      }
+    if (mutations.length > 0) {
+      await applyAssistantMemoryMutations(userId, mutations);
     }
   } catch (error) {
     // Memory extraction is non-fatal — log server-side only
@@ -153,11 +163,15 @@ export async function POST(request: NextRequest) {
     const decodedToken = await requireFirebaseAuth(request);
 
     if (!process.env.ANTHROPIC_API_KEY) {
+      // 503, not 500: this is a known, expected unavailability (missing config), the
+      // same condition the page itself detects server-side to render the "Servizio AI
+      // non configurato" EmptyState — one error surface, not a 500 here and an
+      // EmptyState there for the same root cause.
       return NextResponse.json(
         {
           error: "Servizio AI non configurato. Aggiungi ANTHROPIC_API_KEY per abilitare l'assistente.",
         },
-        { status: 500 }
+        { status: 503 }
       );
     }
 
@@ -221,17 +235,6 @@ export async function POST(request: NextRequest) {
       contextBundle = await buildAssistantYtdContext(body.userId, includeDummy);
     } else if (body.mode === 'history_analysis') {
       contextBundle = await buildAssistantHistoryContext(body.userId, await fetchHistoryStartYear(body.userId), includeDummy);
-    } else if (body.mode === 'quarter_analysis' && body.month) {
-      // The request carries a month selector, not a quarter number: the quarter is the one the
-      // selected month belongs to (Jan-Mar → Q1, …). Without this branch the request fell through
-      // to the monthly builder below and a quarterly analysis was answered on one month of data —
-      // wrong baseline (previous month instead of previous quarter-end) and a third of the cashflow.
-      contextBundle = await buildAssistantQuarterContext(
-        body.userId,
-        body.month.year,
-        Math.ceil(body.month.month / 3),
-        includeDummy
-      );
     } else if (body.mode === 'chat') {
       // Chat mode: build context only when chatContext is set and not 'none'
       if (body.chatContext === 'year' && body.year) {

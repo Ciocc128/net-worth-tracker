@@ -46,7 +46,7 @@ import { useDashboardOverview } from '@/lib/hooks/useDashboardOverview';
 import { useCountUp } from '@/lib/utils/useCountUp';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { useAssistantMemory, useUpdateAssistantMemory } from '@/lib/hooks/useAssistantMemory';
-import { useAssistantPeriodContext } from '@/lib/hooks/useAssistantMonthContext';
+import { useAssistantPeriodContext } from '@/lib/hooks/useAssistantPeriodContext';
 import { useAssistantThread, useAssistantThreads, useDeleteAssistantThread } from '@/lib/hooks/useAssistantThreads';
 import { assistantPromptChips } from '@/lib/constants/assistantPrompts';
 import { buildFollowUpSuggestions } from '@/lib/utils/assistantFollowUps';

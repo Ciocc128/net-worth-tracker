@@ -164,10 +164,6 @@ export function parseStructuredGoalFromText(text: string): AssistantStructuredGo
   return undefined;
 }
 
-function normalizeAssetClass(input: string): string | undefined {
-  return findAssetClassInText(input);
-}
-
 function roundMetric(value: number): number {
   return Math.round(value * 100) / 100;
 }

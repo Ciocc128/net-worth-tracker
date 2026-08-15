@@ -538,7 +538,10 @@ Companion documents — do not duplicate their content into this file:
   falls through to the monthly builder and is answered on one month of data.
 - **One aggregator, not two**: every cashflow figure comes from a single `buildCashflowBreakdown` call per builder, so
   `Σ expensesByCategory[].total === cashflow.totalExpenses` holds structurally. `transactionCount` **excludes
-  transfers**, and adding a required bundle field means updating ALL 5 builders.
+  transfers**, and adding a required bundle field means updating ALL 4 builders (month/year/ytd/history).
+- **Removing an `AssistantMode` ripples past the WARNING checklist at the top of `types/assistant.ts`**: also grep for
+  `Record<AssistantMode, …>` — `assistantFollowUps.ts`'s `CURATED_FOLLOW_UPS` is the one live site today, and `tsc` only
+  catches it because the object literal must satisfy every key of the union.
 
 **Prompt builders** (`lib/server/assistant/prompts.ts`)
 - `system` is byte-identical across users and requests of that mode — **never interpolate per-request data into it**;
@@ -567,6 +570,19 @@ Companion documents — do not duplicate their content into this file:
   re-mounts on every chunk.
 - **Do not use `DropdownMenu` for panels containing `Select` or `Switch`** — it closes on any click inside; use
   `Popover`. The mobile thread `Sheet` is controlled and must be closed explicitly in `onSelect`.
+- **Merging a partial patch onto existing state: build the merge object with ONLY the fields present in the input**
+  (conditional spread), never assign every field unconditionally from a `Partial<T>` — an absent field becomes an
+  explicit `undefined` that wins `{...existing, ...patch}` and silently wipes it. `store.ts`'s `mergeMemoryItem`/
+  `mergeMemorySuggestion` are the template; a PATCH carrying only `text` used to erase `sourceThreadId`/
+  `evidenceSummary`/`lastEvaluationResult` this way — confirmed only on the real emulator, a fully-mocked `store.ts`
+  (as in `assistantRoutes.test.ts`) cannot catch it, `__tests__/assistantMemoryStore.test.ts` can.
+- **One `adminDb.runTransaction` per turn, not one write per mutation**: `extractAndSaveMemory` accumulates every new
+  candidate/evaluation/suggestion into an `AssistantMemoryMutation[]` and applies it in one
+  `applyAssistantMemoryMutations` call. A new memory-writing feature there pushes onto that array — never call
+  `updateAssistantMemoryDocument` in a loop again, it also races against the panel's own PATCH.
+- **A field only the GET path can compute (`hasDummySnapshots`, from a `monthly-snapshots` query) must be optional on
+  the base `AssistantMemoryDocument` type**, required only on `AssistantMemoryResponse` — never a hardcoded `false`
+  returned by a write helper that has no way to know the real value.
 
 ### Periodic Emails (`lib/server/monthlyEmailService.ts`, `weeklyBudgetEmailService.ts`)
 - **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
