@@ -381,7 +381,13 @@ Companion documents — do not duplicate their content into this file:
   `userMessage` forwarded verbatim in a 422.
 - **The per-asset XIRR is date-exact and SEPARATE from `performanceService.calculateIRR`** — keep both; it returns a
   FRACTION, and `null` renders as "–", never 0. **`replayTransactions` replays ONE asset**, so
-  `aggregateRealizedByYear` must group by `assetId` FIRST: realized P&L is PMC-dependent per position.
+  `aggregateRealizedByYear` (lives in this engine, consumed by Rendimenti's `RealizedGainsSection.tsx`) must group by
+  `assetId` FIRST: realized P&L is PMC-dependent per position.
+- **Per-transaction derived data (a sell's own P&L %, PMC-at-trade) comes from `replayTransactionsWithEffects`**, never
+  from re-running `replayTransactions` on every prefix (O(n²) — the trap `AssetMovementsDialog.tsx` fell into before
+  this was added). One pass emits one `LedgerTransactionEffect` per transaction (baseline/buy/sell/adjustment), with the
+  optional fields populated ONLY for `sell`, so a caller indexes by id with no holes. `replayTransactions(txs)` is just
+  `.state` of the same call — identical semantics, unchanged.
 
 **Service, API, migration** (`lib/server/assetTransactionUseCase.ts`)
 - **Writes are Admin-API-only**: a trade atomically rewrites the asset's derived fields from a full replay, and only the
