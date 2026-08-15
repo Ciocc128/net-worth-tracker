@@ -124,6 +124,7 @@
 - The tax disclaimer now appears once per page instead of once per family member, and dates throughout the page use the same monospace figures as the amounts.
 - Small accessibility improvements on Previdenza: proper section headings, the delete confirmation is announced to screen readers, and the "Registra versamento" button now lives in the page header, where it stays reachable on mobile.
 - New investments are now recorded as an opening purchase in the operations register, and quantity and average cost for tracked investments are managed through it — so editing an investment can no longer accidentally overwrite its cost basis.
+- The realized gain/loss shown for a sale in the operations register's "Movimenti" view now also shows it as a percentage, plus the average cost (PMC) your position had at the exact moment of that sale — previously only the euro amount was shown.
 - Overview now always shows a 12-month context line next to a negative monthly change, so a down month is never shown without the bigger picture.
 - Large net worth values on the Overview hero no longer risk overflowing on smaller screens.
 - Cost and tax figures (TER, annual cost, estimated taxes) on Overview now follow your selected color theme consistently.

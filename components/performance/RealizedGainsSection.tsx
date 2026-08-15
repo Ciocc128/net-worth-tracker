@@ -3,63 +3,12 @@
 /**
  * "Plusvalenze realizzate" rows for Rendimenti (Fase D).
  *
- * Aggregates realized P&L by fiscal year across ALL ledger assets. replayTransactions computes
- * ONE asset's position state, so the transactions must be grouped by assetId before folding —
- * summing realizedByYear across assets is the aggregation step this module owns (kept out of the
- * shared engine by the Fase D scope decision: lib/utils/assetTransactionUtils.ts was not to be
- * touched by that phase).
+ * `aggregateRealizedByYear` lives in the ledger engine (lib/utils/assetTransactionUtils.ts) — this
+ * module only renders its result.
  */
 
-import { replayTransactions } from '@/lib/utils/assetTransactionUtils';
 import { formatCurrency } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
-import type { AssetTransaction } from '@/types/assetTransactions';
-
-/** Realized P&L per fiscal year, plus how many assets could not be replayed. */
-export interface RealizedGainsAggregate {
-  byYear: Record<number, number>;
-  /**
-   * Assets whose replay threw and were left out of the totals. This is a TAX figure: a total that
-   * is quietly short by one position is worse than no total, so the count reaches the UI instead of
-   * dying in a silent catch.
-   */
-  skippedAssets: number;
-}
-
-/** Sum of realized P&L (EUR) per fiscal year, across every asset's own replay. */
-export function aggregateRealizedByYear(transactions: AssetTransaction[]): RealizedGainsAggregate {
-  const byAsset = new Map<string, AssetTransaction[]>();
-  transactions.forEach((t) => {
-    const arr = byAsset.get(t.assetId) ?? [];
-    arr.push(t);
-    byAsset.set(t.assetId, arr);
-  });
-
-  const byYear: Record<number, number> = {};
-  let skippedAssets = 0;
-
-  byAsset.forEach((assetTransactions, assetId) => {
-    try {
-      const { realizedByYear } = replayTransactions(assetTransactions);
-      Object.entries(realizedByYear).forEach(([year, amount]) => {
-        byYear[Number(year)] = (byYear[Number(year)] ?? 0) + amount;
-      });
-    } catch (error) {
-      // A per-asset sequence is server-validated at write time, so this should not happen; when it
-      // does, one asset must not take down the whole card — but the total is now incomplete and
-      // both the console and the card have to say so.
-      skippedAssets += 1;
-      console.warn('Realized gains: skipping an asset whose ledger replay failed', {
-        assetId,
-        transactionCount: assetTransactions.length,
-        operation: 'aggregateRealizedByYear',
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
-
-  return { byYear, skippedAssets };
-}
 
 function signClass(value: number): string {
   if (value > 0) return 'text-positive';

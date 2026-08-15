@@ -1,6 +1,6 @@
 # SPEC-1 — P&L per singola operazione nel Registro movimenti
 
-**Stato**: pronta per implementazione · **Dipendenze**: nessuna · **Pagine toccate**: Patrimonio (AssetMovementsDialog)
+**Stato**: implementata (2026-08-15, branch `feature/pl-per-operazione-ledger`) · **Dipendenze**: nessuna · **Pagine toccate**: Patrimonio (AssetMovementsDialog)
 
 ## Obiettivo
 

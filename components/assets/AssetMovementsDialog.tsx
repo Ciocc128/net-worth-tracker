@@ -25,11 +25,14 @@ import {
 } from '@/lib/hooks/useAssetTransactions';
 import {
   replayTransactions,
+  replayTransactionsWithEffects,
   computeAssetTotalReturn,
   computeAssetXirr,
   buildXirrFlows,
   sortTransactionsForReplay,
+  EPSILON,
   type LedgerPositionState,
+  type LedgerTransactionEffect,
 } from '@/lib/utils/assetTransactionUtils';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { formatCurrency, formatDate } from '@/lib/utils/formatters';
@@ -50,28 +53,6 @@ interface AssetMovementsDialogProps {
   asset: Asset;
 }
 
-/** Per-transaction realized P&L: cumulative realized after each sell minus the running total before it. */
-function computeRealizedByTransactionId(
-  sortedAsc: AssetTransaction[]
-): Record<string, number> {
-  const result: Record<string, number> = {};
-  let previousCumulative = 0;
-  for (let i = 0; i < sortedAsc.length; i++) {
-    const prefix = sortedAsc.slice(0, i + 1);
-    let cumulative = previousCumulative;
-    try {
-      cumulative = replayTransactions(prefix).realizedPnlEur;
-    } catch {
-      // A stored sequence is server-validated, so prefixes are valid; keep the last value if not.
-    }
-    if (sortedAsc[i].type === 'sell') {
-      result[sortedAsc[i].id] = cumulative - previousCumulative;
-    }
-    previousCumulative = cumulative;
-  }
-  return result;
-}
-
 export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDialogProps) {
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -89,9 +70,18 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
 
   const currentValueEur = calculateAssetValue(asset);
 
-  // Ascending order for replay + per-transaction realized; the list renders descending.
+  // Ascending order for replay + per-transaction effects; the list renders descending.
   const sortedAsc = useMemo(() => sortTransactionsForReplay(transactions), [transactions]);
-  const realizedById = useMemo(() => computeRealizedByTransactionId(sortedAsc), [sortedAsc]);
+  const effectsById = useMemo((): Record<string, LedgerTransactionEffect> => {
+    try {
+      const { effects } = replayTransactionsWithEffects(sortedAsc);
+      return Object.fromEntries(effects.map((effect) => [effect.transactionId, effect]));
+    } catch {
+      // A stored sequence is server-validated, so this should not happen; a failed replay must not
+      // leave partial per-transaction figures on screen.
+      return {};
+    }
+  }, [sortedAsc]);
   const sortedDesc = useMemo(() => [...sortedAsc].reverse(), [sortedAsc]);
 
   const vitals = useMemo(() => {
@@ -233,7 +223,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
                   key={transaction.id}
                   transaction={transaction}
                   currency={asset.currency || 'EUR'}
-                  realizedEur={realizedById[transaction.id]}
+                  effect={effectsById[transaction.id]}
                   isPendingDelete={pendingDeleteId === transaction.id}
                   isDemo={isDemo}
                   onEdit={() => openEditTrade(transaction)}
@@ -263,7 +253,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
 interface MovementRowProps {
   transaction: AssetTransaction;
   currency: string;
-  realizedEur: number | undefined;
+  effect: LedgerTransactionEffect | undefined;
   isPendingDelete: boolean;
   isDemo: boolean;
   onEdit: () => void;
@@ -273,7 +263,7 @@ interface MovementRowProps {
 function MovementRow({
   transaction,
   currency,
-  realizedEur,
+  effect,
   isPendingDelete,
   isDemo,
   onEdit,
@@ -298,10 +288,16 @@ function MovementRow({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
           <span>Totale {formatCurrency(gross)}</span>
           {fees !== undefined && fees > 0 && <span>Commissioni {formatCurrency(fees)}</span>}
-          {transaction.type === 'sell' && realizedEur !== undefined && (
-            <span className={cn('font-medium', signToneClass(realizedEur))}>
-              P&L {formatSignedEur(realizedEur)}
+          {transaction.type === 'sell' && effect?.realizedPnlEur !== undefined && (
+            <span className={cn('font-medium', signToneClass(effect.realizedPnlEur))}>
+              P&L {formatSignedEur(effect.realizedPnlEur)}
+              {effect.soldCostBasisEur !== undefined && effect.soldCostBasisEur > EPSILON && (
+                <> {formatSignedPct((effect.realizedPnlEur / effect.soldCostBasisEur) * 100)}</>
+              )}
             </span>
+          )}
+          {transaction.type === 'sell' && effect?.averageCostEurAtTrade !== undefined && (
+            <span>PMC {formatCurrency(effect.averageCostEurAtTrade)}</span>
           )}
         </div>
         {transaction.note && (
