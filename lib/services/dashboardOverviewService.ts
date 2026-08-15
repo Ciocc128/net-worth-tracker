@@ -6,7 +6,8 @@ import { adminDb } from '@/lib/firebase/admin';
 import { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
 import { Expense, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
-import { GoalAssetAssignment, GoalBasedInvestingData, InvestmentGoal } from '@/types/goals';
+import { GoalBasedInvestingData } from '@/types/goals';
+import { getGoalDataAdmin } from '@/lib/server/goalData';
 import {
   DashboardOverviewPayload,
   DashboardOverviewExpenseStats,
@@ -144,25 +145,6 @@ async function getSettingsForUser(userId: string): Promise<AssetAllocationSettin
     assistantMemoryEnabled: data.assistantMemoryEnabled,
     targets: data.targets,
   } as AssetAllocationSettings;
-}
-
-async function getGoalDataForUser(userId: string): Promise<GoalBasedInvestingData | null> {
-  const goalDoc = await adminDb.collection('goalBasedInvesting').doc(userId).get();
-
-  if (!goalDoc.exists) {
-    return null;
-  }
-
-  const data = goalDoc.data();
-
-  if (!data) {
-    return null;
-  }
-
-  return {
-    goals: (data.goals ?? []) as InvestmentGoal[],
-    assignments: (data.assignments ?? []) as GoalAssetAssignment[],
-  };
 }
 
 async function getExpensesForMonth(userId: string, year: number, month: number): Promise<Expense[]> {
@@ -507,7 +489,7 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
     getAssetsForUser(userId),
     getSnapshotsForUser(userId),
     getSettingsForUser(userId),
-    getGoalDataForUser(userId),
+    getGoalDataAdmin(userId),
   ]);
 
   let expenseStats: DashboardOverviewExpenseStats | null = null;

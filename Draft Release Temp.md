@@ -48,6 +48,10 @@
 - The entity you are focused on in Analisi is now part of the page link: bookmark or share your condominio check and it reopens directly on that dossier, data already scoped.
 - The focused entity now survives period switches on Analisi: flip from Anno Corrente to Storico and the dossier re-scopes to the new window instead of resetting you to the top of the page.
 
+- The AI Assistant can now see and discuss your Goal-Based Investing goals — the ones you configure under FIRE e Simulazioni, which are a different thing from the objectives it remembers from your conversations. Ask "how are my goals doing?" and it works from the real numbers: how much of your portfolio is assigned to each goal, its target and deadline, its priority, the suggested asset mix, and whether the current pace actually gets there.
+- For a goal that is behind, the Assistant now tells you by how much: the monthly contribution needed to reach the target by its deadline and the value your current pace projects at that date, both stated as projections and with the return they assume, so you can weigh them instead of taking them on faith.
+- The Assistant can now propose a new investment goal. Ask it to create one — "set up a goal to buy a house by 2032" — and it replies with a card showing the name, target amount, deadline, priority, monthly contribution and a suggested asset allocation reasoned from your time horizon. **Nothing is written until you press Conferma**: the assistant can never create, edit or delete a goal on its own, and you can dismiss the proposal or ask it to adjust the numbers first.
+
 ## 🐛 Bug Fixes
 
 - Fixed PDF "Export Totale" including every cashflow entry ever recorded on the Cashflow section, ignoring your "Anno inizio storico cashflow" setting. It now excludes bulk-imported older data below your configured start year, matching what the live Cashflow and Storico pages already show. Net worth history, Performance, and FIRE sections in the PDF are unaffected, since they don't use this setting either.
@@ -183,6 +187,9 @@
 - Comparisons on Analisi now declare their window honestly everywhere: a running month is labelled "(mese in corso)", a month that has not started yet is not compared at all, comparing against your first tracked year warns that the comparison may be partial, and a prior-year month older than your tracked history renders as a gap in the dossier's trend rather than a fabricated zero.
 - The transactions total inside the dossier is labelled "Totale netto": it sums signed amounts (a refund nets off), while the dossier's headline is gross spending — the two legitimately differ when refunds exist, and now they say so.
 - The two composition cards on Overview ("Distribuzione per Asset Class" and "Distribuzione per Asset") now match heights, so a shorter list no longer leaves one card looking cut short next to a taller one.
+
+- When goal-driven allocation is switched on, the Assistant now reasons about the allocation targets derived from your goals — the ones the app is really measuring against — instead of the manual targets in Settings, which it is no longer using. It also says which of the two it is quoting.
+- The Assistant now states plainly when Goal-Based Investing is switched off, or is on with no goals yet, instead of answering "not available" about a feature you simply have not turned on.
 
 ## 🔒 Security
 

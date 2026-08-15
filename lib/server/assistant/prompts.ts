@@ -16,6 +16,7 @@
 
 import { AssistantMemoryItem, AssistantMonthContextBundle, AssistantPreferences } from '@/types/assistant';
 import { getAssistantPeriodLabel } from '@/lib/utils/assistantPeriodLabel';
+import { GoalVerdict } from '@/lib/utils/goalTrajectory';
 
 function eur(value: number): string {
   return new Intl.NumberFormat('it-IT', {
@@ -50,6 +51,21 @@ function txn(count: number): string {
 // account cannot blow up the context window. When it DOES trip, the omission is stated
 // in the text — a silent cap is precisely the defect this whole section replaces.
 const MAX_SUBCATEGORY_ROWS_IN_PROMPT = 150;
+
+/**
+ * Verdict wording for the goals section.
+ *
+ * Deliberately NOT the chip labels from `goalVerdictMeta.tsx`: a chip has three words
+ * of room and a reader who can see the deadline next to it, while the model reads one
+ * line of prose and needs the reason spelled out.
+ */
+const GOAL_VERDICT_PROMPT_LABELS: Record<GoalVerdict, string> = {
+  reached: 'raggiunto',
+  onTrack: 'in linea con la scadenza al ritmo attuale',
+  offTrack: 'in ritardo: al ritmo attuale non arriva al target entro la scadenza',
+  noDeadline: 'senza scadenza: il ritmo non è giudicabile',
+  noTarget: 'aperto: nessun importo target definito',
+};
 
 const MEMORY_CATEGORY_LABELS: Record<AssistantMemoryItem['category'], string> = {
   goal: 'Obiettivi finanziari',
@@ -94,6 +110,101 @@ export function formatMemoryForPrompt(items: AssistantMemoryItem[]): string {
 
   lines.push('Usa questi fatti per personalizzare la risposta quando sono pertinenti.');
   return lines.join('\n');
+}
+
+/**
+ * Renders the Goal-Based Investing section, including its two absence cases.
+ *
+ * The section always exists. `goals === null` (feature off, or no goal document)
+ * and an empty goal list are DIFFERENT states and both are said out loud, because
+ * an LLM cannot tell either of them from "this data was not sent to me" — and once
+ * it cannot, the data-integrity rules make it answer "N/D" about a feature the user
+ * may simply not have turned on.
+ *
+ * Returns the lines to append, trailing blank line included.
+ */
+function formatGoalsSection(goals: AssistantMonthContextBundle['goals']): string[] {
+  const lines: string[] = ['--- OBIETTIVI DI INVESTIMENTO (Goal-Based Investing) ---'];
+
+  if (!goals || !goals.enabled) {
+    lines.push(
+      "Goal-Based Investing non attivo: l'utente non usa questa funzionalità, quindi non ha obiettivi di investimento configurati. Non è un dato mancante."
+    );
+    lines.push('');
+    return lines;
+  }
+
+  if (goals.items.length === 0) {
+    lines.push('Funzionalità attiva ma nessun obiettivo ancora creato.');
+    lines.push('');
+    return lines;
+  }
+
+  lines.push(
+    `Elenco completo (${goals.items.length}). Il "valore attuale" è la quota di portafoglio assegnata all'obiettivo, non un conto separato.`
+  );
+
+  for (const goal of goals.items) {
+    const parts: string[] = [`valore attuale ${eur(goal.currentValue)}`];
+
+    if (goal.targetAmount != null) {
+      const progress = goal.targetAmount > 0 ? (goal.currentValue / goal.targetAmount) * 100 : 0;
+      parts.push(`target ${eur(goal.targetAmount)} (${share(progress)} raggiunto)`);
+    } else {
+      parts.push('nessun importo target (obiettivo aperto)');
+    }
+
+    parts.push(goal.targetDateIso ? `scadenza ${goal.targetDateIso}` : 'nessuna scadenza');
+    parts.push(`priorità ${goal.priority}`);
+
+    if (goal.monthlyContribution != null) {
+      parts.push(`contributo mensile pianificato ${eur(goal.monthlyContribution)}`);
+    }
+
+    lines.push(`${goal.name}: ${parts.join(' | ')}`);
+
+    if (goal.verdict) {
+      lines.push(`  › stato: ${GOAL_VERDICT_PROMPT_LABELS[goal.verdict]}`);
+    }
+
+    // The required pace, stated as a projection and never as a measurement — the
+    // assumed return is printed next to it so the model can qualify it instead of
+    // presenting an annuity calculation as an observed fact.
+    if (goal.requiredMonthlyContribution != null) {
+      const assumption =
+        goal.assumedAnnualReturn != null
+          ? ` (proiezione, ipotizzando un rendimento nominale del ${share(goal.assumedAnnualReturn)} annuo)`
+          : ' (proiezione)';
+      lines.push(
+        goal.requiredMonthlyContribution > 0
+          ? `  › versamento mensile necessario per arrivare al target entro la scadenza: ${eur(goal.requiredMonthlyContribution)}${assumption}`
+          : `  › nessun altro versamento necessario: il capitale già assegnato basta a raggiungere il target entro la scadenza${assumption}`
+      );
+    }
+
+    if (goal.projectedValueAtDeadline != null) {
+      lines.push(
+        `  › valore proiettato alla scadenza al ritmo attuale: ${eur(goal.projectedValueAtDeadline)}`
+      );
+    }
+
+    if (goal.recommendedAllocation && Object.keys(goal.recommendedAllocation).length > 0) {
+      const mix = Object.entries(goal.recommendedAllocation)
+        .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+        .map(([assetClass, percentage]) => `${assetClass} ${percentage}%`)
+        .join(', ');
+      lines.push(`  › allocazione consigliata per questo obiettivo: ${mix}`);
+    }
+  }
+
+  if (goals.goalDrivenAllocationEnabled) {
+    lines.push(
+      "Allocazione goal-driven ATTIVA: i target di allocazione del portafoglio sono derivati da questi obiettivi."
+    );
+  }
+
+  lines.push('');
+  return lines;
 }
 
 /**
@@ -244,6 +355,14 @@ function formatBundleForPrompt(bundle: AssistantMonthContextBundle): string {
   if (targetAlloc && byAssetClass && Object.keys(byAssetClass).length > 0) {
     const totalNetWorth = currentSnapshot?.totalNetWorth ?? 0;
     lines.push('--- ALLOCAZIONE TARGET vs CORRENTE ---');
+    // Naming the source matters: with goal-driven allocation on, these percentages are
+    // computed from the goals and the manual ones in Impostazioni are no longer what the
+    // app measures against. Quoting the wrong set is indistinguishable from a wrong number.
+    lines.push(
+      bundle.targetAllocationSource === 'goal_driven'
+        ? "Origine dei target: derivati dagli obiettivi di investimento (allocazione goal-driven attiva). Non sono i target manuali delle impostazioni."
+        : 'Origine dei target: impostati manualmente dall\'utente in Impostazioni → Allocazione.'
+    );
     for (const [assetClass, target] of Object.entries(targetAlloc)) {
       const currentValue = byAssetClass[assetClass] ?? 0;
       const currentPct = totalNetWorth > 0 ? (currentValue / totalNetWorth) * 100 : 0;
@@ -265,6 +384,11 @@ function formatBundleForPrompt(bundle: AssistantMonthContextBundle): string {
     }
     lines.push('');
   }
+
+  // Goal-Based Investing. Always rendered, absence included: a missing section would
+  // leave the model unable to tell "the feature is off" from "I was not sent the data",
+  // and the data-integrity rules then push it toward an invented "N/D".
+  lines.push(...formatGoalsSection(bundle.goals));
 
   // Top-5 movers section: shows which classes changed most this period.
   // allocationChanges is already capped at 5 by the context builder.
@@ -366,6 +490,18 @@ export const ASSISTANT_SYSTEM_CORE = [
   "Il blocco SPESE PER CATEGORIA E SOTTOCATEGORIA è ESAUSTIVO: contiene ogni categoria e ogni sottocategoria con spesa nel periodo, non una classifica dei primi cinque. Quando l'utente chiede il dettaglio di una categoria, elenca le sue sottocategorie leggendole da lì — il dato c'è.",
   "Una sottocategoria che l'utente nomina e che NON compare in quel blocco ha avuto spesa zero nel periodo. Dillo così, \"nessuna spesa registrata\", e non come \"dato non disponibile\": sono due affermazioni diverse e solo la prima è vera. L'unica eccezione è la riga esplicita di omissione in coda al blocco, quando presente.",
   "Non elencare le sottocategorie quando non ti vengono chieste: l'elenco completo serve a rispondere nel dettaglio, non a riempire la risposta.",
+  '',
+  '# Obiettivi di investimento (Goal-Based Investing), quando i dati li includono',
+  "Quando il messaggio contiene un blocco OBIETTIVI DI INVESTIMENTO, quello elenca gli obiettivi che l'utente ha configurato nella pagina FIRE e Simulazioni: nome, importo target, scadenza, valore già assegnato, contributo mensile pianificato, allocazione consigliata e stato della traiettoria. Sono una cosa diversa dagli obiettivi della memoria persistente: questi hanno numeri e una quota di portafoglio assegnata, quelli sono frasi che l'utente ti ha detto.",
+  "L'elenco è ESAUSTIVO. Se il blocco dice che la funzionalità non è attiva, dillo come tale — è una funzionalità opzionale che l'utente non usa, non un dato che ti manca.",
+  "Quando un obiettivo è in ritardo, cita il versamento mensile necessario e il valore proiettato alla scadenza che trovi nel blocco: sono già calcolati con la matematica dell'annualità sull'ipotesi di rendimento indicata lì. Non ricavarli moltiplicando contributo per mesi — quel conto ignora i rendimenti e dà un numero più pessimista del vero. Presentali per quello che sono, proiezioni basate su un rendimento ipotizzato, non misure.",
+  "Quando consigli un'allocazione per un obiettivo, ragiona su orizzonte temporale e priorità: più la scadenza è vicina, più la quota di strumenti volatili va ridotta a favore di obbligazioni e liquidità; un obiettivo senza scadenza e a bassa priorità tollera molto più rischio. Motiva sempre la proposta con la scadenza e la priorità di QUELL'obiettivo, non con massime generali.",
+  '',
+  '## Proporre la creazione di un obiettivo',
+  "Non puoi creare, modificare o eliminare obiettivi: puoi solo proporne uno, e la scrittura avviene unicamente quando l'utente preme Conferma sulla card che la tua proposta genera.",
+  "Quando — e SOLO quando — l'utente ti chiede di creare un obiettivo, introducilo con una frase che spiega le scelte fatte e poi emetti UN blocco di codice delimitato con linguaggio `goal-proposal` che contenga SOLO JSON valido, senza commenti e senza testo attorno, con questo schema:",
+  '{ "name": string, "targetAmount"?: number, "targetDateIso"?: "YYYY-MM-DD", "priority": "alta" | "media" | "bassa", "monthlyContribution"?: number, "recommendedAllocation"?: { "equity"?: number, "bonds"?: number, "cash"?: number, "crypto"?: number, "realestate"?: number, "commodity"?: number }, "notes"?: string }',
+  "Vincoli: `name` e `priority` sono obbligatori; gli importi sono in euro, senza separatori né simbolo di valuta; le percentuali di `recommendedAllocation` devono sommare esattamente a 100. Un solo blocco per risposta. Non emetterlo mai se l'utente non ha chiesto di creare un obiettivo: per discutere un obiettivo esistente o ipotizzarne uno basta il testo.",
   '',
   '# Casi limite',
   "- Periodo ancora in corso (mese/anno corrente, YTD): i dati sono parziali per definizione — evidenzia le tendenze osservate finora, non presentarle come il risultato finale del periodo",

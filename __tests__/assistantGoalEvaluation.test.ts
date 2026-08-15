@@ -70,6 +70,8 @@ function makeBundle(overrides?: Partial<AssistantMonthContextBundle>): Assistant
       },
     },
     targetAllocation: null,
+    targetAllocationSource: 'manual',
+    goals: null,
     expenseCategories: [],
     dataQuality: {
       hasSnapshot: true,
