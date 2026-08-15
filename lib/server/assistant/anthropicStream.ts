@@ -5,7 +5,6 @@ import {
   buildChatPrompt,
   buildHistoryAnalysisPrompt,
   buildMonthAnalysisPrompt,
-  buildQuarterAnalysisPrompt,
   buildYearAnalysisPrompt,
   buildYtdAnalysisPrompt,
 } from './prompts';
@@ -78,10 +77,6 @@ function buildPrompt(
     return buildHistoryAnalysisPrompt(contextBundle, prompt, preferences, memoryItems);
   }
 
-  if (mode === 'quarter_analysis' && contextBundle) {
-    return buildQuarterAnalysisPrompt(contextBundle, prompt, preferences, memoryItems);
-  }
-
   // Chat mode: pass the bundle when available so Claude has real numbers.
   // The prompt builder uses it without forcing a fixed response structure.
   return buildChatPrompt(prompt, preferences, monthLabel, memoryItems, contextBundle);
@@ -103,7 +98,7 @@ function buildMessagesArray(
   currentUserContent: string,
   history: AssistantMessage[]
 ): Array<{ role: 'user' | 'assistant'; content: string }> {
-  const isStructured = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'quarter_analysis'].includes(mode);
+  const isStructured = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis'].includes(mode);
   // Structured modes cap at 3 pairs (6 msgs); chat allows 10 pairs (20 msgs).
   const maxMessages = isStructured ? 6 : 20;
 
@@ -153,7 +148,7 @@ export async function streamAssistantResponse({
     // longer, which is billed and adds latency. These values stay well inside the
     // model's output limit and inside Vercel's 300s default function duration; if a
     // future bump goes materially higher, set an explicit `maxDuration` on the route.
-    const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'quarter_analysis'].includes(mode);
+    const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis'].includes(mode);
     const chatMaxTokens = enableWebSearch ? 16000 : 12000;
     const { system, userContent } = buildPrompt(mode, prompt, contextBundle, month, preferences, memoryItems);
     const stream = await anthropic.messages.create({

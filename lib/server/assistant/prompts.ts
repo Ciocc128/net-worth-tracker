@@ -15,11 +15,7 @@
  */
 
 import { AssistantMemoryItem, AssistantMonthContextBundle, AssistantPreferences } from '@/types/assistant';
-
-const MONTH_NAMES = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-];
+import { getAssistantPeriodLabel } from '@/lib/utils/assistantPeriodLabel';
 
 function eur(value: number): string {
   return new Intl.NumberFormat('it-IT', {
@@ -75,28 +71,6 @@ export interface AssistantPromptParts {
 }
 
 /**
- * Returns a human-readable label for the period encoded in selector.
- *   selector.quarter set    → "Q1 2025" (check before month > 0 — quarter end-month is positive)
- *   month > 0               → "Marzo 2025"
- *   month === 0              → "Anno 2025"
- *   month === -1             → "YTD 2025"
- *   month === -2             → "Storico da 2020"
- */
-function getPeriodLabel(selector: { year: number; month: number; quarter?: number }): string {
-  // Must check quarter before month > 0: quarterly end-months (3,6,9,12) are positive
-  if (selector.quarter !== undefined) {
-    return `Q${selector.quarter} ${selector.year}`;
-  }
-  if (selector.month > 0) {
-    return `${MONTH_NAMES[selector.month - 1]} ${selector.year}`;
-  }
-  if (selector.month === 0) return `Anno ${selector.year}`;
-  if (selector.month === -1) return `YTD ${selector.year}`;
-  if (selector.month === -2) return `Storico da ${selector.year}`;
-  return `${selector.year}`;
-}
-
-/**
  * Serialises active memory items into a structured text block for the prompt.
  * Only active items are included — archived ones are excluded.
  * Returns an empty string when there are no items to inject.
@@ -131,7 +105,7 @@ export function formatMemoryForPrompt(items: AssistantMemoryItem[]): string {
  */
 function formatBundleForPrompt(bundle: AssistantMonthContextBundle): string {
   const { selector, netWorth, cashflow, allocationChanges, dataQuality, currentSnapshot } = bundle;
-  const periodLabel = getPeriodLabel(selector);
+  const periodLabel = getAssistantPeriodLabel(selector);
 
   const lines: string[] = [];
 
@@ -448,16 +422,6 @@ const HISTORY_FORMAT_CONTRACT = [
   'Vincoli: massimo 750 parole. Privilegia la visione di lungo periodo rispetto ai dettagli di un singolo mese.',
 ].join('\n');
 
-const QUARTER_FORMAT_CONTRACT = [
-  '# Formato della risposta',
-  'Struttura la risposta in tre sezioni markdown:',
-  '1. **In sintesi** — 2-3 frasi sul risultato complessivo del trimestre',
-  '2. **Cosa ha mosso il patrimonio nel trimestre** — i principali driver (mercato, cashflow, allocazione)',
-  "3. **1-2 azioni o attenzioni** — osservazioni pratiche per l'investitore",
-  '',
-  'Vincoli: massimo 600 parole.',
-].join('\n');
-
 const CHAT_FORMAT_CONTRACT = [
   '# Formato della risposta',
   "Modalità conversazionale: nessuna struttura fissa a sezioni. Rispondi direttamente alla domanda, usando i dati forniti quando disponibili e restando comunque entro le regole sui dati e lo stile definiti sopra.",
@@ -500,7 +464,7 @@ export function buildMonthAnalysisPrompt(
   preferences: AssistantPreferences,
   memoryItems: AssistantMemoryItem[] = []
 ): AssistantPromptParts {
-  const monthLabel = getPeriodLabel(bundle.selector);
+  const monthLabel = getAssistantPeriodLabel(bundle.selector);
   const numericBlock = formatBundleForPrompt(bundle);
 
   const macroInstruction = preferences.includeMacroContext
@@ -647,50 +611,6 @@ export function buildHistoryAnalysisPrompt(
   ].join('\n');
 
   return { system: `${ASSISTANT_SYSTEM_CORE}\n\n${HISTORY_FORMAT_CONTRACT}`, userContent };
-}
-
-/**
- * Builds the prompt for a quarterly analysis.
- *
- * Covers a full calendar quarter (3 months). Baseline is the previous quarter-end
- * snapshot; end is the current quarter-end snapshot. Same 3-section contract as
- * monthly, with quarterly framing.
- *
- * Reached only through `POST /api/ai/assistant/stream` with `mode: 'quarter_analysis'`; the
- * period selector does not offer a quarter tab, so no UI surface sends it today. The periodic
- * quarterly email does NOT use this builder — it has its own (`monthlyEmailService`'s
- * `buildEmailAiPrompt` + `EMAIL_PERIODIC_FORMAT_CONTRACT`).
- */
-export function buildQuarterAnalysisPrompt(
-  bundle: AssistantMonthContextBundle,
-  userPrompt: string,
-  preferences: AssistantPreferences,
-  memoryItems: AssistantMemoryItem[] = []
-): AssistantPromptParts {
-  const quarterLabel = getPeriodLabel(bundle.selector); // e.g. "Q1 2026"
-  const numericBlock = formatBundleForPrompt(bundle);
-
-  const macroInstruction = preferences.includeMacroContext
-    ? `Puoi integrare contesto macro trimestrale (mercati, tassi, geopolitica) rilevante per il ${quarterLabel}.`
-    : 'Non cercare informazioni macro esterne. Concentrati esclusivamente sui dati del portafoglio forniti.';
-
-  const memoryBlock = preferences.memoryEnabled
-    ? formatMemoryForPrompt(memoryItems)
-    : 'Non fare affidamento su memoria persistente. Usa solo il contesto esplicito di questa sessione.';
-
-  const userContent = [
-    buildResponseStyleInstruction(preferences.responseStyle),
-    macroInstruction,
-    memoryBlock,
-    '',
-    `Stai analizzando ${quarterLabel}.`,
-    'Di seguito trovi i dati finanziari del trimestre, estratti in modo affidabile dal sistema:',
-    '',
-    numericBlock,
-    `Domanda dell'utente: ${userPrompt.trim()}`,
-  ].join('\n');
-
-  return { system: `${ASSISTANT_SYSTEM_CORE}\n\n${QUARTER_FORMAT_CONTRACT}`, userContent };
 }
 
 /**

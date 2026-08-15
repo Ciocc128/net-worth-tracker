@@ -5,7 +5,8 @@
 // - assistantMonthContextService.ts (context builder)
 // - webSearchPolicy.ts (STRUCTURED_ANALYSIS_MODES)
 // - store.ts (getDefaultThreadTitle)
-export type AssistantMode = 'month_analysis' | 'year_analysis' | 'ytd_analysis' | 'history_analysis' | 'quarter_analysis' | 'chat';
+// - assistantFollowUps.ts (CURATED_FOLLOW_UPS, a Record<AssistantMode, ...>)
+export type AssistantMode = 'month_analysis' | 'year_analysis' | 'ytd_analysis' | 'history_analysis' | 'chat';
 
 export interface AssistantPromptChip {
   id: string;
@@ -115,9 +116,11 @@ export interface AssistantMemoryDocument {
   items: AssistantMemoryItem[];
   suggestions: AssistantMemorySuggestion[];
   updatedAt: Date | null;
-  // Computed server-side: true when the user has at least one dummy snapshot.
-  // Used to conditionally show the "Snapshot di test" toggle in the UI.
-  hasDummySnapshots: boolean;
+  // Computed server-side, GET only (queries monthly-snapshots — store.ts's write
+  // helpers have no way to know this). Absent, never fabricated as `false`, on
+  // documents returned from PATCH/DELETE. Used to conditionally show the
+  // "Snapshot di test" toggle in the UI.
+  hasDummySnapshots?: boolean;
 }
 
 export interface AssistantThreadsResponse {
@@ -144,15 +147,12 @@ export interface AssistantCreateThreadInput {
 // Client sends the period selector; server regenerates this from Firestore — never trust client-supplied numbers.
 //
 // The `selector.month` field encodes the period type:
-//   month > 0  → monthly analysis (standard); NOTE: for quarterly, month is the quarter-end month
-//               but selector.quarter is set — always check selector.quarter first before month > 0
+//   month > 0  → monthly analysis (standard)
 //   month === 0 → full-year analysis (pinnedYear = selector.year)
 //   month === -1 → YTD (Jan 1 → latest month of current year)
 //   month === -2 → total history (from cashflowHistoryStartYear → now)
-// The `selector.quarter` field is set only for quarterly analysis (quarter_analysis mode):
-//   quarter: 1-4 identifies the quarter; month = quarter * 3 (3, 6, 9, 12)
 export interface AssistantMonthContextBundle {
-  selector: { year: number; month: number; quarter?: number };
+  selector: { year: number; month: number };
   currentSnapshot: import('@/types/assets').MonthlySnapshot | null;
   previousSnapshot: import('@/types/assets').MonthlySnapshot | null;
   // Shape matches CashflowBreakdown['totals'] exactly — the service spreads it across.

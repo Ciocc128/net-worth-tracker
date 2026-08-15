@@ -5,6 +5,7 @@ import {
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
 import {
+  computeHasDummySnapshots,
   deleteAssistantMemoryDocument,
   getAssistantMemoryDocument,
   isAssistantStoreError,
@@ -24,21 +25,14 @@ export async function GET(request: NextRequest) {
 
     await assertCanAccessAccount(decodedToken, userId);
 
-    const { adminDb } = await import('@/lib/firebase/admin');
-
     // Run memory fetch and dummy-snapshot check in parallel.
     // hasDummySnapshots drives conditional UI — the toggle is only shown when relevant.
-    const [memory, dummySnap] = await Promise.all([
+    const [memory, hasDummySnapshots] = await Promise.all([
       getAssistantMemoryDocument(userId as string),
-      adminDb
-        .collection('monthly-snapshots')
-        .where('userId', '==', userId)
-        .where('isDummy', '==', true)
-        .limit(1)
-        .get(),
+      computeHasDummySnapshots(userId as string),
     ]);
 
-    return NextResponse.json({ ...memory, hasDummySnapshots: !dummySnap.empty });
+    return NextResponse.json({ ...memory, hasDummySnapshots });
   } catch (error) {
     const authErrorResponse = getApiAuthErrorResponse(error);
     if (authErrorResponse) {

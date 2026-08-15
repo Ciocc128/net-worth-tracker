@@ -141,6 +141,48 @@ describe('dedupeMemoryItems', () => {
 
     expect(dedupeMemoryItems(candidates, [])).toHaveLength(2);
   });
+
+  it('dedupes near-identical candidates within the same batch (no existing items)', () => {
+    // Two candidates from the same extraction call, same category, near-identical
+    // wording — previously both survived because dedupeMemoryItems only ever
+    // compared against existingItems, never against sibling candidates.
+    const candidates = [
+      { category: 'risk' as const, text: 'Preferisco investimenti a basso rischio e alta liquidità' },
+      { category: 'risk' as const, text: 'Preferisco investimenti a basso rischio con alta liquidità' },
+    ];
+
+    const result = dedupeMemoryItems(candidates, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe('Preferisco investimenti a basso rischio e alta liquidità');
+  });
+
+  it('keeps an exact intra-batch duplicate out even across a longer batch', () => {
+    const candidates = [
+      { category: 'fact' as const, text: 'Ho un mutuo a tasso fisso' },
+      { category: 'fact' as const, text: 'Possiedo un immobile a Milano' },
+      { category: 'fact' as const, text: 'Ho un mutuo a tasso fisso' },
+    ];
+
+    const result = dedupeMemoryItems(candidates, []);
+    expect(result).toHaveLength(2);
+    expect(result.map((c) => c.text)).toEqual([
+      'Ho un mutuo a tasso fisso',
+      'Possiedo un immobile a Milano',
+    ]);
+  });
+
+  it('documents the short-text (<=2 words) exact-match fallback within a batch', () => {
+    // isSimilarText falls back to exact normalized match for short strings — two
+    // distinct short candidates are NOT deduped against each other even though a
+    // human would read them as related. The real semantic fix lands in SPEC-4B;
+    // this only documents today's behavior so it does not silently drift.
+    const candidates = [
+      { category: 'risk' as const, text: 'rischio basso' },
+      { category: 'risk' as const, text: 'rischio alto' },
+    ];
+
+    expect(dedupeMemoryItems(candidates, [])).toHaveLength(2);
+  });
 });
 
 // ── extractMemoryCandidates ──────────────────────────────────────────────────

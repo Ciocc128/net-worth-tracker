@@ -76,9 +76,12 @@ export function isSimilarText(a: string, b: string, threshold = 0.5): boolean {
 }
 
 /**
- * Filters candidates that are already represented in the active item set.
- * Deduplication is scoped per category to avoid cross-category false positives.
+ * Filters candidates that are already represented in the active item set, AND
+ * deduplicates candidates against each other within the same batch — two
+ * near-identical candidates extracted from the same turn used to both survive,
+ * since the original filter only ever compared against `existingItems`.
  *
+ * Deduplication is scoped per category to avoid cross-category false positives.
  * Archived items are ignored: a re-archived topic can be re-learned.
  */
 export function dedupeMemoryItems(
@@ -94,10 +97,27 @@ export function dedupeMemoryItems(
     activeByCategory.set(item.category, list);
   }
 
-  return candidates.filter((candidate) => {
+  // Candidates already accepted earlier in this same batch, checked the same way
+  // as existingItems — first occurrence in the batch wins.
+  const acceptedByCategory = new Map<AssistantMemoryItem['category'], MemoryCandidate[]>();
+
+  const deduped: MemoryCandidate[] = [];
+  for (const candidate of candidates) {
     const existing = activeByCategory.get(candidate.category) ?? [];
-    return !existing.some((item) => isSimilarText(candidate.text, item.text));
-  });
+    const acceptedSoFar = acceptedByCategory.get(candidate.category) ?? [];
+
+    const isDuplicate =
+      existing.some((item) => isSimilarText(candidate.text, item.text)) ||
+      acceptedSoFar.some((accepted) => isSimilarText(candidate.text, accepted.text));
+
+    if (isDuplicate) continue;
+
+    acceptedSoFar.push(candidate);
+    acceptedByCategory.set(candidate.category, acceptedSoFar);
+    deduped.push(candidate);
+  }
+
+  return deduped;
 }
 
 /**
