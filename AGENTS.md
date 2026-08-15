@@ -365,8 +365,19 @@ Companion documents — do not duplicate their content into this file:
   and gate the temp-sync effect on `!isLoadingSettings` (not `if (settings)`).
 - **Goal trajectory is annuity math in a tested pure layer** (`goalTrajectory.ts`), never a `useMemo` in the card; the
   verdict compares the *projected value at the deadline* against the target with a 1% tolerance, not contribution ≥
-  requiredMonthly (float flapping). Every optional goal field MUST be added to the `cleanGoals` allowlist in
-  `saveGoalData`, and Coast FIRE's nested pension rows must be serialized without `undefined` fields.
+  requiredMonthly (float flapping). Coast FIRE's nested pension rows must be serialized without `undefined` fields.
+- **The goal math that the SERVER also needs lives in `lib/utils/goalMath.ts`, re-exported by `goalService.ts`** —
+  that service imports `doc/getDoc/setDoc` + `db` at top level, so server code can never import it. `goalMath` imports
+  `calculateAssetValue` DIRECTLY (the second sanctioned route, precedent `dashboardOverviewUtils.ts`) rather than taking
+  an injected `valueOf`: identical signatures are what let the re-export be literal and leave every client call site
+  untouched.
+- **`serializeGoalForFirestore` IS the persistence allowlist for `InvestmentGoal`**, and it is now the single copy —
+  `saveGoalData` (client) and `POST /api/goals` (server) both go through it. A new optional field on the type is
+  silently dropped on save until it is added there.
+- **The goal document is rewritten WHOLE, never patched.** So the Admin append is a transaction (the FIRE page writes
+  the same doc), the goals already stored and `assignments` pass through **verbatim** — re-serialising them could only
+  lose something — and the colour is picked INSIDE the transaction (`pickNextGoalColor`), or two goals created
+  concurrently come out the same hue.
 
 ### Asset Trade Ledger
 **Engine** (`lib/utils/assetTransactionUtils.ts`, pure and Firebase-free)
@@ -602,6 +613,33 @@ Companion documents — do not duplicate their content into this file:
   creation, on a text edit, or when the goal has none — never on a status-only change — and on failure leaves the goal
   unstructured rather than keeping a structure that contradicts the new text.
 
+**Goal-Based Investing in the bundle** (`goalMath.ts` + `lib/server/goalData.ts`, prompt section, `GoalProposalCard`)
+- **`bundle.goals` is REQUIRED and nullable**: `null` means the feature is off or the user has no document, and the
+  prompt says so in words. Absent ≠ off ≠ empty — a model cannot tell them apart, and the data-integrity rules then
+  make it answer "N/D" about a feature the user simply does not use. The same reasoning gives the *enabled but no
+  goals* case its own sentence.
+- **`targetAllocationSource` exists because the app can stop using the manual targets.** With
+  `goalDrivenAllocationEnabled` on, Allocazione overrides them with `deriveTargetAllocationFromGoals`; quoting the
+  Settings ones would be right numbers about the wrong thing. `buildGoalFields` derives goals, targets and source in
+  ONE pass for exactly that reason. It falls back to the manual targets when the derivation yields null, mirroring the
+  page.
+- **Carry the trajectory numbers, don't make the model compute them**: `requiredMonthlyContribution` and
+  `projectedValueAtDeadline` were already computed and thrown away, and a model without them multiplies contribution ×
+  months — arithmetic that ignores compounding and that the data rules forbid. They ship with `assumedAnnualReturn`
+  and are labelled **projections**: a required pace without its return assumption cannot be audited. Present only for
+  goals with BOTH a target and a deadline; absent otherwise, never zero.
+- **THE PROPOSAL PROTOCOL: the AI never writes.** It emits ONE fenced ```goal-proposal block of pure JSON; the write
+  happens only on the user's Conferma, through `POST /api/goals`. `lib/utils/goalProposal.ts` owns the ONE zod schema
+  for both the block and the route body (client-safe, since the card validates before rendering; `validation.ts`
+  re-exports it). In zod 4 use **`z.partialRecord`** for `recommendedAllocation` — `z.record` with an enum key demands
+  every key and rejects an equity/bonds mix as incomplete.
+- **Intercept the block on `pre`, not on `code`** (a card inside `<pre>` is invalid nesting), and a malformed payload
+  MUST fall through to a normal code block — the user still sees what the model wrote. `GoalProposalCard` reads owner,
+  demo mode and query client itself because `MARKDOWN_COMPONENTS` has to stay module-level.
+- **`ASSISTANT_SYSTEM_CORE` is shared with `buildEmailAiPrompt`, which sends no goals block** — so the goals paragraph
+  is written conditionally ("quando il messaggio contiene un blocco OBIETTIVI DI INVESTIMENTO…"). Extending that core
+  unconditionally makes the emails talk about data they were never given.
+
 ### Periodic Emails (`lib/server/monthlyEmailService.ts`, `weeklyBudgetEmailService.ts`)
 - **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
   wide fan-out: the union, `MonthlyEmailData`, the date and label helpers, `buildPeriodEmailData`, `buildAndSend*`, the
@@ -624,7 +662,8 @@ Companion documents — do not duplicate their content into this file:
   every overview-relevant mutation invalidates it explicitly. **Both endpoints are owner-scoped.**
 - **`DASHBOARD_OVERVIEW_SOURCE_VERSION` invalidates hardcoded `sourceVersion: N` literals in test fixtures too** — grep
   for `sourceVersion:` in tests whenever it changes.
-- **Do not import `goalService.ts` from a server-only file** — it top-level-imports the client Firebase SDK.
+- **Do not import `goalService.ts` from a server-only file** — it top-level-imports the client Firebase SDK. The math
+  a server needs lives in `lib/utils/goalMath.ts` and the Admin reads/writes in `lib/server/goalData.ts`.
 - **Hero number overflow is a length-driven step-down**, not a container query: `heroValueClass` keys off the formatted
   string's length (>13 chars → `text-[32px] desktop:text-[40px]`). The card's width does not vary; the string does.
 - **Hero variation chips use a CSS grid, not `flex flex-wrap`**, so chips of different text length share a width with no
@@ -781,8 +820,8 @@ Companion documents — do not duplicate their content into this file:
 | --- | --- |
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) |
-| Storico | `chartService` · **FIRE/Goals** `fireService`, `goalService` |
-| Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` |
+| Storico | `chartService` · **FIRE/Goals** `fireService`, `goalService`, `goalMath`, `goalProposal` |
+| Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
 | Centri di costo | `costCenterUtils`, `costCenterColors` |
@@ -800,11 +839,16 @@ Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allo
 ### Emulator Exercise Scripts
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers the
 rules permitting the writes, real `Timestamp` values surviving `removeUndefinedDeep` and the real atomic transaction.
-- **Write them as `.mts`** — a `.ts` script is CJS under tsx and has no top-level await. **Drive the mutations through the
+- **Write them as `.mts`** — a `.ts` script is CJS under tsx and has no top-level await, and neither does `npx tsx -e`
+  (same failure, and a throwaway one-liner that dies this way leaves you reading the state you meant to change). **Drive the mutations through the
   app's services** (client SDK, rule-evaluated) and do the script's own reads/fixture edits with the Admin SDK: from an
   `.mts` file a `doc()` imported there rejects a `db` built here, and sign-in works, which makes it look unrelated.
 - Prefer verifying with **two independent paths**: compute the expected figure in the script from the same real
   snapshots — a same-code-path comparison would be circular.
+- **Stopping the emulators: send SIGINT to the `firebase` CLI process, not to the `scripts/emulators.mjs` wrapper.**
+  The wrapper exits immediately, its children survive, and `--export-on-exit` never runs — `.emulator-data/` keeps the
+  timestamp it had at startup and the session's data is lost on the next import. Check that timestamp before trusting
+  the shutdown.
 
 ### Browser-Driven E2E (Playwright)
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,

@@ -73,6 +73,8 @@ function makeBundle(overrides?: Partial<AssistantMonthContextBundle>): Assistant
     topIndividualExpenses: [],
     bySubCategoryAllocation: {},
     targetAllocation: null,
+    targetAllocationSource: 'manual',
+    goals: null,
     expenseCategories: [],
     dataQuality: {
       hasSnapshot: true,

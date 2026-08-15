@@ -10,11 +10,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // adminDb mock must be hoisted before the service is imported
-const { snapshotsGetMock, expensesGetMock, settingsDocGetMock } = vi.hoisted(() => ({
-  snapshotsGetMock: vi.fn(),
-  expensesGetMock: vi.fn(),
-  settingsDocGetMock: vi.fn(),
-}));
+const { snapshotsGetMock, expensesGetMock, settingsDocGetMock, assetsGetMock, goalDocGetMock } =
+  vi.hoisted(() => ({
+    snapshotsGetMock: vi.fn(),
+    expensesGetMock: vi.fn(),
+    settingsDocGetMock: vi.fn(),
+    assetsGetMock: vi.fn(),
+    goalDocGetMock: vi.fn(),
+  }));
 
 vi.mock('@/lib/firebase/admin', () => ({
   adminDb: {
@@ -38,13 +41,26 @@ vi.mock('@/lib/firebase/admin', () => ({
           doc: vi.fn(() => ({ get: settingsDocGetMock })),
         };
       }
+      if (name === 'assets') {
+        return {
+          where: vi.fn().mockReturnThis(),
+          get: assetsGetMock,
+        };
+      }
+      if (name === 'goalBasedInvesting') {
+        return {
+          doc: vi.fn(() => ({ get: goalDocGetMock })),
+        };
+      }
       return { where: vi.fn().mockReturnThis(), get: vi.fn().mockResolvedValue({ docs: [] }) };
     }),
   },
 }));
 
-// firebase/config is imported transitively via dateHelpers — mock to avoid real init
+// firebase/config is imported transitively via dateHelpers (and now via goalMath →
+// assetService) — mock to avoid real init.
 vi.mock('@/lib/firebase/config', () => ({ auth: { currentUser: null }, db: {} }));
+vi.mock('server-only', () => ({}));
 
 import {
   buildAssistantMonthContext,
@@ -116,11 +132,40 @@ function mockExpenses(docs: ReturnType<typeof makeExpenseDoc>[]) {
   expensesGetMock.mockResolvedValue({ docs });
 }
 
-function mockSettings(dividendIncomeCategoryId?: string) {
+function mockSettings(
+  dividendIncomeCategoryId?: string,
+  extra: Record<string, unknown> = {}
+) {
   settingsDocGetMock.mockResolvedValue({
     exists: true,
-    data: () => ({ dividendIncomeCategoryId }),
+    data: () => ({ dividendIncomeCategoryId, ...extra }),
   });
+}
+
+/** An asset doc as fetchAssets reads it: value = quantity × currentPrice. */
+function makeAssetDoc(id: string, assetClass: string, value: number) {
+  return {
+    id,
+    data: () => ({
+      userId: 'user1',
+      name: id,
+      type: 'etf',
+      assetClass,
+      currency: 'EUR',
+      quantity: 1,
+      currentPrice: value,
+    }),
+  };
+}
+
+function mockAssets(docs: ReturnType<typeof makeAssetDoc>[]) {
+  assetsGetMock.mockResolvedValue({ docs });
+}
+
+function mockGoalData(data: unknown | null) {
+  goalDocGetMock.mockResolvedValue(
+    data === null ? { exists: false } : { exists: true, data: () => data }
+  );
 }
 
 // ─── Test suite ─────────────────────────────────────────────────────────────
@@ -129,6 +174,8 @@ describe('buildAssistantMonthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSettings(undefined);
+    mockAssets([]);
+    mockGoalData(null);
   });
 
   // ── Missing snapshot ──────────────────────────────────────────────────────
@@ -426,6 +473,8 @@ describe('buildAssistantYearContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSettings(undefined);
+    mockAssets([]);
+    mockGoalData(null);
   });
 
   it('keeps more individual expenses than a month does, since the window is twelve times longer', async () => {
@@ -439,5 +488,225 @@ describe('buildAssistantYearContext', () => {
     const bundle = await buildAssistantYearContext('user1', 2025);
 
     expect(bundle.topIndividualExpenses).toHaveLength(10);
+  });
+});
+
+// ─── Goal-Based Investing block ──────────────────────────────────────────────
+
+describe('goals block', () => {
+  // asset1 is €10.000 of equity; the goal below has all of it assigned.
+  const GOAL_ASSETS = [makeAssetDoc('asset1', 'equity', 10_000)];
+
+  const CASA_GOAL = {
+    id: 'casa',
+    name: 'Acquisto Casa',
+    targetAmount: 100_000,
+    targetDate: '2032-06-01',
+    priority: 'alta',
+    color: '#3B82F6',
+    monthlyContribution: 500,
+    recommendedAllocation: { bonds: 70, equity: 30 },
+    createdAt: new Date(2025, 0, 1),
+    updatedAt: new Date(2025, 0, 1),
+  };
+
+  const CASA_DOC = {
+    goals: [CASA_GOAL],
+    assignments: [{ goalId: 'casa', assetId: 'asset1', percentage: 100 }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSettings(undefined);
+    mockAssets(GOAL_ASSETS);
+    mockGoalData(null);
+    mockSnapshots([makeSnapshotDoc(2025, 3, 100_000, { equity: 100_000 })]);
+    mockExpenses([]);
+  });
+
+  it('reports goals as null when the feature is disabled, even with a goal document', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: false });
+    mockGoalData(CASA_DOC);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.goals).toBeNull();
+  });
+
+  it('reports goals as null when the user has no goal document', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData(null);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.goals).toBeNull();
+  });
+
+  it('reports an enabled feature with no goals as an empty list, not as null', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData({ goals: [], assignments: [] });
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.goals).toEqual({
+      enabled: true,
+      goalDrivenAllocationEnabled: false,
+      items: [],
+    });
+  });
+
+  it('carries each goal with its assigned value and trajectory verdict', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData(CASA_DOC);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.goals?.items).toHaveLength(1);
+    expect(bundle.goals?.items[0]).toMatchObject({
+      name: 'Acquisto Casa',
+      targetAmount: 100_000,
+      targetDateIso: '2032-06-01',
+      priority: 'alta',
+      currentValue: 10_000,
+      monthlyContribution: 500,
+      recommendedAllocation: { bonds: 70, equity: 30 },
+    });
+    // €500/month against a €90.000 gap does not get there — the point of the verdict.
+    expect(bundle.goals?.items[0].verdict).toBe('offTrack');
+  });
+
+  it('carries the required pace and the projected value for a dated goal', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData(CASA_DOC);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    const item = bundle.goals!.items[0];
+    // The three travel together: a required pace without the return it assumes is a
+    // number the reader cannot audit.
+    expect(item.requiredMonthlyContribution).toBeGreaterThan(500);
+    expect(item.projectedValueAtDeadline).toBeGreaterThan(10_000);
+    // bonds 70 / equity 30 → 0.7×2.5 + 0.3×7 = 3.85%
+    expect(item.assumedAnnualReturn).toBeCloseTo(3.85, 2);
+  });
+
+  it('leaves the trajectory numbers out of a goal that has nothing to project', async () => {
+    // No deadline means no annuity to solve: the fields must be absent, not zero.
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData({
+      goals: [
+        {
+          id: 'senza-data',
+          name: 'Senza scadenza',
+          targetAmount: 50_000,
+          priority: 'media',
+          color: '#EF4444',
+        },
+      ],
+      assignments: [],
+    });
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    const item = bundle.goals!.items[0];
+    expect(item).not.toHaveProperty('requiredMonthlyContribution');
+    expect(item).not.toHaveProperty('projectedValueAtDeadline');
+    expect(item).not.toHaveProperty('assumedAnnualReturn');
+    expect(item.verdict).toBe('noDeadline');
+  });
+
+  it('omits the optional goal fields that are unset rather than carrying undefined', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData({
+      goals: [{ id: 'aperto', name: 'Fondo libero', priority: 'bassa', color: '#64748B' }],
+      assignments: [],
+    });
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    const item = bundle.goals!.items[0];
+    expect(item).not.toHaveProperty('targetAmount');
+    expect(item).not.toHaveProperty('targetDateIso');
+    expect(item.verdict).toBe('noTarget');
+  });
+
+  // ── Target allocation source ───────────────────────────────────────────────
+
+  it('keeps the manual targets and says so when goal-driven allocation is off', async () => {
+    mockSettings(undefined, {
+      goalBasedInvestingEnabled: true,
+      goalDrivenAllocationEnabled: false,
+      targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
+    });
+    mockGoalData(CASA_DOC);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.targetAllocationSource).toBe('manual');
+    expect(bundle.targetAllocation?.equity.targetPercentage).toBe(60);
+  });
+
+  it('replaces the manual targets with the goal-derived ones when the flag is on', async () => {
+    mockSettings(undefined, {
+      goalBasedInvestingEnabled: true,
+      goalDrivenAllocationEnabled: true,
+      targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
+    });
+    mockGoalData(CASA_DOC);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    // The single goal's own mix, not the manual 60/40.
+    expect(bundle.targetAllocationSource).toBe('goal_driven');
+    expect(bundle.targetAllocation?.bonds.targetPercentage).toBe(70);
+    expect(bundle.targetAllocation?.equity.targetPercentage).toBe(30);
+  });
+
+  it('preserves the user sub-targets underneath a goal-derived class target', async () => {
+    mockSettings(undefined, {
+      goalBasedInvestingEnabled: true,
+      goalDrivenAllocationEnabled: true,
+      targets: {
+        equity: { targetPercentage: 60, subTargets: { 'Azioni USA': 70 } },
+      },
+    });
+    mockGoalData(CASA_DOC);
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.targetAllocation?.equity).toEqual({
+      targetPercentage: 30,
+      subTargets: { 'Azioni USA': 70 },
+    });
+  });
+
+  it('falls back to the manual targets when the goals derive nothing', async () => {
+    // An open-ended goal has no gap to weight, so the derivation returns null and the
+    // page keeps showing the manual targets — the bundle must agree with it.
+    mockSettings(undefined, {
+      goalBasedInvestingEnabled: true,
+      goalDrivenAllocationEnabled: true,
+      targets: { equity: { targetPercentage: 60 } },
+    });
+    mockGoalData({
+      goals: [{ id: 'aperto', name: 'Fondo libero', priority: 'bassa', color: '#64748B' }],
+      assignments: [],
+    });
+
+    const bundle = await buildAssistantMonthContext('user1', { year: 2025, month: 3 });
+
+    expect(bundle.targetAllocationSource).toBe('manual');
+    expect(bundle.targetAllocation?.equity.targetPercentage).toBe(60);
+  });
+
+  it('builds the same goals block for a year period', async () => {
+    mockSettings(undefined, { goalBasedInvestingEnabled: true });
+    mockGoalData(CASA_DOC);
+    mockSnapshots([makeSnapshotDoc(2025, 12, 100_000, { equity: 100_000 })]);
+
+    const bundle = await buildAssistantYearContext('user1', 2025);
+
+    expect(bundle.goals?.items[0].name).toBe('Acquisto Casa');
+    expect(bundle.goals?.items[0].currentValue).toBe(10_000);
   });
 });

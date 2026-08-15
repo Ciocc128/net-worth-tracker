@@ -171,6 +171,8 @@ describe('Assistant private API routes', () => {
       topIndividualExpenses: [],
       bySubCategoryAllocation: {},
       targetAllocation: null,
+      targetAllocationSource: 'manual',
+      goals: null,
       expenseCategories: [],
       dataQuality: {
         hasSnapshot: false,

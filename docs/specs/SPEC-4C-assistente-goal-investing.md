@@ -1,6 +1,6 @@
 # SPEC-4C — Assistente AI: accesso ai Goal-Based Investing (discuterli, consigliarli, proporli)
 
-**Stato**: pronta per implementazione · **Dipendenze**: SPEC-4A (e idealmente 4B) · **Ordine**: dopo 4B, prima di 4D
+**Stato**: implementata (2026-08-15, branch `feature/assistente-goal-investing-spec-4c`, PR #269) · **Dipendenze**: SPEC-4A (e idealmente 4B) · **Ordine**: dopo 4B, prima di 4D
 
 ## Obiettivo
 
@@ -115,6 +115,20 @@ goals: {
   builder, `null` quando spento, target goal-driven), `assistantPromptBundle` (sezione prompt,
   dichiarazioni di assenza), parsing client della card (zod, JSON rotto → fallback), route auth.
 - `npx tsc --noEmit` dopo i test; `TZ=Europe/Rome npx vitest run`; suite d'area `fireService`/`goalService`.
+
+## Scostamenti dalla spec in fase di implementazione
+
+- **I builder di contesto sono 4, non 5** (`month`/`year`/`ytd`/`history`): la spec ne contava 5 includendo
+  `quarter_analysis`, rimossa da SPEC-4A. Il campo `goals` è obbligatorio, quindi `tsc` li ha forzati tutti.
+- **`targetDateIso` non usa `z.coerce.date()`**: il campo persistito `InvestmentGoal.targetDate` È una stringa
+  `YYYY-MM-DD`, riletta con `new Date(...)` dalla traiettoria. Convertirla in `Date` per riconvertirla subito in
+  stringa aggiungerebbe solo un giro UTC↔locale. Validata con regex più controllo di data reale.
+- **`z.partialRecord`, non `z.record`**, per `recommendedAllocation`: in zod 4 un record con chiave enum pretende
+  tutte le chiavi e rifiuterebbe un mix equity/bonds come incompleto.
+- **Tre campi in più sull'item del bundle** rispetto all'elenco della spec — `requiredMonthlyContribution`,
+  `projectedValueAtDeadline`, `assumedAnnualReturn` — aggiunti su richiesta del proprietario dopo che il collaudo
+  ha mostrato il modello ricavarsi il gap a mano (`contributo × mesi`), conto che ignora i rendimenti e che le
+  regole sui dati vietano. `computeGoalTrajectory` li calcolava già e li buttava via.
 
 ## Fuori scope
 

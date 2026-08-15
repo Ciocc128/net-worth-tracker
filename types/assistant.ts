@@ -228,7 +228,7 @@ export interface AssistantMonthContextBundle {
       [subCategory: string]: number; // EUR value from snapshot
     };
   };
-  // Target allocation from user settings (Settings → Allocazione).
+  // Target allocation the app itself is measuring against.
   // null when the user has not configured any targets.
   // subTargets percentages are relative to the asset class (not total portfolio):
   //   e.g. equity 60% total, US Stocks 70% of equity → 42% of portfolio.
@@ -237,6 +237,37 @@ export interface AssistantMonthContextBundle {
       targetPercentage: number; // % of total portfolio
       subTargets?: { [subCategory: string]: number }; // % relative to this asset class
     };
+  } | null;
+  // Where targetAllocation came from. With goalDrivenAllocationEnabled on, the
+  // Allocazione page overrides the manual targets with ones derived from the goals,
+  // so reporting the manual numbers would have the assistant reasoning about targets
+  // the app stopped using. Stated in the prompt so Claude can name the source.
+  targetAllocationSource: 'manual' | 'goal_driven';
+  // Goal-Based Investing (goalBasedInvesting/{userId}) — a DIFFERENT thing from the
+  // assistant's own memory goals (AssistantMemoryItem.category === 'goal').
+  // null when the feature is off or the user has no goal document at all.
+  goals: {
+    enabled: boolean; // settings.goalBasedInvestingEnabled
+    goalDrivenAllocationEnabled: boolean;
+    // EXHAUSTIVE: every configured goal, never a top-N.
+    items: {
+      name: string;
+      targetAmount?: number;
+      targetDateIso?: string;
+      priority: import('@/types/goals').GoalPriority;
+      currentValue: number; // assigned portfolio value, composite assets included
+      monthlyContribution?: number;
+      recommendedAllocation?: Partial<Record<import('@/types/assets').AssetClass, number>>;
+      // Trajectory verdict; absent when it is not computable for that goal.
+      verdict?: import('@/lib/utils/goalTrajectory').GoalVerdict;
+      // The three trajectory numbers, present only for a goal that has BOTH a target
+      // and a deadline — there is nothing to project otherwise. They are projections,
+      // not measurements: assumedAnnualReturn travels with them precisely so the prompt
+      // can say what they rest on. Without it the other two are unfalsifiable.
+      requiredMonthlyContribution?: number;
+      projectedValueAtDeadline?: number;
+      assumedAnnualReturn?: number; // % nominal, derived from recommendedAllocation
+    }[];
   } | null;
   // Full category/subcategory taxonomy configured by the user (Settings → Categorie),
   // independent of the analysis period. Lets Claude suggest where to file a new
