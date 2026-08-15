@@ -1,6 +1,6 @@
 # SPEC-4A — Assistente AI: bugfix e pulizia (prima delle nuove funzioni)
 
-**Stato**: pronta per implementazione · **Dipendenze**: nessuna · **Ordine**: PRIMA di SPEC-4B/4C/4D
+**Stato**: implementata (2026-08-15, branch `fix/assistente-bugfix-spec-4a`, PR #267) · **Dipendenze**: nessuna · **Ordine**: PRIMA di SPEC-4B/4C/4D
 
 ## Obiettivo
 
