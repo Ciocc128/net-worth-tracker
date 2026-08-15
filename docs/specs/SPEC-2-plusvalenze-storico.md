@@ -1,6 +1,25 @@
 # SPEC-2 — Plusvalenze realizzate (ledger) nel grafico "Risparmio vs Crescita Investimenti"
 
-**Stato**: pronta per implementazione · **Dipendenze**: SPEC-1 (usa `aggregateRealizedByYear` spostata nel motore) · **Pagine toccate**: Storico
+**Stato**: NON SI IMPLEMENTA (deciso 2026-08-15, dopo un'implementazione completa + collaudo
+guidato verde, poi scartata) · **Dipendenze**: SPEC-1 (usa `aggregateRealizedByYear` spostata nel
+motore, comunque implementata e in produzione) · **Pagine toccate**: Storico (nessuna, non
+implementata)
+
+## Perché si è deciso di non farla
+
+Implementata e verificata end-to-end (collaudo guidato su emulatore, tutte le fasi verdi), poi
+scartata su richiesta esplicita del proprietario del prodotto: per un investitore che vende quasi
+solo per necessità, una serie "plusvalenze realizzate per anno" è quasi sempre assente o vicina
+allo zero — rumore su un grafico che DESIGN.md vuole "dati prima, decorazione mai", senza
+aggiungere nulla che serva a capire l'andamento del patrimonio. Il residuo `investmentGrowth`
+già in pagina include TUTTA la performance di mercato (realizzata + non realizzata); isolare la
+quota realizzata ha valore per il tracking fiscale (evento tassabile vs plusvalenza su carta), non
+per la lettura "come sta andando il mio patrimonio" che è lo scopo di questa card. Nessun codice
+di questa spec è rimasto nel repo: branch e modifiche sono stati scartati per intero.
+
+**Non blocca nient'altro**: nessun'altra spec del piano (`README.md`) dipende da SPEC-2 — la
+dipendenza va nell'altra direzione (SPEC-2 dipendeva da SPEC-1, non viceversa), e il filone 4A→4B→4C→4D
+(Assistente) è indipendente. Non implementarla non richiede alcun aggiustamento alle spec successive.
 
 ## Decisione di fondo (già presa, non rimetterla in discussione)
 
