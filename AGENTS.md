@@ -584,6 +584,24 @@ Companion documents — do not duplicate their content into this file:
   the base `AssistantMemoryDocument` type**, required only on `AssistantMemoryResponse` — never a hardcoded `false`
   returned by a write helper that has no way to know the real value.
 
+**Structured goals** (`goalEvaluation.ts` pure, `goalEvaluationService.ts` I/O, `memoryExtraction.ts` extraction)
+- **Structure is NEVER parsed from text.** It arrives from a forced-tool-use Haiku call validated with zod; the
+  Italian regex cascade that preceded it produced `undefined` for most real phrasings, so goals were never evaluated.
+  A malformed payload discards the **structure**, not the goal — an un-trackable goal is a legitimate state the panel
+  states out loud. `unit` is derived from `kind`, never asked of the model.
+- **A tool schema's enum description must speak the UI's vocabulary**, or the model splits one sentence across two
+  kinds: "liquidità" is the product's label for the `cash` class, and until the description said so the same goal
+  landed on `cash_target` or `liquid_net_worth_target` at random.
+- **Goals are always evaluated against the CURRENT month**, never the bundle the request happened to build —
+  `evaluateActiveGoals` builds its own. It is called unconditionally after a chat turn (pass the freshly extracted
+  items as `pendingItems` to stay within ONE transaction) and daily from the cron's phase 7.
+- **`updatedAt` on a memory item marks the last CONTENT change** (text, category, structured goal, status), which is
+  why `mergeMemoryItem` restores it when a patch only stamps an evaluation. The durable "Ignora" compares it against
+  the ignored suggestion's `updatedAt`: bump it on every re-evaluation and every ignore expires on the next cron run.
+- **The caller owns `structuredGoal`**: a goal patch that carries none clears it. The PATCH route restructures on
+  creation, on a text edit, or when the goal has none — never on a status-only change — and on failure leaves the goal
+  unstructured rather than keeping a structure that contradicts the new text.
+
 ### Periodic Emails (`lib/server/monthlyEmailService.ts`, `weeklyBudgetEmailService.ts`)
 - **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
   wide fan-out: the union, `MonthlyEmailData`, the date and label helpers, `buildPeriodEmailData`, `buildAndSend*`, the
@@ -764,7 +782,7 @@ Companion documents — do not duplicate their content into this file:
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) |
 | Storico | `chartService` · **FIRE/Goals** `fireService`, `goalService` |
-| Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` |
+| Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
 | Centri di costo | `costCenterUtils`, `costCenterColors` |

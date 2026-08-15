@@ -292,6 +292,128 @@ describe('assistant memory store (real merge/transaction logic)', () => {
     });
   });
 
+  describe('updatedAt marks the last CONTENT change (SPEC-4B)', () => {
+    // The durable "Ignora" compares item.updatedAt with the ignored suggestion's
+    // updatedAt. If a daily re-evaluation bumped the item, every ignore would
+    // expire on the next cron run and the completion banner would come back.
+    const contentDate = new Date(2026, 0, 1);
+
+    function seedGoal(extra: Record<string, unknown> = {}) {
+      seedMemory({
+        items: [
+          {
+            id: 'goal-1',
+            userId: USER,
+            category: 'goal',
+            text: 'Liquidità a 40k',
+            status: 'active',
+            createdAt: Timestamp.fromDate(contentDate),
+            updatedAt: Timestamp.fromDate(contentDate),
+            structuredGoal: {
+              kind: 'cash_target',
+              targetValue: 40000,
+              unit: 'eur',
+              direction: 'at_least',
+            },
+            ...extra,
+          },
+        ],
+      });
+    }
+
+    it('is preserved when a mutation only stamps a new evaluation', async () => {
+      seedGoal();
+
+      const result = await applyAssistantMemoryMutations(USER, [
+        {
+          kind: 'item',
+          item: {
+            id: 'goal-1',
+            category: 'goal',
+            text: 'Liquidità a 40k',
+            status: 'active',
+            structuredGoal: {
+              kind: 'cash_target',
+              targetValue: 40000,
+              unit: 'eur',
+              direction: 'at_least',
+            },
+            lastEvaluationAt: new Date(2026, 7, 15),
+            lastEvaluationResult: {
+              matched: true,
+              metricValue: 45000,
+              targetValue: 40000,
+              unit: 'eur',
+              evaluatedAgainst: 'cash',
+              summary: 'raggiunto',
+            },
+          },
+        },
+      ]);
+
+      const updated = result.items.find((i) => i.id === 'goal-1')!;
+      expect(updated.updatedAt).toEqual(contentDate);
+      expect(updated.lastEvaluationResult?.metricValue).toBe(45000);
+    });
+
+    it('is bumped when the goal text changes', async () => {
+      seedGoal();
+
+      const result = await updateAssistantMemoryDocument(USER, {
+        item: {
+          id: 'goal-1',
+          category: 'goal',
+          text: 'Liquidità a 60k',
+          structuredGoal: {
+            kind: 'cash_target',
+            targetValue: 60000,
+            unit: 'eur',
+            direction: 'at_least',
+          },
+        },
+      });
+
+      const updated = result.items.find((i) => i.id === 'goal-1')!;
+      expect(updated.updatedAt.getTime()).toBeGreaterThan(contentDate.getTime());
+    });
+
+    it('is bumped when only the target of the structured goal changes', async () => {
+      seedGoal();
+
+      const result = await updateAssistantMemoryDocument(USER, {
+        item: {
+          id: 'goal-1',
+          category: 'goal',
+          text: 'Liquidità a 40k',
+          structuredGoal: {
+            kind: 'cash_target',
+            targetValue: 50000,
+            unit: 'eur',
+            direction: 'at_least',
+          },
+        },
+      });
+
+      const updated = result.items.find((i) => i.id === 'goal-1')!;
+      expect(updated.updatedAt.getTime()).toBeGreaterThan(contentDate.getTime());
+    });
+
+    it('lets the caller clear a structured goal that no longer fits the text', async () => {
+      // The regex parser is gone: mergeMemoryItem never re-derives a structure.
+      // When the PATCH route fails to re-structure an edited goal, the goal must
+      // become visibly un-trackable rather than keep measuring the old target.
+      seedGoal();
+
+      const result = await updateAssistantMemoryDocument(USER, {
+        item: { id: 'goal-1', category: 'goal', text: 'Voglio vivere di rendita' },
+      });
+
+      const updated = result.items.find((i) => i.id === 'goal-1')!;
+      expect(updated.structuredGoal).toBeUndefined();
+      expect(updated.updatedAt.getTime()).toBeGreaterThan(contentDate.getTime());
+    });
+  });
+
   describe('hasDummySnapshots', () => {
     it('is never fabricated by updateAssistantMemoryDocument', async () => {
       seedMemory();

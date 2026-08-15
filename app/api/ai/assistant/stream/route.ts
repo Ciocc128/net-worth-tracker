@@ -6,9 +6,7 @@ import {
 } from '@/lib/server/apiAuth';
 import { streamAssistantResponse } from '@/lib/server/assistant/anthropicStream';
 import {
-  AssistantMemoryMutation,
   appendAssistantMessage,
-  applyAssistantMemoryMutations,
   buildThreadTitleFromPrompt,
   createAssistantThread,
   getAssistantMemoryDocument,
@@ -31,12 +29,13 @@ import {
   buildAssistantYtdContext,
   buildAssistantHistoryContext,
 } from '@/lib/services/assistantMonthContextService';
-import { AssistantMonthContextBundle, AssistantStreamEvent, AssistantStreamRequest } from '@/types/assistant';
 import {
-  buildGoalCompletionSuggestions,
-  evaluateStructuredGoal,
-  parseStructuredGoalFromText,
-} from '@/lib/server/assistant/goalEvaluation';
+  AssistantMemoryItem,
+  AssistantMonthContextBundle,
+  AssistantStreamEvent,
+  AssistantStreamRequest,
+} from '@/types/assistant';
+import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { adminDb } from '@/lib/firebase/admin';
 import { checkRateLimit } from '@/lib/server/rateLimit';
 
@@ -44,15 +43,18 @@ const STREAM_RATE_LIMIT_MAX = 30;
 const STREAM_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 /**
- * Extracts memory candidates from a completed exchange and persists new items.
+ * Extracts memory candidates from a completed exchange, persists the new items
+ * and re-evaluates every active structured goal.
+ *
  * Runs fire-and-forget after the stream closes — errors are logged but never
  * propagated so they cannot affect the user-facing chat experience.
  *
- * All new items/evaluations/suggestions for this turn are accumulated into one
- * mutations array and applied via a SINGLE `applyAssistantMemoryMutations` call —
- * previously this was up to ~10 separate read-modify-write Firestore round trips
- * per turn (one per candidate, plus two per active goal), racing with the memory
- * panel's own PATCH calls.
+ * The goal evaluation is UNCONDITIONAL (SPEC-4B): it no longer depends on the
+ * request having built a context bundle, and it no longer uses that bundle even
+ * when there is one. `evaluateActiveGoals` builds the current month itself —
+ * asking about March 2023 must not measure the user's goals against March 2023.
+ * The items extracted here are handed to it unwritten so the whole turn still
+ * costs ONE Firestore transaction.
  *
  * Anthropic client is instantiated lazily inside this function so module-level
  * initialization does not fail in test environments where ANTHROPIC_API_KEY is absent.
@@ -62,8 +64,7 @@ async function extractAndSaveMemory(
   threadId: string,
   messageId: string,
   userMessage: string,
-  assistantMessage: string,
-  contextBundle: AssistantMonthContextBundle | null
+  assistantMessage: string
 ): Promise<void> {
   try {
     const memoryDoc = await getAssistantMemoryDocument(userId);
@@ -80,62 +81,22 @@ async function extractAndSaveMemory(
     const candidates = await extractMemoryCandidates(userMessage, assistantMessage, anthropicClient);
     const newCandidates = dedupeMemoryItems(candidates, memoryDoc.items);
 
-    const mutations: AssistantMemoryMutation[] = [];
     const now = new Date();
-    const newItems = newCandidates.map((candidate) => {
-      const item = {
-        id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        userId,
-        category: candidate.category,
-        text: candidate.text,
-        structuredGoal:
-          candidate.category === 'goal' ? parseStructuredGoalFromText(candidate.text) : undefined,
-        sourceThreadId: threadId,
-        sourceMessageId: messageId,
-        createdAt: now,
-        updatedAt: now,
-        status: 'active' as const,
-      };
-      mutations.push({ kind: 'item', item });
-      return item;
-    });
+    const pendingItems: AssistantMemoryItem[] = newCandidates.map((candidate) => ({
+      id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      userId,
+      category: candidate.category,
+      text: candidate.text,
+      // Already structured by the extraction tool — nothing is parsed from the text.
+      structuredGoal: candidate.structuredGoal,
+      sourceThreadId: threadId,
+      sourceMessageId: messageId,
+      createdAt: now,
+      updatedAt: now,
+      status: 'active' as const,
+    }));
 
-    if (contextBundle) {
-      // Evaluate active structured goals including the ones just extracted this turn —
-      // equivalent to the previous re-fetch-after-write, computed locally instead.
-      const itemsAfterThisTurn = [...memoryDoc.items, ...newItems];
-      const activeStructuredGoals = itemsAfterThisTurn.filter(
-        (item) => item.category === 'goal' && item.status === 'active' && item.structuredGoal
-      );
-
-      let suggestionsSoFar = memoryDoc.suggestions;
-      for (const item of activeStructuredGoals) {
-        const evaluation = evaluateStructuredGoal(item.structuredGoal!, contextBundle);
-        if (evaluation) {
-          mutations.push({
-            kind: 'item',
-            item: { ...item, lastEvaluationAt: new Date(), lastEvaluationResult: evaluation },
-          });
-        }
-
-        const suggestion = buildGoalCompletionSuggestions(
-          userId,
-          [item],
-          contextBundle,
-          suggestionsSoFar,
-          ({ itemId }) => `goal_suggestion_${itemId}`
-        )[0];
-
-        if (suggestion) {
-          mutations.push({ kind: 'suggestion', suggestion });
-          suggestionsSoFar = [suggestion, ...suggestionsSoFar];
-        }
-      }
-    }
-
-    if (mutations.length > 0) {
-      await applyAssistantMemoryMutations(userId, mutations);
-    }
+    await evaluateActiveGoals(userId, { pendingItems, now });
   } catch (error) {
     // Memory extraction is non-fatal — log server-side only
     console.error('[memory extraction] Failed for user', userId, error);
@@ -228,7 +189,7 @@ export async function POST(request: NextRequest) {
 
     const includeDummy = preferences.includeDummySnapshots ?? false;
 
-    let contextBundle = null;
+    let contextBundle: AssistantMonthContextBundle | null = null;
     if (body.mode === 'year_analysis' && body.year) {
       contextBundle = await buildAssistantYearContext(body.userId, body.year, includeDummy);
     } else if (body.mode === 'ytd_analysis') {
@@ -352,8 +313,7 @@ export async function POST(request: NextRequest) {
             thread.id,
             assistantMessage.id,
             body.prompt.trim(),
-            result.text,
-            contextBundle
+            result.text
           ).catch((err) => console.error('[stream] extractAndSaveMemory uncaught:', err));
 
           await updateAssistantThreadMetadata(thread.id, {

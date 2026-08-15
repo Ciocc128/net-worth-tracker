@@ -14,7 +14,6 @@ import {
 } from '@/types/assistant';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { getDefaultAssistantPreferences } from './webSearchPolicy';
-import { parseStructuredGoalFromText } from './goalEvaluation';
 
 const THREADS_COLLECTION = 'assistantThreads';
 const MEMORY_COLLECTION = 'assistantMemory';
@@ -359,11 +358,45 @@ type AssistantMemorySuggestionInput = Partial<AssistantMemorySuggestion> &
   Pick<AssistantMemorySuggestion, 'id' | 'itemId' | 'type' | 'status' | 'evidenceSummary' | 'evaluation'>;
 
 /**
+ * True when two structured goals describe the same target. Compared field by
+ * field rather than by JSON string: key order is an implementation detail of
+ * whoever built the object, and a false "changed" verdict would expire a
+ * durable "Ignora" (see `isSuggestionStillBinding` in goalEvaluation.ts).
+ */
+function isSameStructuredGoal(
+  a: AssistantMemoryItem['structuredGoal'],
+  b: AssistantMemoryItem['structuredGoal']
+): boolean {
+  if (!a || !b) return a === b;
+  return (
+    a.kind === b.kind &&
+    a.targetValue === b.targetValue &&
+    a.unit === b.unit &&
+    a.direction === b.direction &&
+    a.assetClass === b.assetClass &&
+    a.subCategory === b.subCategory &&
+    a.deadlineIso === b.deadlineIso
+  );
+}
+
+/**
  * Merges one item patch into the items array. Only fields the caller actually
  * included in `input` overwrite existing metadata — a patch carrying just `text`
  * must not wipe sourceThreadId/evidenceSummary/evaluation history. Previously the
  * merge object set every field unconditionally from `input`, so an absent field
  * became an explicit `undefined` that won the `{...existing, ...patch}` spread.
+ *
+ * Two rules that are not obvious from the signature:
+ *
+ * - **The caller owns `structuredGoal`.** This function no longer derives it from
+ *   the text (the regex parser is gone, SPEC-4B): the extraction tool and the
+ *   PATCH route decide, and a goal patch that carries no structure clears it —
+ *   an un-trackable goal is stated as such in the panel, which is safer than
+ *   keeping a structure that contradicts the edited text.
+ * - **`updatedAt` marks the last CONTENT change** (text, category, structured
+ *   goal, status), not the last write. Re-evaluation stamps must not bump it, or
+ *   the durable-ignore rule would treat every daily cron run as a user edit and
+ *   the completion banner would come back forever.
  */
 function mergeMemoryItem(
   items: AssistantMemoryItem[],
@@ -372,8 +405,7 @@ function mergeMemoryItem(
   now: Date
 ): AssistantMemoryItem[] {
   const itemIndex = items.findIndex((item) => item.id === input.id);
-  const structuredGoal =
-    input.category === 'goal' ? (input.structuredGoal ?? parseStructuredGoalFromText(input.text)) : undefined;
+  const structuredGoal = input.category === 'goal' ? input.structuredGoal : undefined;
 
   const patch: Partial<AssistantMemoryItem> = {
     id: input.id,
@@ -398,7 +430,18 @@ function mergeMemoryItem(
   }
 
   if (itemIndex >= 0) {
-    const updated = { ...items[itemIndex], ...patch };
+    const existing = items[itemIndex];
+    const updated = { ...existing, ...patch };
+    const contentChanged =
+      updated.text !== existing.text ||
+      updated.category !== existing.category ||
+      updated.status !== existing.status ||
+      !isSameStructuredGoal(updated.structuredGoal, existing.structuredGoal);
+
+    if (!contentChanged) {
+      updated.updatedAt = existing.updatedAt;
+    }
+
     return items.map((item, idx) => (idx === itemIndex ? updated : item));
   }
 

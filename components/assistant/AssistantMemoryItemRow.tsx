@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useChartColors } from '@/lib/hooks/useChartColors';
-import { AssistantMemoryItem } from '@/types/assistant';
+import { formatCurrency } from '@/lib/utils/formatters';
+import { AssistantMemoryItem, AssistantStructuredGoal } from '@/types/assistant';
 
 interface AssistantMemoryItemRowProps {
   item: AssistantMemoryItem;
@@ -32,6 +33,16 @@ const CATEGORY_COLOR_INDEX: Record<AssistantMemoryItem['category'], number> = {
   fact: 4,
 };
 
+/** What each structured-goal kind measures, in the user's words. */
+const GOAL_KIND_LABELS: Record<AssistantStructuredGoal['kind'], string> = {
+  net_worth_target: 'Patrimonio',
+  liquid_net_worth_target: 'Patrimonio liquido',
+  cash_target: 'Liquidità',
+  asset_class_value_target: 'Valore classe',
+  asset_class_percentage_target: 'Peso classe',
+  sub_category_value_target: 'Sottocategoria',
+};
+
 /** Formats a date as DD/MM/YYYY — used for the item provenance label. */
 function formatItemDate(date: Date): string {
   return date.toLocaleDateString('it-IT', {
@@ -39,6 +50,17 @@ function formatItemDate(date: Date): string {
     month: '2-digit',
     year: 'numeric',
   });
+}
+
+/** Renders a YYYY-MM-DD deadline as DD/MM/YYYY without going through Date parsing. */
+function formatDeadline(deadlineIso: string): string {
+  const [year, month, day] = deadlineIso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/** Zero decimals on euro targets: a goal is "500.000 €", never "500.000,00 €". */
+function formatGoalValue(value: number, unit: AssistantStructuredGoal['unit']): string {
+  return unit === 'percent' ? `${value.toFixed(2)}%` : formatCurrency(value, 'EUR', 0);
 }
 
 /**
@@ -109,6 +131,12 @@ export function AssistantMemoryItemRow({
 
   const isArchived = item.status === 'archived';
   const isCompleted = item.status === 'completed';
+
+  // Goal transparency (SPEC-4B): a goal either states what is being measured, or
+  // states that nothing is. Before, a goal the extractor failed to structure was
+  // indistinguishable from one sitting at 97% of its target.
+  const structuredGoal = item.category === 'goal' ? item.structuredGoal : undefined;
+  const evaluation = item.category === 'goal' ? item.lastEvaluationResult : undefined;
 
   return (
     <div
@@ -260,6 +288,56 @@ export function AssistantMemoryItemRow({
           <p className="text-sm text-foreground leading-snug">{item.text}</p>
         )}
       </div>
+
+      {/* Goal tracking: what is measured, and how it stood at the last check */}
+      {item.category === 'goal' && !isEditing && (
+        <div className="mt-2 space-y-1">
+          {structuredGoal ? (
+            <span className="inline-flex flex-wrap items-baseline gap-x-1 rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground">
+              <span>{GOAL_KIND_LABELS[structuredGoal.kind]}</span>
+              {structuredGoal.assetClass ? <span>{structuredGoal.assetClass}</span> : null}
+              {structuredGoal.subCategory ? <span>{structuredGoal.subCategory}</span> : null}
+              <span>
+                {(structuredGoal.direction ?? 'at_least') === 'at_least' ? 'almeno' : 'al massimo'}
+              </span>
+              <span className="font-mono tabular-nums text-foreground">
+                {formatGoalValue(structuredGoal.targetValue, structuredGoal.unit)}
+              </span>
+              {structuredGoal.deadlineIso ? (
+                <span>
+                  entro{' '}
+                  <span className="font-mono tabular-nums">
+                    {formatDeadline(structuredGoal.deadlineIso)}
+                  </span>
+                </span>
+              ) : null}
+            </span>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">Non tracciabile automaticamente</p>
+          )}
+
+          {evaluation && evaluation.metricValue !== null && (
+            <p className="text-[11px] text-muted-foreground">
+              {item.lastEvaluationAt
+                ? `Verificato il ${formatItemDate(item.lastEvaluationAt)}: `
+                : 'Ultima verifica: '}
+              <span
+                className={cn(
+                  'font-mono tabular-nums',
+                  evaluation.matched ? 'text-positive' : 'text-destructive'
+                )}
+              >
+                {formatGoalValue(evaluation.metricValue, evaluation.unit)}
+              </span>{' '}
+              su{' '}
+              <span className="font-mono tabular-nums">
+                {formatGoalValue(evaluation.targetValue, evaluation.unit)}
+              </span>
+              {evaluation.deadlinePassed && !evaluation.matched ? ' — scadenza superata' : ''}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Provenance: source thread date */}
       <p className="mt-1 text-[10px] text-muted-foreground/70">
