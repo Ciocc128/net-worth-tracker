@@ -173,6 +173,22 @@ This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness
 - Mobile-first: layouts are designed at 390px first; desktop adds columns, never simplifies
 - Light and dark modes are equally premium — different materials, same quality standard
 
+### How this file is read by tooling
+
+This document is the **normative** layer, in two parts: the YAML frontmatter (colors, typography,
+`rounded`, spacing, components) is the machine-readable half, the prose below it is the human half,
+and the two must always agree — a rule documented here but absent from the frontmatter reads as an
+off-system value to any linter.
+
+`.impeccable/design.json` is an **extensions-only sidecar**: tonal ramps, shadows, motion,
+breakpoints, component HTML/CSS snippets, narrative. It never redefines a frontmatter token, and its
+`narrative` is a verbatim mirror of this file — never paraphrase it, never let it carry a rule this
+file lacks.
+
+**Never regenerate this file.** It is hand-maintained and authoritative; CLAUDE.md, AGENTS.md,
+PRODUCT.md and every `docs/*-prompts.md` cite it. Extend the frontmatter additively when a real token
+is missing, and refresh the sidecar on its own when the sidecar is what is stale.
+
 ## 2. Colors: The Zero-Chroma Foundation
 
 The default palette has no hue anywhere. Every neutral is a pure OKLCH gray. Chart colors, financial indicators, and user-chosen themes supply all chromatic energy. The interface does not compete with the data it presents.
@@ -238,6 +254,8 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 ### Named Rules
 
 **The Mono Mandate.** Every number in a financial context uses Geist Mono with `tnum` features. No exceptions: KPI cards, table cells, chart axis labels, percentage badges. A number set in Geist Sans loses its financial authority.
+
+**The Ramp Lives in the Frontmatter.** The enumerated step ladder — 9/10/11/12/13/15/22/32/36/40/44/54px — is declared in `typography.scale`, because the named roles above cannot express a ramp. Two consequences. First, the two layers of this file must agree: the prose documented the Trade Republic scale for months while the frontmatter still said `display: clamp(1.75rem, 3vw, 2.5rem)`, which made every documented hero size read as off-system. Second, a linter takes its font sizes **only** from the frontmatter (`typography` + `typography.scale`) — from `.impeccable/design.json` it takes only `colorMeta` and `roundedMeta`. So a `design-system-font-size` finding is never fixed by regenerating the sidecar, whatever the tool's own hint suggests; declare the size here instead. 32px and 40px sit in the ramp because they are genuinely used — they are the hero **overflow step-down** (AGENTS.md → *Panoramica*), not a step to reach for.
 
 **The Two-Font Rule.** The system uses exactly two fonts. No display serif, no decorative typeface, no icon font treated as type. Hierarchy is expressed through scale and weight within the same two families.
 

@@ -9,7 +9,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AssistantMessage } from '@/types/assistant';
+import { GoalProposalCard } from '@/components/assistant/GoalProposalCard';
 import { formatDate } from '@/lib/utils/formatters';
+import { parseGoalProposal } from '@/lib/utils/goalProposal';
 import { cn } from '@/lib/utils';
 
 interface AssistantStreamingResponseProps {
@@ -26,12 +28,58 @@ interface AssistantStreamingResponseProps {
   streamingMessageId?: string;
 }
 
+/** Language tag that turns a fenced block into a goal proposal card. */
+const GOAL_PROPOSAL_LANGUAGE = 'language-goal-proposal';
+
+/**
+ * Flattens the children of a `<code>` node back into its raw source text.
+ *
+ * ReactMarkdown hands the block's content down as strings (and, with syntax
+ * highlighting plugins, as nested elements), so the JSON has to be reassembled
+ * before it can be parsed.
+ */
+function extractCodeText(node: React.ReactNode): string {
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractCodeText).join('');
+  if (React.isValidElement(node)) {
+    return extractCodeText((node.props as { children?: React.ReactNode }).children);
+  }
+  return '';
+}
+
 /**
  * Custom renderers for ReactMarkdown.
  * Defined at module level (not inline) so the object reference is stable across renders —
  * prevents ReactMarkdown from unmounting/remounting when unrelated state changes.
  */
 const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = {
+  // A ```goal-proposal block renders as a card, not as code. Intercepted at `pre`
+  // rather than at `code` because the card is block content and would otherwise be
+  // nested inside a <pre>, whose content model does not allow it.
+  //
+  // Anything that fails to parse — malformed JSON, a missing field, an allocation that
+  // does not total 100 — falls through to the normal code block: the user still sees
+  // exactly what the model wrote instead of an empty message.
+  pre: ({ children }) => {
+    const firstChild = React.Children.toArray(children)[0];
+
+    if (React.isValidElement(firstChild)) {
+      const props = firstChild.props as { className?: string; children?: React.ReactNode };
+      if (props.className?.includes(GOAL_PROPOSAL_LANGUAGE)) {
+        const proposal = parseGoalProposal(extractCodeText(props.children));
+        if (proposal) {
+          return <GoalProposalCard proposal={proposal} />;
+        }
+      }
+    }
+
+    return (
+      <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 text-xs">
+        {children}
+      </pre>
+    );
+  },
   table: ({ children }) => (
     <div className="my-3 w-full overflow-x-auto">
       <table className="w-full border-collapse text-sm">{children}</table>

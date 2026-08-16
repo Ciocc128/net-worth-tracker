@@ -80,8 +80,8 @@ import {
   computeDrawdownStatus,
 } from '@/lib/utils/performanceSummary';
 import { useAssetLedgerMeta, useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
-import { computeInvestedCapital } from '@/lib/utils/assetTransactionUtils';
-import { aggregateRealizedByYear, RealizedGainsRows } from '@/components/performance/RealizedGainsSection';
+import { computeInvestedCapital, aggregateRealizedByYear } from '@/lib/utils/assetTransactionUtils';
+import { RealizedGainsRows } from '@/components/performance/RealizedGainsSection';
 
 /**
  * Header action buttons (Periodo Personalizzato / Analizza con AI / Aggiorna).

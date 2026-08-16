@@ -6,26 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AssistantMonthContextBundle } from '@/types/assistant';
 import { cn } from '@/lib/utils';
-import { MONTH_NAMES } from '@/lib/constants/months';
+import { getAssistantPeriodLabel } from '@/lib/utils/assistantPeriodLabel';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 
 const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
-
-/**
- * Returns a human-readable label for the period encoded in selector.
- * Duplicated from prompts.ts to avoid importing server-only code in this client component.
- *   month > 0  → "Marzo 2025"
- *   month === 0 → "Anno 2025"
- *   month === -1 → "YTD 2025"
- *   month === -2 → "Storico da 2020"
- */
-function getPeriodLabel(selector: { year: number; month: number }): string {
-  if (selector.month > 0) return `${MONTH_NAMES[selector.month - 1]} ${selector.year}`;
-  if (selector.month === 0) return `Anno ${selector.year}`;
-  if (selector.month === -1) return `YTD ${selector.year}`;
-  if (selector.month === -2) return `Storico da ${selector.year}`;
-  return `${selector.year}`;
-}
 
 /** Returns a "in progress" badge label for the period. */
 function getPartialLabel(selector: { year: number; month: number }): string {
@@ -50,10 +34,10 @@ interface KpiRowProps {
 function KpiRow({ label, value, positive }: KpiRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-[13px] text-muted-foreground">{label}</span>
       <span
         className={cn(
-          'text-sm font-semibold tabular-nums font-mono',
+          'text-[13px] font-semibold tabular-nums font-mono',
           positive === true && 'text-positive',
           positive === false && 'text-destructive',
           positive === null && 'text-foreground'
@@ -71,7 +55,7 @@ function KpiRow({ label, value, positive }: KpiRowProps) {
  */
 export function AssistantContextCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('animate-pulse space-y-0 overflow-hidden rounded-xl border border-border', className)}>
+    <div className={cn('animate-pulse space-y-0 overflow-hidden rounded-2xl border border-border bg-card', className)}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="h-3 w-28 rounded bg-muted" />
         <div className="h-5 w-20 rounded bg-muted" />
@@ -117,7 +101,7 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
   }
 
   const { selector, netWorth, cashflow, allocationChanges, dataQuality } = bundle;
-  const periodLabel = getPeriodLabel(selector);
+  const periodLabel = getAssistantPeriodLabel(selector);
   const deltaPositive = netWorth.delta !== null ? netWorth.delta >= 0 : null;
 
   const DeltaIcon =
@@ -132,11 +116,11 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -4 }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.28, ease: EASE_OUT_QUINT }}
-        className={cn('overflow-hidden rounded-xl border border-border', className)}
+        className={cn('overflow-hidden rounded-2xl border border-border bg-card', className)}
       >
         {/* Header: period label + partial badge */}
         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             Contesto {periodLabel}
           </p>
           {dataQuality.isPartialMonth && (
@@ -144,23 +128,25 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
           )}
         </div>
 
-        {/* Hero: net worth delta as dominant value — no inner box, just prominent text */}
+        {/* Hero: net worth delta as the card's dominant value — section-hero step
+            of the documented ramp, with the percentage as a Delta Annotation below. */}
         <div className="border-b border-border/50 px-4 py-4">
-          <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground/70">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             Variazione patrimonio
           </p>
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center gap-2">
             <DeltaIcon
               className={cn(
-                'h-4 w-4 shrink-0 self-center',
+                'h-5 w-5 shrink-0',
                 deltaPositive === true && 'text-positive',
                 deltaPositive === false && 'text-destructive',
                 deltaPositive === null && 'text-muted-foreground'
               )}
+              aria-hidden="true"
             />
             <span
               className={cn(
-                'text-2xl font-bold tabular-nums font-mono',
+                'font-mono text-[36px] font-bold leading-none tracking-[-0.03em] tabular-nums',
                 deltaPositive === true && 'text-positive',
                 deltaPositive === false && 'text-destructive',
                 deltaPositive === null && 'text-muted-foreground'
@@ -168,14 +154,21 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
             >
               {netWorth.delta !== null ? eur(netWorth.delta) : 'N/D'}
             </span>
-            {netWorth.deltaPct !== null && (
-              <span className="text-sm text-muted-foreground tabular-nums">
-                ({pct(netWorth.deltaPct)})
-              </span>
-            )}
           </div>
-          {/* Start → end sub-row */}
-          <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
+          {netWorth.deltaPct !== null && (
+            <p
+              className={cn(
+                'mt-1.5 font-mono text-[12px] tabular-nums',
+                deltaPositive === true && 'text-positive',
+                deltaPositive === false && 'text-destructive',
+                deltaPositive === null && 'text-muted-foreground'
+              )}
+            >
+              {pct(netWorth.deltaPct)} nel periodo
+            </p>
+          )}
+          {/* Start → end sub-row — tertiary metadata */}
+          <div className="mt-1.5 flex gap-4 text-[11px] tabular-nums text-muted-foreground">
             <span>Inizio: {netWorth.start !== null ? eur(netWorth.start) : 'N/D'}</span>
             <span>Fine: {netWorth.end !== null ? eur(netWorth.end) : 'N/D'}</span>
           </div>
@@ -184,7 +177,7 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
         {/* Cashflow rows — flat divide-y, no inner border-box */}
         {dataQuality.hasCashflowData && (
           <div className="border-b border-border/50">
-            <p className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               Cashflow
             </p>
             <div className="divide-y divide-border/50">
@@ -215,7 +208,7 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
         {/* Allocation changes — flat rows */}
         {allocationChanges.length > 0 && (
           <div className="border-b border-border/50">
-            <p className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               Allocazione
             </p>
             <div className="divide-y divide-border/50">
@@ -224,12 +217,12 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
                   key={change.assetClass}
                   className="flex items-center justify-between gap-2 px-4 py-2.5"
                 >
-                  <span className="truncate text-sm text-muted-foreground">
+                  <span className="truncate text-[13px] text-muted-foreground">
                     {change.assetClass}
                   </span>
                   <span
                     className={cn(
-                      'text-sm font-semibold tabular-nums font-mono',
+                      'text-[13px] font-semibold tabular-nums font-mono',
                       change.absoluteChange >= 0
                         ? 'text-positive'
                         : 'text-destructive'
@@ -275,7 +268,7 @@ export function AssistantContextCard({ bundle, className, isLoading }: Assistant
  */
 export function AssistantContextPill({ bundle }: { bundle: AssistantMonthContextBundle }) {
   const { selector, netWorth } = bundle;
-  const periodLabel = getPeriodLabel(selector);
+  const periodLabel = getAssistantPeriodLabel(selector);
   const deltaPositive = netWorth.delta !== null ? netWorth.delta >= 0 : null;
 
   return (

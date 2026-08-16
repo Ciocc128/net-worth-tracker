@@ -35,6 +35,12 @@ dichiarando la pagina "a regime" (score ≥ 36/40 e zero P0/P1).
   `aria-label` su bottoni icon-only, `aria-expanded` su collapsible
 - **Skeleton** — ogni sezione async ha uno skeleton strutturalmente isomorfo al layout reale
 
+**Prima di dichiarare un finding un falso positivo:** verifica che non sia il design system a non
+dichiarare un valore reale — la fonte dei font-size è il frontmatter di `DESIGN.md`
+(`typography` + `typography.scale`), non il sidecar `.impeccable/design.json`. Sopprimere con un
+`ignoreValues` in `.impeccable/config.json` è l'ultima risorsa, non la prima, e ogni voce lì porta
+una `reason` scritta per chi la rileggerà tra sei mesi.
+
 **Sequenze corrette (vedi `docs/critique-prompts.md` per le due modalità di critique):**
 ```
 Verifica (default):     critique → fix dei soli finding → audit (gate compliance) →
@@ -1133,23 +1139,25 @@ File: app/dashboard/assistant/page.tsx
 Componenti: components/assistant/*
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: scheda period-reactive (`renderPeriodScheda` / `PatrimonioTodayCard`) wrapper —
-  nessun hardcoded; valori Δ → `text-positive`/`text-destructive` (token, non emerald/red);
-  user bubble `bg-muted/40` (token ✓); memory badges (`AssistantMemoryFacts`) —
-  `useChartColors()` + `color-mix()` (non emerald/blue/violet hardcoded); suggestion card
+- Token: scheda period-reactive (`renderPeriodScheda` / `AssistantPatrimonioTodayCard`) — card
+  primarie `rounded-2xl bg-card`, valore dominante 36px del ramp, nessun hardcoded; valori Δ →
+  `text-positive`/`text-destructive` (token, non emerald/red); user bubble `bg-muted/40`
+  (token ✓); `AssistantMemorySummaryCard` "Raggiunto" → `text-positive`; suggestion card
   (`AssistantSuggestionsBanner`) border/bg via `chartColors[0]` + `color-mix()` (non hardcoded)
 - Chart colors: non applicabile (no Recharts in questa pagina)
-- ARIA: `AssistantPeriodSelector` period axis `role="tablist"` + sub-picker; sheet
-  Conversazioni/Memoria `role="dialog"`/`aria-modal` + focus trap (non più tab strip);
-  `AssistantPreferencesPopover` controlli con label; memory badge `aria-label`;
+- ARIA: `AssistantPeriodSelector` su `SegmentedPill` (tablist + roving tabindex + frecce;
+  `disabled` → `aria-disabled`, non `disabled` nativo); sheet Conversazioni/Memoria
+  (`AssistantSheets`) `role="dialog"`/`aria-modal` + `SheetDescription` sr-only; header icone
+  (`AssistantHeader`) con `aria-label` che include il conteggio; guida `aria-expanded`;
   delete 2-click 3s auto-disarm con `aria-label`; SSE `status:'searching'` badge con `aria-live`
-- Breakpoint: `grid-cols-1` + `min-w-0` su left column (fix overflow mobile); scheda come
-  colonna destra solo desktop, mobile nell'empty-state + `AssistantContextPill` nell'header;
-  composer slim (input+send) senza strip orizzontale che debordi
-- Motion: `layoutId="assistant-mode-pill"` (in `AssistantPeriodSelector`) unico nella pagina;
-  sheet open/close + `AnimatePresence` rispettano `useReducedMotion()`; spring (400/35)
-- Skeleton: `AssistantPageSkeleton` isomorfo al layout reale (period axis → scheda →
-  conversation → composer → right col)
+- Breakpoint: hero `grid gap-4 desktop:grid-cols-[2fr_1fr]` con `min-w-0` sulla left column;
+  companion `desktop:self-start desktop:sticky desktop:top-6` (solo desktop), mobile scheda
+  nell'empty-state + `AssistantContextPill` nell'header conversazione; azione primaria icon-only
+  sotto 1440px con `aria-label`
+- Motion: `layoutId="assistant-period-pill"` unico nella pagina; crossfade della domanda/label
+  periodo + sheet open/close + `AnimatePresence` rispettano `useReducedMotion()`; spring (400/35)
+- Skeleton: `AssistantPageSkeleton` isomorfo al layout reale (header + azioni → pill →
+  hero card → composer → companion: scheda + memoria)
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:

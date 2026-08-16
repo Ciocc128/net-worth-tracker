@@ -29,6 +29,8 @@ const {
   overviewSummaryDocSetMock,
   accountAccessDocGetMock,
   goalBasedInvestingDocGetMock,
+  goalBasedInvestingDocSetMock,
+  runTransactionMock,
   getQuoteMock,
   getBondPriceByIsinMock,
 } = vi.hoisted(() => ({
@@ -51,6 +53,8 @@ const {
   overviewSummaryDocSetMock: vi.fn(),
   accountAccessDocGetMock: vi.fn(),
   goalBasedInvestingDocGetMock: vi.fn(),
+  goalBasedInvestingDocSetMock: vi.fn(),
+  runTransactionMock: vi.fn(),
   getQuoteMock: vi.fn(),
   getBondPriceByIsinMock: vi.fn(),
 }));
@@ -60,6 +64,9 @@ vi.mock('@/lib/firebase/admin', () => ({
     verifyIdToken: verifyIdTokenMock,
   },
   adminDb: {
+    // POST /api/goals appends inside a transaction: the fake hands the callback a tx
+    // whose get/set proxy the same doc mocks the rest of the file already asserts on.
+    runTransaction: runTransactionMock,
     collection: vi.fn((name: string) => {
       const createQueryChain = (finalGetMock: ReturnType<typeof vi.fn>) => {
         const chain = {
@@ -108,6 +115,7 @@ vi.mock('@/lib/firebase/admin', () => ({
         return {
           doc: vi.fn(() => ({
             get: goalBasedInvestingDocGetMock,
+            set: goalBasedInvestingDocSetMock,
           })),
         };
       }
@@ -216,6 +224,7 @@ vi.mock('@/lib/utils/dateHelpers', async () => {
   };
 });
 
+import { POST as createGoalRoute } from '@/app/api/goals/route';
 import { GET as getDividendsRoute } from '@/app/api/dividends/route';
 import { DELETE as deleteDividendRoute } from '@/app/api/dividends/[dividendId]/route';
 import { POST as updatePricesRoute } from '@/app/api/prices/update/route';
@@ -287,6 +296,13 @@ describe('Private API route auth', () => {
     overviewSummaryDocGetMock.mockResolvedValue({ exists: false });
     overviewSummaryDocSetMock.mockResolvedValue(undefined);
     goalBasedInvestingDocGetMock.mockResolvedValue({ exists: false });
+    goalBasedInvestingDocSetMock.mockReturnValue(undefined);
+    runTransactionMock.mockImplementation((callback: (tx: unknown) => Promise<unknown>) =>
+      callback({
+        get: (ref: { get: () => unknown }) => ref.get(),
+        set: (ref: { set: (data: unknown) => void }, data: unknown) => ref.set(data),
+      })
+    );
     monthlySnapshotsGetMock.mockResolvedValue({
       docs: [],
     });
@@ -296,6 +312,112 @@ describe('Private API route auth', () => {
     assetAllocationTargetsDocGetMock.mockResolvedValue({
       exists: false,
     });
+  });
+
+  // ── POST /api/goals (assistant goal proposal → Conferma) ──────────────────
+  //
+  // The security-guard pair: the SAME request shape against the caller's own account
+  // (must succeed) and against someone else's (must fail). A negative test alone would
+  // pass just as well against a route that never writes anything.
+
+  it('creates a goal for the authenticated user\'s own account', async () => {
+    const response = await createGoalRoute(
+      createJsonRequest('http://localhost/api/goals', {
+        method: 'POST',
+        body: {
+          userId: 'user-1',
+          goal: { name: 'Acquisto Casa', priority: 'alta', targetAmount: 100000 },
+        },
+        headers: { Authorization: 'Bearer valid-token' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      goal: { name: 'Acquisto Casa', priority: 'alta', targetAmount: 100000 },
+    });
+    expect(goalBasedInvestingDocSetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 403 when creating a goal on another user\'s account', async () => {
+    const response = await createGoalRoute(
+      createJsonRequest('http://localhost/api/goals', {
+        method: 'POST',
+        body: {
+          userId: 'user-2',
+          goal: { name: 'Acquisto Casa', priority: 'alta', targetAmount: 100000 },
+        },
+        headers: { Authorization: 'Bearer valid-token' },
+      })
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Authenticated user does not have access to requested account',
+    });
+    expect(goalBasedInvestingDocSetMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 for goal creation without Authorization header', async () => {
+    const response = await createGoalRoute(
+      createJsonRequest('http://localhost/api/goals', {
+        method: 'POST',
+        body: { userId: 'user-1', goal: { name: 'Acquisto Casa', priority: 'alta' } },
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(goalBasedInvestingDocSetMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for a goal whose recommended allocation does not total 100', async () => {
+    const response = await createGoalRoute(
+      createJsonRequest('http://localhost/api/goals', {
+        method: 'POST',
+        body: {
+          userId: 'user-1',
+          goal: {
+            name: 'Acquisto Casa',
+            priority: 'alta',
+            recommendedAllocation: { equity: 60, bonds: 20 },
+          },
+        },
+        headers: { Authorization: 'Bearer valid-token' },
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: 'Invalid request' });
+    expect(goalBasedInvestingDocSetMock).not.toHaveBeenCalled();
+  });
+
+  it('appends to the existing goals instead of replacing them', async () => {
+    goalBasedInvestingDocGetMock.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        goals: [{ id: 'existing', name: 'Pensione', priority: 'media', color: '#3B82F6' }],
+        assignments: [{ goalId: 'existing', assetId: 'asset-1', percentage: 50 }],
+      }),
+    });
+
+    const response = await createGoalRoute(
+      createJsonRequest('http://localhost/api/goals', {
+        method: 'POST',
+        body: { userId: 'user-1', goal: { name: 'Auto', priority: 'bassa' } },
+        headers: { Authorization: 'Bearer valid-token' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const written = goalBasedInvestingDocSetMock.mock.calls[0][0] as {
+      goals: { name: string; color: string }[];
+      assignments: unknown[];
+    };
+    expect(written.goals.map((g) => g.name)).toEqual(['Pensione', 'Auto']);
+    // Assignments belong to the other goal and must survive the whole-document rewrite.
+    expect(written.assignments).toHaveLength(1);
+    // A colour already in use is skipped, or two goals would be the same hue everywhere.
+    expect(written.goals[1].color).not.toBe(written.goals[0].color);
   });
 
   it('returns 401 for private dividends route without Authorization header', async () => {
