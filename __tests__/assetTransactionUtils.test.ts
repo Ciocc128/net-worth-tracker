@@ -484,7 +484,7 @@ describe('computeInvestedCapital — net capital in a window', () => {
 });
 
 // ===========================================================================
-// Per-transaction effects (SPEC-1)
+// Per-transaction effects (replayTransactionsWithEffects)
 // ===========================================================================
 
 describe('replayTransactionsWithEffects — per-transaction P&L, sold cost basis and PMC-at-trade', () => {
@@ -558,7 +558,7 @@ describe('replayTransactionsWithEffects — per-transaction P&L, sold cost basis
 });
 
 // ===========================================================================
-// aggregateRealizedByYear (moved from RealizedGainsSection.tsx, SPEC-1)
+// aggregateRealizedByYear (moved from RealizedGainsSection.tsx)
 // ===========================================================================
 
 describe('aggregateRealizedByYear — realized P&L by fiscal year, across assets', () => {

@@ -2,7 +2,7 @@
  * Pure helpers for the assistant's single period axis: selectable month/year
  * options and the human-readable labels derived from the current selection.
  *
- * Extracted from AssistantPageClient (SPEC-4D decomposition) so the page stays
+ * Extracted from AssistantPageClient so the page stays
  * an orchestrator and these date-window rules become unit-testable. All "now"
  * reads go through the Italy-timezone helpers — never Date.getMonth().
  */

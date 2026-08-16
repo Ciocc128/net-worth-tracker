@@ -38,7 +38,7 @@ function CountDot({ count }: { count: number }) {
 /**
  * Page header for the Assistente: the canonical PageHeader with ONE primary
  * action ("Nuova conversazione"); Conversazioni, Memoria, Preferenze and the
- * guide degrade to icon actions (SPEC-4D — the old header gave four buttons
+ * guide degrade to icon actions (the old header gave four buttons
  * equal weight, so nothing led). The sheets the icons open live in the page,
  * which owns their open state (the empty state and the companion card can open
  * the Memoria sheet too).

@@ -48,8 +48,8 @@ interface UseAssistantStreamingArgs {
 
 /**
  * The assistant's SSE streaming engine, extracted VERBATIM from
- * AssistantPageClient (SPEC-4D decomposition — surface reorganisation, not a
- * logic change). Owns the streaming buffer, the stream lifecycle flags, and the
+ * AssistantPageClient (a surface reorganisation, not a logic change).
+ * Owns the streaming buffer, the stream lifecycle flags, and the
  * context bundle the server pushes before text starts.
  *
  * NOTE: streamingMessages is NEVER cleared in a useEffect([selectedThreadId]) —

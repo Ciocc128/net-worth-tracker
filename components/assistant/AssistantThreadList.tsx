@@ -63,8 +63,8 @@ interface AssistantThreadListProps {
 
 /**
  * Thread list rendered inside the Conversazioni sheet — the single home for
- * "resume a conversation" on every breakpoint (SPEC-4D removed the duplicated
- * inline resume list from the empty state).
+ * "resume a conversation" on every breakpoint (the shell redesign removed the
+ * duplicated inline resume list from the empty state).
  *
  * Delete is a 2-click flow: first click arms inline confirmation ("Elimina?"),
  * second click confirms. Auto-disarms after 3 seconds to prevent accidental deletion.

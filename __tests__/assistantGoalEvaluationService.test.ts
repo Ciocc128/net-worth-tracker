@@ -1,5 +1,5 @@
 /**
- * Unit tests for evaluateActiveGoals (SPEC-4B).
+ * Unit tests for evaluateActiveGoals.
  *
  * The claim under test is the one that made goal completion never fire: goals are
  * measured against the CURRENT month, whatever period the user was reading, and

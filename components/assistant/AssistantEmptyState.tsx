@@ -23,7 +23,7 @@ interface AssistantEmptyStateProps {
  * period-phrased question leads, the suggestion matching the active period is
  * the primary affordance, the remaining chips follow, and the memory facts sit
  * last as quiet grounding. The old "Riprendi conversazione" list is gone — the
- * Conversazioni sheet is the single representation of threads (SPEC-4D).
+ * Conversazioni sheet is the single representation of threads.
  */
 export function AssistantEmptyState({
   question,

@@ -49,7 +49,7 @@ const STREAM_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
  * Runs fire-and-forget after the stream closes — errors are logged but never
  * propagated so they cannot affect the user-facing chat experience.
  *
- * The goal evaluation is UNCONDITIONAL (SPEC-4B): it no longer depends on the
+ * The goal evaluation is UNCONDITIONAL: it no longer depends on the
  * request having built a context bundle, and it no longer uses that bundle even
  * when there is one. `evaluateActiveGoals` builds the current month itself —
  * asking about March 2023 must not measure the user's goals against March 2023.

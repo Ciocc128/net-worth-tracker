@@ -51,7 +51,7 @@ interface AssistantPageClientProps {
 }
 
 /**
- * Orchestrator for the Assistente page (SPEC-4D shell): period axis, thread and
+ * Orchestrator for the Assistente page shell: period axis, thread and
  * memory queries, and the hero grid [2fr_1fr] — conversational heart left,
  * companion context (scheda + memoria/obiettivi) right. Streaming state and the
  * SSE lifecycle live in useAssistantStreaming; every visual block is an
@@ -101,7 +101,7 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
   const updateMemoryMutation = useUpdateAssistantMemory(ownerId ?? '');
   const deleteThreadMutation = useDeleteAssistantThread(ownerId ?? '');
 
-  // ── Streaming engine (extracted verbatim — SPEC-4D) ──
+  // ── Streaming engine (extracted verbatim from the former monolith) ──
   const streaming = useAssistantStreaming({
     ownerId,
     selectedThreadId,

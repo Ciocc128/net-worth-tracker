@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /**
- * Unit tests for the real store.ts memory merge/transaction logic (SPEC-4A).
+ * Unit tests for the real store.ts memory merge/transaction logic.
  *
  * Runs the REAL updateAssistantMemoryDocument/applyAssistantMemoryMutations against a
  * fake Admin `runTransaction` whose `tx.get` throws once a write has happened — same
@@ -292,7 +292,7 @@ describe('assistant memory store (real merge/transaction logic)', () => {
     });
   });
 
-  describe('updatedAt marks the last CONTENT change (SPEC-4B)', () => {
+  describe('updatedAt marks the last CONTENT change', () => {
     // The durable "Ignora" compares item.updatedAt with the ignored suggestion's
     // updatedAt. If a daily re-evaluation bumped the item, every ignore would
     // expire on the next cron run and the completion banner would come back.

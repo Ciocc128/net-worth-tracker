@@ -25,7 +25,7 @@ interface AssistantSheetsProps {
 /**
  * The two overlay surfaces of the assistant — Conversazioni and Memoria —
  * as right-side sheets on EVERY breakpoint. Deliberate: the companion column
- * must never become a second nested-scroll box (SPEC-4D keeps this choice).
+ * must never become a second nested-scroll box.
  * Open state lives in the page because multiple surfaces open them.
  */
 export function AssistantSheets({

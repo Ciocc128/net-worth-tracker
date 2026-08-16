@@ -393,7 +393,7 @@ describe('Assistant private API routes', () => {
 
   it('structures a goal written by hand in the memory panel', async () => {
     // The panel sends id/text/category only, so without this the goal would never
-    // be auto-trackable — exactly what SPEC-4B set out to fix.
+    // be auto-trackable — exactly what the structured-goals rework set out to fix.
     extractStructuredGoalFromTextMock.mockResolvedValueOnce({
       kind: 'cash_target',
       targetValue: 20000,

@@ -1,5 +1,5 @@
 /**
- * Pure evaluation layer for the assistant's structured goals (SPEC-4B).
+ * Pure evaluation layer for the assistant's structured goals.
  *
  * Two rules govern this file and are the reason the previous version never
  * completed a goal in practice:
@@ -167,7 +167,7 @@ export function evaluateStructuredGoal(
   const metric = resolveGoalMetric(goal, bundle);
   if (!metric) return null;
 
-  // Goals stored before SPEC-4B have no direction: '>=' was the only semantics they had.
+  // Goals stored before the structured-goals rework have no direction: '>=' was the only semantics they had.
   const direction = goal.direction ?? 'at_least';
   const matched =
     direction === 'at_least' ? metric.value >= goal.targetValue : metric.value <= goal.targetValue;
@@ -196,7 +196,7 @@ export function evaluateStructuredGoal(
  * not be emitted.
  *
  * `pending` blocks because the banner is already showing it. `ignored` blocks
- * because the user said no — before SPEC-4B only `pending` was checked, so every
+ * because the user said no — previously only `pending` was checked, so every
  * re-evaluation overwrote the ignored suggestion back to `pending` and the
  * banner returned forever.
  *

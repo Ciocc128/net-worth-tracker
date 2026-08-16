@@ -389,7 +389,7 @@ function isSameStructuredGoal(
  * Two rules that are not obvious from the signature:
  *
  * - **The caller owns `structuredGoal`.** This function no longer derives it from
- *   the text (the regex parser is gone, SPEC-4B): the extraction tool and the
+ *   the text (the regex parser is gone): the extraction tool and the
  *   PATCH route decide, and a goal patch that carries no structure clears it —
  *   an un-trackable goal is stated as such in the panel, which is safer than
  *   keeping a structure that contradicts the edited text.

@@ -1,5 +1,5 @@
 /**
- * Unit tests for the memory extraction pipeline (SPEC-4B).
+ * Unit tests for the memory extraction pipeline.
  *
  * Covers:
  * - dedupeMemoryItems: exact match, near-duplicate (Jaccard), cross-category
@@ -193,8 +193,9 @@ describe('dedupeMemoryItems', () => {
   it('documents the short-text (<=2 words) exact-match fallback within a batch', () => {
     // isSimilarText falls back to exact normalized match for short strings — two
     // distinct short candidates are NOT deduped against each other even though a
-    // human would read them as related. The real semantic fix lands in SPEC-4B;
-    // this only documents today's behavior so it does not silently drift.
+    // human would read them as related. A real semantic fix belongs to the
+    // extraction layer; this only documents today's behavior so it does not
+    // silently drift.
     const candidates = [
       { category: 'risk' as const, text: 'rischio basso' },
       { category: 'risk' as const, text: 'rischio alto' },

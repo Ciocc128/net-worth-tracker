@@ -12,7 +12,7 @@
  * - Deduplicate using fuzzy text normalization scoped per category
  * - Extraction errors are swallowed here; callers may log but must not throw
  *
- * Why forced tool use instead of "reply with JSON" (SPEC-4B): a quantified goal
+ * Why forced tool use instead of "reply with JSON": a quantified goal
  * must arrive as a NUMBER with a direction, not as a sentence somebody has to
  * parse afterwards. The previous design asked for prose and ran it through a
  * cascade of Italian regexes, so most real phrasings never produced a structured

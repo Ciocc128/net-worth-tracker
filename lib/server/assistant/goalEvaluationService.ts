@@ -1,5 +1,5 @@
 /**
- * Scheduled and on-demand re-evaluation of the assistant's structured goals (SPEC-4B).
+ * Scheduled and on-demand re-evaluation of the assistant's structured goals.
  *
  * This is the one place that decides WHICH period a goal is measured against, and
  * the answer is always the same: the current month. Evaluation used to piggyback

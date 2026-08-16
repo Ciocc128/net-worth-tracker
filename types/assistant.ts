@@ -98,7 +98,7 @@ export interface AssistantStructuredGoal {
   // Derived from `kind`, never asked of the model: only the percentage kind is 'percent'.
   unit: 'eur' | 'percent';
   // Which side of the target satisfies the goal. Optional for backwards compatibility:
-  // goals stored before SPEC-4B read as 'at_least', the only semantics the old >= had.
+  // legacy goals stored without one read as 'at_least', the only semantics the old >= had.
   direction?: 'at_least' | 'at_most';
   assetClass?: import('@/types/assets').AssetClass;
   subCategory?: string;

@@ -1,5 +1,5 @@
 /**
- * Tests for the assistant period-axis pure layer (SPEC-4D extraction).
+ * Tests for the assistant period-axis pure layer.
  *
  * Time-dependent helpers are pinned with fake timers on explicit instants —
  * including a January boundary, where "previous completed month" must roll into

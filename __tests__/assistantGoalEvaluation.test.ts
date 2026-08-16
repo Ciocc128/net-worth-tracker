@@ -1,5 +1,5 @@
 /**
- * Unit tests for the assistant's structured-goal evaluation (SPEC-4B).
+ * Unit tests for the assistant's structured-goal evaluation.
  *
  * The regex parser these tests used to cover is gone: structure now arrives from
  * the Haiku extraction tool (see assistantMemoryExtraction.test.ts), so what is
@@ -420,7 +420,7 @@ describe('buildGoalCompletionSuggestions', () => {
   });
 
   it('does not re-emit after the user ignored the suggestion', () => {
-    // The durable "Ignora": before SPEC-4B only `pending` blocked emission, so the
+    // The durable "Ignora": previously only `pending` blocked emission, so the
     // very next evaluation overwrote the ignored suggestion back to pending.
     const suggestions = buildGoalCompletionSuggestions(
       'user-1',

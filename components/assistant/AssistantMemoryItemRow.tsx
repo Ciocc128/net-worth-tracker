@@ -132,7 +132,7 @@ export function AssistantMemoryItemRow({
   const isArchived = item.status === 'archived';
   const isCompleted = item.status === 'completed';
 
-  // Goal transparency (SPEC-4B): a goal either states what is being measured, or
+  // Goal transparency: a goal either states what is being measured, or
   // states that nothing is. Before, a goal the extractor failed to structure was
   // indistinguishable from one sitting at 97% of its target.
   const structuredGoal = item.category === 'goal' ? item.structuredGoal : undefined;

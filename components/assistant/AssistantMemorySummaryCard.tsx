@@ -12,7 +12,7 @@ interface AssistantMemorySummaryCardProps {
 
 /**
  * Companion-card extract of the assistant's memory: active goals with their
- * latest evaluation, plus a count of the remaining facts. SPEC-4D: after the
+ * latest evaluation, plus a count of the remaining facts. After the
  * structured-goals work the memory panel carries real state, so it earns a
  * visible presence on the page instead of living only behind a hidden sheet.
  *
