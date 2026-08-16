@@ -1,10 +1,9 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { AssistantMonthPicker } from '@/components/assistant/AssistantMonthPicker';
+import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssistantChatContextType, AssistantMode, AssistantMonthSelectorValue } from '@/types/assistant';
-import { cn } from '@/lib/utils';
 
 interface AssistantPeriodSelectorProps {
   mode: AssistantMode;
@@ -23,10 +22,9 @@ interface AssistantPeriodSelectorProps {
 }
 
 // One axis, one place. The five tabs are periods — "Libera" is the former Chat
-// mode, i.e. a question with no period attached by default. The previous design
-// split this across a mode strip (top) and a chat-context strip (composer),
-// encoding "which period" twice; collapsing both into this single control is the
-// core of the rethink. Mode values stay on the backend contract unchanged.
+// mode, i.e. a question with no period attached by default. Mode values stay on
+// the backend contract unchanged; only the control is the shared SegmentedPill
+// (SPEC-4D: the bespoke pill strip duplicated what 8+ surfaces already share).
 const PERIOD_TABS: { value: AssistantMode; label: string }[] = [
   { value: 'month_analysis', label: 'Mese' },
   { value: 'year_analysis', label: 'Anno' },
@@ -47,9 +45,9 @@ const CHAT_CONTEXT_OPTIONS: { value: AssistantChatContextType; label: string }[]
 ];
 
 /**
- * Single period axis for the assistant: segmented control + the matching period
+ * Single period axis for the assistant: SegmentedPill + the matching period
  * sub-picker, co-located so "what to analyse" and "for which period" are one
- * decision in one spot (the old layout placed them at opposite ends of the column).
+ * decision in one spot.
  *
  * In Libera mode the sub-picker becomes an optional "Contesto" selector that can
  * attach a period to an otherwise free-form question.
@@ -90,38 +88,18 @@ export function AssistantPeriodSelector({
   );
 
   return (
-    <div className="flex flex-col gap-3 desktop:flex-row desktop:items-center desktop:justify-between">
-      {/* Segmented period control — animated pill marks the active period. */}
-      <div
-        role="tablist"
-        aria-label="Periodo di analisi"
-        className="flex items-center gap-1 overflow-x-auto"
-        style={{ scrollbarWidth: 'none' }}
-      >
-        {PERIOD_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            aria-selected={mode === tab.value}
-            onClick={() => !disabled && onModeChange(tab.value)}
-            disabled={disabled}
-            className={cn(
-              'relative shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors disabled:opacity-50',
-              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-              mode === tab.value ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {mode === tab.value && (
-              <motion.span
-                layoutId="assistant-mode-pill"
-                className="absolute inset-0 rounded-full bg-secondary"
-                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-              />
-            )}
-            <span className="relative">{tab.label}</span>
-          </button>
-        ))}
+    <div className="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+      {/* Scroll guard: five pills fit at 390px, but a wider system font must not
+          push the page into horizontal scroll — the strip scrolls on its own. */}
+      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <SegmentedPill
+          options={PERIOD_TABS}
+          value={mode}
+          onChange={onModeChange}
+          layoutId="assistant-period-pill"
+          ariaLabel="Periodo di analisi"
+          disabled={disabled}
+        />
       </div>
 
       {/* Inline sub-picker — its shape follows the active period. */}

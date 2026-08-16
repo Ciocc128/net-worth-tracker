@@ -43,6 +43,9 @@ Companion documents — do not duplicate their content into this file:
   viewport. Per-cell `@container` scales a monetary value to the CELL width, or large amounts overflow.
 - **A grid item stretches to the row height, but a normal-flow child does not inherit it without its own `h-full`** —
   side-by-side cards of different content length need `h-full` on BOTH the grid-item wrapper and the card `div`.
+- **`sticky` on a grid item needs `self-start`** — the default stretch makes the item as tall as the row, so a
+  `sticky top-6` companion column has no room to travel and silently behaves as static (the Assistente hero's right
+  column is the worked example).
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child — add explicit
   `grid-cols-1` and `min-w-0` on flex/grid children (they default to `min-width:auto`). To center one flex child use
   `self-center`, not `items-center`, which shrinks every child to content width.

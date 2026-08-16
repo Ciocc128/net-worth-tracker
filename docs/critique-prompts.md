@@ -1063,25 +1063,25 @@ approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc
 File: app/dashboard/assistant/page.tsx
 Componenti: components/assistant/*
 
-Questa pagina (redesign "single period axis" 2026-06-04) offre un assistente AI per analisi
-del portafoglio su un unico asse period (AssistantPeriodSelector: Mese / Anno / YTD / Storico /
-Libera = ex-Chat) con sub-picker co-locato; in Libera un Contesto opzionale (chatContextType).
-Scheda period-reactive (renderPeriodScheda + useAssistantPeriodContext sulla selezione live,
-PatrimonioTodayCard per Libera) che mostra net-worth Δ + cashflow + allocation prima della
-domanda — desktop colonna destra, mobile nell'empty-state + AssistantContextPill nell'header.
-Conversazioni/Memoria aperte da header come sheets su ogni breakpoint. Proactive memory:
-AssistantSuggestionsBanner (goal-completion) + AssistantMemoryFacts ("sa di te"). Prefs unificate
-in AssistantPreferencesPopover (stile + macro/web + memoria on/off). Follow-up chips
-(AssistantFollowUps). Composer slim (AssistantComposer: input+send). Streaming SSE
-(meta|context|status|text|done|error; status:'searching' → "Sto cercando sul web…"),
-thread persistenti period-pinned, memoria con lifecycle attivo/completato/archiviato.
+Questa pagina (rebuild shell SPEC-4D 2026-08-16, sopra il "single period axis" 2026-06-04) offre
+un assistente AI su un unico asse period (AssistantPeriodSelector, ora su SegmentedPill condiviso:
+Mese / Anno / YTD / Storico / Libera = ex-Chat) con sub-picker co-locato; in Libera un Contesto
+opzionale (chatContextType). Shell: PageHeader canonico con UNA azione primaria ("Nuova
+conversazione") e Conversazioni/Memoria/Preferenze/Guida come icone (AssistantHeader); hero
+`grid gap-4 desktop:grid-cols-[2fr_1fr]` — a sinistra il cuore conversazionale (empty state =
+AssistantEmptyState: domanda per periodo + chip primario del periodo attivo + chip secondari +
+AssistantMemoryFacts; conversazione = AssistantConversationPanel), a destra la companion sticky
+(scheda periodo rounded-2xl bg-card con Δ patrimonio a 36px + AssistantMemorySummaryCard con
+obiettivi valutati; PatrimonioTodayCard per Libera). Il vecchio elenco inline "Riprendi
+conversazione" NON esiste più: lo sheet Conversazioni (AssistantSheets) è l'unica
+rappresentazione dei thread, su ogni breakpoint. Streaming SSE estratto VERBATIM in
+useAssistantStreaming (meta|context|status|text|done|error; status:'searching' → "Sto cercando
+sul web…"), thread persistenti period-pinned, memoria con lifecycle attivo/completato/archiviato.
 Il modello vede l'intera tassonomia di categorie spesa dell'utente (expenseCategories), quindi
 le risposte di categorizzazione usano le SUE categorie: verifica che la UI lo renda evidente
 invece di far sembrare la risposta una scelta arbitraria del modello.
-Confronta con: Rendimenti (hero number + data-first hierarchy), Storico (narrative order),
-Goals (flat divide-y list).
-Nota: critique baseline 2026-05-24 = 25/40 (pre-redesign). Il redesign è stato implementato
-il 2026-06-04 — rieseguire la critique per misurare il delta.
+Confronta con: Rendimenti (hero [2fr_1fr] + verdict), Panoramica (companion card), Goals
+(flat divide-y list).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
