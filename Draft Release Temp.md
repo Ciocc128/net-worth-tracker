@@ -190,6 +190,10 @@
 
 - When goal-driven allocation is switched on, the Assistant now reasons about the allocation targets derived from your goals — the ones the app is really measuring against — instead of the manual targets in Settings, which it is no longer using. It also says which of the two it is quoting.
 - The Assistant now states plainly when Goal-Based Investing is switched off, or is on with no goals yet, instead of answering "not available" about a feature you simply have not turned on.
+- The Assistant page has been rebuilt on the same design language as the rest of the app. It now opens on a hero layout: the conversation on the left, and a companion column on the right with the period context card and a new "Memoria e obiettivi" card that shows your active goals with their latest measured progress ("Raggiunto", or current value against target) directly on the page, instead of only inside a hidden panel.
+- The Assistant header now has one primary action — "Nuova conversazione" — while Conversations, Memory, Preferences and the guide became compact icon actions with counters. The duplicate "Riprendi conversazione" list is gone: the Conversations sheet is the single place to resume a thread.
+- The Assistant's period selector is now the same segmented control used across the app, with full keyboard navigation, and it visibly locks while an answer is streaming so the period cannot change mid-answer.
+- The Assistant's start screen now reads top-down: the question for the selected period, the matching suggestion highlighted as the primary chip, the other suggestions, then what the assistant knows about you — with the numeric context beside it on desktop and right below it on mobile.
 
 ## 🔒 Security
 
