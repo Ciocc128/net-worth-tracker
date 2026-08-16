@@ -1063,7 +1063,7 @@ approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc
 File: app/dashboard/assistant/page.tsx
 Componenti: components/assistant/*
 
-Questa pagina (rebuild shell SPEC-4D 2026-08-16, sopra il "single period axis" 2026-06-04) offre
+Questa pagina (rebuild della shell 2026-08-16, sopra il "single period axis" 2026-06-04) offre
 un assistente AI su un unico asse period (AssistantPeriodSelector, ora su SegmentedPill condiviso:
 Mese / Anno / YTD / Storico / Libera = ex-Chat) con sub-picker co-locato; in Libera un Contesto
 opzionale (chatContextType). Shell: PageHeader canonico con UNA azione primaria ("Nuova
