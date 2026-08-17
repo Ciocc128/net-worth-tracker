@@ -1,6 +1,10 @@
 # Spec 2 — Email periodiche: contesto AI completo
 
 > **Ordine**: 2 di 5. Nessuna dipendenza dalle altre spec (indipendente da 1, 3, 4, 5).
+> **Stato**: ✅ **Implementata** (2026-08-17) — branch `feature/email-periodiche-contesto-ai`.
+> Tre scostamenti consapevoli dal testo qui sotto, documentati in fondo (§ *Scostamenti in
+> implementazione*): l'header dei delta categoria descrive l'ordinamento reale, il range builder
+> serve tutti e quattro i periodi, e c'è una sezione solo-email in più per i dividendi.
 > **Scopo**: il commento AI delle email mensili/trimestrali/semestrali/annuali riceve lo stesso
 > contesto esaustivo dell'Assistente in-app, più i confronti deterministici che solo l'email ha.
 > **Fuori scope**: l'email settimanale budget (`weeklyBudgetEmailService.ts`) — è deliberatamente
@@ -163,14 +167,34 @@ il possibile; l'invio reale lo prova Giuseppe con il pulsante di test-send alla 
 
 ## Criteri di accettazione
 
-- [ ] Il prompt email contiene: albero spese categoria→sottocategoria esaustivo, entrate per
+- [x] Il prompt email contiene: albero spese categoria→sottocategoria esaustivo, entrate per
       categoria, allocazione corrente (+target/gap se configurati), obiettivi (o la frase di
       assenza), note qualità dati, effetto mercato precalcolato, confronti, delta categorie con
       cap dichiarato, avvisi budget (mensile), Hall of Fame.
-- [ ] Nessun cap silenzioso nel testo che il modello legge.
-- [ ] Limiti parole e `max_tokens` scalati per periodo; `includeMacroContext` rispettato.
-- [ ] HTML invariato salvo la riga "Non classificate"; AI failure ancora non bloccante.
-- [ ] Un solo aggregatore: nessun nuovo calcolo di cashflow fuori da `buildCashflowBreakdown`.
+- [x] Nessun cap silenzioso nel testo che il modello legge.
+- [x] Limiti parole e `max_tokens` scalati per periodo; `includeMacroContext` rispettato.
+- [x] HTML invariato salvo la riga "Non classificate"; AI failure ancora non bloccante.
+- [x] Un solo aggregatore: nessun nuovo calcolo di cashflow fuori da `buildCashflowBreakdown`.
+
+## Scostamenti in implementazione (2026-08-17)
+
+1. **Header dei delta categoria**: la spec chiedeva `(prime {N} per variazione assoluta)`, ma la
+   selezione in `buildPeriodComparison` è per **spesa del periodo** (`topExpenseCategories` è
+   ordinata per importo corrente). Scrivere "per variazione assoluta" sarebbe stata
+   un'affermazione falsa nel testo che il modello legge — cioè il difetto che questa spec
+   esiste per rimuovere. Header e frase di chiusura descrivono l'ordinamento reale e dichiarano
+   quante categorie restano fuori e per quanti euro.
+2. **Il range builder serve tutti e quattro i periodi**, non solo trimestre e semestre (la spec lo
+   permetteva). Un solo percorso invece di due, e la finestra del bundle è per costruzione la
+   stessa su cui l'email calcola le proprie cifre.
+3. **Una sezione solo-email in più**: `--- DIVIDENDI DEL PERIODO (registro dividendi) ---`. Il
+   prompt precedente portava già quel totale, che viene dalla collection `dividends` e non dalle
+   righe di cashflow del bundle: senza la riga l'informazione si perdeva, con la riga la fonte è
+   dichiarata e le due cifre non si leggono come una contraddizione.
+
+Fuori dalla spec ma nella stessa direzione: `periodLabel` non è diventato un campo del bundle (il
+tipo è rimasto intatto). La finestra viaggia come prima nota di `dataQuality.notes` e come
+parametro opzionale di `formatBundleForPrompt`.
 
 ---
 
