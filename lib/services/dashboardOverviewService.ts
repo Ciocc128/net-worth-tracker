@@ -127,6 +127,7 @@ async function getSettingsForUser(userId: string): Promise<AssetAllocationSettin
     plannedAnnualExpenses: data.plannedAnnualExpenses,
     coastFireRetirementAge: data.coastFireRetirementAge,
     includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE,
+    respectPensionLockInFire: data.respectPensionLockInFire,
     dividendIncomeCategoryId: data.dividendIncomeCategoryId,
     dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
     fireProjectionScenarios: data.fireProjectionScenarios,

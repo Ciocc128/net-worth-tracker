@@ -44,6 +44,7 @@ const STORED_SETTINGS = {
   pensionReturnStartMonth: '2026-07',
   costCentersEnabled: true,
   includePrimaryResidenceInFIRE: true,
+  respectPensionLockInFire: true,
   cashflowHistoryStartYear: 2019,
   familyMembers: [{ id: 'm1', name: 'Giuseppe' }],
 };
@@ -82,6 +83,7 @@ describe('getSettings — lettura', () => {
 
     expect(settings?.costCentersEnabled).toBe(true);
     expect(settings?.includePrimaryResidenceInFIRE).toBe(true);
+    expect(settings?.respectPensionLockInFire).toBe(true);
     expect(settings?.cashflowHistoryStartYear).toBe(2019);
     expect(settings?.familyMembers).toEqual([{ id: 'm1', name: 'Giuseppe' }]);
   });

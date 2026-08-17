@@ -85,6 +85,7 @@ export async function getSettings(
       coastFirePensions: data.coastFirePensions,
       coastFireTaxBrackets: data.coastFireTaxBrackets,
       includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE,
+      respectPensionLockInFire: data.respectPensionLockInFire,
       dividendIncomeCategoryId: data.dividendIncomeCategoryId,
       dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
       fireProjectionScenarios: data.fireProjectionScenarios,
@@ -214,6 +215,9 @@ export async function setSettings(
       }
       if (settings.autoCalculateEquityBonds !== undefined) {
         docData.autoCalculateEquityBonds = settings.autoCalculateEquityBonds;
+      }
+      if (settings.respectPensionLockInFire !== undefined) {
+        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
       }
       // Default cash accounts are user-clearable: a present-but-undefined value means
       // "Nessun default". setDoc here runs WITHOUT merge, so deleting the key from docData
@@ -359,6 +363,9 @@ export async function setSettings(
       }
       if (settings.autoCalculateEquityBonds !== undefined) {
         docData.autoCalculateEquityBonds = settings.autoCalculateEquityBonds;
+      }
+      if (settings.respectPensionLockInFire !== undefined) {
+        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
       }
       // Default cash accounts are user-clearable. This branch writes with merge: true,
       // so omitting the key would leave the old value untouched — use deleteField() to

@@ -130,6 +130,7 @@
 - Fixed the TER (Total Expense Ratio) field not appearing when editing or creating a commodity asset (e.g. a gold or agricultural ETC), while incorrectly appearing for individual stocks, which never carry a TER. The field now shows for ETFs, commodities and crypto — since all three can be structured as ETC-wrapped instruments — and no longer shows for stocks.
 - Fixed the Overview "Composizione" charts hiding any asset class or individual asset under 5% of your portfolio from the legend, while the bar above it kept a colored segment for every one of them — so some segments had no name or percentage listed below. The legend now lists everything the bar shows.
 - Fixed the automatic Azioni/Obbligazioni calculation ignoring changes to your "Trend Following" and "Carry" targets. The two figures stayed where they were, so the extra allocation silently pushed the total above 100% and was saved as target leverage instead of being funded from the rest of the portfolio. Every asset class now triggers the recalculation.
+- Fixed the FIRE Calculator's "Considera il fondo pensione come capitale bloccato" setting not surviving a page reload: it saved with a success message but silently reverted to off the next time you opened the page. Turning it on now sticks.
 
 ## 🔧 Improvements
 
