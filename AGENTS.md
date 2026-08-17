@@ -104,6 +104,23 @@ Companion documents — do not duplicate their content into this file:
 - **`useWatch()` for render, `getValues()` for handlers — never `watch()`** (incompatible with the React Compiler, which
   then skips the whole component).
 
+### Two-Step Create Dialogs (`AssetDialog`, `ExpenseDialog`)
+> Both creation flows in the app now have this shape. Treat it as the default for a form whose fields
+> depend on a discriminant, and keep the two implementations in step.
+- **The picker exists because the type is not one field among many** — it decides which categories/classes exist, which
+  accounts are asked for, and how many balances move. Step 1 turns *one form with N conditional shapes* into *N plain
+  forms*; a discriminant that only re-labels things does NOT earn a step.
+- **Create opens on step 1, edit skips straight to step 2** — changing the type of a saved record is a different act,
+  with reconciliation consequences the in-form notice has to explain, so the `Select` stays there and only there.
+- **`setStep(record ? 2 : 1)` belongs in the `open` effect**, not in `useState`'s initializer: without `open` in the deps
+  the record prop stays null between opens and the second "new" reopens on the form.
+- **Make the back-link callback OPTIONAL and let its absence select the `Select`** (`onBackToTypePicker?`). The two
+  controls are then mutually exclusive by construction, instead of by a second boolean that can drift out of sync.
+- **The picker is a module-level component**, and the type entry carries `Icon` as the COMPONENT, never a rendered node —
+  the cards draw it at `h-5 w-5` and the dropdown at `h-3.5 w-3.5`.
+- Step 1 selects through the same handler that re-points the category on a type change: the user can return to the
+  picker with a category already chosen, and that category belongs to the type being left.
+
 ### Firestore Writes
 - `updateDoc` only touches fields present in the object and `removeUndefinedDeep` strips `undefined`, so clearing an
   optional field needs `deleteField()` — which is **not allowed with `setDoc()` without `merge:true`**. Never
@@ -130,6 +147,18 @@ Companion documents — do not duplicate their content into this file:
 - **One Save button validates the whole page** — `handleSave` returns early when allocation targets do not total 100, and
   must `invalidateQueries(['settings', ownerId])`, which `AssetDialog` reads.
 - `cashflowHistoryStartYear` is shared (Cashflow / Storico / Assistant / overview) — never rename it page-specifically.
+
+### Auto-Calculated Targets (`lib/utils/equityBondsAutoTargets.ts`)
+- **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so the other classes are
+  funded out of Azioni**: `bonds = 100 − formula`, `equity = formula − other`. Charging them to the bond sleeve (the
+  original behaviour) made the *defensive* allocation the shock absorber for every satellite and drove it to ~0%.
+- **Derive the second member of a percentage pair from the ALREADY ROUNDED first one**, never from the raw input twice:
+  77,015 rounded independently yields 54,52 + 22,99 = 100,01%, and that total is what the Save button validates.
+  Generalise: *when two values must sum to a constant, round one and subtract; never round both.*
+- **An effect that sums over an `AssetClass` union must list that same union in its deps.** The hand-written dep array
+  silently went stale when `trendFollowing`/`carry` were added: they entered the sum but never re-triggered the effect.
+- Equity floors at 0 when the other classes exceed the formula's share, and the overflow falls back on bonds —
+  preserving the 100% total beats preserving the bond share, because a wrong total blocks Save.
 
 ### Caching
 - **Per-user pre-computed cache** (`performance-cache/{userId}`): the key encodes **every** determining input — a hash of
@@ -204,6 +233,8 @@ Companion documents — do not duplicate their content into this file:
 - **`ExpenseDialog` type change is shape-aware across all five types**: `reconcileTransferEdit`, `reconcileSingleEdit`
   and the two cross-shape edits, which reverse the OLD shape and apply the new one in one delta-map transaction.
   `updateExpense` re-derives the sign from the incoming type and nulls `transferCashAssetId` when it leaves transfer.
+  **That control lives in EDIT mode only** — creation picks the type in step 1 (→ *Two-Step Create Dialogs*), so the
+  reconciliation paths above are reachable exclusively from a saved row.
 - **The BATCH paths refuse to cross the transfer boundary** (`crossesTransferBoundary`): `updateExpensesType`,
   `moveExpensesToCategory`, `moveExpensesFromSubCategory` throw `TransferBoundaryError` when expenses exist, since each
   row would need its own destination account.
@@ -878,6 +909,16 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   `"{name}, {value}, {share}%"`. `PageTabBar`'s inactive tabs need a viewport ≥ 1440px to be locatable.
 - **A `fill()` right after `goto(…, { waitUntil: 'domcontentloaded' })` can be silently wiped** by hydration reconciling
   the input back to its initial React state — use `waitUntil: 'load'` and verify with `.inputValue()`.
+- **Two `boundingBox()` calls sample two different FRAMES.** While the vaul drawer slides up, the second element reads as
+  *higher* than the first and a one-column layout looks like two. Read every rect a single assertion compares in ONE
+  `evaluate()`. Same rule for anything measured during an animation.
+- **The emulator needs Java ≥ 21 and the system JVM here is 15** — prepend the portable Temurin at
+  `%USERPROFILE%\.jdk\jdk-21.0.12+8-jre\bin` to `PATH` for the emulator terminal (SETUP.md → Step 6). Stopping the npm
+  wrapper does **not** kill the JVM: the ports stay taken and the next start fails with "port taken", not with anything
+  naming a stale process.
+- **A throwaway session spec must match an existing project's `testMatch`** (`*.spec.ts` → `desktop`,
+  `*.mobile.spec.ts` → `mobile`), assert against Firestore rather than the page, plant a decoy word that appears nowhere
+  in the seed, delete the documents it created, and delete itself.
 
 ---
 

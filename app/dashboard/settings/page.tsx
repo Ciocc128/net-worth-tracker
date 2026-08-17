@@ -44,6 +44,7 @@ import {
   calculateEquityPercentage,
   validateSpecificAssets,
 } from '@/lib/services/assetAllocationService';
+import { resolveAutoEquityBondsSplit } from '@/lib/utils/equityBondsAutoTargets';
 import { AssetAllocationTarget, AssetClass, SubCategoryTarget as SubCategoryTargetType, FamilyMember } from '@/types/assets';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -133,6 +134,21 @@ const assetClasses: AssetClass[] = [
 const roundToTwoDecimals = (value: number): number => {
   return Math.round(value * 100) / 100;
 };
+
+/**
+ * Sum of every asset-class target OUTSIDE the auto-calculated Azioni/Obbligazioni pair.
+ *
+ * Cash drops out of the sum when it is configured as a fixed euro amount: it then lives outside
+ * the percentage budget entirely, which is what the total row means by "(excl. cash)".
+ */
+const sumOtherClassTargets = (
+  states: Record<AssetClass, AssetClassState>,
+  cashUseFixedAmount: boolean
+): number =>
+  assetClasses
+    .filter((assetClass) => assetClass !== 'equity' && assetClass !== 'bonds')
+    .filter((assetClass) => !(assetClass === 'cash' && cashUseFixedAmount))
+    .reduce((sum, assetClass) => sum + (states[assetClass]?.targetPercentage || 0), 0);
 
 // Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
 // total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage
@@ -359,27 +375,9 @@ export default function SettingsPage() {
       riskFreeRate !== undefined &&
       Object.keys(assetClassStates).length > 0
     ) {
-      const equityPercentage = roundToTwoDecimals(
-        calculateEquityPercentage(userAge, riskFreeRate)
-      );
-
-      // Calculate bonds percentage: 100 - sum of all other asset classes
-      // (excluding cash if using fixed amount)
-      const otherAssetClasses = assetClasses.filter(
-        (ac) => ac !== 'equity' && ac !== 'bonds'
-      );
-      const otherTotal = otherAssetClasses.reduce(
-        (sum, ac) => {
-          // Exclude cash from percentage total if using fixed amount
-          if (ac === 'cash' && cashUseFixedAmount) {
-            return sum;
-          }
-          return sum + (assetClassStates[ac]?.targetPercentage || 0);
-        },
-        0
-      );
-      const bondsPercentage = roundToTwoDecimals(
-        Math.max(0, 100 - equityPercentage - otherTotal)
+      const { equityPercentage, bondsPercentage } = resolveAutoEquityBondsSplit(
+        calculateEquityPercentage(userAge, riskFreeRate),
+        sumOtherClassTargets(assetClassStates, cashUseFixedAmount)
       );
 
       // Update equity and bonds percentages
@@ -397,7 +395,9 @@ export default function SettingsPage() {
     }
   }, [userAge, riskFreeRate, autoCalculate]);
 
-  // Recalculate bonds when other asset classes change (excluding equity and bonds)
+  // Recalculate the pair when another asset class changes. Both targets move now, not just
+  // bonds: the other classes are funded out of the equity sleeve, so raising the crypto target
+  // lowers Azioni while Obbligazioni stay at the formula's residual.
   useEffect(() => {
     if (
       autoCalculate &&
@@ -405,31 +405,23 @@ export default function SettingsPage() {
       riskFreeRate !== undefined &&
       Object.keys(assetClassStates).length > 0
     ) {
-      const equityPercentage = roundToTwoDecimals(
-        calculateEquityPercentage(userAge, riskFreeRate)
+      const { equityPercentage, bondsPercentage } = resolveAutoEquityBondsSplit(
+        calculateEquityPercentage(userAge, riskFreeRate),
+        sumOtherClassTargets(assetClassStates, cashUseFixedAmount)
       );
 
-      const otherAssetClasses = assetClasses.filter(
-        (ac) => ac !== 'equity' && ac !== 'bonds'
-      );
-      const otherTotal = otherAssetClasses.reduce(
-        (sum, ac) => {
-          // Exclude cash from percentage total if using fixed amount
-          if (ac === 'cash' && cashUseFixedAmount) {
-            return sum;
-          }
-          return sum + (assetClassStates[ac]?.targetPercentage || 0);
-        },
-        0
-      );
-      const bondsPercentage = roundToTwoDecimals(
-        Math.max(0, 100 - equityPercentage - otherTotal)
-      );
-
-      // Only update if bonds percentage has changed
-      if (assetClassStates.bonds?.targetPercentage !== bondsPercentage) {
+      // Only update when something actually moved — this effect also runs as a consequence of
+      // its own writes, and an unconditional setState would loop.
+      if (
+        assetClassStates.equity?.targetPercentage !== equityPercentage ||
+        assetClassStates.bonds?.targetPercentage !== bondsPercentage
+      ) {
         setAssetClassStates((prev) => ({
           ...prev,
+          equity: {
+            ...prev.equity,
+            targetPercentage: equityPercentage,
+          },
           bonds: {
             ...prev.bonds,
             targetPercentage: bondsPercentage,
@@ -442,6 +434,8 @@ export default function SettingsPage() {
     assetClassStates.realestate?.targetPercentage,
     assetClassStates.cash?.targetPercentage,
     assetClassStates.commodity?.targetPercentage,
+    assetClassStates.trendFollowing?.targetPercentage,
+    assetClassStates.carry?.targetPercentage,
     cashUseFixedAmount,
   ]);
 
@@ -2490,8 +2484,10 @@ export default function SettingsPage() {
             {autoCalculate && userAge !== undefined && riskFreeRate !== undefined && (
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-sm text-muted-foreground">Auto-calc attivo</span>
+                {/* The RESOLVED target, not the raw formula: the other classes are funded out of
+                    the equity sleeve, so the two figures differ whenever any of them is set. */}
                 <span className="text-sm font-semibold font-mono text-primary">
-                  {calculateEquityPercentage(userAge, riskFreeRate).toFixed(1)}% Azioni
+                  {formatPercentage(assetClassStates.equity?.targetPercentage ?? 0, 1)} Azioni
                 </span>
               </div>
             )}
@@ -2581,13 +2577,21 @@ export default function SettingsPage() {
                   </a>
                   : 125 {'−'} età {'−'} (rate {'×'} 5) = % Azioni
                 </p>
+                {/* The formula's own output is only half the story: it prescribes an equity
+                    share, and the classes it says nothing about (materie prime, crypto,
+                    immobili, …) are funded out of that share. Naming both numbers here is what
+                    keeps the Azioni row below from looking like an arbitrary value. */}
                 {autoCalculate && userAge !== undefined && riskFreeRate !== undefined && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Risultato:{' '}
                     <strong className="text-foreground">
-                      {calculateEquityPercentage(userAge, riskFreeRate).toFixed(2)}% Azioni
+                      {formatPercentage(calculateEquityPercentage(userAge, riskFreeRate))} Azioni
                     </strong>
-                    {' '}· Obbligazioni calcolate come residuo
+                    {' '}· Obbligazioni{' '}
+                    {formatPercentage(assetClassStates.bonds?.targetPercentage ?? 0)} (residuo
+                    della formula) · le altre classi (
+                    {formatPercentage(sumOtherClassTargets(assetClassStates, cashUseFixedAmount))})
+                    {' '}scalano dalle Azioni
                   </p>
                 )}
               </div>
