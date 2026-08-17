@@ -589,6 +589,10 @@ Companion documents — do not duplicate their content into this file:
   history.
 - **Every mode must map to its own builder in `stream/route.ts`** — a mode with a prompt builder but no branch silently
   falls through to the monthly builder and is answered on one month of data.
+- **`buildAssistantPeriodRangeContext` is the FIFTH builder** (any run of months inside one year: quarters, semesters,
+  and every periodic email). The `{year, month}` selector cannot encode a range, so its `selector` is the window's
+  CLOSING month and the window itself travels as the first `dataQuality.notes` entry plus the `periodLabel` argument of
+  `formatBundleForPrompt` — never as a new bundle field, which all four other builders would then have to fill.
 - **One aggregator, not two**: every cashflow figure comes from a single `buildCashflowBreakdown` call per builder, so
   `Σ expensesByCategory[].total === cashflow.totalExpenses` holds structurally. `transactionCount` **excludes
   transfers**, and adding a required bundle field means updating ALL 4 builders (month/year/ytd/history).
@@ -678,9 +682,10 @@ Companion documents — do not duplicate their content into this file:
 - **Intercept the block on `pre`, not on `code`** (a card inside `<pre>` is invalid nesting), and a malformed payload
   MUST fall through to a normal code block — the user still sees what the model wrote. `GoalProposalCard` reads owner,
   demo mode and query client itself because `MARKDOWN_COMPONENTS` has to stay module-level.
-- **`ASSISTANT_SYSTEM_CORE` is shared with `buildEmailAiPrompt`, which sends no goals block** — so the goals paragraph
-  is written conditionally ("quando il messaggio contiene un blocco OBIETTIVI DI INVESTIMENTO…"). Extending that core
-  unconditionally makes the emails talk about data they were never given.
+- **`ASSISTANT_SYSTEM_CORE` is shared with `buildEmailAiPrompt`**, which since 2026-08-17 sends the goals block too (it
+  reuses `formatBundleForPrompt`). The conditional phrasing stays ("quando il messaggio contiene un blocco OBIETTIVI DI
+  INVESTIMENTO…") because the core must never promise a block a caller might not send: **check every consumer of the
+  core before extending it unconditionally**, or a surface starts talking about data it was never given.
 
 ### Periodic Emails (`lib/server/monthlyEmailService.ts`, `weeklyBudgetEmailService.ts`)
 - **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
@@ -696,7 +701,20 @@ Companion documents — do not duplicate their content into this file:
   income/expenses/savings = flows over the window**, made explicit in the caption. The Hall of Fame mention is likewise
   deterministic, ranked with `lib/utils/hallOfFameRecords.ts` — the SAME definition as the in-app page.
 - **The email AI comment is a DEDICATED Anthropic call**, not the assistant pipeline; AI and comparison failures are
-  both non-blocking.
+  both non-blocking — and so is the context bundle, built inside the same `try`.
+- **The prompt BODY is the assistant's own block**: `buildEmailAiPrompt` = `formatBundleForPrompt(bundle, label)` +
+  the sections only the email has (market effect, comparisons, category deltas, Hall of Fame, budget alerts). Do not
+  re-list what the bundle already carries — the largest single expenses are the standing example — and do not add a
+  second cashflow computation: `resolveEmailPeriodRange` hands the email's own window to the range builder, whose
+  baseline is by construction the same snapshot the email calls `previousNetWorth`.
+- **The market effect is precomputed, never left to the model** (`Δ patrimonio − risparmio netto`, both from the
+  bundle). It is a STRUCTURAL residual — it also absorbs untracked movements — and the block must keep saying so, or
+  the comment presents it as pure market performance.
+- **Every email cap is stated in the prompt**: `MAX_CATEGORY_DELTAS` (12) is named in the section header together with
+  how many categories were left out. The selection is by SPEND, not by size of variation — describe it as it is.
+- **`max_tokens` and the word ceiling scale together** per period (6000/8000/8000/10000 against 500/700/700/900 words):
+  raise one and the other has to follow. Web search is offered only when `includeMacroContext` allows it, like the
+  assistant's structured analyses.
 
 ### Panoramica and Dashboard Data Isolation
 - Overview data flows through `GET /api/dashboard/overview` + `useDashboardOverview()` — no page-level fan-out queries and
@@ -887,6 +905,10 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   `.mts` file a `doc()` imported there rejects a `db` built here, and sign-in works, which makes it look unrelated.
 - Prefer verifying with **two independent paths**: compute the expected figure in the script from the same real
   snapshots — a same-code-path comparison would be circular.
+- **A 404 from `npm run dev:e2e` on a route that exists is a stale `.next-e2e` cache, not a routing bug** — the same
+  request answers normally from a fresh dist dir (`NEXT_DIST_DIR=.next-spec2 npx next dev -p 3101`). Reach for a new
+  dist dir rather than deleting someone else's; `next dev` also rewrites `tsconfig.json` (adding the dir to `include`),
+  so check it out again afterwards.
 - **Stopping the emulators: send SIGINT to the `firebase` CLI process, not to the `scripts/emulators.mjs` wrapper.**
   The wrapper exits immediately, its children survive, and `--export-on-exit` never runs — `.emulator-data/` keeps the
   timestamp it had at startup and the session's data is lost on the next import. Check that timestamp before trusting

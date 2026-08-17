@@ -21,13 +21,22 @@ import { getDefaultAssistantPreferences } from '@/lib/server/assistant/webSearch
 import { getAssistantMemoryDocument } from '@/lib/server/assistant/store';
 import {
   formatMemoryForPrompt,
+  formatBundleForPrompt,
   buildResponseStyleInstruction,
   ASSISTANT_SYSTEM_CORE,
-  EMAIL_PERIODIC_FORMAT_CONTRACT,
+  buildEmailPeriodicFormatContract,
   type AssistantPromptParts,
 } from '@/lib/server/assistant/prompts';
-import type { AssistantMemoryItem, AssistantPreferences } from '@/types/assistant';
-import { buildPeriodComparison } from '@/lib/server/emailPeriodComparison';
+import {
+  buildAssistantPeriodRangeContext,
+  type AssistantPeriodRange,
+} from '@/lib/services/assistantMonthContextService';
+import type {
+  AssistantMemoryItem,
+  AssistantMonthContextBundle,
+  AssistantPreferences,
+} from '@/types/assistant';
+import { buildPeriodComparison, MAX_CATEGORY_DELTAS } from '@/lib/server/emailPeriodComparison';
 import type { PeriodComparison, MetricDelta, ComparisonSet } from '@/lib/server/emailPeriodComparison';
 import { evaluateBudgetAlerts } from '@/lib/utils/budgetUtils';
 import { DEFAULT_ALERT_THRESHOLDS } from '@/types/budget';
@@ -364,6 +373,36 @@ function topIncomeTransactionLabel(): string {
   return "Top 10 Entrate dell'Anno";
 }
 
+/**
+ * First month of the window a period ending at `endMonth` covers.
+ * Monthly windows are one month long; the others open at the start of their quarter,
+ * semester or year.
+ */
+export function getPeriodWindowStartMonth(periodType: EmailPeriodType, endMonth: number): number {
+  if (periodType === 'quarterly') return getQuarterStartMonth(endMonth);
+  if (periodType === 'semiannual') return getSemesterStartMonth(endMonth);
+  if (periodType === 'yearly') return 1;
+  return endMonth;
+}
+
+/**
+ * The context-bundle window for an email period: the very months the email's own figures
+ * cover, under the name the email prints in its header.
+ *
+ * Keeping the two in lockstep is the point. The bundle's baseline is the snapshot of the
+ * month before the window opens, which for every period type is the same snapshot the
+ * email calls `previousNetWorth` — so the AI comment and the email table can never
+ * disagree about Δ patrimonio.
+ */
+export function resolveEmailPeriodRange(data: MonthlyEmailData): AssistantPeriodRange {
+  return {
+    year: data.year,
+    startMonth: getPeriodWindowStartMonth(data.periodType, data.month),
+    endMonth: data.month,
+    label: periodTitle(data),
+  };
+}
+
 // ─── AI comment generation ────────────────────────────────────────────────────
 
 /**
@@ -452,75 +491,153 @@ function formatComparisonForPrompt(title: string, set: ComparisonSet): string {
 }
 
 /**
- * Builds the period-specific prompt for the email AI comment.
+ * The market/valuation component of the period, as a prompt block.
  *
- * Deliberately independent from the interactive assistant's mode-specific prompt builders:
- * the email needs a comparison-driven structure (vs previous period + YoY + cause analysis)
- * and a period label that includes the semi-annual case, neither of which the shared
- * builders provide. Reuses ASSISTANT_SYSTEM_CORE for the role/domain/guardrail text so the
- * two surfaces don't drift, plus its own EMAIL_PERIODIC_FORMAT_CONTRACT for the 5-section
- * structure. All figures come from `emailData` + the deterministic `comparison`.
+ * Δ patrimonio − risparmio netto, computed here rather than left to the model: the AI used
+ * to call it "una stima residuale" every month, which is exactly what a number nobody
+ * computed for it looks like. It is a STRUCTURAL decomposition, not a market return — it
+ * also absorbs every patrimony movement that never passed through tracked cashflow — and
+ * the block says so, or the comment would present it as pure market performance.
  *
- * Returns { system, userContent }: system is byte-identical across every user's email in
- * a given cron run (role, domain, guardrails, format contract) — cache_control on it lets
- * the run's many back-to-back calls share one cached prefix instead of re-paying for it
- * per user. userContent carries the period label, comparison data, and memory.
+ * Both inputs come from the bundle, so the figure agrees with the PATRIMONIO and CASHFLOW
+ * blocks above it line for line. A missing snapshot at either end makes it unknowable, and
+ * that is said out loud instead of falling back to a delta measured from zero.
  */
-function buildEmailAiPrompt(
+function formatMarketEffectForPrompt(bundle: AssistantMonthContextBundle): string[] {
+  const lines = ['--- EFFETTO MERCATO (calcolato) ---'];
+  const { delta } = bundle.netWorth;
+
+  if (delta === null) {
+    lines.push(
+      'Non calcolabile: manca lo snapshot patrimoniale di inizio o di fine periodo, quindi la variazione del patrimonio non è nota. Non stimarla.'
+    );
+    lines.push('');
+    return lines;
+  }
+
+  const netSavings = bundle.cashflow.netCashFlow;
+  lines.push(
+    `Variazione di mercato/valutativa = Δ patrimonio (${signedEur(delta)}) − risparmio netto (${signedEur(netSavings)}) = ${signedEur(delta - netSavings)}`
+  );
+  lines.push(
+    'È una scomposizione strutturale già calcolata: usala così com\'è, non ricalcolarla e non presentarla come una stima. Oltre alla performance di mercato contiene ogni movimento patrimoniale che non passa dal cashflow tracciato (rivalutazioni immobiliari, versamenti da conti non tracciati, effetti di cambio).'
+  );
+  lines.push('');
+  return lines;
+}
+
+/**
+ * Per-category expense deltas, with the cap stated in the text the model reads.
+ *
+ * The selection is the largest categories BY SPEND in the period (that is the order
+ * `buildPeriodComparison` slices), not by size of the variation — the header says so,
+ * because a header that misdescribes the ordering is the same defect as an undeclared cap.
+ */
+function formatCategoryDeltasForPrompt(
+  emailData: MonthlyEmailData,
+  comparison: PeriodComparison
+): string[] {
+  const lines = [
+    `--- VARIAZIONE SPESE PER CATEGORIA (le prime ${MAX_CATEGORY_DELTAS} categorie per spesa del periodo) ---`,
+  ];
+
+  if (comparison.categoryDeltas.length === 0) {
+    lines.push('Nessuna spesa categorizzata nel periodo.');
+    lines.push('');
+    return lines;
+  }
+
+  for (const category of comparison.categoryDeltas) {
+    lines.push(
+      `- ${category.name}: ${formatEur(category.current)} (vs periodo prec.: ${formatDelta(
+        category.vsPrevious
+      )}; vs anno prec.: ${formatDelta(category.vsYoy)})`
+    );
+  }
+
+  const omittedCategories = emailData.topExpenseCategories.slice(comparison.categoryDeltas.length);
+  if (omittedCategories.length > 0) {
+    const omittedTotal = omittedCategories.reduce((sum, category) => sum + category.amount, 0);
+    const omittedNoun =
+      omittedCategories.length === 1 ? '1 categoria' : `${omittedCategories.length} categorie`;
+    lines.push(
+      `Le categorie oltre le prime ${MAX_CATEGORY_DELTAS} sono omesse da questo confronto: ${omittedNoun} per ${formatEur(omittedTotal)} complessivi. Il loro dettaglio è comunque nel blocco SPESE PER CATEGORIA E SOTTOCATEGORIA, che è completo.`
+    );
+  }
+
+  lines.push('');
+  return lines;
+}
+
+/** Hall of Fame standing — deterministic, so the comment can cite it without inventing. */
+function formatHallOfFameForPrompt(emailData: MonthlyEmailData): string[] {
+  const rank = emailData.hallOfFameRank;
+  if (!rank) return [];
+
+  const scopeNoun = rank.scope === 'month' ? 'mese' : 'anno';
+  return [
+    '--- HALL OF FAME ---',
+    rank.trend === 'growth'
+      ? `È il ${rank.rank}° ${scopeNoun} per crescita del patrimonio (su ${rank.total} con crescita).`
+      : `${scopeNoun === 'mese' ? 'Mese' : 'Anno'} in calo del patrimonio: ${rank.rank}° calo più marcato su ${rank.total}.`,
+    '',
+  ];
+}
+
+/**
+ * The month's budget alerts, the same rows the email already renders.
+ *
+ * Monthly only, because the alerts themselves are (`buildBudgetAlertsForMonth` runs for
+ * that period alone): gating on the period type rather than on the array keeps a future
+ * caller from quietly attaching month alerts to a quarterly email.
+ */
+function formatBudgetAlertsForPrompt(emailData: MonthlyEmailData): string[] {
+  if (emailData.periodType !== 'monthly') return [];
+  const alerts = emailData.budgetAlerts;
+  if (!alerts || alerts.length === 0) return [];
+
+  const lines = ['--- AVVISI BUDGET DEL MESE ---'];
+  for (const alert of alerts) {
+    const state = alert.level === 'exceeded' ? 'budget superato' : `soglia ${alert.threshold}% superata`;
+    const forecast =
+      alert.forecastedOverrun && alert.level !== 'exceeded' ? ' · sforamento previsto a fine mese' : '';
+    lines.push(
+      `- ${alert.label}: ${formatEur(alert.spent)} su ${formatEur(alert.budgetAmount)} (${Math.round(alert.usedRatio * 100)}%) — ${state}${forecast}`
+    );
+  }
+  lines.push('');
+  return lines;
+}
+
+/**
+ * Builds the prompt for the email AI comment.
+ *
+ * The body IS the assistant's own numeric block (`formatBundleForPrompt`) over a bundle
+ * built on the email's window: the two surfaces then read the same exhaustive data, every
+ * future bundle field reaches the emails for free, and the "questo blocco è ESAUSTIVO"
+ * guardrails in ASSISTANT_SYSTEM_CORE stop promising blocks the email never sent. Appended
+ * to it are the sections only the email has — the precomputed market effect, the
+ * deterministic comparisons, the per-category deltas, the Hall of Fame standing and the
+ * month's budget alerts.
+ *
+ * The largest single expenses are deliberately NOT re-listed: the bundle already carries
+ * them, with their date, in `--- SPESE SINGOLE PIU' GRANDI ---`.
+ *
+ * Exported for the prompt tests, and for the guided verification that reads the generated
+ * userContent without sending anything.
+ *
+ * @returns { system, userContent }. `system` (role, domain, guardrails, period format
+ *          contract) is byte-identical for every user and every run of a given period
+ *          type; `userContent` carries everything per-request.
+ */
+export function buildEmailAiPrompt(
   emailData: MonthlyEmailData,
   comparison: PeriodComparison,
+  bundle: AssistantMonthContextBundle,
   preferences: AssistantPreferences,
   memoryItems: AssistantMemoryItem[]
 ): AssistantPromptParts {
   const label = periodTitle(emailData);
-  const savedAmount = emailData.totalIncome - emailData.totalExpenses;
-  const savingsRate =
-    emailData.totalIncome > 0
-      ? ((savedAmount / emailData.totalIncome) * 100).toFixed(1)
-      : 'N/D';
-
-  // Top expense categories with their deltas vs both baselines — the raw material for cause analysis.
-  const categoryLines = comparison.categoryDeltas.length
-    ? comparison.categoryDeltas
-        .map(
-          (c) =>
-            `- ${c.name}: ${formatEur(c.current)} (vs periodo prec.: ${formatDelta(
-              c.vsPrevious
-            )}; vs anno prec.: ${formatDelta(c.vsYoy)})`
-        )
-        .join('\n')
-    : '- Nessuna spesa categorizzata nel periodo.';
-
-  // Largest individual transactions with subcategory + note — gives the AI the granular "why"
-  // behind category movements (e.g. a one-off purchase vs a structural increase).
-  const topExpenseDetailLines = emailData.topIndividualExpenses.length
-    ? emailData.topIndividualExpenses
-        .map((e) => {
-          const sub = e.subCategoryName ? ` › ${e.subCategoryName}` : '';
-          // description carries the note when it differs from the category name.
-          const note = e.description && e.description !== e.categoryName ? ` — "${e.description}"` : '';
-          return `- ${e.categoryName}${sub}${note}: ${formatEur(e.amount)}`;
-        })
-        .join('\n')
-    : '- Nessuna spesa individuale di rilievo nel periodo.';
-
-  // Spending mix by type — lets the comment reason about structural (fisse) vs
-  // compressible (variabili) vs debt, which the per-category lines don't capture.
-  const typeLines = emailData.expensesByType.length
-    ? emailData.expensesByType
-        .map((t) => {
-          const pct = emailData.totalExpenses > 0 ? ((t.amount / emailData.totalExpenses) * 100).toFixed(1) : '0.0';
-          return `- ${t.label}: ${formatEur(t.amount)} (${pct}% delle uscite)`;
-        })
-        .join('\n')
-    : '- Nessuna spesa categorizzata per tipo nel periodo.';
-
-  // Hall of Fame standing — deterministic, so the comment can cite it without inventing.
-  const hallOfFameLine = emailData.hallOfFameRank
-    ? emailData.hallOfFameRank.trend === 'growth'
-      ? `Hall of Fame: è il ${emailData.hallOfFameRank.rank}° ${emailData.hallOfFameRank.scope === 'month' ? 'mese' : 'anno'} per crescita del patrimonio (su ${emailData.hallOfFameRank.total} con crescita).`
-      : `Hall of Fame: ${emailData.hallOfFameRank.scope === 'month' ? 'mese' : 'anno'} in calo del patrimonio.`
-    : null;
 
   const memoryBlock = preferences.memoryEnabled
     ? formatMemoryForPrompt(memoryItems)
@@ -533,41 +650,59 @@ function buildEmailAiPrompt(
     `Stai redigendo il commento di riepilogo per: ${label}.`,
     'Di seguito i dati del periodo, estratti in modo affidabile dal sistema. Le variazioni sono già calcolate: non ricalcolarle e non inventare numeri.',
     '',
-    '--- DATI DEL PERIODO CORRENTE ---',
-    `Patrimonio netto: ${formatEur(emailData.currentNetWorth)}`,
-    `Entrate totali: ${formatEur(emailData.totalIncome)}`,
-    `Uscite totali: ${formatEur(emailData.totalExpenses)}`,
-    `Risparmio netto (Entrate − Uscite): ${formatEur(savedAmount)} (${savingsRate}% del reddito)`,
-    `Dividendi e cedole: ${formatEur(emailData.dividendTotal)} (${emailData.dividendCount} pagamenti)`,
-    ...(hallOfFameLine ? [hallOfFameLine] : []),
-    '',
-    '--- SPESE PER TIPO (Fisse / Variabili / Debiti) ---',
-    typeLines,
+    formatBundleForPrompt(bundle, label),
+    ...formatMarketEffectForPrompt(bundle),
+    // The dividend registry is a different source from the cashflow rows above (which only
+    // see dividends the user also booked as income): naming the source is what keeps the
+    // two figures from reading as a contradiction.
+    `--- DIVIDENDI DEL PERIODO (registro dividendi) ---`,
+    `Incassati: ${formatEur(emailData.dividendTotal)} lordi in ${emailData.dividendCount} pagament${emailData.dividendCount === 1 ? 'o' : 'i'}.`,
     '',
     formatComparisonForPrompt('CONFRONTO COL PERIODO PRECEDENTE', comparison.vsPrevious),
     '',
     ...(comparison.previousEqualsYoy
       ? []
-      : [formatComparisonForPrompt('CONFRONTO CON LO STESSO PERIODO DELL\'ANNO PRECEDENTE', comparison.vsYoy), '']),
-    '--- VARIAZIONE SPESE PER CATEGORIA ---',
-    categoryLines,
-    '',
-    '--- SPESE PIÙ RILEVANTI DEL PERIODO (categoria › sottocategoria — nota) ---',
-    topExpenseDetailLines,
+      : [formatComparisonForPrompt("CONFRONTO CON LO STESSO PERIODO DELL'ANNO PRECEDENTE", comparison.vsYoy), '']),
+    ...formatCategoryDeltasForPrompt(emailData, comparison),
+    ...formatHallOfFameForPrompt(emailData),
+    ...formatBudgetAlertsForPrompt(emailData),
   ].join('\n');
 
-  return { system: `${ASSISTANT_SYSTEM_CORE}\n\n${EMAIL_PERIODIC_FORMAT_CONTRACT}`, userContent };
+  return {
+    system: `${ASSISTANT_SYSTEM_CORE}\n\n${buildEmailPeriodicFormatContract(emailData.periodType)}`,
+    userContent,
+  };
 }
 
 /**
+ * Output budget per period, thinking included (`max_tokens` covers thinking AND text).
+ * It scales with the period because the format contract's word ceiling does: a 900-word
+ * annual recap on the monthly budget would be cut off mid-section.
+ */
+const EMAIL_AI_MAX_TOKENS: Record<EmailPeriodType, number> = {
+  monthly: 6000,
+  quarterly: 8000,
+  semiannual: 8000,
+  yearly: 10000,
+};
+
+/**
  * Generates the AI comment for the period via a dedicated, email-specific prompt and a
- * direct Anthropic call (web search enabled for macro context).
+ * direct Anthropic call.
  *
- * Unlike the interactive assistant, the email comment is comparison-driven: it interprets the
- * deterministic previous-period and year-over-year deltas computed in `comparison`.
+ * The comment interprets the same exhaustive bundle the in-app assistant reads, plus the
+ * deterministic email-only sections (market effect, comparisons, category deltas, budget
+ * alerts, Hall of Fame). Web search is offered only when the user's `includeMacroContext`
+ * preference allows it, exactly as for the assistant's structured analyses — a tool that
+ * is not declared cannot be called.
  *
- * The comment is injected into the email HTML when available. Any failure (Anthropic API error,
- * missing key, prompt error) is caught and logged; the email is always sent regardless.
+ * `cache_control` is deliberately absent: a cache write costs 1,25× and only pays off
+ * inside the 5-minute TTL, which a cron run sending a handful of emails never fills. The
+ * `system` block is still built to be byte-identical per period type, so turning caching on
+ * would be a one-line change if traffic ever justified it.
+ *
+ * Every failure (bundle build, Anthropic error, missing key) is caught and logged: the
+ * email is always sent, with or without the comment.
  *
  * @returns The AI-generated markdown text, or null on failure.
  */
@@ -590,7 +725,20 @@ async function generateEmailAiComment(
       // Memory load is non-critical — proceed with defaults
     }
 
-    const { system, userContent } = buildEmailAiPrompt(emailData, comparison, preferences, memoryItems);
+    // The same context pipeline the assistant uses, over the email's own window.
+    const bundle = await buildAssistantPeriodRangeContext(
+      userId,
+      resolveEmailPeriodRange(emailData),
+      preferences.includeDummySnapshots
+    );
+
+    const { system, userContent } = buildEmailAiPrompt(
+      emailData,
+      comparison,
+      bundle,
+      preferences,
+      memoryItems
+    );
 
     // Lazy import so a module-level `new Anthropic()` never breaks test environments
     // where ANTHROPIC_API_KEY is absent (same pattern as memoryExtraction).
@@ -599,18 +747,23 @@ async function generateEmailAiComment(
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 5000,
-      // No cache_control — see anthropicStream.ts for why caching stays off app-wide.
+      max_tokens: EMAIL_AI_MAX_TOKENS[emailData.periodType],
       system: system,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'high' },
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 3,
-        } as any,
-      ],
+      // Macro context is the only thing the search is for (the system core scopes it to
+      // market movements), so the preference that governs it governs the tool.
+      ...(preferences.includeMacroContext
+        ? {
+            tools: [
+              {
+                type: 'web_search_20250305',
+                name: 'web_search',
+                max_uses: 3,
+              } as any,
+            ],
+          }
+        : {}),
       messages: [{ role: 'user', content: userContent }],
     });
 
@@ -949,30 +1102,25 @@ export async function buildPeriodEmailData(
   // Determine previous-period snapshot coordinates
   let prevYear: number;
   let prevMonth: number;
-  // Determine expense window start month
-  let windowStartMonth: number;
 
   if (periodType === 'quarterly') {
     const prev = getPreviousQuarterEnd(year, month);
     prevYear = prev.year;
     prevMonth = prev.month;
-    windowStartMonth = getQuarterStartMonth(month);
   } else if (periodType === 'semiannual') {
     const prev = getPreviousHalfEnd(year, month);
     prevYear = prev.year;
     prevMonth = prev.month;
-    windowStartMonth = getSemesterStartMonth(month);
   } else if (periodType === 'yearly') {
     prevYear = year - 1;
     prevMonth = 12;
-    windowStartMonth = 1;
   } else {
     // monthly
     prevMonth = month === 1 ? 12 : month - 1;
     prevYear = month === 1 ? year - 1 : year;
-    windowStartMonth = month;
   }
 
+  const windowStartMonth = getPeriodWindowStartMonth(periodType, month);
   const windowStart = new Date(year, windowStartMonth - 1, 1);
   // Last day of the period end month
   const windowEnd = new Date(year, month, 0, 23, 59, 59);
@@ -1290,16 +1438,25 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
       : '';
 
   // Expenses by type (Fisse/Variabili/Debiti) with % of total — the spending-mix view.
-  const typeRows = data.expensesByType
-    .map((entry) => {
-      const pct = data.totalExpenses > 0 ? ((entry.amount / data.totalExpenses) * 100).toFixed(1) : '0.0';
-      return `<tr>
-          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;">${entry.label}</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;text-align:right;">${formatEur(entry.amount)}</td>
+  const expenseTypeRow = (label: string, amount: number) => {
+    const pct = data.totalExpenses > 0 ? ((amount / data.totalExpenses) * 100).toFixed(1) : '0.0';
+    return `<tr>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;">${label}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;text-align:right;">${formatEur(amount)}</td>
           <td style="padding:6px 12px;border-bottom:1px solid #f3f4f6;text-align:right;color:#64748b;font-size:12px;">${pct}%</td>
         </tr>`;
-    })
-    .join('');
+  };
+
+  // Legacy and imported rows can carry no expense type, and `aggregateExpenses` counts them
+  // in totalExpenses while leaving them out of expensesByType — so the three typed rows
+  // stopped short of 100% with nothing on screen explaining the gap. The residual gets its
+  // own row (the same "Non classificate" bucket the assistant's breakdown uses). The epsilon
+  // is float slack, not a threshold: below half a cent the row would render as "0 €".
+  const typedExpenseTotal = data.expensesByType.reduce((sum, entry) => sum + entry.amount, 0);
+  const unclassifiedExpenseTotal = data.totalExpenses - typedExpenseTotal;
+  const typeRows =
+    data.expensesByType.map((entry) => expenseTypeRow(entry.label, entry.amount)).join('') +
+    (unclassifiedExpenseTotal > 0.005 ? expenseTypeRow('Non classificate', unclassifiedExpenseTotal) : '');
 
   // All expense categories with % of total
   const categoryRows = data.topExpenseCategories

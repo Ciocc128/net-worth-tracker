@@ -1,10 +1,10 @@
 /**
  * Tests for the numeric data block the assistant prompt builders emit.
  *
- * `formatBundleForPrompt` is module-private, so everything here goes through
- * `buildMonthAnalysisPrompt(...).userContent` — the path a real request takes.
- * Exporting the formatter purely to test it would widen the module's surface for
- * no gain: the assertions read just as well against the real entry point.
+ * Everything here goes through `buildMonthAnalysisPrompt(...).userContent` — the path a
+ * real request takes — rather than through `formatBundleForPrompt` directly. (The formatter
+ * is exported, but only because the periodic emails send the same block; asserting against
+ * the real entry point still reads just as well and covers the wiring too.)
  */
 
 import { describe, expect, it } from 'vitest';

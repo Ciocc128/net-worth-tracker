@@ -11,6 +11,11 @@
  *   month === -1 → YTD (Jan 1 → latest month of current year)
  *   month === -2 → total history (cashflowHistoryStartYear → now)
  *
+ * A fifth builder, buildAssistantPeriodRangeContext, covers an arbitrary run of months
+ * inside one year (quarters and semesters, which the four selector codes above cannot
+ * express). It is the periodic emails' entry point — see its own doc comment for why the
+ * window travels as a data-quality note rather than as a new bundle field.
+ *
  * Design decisions:
  * - Never uses Date.getMonth() / getFullYear() for domain grouping — snapshots
  *   are identified by their stored `year`/`month` integer fields.
@@ -30,6 +35,7 @@
 
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
+import { MONTH_NAMES } from '@/lib/constants/months';
 import { getItalyMonthYear, toDate } from '@/lib/utils/dateHelpers';
 import { AssistantMonthContextBundle, AssistantMonthSelectorValue } from '@/types/assistant';
 import { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
@@ -459,6 +465,24 @@ function buildUnclassifiedSubCategoryNote(share: number): string | null {
 }
 
 /**
+ * Point-in-time patrimony over a window: the baseline snapshot vs the closing one.
+ *
+ * Extracted verbatim from the four period builders, which each carried the same eight
+ * lines. `null` propagates on purpose — a missing snapshot at either end makes the delta
+ * unknowable, and a zero baseline would report the whole patrimony as this period's gain.
+ */
+function buildNetWorthFields(
+  previousSnapshot: MonthlySnapshot | null,
+  currentSnapshot: MonthlySnapshot | null
+): AssistantMonthContextBundle['netWorth'] {
+  const start = previousSnapshot?.totalNetWorth ?? null;
+  const end = currentSnapshot?.totalNetWorth ?? null;
+  const delta = start !== null && end !== null ? end - start : null;
+  const deltaPct = delta !== null && start !== null && start !== 0 ? (delta / start) * 100 : null;
+  return { start, end, delta, deltaPct };
+}
+
+/**
  * Computes allocationChanges (top 5 by absolute change) between two snapshots.
  */
 function buildAllocationChanges(
@@ -577,15 +601,6 @@ export async function buildAssistantMonthContext(
   const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
   if (unclassifiedNote) notes.push(unclassifiedNote);
 
-  // --- Net worth ---
-  const nwStart = previousSnapshot?.totalNetWorth ?? null;
-  const nwEnd = currentSnapshot?.totalNetWorth ?? null;
-  const nwDelta = nwStart !== null && nwEnd !== null ? nwEnd - nwStart : null;
-  const nwDeltaPct =
-    nwDelta !== null && nwStart !== null && nwStart !== 0
-      ? (nwDelta / nwStart) * 100
-      : null;
-
   const allocationChanges = buildAllocationChanges(currentSnapshot, previousSnapshot);
   const bySubCategoryAllocation = buildSubCategoryAllocation(currentSnapshot, assets);
   const goalFields = buildGoalFields(settings, goalData, assets, now);
@@ -595,12 +610,7 @@ export async function buildAssistantMonthContext(
     currentSnapshot,
     previousSnapshot,
     ...toBundleCashflowFields(breakdown),
-    netWorth: {
-      start: nwStart,
-      end: nwEnd,
-      delta: nwDelta,
-      deltaPct: nwDeltaPct,
-    },
+    netWorth: buildNetWorthFields(previousSnapshot, currentSnapshot),
     allocationChanges,
     bySubCategoryAllocation,
     ...goalFields,
@@ -676,15 +686,6 @@ export async function buildAssistantYearContext(
     notes.push('Anno in corso: i dati sono parziali. Non trarre conclusioni annuali definitive.');
   }
 
-  // Net worth: start of year (Dec prev year) → end of latest month in year
-  const nwStart = previousSnapshot?.totalNetWorth ?? null;
-  const nwEnd = currentSnapshot?.totalNetWorth ?? null;
-  const nwDelta = nwStart !== null && nwEnd !== null ? nwEnd - nwStart : null;
-  const nwDeltaPct =
-    nwDelta !== null && nwStart !== null && nwStart !== 0
-      ? (nwDelta / nwStart) * 100
-      : null;
-
   const breakdown = buildCashflowBreakdown(yearExpenses, {
     dividendCategoryId: settings?.dividendIncomeCategoryId,
     topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_YEAR,
@@ -702,7 +703,7 @@ export async function buildAssistantYearContext(
     currentSnapshot,
     previousSnapshot,
     ...toBundleCashflowFields(breakdown),
-    netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
+    netWorth: buildNetWorthFields(previousSnapshot, currentSnapshot),
     allocationChanges,
     bySubCategoryAllocation,
     ...goalFields,
@@ -768,14 +769,6 @@ export async function buildAssistantYtdContext(
     notes.push('Nessun dicembre precedente: variazione YTD non calcolabile.');
   }
 
-  const nwStart = previousSnapshot?.totalNetWorth ?? null;
-  const nwEnd = currentSnapshot?.totalNetWorth ?? null;
-  const nwDelta = nwStart !== null && nwEnd !== null ? nwEnd - nwStart : null;
-  const nwDeltaPct =
-    nwDelta !== null && nwStart !== null && nwStart !== 0
-      ? (nwDelta / nwStart) * 100
-      : null;
-
   const breakdown = buildCashflowBreakdown(ytdExpenses, {
     dividendCategoryId: settings?.dividendIncomeCategoryId,
     topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_YEAR,
@@ -793,7 +786,7 @@ export async function buildAssistantYtdContext(
     currentSnapshot,
     previousSnapshot,
     ...toBundleCashflowFields(breakdown),
-    netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
+    netWorth: buildNetWorthFields(previousSnapshot, currentSnapshot),
     allocationChanges,
     bySubCategoryAllocation,
     ...goalFields,
@@ -803,6 +796,169 @@ export async function buildAssistantYtdContext(
       hasPreviousBaseline,
       hasCashflowData,
       isPartialMonth: true, // YTD is always partial by definition
+      notes,
+    },
+  };
+}
+
+// ─── Arbitrary month-window builder (quarters, semesters, email periods) ──────
+
+/** A run of consecutive months inside one calendar year, plus the name it goes by. */
+export interface AssistantPeriodRange {
+  year: number;
+  /** First month of the window (1-12, inclusive). */
+  startMonth: number;
+  /** Last month of the window (1-12, inclusive); must not precede startMonth. */
+  endMonth: number;
+  /** What the window is called: "Q3 2026", "2° Semestre 2026", "Luglio 2026", "Anno 2026". */
+  label: string;
+}
+
+/**
+ * Builds the context bundle for an arbitrary run of months inside one year.
+ *
+ * Exists because the four selector codes cannot express a quarter or a semester, which is
+ * exactly what the periodic emails send. The window rules are the other builders' rules:
+ *
+ *   Patrimonio: point-in-time, baseline = snapshot of the month BEFORE `startMonth`
+ *               (year wrap included), closing = snapshot of `endMonth`. That baseline is
+ *               deliberately the same one the email's own `previousNetWorth` uses, so the
+ *               bundle and the email cannot disagree about Δ patrimonio.
+ *   Flussi:     every expense dated inside the window, through the ONE aggregator
+ *               (buildCashflowBreakdown) — never a second cashflow computation.
+ *
+ * WHY THE LABEL IS A NOTE AND NOT A FIELD
+ * `AssistantMonthContextBundle` has no periodLabel, and adding one would be a required
+ * field the four existing builders would all have to fill. The window instead travels the
+ * way the YTD and history builders already declare theirs: as the first data-quality note,
+ * which is text the model reads. Callers that render a header (the prompt builders) pass
+ * the same label to `formatBundleForPrompt`, because `selector` — pinned to the window's
+ * CLOSING month, the month whose snapshot the figures rest on — would otherwise print
+ * "Settembre 2026" over a whole quarter.
+ *
+ * @param userId  Firebase UID of the account being analysed
+ * @param range   The window and its label
+ * @throws When the window is not a valid run of months inside one year
+ */
+export async function buildAssistantPeriodRangeContext(
+  userId: string,
+  range: AssistantPeriodRange,
+  includeDummySnapshots = false
+): Promise<AssistantMonthContextBundle> {
+  const { year, startMonth, endMonth, label } = range;
+
+  // Fail at the boundary: a reversed window would silently query an empty range and
+  // report a period with no data instead of a bug.
+  if (
+    !Number.isInteger(startMonth) ||
+    !Number.isInteger(endMonth) ||
+    startMonth < 1 ||
+    endMonth > 12 ||
+    startMonth > endMonth
+  ) {
+    throw new Error(
+      `buildAssistantPeriodRangeContext: invalid window ${startMonth}-${endMonth} for ${year}`
+    );
+  }
+
+  const windowStart = new Date(year, startMonth - 1, 1, 0, 0, 0);
+  const windowEnd = new Date(year, endMonth, 0, 23, 59, 59);
+  const baseline = getPreviousMonth(year, startMonth);
+
+  const [allSnapshots, windowExpenses, settings, assets, categories, goalData] = await Promise.all([
+    fetchSnapshots(userId),
+    fetchExpenses(userId, windowStart, windowEnd),
+    fetchSettings(userId),
+    fetchAssets(userId),
+    fetchExpenseCategories(userId),
+    getGoalDataAdmin(userId),
+  ]);
+
+  const currentSnapshot = findSnapshot(allSnapshots, year, endMonth, includeDummySnapshots);
+  const previousSnapshot = findSnapshot(
+    allSnapshots,
+    baseline.year,
+    baseline.month,
+    includeDummySnapshots
+  );
+
+  const now = new Date();
+  const { month: italyCurrentMonth, year: italyCurrentYear } = getItalyMonthYear(now);
+  // The window is still open while its closing month has not ended.
+  const isWindowInProgress =
+    year > italyCurrentYear || (year === italyCurrentYear && endMonth >= italyCurrentMonth);
+
+  const hasSnapshot = currentSnapshot !== null;
+  const hasPreviousBaseline = previousSnapshot !== null;
+  const hasCashflowData = windowExpenses.length > 0;
+
+  const monthCount = endMonth - startMonth + 1;
+  const windowMonths = `${MONTH_NAMES[startMonth - 1]}-${MONTH_NAMES[endMonth - 1]} ${year}`;
+  const notes: string[] = [
+    monthCount === 1
+      ? `Finestra di analisi: ${label} (${MONTH_NAMES[startMonth - 1]} ${year}), 1 mese.`
+      : `Finestra di analisi: ${label} (${windowMonths}), ${monthCount} mesi.`,
+  ];
+
+  if (!hasSnapshot && hasCashflowData) {
+    notes.push(
+      `Snapshot patrimoniale di fine ${MONTH_NAMES[endMonth - 1]} non presente: patrimonio finale non consolidato.`
+    );
+  }
+  if (!hasSnapshot && !hasCashflowData) {
+    notes.push(`Nessun dato disponibile per ${label}.`);
+  }
+  if (hasSnapshot && !hasPreviousBaseline) {
+    notes.push(
+      `Nessuno snapshot patrimoniale prima dell'inizio della finestra (${MONTH_NAMES[baseline.month - 1]} ${baseline.year}): variazione del patrimonio non calcolabile.`
+    );
+  }
+
+  // Which months inside the window have no photograph of their own. The window's own
+  // figures survive (they rest on the two ends), but a month-by-month reading of the
+  // patrimony does not — and saying which months are missing is what keeps the model from
+  // treating the gap as a flat stretch.
+  const monthsWithoutSnapshot: string[] = [];
+  for (let month = startMonth; month <= endMonth; month += 1) {
+    if (!findSnapshot(allSnapshots, year, month, includeDummySnapshots)) {
+      monthsWithoutSnapshot.push(MONTH_NAMES[month - 1]);
+    }
+  }
+  if (monthsWithoutSnapshot.length > 0 && monthsWithoutSnapshot.length < monthCount) {
+    notes.push(
+      `Mesi della finestra senza snapshot patrimoniale: ${monthsWithoutSnapshot.join(', ')}. Il patrimonio è misurato solo su inizio e fine finestra.`
+    );
+  }
+  if (isWindowInProgress) {
+    notes.push(`${label} non è ancora concluso: i dati del periodo sono parziali.`);
+  }
+
+  const breakdown = buildCashflowBreakdown(windowExpenses, {
+    dividendCategoryId: settings?.dividendIncomeCategoryId,
+    // One month is one month, whatever the caller calls the window; anything longer gets
+    // the wider list, like the year builder.
+    topIndividualLimit: monthCount === 1 ? TOP_INDIVIDUAL_EXPENSES_MONTH : TOP_INDIVIDUAL_EXPENSES_YEAR,
+  });
+  const unclassifiedNote = buildUnclassifiedSubCategoryNote(breakdown.unclassifiedSubCategoryShare);
+  if (unclassifiedNote) notes.push(unclassifiedNote);
+
+  return {
+    // The closing month, which is where the patrimony figures are photographed. The window
+    // itself is named in the notes and in the label the caller passes to the prompt.
+    selector: { year, month: endMonth },
+    currentSnapshot,
+    previousSnapshot,
+    ...toBundleCashflowFields(breakdown),
+    netWorth: buildNetWorthFields(previousSnapshot, currentSnapshot),
+    allocationChanges: buildAllocationChanges(currentSnapshot, previousSnapshot),
+    bySubCategoryAllocation: buildSubCategoryAllocation(currentSnapshot, assets),
+    ...buildGoalFields(settings, goalData, assets, now),
+    expenseCategories: buildCategoryTaxonomy(categories),
+    dataQuality: {
+      hasSnapshot,
+      hasPreviousBaseline,
+      hasCashflowData,
+      isPartialMonth: isWindowInProgress,
       notes,
     },
   };
@@ -865,14 +1021,6 @@ export async function buildAssistantHistoryContext(
     notes.push('Nessuno snapshot patrimoniale trovato nel periodo.');
   }
 
-  const nwStart = previousSnapshot?.totalNetWorth ?? null;
-  const nwEnd = currentSnapshot?.totalNetWorth ?? null;
-  const nwDelta = nwStart !== null && nwEnd !== null ? nwEnd - nwStart : null;
-  const nwDeltaPct =
-    nwDelta !== null && nwStart !== null && nwStart !== 0
-      ? (nwDelta / nwStart) * 100
-      : null;
-
   const breakdown = buildCashflowBreakdown(historyExpenses, {
     dividendCategoryId: settings?.dividendIncomeCategoryId,
     topIndividualLimit: TOP_INDIVIDUAL_EXPENSES_HISTORY,
@@ -890,7 +1038,7 @@ export async function buildAssistantHistoryContext(
     currentSnapshot,
     previousSnapshot,
     ...toBundleCashflowFields(breakdown),
-    netWorth: { start: nwStart, end: nwEnd, delta: nwDelta, deltaPct: nwDeltaPct },
+    netWorth: buildNetWorthFields(previousSnapshot, currentSnapshot),
     allocationChanges,
     bySubCategoryAllocation,
     ...goalFields,
