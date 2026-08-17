@@ -2,6 +2,8 @@
 
 > **Ordine**: 1 di 5. Nessuna dipendenza. È prerequisito della Spec 3 (che riusa questo campo).
 > **Tipo**: bugfix puro, nessuna decisione di prodotto.
+> **Stato**: ✅ **Implementata** (2026-08-17) — PR [#274](https://github.com/GiuseppeDM98/net-worth-tracker/pull/274),
+> mergeata in `develop`.
 
 ## Problema
 
@@ -93,10 +95,10 @@ ogni file sotto, individuare dove compare `includePrimaryResidenceInFIRE` e repl
 
 ## Criteri di accettazione
 
-- [ ] Toggle on → Salva → hard refresh → toggle ancora on; doc Firestore contiene il campo.
-- [ ] Toggle off → Salva → il campo persiste `false` (non sparisce dal doc: `false !== undefined`).
-- [ ] `settingsRoundTrip` copre il campo ed è stato visto rosso prima del fix.
-- [ ] `tsc` pulito, suite Vitest verde (anche sotto `TZ=Europe/Rome`).
+- [x] Toggle on → Salva → hard refresh → toggle ancora on; doc Firestore contiene il campo.
+- [x] Toggle off → Salva → il campo persiste `false` (non sparisce dal doc: `false !== undefined`).
+- [x] `settingsRoundTrip` copre il campo ed è stato visto rosso prima del fix.
+- [x] `tsc` pulito, suite Vitest verde (anche sotto `TZ=Europe/Rome`).
 
 ---
 
