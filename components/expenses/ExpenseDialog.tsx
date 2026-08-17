@@ -3,21 +3,26 @@
 /**
  * ExpenseDialog / ExpenseDrawer Component
  *
- * Single-step form for creating and editing cashflow entries.
+ * Two-step form for creating cashflow entries, single-step for editing them.
  *
- * Layout:
- *   - Type selector (Select dropdown; all five types are selectable in edit mode too —
- *     onSubmit reconciles balances from BOTH the old and the new type's shape)
+ * Step 1 — type picker (create mode only), the same shape as `AssetDialog`'s: the type decides
+ * which categories exist, which accounts are asked for and whether the row moves one balance or
+ * two, so asking for it first turns a form with five conditional shapes into five plain forms.
+ * Edit mode skips it: the type of a saved row is changed from inside the form, where the notice
+ * explaining what the change does to the balances lives.
+ *
+ * Step 2 — the form itself:
+ *   - Type: a "Cambia tipo" back link in create mode; the Select in edit mode (all five types are
+ *     selectable there — onSubmit reconciles balances from BOTH the old and the new type's shape)
  *   - Primary fields: Importo + Data, Categoria, Sottocategoria, Note, Conto Collegato
  *   - "Impostazioni avanzate" Collapsible: Centro di Costo, Link, Acquisto Rateale, Ricorrenza Mensile
  *
  * Advanced section auto-expands when editing a record with advanced data set.
  * On mobile (<=768 px): vaul Drawer bottom sheet with drag-to-dismiss.
  * On desktop: Dialog modal.
- * All form logic, Zod schema, and submission paths are preserved unchanged.
  */
 
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, Controller, useWatch, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -73,7 +78,17 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { ChevronDown, ArrowLeftRight, Tag } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ArrowLeftRight,
+  CreditCard,
+  Receipt,
+  ShoppingCart,
+  Tag,
+  TrendingUp,
+  type LucideIcon,
+} from 'lucide-react';
 import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
@@ -144,24 +159,23 @@ const EDIT_TITLES: Record<ExpenseType, string> = {
   transfer: 'Modifica Trasferimento',
 };
 
+/**
+ * One entry per `ExpenseType`, shared by the step-1 picker cards and the edit-mode Select.
+ * `Icon` is the component, not a rendered node: the two surfaces need different sizes.
+ */
 interface TypeOption {
   value: ExpenseType;
   label: string;
   description: string;
-  icon?: ReactNode;
+  Icon: LucideIcon;
 }
 
 const TYPE_OPTIONS: TypeOption[] = [
-  { value: 'variable', label: 'Spesa Variabile', description: 'Ristorante, shopping, svago, imprevisti' },
-  { value: 'fixed', label: 'Spesa Fissa', description: 'Affitto, abbonamenti, bollette, utenze' },
-  { value: 'debt', label: 'Debito / Rata', description: 'Mutuo, prestito, finanziamento ricorrente' },
-  { value: 'income', label: 'Entrata', description: 'Stipendio, bonus, dividendi, rimborsi' },
-  {
-    value: 'transfer',
-    label: 'Trasferimento',
-    description: 'Sposta denaro tra conti',
-    icon: <ArrowLeftRight className="h-3.5 w-3.5" />,
-  },
+  { value: 'variable', label: 'Spesa Variabile', description: 'Ristorante, shopping, svago, imprevisti', Icon: ShoppingCart },
+  { value: 'fixed', label: 'Spesa Fissa', description: 'Affitto, abbonamenti, bollette, utenze', Icon: Receipt },
+  { value: 'debt', label: 'Debito / Rata', description: 'Mutuo, prestito, finanziamento ricorrente', Icon: CreditCard },
+  { value: 'income', label: 'Entrata', description: 'Stipendio, bonus, dividendi, rimborsi', Icon: TrendingUp },
+  { value: 'transfer', label: 'Trasferimento', description: 'Sposta denaro tra conti', Icon: ArrowLeftRight },
 ];
 
 function isAdvancedPrePopulated(expense: Expense | null | undefined): boolean {
@@ -200,6 +214,63 @@ function calculateInstallmentDate(startDate: Date, monthOffset: number): Date {
   const date = new Date(startDate);
   date.setMonth(date.getMonth() + monthOffset);
   return date;
+}
+
+// ---------------------------------------------------------------------------
+// ExpenseTypePicker — step 1 of the create flow
+// ---------------------------------------------------------------------------
+
+interface ExpenseTypePickerProps {
+  /** The form's current type, so the picker can be re-opened on the choice already made. */
+  selectedType: ExpenseType;
+  onSelect: (type: ExpenseType) => void;
+}
+
+/**
+ * Card picker over the five expense types.
+ *
+ * `role="radiogroup"` / `role="radio"` exposes the mutually exclusive choice to screen readers;
+ * `aria-checked` reflects the form default (variable) until the user picks, exactly as
+ * `AssetDialog`'s picker does. One column on a phone, two from `sm:` up — five cards means the
+ * last one spans both columns rather than leaving a hole in the grid.
+ */
+function ExpenseTypePicker({ selectedType, onSelect }: Readonly<ExpenseTypePickerProps>) {
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground mb-5">
+        Scegli il tipo di voce da registrare
+      </p>
+      <div
+        role="radiogroup"
+        aria-label="Tipo di voce"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+      >
+        {TYPE_OPTIONS.map(({ value, label, description, Icon }, index) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={selectedType === value}
+            onClick={() => onSelect(value)}
+            className={cn(
+              'flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left',
+              'transition-colors duration-150 ease-out hover:bg-muted/50 hover:border-primary/30',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              index === TYPE_OPTIONS.length - 1 &&
+                TYPE_OPTIONS.length % 2 !== 0 &&
+                'sm:col-span-2'
+            )}
+          >
+            <Icon className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">{label}</p>
+              <p className="text-xs text-muted-foreground leading-snug mt-0.5">{description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +316,11 @@ interface FormBodyProps {
   onCreateSubCategory: (name: string) => void;
   /** Re-points the category selection when the type changes. */
   onTypeChange: (type: ExpenseType) => void;
+  /**
+   * Returns to the step-1 type picker. Present in create mode ONLY — its absence is what tells
+   * the body to render the type `Select` instead, so the two are never on screen together.
+   */
+  onBackToTypePicker?: () => void;
   /** What changing the type will do to this row, or null when it has not changed. */
   typeChangeNotice: string | null;
   advancedOpen: boolean;
@@ -282,6 +358,7 @@ function ExpenseFormBody({
   onCreateCategory,
   onCreateSubCategory,
   onTypeChange,
+  onBackToTypePicker,
   typeChangeNotice,
   advancedOpen,
   setAdvancedOpen,
@@ -290,50 +367,65 @@ function ExpenseFormBody({
   return (
     <form id="expense-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
-      {/* ---- Tipo di voce ---- */}
-      <div className="space-y-2">
-        <Label htmlFor="type">Tipo di voce</Label>
-        <Controller
-          control={control}
-          name="type"
-          render={({ field }) => (
-            <Select
-              value={field.value}
-              onValueChange={(value: ExpenseType) => {
-                field.onChange(value);
-                onTypeChange(value);
-                if (value !== 'debt') {
-                  setValue('isRecurring', false);
-                }
-              }}
-            >
-              <SelectTrigger id="type" aria-label="Tipo di voce da registrare">
-                <span className={cn(!field.value && 'text-muted-foreground')}>
-                  {field.value
-                    ? EXPENSE_TYPE_LABELS[field.value as ExpenseType]
-                    : 'Seleziona tipo'}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <div className="flex flex-col gap-0.5 py-0.5">
-                      <span className="font-medium flex items-center gap-1.5">
-                        {option.icon}
-                        {option.label}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-normal">{option.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* ---- Tipo di voce ----
+           Create mode reached this form through the step-1 picker, so the type is already
+           settled and the control here would be a second way to do the same thing: a back
+           link to the picker instead. Edit mode keeps the Select — it is the only place a
+           saved row can change type, and `typeChangeNotice` below explains the consequences. */}
+      {onBackToTypePicker ? (
+        <button
+          type="button"
+          onClick={onBackToTypePicker}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          Cambia tipo
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <Label htmlFor="type">Tipo di voce</Label>
+          <Controller
+            control={control}
+            name="type"
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(value: ExpenseType) => {
+                  field.onChange(value);
+                  onTypeChange(value);
+                  if (value !== 'debt') {
+                    setValue('isRecurring', false);
+                  }
+                }}
+              >
+                <SelectTrigger id="type" aria-label="Tipo di voce da registrare">
+                  <span className={cn(!field.value && 'text-muted-foreground')}>
+                    {field.value
+                      ? EXPENSE_TYPE_LABELS[field.value as ExpenseType]
+                      : 'Seleziona tipo'}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col gap-0.5 py-0.5">
+                        <span className="font-medium flex items-center gap-1.5">
+                          <option.Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-normal">{option.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {typeChangeNotice && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">{typeChangeNotice}</p>
           )}
-        />
-        {typeChangeNotice && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">{typeChangeNotice}</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ---- Importo + Data ---- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -900,6 +992,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   const [categoryEditTarget, setCategoryEditTarget] = useState<ExpenseCategory | null>(null);
   const [subCategoryInitialName, setSubCategoryInitialName] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(() => isAdvancedPrePopulated(expense));
+  // 1 = type picker, 2 = form. Edit mode never leaves step 2 (see the file header).
+  const [step, setStep] = useState<1 | 2>(() => (expense ? 2 : 1));
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -936,6 +1030,9 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
 
   useEffect(() => {
     if (!open) return;
+    // Re-run on every open so a second "nuova voce" starts from the picker again — without
+    // `open` in the deps, `expense` stays null between opens and the step is never reset.
+    setStep(expense ? 2 : 1);
     setAdvancedOpen(isAdvancedPrePopulated(expense));
     transferCategoryIdRef.current = null; // Reset transfer category cache on dialog open
   }, [open, expense]);
@@ -1368,13 +1465,26 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     }
   };
 
+  const isTypePicker = !isEdit && step === 1;
+
   // Both titles follow the SELECTED type, not the stored one: in edit mode the type is
   // now changeable, and a header still saying "Modifica Entrata" while the form has
-  // been switched to a spesa would contradict the control right below it.
-  const dialogTitle = isEdit ? EDIT_TITLES[selectedType] : CREATE_TITLES[selectedType];
-  const dialogDescription = isEdit
-    ? 'Modifica i dettagli della voce selezionata'
-    : 'Inserisci i dettagli della nuova voce';
+  // been switched to a spesa would contradict the control right below it. On step 1 no
+  // type has been chosen yet, so the header names the flow instead.
+  let dialogTitle: string;
+  if (isTypePicker) {
+    dialogTitle = 'Nuova Voce';
+  } else {
+    dialogTitle = isEdit ? EDIT_TITLES[selectedType] : CREATE_TITLES[selectedType];
+  }
+  let dialogDescription: string;
+  if (isTypePicker) {
+    dialogDescription = 'Scegli il tipo di voce da registrare';
+  } else {
+    dialogDescription = isEdit
+      ? 'Modifica i dettagli della voce selezionata'
+      : 'Inserisci i dettagli della nuova voce';
+  }
   const baseLabel = isEdit ? 'Salva modifiche' : 'Crea voce';
   const submitLabel = isSubmitting ? 'Salvataggio...' : baseLabel;
 
@@ -1398,6 +1508,26 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
       setValue('subCategoryId', match?.subCategoryId ?? '');
     },
     [categories, getValues, setValue]
+  );
+
+  /**
+   * Picks the type in step 1 and advances to the form.
+   *
+   * Goes through `handleTypeChange` rather than setting the type alone: the picker can be
+   * re-opened from "Cambia tipo" with a category already selected, and that category belongs to
+   * the type the user is leaving. The `isRecurring` reset mirrors the edit-mode Select — monthly
+   * recurrence only exists for a debt.
+   */
+  const handleTypeSelect = useCallback(
+    (nextType: ExpenseType) => {
+      handleTypeChange(nextType);
+      setValue('type', nextType);
+      if (nextType !== 'debt') {
+        setValue('isRecurring', false);
+      }
+      setStep(2);
+    },
+    [handleTypeChange, setValue]
   );
 
   /**
@@ -1467,6 +1597,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     onCreateCategory: handleCreateCategory,
     onCreateSubCategory: handleCreateSubCategory,
     onTypeChange: handleTypeChange,
+    onBackToTypePicker: isEdit ? undefined : () => setStep(1),
     typeChangeNotice,
     advancedOpen,
     setAdvancedOpen,
@@ -1487,7 +1618,18 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           ) : undefined
         }
         footer={
-          isMobile ? (
+          /* Step 1 has nothing to submit: picking a card IS the action, so the only footer
+             control is the way out. */
+          isTypePicker ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className={isMobile ? 'w-full' : undefined}
+            >
+              Annulla
+            </Button>
+          ) : isMobile ? (
             <>
               <Button type="submit" form="expense-form" disabled={isSubmitting} className="w-full">
                 {submitLabel}
@@ -1508,7 +1650,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           )
         }
       >
-        <ExpenseFormBody {...formBodyProps} />
+        {isTypePicker ? (
+          <ExpenseTypePicker selectedType={selectedType} onSelect={handleTypeSelect} />
+        ) : (
+          <ExpenseFormBody {...formBodyProps} />
+        )}
       </ResponsiveModal>
 
       <CategoryManagementDialog
