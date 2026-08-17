@@ -138,9 +138,17 @@ Companion documents — do not duplicate their content into this file:
 ### Settings — the FIVE places
 - A new setting must be added to all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
   `assetAllocationService.getSettings`, **BOTH** write chains in `setSettings` (the `targets` branch uses `setDoc` with
-  no merge), and the state/load/save/dirty-snapshot wiring in `settings/page.tsx`. Guarded by `settingsRoundTrip`.
+  no merge), and the state/load/save/dirty-snapshot wiring — usually `settings/page.tsx`, but a FIRE-only toggle (e.g.
+  `respectPensionLockInFire`) wires from `FireCalculatorTab.tsx` instead; the 5th place is "wherever the field's own
+  save button lives", not always the Settings page. Guarded by `settingsRoundTrip`, whose `STORED_SETTINGS` fixture
+  must carry the new field for the guard to actually cover it (adding the field to the type without adding it to the
+  fixture leaves the round-trip green while the read mapping is still broken).
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`.
+- **There is a SIXTH place for any setting the server (not just the client) needs to read**: the settings mapper in
+  `lib/services/dashboardOverviewService.ts` re-lists the same fields from the admin doc, independently of
+  `assetAllocationService.getSettings`. `settingsRoundTrip` does not cover it — check it by hand when a setting has (or
+  will have) a server consumer.
 - **Store a boolean explicitly, never derive it** from other fields (`?? derivedFallback` on load). All feature toggles
   live in `AssetAllocationSettings`, never in `UserPreferences`, and dirty-state snapshot keys contain **only persisted
   fields**, captured *after* the Firestore state is applied.
