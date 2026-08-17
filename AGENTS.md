@@ -906,9 +906,11 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - Prefer verifying with **two independent paths**: compute the expected figure in the script from the same real
   snapshots — a same-code-path comparison would be circular.
 - **A 404 from `npm run dev:e2e` on a route that exists is a stale `.next-e2e` cache, not a routing bug** — the same
-  request answers normally from a fresh dist dir (`NEXT_DIST_DIR=.next-spec2 npx next dev -p 3101`). Reach for a new
-  dist dir rather than deleting someone else's; `next dev` also rewrites `tsconfig.json` (adding the dir to `include`),
-  so check it out again afterwards.
+  request answers normally from a fresh dist dir (`NEXT_DIST_DIR=.next-throwaway npx next dev -p 3101`). Reach for a new
+  dist dir rather than deleting someone else's, and **keep the `.next-` prefix**, which is what `.gitignore` matches
+  (`/.next-*/`) — a differently-named one leaves its build output as untracked changes. Two more traps on the way out:
+  `next dev` rewrites `tsconfig.json` (it adds the dir to `include`), so check the file out again; and the server keeps
+  writing for a moment after it is stopped, so delete the dist dir **after** confirming the process is gone.
 - **Stopping the emulators: send SIGINT to the `firebase` CLI process, not to the `scripts/emulators.mjs` wrapper.**
   The wrapper exits immediately, its children survive, and `--export-on-exit` never runs — `.emulator-data/` keeps the
   timestamp it had at startup and the session's data is lost on the next import. Check that timestamp before trusting
