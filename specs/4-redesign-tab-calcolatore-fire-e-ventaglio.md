@@ -1,6 +1,10 @@
 # Spec 4 — Redesign tab Calcolatore FIRE + grafico a ventaglio
 
 > **Ordine**: 4 di 5. **Dipende dalla Spec 3** (mostra bridge e sblocco) e beneficia della Spec 1.
+> **Stato**: ✅ **Implementata** (2026-08-18) — branch `feature/fire-tab-redesign-ventaglio`,
+> PR #277. Coerenza ventaglio↔deterministico provata nei test (identità float-per-float a
+> volatilità 0, vista rossa); e2e/fire.spec.ts 3/3 (falsificati prima del verde), suite
+> Playwright 28/28, build di produzione verificata (~177 ms la commutazione, 0 errori console).
 > **Scopo**: portare il tab "Calcolatore FIRE" all'IA "single-answer" del resto dell'app (hero con
 > verdetto → dettaglio progressivo) e aggiungere la vista **Ventaglio**: percentili + percorsi
 > casuali derivati dal portafoglio reale sul grafico di proiezione.

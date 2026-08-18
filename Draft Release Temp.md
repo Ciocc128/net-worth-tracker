@@ -55,6 +55,8 @@
 - FIRE projections now show the pension fund re-entering your portfolio at its unlock year — a visible step in every Bear/Base/Bull line — and the "FIRE reached" check uses the bridge target before the unlock and the standard one after.
 - Coast FIRE, What If and Monte Carlo now respect the pension lock-in toggle too (previously only the FIRE calculator did): the fund leaves today's capital and comes back at its unlock year in each simulation — Monte Carlo declares the injected amount in a read-only note on the parameters form.
 - Added a "Fondo pensione — rientra nel {anno}" row to the FIRE passive-income block, so the excluded capital and its return year are always stated rather than silently missing.
+- Added a "Ventaglio" (fan) view to the FIRE calculator’s projection: a Monte Carlo simulation of your accumulation phase with percentile bands (10–90 and 25–75), the median path, ~40 sample paths, and the moving FIRE target — market returns and volatility are derived from your real portfolio allocation.
+- Added the cumulative probability of reaching FIRE by your projected year under the fan chart — the one number the deterministic projection cannot give.
 
 ## 🐛 Bug Fixes
 
@@ -206,6 +208,9 @@
 - The Assistant's start screen now reads top-down: the question for the selected period, the matching suggestion highlighted as the primary chip, the other suggestions, then what the assistant knows about you — with the numeric context beside it on desktop and right below it on mobile.
 - Adding a cashflow entry now starts by asking what kind of entry it is — Spesa Variabile, Spesa Fissa, Debito/Rata, Entrata or Trasferimento — on a picker of labelled cards, the same way adding an investment works in Patrimonio. The form that follows is already titled and filtered for that choice, so you no longer scan fields that don't apply to what you're recording, and "Cambia tipo" takes you back. Editing an entry is unchanged: there the type stays a field inside the form, alongside the note explaining what changing it does to your balances.
 - The automatic Azioni/Obbligazioni calculation (The Bull's formula) now funds your other asset classes out of Azioni instead of Obbligazioni. Previously every class outside the two — materie prime, crypto, immobili — was subtracted from the bond target, so a portfolio with a 22,5% satellite sleeve ended up with Obbligazioni at 0,48%: the defensive part of the allocation absorbed every satellite position. Obbligazioni now keep the share the formula prescribes for your age and the risk-free rate, and the satellites come out of the equity side instead. The targets still total 100%, and the setting's summary line now spells out all three figures.
+- Improved the FIRE calculator with a single-answer layout: a dominant verdict with the projected FIRE year (and age at that year), your sustainable passive income beside it, a line declaring the active assumptions (SWR, home, pension lock), settings gathered in one collapsible, and the historical charts tucked into a "Dettaglio" section.
+- Improved the scenario projection chart’s readability: three portfolio series plus a single dashed FIRE target (base scenario); the Bear and Bull targets moved into the tooltip, which now also names the pension-fund unlock step.
+- Improved the "FIRE reached" announcement: the celebration banner is now part of the hero verdict (one announcement instead of two, confetti preserved).
 
 ## 🔒 Security
 

@@ -27,6 +27,7 @@ import {
   calculateAssetValue,
 } from '@/lib/services/assetService';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
+import { deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
 import { getSettings, setSettings, getDefaultTargets, calculateCurrentAllocation } from '@/lib/services/assetAllocationService';
 import {
   runMonteCarloSimulation,
@@ -216,30 +217,11 @@ export function MonteCarloTab() {
         }
 
         if (assets && assets.length > 0) {
-          const { byAssetClass } = calculateCurrentAllocation(assets);
-          const equity = byAssetClass['equity'] || 0;
-          const bonds = byAssetClass['bonds'] || 0;
-          const realEstate = byAssetClass['realestate'] || 0;
-          const commodities = byAssetClass['commodity'] || 0;
-          const total = equity + bonds + realEstate + commodities;
-
-          if (total > 0) {
-            // Sort descending so rounding residual goes to the smallest class
-            const classes = [
-              { key: 'equityPercentage' as const, value: equity },
-              { key: 'bondsPercentage' as const, value: bonds },
-              { key: 'realEstatePercentage' as const, value: realEstate },
-              { key: 'commoditiesPercentage' as const, value: commodities },
-            ].sort((a, b) => b.value - a.value);
-
-            let allocated = 0;
-            for (let i = 0; i < classes.length - 1; i++) {
-              const pct = Math.round((classes[i].value / total) * 100);
-              updates[classes[i].key] = pct;
-              allocated += pct;
-            }
-            updates[classes[classes.length - 1].key] = 100 - allocated;
-          }
+          // Shared with the FIRE Ventaglio view — the two call sites must stay identical.
+          const allocation = deriveMonteCarloAllocation(
+            calculateCurrentAllocation(assets).byAssetClass
+          );
+          if (allocation) Object.assign(updates, allocation);
         }
 
         return { ...prev, ...updates };
