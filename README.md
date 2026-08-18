@@ -225,7 +225,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 | Forms | react-hook-form, zod | Form handling and validation |
 | Dates | date-fns, date-fns-tz | Timezone-aware date operations |
 | Scraping | cheerio | Borsa Italiana dividend and bond price data |
-| Testing | Vitest · Playwright | Unit testing (1922 tests) · browser E2E against the Firebase emulator (29 specs) |
+| Testing | Vitest · Playwright | Unit testing (1922 tests) · browser E2E against the Firebase emulator (30 specs) |
 
 ## Development
 
@@ -255,7 +255,9 @@ and [SETUP.md → Step 7](SETUP.md) for the Playwright suite.
 
 Vitest covers the pure utilities and services, where the logic lives. Playwright covers what only a
 real browser can see — the `desktop:` layout switch at 1440px, animated disclosures, deep links that
-must cold-load into the right state, and whether a loading state ever flashes the wrong content.
+must cold-load into the right state, whether a loading state ever flashes the wrong content, and
+whether a page overflows its viewport at 390px (measured on the elements, since the app shell's
+scroll container hides that from `document.scrollWidth`).
 Covered pages: **Previdenza** (including a project for the states a healthy fixture can never reach —
 a return that can't be trusted, a window where nothing moved, a fund with no history yet — seeded on
 their own account: `npm run e2e:seed -- suspicious|idle|fresh`), **Analisi** (its own fixture
