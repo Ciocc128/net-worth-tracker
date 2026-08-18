@@ -420,6 +420,18 @@ Companion documents — do not duplicate their content into this file:
 - **Config-first collapse: decide ONCE after the form has settled.** A "collapsed if already configured" panel cannot key
   on the transient `hasUnsavedChanges` — use a `useRef` seeded-flag set when `!isLoadingSettings && !hasUnsavedChanges`,
   and gate the temp-sync effect on `!isLoadingSettings` (not `if (settings)`).
+- **The Ventaglio engine mirrors the deterministic walk BY CONSTRUCTION** (`runAccumulationSimulation`): per year
+  inflow → random return → savings (stopped once the path retires), moving target = inflated expenses ÷ WR. At zero
+  volatility every path collapses float-for-float onto `calculateFIREProjection`'s base scenario — the coherence test
+  pins that identity WITHOUT inflows, because the deterministic bridge grows the pension compartment while a Monte
+  Carlo run injects inflows at today's value. Do not "fix" the test to include them: the divergence IS the model.
+- **The allocation→4-MC-classes normalization is ONE function** (`deriveMonteCarloAllocation` in
+  `lib/utils/monteCarloParams.ts`): MonteCarloTab's auto-fill and the FIRE Ventaglio consume it and must never
+  re-inline it. `null` means "keep the previous allocation", and the rounding residual lands on the smallest class —
+  even a zero-value one (inherited behaviour, pinned by tests).
+- **Memoize every input feeding the fan's `useMemo`** — a `pensionLockState` (and therefore `fanInputs`) rebuilt per
+  render re-runs 1000 simulations on every keystroke. The fan is additionally armed only on first opening its view,
+  so users who never open Ventaglio never pay its CPU.
 - **Goal trajectory is annuity math in a tested pure layer** (`goalTrajectory.ts`), never a `useMemo` in the card; the
   verdict compares the *projected value at the deadline* against the target with a 1% tolerance, not contribution ≥
   requiredMonthly (float flapping). Coast FIRE's nested pension rows must be serialized without `undefined` fields.
@@ -964,6 +976,10 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   `%USERPROFILE%\.jdk\jdk-21.0.12+8-jre\bin` to `PATH` for the emulator terminal (SETUP.md → Step 6). Stopping the npm
   wrapper does **not** kill the JVM: the ports stay taken and the next start fails with "port taken", not with anything
   naming a stale process.
+- **On the BASE account, FIRE figures depend on the RUN MONTH** (the cashflow fallback annualizes the current year), so
+  a spec there asserts STRUCTURE and FORMAT, never exact amounts — and the euro-format regex must accept ungrouped
+  four-digit amounts: `(\d{1,3}(\.\d{3})+|\d{1,4}),\d{2}`. The grouped-only pattern fails genuinely on "3270,20 €"
+  (CLDR `minimumGroupingDigits = 2`, the same trap as *Italian Localization*).
 - **A throwaway session spec must match an existing project's `testMatch`** (`*.spec.ts` → `desktop`,
   `*.mobile.spec.ts` → `mobile`), assert against Firestore rather than the page, plant a decoy word that appears nowhere
   in the seed, delete the documents it created, and delete itself.

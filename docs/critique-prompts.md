@@ -854,14 +854,21 @@ File: app/dashboard/fire-simulations/page.tsx
 Componenti: components/fire-simulations/FireCalculatorTab.tsx,
             components/fire-simulations/FIREProjectionSection.tsx,
             components/fire-simulations/FIREProjectionChart.tsx,
+            components/fire-simulations/FireFanChart.tsx,
             components/fire-simulations/FireCalculatorSkeleton.tsx
 
-Questo tab calcola il FIRE Number con hero block, Settings collapsible
-(auto-open su unsaved changes), flat divide-y metric rows, "Annulla" reset button
-e sezione proiezione con sensitivity matrix e scenario chart. Include un toggle opzionale
-per il capitale bloccato nel fondo pensione (respectPensionLockInFire /
-lib/utils/pensionFire.ts): quando è attivo il capitale previdenziale non è considerato
-disponibile prima dell'età di accesso.
+Questo tab è IA single-answer (redesign Spec 4, 2026-08-18): hero [2fr_1fr] con il verdetto
+"FIRE proiettato nel {anno}, a {età}" (dominante = anno di calendario; stati Oggi / 50+ / —)
++ companion reddito passivo sostenibile, riga basis con le assunzioni attive, un solo
+collapsible Impostazioni (SWR, casa, fondo pensione + RITA, seeded-flag config-first),
+sezione Proiezione con pill Scenari|Ventaglio (Scenari = 3 serie + un solo target base
+tratteggiato, target Orso/Toro nel tooltip; Ventaglio = fan Monte Carlo da
+runAccumulationSimulation con bande p10-p90/p25-p75, mediana, ~40 spaghetti deterministici,
+probabilità cumulata di FIRE), collapsible "Parametri e tabella" e collapsible "Dettaglio"
+con i due grafici storici retrocessi. Include il toggle del capitale bloccato nel fondo
+pensione (respectPensionLockInFire, modello bridge Spec 3).
+Attenzione: i due grafici storici dentro "Dettaglio" (runway + cashflow) conservano ancora
+tick e tooltip pre-redesign (retrocessi, non ridisegnati per scelta della Spec 4).
 Confronta con: Monte Carlo (same hero + collapsible pattern), Goals (hero allocato),
 Coast FIRE (stesso Settings pattern), Previdenza (stessa materia, taglio contributi/fiscale).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
