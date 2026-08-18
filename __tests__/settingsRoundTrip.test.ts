@@ -44,6 +44,9 @@ const STORED_SETTINGS = {
   pensionReturnStartMonth: '2026-07',
   costCentersEnabled: true,
   includePrimaryResidenceInFIRE: true,
+  respectPensionLockInFire: true,
+  pensionInpsRetirementAge: 68,
+  pensionRitaLongUnemployment: true,
   cashflowHistoryStartYear: 2019,
   familyMembers: [{ id: 'm1', name: 'Giuseppe' }],
 };
@@ -82,8 +85,16 @@ describe('getSettings — lettura', () => {
 
     expect(settings?.costCentersEnabled).toBe(true);
     expect(settings?.includePrimaryResidenceInFIRE).toBe(true);
+    expect(settings?.respectPensionLockInFire).toBe(true);
     expect(settings?.cashflowHistoryStartYear).toBe(2019);
     expect(settings?.familyMembers).toEqual([{ id: 'm1', name: 'Giuseppe' }]);
+  });
+
+  it('returns the RITA rule settings instead of dropping them', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.pensionInpsRetirementAge).toBe(68);
+    expect(settings?.pensionRitaLongUnemployment).toBe(true);
   });
 
   it('returns null when the user has no settings document yet', async () => {
@@ -106,6 +117,19 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: true,
       pensionReturnStartMonth: '2026-07',
+    });
+  });
+
+  it('writes the RITA rule settings', async () => {
+    await setSettings('user-1', {
+      targets: TARGETS,
+      pensionInpsRetirementAge: 68,
+      pensionRitaLongUnemployment: false,
+    } as AssetAllocationSettings);
+
+    expect(writtenPayload()).toMatchObject({
+      pensionInpsRetirementAge: 68,
+      pensionRitaLongUnemployment: false,
     });
   });
 
@@ -148,6 +172,18 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: false,
       pensionReturnStartMonth: '2026-07',
+    });
+  });
+
+  it('writes the RITA rule settings', async () => {
+    await setSettings('user-1', {
+      pensionInpsRetirementAge: 70,
+      pensionRitaLongUnemployment: true,
+    } as AssetAllocationSettings);
+
+    expect(writtenPayload()).toMatchObject({
+      pensionInpsRetirementAge: 70,
+      pensionRitaLongUnemployment: true,
     });
   });
 

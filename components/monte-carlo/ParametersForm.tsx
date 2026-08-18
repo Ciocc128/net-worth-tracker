@@ -21,6 +21,9 @@ interface ParametersFormProps {
   liquidNetWorth: number;
   isRunning: boolean;
   hideMarketParams?: boolean; // Hide advanced section when scenario mode handles market params
+  // Read-only: pension-fund inflows the simulation adds automatically at their unlock
+  // year, at today's value — declared here so the user knows the fund is not simply missing.
+  pensionCapitalInflows?: { year: number; amount: number }[];
 }
 
 /**
@@ -45,6 +48,7 @@ export function ParametersForm({
   liquidNetWorth,
   isRunning,
   hideMarketParams = false,
+  pensionCapitalInflows = [],
 }: ParametersFormProps) {
   // ===== Advanced section open state =====
 
@@ -235,6 +239,16 @@ export function ParametersForm({
             onChange={(e) => handleInitialPortfolioChange(e.target.value)}
             onBlur={handleInitialPortfolioBlur}
           />
+          {pensionCapitalInflows.length > 0 && (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+              {pensionCapitalInflows.map((inflow) => (
+                <p key={inflow.year}>
+                  Fondo pensione: +{formatCurrency(inflow.amount)} aggiunti automaticamente
+                  {" all'anno "}{inflow.year} della simulazione (sblocco), al valore di oggi.
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Anni di Pensionamento + Prelievo Annuale */}

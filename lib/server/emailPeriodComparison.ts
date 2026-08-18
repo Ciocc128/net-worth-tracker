@@ -86,8 +86,15 @@ interface CashflowMetrics {
   expenseByCategory: Record<string, number>;
 }
 
-/** Number of top expense categories to surface for cause analysis. */
-const MAX_CATEGORY_DELTAS = 6;
+/**
+ * How many expense categories (the largest by spend in the period) get a delta.
+ *
+ * Exported because the cap has to be DECLARED in the prompt text: a silent cap is
+ * indistinguishable, to a model, from "that category had no spending", and the
+ * data-integrity rules then turn the gap into a hallucinated "N/D". The consumer names
+ * this number in the section header and states how many categories it left out.
+ */
+export const MAX_CATEGORY_DELTAS = 12;
 
 /**
  * Resolves the {year, endMonth} of the period immediately preceding the given period.

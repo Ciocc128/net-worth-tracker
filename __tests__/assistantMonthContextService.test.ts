@@ -10,14 +10,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // adminDb mock must be hoisted before the service is imported
-const { snapshotsGetMock, expensesGetMock, settingsDocGetMock, assetsGetMock, goalDocGetMock } =
-  vi.hoisted(() => ({
-    snapshotsGetMock: vi.fn(),
-    expensesGetMock: vi.fn(),
-    settingsDocGetMock: vi.fn(),
-    assetsGetMock: vi.fn(),
-    goalDocGetMock: vi.fn(),
-  }));
+const {
+  snapshotsGetMock,
+  expensesGetMock,
+  settingsDocGetMock,
+  assetsGetMock,
+  goalDocGetMock,
+  expenseWhereCalls,
+} = vi.hoisted(() => ({
+  snapshotsGetMock: vi.fn(),
+  expensesGetMock: vi.fn(),
+  settingsDocGetMock: vi.fn(),
+  assetsGetMock: vi.fn(),
+  goalDocGetMock: vi.fn(),
+  // Every .where() the expenses query receives, in call order. The date range is the
+  // only proof of which window a period builder actually queried — the get() mock
+  // returns the same docs whatever the bounds are.
+  expenseWhereCalls: [] as Array<{ field: string; op: string; value: unknown }>,
+}));
 
 vi.mock('@/lib/firebase/admin', () => ({
   adminDb: {
@@ -30,11 +40,15 @@ vi.mock('@/lib/firebase/admin', () => ({
         };
       }
       if (name === 'expenses') {
-        return {
-          where: vi.fn().mockReturnThis(),
-          orderBy: vi.fn().mockReturnThis(),
+        const chain: Record<string, unknown> = {
+          where: vi.fn((field: string, op: string, value: unknown) => {
+            expenseWhereCalls.push({ field, op, value });
+            return chain;
+          }),
+          orderBy: vi.fn(() => chain),
           get: expensesGetMock,
         };
+        return chain;
       }
       if (name === 'assetAllocationTargets') {
         return {
@@ -64,6 +78,7 @@ vi.mock('server-only', () => ({}));
 
 import {
   buildAssistantMonthContext,
+  buildAssistantPeriodRangeContext,
   buildAssistantYearContext,
 } from '@/lib/services/assistantMonthContextService';
 import { MonthlySnapshot } from '@/types/assets';
@@ -466,6 +481,191 @@ describe('buildAssistantMonthContext', () => {
     // 2024 is a leap year; February has 29 days
     const endDate = new Date(2024, 2, 0, 23, 59, 59); // Feb 29 in leap year
     expect(endDate.getDate()).toBe(29);
+  });
+});
+
+// ─── Arbitrary month-window builder (quarters, semesters, and the email periods) ──
+
+describe('buildAssistantPeriodRangeContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    expenseWhereCalls.length = 0;
+    mockSettings(undefined);
+    mockAssets([]);
+    mockGoalData(null);
+  });
+
+  const Q3_2026 = { year: 2026, startMonth: 7, endMonth: 9, label: 'Q3 2026' };
+
+  it('queries exactly the window months (Q3 = 1 July → 30 September 23:59:59)', async () => {
+    mockSnapshots([]);
+    mockExpenses([]);
+
+    await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    const bounds = expenseWhereCalls
+      .filter((call) => call.field === 'date')
+      .map((call) => (call.value as { toDate: () => Date }).toDate());
+    expect(bounds).toHaveLength(2);
+    const [start, end] = bounds;
+    expect(start.getMonth()).toBe(6); // July
+    expect(start.getDate()).toBe(1);
+    expect(end.getMonth()).toBe(8); // September
+    expect(end.getDate()).toBe(30);
+    expect(end.getHours()).toBe(23);
+    expect(end.getSeconds()).toBe(59);
+  });
+
+  it('takes the closing snapshot of the window and the one before it opens as the baseline', async () => {
+    mockSnapshots([
+      makeSnapshotDoc(2026, 6, 180_000), // baseline: month before the window opens
+      makeSnapshotDoc(2026, 7, 185_000),
+      makeSnapshotDoc(2026, 8, 190_000),
+      makeSnapshotDoc(2026, 9, 200_000), // closing snapshot of the window
+    ]);
+    mockExpenses([]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    expect(bundle.previousSnapshot?.month).toBe(6);
+    expect(bundle.currentSnapshot?.month).toBe(9);
+    expect(bundle.netWorth.start).toBe(180_000);
+    expect(bundle.netWorth.end).toBe(200_000);
+    expect(bundle.netWorth.delta).toBe(20_000);
+    expect(bundle.netWorth.deltaPct).toBeCloseTo(11.11, 2);
+  });
+
+  it('crosses the year boundary for a window that opens in January', async () => {
+    mockSnapshots([makeSnapshotDoc(2025, 12, 100_000), makeSnapshotDoc(2026, 3, 120_000)]);
+    mockExpenses([]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', {
+      year: 2026,
+      startMonth: 1,
+      endMonth: 3,
+      label: 'Q1 2026',
+    });
+
+    expect(bundle.previousSnapshot?.year).toBe(2025);
+    expect(bundle.previousSnapshot?.month).toBe(12);
+    expect(bundle.netWorth.delta).toBe(20_000);
+  });
+
+  it('reconciles structurally: the category totals sum to the stated total', async () => {
+    mockSnapshots([makeSnapshotDoc(2026, 9, 200_000)]);
+    mockExpenses([
+      makeExpenseDoc(-1200, 'cat-casa', new Date(2026, 6, 3), {
+        type: 'fixed',
+        categoryName: 'Casa',
+        subCategoryId: 'sub-affitto',
+        subCategoryName: 'Affitto',
+      }),
+      makeExpenseDoc(-450, 'cat-cibo', new Date(2026, 7, 11), { type: 'variable', categoryName: 'Cibo' }),
+      makeExpenseDoc(-90, 'cat-cibo', new Date(2026, 8, 21), { type: 'variable', categoryName: 'Cibo' }),
+      makeExpenseDoc(2500, 'cat-stipendio', new Date(2026, 7, 27), {
+        type: 'income',
+        categoryName: 'Stipendio',
+      }),
+      // A transfer must stay out of every figure, counts included.
+      makeExpenseDoc(500, 'cat-giro', new Date(2026, 8, 2), { type: 'transfer', categoryName: 'Giroconto' }),
+    ]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    const categorySum = bundle.expensesByCategory.reduce((sum, c) => sum + c.total, 0);
+    expect(categorySum).toBeCloseTo(bundle.cashflow.totalExpenses);
+    expect(bundle.cashflow.totalExpenses).toBeCloseTo(-1740);
+    expect(bundle.cashflow.totalIncome).toBe(2500);
+    expect(bundle.cashflow.transactionCount).toBe(4);
+    expect(bundle.cashflow.expenseTransactionCount).toBe(3);
+  });
+
+  it('declares the window in the data quality notes, so every figure can name it', async () => {
+    mockSnapshots([makeSnapshotDoc(2026, 6, 180_000), makeSnapshotDoc(2026, 9, 200_000)]);
+    mockExpenses([]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    expect(bundle.dataQuality.notes[0]).toContain('Q3 2026');
+    expect(bundle.dataQuality.notes[0]).toContain('Luglio');
+    expect(bundle.dataQuality.notes[0]).toContain('Settembre');
+  });
+
+  it('names the window months that have no snapshot', async () => {
+    // August is missing: the window's intermediate patrimony is not observable.
+    mockSnapshots([
+      makeSnapshotDoc(2026, 6, 180_000),
+      makeSnapshotDoc(2026, 7, 185_000),
+      makeSnapshotDoc(2026, 9, 200_000),
+    ]);
+    mockExpenses([]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    const note = bundle.dataQuality.notes.find((n) => n.includes('Agosto'));
+    expect(note).toBeDefined();
+    expect(note).toContain('snapshot');
+  });
+
+  it('notes the missing baseline instead of reporting a delta from zero', async () => {
+    mockSnapshots([makeSnapshotDoc(2026, 9, 200_000)]);
+    mockExpenses([]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    expect(bundle.dataQuality.hasPreviousBaseline).toBe(false);
+    expect(bundle.netWorth.start).toBeNull();
+    expect(bundle.netWorth.delta).toBeNull();
+    expect(bundle.dataQuality.notes.some((n) => n.includes('non calcolabile'))).toBe(true);
+  });
+
+  it('excludes dummy snapshots from both ends of the window', async () => {
+    mockSnapshots([
+      makeSnapshotDoc(2026, 6, 180_000),
+      makeSnapshotDoc(2026, 9, 999_999, {}, true), // isDummy
+    ]);
+    mockExpenses([]);
+
+    const bundle = await buildAssistantPeriodRangeContext('user1', Q3_2026);
+
+    expect(bundle.currentSnapshot).toBeNull();
+    expect(bundle.dataQuality.hasSnapshot).toBe(false);
+  });
+
+  it('keeps a single month window equivalent to the monthly builder', async () => {
+    const snapshots = [makeSnapshotDoc(2026, 6, 180_000), makeSnapshotDoc(2026, 7, 185_000)];
+    const expenses = [
+      makeExpenseDoc(-300, 'cat-cibo', new Date(2026, 6, 4), { type: 'variable', categoryName: 'Cibo' }),
+    ];
+    mockSnapshots(snapshots);
+    mockExpenses(expenses);
+    const monthly = await buildAssistantMonthContext('user1', { year: 2026, month: 7 });
+
+    mockSnapshots(snapshots);
+    mockExpenses(expenses);
+    const range = await buildAssistantPeriodRangeContext('user1', {
+      year: 2026,
+      startMonth: 7,
+      endMonth: 7,
+      label: 'Luglio 2026',
+    });
+
+    expect(range.netWorth).toEqual(monthly.netWorth);
+    expect(range.cashflow).toEqual(monthly.cashflow);
+    expect(range.expensesByCategory).toEqual(monthly.expensesByCategory);
+    expect(range.selector).toEqual(monthly.selector);
+  });
+
+  it('rejects a window that is not a valid month range', async () => {
+    mockSnapshots([]);
+    mockExpenses([]);
+
+    await expect(
+      buildAssistantPeriodRangeContext('user1', { year: 2026, startMonth: 9, endMonth: 7, label: 'X' })
+    ).rejects.toThrow();
+    await expect(
+      buildAssistantPeriodRangeContext('user1', { year: 2026, startMonth: 0, endMonth: 3, label: 'X' })
+    ).rejects.toThrow();
   });
 });
 

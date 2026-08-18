@@ -22,10 +22,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import {
   getAllAssets,
+  calculateAssetValue,
   calculateFIRENetWorth,
   calculateLiquidFIRENetWorth,
   calculateIlliquidFIRENetWorth,
 } from '@/lib/services/assetService';
+import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
+import type { PensionCapitalInflowToday } from '@/lib/services/fireService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import {
   getAnnualCashflowData,
@@ -315,10 +318,46 @@ export function WhatIfAnalysisTab() {
 
   // --- Baseline assembly ---
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
-  const netWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) : 0;
+
+  // The FIRE lock-in toggle governs the whole page — the What If baseline inherits it.
+  // Locked pension capital leaves the perturbable net worth and re-enters the Coast walk as a
+  // capital inflow at its unlock year (illiquid stays floored at 0, same as FireCalculatorTab).
+  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
+  const pensionLockState = useMemo(() => {
+    if (!respectPensionLockIn || !assets) return null;
+    return resolvePensionLockState(
+      assets,
+      {
+        userAge: settings?.userAge,
+        pensionInpsRetirementAge: settings?.pensionInpsRetirementAge,
+        pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment,
+      },
+      new Date(),
+      calculateAssetValue
+    );
+  }, [
+    respectPensionLockIn,
+    assets,
+    settings?.userAge,
+    settings?.pensionInpsRetirementAge,
+    settings?.pensionRitaLongUnemployment,
+  ]);
+  const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+  const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
+    () =>
+      (pensionLockState?.inflows ?? []).map((inflow) => ({
+        yearsFromNow: inflow.yearsFromNow,
+        amountToday: inflow.amount,
+      })),
+    [pensionLockState]
+  );
+
+  const netWorth = assets
+    ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue
+    : 0;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
   const illiquidNetWorth = assets
-    ? calculateIlliquidFIRENetWorth(assets, includePrimaryResidence)
+    ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue)
     : 0;
   const withdrawalRate = settings?.withdrawalRate ?? 4;
   const annualExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
@@ -397,6 +436,7 @@ export function WhatIfAnalysisTab() {
               inflationRate: scenarios.base.inflationRate,
               pensions: normalizeCoastFirePensions(settings?.coastFirePensions),
               taxBrackets: normalizeCoastFireTaxBrackets(settings?.coastFireTaxBrackets),
+              capitalInflowsToday: pensionInflowsToday,
             }
           : null,
     };
@@ -412,6 +452,7 @@ export function WhatIfAnalysisTab() {
     currentAge,
     retirementAge,
     coastCustomExpenses,
+    pensionInflowsToday,
     settings?.coastFirePensions,
     settings?.coastFireTaxBrackets,
   ]);

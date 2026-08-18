@@ -213,10 +213,22 @@ function formatGoalsSection(goals: AssistantMonthContextBundle['goals']): string
  *
  * Design: structured prose is clearer than JSON for an LLM operating on
  * financial narrative tasks; the key/value format mimics a briefing note.
+ *
+ * Exported for `buildEmailAiPrompt` (monthlyEmailService.ts): the periodic emails send
+ * this same block, so every future bundle field reaches them for free and the
+ * "questo blocco è ESAUSTIVO" guardrails in ASSISTANT_SYSTEM_CORE stay true there too.
+ *
+ * @param bundle       The period's numeric bundle.
+ * @param periodLabel  Overrides the label derived from `selector`. A quarter or a
+ *                     semester cannot be encoded in a `{year, month}` selector, so the
+ *                     email passes its own window name rather than let the header claim
+ *                     the closing month is the whole period.
  */
-function formatBundleForPrompt(bundle: AssistantMonthContextBundle): string {
-  const { selector, netWorth, cashflow, allocationChanges, dataQuality, currentSnapshot } = bundle;
-  const periodLabel = getAssistantPeriodLabel(selector);
+export function formatBundleForPrompt(
+  bundle: AssistantMonthContextBundle,
+  periodLabel: string = getAssistantPeriodLabel(bundle.selector)
+): string {
+  const { netWorth, cashflow, allocationChanges, dataQuality, currentSnapshot } = bundle;
 
   const lines: string[] = [];
 
@@ -563,27 +575,49 @@ const CHAT_FORMAT_CONTRACT = [
   "Modalità conversazionale: nessuna struttura fissa a sezioni. Rispondi direttamente alla domanda, usando i dati forniti quando disponibili e restando comunque entro le regole sui dati e lo stile definiti sopra.",
 ].join('\n');
 
+// Word ceiling per email period. A quarter carries three months of causes to explain and
+// a year twelve, against the same six sections: one ceiling for all four would either
+// truncate the annual recap or pad the monthly one.
+// WARNING: the keys must stay in step with `EmailPeriodType` in monthlyEmailService.ts —
+// the two unions are structurally identical and nothing but this comment says so
+// (prompts.ts must not import that module, which pulls firebase-admin and Resend).
+export type EmailPeriodicPeriodType = 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
+
+const EMAIL_PERIODIC_WORD_LIMITS: Record<EmailPeriodicPeriodType, number> = {
+  monthly: 500,
+  quarterly: 700,
+  semiannual: 700,
+  yearly: 900,
+};
+
 /**
  * Format contract for the periodic summary email (monthly/quarterly/semiannual/yearly
  * AI comment). Exported so monthlyEmailService.ts can compose it with ASSISTANT_SYSTEM_CORE
  * without duplicating the shared role/domain/guardrail text.
  *
- * Written to cover both possible shapes of point 2/3 without branching on per-request
- * data (baseline label, whether the YoY comparison coincides with the previous-period
- * one for an annual email) — those specifics live in the numeric data block instead,
- * keeping this contract byte-identical across every email sent.
+ * Parametric in the period type ONLY, so the returned string is still byte-identical
+ * across every user and every run of a given period — the same property the mode
+ * contracts have. Everything genuinely per-request (baseline labels, whether the YoY
+ * comparison coincides with the previous-period one, which blocks are present) lives in
+ * the numeric data block instead, which is why the sections below are worded to cover
+ * both shapes without branching.
  */
-export const EMAIL_PERIODIC_FORMAT_CONTRACT = [
-  '# Formato della risposta',
-  'Struttura la risposta in markdown con queste sezioni:',
-  '1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo; se i dati includono un piazzamento Hall of Fame, citalo (non inventare la posizione)',
-  '2. **Rispetto al periodo precedente** — cosa è cambiato rispetto al periodo precedente, citando i numeri del blocco di confronto fornito',
-  "3. **Confronto con l'anno precedente** — confronto anno su anno citando i numeri forniti; se il periodo è annuale e questo confronto coincide con quello del punto 2 (i dati te lo segnalano esplicitamente), unisci le due sezioni e dillo",
-  "4. **Entrate e spese: di quanto e perché** — quantifica l'aumento o la diminuzione di entrate e spese e ipotizza le cause più probabili basandoti sui dati per categoria; commenta il mix per tipo (Fisse/Variabili/Debiti) quando rilevante; per il patrimonio puoi citare il contesto macro di mercato",
-  "5. **Azioni o attenzioni** — 1-2 osservazioni pratiche per l'investitore",
-  '',
-  'Vincoli: massimo 500 parole.',
-].join('\n');
+export function buildEmailPeriodicFormatContract(periodType: EmailPeriodicPeriodType): string {
+  return [
+    '# Formato della risposta',
+    'Struttura la risposta in markdown con queste sezioni, in questo ordine:',
+    '1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo; se i dati includono un piazzamento Hall of Fame, citalo (non inventare la posizione)',
+    "2. **Patrimonio e investimenti** — come si è mosso il patrimonio: usa la riga EFFETTO MERCATO già calcolata per separare quanto viene dal risparmio e quanto dalla variazione di mercato, commenta l'allocazione corrente e il suo scostamento dai target quando sono configurati, e cita gli obiettivi di investimento solo se il blocco relativo ne contiene",
+    '3. **Rispetto al periodo precedente** — cosa è cambiato rispetto al periodo precedente, citando i numeri del blocco di confronto fornito',
+    "4. **Confronto con l'anno precedente** — confronto anno su anno citando i numeri forniti; se il periodo è annuale e questo confronto coincide con quello del punto 3 (i dati te lo segnalano esplicitamente), unisci le due sezioni e dillo",
+    "5. **Entrate e spese: di quanto e perché** — quantifica l'aumento o la diminuzione di entrate e spese e ipotizza le cause più probabili basandoti sui dati per categoria e sottocategoria; commenta il mix per tipo (Fisse/Variabili/Debiti) quando rilevante",
+    "6. **Azioni o attenzioni** — 1-2 osservazioni pratiche per l'investitore",
+    '',
+    "I blocchi delle spese per categoria e sottocategoria e delle entrate per categoria sono ESAUSTIVI: una voce che non c'è ha avuto importo zero nel periodo — dillo come \"nessuna spesa registrata\", non come dato mancante. L'unica eccezione sono le righe di omissione dichiarate esplicitamente nel testo dei dati.",
+    '',
+    `Vincoli: massimo ${EMAIL_PERIODIC_WORD_LIMITS[periodType]} parole.`,
+  ].join('\n');
+}
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 

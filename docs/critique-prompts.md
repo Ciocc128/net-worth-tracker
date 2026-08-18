@@ -854,14 +854,21 @@ File: app/dashboard/fire-simulations/page.tsx
 Componenti: components/fire-simulations/FireCalculatorTab.tsx,
             components/fire-simulations/FIREProjectionSection.tsx,
             components/fire-simulations/FIREProjectionChart.tsx,
+            components/fire-simulations/FireFanChart.tsx,
             components/fire-simulations/FireCalculatorSkeleton.tsx
 
-Questo tab calcola il FIRE Number con hero block, Settings collapsible
-(auto-open su unsaved changes), flat divide-y metric rows, "Annulla" reset button
-e sezione proiezione con sensitivity matrix e scenario chart. Include un toggle opzionale
-per il capitale bloccato nel fondo pensione (respectPensionLockInFire /
-lib/utils/pensionFire.ts): quando è attivo il capitale previdenziale non è considerato
-disponibile prima dell'età di accesso.
+Questo tab è IA single-answer (redesign 2026-08-18): hero [2fr_1fr] con il verdetto
+"FIRE proiettato nel {anno}, a {età}" (dominante = anno di calendario; stati Oggi / 50+ / —)
++ companion reddito passivo sostenibile, riga basis con le assunzioni attive, un solo
+collapsible Impostazioni (SWR, casa, fondo pensione + RITA, seeded-flag config-first),
+sezione Proiezione con pill Scenari|Ventaglio (Scenari = 3 serie + un solo target base
+tratteggiato, target Orso/Toro nel tooltip; Ventaglio = fan Monte Carlo da
+runAccumulationSimulation con bande p10-p90/p25-p75, mediana, ~40 spaghetti deterministici,
+probabilità cumulata di FIRE), collapsible "Parametri e tabella" e collapsible "Dettaglio"
+con i due grafici storici retrocessi. Include il toggle del capitale bloccato nel fondo
+pensione (respectPensionLockInFire, modello bridge).
+Attenzione: i due grafici storici dentro "Dettaglio" (runway + cashflow) conservano ancora
+tick e tooltip pre-redesign (retrocessi, non ridisegnati per scelta).
 Confronta con: Monte Carlo (same hero + collapsible pattern), Goals (hero allocato),
 Coast FIRE (stesso Settings pattern), Previdenza (stessa materia, taglio contributi/fiscale).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
@@ -893,13 +900,22 @@ approvazione, senza scrivere codice. Dopo l'ok: implementa, con test verdi e tsc
 /impeccable critique il tab "Coast FIRE" della pagina FIRE e Simulazioni
 
 File: app/dashboard/fire-simulations/page.tsx
-Componenti: components/fire-simulations/CoastFireTab.tsx,
+Componenti: components/fire-simulations/CoastFireTab.tsx (orchestratore),
+            components/fire-simulations/coast/{CoastFireHero,CoastInflowTimeline,
+            CoastFireConfigSection,CoastScenarioCards,CoastFireProjectionSection}.tsx,
             components/fire-simulations/CoastFireProjectionChart.tsx
+Layer puro: lib/utils/coastFireView.ts · form: lib/hooks/useCoastFireSettingsDraft.ts
 
-Questo tab calcola il Coast FIRE Number con hero block (HeroMetricBlock),
-Settings collapsible, flat rows con progress bar animata, scenari Bear/Base/Bull
-e sezione opzionale per pensioni statali (UI mobile 2-col con items-start).
-Confronta con: FIRE Calculator (same hero + Settings pattern), Monte Carlo (scenarios).
+Dal redesign 2026-08-18 il tab ha la stessa IA single-answer del Calcolatore FIRE, su un'altra
+domanda: "posso smettere di versare?". Hero [2fr_1fr] col divario (o il surplus) verso
+il Coast FIRE Number come numero dominante + verdetto in parole + le due cifre che
+confronta, companion "se smetti oggi", riga basis; timeline degli afflussi (sblocco
+fondo pensione del modello bridge + decorrenze delle pensioni statali); un solo collapsible
+Impostazioni (età, spese custom, pensioni, scaglioni IRPEF); scenari Orso/Base/Toro come
+card; Proiezione col gradino di sblocco nominato nel tooltip e ogni spiegazione dentro
+"Dettaglio". Vincolo permanente: NESSUNA matematica fuori da fireService.
+Confronta con: FIRE Calculator (stessa IA e stesso pattern hero/Impostazioni),
+Monte Carlo (scenari).
 Design language atteso (vedi DESIGN.md): North Star "Effortless Precision" — Linear/Vercel +
 Trade Republic + Apple, sotto la legge Form Follows Function (onestà, deferenza, inevitabilità:
 ogni proprietà visiva è conseguenza di una funzione, mai decorazione). Scala hero: page hero
