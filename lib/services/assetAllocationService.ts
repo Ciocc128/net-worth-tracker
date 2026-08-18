@@ -86,6 +86,8 @@ export async function getSettings(
       coastFireTaxBrackets: data.coastFireTaxBrackets,
       includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE,
       respectPensionLockInFire: data.respectPensionLockInFire,
+      pensionInpsRetirementAge: data.pensionInpsRetirementAge,
+      pensionRitaLongUnemployment: data.pensionRitaLongUnemployment,
       dividendIncomeCategoryId: data.dividendIncomeCategoryId,
       dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
       fireProjectionScenarios: data.fireProjectionScenarios,
@@ -218,6 +220,15 @@ export async function setSettings(
       }
       if (settings.respectPensionLockInFire !== undefined) {
         docData.respectPensionLockInFire = settings.respectPensionLockInFire;
+      }
+      // RITA rule inputs (Spec 3): written only by FireCalculatorTab with a complete form, not
+      // clearable — same reasoning as includePrimaryResidenceInFIRE, so the !== undefined guard
+      // is safe in both branches.
+      if (settings.pensionInpsRetirementAge !== undefined) {
+        docData.pensionInpsRetirementAge = settings.pensionInpsRetirementAge;
+      }
+      if (settings.pensionRitaLongUnemployment !== undefined) {
+        docData.pensionRitaLongUnemployment = settings.pensionRitaLongUnemployment;
       }
       // Default cash accounts are user-clearable: a present-but-undefined value means
       // "Nessun default". setDoc here runs WITHOUT merge, so deleting the key from docData
@@ -366,6 +377,15 @@ export async function setSettings(
       }
       if (settings.respectPensionLockInFire !== undefined) {
         docData.respectPensionLockInFire = settings.respectPensionLockInFire;
+      }
+      // RITA rule inputs (Spec 3): written only by FireCalculatorTab with a complete form, not
+      // clearable — same reasoning as includePrimaryResidenceInFIRE, so the !== undefined guard
+      // is safe in both branches.
+      if (settings.pensionInpsRetirementAge !== undefined) {
+        docData.pensionInpsRetirementAge = settings.pensionInpsRetirementAge;
+      }
+      if (settings.pensionRitaLongUnemployment !== undefined) {
+        docData.pensionRitaLongUnemployment = settings.pensionRitaLongUnemployment;
       }
       // Default cash accounts are user-clearable. This branch writes with merge: true,
       // so omitting the key would leave the old value untouched — use deleteField() to

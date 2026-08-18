@@ -24,7 +24,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { FIREProjectionScenarios, FIREScenarioParams } from '@/types/assets';
 import { Settings } from '@/types/settings';
-import { getAnnualCashflowData, getDefaultScenarios, calculateFIREProjection } from '@/lib/services/fireService';
+import {
+  getAnnualCashflowData,
+  getDefaultScenarios,
+  calculateFIREProjection,
+  type FireProjectionPensionBridge,
+} from '@/lib/services/fireService';
 import { setSettings, getDefaultTargets } from '@/lib/services/assetAllocationService';
 import { formatCurrency } from '@/lib/services/chartService';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
@@ -41,9 +46,11 @@ import { metricSettleTransition, simulationShellSettle } from '@/lib/utils/motio
 
 interface FIREProjectionSectionProps {
   userId: string;
-  currentNetWorth: number;
+  currentNetWorth: number; // FREE capital when pensionBridge is active (fund already subtracted)
   withdrawalRate: number;
   settings: Settings | null | undefined;
+  // Spec 3: locked pension compartment merging into the projection at its unlock year.
+  pensionBridge?: FireProjectionPensionBridge | null;
 }
 
 // Scenario display config — colors resolved at runtime via useChartColors()
@@ -70,6 +77,7 @@ export function FIREProjectionSection({
   currentNetWorth,
   withdrawalRate,
   settings,
+  pensionBridge,
 }: FIREProjectionSectionProps) {
   const queryClient = useQueryClient();
   const defaults = getDefaultScenarios();
@@ -105,6 +113,10 @@ export function FIREProjectionSection({
   const annualSavings = cashflowData?.annualSavings ?? 0;
   const annualExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
 
+  // Primitive mirrors so the memo does not depend on a per-render object identity.
+  const pensionBridgeValueToday = pensionBridge?.valueToday ?? 0;
+  const pensionBridgeYearsToUnlock = pensionBridge?.yearsToUnlock ?? 0;
+
   // Calculate projection whenever inputs change
   const projection = useMemo(() => {
     if (currentNetWorth <= 0 || annualExpenses <= 0 || withdrawalRate <= 0) return null;
@@ -113,9 +125,21 @@ export function FIREProjectionSection({
       annualExpenses,
       annualSavings,
       withdrawalRate,
-      scenarios
+      scenarios,
+      50,
+      pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0
+        ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock }
+        : undefined
     );
-  }, [currentNetWorth, annualExpenses, annualSavings, withdrawalRate, scenarios]);
+  }, [
+    currentNetWorth,
+    annualExpenses,
+    annualSavings,
+    withdrawalRate,
+    scenarios,
+    pensionBridgeValueToday,
+    pensionBridgeYearsToUnlock,
+  ]);
 
   // Save scenario parameters to Firestore
   const saveMutation = useMutation({

@@ -402,6 +402,21 @@ Companion documents — do not duplicate their content into this file:
 - **What If = perturbation + diff, no new projection math**: every v1 life event is a year-0 perturbation, then
   `fireService` is re-run on baseline vs adjusted and diffed. Do NOT add timed mid-projection cash events. **Keep the
   pure layer category-agnostic** — the selection of lost income sources and its sum live in the UI.
+- **Pension unlock is ONE rule in ONE place** (`lib/utils/pensionUnlock.ts`, explicit `now`): per-fund `unlockDate`
+  override > RITA rule from `userAge` (INPS age − 5, or − 10 with `pensionRitaLongUnemployment`) > `null` = NOT locked
+  (and the UI must say why). `pensionFire.calculatePensionLockedValue` is a thin wrapper — with no settings it is
+  override-only, the pre-Spec-3 behaviour the emulator exercise script relies on.
+- **The bridge model reuses the Coast walk, never a second formula.** `buildCoastFIRERetirementNeeds` takes
+  `capitalInflows` (amounts AT the inflow year) and extends its horizon to `max(bridgeYears, max inflow year)` —
+  without the extension the FIRE-tab case (no state pensions → bridgeYears 0) would silently drop the inflow. The
+  "reduction = A/(1+r)^y" invariant holds INSIDE the pension bridge; beyond it the extra discounted years change the
+  baseline too — that is the model, not a bug. Empty inflows leave the walk byte-identical.
+- **`respectPensionLockInFire` governs the WHOLE FIRE page** (Calcolatore, Coast, What If via its baseline, Monte
+  Carlo): each tab subtracts the locked total from its starting capital AND passes the inflows — doing only the
+  subtraction reintroduces the "sottratto per sempre" bug the bridge model replaced. Monte Carlo adds inflows at
+  TODAY's value (no deterministic fund growth inside a stochastic run — declared in the form's read-only row), order
+  inflow → return → withdrawal. With growth = discount rate the bridge number is insensitive to the unlock year until
+  the floor binds, which is why the FIRE tab aggregates multi-fund unlocks on the LATEST year.
 - **Config-first collapse: decide ONCE after the form has settled.** A "collapsed if already configured" panel cannot key
   on the transient `hasUnsavedChanges` — use a `useRef` seeded-flag set when `!isLoadingSettings && !hasUnsavedChanges`,
   and gate the temp-sync effect on `!isLoadingSettings` (not `if (settings)`).
@@ -579,7 +594,8 @@ Companion documents — do not duplicate their content into this file:
   input into `NaN`, which fails `z.number()` itself — use `z.number({ error: '…' }).positive('…')`.
 - `PensionAllocationCards` needs the FULL unfiltered asset list; **Storico reverses the split
   `calculateCurrentAllocation` applied**, using the fund's CURRENT `composition` (a documented approximation); **FIRE's
-  lock-in toggle subtracts from BOTH `currentNetWorth` and `illiquidNetWorth`**.
+  lock-in toggle subtracts from BOTH `currentNetWorth` and `illiquidNetWorth`** — and since Spec 3 it is a bridge
+  model across the whole FIRE page (see *FIRE, What If and Goals*).
 - **`performanceBase.ts` reads `byAsset`, never `byAssetClass`**, and the exclusion is applied in TWO places because the
   Rendimenti page has two independent snapshot-fetch paths.
 
@@ -880,7 +896,7 @@ Companion documents — do not duplicate their content into this file:
 | --- | --- |
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) |
-| Storico | `chartService` · **FIRE/Goals** `fireService`, `goalService`, `goalMath`, `goalProposal` |
+| Storico | `chartService` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal` |
 | Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
@@ -888,7 +904,7 @@ Companion documents — do not duplicate their content into this file:
 | Analisi | `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` |
 | Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx` |
-| Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionFamilyMembers` + the transfer trio |
+| Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio |
 
 Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allocationUtils` + the three ledger suites.
 

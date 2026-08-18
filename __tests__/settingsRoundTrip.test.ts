@@ -45,6 +45,8 @@ const STORED_SETTINGS = {
   costCentersEnabled: true,
   includePrimaryResidenceInFIRE: true,
   respectPensionLockInFire: true,
+  pensionInpsRetirementAge: 68,
+  pensionRitaLongUnemployment: true,
   cashflowHistoryStartYear: 2019,
   familyMembers: [{ id: 'm1', name: 'Giuseppe' }],
 };
@@ -88,6 +90,13 @@ describe('getSettings — lettura', () => {
     expect(settings?.familyMembers).toEqual([{ id: 'm1', name: 'Giuseppe' }]);
   });
 
+  it('returns the RITA rule settings instead of dropping them (Spec 3)', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.pensionInpsRetirementAge).toBe(68);
+    expect(settings?.pensionRitaLongUnemployment).toBe(true);
+  });
+
   it('returns null when the user has no settings document yet', async () => {
     vi.mocked(getDoc).mockResolvedValue({ exists: () => false } as never);
 
@@ -108,6 +117,19 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: true,
       pensionReturnStartMonth: '2026-07',
+    });
+  });
+
+  it('writes the RITA rule settings (Spec 3)', async () => {
+    await setSettings('user-1', {
+      targets: TARGETS,
+      pensionInpsRetirementAge: 68,
+      pensionRitaLongUnemployment: false,
+    } as AssetAllocationSettings);
+
+    expect(writtenPayload()).toMatchObject({
+      pensionInpsRetirementAge: 68,
+      pensionRitaLongUnemployment: false,
     });
   });
 
@@ -150,6 +172,18 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: false,
       pensionReturnStartMonth: '2026-07',
+    });
+  });
+
+  it('writes the RITA rule settings (Spec 3)', async () => {
+    await setSettings('user-1', {
+      pensionInpsRetirementAge: 70,
+      pensionRitaLongUnemployment: true,
+    } as AssetAllocationSettings);
+
+    expect(writtenPayload()).toMatchObject({
+      pensionInpsRetirementAge: 70,
+      pensionRitaLongUnemployment: true,
     });
   });
 

@@ -40,10 +40,13 @@ import {
   normalizeCoastFireTaxBrackets,
 } from '@/lib/services/fireService';
 import {
+  calculateAssetValue,
   calculateFIRENetWorth,
   calculateLiquidFIRENetWorth,
   getAllAssets,
 } from '@/lib/services/assetService';
+import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
+import type { PensionCapitalInflowToday } from '@/lib/services/fireService';
 import { getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -355,7 +358,6 @@ export function CoastFireTab() {
   });
 
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
-  const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) : 0;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
   const scenarios = settings?.fireProjectionScenarios ?? getDefaultScenarios();
   const effectiveSavedRetirementAge = settings?.coastFireRetirementAge ?? 60;
@@ -376,6 +378,42 @@ export function CoastFireTab() {
   const currentAge = isValidAge(parsedCurrentAge) ? parsedCurrentAge : null;
   const retirementAge = isValidAge(parsedRetirementAge) ? parsedRetirementAge : null;
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
+
+  // Spec 3: the FIRE lock-in toggle governs the WHOLE page. When on, locked pension funds leave
+  // the Coast starting capital and re-enter the walk as capital inflows at their unlock year.
+  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
+  const pensionLockState = useMemo(() => {
+    if (!respectPensionLockIn || !assets) return null;
+    return resolvePensionLockState(
+      assets,
+      {
+        userAge: currentAge ?? settings?.userAge,
+        pensionInpsRetirementAge: settings?.pensionInpsRetirementAge,
+        pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment,
+      },
+      new Date(),
+      calculateAssetValue
+    );
+  }, [
+    respectPensionLockIn,
+    assets,
+    currentAge,
+    settings?.userAge,
+    settings?.pensionInpsRetirementAge,
+    settings?.pensionRitaLongUnemployment,
+  ]);
+  const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+  const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
+    () =>
+      (pensionLockState?.inflows ?? []).map((inflow) => ({
+        yearsFromNow: inflow.yearsFromNow,
+        amountToday: inflow.amount,
+      })),
+    [pensionLockState]
+  );
+  const currentNetWorth = assets
+    ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue
+    : 0;
 
   // Use user-defined expenses when the toggle is on and the value parses to a positive number;
   // otherwise fall back to the last-year actuals from the query.
@@ -437,12 +475,15 @@ export function CoastFireTab() {
       retirementAge,
       scenarios,
       previewPensions,
-      previewTaxBrackets
+      previewTaxBrackets,
+      undefined, // currentDate: keep the function's own default
+      pensionInflowsToday
     );
   }, [
     effectiveAnnualExpenses,
     currentAge,
     currentNetWorth,
+    pensionInflowsToday,
     previewPensions,
     previewTaxBrackets,
     retirementAge,

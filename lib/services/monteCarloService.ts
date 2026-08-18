@@ -47,9 +47,23 @@ function runSingleSimulation(
   simulationId: number
 ): SingleSimulationResult {
   let portfolio = params.initialPortfolio;
+
+  // Capital inflows (Spec 3): defined order is inflow → market return → withdrawal, so an
+  // inflow earns its own year's return before that year's withdrawal. Inflows at year <= 0
+  // are simply part of the starting portfolio.
+  const inflows = params.capitalInflows ?? [];
+  for (const inflow of inflows) {
+    if (inflow.year <= 0) portfolio += inflow.amount;
+  }
+
   const path: { year: number; value: number }[] = [{ year: 0, value: portfolio }];
 
   for (let year = 1; year <= params.retirementYears; year++) {
+    // Add the inflows landing this year BEFORE applying the market return
+    for (const inflow of inflows) {
+      if (inflow.year === year) portfolio += inflow.amount;
+    }
+
     // Generate random returns for each asset class
     const equityReturn = randomNormal(params.equityReturn, params.equityVolatility);
     const bondsReturn = randomNormal(params.bondsReturn, params.bondsVolatility);

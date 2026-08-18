@@ -162,6 +162,8 @@ export function calculateWhatIfImpact(
   let coast: WhatIfCoastImpact | null = null;
   if (baseline.coast) {
     const c = baseline.coast;
+    // `undefined` currentDate keeps the function's own default; the inflows (Spec 3) ride along
+    // unchanged on both sides — a life event perturbs free capital, not the locked fund.
     const coastBefore = calculateCoastFIREMetrics(
       baseline.netWorth,
       c.annualExpenses,
@@ -171,7 +173,9 @@ export function calculateWhatIfImpact(
       c.realReturnRate,
       c.inflationRate,
       c.pensions,
-      c.taxBrackets
+      c.taxBrackets,
+      undefined,
+      c.capitalInflowsToday
     );
     const coastAfter = calculateCoastFIREMetrics(
       adjusted.netWorth,
@@ -182,7 +186,9 @@ export function calculateWhatIfImpact(
       c.realReturnRate,
       c.inflationRate,
       c.pensions,
-      c.taxBrackets
+      c.taxBrackets,
+      undefined,
+      c.capitalInflowsToday
     );
 
     coast = {

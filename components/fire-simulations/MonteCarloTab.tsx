@@ -15,12 +15,18 @@
  * - Scenario Comparison: Bear/Base/Bull scenarios run in parallel for side-by-side comparison
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { getAllAssets, calculateTotalValue, calculateLiquidNetWorth } from '@/lib/services/assetService';
+import {
+  getAllAssets,
+  calculateTotalValue,
+  calculateLiquidNetWorth,
+  calculateAssetValue,
+} from '@/lib/services/assetService';
+import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { getSettings, setSettings, getDefaultTargets, calculateCurrentAllocation } from '@/lib/services/assetAllocationService';
 import {
   runMonteCarloSimulation,
@@ -126,8 +132,43 @@ export function MonteCarloTab() {
   });
 
   // Derived data
-  const totalNetWorth = assets ? calculateTotalValue(assets) : 0;
+  const grossTotalNetWorth = assets ? calculateTotalValue(assets) : 0;
   const liquidNetWorth = assets ? calculateLiquidNetWorth(assets) : 0;
+
+  // Spec 3: the FIRE lock-in toggle governs the whole page. With it on, locked pension funds
+  // leave the default initial portfolio and re-enter the simulation as capital inflows at their
+  // unlock year (at TODAY's value — no deterministic fund growth inside a stochastic run,
+  // declared in the read-only row inside ParametersForm).
+  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
+  const pensionLockState = useMemo(() => {
+    if (!respectPensionLockIn || !assets) return null;
+    return resolvePensionLockState(
+      assets,
+      {
+        userAge: settings?.userAge,
+        pensionInpsRetirementAge: settings?.pensionInpsRetirementAge,
+        pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment,
+      },
+      new Date(),
+      calculateAssetValue
+    );
+  }, [
+    respectPensionLockIn,
+    assets,
+    settings?.userAge,
+    settings?.pensionInpsRetirementAge,
+    settings?.pensionRitaLongUnemployment,
+  ]);
+  const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+  const totalNetWorth = Math.max(0, grossTotalNetWorth - pensionLockedValue);
+  const pensionCapitalInflows = useMemo(
+    () =>
+      (pensionLockState?.inflows ?? []).map((inflow) => ({
+        year: inflow.yearsFromNow,
+        amount: inflow.amount,
+      })),
+    [pensionLockState]
+  );
 
   // ========== Parameter Initialization ==========
 
@@ -260,6 +301,13 @@ export function MonteCarloTab() {
 
   // ========== Simulation Logic ==========
 
+  // The inflows are attached at run time, not stored in `params` state: they derive from the
+  // toggle + assets and must never drift out of sync with the form.
+  const buildSimulationParams = (): MonteCarloParams => ({
+    ...params,
+    capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
+  });
+
   const handleRunSimulation = () => {
     if (!validateParams()) return;
     setIsRunning(true);
@@ -271,7 +319,7 @@ export function MonteCarloTab() {
      */
     setTimeout(() => {
       try {
-        const simulationResults = runMonteCarloSimulation(params);
+        const simulationResults = runMonteCarloSimulation(buildSimulationParams());
         setResults(simulationResults);
         setSingleRunVersion((v) => v + 1);
         toast.success(`Simulazione completata! Tasso di successo: ${simulationResults.successRate.toFixed(1)}%`);
@@ -290,9 +338,10 @@ export function MonteCarloTab() {
 
     setTimeout(() => {
       try {
-        const bearResults = runMonteCarloSimulation(buildParamsFromScenario(params, scenarios.bear));
-        const baseResults = runMonteCarloSimulation(buildParamsFromScenario(params, scenarios.base));
-        const bullResults = runMonteCarloSimulation(buildParamsFromScenario(params, scenarios.bull));
+        const simulationParams = buildSimulationParams();
+        const bearResults = runMonteCarloSimulation(buildParamsFromScenario(simulationParams, scenarios.bear));
+        const baseResults = runMonteCarloSimulation(buildParamsFromScenario(simulationParams, scenarios.base));
+        const bullResults = runMonteCarloSimulation(buildParamsFromScenario(simulationParams, scenarios.bull));
         setScenarioResults({ bear: bearResults, base: baseResults, bull: bullResults });
         setScenarioRunVersion((v) => v + 1);
         toast.success('Simulazione scenari completata!');
@@ -414,6 +463,7 @@ export function MonteCarloTab() {
         liquidNetWorth={liquidNetWorth}
         isRunning={isRunning}
         hideMarketParams={scenarioMode}
+        pensionCapitalInflows={pensionCapitalInflows}
       />
 
       {/* ========== 4. Scenario Parameter Cards (scenario mode only) ========== */}
