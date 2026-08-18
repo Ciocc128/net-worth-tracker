@@ -53,10 +53,13 @@ Companion documents — do not duplicate their content into this file:
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child — add explicit
   `grid-cols-1` and `min-w-0` on flex/grid children (they default to `min-width:auto`). To center one flex child use
   `self-center`, not `items-center`, which shrinks every child to content width.
-- **That overflow usually does NOT show up as sideways scroll**, which is why it survives review: an ancestor
-  (`overflow-x: hidden` on the app shell) clips it, so `document.scrollWidth - clientWidth` reads 0 while a hero card
-  is 455px wide inside a 390px viewport and its right-aligned amounts are cut off. **Measure the elements, not the
-  document**: walk `main *` and flag any `getBoundingClientRect().right > clientWidth`.
+- **`document.scrollWidth - clientWidth` reads 0 even while the page scrolls sideways**, which is why this survives
+  review. The dashboard shell clips at `SidebarProvider`/`SidebarInset` (`overflow-hidden`) and puts the page inside
+  `<main class="flex-1 overflow-y-auto">` — a non-`visible` `overflow-y` computes `overflow-x` to **`auto`**, so
+  **`main` is the horizontal scroll container**, not the document. Assert on `main.scrollWidth === main.clientWidth`.
+- **Measure the elements, not the container**: walk `main *` and flag any `getBoundingClientRect().right >
+  main.clientWidth`. A total in pixels forces the measurement to be redone; the culpable node is the fix. Reference
+  guard: `e2e/fire.mobile.spec.ts` (Calcolatore FIRE hero, 453px inside 390px → 81px of sideways scroll).
 - **One scroll container per region**: a nested scrollable captures the wheel and content below becomes unreachable
   (desktop-only symptom). `overflow-x-hidden` on an ancestor also CLIPS a descendant's `overflow-x:auto`.
 
@@ -969,10 +972,13 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   (`/.next-*/`) — a differently-named one leaves its build output as untracked changes. Two more traps on the way out:
   `next dev` rewrites `tsconfig.json` (it adds the dir to `include`), so check the file out again; and the server keeps
   writing for a moment after it is stopped, so delete the dist dir **after** confirming the process is gone.
-- **Stopping the emulators: send SIGINT to the `firebase` CLI process, not to the `scripts/emulators.mjs` wrapper.**
-  The wrapper exits immediately, its children survive, and `--export-on-exit` never runs — `.emulator-data/` keeps the
-  timestamp it had at startup and the session's data is lost on the next import. Check that timestamp before trusting
-  the shutdown.
+- **Stopping the emulators: export FIRST, then kill.** `--export-on-exit` only runs on a SIGINT delivered to the
+  `firebase` CLI process itself — killing the `scripts/emulators.mjs` wrapper (or any `Stop-Process`, which is all
+  Windows really offers) leaves the children alive or skips the export, and `.emulator-data/` keeps the timestamp it
+  had at startup: the session's data is lost on the next import. The reliable route is the Emulator Hub:
+  `POST http://127.0.0.1:4400/_admin/export` with `{"path": "<abs path>/.emulator-data"}` — **`/_admin/export`, not
+  `/emulators/export`, which 404s** — then terminate. **Verify the directory's timestamp moved before trusting the
+  shutdown**; a 200 from the hub and an unchanged mtime is the failure that looks like success.
 
 ### Browser-Driven E2E (Playwright)
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,
