@@ -2,6 +2,9 @@
 
 > **Ordine**: 3 di 5. **Dipende dalla Spec 1** (il campo `respectPensionLockInFire` deve
 > persistere). È prerequisito delle Spec 4-5 (che ne mostrano i risultati nel redesign).
+> **Stato**: ✅ **Implementata** (2026-08-18) — branch `feature/fondo-pensione-rita-bridge`,
+> collaudo guidato sugli emulatori 25/25 (bridge number verificato con formula PV indipendente)
+> + suite Playwright esistente 25/25 come regressione.
 > **Scopo**: il capitale dei fondi pensione smette di essere "sottratto per sempre" dal FIRE e
 > viene modellato per quello che è: capitale che **arriva più tardi**, all'anno di sblocco.
 
@@ -180,14 +183,14 @@ cancellato). Esito registrato in SESSION_NOTES.md.
 
 ## Criteri di accettazione
 
-- [ ] Con FIRE a 50, età 41→? (dati reali), INPS 67 e RITA −10: sblocco stimato a 57, FIRE
+- [x] Con FIRE a 50, età 41→? (dati reali), INPS 67 e RITA −10: sblocco stimato a 57, FIRE
       number bridge < standard, gradino visibile nelle proiezioni FIRE e Coast all'anno di
       sblocco.
-- [ ] Toggle OFF → tutti i numeri identici a prima della spec (regressione provata).
-- [ ] Override `unlockDate` per-fondo vince sulla regola; fondo senza dati → non bloccato +
+- [x] Toggle OFF → tutti i numeri identici a prima della spec (regressione provata).
+- [x] Override `unlockDate` per-fondo vince sulla regola; fondo senza dati → non bloccato +
       avviso in UI.
-- [ ] Coast FIRE, What If e Monte Carlo rispettano il toggle (oggi solo il tab FIRE).
-- [ ] Nessun `new Date()` dentro le pure functions (sempre `now` esplicito).
+- [x] Coast FIRE, What If e Monte Carlo rispettano il toggle (oggi solo il tab FIRE).
+- [x] Nessun `new Date()` dentro le pure functions (sempre `now` esplicito).
 
 ---
 

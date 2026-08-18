@@ -34,12 +34,22 @@ import {
 } from '@/lib/services/assetService';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { getSettings, setSettings, getDefaultTargets } from '@/lib/services/assetAllocationService';
-import { calculatePensionLockedValue } from '@/lib/utils/pensionFire';
+import {
+  DEFAULT_INPS_RETIREMENT_AGE,
+  resolvePensionLockState,
+  resolveRitaUnlockAge,
+  type PensionUnlockSettings,
+} from '@/lib/utils/pensionUnlock';
 import {
   getFIREData,
   calculateFIREMetrics,
+  calculateFireBridgeNumber,
+  getDefaultScenarios,
   prepareRunwaySummaryLabel,
+  type FIREMetrics,
+  type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
+import { formatDate } from '@/lib/utils/formatters';
 import { formatCurrency, formatCurrencyCompact, formatPercentage } from '@/lib/services/chartService';
 import { fmtCurrency } from '@/lib/utils/chartUtils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -126,6 +136,10 @@ export function FireCalculatorTab() {
   const [tempWithdrawalRate, setTempWithdrawalRate] = useState<string>('4.0');
   const [includePrimaryResidence, setIncludePrimaryResidence] = useState<boolean>(false);
   const [respectPensionLockIn, setRespectPensionLockIn] = useState<boolean>(false);
+  const [tempInpsRetirementAge, setTempInpsRetirementAge] = useState<string>(
+    DEFAULT_INPS_RETIREMENT_AGE.toString()
+  );
+  const [tempRitaLongUnemployment, setTempRitaLongUnemployment] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(false);
 
@@ -144,14 +158,66 @@ export function FireCalculatorTab() {
   });
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
-  // Locked pension capital (unlockDate in the future) stays in the app's total net worth
-  // everywhere else — it only leaves what THIS calculator treats as spendable now. Subtracted from
-  // both currentNetWorth and illiquidNetWorth (a pension fund is illiquid) so "Anni di spesa totali"
-  // still equals the liquid + illiquid breakdown shown below it.
-  const pensionLockedValue =
+
+  // RITA rule preview inputs: the estimated unlock updates instantly with the two controls,
+  // like every other setting on this page (persisted only on Save).
+  const parsedInpsRetirementAge = Number.parseInt(tempInpsRetirementAge, 10);
+  const previewInpsRetirementAge =
+    Number.isFinite(parsedInpsRetirementAge) &&
+    parsedInpsRetirementAge >= 60 &&
+    parsedInpsRetirementAge <= 75
+      ? parsedInpsRetirementAge
+      : (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE);
+  const pensionUnlockSettings: PensionUnlockSettings = {
+    userAge: settings?.userAge,
+    pensionInpsRetirementAge: previewInpsRetirementAge,
+    pensionRitaLongUnemployment: tempRitaLongUnemployment,
+  };
+
+  // Locked pension capital (unlock resolved by pensionUnlock.ts: per-fund override > RITA rule
+  // from userAge > not modellable) stays in the app's total net worth everywhere else — it only
+  // leaves what THIS calculator treats as spendable now. Subtracted from both currentNetWorth and
+  // illiquidNetWorth (a pension fund is illiquid) so "Anni di spesa totali" still equals the
+  // liquid + illiquid breakdown shown below it.
+  const pensionLockState =
     respectPensionLockIn && assets
-      ? calculatePensionLockedValue(assets, new Date(), calculateAssetValue)
+      ? resolvePensionLockState(assets, pensionUnlockSettings, new Date(), calculateAssetValue)
+      : null;
+  const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+
+  // Bridge model inputs (Spec 3). Funds with different unlock years are aggregated on the
+  // LATEST year — conservative when the floor binds, and neutral otherwise because the fund
+  // grows and is discounted at the same scenario real return.
+  const baseScenarioParams = (settings?.fireProjectionScenarios ?? getDefaultScenarios()).base;
+  const baseRealReturn = baseScenarioParams.growthRate - baseScenarioParams.inflationRate;
+  const pensionUnlockYears =
+    pensionLockState && pensionLockState.inflows.length > 0
+      ? Math.max(...pensionLockState.inflows.map((inflow) => inflow.yearsFromNow))
       : 0;
+  const pensionBridge: FireProjectionPensionBridge | null =
+    pensionLockedValue > 0 && pensionUnlockYears > 0
+      ? { valueToday: pensionLockedValue, yearsToUnlock: pensionUnlockYears }
+      : null;
+
+  // With the toggle on, the shown FIRE Number is the BRIDGE number: free assets must cover the
+  // spending bridge until the unlock, then the fund tops up the standard requirement.
+  const applyPensionBridge = (metrics: FIREMetrics): FIREMetrics => {
+    if (!pensionBridge) return metrics;
+    const { bridgeFireNumber } = calculateFireBridgeNumber({
+      annualExpenses: metrics.annualExpenses,
+      withdrawalRate: metrics.withdrawalRate,
+      realReturn: baseRealReturn,
+      yearsToUnlock: pensionBridge.yearsToUnlock,
+      pensionValueToday: pensionBridge.valueToday,
+      pensionGrowthRate: baseRealReturn,
+    });
+    return {
+      ...metrics,
+      fireNumber: bridgeFireNumber,
+      progressToFI: bridgeFireNumber > 0 ? (metrics.currentNetWorth / bridgeFireNumber) * 100 : 0,
+    };
+  };
+
   const currentNetWorth = assets
     ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue
     : 0;
@@ -169,12 +235,14 @@ export function FireCalculatorTab() {
 
   // Enrich with liquid/illiquid breakdown after async fetch resolves
   const fireMetrics = fireData?.metrics
-    ? calculateFIREMetrics(
-        currentNetWorth,
-        fireData.metrics.annualExpenses,
-        withdrawalRate,
-        liquidNetWorth,
-        illiquidNetWorth
+    ? applyPensionBridge(
+        calculateFIREMetrics(
+          currentNetWorth,
+          fireData.metrics.annualExpenses,
+          withdrawalRate,
+          liquidNetWorth,
+          illiquidNetWorth
+        )
       )
     : null;
   const chartData = fireData?.chartData ?? [];
@@ -189,7 +257,10 @@ export function FireCalculatorTab() {
   const hasUnsavedChanges =
     tempWithdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
     includePrimaryResidence !== (settings?.includePrimaryResidenceInFIRE ?? false) ||
-    respectPensionLockIn !== (settings?.respectPensionLockInFire ?? false);
+    respectPensionLockIn !== (settings?.respectPensionLockInFire ?? false) ||
+    tempInpsRetirementAge !==
+      (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
+    tempRitaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
 
   // Decide the panel's initial state ONCE, after the form has settled to match saved settings
   // (hasUnsavedChanges === false ⇒ temp state has been seeded). Collapsed when a withdrawal rate
@@ -208,16 +279,44 @@ export function FireCalculatorTab() {
     if (hasSeededSettingsRef.current && hasUnsavedChanges) setSettingsOpen(true);
   }, [hasUnsavedChanges]);
 
+  // Primitive mirrors of pensionBridge so the memo below can depend on stable values.
+  const pensionBridgeValueToday = pensionBridge?.valueToday ?? 0;
+  const pensionBridgeYearsToUnlock = pensionBridge?.yearsToUnlock ?? 0;
+
   const displayedFireMetrics = useMemo(() => {
     if (!fireData?.metrics) return null;
-    return calculateFIREMetrics(
+    const metrics = calculateFIREMetrics(
       currentNetWorth,
       fireData.metrics.annualExpenses,
       previewWithdrawalRate,
       liquidNetWorth,
       illiquidNetWorth
     );
-  }, [currentNetWorth, fireData?.metrics, liquidNetWorth, previewWithdrawalRate, illiquidNetWorth]);
+    if (pensionBridgeValueToday <= 0 || pensionBridgeYearsToUnlock <= 0) return metrics;
+    // Same bridge override as applyPensionBridge, inlined so the memo depends on primitives.
+    const { bridgeFireNumber } = calculateFireBridgeNumber({
+      annualExpenses: metrics.annualExpenses,
+      withdrawalRate: previewWithdrawalRate,
+      realReturn: baseRealReturn,
+      yearsToUnlock: pensionBridgeYearsToUnlock,
+      pensionValueToday: pensionBridgeValueToday,
+      pensionGrowthRate: baseRealReturn,
+    });
+    return {
+      ...metrics,
+      fireNumber: bridgeFireNumber,
+      progressToFI: bridgeFireNumber > 0 ? (currentNetWorth / bridgeFireNumber) * 100 : 0,
+    };
+  }, [
+    currentNetWorth,
+    fireData?.metrics,
+    liquidNetWorth,
+    previewWithdrawalRate,
+    illiquidNetWorth,
+    pensionBridgeValueToday,
+    pensionBridgeYearsToUnlock,
+    baseRealReturn,
+  ]);
 
   const displayedRunwayData = useMemo(() => {
     const targetYearsOfExpenses = previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null;
@@ -266,12 +365,20 @@ export function FireCalculatorTab() {
     setTempWithdrawalRate((settings?.withdrawalRate ?? 4.0).toString());
     setIncludePrimaryResidence(settings?.includePrimaryResidenceInFIRE ?? false);
     setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
+    setTempInpsRetirementAge(
+      (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString()
+    );
+    setTempRitaLongUnemployment(settings?.pensionRitaLongUnemployment ?? false);
   }, [isLoadingSettings, settings]);
 
   const handleResetToSaved = () => {
     setTempWithdrawalRate((settings?.withdrawalRate ?? 4.0).toString());
     setIncludePrimaryResidence(settings?.includePrimaryResidenceInFIRE ?? false);
     setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
+    setTempInpsRetirementAge(
+      (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString()
+    );
+    setTempRitaLongUnemployment(settings?.pensionRitaLongUnemployment ?? false);
   };
 
   const mutation = useMutation({
@@ -279,6 +386,8 @@ export function FireCalculatorTab() {
       withdrawalRate: number;
       includePrimaryResidenceInFIRE?: boolean;
       respectPensionLockInFire?: boolean;
+      pensionInpsRetirementAge?: number;
+      pensionRitaLongUnemployment?: boolean;
     }) =>
       setSettings(user!.uid, {
         ...settings,
@@ -303,10 +412,18 @@ export function FireCalculatorTab() {
       return;
     }
 
+    const newInpsAge = Number.parseInt(tempInpsRetirementAge, 10);
+    if (!Number.isFinite(newInpsAge) || newInpsAge < 60 || newInpsAge > 75) {
+      toast.error("Inserisci un'età pensione INPS valida tra 60 e 75");
+      return;
+    }
+
     mutation.mutate({
       withdrawalRate: newWR,
       includePrimaryResidenceInFIRE: includePrimaryResidence,
       respectPensionLockInFire: respectPensionLockIn,
+      pensionInpsRetirementAge: newInpsAge,
+      pensionRitaLongUnemployment: tempRitaLongUnemployment,
     });
   };
 
@@ -316,6 +433,37 @@ export function FireCalculatorTab() {
 
   // Compact trigger label summarises active settings at a glance
   const settingsTriggerLabel = `Safe Withdrawal Rate ${previewWithdrawalRate}%`;
+
+  // Estimated-unlock copy under the RITA controls: rule-driven funds get "Sblocco stimato",
+  // override-driven ones point at the per-fund date; funds with neither stay unmodelled + warned.
+  const lockedFunds = pensionLockState?.funds.filter((info) => info.isLocked) ?? [];
+  const overrideLockedFunds = lockedFunds.filter((info) => {
+    const override = info.fund.pensionFundDetails?.unlockDate;
+    return !!override && !Number.isNaN(new Date(override).getTime());
+  });
+  const ruleLockedFunds = lockedFunds.filter((info) => !overrideLockedFunds.includes(info));
+  const unmodellableFundCount =
+    pensionLockState?.funds.filter((info) => info.unlockDate === null).length ?? 0;
+  const ritaUnlockAge = resolveRitaUnlockAge(pensionUnlockSettings);
+  const ruleUnlockYear =
+    settings?.userAge !== undefined
+      ? getItalyYear() + Math.max(0, ritaUnlockAge - settings.userAge)
+      : null;
+  let pensionUnlockSummary: string | null = null;
+  if (ruleLockedFunds.length > 0 && ruleUnlockYear !== null) {
+    pensionUnlockSummary = `Sblocco stimato: ${ruleUnlockYear}, a ${ritaUnlockAge} anni${
+      overrideLockedFunds.length > 0 ? ' (alcuni fondi usano la data impostata sul fondo)' : ''
+    }`;
+  } else if (overrideLockedFunds.length === 1 && overrideLockedFunds[0].unlockDate) {
+    pensionUnlockSummary = `Sblocco: data impostata sul fondo (${formatDate(overrideLockedFunds[0].unlockDate)})`;
+  } else if (overrideLockedFunds.length > 1) {
+    pensionUnlockSummary = 'Sblocco: date impostate sui singoli fondi';
+  }
+  const pensionUnlockWarning =
+    unmodellableFundCount > 0
+      ? "Alcuni fondi non hanno né una data di sblocco né la tua età: imposta la tua età in Coast FIRE o una data di sblocco sul fondo. Finché mancano, restano trattati come non bloccati."
+      : null;
+  const pensionUnlockCalendarYear = getItalyYear() + pensionUnlockYears;
 
   return (
     <div className="space-y-6">
@@ -434,22 +582,73 @@ export function FireCalculatorTab() {
                 />
               </div>
 
-              <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
-                <div className="min-w-0 space-y-0.5">
-                  <Label htmlFor="respectPensionLockIn" className="leading-normal">
-                    Considera il fondo pensione come capitale bloccato fino allo sblocco
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Se attivo, i fondi pensione con data di sblocco futura escono dal patrimonio
-                    FIRE spendibile (restano nel patrimonio totale).
-                  </p>
+              <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 space-y-0.5">
+                    <Label htmlFor="respectPensionLockIn" className="leading-normal">
+                      Considera il fondo pensione come capitale bloccato fino allo sblocco
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Se attivo, il FIRE Number diventa un modello a due fasi: fino allo sblocco
+                      servono solo gli asset liberi (il ponte), dallo sblocco il fondo rientra
+                      nel capitale. Lo sblocco segue la regola RITA, salvo data impostata sul
+                      singolo fondo.
+                    </p>
+                  </div>
+                  <Switch
+                    id="respectPensionLockIn"
+                    checked={respectPensionLockIn}
+                    onCheckedChange={setRespectPensionLockIn}
+                    className="mt-0.5 shrink-0"
+                  />
                 </div>
-                <Switch
-                  id="respectPensionLockIn"
-                  checked={respectPensionLockIn}
-                  onCheckedChange={setRespectPensionLockIn}
-                  className="mt-0.5 shrink-0"
-                />
+
+                {respectPensionLockIn && (
+                  <div className="space-y-3 border-t border-border/60 pt-3">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor="pensionInpsRetirementAge">Età pensione INPS</Label>
+                        <Input
+                          id="pensionInpsRetirementAge"
+                          type="number"
+                          min="60"
+                          max="75"
+                          step="1"
+                          value={tempInpsRetirementAge}
+                          onChange={(e) => setTempInpsRetirementAge(e.target.value)}
+                          className={FIRE_CONTROL_CLASSNAME}
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          RITA anticipa lo sblocco di 5 anni rispetto a questa età.
+                        </p>
+                      </div>
+                      <div className="flex items-start justify-between gap-3 sm:pt-6">
+                        <div className="min-w-0 space-y-0.5">
+                          <Label htmlFor="pensionRitaLongUnemployment" className="leading-normal">
+                            {"Disoccupato ≥ 24 mesi dopo il FIRE"}
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            {"Anticipa lo sblocco a INPS − 10 anni."}
+                          </p>
+                        </div>
+                        <Switch
+                          id="pensionRitaLongUnemployment"
+                          checked={tempRitaLongUnemployment}
+                          onCheckedChange={setTempRitaLongUnemployment}
+                          className="mt-0.5 shrink-0"
+                        />
+                      </div>
+                    </div>
+                    {pensionUnlockSummary && (
+                      <p className="text-xs text-muted-foreground">{pensionUnlockSummary}</p>
+                    )}
+                    {pensionUnlockWarning && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {pensionUnlockWarning}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -503,8 +702,10 @@ export function FireCalculatorTab() {
               )}
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {formatCurrency(displayedFireMetrics.annualExpenses)} &divide;{' '}
-              {previewWithdrawalRate}% &mdash; spese {getItalyYear() - 1} su SWR
+              {pensionBridge
+                ? `Modello bridge: asset liberi per il ponte fino al ${pensionUnlockCalendarYear}, poi il fondo rientra — spese ${getItalyYear() - 1} su SWR ${previewWithdrawalRate}%`
+                : <>{formatCurrency(displayedFireMetrics.annualExpenses)} &divide;{' '}
+                  {previewWithdrawalRate}% &mdash; spese {getItalyYear() - 1} su SWR</>}
             </p>
           </div>
           <div className="divide-y divide-border border-t border-border">
@@ -597,6 +798,17 @@ export function FireCalculatorTab() {
                 <span className="text-sm text-muted-foreground">Di cui illiquidi</span>
                 <span className="font-mono text-sm font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {displayedFireMetrics.illiquidYearsOfExpenses.toFixed(1)} anni
+                </span>
+              </div>
+            )}
+            {pensionBridge && (
+              <div className="flex items-center justify-between px-6 py-3.5">
+                <span className="text-sm text-muted-foreground">Fondo pensione</span>
+                <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                  {formatCurrency(pensionBridge.valueToday)}{' '}
+                  <span className="font-sans font-normal text-muted-foreground">
+                    &mdash; rientra nel {pensionUnlockCalendarYear}
+                  </span>
                 </span>
               </div>
             )}
@@ -890,6 +1102,7 @@ export function FireCalculatorTab() {
           currentNetWorth={currentNetWorth}
           withdrawalRate={previewWithdrawalRate}
           settings={settings}
+          pensionBridge={pensionBridge}
         />
       )}
 

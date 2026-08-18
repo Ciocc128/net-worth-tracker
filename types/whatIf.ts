@@ -3,6 +3,7 @@ import type {
   CoastFirePensionInput,
   CoastFireTaxBracket,
 } from '@/types/assets';
+import type { PensionCapitalInflowToday } from '@/lib/services/fireService';
 
 /**
  * What If Analysis — life-event scenarios applied to the user's FIRE plan.
@@ -53,6 +54,9 @@ interface WhatIfCoastBaseline {
   inflationRate: number; // base scenario inflation
   pensions: CoastFirePensionInput[];
   taxBrackets: CoastFireTaxBracket[];
+  // Spec 3: locked pension funds (today's value) re-entering the Coast walk at their unlock
+  // year, present only when the FIRE lock-in toggle is on (netWorth then excludes them).
+  capitalInflowsToday?: PensionCapitalInflowToday[];
 }
 
 /** The baseline financial picture that scenarios perturb. Sourced from settings + assets + cashflow. */
