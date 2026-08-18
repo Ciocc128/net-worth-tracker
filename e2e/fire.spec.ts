@@ -1,5 +1,5 @@
 /**
- * Calcolatore FIRE — desktop regressions that only a real browser can catch (Spec 4).
+ * Calcolatore FIRE — desktop regressions that only a real browser can catch.
  *
  * Runs on the BASE account (test-user-1), whose FIRE figures depend on the run month (the
  * cashflow fallback annualizes the current year), so these tests assert STRUCTURE and FORMAT,

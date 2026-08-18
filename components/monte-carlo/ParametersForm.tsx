@@ -21,7 +21,7 @@ interface ParametersFormProps {
   liquidNetWorth: number;
   isRunning: boolean;
   hideMarketParams?: boolean; // Hide advanced section when scenario mode handles market params
-  // Spec 3 (read-only): pension-fund inflows the simulation adds automatically at their unlock
+  // Read-only: pension-fund inflows the simulation adds automatically at their unlock
   // year, at today's value — declared here so the user knows the fund is not simply missing.
   pensionCapitalInflows?: { year: number; amount: number }[];
 }

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FireFanChart — the Ventaglio view of the FIRE projection (Spec 4).
+ * FireFanChart — the Ventaglio view of the FIRE projection.
  *
  * Renders the output of `runAccumulationSimulation` (pure, tested) as a fan:
  * p10–p90 band (weak tint), p25–p75 band (medium tint), the median path, ~40 sample

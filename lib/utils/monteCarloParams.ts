@@ -2,7 +2,7 @@
  * Normalization of the real portfolio allocation onto the 4 Monte Carlo asset classes.
  *
  * Extracted verbatim from the effect that lived inline in MonteCarloTab.tsx so the FIRE
- * Ventaglio view (Spec 4) can derive its market exposure from the SAME rule — two call sites
+ * Ventaglio view can derive its market exposure from the SAME rule — two call sites
  * that must stay identical, because the divergent copy is the one the user sees
  * (AGENTS.md → Quick-Fix Reference).
  *

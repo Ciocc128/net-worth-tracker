@@ -221,7 +221,7 @@ export async function setSettings(
       if (settings.respectPensionLockInFire !== undefined) {
         docData.respectPensionLockInFire = settings.respectPensionLockInFire;
       }
-      // RITA rule inputs (Spec 3): written only by FireCalculatorTab with a complete form, not
+      // RITA rule inputs: written only by FireCalculatorTab with a complete form, not
       // clearable — same reasoning as includePrimaryResidenceInFIRE, so the !== undefined guard
       // is safe in both branches.
       if (settings.pensionInpsRetirementAge !== undefined) {
@@ -378,7 +378,7 @@ export async function setSettings(
       if (settings.respectPensionLockInFire !== undefined) {
         docData.respectPensionLockInFire = settings.respectPensionLockInFire;
       }
-      // RITA rule inputs (Spec 3): written only by FireCalculatorTab with a complete form, not
+      // RITA rule inputs: written only by FireCalculatorTab with a complete form, not
       // clearable — same reasoning as includePrimaryResidenceInFIRE, so the !== undefined guard
       // is safe in both branches.
       if (settings.pensionInpsRetirementAge !== undefined) {

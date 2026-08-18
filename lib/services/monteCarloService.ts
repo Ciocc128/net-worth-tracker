@@ -49,7 +49,7 @@ function runSingleSimulation(
 ): SingleSimulationResult {
   let portfolio = params.initialPortfolio;
 
-  // Capital inflows (Spec 3): defined order is inflow → market return → withdrawal, so an
+  // Capital inflows: defined order is inflow → market return → withdrawal, so an
   // inflow earns its own year's return before that year's withdrawal. Inflows at year <= 0
   // are simply part of the starting portfolio.
   const inflows = params.capitalInflows ?? [];
@@ -251,7 +251,7 @@ export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloRes
   };
 }
 
-// ===== Accumulation simulation (Spec 4 — Ventaglio view on the FIRE tab) =====
+// ===== Accumulation simulation (Ventaglio view on the FIRE tab) =====
 
 export interface AccumulationSimulationParams {
   initialPortfolio: number;
@@ -262,7 +262,7 @@ export interface AccumulationSimulationParams {
   withdrawalRate: number; // %
   /** % — the moving target's inflation, matching the deterministic base scenario's. */
   expenseInflationRate: number;
-  /** Simulation horizon in years (the caller caps it — Spec 4 uses min(deterministic, 40)). */
+  /** Simulation horizon in years (the caller caps it — the Ventaglio uses min(deterministic, 40)). */
   years: number;
 
   // 4-class allocation (summing to 100) + per-class market parameters, as in MonteCarloParams.
@@ -281,7 +281,7 @@ export interface AccumulationSimulationParams {
 
   numberOfSimulations: number;
 
-  // Spec 3 pension inflows at TODAY's value (no deterministic fund growth inside a stochastic
+  // Pension inflows at TODAY's value (no deterministic fund growth inside a stochastic
   // run — AGENTS → FIRE, What If and Goals). Order per year: inflow → return → savings.
   capitalInflows?: MonteCarloCapitalInflow[];
 }
@@ -302,7 +302,7 @@ export interface AccumulationSimulationResult {
 }
 
 /**
- * Accumulation-phase Monte Carlo for the FIRE Ventaglio view (Spec 4).
+ * Accumulation-phase Monte Carlo for the FIRE Ventaglio view.
  *
  * Per year, per path: capital inflows land first (at today's value), the portfolio takes one
  * random weighted market return, savings are added while the path has not yet reached FIRE,

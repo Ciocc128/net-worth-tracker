@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FireCalculatorTab Component — single-answer IA (Spec 4).
+ * FireCalculatorTab Component — single-answer IA.
  *
  * The page answers two questions at a glance and defers everything else:
  *   1. HERO [2fr_1fr] — "Quando?": the projected FIRE calendar year in the base scenario
@@ -244,7 +244,7 @@ export function FireCalculatorTab() {
   ]);
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
 
-  // Bridge model inputs (Spec 3). Funds with different unlock years are aggregated on the
+  // Bridge model inputs. Funds with different unlock years are aggregated on the
   // LATEST year — conservative when the floor binds, and neutral otherwise because the fund
   // grows and is discounted at the same scenario real return.
   const baseScenarioParams = (settings?.fireProjectionScenarios ?? getDefaultScenarios()).base;

@@ -23,6 +23,10 @@ Companion documents — do not duplicate their content into this file:
 - UI text Italian, code comments English. `formatCurrency()`, `formatDate()` (`DD/MM/YYYY`), `Sottocategoria` (no
   hyphen), `Buongiorno Giuseppe` (no comma). English on purpose: `Hall of Fame`, `FIRE e Simulazioni`, `Cashflow`,
   `Assistente AI` and the standard metric names; `Current Yield` → `Rendimento Corrente`.
+- **`formatPercentage` exists TWICE and the two disagree**: `chartService`'s is `Intl('it-IT')` (`40,71%`),
+  `lib/utils/formatters`' is `toFixed` (`40.71%`). `formatCurrency` matches in both. Import the percentage from the
+  same module the surrounding component uses, or one surface prints both separators side by side — pure `lib/utils`
+  modules feeding a screen therefore take chartService's and mock the Firebase chain in their tests.
 - **Curly apostrophes break `.tsx`** (`TS1127`) — delimit with double quotes. **JSX eats the space next to an inline tag
   or wrapped expression** once Prettier breaks the line: write `{' '}` on both sides of `<strong>`/`{expr}`.
 - **Italian `Intl` breaks naive matching**: four-digit amounts print ungrouped (`1821,01 €` but `29.800,00 €`) and the
@@ -49,6 +53,10 @@ Companion documents — do not duplicate their content into this file:
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child — add explicit
   `grid-cols-1` and `min-w-0` on flex/grid children (they default to `min-width:auto`). To center one flex child use
   `self-center`, not `items-center`, which shrinks every child to content width.
+- **That overflow usually does NOT show up as sideways scroll**, which is why it survives review: an ancestor
+  (`overflow-x: hidden` on the app shell) clips it, so `document.scrollWidth - clientWidth` reads 0 while a hero card
+  is 455px wide inside a 390px viewport and its right-aligned amounts are cut off. **Measure the elements, not the
+  document**: walk `main *` and flag any `getBoundingClientRect().right > clientWidth`.
 - **One scroll container per region**: a nested scrollable captures the wheel and content below becomes unreachable
   (desktop-only symptom). `overflow-x-hidden` on an ancestor also CLIPS a descendant's `overflow-x:auto`.
 
@@ -432,6 +440,13 @@ Companion documents — do not duplicate their content into this file:
 - **Memoize every input feeding the fan's `useMemo`** — a `pensionLockState` (and therefore `fanInputs`) rebuilt per
   render re-runs 1000 simulations on every keystroke. The fan is additionally armed only on first opening its view,
   so users who never open Ventaglio never pay its CPU.
+- **The Coast tab computes nothing**: `lib/utils/coastFireView.ts` chooses which of
+  `fireService`'s own fields to show and in which words; `CoastFireTab.tsx` orchestrates, the five
+  `components/fire-simulations/coast/*` render, `useCoastFireSettingsDraft` owns the form. A figure
+  that cannot be pointed at inside a `CoastFIREScenarioMetrics` does not belong on that tab.
+  **The inflow timeline is the visual explanation of the discount**, not a second model: state
+  pensions come from the scenario's `pensionBreakdown`, the fund from `resolvePensionLockState`'s
+  inflows AT TODAY'S VALUE — growing it there would double-count what the walk already does.
 - **Goal trajectory is annuity math in a tested pure layer** (`goalTrajectory.ts`), never a `useMemo` in the card; the
   verdict compares the *projected value at the deadline* against the target with a 1% tolerance, not contribution ≥
   requiredMonthly (float flapping). Coast FIRE's nested pension rows must be serialized without `undefined` fields.
@@ -606,7 +621,7 @@ Companion documents — do not duplicate their content into this file:
   input into `NaN`, which fails `z.number()` itself — use `z.number({ error: '…' }).positive('…')`.
 - `PensionAllocationCards` needs the FULL unfiltered asset list; **Storico reverses the split
   `calculateCurrentAllocation` applied**, using the fund's CURRENT `composition` (a documented approximation); **FIRE's
-  lock-in toggle subtracts from BOTH `currentNetWorth` and `illiquidNetWorth`** — and since Spec 3 it is a bridge
+  lock-in toggle subtracts from BOTH `currentNetWorth` and `illiquidNetWorth`** — and it is a bridge
   model across the whole FIRE page (see *FIRE, What If and Goals*).
 - **`performanceBase.ts` reads `byAsset`, never `byAssetClass`**, and the exclusion is applied in TWO places because the
   Rendimenti page has two independent snapshot-fetch paths.
@@ -908,7 +923,7 @@ Companion documents — do not duplicate their content into this file:
 | --- | --- |
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) |
-| Storico | `chartService` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal` |
+| Storico | `chartService` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal`, `coastFireView` |
 | Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
@@ -923,6 +938,21 @@ Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allo
 - `npx knip` uses the root `knip.json`: `components/ui/**` and `public/sw.js` ignored, `firebase-tools` an ignored
   dependency, and `ignoreExportsUsedInFile: true` means remaining EXPORT_ONLY findings are deliberate prop surface.
 - Emulators, Playwright, production-build verification and their environment traps: **SETUP.md → Steps 6-7**.
+
+### Proving a refactor changed no number
+- **Measure the noise floor BEFORE interpreting a diff.** Anything downstream of a `new Date()` — the Coast backward
+  walk is the worked example — drifts continuously: two dumps of *identical* code differ by 1-2 cents at two minutes
+  and by ~0,25 € at forty. Take two dumps of unchanged code first; whatever they disagree on is not your change.
+- **The valid comparison is old-vs-new MINUTES apart**, not before-work-vs-after-work: `git checkout --` the modified
+  files and delete the new ones, dump, then restore from a patch (`git diff > …` + `git apply --include=…`, since a
+  whole-tree patch fails on files you never reverted). A one-hour gap between the two dumps makes pure drift look
+  like a regression.
+- **Compare the SET of rendered values, not the page text** — the redesign moves everything. Extract every euro
+  amount and percentage from both dumps and assert that each old value has a match within the noise floor; new
+  values appearing is the feature, old values disappearing is the bug.
+- **Drive it from a throwaway Playwright spec that opens every collapsible** and samples the chart by hovering at
+  fixed fractions of its width, so figures hidden behind a disclosure and figures that exist only in a tooltip are
+  both in the dump. Delete the spec at the end.
 
 ### Emulator Exercise Scripts
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers the
@@ -953,6 +983,14 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - **`workers: 1`, non-negotiable** — the specs share emulator accounts. **Give the suite its OWN fixture, not another
   script's end state**, with numbers that make the assertion meaningful (dating every Analisi expense to January keeps
   its figures exact whatever month the suite runs in).
+- **A fixture may need to be tuned so the thing under test is on screen at all.** The Coast fixture sets the RITA
+  long-unemployment variant purely because the ordinary rule puts the pension unlock at 62, past the end of a
+  projection that stops at the Coast target of 60 — the step the spec asks the chart to show would fall outside the
+  chart. Choose the fixture from what the assertion must see, and say so in the file.
+- **`e2e/global-setup.ts` runs every seed**, in order: Previdenza → Coast (needs the pension fund to exist) →
+  degraded account → Analisi. A new fixture is an `npm run e2e:seed:*` script plus one `spawnSync` there — and it
+  re-runs on EVERY invocation, so a test that patches Firestore itself must do the patch inside the test, never
+  between two runs.
 - **Re-seeding an account mid-suite logs it out**: `auth.updateUser(uid, { password })` revokes the refresh tokens and
   invalidates the parked `storageState`. Split the seed — creation once from `global-setup`, data-only per test.
 - **`storageState` does NOT capture IndexedDB unless you ask for it**, and the Firebase session lives there: the file
@@ -961,7 +999,11 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - **`page.addInitScript` runs BEFORE `document.documentElement` exists**: observing it throws, the init script dies on
   that line, and the spec passes because it observed *nothing*. **Observe `document`** with `subtree: true`.
 - **`innerText` applies `text-transform`; `textContent` does not** — a marker taken from an uppercase eyebrow never
-  matches `body.innerText`, and a falsification run using such a string stays green.
+  matches `body.innerText`, and a falsification run using such a string stays green. `innerText` also returns `''`
+  for anything not rendered, so a Recharts tooltip read that way is empty even when it is open: use `textContent`.
+- **`boundingBox()` is viewport-relative, so hovering a chart below the fold does nothing.** `page.mouse.move` to a
+  y past the window height silently lands outside it and the tooltip never opens — which reads exactly like "this
+  chart has no tooltip". `scrollIntoViewIfNeeded()` first, then read the box.
 - **Responsive DOM duplicates make `.first()` a trap** (the DOM-first node is usually the HIDDEN mobile copy) — filter
   with `.filter({ visible: true })`. **A collapsed CSS-grid region is still "visible" to Playwright**: scope through the
   toggle's `aria-controls` id and assert the collapse by measuring height.

@@ -197,7 +197,7 @@ interface CoastFIRERetirementNeeds {
 }
 
 /**
- * A one-off capital arrival inside the backward retirement walk (Spec 3: a pension fund
+ * A one-off capital arrival inside the backward retirement walk (a pension fund
  * unlocking). `amount` is already expressed in value AT the inflow year — growing it there is
  * the caller's model decision.
  */
@@ -998,11 +998,11 @@ export function getDefaultScenarios(): FIREProjectionScenarios {
  * still compound enough to reach the full retirement FIRE number by the target
  * retirement age?
  *
- * `capitalInflows` (Spec 3) lets the backward walk model capital that ARRIVES at a given year
+ * `capitalInflows` lets the backward walk model capital that ARRIVES at a given year
  * (a pension fund unlocking): at that year the required capital drops by the inflow amount
  * (floored at 0) before the discounting continues, so an inflow A at year y reduces the
  * capital required at retirement by exactly A / (1 + realReturn)^y (floor permitting).
- * Exported for the Spec 3 invariant tests; absent/empty inflows leave the walk byte-identical.
+ * Exported for the bridge-model invariant tests; absent/empty inflows leave the walk byte-identical.
  */
 export function buildCoastFIRERetirementNeeds(
   annualExpenses: number,
@@ -1140,7 +1140,7 @@ export function calculateCoastFIREMetrics(
   pensions: CoastFirePensionInput[] = [],
   taxBrackets: CoastFireTaxBracket[] = getDefaultCoastFireTaxBrackets(),
   currentDate: Date = new Date(),
-  // Spec 3: locked pension funds re-entering the walk at their unlock year. When used,
+  // Bridge model: locked pension funds re-entering the walk at their unlock year. When used,
   // `currentNetWorth` must be the FREE capital (fund already subtracted by the caller).
   capitalInflowsToday?: PensionCapitalInflowToday[]
 ): CoastFIREMetrics {
@@ -1196,7 +1196,7 @@ export interface FireBridgeInputs {
   realReturn: number; // % — scenario growthRate − inflationRate
   yearsToUnlock: number;
   pensionValueToday: number;
-  // % — Spec 3 applies the scenario REAL return to the pension compartment too, a documented
+  // % — the bridge applies the scenario REAL return to the pension compartment too, a documented
   // v1 approximation (future TFR/employer/voluntary contributions are out of scope).
   pensionGrowthRate: number;
 }
@@ -1212,7 +1212,7 @@ export interface FireBridgeResult {
 const FIRE_BRIDGE_REFERENCE_DATE = new Date(2000, 0, 1);
 
 /**
- * FIRE number under the bridge model (Spec 3): the capital required TODAY in free assets to
+ * FIRE number under the bridge model: the capital required TODAY in free assets to
  * cover expenses until the pension fund unlocks and arrive at the unlock year with
  * max(0, standardFireNumber − pensionValueAtUnlock). Reuses the generalized Coast walk with a
  * single capital inflow at the unlock year — never a second formula.
@@ -1270,7 +1270,7 @@ export function calculateCoastFIREProjection(
   pensions: CoastFirePensionInput[] = [],
   taxBrackets: CoastFireTaxBracket[] = getDefaultCoastFireTaxBrackets(),
   currentDate: Date = new Date(),
-  // Spec 3: locked pension funds (today's value). Each scenario grows them with its own real
+  // Bridge model: locked pension funds (today's value). Each scenario grows them with its own real
   // return; `currentNetWorth` must then be the FREE capital, fund already subtracted.
   capitalInflowsToday?: PensionCapitalInflowToday[]
 ): CoastFIREProjectionResult {
@@ -1430,7 +1430,7 @@ export function calculateCoastFIREProjection(
  * All 3 scenarios' FIRE Numbers are tracked and displayed in chart/table.
  * Savings stop for a scenario once it reaches FIRE (retirement = no more income).
  *
- * `pensionBridge` (Spec 3): the locked pension fund is a SEPARATE compartment that compounds at
+ * `pensionBridge`: the locked pension fund is a SEPARATE compartment that compounds at
  * each scenario's growth rate and merges into the portfolio at the unlock year (a visible step
  * in the series). Before the unlock, the FIRE-reached check uses the bridge requirement
  * (calculateFireBridgeNumber on that year's inflated expenses and compartment value); from the

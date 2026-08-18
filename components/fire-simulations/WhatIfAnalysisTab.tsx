@@ -319,7 +319,7 @@ export function WhatIfAnalysisTab() {
   // --- Baseline assembly ---
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
 
-  // Spec 3: the FIRE lock-in toggle governs the whole page — the What If baseline inherits it.
+  // The FIRE lock-in toggle governs the whole page — the What If baseline inherits it.
   // Locked pension capital leaves the perturbable net worth and re-enters the Coast walk as a
   // capital inflow at its unlock year (illiquid stays floored at 0, same as FireCalculatorTab).
   const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;

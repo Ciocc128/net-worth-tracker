@@ -303,7 +303,7 @@ export interface AssetAllocationSettings {
   // When true, FireCalculatorTab subtracts locked pension-fund capital (unlockDate in the future)
   // from the FIRE-eligible net worth — see lib/utils/pensionFire.ts. Off by default (opt-in, MVP).
   respectPensionLockInFire?: boolean;
-  // RITA rule inputs (Spec 3) — resolve when a pension fund unlocks in the FIRE bridge model,
+  // RITA rule inputs — resolve when a pension fund unlocks in the FIRE bridge model,
   // single source in lib/utils/pensionUnlock.ts: unlock age = INPS age − 5, or − 10 with the
   // long-unemployment hypothesis. A per-fund pensionFundDetails.unlockDate overrides the rule.
   pensionInpsRetirementAge?: number; // Applicative default 67; UI allows 60-75
@@ -445,7 +445,7 @@ export interface MonteCarloParams {
   // Simulation settings
   numberOfSimulations: number;
 
-  // One-off capital arrivals during the simulated horizon (Spec 3: a pension fund unlocking).
+  // One-off capital arrivals during the simulated horizon (a pension fund unlocking).
   // Applied at the START of their year, before that year's market return and withdrawal;
   // entries with year <= 0 are folded into the initial portfolio.
   capitalInflows?: MonteCarloCapitalInflow[];

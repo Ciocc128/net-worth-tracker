@@ -54,7 +54,7 @@ interface WhatIfCoastBaseline {
   inflationRate: number; // base scenario inflation
   pensions: CoastFirePensionInput[];
   taxBrackets: CoastFireTaxBracket[];
-  // Spec 3: locked pension funds (today's value) re-entering the Coast walk at their unlock
+  // Bridge model: locked pension funds (today's value) re-entering the Coast walk at their unlock
   // year, present only when the FIRE lock-in toggle is on (netWorth then excludes them).
   capitalInflowsToday?: PensionCapitalInflowToday[];
 }

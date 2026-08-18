@@ -162,7 +162,7 @@ export function calculateWhatIfImpact(
   let coast: WhatIfCoastImpact | null = null;
   if (baseline.coast) {
     const c = baseline.coast;
-    // `undefined` currentDate keeps the function's own default; the inflows (Spec 3) ride along
+    // `undefined` currentDate keeps the function's own default; the inflows ride along
     // unchanged on both sides — a life event perturbs free capital, not the locked fund.
     const coastBefore = calculateCoastFIREMetrics(
       baseline.netWorth,

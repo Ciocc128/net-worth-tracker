@@ -57,6 +57,8 @@
 - Added a "Fondo pensione — rientra nel {anno}" row to the FIRE passive-income block, so the excluded capital and its return year are always stated rather than silently missing.
 - Added a "Ventaglio" (fan) view to the FIRE calculator’s projection: a Monte Carlo simulation of your accumulation phase with percentile bands (10–90 and 25–75), the median path, ~40 sample paths, and the moving FIRE target — market returns and volatility are derived from your real portfolio allocation.
 - Added the cumulative probability of reaching FIRE by your projected year under the fan chart — the one number the deterministic projection cannot give.
+- Added an "Afflussi già considerati" timeline to Coast FIRE: a single row naming every event the calculation already discounts — the year your pension fund unlocks and the amount it brings back, plus each state pension from its decorrenza with the net real income it adds. It is the reason your Coast FIRE Number is lower than a full FIRE number, and it was previously nowhere on the page.
+- Added a "Se smetti oggi" card to Coast FIRE: what your current patrimonio grows into by your target age with no further contributions, next to the capital actually required, the net state pensions counted, and the annual need your portfolio has to cover at the target.
 
 ## 🐛 Bug Fixes
 
@@ -211,6 +213,11 @@
 - Improved the FIRE calculator with a single-answer layout: a dominant verdict with the projected FIRE year (and age at that year), your sustainable passive income beside it, a line declaring the active assumptions (SWR, home, pension lock), settings gathered in one collapsible, and the historical charts tucked into a "Dettaglio" section.
 - Improved the scenario projection chart’s readability: three portfolio series plus a single dashed FIRE target (base scenario); the Bear and Bull targets moved into the tooltip, which now also names the pension-fund unlock step.
 - Improved the "FIRE reached" announcement: the celebration banner is now part of the hero verdict (one announcement instead of two, confetti preserved).
+- Improved the Coast FIRE tab with the same single-answer layout as the FIRE calculator: it now answers "posso smettere di versare?" outright. The dominant number is how much you are short of (or past) your Coast FIRE Number, followed by a verdict in words and the two figures it compares — your FIRE patrimonio and the target — instead of leaving you to do that comparison yourself.
+- Coast FIRE now states its assumptions in a line under the hero: your age and target age, the expenses used and whether they are custom or last year's actuals, the safe withdrawal rate, the base scenario's real return, and whether your pension fund is treated as locked.
+- Coast FIRE settings — ages, custom expenses, state pensions and IRPEF brackets — are now gathered in one "Impostazioni Coast FIRE" panel that stays collapsed once you have configured it, and reopens on its own when you have unsaved edits or a pension row still missing data.
+- The three Coast FIRE scenarios are now cards, each leading with how close you are in that scenario and listing the capital it requires at retirement and at steady state underneath.
+- The Coast FIRE projection chart's tooltip now names the pension-fund unlock at the year it happens, so the step in the three lines reads as the event it is rather than a glitch — and the coverage phases, the per-pension breakdown and the "how to read this" notes moved into a "Dettaglio" section, out of the way of the answer.
 
 ## 🔒 Security
 

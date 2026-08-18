@@ -990,17 +990,26 @@ Contesto:
 /impeccable audit il tab "Coast FIRE" della pagina FIRE e Simulazioni
 
 File: app/dashboard/fire-simulations/page.tsx
-Componenti: components/fire-simulations/CoastFireTab.tsx,
+Componenti: components/fire-simulations/CoastFireTab.tsx (orchestratore),
+            components/fire-simulations/coast/{CoastFireHero,CoastInflowTimeline,
+            CoastFireConfigSection,CoastScenarioCards,CoastFireProjectionSection}.tsx,
             components/fire-simulations/CoastFireProjectionChart.tsx
+Layer puro: lib/utils/coastFireView.ts · form: lib/hooks/useCoastFireSettingsDraft.ts
 
 Assi da verificare (minimum — segnala anche eventuali altri problemi):
-- Token: scenari Bear/Base/Bull — `color-mix()` non `emerald/sky/amber` hardcoded;
-  progress bar animata — fill via CSS var; pension state colors — `color-mix()` corretto
-- Chart colors: `CoastFireProjectionChart` via `useChartColors()[4,0,1,2]`;
-  target line `isAnimationActive={false}`; CartesianGrid via token
-- ARIA: progress bar con `role="progressbar"`, `aria-valuenow/min/max`
-- Breakpoint: pension UI 2-col su mobile (`grid-cols-2 items-start`); breakdown table
-  non overflow; touch target trash icon ≥ 44px
+- Token: scenari Orso/Base/Toro — icone via `useChartColors()[4,0,1]`, mai hex; stato
+  pensioni e box avvisi via `color-mix()` su `--chart-*`; verdetto "raggiunto" su
+  `text-positive`, mai `text-green-*`
+- Chart colors: `CoastFireProjectionChart` via `useChartColors()[4,0,1,2]`; target line
+  `isAnimationActive={false}`; assi con `CHART_TICK_STYLE`; tooltip a livello modulo
+- Gerarchia: UN solo numero dominante (il divario nell'hero), scenari a `text-[22px]`,
+  nessun card-in-card — le righe pensione nel pannello impostazioni sono `bg-muted`
+- ARIA: `<ol aria-label>` sulla timeline degli afflussi; collapsible con `data-state` +
+  `aria-controls`; touch target trash icon ≥ 44px; label dei bottoni "Rimuovi" distinte
+- Breakpoint: `grid-cols-1` + `min-w-0` sull'hero (senza, la card cresce oltre i 390px e
+  gli importi a destra vengono tagliati senza scroll orizzontale visibile); editor pensioni
+  2-col su mobile; timeline che impila sotto `tablet:`
+- Invarianza: nessun numero renderizzato che non esista dentro `CoastFIREScenarioMetrics`
 - Altro: pattern anomali o violazioni non elencate sopra
 
 Contesto:

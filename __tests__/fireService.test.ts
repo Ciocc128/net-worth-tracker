@@ -617,7 +617,7 @@ describe('calculateHistoricalFIRERunway', () => {
   })
 })
 
-describe('buildCoastFIRERetirementNeeds — capitalInflows (Spec 3 invariants)', () => {
+describe('buildCoastFIRERetirementNeeds — capitalInflows (bridge invariants)', () => {
   const defaultTaxBrackets = getDefaultCoastFireTaxBrackets()
   // A pension starting 3 years after retirement gives the walk a 3-year bridge to exercise.
   const BRIDGED_PENSION = [
@@ -763,7 +763,7 @@ describe('calculateFireBridgeNumber', () => {
   })
 })
 
-describe('calculateFIREProjection — pension bridge (Spec 3)', () => {
+describe('calculateFIREProjection — pension bridge', () => {
   const scenarios = getDefaultScenarios()
 
   it('regression: an undefined pensionBridge produces the same output as omitting it', () => {
@@ -818,7 +818,7 @@ describe('calculateFIREProjection — pension bridge (Spec 3)', () => {
   })
 })
 
-describe('calculateCoastFIREMetrics — capital inflows from pension unlock (Spec 3)', () => {
+describe('calculateCoastFIREMetrics — capital inflows from pension unlock', () => {
   it('reduces the retirement capital by exactly the grown fund value when it unlocks before retirement', () => {
     // Unlock at 10 years from now, retirement in 30: the fund re-enters at yearsFromRetirement 0,
     // grown at the scenario real return over the full 30 years (merged capital compounds the same).
@@ -890,7 +890,7 @@ describe('calculateCoastFIREMetrics — capital inflows from pension unlock (Spe
   })
 })
 
-describe('calculateCoastFIREProjection — pension inflow step (Spec 3)', () => {
+describe('calculateCoastFIREProjection — pension inflow step', () => {
   const scenarios = getDefaultScenarios()
 
   it('adds the unlocked fund to the projection series from the unlock year onward', () => {
