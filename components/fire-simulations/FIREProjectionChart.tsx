@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FIREProjectionChart Component — the "Scenari" view of the projection (Spec 4).
+ * FIREProjectionChart Component — the "Scenari" view of the projection.
  *
  * Recharts line chart with the 3 scenario net-worth series and ONE dashed FIRE target
  * line (base scenario). The previous 6-series version drew a target per scenario and was
@@ -12,7 +12,7 @@
  *   - Bear (red token), Base (primary token), Bull (green token);
  *   - vertical reference lines mark the year each scenario reaches FIRE.
  *
- * With the Spec 3 pension bridge active, the unlock year shows a visible step in every
+ * With the pension bridge model active, the unlock year shows a visible step in every
  * series; the tooltip names it so the step never reads as a data glitch.
  */
 
@@ -41,7 +41,7 @@ interface FIREProjectionChartProps {
   height?: number;
   /** Left margin for YAxis labels */
   marginLeft?: number;
-  /** Calendar year the pension fund unlocks (Spec 3 bridge) — the tooltip names the step. */
+  /** Calendar year the pension fund unlocks — the tooltip names the step. */
   pensionUnlockCalendarYear?: number | null;
 }
 

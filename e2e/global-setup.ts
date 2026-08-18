@@ -46,6 +46,13 @@ export default async function globalSetup(): Promise<void> {
     throw new Error('The Previdenza E2E fixture failed to seed — see the output above.');
   }
 
+  // Impostazioni Coast FIRE sullo STESSO account base, dopo la fixture Previdenza: l'inflow di
+  // sblocco del fondo pensione ha senso solo se `e2e-pension-fund` esiste già.
+  const coastSeed = spawnSync('npm', ['run', 'e2e:seed:coast'], { stdio: 'inherit', shell: true });
+  if (coastSeed.status !== 0) {
+    throw new Error('The Coast FIRE E2E fixture failed to seed — see the output above.');
+  }
+
   // Solo l'ACCOUNT degli scenari degradati, che `auth.degraded.setup.ts` dà per esistente; i dati li
   // scrive ogni test col proprio scenario. Separati apposta: aggiornare la password di un utente
   // revoca i suoi refresh token, quindi riseminare l'account a ogni scenario butterebbe fuori la

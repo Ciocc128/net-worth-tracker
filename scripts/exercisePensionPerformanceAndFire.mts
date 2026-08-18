@@ -295,7 +295,7 @@ async function main(): Promise<void> {
   );
 
   // Empty unlock settings = override-only resolution (no RITA rule): this script's scenario is
-  // built on explicit per-fund unlockDates, so only those must decide the lock (Spec 3 keeps
+  // built on explicit per-fund unlockDates, so only those must decide the lock (the bridge model keeps
   // this exact behaviour when the new settings are absent).
   const locked = calculatePensionLockedValue(assets, now, calculateAssetValue, {});
   check('locked value = 9.000 (only the fund with a future unlockDate)', locked === 9000, `got ${locked}`);

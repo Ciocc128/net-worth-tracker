@@ -91,7 +91,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - Settings (withdrawal rate, primary residence, pension lock + RITA controls) live in one collapsible that stays closed once configured; historical charts (FIRE runway, cashflow vs passive income) are tucked into a "Dettaglio" section
 - **Projection with two views, switched by a Scenari | Ventaglio pill**: *Scenari* is the deterministic Bear/Base/Bull chart (three portfolio series plus a single dashed base-scenario FIRE target — Bear/Bull targets in the tooltip, which also names the pension-unlock step); *Ventaglio* is a Monte Carlo fan of the accumulation phase — 1,000 simulated paths with 10–90 and 25–75 percentile bands, the median, ~40 sample paths and the moving FIRE target, plus the cumulative probability of reaching FIRE by the projected year. Market returns and volatility are derived from your real portfolio allocation
 - Optional "capitale bloccato" setting with a pension bridge model: pension funds not yet unlockable leave the FIRE-eligible net worth (your total net worth, shown everywhere else, stays unchanged) and re-enter at their unlock year — estimated automatically from the Italian RITA rule (configurable INPS age, −5/−10 years) or from a per-fund unlock date. The FIRE Number becomes a bridge target, projections show the fund merging back as a visible step, and Coast FIRE, What If and Monte Carlo all respect the same setting
-- **Coast FIRE tab** — Trade Republic-inspired layout: configuration panel at the top (collapsed once you've set your age, opens automatically when setup is incomplete), Coast FIRE number as a dominant hero metric, then the Bear/Base/Bull scenario cards (one row on wider screens) above the projection chart, followed by coverage phases, detail, pension impact, and interpretation. Hero rows show overall progress, liquid-only progress, total net worth, and liquid net worth. "Annulla" button resets unsaved changes in one tap. All chart colors theme-aware
+- **Coast FIRE tab** — single-answer layout built on one question, "can I stop contributing?": the dominant number is your shortfall (or surplus) against the Coast FIRE Number, with an explicit verdict and the two figures it compares, beside a "if you stop today" card projecting your current patrimonio to your target age with no further contributions. Under it, a line declaring the assumptions in use, then a timeline of the inflows the calculation already discounts (your pension fund's unlock year and each state pension's start date, with amounts), one settings panel (collapsed once configured, reopening on unsaved edits or incomplete data), Bear/Base/Bull scenario cards, and the projection chart — whose tooltip names the pension-fund unlock step. Coverage phases, per-pension impact and the explanatory notes sit in a "Dettaglio" section. All chart colors theme-aware
 - Coast FIRE supports one or more state pensions with editable IRPEF brackets, exact pension start dates, scenario-specific real net conversion, a guided summary that separates target-age need, bridge years, and post-pension steady state
 - Multi-scenario projections (Bear / Base / Bull) with inflation adjustment
 - Per-scenario FIRE numbers with automatic savings stop at FIRE reached
@@ -225,7 +225,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 | Forms | react-hook-form, zod | Form handling and validation |
 | Dates | date-fns, date-fns-tz | Timezone-aware date operations |
 | Scraping | cheerio | Borsa Italiana dividend and bond price data |
-| Testing | Vitest · Playwright | Unit testing (1714 tests) · browser E2E against the Firebase emulator (22 specs) |
+| Testing | Vitest · Playwright | Unit testing (1922 tests) · browser E2E against the Firebase emulator (29 specs) |
 
 ## Development
 
@@ -258,9 +258,11 @@ real browser can see — the `desktop:` layout switch at 1440px, animated disclo
 must cold-load into the right state, and whether a loading state ever flashes the wrong content.
 Covered pages: **Previdenza** (including a project for the states a healthy fixture can never reach —
 a return that can't be trusted, a window where nothing moved, a fund with no history yet — seeded on
-their own account: `npm run e2e:seed -- suspicious|idle|fresh`) and **Analisi** (its own fixture
+their own account: `npm run e2e:seed -- suspicious|idle|fresh`), **Analisi** (its own fixture
 account too, with every expense dated January so exact assertions hold whatever month the suite runs
-in). Note: the emulators need **Java 21+** — see SETUP.md → Step 6.
+in) and **FIRE / Coast FIRE** (a deterministic Coast fixture with custom expenses, two state pensions
+and a pension fund unlocking inside the projection's horizon). Note: the emulators need **Java 21+**
+— see SETUP.md → Step 6.
 
 ### Conventions
 

@@ -136,7 +136,7 @@ export function MonteCarloTab() {
   const grossTotalNetWorth = assets ? calculateTotalValue(assets) : 0;
   const liquidNetWorth = assets ? calculateLiquidNetWorth(assets) : 0;
 
-  // Spec 3: the FIRE lock-in toggle governs the whole page. With it on, locked pension funds
+  // The FIRE lock-in toggle governs the whole page. With it on, locked pension funds
   // leave the default initial portfolio and re-enter the simulation as capital inflows at their
   // unlock year (at TODAY's value — no deterministic fund growth inside a stochastic run,
   // declared in the read-only row inside ParametersForm).

@@ -79,7 +79,7 @@ function expectedPath(
   return path;
 }
 
-describe('runMonteCarloSimulation — capital inflows (Spec 3)', () => {
+describe('runMonteCarloSimulation — capital inflows', () => {
   it('baseline: at zero volatility the path is deterministic (5% growth, 50k withdrawal)', () => {
     const result = runMonteCarloSimulation(makeDeterministicParams());
     const expected = expectedPath(1_000_000, 5, 5, 50_000);
@@ -141,7 +141,7 @@ describe('runMonteCarloSimulation — capital inflows (Spec 3)', () => {
 });
 
 /**
- * Accumulation engine for the FIRE Ventaglio view (Spec 4).
+ * Accumulation engine for the FIRE Ventaglio view.
  *
  * Zero volatility makes randomNormal(mean, 0) === mean, so every path is deterministic and can
  * be compared FLOAT-FOR-FLOAT against calculateFIREProjection's base scenario — the spec's key
@@ -177,7 +177,7 @@ function makeAccumulationParams(
   };
 }
 
-describe('runAccumulationSimulation — Ventaglio engine (Spec 4)', () => {
+describe('runAccumulationSimulation — Ventaglio engine', () => {
   it('at zero volatility every path collapses onto the deterministic base projection', () => {
     // Same rates as the engine fixture: base scenario 7% growth / 2.5% inflation.
     const projection = calculateFIREProjection(

@@ -90,7 +90,7 @@ describe('getSettings — lettura', () => {
     expect(settings?.familyMembers).toEqual([{ id: 'm1', name: 'Giuseppe' }]);
   });
 
-  it('returns the RITA rule settings instead of dropping them (Spec 3)', async () => {
+  it('returns the RITA rule settings instead of dropping them', async () => {
     const settings = await getSettings('user-1');
 
     expect(settings?.pensionInpsRetirementAge).toBe(68);
@@ -120,7 +120,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     });
   });
 
-  it('writes the RITA rule settings (Spec 3)', async () => {
+  it('writes the RITA rule settings', async () => {
     await setSettings('user-1', {
       targets: TARGETS,
       pensionInpsRetirementAge: 68,
@@ -175,7 +175,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     });
   });
 
-  it('writes the RITA rule settings (Spec 3)', async () => {
+  it('writes the RITA rule settings', async () => {
     await setSettings('user-1', {
       pensionInpsRetirementAge: 70,
       pensionRitaLongUnemployment: true,

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FIREProjectionSection Component — the "Proiezione" chapter of the FIRE tab (Spec 4).
+ * FIREProjectionSection Component — the "Proiezione" chapter of the FIRE tab.
  *
  * Two views of the same projection, switched by a segmented pill:
  *   - Scenari: the deterministic Bear/Base/Bull chart (3 series + ONE dashed base target);
@@ -61,7 +61,7 @@ interface FIREProjectionSectionProps {
   cashflowIsAnnualized: boolean;
   /** null = the fan cannot run (no allocation in the 4 MC classes, or no data). */
   fanInputs: FanSimulationInputs | null;
-  /** Spec 3 bridge: calendar year of the pension unlock, for the Scenari tooltip step. */
+  /** Calendar year of the pension unlock, for the Scenari tooltip step. */
   pensionUnlockCalendarYear: number | null;
 }
 
@@ -72,7 +72,7 @@ const VIEW_OPTIONS = [
   { value: 'ventaglio' as const, label: 'Ventaglio' },
 ];
 
-/** Fan horizon cap (Spec 4): the deterministic projection's years, at most 40. */
+/** Fan horizon cap: the deterministic projection's years, at most 40. */
 const FAN_MAX_YEARS = 40;
 
 // Scenario display config — colors resolved at runtime via useChartColors()
