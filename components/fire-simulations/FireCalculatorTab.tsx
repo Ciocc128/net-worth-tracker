@@ -706,9 +706,15 @@ export function FireCalculatorTab() {
       {/* ── HERO [2fr_1fr]: Quando? + Quanto posso spendere? ── */}
       {displayedFireMetrics ? (
         <>
-          <div className="grid gap-4 desktop:grid-cols-[2fr_1fr]">
+          {/* grid-cols-1 + min-w-0 are load-bearing, not tidiness: below `desktop:` the grid has
+              no explicit template, so its single implicit track is sized `auto` and cannot shrink
+              below the card's min-content — and a grid item defaults to min-width:auto anyway.
+              Without both, the hero measured 453px inside a 390px viewport and scrolled the page
+              sideways (AGENTS → *Tailwind Breakpoints and Responsive Layout*; same pair as
+              `CoastFireHero.tsx`). */}
+          <div className="grid grid-cols-1 gap-4 desktop:grid-cols-[2fr_1fr]">
             {/* Dominant: the projected FIRE year, with verdict, progress and gap */}
-            <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-[22px]">
+            <div className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-[22px]">
               <div className="flex items-center gap-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                   Traguardo FIRE
@@ -794,7 +800,7 @@ export function FireCalculatorTab() {
             </div>
 
             {/* Companion: sustainable passive income */}
-            <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-[22px]">
+            <div className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-[22px]">
               <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 Reddito passivo sostenibile
               </p>

@@ -140,8 +140,8 @@
 - Fixed the Overview "Composizione" charts hiding any asset class or individual asset under 5% of your portfolio from the legend, while the bar above it kept a colored segment for every one of them — so some segments had no name or percentage listed below. The legend now lists everything the bar shows.
 - Fixed the automatic Azioni/Obbligazioni calculation ignoring changes to your "Trend Following" and "Carry" targets. The two figures stayed where they were, so the extra allocation silently pushed the total above 100% and was saved as target leverage instead of being funded from the rest of the portfolio. Every asset class now triggers the recalculation.
 - Fixed the FIRE Calculator's "Considera il fondo pensione come capitale bloccato" setting not surviving a page reload: it saved with a success message but silently reverted to off the next time you opened the page. Turning it on now sticks.
-
 - Fixed the "Spese per Tipo" table in periodic emails leaving out expenses recorded without a type, so its percentages stopped short of 100% with nothing on screen explaining the gap. Those expenses were always counted in your totals; they now get their own "Non classificate" row.
+- Fixed the FIRE Calculator tab scrolling sideways on a phone: the hero was wider than the screen, so its right-hand amounts — the FIRE Number, the current withdrawal rate, the pension-fund line — sat off the edge and the whole page could be dragged horizontally. The hero now fits the screen at every width. The other tabs on that page were unaffected.
 
 ## 🔧 Improvements
 
