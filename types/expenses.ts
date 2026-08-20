@@ -7,6 +7,11 @@
 // - transfer: Inter-account transfers (net-zero for portfolio, excluded from all metrics)
 export type ExpenseType = 'fixed' | 'variable' | 'debt' | 'income' | 'transfer';
 
+// How often a recurring expense series repeats.
+// Declared here rather than next to the date arithmetic (lib/utils/recurrenceDates.ts) so that
+// module can depend on the domain types without the types depending back on it.
+export type RecurrenceFrequency = 'monthly' | 'yearly';
+
 export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   fixed: 'Spese Fisse',
   variable: 'Spese Variabili',
@@ -73,9 +78,15 @@ export interface Expense {
   notes?: string;
   link?: string; // Optional link (e.g., Amazon order, receipt, etc.)
   // Recurring payment configuration
-  // If isRecurring=true, this expense repeats monthly on the specified day (1-31).
-  // For months with fewer days (e.g., February with 28/29 days), the payment is scheduled on the last day of the month.
-  isRecurring?: boolean; // For debts with monthly recurrence
+  // If isRecurring=true, this expense is one occurrence of a series that repeats on the
+  // specified day (1-31), either monthly or yearly. For months with fewer days (e.g. February
+  // with 28/29 days), the payment is scheduled on the last day of the month.
+  // The whole series is materialised as real documents sharing one recurringParentId — the
+  // date arithmetic lives in lib/utils/recurrenceDates.ts.
+  isRecurring?: boolean; // Set on every occurrence of a recurring series
+  // Cadence of the series. ABSENT on rows written before the yearly cadence existed, and those
+  // are all monthly — read it through resolveRecurrenceFrequency(), never directly.
+  recurringFrequency?: RecurrenceFrequency;
   recurringDay?: number; // Day of month for recurring expenses (1-31)
   recurringParentId?: string; // Reference to parent recurring expense
   // Installment payment (BNPL - Buy Now Pay Later) tracking
@@ -179,8 +190,12 @@ export interface ExpenseFormData {
   notes?: string;
   link?: string;
   isRecurring?: boolean;
+  recurringFrequency?: RecurrenceFrequency; // Cadence of the series (default: monthly)
   recurringDay?: number;
-  recurringMonths?: number; // Number of months to create recurring expenses
+  // Number of occurrences to create, the first one included. Its unit follows the cadence:
+  // months for a monthly series, years for a yearly one. Form-only — never persisted, since
+  // the series is materialised as N independent documents.
+  recurringCount?: number;
   isInstallment?: boolean; // Enable installment payments
   installmentMode?: 'auto' | 'manual'; // Auto-calculate or manual amounts
   installmentCount?: number; // Number of installments (2-60)

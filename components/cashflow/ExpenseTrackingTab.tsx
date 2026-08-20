@@ -390,9 +390,12 @@ export function ExpenseTrackingTab({
   );
 
   const deleteAllRecurringExpenses = async (recurringParentId: string) => {
+    // The series query is scoped by owner (firestore.rules refuses an unscoped list), so
+    // without an owner there is nothing to delete — and no way to ask for it.
+    if (!ownerId) return;
     try {
       // Reverse balance effects before bulk-deleting (only the first entry stores linkedCashAssetId)
-      const seriesExpenses = await getExpensesByRecurringParentId(recurringParentId);
+      const seriesExpenses = await getExpensesByRecurringParentId(ownerId, recurringParentId);
       for (const exp of seriesExpenses) {
         if (exp.linkedCashAssetId) {
           await updateCashAssetBalance(exp.linkedCashAssetId, -exp.amount);
@@ -402,7 +405,7 @@ export function ExpenseTrackingTab({
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
       const { deleteRecurringExpenses } = await import('@/lib/services/expenseService');
-      await deleteRecurringExpenses(recurringParentId);
+      await deleteRecurringExpenses(ownerId, recurringParentId);
       if (user && ownerId) queryClient.invalidateQueries({ queryKey: queryKeys.costCenters.all(ownerId) });
       toast.success('Tutte le voci ricorrenti sono state eliminate');
       await onRefresh();
@@ -413,9 +416,12 @@ export function ExpenseTrackingTab({
   };
 
   const deleteAllInstallmentExpenses = async (installmentParentId: string) => {
+    // The series query is scoped by owner (firestore.rules refuses an unscoped list), so
+    // without an owner there is nothing to delete — and no way to ask for it.
+    if (!ownerId) return;
     try {
       // Reverse balance effects before bulk-deleting (only the first installment stores linkedCashAssetId)
-      const seriesExpenses = await getExpensesByInstallmentParentId(installmentParentId);
+      const seriesExpenses = await getExpensesByInstallmentParentId(ownerId, installmentParentId);
       for (const exp of seriesExpenses) {
         if (exp.linkedCashAssetId) {
           await updateCashAssetBalance(exp.linkedCashAssetId, -exp.amount);
@@ -425,7 +431,7 @@ export function ExpenseTrackingTab({
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
       const { deleteInstallmentExpenses } = await import('@/lib/services/expenseService');
-      await deleteInstallmentExpenses(installmentParentId);
+      await deleteInstallmentExpenses(ownerId, installmentParentId);
       if (user && ownerId) queryClient.invalidateQueries({ queryKey: queryKeys.costCenters.all(ownerId) });
       toast.success('Tutte le rate sono state eliminate');
       await onRefresh();

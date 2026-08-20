@@ -60,6 +60,9 @@
 - Added an "Afflussi già considerati" timeline to Coast FIRE: a single row naming every event the calculation already discounts — the year your pension fund unlocks and the amount it brings back, plus each state pension from its decorrenza with the net real income it adds. It is the reason your Coast FIRE Number is lower than a full FIRE number, and it was previously nowhere on the page.
 - Added a "Se smetti oggi" card to Coast FIRE: what your current patrimonio grows into by your target age with no further contributions, next to the capital actually required, the net state pensions counted, and the annual need your portfolio has to cover at the target.
 
+- Recurring entries are no longer limited to Debts. Any Fixed expense, Variable expense or Debt can now be repeated forward, so a life-insurance premium or an annual subscription can finally be projected the way a loan instalment always could. Income and transfers stay out — a transfer moves two accounts at once and each occurrence would need its own pair of balance corrections.
+- Recurring entries can now repeat **yearly**, not just monthly. One "Ricorrenza" switch with a Mensile | Annuale selector: the field below asks for months or years to match, and the form tells you exactly how many entries it is about to create and the dates they will span — for example "Verranno create 204 voci, dal 31/01/2026 al 31/12/2042" — before you save. You can schedule up to 30 years of monthly payments or 40 yearly ones.
+
 ## 🐛 Bug Fixes
 
 - Fixed PDF "Export Totale" including every cashflow entry ever recorded on the Cashflow section, ignoring your "Anno inizio storico cashflow" setting. It now excludes bulk-imported older data below your configured start year, matching what the live Cashflow and Storico pages already show. Net worth history, Performance, and FIRE sections in the PDF are unaffected, since they don't use this setting either.
@@ -143,6 +146,9 @@
 - Fixed the "Spese per Tipo" table in periodic emails leaving out expenses recorded without a type, so its percentages stopped short of 100% with nothing on screen explaining the gap. Those expenses were always counted in your totals; they now get their own "Non classificate" row.
 - Fixed the FIRE Calculator tab scrolling sideways on a phone: the hero was wider than the screen, so its right-hand amounts — the FIRE Number, the current withdrawal rate, the pension-fund line — sat off the edge and the whole page could be dragged horizontally. The hero now fits the screen at every width. The other tabs on that page were unaffected.
 
+- Fixed "Elimina tutte le ricorrenti" and "Elimina tutte le rate" doing nothing at all. Both buttons reported success while every entry in the series stayed exactly where it was, because the app was not allowed to read the series it was trying to delete. Deleting a whole recurring or instalment series now actually removes it, and reverses the linked account balance as it always intended to.
+- Fixed recurring entries skipping a month whenever the chosen day did not exist in it. A payment set for the 31st produced two entries in March and none in February, and the same happened for the 29th, 30th and 31st in every short month. Each occurrence now falls on the last day of a month too short to hold it — 31 January, 28 February, 31 March — which is also how a bank charges it.
+
 ## 🔧 Improvements
 
 - The AI commentary in your periodic summary emails (monthly, quarterly, half-year, yearly) now reads the same complete picture the in-app Assistant does, instead of just the totals. It receives your full category → subcategory spending tree, income by category, current allocation with targets and gaps, your investment goals, and explicit notes on what the data cannot say. Concretely: the comment stops spending half its length declaring what it doesn't know — "I don't have the per-asset detail", "income isn't broken down by category" — because now it does have it, and a category it doesn't mention means no spending recorded, not missing data.
@@ -218,6 +224,8 @@
 - Coast FIRE settings — ages, custom expenses, state pensions and IRPEF brackets — are now gathered in one "Impostazioni Coast FIRE" panel that stays collapsed once you have configured it, and reopens on its own when you have unsaved edits or a pension row still missing data.
 - The three Coast FIRE scenarios are now cards, each leading with how close you are in that scenario and listing the capital it requires at retirement and at steady state underneath.
 - The Coast FIRE projection chart's tooltip now names the pension-fund unlock at the year it happens, so the step in the three lines reads as the event it is rather than a glitch — and the coverage phases, the per-pension breakdown and the "how to read this" notes moved into a "Dettaglio" section, out of the way of the answer.
+
+- The transaction detail sheet now names a recurring entry's cadence in full: "Ogni mese, il giorno 10" for a monthly series, and "Ogni anno, il 15 settembre" for a yearly one — the day alone never said which of the twelve months it meant.
 
 ## 🔒 Security
 
