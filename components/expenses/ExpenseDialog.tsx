@@ -35,6 +35,7 @@ import {
   ExpenseType,
   EXPENSE_TYPE_LABELS,
   ExpenseCategory,
+  RecurrenceFrequency,
 } from '@/types/expenses';
 import { CostCenter } from '@/types/costCenters';
 import { getCostCenters } from '@/lib/services/costCenterService';
@@ -75,6 +76,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Switch } from '@/components/ui/switch';
+import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -91,6 +93,15 @@ import {
 } from 'lucide-react';
 import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
 import { formatCurrency } from '@/lib/utils/formatters';
+import {
+  buildRecurrenceDates,
+  canTypeRecur,
+  DEFAULT_RECURRENCE_COUNT,
+  DEFAULT_RECURRENCE_FREQUENCY,
+  MAX_RECURRENCE_OCCURRENCES,
+  RECURRENCE_FREQUENCY_LABELS,
+  resolveRecurrenceFrequency,
+} from '@/lib/utils/recurrenceDates';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 
@@ -110,8 +121,9 @@ const expenseSchema = z
     notes: z.string().optional(),
     link: z.string().url({ message: 'Inserisci un URL valido' }).optional().or(z.literal('')),
     isRecurring: z.boolean().optional(),
+    recurringFrequency: z.enum(['monthly', 'yearly']).optional(),
     recurringDay: z.number().min(1).max(31).optional(),
-    recurringMonths: z.number().min(1).max(120).optional(),
+    recurringCount: z.number().min(1, 'Inserisci almeno 1').optional(),
     isInstallment: z.boolean().optional(),
     installmentMode: z.enum(['auto', 'manual']).optional(),
     installmentCount: z.number().min(2).max(60).optional(),
@@ -135,7 +147,24 @@ const expenseSchema = z
       return true;
     },
     { message: 'Campi rate incompleti o non validi' }
-  );
+  )
+  .superRefine((data, ctx) => {
+    // The ceiling depends on the cadence, so it cannot live on the field's own schema, and
+    // the message has to name the cadence's own unit — which is why this is a superRefine
+    // and not a second .refine (whose params must be a literal in zod 4).
+    // 360 monthly occurrences and 40 yearly ones both stay under the 500-operation limit of
+    // the writeBatch that creates the series, and of the one that deletes it.
+    if (!data.isRecurring || !data.recurringCount) return;
+    const frequency = data.recurringFrequency ?? DEFAULT_RECURRENCE_FREQUENCY;
+    const max = MAX_RECURRENCE_OCCURRENCES[frequency];
+    if (data.recurringCount > max) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['recurringCount'],
+        message: `Massimo ${max} ${frequency === 'yearly' ? 'anni' : 'mesi'}`,
+      });
+    }
+  });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
@@ -176,6 +205,16 @@ const TYPE_OPTIONS: TypeOption[] = [
   { value: 'debt', label: 'Debito / Rata', description: 'Mutuo, prestito, finanziamento ricorrente', Icon: CreditCard },
   { value: 'income', label: 'Entrata', description: 'Stipendio, bonus, dividendi, rimborsi', Icon: TrendingUp },
   { value: 'transfer', label: 'Trasferimento', description: 'Sposta denaro tra conti', Icon: ArrowLeftRight },
+];
+
+/**
+ * Options of the cadence pill. Module-level: SegmentedPill animates its indicator with a
+ * Framer `layoutId`, and a new array identity on every render is exactly what makes such an
+ * indicator flicker on unrelated state changes.
+ */
+const RECURRENCE_FREQUENCY_OPTIONS = [
+  { value: 'monthly' as const, label: RECURRENCE_FREQUENCY_LABELS.monthly },
+  { value: 'yearly' as const, label: RECURRENCE_FREQUENCY_LABELS.yearly },
 ];
 
 function isAdvancedPrePopulated(expense: Expense | null | undefined): boolean {
@@ -303,6 +342,9 @@ interface FormBodyProps {
   watchedInstallmentStartDate: Date | undefined;
   watchedInstallmentAmounts: number[] | undefined;
   selectedIsRecurring: boolean | undefined;
+  selectedRecurringFrequency: RecurrenceFrequency | undefined;
+  /** One sentence naming how many rows the series will create and over which span, or null. */
+  recurrencePreview: string | null;
   expense: Expense | null | undefined;
   loadingCategories: boolean;
   cashAssets: Asset[];
@@ -346,6 +388,8 @@ function ExpenseFormBody({
   watchedInstallmentStartDate,
   watchedInstallmentAmounts,
   selectedIsRecurring,
+  selectedRecurringFrequency,
+  recurrencePreview,
   expense,
   loadingCategories,
   cashAssets,
@@ -364,6 +408,7 @@ function ExpenseFormBody({
   setAdvancedOpen,
 }: Readonly<FormBodyProps>) {
   const { register, control, handleSubmit, setValue, getValues, formState: { errors } } = form;
+  const recurringFrequency = selectedRecurringFrequency ?? DEFAULT_RECURRENCE_FREQUENCY;
   return (
     <form id="expense-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
@@ -393,7 +438,7 @@ function ExpenseFormBody({
                 onValueChange={(value: ExpenseType) => {
                   field.onChange(value);
                   onTypeChange(value);
-                  if (value !== 'debt') {
+                  if (!canTypeRecur(value)) {
                     setValue('isRecurring', false);
                   }
                 }}
@@ -898,16 +943,19 @@ function ExpenseFormBody({
             </div>
           )}
 
-          {/* ---- Ricorrenza mensile (solo Debito, solo creazione) ---- */}
-          {selectedType === 'debt' && !expense && (
+          {/* ---- Ricorrenza (spese fisse/variabili/debiti, solo creazione) ----
+               One toggle, not one per cadence: the two are mutually exclusive, and two
+               switches kept out of sync by hand are a state machine the user has to run.
+               `canTypeRecur` is the single source on which types may recur. */}
+          {canTypeRecur(selectedType) && !expense && (
             <div className="space-y-4 rounded-xl border border-border/60 bg-muted/30 p-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-0.5 min-w-0">
                   <Label htmlFor="isRecurring" className="text-sm font-medium cursor-pointer">
-                    Ricorrenza mensile
+                    Ricorrenza
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Crea questa voce per più mesi consecutivi
+                    Crea questa voce in anticipo per più mesi o più anni
                   </p>
                 </div>
                 <Switch
@@ -922,40 +970,78 @@ function ExpenseFormBody({
               </div>
 
               {selectedIsRecurring && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="recurringMonths">Numero di mesi *</Label>
-                    <Input
-                      id="recurringMonths"
-                      type="number"
-                      min="1"
-                      max="120"
-                      {...register('recurringMonths', { valueAsNumber: true })}
-                      className={errors.recurringMonths ? 'border-destructive' : ''}
-                    />
-                    {errors.recurringMonths && (
-                      <p className="text-sm text-destructive">
-                        {errors.recurringMonths.message}
-                      </p>
+                <div className="space-y-4">
+                  <Controller
+                    control={control}
+                    name="recurringFrequency"
+                    render={({ field }) => (
+                      <SegmentedPill
+                        options={RECURRENCE_FREQUENCY_OPTIONS}
+                        value={field.value ?? DEFAULT_RECURRENCE_FREQUENCY}
+                        onChange={(next) => {
+                          field.onChange(next);
+                          // The count means months on one cadence and years on the other, so
+                          // carrying "12" across the switch would silently turn a year of
+                          // payments into twelve. Re-propose the new cadence's default, but
+                          // only while the user is still sitting on the old one's.
+                          if (getValues('recurringCount') === DEFAULT_RECURRENCE_COUNT[recurringFrequency]) {
+                            setValue('recurringCount', DEFAULT_RECURRENCE_COUNT[next]);
+                          }
+                        }}
+                        layoutId="expense-recurrence-frequency"
+                        ariaLabel="Cadenza della ricorrenza"
+                      />
                     )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="recurringDay">Giorno del mese *</Label>
-                    <Input
-                      id="recurringDay"
-                      type="number"
-                      min="1"
-                      max="31"
-                      {...register('recurringDay', { valueAsNumber: true })}
-                      className={errors.recurringDay ? 'border-destructive' : ''}
-                    />
-                    {errors.recurringDay && (
-                      <p className="text-sm text-destructive">
-                        {errors.recurringDay.message}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="recurringCount">
+                        {recurringFrequency === 'yearly' ? 'Numero di anni *' : 'Numero di mesi *'}
+                      </Label>
+                      <Input
+                        id="recurringCount"
+                        type="number"
+                        min="1"
+                        max={MAX_RECURRENCE_OCCURRENCES[recurringFrequency]}
+                        {...register('recurringCount', { valueAsNumber: true })}
+                        className={errors.recurringCount ? 'border-destructive' : ''}
+                      />
+                      {errors.recurringCount && (
+                        <p className="text-sm text-destructive">
+                          {errors.recurringCount.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recurringDay">Giorno del mese *</Label>
+                      <Input
+                        id="recurringDay"
+                        type="number"
+                        min="1"
+                        max="31"
+                        {...register('recurringDay', { valueAsNumber: true })}
+                        className={errors.recurringDay ? 'border-destructive' : ''}
+                      />
+                      {errors.recurringDay && (
+                        <p className="text-sm text-destructive">
+                          {errors.recurringDay.message}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {recurringFrequency === 'yearly'
+                          ? 'Es: il 10 dello stesso mese, ogni anno'
+                          : 'Es: il 10 di ogni mese'}
                       </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">Es: il 10 di ogni mese</p>
+                    </div>
                   </div>
+
+                  {/* The series is materialised as real future-dated rows, so it shows up in
+                      Cashflow and Analisi straight away. Stating it costs one line; letting
+                      the user discover it from an unexpected projection costs their trust. */}
+                  {recurrencePreview && (
+                    <p className="text-xs text-muted-foreground">{recurrencePreview}</p>
+                  )}
                 </div>
               )}
             </div>
@@ -1002,7 +1088,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
       currency: 'EUR',
       date: new Date(),
       isRecurring: false,
-      recurringMonths: 12,
+      recurringFrequency: DEFAULT_RECURRENCE_FREQUENCY,
+      recurringCount: DEFAULT_RECURRENCE_COUNT[DEFAULT_RECURRENCE_FREQUENCY],
       isInstallment: false,
       installmentMode: 'auto',
       installmentCount: 2,
@@ -1016,6 +1103,9 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   const selectedType = useWatch({ control, name: 'type' }) as ExpenseType;
   const selectedCategoryId = useWatch({ control, name: 'categoryId' });
   const selectedIsRecurring = useWatch({ control, name: 'isRecurring' });
+  const selectedRecurringFrequency = useWatch({ control, name: 'recurringFrequency' });
+  const selectedRecurringCount = useWatch({ control, name: 'recurringCount' });
+  const selectedRecurringDay = useWatch({ control, name: 'recurringDay' });
   const selectedDate = useWatch({ control, name: 'date' });
   const watchedIsInstallment = useWatch({ control, name: 'isInstallment' });
   const watchedInstallmentCount = useWatch({ control, name: 'installmentCount' });
@@ -1027,6 +1117,43 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   const watchedSubCategoryId = useWatch({ control, name: 'subCategoryId' });
 
   const isEdit = !!expense;
+
+  /**
+   * What the series will actually write, in one sentence.
+   *
+   * The occurrences are real documents, not a rule: the user is about to add up to 360 rows to
+   * their Cashflow, and the span they cover is the only thing that makes that number legible.
+   * Built from the SAME `buildRecurrenceDates` the service uses, so the preview cannot promise
+   * a last payment the write then places somewhere else.
+   */
+  const recurrencePreview = useMemo(() => {
+    if (!selectedIsRecurring || !selectedDate || !selectedRecurringCount) return null;
+    const frequency = selectedRecurringFrequency ?? DEFAULT_RECURRENCE_FREQUENCY;
+    if (
+      !Number.isFinite(selectedRecurringCount) ||
+      selectedRecurringCount < 1 ||
+      selectedRecurringCount > MAX_RECURRENCE_OCCURRENCES[frequency]
+    ) {
+      return null;
+    }
+    const dates = buildRecurrenceDates({
+      start: selectedDate,
+      frequency,
+      count: selectedRecurringCount,
+      dayOfMonth: selectedRecurringDay,
+    });
+    if (dates.length === 0) return null;
+    const first = format(dates[0], 'dd/MM/yyyy');
+    const last = format(dates[dates.length - 1], 'dd/MM/yyyy');
+    if (dates.length === 1) return `Verrà creata 1 voce, il ${first}.`;
+    return `Verranno create ${dates.length} voci, dal ${first} al ${last}.`;
+  }, [
+    selectedIsRecurring,
+    selectedDate,
+    selectedRecurringFrequency,
+    selectedRecurringCount,
+    selectedRecurringDay,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -1138,8 +1265,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         notes: expense.notes || '',
         link: expense.link || '',
         isRecurring: expense.isRecurring || false,
+        recurringFrequency: resolveRecurrenceFrequency(expense.recurringFrequency),
         recurringDay: expense.recurringDay,
-        recurringMonths: 1,
+        // The length of a saved series is not editable from a single row: the toggle and its
+        // fields are creation-only. 1 keeps the value valid without implying anything.
+        recurringCount: 1,
         linkedCashAssetId: expense.linkedCashAssetId || '__none__',
         transferCashAssetId: expense.transferCashAssetId || '__none__',
       });
@@ -1155,8 +1285,9 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         notes: '',
         link: '',
         isRecurring: false,
+        recurringFrequency: DEFAULT_RECURRENCE_FREQUENCY,
         recurringDay: new Date().getDate(),
-        recurringMonths: 12,
+        recurringCount: DEFAULT_RECURRENCE_COUNT[DEFAULT_RECURRENCE_FREQUENCY],
         linkedCashAssetId: '__none__',
         transferCashAssetId: '__none__',
       });
@@ -1285,9 +1416,12 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         date: data.date,
         notes: data.notes,
         link: data.link,
-        isRecurring: data.type === 'debt' ? data.isRecurring : false,
+        isRecurring: canTypeRecur(data.type) ? data.isRecurring : false,
+        recurringFrequency: data.isRecurring
+          ? (data.recurringFrequency ?? DEFAULT_RECURRENCE_FREQUENCY)
+          : undefined,
         recurringDay: data.isRecurring ? data.recurringDay : undefined,
-        recurringMonths: data.isRecurring ? data.recurringMonths : undefined,
+        recurringCount: data.isRecurring ? data.recurringCount : undefined,
         isInstallment: data.isInstallment,
         installmentMode: data.isInstallment ? data.installmentMode : undefined,
         installmentCount: data.isInstallment ? data.installmentCount : undefined,
@@ -1318,6 +1452,12 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           // in Firestore. Reachable now that a debt can be turned into a plain expense
           // from this form — see AGENTS.md → Firestore Optional Field Deletion.
           recurringDay: expenseData.isRecurring ? expenseData.recurringDay : deleteField(),
+          recurringFrequency: expenseData.isRecurring
+            ? expenseData.recurringFrequency
+            : deleteField(),
+          // Form-only, and `updateExpense` spreads whatever it is handed: the number of
+          // occurrences describes a creation, not a row, and must never reach the document.
+          recurringCount: undefined,
         };
         await updateExpense(
           expense.id,
@@ -1417,8 +1557,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
               data.type === 'income' ? Math.abs(firstAmt) : -Math.abs(firstAmt);
           } else if (
             expenseData.isRecurring &&
-            expenseData.recurringMonths &&
-            expenseData.recurringMonths > 0
+            expenseData.recurringCount &&
+            expenseData.recurringCount > 0
           ) {
             firstSignedAmount = -Math.abs(data.amount);
           } else {
@@ -1515,14 +1655,14 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
    *
    * Goes through `handleTypeChange` rather than setting the type alone: the picker can be
    * re-opened from "Cambia tipo" with a category already selected, and that category belongs to
-   * the type the user is leaving. The `isRecurring` reset mirrors the edit-mode Select — monthly
-   * recurrence only exists for a debt.
+   * the type the user is leaving. The `isRecurring` reset mirrors the edit-mode Select —
+   * recurrence exists only for the spending types (`canTypeRecur`).
    */
   const handleTypeSelect = useCallback(
     (nextType: ExpenseType) => {
       handleTypeChange(nextType);
       setValue('type', nextType);
-      if (nextType !== 'debt') {
+      if (!canTypeRecur(nextType)) {
         setValue('isRecurring', false);
       }
       setStep(2);
@@ -1585,6 +1725,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     watchedInstallmentStartDate,
     watchedInstallmentAmounts,
     selectedIsRecurring,
+    selectedRecurringFrequency,
+    recurrencePreview,
     expense,
     loadingCategories,
     cashAssets,

@@ -5,7 +5,7 @@
  *
  * Features:
  * - CRUD operations for expenses (create, read, update, delete)
- * - Recurring expenses (debts with monthly payments)
+ * - Recurring expenses (monthly or yearly series of fixed/variable/debt entries)
  * - Installment expenses (BNPL - Buy Now Pay Later)
  * - Monthly summaries and statistics with month-over-month comparison
  * - Category and subcategory management integration
@@ -35,6 +35,7 @@ import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { needsSignFlip, crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
+import { buildRecurrenceDates, resolveRecurrenceFrequency } from '@/lib/utils/recurrenceDates';
 import {
   Expense,
   ExpenseFormData,
@@ -128,7 +129,7 @@ export async function getExpensesByDateRange(
  *
  * Handles three creation modes based on form data:
  * 1. Installment (BNPL): Creates multiple expenses spread over months with defined amounts
- * 2. Recurring (debts): Creates multiple expenses with same amount each month
+ * 2. Recurring: Creates multiple expenses with the same amount, one per month or per year
  * 3. Single: Creates one expense
  *
  * Priority: Installment > Recurring > Single (installments checked first)
@@ -154,8 +155,8 @@ export async function createExpense(
       return await createInstallmentExpenses(userId, expenseData, categoryName, subCategoryName);
     }
 
-    // Priority 2: Recurring expenses (debts with fixed monthly payments)
-    if (expenseData.isRecurring && expenseData.recurringMonths && expenseData.recurringMonths > 0) {
+    // Priority 2: Recurring expenses (a fixed amount repeating monthly or yearly)
+    if (expenseData.isRecurring && expenseData.recurringCount && expenseData.recurringCount > 0) {
       return await createRecurringExpenses(userId, expenseData, categoryName, subCategoryName);
     }
 
@@ -201,7 +202,17 @@ export async function createExpense(
 }
 
 /**
- * Create recurring expenses (for debts)
+ * Create a recurring expense series (fixed, variable or debt).
+ *
+ * The series is MATERIALISED: one real, future-dated document per occurrence, all sharing a
+ * `recurringParentId` so they can be deleted together. Nothing downstream evaluates a rule —
+ * Cashflow, Analisi, Budget and the assistant all read ordinary expense rows.
+ *
+ * The whole batch is committed at once, which is why the occurrence count is capped at
+ * `MAX_RECURRENCE_OCCURRENCES` (see recurrenceDates.ts): a `writeBatch` takes at most 500
+ * operations, and `deleteRecurringExpenses` has the same ceiling on the way out.
+ *
+ * @returns The ids of every created occurrence, in chronological order.
  */
 async function createRecurringExpenses(
   userId: string,
@@ -218,26 +229,21 @@ async function createRecurringExpenses(
     // Create parent expense ID for reference
     const parentId = `recurring-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Ensure amount is negative for debts
+    // Sign convention: only spending types can recur (canTypeRecur), so the amount is always
+    // negative here. Kept as an explicit statement rather than an implicit one — if the set of
+    // recurring types ever widens to income or transfers, this line is the one that breaks.
     const amount = -Math.abs(expenseData.amount);
 
+    const recurringFrequency = resolveRecurrenceFrequency(expenseData.recurringFrequency);
     const recurringDay = expenseData.recurringDay || expenseData.date.getDate();
-    const startDate = new Date(expenseData.date);
+    const dates = buildRecurrenceDates({
+      start: expenseData.date,
+      frequency: recurringFrequency,
+      count: expenseData.recurringCount || 1,
+      dayOfMonth: recurringDay,
+    });
 
-    // Create expense for each month
-    for (let i = 0; i < (expenseData.recurringMonths || 1); i++) {
-      const expenseDate = new Date(
-        startDate.getFullYear(),
-        startDate.getMonth() + i,
-        recurringDay
-      );
-
-      // If the day doesn't exist in the month (e.g., 31st in February), use last day of month
-      if (expenseDate.getDate() !== recurringDay) {
-        expenseDate.setDate(0); // Set to last day of previous month
-        expenseDate.setMonth(expenseDate.getMonth() + 1); // Move to correct month
-      }
-
+    dates.forEach((expenseDate, index) => {
       const docRef = doc(expensesRef);
       const cleanedData = removeUndefinedFields({
         userId,
@@ -252,11 +258,12 @@ async function createRecurringExpenses(
         notes: expenseData.notes,
         link: expenseData.link,
         isRecurring: true,
+        recurringFrequency,
         recurringDay,
         recurringParentId: parentId,
         // Only store on the first entry — balance update applies to current payment only,
         // not to future-dated recurring instances.
-        linkedCashAssetId: i === 0 ? expenseData.linkedCashAssetId : undefined,
+        linkedCashAssetId: index === 0 ? expenseData.linkedCashAssetId : undefined,
         costCenterId: expenseData.costCenterId,
         costCenterName: expenseData.costCenterName,
         createdAt: now,
@@ -265,7 +272,7 @@ async function createRecurringExpenses(
 
       batch.set(docRef, cleanedData);
       createdIds.push(docRef.id);
-    }
+    });
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
@@ -397,28 +404,36 @@ async function createInstallmentExpenses(
 
 /**
  * Delete all expenses in an installment series
+ * @param userId - Owner of the series
  * @param installmentParentId - The parent ID linking all installments
+ *
+ * SCOPED BY userId, and it has to be: `firestore.rules` guards `expenses` with
+ * `canAccess(resource.data.userId)`, and Firestore refuses a LIST whose constraints do not
+ * already guarantee the rule holds. A query on the parent id alone comes back
+ * `permission-denied` at any result size (verified on the emulator), so the series would read
+ * as empty and the delete would silently do nothing.
  */
-export async function deleteInstallmentExpenses(installmentParentId: string): Promise<void> {
+export async function deleteInstallmentExpenses(
+  userId: string,
+  installmentParentId: string
+): Promise<void> {
   try {
     const expensesRef = collection(db, EXPENSES_COLLECTION);
     const q = query(
       expensesRef,
+      where('userId', '==', userId),
       where('installmentParentId', '==', installmentParentId)
     );
 
     const querySnapshot = await getDocs(q);
     const batch = writeBatch(db);
-    const userId = querySnapshot.docs[0]?.data()?.userId as string | undefined;
 
     querySnapshot.docs.forEach(docSnapshot => {
       batch.delete(docSnapshot.ref);
     });
 
     await batch.commit();
-    if (userId) {
-      await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
-    }
+    await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
     console.log(`Deleted ${querySnapshot.size} installment expenses with parent ID: ${installmentParentId}`);
   } catch (error) {
     console.error('Error deleting installment expenses:', error);
@@ -490,27 +505,36 @@ export async function deleteExpense(expenseId: string): Promise<void> {
 
 /**
  * Delete all recurring expenses with the same parent ID
+ * @param userId - Owner of the series
+ * @param recurringParentId - The shared parent ID of the recurring series
+ *
+ * SCOPED BY userId, and it has to be: `firestore.rules` guards `expenses` with
+ * `canAccess(resource.data.userId)`, and Firestore refuses a LIST whose constraints do not
+ * already guarantee the rule holds. A query on the parent id alone comes back
+ * `permission-denied` at any result size (verified on the emulator), so the series would read
+ * as empty and the delete would silently do nothing.
  */
-export async function deleteRecurringExpenses(recurringParentId: string): Promise<void> {
+export async function deleteRecurringExpenses(
+  userId: string,
+  recurringParentId: string
+): Promise<void> {
   try {
     const expensesRef = collection(db, EXPENSES_COLLECTION);
     const q = query(
       expensesRef,
+      where('userId', '==', userId),
       where('recurringParentId', '==', recurringParentId)
     );
 
     const querySnapshot = await getDocs(q);
     const batch = writeBatch(db);
-    const userId = querySnapshot.docs[0]?.data()?.userId as string | undefined;
 
     querySnapshot.docs.forEach(docSnapshot => {
       batch.delete(docSnapshot.ref);
     });
 
     await batch.commit();
-    if (userId) {
-      await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
-    }
+    await invalidateDashboardOverviewSummary(userId, 'expense_deleted');
   } catch (error) {
     console.error('Error deleting recurring expenses:', error);
     throw new Error('Failed to delete recurring expenses');
@@ -1017,12 +1041,26 @@ export async function updateExpensesType(
  * Used before deleting a series to identify which entries had a linked cash asset
  * so the asset balance can be reversed before deletion.
  *
+ * @param userId - Owner of the series
  * @param recurringParentId - The shared parent ID of the recurring series
+ *
+ * SCOPED BY userId, and it has to be: `firestore.rules` guards `expenses` with
+ * `canAccess(resource.data.userId)`, and Firestore refuses a LIST whose constraints do not
+ * already guarantee the rule holds. A query on the parent id alone comes back
+ * `permission-denied` at any result size (verified on the emulator), so the series would read
+ * as empty and the delete would silently do nothing.
  */
-export async function getExpensesByRecurringParentId(recurringParentId: string): Promise<Expense[]> {
+export async function getExpensesByRecurringParentId(
+  userId: string,
+  recurringParentId: string
+): Promise<Expense[]> {
   try {
     const expensesRef = collection(db, EXPENSES_COLLECTION);
-    const q = query(expensesRef, where('recurringParentId', '==', recurringParentId));
+    const q = query(
+      expensesRef,
+      where('userId', '==', userId),
+      where('recurringParentId', '==', recurringParentId)
+    );
     const snapshot = await getDocs(q);
 
     return snapshot.docs.map(doc => ({
@@ -1044,12 +1082,26 @@ export async function getExpensesByRecurringParentId(recurringParentId: string):
  * Used before deleting a series to identify which entries had a linked cash asset
  * so the asset balance can be reversed before deletion.
  *
+ * @param userId - Owner of the series
  * @param installmentParentId - The shared parent ID of the installment series
+ *
+ * SCOPED BY userId, and it has to be: `firestore.rules` guards `expenses` with
+ * `canAccess(resource.data.userId)`, and Firestore refuses a LIST whose constraints do not
+ * already guarantee the rule holds. A query on the parent id alone comes back
+ * `permission-denied` at any result size (verified on the emulator), so the series would read
+ * as empty and the delete would silently do nothing.
  */
-export async function getExpensesByInstallmentParentId(installmentParentId: string): Promise<Expense[]> {
+export async function getExpensesByInstallmentParentId(
+  userId: string,
+  installmentParentId: string
+): Promise<Expense[]> {
   try {
     const expensesRef = collection(db, EXPENSES_COLLECTION);
-    const q = query(expensesRef, where('installmentParentId', '==', installmentParentId));
+    const q = query(
+      expensesRef,
+      where('userId', '==', userId),
+      where('installmentParentId', '==', installmentParentId)
+    );
     const snapshot = await getDocs(q);
 
     return snapshot.docs.map(doc => ({
