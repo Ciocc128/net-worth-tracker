@@ -143,8 +143,16 @@ Companion documents — do not duplicate their content into this file:
   when the function is mocked. Aggregate deltas per docId first (template
   `__tests__/updateCashAssetBalancesAtomic.test.ts`), and fire success toasts AFTER the reconcile returns.
 - Firestore rejects `undefined` inside an array element, and `assetAllocationService.ts` builds `docData` by hand, so its
-  array fields need a whitelisting serializer with conditional spreads. **Max 3 `.where()` calls** on a chain that will
-  be unit-tested; a 4th breaks the mock chain.
+  array fields need a whitelisting serializer with conditional spreads.
+
+### Firestore Queries and the Rules
+- **A `list` must carry the constraint the rule needs, or it is refused entirely.** Every collection guarded by
+  `allow read: if canAccess(resource.data.userId)` rejects a query that does not already filter on `userId` —
+  `permission-denied` at ANY result size, so it never looks like a scale problem. Four series helpers shipped without
+  it and their "elimina tutte le ricorrenti / tutte le rate" buttons silently did nothing (the list came back empty,
+  so the batch deleted nothing). `deleteExpensesByImportBatch` is the correct shape. **Unit suites cannot see this** —
+  they mock Firestore away; only an emulator exercise driving the CLIENT SDK evaluates the rules.
+- **Max 3 `.where()` calls** on a chain that will be unit-tested; a 4th breaks the mock chain.
 
 ### Settings — the FIVE places
 - A new setting must be added to all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
@@ -259,6 +267,27 @@ Companion documents — do not duplicate their content into this file:
   row would need its own destination account.
 - Changing the type always invalidates the category (categories are type-scoped) — `resolveEquivalentCategory` re-points
   to the same-named one under the new type.
+
+### Recurring Series (`lib/utils/recurrenceDates.ts`)
+- **A recurring expense is not a rule, it is N documents.** `createRecurringExpenses` materialises the whole series as
+  real future-dated rows sharing a `recurringParentId`, which is why Cashflow, Analisi, Budget and the assistant know
+  nothing about recurrence — and why the form states how many rows it is about to write, and over which span.
+- **`canTypeRecur` is the single source on which types may recur** (`fixed`/`variable`/`debt`). `income` is a product
+  decision; **`transfer` is structural** — each occurrence moves TWO accounts while the series reconciles balances only
+  on its FIRST entry, so a recurring transfer needs a two-legged reconciliation that does not exist. Widening the set
+  also breaks `createRecurringExpenses`' unconditional `-Math.abs(amount)`.
+- **Both ceilings in `MAX_RECURRENCE_OCCURRENCES` (360 monthly / 40 yearly) exist to stay under 500**: the series is
+  created in ONE `writeBatch` and `deleteRecurringExpenses` removes it in one too. Raising either past 500 means
+  chunking both.
+- **`new Date(y, m, 31)` rolls February forward into March** — the clamp must cap the day against the real length of
+  the TARGET month before constructing the Date, never fix up an already-overflowed one (the predecessor's
+  `setDate(0)` + `setMonth(+1)` produced a second March payment and no February one).
+- **An absent `recurringFrequency` means monthly, never unknown** (rows predate the cadence): read it through
+  `resolveRecurrenceFrequency`. A yearly series' MONTH is not stored — it is the month of the row's own date, which
+  every occurrence shares by construction, and `describeRecurrence` is the only place that turns that into words.
+- **`recurringCount` is form-only and must never reach Firestore**: `updateExpense` spreads whatever it is handed, so
+  the edit path passes it as `undefined` explicitly. The toggle itself is **creation-only** — the length of a saved
+  series is not editable from one of its rows.
 
 ### Cashflow Drill-Down: One Landing Path
 - **There is ONE drill destination and ONE transaction list**: every entity entry point on Analisi (composition row,
@@ -917,6 +946,12 @@ Companion documents — do not duplicate their content into this file:
 ### Commands
 - `npm test -- <file>` / `npx vitest run <file>` for targeted tests; **`npx tsc --noEmit` before any PR**, re-run AFTER
   writing the tests, not only after the code.
+- **A slow `await import()` inside a test body reads as flakiness, not as slowness.** A heavy module graph
+  (`app/api/cron/*` is the worked example) is a FIXTURE: imported in a test it charges its one-time cost to whichever
+  case runs first, so under full-suite load that case blows the 5 s default and the failure MOVES with the run order —
+  while every later case passes off the module cache. Hoist it into `beforeAll` with an explicit timeout; check first
+  that nothing is read at module scope (`verifyCronSecret` reads `process.env` at CALL time, so per-test `stubEnv`
+  still decides), otherwise per-test `vi.resetModules()` was load-bearing.
 - **Run the suite under `TZ=Europe/Rome` too.** Every date fixture is stamped at noon, twelve hours clear of the DST
   edge, so a whole class of timezone bug is structurally invisible to it — while production dates are **local midnight**
   and the pure layer runs in the user's browser. Compute day-of-year from calendar fields in UTC (`Date.UTC(y,m,d) -
@@ -932,7 +967,7 @@ Companion documents — do not duplicate their content into this file:
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
 | Centri di costo | `costCenterUtils`, `costCenterColors` |
 | Analisi | `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
-| Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` |
+| Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
 | Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx` |
 | Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio |
 

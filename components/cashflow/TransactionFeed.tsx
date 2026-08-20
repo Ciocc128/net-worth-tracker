@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
 import { getExpenseDate } from '@/lib/utils/expenseHelpers';
+import { describeRecurrence } from '@/lib/utils/recurrenceDates';
 import type { Expense, ExpenseType } from '@/types/expenses';
 import { CompactExpenseRow, TYPE_DOT_CLASS } from '@/components/cashflow/CompactExpenseRow';
 import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
@@ -140,8 +141,13 @@ function TransactionDetailDrawer({
       }`,
     });
   }
-  if (expense.isRecurring && expense.recurringDay) {
-    details.push({ label: 'Ricorrenza', value: `Ogni mese, il giorno ${expense.recurringDay}` });
+  const recurrenceDetail = describeRecurrence(
+    expense.recurringFrequency,
+    expense.recurringDay,
+    expense.date
+  );
+  if (expense.isRecurring && recurrenceDetail) {
+    details.push({ label: 'Ricorrenza', value: recurrenceDetail });
   }
   if (expense.link) {
     details.push({ label: 'Link', value: expense.link });
