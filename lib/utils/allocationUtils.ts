@@ -24,12 +24,27 @@ import type {
   AllocationRole,
   Asset,
   AssetAllocationTarget,
+  AssetClass,
 } from '@/types/assets';
 import { getAssetDisplayTicker } from './assetDisplay';
 
 export type AllocationAction = 'COMPRA' | 'VENDI' | 'OK';
 
-/** Italian labels for the six asset classes. Local to the feature; other label
+/**
+ * Every member of the `AssetClass` union, in the canonical display order shared by
+ * `ASSET_CLASS_LABELS` and `ASSET_CLASS_CHART_INDEX` below.
+ *
+ * It is typed `AssetClass[]` rather than `string[]` on purpose: widening the union
+ * without extending this array is the failure mode this constant exists to prevent.
+ * A surface that iterates six hard-coded class names instead of this sequence drops
+ * the newer classes silently — which is exactly what the Storico composition chart
+ * did with `trendFollowing` and `carry` until 2026-08-21.
+ */
+export const ASSET_CLASS_SEQUENCE: AssetClass[] = [
+  'equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry',
+];
+
+/** Italian labels for the eight asset classes. Local to the feature; other label
  *  maps exist elsewhere (email, history) but consolidating them is out of scope. */
 export const ASSET_CLASS_LABELS: Record<string, string> = {
   equity: 'Azioni',
@@ -213,10 +228,19 @@ export interface BalanceSummary {
 }
 
 /**
- * Chart-palette slot for each asset class, so the composition bar (and any future
- * per-class viz on this page) draw the SAME hue the History page uses for its
- * "Patrimonio per Asset Class" chart. Resolve the actual color via `useChartColors()`
- * at this index. Mirrors `acColors` in app/dashboard/history/page.tsx — keep them aligned.
+ * Chart-palette slot for each asset class, so the composition bar (and any future per-class viz
+ * on this page) draw the SAME hue the Storico composition chart uses. Resolve the actual color
+ * via `useChartColors()` at this index.
+ *
+ * This map is now the SINGLE source of those slots — `lib/utils/historyComposition.ts` reads it
+ * rather than keeping a parallel literal, which is how Storico and Allocazione drifted apart in
+ * the first place. A synthetic series is not exempt: Storico's "Previdenza" band starts at slot 8,
+ * because 6 and 7 are spoken for below and re-using one puts two different things in the same hue
+ * on the same chart.
+ *
+ * KNOWN LIMIT: `useChartColors()` resolves only indices 0-4 from the active theme and pads 5-9
+ * from the static `CHART_COLORS`, which can repeat a theme hue — slots 1 and 6 measure ΔE ≈ 8
+ * apart on the default theme. CLAUDE.md → Known Issues.
  */
 export const ASSET_CLASS_CHART_INDEX: Record<string, number> = {
   equity: 0,

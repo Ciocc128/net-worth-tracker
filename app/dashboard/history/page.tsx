@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import {
-  staggerContainer,
   cardItem,
   slideDown,
   chapterReveal,
@@ -36,7 +35,6 @@ import {
   prepareMonthlyLaborMetricsData,
   formatCurrency,
   formatCurrencyCompact,
-  formatPercentage,
 } from '@/lib/services/chartService';
 import LaborMetricsChart from '@/components/dashboard/LaborMetricsChart';
 import { HeroMetricBlock } from '@/components/performance/HeroMetricBlock';
@@ -53,6 +51,7 @@ import { Asset, MonthlySnapshot, AssetAllocationTarget, DoublingMode, AssetAlloc
 import { DoublingTimeSummaryCards } from '@/components/history/DoublingTimeSummaryCards';
 import { DoublingMilestoneTimeline } from '@/components/history/DoublingMilestoneTimeline';
 import { MonthlyAssetBreakdownSection } from '@/components/history/MonthlyAssetBreakdownSection';
+import { CompositionSection } from '@/components/history/CompositionSection';
 import { Expense } from '@/types/expenses';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,8 +78,6 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import {
   LineChart,
   Line,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   XAxis,
@@ -151,8 +148,6 @@ export default function HistoryPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [portfolioSettings, setPortfolioSettings] = useState<AssetAllocationSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAssetClassPercentage, setShowAssetClassPercentage] = useState(false);
-  const [showLiquidityPercentage, setShowLiquidityPercentage] = useState(false);
   const [showYoYPercentage, setShowYoYPercentage] = useState(false);
   const [showManualSnapshotModal, setShowManualSnapshotModal] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -427,20 +422,6 @@ export default function HistoryPage() {
     );
   }, [laborMetricsChartData]);
 
-  // Pre-calculate liquid/illiquid percentages for the liquidity chart toggle.
-  // Depends on netWorthHistory so it recomputes only when snapshots change.
-  const liquidityHistory = useMemo(
-    () => netWorthHistory.map((item) => {
-      const total = item.liquidNetWorth + item.illiquidNetWorth;
-      return {
-        ...item,
-        liquidPercentage: total > 0 ? (item.liquidNetWorth / total) * 100 : 0,
-        illiquidPercentage: total > 0 ? (item.illiquidNetWorth / total) * 100 : 0,
-      };
-    }),
-    [netWorthHistory]
-  );
-
   // Hero metrics: latest patrimonio, total growth %, and annualized CAGR
   const heroMetrics = useMemo(() => {
     if (snapshots.length === 0) return null;
@@ -465,19 +446,6 @@ export default function HistoryPage() {
   if (loading) {
     return <HistoryPageSkeleton />;
   }
-
-  // Asset class series color assignments (consistent with ASSET_CLASS_ORDER)
-  const acColors = {
-    equity: chartColors[0],
-    bonds: chartColors[1],
-    crypto: chartColors[2],
-    realestate: chartColors[3],
-    cash: chartColors[4],
-    commodity: chartColors[5],
-  };
-  // "Previdenza" — a synthetic type-based series (pensionAssets.length check below), so it only
-  // appears when the user has at least one pensionFund asset. Slot 6, past the six real classes.
-  const pensionColor = chartColors[6];
 
   return (
     <PageContainer>
@@ -856,12 +824,6 @@ export default function HistoryPage() {
             </CardContent>
           </Card>
 
-          {/* CTA to Allocation page — replaces the removed "Corrente vs Desiderata" section */}
-          <div className="mt-3 flex items-center justify-end">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
-              <Link href="/dashboard/allocation">Vai all&apos;Allocazione &rarr;</Link>
-            </Button>
-          </div>
         </motion.div>
       </motion.section>
 
@@ -881,186 +843,20 @@ export default function HistoryPage() {
           </p>
         </div>
 
-        <div className="space-y-4">
-          {/* Asset Class Evolution Chart */}
-          <motion.div variants={cardItem} initial="hidden" animate="visible" transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1] }}>
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle className="text-lg sm:text-xl">Patrimonio per Asset Class</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAssetClassPercentage(!showAssetClassPercentage)}
-                    className="w-full sm:w-auto text-xs sm:text-sm"
-                  >
-                    {showAssetClassPercentage ? '€ Valori Assoluti' : '% Percentuali'}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {assetClassHistory.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
-                    Nessuno storico disponibile.
-                  </div>
-                ) : (
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                      key={showAssetClassPercentage ? 'ac-pct' : 'ac-abs'}
-                      variants={tabPanelSwitch}
-                      initial="hidden"
-                      animate="visible"
-                      exit="hidden"
-                    >
-                      <ResponsiveContainer key={isLandscape ? 'landscape' : 'portrait'} width="100%" height={getChartHeight()}>
-                        {showAssetClassPercentage ? (
-                          <LineChart data={assetClassHistory} margin={getChartMargins()}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
-                            <XAxis dataKey="date" />
-                            <YAxis width={getYAxisWidth()} tickFormatter={(v) => `${v.toFixed(0)}%`} domain={[0, 100]} />
-                            <Tooltip
-                              formatter={(v) => `${(v as number).toFixed(2)}%`}
-                              {...tooltipStyle}
-                              cursor={{ fill: 'rgba(128,128,128,0.1)' }}
-                            />
-                            <Legend wrapperStyle={{ display: isMobile ? 'none' : 'block', paddingTop: '20px' }} iconSize={10} fontSize={12} />
-                            <Line type="monotone" dataKey="equityPercentage" stroke={acColors.equity} strokeWidth={2} name="Azioni" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Line type="monotone" dataKey="bondsPercentage" stroke={acColors.bonds} strokeWidth={2} name="Obbligazioni" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Line type="monotone" dataKey="cryptoPercentage" stroke={acColors.crypto} strokeWidth={2} name="Criptovalute" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Line type="monotone" dataKey="realestatePercentage" stroke={acColors.realestate} strokeWidth={2} name="Immobili" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Line type="monotone" dataKey="cashPercentage" stroke={acColors.cash} strokeWidth={2} name="Liquidità" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Line type="monotone" dataKey="commodityPercentage" stroke={acColors.commodity} strokeWidth={2} name="Materie Prime" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            {pensionAssets.length > 0 && (
-                              <Line type="monotone" dataKey="pensionPercentage" stroke={pensionColor} strokeWidth={2} name="Previdenza" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            )}
-                          </LineChart>
-                        ) : (
-                          <AreaChart data={assetClassHistory} margin={getChartMargins()}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
-                            <XAxis dataKey="date" />
-                            <YAxis width={getYAxisWidth()} tickFormatter={(v) => formatCurrencyCompact(v)} />
-                            <Tooltip formatter={(v) => formatCurrency(v as number)} {...tooltipStyle} cursor={{ fill: 'rgba(128,128,128,0.1)' }} />
-                            <Legend wrapperStyle={{ display: isMobile ? 'none' : 'block', paddingTop: '20px' }} iconSize={10} fontSize={12} />
-                            <Area type="monotone" dataKey="equity" stroke={acColors.equity} fill={acColors.equity} fillOpacity={0.8} name="Azioni" animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Area type="monotone" dataKey="bonds" stroke={acColors.bonds} fill={acColors.bonds} fillOpacity={0.8} name="Obbligazioni" animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Area type="monotone" dataKey="crypto" stroke={acColors.crypto} fill={acColors.crypto} fillOpacity={0.8} name="Criptovalute" animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Area type="monotone" dataKey="realestate" stroke={acColors.realestate} fill={acColors.realestate} fillOpacity={0.8} name="Immobili" animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Area type="monotone" dataKey="cash" stroke={acColors.cash} fill={acColors.cash} fillOpacity={0.8} name="Liquidità" animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Area type="monotone" dataKey="commodity" stroke={acColors.commodity} fill={acColors.commodity} fillOpacity={0.8} name="Materie Prime" animationDuration={800} animationEasing="ease-out" label={false} />
-                            {pensionAssets.length > 0 && (
-                              <Area type="monotone" dataKey="pension" stroke={pensionColor} fill={pensionColor} fillOpacity={0.8} name="Previdenza" animationDuration={800} animationEasing="ease-out" label={false} />
-                            )}
-                          </AreaChart>
-                        )}
-                      </ResponsiveContainer>
+        <motion.div variants={cardItem} initial="hidden" animate="visible">
+          <CompositionSection
+            assetClassHistory={assetClassHistory}
+            liquidityHistory={netWorthHistory}
+            hasPensionFunds={pensionAssets.length > 0}
+          />
+        </motion.div>
 
-                      {/* Mobile inline legend — replaces hidden Recharts legend on narrow screens */}
-                      {isMobile && (
-                        <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3 px-1">
-                          {(Object.entries(
-                            pensionAssets.length > 0 ? { ...acColors, pension: pensionColor } : acColors
-                          ) as [string, string][]).map(([key, color]) => {
-                            const labels: Record<string, string> = {
-                              equity: 'Azioni',
-                              bonds: 'Obblig.',
-                              crypto: 'Crypto',
-                              realestate: 'Immobili',
-                              cash: 'Liquidità',
-                              commodity: 'Commodity',
-                              pension: 'Previdenza',
-                            };
-                            return (
-                              <div key={key} className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
-                                <span className="text-xs text-muted-foreground">{labels[key]}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Liquidity Evolution Chart */}
-          <motion.div variants={cardItem} initial="hidden" animate="visible" transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1], delay: 0.1 }}>
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle className="text-lg sm:text-xl">Liquidità vs Illiquidità</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowLiquidityPercentage(!showLiquidityPercentage)}
-                    className="w-full sm:w-auto text-xs sm:text-sm"
-                  >
-                    {showLiquidityPercentage ? '€ Valori Assoluti' : '% Percentuali'}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {netWorthHistory.length === 0 ? (
-                  <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
-                    Nessuno storico disponibile.
-                  </div>
-                ) : (
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                      key={showLiquidityPercentage ? 'liq-pct' : 'liq-abs'}
-                      variants={tabPanelSwitch}
-                      initial="hidden"
-                      animate="visible"
-                      exit="hidden"
-                    >
-                      <ResponsiveContainer key={isLandscape ? 'landscape' : 'portrait'} width="100%" height={getChartHeight()}>
-                        {showLiquidityPercentage ? (
-                          <LineChart data={liquidityHistory} margin={getChartMargins()}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
-                            <XAxis dataKey="date" />
-                            <YAxis width={getYAxisWidth()} tickFormatter={(v) => `${v.toFixed(0)}%`} domain={[0, 100]} />
-                            <Tooltip formatter={(v) => `${(v as number).toFixed(2)}%`} {...tooltipStyle} cursor={{ fill: 'rgba(128,128,128,0.1)' }} />
-                            <Legend wrapperStyle={{ display: isMobile ? 'none' : 'block', paddingTop: '20px' }} iconSize={10} fontSize={12} />
-                            <Line type="monotone" dataKey="liquidPercentage" stroke={chartColors[0]} strokeWidth={2} name="Liquido" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Line type="monotone" dataKey="illiquidPercentage" stroke={chartColors[2]} strokeWidth={2} name="Illiquido" dot={{ r: 4 }} animationDuration={800} animationEasing="ease-out" label={false} />
-                          </LineChart>
-                        ) : (
-                          <AreaChart data={liquidityHistory} margin={getChartMargins()}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} />
-                            <XAxis dataKey="date" />
-                            <YAxis
-                              width={getYAxisWidth()}
-                              tickFormatter={(v) => formatCurrencyCompact(v)}
-                              domain={[(dataMin: number) => dataMin * 0.95, (dataMax: number) => dataMax * 1.05]}
-                            />
-                            <Tooltip formatter={(v) => formatCurrency(v as number)} {...tooltipStyle} cursor={{ fill: 'rgba(128,128,128,0.1)' }} />
-                            <Legend wrapperStyle={{ display: isMobile ? 'none' : 'block', paddingTop: '20px' }} iconSize={10} fontSize={12} />
-                            <Area type="monotone" dataKey="liquidNetWorth" stroke={chartColors[0]} fill={chartColors[0]} fillOpacity={0.6} name="Liquido" animationDuration={800} animationEasing="ease-out" label={false} />
-                            <Area type="monotone" dataKey="illiquidNetWorth" stroke={chartColors[2]} fill={chartColors[2]} fillOpacity={0.6} name="Illiquido" animationDuration={800} animationEasing="ease-out" label={false} />
-                          </AreaChart>
-                        )}
-                      </ResponsiveContainer>
-
-                      {isMobile && (
-                        <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3 px-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: chartColors[0] }} />
-                            <span className="text-xs text-muted-foreground">Liquido</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: chartColors[2] }} />
-                            <span className="text-xs text-muted-foreground">Illiquido</span>
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+        {/* The Allocazione CTA belongs to this chapter, not to Raddoppi above it: composition is
+            the question whose answer ("am I still on target?") only Allocazione can complete. */}
+        <div className="flex items-center justify-end">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
+            <Link href="/dashboard/allocation">Vai all&apos;Allocazione &rarr;</Link>
+          </Button>
         </div>
       </motion.section>
 
