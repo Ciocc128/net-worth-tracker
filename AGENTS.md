@@ -591,8 +591,14 @@ Companion documents — do not duplicate their content into this file:
 - **`AllocationResult.totalValue` is the NOTIONAL total** (== market at leverage 1);
   `marketValue`/`notionalValue`/`leverageRatio`/`hasLeveragedExposure` are REQUIRED so `tsc` forces the band
   re-classifier to copy all four through. **The whole leverage UI is a `hasLeveragedExposure` fork, not a rewrite.**
-- `ASSET_CLASS_CHART_INDEX` mirrors History's `acColors` so a class is the same hue on both pages — re-key one, re-key
-  both.
+- `ASSET_CLASS_CHART_INDEX` is the single source of a class's chart slot, so a class is the same hue on Allocazione and
+  Storico. **A synthetic series is not exempt**: Storico's "Previdenza" band sat on slot 6 — which that map assigns to
+  `trendFollowing` — so the two drew in the same hue on the same chart AND the class lost its cross-page identity.
+  Previdenza is slot 8; anything new starts past 7.
+- **`ASSET_CLASS_SEQUENCE` (`lib/utils/allocationUtils.ts`) is the ONE enumeration of the `AssetClass` union**, typed
+  `AssetClass[]` so widening the union without extending it is a compile error. A surface that hand-lists six class names
+  drops the newer ones in silence — which is exactly how `trendFollowing` and `carry` stayed invisible on Storico's
+  composition chart. `assetAllocationService`'s `ALL_ASSET_CLASSES` and `chartService`'s `byClass` both read it.
 - **Widening `AssetClass` only breaks the Records actually typed `Record<AssetClass, …>`** — grep first. The costly one is
   the zod `z.enum([...])` in `AssetDialog.tsx`, surfacing as indirect assignability errors on `reset()`/`setValue()`
   sites that never name the enum.
@@ -860,6 +866,25 @@ Companion documents — do not duplicate their content into this file:
 - **Never stack bands whose components can go NEGATIVE** — Recharts draws a negative segment downward, so the stack stops
   meeting the total. The shape with no such failure mode is **one area under a line**, decomposition in the tooltip.
   **100%-stacked composition: pre-normalise the rows, do NOT also use `stackOffset="expand"`.**
+- **A composition chart without `stackId` is not a bug you can see.** N `<Area>` elements with no `stackId` all render
+  from baseline 0, overpainting each other in declaration order, and the overlapping `fillOpacity` invents colours that
+  appear in no legend — it looks like a busy chart, not like a wrong one. Storico's Composizione shipped this way for
+  months while the Driver bars 250 lines below in the SAME file stacked correctly. **When the card says "composizione",
+  grep the series for `stackId` before reading anything else.**
+- **Normalise a 100% stack over what is actually DRAWN, never over a separately-sourced total.** The two disagree in both
+  directions — series the chart omits leave the stack short, and a clamped subtraction (`Math.max(0, …)`) can push the
+  plotted sum ABOVE the total — and with `domain={[0,100]}` neither is visible as an error. `lib/utils/historyComposition.ts`
+  measures its residual against `max(total, Σ plotted)` so the remainder can never be negative, and names it as a band
+  instead of leaving a gap. *A stack that does not reach 100 reads as missing data, so it must never be how rounding shows.*
+- **`fontSize` on `<Legend>` is silently dropped.** The legend renders as HTML, `DefaultLegendContentProps` does not
+  declare `fontSize`, and it type-checks only because SVG presentation attributes are merged into the props type. Size the
+  legend through `wrapperStyle`.
+- **`interval="preserveStartEnd"` centres the last tick ON the plot's right edge**, so half the final label falls outside
+  the SVG unless `margin.right` reserves room. A negative `margin.left` clips the `100%` tick to `0%` — a **cropped number
+  reads as a wrong number**, which is worse than a missing one.
+- **A number formatted with `toFixed` next to one formatted with `Intl('it-IT')` puts a dot beside a comma** in the same
+  row — and in an `aria-label` it makes a screen reader announce a different figure from the one on screen. Every
+  user-facing number goes through the Italian formatter, `aria-label` text included.
 - **Rolling charts always render**, with an inline empty-state message when data is insufficient, and time-bucketed data
   belongs in a tested pure layer (`cashflowTimeSeries.ts`).
 - Server-cached chart data has colors baked into the React Query cache — **remap at render time for EVERY chart array**.

@@ -4,7 +4,7 @@ import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOver
 import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
-import { partitionByAllocationRole } from '@/lib/utils/allocationUtils';
+import { partitionByAllocationRole, ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
@@ -627,9 +627,7 @@ interface CurrentAllocationSnapshot {
 }
 
 /** Fixed set of top-level asset classes, used to seed a `CurrentAllocationSnapshot`. */
-const ALL_ASSET_CLASSES: AssetClass[] = [
-  'equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry',
-];
+const ALL_ASSET_CLASSES: AssetClass[] = ASSET_CLASS_SEQUENCE;
 
 /**
  * Expand every asset into per-class market AND notional exposure (`expandAssetExposure`, the

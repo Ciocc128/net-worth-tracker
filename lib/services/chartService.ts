@@ -14,12 +14,14 @@
 
 import {
   Asset,
+  AssetClass,
   PieChartData,
   MonthlySnapshot,
   DoublingMilestone,
   DoublingTimeSummary,
   DoublingMode
 } from '@/types/assets';
+import { ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
 import { Expense } from '@/types/expenses';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { calculateCurrentAllocation } from './assetAllocationService';
@@ -140,11 +142,35 @@ export function prepareNetWorthHistoryData(snapshots: MonthlySnapshot[]): {
   }));
 }
 
+/** One month of the portfolio's asset-class breakdown, in euro. */
+export interface AssetClassHistoryPoint {
+  /** `MM/YY` — the x-axis key shared by every chart on the Storico page. */
+  date: string;
+  month: number;
+  year: number;
+  /** The snapshot's own total. Authoritative: never re-derive it by summing `byClass`. */
+  totalNetWorth: number;
+  /**
+   * Euro per asset class, with the pension funds carved back out. Typed as an exhaustive
+   * `Record<AssetClass, number>` so widening the union is a compile error here rather than
+   * a class that silently stops being drawn.
+   */
+  byClass: Record<AssetClass, number>;
+  /** Euro held in `pensionFund` assets — the amount subtracted from `byClass`. */
+  pension: number;
+}
+
 /**
- * Prepare data for asset class history chart.
+ * Prepare the per-month asset-class breakdown behind the Storico composition chart.
+ *
+ * Values are EURO only. Shares are deliberately not computed here: the correct denominator
+ * depends on what the caller actually plots, and the previous version divided by
+ * `snapshot.totalNetWorth` while emitting six of the eight classes — so the shares silently
+ * failed to reach 100 for anyone holding `trendFollowing` or `carry`. `lib/utils/historyComposition.ts`
+ * owns normalization and closes the stack by construction.
  *
  * `pensionAssets` (optional; live `pensionFund`-type assets, e.g. `assets.filter(a => a.type ===
- * 'pensionFund')`) adds a synthetic "Previdenza" series, TYPE-based per decision D2 — the fund
+ * 'pensionFund')`) drives a synthetic "Previdenza" series, TYPE-based per decision D2 — the fund
  * appears whole as `pension`, never spread across equity/bonds in
  * the aggregate classes, even though `byAssetClass` itself may already contain the fund's value
  * split by class (via `composition` look-through — see `calculateCurrentAllocation`, the same
@@ -153,35 +179,20 @@ export function prepareNetWorthHistoryData(snapshots: MonthlySnapshot[]): {
  * subtracted back out of the class buckets it was folded into — using the fund's CURRENT
  * `composition`/`assetClass` as the split key, since composition-at-snapshot-time isn't itself
  * persisted. Composition rarely changes after being set, so this is an accepted approximation for
- * historical months (documented limitation, not a precision guarantee). Omitting `pensionAssets`
- * (default `[]`) reproduces the exact prior behavior for any other caller.
+ * historical months (documented limitation, not a precision guarantee).
+ *
+ * That approximation has a visible consequence the caller must handle: the per-class subtraction
+ * is clamped at zero, so when today's composition attributes more to a class than that class held
+ * at snapshot time, the excess is swallowed and `Σ byClass + pension` can EXCEED `totalNetWorth`.
+ * Normalizing over the plotted sum rather than over the total is what keeps the chart honest.
  */
 export function prepareAssetClassHistoryData(
   snapshots: MonthlySnapshot[],
   pensionAssets: Asset[] = []
-): {
-  date: string;
-  equity: number;
-  bonds: number;
-  crypto: number;
-  realestate: number;
-  cash: number;
-  commodity: number;
-  pension: number;
-  equityPercentage: number;
-  bondsPercentage: number;
-  cryptoPercentage: number;
-  realestatePercentage: number;
-  cashPercentage: number;
-  commodityPercentage: number;
-  pensionPercentage: number;
-  month: number;
-  year: number;
-}[] {
+): AssetClassHistoryPoint[] {
   const pensionById = new Map(pensionAssets.map((asset) => [asset.id, asset]));
 
   return snapshots.map((snapshot) => {
-    const total = snapshot.totalNetWorth;
     const byAssetClass = { ...(snapshot.byAssetClass || {}) };
 
     let pension = 0;
@@ -200,31 +211,18 @@ export function prepareAssetClassHistoryData(
       }
     }
 
-    const equity = byAssetClass.equity || 0;
-    const bonds = byAssetClass.bonds || 0;
-    const crypto = byAssetClass.crypto || 0;
-    const realestate = byAssetClass.realestate || 0;
-    const cash = byAssetClass.cash || 0;
-    const commodity = byAssetClass.commodity || 0;
+    const byClass = ASSET_CLASS_SEQUENCE.reduce((acc, assetClass) => {
+      acc[assetClass] = byAssetClass[assetClass] || 0;
+      return acc;
+    }, {} as Record<AssetClass, number>);
 
     return {
       date: `${String(snapshot.month).padStart(2, '0')}/${String(snapshot.year).slice(-2)}`,
-      equity,
-      bonds,
-      crypto,
-      realestate,
-      cash,
-      commodity,
-      pension,
-      equityPercentage: total > 0 ? (equity / total) * 100 : 0,
-      bondsPercentage: total > 0 ? (bonds / total) * 100 : 0,
-      cryptoPercentage: total > 0 ? (crypto / total) * 100 : 0,
-      realestatePercentage: total > 0 ? (realestate / total) * 100 : 0,
-      cashPercentage: total > 0 ? (cash / total) * 100 : 0,
-      commodityPercentage: total > 0 ? (commodity / total) * 100 : 0,
-      pensionPercentage: total > 0 ? (pension / total) * 100 : 0,
       month: snapshot.month,
       year: snapshot.year,
+      totalNetWorth: snapshot.totalNetWorth,
+      byClass,
+      pension,
     };
   });
 }
