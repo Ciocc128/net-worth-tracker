@@ -43,6 +43,7 @@ function makeAssetClassPoint(
       ...byClass,
     },
     pension,
+    pensionSource: pension > 0 ? 'measured' : 'none',
   }
 }
 

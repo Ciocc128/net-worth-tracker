@@ -283,6 +283,23 @@ export function CompositionSection({
     hasPensionFunds && series.bands.some((band) => band.key === PENSION_BAND_KEY);
   const showsResidualBand = series.bands.some((band) => band.key === RESIDUAL_BAND_KEY);
 
+  /**
+   * Where the exact Previdenza carve-out begins.
+   *
+   * Snapshots have carried their own pension split since 2026-08; before that it can only be
+   * reconstructed from the fund's current composition. Naming the boundary month beats a blanket
+   * "this is an estimate" warning, which is now false for every recent month — and beats saying
+   * nothing, which would present a reconstruction as a measurement.
+   */
+  const firstMeasuredPension = useMemo(() => {
+    const point = assetClassHistory.find((row) => row.pensionSource === 'measured');
+    return point ? formatPeriodLabel(point.month, point.year) : null;
+  }, [assetClassHistory]);
+  const hasEstimatedPension = useMemo(
+    () => assetClassHistory.some((row) => row.pensionSource === 'estimated'),
+    [assetClassHistory]
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -317,12 +334,26 @@ export function CompositionSection({
                 <PopoverContent className="w-80 text-sm">
                   <p className="font-semibold text-foreground">Previdenza</p>
                   <p className="mt-1.5 text-muted-foreground">
-                    Il fondo pensione compare come banda a sé e viene scorporato dalle classi in
-                    cui era stato ripartito. Lo scorporo usa la composizione{' '}
-                    <strong className="text-foreground">attuale</strong> del fondo applicata ai mesi
-                    passati, perché la composizione storica non viene salvata: sui mesi lontani è
-                    quindi una stima, non una misura.
+                    Il fondo pensione compare come banda a sé e viene scorporato dalle classi in cui
+                    era stato ripartito. Il suo valore mensile è sempre un dato salvato, mai una
+                    stima: quello che può variare è quanto viene tolto ad Azioni e Obbligazioni.
                   </p>
+                  {firstMeasuredPension && (
+                    <p className="mt-2 text-muted-foreground">
+                      Da{' '}
+                      <strong className="text-foreground">{firstMeasuredPension}</strong> lo scorporo
+                      è <strong className="text-foreground">misurato</strong>: ogni rilevamento salva
+                      la composizione del fondo in quel momento, quindi ribilanciarlo oggi non cambia
+                      il passato.
+                    </p>
+                  )}
+                  {hasEstimatedPension && (
+                    <p className="mt-2 text-muted-foreground">
+                      Sui mesi precedenti la composizione storica non era ancora salvata: lì lo
+                      scorporo applica la composizione{' '}
+                      <strong className="text-foreground">attuale</strong> del fondo, ed è una stima.
+                    </p>
+                  )}
                 </PopoverContent>
               </Popover>
             )}

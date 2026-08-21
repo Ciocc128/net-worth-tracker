@@ -403,6 +403,25 @@ export interface MonthlySnapshot {
     price: number;
     totalValue: number;
   }>;
+  /**
+   * What the `pensionFund` assets contributed to THIS month's `byAssetClass`, frozen at write time.
+   *
+   * `byAssetClass` folds each fund into its classes through the fund's `composition`, so anything
+   * wanting to show Previdenza as a band of its own has to subtract that contribution back out.
+   * Without this field the only way to do it is to apply the fund's CURRENT composition to a past
+   * month — an estimate that silently drifts the day the user re-balances the fund, and whose
+   * per-class clamp can push the plotted parts above the total. Storing the split at write time
+   * makes the subtraction exact, and freezes it against later edits to the fund.
+   *
+   * OPTIONAL because snapshots written before 2026-08 do not have it, and hand-entered snapshots
+   * (`/api/portfolio/snapshot/manual`) never will — there is no pension input on that form. Absent
+   * means "unknown, fall back to the estimate"; present with `totalValue: 0` means "measured, and
+   * there were no pension funds". Those are different facts and must stay distinguishable.
+   */
+  pension?: {
+    totalValue: number;
+    byAssetClass: { [assetClass: string]: number };
+  };
   assetAllocation: {
     [assetClass: string]: number;
   };
