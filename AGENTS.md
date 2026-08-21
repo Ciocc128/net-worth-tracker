@@ -13,7 +13,6 @@ Companion documents — do not duplicate their content into this file:
 | `SETUP.md` | Env vars, Firebase, emulators, Playwright, local-verification troubleshooting |
 | `WORKFLOW.md` | Standing session rules + the guided-verification protocol (portable across repos) |
 | `COMMENTS.md` · `DEVELOPMENT_GUIDELINES.md` | How to write code and comments here |
-| `docs/{critique,audit}-prompts.md` | Per-page review prompts |
 
 ---
 
@@ -645,6 +644,16 @@ Companion documents — do not duplicate their content into this file:
   `PensionErrorNotice` instead of zeros, and the copy agrees in number (`fundNoun()`).
 - **Zod messages must be attached to the TYPE check, not only the constraint**: `valueAsNumber: true` turns an empty
   input into `NaN`, which fails `z.number()` itself — use `z.number({ error: '…' }).positive('…')`.
+- **A derived split that a later edit can invalidate must be FROZEN at write time.**
+  `MonthlySnapshot.pension` stores what the funds contributed to that month's `byAssetClass`,
+  written by re-running `calculateCurrentAllocation` over just the funds — the same function that
+  folded them in, so the two agree by construction and Storico subtracts an exact subset instead of
+  reconstructing one from today's composition. It is written **unconditionally**, so `totalValue: 0`
+  (measured, no funds) stays distinguishable from an absent field (unknown, older snapshot). The
+  estimated fallback stays for pre-2026-08 months and for hand-entered snapshots, which have no
+  pension input — `prepareAssetClassHistoryData` reports which path a month took via
+  `pensionSource`, and the UI names the boundary month rather than warning about an approximation
+  that no longer applies.
 - `PensionAllocationCards` needs the FULL unfiltered asset list; **Storico reverses the split
   `calculateCurrentAllocation` applied**, using the fund's CURRENT `composition` (a documented approximation); **FIRE's
   lock-in toggle subtracts from BOTH `currentNetWorth` and `illiquidNetWorth`** — and it is a bridge
@@ -998,6 +1007,10 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   sign-in still works, which makes the failure look unrelated.
 - Prefer verifying with **two independent paths**: compute the expected figure in the script from the same real
   snapshots — a same-code-path comparison would be circular.
+- **On a shared account an exercise cannot pin ABSOLUTE values.** The emulator carries other suites' fixtures, so an
+  assertion written against the record the script just planted measures the fixture, not the code (a pension exercise
+  expecting 10.000 read 39.800, because another seed's fund was still there). Derive the expectation from what is
+  ACTUALLY in the collection, then assert the planted record is contained in it.
 - **A throwaway fixture must not share document ids with the seed** (`{uid}-{year}-{month}` is the trap): overwriting
   them means deleting the fixture also deletes the seed's own rows. Re-seed if it happens.
 - **A 404 from `npm run dev:e2e` on a route that exists is a stale `.next-e2e` cache, not a routing bug** — use a fresh

@@ -158,6 +158,14 @@ export interface AssetClassHistoryPoint {
   byClass: Record<AssetClass, number>;
   /** Euro held in `pensionFund` assets — the amount subtracted from `byClass`. */
   pension: number;
+  /**
+   * How that subtraction was obtained, so the surface can say which it is instead of warning
+   * about an approximation that no longer applies to most months.
+   *   `measured`   — the snapshot carried its own split; exact.
+   *   `estimated`  — reconstructed with the fund's CURRENT composition; drifts with re-balances.
+   *   `none`       — no pension value found this month (no funds, or a month predating `byAsset`).
+   */
+  pensionSource: 'measured' | 'estimated' | 'none';
 }
 
 /**
@@ -169,22 +177,26 @@ export interface AssetClassHistoryPoint {
  * failed to reach 100 for anyone holding `trendFollowing` or `carry`. `lib/utils/historyComposition.ts`
  * owns normalization and closes the stack by construction.
  *
- * `pensionAssets` (optional; live `pensionFund`-type assets, e.g. `assets.filter(a => a.type ===
- * 'pensionFund')`) drives a synthetic "Previdenza" series, TYPE-based per decision D2 — the fund
- * appears whole as `pension`, never spread across equity/bonds in
- * the aggregate classes, even though `byAssetClass` itself may already contain the fund's value
- * split by class (via `composition` look-through — see `calculateCurrentAllocation`, the same
- * function `snapshotService` calls to build `byAssetClass`). Each month's fund value comes from
- * `MonthlySnapshot.byAsset` (frozen per-asset totals, independent of the class split), and is
- * subtracted back out of the class buckets it was folded into — using the fund's CURRENT
- * `composition`/`assetClass` as the split key, since composition-at-snapshot-time isn't itself
- * persisted. Composition rarely changes after being set, so this is an accepted approximation for
- * historical months (documented limitation, not a precision guarantee).
+ * "Previdenza" is a synthetic TYPE-based series: a pension fund appears whole as `pension` and is
+ * subtracted back out of the class buckets `byAssetClass` had folded it into. There are TWO ways
+ * to know how much to subtract, and which one a month gets is a property of the snapshot:
  *
- * That approximation has a visible consequence the caller must handle: the per-class subtraction
- * is clamped at zero, so when today's composition attributes more to a class than that class held
- * at snapshot time, the excess is swallowed and `Σ byClass + pension` can EXCEED `totalNetWorth`.
- * Normalizing over the plotted sum rather than over the total is what keeps the chart honest.
+ *   MEASURED — `snapshot.pension` is present (written from 2026-08). The split was frozen by the
+ *   same `calculateCurrentAllocation` call that folded the funds in, so the subtraction is exact
+ *   and independent of anything the user does to the fund afterwards. `pensionAssets` is not even
+ *   read on this path.
+ *
+ *   ESTIMATED — `snapshot.pension` is absent (older snapshots, and hand-entered ones, which have
+ *   no pension input). The fund's value still comes from `byAsset` and is therefore exact, but the
+ *   split uses the fund's CURRENT `composition`/`assetClass`, so it is wrong by however much the
+ *   fund has been re-balanced since. The per-class subtraction is clamped at zero, so an
+ *   over-subtraction is swallowed and `Σ byClass + pension` can EXCEED `totalNetWorth` — which is
+ *   why `historyComposition.ts` normalizes over the plotted sum rather than over the total.
+ *
+ * A month older than `byAsset` itself gets neither: `pension` stays 0 and the fund's value remains
+ * inside Azioni/Obbligazioni, with no band at all. That is absence, not an estimate.
+ *
+ * `pensionAssets` (live `pensionFund`-type assets) is therefore needed only for the estimated path.
  */
 export function prepareAssetClassHistoryData(
   snapshots: MonthlySnapshot[],
@@ -196,18 +208,35 @@ export function prepareAssetClassHistoryData(
     const byAssetClass = { ...(snapshot.byAssetClass || {}) };
 
     let pension = 0;
-    for (const entry of snapshot.byAsset || []) {
-      const fund = pensionById.get(entry.assetId);
-      if (!fund) continue;
-      pension += entry.totalValue;
+    let pensionSource: AssetClassHistoryPoint['pensionSource'] = 'none';
+    if (snapshot.pension) {
+      // MEASURED path. The split was frozen by the same function that folded the funds in, so the
+      // subtraction is exact and the clamp below can never bind — it stays only because a hand-
+      // edited document could violate the invariant, and a negative band would break the stack.
+      pension = snapshot.pension.totalValue;
+      if (pension > 0) pensionSource = 'measured';
+      for (const [assetClass, value] of Object.entries(snapshot.pension.byAssetClass)) {
+        byAssetClass[assetClass] = Math.max(0, (byAssetClass[assetClass] ?? 0) - value);
+      }
+    } else {
+      // ESTIMATED path, for snapshots written before `pension` existed and for hand-entered ones.
+      // Applying the fund's CURRENT composition to a past month is wrong by exactly however much
+      // the user has re-balanced the fund since, and the clamp swallows any over-subtraction —
+      // which is why `Σ byClass + pension` can exceed `totalNetWorth` here but not above.
+      for (const entry of snapshot.byAsset || []) {
+        const fund = pensionById.get(entry.assetId);
+        if (!fund) continue;
+        pension += entry.totalValue;
+        pensionSource = 'estimated';
 
-      if (fund.composition && fund.composition.length > 0) {
-        for (const comp of fund.composition) {
-          const compValue = (entry.totalValue * comp.percentage) / 100;
-          byAssetClass[comp.assetClass] = Math.max(0, (byAssetClass[comp.assetClass] ?? 0) - compValue);
+        if (fund.composition && fund.composition.length > 0) {
+          for (const comp of fund.composition) {
+            const compValue = (entry.totalValue * comp.percentage) / 100;
+            byAssetClass[comp.assetClass] = Math.max(0, (byAssetClass[comp.assetClass] ?? 0) - compValue);
+          }
+        } else {
+          byAssetClass[fund.assetClass] = Math.max(0, (byAssetClass[fund.assetClass] ?? 0) - entry.totalValue);
         }
-      } else {
-        byAssetClass[fund.assetClass] = Math.max(0, (byAssetClass[fund.assetClass] ?? 0) - entry.totalValue);
       }
     }
 
@@ -223,6 +252,7 @@ export function prepareAssetClassHistoryData(
       totalNetWorth: snapshot.totalNetWorth,
       byClass,
       pension,
+      pensionSource,
     };
   });
 }

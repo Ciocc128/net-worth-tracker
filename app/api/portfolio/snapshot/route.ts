@@ -184,6 +184,18 @@ export async function POST(request: NextRequest) {
     const assetAllocation = buildAllocationPercentages(allocation.byAssetClass, totalNetWorth);
     const byAsset = buildByAssetBreakdown(assets);
 
+    // Freeze what the pension funds contributed to `byAssetClass` above.
+    //
+    // Re-running the SAME function over just the funds is what makes the two agree by
+    // construction: `allocation` folded each fund in through its `composition`, and this folds the
+    // identical funds through the identical composition, so `pension.byAssetClass[c]` is always a
+    // subset of `allocation.byAssetClass[c]` and Storico can subtract it exactly instead of
+    // estimating with today's composition. Written unconditionally — with no funds it stores a
+    // measured zero, which a reader must be able to tell apart from an old snapshot's silence.
+    const pensionAllocation = calculateCurrentAllocation(
+      assets.filter((asset) => asset.type === 'pensionFund')
+    );
+
     const snapshotId = `${userId}-${snapshotYear}-${snapshotMonth}`;
 
     // Check if snapshot already exists
@@ -204,6 +216,10 @@ export async function POST(request: NextRequest) {
       fireNetWorth,
       byAssetClass: allocation.byAssetClass,
       byAsset,
+      pension: {
+        totalValue: pensionAllocation.totalValue,
+        byAssetClass: pensionAllocation.byAssetClass,
+      },
       assetAllocation,
       createdAt: Timestamp.now(),
     };
