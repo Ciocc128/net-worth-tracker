@@ -24,9 +24,10 @@ Companion documents — do not duplicate their content into this file:
   hyphen), `Buongiorno Giuseppe` (no comma). English on purpose: `Hall of Fame`, `FIRE e Simulazioni`, `Cashflow`,
   `Assistente AI` and the standard metric names; `Current Yield` → `Rendimento Corrente`.
 - **`formatPercentage` exists TWICE and the two disagree**: `chartService`'s is `Intl('it-IT')` (`40,71%`),
-  `lib/utils/formatters`' is `toFixed` (`40.71%`). `formatCurrency` matches in both. Import the percentage from the
-  same module the surrounding component uses, or one surface prints both separators side by side — pure `lib/utils`
-  modules feeding a screen therefore take chartService's and mock the Firebase chain in their tests.
+  `lib/utils/formatters`' is `toFixed` (`40.71%`); `formatCurrency` matches in both. Import it from the same module the
+  surrounding component uses, or one surface prints both separators. Pure `lib/utils` modules feeding a screen take
+  chartService's and mock the Firebase chain in their tests. Same rule for any hand-rolled `toFixed` next to an `Intl`
+  number — including `aria-label` text, where a dot makes a screen reader announce a different figure from the screen.
 - **Curly apostrophes break `.tsx`** (`TS1127`) — delimit with double quotes. **JSX eats the space next to an inline tag
   or wrapped expression** once Prettier breaks the line: write `{' '}` on both sides of `<strong>`/`{expr}`.
 - **Italian `Intl` breaks naive matching**: four-digit amounts print ungrouped (`1821,01 €` but `29.800,00 €`) and the
@@ -48,18 +49,17 @@ Companion documents — do not duplicate their content into this file:
 - **A grid item stretches to the row height, but a normal-flow child does not inherit it without its own `h-full`** —
   side-by-side cards of different content length need `h-full` on BOTH the grid-item wrapper and the card `div`.
 - **`sticky` on a grid item needs `self-start`** — the default stretch makes the item as tall as the row, so a
-  `sticky top-6` companion column has no room to travel and silently behaves as static (the Assistente hero's right
-  column is the worked example).
+  `sticky top-6` companion column has no room to travel and silently behaves as static.
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child — add explicit
   `grid-cols-1` and `min-w-0` on flex/grid children (they default to `min-width:auto`). To center one flex child use
   `self-center`, not `items-center`, which shrinks every child to content width.
 - **`document.scrollWidth - clientWidth` reads 0 even while the page scrolls sideways**, which is why this survives
-  review. The dashboard shell clips at `SidebarProvider`/`SidebarInset` (`overflow-hidden`) and puts the page inside
-  `<main class="flex-1 overflow-y-auto">` — a non-`visible` `overflow-y` computes `overflow-x` to **`auto`**, so
-  **`main` is the horizontal scroll container**, not the document. Assert on `main.scrollWidth === main.clientWidth`.
+  review. The dashboard shell clips at `SidebarProvider`/`SidebarInset` and puts the page inside `<main class="flex-1
+  overflow-y-auto">` — a non-`visible` `overflow-y` computes `overflow-x` to **`auto`**, so **`main` is the horizontal
+  scroll container**, not the document. Assert on `main.scrollWidth === main.clientWidth`.
 - **Measure the elements, not the container**: walk `main *` and flag any `getBoundingClientRect().right >
   main.clientWidth`. A total in pixels forces the measurement to be redone; the culpable node is the fix. Reference
-  guard: `e2e/fire.mobile.spec.ts` (Calcolatore FIRE hero, 453px inside 390px → 81px of sideways scroll).
+  guard: `e2e/fire.mobile.spec.ts`.
 - **One scroll container per region**: a nested scrollable captures the wheel and content below becomes unreachable
   (desktop-only symptom). `overflow-x-hidden` on an ancestor also CLIPS a descendant's `overflow-x:auto`.
 
@@ -78,6 +78,8 @@ Companion documents — do not duplicate their content into this file:
   `getMetricValueColor()`. Two gotchas: **drop `dark:` variants** (the token swaps itself) and the function returns
   neutral for the `currency` format by design — signed currency uses `signChipClass`/`signTextClass`. Legacy
   `text-emerald-*` survives in `ExpenseTrackingTab`, `MobileExpenseRow`, `CashflowKpiCarousel`.
+- **Sign tokens mean gain and loss, and nothing else.** A neutral delta — a class gaining share of a composition — must
+  stay `text-muted-foreground`: colouring it asserts a verdict the surface has no target to justify.
 - **`--warning` is near-white in light mode**, so text on a `bg-warning` fill MUST be `text-warning-foreground`;
   standalone amber text is a different case (`PerformanceHero`'s "fragile" verdict keeps `text-amber-600`).
 - **A chart slot is not a text colour** — `--chart-1..5` target ~3:1 against a plot area (`text-[var(--chart-3)]`
@@ -116,26 +118,24 @@ Companion documents — do not duplicate their content into this file:
   then skips the whole component).
 
 ### Two-Step Create Dialogs (`AssetDialog`, `ExpenseDialog`)
-> Both creation flows in the app now have this shape. Treat it as the default for a form whose fields
-> depend on a discriminant, and keep the two implementations in step.
+> The default for a form whose fields depend on a discriminant. Keep the two implementations in step.
 - **The picker exists because the type is not one field among many** — it decides which categories/classes exist, which
   accounts are asked for, and how many balances move. Step 1 turns *one form with N conditional shapes* into *N plain
   forms*; a discriminant that only re-labels things does NOT earn a step.
-- **Create opens on step 1, edit skips straight to step 2** — changing the type of a saved record is a different act,
-  with reconciliation consequences the in-form notice has to explain, so the `Select` stays there and only there.
+- **Create opens on step 1, edit skips to step 2** — changing a saved record's type is a different act, with
+  reconciliation consequences the in-form notice must explain, so the `Select` stays there and only there.
 - **`setStep(record ? 2 : 1)` belongs in the `open` effect**, not in `useState`'s initializer: without `open` in the deps
   the record prop stays null between opens and the second "new" reopens on the form.
-- **Make the back-link callback OPTIONAL and let its absence select the `Select`** (`onBackToTypePicker?`). The two
-  controls are then mutually exclusive by construction, instead of by a second boolean that can drift out of sync.
-- **The picker is a module-level component**, and the type entry carries `Icon` as the COMPONENT, never a rendered node —
-  the cards draw it at `h-5 w-5` and the dropdown at `h-3.5 w-3.5`.
+- **Make the back-link callback OPTIONAL and let its absence select the `Select`** (`onBackToTypePicker?`), so the two
+  controls are mutually exclusive by construction rather than via a second boolean that can drift.
+- **The picker is a module-level component**, and the type entry carries `Icon` as the COMPONENT, never a rendered node.
 - Step 1 selects through the same handler that re-points the category on a type change: the user can return to the
   picker with a category already chosen, and that category belongs to the type being left.
 
 ### Firestore Writes
 - `updateDoc` only touches fields present in the object and `removeUndefinedDeep` strips `undefined`, so clearing an
-  optional field needs `deleteField()` — which is **not allowed with `setDoc()` without `merge:true`**. Never
-  reintroduce a shallow `removeUndefinedDeep`: it must recurse preserving `Date`/`Timestamp`/`FieldValue`.
+  optional field needs `deleteField()` — **not allowed with `setDoc()` without `merge:true`**. Never reintroduce a
+  shallow `removeUndefinedDeep`: it must recurse preserving `Date`/`Timestamp`/`FieldValue`.
 - **The clear-guard depends on whether partial callers exist**: `averageCost`/`taxRate`/`displayTicker` are written only
   by `AssetDialog` with a complete form, so `=== undefined → deleteField()` is safe; `leverageRatio` also rides on plain
   `updateAsset` and needs the `'leverageRatio' in updates` guard, or a price refresh wipes it.
@@ -148,44 +148,41 @@ Companion documents — do not duplicate their content into this file:
 ### Firestore Queries and the Rules
 - **A `list` must carry the constraint the rule needs, or it is refused entirely.** Every collection guarded by
   `allow read: if canAccess(resource.data.userId)` rejects a query that does not already filter on `userId` —
-  `permission-denied` at ANY result size, so it never looks like a scale problem. Four series helpers shipped without
-  it and their "elimina tutte le ricorrenti / tutte le rate" buttons silently did nothing (the list came back empty,
-  so the batch deleted nothing). `deleteExpensesByImportBatch` is the correct shape. **Unit suites cannot see this** —
+  `permission-denied` at ANY result size, so it never looks like a scale problem, and a batch built from the empty
+  result silently does nothing. `deleteExpensesByImportBatch` is the correct shape. **Unit suites cannot see this** —
   they mock Firestore away; only an emulator exercise driving the CLIENT SDK evaluates the rules.
 - **Max 3 `.where()` calls** on a chain that will be unit-tested; a 4th breaks the mock chain.
 
 ### Settings — the FIVE places
 - A new setting must be added to all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
   `assetAllocationService.getSettings`, **BOTH** write chains in `setSettings` (the `targets` branch uses `setDoc` with
-  no merge), and the state/load/save/dirty-snapshot wiring — usually `settings/page.tsx`, but a FIRE-only toggle (e.g.
-  `respectPensionLockInFire`) wires from `FireCalculatorTab.tsx` instead; the 5th place is "wherever the field's own
-  save button lives", not always the Settings page. Guarded by `settingsRoundTrip`, whose `STORED_SETTINGS` fixture
-  must carry the new field for the guard to actually cover it (adding the field to the type without adding it to the
-  fixture leaves the round-trip green while the read mapping is still broken).
+  no merge), and the state/load/save/dirty-snapshot wiring — usually `settings/page.tsx`, but a FIRE-only toggle wires
+  from `FireCalculatorTab.tsx` instead: the 5th place is "wherever the field's own save button lives". Guarded by
+  `settingsRoundTrip`, whose `STORED_SETTINGS` fixture must carry the new field, or the round-trip stays green while the
+  read mapping is still broken.
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`.
-- **There is a SIXTH place for any setting the server (not just the client) needs to read**: the settings mapper in
+- **There is a SIXTH place for any setting the SERVER reads**: the settings mapper in
   `lib/services/dashboardOverviewService.ts` re-lists the same fields from the admin doc, independently of
-  `assetAllocationService.getSettings`. `settingsRoundTrip` does not cover it — check it by hand when a setting has (or
-  will have) a server consumer.
-- **Store a boolean explicitly, never derive it** from other fields (`?? derivedFallback` on load). All feature toggles
-  live in `AssetAllocationSettings`, never in `UserPreferences`, and dirty-state snapshot keys contain **only persisted
+  `getSettings`. `settingsRoundTrip` does not cover it — check it by hand.
+- **Store a boolean explicitly, never derive it** from other fields. All feature toggles live in
+  `AssetAllocationSettings`, never in `UserPreferences`, and dirty-state snapshot keys contain **only persisted
   fields**, captured *after* the Firestore state is applied.
 - **One Save button validates the whole page** — `handleSave` returns early when allocation targets do not total 100, and
   must `invalidateQueries(['settings', ownerId])`, which `AssetDialog` reads.
 - `cashflowHistoryStartYear` is shared (Cashflow / Storico / Assistant / overview) — never rename it page-specifically.
 
 ### Auto-Calculated Targets (`lib/utils/equityBondsAutoTargets.ts`)
-- **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so the other classes are
-  funded out of Azioni**: `bonds = 100 − formula`, `equity = formula − other`. Charging them to the bond sleeve (the
-  original behaviour) made the *defensive* allocation the shock absorber for every satellite and drove it to ~0%.
-- **Derive the second member of a percentage pair from the ALREADY ROUNDED first one**, never from the raw input twice:
-  77,015 rounded independently yields 54,52 + 22,99 = 100,01%, and that total is what the Save button validates.
-  Generalise: *when two values must sum to a constant, round one and subtract; never round both.*
-- **An effect that sums over an `AssetClass` union must list that same union in its deps.** The hand-written dep array
-  silently went stale when `trendFollowing`/`carry` were added: they entered the sum but never re-triggered the effect.
-- Equity floors at 0 when the other classes exceed the formula's share, and the overflow falls back on bonds —
-  preserving the 100% total beats preserving the bond share, because a wrong total blocks Save.
+- **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so they are funded out of
+  Azioni**: `bonds = 100 − formula`, `equity = formula − other`. Charging them to the bond sleeve makes the *defensive*
+  allocation the shock absorber for every satellite and drives it to ~0%.
+- **Derive the second member of a percentage pair from the ALREADY ROUNDED first one**, never from the raw input twice —
+  rounding both yields totals like 100,01%, and the total is what Save validates. Generalise: *when two values must sum
+  to a constant, round one and subtract.*
+- **An effect that sums over an `AssetClass` union must list that same union in its deps**, or a newly added class
+  enters the sum without re-triggering the effect.
+- Equity floors at 0 when the other classes exceed the formula's share and the overflow falls back on bonds: preserving
+  the 100% total beats preserving the bond share, because a wrong total blocks Save.
 
 ### Caching
 - **Per-user pre-computed cache** (`performance-cache/{userId}`): the key encodes **every** determining input — a hash of
@@ -210,7 +207,7 @@ Companion documents — do not duplicate their content into this file:
   Tests that touch a `server-only` module need `vi.mock('server-only', () => ({}))`.
 - **`REGISTRATION_WHITELIST` has no `NEXT_PUBLIC_` prefix**, and `lib/constants/appConfig.ts` must stay client-safe.
 - **Do NOT bump `firebase-admin` past 13.x** — `@14 → jwks-rsa@4 → jose@6` is pure ESM and Vercel's Lambda runtime
-  `require()`s it (`ERR_REQUIRE_ESM` on every Admin route). A Node-22 forward fix was tried and still failed.
+  `require()`s it (`ERR_REQUIRE_ESM` on every Admin route).
 
 ### Shared Account / Delegated Access
 - **Viewer vs owner**: `useAuth().user` is the viewer and never changes; `useActiveAccount().ownerId` is whose data is
@@ -250,8 +247,8 @@ Companion documents — do not duplicate their content into this file:
   `categoryId || trimmed name || UNCATEGORIZED_LABEL`; `getSubCategoryKey` maps missing/blank to `NO_SUBCATEGORY_KEY`, a
   key like any other — which is what lets callers drop their `=== 'Altro'` special cases.
 - **`resolveDisplayLabels` qualifies ONLY where the rendered surface actually collides**: ambiguity is measured over the
-  set of KEYS per name, not a row count. `selectExpensesForDrillDown` matches the type **EXACTLY** (its predecessor
-  tested `type !== 'income'`, lumping fixed+variable+debt together and letting transfers through).
+  set of KEYS per name, not a row count. `selectExpensesForDrillDown` matches the type **EXACTLY** — `type !== 'income'` would lump
+  fixed+variable+debt together and let transfers through.
 
 ### Expense Sign Convention and Type Changes
 - Income positive, expenses negative, net savings = `sum(income) + sum(expenses)`; crossing the boundary flips the sign.
@@ -280,8 +277,7 @@ Companion documents — do not duplicate their content into this file:
   created in ONE `writeBatch` and `deleteRecurringExpenses` removes it in one too. Raising either past 500 means
   chunking both.
 - **`new Date(y, m, 31)` rolls February forward into March** — the clamp must cap the day against the real length of
-  the TARGET month before constructing the Date, never fix up an already-overflowed one (the predecessor's
-  `setDate(0)` + `setMonth(+1)` produced a second March payment and no February one).
+  the TARGET month before constructing the Date, never fix up an already-overflowed one.
 - **An absent `recurringFrequency` means monthly, never unknown** (rows predate the cadence): read it through
   `resolveRecurrenceFrequency`. A yearly series' MONTH is not stored — it is the month of the row's own date, which
   every occurrence shares by construction, and `describeRecurrence` is the only place that turns that into words.
@@ -445,16 +441,16 @@ Companion documents — do not duplicate their content into this file:
 - **Pension unlock is ONE rule in ONE place** (`lib/utils/pensionUnlock.ts`, explicit `now`): per-fund `unlockDate`
   override > RITA rule from `userAge` (INPS age − 5, or − 10 with `pensionRitaLongUnemployment`) > `null` = NOT locked
   (and the UI must say why). `pensionFire.calculatePensionLockedValue` is a thin wrapper — with no settings it is
-  override-only, the pre-Spec-3 behaviour the emulator exercise script relies on.
+  override-only, the behaviour the emulator exercise script relies on.
 - **The bridge model reuses the Coast walk, never a second formula.** `buildCoastFIRERetirementNeeds` takes
   `capitalInflows` (amounts AT the inflow year) and extends its horizon to `max(bridgeYears, max inflow year)` —
-  without the extension the FIRE-tab case (no state pensions → bridgeYears 0) would silently drop the inflow. The
+  without the extension the FIRE-tab case (no state pensions → bridgeYears 0) silently drops the inflow. The
   "reduction = A/(1+r)^y" invariant holds INSIDE the pension bridge; beyond it the extra discounted years change the
   baseline too — that is the model, not a bug. Empty inflows leave the walk byte-identical.
 - **`respectPensionLockInFire` governs the WHOLE FIRE page** (Calcolatore, Coast, What If via its baseline, Monte
   Carlo): each tab subtracts the locked total from its starting capital AND passes the inflows — doing only the
   subtraction reintroduces the "sottratto per sempre" bug the bridge model replaced. Monte Carlo adds inflows at
-  TODAY's value (no deterministic fund growth inside a stochastic run — declared in the form's read-only row), order
+  TODAY's value (no deterministic fund growth inside a stochastic run, declared in the form's read-only row), order
   inflow → return → withdrawal. With growth = discount rate the bridge number is insensitive to the unlock year until
   the floor binds, which is why the FIRE tab aggregates multi-fund unlocks on the LATEST year.
 - **Config-first collapse: decide ONCE after the form has settled.** A "collapsed if already configured" panel cannot key
@@ -465,35 +461,30 @@ Companion documents — do not duplicate their content into this file:
   volatility every path collapses float-for-float onto `calculateFIREProjection`'s base scenario — the coherence test
   pins that identity WITHOUT inflows, because the deterministic bridge grows the pension compartment while a Monte
   Carlo run injects inflows at today's value. Do not "fix" the test to include them: the divergence IS the model.
-- **The allocation→4-MC-classes normalization is ONE function** (`deriveMonteCarloAllocation` in
-  `lib/utils/monteCarloParams.ts`): MonteCarloTab's auto-fill and the FIRE Ventaglio consume it and must never
-  re-inline it. `null` means "keep the previous allocation", and the rounding residual lands on the smallest class —
-  even a zero-value one (inherited behaviour, pinned by tests).
+- **The allocation→4-MC-classes normalization is ONE function** (`deriveMonteCarloAllocation`): MonteCarloTab's
+  auto-fill and the FIRE Ventaglio consume it and must never re-inline it. `null` means "keep the previous allocation",
+  and the rounding residual lands on the smallest class, even a zero-value one (pinned by tests).
 - **Memoize every input feeding the fan's `useMemo`** — a `pensionLockState` (and therefore `fanInputs`) rebuilt per
-  render re-runs 1000 simulations on every keystroke. The fan is additionally armed only on first opening its view,
-  so users who never open Ventaglio never pay its CPU.
-- **The Coast tab computes nothing**: `lib/utils/coastFireView.ts` chooses which of
-  `fireService`'s own fields to show and in which words; `CoastFireTab.tsx` orchestrates, the five
-  `components/fire-simulations/coast/*` render, `useCoastFireSettingsDraft` owns the form. A figure
-  that cannot be pointed at inside a `CoastFIREScenarioMetrics` does not belong on that tab.
-  **The inflow timeline is the visual explanation of the discount**, not a second model: state
-  pensions come from the scenario's `pensionBreakdown`, the fund from `resolvePensionLockState`'s
-  inflows AT TODAY'S VALUE — growing it there would double-count what the walk already does.
+  render re-runs 1000 simulations on every keystroke. The fan is armed only on first opening its view.
+- **The Coast tab computes nothing**: `lib/utils/coastFireView.ts` chooses which of `fireService`'s own fields to show
+  and in which words; `CoastFireTab.tsx` orchestrates, `components/fire-simulations/coast/*` render,
+  `useCoastFireSettingsDraft` owns the form. A figure that cannot be pointed at inside a `CoastFIREScenarioMetrics` does
+  not belong on that tab. **The inflow timeline is the visual explanation of the discount**, not a second model: state
+  pensions come from the scenario's `pensionBreakdown`, the fund from `resolvePensionLockState`'s inflows AT TODAY'S
+  VALUE — growing it there double-counts what the walk already does.
 - **Goal trajectory is annuity math in a tested pure layer** (`goalTrajectory.ts`), never a `useMemo` in the card; the
   verdict compares the *projected value at the deadline* against the target with a 1% tolerance, not contribution ≥
   requiredMonthly (float flapping). Coast FIRE's nested pension rows must be serialized without `undefined` fields.
-- **The goal math that the SERVER also needs lives in `lib/utils/goalMath.ts`, re-exported by `goalService.ts`** —
-  that service imports `doc/getDoc/setDoc` + `db` at top level, so server code can never import it. `goalMath` imports
-  `calculateAssetValue` DIRECTLY (the second sanctioned route, precedent `dashboardOverviewUtils.ts`) rather than taking
-  an injected `valueOf`: identical signatures are what let the re-export be literal and leave every client call site
-  untouched.
-- **`serializeGoalForFirestore` IS the persistence allowlist for `InvestmentGoal`**, and it is now the single copy —
-  `saveGoalData` (client) and `POST /api/goals` (server) both go through it. A new optional field on the type is
-  silently dropped on save until it is added there.
+- **The goal math the SERVER also needs lives in `lib/utils/goalMath.ts`, re-exported by `goalService.ts`** — that
+  service imports `doc/getDoc/setDoc` + `db` at top level, so server code can never import it. `goalMath` imports
+  `calculateAssetValue` DIRECTLY (the second sanctioned route) rather than taking an injected `valueOf`: identical
+  signatures are what let the re-export be literal and leave every client call site untouched.
+- **`serializeGoalForFirestore` IS the persistence allowlist for `InvestmentGoal`**, the single copy used by
+  `saveGoalData` (client) and `POST /api/goals` (server). A new optional field on the type is silently dropped on save
+  until it is added there.
 - **The goal document is rewritten WHOLE, never patched.** So the Admin append is a transaction (the FIRE page writes
-  the same doc), the goals already stored and `assignments` pass through **verbatim** — re-serialising them could only
-  lose something — and the colour is picked INSIDE the transaction (`pickNextGoalColor`), or two goals created
-  concurrently come out the same hue.
+  the same doc), the goals already stored and `assignments` pass through **verbatim**, and the colour is picked INSIDE
+  the transaction (`pickNextGoalColor`), or two goals created concurrently come out the same hue.
 
 ### Asset Trade Ledger
 **Engine** (`lib/utils/assetTransactionUtils.ts`, pure and Firebase-free)
@@ -507,14 +498,13 @@ Companion documents — do not duplicate their content into this file:
   this same replay IS the pre-write validation: invalid histories throw `LedgerValidationError` with an Italian
   `userMessage` forwarded verbatim in a 422.
 - **The per-asset XIRR is date-exact and SEPARATE from `performanceService.calculateIRR`** — keep both; it returns a
-  FRACTION, and `null` renders as "–", never 0. **`replayTransactions` replays ONE asset**, so
-  `aggregateRealizedByYear` (lives in this engine, consumed by Rendimenti's `RealizedGainsSection.tsx`) must group by
-  `assetId` FIRST: realized P&L is PMC-dependent per position.
+  FRACTION, and `null` renders as "–", never 0. **`replayTransactions` replays ONE asset**, so `aggregateRealizedByYear`
+  (same engine, consumed by `RealizedGainsSection.tsx`) must group by `assetId` FIRST: realized P&L is PMC-dependent
+  per position.
 - **Per-transaction derived data (a sell's own P&L %, PMC-at-trade) comes from `replayTransactionsWithEffects`**, never
-  from re-running `replayTransactions` on every prefix (O(n²) — the trap `AssetMovementsDialog.tsx` fell into before
-  this was added). One pass emits one `LedgerTransactionEffect` per transaction (baseline/buy/sell/adjustment), with the
-  optional fields populated ONLY for `sell`, so a caller indexes by id with no holes. `replayTransactions(txs)` is just
-  `.state` of the same call — identical semantics, unchanged.
+  from re-running `replayTransactions` on every prefix (O(n²)). One pass emits one `LedgerTransactionEffect` per
+  transaction, with the optional fields populated ONLY for `sell`, so a caller indexes by id with no holes.
+  `replayTransactions(txs)` is just `.state` of the same call.
 
 **Service, API, migration** (`lib/server/assetTransactionUseCase.ts`)
 - **Writes are Admin-API-only**: a trade atomically rewrites the asset's derived fields from a full replay, and only the
@@ -557,7 +547,7 @@ Companion documents — do not duplicate their content into this file:
   freezing the WHOLE portfolio. **Consequence kept on screen**: the Allocazione headline excludes `excluded`, so it is
   SMALLER than the Panoramica net worth, and `frozen`/`excluded` get **separate** captions.
 - **The orphaned target is the trap this feature sets**: flag the house and its 70% sub-target survives with zero
-  allocatable value, so new money pours into a bucket that can only hold it. Any target-driven surface owes two things:
+  allocatable value, so new money pours into a bucket that cannot hold it. Any target-driven surface owes two things:
   `findOrphanedTargets` (positive target + ~zero allocatable value + excluded value behind it; a class is not orphaned if
   any sub-target is still reachable) and `stripOrphanedSubTargets`, which must REMOVE them from the map handed to
   `ActionPlanner` **and** `AllocationBreakdown`, not merely warn.
@@ -592,13 +582,11 @@ Companion documents — do not duplicate their content into this file:
   `marketValue`/`notionalValue`/`leverageRatio`/`hasLeveragedExposure` are REQUIRED so `tsc` forces the band
   re-classifier to copy all four through. **The whole leverage UI is a `hasLeveragedExposure` fork, not a rewrite.**
 - `ASSET_CLASS_CHART_INDEX` is the single source of a class's chart slot, so a class is the same hue on Allocazione and
-  Storico. **A synthetic series is not exempt**: Storico's "Previdenza" band sat on slot 6 — which that map assigns to
-  `trendFollowing` — so the two drew in the same hue on the same chart AND the class lost its cross-page identity.
-  Previdenza is slot 8; anything new starts past 7.
+  Storico. **A synthetic series is not exempt** — Storico's "Previdenza" band is slot 8, past the 0-7 the union owns;
+  anything new starts past 8.
 - **`ASSET_CLASS_SEQUENCE` (`lib/utils/allocationUtils.ts`) is the ONE enumeration of the `AssetClass` union**, typed
-  `AssetClass[]` so widening the union without extending it is a compile error. A surface that hand-lists six class names
-  drops the newer ones in silence — which is exactly how `trendFollowing` and `carry` stayed invisible on Storico's
-  composition chart. `assetAllocationService`'s `ALL_ASSET_CLASSES` and `chartService`'s `byClass` both read it.
+  `AssetClass[]` so widening the union without extending it is a compile error. A surface that hand-lists class names
+  drops the newer ones in silence. `assetAllocationService`'s `ALL_ASSET_CLASSES` and `chartService`'s `byClass` read it.
 - **Widening `AssetClass` only breaks the Records actually typed `Record<AssetClass, …>`** — grep first. The costly one is
   the zod `z.enum([...])` in `AssetDialog.tsx`, surfacing as indirect assignability errors on `reset()`/`setValue()`
   sites that never name the enum.
@@ -647,9 +635,9 @@ Companion documents — do not duplicate their content into this file:
 - **The series ends at the fund's LIVE value, not the current month's snapshot** (`overlayLivePensionValue`): the asset
   rises immediately while the snapshot waits for the cron, so the TWR would drop by exactly the amount paid in. Storico
   and Rendimenti stay snapshot-based.
-- **`isPensionReturnMeasurable` = `!isCoverageSuspicious && !hasNoMovement` is ONE predicate with two consumers** — while
-  they were two expressions they diverged. *When two places must agree on whether data is trustworthy, the agreement is a
-  named function.* An annualized return above 20% means missing contributions, not a brilliant fund.
+- **`isPensionReturnMeasurable` = `!isCoverageSuspicious && !hasNoMovement` is ONE predicate with two consumers.**
+  *When two places must agree on whether data is trustworthy, the agreement is a named function.* An annualized return
+  above 20% means missing contributions, not a brilliant fund.
 
 **Page and integrations**
 - **The year axis governs chapters 2-3 only, never the fund value or the return**; `resolveActivePensionYear` (pure)
@@ -671,21 +659,20 @@ Companion documents — do not duplicate their content into this file:
 - **Every mode must map to its own builder in `stream/route.ts`** — a mode with a prompt builder but no branch silently
   falls through to the monthly builder and is answered on one month of data.
 - **`buildAssistantPeriodRangeContext` is the FIFTH builder** (any run of months inside one year: quarters, semesters,
-  and every periodic email). The `{year, month}` selector cannot encode a range, so its `selector` is the window's
-  CLOSING month and the window itself travels as the first `dataQuality.notes` entry plus the `periodLabel` argument of
-  `formatBundleForPrompt` — never as a new bundle field, which all four other builders would then have to fill.
+  every periodic email). The `{year, month}` selector cannot encode a range, so its `selector` is the window's CLOSING
+  month and the window travels as the first `dataQuality.notes` entry plus `formatBundleForPrompt`'s `periodLabel` —
+  never as a new bundle field, which all four other builders would then have to fill.
 - **One aggregator, not two**: every cashflow figure comes from a single `buildCashflowBreakdown` call per builder, so
   `Σ expensesByCategory[].total === cashflow.totalExpenses` holds structurally. `transactionCount` **excludes
-  transfers**, and adding a required bundle field means updating ALL 4 builders (month/year/ytd/history).
-- **Removing an `AssistantMode` ripples past the WARNING checklist at the top of `types/assistant.ts`**: also grep for
-  `Record<AssistantMode, …>` — `assistantFollowUps.ts`'s `CURATED_FOLLOW_UPS` is the one live site today, and `tsc` only
-  catches it because the object literal must satisfy every key of the union.
+  transfers**, and a new required bundle field means updating ALL 4 builders (month/year/ytd/history).
+- **Removing an `AssistantMode` ripples past the WARNING checklist in `types/assistant.ts`**: grep `Record<AssistantMode,
+  …>` too (`assistantFollowUps.ts`'s `CURATED_FOLLOW_UPS` is the live site).
 
 **Prompt builders** (`lib/server/assistant/prompts.ts`)
 - `system` is byte-identical across users and requests of that mode — **never interpolate per-request data into it**;
-  mode-specific conditionals are written generically and the concrete note lives in `userContent`.
-- **`cache_control` is deliberately NOT used** in the assistant/email call sites: cache writes cost 1.25× and only pay
-  off within the 5-minute TTL, against sporadic single-user traffic.
+  mode-specific conditionals stay generic and the concrete note lives in `userContent`.
+- **`cache_control` is deliberately NOT used** here: cache writes cost 1.25× and only pay off within the 5-minute TTL,
+  against sporadic single-user traffic.
 - Always include `--- ALLOCAZIONE CORRENTE ---` before the movers section, or Claude hallucinates "unclassified" gaps.
   `formatBundleForPrompt` destructures named fields only — a new bundle field is silently missing unless added, and
   `--- CATEGORIE DI SPESA CONFIGURATE ---` is not redundant: it lists what *exists*, unused categories included.
@@ -694,6 +681,9 @@ Companion documents — do not duplicate their content into this file:
   not exist, or is stated in the text the model reads.** Once a block is exhaustive the system prompt must say so, and
   must tell the model that a missing item means *no spending recorded*, not *no data*. `buildEmailAiPrompt` reuses
   `ASSISTANT_SYSTEM_CORE`: extend the shared core, do not duplicate the guardrail text.
+- **`ASSISTANT_SYSTEM_CORE` is shared with `buildEmailAiPrompt`**, so its phrasing about the goals block stays
+  conditional: **check every consumer before extending the core unconditionally**, or a surface starts talking about
+  data it was never given.
 
 **Streaming, threads, memory**
 - `deleteAssistantThread` must delete the `messages` subcollection in ≤400-doc batches first (no cascade in the Admin
@@ -711,62 +701,51 @@ Companion documents — do not duplicate their content into this file:
 - **Merging a partial patch onto existing state: build the merge object with ONLY the fields present in the input**
   (conditional spread), never assign every field unconditionally from a `Partial<T>` — an absent field becomes an
   explicit `undefined` that wins `{...existing, ...patch}` and silently wipes it. `store.ts`'s `mergeMemoryItem`/
-  `mergeMemorySuggestion` are the template; a PATCH carrying only `text` used to erase `sourceThreadId`/
-  `evidenceSummary`/`lastEvaluationResult` this way — confirmed only on the real emulator, a fully-mocked `store.ts`
-  (as in `assistantRoutes.test.ts`) cannot catch it, `__tests__/assistantMemoryStore.test.ts` can.
-- **One `adminDb.runTransaction` per turn, not one write per mutation**: `extractAndSaveMemory` accumulates every new
-  candidate/evaluation/suggestion into an `AssistantMemoryMutation[]` and applies it in one
-  `applyAssistantMemoryMutations` call. A new memory-writing feature there pushes onto that array — never call
-  `updateAssistantMemoryDocument` in a loop again, it also races against the panel's own PATCH.
-- **A field only the GET path can compute (`hasDummySnapshots`, from a `monthly-snapshots` query) must be optional on
-  the base `AssistantMemoryDocument` type**, required only on `AssistantMemoryResponse` — never a hardcoded `false`
-  returned by a write helper that has no way to know the real value.
+  `mergeMemorySuggestion` are the template. A fully-mocked `store.ts` cannot catch this;
+  `__tests__/assistantMemoryStore.test.ts` can.
+- **One `adminDb.runTransaction` per turn, not one write per mutation**: `extractAndSaveMemory` accumulates every
+  candidate/evaluation/suggestion into an `AssistantMemoryMutation[]` applied in one `applyAssistantMemoryMutations`
+  call. A new memory-writing feature pushes onto that array — a loop of `updateAssistantMemoryDocument` also races
+  against the panel's own PATCH.
+- **A field only the GET path can compute (`hasDummySnapshots`) must be optional on the base
+  `AssistantMemoryDocument`**, required only on `AssistantMemoryResponse` — never a hardcoded `false` from a write
+  helper that cannot know the real value.
 
 **Structured goals** (`goalEvaluation.ts` pure, `goalEvaluationService.ts` I/O, `memoryExtraction.ts` extraction)
-- **Structure is NEVER parsed from text.** It arrives from a forced-tool-use Haiku call validated with zod; the
-  Italian regex cascade that preceded it produced `undefined` for most real phrasings, so goals were never evaluated.
-  A malformed payload discards the **structure**, not the goal — an un-trackable goal is a legitimate state the panel
-  states out loud. `unit` is derived from `kind`, never asked of the model.
-- **A tool schema's enum description must speak the UI's vocabulary**, or the model splits one sentence across two
-  kinds: "liquidità" is the product's label for the `cash` class, and until the description said so the same goal
-  landed on `cash_target` or `liquid_net_worth_target` at random.
+- **Structure is NEVER parsed from text.** It arrives from a forced-tool-use Haiku call validated with zod. A malformed
+  payload discards the **structure**, not the goal — an un-trackable goal is a legitimate state the panel states out
+  loud. `unit` is derived from `kind`, never asked of the model.
+- **A tool schema's enum description must speak the UI's vocabulary**, or the model splits one sentence across two kinds
+  (e.g. "liquidità" is the product's label for the `cash` class).
 - **Goals are always evaluated against the CURRENT month**, never the bundle the request happened to build —
-  `evaluateActiveGoals` builds its own. It is called unconditionally after a chat turn (pass the freshly extracted
-  items as `pendingItems` to stay within ONE transaction) and daily from the cron's phase 7.
-- **`updatedAt` on a memory item marks the last CONTENT change** (text, category, structured goal, status), which is
-  why `mergeMemoryItem` restores it when a patch only stamps an evaluation. The durable "Ignora" compares it against
-  the ignored suggestion's `updatedAt`: bump it on every re-evaluation and every ignore expires on the next cron run.
-- **The caller owns `structuredGoal`**: a goal patch that carries none clears it. The PATCH route restructures on
-  creation, on a text edit, or when the goal has none — never on a status-only change — and on failure leaves the goal
+  `evaluateActiveGoals` builds its own. Called unconditionally after a chat turn (pass freshly extracted items as
+  `pendingItems` to stay within ONE transaction) and daily from the cron's phase 7.
+- **`updatedAt` marks the last CONTENT change** (text, category, structured goal, status), which is why
+  `mergeMemoryItem` restores it when a patch only stamps an evaluation. The durable "Ignora" compares against it: bump
+  it on every re-evaluation and every ignore expires on the next cron run.
+- **The caller owns `structuredGoal`**: a goal patch carrying none clears it. The PATCH route restructures on creation,
+  on a text edit, or when the goal has none — never on a status-only change — and on failure leaves the goal
   unstructured rather than keeping a structure that contradicts the new text.
 
 **Goal-Based Investing in the bundle** (`goalMath.ts` + `lib/server/goalData.ts`, prompt section, `GoalProposalCard`)
 - **`bundle.goals` is REQUIRED and nullable**: `null` means the feature is off or the user has no document, and the
-  prompt says so in words. Absent ≠ off ≠ empty — a model cannot tell them apart, and the data-integrity rules then
-  make it answer "N/D" about a feature the user simply does not use. The same reasoning gives the *enabled but no
-  goals* case its own sentence.
+  prompt says so in words. Absent ≠ off ≠ empty — a model cannot tell them apart, and the data rules then make it answer
+  "N/D" about a feature the user simply does not use. *Enabled but no goals* gets its own sentence.
 - **`targetAllocationSource` exists because the app can stop using the manual targets.** With
   `goalDrivenAllocationEnabled` on, Allocazione overrides them with `deriveTargetAllocationFromGoals`; quoting the
-  Settings ones would be right numbers about the wrong thing. `buildGoalFields` derives goals, targets and source in
-  ONE pass for exactly that reason. It falls back to the manual targets when the derivation yields null, mirroring the
-  page.
+  Settings ones would be right numbers about the wrong thing. `buildGoalFields` derives goals, targets and source in ONE
+  pass, falling back to the manual targets when the derivation yields null, mirroring the page.
 - **Carry the trajectory numbers, don't make the model compute them**: `requiredMonthlyContribution` and
-  `projectedValueAtDeadline` were already computed and thrown away, and a model without them multiplies contribution ×
-  months — arithmetic that ignores compounding and that the data rules forbid. They ship with `assumedAnnualReturn`
-  and are labelled **projections**: a required pace without its return assumption cannot be audited. Present only for
-  goals with BOTH a target and a deadline; absent otherwise, never zero.
+  `projectedValueAtDeadline` ship with `assumedAnnualReturn` and are labelled **projections** — a required pace without
+  its return assumption cannot be audited, and a model without them multiplies contribution × months, ignoring
+  compounding. Present only for goals with BOTH a target and a deadline; absent otherwise, never zero.
 - **THE PROPOSAL PROTOCOL: the AI never writes.** It emits ONE fenced ```goal-proposal block of pure JSON; the write
   happens only on the user's Conferma, through `POST /api/goals`. `lib/utils/goalProposal.ts` owns the ONE zod schema
-  for both the block and the route body (client-safe, since the card validates before rendering; `validation.ts`
-  re-exports it). In zod 4 use **`z.partialRecord`** for `recommendedAllocation` — `z.record` with an enum key demands
-  every key and rejects an equity/bonds mix as incomplete.
+  for both the block and the route body (client-safe, since the card validates before rendering). In zod 4 use
+  **`z.partialRecord`** for `recommendedAllocation` — `z.record` with an enum key demands every key.
 - **Intercept the block on `pre`, not on `code`** (a card inside `<pre>` is invalid nesting), and a malformed payload
   MUST fall through to a normal code block — the user still sees what the model wrote. `GoalProposalCard` reads owner,
   demo mode and query client itself because `MARKDOWN_COMPONENTS` has to stay module-level.
-- **`ASSISTANT_SYSTEM_CORE` is shared with `buildEmailAiPrompt`**, which since 2026-08-17 sends the goals block too (it
-  reuses `formatBundleForPrompt`). The conditional phrasing stays ("quando il messaggio contiene un blocco OBIETTIVI DI
-  INVESTIMENTO…") because the core must never promise a block a caller might not send: **check every consumer of the
-  core before extending it unconditionally**, or a surface starts talking about data it was never given.
 
 ### Periodic Emails (`lib/server/monthlyEmailService.ts`, `weeklyBudgetEmailService.ts`)
 - **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
@@ -868,23 +847,19 @@ Companion documents — do not duplicate their content into this file:
   **100%-stacked composition: pre-normalise the rows, do NOT also use `stackOffset="expand"`.**
 - **A composition chart without `stackId` is not a bug you can see.** N `<Area>` elements with no `stackId` all render
   from baseline 0, overpainting each other in declaration order, and the overlapping `fillOpacity` invents colours that
-  appear in no legend — it looks like a busy chart, not like a wrong one. Storico's Composizione shipped this way for
-  months while the Driver bars 250 lines below in the SAME file stacked correctly. **When the card says "composizione",
-  grep the series for `stackId` before reading anything else.**
-- **Normalise a 100% stack over what is actually DRAWN, never over a separately-sourced total.** The two disagree in both
-  directions — series the chart omits leave the stack short, and a clamped subtraction (`Math.max(0, …)`) can push the
-  plotted sum ABOVE the total — and with `domain={[0,100]}` neither is visible as an error. `lib/utils/historyComposition.ts`
-  measures its residual against `max(total, Σ plotted)` so the remainder can never be negative, and names it as a band
-  instead of leaving a gap. *A stack that does not reach 100 reads as missing data, so it must never be how rounding shows.*
+  appear in no legend — it looks like a busy chart, not a wrong one. **When the card says "composizione", grep the
+  series for `stackId` before reading anything else.**
+- **Normalise a 100% stack over what is actually DRAWN, never over a separately-sourced total.** The two disagree in
+  both directions (omitted series leave the stack short; a clamped subtraction can push the plotted sum ABOVE the
+  total), and `domain={[0,100]}` hides either. `historyComposition.ts` measures its residual against
+  `max(total, Σ plotted)` so it can never be negative, and names it as a band instead of leaving a gap. *A stack that
+  does not reach 100 reads as missing data, so it must never be how rounding shows.*
 - **`fontSize` on `<Legend>` is silently dropped.** The legend renders as HTML, `DefaultLegendContentProps` does not
   declare `fontSize`, and it type-checks only because SVG presentation attributes are merged into the props type. Size the
   legend through `wrapperStyle`.
 - **`interval="preserveStartEnd"` centres the last tick ON the plot's right edge**, so half the final label falls outside
   the SVG unless `margin.right` reserves room. A negative `margin.left` clips the `100%` tick to `0%` — a **cropped number
   reads as a wrong number**, which is worse than a missing one.
-- **A number formatted with `toFixed` next to one formatted with `Intl('it-IT')` puts a dot beside a comma** in the same
-  row — and in an `aria-label` it makes a screen reader announce a different figure from the one on screen. Every
-  user-facing number goes through the Italian formatter, `aria-label` text included.
 - **Rolling charts always render**, with an inline empty-state message when data is insufficient, and time-bucketed data
   belongs in a tested pure layer (`cashflowTimeSeries.ts`).
 - Server-cached chart data has colors baked into the React Query cache — **remap at render time for EVERY chart array**.
@@ -971,12 +946,10 @@ Companion documents — do not duplicate their content into this file:
 ### Commands
 - `npm test -- <file>` / `npx vitest run <file>` for targeted tests; **`npx tsc --noEmit` before any PR**, re-run AFTER
   writing the tests, not only after the code.
-- **A slow `await import()` inside a test body reads as flakiness, not as slowness.** A heavy module graph
-  (`app/api/cron/*` is the worked example) is a FIXTURE: imported in a test it charges its one-time cost to whichever
-  case runs first, so under full-suite load that case blows the 5 s default and the failure MOVES with the run order —
-  while every later case passes off the module cache. Hoist it into `beforeAll` with an explicit timeout; check first
-  that nothing is read at module scope (`verifyCronSecret` reads `process.env` at CALL time, so per-test `stubEnv`
-  still decides), otherwise per-test `vi.resetModules()` was load-bearing.
+- **A slow `await import()` inside a test body reads as flakiness, not as slowness.** A heavy module graph is a FIXTURE:
+  imported in a test body it charges its one-time cost to whichever case runs first, so under full-suite load that case
+  blows the 5 s default and the failure MOVES with the run order. Hoist it into `beforeAll` with an explicit timeout —
+  after checking nothing is read at module scope, otherwise per-test `vi.resetModules()` was load-bearing.
 - **Run the suite under `TZ=Europe/Rome` too.** Every date fixture is stamped at noon, twelve hours clear of the DST
   edge, so a whole class of timezone bug is structurally invisible to it — while production dates are **local midnight**
   and the pure layer runs in the user's browser. Compute day-of-year from calendar fields in UTC (`Date.UTC(y,m,d) -
@@ -986,7 +959,7 @@ Companion documents — do not duplicate their content into this file:
 | --- | --- |
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) |
-| Storico | `chartService` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal`, `coastFireView` |
+| Storico | `chartService`, `historyComposition` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal`, `coastFireView` |
 | Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
@@ -996,49 +969,47 @@ Companion documents — do not duplicate their content into this file:
 | Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx` |
 | Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio |
 
-Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allocationUtils` + the three ledger suites.
+Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allocationUtils` + the three ledger suites;
+widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading it.
 
 - `npx knip` uses the root `knip.json`: `components/ui/**` and `public/sw.js` ignored, `firebase-tools` an ignored
   dependency, and `ignoreExportsUsedInFile: true` means remaining EXPORT_ONLY findings are deliberate prop surface.
 - Emulators, Playwright, production-build verification and their environment traps: **SETUP.md → Steps 6-7**.
 
 ### Proving a refactor changed no number
-- **Measure the noise floor BEFORE interpreting a diff.** Anything downstream of a `new Date()` — the Coast backward
-  walk is the worked example — drifts continuously: two dumps of *identical* code differ by 1-2 cents at two minutes
-  and by ~0,25 € at forty. Take two dumps of unchanged code first; whatever they disagree on is not your change.
+- **Measure the noise floor BEFORE interpreting a diff.** Anything downstream of a `new Date()` drifts continuously:
+  two dumps of *identical* code differ by cents at two minutes and by ~0,25 € at forty. Take two dumps of unchanged
+  code first; whatever they disagree on is not your change.
 - **The valid comparison is old-vs-new MINUTES apart**, not before-work-vs-after-work: `git checkout --` the modified
-  files and delete the new ones, dump, then restore from a patch (`git diff > …` + `git apply --include=…`, since a
-  whole-tree patch fails on files you never reverted). A one-hour gap between the two dumps makes pure drift look
-  like a regression.
-- **Compare the SET of rendered values, not the page text** — the redesign moves everything. Extract every euro
-  amount and percentage from both dumps and assert that each old value has a match within the noise floor; new
-  values appearing is the feature, old values disappearing is the bug.
-- **Drive it from a throwaway Playwright spec that opens every collapsible** and samples the chart by hovering at
-  fixed fractions of its width, so figures hidden behind a disclosure and figures that exist only in a tooltip are
-  both in the dump. Delete the spec at the end.
+  files, delete the new ones, dump, then restore from a patch (`git diff > …` + `git apply --include=…`, since a
+  whole-tree patch fails on files you never reverted).
+- **Compare the SET of rendered values, not the page text** — a redesign moves everything. Extract every euro amount and
+  percentage from both dumps and assert each old value has a match within the noise floor; new values appearing is the
+  feature, old values disappearing is the bug.
+- **Drive it from a throwaway Playwright spec that opens every collapsible** and samples charts by hovering at fixed
+  fractions of their width, so figures behind a disclosure and figures that exist only in a tooltip are both captured.
 
 ### Emulator Exercise Scripts
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers the
 rules permitting the writes, real `Timestamp` values surviving `removeUndefinedDeep` and the real atomic transaction.
-- **Write them as `.mts`** — a `.ts` script is CJS under tsx and has no top-level await, and neither does `npx tsx -e`
-  (same failure, and a throwaway one-liner that dies this way leaves you reading the state you meant to change). **Drive the mutations through the
-  app's services** (client SDK, rule-evaluated) and do the script's own reads/fixture edits with the Admin SDK: from an
-  `.mts` file a `doc()` imported there rejects a `db` built here, and sign-in works, which makes it look unrelated.
+- **Write them as `.mts`** — a `.ts` script is CJS under tsx and has no top-level await, and neither does `npx tsx -e`.
+  **Drive the mutations through the app's services** (client SDK, rule-evaluated) and do the script's own reads and
+  fixture edits with the Admin SDK: from an `.mts` file a `doc()` imported there rejects a `db` built here, while
+  sign-in still works, which makes the failure look unrelated.
 - Prefer verifying with **two independent paths**: compute the expected figure in the script from the same real
   snapshots — a same-code-path comparison would be circular.
-- **A 404 from `npm run dev:e2e` on a route that exists is a stale `.next-e2e` cache, not a routing bug** — the same
-  request answers normally from a fresh dist dir (`NEXT_DIST_DIR=.next-throwaway npx next dev -p 3101`). Reach for a new
-  dist dir rather than deleting someone else's, and **keep the `.next-` prefix**, which is what `.gitignore` matches
-  (`/.next-*/`) — a differently-named one leaves its build output as untracked changes. Two more traps on the way out:
-  `next dev` rewrites `tsconfig.json` (it adds the dir to `include`), so check the file out again; and the server keeps
-  writing for a moment after it is stopped, so delete the dist dir **after** confirming the process is gone.
+- **A throwaway fixture must not share document ids with the seed** (`{uid}-{year}-{month}` is the trap): overwriting
+  them means deleting the fixture also deletes the seed's own rows. Re-seed if it happens.
+- **A 404 from `npm run dev:e2e` on a route that exists is a stale `.next-e2e` cache, not a routing bug** — use a fresh
+  dist dir (`NEXT_DIST_DIR=.next-throwaway`) rather than deleting someone else's, and **keep the `.next-` prefix**,
+  which is what `.gitignore` matches. Two traps on the way out: `next dev` rewrites `tsconfig.json`, so check it out
+  again; and the server keeps writing briefly after it is stopped, so delete the dist dir after the process is gone.
 - **Stopping the emulators: export FIRST, then kill.** `--export-on-exit` only runs on a SIGINT delivered to the
-  `firebase` CLI process itself — killing the `scripts/emulators.mjs` wrapper (or any `Stop-Process`, which is all
-  Windows really offers) leaves the children alive or skips the export, and `.emulator-data/` keeps the timestamp it
-  had at startup: the session's data is lost on the next import. The reliable route is the Emulator Hub:
-  `POST http://127.0.0.1:4400/_admin/export` with `{"path": "<abs path>/.emulator-data"}` — **`/_admin/export`, not
-  `/emulators/export`, which 404s** — then terminate. **Verify the directory's timestamp moved before trusting the
-  shutdown**; a 200 from the hub and an unchanged mtime is the failure that looks like success.
+  `firebase` CLI process itself, so killing the wrapper (all Windows really offers) skips the export and
+  `.emulator-data/` keeps its startup timestamp — the session's data is lost on the next import. Use the Emulator Hub:
+  `POST http://127.0.0.1:4400/_admin/export` with `{"path": "<abs>/.emulator-data"}` (**`/_admin/export`, not
+  `/emulators/export`, which 404s**), then terminate. **Verify the directory's timestamp moved**: a 200 with an
+  unchanged mtime is the failure that looks like success.
 
 ### Browser-Driven E2E (Playwright)
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,
@@ -1049,27 +1020,25 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - **`workers: 1`, non-negotiable** — the specs share emulator accounts. **Give the suite its OWN fixture, not another
   script's end state**, with numbers that make the assertion meaningful (dating every Analisi expense to January keeps
   its figures exact whatever month the suite runs in).
-- **A fixture may need to be tuned so the thing under test is on screen at all.** The Coast fixture sets the RITA
-  long-unemployment variant purely because the ordinary rule puts the pension unlock at 62, past the end of a
-  projection that stops at the Coast target of 60 — the step the spec asks the chart to show would fall outside the
-  chart. Choose the fixture from what the assertion must see, and say so in the file.
-- **`e2e/global-setup.ts` runs every seed**, in order: Previdenza → Coast (needs the pension fund to exist) →
-  degraded account → Analisi. A new fixture is an `npm run e2e:seed:*` script plus one `spawnSync` there — and it
-  re-runs on EVERY invocation, so a test that patches Firestore itself must do the patch inside the test, never
-  between two runs.
+- **A fixture may need tuning so the thing under test is on screen at all** — the Coast fixture picks the RITA
+  long-unemployment variant only because the ordinary rule puts the unlock past the end of the projection. Choose the
+  fixture from what the assertion must see, and say so in the file.
+- **`e2e/global-setup.ts` runs every seed**, in order: Previdenza → Coast (needs the pension fund) → degraded → Analisi.
+  A new fixture is an `npm run e2e:seed:*` script plus one `spawnSync` there — and it re-runs on EVERY invocation, so a
+  test that patches Firestore must do the patch inside the test, never between two runs.
 - **Re-seeding an account mid-suite logs it out**: `auth.updateUser(uid, { password })` revokes the refresh tokens and
   invalidates the parked `storageState`. Split the seed — creation once from `global-setup`, data-only per test.
 - **`storageState` does NOT capture IndexedDB unless you ask for it**, and the Firebase session lives there: the file
   looks valid and every spec silently lands on `/login`. Pass `{ path, indexedDB: true }`.
-- **Prove the test can fail before trusting it** — the 1440px assertions were re-run at 1200px, where they must fail.
+- **Prove the test can fail before trusting it** (the 1440px assertions were re-run at 1200px, where they must fail).
 - **`page.addInitScript` runs BEFORE `document.documentElement` exists**: observing it throws, the init script dies on
   that line, and the spec passes because it observed *nothing*. **Observe `document`** with `subtree: true`.
 - **`innerText` applies `text-transform`; `textContent` does not** — a marker taken from an uppercase eyebrow never
   matches `body.innerText`, and a falsification run using such a string stays green. `innerText` also returns `''`
-  for anything not rendered, so a Recharts tooltip read that way is empty even when it is open: use `textContent`.
-- **`boundingBox()` is viewport-relative, so hovering a chart below the fold does nothing.** `page.mouse.move` to a
-  y past the window height silently lands outside it and the tooltip never opens — which reads exactly like "this
-  chart has no tooltip". `scrollIntoViewIfNeeded()` first, then read the box.
+  for anything not rendered, so a Recharts tooltip read that way is empty even when open: use `textContent`.
+- **`boundingBox()` is viewport-relative, so hovering a chart below the fold does nothing** — `page.mouse.move` past the
+  window height lands outside it and the tooltip never opens, which reads exactly like "this chart has no tooltip".
+  `scrollIntoViewIfNeeded()` first, then read the box.
 - **Responsive DOM duplicates make `.first()` a trap** (the DOM-first node is usually the HIDDEN mobile copy) — filter
   with `.filter({ visible: true })`. **A collapsed CSS-grid region is still "visible" to Playwright**: scope through the
   toggle's `aria-controls` id and assert the collapse by measuring height.
@@ -1077,17 +1046,18 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   `"{name}, {value}, {share}%"`. `PageTabBar`'s inactive tabs need a viewport ≥ 1440px to be locatable.
 - **A `fill()` right after `goto(…, { waitUntil: 'domcontentloaded' })` can be silently wiped** by hydration reconciling
   the input back to its initial React state — use `waitUntil: 'load'` and verify with `.inputValue()`.
-- **Two `boundingBox()` calls sample two different FRAMES.** While the vaul drawer slides up, the second element reads as
+- **Drive the dev server on `localhost`, never `127.0.0.1`**: Next blocks cross-origin dev resources from the bare IP,
+  which kills the dev client, leaves the page unhydrated, and makes the login form submit natively — indistinguishable
+  from a wrong password.
+- **Two `boundingBox()` calls sample two different FRAMES.** While a drawer slides up the second element reads as
   *higher* than the first and a one-column layout looks like two. Read every rect a single assertion compares in ONE
   `evaluate()`. Same rule for anything measured during an animation.
 - **The emulator needs Java ≥ 21 and the system JVM here is 15** — prepend the portable Temurin at
-  `%USERPROFILE%\.jdk\jdk-21.0.12+8-jre\bin` to `PATH` for the emulator terminal (SETUP.md → Step 6). Stopping the npm
-  wrapper does **not** kill the JVM: the ports stay taken and the next start fails with "port taken", not with anything
-  naming a stale process.
-- **On the BASE account, FIRE figures depend on the RUN MONTH** (the cashflow fallback annualizes the current year), so
-  a spec there asserts STRUCTURE and FORMAT, never exact amounts — and the euro-format regex must accept ungrouped
-  four-digit amounts: `(\d{1,3}(\.\d{3})+|\d{1,4}),\d{2}`. The grouped-only pattern fails genuinely on "3270,20 €"
-  (CLDR `minimumGroupingDigits = 2`, the same trap as *Italian Localization*).
+  `%USERPROFILE%\.jdk\jdk-21.0.12+8-jre\bin` to `PATH` (SETUP.md → Step 6). Stopping the npm wrapper does **not** kill
+  the JVM: the ports stay taken and the next start fails with "port taken", naming no stale process.
+- **On the BASE account, FIRE figures depend on the RUN MONTH**, so a spec there asserts STRUCTURE and FORMAT, never
+  exact amounts — and the euro-format regex must accept ungrouped four-digit amounts:
+  `(\d{1,3}(\.\d{3})+|\d{1,4}),\d{2}` (CLDR `minimumGroupingDigits = 2`, the *Italian Localization* trap).
 - **A throwaway session spec must match an existing project's `testMatch`** (`*.spec.ts` → `desktop`,
   `*.mobile.spec.ts` → `mobile`), assert against Firestore rather than the page, plant a decoy word that appears nowhere
   in the seed, delete the documents it created, and delete itself.
@@ -1107,6 +1077,9 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - **Knip marks a dead chain's intermediate links "live"** because the orphan still imports them: trace the call graph
   inward, verify each link independently, and delete the whole chain in ONE commit. Likewise **a function that always
   returns `[]` keeps its whole downstream pipeline "live"** — read the function that decides *what* gets captured.
+- **A green mechanical check that has never been seen red is indistinguishable from one asserting nothing** — and that
+  includes the check's own arithmetic: filtering values by magnitude to drop chart-axis ticks also drops a legitimate
+  reading of the same magnitude. Break the thing under test on purpose once.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
