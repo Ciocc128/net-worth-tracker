@@ -103,7 +103,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
     }
   }, [transactions, currentValueEur]);
 
-  // 2-click inline confirm with 3s auto-disarm (the AssetManagementTab delete precedent). The
+  // 2-click inline confirm with 3s auto-disarm (the StrumentiTile delete precedent). The
   // settlement-reversal warning is rendered from the row's own linkedCashAssetId.
   const handleDeleteClick = (transactionId: string) => {
     if (isDemo) return;

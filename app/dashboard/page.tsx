@@ -25,7 +25,6 @@ import { getGreeting } from '@/lib/utils/getGreeting';
 import { SparklinePeriod } from '@/components/dashboard/PeriodSelector';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { ASSET_CLASS_CHART_INDEX } from '@/lib/utils/allocationUtils';
 import { filterSparklineByPeriod } from '@/lib/utils/sparklinePeriod';
 import { buildOverviewVerdict } from '@/lib/utils/overviewNarrative';
@@ -33,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { OverviewVerdict } from '@/components/dashboard/overview/OverviewVerdict';
-import { PatrimonioTile } from '@/components/dashboard/overview/PatrimonioTile';
+import { PatrimonioTile, resolveHeroValueClass } from '@/components/dashboard/overview/PatrimonioTile';
 import { SintesiTile } from '@/components/dashboard/overview/SintesiTile';
 import { CashflowTile } from '@/components/dashboard/overview/CashflowTile';
 import { ComposizioneTile } from '@/components/dashboard/overview/ComposizioneTile';
@@ -138,13 +137,7 @@ export default function DashboardPage() {
   }, [overview, sparklinePeriod]);
 
   // Overflow guard for the hero number: a 7-8 figure total at 44/54px would wrap in the tile.
-  const heroValueClass = useMemo(() => {
-    const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
-    return cn(
-      'font-mono font-bold tracking-[-0.035em] tabular-nums',
-      formattedLength > 13 ? 'text-[32px] desktop:text-[40px]' : 'text-[44px] desktop:text-[54px]',
-    );
-  }, [totalValue]);
+  const heroValueClass = useMemo(() => resolveHeroValueClass(totalValue), [totalValue]);
 
   // Composition remapped by ASSET_CLASS_CHART_INDEX so a class is the same hue as on
   // Allocazione/Storico — a positional remap drifts with object key order.

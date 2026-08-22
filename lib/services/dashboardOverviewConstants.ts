@@ -15,5 +15,7 @@ export const DASHBOARD_OVERVIEW_SUMMARY_COLLECTION = 'dashboardOverviewSummaries
 // Bumped from 6→7: goalProgressList (every in-progress goal, featured order) added; pension funds
 // and real estate measured differently in topMovers/marketEffect.
 // Bumped from 7→8: costDrivers (held instruments by annual TER cost) added for the Costi tile.
-export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 8;
+// Bumped from 8→9: topInstrumentMovers (the per-instrument price effects behind topMovers) added
+// for Patrimonio's verdict and hero footer.
+export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 9;
 export const DASHBOARD_OVERVIEW_SUMMARY_TTL_MS = 5 * 60 * 1000;

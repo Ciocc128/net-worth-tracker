@@ -15,6 +15,16 @@ export interface NarrativeSegment {
 
 export type Narrative = NarrativeSegment[];
 
+/** The tone of a page verdict — colours only the headline's full stop (DESIGN.md → Page Verdict). */
+export type VerdictTone = 'positive' | 'neutral' | 'warning' | 'negative';
+
+/** What every page's `build*Verdict` returns and `PageVerdict` renders. */
+export interface PageVerdictModel {
+  headline: string;
+  tone: VerdictTone;
+  sentence: Narrative;
+}
+
 /** Plain-text rendering, for tests and accessible names. */
 export function narrativeToText(narrative: Narrative): string {
   return narrative.map((segment) => segment.text).join('');
