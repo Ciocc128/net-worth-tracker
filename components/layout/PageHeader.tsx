@@ -12,6 +12,13 @@ interface PageHeaderProps {
    * the tab bar's underline provides the visual separation.
    */
   separator?: boolean;
+  /**
+   * `compact` collapses the desktop header to ONE line — eyebrow · title · description, actions
+   * on the right, no separator — for pages whose real headline lives in the content (the
+   * Panoramica's verdict sentence). The mobile sticky navbar is unchanged: it is already one
+   * block, and its title is what the user anchors to while scrolling.
+   */
+  variant?: 'default' | 'compact';
 }
 
 export function PageHeader({
@@ -21,6 +28,7 @@ export function PageHeader({
   actions,
   className,
   separator = true,
+  variant = 'default',
 }: PageHeaderProps) {
   return (
     <div className={cn(!separator && '-mb-0', className)}>
@@ -44,7 +52,22 @@ export function PageHeader({
         )}
       </div>
 
-      {/* Desktop: original full header */}
+      {variant === 'compact' ? (
+        <div className="hidden desktop:flex items-center justify-between gap-4 min-h-9">
+          <div className="flex items-baseline gap-3 min-w-0">
+            {label && (
+              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground shrink-0">
+                {label}
+              </p>
+            )}
+            <h1 className="text-sm text-muted-foreground truncate">
+              <span className="font-medium text-foreground">{title}</span>
+              {description && <span> · {description}</span>}
+            </h1>
+          </div>
+          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        </div>
+      ) : (
       <div
         className={cn(
           'hidden desktop:block',
@@ -64,6 +87,7 @@ export function PageHeader({
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
       </div>
+      )}
     </div>
   );
 }

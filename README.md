@@ -17,6 +17,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 ## Key Features
 
 ### Portfolio Management
+- **Overview that answers before it counts** — the Panoramica opens with a one-sentence verdict on the month ("Agosto sta andando bene." / "Agosto è in calo, nonostante il mercato."), generated from your data and never claiming what the data can't support, followed by a grid of tiles that each answer one question with a short reading above the figures: net worth with trend and a "Mercato" line (the price effect on what you held — your own buys and sells never count as return), liquidity split, this month's cashflow with an end-of-month spending projection, composition, costs with the instruments that weigh most, up to three goals, spending and income by category, and your largest positions
 - Multi-asset tracking across stocks, ETFs, bonds, crypto, real estate, commodities, pension funds, and cash — added via a guided two-step dialog: pick the asset type first, then fill in only the relevant fields for that type
 - Multi-currency support: assets priced in USD, GBP, CHF, etc. are automatically converted to EUR for all portfolio calculations using live Frankfurter exchange rates; LSE pence (GBp) normalized to GBP automatically
 - Automatic price updates via Yahoo Finance (all assets) and Borsa Italiana (Italian bonds with ISIN)
@@ -34,7 +35,7 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - Current-year historical tables use a hidden previous-month baseline so January can show growth vs the previous December without rendering an extra visible column
 - Asset management table supports column sorting (Valore Totale, G/P%, Peso%, Nome, Classe) and a group-by-class toggle; the ticker shows under each asset's name and the per-asset performance columns (Δ month / YTD / since start) are revealed on demand via an "Andamento" toggle, keeping the default table free of horizontal scroll; every numeric cell is monospaced and all gain/loss colors follow the active theme. On mobile, assets render as cards with a 12-month price sparkline and an inline performance breakdown; the Gestione / Anno Corrente / Storico section switcher uses a segmented pill control so all three sections are visible at a glance
 - Holdings with **no market quote** — cash accounts, real estate, private equity and pension funds, plus anything you've switched off automatic updates for — carry a subtle row (and card) tint, so you can tell at a glance which values you're responsible for keeping up to date. It marks manual pricing, not illiquidity
-- The Patrimonio header mirrors the Overview one: the same total, the same monthly / YTD change badges in equal-width columns, and the same "Nuovo massimo storico" badge when you reach a new peak
+- The Patrimonio header shows the same total, monthly / YTD change badges and "Nuovo massimo storico" badge as the Overview's net-worth tile (the page itself will move to the Overview's verdict-and-tiles layout next)
 
 ### Performance Analytics
 - Comprehensive metrics across 4 sections (Returns, Risk, Context, Dividends) — each section leads with a dominant hero number (TWR, Sharpe, Net Cash Flow, YOC Net) followed by compact secondary rows; metric definitions accessible via inline popovers
@@ -369,12 +370,12 @@ See [LICENSE.md](LICENSE.md) for the full license text.
 
 ## Screenshots
 
-> Screenshots recorded on the live app with anonymized data.
+> Screenshots recorded on the app with anonymized or synthetic data.
 
 ### Dashboard & Portfolio
 
 ![Portfolio overview](docs/screenshots/portfolio-overview.png)
-*Portfolio overview with asset breakdown and allocation*
+*Overview: the month's verdict over a grid of tiles — net worth, liquidity, cashflow, composition, costs, goals*
 
 ![Asset allocation](docs/screenshots/asset-allocation.png)
 *Current vs target asset allocation*

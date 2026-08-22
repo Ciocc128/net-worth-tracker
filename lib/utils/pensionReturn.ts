@@ -137,8 +137,12 @@ function monthKey(year: number, month: number): string {
  * `date` resta la data contabile — è quella che decide l'anno d'imposta e da quando l'utente ha
  * iniziato a registrare (`resolvePensionReturnStart`). Domande diverse, campi diversi.
  * Fallback su `date` per i documenti senza `createdAt`.
+ *
+ * Esportata perché la Panoramica usa la STESSA attribuzione per scorporare i versamenti del mese
+ * dall'effetto mercato dei fondi (`computeTopMovers`): due risposte diverse alla stessa domanda
+ * sarebbero un bug che si vede solo il mese in cui un versamento cade a cavallo dello snapshot.
  */
-function valueEffectMonth(contribution: PensionContribution): string {
+export function valueEffectMonth(contribution: PensionContribution): string {
   const effectDate = contribution.createdAt ?? contribution.date;
   return monthKey(effectDate.getFullYear(), effectDate.getMonth() + 1);
 }

@@ -30,8 +30,8 @@ A single place where an Italian self-directed investor can see their whole finan
 
 Three further behaviours are visible in the product and are *consequences* of that promise rather than the promise itself — recorded so future work does not mistake one for the other:
 
-- refusing to state a number it cannot stand behind (no annualization under six months, `—` instead of volatility with fewer than three monthly returns, an explanation instead of a `0,00%` pension return when the window is idle or suspicious, `Dati dimostrativi` on the landing preview);
-- one-answer information architecture (one dominant number plus a verdict per page, everything else behind a collapsible);
+- refusing to state a number — or a sentence — it cannot stand behind (no annualization under six months, `—` instead of volatility with fewer than three monthly returns, an explanation instead of a `0,00%` pension return when the window is idle or suspicious, `Dati dimostrativi` on the landing preview; a month that fell while the market gained is "in calo, nonostante il mercato", never "il mercato ha pesato"; the Panoramica's market digest measures the price effect on what was held, never the user's own buys and sells, and hides rather than guesses when the previous snapshot has no per-asset breakdown);
+- verdict-first information architecture — since 2026-08-22 the Panoramica opens with one rule-generated sentence that answers "come va?" before any number, over a grid of tiles that each answer one question with a reading line above the figures; the older "one dominant number plus a verdict, detail behind a collapsible" shape survives on the pages not yet propagated (`docs/redesign-prompts.md` is the plan);
 - complete private ownership (AGPL self-hostable, no analytics or telemetry, illiquid and manually-valued assets modelled as first-class).
 
 ## Operating Context
@@ -42,7 +42,7 @@ Three further behaviours are visible in the product and are *consequences* of th
 - Two distinct navigation shells: Sidebar (landscape/desktop) vs BottomNavigation + SecondaryMenuDrawer (portrait has no sidebar), so account-scoped affordances are duplicated in both.
 - The product also reaches the user outside the app: periodic emails (monthly / quarterly / half-yearly / yearly) plus a weekly Sunday budget email.
 - Onboarding is not a guided wizard: per-surface empty states name the single next action ("Aggiungi il tuo primo conto corrente", "Crea il primo centro", "Aggiungi asset per iniziare"). There is no asset or snapshot migration path — only expenses have a CSV importer.
-- Quality is enforced by review, not by pipeline: 87 Vitest files / 1567 tests and 12 Playwright E2E specs exist, but there is **no CI** (`.github` holds only two issue templates).
+- Quality is enforced by review, not by pipeline: 106 Vitest files / 2026 tests and 30 Playwright E2E specs exist (Panoramica, Cashflow/Tracciamento and FIRE still have no permanent E2E of their own), but there is **no CI** (`.github` holds only two issue templates).
 
 ## Capabilities and Constraints
 
@@ -77,11 +77,11 @@ L'app è la Apple dei personal tracker finanziari: non lo strumento più ricco d
 
 Binding anti-references: Bloomberg terminal (too cold and dense), Revolut-style consumer fintech (too light for serious data), Material Design (too generic), and **ostentated complexity** (UI that demonstrates how hard the domain is instead of hiding it behind a calm surface).
 
-**Visual authority lives in `DESIGN.md`, not here.** It is hand-maintained and must never be regenerated; its YAML frontmatter (OKLCH palette, the enumerated 9→54px type ramp) is the normative layer, and `.impeccable/design.json` is only an extensions sidecar. CLAUDE.md's aesthetic summary is a known-incomplete paraphrase — do not treat it as the source.
+**Visual authority lives in `DESIGN.md`, not here.** It is hand-maintained and must never be regenerated; its YAML frontmatter (OKLCH palette, the enumerated 9→54px type ramp) is the normative layer, and `.impeccable/design.json` is only an extensions sidecar. Since 2026-08-22 it documents the "Verdict over Tiles" shape set by the Panoramica and marks the patterns that shape superseded; the app is being propagated onto it page by page, so two generations coexist by design until the plan in `docs/redesign-prompts.md` is done. CLAUDE.md's aesthetic summary is a known-incomplete paraphrase — do not treat it as the source.
 
 ## Evidence on Hand
 
-- **11 anonymized product screenshots** in `docs/screenshots/` dated 2026-06-07 — now stale, and none covers Previdenza, Analisi, Assistente, Storico per-instrument, Goal-Based Investing or Impostazioni.
+- **11 anonymized product screenshots** in `docs/screenshots/` — `portfolio-overview.png` retaken on 2026-08-22 from a synthetic emulator account on the new Panoramica; the other ten date from 2026-06-07, show the previous generation, and none covers Previdenza, Analisi, Assistente, Storico per-instrument, Goal-Based Investing or Impostazioni.
 - **App icons only**: `app/apple-icon.png` and `public/favicon/`. `public/` otherwise contains just the `sw.js` stub.
 - **Two complete production HTML email templates** under `lib/server/`.
 - Developer emulator / E2E seed fixtures (`scripts/seedPensionE2E.mts`) — synthetic data, never to be presented as real.
@@ -101,7 +101,7 @@ The public landing already practises the honest-surface rule this implies: its f
 
 1. **Wrong beats missing — so refuse.** A figure the product cannot stand behind is not shown as a number. Every window, threshold and exclusion is stated on the surface that uses it. A zero is an assertion, and must be distinguishable from an absence.
 2. **Italian by construction, not by translation.** Tax rules, instruments and calendar boundaries are modelled natively. When a generic model and the Italian reality disagree, the Italian reality wins.
-3. **One answer per surface.** Each page resolves to a single dominant number plus a verdict; depth is one interaction away, never in the way.
+3. **The verdict comes first, and it is honest.** Each page opens with a sentence that answers its question ("Agosto sta andando bene."), generated by rules and never claiming what the data cannot support; the numbers follow as tiles that each answer one question; depth is one scroll or one interaction away, never in the way.
 4. **The user owns the whole picture.** Illiquid and manually-valued holdings are first-class, self-hosting is real, and nothing is measured about the user by anyone.
 5. **Scope is a personal instrument.** Features earn their place by serving one household well, not by widening the addressable audience.
 

@@ -16,9 +16,14 @@ import {
 } from '@/types/dashboardOverview';
 import {
   computeAllTimeHigh,
+  computeMarketEffect,
   computeTopMovers,
-  pickFeaturedGoalProgress,
+  rankCostDrivers,
+  rankGoalProgress,
+  type PensionMarketInput,
 } from '@/lib/utils/dashboardOverviewUtils';
+import { resolvePensionReturnStart } from '@/lib/utils/pensionReturn';
+import type { PensionContribution } from '@/types/pension';
 import {
   calculateAnnualPortfolioCost,
   calculateAssetValue,
@@ -107,6 +112,29 @@ async function getSnapshotsForUser(userId: string): Promise<MonthlySnapshot[]> {
   }) as MonthlySnapshot[];
 }
 
+/**
+ * The owner's pension contributions — read only when a pension fund is held, because the digest
+ * needs them to split a fund's growth into contributions and return (see `computeTopMovers`).
+ */
+async function getPensionContributionsForUser(userId: string): Promise<PensionContribution[]> {
+  const snapshot = await adminDb
+    // Literal on purpose: `pensionContributionService` exports the constant but top-level-imports
+    // the CLIENT Firebase SDK (the same trap as goalService — AGENTS.md → Panoramica).
+    .collection('pensionContributions')
+    .where('userId', '==', userId)
+    .get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      date: toDate(data.date),
+      createdAt: data.createdAt ? toDate(data.createdAt) : undefined,
+    };
+  }) as PensionContribution[];
+}
+
 async function getSettingsForUser(userId: string): Promise<AssetAllocationSettings | null> {
   const settingsDoc = await adminDb.collection('assetAllocationTargets').doc(userId).get();
 
@@ -140,6 +168,7 @@ async function getSettingsForUser(userId: string): Promise<AssetAllocationSettin
     defaultCreditCashAssetId: data.defaultCreditCashAssetId,
     stampDutyEnabled: data.stampDutyEnabled,
     stampDutyRate: data.stampDutyRate,
+    pensionReturnStartMonth: data.pensionReturnStartMonth,
     checkingAccountSubCategory: data.checkingAccountSubCategory,
     cashflowHistoryStartYear: data.cashflowHistoryStartYear,
     laborIncomeCategoryIds: data.laborIncomeCategoryIds ?? [],
@@ -287,7 +316,8 @@ function buildLiveOverviewPayload(
   snapshots: MonthlySnapshot[],
   settings: AssetAllocationSettings | null,
   expenseStats: DashboardOverviewExpenseStats | null,
-  goalData: GoalBasedInvestingData | null
+  goalData: GoalBasedInvestingData | null,
+  pensionContributions: PensionContribution[]
 ): Omit<DashboardOverviewPayload, 'freshness'> {
   const { month: currentMonth, year: currentYear } = getItalyMonthYear();
   const currentMonthSnapshot = snapshots.find(
@@ -342,11 +372,18 @@ function buildLiveOverviewPayload(
     currentYear,
     totalValue
   );
-  const topMovers = computeTopMovers(assets, previousSnapshot, totalValue);
-  const goalProgress =
+  const pensionMarketInput: PensionMarketInput = {
+    contributions: pensionContributions,
+    startMonth: resolvePensionReturnStart(pensionContributions, settings?.pensionReturnStartMonth),
+  };
+  const topMovers = computeTopMovers(assets, previousSnapshot, totalValue, pensionMarketInput);
+  const marketEffect = computeMarketEffect(assets, previousSnapshot, pensionMarketInput);
+  const goalProgressList =
     settings?.goalBasedInvestingEnabled && goalData
-      ? pickFeaturedGoalProgress(goalData.goals, goalData.assignments, assets)
-      : null;
+      ? rankGoalProgress(goalData.goals, goalData.assignments, assets)
+      : [];
+  const goalProgress = goalProgressList[0] ?? null;
+  const costDrivers = rankCostDrivers(assets);
 
   // Top assets for the portfolio list card — active assets sorted by value desc, capped at 15.
   const topAssets: DashboardOverviewTopAsset[] = assets
@@ -441,7 +478,10 @@ function buildLiveOverviewPayload(
       isNewATH,
     },
     topMovers,
+    marketEffect,
     goalProgress,
+    goalProgressList,
+    costDrivers,
   };
 }
 
@@ -494,6 +534,10 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
     getSettingsForUser(userId),
     getGoalDataAdmin(userId),
   ]);
+  // Only a holder of a pension fund pays for this read; the digest needs it to tell a fund's
+  // return from its contributions.
+  const holdsPensionFund = assets.some((a) => a.type === 'pensionFund' && a.quantity > 0);
+  const pensionContributions = holdsPensionFund ? await getPensionContributionsForUser(userId) : [];
 
   let expenseStats: DashboardOverviewExpenseStats | null = null;
 
@@ -513,7 +557,8 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
     snapshots,
     settings,
     expenseStats,
-    goalData
+    goalData,
+    pensionContributions
   );
   const now = new Date();
 

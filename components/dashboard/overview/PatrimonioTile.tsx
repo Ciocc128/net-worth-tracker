@@ -1,0 +1,157 @@
+'use client';
+
+import { TrendingDown, TrendingUp, Trophy } from 'lucide-react';
+import type { DashboardOverviewPayload, DashboardOverviewSparklinePoint } from '@/types/dashboardOverview';
+import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { formatPercentage } from '@/lib/services/chartService';
+import { signChipClass, signTextClass } from '@/lib/utils/metricColors';
+import { cn } from '@/lib/utils';
+import { OverviewAnimatedCurrency } from '@/components/dashboard/OverviewAnimatedCurrency';
+import { NetWorthSparkline } from '@/components/dashboard/NetWorthSparkline';
+import { PeriodSelector, type SparklinePeriod } from '@/components/dashboard/PeriodSelector';
+import { OverviewTile, TILE_EYEBROW_CLASS } from './OverviewTile';
+
+interface PatrimonioTileProps {
+  overview: DashboardOverviewPayload;
+  totalValue: number;
+  heroValueClass: string;
+  sparklinePeriod: SparklinePeriod;
+  onSparklinePeriodChange: (period: SparklinePeriod) => void;
+  sparklineDisplay: DashboardOverviewSparklinePoint[];
+  className?: string;
+}
+
+function VariationChip({
+  value,
+  percentage,
+  caption,
+}: {
+  value: number;
+  percentage: number;
+  caption: string;
+}) {
+  const Icon = value >= 0 ? TrendingUp : TrendingDown;
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span
+        className={cn(
+          'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px]',
+          'font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
+          signChipClass(value),
+        )}
+      >
+        <Icon className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />
+        {value >= 0 ? '+' : '−'}
+        {cachedFormatCurrencyEUR(Math.abs(value))} ({percentage >= 0 ? '+' : '−'}
+        {formatPercentage(Math.abs(percentage))})
+      </span>
+      <span className="text-[11px] text-muted-foreground">{caption}</span>
+    </div>
+  );
+}
+
+/**
+ * The dominant tile: net worth, its two variations, the all-time-high chip, the sparkline on
+ * the selected period, and the market digest. Spans two rows on desktop, so the sparkline is
+ * the element that stretches (`flex-1`) — the number and the chips keep their size.
+ */
+export function PatrimonioTile({
+  overview,
+  totalValue,
+  heroValueClass,
+  sparklinePeriod,
+  onSparklinePeriodChange,
+  sparklineDisplay,
+  className,
+}: PatrimonioTileProps) {
+  const hasSparkline = sparklineDisplay.length >= 2;
+  const movers = overview.topMovers ?? [];
+
+  return (
+    <OverviewTile eyebrow="Patrimonio totale lordo" className={className} ariaLabel="Patrimonio">
+      <OverviewAnimatedCurrency
+        value={totalValue}
+        animateOnMount={true}
+        className={cn('mt-2.5 block leading-none', heroValueClass)}
+      />
+
+      {/* Variation chips + record, one grouped row from tablet up, a column on phones. */}
+      {(overview.variations.monthly || overview.variations.yearly || overview.ath?.isNewATH) && (
+        <div className="mt-4 flex flex-col gap-2.5 tablet:flex-row tablet:flex-wrap tablet:items-start tablet:gap-x-2.5 tablet:gap-y-2">
+          {overview.variations.monthly && (
+            <VariationChip
+              value={overview.variations.monthly.value}
+              percentage={overview.variations.monthly.percentage}
+              caption="questo mese"
+            />
+          )}
+          {overview.variations.yearly && (
+            <VariationChip
+              value={overview.variations.yearly.value}
+              percentage={overview.variations.yearly.percentage}
+              caption="da inizio anno"
+            />
+          )}
+          {overview.ath?.isNewATH && (
+            <span className="inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-[9px] bg-positive/10 px-[11px] py-[6px] text-[12px] font-semibold leading-none text-positive">
+              <Trophy className="h-[13px] w-[13px]" aria-hidden="true" />
+              Massimo storico
+            </span>
+          )}
+        </div>
+      )}
+
+      {hasSparkline && (
+        <>
+          <div className="mt-5 flex flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-3">
+            <p className={TILE_EYEBROW_CLASS}>Andamento</p>
+            <div className="w-full tablet:w-[240px]">
+              <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} />
+            </div>
+          </div>
+          {/* Edge-to-edge (the -mx matches the tile padding). The SVG is absolutely positioned
+              so its 100% height resolves against the flex-sized box instead of its own viewBox
+              ratio — an in-flow SVG with height:100% in an auto-height parent grows to
+              width × (viewBox height / width), hundreds of pixels. preserveAspectRatio="none"
+              makes the stretch safe. */}
+          <div className="relative -mx-5 mt-3 min-h-[180px] flex-1 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
+            <NetWorthSparkline data={sparklineDisplay} filled={true} color="var(--chart-1)" height={180} />
+          </div>
+          <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
+            <span>{cachedFormatCurrencyEUR(sparklineDisplay[0].totalNetWorth, true)}</span>
+            <span>{cachedFormatCurrencyEUR(sparklineDisplay[sparklineDisplay.length - 1].totalNetWorth, true)}</span>
+          </div>
+        </>
+      )}
+
+      <div
+        className={cn(
+          'flex flex-col gap-1 border-t border-border pt-3.5 text-[11px] text-muted-foreground',
+          hasSparkline ? 'mt-3.5' : 'mt-auto pt-4',
+        )}
+      >
+        {movers.length > 0 && (
+          <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-[12px]">
+            <span>Mercato:</span>
+            {movers.map((mover, i) => (
+              <span key={mover.assetClass} className="whitespace-nowrap">
+                {i > 0 && <span aria-hidden="true">· </span>}
+                <span className="text-foreground">{mover.label}</span>{' '}
+                <span className={cn('font-mono tabular-nums', signTextClass(mover.delta))}>
+                  {mover.delta >= 0 ? '+' : '−'}
+                  {cachedFormatCurrencyEUR(Math.abs(mover.delta), true)}
+                </span>
+              </span>
+            ))}
+          </p>
+        )}
+        <p className="font-mono tabular-nums">
+          {overview.flags.assetCount === 0
+            ? 'Aggiungi asset per iniziare'
+            : `${overview.flags.assetCount} asset in portafoglio`}
+          {overview.flags.currentMonthSnapshotExists && ' · snapshot del mese presente'}
+        </p>
+      </div>
+    </OverviewTile>
+  );
+}
