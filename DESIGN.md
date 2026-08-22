@@ -36,10 +36,13 @@ typography:
     sub-eyebrow: "9px"          # compact-cell eyebrow (section 3)
     eyebrow: "10px"             # Eyebrow Label above a dominant number
     metadata: "11px"            # tertiary metadata, invisible at a glance
-    delta: "12px"               # Delta Annotation under a KPI value
+    delta: "12px"               # Delta Annotation under a KPI value; Variation Chip inside a tile
     row: "13px"                 # list/composition row text
-    chip: "15px"                # Variation Chip (canonical pattern, section 5)
-    sub-hero: "22px"            # paired secondary values
+    chip: "15px"                # Variation Chip, legacy hero form (Patrimonio); tiles use 12px
+    compact-hero: "18px"        # secondary row value inside a tile that has its own hero
+    sub-hero: "22px"            # paired secondary values, tile KPIs
+    verdict: "24px"             # Verdict Headline, mobile (section 3)
+    verdict-desktop: "30px"     # Verdict Headline, desktop
     hero-step-down: "32px"      # hero overflow guard, mobile (see AGENTS.md)
     section-hero: "36px"        # primary metric of a section or bento card
     hero-step-down-desktop: "40px"  # hero overflow guard, desktop (see AGENTS.md)
@@ -124,6 +127,11 @@ components:
     textColor: "{colors.off-blanc}"
     rounded: "{rounded.xl}"
     padding: "24px"
+  tile-default:
+    backgroundColor: "{colors.charcoal-surface}"
+    textColor: "{colors.off-blanc}"
+    rounded: "{rounded.2xl}"
+    padding: "20px"
   input-default:
     backgroundColor: "transparent"
     textColor: "{colors.off-blanc}"
@@ -159,6 +167,8 @@ Both dark and light modes are primary, equally refined experiences. An Italian i
 
 The five named color themes (Solar Dusk, Elegant Luxury, Midnight Bloom, Cyberpunk, Retro Arcade) are personality layers on top of a structural foundation. They change accent and surface palette without touching the underlying type scale, radius, or component API. The default theme is the instrument in its raw state. The themes are its finishes.
 
+**The 2026-08-22 turn — Verdict over Tiles.** The Panoramica redesign settled the shape every page will take: a *verdict* — one rule-generated sentence that answers the page's question before any number — over a *grid of tiles*, each answering one question with a one-line reading above its figures. Chrome stays what it was (achromatic, 16px cards, flat rows); what changed is the order of reading: words first, then numbers, then detail. Pages are propagated onto this shape one at a time; patterns the Panoramica superseded are marked as such below and stay documented until the last page that uses them is redesigned.
+
 This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness (too dense and impersonal for a personal wealth journal), consumer fintech brightness (Revolut-style gradients and playful fills trivialize serious data), Material Design genericism (component conventions that serve any app therefore serve this one poorly), and **ostentated complexity** (UI that demonstrates how hard the domain is rather than hiding that complexity behind a calm surface).
 
 **Key Characteristics:**
@@ -172,6 +182,9 @@ This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness
 - Chrome reduction is deliberate: flat lists over nested cards, divide-y over borders-on-boxes
 - Mobile-first: layouts are designed at 390px first; desktop adds columns, never simplifies
 - Light and dark modes are equally premium — different materials, same quality standard
+- Verdict first: every page opens with one rule-generated sentence that answers its question before any number is read — the prose is the hero, the figures inside it are mono and sign-coloured
+- One tile, one question: a page is a 12-column grid of tiles, each naming its question (eyebrow), answering it in words (reading line), then showing the figures — no tile repeats another tile's rows
+- Honest narratives: a sentence never claims what the data cannot support; a missing input drops its clause, it never prints a placeholder
 
 ### How this file is read by tooling
 
@@ -243,9 +256,12 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 - **Display — Page Hero** (700 weight, `44px` mobile / `54px` desktop, lh implicit, ls `-0.03em`): The single dominant number on the page — net worth total on Overview. Always `font-mono tabular-nums`. In Tailwind: `text-[44px] font-bold font-mono tracking-[-0.03em] desktop:text-[54px]`. One instance per view maximum.
 - **Display — Section Hero** (700 weight, `36px`, lh 1, ls `-0.03em`): Primary metric in a bento card or section hero block — e.g. TER, Annual Cost, FIRE Number. In Tailwind: `text-[36px] font-bold font-mono tabular-nums tracking-[-0.03em] leading-none`.
 - **Sub-hero Value** (700 weight, `22px`, lh 1, ls `-0.025em`): Secondary metrics that sit below the dominant number or in paired value blocks — e.g. Liquid / Illiquid amounts, Entrate / Spese figures. In Tailwind: `text-[22px] font-bold font-mono tracking-[-0.025em] tabular-nums leading-none`.
+- **Verdict Headline** (Geist Sans, 600 weight, `24px` mobile / `30px` desktop, lh 1.15, ls `-0.025em`): the page's opening sentence — the one place where prose, not a number, is the hero. In Tailwind: `text-[24px] font-semibold leading-[1.15] tracking-[-0.025em] desktop:text-[30px]`. The trailing full stop is a separate span coloured by tone (see **The Verdict-First Rule**). The sentence under it is Body at `14px`/`15px` (`desktop:`), muted, with figures as mono `font-semibold` spans coloured by sign.
+- **Compact Hero** (700 weight, `18px`, lh 1, ls `-0.03em`): the value of a secondary row inside a tile that already has its own hero — the second and third goals under the featured one. In Tailwind: `text-[18px] font-bold font-mono leading-none tracking-[-0.03em] tabular-nums`.
 - **Headline** (600 weight, 1.25rem, lh 1.25, ls -0.01em): Section headers, dialog titles, card-level titles where data density demands authority.
 - **Title** (600 weight, 1rem, lh 1.4, ls -0.005em): Sub-section headers, table group labels, the step below Headline.
 - **Body** (400 weight, 0.875rem, lh 1.6): All prose, descriptions, note content. Max line length 65ch.
+- **Reading Line** (Geist Sans, 400 weight, `13px`, lh 1.45): the one-line answer under a tile's eyebrow, before the figures. Figures inside it are `font-mono font-semibold tabular-nums` and take the sign colour; the prose stays `text-foreground`. Rendered by `NarrativeText` from a `Narrative` (segments with `mono`/`sign`), never assembled in JSX.
 - **Label** (500 weight, 0.75rem, lh 1.4, ls +0.01em): Input labels, tags, stat captions, tab text. Slightly tracked for legibility at small sizes.
 - **Eyebrow Label** (600 weight, `10px`, uppercase, ls `0.1em`, muted): Section eyebrow — the small all-caps label placed above a dominant number. In Tailwind: `text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground`. Never competes with the number it names. Use 9px / `tracking-[0.08em]` for sub-eyebrows inside compact cells. Context can be appended with a centered-dot separator: `Cashflow · MAGGIO 2026` — the `·` joins without adding another label.
 - **Delta Annotation** (Geist Mono, 400 weight, `12px`, ls 0): The small trend line that appears directly below a sub-hero value inside a KPI chip — e.g. `+5.2% vs mese scorso`. Always `font-mono`. Color follows sign semantics via the theme tokens (see **The Sign-Color Token Rule**): `text-positive` for positive, `text-destructive` for negative — never raw `text-green-*`/`text-red-*`. **Inverted semantics for expense metrics**: a positive delta on Spese is bad; parameter the color via `positiveGood: boolean`. In Tailwind: `text-[12px] font-mono mt-1.5 text-positive` (or `text-destructive`); prefer `getMetricValueColor()`. A neutral subline (non-trend) uses `text-[12px] text-muted-foreground mt-1.5`.
@@ -258,6 +274,12 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 **The Ramp Lives in the Frontmatter.** The enumerated step ladder — 9/10/11/12/13/15/22/32/36/40/44/54px — is declared in `typography.scale`, because the named roles above cannot express a ramp. Two consequences. First, the two layers of this file must agree: the prose documented the Trade Republic scale for months while the frontmatter still said `display: clamp(1.75rem, 3vw, 2.5rem)`, which made every documented hero size read as off-system. Second, a linter takes its font sizes **only** from the frontmatter (`typography` + `typography.scale`) — from `.impeccable/design.json` it takes only `colorMeta` and `roundedMeta`. So a `design-system-font-size` finding is never fixed by regenerating the sidecar, whatever the tool's own hint suggests; declare the size here instead. 32px and 40px sit in the ramp because they are genuinely used — they are the hero **overflow step-down** (AGENTS.md → *Panoramica*), not a step to reach for.
 
 **The Two-Font Rule.** The system uses exactly two fonts. No display serif, no decorative typeface, no icon font treated as type. Hierarchy is expressed through scale and weight within the same two families.
+
+**The Verdict-First Rule.** A page opens with a sentence, not a number. The headline states the verdict ("Agosto sta andando bene.", "Agosto è in calo: il mercato ha pesato.") and the sentence under it carries the facts with mono figures set inside the prose; only then comes the grid. The headline is Geist Sans 600 at 24px (30px from `desktop:`), the sentence 14/15px muted, both capped at `max-w-[920px]`. Tone is encoded ONLY in the colour of the headline's full stop (`text-positive` / `text-muted-foreground` / `text-warning-foreground` / `text-destructive`): colouring the whole headline would shout, and the figures already carry their own sign colours. The words come from rules in a pure module (`lib/utils/overviewNarrative.ts` for the Panoramica), never from a component: each phrasing is pinned by a test, and Italian grammar (gender and number of the subject, `a`/`ad` before a vowel month) is data in that module, not guessed at render.
+
+**The Narrative Honesty Rule.** A generated sentence must never claim what the data cannot support. The canonical case: a month whose total fell while the market GAINED is not "il mercato ha pesato" — the cause is the user's own flows, and the headline says "nonostante il mercato". Corollaries: a missing input drops its clause (no prior snapshot → no monthly clause; no income → no savings clause; nothing attributable → no market driver) and never prints "N/D" or a placeholder; a figure that is a projection says so in the words next to it ("al ritmo attuale"); a list titled "per categoria" closes with the residual row ("Altre categorie") so it visibly adds up to the total it is a share of; and a digest labelled as return measures return — `Mercato:` is the price effect on what was held at the start of the period, never the user's buys and sells.
+
+**The Comma Rule.** Every percentage the user reads is formatted for `it-IT` — `+1,01%`, `72,8%` — through chartService's `formatPercentage`, never `toFixed` (which prints `1.01%`, a dot the rest of the screen never uses). Currency comes from `cachedFormatCurrencyEUR`, which puts a no-break space before `€` and leaves four-digit amounts ungrouped (`4120,18 €`): tests flatten the nbsp and expect the real output. Signs are typographic: `+` and the true minus `−` (U+2212), never a hyphen. The `toFixed` chips still on Patrimonio and Rendimenti are legacy to retire page by page.
 
 ## 4. Elevation
 
@@ -278,6 +300,75 @@ Surfaces build depth first through background-value steps (Deep Void → Charcoa
 **The Float Threshold.** The Float shadow is reserved for elements that physically exit the document flow. Using it on an in-flow card creates false depth hierarchy and is an error.
 
 ## 5. Components
+
+### Page Verdict (Verdict-First Pattern)
+
+The opening of every redesigned page: the verdict as a headline, the facts as a sentence, both generated by rules.
+
+**Structure:**
+```
+[headline — text-[24px] desktop:text-[30px] font-semibold leading-[1.15] tracking-[-0.025em], trailing "." in the tone colour]
+[sentence — text-[14px] desktop:text-[15px] leading-[1.6] text-muted-foreground, figures as font-mono font-semibold spans with sign colour]
+```
+`max-w-[920px]`, `gap-2`, rendered by `components/dashboard/overview/OverviewVerdict.tsx` over `buildOverviewVerdict()` (`lib/utils/overviewNarrative.ts`).
+
+**Rules:**
+- The words are a pure function of the payload, tested clause by clause; no component writes copy.
+- Tone colours the full stop only: `positive` / `neutral` / `warning` / `negative` → `text-positive` / `text-muted-foreground` / `text-warning-foreground` / `text-destructive`.
+- A missing input drops its clause; the sentence is never padded (The Narrative Honesty Rule).
+- The page header above it is `PageHeader variant="compact"`: the verdict IS the page title.
+
+### Tile (One Question)
+
+The unit of every redesigned page (`components/dashboard/overview/OverviewTile.tsx`).
+
+**Structure:**
+```tsx
+<section className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
+  <div className="flex items-baseline justify-between gap-3">
+    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{eyebrow}</p>
+    <div className="shrink-0 text-[10px] text-muted-foreground">{aside}</div>
+  </div>
+  <NarrativeText segments={reading} className="mt-2 text-[13px] leading-[1.45] text-foreground" />
+  {/* figures: KPIs at 22px, rows at 13px, 3px bars */}
+  <div className="mt-auto border-t border-border pt-3.5">{/* secondary fact */}</div>
+</section>
+```
+
+**Rules:**
+- Eyebrow = the question; aside = its scope (a period, a count, "stima annua"); reading = the answer in words; figures after. Sub-labels inside the tile use the 9px sub-eyebrow.
+- `p-5` (20px) and `gap-3` (12px) between tiles — tighter than the 22/16 of the previous bento; tiles are many and small.
+- The dominant tile (net worth) spans two rows and lets its chart stretch (`relative flex-1 min-h-[180px]` with the SVG `absolute inset-0`); numbers and chips keep their size.
+- No tile repeats another tile's rows (The One-Tile-One-Question Rule).
+
+### Tile Grid (12-Column Bento)
+
+```tsx
+<div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+  <div className="flex min-w-0 [&>section]:flex-1 tablet:col-span-2 desktop:col-span-5 desktop:row-span-2">…</div>
+  <div className="flex min-w-0 [&>section]:flex-1 order-2 desktop:order-none desktop:col-span-3">…</div>
+  …
+</div>
+```
+Page root `mx-auto w-full max-w-[1920px] space-y-4`. Spans on the Panoramica: Patrimonio 5 (2 rows) · Sintesi 3 · Cashflow 4 / Composizione 3 · Costi 2 · Obiettivi 2 / Spese 4 · Entrate 3 · Asset principali 5. A tile that may be absent (Costi, Obiettivi) hands its columns to its neighbour, or a hidden spacer closes the row. See **The Tile Grid Rule**.
+
+### Compact Page Header
+
+`PageHeader variant="compact"`: on `desktop:` one line — eyebrow (`text-xs uppercase tracking-widest`) · title (`text-sm font-medium`) · description (`text-sm text-muted-foreground`, joined with `·`) — actions right, `min-h-9`, no separator. Below `desktop:` the sticky navbar is unchanged (title 17px, description under it). Use it wherever the page's real headline is its verdict.
+
+### Market Digest Line
+
+The footer line of the net-worth tile: `Mercato:` followed by every asset class whose market price moved, largest effect first, as `{label} {±€}` pairs in a `flex flex-wrap gap-x-2` row (`·` between pairs, pairs `whitespace-nowrap` so a class never splits across lines). It measures return — the price effect on what was held at the start of the period — never the user's flows; pension funds get their own `Previdenza` entry (value net of the month's contributions); real estate is measured gross of debt. Hidden when nothing can be attributed, never shown as zeros.
+
+### Ranked Rows with Residual
+
+`components/dashboard/overview/RankedRows.tsx` — the CompositionList idea inside a tile: label · 3px bar (width = rank, the largest row fills the track) · mono amount · share. When the rows are a subset of a stated total, the list closes with a muted residual row (`Altre categorie`, no bar) so the shares visibly sum to 100% (The Narrative Honesty Rule). Bar colour is a chart slot (`var(--chart-1)` expenses, `var(--chart-2)` income), never a hex.
+
+**The One-Tile-One-Question Rule.** A tile answers exactly one question, and its anatomy is fixed: eyebrow (the question, 10px uppercase), optional aside (scope or period, 10px muted, right), reading line (the answer in words, 13px/1.45 with mono figures), then the figures, and optionally a footer pinned to the bottom with `mt-auto` + `border-t` for the secondary fact. Two rows that say the same thing never appear in two tiles — when "Spese per categoria" exists, the Cashflow tile shows the month's pace and last month's figure instead of the same top-3. The shell is one component (`OverviewTile`): the app's card (`bg-card`, 1px `border-border`, 16px radius, Lift shadow, 20px padding) as a naked `section` so the tile owns its flex column. Inside a tile, chrome stays flat: `divide-y` rows, 3px bars, no sub-cards.
+
+**The Tile Grid Rule.** Pages are laid out on a 12-column grid with explicit spans (`grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-12`, `gap-3`), the dominant tile spanning two rows (`desktop:col-span-5 desktop:row-span-2`), and the page root at `max-w-[1920px]` — a bento uses width, and at 1600px a 27" monitor left a third of the main area empty. Every grid cell wraps its tile in `flex min-w-0 [&>section]:flex-1` so tiles stretch to their row and `mt-auto` footers align across a row. Below `desktop:` the grid collapses and the reading order is set explicitly with `order-*` (the month's cashflow before the wealth split on a phone). Scrolling is allowed by design: density is a feature, "everything in one screen" is not a rule — the third row lives below the fold at 1440×900.
+
+**The Grouped Chip Rule.** Inside a tile, same-purpose chips (monthly change, yearly change, record) sit in ONE grouped row from `tablet:` up — `flex flex-wrap items-start gap-x-2.5 gap-y-2`, each chip `w-fit whitespace-nowrap` with its caption under it — and stack in a column on phones. This supersedes the Equal-Column Chip Rule for hero tiles: equal grid columns made two chips sit a tile-width apart, which read as two unrelated facts. The equal-column grid remains correct for full-width chip rows outside a tile.
 
 ### Buttons
 
@@ -300,7 +391,7 @@ Cards organize data panels, KPI groups, and chart containers. Structural, not de
 - **Background:** `--card` (dark: Charcoal Surface `oklch(0.205 0 0)`; light: Near-White `oklch(1 0 0)`).
 - **Shadow Strategy:** Lift shadow (`0 1px 3px rgba(0,0,0,0.1)`). Always present; always quiet.
 - **Border:** 1px, `--border` (Border Ghost dark; Border Stone light). The border carries most of the compositional separation work.
-- **Internal Padding:** `p-[22px]` (22px) for primary hero cards and featured content cards. `p-5` (20px) for compact bento cells and chart containers. The older `p-6` (24px) is only acceptable in dialogs or settings forms. The difference is intentional: 22px feels tighter and more "instrument-like" than 24px at data density.
+- **Internal Padding:** `p-5` (20px) for tiles (the unit of every redesigned page) and chart containers. `p-[22px]` (22px) for the legacy hero cards still on the un-propagated pages. The older `p-6` (24px) is only acceptable in dialogs or settings forms. The difference is intentional: 22px feels tighter and more "instrument-like" than 24px at data density.
 
 #### Bento Cell (Naked Card Variant)
 
@@ -339,6 +430,8 @@ This is preferred over `<Card><CardContent>` when the cell needs explicit flex d
 The animated currency counter in Overview KPI cards is the system's most distinctive interactive element. Count-up animation is isolated to the leaf `<span>` containing the value, preventing surrounding layout reflow. `Intl.NumberFormat` results are cached via `cachedFormatCurrencyEUR` to prevent allocation on every render frame. Mounting is deferred through `requestIdleCallback`: the hero section settles first, charts mount after. Numbers land — they count from a prior value, never from zero.
 
 ### Variation Chips (Canonical Pattern)
+
+**Superseded for tiles (2026-08-22).** Inside a tile the chips are `text-[12px]` with `px-[11px] py-[6px]`, each with an 11px caption under it ("questo mese", "da inizio anno"), grouped in one row from `tablet:` up — see **The Grouped Chip Rule**. The 15px grid-of-equal-columns form below survives on Patrimonio until that page is propagated.
 
 Periodic changes (monthly, YTD) are displayed as compact inline chips directly below the hero number — not as separate cards. This keeps the primary number dominant while giving immediate trend context.
 
@@ -438,6 +531,8 @@ Used for compact period selectors (e.g. YTD / 1A / 3A / 5A / MAX on Rendimenti) 
 - Desktop (`≥ 1440px`): `PageTabBar` renders the animated underline tab bar instead. The segmented pill is mobile-only (`desktop:hidden`).
 
 ### Bento Asymmetric Hero Layout
+
+**Superseded (2026-08-22).** The Panoramica no longer uses the `[2fr_1fr]` hero + companion; it uses the **Tile Grid** above, where the dominant tile spans 5 of 12 columns and two rows. The pattern below stays documented because Rendimenti, Allocazione and FIRE still use it; redesign them onto the Tile Grid, do not add new `[2fr_1fr]` pages.
 
 The canonical top-of-page layout when a hero card needs a companion context card (e.g. Overview: Net Worth + Liquidity, Performance: TWR + period selector).
 
@@ -729,6 +824,8 @@ The color swatch used in composition bar / chart legend rows. At 8×8px, shape m
 
 ### Deferred Chart Mount (Performance Pattern)
 
+**Scope note (2026-08-22).** The Panoramica no longer needs this: its composition is a `CompositionBar` (div segments) and its sparkline a hand-written SVG, neither heavy enough to compete with the count-up. The pattern remains correct for pages that mount Recharts after a hero count-up.
+
 When heavy SVG charts (Recharts, custom SVG) would compete with a count-up animation on the same page, defer their mount until the animation completes.
 
 **Implementation:**
@@ -758,6 +855,13 @@ useEffect(() => {
 
 ### Do:
 
+- **Do** open every redesigned page with a verdict sentence before any number (The Verdict-First Rule). The question changes per page — "come va il mese?" on the Panoramica, "quanto rende?" on Rendimenti — the shape does not: headline with a tone-coloured full stop, then the facts with mono figures in the prose.
+- **Do** give every tile a reading line — the answer in words, 13px, above the figures — and keep each tile to one question (The One-Tile-One-Question Rule). If two tiles would show the same rows, one of them is the wrong tile.
+- **Do** close a ranked list with its residual ("Altre categorie · 912 € · 21%") whenever the rows are a share of a stated total. A list that does not add up reads as missing data.
+- **Do** put a projection next to its reference and name it as a projection ("Al ritmo attuale ~6.161 €" beside "A luglio 4.109 €"). Extrapolate spending only — a salary lands once, so a linear projection of income is nonsense.
+- **Do** stretch an edge-to-edge chart with the SVG positioned `absolute inset-0` inside a `relative flex-1 min-h-[…]` box (`preserveAspectRatio="none"`). An in-flow `<svg>` with `height: 100%` in an auto-height parent takes its height from its own viewBox ratio — hundreds of pixels — and explodes the grid row.
+- **Do** use `PageHeader variant="compact"` on pages whose headline lives in the content: eyebrow · title · description on one line, actions right, no separator. The mobile sticky navbar is unchanged.
+- **Do** give an explicit width to controls with no intrinsic one (`PeriodSelector` is `flex-1` buttons) when they sit in a flex row, or the labels collapse into one word.
 - **Do** derive every visual choice from function — form follows function. Before adding any property (a color, a shadow, a radius, a motion, an extra pixel of size), name the job it does. If the only answer is "it looks nice," remove it. Form is the consequence of function, never its costume.
 - **Do** use Geist Mono with `font-feature-settings: "tnum" 1` for every monetary value, percentage, and structured date. Column alignment is a trust signal.
 - **Do** reference `--sidebar-primary` for active navigation states. In the default theme this is the only sanctioned non-achromatic color in the interface chrome.
@@ -771,17 +875,22 @@ useEffect(() => {
 - **Do** isolate count-up animations in leaf components (`OverviewAnimatedCurrency`), not in the page component. Each rAF tick re-renders only the leaf, keeping the rest of the tree stable.
 - **Do** use `useAnimation + useEffect([])` (empty deps) for "animate once on mount" ring charts. This prevents the ring from restarting whenever a parent component re-renders due to unrelated state changes.
 - **Do** use `-mx-[N]px` negative margin (matching the card padding) to create edge-to-edge charts inside a card — `preserveAspectRatio="none"` on the SVG fills the broken-out container correctly.
-- **Do** use `desktop:grid-cols-[2fr_1fr]` for the primary hero+companion layout at the top of a page. The asymmetric ratio communicates hierarchy through space, not just typography.
+- **Do** use the 12-column Tile Grid for a redesigned page (dominant tile `desktop:col-span-5 desktop:row-span-2`). `desktop:grid-cols-[2fr_1fr]` is the legacy hero+companion layout of the pages not yet propagated.
 - **Do** use `border-t border-border/40 pt-4` for section separators within a page scroll flow. The 40% opacity is lighter than structural borders — it suggests chapter, not division.
 - **Do** use `bg-muted/40 rounded-xl p-3.5` (no border) for KPI chip grids inside persistent, always-visible sections. Reserve the full-opacity `bg-muted` with `border border-border` for parameter tiles in collapsible zones.
 - **Do** use `mt-auto` inside `flex flex-col h-full` CardContent to pin optional secondary content to the card bottom. The pattern requires `h-full` on both Card and CardContent; without both, `mt-auto` has no space to push against.
 - **Do** use `rounded-[2px]` for chart legend color swatches (color keys). Use `rounded-full` for inline dot indicators (row bullets, status dots). The distinction is semantic: square = color key, circle = inline marker.
-- **Do** lay out a row of same-purpose, different-length chips as a grid (`grid grid-cols-1 gap-2 tablet:grid-cols-2`), not `flex-wrap`, so every chip shares the same column width without any JS measurement — see **The Equal-Column Chip Rule**. Applied to the variation chips on the Panoramica and Patrimonio heroes, which are declared to mirror each other.
+- **Do** lay out a row of same-purpose, different-length chips as a grid (`grid grid-cols-1 gap-2 tablet:grid-cols-2`), not `flex-wrap`, so every chip shares the same column width without any JS measurement — see **The Equal-Column Chip Rule**. Full-width chip rows only: inside a tile the chips are grouped (**The Grouped Chip Rule**), as on the Panoramica since 2026-08-22; Patrimonio still carries the grid form.
 - **Do** duplicate responsive blocks with `desktop:hidden` / `hidden desktop:grid` when the same data must be positioned differently across breakpoints (e.g. TER + cost metrics in the hero card footer on desktop, as standalone cards below the hero on mobile). Redundant DOM is preferable to a convoluted single implementation that degrades at both sizes.
 - **Do** use inverted sign semantics (parameterized `positiveGood: boolean`) for expense delta annotations. A positive Spese delta means spending increased — the color should be `text-destructive`, opposite to the income logic. Never hardcode positive-as-green (raw `text-green-*`) in components that handle both income and expense metrics; use the `text-positive` / `text-destructive` tokens so the sign colors follow the theme.
 
 ### Don't:
 
+- **Don't** let a generated sentence blame or credit something the data does not show (The Narrative Honesty Rule). A falling month with a positive market effect is "nonostante il mercato", never "il mercato ha pesato"; a missing input drops its clause rather than printing a placeholder.
+- **Don't** repeat a tile's rows in another tile. The Cashflow tile lost its top-3 categories the moment "Spese per categoria" existed.
+- **Don't** colour a whole verdict headline by tone. The full stop carries the tone; the figures carry their signs; the words stay `text-foreground`.
+- **Don't** format a percentage with `toFixed` in user-facing copy — the dot decimal is not Italian (The Comma Rule).
+- **Don't** pin a page to "no scroll". Density is the goal; a third row below the fold is fine, a tile squeezed until its numbers wrap is not.
 - **Don't** shape an element for appearance alone. A larger number, a heavier shadow, a brighter accent, or an extra animation that exists "to look good" violates form-follows-function. If a property carries no function, it is decoration — cut it. And never fake what isn't there: no false depth, no invented material, no shadow hierarchy a surface hasn't earned (the honesty corollary).
 - **Don't** add brand color to the default theme's surface chrome (backgrounds, cards, buttons). Zero-chroma is the rule: color belongs to data, not decoration.
 - **Don't** model density after a Bloomberg terminal. Dense presentation serves the user; illegibility or emotional coldness does not.
