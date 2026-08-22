@@ -1,5 +1,9 @@
 ## ✨ New Features
 
+- Redesigned the Patrimonio page in the same shape as the Overview. It now opens with a one-sentence verdict on your portfolio — "Il portafoglio cresce." / "Il portafoglio è in calo: il mercato ha pesato." / "Il portafoglio è al massimo storico." — followed by the facts in words (value, change over last month, how many instruments and accounts you hold, and which single instrument moved the most this month), then a grid of tiles: net worth with trend and a per-instrument market digest, your cash accounts one per row, this month's buys and sells from the operations register, the asset-class mix, your unrealized gain with the best and worst positions, and the instruments table.
+- Added a "Movimenti del mese" tile on Patrimonio: what you bought and sold this month through the operations register, the five most recent trades (with a "Mostra tutte" link that expands the whole month in place), and the net money that went in; each row opens that instrument's movements.
+- Added a "Rendimento" tile on Patrimonio: your total unrealized gain over the cost basis, the three best positions and the worst one by return over PMC.
+- The Patrimonio header now tells you when prices were last refreshed ("prezzi aggiornati oggi alle 09:12"), with the "Aggiorna prezzi" and "Aggiungi asset" actions beside it.
 - Redesigned the app frame around the new Overview. The sidebar lost its filled logo block and the violet "Assistente AI" banner — the assistant is now a plain entry after the planning routes — its section labels use the same small uppercase label as the tiles, and the account block at the bottom is quieter (initials on the sidebar's own grey, no bright square). Collapsed to icons, every target is now 44px, so a touch-screen laptop can hit them.
 - Page headers on the redesigned pages are now a single line — section · title · date — so the verdict is the first thing you read. Cashflow, FIRE e Simulazioni and Impostazioni use it too, with their section tabs sitting directly under it; the old two-line header stays on the pages not yet redesigned.
 - The "Altro" menu on the phone now lists "Analisi" and "Pianificazione" with the same labels as the desktop sidebar (the first group used to be called "Statistiche" only there), shows the assistant as a row, and its account options button is a proper 44px touch target.
@@ -72,6 +76,8 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed the Δ Mese / Δ YTD / Δ Inizio columns on Patrimonio (behind "Andamento") for assets whose price you keep by hand: they measured the position's total value, so every purchase showed up as performance — a crypto ETP bought several times over read "+573% Δ Mese". A Δ is now always the change of the unit price in EUR; real estate is measured gross of any mortgage (paying an instalment is not appreciation), and pension funds and cash accounts show "—" because they have no unit price to measure.
+- The class chip in the Patrimonio table now says "Azioni", "Obbligazioni", "Criptovalute" like the rest of the app instead of "Equity", "Bonds", "Crypto".
 - The section tabs on Cashflow, FIRE e Simulazioni and Impostazioni now have an accessible name below 1440px: the inactive tabs are icon-only there and screen readers announced them as unnamed buttons.
 - The Overview's loading placeholder now has the same width as the page, so the layout no longer shifts sideways on wide monitors when the data lands.
 - Fixed the Overview "driven by" summary describing your own buys and sells instead of market performance: selling cash to buy crypto used to read "Liquidità −14.110 · Criptovalute +11.869". It now measures only the price change on what you already held at the start of the month, so moving money between classes no longer shows up as a gain or a loss. The line now lists every asset class that moved (not just two), a mortgage instalment no longer reads as your home appreciating, and a pension fund counts only what it actually earned net of the contributions you registered that month. It stays silent for months whose previous snapshot has no per-asset breakdown rather than guessing.
@@ -166,6 +172,10 @@
 
 ## 🔧 Improvements
 
+- On the phone, the Patrimonio instruments are now a flat list of rows that expand in place on the details, the price trend, the three Δ windows and the actions (all 44px tall, with "Elimina" taking the whole row when it is alone), instead of one card per asset.
+- Percentages on Patrimonio (weight, G/P, TER, Δ) now use the Italian comma decimal everywhere; the old hero block with its "Patrimonio liquidabile netto" card and the "Impatto fiscale" rows is gone from the page — those figures live in the Overview's "Sintesi" tile.
+- The "Peso" column on Patrimonio is now measured over your whole portfolio, cash accounts included, like the class and liquidity shares on the same page.
+- The capital-gains calculator (the calculator icon on a position) was restyled on the app's type scale — numbers in the numeric face, theme colours instead of fixed greens and blues — with the same arithmetic.
 - The Overview now uses up to 1920px of width on large monitors instead of stopping at 1600px, so a 27" screen no longer shows a third of the page empty.
 - Percentages on the Overview are now formatted the Italian way (`+1,01%`), matching the rest of the app.
 - The "Previdenza" band on Storico is now calculated from data recorded at the time, not reconstructed afterwards. Each monthly snapshot stores how the fund was split across asset classes that month, so re-balancing your fund today no longer changes what past months look like, and the parts of the chart add up to your patrimonio exactly. Months recorded before this change still use your fund's current split — the note on the chart now tells you from which month the figure is measured rather than estimated.
@@ -252,6 +262,7 @@
 
 ## 📚 Documentation
 
+- DESIGN.md documents the first propagated page: "Table inside a Tile" (the Patrimonio instruments table with the tile's cadence), the Page Verdict primitive in `components/ui`, and the rule that a Δ is a unit-price variation; AGENTS.md gained a *Patrimonio* section.
 - DESIGN.md now documents the "Verdict over Tiles" shape set by the redesigned Overview (Page Verdict, Tile, Tile Grid, the honesty rules for generated sentences) and marks the patterns it supersedes; `.impeccable/design.json` and PRODUCT.md are aligned.
 - Added `docs/redesign-prompts.md`: one ready-to-use prompt per app section (navigation, every page and tab, login/register, landing, dialogs, states, email/PDF) to propagate the new style page by page, with a suggested model/effort and a screenshot rule.
 - Refreshed `docs/screenshots/portfolio-overview.png` on the new Overview (synthetic data).

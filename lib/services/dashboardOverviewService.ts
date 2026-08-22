@@ -17,6 +17,7 @@ import {
 import {
   computeAllTimeHigh,
   computeMarketEffect,
+  computeTopInstrumentMovers,
   computeTopMovers,
   rankCostDrivers,
   rankGoalProgress,
@@ -64,7 +65,7 @@ interface StoredDashboardOverviewSummary {
 }
 
 function normalizeDate(value: unknown): Date {
-  return toDate(value as any);
+  return toDate(value as Parameters<typeof toDate>[0]);
 }
 
 function getMonthDateRangeInItaly(year: number, month: number) {
@@ -378,6 +379,7 @@ function buildLiveOverviewPayload(
   };
   const topMovers = computeTopMovers(assets, previousSnapshot, totalValue, pensionMarketInput);
   const marketEffect = computeMarketEffect(assets, previousSnapshot, pensionMarketInput);
+  const topInstrumentMovers = computeTopInstrumentMovers(assets, previousSnapshot, totalValue, pensionMarketInput);
   const goalProgressList =
     settings?.goalBasedInvestingEnabled && goalData
       ? rankGoalProgress(goalData.goals, goalData.assignments, assets)
@@ -479,6 +481,7 @@ function buildLiveOverviewPayload(
     },
     topMovers,
     marketEffect,
+    topInstrumentMovers,
     goalProgress,
     goalProgressList,
     costDrivers,

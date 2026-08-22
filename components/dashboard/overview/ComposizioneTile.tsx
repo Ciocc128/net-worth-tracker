@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import type { PieChartData } from '@/types/assets';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -10,18 +11,22 @@ import { OverviewTile } from './OverviewTile';
 interface ComposizioneTileProps {
   /** Asset-class distribution with colours already remapped through ASSET_CLASS_CHART_INDEX. */
   data: PieChartData[];
+  /** The tile's question as its eyebrow — "Composizione" on the Panoramica, "Classi" on Patrimonio. */
+  eyebrow?: string;
+  /** Optional secondary fact pinned to the bottom (Patrimonio links to Allocazione here). */
+  footer?: ReactNode;
   className?: string;
 }
 
 /** "Dove sono i soldi?" — one stacked bar and a flat legend with value and share per class. */
-export function ComposizioneTile({ data, className }: ComposizioneTileProps) {
+export function ComposizioneTile({ data, eyebrow = 'Composizione', footer, className }: ComposizioneTileProps) {
   const classes = data
     .filter((d) => d.percentage > 0)
     .map((d) => ({ assetClass: d.assetClass ?? d.name, percentage: d.percentage }));
 
   return (
     <OverviewTile
-      eyebrow="Composizione"
+      eyebrow={eyebrow}
       aside="per asset class"
       reading={describeComposition(classes)}
       className={className}
@@ -63,6 +68,7 @@ export function ComposizioneTile({ data, className }: ComposizioneTileProps) {
           </div>
         </>
       )}
+      {footer && <div className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">{footer}</div>}
     </OverviewTile>
   );
 }

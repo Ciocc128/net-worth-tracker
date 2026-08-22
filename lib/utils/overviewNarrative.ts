@@ -17,14 +17,12 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 
-import type { Narrative, NarrativeSegment } from '@/lib/utils/narrative';
+import type { Narrative, NarrativeSegment, VerdictTone } from '@/lib/utils/narrative';
 
 // The segment shape and its plain-text rendering live in `narrative.ts` so every page's
 // narrative module shares them; re-exported here for the Panoramica's existing importers.
-export type { Narrative } from '@/lib/utils/narrative';
+export type { Narrative, VerdictTone } from '@/lib/utils/narrative';
 export { narrativeToText } from '@/lib/utils/narrative';
-
-export type VerdictTone = 'positive' | 'neutral' | 'warning' | 'negative';
 
 export interface OverviewVerdictInput {
   /** Current calendar month, 1-12. */

@@ -425,7 +425,7 @@ interface AssetDialogProps {
   asset?: Asset | null;
   /**
    * Opens the TransactionDialog for a ledger asset from the edit-mode read-only summary block
-   * ("Registra operazione"). Only wired where a TransactionDialog host exists (AssetManagementTab).
+   * ("Registra operazione"). Only wired where a TransactionDialog host exists (the Patrimonio page).
    */
   onRegisterTrade?: (asset: Asset) => void;
 }

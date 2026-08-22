@@ -34,6 +34,7 @@ vi.mock('firebase/firestore', () => ({
 import {
   computeAllTimeHigh,
   computeMarketEffect,
+  computeTopInstrumentMovers,
   computeTopMovers,
   pickFeaturedGoalProgress,
   rankCostDrivers,
@@ -357,6 +358,117 @@ describe('computeMarketEffect', () => {
     });
     // crypto −1.000 + equity +500 + cash 0
     expect(computeMarketEffect(assets, previous)).toBe(-500);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeTopInstrumentMovers — the same price effect, per instrument (Patrimonio)
+// ---------------------------------------------------------------------------
+
+describe('computeTopInstrumentMovers', () => {
+  it('should return nothing when the previous snapshot has no per-asset breakdown', () => {
+    expect(computeTopInstrumentMovers([makeAsset()], null, 1000)).toEqual([]);
+    expect(computeTopInstrumentMovers([makeAsset()], makeSnapshot({ byAsset: [] }), 1000)).toEqual([]);
+    expect(computeTopInstrumentMovers([makeAsset()], makeSnapshot(), 0)).toEqual([]);
+  });
+
+  it('should list each instrument by its own price effect, largest absolute first, flows excluded', () => {
+    const assets = [
+      makeAsset({ id: 'eq', name: 'Vanguard All-World', quantity: 10, currentPrice: 150 }), // +500
+      makeAsset({ id: 'bd', name: 'Global Aggregate', assetClass: 'bonds', quantity: 10, currentPrice: 90 }), // −100
+      makeAsset({ id: 'btc', name: 'Bitcoin', assetClass: 'crypto', quantity: 1, currentPrice: 28000 }), // 0,5 held: −1000
+      makeAsset({ id: 'ca', name: 'Conto', type: 'cash', assetClass: 'cash', quantity: 500, currentPrice: 1 }), // 0
+    ];
+    const previous = makeSnapshot({
+      byAsset: [
+        makeSnapshotAsset({ assetId: 'eq', quantity: 10, totalValue: 1000 }),
+        makeSnapshotAsset({ assetId: 'bd', quantity: 10, totalValue: 1000 }),
+        makeSnapshotAsset({ assetId: 'btc', quantity: 0.5, totalValue: 15000 }),
+        makeSnapshotAsset({ assetId: 'ca', quantity: 500, totalValue: 500 }),
+      ],
+    });
+
+    expect(computeTopInstrumentMovers(assets, previous, 31400)).toEqual([
+      { id: 'btc', name: 'Bitcoin', delta: -1000 },
+      { id: 'eq', name: 'Vanguard All-World', delta: 500 },
+      { id: 'bd', name: 'Global Aggregate', delta: -100 },
+    ]);
+  });
+
+  it('should add up to the class digest: one instrument is never split by its composition', () => {
+    const fund = makeAsset({
+      id: 'fund',
+      name: 'Fondo Cometa',
+      type: 'pensionFund',
+      composition: [
+        { assetClass: 'equity', percentage: 60 },
+        { assetClass: 'bonds', percentage: 40 },
+      ],
+      quantity: 28941,
+      currentPrice: 1,
+    });
+    const previous = makeSnapshot({
+      year: 2026,
+      month: 7,
+      byAsset: [makeSnapshotAsset({ assetId: 'fund', quantity: 29106, price: 1, totalValue: 29106 })],
+    });
+    const pension = {
+      contributions: [
+        {
+          id: 'c1',
+          userId: 'u1',
+          assetId: 'fund',
+          source: 'tfr' as const,
+          amount: 500,
+          date: new Date(2026, 6, 30, 12),
+          taxYear: 2026,
+          deductible: false,
+          createdAt: new Date(2026, 7, 10, 12),
+        },
+      ],
+      startMonth: '2026-07',
+    };
+
+    const instruments = computeTopInstrumentMovers([fund], previous, 28941, pension);
+    const classes = computeTopMovers([fund], previous, 28941, pension);
+
+    expect(instruments).toEqual([{ id: 'fund', name: 'Fondo Cometa', delta: -665 }]);
+    expect(instruments.reduce((sum, m) => sum + m.delta, 0)).toBe(classes.reduce((sum, m) => sum + m.delta, 0));
+  });
+
+  it('should measure real estate gross of debt and drop effects under 1 € as noise', () => {
+    const assets = [
+      makeAsset({ id: 'home', name: 'Casa', type: 'realestate', assetClass: 'realestate', quantity: 1, currentPrice: 205000, outstandingDebt: 140000 }),
+      makeAsset({ id: 'eq', name: 'ETF', quantity: 10, currentPrice: 100.05 }),
+    ];
+    const previous = makeSnapshot({
+      byAsset: [
+        makeSnapshotAsset({ assetId: 'home', quantity: 1, price: 200000, totalValue: 59000 }),
+        makeSnapshotAsset({ assetId: 'eq', quantity: 10, totalValue: 1000 }),
+      ],
+    });
+    expect(computeTopInstrumentMovers(assets, previous, 66000)).toEqual([{ id: 'home', name: 'Casa', delta: 5000 }]);
+  });
+
+  it('should measure a REIT ETF in the real-estate class on its EUR unit, not on its native quote', () => {
+    // The gross-of-debt path is for the hand-valued property (type realestate, the only shape with a
+    // debt); a USD REIT fund that merely sits in the class keeps the EUR attribution like any ETF.
+    const reit = makeAsset({ id: 'reit', name: 'US REIT', type: 'etf', assetClass: 'realestate', currency: 'USD', quantity: 10, currentPrice: 100, currentPriceEur: 92 });
+    const previous = makeSnapshot({ byAsset: [makeSnapshotAsset({ assetId: 'reit', quantity: 10, price: 100, totalValue: 920 })] });
+    expect(computeTopInstrumentMovers([reit], previous, 920)).toEqual([]);
+    expect(computeMarketEffect([reit], previous)).toBe(0);
+  });
+
+  it('should cap the list at ten instruments so the payload stays small', () => {
+    const assets = Array.from({ length: 14 }, (_, i) =>
+      makeAsset({ id: `a${i}`, name: `Asset ${i}`, quantity: 10, currentPrice: 100 + (i + 1) }),
+    );
+    const previous = makeSnapshot({
+      byAsset: assets.map((a) => makeSnapshotAsset({ assetId: a.id, quantity: 10, totalValue: 1000 })),
+    });
+    const movers = computeTopInstrumentMovers(assets, previous, 14000);
+    expect(movers).toHaveLength(10);
+    expect(movers[0]).toEqual({ id: 'a13', name: 'Asset 13', delta: 140 });
   });
 });
 

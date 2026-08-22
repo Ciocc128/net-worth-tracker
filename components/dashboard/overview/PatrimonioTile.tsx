@@ -9,7 +9,27 @@ import { cn } from '@/lib/utils';
 import { OverviewAnimatedCurrency } from '@/components/dashboard/OverviewAnimatedCurrency';
 import { NetWorthSparkline } from '@/components/dashboard/NetWorthSparkline';
 import { PeriodSelector, type SparklinePeriod } from '@/components/dashboard/PeriodSelector';
-import { OverviewTile, TILE_EYEBROW_CLASS } from './OverviewTile';
+import { OverviewTile, TILE_SUB_EYEBROW_CLASS } from './OverviewTile';
+
+/**
+ * The hero number's size class. A 7-8 figure total at 44/54px would wrap inside the tile, so
+ * the step-down keys off the formatted string's length (the tile's width does not vary; the
+ * string does) — AGENTS.md → Panoramica.
+ */
+export function resolveHeroValueClass(totalValue: number): string {
+  const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
+  return cn(
+    'font-mono font-bold tracking-[-0.035em] tabular-nums',
+    formattedLength > 13 ? 'text-[32px] desktop:text-[40px]' : 'text-[44px] desktop:text-[54px]',
+  );
+}
+
+/** One entry of the "Mercato:" digest — a class on the Panoramica, an instrument on Patrimonio. */
+export interface MarketDigestEntry {
+  key: string;
+  label: string;
+  delta: number;
+}
 
 interface PatrimonioTileProps {
   overview: DashboardOverviewPayload;
@@ -18,6 +38,13 @@ interface PatrimonioTileProps {
   sparklinePeriod: SparklinePeriod;
   onSparklinePeriodChange: (period: SparklinePeriod) => void;
   sparklineDisplay: DashboardOverviewSparklinePoint[];
+  /**
+   * The "Mercato:" digest. Defaults to the payload's per-class movers (the Panoramica);
+   * Patrimonio passes its top instruments instead, so the two pages never print the same line.
+   */
+  movers?: MarketDigestEntry[];
+  /** The muted count line under the digest; defaults to "N asset in portafoglio". */
+  countLine?: string;
   className?: string;
 }
 
@@ -62,10 +89,13 @@ export function PatrimonioTile({
   sparklinePeriod,
   onSparklinePeriodChange,
   sparklineDisplay,
+  movers: moversProp,
+  countLine,
   className,
 }: PatrimonioTileProps) {
   const hasSparkline = sparklineDisplay.length >= 2;
-  const movers = overview.topMovers ?? [];
+  const movers: MarketDigestEntry[] =
+    moversProp ?? (overview.topMovers ?? []).map((m) => ({ key: m.assetClass, label: m.label, delta: m.delta }));
 
   return (
     <OverviewTile eyebrow="Patrimonio totale lordo" className={className} ariaLabel="Patrimonio">
@@ -104,7 +134,7 @@ export function PatrimonioTile({
       {hasSparkline && (
         <>
           <div className="mt-5 flex flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-3">
-            <p className={TILE_EYEBROW_CLASS}>Andamento</p>
+            <p className={TILE_SUB_EYEBROW_CLASS}>Andamento</p>
             <div className="w-full tablet:w-[240px]">
               <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} />
             </div>
@@ -134,7 +164,7 @@ export function PatrimonioTile({
           <p className="flex flex-wrap gap-x-2 gap-y-0.5 text-[12px]">
             <span>Mercato:</span>
             {movers.map((mover, i) => (
-              <span key={mover.assetClass} className="whitespace-nowrap">
+              <span key={mover.key} className="whitespace-nowrap">
                 {i > 0 && <span aria-hidden="true">· </span>}
                 <span className="text-foreground">{mover.label}</span>{' '}
                 <span className={cn('font-mono tabular-nums', signTextClass(mover.delta))}>
@@ -146,9 +176,10 @@ export function PatrimonioTile({
           </p>
         )}
         <p className="font-mono tabular-nums">
-          {overview.flags.assetCount === 0
-            ? 'Aggiungi asset per iniziare'
-            : `${overview.flags.assetCount} asset in portafoglio`}
+          {countLine ??
+            (overview.flags.assetCount === 0
+              ? 'Aggiungi asset per iniziare'
+              : `${overview.flags.assetCount} asset in portafoglio`)}
           {overview.flags.currentMonthSnapshotExists && ' · snapshot del mese presente'}
         </p>
       </div>

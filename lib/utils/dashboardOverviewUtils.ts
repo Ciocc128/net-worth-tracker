@@ -12,6 +12,7 @@ import { GoalAssetAssignment, GoalPriority, InvestmentGoal } from '@/types/goals
 import {
   DashboardOverviewCostDriver,
   DashboardOverviewGoalProgress,
+  DashboardOverviewInstrumentMover,
   DashboardOverviewMover,
 } from '@/types/dashboardOverview';
 import { calculateAssetValue } from '@/lib/services/assetService';
@@ -70,8 +71,10 @@ function computePriceEffectsByAsset(
   const rawPreviousByAsset = previousSnapshot?.byAsset ?? [];
   if (rawPreviousByAsset.length === 0 || !previousSnapshot) return null;
 
+  // The hand-valued property, by TYPE: a REIT ETF in the realestate class is a quoted fund whose
+  // snapshot `price` is a native-currency quote, so it keeps the EUR attribution like any ETF.
   const realEstateIds = new Set(
-    assets.filter((asset) => asset.assetClass === 'realestate').map((asset) => asset.id)
+    assets.filter((asset) => asset.type === 'realestate').map((asset) => asset.id)
   );
   const previousByAsset = rawPreviousByAsset.map((row) =>
     realEstateIds.has(row.assetId) ? { ...row, totalValue: row.quantity * row.price } : row
@@ -161,6 +164,39 @@ export function computeTopMovers(
   }
 
   return movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+}
+
+/** Patrimonio's verdict needs one driver and its hero footer three; ten keeps the payload small. */
+const MAX_INSTRUMENT_MOVERS = 10;
+
+/**
+ * The instruments behind `computeTopMovers`, each by its OWN price effect, largest absolute
+ * first — Patrimonio names the top one in its verdict ("Vanguard ha fatto il grosso") and lists
+ * the first three under its hero. Same attribution, same pension and real-estate rules, same
+ * €1 noise floor; an instrument is never split by its `composition`, so the sum over this list
+ * equals the sum over the class digest. Returns [] under the same conditions as
+ * `computeTopMovers`.
+ */
+export function computeTopInstrumentMovers(
+  assets: Asset[],
+  previousSnapshot: MonthlySnapshot | null,
+  totalValue: number,
+  pension?: PensionMarketInput
+): DashboardOverviewInstrumentMover[] {
+  if (totalValue <= 0) return [];
+  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension);
+  if (!effects) return [];
+
+  const movers: DashboardOverviewInstrumentMover[] = [];
+  for (const asset of assets) {
+    const delta = effects.get(asset.id);
+    if (delta === undefined || Math.abs(delta) < 1) continue;
+    movers.push({ id: asset.id, name: asset.name, delta });
+  }
+
+  return movers
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, MAX_INSTRUMENT_MOVERS);
 }
 
 /**

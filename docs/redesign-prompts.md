@@ -121,7 +121,9 @@ nuovo a meno che non te lo chieda.
 
 ## 01 · Patrimonio
 
-**Superfici**: `app/dashboard/assets/page.tsx`, `components/assets/{AssetCard,AssetManagementTab,AssetSparkline,AssetDialog,TransactionDialog,AssetMovementsDialog,TaxCalculatorModal}.tsx`.
+**Superfici**: `app/dashboard/assets/page.tsx`, `components/assets/{StrumentiTile,AssetRow,CashAccountDialog,AssetSparkline,AssetDialog,TransactionDialog,AssetMovementsDialog,TaxCalculatorModal}.tsx`, `components/assets/tiles/*`.
+
+**Stato**: ✅ fatto il 2026-08-22 (`feature/patrimonio-redesign`) — slot di riga 2 = «Rendimento»; Movimenti mostra 5 righe con «Mostra tutte» (non 3); in più la correzione del motore Δ (`assetPerformanceDeltas.ts`). Il prompt resta come riferimento di metodo.
 
 **Modello/effort**: Fable 5 · ultracode — ledger, prezzi manuali, effetto prezzo per strumento, invalidazioni doppie.
 
