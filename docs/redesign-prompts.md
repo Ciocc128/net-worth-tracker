@@ -29,6 +29,8 @@ visiva da giudicare → il canvas conta più del modello.
 
 ## 00 · Shell e navigazione
 
+**Fatto il 2026-08-22** (branch `feature/shell-redesign`): compact default + `legacy`, tab sotto l'header con `aria-label`, `PageContainer width="wide"`, sidebar/rail/drawer, `TileGridSkeleton`, primitive in `components/ui/`. Le sezioni successive trovano già le primitive lì: importare `Tile`/`NarrativeText`/`RankedRows` da `components/ui/`, non dalla Panoramica.
+
 **Superfici**: `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,AssistenteBanner,LogoutDialog}.tsx`, `components/ui/sidebar.tsx`, `app/dashboard/layout.tsx`, `lib/constants/navigation.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — tocca ogni pagina, poche regole ma zero margine per regressioni (verifica a tre viewport).

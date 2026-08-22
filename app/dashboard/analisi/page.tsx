@@ -87,6 +87,7 @@ export default function AnalisiPage() {
   return (
     <PageContainer>
       <PageHeader
+        variant="legacy"
         label="Analisi"
         title="Analisi Cashflow"
         description="Distribuzione delle spese, pattern e trend nel tempo"

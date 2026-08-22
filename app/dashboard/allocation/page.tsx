@@ -292,6 +292,7 @@ export default function AllocationPage() {
   return (
     <PageContainer className="space-y-4 sm:space-y-6">
       <PageHeader
+        variant="legacy"
         label="Analisi composizione"
         title="Allocazione Asset"
         description="Confronta l'allocazione corrente con i tuoi obiettivi"

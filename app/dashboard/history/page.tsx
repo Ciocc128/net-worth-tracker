@@ -450,6 +450,7 @@ export default function HistoryPage() {
   return (
     <PageContainer>
       <PageHeader
+        variant="legacy"
         label="Patrimonio"
         title="Storico"
         description="Analizza l'evoluzione del tuo patrimonio (lordo) nel tempo"
