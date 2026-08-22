@@ -9,10 +9,13 @@
  * - Reduces initial page load time, improves perceived performance
  *
  * TAB STRUCTURE:
- * - Tracking: Current year's transactions and charts
- * - Current Year: Current year analysis
- * - Total History: All-time cashflow analysis
- * - Dividends: Dividend tracking
+ * - Tracking: verdict + tile grid over the period's movements (ExpenseTrackingTab)
+ * - Dividends: dividend tracking
+ * - Budget: opt-in budget
+ * - Cost centers: optional 6th tab (settings.costCentersEnabled)
+ *
+ * The root is the 1920px tile-page width (`PageContainer width="wide"`): Tracciamento is a
+ * 12-column bento, and a bento uses width.
  *
  * WHY LAZY LOADING:
  * Each tab makes separate API calls and renders heavy charts.
@@ -29,7 +32,6 @@ import { ArrowRightLeft, Coins, Target, Layers, Plus, Settings } from 'lucide-re
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { cn } from '@/lib/utils';
 import { TabsContent } from '@/components/ui/tabs';
 import { ExpenseTrackingTab } from '@/components/cashflow/ExpenseTrackingTab';
 import { DividendTrackingTab } from '@/components/dividends/DividendTrackingTab';
@@ -206,7 +208,7 @@ export default function CashflowPage() {
     : CASHFLOW_TABS_BASE;
 
   return (
-    <PageContainer>
+    <PageContainer width="wide">
       <PageHeader
         label="Operatività"
         title="Cashflow"

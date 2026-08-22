@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
 import { Asset, AssetAllocationSettings, MonthlySnapshot } from '@/types/assets';
 import { Expense, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { splitSpendingAtDate } from '@/lib/utils/tracciamentoSummary';
 import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import { GoalBasedInvestingData } from '@/types/goals';
 import { getGoalDataAdmin } from '@/lib/server/goalData';
@@ -284,13 +285,20 @@ function buildTopCategories(
 
 function buildExpenseStats(
   currentExpenses: Expense[],
-  previousExpenses: Expense[]
+  previousExpenses: Expense[],
+  now: Date
 ): DashboardOverviewExpenseStats {
   const current = summarizeExpenses(currentExpenses);
   const previous = summarizeExpenses(previousExpenses);
 
-  // Expose only the plain totals on currentMonth/previousMonth (no Maps on the wire).
-  const currentMonth = { income: current.income, expenses: current.expenses, net: current.net };
+  // Expose only the plain totals on currentMonth/previousMonth (no Maps on the wire). The
+  // scheduled share lets the Panoramica project the month the way Tracciamento does.
+  const currentMonth = {
+    income: current.income,
+    expenses: current.expenses,
+    net: current.net,
+    expensesScheduled: splitSpendingAtDate(currentExpenses, now).scheduled,
+  };
   const previousMonth = { income: previous.income, expenses: previous.expenses, net: previous.net };
 
   return {
@@ -460,18 +468,16 @@ function buildLiveOverviewPayload(
       currentMonthSnapshotExists: !!currentMonthSnapshot,
     },
     topAssets,
-    // Up to 40 historical snapshots + current live value for the hero sparkline.
-    // 40 covers the 3A period selector (36 months) plus a baseline point.
+    // EVERY historical snapshot + the current live value for the hero sparkline, so «All»
+    // is all (a 40-point cap used to start the line at the 41st-last month and call it All).
+    // Each point is tiny ({month, year, totalNetWorth}): a decade of months is ~5 KB.
     // The current-month snapshot (if it exists) is excluded because totalValue
     // already reflects the live state and avoids duplicating the last point.
     // Appending totalValue ensures the line always ends at today's actual net worth,
     // not at the previous month's snapshot (which would lag by weeks mid-month).
-    // Each point is tiny ({month, year, totalNetWorth}) so expanding from 11→40 is
-    // negligible on payload size.
     sparklineData: [
       ...snapshots
         .filter((s) => !(s.year === currentYear && s.month === currentMonth))
-        .slice(-40)
         .map((s) => ({ month: s.month, year: s.year, totalNetWorth: s.totalNetWorth })),
       { month: currentMonth, year: currentYear, totalNetWorth: totalValue },
     ],
@@ -550,7 +556,7 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
       getExpensesForMonth(userId, previousYear, previousMonth),
     ]);
 
-    expenseStats = buildExpenseStats(currentMonthExpenses, previousMonthExpenses);
+    expenseStats = buildExpenseStats(currentMonthExpenses, previousMonthExpenses, new Date());
   } catch (error) {
     console.warn('[dashboardOverviewService] Failed to compute expense stats, falling back to null:', error);
   }

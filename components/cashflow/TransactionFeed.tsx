@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { EmptyState, FilterEmptyIcon } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
+import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
 import { getExpenseDate } from '@/lib/utils/expenseHelpers';
@@ -47,7 +48,7 @@ const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
 
 // Module-level component required by the React Compiler — getLazyIcon calls React.lazy()
 // which must never be called inside a render function (it would reset the component each
-// render). Mirrors CategoryBreakdownList's CategoryIconBadge.
+// render).
 function TransactionDetailIcon({
   iconName,
   color,
@@ -373,9 +374,7 @@ export function TransactionFeed({
         <div key={group.label ?? idx}>
           {/* Date group header */}
           {group.label !== null && (
-            <p className="text-muted-foreground/60 mb-2 pl-1 text-[11px] font-medium tracking-widest uppercase">
-              {group.label}
-            </p>
+            <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mb-2 pl-1 font-mono tabular-nums')}>{group.label}</p>
           )}
 
           {/* All rows for this date. On mobile a standalone card; on desktop flat rows,
@@ -409,7 +408,7 @@ export function TransactionFeed({
           <Button variant="outline" size="sm" onClick={onLoadMore}>
             Carica altri {Math.min(20, totalCount - showCount)}
           </Button>
-          <p className="text-muted-foreground mt-2 text-xs">
+          <p className="text-muted-foreground mt-2 font-mono text-xs tabular-nums">
             {showCount} di {totalCount} voci
           </p>
         </div>

@@ -81,6 +81,12 @@ export interface DashboardOverviewExpenseStats {
     income: number;
     expenses: number;
     net: number;
+    /**
+     * The part of `expenses` dated after the payload was computed (instalments and
+     * recurring rows of the rest of the month): the month-end projection adds it as it is
+     * instead of scaling it by the days left. Absent on payloads older than source v10.
+     */
+    expensesScheduled?: number;
   };
   previousMonth: {
     income: number;

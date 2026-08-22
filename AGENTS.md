@@ -78,7 +78,8 @@ Companion documents — do not duplicate their content into this file:
 - **Sign colors are tokens: `text-positive`/`text-destructive`**, chips `bg-positive/10`, resolved via
   `getMetricValueColor()`. Two gotchas: **drop `dark:` variants** (the token swaps itself) and the function returns
   neutral for the `currency` format by design — signed currency uses `signChipClass`/`signTextClass`. Legacy
-  `text-emerald-*` survives in `ExpenseTrackingTab`, `MobileExpenseRow`, `CashflowKpiCarousel`.
+  `text-emerald-*` survives in `ExpenseTable`, the dividend dialogs/table and `budgetProgressStyle` (the Tracciamento
+  feed retired its own on 2026-08-22).
 - **Sign tokens mean gain and loss, and nothing else.** A neutral delta — a class gaining share of a composition — must
   stay `text-muted-foreground`: colouring it asserts a verdict the surface has no target to justify.
 - **`--warning` is near-white in light mode**, so text on a `bg-warning` fill MUST be `text-warning-foreground`;
@@ -311,12 +312,74 @@ Companion documents — do not duplicate their content into this file:
   that has not started**. **Honesty rule**: `prevYearValue` is `number | null` — a baseline month below the history
   floor is UNKNOWABLE, not zero, and renders as a gap.
 
-### Cashflow KPIs and Tracciamento
-- *Risparmio Netto* (€) and *Rapporto* (`income/|expenses|`) encode the same relationship in different units and are kept
-  separate **on purpose** — do not "deduplicate".
+### Cashflow › Tracciamento (`components/cashflow/ExpenseTrackingTab.tsx`, `components/cashflow/tiles/*`)
+- **ONE period axis, two slices.** `expenses` = `filterExpensesByPeriod(allExpenses, period)` feeds the verdict and
+  every tile; `filteredExpenses` = `applyListFilters(expenses, …)` feeds ONLY the Movimenti list (its aside says
+  «12 di 47 voci» while narrowed, its reading counts the filtered rows). Before the redesign the toolbar also
+  narrowed the KPIs — a savings rate computed over «Alimentari» is not a savings rate. Never route a tile through
+  `filteredExpenses`.
+- **Every number is born in `lib/utils/tracciamentoSummary.ts`** (`summarizePeriodCashflow`, `previousPeriod`,
+  `computePeriodDelta`, `resolveAnchorMonth`/`resolveFlowWindow`, `buildTrailingMonthFlows`,
+  `summarizeSavingsHistory`, `rankCategories`, `summarizeMovements`, `resolvePeriodCalendar`), every sentence in
+  `cashflowNarrative.ts` (`buildCashflowVerdict`, `describePeriodSubject`, the `describe*` readings). Classification
+  is by `type`; spending is a magnitude (`Math.abs`, the `calculateTotalExpenses` convention) and income a signed
+  sum, so a refund raises the category and a reversed salary lowers income.
+- **The previous period is honest or absent**: month → previous month; a closed year → the previous year; **a year
+  still running → the SAME months of the previous year** (`previousPeriod(period, now)` returns a custom Jan 1 → end
+  of the anchor month window, named «su gen–ago 2025» — eight months against twelve read as a drop by construction,
+  which is what the old tab's `null` avoided); custom range → `null`. With a null predecessor every delta, the «su
+  luglio» clause and the «vs luglio» captions disappear. A zero base is `null`, never `0%`, and a delta is judged
+  on the PRINTED figure (`printedDelta`: 0,04% is «invariate»). The same year-to-date rule clips the period slice
+  itself (`filterExpensesByPeriod(…, now)` stops an ongoing year at the end of today's month): recurring series are
+  materialised as future-dated rows, and a verdict on «il 2026» must not count December's mortgage in August.
+- **The month-end projection** exists only when the period IS the current Italian month (`resolvePeriodCalendar`)
+  and extrapolates only what is booked up to today (`splitSpendingAtDate`): a row dated after today is added as it
+  is, never scaled by the days left. The Panoramica's CashflowTile applies the SAME split through the payload's
+  `currentMonth.expensesScheduled` (`DASHBOARD_OVERVIEW_SOURCE_VERSION` 10; absent → 0 on older cached payloads),
+  so the two pages print one projection — the 2026-08-22 mismatch (6164 vs 5734) was exactly this rule applied on
+  one page only.
+- **Month windows are anchored** (`resolveAnchorMonth`): a month on itself, a year on today's month when current (the
+  future is not data) and on December when past, a custom range on the month of its last day. The hero's bars take
+  the trailing 6 (a year takes its own months from January), the savings history the trailing 12; both series are
+  gap-free and bucketed by `getItalyYear`/`getItalyMonth`, while the period slice uses `periodToRange` (local time) —
+  the same split `cashflowTimeSeries.ts` already lives with. **The running month is drawn but never ranked**
+  (`summarizeSavingsHistory(months, now)` → `ongoing`/`closedCount`): its salary is in and its spending is not, so it
+  would be «il mese migliore» by construction; the reading says «su 11 mesi chiusi». A window is called «ultimi N
+  mesi» only when it ends today (`describeMonthWindow`/`describeFlowWindow`), else it is named by its bounds.
+- **Italian tense is data**: `describePeriodSubject` returns `ongoing` (the current month/year, a custom range whose
+  `to` is today or later) and the headline conjugates on it («sta andando bene» / «è andato bene», «tiene» / «ha
+  tenuto»); the article before the savings rate follows the figure AS PRINTED (`articleForPercent(rate, 0)`, now
+  exported from `patrimonioNarrative.ts` with `ofThePercent`). Tones: ≥ 20% positive, 0–20 neutral, a deficit or
+  spending without income negative, no movement neutral.
+- *Risparmio* (€) and *Rapporto* (`income/expenses`, printed «1,67×» through `formatNumber`) encode the same
+  relationship in different units and are kept together **on purpose** — do not "deduplicate".
 - **Feed delete = drawer-confirm, not 2-click**, and `deleteSingleExpense` MUST branch on `type === 'transfer'` to call
-  `reconcileTransferDelete` (both legs), like `ExpenseTable` does. `expenseStats === null` (no data) ≠ `0`: empty state
-  for null, `€0,00` only for a confirmed zero.
+  `reconcileTransferDelete` (both legs), like `ExpenseTable` does. The feed keeps `surface="flat"` on every width (a
+  card per day inside the Movimenti tile would be a card inside a card); `ExpenseTable` is desktop-only, so with the
+  «Tabella» view selected the tile renders the table `hidden desktop:block` and the feed `desktop:hidden`.
+- **Two pieces of state are derived, not reset**: the feed's visible window is stored WITH the filter key it was
+  opened under (`feedWindow`, falls back to the first page when the key changes) and the account filter is read
+  through `effectiveAccountId` (an account absent from the period is no filter) — both were `setState` in an
+  effect. `filteredExpenses` is deliberately NOT wrapped in `useMemo`: the compiler could not preserve it and the
+  skip un-memoized the whole component.
+- **`CategoryTile` takes an optional `reading`** (the Panoramica passes none): the rows keep the overview payload's
+  shape (`category`, `categoryKey`, `amount`, `percentage`) so `rankCategories` feeds the same component, and the
+  residual row appears only when categories were cut.
+- **Below `desktop:` the period stays under the verdict and the filters move INTO the Movimenti tile**
+  (`MobileFiltersDrawer showPeriod={false}` in the tile's `mobileToolbar` slot): the drawer narrows that list, and
+  four tiles away from it the badge read as unrelated. «Ripristina» (desktop toolbar and drawer alike) resets the list
+  filters and the sort, **never the period** — the axis belongs to the picker — and `hasActiveFilters` no longer
+  counts a non-current month as a filter. The landscape «Aggiungi» button lives beside the period
+  (`max-desktop:portrait:hidden`): in portrait the bottom-nav FAB (`cashflow:add-expense`) is the only add
+  affordance, in landscape the FAB is gone.
+- **Hover readings are one primitive** (`components/ui/chart-hover.tsx`): `useChartHover(count, 'slot' | 'nearest')`
+  returns `enabled` (`(pointer: fine)` via `useMediaQuery`), the index and the pointer handlers; spread the handlers on
+  the `relative` plot box only when `enabled`, so a touch device never mounts the overlay. The tip is HTML, never an
+  SVG element — a `preserveAspectRatio="none"` plot would stretch it — and `NetWorthSparkline`'s overlay is
+  `absolute inset-0` against the CALLER's positioned box (the hero's), which is why `interactive` requires one.
+- **Asides, footers and chart sub-eyebrows are `Narrative`s, not strings** (`describeMovementsCount`,
+  `describeDeficitMonths`, `describeMonthWindow`, `describeFlowWindow`) rendered through `NarrativeText`, so every
+  count and year in them is mono — the Tile's `aside` slot carries no `font-mono` of its own.
 
 ### Budget (`lib/utils/budgetUtils.ts`, `lib/hooks/useBudgetConfig.ts`)
 - **Opt-in**: `reconcileBudgetItems` only refreshes denormalized names and drops orphans, never auto-creates.
@@ -1077,6 +1140,7 @@ Companion documents — do not duplicate their content into this file:
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` · **Budget** `budgetUtils` |
 | Centri di costo | `costCenterUtils`, `costCenterColors` |
+| Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Analisi | `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
 | Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx` |

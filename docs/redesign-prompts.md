@@ -214,7 +214,9 @@ nuovo a meno che non te lo chieda.
 
 ## 02 · Cashflow · Tracciamento
 
-**Superfici**: `app/dashboard/cashflow/page.tsx` (tab Tracciamento), `components/cashflow/{ExpenseTrackingTab,CashflowTrackingMobile,TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, `components/cashflow/cashflow-kpi/*`, `components/expenses/{ExpenseDialog,ExpenseTable}.tsx`.
+**Superfici**: `app/dashboard/cashflow/page.tsx` (tab Tracciamento), `components/cashflow/{ExpenseTrackingTab,TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, `components/cashflow/tiles/*`, `components/expenses/{ExpenseDialog,ExpenseTable}.tsx`.
+
+**Stato**: ✅ fatto il 2026-08-22 (`feature/cashflow-tracciamento-redesign`) — la tessera «Trasferimenti» è stata scartata su richiesta: riga 2 = «Risparmio nel tempo» da solo (7 colonne); i filtri della toolbar restringono solo i Movimenti; la catena legacy (`CashflowHero`, `CashflowTrackingMobile`, `cashflow-kpi/*`, `CategoryBreakdownList`, `trackingSummary`) è stata eliminata. Il prompt resta come riferimento di metodo.
 
 **Modello/effort**: Fable 5 · ultracode — segno per type, transfer net-zero, riconciliazioni a due conti, molti componenti.
 

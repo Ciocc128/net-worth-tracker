@@ -17,5 +17,8 @@ export const DASHBOARD_OVERVIEW_SUMMARY_COLLECTION = 'dashboardOverviewSummaries
 // Bumped from 7→8: costDrivers (held instruments by annual TER cost) added for the Costi tile.
 // Bumped from 8→9: topInstrumentMovers (the per-instrument price effects behind topMovers) added
 // for Patrimonio's verdict and hero footer.
-export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 9;
+// Bumped from 9→10: expenseStats.currentMonth.expensesScheduled (the month's spending dated
+// after the computation, for the projection) added; sparklineData no longer capped at 40
+// points, so the «All» period is the whole snapshot history.
+export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 10;
 export const DASHBOARD_OVERVIEW_SUMMARY_TTL_MS = 5 * 60 * 1000;

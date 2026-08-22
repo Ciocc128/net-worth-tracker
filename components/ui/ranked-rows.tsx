@@ -27,18 +27,21 @@ interface RankedRowsProps {
  * encodes RANK (the largest row fills the track), the trailing figure encodes share, so a month
  * where no category dominates still reads at a glance (the `CompositionList` rule).
  */
-export function RankedRows({ rows, color, remainder, labelClassName = 'w-[92px]' }: RankedRowsProps) {
+export function RankedRows({ rows, color, remainder, labelClassName }: RankedRowsProps) {
+  // The label column yields before the bar does: the bar is the row's only visual, so it
+  // keeps a track even in a 3-column tile with the sidebar open.
+  const labelWidth = labelClassName ?? 'w-[92px]';
   const maxAmount = Math.max(...rows.map((r) => r.amount), 0);
 
   return (
     <div className="flex flex-col divide-y divide-border">
       {rows.map((row) => (
         <div key={row.key} className="flex items-center gap-3 py-[9px]">
-          <span className={cn('shrink-0 truncate text-[13px] text-foreground', labelClassName)}>
+          <span className={cn('shrink-0 truncate text-[13px] text-foreground', labelWidth)}>
             {row.label}
           </span>
           <div
-            className="h-[3px] flex-1 overflow-hidden rounded-full bg-muted"
+            className="h-[3px] min-w-[40px] flex-1 overflow-hidden rounded-full bg-muted"
             role="presentation"
           >
             <div
@@ -59,7 +62,7 @@ export function RankedRows({ rows, color, remainder, labelClassName = 'w-[92px]'
       ))}
       {remainder && remainder.amount > 0 && (
         <div className="flex items-center gap-3 py-[9px]">
-          <span className={cn('shrink-0 truncate text-[13px] text-muted-foreground', labelClassName)}>
+          <span className={cn('shrink-0 truncate text-[13px] text-muted-foreground', labelWidth)}>
             {remainder.label}
           </span>
           <div className="flex-1" />
