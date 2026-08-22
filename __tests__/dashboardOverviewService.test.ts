@@ -88,6 +88,14 @@ vi.mock('@/lib/firebase/admin', () => ({
         };
       }
 
+      if (name === 'pensionContributions') {
+        return {
+          where: vi.fn(() => ({
+            get: vi.fn(async () => ({ docs: [] })),
+          })),
+        };
+      }
+
       throw new Error(`Unexpected collection: ${name}`);
     }),
   },

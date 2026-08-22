@@ -1,5 +1,9 @@
 ## ✨ New Features
 
+- Redesigned the Overview page. It now opens with a one-sentence verdict on the month — "Agosto sta andando bene." / "Agosto è in calo: il mercato ha pesato." — followed by the facts in words (value, monthly and year-to-date change, record, savings rate, which asset class drove the market), and then a grid of tiles that each answer one question with a short reading above the numbers: net worth with trend, liquidity split, this month's cashflow, composition, costs, your featured goal, spending and income by category, and a new "Asset principali" tile with your largest positions and their return. Dense on desktop, one column on the phone.
+- The Overview's "Mercato" line now lists every asset class whose market price moved this month (largest first), with pension funds on their own "Previdenza" entry measured net of the contributions you registered that month.
+- Added a "Spese a fine mese" projection to the Overview's cashflow tile: where your spending lands at the current pace, next to last month's figure. Income is never projected — a salary lands once.
+- The Overview's goals tile now shows up to three in-progress goals (the featured one large, the others compact), and the costs tile names the three instruments your annual TER cost comes from, plus the cost as a share of your portfolio.
 - Added a period selector (3M / 6M / YTD / 1A / 3A / All) to the net worth trend chart on the Overview page.
 - Added an all-time-high badge that appears next to your net worth when you reach a new peak.
 - Added a "driven by" summary on Overview showing which asset classes moved your net worth the most this month.
@@ -65,6 +69,8 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed the Overview "driven by" summary describing your own buys and sells instead of market performance: selling cash to buy crypto used to read "Liquidità −14.110 · Criptovalute +11.869". It now measures only the price change on what you already held at the start of the month, so moving money between classes no longer shows up as a gain or a loss. The line now lists every asset class that moved (not just two), a mortgage instalment no longer reads as your home appreciating, and a pension fund counts only what it actually earned net of the contributions you registered that month. It stays silent for months whose previous snapshot has no per-asset breakdown rather than guessing.
+- Fixed the "Ottimo risparmio" notification reappearing on every login instead of once a month: it is now remembered per account and per month, across browser windows.
 - Fixed the "Patrimonio per Asset Class" chart on Storico showing overlapping bands instead of a composition. The seven areas were each drawn from zero and painted over one another, so the largest class hid the rest, no height on the chart corresponded to your net worth, and the blended transparencies produced colours that appeared in no legend. The bands are now stacked and always add up to 100% of your patrimonio.
 - Fixed "Liquidità vs Illiquidità" drawing filled areas on an axis that did not start at zero, which made ordinary month-to-month movement look like sharp swings.
 - Fixed the Storico composition chart leaving out two asset classes entirely. If you held Trend Following or Carry positions, they appeared nowhere on the chart and the remaining percentages quietly failed to add up to 100%. Every asset class is now shown, and anything the monthly snapshots cannot attribute is labelled "Non attribuito" instead of silently vanishing — which is also what makes older months, recorded before the app tracked illiquid holdings separately, honest about what they do not know.
@@ -155,6 +161,8 @@
 
 ## 🔧 Improvements
 
+- The Overview now uses up to 1920px of width on large monitors instead of stopping at 1600px, so a 27" screen no longer shows a third of the page empty.
+- Percentages on the Overview are now formatted the Italian way (`+1,01%`), matching the rest of the app.
 - The "Previdenza" band on Storico is now calculated from data recorded at the time, not reconstructed afterwards. Each monthly snapshot stores how the fund was split across asset classes that month, so re-balancing your fund today no longer changes what past months look like, and the parts of the chart add up to your patrimonio exactly. Months recorded before this change still use your fund's current split — the note on the chart now tells you from which month the figure is measured rather than estimated.
 - The "Composizione" chapter on Storico is now a single card instead of two. Asset class and liquid-vs-illiquid are two ways of slicing the same euro, not two separate questions, so one selector switches between them — replacing two look-alike cards that each carried their own independent € / % toggle, four states in total with nothing on screen saying which one you were in.
 - The composition chart now answers one question, the share, and answers it in one shape. Underneath it there is a ranked breakdown of the latest month with each class's value in euro, its share, and how that share moved against the same month a year earlier — so the numbers are on the page as text rather than only inside a hover. The € / % toggle is gone: euro amounts over time are already covered by "Evoluzione Patrimonio Netto" and "Valore per strumento", and every euro figure is now in the tooltip and the breakdown anyway.
@@ -236,6 +244,12 @@
 - The Coast FIRE projection chart's tooltip now names the pension-fund unlock at the year it happens, so the step in the three lines reads as the event it is rather than a glitch — and the coverage phases, the per-pension breakdown and the "how to read this" notes moved into a "Dettaglio" section, out of the way of the answer.
 
 - The transaction detail sheet now names a recurring entry's cadence in full: "Ogni mese, il giorno 10" for a monthly series, and "Ogni anno, il 15 settembre" for a yearly one — the day alone never said which of the twelve months it meant.
+
+## 📚 Documentation
+
+- DESIGN.md now documents the "Verdict over Tiles" shape set by the redesigned Overview (Page Verdict, Tile, Tile Grid, the honesty rules for generated sentences) and marks the patterns it supersedes; `.impeccable/design.json` and PRODUCT.md are aligned.
+- Added `docs/redesign-prompts.md`: one ready-to-use prompt per app section (navigation, every page and tab, login/register, landing, dialogs, states, email/PDF) to propagate the new style page by page, with a suggested model/effort and a screenshot rule.
+- Refreshed `docs/screenshots/portfolio-overview.png` on the new Overview (synthetic data).
 
 ## 🔒 Security
 
