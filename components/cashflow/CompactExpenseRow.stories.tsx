@@ -68,7 +68,7 @@ export const FixedExpense: Story = {
   },
 };
 
-/** Income row — positive amount, emerald accent. */
+/** Income row — positive amount, the positive sign token. */
 export const Income: Story = {
   args: {
     expense: {

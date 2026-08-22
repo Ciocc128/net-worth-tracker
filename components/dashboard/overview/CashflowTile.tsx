@@ -55,9 +55,11 @@ export function CashflowTile({
   coverageRatio,
   className,
 }: CashflowTileProps) {
-  const { income, expenses, net } = expenseStats.currentMonth;
+  const { income, expenses, net, expensesScheduled = 0 } = expenseStats.currentMonth;
   const previousMonth = MONTH_NAMES[(month + 10) % 12].toLowerCase();
-  const projectedExpenses = projectMonthEndSpending(expenses, dayOfMonth, daysInMonth);
+  // The same rule as Tracciamento: pace what is booked to date, add what is already scheduled.
+  const pacedExpenses = projectMonthEndSpending(expenses - expensesScheduled, dayOfMonth, daysInMonth);
+  const projectedExpenses = pacedExpenses === null ? null : pacedExpenses + expensesScheduled;
   const previousExpenses = expenseStats.previousMonth.expenses;
 
   return (

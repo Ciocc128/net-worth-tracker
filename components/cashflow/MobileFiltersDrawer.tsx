@@ -66,6 +66,8 @@ export interface MobileFiltersDrawerProps {
   mobileSortKey?: string;
   onSortChange?: (key: string) => void;
   sortOptions?: { value: string; label: string; shortLabel: string }[];
+  /** Render the inline PeriodPicker; Tracciamento keeps the period beside the verdict and passes false. */
+  showPeriod?: boolean;
 }
 
 /**
@@ -104,18 +106,21 @@ export function MobileFiltersDrawer({
   mobileSortKey,
   onSortChange,
   sortOptions,
+  showPeriod = true,
 }: MobileFiltersDrawerProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="flex items-center justify-center gap-2 desktop:hidden">
       {/* Period picker — max-w caps the button when a custom range label is long */}
-      <PeriodPicker
-        value={period}
-        onChange={onPeriodChange}
-        availableYears={availableYears}
-        className="shrink-0 max-w-[170px]"
-      />
+      {showPeriod && (
+        <PeriodPicker
+          value={period}
+          onChange={onPeriodChange}
+          availableYears={availableYears}
+          className="shrink-0 max-w-[170px]"
+        />
+      )}
 
       {/* Filter button — badge shows count of active drawer filters */}
       <div className="relative shrink-0">

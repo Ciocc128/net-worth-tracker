@@ -97,16 +97,16 @@ function printedInteger(value: number, decimals: number): number {
 
 /**
  * The definite article before a percentage: "l'8%", "l'11%", "l'80%", "lo 0,5%" (zero starts
- * with z) but "il 7%", "il 39%".
+ * with z) but "il 7%", "il 39%". Shared with every page narrative that names a percentage.
  */
-function articleForPercent(value: number, decimals = 1): string {
+export function articleForPercent(value: number, decimals = 1): string {
   const leading = printedInteger(value, decimals);
   if (leading === 0) return 'lo ';
   return startsWithVowel(leading) ? "l'" : 'il ';
 }
 
 /** The articulated preposition "del" before a percentage: "del 3,2%", "dell'8,1%", "dello 0,5%". */
-function ofThePercent(value: number, decimals = 1): string {
+export function ofThePercent(value: number, decimals = 1): string {
   const leading = printedInteger(value, decimals);
   if (leading === 0) return 'dello ';
   return startsWithVowel(leading) ? "dell'" : 'del ';

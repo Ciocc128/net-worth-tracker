@@ -145,7 +145,7 @@ export function PatrimonioTile({
               width × (viewBox height / width), hundreds of pixels. preserveAspectRatio="none"
               makes the stretch safe. */}
           <div className="relative -mx-5 mt-3 min-h-[180px] flex-1 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
-            <NetWorthSparkline data={sparklineDisplay} filled={true} color="var(--chart-1)" height={180} />
+            <NetWorthSparkline data={sparklineDisplay} filled={true} color="var(--chart-1)" height={180} interactive />
           </div>
           <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
             <span>{cachedFormatCurrencyEUR(sparklineDisplay[0].totalNetWorth, true)}</span>

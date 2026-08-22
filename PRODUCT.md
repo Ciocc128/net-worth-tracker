@@ -42,7 +42,7 @@ Three further behaviours are visible in the product and are *consequences* of th
 - Two distinct navigation shells: Sidebar (landscape/desktop) vs BottomNavigation + SecondaryMenuDrawer (portrait has no sidebar), so account-scoped affordances are duplicated in both.
 - The product also reaches the user outside the app: periodic emails (monthly / quarterly / half-yearly / yearly) plus a weekly Sunday budget email.
 - Onboarding is not a guided wizard: per-surface empty states name the single next action ("Aggiungi il tuo primo conto corrente", "Crea il primo centro", "Aggiungi asset per iniziare"). There is no asset or snapshot migration path — only expenses have a CSV importer.
-- Quality is enforced by review, not by pipeline: 106 Vitest files / 2026 tests and 30 Playwright E2E specs exist (Panoramica, Cashflow/Tracciamento and FIRE still have no permanent E2E of their own), but there is **no CI** (`.github` holds only two issue templates).
+- Quality is enforced by review, not by pipeline: 111 Vitest files / 2143 tests and 30 Playwright E2E specs exist (Panoramica, Cashflow/Tracciamento and FIRE still have no permanent E2E of their own), but there is **no CI** (`.github` holds only two issue templates).
 
 ## Capabilities and Constraints
 
