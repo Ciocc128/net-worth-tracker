@@ -46,13 +46,9 @@ export default function FireSimulationsPage() {
   return (
     <PageContainer>
       <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            <Flame className="h-7 w-7 sm:h-8 sm:w-8 text-orange-500" aria-hidden="true" />
-            FIRE e Simulazioni
-          </span>
-        }
-        description="Pianifica la tua libertà finanziaria e valuta la sostenibilità del tuo piano di pensionamento"
+        label="Pianificazione"
+        title="FIRE e Simulazioni"
+        description="Libertà finanziaria e sostenibilità del piano"
         separator={false}
       />
 
@@ -61,6 +57,7 @@ export default function FireSimulationsPage() {
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as TabValue)}
         layoutId="fire-tab-pill"
+        ariaLabel="Sezioni di FIRE e Simulazioni"
       >
         {TABS.map((tab) => (
           <TabsContent key={tab.value} value={tab.value} className="mt-0">

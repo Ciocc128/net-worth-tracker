@@ -246,6 +246,7 @@ export default function CashflowPage() {
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="cashflow-tab"
+        ariaLabel="Sezioni di Cashflow"
         loading={costCentersEnabled === null}
       >
 

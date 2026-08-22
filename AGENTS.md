@@ -57,8 +57,10 @@ Companion documents — do not duplicate their content into this file:
   overflow-y-auto">` — a non-`visible` `overflow-y` computes `overflow-x` to **`auto`**, so **`main` is the horizontal
   scroll container**, not the document. Assert on `main.scrollWidth === main.clientWidth`.
 - **Measure the elements, not the container**: walk `main *` and flag any `getBoundingClientRect().right >
-  main.clientWidth`. A total in pixels forces the measurement to be redone; the culpable node is the fix. Reference
-  guard: `e2e/fire.mobile.spec.ts`.
+  main.getBoundingClientRect().left + main.clientWidth`. `rect.right` is viewport-relative and at 1440 `main` starts
+  256px in, so comparing against `clientWidth` alone flags every full-width child as an overflow (the mobile guard
+  got away with it only because `main` sits at x=0 there). A total in pixels forces the measurement to be redone;
+  the culpable node is the fix. Reference guard: `e2e/fire.mobile.spec.ts`.
 - **One scroll container per region**: a nested scrollable captures the wheel and content below becomes unreachable
   (desktop-only symptom). `overflow-x-hidden` on an ancestor also CLIPS a descendant's `overflow-x:auto`.
 
@@ -804,8 +806,9 @@ Companion documents — do not duplicate their content into this file:
   **Patrimonio's hero no longer mirrors it** (older chip sizes, `toFixed` percentages) — propagating the tile
   vocabulary to Patrimonio is the next step, not a rule to keep in sync by hand.
 - Count-up lives in `OverviewAnimatedCurrency` leaf nodes, never in the page component.
-- **The page is a verdict over a tile grid** (`components/dashboard/overview/*`): `OverviewTile` is the ONE shell
-  (eyebrow · aside · `reading` narrative · body), grid cells wrap it in `CELL_CLASS` (`flex min-w-0 [&>section]:flex-1`)
+- **The page is a verdict over a tile grid** (`components/dashboard/overview/*`): `Tile` (`components/ui/tile.tsx`,
+  re-exported as `OverviewTile`; `NarrativeText` and `RankedRows` likewise live in `components/ui/`) is the ONE shell
+  (eyebrow · aside · `reading` narrative · body), grid cells wrap it in `TILE_CELL_CLASS` (`flex min-w-0 [&>section]:flex-1`)
   so a tile stretches to its row and `mt-auto` footers align across tiles. Below `desktop:` the grid collapses to
   1-2 columns and the `order-*` classes put Cashflow before Sintesi; add a tile by giving it a desktop span AND an
   order, or it lands last on a phone. The page root is `max-w-[1920px]`, wider than `PageContainer`'s 1600: a
@@ -944,7 +947,21 @@ Companion documents — do not duplicate their content into this file:
 
 ### Navigation
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
-  import from it, never redeclare inline.
+  import from it, never redeclare inline. **The assistant is `assistantNavItem`**, a route rendered by the same `NavItems`
+  as the groups (gated by `NEXT_PUBLIC_ASSISTANT_AI_ENABLED` at render); there is no banner component to restyle.
+- **The shell's label is the tiles' eyebrow**: sidebar group labels, the drawer's section labels and the compact
+  `PageHeader` all use `TILE_EYEBROW_CLASS` (`components/ui/tile.tsx`) — on the sidebar surface with
+  `text-sidebar-foreground/60`, because `text-muted-foreground` is tuned against `--background`, not `--sidebar`.
+  Do not reintroduce a 12px label in the chrome (DESIGN.md → The One-Eyebrow Rule).
+- **`PageHeader` defaults to `compact`**; a page not yet propagated must say `variant="legacy"` explicitly or its
+  30px title silently becomes a 14px line. The compact title is `text-sm`, so never put an icon sized for the legacy
+  title inside it (FIRE's 32px flame was dropped, not shrunk).
+- **Icon rail geometry lives in the primitive**: `SIDEBAR_WIDTH_ICON` (3.5rem) and the `group-data-[collapsible=icon]`
+  size on `sidebarMenuButtonVariants` (`size-11!`, `p-3.5!`, `justify-center`) are what make every collapsed target
+  44×44; `SidebarGroup`/`SidebarHeader`/`SidebarFooter` drop to `p-1.5` in icon mode for the same reason. A custom
+  button in the rail (the collapse toggle) needs its own `group-data-[state=collapsed]:size-11`.
+- **`PageContainer width="wide"`** is the 1920px root of a tile page; the loading state must use the same width or
+  the page jumps when data lands (the Panoramica's skeleton was 1600 while the page was 1920).
 - **Sidebar active state for `/dashboard` must be `pathname === item.href`**, never `startsWith`. **Bottom nav is
   portrait-only**, so an in-page button duplicating the FAB must be hidden **only in portrait** — in landscape the FAB
   is gone and it is the only add affordance.
@@ -987,8 +1004,8 @@ Companion documents — do not duplicate their content into this file:
   flag on failure and the next single click fires the destructive action.
 - **Form error text needs the sign token too**: `text-red-500` fails AA in both modes on a dialog surface AND diverges
   from `--destructive` on the non-default themes.
-- **KNOWN GAP**: `PageTabBar`'s inactive tabs have no accessible name below 1440px, affecting Settings, Cashflow and FIRE
-  for screen-reader users. When fixing, add `aria-label={label}` unconditionally.
+- **`PageTabBar` tabs carry `aria-label={label}` unconditionally** (closed 2026-08-22): below 1440px the inactive tabs are
+  icon-only, so without it they had no accessible name. Pass `ariaLabel` to `PageTabs` so the tablist is named too.
 
 ---
 
@@ -1101,7 +1118,8 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   with `.filter({ visible: true })`. **A collapsed CSS-grid region is still "visible" to Playwright**: scope through the
   toggle's `aria-controls` id and assert the collapse by measuring height.
 - **`CompositionList` clickable rows are `<button role="listitem">` — the explicit role WINS**; the accessible name is
-  `"{name}, {value}, {share}%"`. `PageTabBar`'s inactive tabs need a viewport ≥ 1440px to be locatable.
+  `"{name}, {value}, {share}%"`. `PageTabBar`'s tabs are locatable by name at every width (`aria-label`), but below
+  1440px the inactive ones are icon-only, so `getByText` finds nothing — use `getByRole('tab', { name })`.
 - **A `fill()` right after `goto(…, { waitUntil: 'domcontentloaded' })` can be silently wiped** by hydration reconciling
   the input back to its initial React state — use `waitUntil: 'load'` and verify with `.inputValue()`.
 - **Drive the dev server on `localhost`, never `127.0.0.1`**: Next blocks cross-origin dev resources from the bare IP,

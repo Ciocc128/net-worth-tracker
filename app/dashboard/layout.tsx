@@ -25,8 +25,8 @@ export default function DashboardLayout({
             {/* Hamburger bar — landscape mobile only.
                 SidebarTrigger toggles the shadcn sidebar Sheet on screens < 1440px. */}
             <div className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-2.5 desktop:hidden max-desktop:portrait:hidden max-desktop:landscape:flex">
-              <SidebarTrigger />
-              <span className="text-base font-semibold">Portfolio Tracker</span>
+              <SidebarTrigger aria-label="Apri il menu" />
+              <span className="text-[13px] font-semibold tracking-[-0.01em]">Portfolio Tracker</span>
             </div>
 
             {isDemo && (

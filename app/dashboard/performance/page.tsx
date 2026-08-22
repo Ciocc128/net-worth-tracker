@@ -831,6 +831,7 @@ export default function PerformancePage() {
     return (
       <PageContainer>
         <PageHeader
+          variant="legacy"
           label="Portafoglio"
           title="Rendimenti del Portafoglio"
           description="Analisi dei rendimenti e metriche di rischio-rendimento"
@@ -863,6 +864,7 @@ export default function PerformancePage() {
           the wrapper is hidden on mobile so the cramped inline slot stays empty (no title
           truncation), with a dedicated full-width stacked bar below for mobile. */}
       <PageHeader
+        variant="legacy"
         label="Portafoglio"
         title="Rendimenti del Portafoglio"
         description="Analisi dei rendimenti e metriche di rischio-rendimento"

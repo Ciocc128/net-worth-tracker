@@ -167,7 +167,7 @@ Both dark and light modes are primary, equally refined experiences. An Italian i
 
 The five named color themes (Solar Dusk, Elegant Luxury, Midnight Bloom, Cyberpunk, Retro Arcade) are personality layers on top of a structural foundation. They change accent and surface palette without touching the underlying type scale, radius, or component API. The default theme is the instrument in its raw state. The themes are its finishes.
 
-**The 2026-08-22 turn — Verdict over Tiles.** The Panoramica redesign settled the shape every page will take: a *verdict* — one rule-generated sentence that answers the page's question before any number — over a *grid of tiles*, each answering one question with a one-line reading above its figures. Chrome stays what it was (achromatic, 16px cards, flat rows); what changed is the order of reading: words first, then numbers, then detail. Pages are propagated onto this shape one at a time; patterns the Panoramica superseded are marked as such below and stay documented until the last page that uses them is redesigned.
+**The 2026-08-22 turn — Verdict over Tiles.** The Panoramica redesign settled the shape every page will take: a *verdict* — one rule-generated sentence that answers the page's question before any number — over a *grid of tiles*, each answering one question with a one-line reading above its figures. Chrome stays what it was (achromatic, 16px cards, flat rows); what changed is the order of reading: words first, then numbers, then detail. Pages are propagated onto this shape one at a time; patterns the Panoramica superseded are marked as such below and stay documented until the last page that uses them is redesigned. The shell followed on the same day: the compact header became the default, the sidebar and the phone drawer took the tiles' eyebrow as their group label, the assistant banner became a plain route, and the frame receded enough for the verdict to be the first thing read.
 
 This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness (too dense and impersonal for a personal wealth journal), consumer fintech brightness (Revolut-style gradients and playful fills trivialize serious data), Material Design genericism (component conventions that serve any app therefore serve this one poorly), and **ostentated complexity** (UI that demonstrates how hard the domain is rather than hiding that complexity behind a calm surface).
 
@@ -185,6 +185,7 @@ This system explicitly rejects four aesthetic modes: Bloomberg terminal coldness
 - Verdict first: every page opens with one rule-generated sentence that answers its question before any number is read — the prose is the hero, the figures inside it are mono and sign-coloured
 - One tile, one question: a page is a 12-column grid of tiles, each naming its question (eyebrow), answering it in words (reading line), then showing the figures — no tile repeats another tile's rows
 - Honest narratives: a sentence never claims what the data cannot support; a missing input drops its clause, it never prints a placeholder
+- One eyebrow voice: the 10px/0.1em eyebrow names a tile's question, a page's section in the compact header, and a navigation group in the sidebar and the phone drawer — the frame and the content share one label register
 
 ### How this file is read by tooling
 
@@ -263,7 +264,7 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 - **Body** (400 weight, 0.875rem, lh 1.6): All prose, descriptions, note content. Max line length 65ch.
 - **Reading Line** (Geist Sans, 400 weight, `13px`, lh 1.45): the one-line answer under a tile's eyebrow, before the figures. Figures inside it are `font-mono font-semibold tabular-nums` and take the sign colour; the prose stays `text-foreground`. Rendered by `NarrativeText` from a `Narrative` (segments with `mono`/`sign`), never assembled in JSX.
 - **Label** (500 weight, 0.75rem, lh 1.4, ls +0.01em): Input labels, tags, stat captions, tab text. Slightly tracked for legibility at small sizes.
-- **Eyebrow Label** (600 weight, `10px`, uppercase, ls `0.1em`, muted): Section eyebrow — the small all-caps label placed above a dominant number. In Tailwind: `text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground`. Never competes with the number it names. Use 9px / `tracking-[0.08em]` for sub-eyebrows inside compact cells. Context can be appended with a centered-dot separator: `Cashflow · MAGGIO 2026` — the `·` joins without adding another label.
+- **Eyebrow Label** (600 weight, `10px`, uppercase, ls `0.1em`, muted): Section eyebrow — the small all-caps label placed above a dominant number. In Tailwind: `text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground`. Never competes with the number it names. It is also the compact page header's eyebrow and the group label of the sidebar and the phone drawer (`TILE_EYEBROW_CLASS` in `components/ui/tile.tsx`; on the sidebar surface its colour is `text-sidebar-foreground/60`) — see **The One-Eyebrow Rule**. Use 9px / `tracking-[0.08em]` for sub-eyebrows inside compact cells. Context can be appended with a centered-dot separator: `Cashflow · MAGGIO 2026` — the `·` joins without adding another label.
 - **Delta Annotation** (Geist Mono, 400 weight, `12px`, ls 0): The small trend line that appears directly below a sub-hero value inside a KPI chip — e.g. `+5.2% vs mese scorso`. Always `font-mono`. Color follows sign semantics via the theme tokens (see **The Sign-Color Token Rule**): `text-positive` for positive, `text-destructive` for negative — never raw `text-green-*`/`text-red-*`. **Inverted semantics for expense metrics**: a positive delta on Spese is bad; parameter the color via `positiveGood: boolean`. In Tailwind: `text-[12px] font-mono mt-1.5 text-positive` (or `text-destructive`); prefer `getMetricValueColor()`. A neutral subline (non-trend) uses `text-[12px] text-muted-foreground mt-1.5`.
 - **Numeric** (Geist Mono, 400 weight, 0.875rem, lh 1.4, `font-feature-settings: "tnum" 1`): All monetary values, percentages, dates, quantities in financial contexts. Tabular figures always enabled.
 
@@ -280,6 +281,8 @@ Five chart colors cover the semantic range of portfolio data. These are the syst
 **The Narrative Honesty Rule.** A generated sentence must never claim what the data cannot support. The canonical case: a month whose total fell while the market GAINED is not "il mercato ha pesato" — the cause is the user's own flows, and the headline says "nonostante il mercato". Corollaries: a missing input drops its clause (no prior snapshot → no monthly clause; no income → no savings clause; nothing attributable → no market driver) and never prints "N/D" or a placeholder; a figure that is a projection says so in the words next to it ("al ritmo attuale"); a list titled "per categoria" closes with the residual row ("Altre categorie") so it visibly adds up to the total it is a share of; and a digest labelled as return measures return — `Mercato:` is the price effect on what was held at the start of the period, never the user's buys and sells.
 
 **The Comma Rule.** Every percentage the user reads is formatted for `it-IT` — `+1,01%`, `72,8%` — through chartService's `formatPercentage`, never `toFixed` (which prints `1.01%`, a dot the rest of the screen never uses). Currency comes from `cachedFormatCurrencyEUR`, which puts a no-break space before `€` and leaves four-digit amounts ungrouped (`4120,18 €`): tests flatten the nbsp and expect the real output. Signs are typographic: `+` and the true minus `−` (U+2212), never a hyphen. The `toFixed` chips still on Patrimonio and Rendimenti are legacy to retire page by page.
+
+**The One-Eyebrow Rule.** The app has one eyebrow — `text-[10px] font-semibold uppercase tracking-[0.1em]` — and it is the same element whether it names a tile's question, the section a compact page header belongs to ("PANORAMICA", "OPERATIVITÀ") or a navigation group ("ANALISI", "PIANIFICAZIONE") in the sidebar and the phone drawer. The 12px `tracking-widest` eyebrow of the legacy header and the 12px group labels the sidebar used to have were three sizes for one job; when the frame and the content use the same label, the frame stops reading as a second voice and the verdict is what the eye lands on.
 
 ## 4. Elevation
 
@@ -310,17 +313,17 @@ The opening of every redesigned page: the verdict as a headline, the facts as a 
 [headline — text-[24px] desktop:text-[30px] font-semibold leading-[1.15] tracking-[-0.025em], trailing "." in the tone colour]
 [sentence — text-[14px] desktop:text-[15px] leading-[1.6] text-muted-foreground, figures as font-mono font-semibold spans with sign colour]
 ```
-`max-w-[920px]`, `gap-2`, rendered by `components/dashboard/overview/OverviewVerdict.tsx` over `buildOverviewVerdict()` (`lib/utils/overviewNarrative.ts`).
+`max-w-[920px]`, `gap-2`, rendered by `components/dashboard/overview/OverviewVerdict.tsx` over `buildOverviewVerdict()` (`lib/utils/overviewNarrative.ts`). The `Narrative` segment type every page's narrative module returns lives in `lib/utils/narrative.ts`.
 
 **Rules:**
 - The words are a pure function of the payload, tested clause by clause; no component writes copy.
 - Tone colours the full stop only: `positive` / `neutral` / `warning` / `negative` → `text-positive` / `text-muted-foreground` / `text-warning-foreground` / `text-destructive`.
 - A missing input drops its clause; the sentence is never padded (The Narrative Honesty Rule).
-- The page header above it is `PageHeader variant="compact"`: the verdict IS the page title.
+- The page header above it is the compact `PageHeader` (the default variant since 2026-08-22): the verdict IS the page title.
 
 ### Tile (One Question)
 
-The unit of every redesigned page (`components/dashboard/overview/OverviewTile.tsx`).
+The unit of every redesigned page: `Tile` in `components/ui/tile.tsx` (the Panoramica's `OverviewTile` is a re-export of it, as are `NarrativeText` → `components/ui/narrative-text.tsx` and `RankedRows` → `components/ui/ranked-rows.tsx`). `TILE_CELL_CLASS` is the grid-cell wrapper.
 
 **Structure:**
 ```tsx
@@ -350,11 +353,19 @@ The unit of every redesigned page (`components/dashboard/overview/OverviewTile.t
   …
 </div>
 ```
-Page root `mx-auto w-full max-w-[1920px] space-y-4`. Spans on the Panoramica: Patrimonio 5 (2 rows) · Sintesi 3 · Cashflow 4 / Composizione 3 · Costi 2 · Obiettivi 2 / Spese 4 · Entrate 3 · Asset principali 5. A tile that may be absent (Costi, Obiettivi) hands its columns to its neighbour, or a hidden spacer closes the row. See **The Tile Grid Rule**.
+Page root is `<PageContainer width="wide">` (`max-w-[1920px]`; the default `PageContainer` keeps the 1600px of the un-propagated pages). Spans on the Panoramica: Patrimonio 5 (2 rows) · Sintesi 3 · Cashflow 4 / Composizione 3 · Costi 2 · Obiettivi 2 / Spese 4 · Entrate 3 · Asset principali 5. A tile that may be absent (Costi, Obiettivi) hands its columns to its neighbour, or a hidden spacer closes the row. See **The Tile Grid Rule**.
 
 ### Compact Page Header
 
-`PageHeader variant="compact"`: on `desktop:` one line — eyebrow (`text-xs uppercase tracking-widest`) · title (`text-sm font-medium`) · description (`text-sm text-muted-foreground`, joined with `·`) — actions right, `min-h-9`, no separator. Below `desktop:` the sticky navbar is unchanged (title 17px, description under it). Use it wherever the page's real headline is its verdict.
+`PageHeader` — `variant="compact"` is the **default** since the shell redesign. On `desktop:` one line — eyebrow (`TILE_EYEBROW_CLASS`, 10px/0.1em, the same as the tiles) · title (`text-sm font-medium`) · description (`text-sm text-muted-foreground`, joined with `·`) — actions right, `min-h-9`, no separator. Below `desktop:` the sticky navbar is unchanged (title 17px, description under it). The page's real headline is its verdict, so the header is a breadcrumb, not a title.
+
+`variant="legacy"` is the pre-redesign header (2xl/3xl title, description under it, optional `border-b`), declared explicitly by the pages not yet propagated (Patrimonio, Analisi, Rendimenti, Storico, Allocazione, Previdenza) so their render is byte-identical; it is deleted with the last of them.
+
+**With section tabs** (Cashflow, FIRE e Simulazioni, Impostazioni): `PageTabBar` sits directly under the compact header row — from `desktop:` an underline bar of 13px `font-medium` tabs whose `border-b` is the header's only separator; below `desktop:` the segmented pill. The header keeps the page title, the tab keeps the section: no title is printed twice. Every tab carries `aria-label` unconditionally (the icon-only pill had no accessible name below 1440px) and the tablist is named after what it switches ("Sezioni di Cashflow").
+
+### Tile Grid Skeleton
+
+`components/ui/tile-grid-skeleton.tsx` — the ONE loading state of a redesigned page: the verdict's two muted lines, then the tile grid with the page's own spans (`cells: { span, rows?, lines? }[]`, class lookup in `lib/utils/tileGridSkeleton.ts`) and no numbers. It replaces the per-page skeleton components as each page is propagated; the Panoramica uses it with its default cells. Same root width as the page (`PageContainer width="wide"`), so nothing jumps when the data lands.
 
 ### Market Digest Line
 
@@ -421,9 +432,15 @@ This is preferred over `<Card><CardContent>` when the cell needs explicit flex d
 
 ### Navigation
 
-- **Desktop:** Sidebar with `--sidebar` background (theme-aware). Active state: `--sidebar-primary` color. In the default dark theme this is Indigo Signal (`oklch(0.488 0.243 264.376)`) — the only context where a non-achromatic color appears in the default theme on the interface chrome. Primary routes text-full; secondary routes in a collapsible drawer.
-- **Mobile:** Floating pill at bottom of viewport. `border-radius: 9999px`, `--sidebar` background, `1px solid --sidebar-border`, Float shadow (`0 4px 24px rgba(0,0,0,0.28)`). Positioned `bottom: calc(env(safe-area-inset-bottom, 0px) + 12px)`. Three primary routes + "Altro" drawer trigger. Landscape orientation hides the pill entirely (horizontal screen real estate is used differently).
+The frame recedes so the verdict is the first thing read: nothing in the chrome is louder than a tile's eyebrow, and nothing in the default theme's chrome has a hue.
+
+- **Desktop sidebar** (`components/layout/Sidebar.tsx` over the shadcn primitive): `--sidebar` background, a 13px `font-semibold` wordmark (no filled logo block — a square of `--primary` was the brightest element on the screen), three route groups whose labels are the tiles' eyebrow (`TILE_EYEBROW_CLASS` + `text-sidebar-foreground/60`), one hairline before the assistant, which is a plain route (`assistantNavItem`, no banner), and the account at the bottom: a 28px initials square on `--sidebar-accent`, name 13px, email 11px, in a 44px row. **Active state = `--sidebar-accent` background + `font-semibold`, and nothing else** (the `--sidebar-primary` Indigo statement below is superseded).
+- **Icon rail** (collapsed): `3.5rem` wide so every target — routes, toggle, account — is `44×44px` with 6px of padding; the route name is a tooltip on hover.
+- **Mobile:** Floating pill at bottom of viewport. `border-radius: 9999px`, `--sidebar` background, `1px solid --sidebar-border`, Float shadow (`0 4px 24px rgba(0,0,0,0.28)`). Positioned `bottom: calc(env(safe-area-inset-bottom, 0px) + 12px)`. Three primary routes + "Altro" drawer trigger, labels 11px. Landscape orientation hides the pill entirely (horizontal screen real estate is used differently) and shows a top bar with the Sheet trigger and the 13px wordmark.
+- **"Altro" drawer** (`SecondaryMenuDrawer`): the two secondary groups under the same eyebrow labels as the sidebar ("Analisi", "Pianificazione"), 14px rows of 44px, the assistant as a row after a hairline, the account block with a 44px options button.
 - **Active indicator:** Framer Motion animated highlight under active item. State changes trigger instant color switch; route transitions use page-level animation.
+
+**Superseded (2026-08-22).** "Active state: `--sidebar-primary` color. In the default dark theme this is Indigo Signal — the only context where a non-achromatic color appears in the default theme on the interface chrome" — the sidebar has used `--sidebar-accent` for the active route since the pill highlight, and the violet assistant banner (the one hue left in the chrome) was retired with the shell redesign. `--sidebar-primary` stays a token of the theme files; no component paints it.
 
 ### The Net Worth Counter (Signature Component)
 
@@ -860,11 +877,13 @@ useEffect(() => {
 - **Do** close a ranked list with its residual ("Altre categorie · 912 € · 21%") whenever the rows are a share of a stated total. A list that does not add up reads as missing data.
 - **Do** put a projection next to its reference and name it as a projection ("Al ritmo attuale ~6.161 €" beside "A luglio 4.109 €"). Extrapolate spending only — a salary lands once, so a linear projection of income is nonsense.
 - **Do** stretch an edge-to-edge chart with the SVG positioned `absolute inset-0` inside a `relative flex-1 min-h-[…]` box (`preserveAspectRatio="none"`). An in-flow `<svg>` with `height: 100%` in an auto-height parent takes its height from its own viewBox ratio — hundreds of pixels — and explodes the grid row.
-- **Do** use `PageHeader variant="compact"` on pages whose headline lives in the content: eyebrow · title · description on one line, actions right, no separator. The mobile sticky navbar is unchanged.
+- **Do** let `PageHeader` default to its compact variant on a redesigned page: eyebrow · title · description on one line, actions right, no separator, the verdict as the real headline. Declare `variant="legacy"` only on a page not yet propagated. The mobile sticky navbar is unchanged.
+- **Do** use one eyebrow for the frame and the content (The One-Eyebrow Rule): `TILE_EYEBROW_CLASS` names a tile's question, the compact header's section and a navigation group alike.
+- **Do** load a redesigned page with `TileGridSkeleton` and its own `cells` — one skeleton component for every page, the verdict lines plus the grid, nothing else.
 - **Do** give an explicit width to controls with no intrinsic one (`PeriodSelector` is `flex-1` buttons) when they sit in a flex row, or the labels collapse into one word.
 - **Do** derive every visual choice from function — form follows function. Before adding any property (a color, a shadow, a radius, a motion, an extra pixel of size), name the job it does. If the only answer is "it looks nice," remove it. Form is the consequence of function, never its costume.
 - **Do** use Geist Mono with `font-feature-settings: "tnum" 1` for every monetary value, percentage, and structured date. Column alignment is a trust signal.
-- **Do** reference `--sidebar-primary` for active navigation states. In the default theme this is the only sanctioned non-achromatic color in the interface chrome.
+- **Do** paint the active route with `--sidebar-accent` and nothing else. The navigation chrome of the default theme has no hue: the assistant is a route, not a violet banner.
 - **Do** use the Float shadow exclusively for elements that leave document flow (modals, the mobile nav pill, dropdown menus). Never apply it to in-flow cards.
 - **Do** respect `prefers-reduced-motion`. Framer Motion's `useReducedMotion()` is integrated across all animated components and must be preserved on new additions.
 - **Do** use `desktop:` (1440px) as the primary responsive breakpoint for layout switches. Never use `lg:` (1024px) for wide-screen layouts — iPad Mini in landscape is 1024px and receives the mobile treatment by design.
@@ -890,6 +909,8 @@ useEffect(() => {
 - **Don't** repeat a tile's rows in another tile. The Cashflow tile lost its top-3 categories the moment "Spese per categoria" existed.
 - **Don't** colour a whole verdict headline by tone. The full stop carries the tone; the figures carry their signs; the words stay `text-foreground`.
 - **Don't** format a percentage with `toFixed` in user-facing copy — the dot decimal is not Italian (The Comma Rule).
+- **Don't** give the chrome a second label size. A 12px group label next to 10px tile eyebrows reads as two systems; the frame borrows the content's eyebrow (The One-Eyebrow Rule).
+- **Don't** ship a touch target under 44px in the icon rail or the phone drawer — a 28px options button is a desktop affordance that landed on a phone.
 - **Don't** pin a page to "no scroll". Density is the goal; a third row below the fold is fine, a tile squeezed until its numbers wrap is not.
 - **Don't** shape an element for appearance alone. A larger number, a heavier shadow, a brighter accent, or an extra animation that exists "to look good" violates form-follows-function. If a property carries no function, it is decoration — cut it. And never fake what isn't there: no false depth, no invented material, no shadow hierarchy a surface hasn't earned (the honesty corollary).
 - **Don't** add brand color to the default theme's surface chrome (backgrounds, cards, buttons). Zero-chroma is the rule: color belongs to data, not decoration.

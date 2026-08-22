@@ -374,6 +374,7 @@ export default function AssetsPage() {
   return (
     <PageContainer>
       <PageHeader
+        variant="legacy"
         label="Portfolio"
         title="Patrimonio"
         description="Gestisci e monitora il tuo patrimonio"

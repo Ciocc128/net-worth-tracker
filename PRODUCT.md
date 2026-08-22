@@ -81,7 +81,7 @@ Binding anti-references: Bloomberg terminal (too cold and dense), Revolut-style 
 
 ## Evidence on Hand
 
-- **11 anonymized product screenshots** in `docs/screenshots/` — `portfolio-overview.png` retaken on 2026-08-22 from a synthetic emulator account on the new Panoramica; the other ten date from 2026-06-07, show the previous generation, and none covers Previdenza, Analisi, Assistente, Storico per-instrument, Goal-Based Investing or Impostazioni.
+- **11 anonymized product screenshots** in `docs/screenshots/` — `portfolio-overview.png` is of the new generation (retaken on 2026-08-22 from a synthetic emulator account, after the shell redesign: compact header, sidebar with eyebrow group labels and the assistant as a route); the other ten date from 2026-06-07, show the previous generation including the old sidebar, and none covers Previdenza, Analisi, Assistente, Storico per-instrument, Goal-Based Investing or Impostazioni.
 - **App icons only**: `app/apple-icon.png` and `public/favicon/`. `public/` otherwise contains just the `sw.js` stub.
 - **Two complete production HTML email templates** under `lib/server/`.
 - Developer emulator / E2E seed fixtures (`scripts/seedPensionE2E.mts`) — synthetic data, never to be presented as real.

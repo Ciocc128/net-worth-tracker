@@ -18,6 +18,7 @@ export default function PensionPage() {
   return (
     <PageContainer>
       <PageHeader
+        variant="legacy"
         label="Pianificazione"
         title={
           <span className="flex items-center gap-2">

@@ -17,15 +17,12 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 
-export interface NarrativeSegment {
-  text: string;
-  /** Set the segment in the numeric face (Geist Mono). */
-  mono?: boolean;
-  /** Colour the segment as a gain or a loss; absent = inherit. */
-  sign?: 'positive' | 'negative';
-}
+import type { Narrative, NarrativeSegment } from '@/lib/utils/narrative';
 
-export type Narrative = NarrativeSegment[];
+// The segment shape and its plain-text rendering live in `narrative.ts` so every page's
+// narrative module shares them; re-exported here for the Panoramica's existing importers.
+export type { Narrative } from '@/lib/utils/narrative';
+export { narrativeToText } from '@/lib/utils/narrative';
 
 export type VerdictTone = 'positive' | 'neutral' | 'warning' | 'negative';
 
@@ -48,11 +45,6 @@ export interface OverviewVerdict {
   headline: string;
   tone: VerdictTone;
   sentence: Narrative;
-}
-
-/** Plain-text rendering, for tests and accessible names. */
-export function narrativeToText(narrative: Narrative): string {
-  return narrative.map((segment) => segment.text).join('');
 }
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
