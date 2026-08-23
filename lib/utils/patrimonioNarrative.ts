@@ -112,6 +112,13 @@ export function ofThePercent(value: number, decimals = 1): string {
   return startsWithVowel(leading) ? "dell'" : 'del ';
 }
 
+/** The articulated preposition "al" before a percentage: "al 71%", "all'8%", "allo 0,5%". */
+export function atThePercent(value: number, decimals = 1): string {
+  const leading = printedInteger(value, decimals);
+  if (leading === 0) return 'allo ';
+  return startsWithVowel(leading) ? "all'" : 'al ';
+}
+
 function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
 }

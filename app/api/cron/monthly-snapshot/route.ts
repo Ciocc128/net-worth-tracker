@@ -18,6 +18,7 @@ import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { refreshEcbRatesIfStale } from '@/lib/server/ecbRatesService';
 import { isWeeklyBudgetDayItaly, buildAndSendWeeklyBudget } from '@/lib/server/weeklyBudgetEmailService';
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
+import { captureBudgetHistory } from '@/lib/server/budgetHistoryService';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
 
 /**
@@ -31,7 +32,10 @@ import { verifyCronSecret } from '@/lib/server/apiAuth';
  * the month becomes the permanent historical record.
  * Emails are guarded by isLastDayOfMonthItaly / isLastDayOfQuarterItaly /
  * isLastDayOfYearItaly and are only sent once on the appropriate day. The
- * assistant's goal re-evaluation (phase 7) runs every day, like the snapshot.
+ * assistant's goal re-evaluation (phase 7) runs every day, like the snapshot, and so
+ * does the budget history capture (phase 8): budgetHistory/{userId}/months/{YYYY-MM}
+ * is overwritten daily, so a month's record is its last captured configuration — the
+ * ceiling "as it was", which budgets/{userId} alone cannot tell.
  *
  * Orchestration Pattern:
  *   - Fetches all users from database
@@ -356,6 +360,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Phase 8: Capture every budget configuration under the current month (every day).
+    // The Budget tab reads these records to compare a closed month with the ceiling it
+    // had, not with today's; non-fatal like the ECB refresh.
+    let budgetHistorySummary = { captured: 0, skipped: 0, errors: 0 };
+    try {
+      budgetHistorySummary = await captureBudgetHistory(now, process.env.NEXT_PUBLIC_DEMO_USER_ID);
+      console.log(`[cron] budget history captured for ${budgetHistorySummary.captured} users`);
+    } catch (historyError) {
+      console.error('[cron] budget history capture failed (non-blocking):', historyError);
+    }
+
     return NextResponse.json({
       success: true,
       message: `Monthly snapshots job completed`,
@@ -370,6 +385,7 @@ export async function GET(request: NextRequest) {
       yearlyEmailSummary: yearlyEmailResults,
       weeklyBudgetEmailSummary: weeklyBudgetEmailResults,
       goalEvaluationSummary: goalEvaluationResults,
+      budgetHistorySummary,
     });
   } catch (error) {
     console.error('Error in monthly snapshot cron job:', error);
