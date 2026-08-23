@@ -303,7 +303,9 @@ nuovo a meno che non te lo chieda.
 
 **Superfici**: `components/dividends/*`, tab Dividendi.
 
-**Modello/effort**: Fable 5 · xhigh — DividendStats server-side e coupon cron sono intoccati; il lavoro è di lettura e cadenza.
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-dividendi-redesign`) — slot di riga 2 = «Per anno»; i due blocchi tabellari server vivono in un collapsible «Dettaglio» sotto la griglia. Scostamenti dal prompt, tutti deliberati: `DividendStats` NON è rimasto intoccato (si è spaccato in `useDividendStats`, una query senza date, più `DividendiDettaglio`) e la route `/api/dividends/stats` ha guadagnato i rendimenti netti che il motore già calcolava; la tessera «Rendimento» non segue l'asse del periodo e lo dichiara; il cross-filtro `focusedDate` del calendario è stato ritirato. Il prompt resta come riferimento di metodo.
+
+**Modello/effort**: Fable 5 · xhigh — il coupon cron è intoccato; il lavoro è di lettura e cadenza (DividendStats, invece, è stato ristrutturato).
 
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Cashflow · Dividendi» dell'app portandola sullo

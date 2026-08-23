@@ -28,7 +28,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Coins, Target, Layers, Plus, Settings } from 'lucide-react';
+import { ArrowRightLeft, Coins, Target, Layers, Download, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -228,6 +228,39 @@ export default function CashflowPage() {
                 <Plus className="h-4 w-4" />
                 Nuova Spesa
               </Button>
+            )}
+            {/* Dividendi's two page-level actions. The tab owns the dialogs behind them, so the
+                header only dispatches — the same channel «Nuova Spesa» uses above. Both are
+                desktop-only: on a phone the add button sits beside the tab's period axis. */}
+            {activeTab === 'dividends' && (
+              <>
+                <Button
+                  size="sm"
+                  disabled={isDemo}
+                  aria-label={isDemo ? 'Aggiungi dividendo — non disponibile in modalità demo' : 'Aggiungi dividendo'}
+                  title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                  onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-dividend'))}
+                  className="hidden desktop:flex"
+                >
+                  <Plus className="h-4 w-4" />
+                  Aggiungi dividendo
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={isDemo}
+                  aria-label={
+                    isDemo
+                      ? 'Scarica dividendi storici — non disponibile in modalità demo'
+                      : 'Scarica dividendi storici per gli asset con ISIN'
+                  }
+                  title={isDemo ? 'Non disponibile in modalità demo' : 'Scarica dividendi storici'}
+                  onClick={() => window.dispatchEvent(new CustomEvent('cashflow:scrape-dividends'))}
+                  className="hidden desktop:flex"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </>
             )}
             <Button
               size="icon"

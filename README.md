@@ -70,12 +70,13 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - **CSV import** (Settings → Spese): migrate historical income/expense data from a CSV file (Italian or English headers, `;`/`,`/tab delimiter, IT or EN number/date formats). Categories resolve by **(name, type)** — same-named categories of different types import side by side, a row without a type inherits the single existing namesake's type, and duplicates sharing both name and type attach to the oldest one with a note in the preview. Shows a full preview — valid rows, discarded rows with a reason, categories/subcategories that will be created, disclosures — before anything is written, and the whole import can be undone in one tap. Transfers aren't supported (a transfer needs origin/destination accounts a historical row can't provide) and account balances are never touched by the import
 
 ### Dividends
+- **Dividendi answers before it lists** — the tab opens with a one-sentence verdict on your dividend income ("Il flusso di dividendi cresce." / "…tiene." / "…è in calo."), followed by the facts in words — what you cashed in the period, how it moved against the comparable window before it, from how many instruments, what the portfolio yields on your cost, and which payment comes next — and then a grid of tiles: net income with the month-by-month shape and the next payments; how reliable the income is (how many months actually paid, and how much of it hangs on one payer); yield on cost against yield on today's price; who pays you most; what each year brought; and the payments themselves, as a table or a calendar, as the last tile. One period selector (Mese / Anno / 12 mesi / Storico), beside the verdict, drives everything; the instrument and type filters narrow only the payments list
+- **Received and announced are never one figure.** A payment with a future date is a promise, not income: the table prints two totals instead of one, the calendar greys it and says how much of the month is cashed and how much is still expected, and every sentence counts the two apart. Announced payments are bounded by the period too — a coupon due later this month belongs to "Mese", one due in December to "Anno", a final premium years away only to "Storico"
 - Multi-currency dividend recording with automatic EUR conversion
 - Borsa Italiana scraping for Italian market data (dividends and bond prices)
-- Monthly calendar view with synchronized date focus and drill-down
-- Dividend statistics, contextual payment detail, and yield calculations
-- **Total Return per Asset**: table combining capital gain % and all-time net dividends received % (calculated at historical cost basis per payment, not diluted by later purchases) to show the true investment return per asset; card layout on mobile. For investments tracked in the operations register, the capital-gain figure is computed from your real buy/sell history — including fully-sold positions, shown with a "Chiusa" badge, and partial sells — instead of only unrealized price movement
-- **Dividend Per Share Growth**: year-by-year gross DPS history per equity asset with YoY% and CAGR columns; portfolio median growth rate shown as a summary; tap any asset on mobile to open a vertical year-by-year dialog
+- Monthly calendar view; clicking a day opens that day's payments with its own received/expected subtotals. Month navigation is bounded by the selected period — with "Mese" the arrows are gone, since the period selector *is* that control
+- **Yield**: yield on cost gross **and net**, against the yield on today's market price, plus median year-over-year DPS growth. Every figure here is measured on the trailing twelve months of what you currently hold, whatever period is selected — the tile says so rather than appearing to follow the axis
+- **Total Return per Asset** and **Dividend Per Share Growth** live in a "Dettaglio" section under the grid. Total Return combines capital gain % and all-time net dividends received % (calculated at historical cost basis per payment, not diluted by later purchases) to show the true investment return per asset; for investments tracked in the operations register the capital-gain figure comes from your real buy/sell history — including fully-sold positions, shown with a "Chiusa" badge, and partial sells. DPS Growth is the year-by-year gross DPS history per equity asset with YoY% and CAGR columns, YoY and CAGR stopping at the last closed year; tap any asset on mobile for a vertical year-by-year dialog
 
 ### Historical Analysis
 - Automatic monthly portfolio snapshots (via Vercel cron)
@@ -411,7 +412,7 @@ See [LICENSE.md](LICENSE.md) for the full license text.
 ### Dividends & Hall of Fame
 
 ![Dividend calendar](docs/screenshots/dividend-calendar.png)
-*Monthly dividend calendar with drill-down*
+*Dividendi: the payments tile in calendar view — received and expected kept apart, day by day*
 
 ![Hall of Fame](docs/screenshots/hall-of-fame.png)
 *Monthly and annual performance rankings*
