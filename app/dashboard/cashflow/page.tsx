@@ -11,7 +11,7 @@
  * TAB STRUCTURE:
  * - Tracking: verdict + tile grid over the period's movements (ExpenseTrackingTab)
  * - Dividends: dividend tracking
- * - Budget: opt-in budget
+ * - Budget: verdict + tile grid over the month's ceiling and the category budgets (BudgetTab)
  * - Cost centers: optional 6th tab (settings.costCentersEnabled)
  *
  * The root is the 1920px tile-page width (`PageContainer width="wide"`): Tracciamento is a
@@ -232,6 +232,21 @@ export default function CashflowPage() {
             {/* Dividendi's two page-level actions. The tab owns the dialogs behind them, so the
                 header only dispatches — the same channel «Nuova Spesa» uses above. Both are
                 desktop-only: on a phone the add button sits beside the tab's period axis. */}
+            {/* Budget's page-level action: the tab owns the dialog, the header dispatches.
+                Desktop-only: on a phone the add button sits under the tab's verdict. */}
+            {activeTab === 'budget' && (
+              <Button
+                size="sm"
+                disabled={isDemo}
+                aria-label={isDemo ? 'Aggiungi budget — non disponibile in modalità demo' : 'Aggiungi budget'}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-budget'))}
+                className="hidden desktop:flex"
+              >
+                <Plus className="h-4 w-4" />
+                Aggiungi budget
+              </Button>
+            )}
             {activeTab === 'dividends' && (
               <>
                 <Button

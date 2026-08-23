@@ -15,11 +15,11 @@ import { Resend } from 'resend';
 import { getItalyDate, getItalyYear, getItalyMonth } from '@/lib/utils/dateHelpers';
 import {
   getPeriodActual,
-  getActualForItem,
   getPeriodExpensesForItem,
   buildSpendingForecast,
-  getMonthlyTotalExpenses,
-  getOverallMonthlyBaseline,
+  forecastMonthlyItem,
+  splitMonthlyTotalExpenses,
+  type CategoryTypeRef,
 } from '@/lib/utils/budgetUtils';
 import type { BudgetItem, BudgetPeriod } from '@/types/budget';
 import type { Expense } from '@/types/expenses';
@@ -104,8 +104,9 @@ function itemLabel(item: BudgetItem): string {
  * Builds the weekly budget status for a user. Returns null when the user has no
  * budgets configured (nothing to report).
  *
- * Fetches expenses from Jan 1 of the previous year so monthly projections can be
- * dampened with last year's pace and the overall baseline is available.
+ * Fetches the year's expenses (annual budgets are year-to-date) and the user's
+ * categories, whose type decides each budget's pace: a fixed or debt category is never
+ * extrapolated by the day — the same rule the Budget tab applies (budgetUtils.resolveItemPace).
  */
 export async function buildWeeklyBudgetData(userId: string, now: Date): Promise<WeeklyBudgetData | null> {
   const budgetSnap = await adminDb.collection('budgets').doc(userId).get();
@@ -117,7 +118,7 @@ export async function buildWeeklyBudgetData(userId: string, now: Date): Promise<
   if (items.length === 0 && !overallMonthlyAmount) return null;
 
   const year = getItalyYear(now);
-  const windowStart = new Date(year - 1, 0, 1);
+  const windowStart = new Date(year, 0, 1);
   const expensesSnap = await adminDb
     .collection('expenses')
     .where('userId', '==', userId)
@@ -130,6 +131,9 @@ export async function buildWeeklyBudgetData(userId: string, now: Date): Promise<
     return { ...(e as Expense), date: e.date?.toDate ? e.date.toDate() : e.date };
   });
 
+  const categoriesSnap = await adminDb.collection('expenseCategories').where('userId', '==', userId).get();
+  const categories: CategoryTypeRef[] = categoriesSnap.docs.map((doc) => ({ id: doc.id, type: doc.data().type }));
+
   const rows: WeeklyBudgetRow[] = items
     .filter((item) => item.amount > 0)
     .map((item) => {
@@ -137,8 +141,7 @@ export async function buildWeeklyBudgetData(userId: string, now: Date): Promise<
       const ratio = item.amount > 0 ? spent / item.amount : 0;
       let projected: number | null = null;
       if (item.period === 'monthly' && item.kind === 'expense') {
-        const reference = getActualForItem(item, expenses, year - 1) / 12;
-        projected = buildSpendingForecast(spent, item.amount, now, reference).projectedTotal;
+        projected = forecastMonthlyItem(item, expenses, now, categories).projectedTotal;
       }
       const projectedRatio = projected != null && item.amount > 0 ? projected / item.amount : null;
       const label = itemLabel(item);
@@ -174,9 +177,10 @@ export async function buildWeeklyBudgetData(userId: string, now: Date): Promise<
   // Overall ceiling — all month spending vs the monthly limit
   let overall: WeeklyBudgetRow | null = null;
   if (overallMonthlyAmount && overallMonthlyAmount > 0) {
-    const spent = getMonthlyTotalExpenses(expenses, year, getItalyMonth(now));
-    const reference = getOverallMonthlyBaseline(expenses, year);
-    const projected = buildSpendingForecast(spent, overallMonthlyAmount, now, reference).projectedTotal;
+    const split = splitMonthlyTotalExpenses(expenses, year, getItalyMonth(now), now);
+    const forecast = buildSpendingForecast(split, overallMonthlyAmount, now);
+    const spent = forecast.spentSoFar;
+    const projected = forecast.projectedTotal;
     const ratio = spent / overallMonthlyAmount;
     overall = {
       label: 'Budget complessivo',

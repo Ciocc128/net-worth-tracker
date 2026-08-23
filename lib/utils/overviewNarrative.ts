@@ -306,17 +306,6 @@ export function describeGoal(currentValue: number, targetAmount: number): Narrat
   return [prose('Mancano '), figure(cachedFormatCurrencyEUR(missing, true)), prose('.')];
 }
 
-/**
- * Where the month's spending lands if the current daily pace holds — a plain linear
- * extrapolation, stated as such in the UI ("al ritmo attuale"). Income is deliberately NOT
- * projected the same way: a salary lands once, so extrapolating it would be nonsense.
- * Null before the month has started or on a malformed calendar.
- */
-export function projectMonthEndSpending(
-  spentSoFar: number,
-  dayOfMonth: number,
-  daysInMonth: number,
-): number | null {
-  if (dayOfMonth < 1 || daysInMonth < 1) return null;
-  return (spentSoFar / dayOfMonth) * daysInMonth;
-}
+// The projection rule lives in spendingProjection.ts (SDK-free, shared with the budget layer
+// and the emails); re-exported here for the two tiles that read it from this module.
+export { projectMonthEndSpending } from '@/lib/utils/spendingProjection';

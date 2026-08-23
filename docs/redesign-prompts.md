@@ -385,6 +385,8 @@ Qui: docs/screenshots/dividend-calendar.png.
 
 **Superfici**: `components/cashflow/BudgetTab.tsx`, `components/cashflow/budget/*`, `lib/utils/budgetUtils.ts`.
 
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-budget-redesign`) — riga 2 = «Budget annuali» (7); impostazioni sotto la piega in una disclosure; la proiezione è stata allineata a quella di Tracciamento (decisione in sessione) e una categoria fissa non segue il ritmo; rischio (proiezione) e fatto (soglia superata) in due tessere distinte. La matita → dialog è rimasta (niente editing inline dell'importo, deciso in sessione).
+
 **Modello/effort**: Fable 5 · xhigh — budgetUtils ha regole precise ma contenute; niente cache.
 
 ```
