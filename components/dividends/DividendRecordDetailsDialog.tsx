@@ -30,15 +30,6 @@ const dividendTypeLabels: Record<DividendType, string> = {
   finalPremium: 'Premio Finale',
 };
 
-const dividendTypeBadgeColor: Record<DividendType, string> = {
-  ordinary: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800',
-  extraordinary: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800',
-  interim: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-400 dark:border-yellow-800',
-  final: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-800',
-  coupon: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
-  finalPremium: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
-};
-
 interface DividendRecordDetailsDialogProps {
   open: boolean;
   dividend: Dividend | null;
@@ -77,11 +68,14 @@ export function DividendRecordDetailsDialog({
               </DialogDescription>
             </div>
             <div className="flex flex-col items-end gap-1.5">
-              <Badge variant="outline" className={dividendTypeBadgeColor[dividend.dividendType]}>
+              {/* Type is plain text on a neutral outline: the six literal Tailwind palettes this
+                  used to carry stayed the same hue on every theme, and the only thing worth a
+                  colour here is a figure that is not final. */}
+              <Badge variant="outline" className="font-normal text-muted-foreground">
                 {dividendTypeLabels[dividend.dividendType]}
               </Badge>
               {dividend.isProvisional && (
-                <Badge variant="outline" className="border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400">
+                <Badge variant="outline" className="border-warning-border font-normal text-warning-foreground">
                   Provvisoria
                 </Badge>
               )}
