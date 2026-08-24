@@ -20,5 +20,12 @@ export const DASHBOARD_OVERVIEW_SUMMARY_COLLECTION = 'dashboardOverviewSummaries
 // Bumped from 9→10: expenseStats.currentMonth.expensesScheduled (the month's spending dated
 // after the computation, for the projection) added; sparklineData no longer capped at 40
 // points, so the «All» period is the whole snapshot history.
-export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 10;
+// Bumped from 10→11: costDrivers[].name now resolves via getAssetDisplayTicker (alias →
+// ticker → name) instead of the raw asset name, so a long fund name isn't truncated mid-word
+// in the Costi tile's "Pesano di più" list.
+// Bumped from 11→12: topAssets[].name now resolves via getAssetDisplayTicker too, for the same
+// reason — it feeds both Panoramica's "Asset principali" and Patrimonio's "Rendimento" tile.
+// Bumped from 12→13: topInstrumentMovers[].name now resolves via getAssetDisplayTicker too —
+// it feeds the "Mercato:" digest (Patrimonio) and the verdict's named top mover.
+export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 13;
 export const DASHBOARD_OVERVIEW_SUMMARY_TTL_MS = 5 * 60 * 1000;

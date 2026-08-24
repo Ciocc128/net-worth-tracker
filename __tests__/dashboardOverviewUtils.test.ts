@@ -374,10 +374,10 @@ describe('computeTopInstrumentMovers', () => {
 
   it('should list each instrument by its own price effect, largest absolute first, flows excluded', () => {
     const assets = [
-      makeAsset({ id: 'eq', name: 'Vanguard All-World', quantity: 10, currentPrice: 150 }), // +500
-      makeAsset({ id: 'bd', name: 'Global Aggregate', assetClass: 'bonds', quantity: 10, currentPrice: 90 }), // −100
-      makeAsset({ id: 'btc', name: 'Bitcoin', assetClass: 'crypto', quantity: 1, currentPrice: 28000 }), // 0,5 held: −1000
-      makeAsset({ id: 'ca', name: 'Conto', type: 'cash', assetClass: 'cash', quantity: 500, currentPrice: 1 }), // 0
+      makeAsset({ id: 'eq', name: 'Vanguard All-World', ticker: '', quantity: 10, currentPrice: 150 }), // +500
+      makeAsset({ id: 'bd', name: 'Global Aggregate', ticker: '', assetClass: 'bonds', quantity: 10, currentPrice: 90 }), // −100
+      makeAsset({ id: 'btc', name: 'Bitcoin', ticker: '', assetClass: 'crypto', quantity: 1, currentPrice: 28000 }), // 0,5 held: −1000
+      makeAsset({ id: 'ca', name: 'Conto', ticker: '', type: 'cash', assetClass: 'cash', quantity: 500, currentPrice: 1 }), // 0
     ];
     const previous = makeSnapshot({
       byAsset: [
@@ -399,6 +399,7 @@ describe('computeTopInstrumentMovers', () => {
     const fund = makeAsset({
       id: 'fund',
       name: 'Fondo Cometa',
+      ticker: '',
       type: 'pensionFund',
       composition: [
         { assetClass: 'equity', percentage: 60 },
@@ -438,8 +439,8 @@ describe('computeTopInstrumentMovers', () => {
 
   it('should measure real estate gross of debt and drop effects under 1 € as noise', () => {
     const assets = [
-      makeAsset({ id: 'home', name: 'Casa', type: 'realestate', assetClass: 'realestate', quantity: 1, currentPrice: 205000, outstandingDebt: 140000 }),
-      makeAsset({ id: 'eq', name: 'ETF', quantity: 10, currentPrice: 100.05 }),
+      makeAsset({ id: 'home', name: 'Casa', ticker: '', type: 'realestate', assetClass: 'realestate', quantity: 1, currentPrice: 205000, outstandingDebt: 140000 }),
+      makeAsset({ id: 'eq', name: 'ETF', ticker: '', quantity: 10, currentPrice: 100.05 }),
     ];
     const previous = makeSnapshot({
       byAsset: [
@@ -461,7 +462,7 @@ describe('computeTopInstrumentMovers', () => {
 
   it('should cap the list at ten instruments so the payload stays small', () => {
     const assets = Array.from({ length: 14 }, (_, i) =>
-      makeAsset({ id: `a${i}`, name: `Asset ${i}`, quantity: 10, currentPrice: 100 + (i + 1) }),
+      makeAsset({ id: `a${i}`, name: `Asset ${i}`, ticker: '', quantity: 10, currentPrice: 100 + (i + 1) }),
     );
     const previous = makeSnapshot({
       byAsset: assets.map((a) => makeSnapshotAsset({ assetId: a.id, quantity: 10, totalValue: 1000 })),
@@ -469,6 +470,19 @@ describe('computeTopInstrumentMovers', () => {
     const movers = computeTopInstrumentMovers(assets, previous, 14000);
     expect(movers).toHaveLength(10);
     expect(movers[0]).toEqual({ id: 'a13', name: 'Asset 13', delta: 140 });
+  });
+
+  it('should label a mover with its displayTicker alias when set, over the raw name', () => {
+    const asset = makeAsset({
+      id: 'eq',
+      name: 'Vanguard FTSE All-World UCITS ETF',
+      ticker: 'VWCE.MI',
+      displayTicker: 'VWCE',
+      quantity: 10,
+      currentPrice: 150,
+    });
+    const previous = makeSnapshot({ byAsset: [makeSnapshotAsset({ assetId: 'eq', quantity: 10, totalValue: 1000 })] });
+    expect(computeTopInstrumentMovers([asset], previous, 1500)).toEqual([{ id: 'eq', name: 'VWCE', delta: 500 }]);
   });
 });
 
@@ -479,21 +493,52 @@ describe('computeTopInstrumentMovers', () => {
 describe('rankCostDrivers', () => {
   it('should rank held assets with a TER by annual cost (value × TER), largest first', () => {
     const assets = [
-      makeAsset({ id: 'world', name: 'MSCI World', quantity: 100, currentPrice: 100, totalExpenseRatio: 0.2 }), // 20 €
-      makeAsset({ id: 'gold', name: 'Gold', quantity: 10, currentPrice: 200, totalExpenseRatio: 0.39 }), // 7,8 €
-      makeAsset({ id: 'em', name: 'Emerging', quantity: 50, currentPrice: 100, totalExpenseRatio: 0.18 }), // 9 €
-      makeAsset({ id: 'btp', name: 'BTP', quantity: 10, currentPrice: 100 }), // no TER → out
-      makeAsset({ id: 'sold', name: 'Sold', quantity: 0, currentPrice: 100, totalExpenseRatio: 0.5 }), // sold → out
+      makeAsset({ id: 'world', name: 'MSCI World', ticker: 'WORLD', quantity: 100, currentPrice: 100, totalExpenseRatio: 0.2 }), // 20 €
+      makeAsset({ id: 'gold', name: 'Gold', ticker: 'GOLD', quantity: 10, currentPrice: 200, totalExpenseRatio: 0.39 }), // 7,8 €
+      makeAsset({ id: 'em', name: 'Emerging', ticker: 'EM', quantity: 50, currentPrice: 100, totalExpenseRatio: 0.18 }), // 9 €
+      makeAsset({ id: 'btp', name: 'BTP', ticker: 'BTP', quantity: 10, currentPrice: 100 }), // no TER → out
+      makeAsset({ id: 'sold', name: 'Sold', ticker: 'SOLD', quantity: 0, currentPrice: 100, totalExpenseRatio: 0.5 }), // sold → out
     ];
     expect(rankCostDrivers(assets)).toEqual([
-      { id: 'world', name: 'MSCI World', totalExpenseRatio: 0.2, annualCost: 20 },
-      { id: 'em', name: 'Emerging', totalExpenseRatio: 0.18, annualCost: 9 },
-      { id: 'gold', name: 'Gold', totalExpenseRatio: 0.39, annualCost: 7.8 },
+      { id: 'world', name: 'WORLD', totalExpenseRatio: 0.2, annualCost: 20 },
+      { id: 'em', name: 'EM', totalExpenseRatio: 0.18, annualCost: 9 },
+      { id: 'gold', name: 'GOLD', totalExpenseRatio: 0.39, annualCost: 7.8 },
     ]);
   });
 
   it('should return [] when nothing carries a TER', () => {
     expect(rankCostDrivers([makeAsset({ quantity: 10, currentPrice: 100 })])).toEqual([]);
+  });
+
+  it('should label a driver with its displayTicker alias when set, over the raw name', () => {
+    const assets = [
+      makeAsset({
+        id: 'world',
+        name: 'Vanguard FTSE All-World UCITS ETF',
+        ticker: 'VWCE.MI',
+        displayTicker: 'VWCE',
+        quantity: 100,
+        currentPrice: 100,
+        totalExpenseRatio: 0.2,
+      }),
+    ];
+    expect(rankCostDrivers(assets)).toEqual([
+      { id: 'world', name: 'VWCE', totalExpenseRatio: 0.2, annualCost: 20 },
+    ]);
+  });
+
+  it('should fall back to the ticker, then the name, when no alias is set', () => {
+    const assets = [
+      makeAsset({
+        id: 'world',
+        name: 'Vanguard FTSE All-World UCITS ETF',
+        ticker: 'VWCE.MI',
+        quantity: 100,
+        currentPrice: 100,
+        totalExpenseRatio: 0.2,
+      }),
+    ];
+    expect(rankCostDrivers(assets)[0].name).toBe('VWCE.MI');
   });
 });
 

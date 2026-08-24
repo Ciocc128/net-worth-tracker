@@ -16,6 +16,7 @@ import {
   DashboardOverviewMover,
 } from '@/types/dashboardOverview';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
@@ -175,7 +176,8 @@ const MAX_INSTRUMENT_MOVERS = 10;
  * the first three under its hero. Same attribution, same pension and real-estate rules, same
  * €1 noise floor; an instrument is never split by its `composition`, so the sum over this list
  * equals the sum over the class digest. Returns [] under the same conditions as
- * `computeTopMovers`.
+ * `computeTopMovers`. `name` resolves via `getAssetDisplayTicker` (alias → ticker → name), like
+ * every other instrument label, so a long fund name isn't truncated mid-word in the digest.
  */
 export function computeTopInstrumentMovers(
   assets: Asset[],
@@ -191,7 +193,7 @@ export function computeTopInstrumentMovers(
   for (const asset of assets) {
     const delta = effects.get(asset.id);
     if (delta === undefined || Math.abs(delta) < 1) continue;
-    movers.push({ id: asset.id, name: asset.name, delta });
+    movers.push({ id: asset.id, name: getAssetDisplayTicker(asset), delta });
   }
 
   return movers
@@ -220,14 +222,16 @@ export function computeMarketEffect(
 /**
  * Held instruments that carry a TER, by what they cost per year (value × TER ÷ 100), largest
  * first — the same per-asset figure `calculateAnnualPortfolioCost` sums. Stamp duty is not
- * an instrument's cost and stays out.
+ * an instrument's cost and stays out. `name` is resolved via `getAssetDisplayTicker` (alias →
+ * ticker → name), the same fallback used everywhere else an instrument is labeled, so a long
+ * fund name doesn't get cut mid-word when the tile truncates it.
  */
 export function rankCostDrivers(assets: Asset[]): DashboardOverviewCostDriver[] {
   return assets
     .filter((asset) => asset.quantity > 0 && (asset.totalExpenseRatio ?? 0) > 0)
     .map((asset) => ({
       id: asset.id,
-      name: asset.name,
+      name: getAssetDisplayTicker(asset),
       totalExpenseRatio: asset.totalExpenseRatio!,
       annualCost: (calculateAssetValue(asset) * asset.totalExpenseRatio!) / 100,
     }))
