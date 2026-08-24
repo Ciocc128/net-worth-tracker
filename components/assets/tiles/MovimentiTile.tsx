@@ -7,6 +7,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { describeMonthTrades, monthWithPrepositionA } from '@/lib/utils/patrimonioNarrative';
 import type { MonthTradesSummary } from '@/lib/utils/patrimonioSummary';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
 
@@ -72,13 +73,13 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
                 onClick={() => asset && onOpenMovements(asset)}
                 disabled={!asset}
                 className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
-                aria-label={`${DAY_MONTH.format(row.date)}, ${asset?.name ?? 'strumento eliminato'}, ${isBuy ? 'acquisto' : 'vendita'}, ${cachedFormatCurrencyEUR(row.amountEur)}`}
+                aria-label={`${DAY_MONTH.format(row.date)}, ${asset ? getAssetDisplayTicker(asset) : 'strumento eliminato'}, ${isBuy ? 'acquisto' : 'vendita'}, ${cachedFormatCurrencyEUR(row.amountEur)}`}
               >
                 <span className="w-[38px] shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
                   {DAY_MONTH.format(row.date)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                  {asset?.name ?? <span className="text-muted-foreground">Strumento eliminato</span>}
+                  {asset ? getAssetDisplayTicker(asset) : <span className="text-muted-foreground">Strumento eliminato</span>}
                 </span>
                 <span
                   className={cn(

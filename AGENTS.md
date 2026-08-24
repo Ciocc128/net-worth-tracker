@@ -670,7 +670,14 @@ Companion documents — do not duplicate their content into this file:
 - **A cash *account picker* requires `type === 'cash' && assetClass === 'cash'`** (a money-market ETF can carry
   `assetClass: 'cash'`), for the settlement account, ledger first buy, `ExpenseDialog`'s payment account, the pension
   origin and `assertCashSettlementAsset`. Do NOT extend it to aggregate-liquidity computations.
-- **`getAssetDisplayTicker` is the ONLY place resolving the alias→ticker fallback.**
+- **`getAssetDisplayTicker` is the ONLY place resolving the alias→ticker fallback.** Every
+  instrument label built in `lib/utils/dashboardOverviewUtils.ts` (`rankCostDrivers`,
+  `computeTopInstrumentMovers`) and `dashboardOverviewService.ts` (`topAssets`) resolves through
+  it too — a long fund name never gets cut mid-word in the Costi/Rendimento/Mercato tiles. The
+  `makeAsset()` test fixture in `__tests__/dashboardOverviewUtils.test.ts` defaults `ticker:
+  'VWCE'`: any test that overrides only `name` and asserts on the returned label will silently
+  see `'VWCE'` back unless it also overrides `ticker` (to `''` to fall through to `name`, or to a
+  distinct value to test the ticker path).
 
 ### Patrimonio (`app/dashboard/assets/page.tsx`, `components/assets/*`)
 - **The page owns every dialog** (`AssetDialog`, `TransactionDialog`, `AssetMovementsDialog`, `TaxCalculatorModal`,

@@ -208,6 +208,7 @@
 
 - Fixed "Elimina tutte le ricorrenti" and "Elimina tutte le rate" doing nothing at all. Both buttons reported success while every entry in the series stayed exactly where it was, because the app was not allowed to read the series it was trying to delete. Deleting a whole recurring or instalment series now actually removes it, and reverses the linked account balance as it always intended to.
 - Fixed recurring entries skipping a month whenever the chosen day did not exist in it. A payment set for the 31st produced two entries in March and none in February, and the same happened for the 29th, 30th and 31st in every short month. Each occurrence now falls on the last day of a month too short to hold it — 31 January, 28 February, 31 March — which is also how a bank charges it.
+- Fixed long instrument names truncating mid-word in four places on the Overview and Patrimonio pages — Costi's "Pesano di più", Rendimento's "Migliori"/"Peggiore" rows and its verdict sentence, "Asset principali", the "Mercato:" market digest and its verdict, and "Movimenti del mese". They now show your custom ticker alias when you've set one (falling back to the ticker, then the full name), the same short label already used everywhere else in the app.
 
 ## 🔧 Improvements
 

@@ -45,6 +45,7 @@ import {
 } from '@/lib/services/chartService';
 import { calculateMonthlyChange, calculateYearlyChange } from '@/lib/services/snapshotService';
 import { getItalyMonthYear, ITALY_TIMEZONE, toDate } from '@/lib/utils/dateHelpers';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   DASHBOARD_OVERVIEW_SOURCE_VERSION,
   DASHBOARD_OVERVIEW_SUMMARY_COLLECTION,
@@ -408,7 +409,7 @@ function buildLiveOverviewPayload(
       }
       return {
         id: a.id,
-        name: a.name,
+        name: getAssetDisplayTicker(a),
         assetType: a.type,
         assetClass: a.assetClass,
         totalValue: value,
