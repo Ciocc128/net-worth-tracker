@@ -469,6 +469,8 @@ nuovo a meno che non te lo chieda.
 
 **Modello/effort**: Fable 5 · xhigh — nessun test sui componenti: l'effort va nell'estrarre e testare il layer puro.
 
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-centri-di-costo-redesign`) — l'asse del periodo è stato TOLTO su richiesta (ogni cifra «in totale», le finestre diverse si nominano: «Whole-Cost Corollary» in DESIGN.md); riga 2 della lista = «Dormienti» (7), gli archiviati in una disclosure sotto la griglia; nel dettaglio «Per categoria» (4) accanto a «Ciclo di vita» (3) e «Per sottocategoria» a 7; la proiezione annua è passata alla regola unica dell'app (`projectWindowEndWithScheduled`, ritirato il modello misto); il grafico a linee Recharts è diventato barre impilate per centro nella tessera Totale; le azioni del dettaglio stanno accanto al verdetto. Il prompt resta come riferimento di metodo.
+
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Cashflow · Centri di Costo» dell'app portandola sullo
 stile della Panoramica: «Verdict over Tiles» (DESIGN.md §1 «The 2026-08-22 turn» e §5: Page

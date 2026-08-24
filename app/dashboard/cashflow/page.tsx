@@ -12,7 +12,7 @@
  * - Tracking: verdict + tile grid over the period's movements (ExpenseTrackingTab)
  * - Dividends: dividend tracking
  * - Budget: verdict + tile grid over the month's ceiling and the category budgets (BudgetTab)
- * - Cost centers: optional 6th tab (settings.costCentersEnabled)
+ * - Cost centers: optional 6th tab (settings.costCentersEnabled) — verdict + tile grid over the centers' whole cost
  *
  * The root is the 1920px tile-page width (`PageContainer width="wide"`): Tracciamento is a
  * 12-column bento, and a bento uses width.
@@ -245,6 +245,20 @@ export default function CashflowPage() {
               >
                 <Plus className="h-4 w-4" />
                 Aggiungi budget
+              </Button>
+            )}
+            {/* Centri di Costo's page-level action: same channel, same desktop-only rule. */}
+            {activeTab === 'cost-centers' && (
+              <Button
+                size="sm"
+                disabled={isDemo}
+                aria-label={isDemo ? 'Nuovo centro — non disponibile in modalità demo' : 'Nuovo centro'}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-cost-center'))}
+                className="hidden desktop:flex"
+              >
+                <Plus className="h-4 w-4" />
+                Nuovo centro
               </Button>
             )}
             {activeTab === 'dividends' && (

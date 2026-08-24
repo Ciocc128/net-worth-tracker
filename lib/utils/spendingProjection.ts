@@ -32,6 +32,23 @@ export function projectMonthEndWithScheduled(
   dayOfMonth: number,
   daysInMonth: number,
 ): number | null {
-  const paced = projectMonthEndSpending(spentToDate, dayOfMonth, daysInMonth);
-  return paced === null ? null : paced + scheduled;
+  return projectWindowEndWithScheduled(spentToDate, scheduled, dayOfMonth, daysInMonth);
+}
+
+/**
+ * The same rule on ANY calendar window — a month (`dayOfMonth` / `daysInMonth`) or a year
+ * (`dayOfYear` / `daysInYear`): the pace on what is booked up to today, times the window,
+ * plus the rows already dated after today as they are. Centri di Costo projects a center's
+ * year-end cost with it; before it, the center used a blended model (this year's pace weighted
+ * with last year's), which printed a figure «al ritmo attuale» that was not the current pace.
+ * Null on a window that has not started or on a malformed calendar.
+ */
+export function projectWindowEndWithScheduled(
+  spentToDate: number,
+  scheduled: number,
+  elapsedDays: number,
+  totalDays: number,
+): number | null {
+  if (elapsedDays < 1 || totalDays < 1) return null;
+  return (spentToDate / elapsedDays) * totalDays + scheduled;
 }
