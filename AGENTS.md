@@ -626,6 +626,21 @@ Companion documents — do not duplicate their content into this file:
 - **Two CAGR formulas, intentionally different**: Storico hero = `(endNW/startNW)^(12/months) − 1` (wealth growth),
   Rendimenti = `(endNW/(startNW+netCashFlow))^(1/years) − 1` (investment return).
 
+### Storico — a verdict over tiles (`app/dashboard/history/page.tsx`, `components/history/tiles/*`, `lib/utils/{storicoSummary,storicoNarrative}.ts`)
+- **The page has NO axis, and its growth is WEALTH growth.** `summarizeGrowth` measures first → latest snapshot with contributions included, and every sentence that prints its CAGR says «versamenti inclusi»; never feed it to a surface that means an investment return (that is Rendimenti's `(endNW/(startNW+netCashFlow))^(1/years)`, AGENTS → History and Snapshot Baselines).
+- **ONE pace for the whole page** (`summarizeGrowthPace`): the trailing-12-month average monthly increase in EURO, linear. It decides the headline (`accelerating` above the lifetime monthly average ×1.10, `slowing` below ×0.90, `steady` between, `losing` when the year is negative) AND `projectNextDoubling`. Both need the snapshot of EXACTLY twelve months earlier (a gap → `trailingDelta: null`, no clause, no projection) and the verdict needs `PACE_MIN_HISTORY_MONTHS` (24) of history; a projection beyond `PROJECTION_MAX_MONTHS` (600) is `null`, never a date. Do not "improve" it with a compound extrapolation: contributions do not compound.
+- **A month is a pair of snapshots exactly one calendar month apart** (`summarizeMonthlyMoves`, `withMonthDeltas`): a gap is not a month, a zero delta is neither rising nor falling. The verdict names the best month, the Evoluzione tile the worst — never both in one place.
+- **The verdict's «ultimo raddoppio» is always the GEOMETRIC one**; the Raddoppi tile follows its toggle (`prepareDoublingTimeData(ordered, mode)` — feed it SORTED snapshots, oldest first, it does not sort). `describeDoublings` reads `progressPercentage` from the milestone in progress and says «il primo» (no noun) when nothing is completed yet.
+- **Driver is floored at `cashflowHistoryStartYear`** (`selectDriverYears`, the monthly rows filtered the same way): before it there are no transactions and «mercato» would silently be the whole growth. A running year is measured FROM its baseline snapshot (`baseline` on chartService's yearly rows, `runningSinceMonth`): «Da aprile 2026» when the history starts in March, never a hardcoded «gennaio». `summarizeLaborMetrics` is the SDK-free recap (taxes passed in) and skips transfers, which are net-zero and stored positive. The split bar shows only the POSITIVE halves as shares of what was added; a negative half reads in words («mentre il mercato ha tolto», «hai speso … più di quanto hai incassato»), never as a share of a mixed-sign total. The monthly bars are side by side, never stacked (a negative segment breaks a stack).
+- **Per-instrument attribution is `buildMonthAssetBreakdown`** — `attributeSelectedChange` one instrument at a time against the closest EARLIER month WITH a breakdown (a legacy month in between is skipped and the reading names the month it compares with); the month's total change runs on the UNION of both months' instruments, so a position sold in full still explains the drop without a row. `summarizeSelection` sums the ticked rows; nothing in the tile adds numbers.
+- **`describeComposition` reads `CompositionSeries.breakdown`** (already ranked, maths in `historyComposition.ts`) and puts the subject in the band's own gender/number (`BAND_SUBJECTS`: «le azioni pesano», «la liquidità pesa»); the Previdenza clause appears only when the band exists and is not already one of the two named.
+- **Recharts inside a tile that stretches**: the Evoluzione area sits in `relative min-h-[220px] flex-1` with `ResponsiveContainer` inside an `absolute inset-0` box — a bare `ResponsiveContainer height="100%"` in an auto-height flex child collapses to 0. A narrow range (< 10.000 € of span) prints full-euro ticks: compact ones all round to the same «€30k».
+- **`SelectTrigger size="sm"` emits `data-[size=sm]:h-8`, which beats a plain `h-11`/`desktop:h-7`** (variant selectors win on specificity; twMerge does not dedupe across variants): override it WITH the variant — `data-[size=sm]:h-11 desktop:data-[size=sm]:h-7`.
+- **The quantity effect is a FLOW, not a gain**: a deposit on a cash account lands in it. It is set in mono with a typographic sign and no colour (`signedFlow`, the `flow` prop of `Effect`), named «dalle quantità (acquisti, vendite e versamenti)», and the sign of every printed figure is decided on the TEXT (`isPrintedZero`): «0 €», «0,0%», «0,0 pp» carry neither sign nor colour.
+- **`summarizeSelection` runs on the union like `change`**: an instrument ticked in an earlier month and sold in full counts its whole previous value as a quantity loss (`departed`), so the panel agrees with the trend line under it.
+- **JSX text after an expression inside a flex chip loses its leading space** (`{pct} l'anno` rendered «19,4%l'anno»): an anonymous flex item's leading whitespace is collapsed. Build the string in one expression.
+- **`SnapshotSearchDialog` sets the note in the select handler**, not in an effect (react-hooks/set-state-in-effect); the page patches the note into local state after `updateSnapshotNote`, no refetch.
+
 ### Rendimenti — measurement base (`lib/utils/performanceBase.ts`, `drawdownSeries.ts`)
 - **Any exclusion read from `byAsset` MUST be backfilled across the pre-`byAsset` months, or it becomes a phantom crash**:
   subtract a **constant `E₀`** (the excluded total of the earliest snapshot that HAS one), which cancels in `(V_end −
@@ -1310,7 +1325,6 @@ Companion documents — do not duplicate their content into this file:
 
 ### Hierarchy, Density and Disclosure
 > The visual rules themselves are DESIGN.md's; only the implementation traps live here.
-- `MetricCard`: `subtitle` renders RIGHT (`shrink-0`, short strings only), `description` LEFT (`min-w-0 flex-1`).
 - **Never give a "Custom" state a permanent slot in a period selector** — it looks disabled until active; render a
   `rounded-full` chip below the selector only when active. A selector working across multiple return paths uses plain
   `<button role="tab">` + a module-level Framer `layoutId`, not shadcn `<Tabs>`.
@@ -1431,6 +1445,10 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   dist dir (`NEXT_DIST_DIR=.next-throwaway`) rather than deleting someone else's, and **keep the `.next-` prefix**,
   which is what `.gitignore` matches. Two traps on the way out: `next dev` rewrites `tsconfig.json`, so check it out
   again; and the server keeps writing briefly after it is stopped, so delete the dist dir after the process is gone.
+- **A throwaway account that logs in leaves `dashboardOverviewSummaries/{uid}` behind** (the server-owned overview
+  summary is written on the first dashboard visit): a wipe that deletes only what the seed planted keeps it in the
+  export — grep the exported `output-0` for the uid before calling the restore done. The Hub export body takes a
+  forward-slash path (`{"path": "C:/…/.emulator-data"}`); a backslashed one 400s with a JSON escape error.
 - **Stopping the emulators: export FIRST, then kill.** `--export-on-exit` only runs on a SIGINT delivered to the
   `firebase` CLI process itself, so killing the wrapper (all Windows really offers) skips the export and
   `.emulator-data/` keeps its startup timestamp — the session's data is lost on the next import. Use the Emulator Hub:

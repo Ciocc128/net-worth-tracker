@@ -369,6 +369,8 @@ export function prepareYoYVariationData(snapshots: MonthlySnapshot[]): {
   variationPercentage: number;
   startValue: number;
   endValue: number;
+  /** The snapshot the year is measured FROM (December of the previous year, or the year's first snapshot). */
+  baseline: { year: number; month: number };
 }[] {
   if (snapshots.length === 0) {
     return [];
@@ -391,6 +393,7 @@ export function prepareYoYVariationData(snapshots: MonthlySnapshot[]): {
     variationPercentage: number;
     startValue: number;
     endValue: number;
+    baseline: { year: number; month: number };
   }[] = [];
 
   Array.from(snapshotsByYear.entries())
@@ -420,6 +423,7 @@ export function prepareYoYVariationData(snapshots: MonthlySnapshot[]): {
         variationPercentage,
         startValue,
         endValue,
+        baseline: { year: startSnapshot.year, month: startSnapshot.month },
       });
     });
 
@@ -450,6 +454,8 @@ export function prepareSavingsVsInvestmentData(
   netSavings: number;
   investmentGrowth: number;
   netWorthGrowth: number;
+  /** The snapshot the year is measured FROM (December of the previous year, or the year's first snapshot). */
+  baseline: { year: number; month: number };
 }[] {
   // Return empty array if missing data
   if (snapshots.length === 0 || expenses.length === 0) {
@@ -489,6 +495,7 @@ export function prepareSavingsVsInvestmentData(
     netSavings: number;
     investmentGrowth: number;
     netWorthGrowth: number;
+    baseline: { year: number; month: number };
   }[] = [];
 
   Array.from(snapshotsByYear.entries())
@@ -530,6 +537,7 @@ export function prepareSavingsVsInvestmentData(
         netSavings,
         investmentGrowth,
         netWorthGrowth,
+        baseline: { year: startSnapshot.year, month: startSnapshot.month },
       });
     });
 
@@ -537,95 +545,6 @@ export function prepareSavingsVsInvestmentData(
 }
 
 const MONTH_NAMES_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
-
-/**
- * Prepare monthly data showing breakdown of net worth growth into savings vs investment returns.
- *
- * Same logic as prepareSavingsVsInvestmentData but at monthly granularity.
- * Each data point requires a snapshot for the current month AND the previous month
- * as a baseline — months without a prior snapshot are skipped.
- *
- * When a month has no expense transactions, netSavings defaults to 0 and the
- * entire net worth change is attributed to investmentGrowth.
- *
- * @param snapshots - Monthly snapshots with net worth data
- * @param expenses - All expense records (income and expenses)
- * @param year - The year to compute monthly data for
- * @returns Array of monthly data sorted by month (1–12)
- */
-export function prepareSavingsVsInvestmentDataMonthly(
-  snapshots: MonthlySnapshot[],
-  expenses: Expense[],
-  year: number
-): {
-  period: string;
-  month: number;
-  netSavings: number;
-  investmentGrowth: number;
-  netWorthGrowth: number;
-}[] {
-  if (snapshots.length === 0) return [];
-
-  // Build a lookup map keyed by "year-month" for O(1) access
-  const snapshotMap = new Map<string, MonthlySnapshot>();
-  snapshots.forEach((s) => snapshotMap.set(`${s.year}-${s.month}`, s));
-
-  // Group expenses by year-month using Italy timezone
-  const expensesByMonth = new Map<string, { income: number; expenses: number }>();
-  expenses.forEach((expense) => {
-    const ey = getItalyYear(expense.date);
-    const em = getItalyMonth(expense.date);
-    const key = `${ey}-${em}`;
-    const current = expensesByMonth.get(key) || { income: 0, expenses: 0 };
-
-    // Transfers are net-zero — skip entirely
-    if (expense.type === 'transfer') return;
-    // Income is positive, expenses are stored as negative values
-    if (expense.type === 'income') {
-      current.income += expense.amount;
-    } else {
-      current.expenses += expense.amount; // Already negative
-    }
-
-    expensesByMonth.set(key, current);
-  });
-
-  const result: {
-    period: string;
-    month: number;
-    netSavings: number;
-    investmentGrowth: number;
-    netWorthGrowth: number;
-  }[] = [];
-
-  for (let month = 1; month <= 12; month++) {
-    const currentSnapshot = snapshotMap.get(`${year}-${month}`);
-    if (!currentSnapshot) continue;
-
-    // Previous month baseline: December of prior year when month is January
-    const prevYear = month === 1 ? year - 1 : year;
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prevSnapshot = snapshotMap.get(`${prevYear}-${prevMonth}`);
-    if (!prevSnapshot) continue;
-
-    const netWorthGrowth = currentSnapshot.totalNetWorth - prevSnapshot.totalNetWorth;
-
-    const expenseData = expensesByMonth.get(`${year}-${month}`);
-    // Default to 0 when no transactions exist — entire change is market-driven
-    const netSavings = expenseData ? expenseData.income + expenseData.expenses : 0;
-    const investmentGrowth = netWorthGrowth - netSavings;
-
-    result.push({
-      period: MONTH_NAMES_IT[month - 1],
-      month,
-      netSavings,
-      investmentGrowth,
-      netWorthGrowth,
-    });
-  }
-
-  return result;
-}
 
 /**
  * Prepare monthly data for all available years in chronological order.
