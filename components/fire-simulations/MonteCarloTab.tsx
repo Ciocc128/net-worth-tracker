@@ -120,15 +120,15 @@ export function MonteCarloTab() {
    */
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: settings, isLoading: isLoadingSettings } = useQuery({
     queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(user!.uid),
-    enabled: !!user,
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 

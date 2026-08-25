@@ -28,7 +28,9 @@ Companion documents — do not duplicate their content into this file:
   chartService's and mock the Firebase chain in their tests. Same rule for any hand-rolled `toFixed` next to an `Intl`
   number — including `aria-label` text, where a dot makes a screen reader announce a different figure from the screen.
 - **Curly apostrophes break `.tsx`** (`TS1127`) — delimit with double quotes. **JSX eats the space next to an inline tag
-  or wrapped expression** once Prettier breaks the line: write `{' '}` on both sides of `<strong>`/`{expr}`.
+  or wrapped expression** once Prettier breaks the line: write `{' '}` on both sides of `<strong>`/`{expr}`. **An
+  `inline-flex` chip drops the leading space of a text-node child too** (each child is a flex item): «69,7%verso FI»
+  — give the words their own `<span>` and let `gap-1` space them, `{' '}` does not paint there.
 - **Italian `Intl` breaks naive matching**: four-digit amounts print ungrouped (`1821,01 €` but `29.800,00 €`) and the
   `€` carries a non-breaking space. Anchor as `/^821,01[\s ]*€$/`; never concatenate `amount + ' €'`.
 
@@ -876,6 +878,52 @@ Companion documents — do not duplicate their content into this file:
   the same doc), the goals already stored and `assignments` pass through **verbatim**, and the colour is picked INSIDE
   the transaction (`pickNextGoalColor`), or two goals created concurrently come out the same hue.
 
+### FIRE › Calcolatore — a verdict over tiles (`components/fire-simulations/FireCalculatorTab.tsx`, `components/fire-simulations/tiles/*`, `lib/utils/{fireSummary,fireNarrative}.ts`)
+- The tab owns three states — `view` (Scenari | Ventaglio, the Traguardo tile's aside), the pension-lock switch
+  (persisted on change) and the Parametri form (a preview until «Salva») — and computes nothing: numbers come from
+  `fireSummary.ts` over the engines the tab already ran (`calculateFIREProjection`, `calculateFIREMetrics` +
+  `calculateFireBridgeNumber`, `resolvePensionLockState`, `runAccumulationSimulation`), words from `fireNarrative.ts`.
+- **ONE expense figure for the number, the verdict and the chart**: `getAnnualCashflowData` (the last full year, else
+  the running year annualized — the Base di calcolo aside says which). `getFIREData`'s own `metrics.annualExpenses`
+  reads the last full year ONLY and is not used for the number: on an account with no last-year rows it is 0, and the
+  page called the number «non calcolabile» beside a projection it kept drawing (caught by Playwright on the base
+  fixture). `getFIREData` still feeds the runway and the cashflow history.
+- **The lock switch saves on change** (optimistic `setRespectPensionLockIn`, reverted on error, disabled while
+  pending and in demo with the reason in visible copy) and is NOT part of `hasUnsavedChanges`; the form keeps the SWR,
+  the residence, the INPS age and the RITA hypothesis behind an explicit save. The config-first collapse (`useRef`
+  seeded, never keyed on the transient `hasUnsavedChanges`) is unchanged; the effects that seed it defer their
+  `setState` with `setTimeout(…, 0)`.
+- **The fan's verdict is pure** (`resolveFanVerdict`: the deterministic base year when it lies inside the simulated
+  horizon, else the horizon and `onHorizon` says so), read by the Traguardo footer and the chart's `aria-label`;
+  `FireFanChart` renders no prose. Both charts take `height="100%"` inside `relative flex-1 min-h-[240px]` with an
+  `absolute inset-0` box (the EvoluzioneTile technique): a Recharts `ResponsiveContainer` with a percentage height
+  needs a definite parent, and the prop type is a template literal (`number | \`${number}%\``), not `string`.
+- **Every FIRE tab reads and writes with `ownerId`, never `user.uid`** (fixed 2026-08-25 on all four tabs: Calcolatore,
+  Coast, What If, Monte Carlo — Obiettivi already did). The React Query keys were namespaced by `ownerId` while the
+  functions took `user!.uid`, so a guest on a shared account saw their OWN (empty) FIRE data and saved settings on
+  their own doc. `enabled: !!user && !!ownerId` gates every query; `ownerId!` is safe past that gate.
+- **`PageContainer width="wide"` only while `activeTab === 'fire'`**: the four other tabs are not propagated and keep
+  the 1600px byte-identical. `FireCalculatorSkeleton` survives for Coast FIRE alone; the Calcolatore loads as
+  `TileGridSkeleton` with its own cells.
+- **The passive income at the FIRE year is nominal and never stands alone** in the verdict: beside today's expenses
+  with the inflation named («2300 € al mese di oggi, 2667 € del 2032 con l'inflazione al 2,5%»), or one figure when
+  inflation is 0. A projection carries no sign colour; the only signed figure on the page is the current withdrawal
+  rate over the SWR, in the Reddito passivo tile.
+- **The form re-seeds from the SAVED values only when they change** (`lastSyncedFormRef`): the lock switch saves on
+  its own and refetches the doc, and a refetch that changed nothing the form edits must not wipe a typed SWR. The
+  `fireData` query keys on `currentNetWorth`, so it uses `placeholderData: keepPreviousData` — without it a lock
+  flip or the residence switch dropped the whole tab to the skeleton mid-interaction. Every write restates
+  `respectPensionLockInFire` from the local state, because the cached `settings` it spreads can lag a lock save.
+- **A chart slot is not a text colour, here either**: the scenario labels of Parametri (and the Scenari rows) are
+  muted text beside an 8px swatch in the slot. **No sign token on a projected figure.** The year-by-year table was
+  dropped on request (2026-08-25): the Scenari chart and tile already carry what it listed.
+- Playwright locates the tiles by `role=region` + `aria-label` («Traguardo FIRE», «Base di calcolo del FIRE», «Reddito
+  passivo sostenibile», «Scenari di mercato»), the verdict by «Verdetto sul FIRE», the view switch by `role=group`
+  «Vista della proiezione» (`aria-pressed` buttons), the switch by its `aria-label`, the two disclosure triggers by
+  their VISIBLE text (`/^Parametri/`, `/^Dettaglio/` — no `aria-label`, so «Anteprima non salvata» is part of the
+  name); the hero is `p:has-text("Numero FIRE") + span`, never «the first mono span» (the reading comes first). The
+  390 guard opens Parametri, Dettaglio and the Ventaglio before measuring `main`.
+
 ### Asset Trade Ledger
 - Three trade types per asset — BUY / SELL / ADJUSTMENT — with an optional cash settlement that debits or credits a
   cash account atomically, so a settled trade is net-worth-neutral. `TransactionDialog` writes, `AssetMovementsDialog`
@@ -1487,6 +1535,11 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers the
 rules permitting the writes, real `Timestamp` values surviving `removeUndefinedDeep` and the real atomic transaction.
 - **Write them as `.mts`** — a `.ts` script is CJS under tsx and has no top-level await, and neither does `npx tsx -e`.
+- **Run a throwaway script from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase F): from the session
+  scratchpad `firebase-admin` fails with `ERR_MODULE_NOT_FOUND` — resolution starts at the script's directory — and the
+  seed dies silently before the login it was meant to enable. A throwaway Playwright spec likewise lives in `e2e/`
+  (it must match a project's `testMatch`); it can override the project's session with `test.use({ storageState: {
+  cookies: [], origins: [] }, viewport, deviceScaleFactor, colorScheme })` and log in through the form.
   **Drive the mutations through the app's services** (client SDK, rule-evaluated) and do the script's own reads and
   fixture edits with the Admin SDK: from an `.mts` file a `doc()` imported there rejects a `db` built here, while
   sign-in still works, which makes the failure look unrelated.

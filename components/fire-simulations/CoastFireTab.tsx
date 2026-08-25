@@ -71,22 +71,22 @@ export function CoastFireTab() {
 
   const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings | null>({
     queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(user!.uid),
-    enabled: !!user,
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: annualExpenses, isLoading: isLoadingAnnualExpenses } = useQuery({
     queryKey: ['coastFireAnnualExpenses', ownerId],
-    queryFn: () => getAnnualExpenses(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAnnualExpenses(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 

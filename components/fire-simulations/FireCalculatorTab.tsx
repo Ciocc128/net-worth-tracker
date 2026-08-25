@@ -1,153 +1,147 @@
 'use client';
 
 /**
- * FireCalculatorTab Component — single-answer IA.
+ * FIRE › CALCOLATORE — a verdict over tiles (2026-08-25)
  *
- * The page answers two questions at a glance and defers everything else:
- *   1. HERO [2fr_1fr] — "Quando?": the projected FIRE calendar year in the base scenario
- *      (verdict "FIRE proiettato nel {anno}, a {età}"), % verso FI + gap; the companion card
- *      answers "Quanto posso spendere?" (sustainable passive income). A basis line under the
- *      hero declares the active assumptions (SWR, casa, fondo pensione).
- *   2. "Impostazioni" — ONE collapsible (SWR, casa, fondo pensione + RITA), config-first
- *      collapse with a useRef seeded-flag (never keyed on the transient hasUnsavedChanges).
- *   3. "Proiezione" — FIREProjectionSection with the Scenari | Ventaglio pill.
- *   4. "Dettaglio" — the two historical charts and the FIRE explainer, demoted, nothing deleted.
+ * The tab answers «quando?» before it shows a number: a rule-generated verdict
+ * (lib/utils/fireNarrative.ts) names the year and the age of the base scenario, the gap to the
+ * FIRE number, the pace and — in both moneys — the passive income the plan lands on, over a
+ * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- * Data flow (no formula changes — presentation over existing pure functions):
- * 1. settings + assets + annualCashflowData queries (independent, staleTime 5min)
- * 2. fireData query (depends on assets + settings — gated by `enabled`)
- * 3. displayedFireMetrics + the deterministic projection derived client-side via useMemo so
- *    preview changes (WR, toggles, scenario params) are instant without re-fetching
+ *   Desktop (12 col): Traguardo(5, 2 rows) | Base di calcolo(3, 2 rows) | Reddito passivo(4)
+ *                                                                        | Scenari(4)
+ *   Mobile (1 col):   Traguardo → Scenari → Reddito passivo → Base di calcolo
  *
- * Preview pattern: user edits form → temp state updates → displayed metrics re-compute
- * instantly → banner "Anteprima locale attiva" appears → explicit Save persists to Firestore.
+ * Below the grid, two disclosures: «Parametri» (the SWR, the residence rule, the RITA details and
+ * the scenarios' parameters — config-first: open only while no SWR is saved, reopening on an
+ * unsaved edit) and «Dettaglio» (the historical runway, the cashflow history, the explainer).
  *
- * The old FireReachedBanner is absorbed into the hero verdict (one announcement, not two);
- * its one-shot confetti keeps the SAME localStorage key so it never re-fires for existing users.
+ * The page has NO period axis — a FIRE plan is read today, on the last full year's cashflow. Its
+ * one live control is the pension-lock switch in the Base di calcolo tile, which SAVES on change
+ * (the canvas's proposal): it changes which capital counts, so it sits beside the figure it moves.
+ * The Scenari | Ventaglio switch in the Traguardo's aside is that tile's scope, not an axis.
+ *
+ * Data flow (unchanged from the previous IA — presentation over the same pure functions):
+ * 1. settings + assets + annualCashflowData queries (independent, staleTime 5min);
+ * 2. fireData query (depends on assets + settings — gated by `enabled`);
+ * 3. the metrics, the deterministic projection and the fan inputs derived client-side via
+ *    useMemo, so preview edits (SWR, RITA controls, scenario params) are instant.
+ * `respectPensionLockInFire` governs the WHOLE FIRE page (Coast, What If, Monte Carlo read the
+ * saved setting), which is one more reason the switch persists at once.
+ *
+ * No component computes a figure or writes a sentence: numbers come from
+ * lib/utils/fireSummary.ts (over fireService / pensionUnlock / monteCarloService), words from
+ * lib/utils/fireNarrative.ts. The one-shot confetti of the absorbed FireReachedBanner keeps the
+ * SAME localStorage key, so nobody who already saw it gets a second burst.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import {
-  getAllAssets,
-  calculateFIRENetWorth,
-  calculateLiquidFIRENetWorth,
-  calculateIlliquidFIRENetWorth,
   calculateAssetValue,
+  calculateFIRENetWorth,
+  calculateIlliquidFIRENetWorth,
+  calculateLiquidFIRENetWorth,
+  getAllAssets,
 } from '@/lib/services/assetService';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
+import { calculateCurrentAllocation, getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
+import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import {
-  getSettings,
-  setSettings,
-  getDefaultTargets,
-  calculateCurrentAllocation,
-} from '@/lib/services/assetAllocationService';
-import {
-  DEFAULT_INPS_RETIREMENT_AGE,
-  resolvePensionLockState,
-  resolveRitaUnlockAge,
-  type PensionUnlockSettings,
-} from '@/lib/utils/pensionUnlock';
-import {
-  getFIREData,
-  getAnnualCashflowData,
   calculateFIREMetrics,
-  calculateFireBridgeNumber,
   calculateFIREProjection,
+  calculateFireBridgeNumber,
+  getAnnualCashflowData,
   getDefaultScenarios,
+  getFIREData,
   prepareRunwaySummaryLabel,
-  type FIREMetrics,
   type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
-import { getDefaultMarketParameters } from '@/lib/services/monteCarloService';
+import { getDefaultMarketParameters, runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
 import { hasCelebrated, markCelebrated, shouldReduceMotion } from '@/lib/utils/celebrationUtils';
-import { formatDate } from '@/lib/utils/formatters';
-import { formatCurrency, formatCurrencyCompact, formatPercentage } from '@/lib/services/chartService';
-import { fmtCurrency } from '@/lib/utils/chartUtils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { AlertTriangle, ChevronDown, HelpCircle, Info, Loader2 } from 'lucide-react';
-import { FireCalculatorSkeleton } from '@/components/fire-simulations/FireCalculatorSkeleton';
-import { toast } from 'sonner';
 import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import { Settings } from '@/types/settings';
-import { FIREProjectionScenarios } from '@/types/assets';
-import { FIREProjectionSection, type FanSimulationInputs } from './FIREProjectionSection';
+  formatAllocationLabel,
+  resolveFanVerdict,
+  summarizeLock,
+  summarizePassiveIncome,
+  summarizeScenarios,
+  summarizeTarget,
+  summarizeTimeline,
+} from '@/lib/utils/fireSummary';
+import {
+  buildFireVerdict,
+  describeBase,
+  describeBaseAside,
+  describeBaseFooter,
+  describeDettaglio,
+  describeLock,
+  describeParametri,
+  describePassiveIncome,
+  describeRitaPreview,
+  describeRunway,
+  describeScenarios,
+  describeScenariosFooter,
+  describeTarget,
+  describeTargetCaption,
+  describeTargetFooter,
+  type FireBase,
+  type ProjectionView,
+} from '@/lib/utils/fireNarrative';
+import type { Settings } from '@/types/settings';
+import type { FIREProjectionScenarios } from '@/types/assets';
 import { cn } from '@/lib/utils';
-import { useCountUp } from '@/lib/utils/useCountUp';
-
-const FIRE_CONTROL_CLASSNAME =
-  'mt-1 transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
+import { PageVerdict } from '@/components/ui/page-verdict';
+import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { TraguardoTile } from '@/components/fire-simulations/tiles/TraguardoTile';
+import { BaseDiCalcoloTile } from '@/components/fire-simulations/tiles/BaseDiCalcoloTile';
+import { RedditoPassivoTile } from '@/components/fire-simulations/tiles/RedditoPassivoTile';
+import { ScenariTile } from '@/components/fire-simulations/tiles/ScenariTile';
+import { FireParametri, type FireSettingsForm } from '@/components/fire-simulations/FireParametri';
+import { FireDettaglio } from '@/components/fire-simulations/FireDettaglio';
+import { FIREProjectionChart } from '@/components/fire-simulations/FIREProjectionChart';
+import { FireFanChart } from '@/components/fire-simulations/FireFanChart';
 
 /** How many Monte Carlo paths the Ventaglio runs — plenty for stable deciles, cheap on mobile. */
 const FAN_SIMULATION_COUNT = 1000;
+/** Fan horizon cap: the deterministic projection's years, at most 40. */
+const FAN_MAX_YEARS = 40;
+/** The deterministic projection's horizon. */
+const PROJECTION_HORIZON_YEARS = 50;
 
-// Leaf nodes isolate count-up re-renders so surrounding layout doesn't reflow
-function SettledCurrencyValue({ value, className }: { value: number | null; className?: string }) {
-  const animatedValue = useCountUp(value, { fromPrevious: true, duration: 520, startDelay: 0 });
-  return <span className={className}>{formatCurrency(animatedValue ?? value ?? 0)}</span>;
-}
+/** The fan's inputs minus the horizon, which is derived from the deterministic projection. */
+type FanSimulationInputs = Omit<AccumulationSimulationParams, 'years'>;
 
-function SettledPercentageValue({ value, className }: { value: number | null; className?: string }) {
-  const animatedValue = useCountUp(value, { fromPrevious: true, duration: 520, startDelay: 0 });
-  return <span className={className}>{formatPercentage(animatedValue ?? value ?? 0)}</span>;
-}
-
-function SettledYearsValue({
-  value,
-  className,
-  decimals = 1,
-}: {
-  value: number | null;
-  className?: string;
-  decimals?: number;
-}) {
-  const animatedValue = useCountUp(value, { fromPrevious: true, duration: 520, startDelay: 0 });
-  if (value === null) return <span className={className}>—</span>;
-  return <span className={className}>{(animatedValue ?? value).toFixed(decimals)}</span>;
-}
+/** The grid's geometry, for the skeleton: the same spans as the tiles below. */
+const SKELETON_CELLS: TileSkeletonCell[] = [
+  { span: 5, rows: 2, lines: 12 },
+  { span: 3, rows: 2, lines: 9 },
+  { span: 4, lines: 5 },
+  { span: 4, lines: 4 },
+];
 
 function roundRunwayYears(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function calculateDisplayedRunwayDelta(
-  latestValue: number | null | undefined,
-  comparisonValue: number | null | undefined
-): number | null {
+function calculateDisplayedRunwayDelta(latestValue: number | null | undefined, comparisonValue: number | null | undefined): number | null {
   if (latestValue == null || comparisonValue == null) return null;
   return roundRunwayYears(roundRunwayYears(latestValue) - roundRunwayYears(comparisonValue));
 }
 
-/** Small flat row for the passive-income companion card. */
-function CompanionRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <span className="text-[13px] text-muted-foreground">{label}</span>
-      {children}
-    </div>
-  );
+function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
+  return {
+    withdrawalRate: (settings?.withdrawalRate ?? 4.0).toString(),
+    includePrimaryResidence: settings?.includePrimaryResidenceInFIRE ?? false,
+    inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
+    ritaLongUnemployment: settings?.pensionRitaLongUnemployment ?? false,
+  };
 }
 
 export function FireCalculatorTab() {
@@ -155,41 +149,35 @@ export function FireCalculatorTab() {
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
   const queryClient = useQueryClient();
-  const isMobile = useMediaQuery('(max-width: 767px)');
-  const chartColors = useChartColors();
 
-  const [tempWithdrawalRate, setTempWithdrawalRate] = useState<string>('4.0');
-  const [includePrimaryResidence, setIncludePrimaryResidence] = useState<boolean>(false);
+  // ─── Form state (preview until saved) ────────────────────────────────────────
+  const [form, setForm] = useState<FireSettingsForm>(() => settingsForm(null));
   const [respectPensionLockIn, setRespectPensionLockIn] = useState<boolean>(false);
-  const [tempInpsRetirementAge, setTempInpsRetirementAge] = useState<string>(
-    DEFAULT_INPS_RETIREMENT_AGE.toString()
-  );
-  const [tempRitaLongUnemployment, setTempRitaLongUnemployment] = useState<boolean>(false);
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [detailOpen, setDetailOpen] = useState<boolean>(false);
-  const [howItWorksOpen, setHowItWorksOpen] = useState<boolean>(false);
+  const [parametriOpen, setParametriOpen] = useState<boolean>(false);
   const [scenarios, setScenarios] = useState<FIREProjectionScenarios>(getDefaultScenarios());
+  const [view, setView] = useState<ProjectionView>('scenari');
 
+  const onFormChange = useCallback((patch: Partial<FireSettingsForm>) => setForm((prev) => ({ ...prev, ...patch })), []);
+
+  // ─── Queries ─────────────────────────────────────────────────────────────────
   const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings | null>({
     queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(user!.uid),
-    enabled: !!user,
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
-  // Annual savings/expenses for the projection — lifted from FIREProjectionSection because the
-  // hero verdict now needs the projection too. Same source, same figures as before.
   const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
     queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAnnualCashflowData(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
   const annualSavings = cashflowData?.annualSavings ?? 0;
@@ -197,27 +185,43 @@ export function FireCalculatorTab() {
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
 
-  // Sync scenario params from Firestore when settings load
+  // Sync scenario params from Firestore when settings load. Deferred so the effect body itself
+  // sets no state (react-hooks/set-state-in-effect).
+  const savedScenarios = settings?.fireProjectionScenarios;
   useEffect(() => {
-    if (settings?.fireProjectionScenarios) {
-      setScenarios(settings.fireProjectionScenarios);
-    }
-  }, [settings?.fireProjectionScenarios]);
+    if (!savedScenarios) return;
+    const timer = setTimeout(() => setScenarios(savedScenarios), 0);
+    return () => clearTimeout(timer);
+  }, [savedScenarios]);
 
-  // RITA rule preview inputs: the estimated unlock updates instantly with the two controls,
-  // like every other setting on this page (persisted only on Save).
-  const parsedInpsRetirementAge = Number.parseInt(tempInpsRetirementAge, 10);
+  // Sync form state when settings load or change (runs once data has loaded — even when the user
+  // has no settings doc yet — so temp state always settles to the saved-or-default values). The
+  // form is re-seeded only when the SAVED values it edits change: the lock switch saves on its own
+  // and refetches the doc, and a refetch that changed nothing the form edits must not wipe a typed
+  // SWR (the review of 2026-08-25 caught exactly that). The lock state follows every refetch.
+  const lastSyncedFormRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isLoadingSettings) return;
+    const timer = setTimeout(() => {
+      const next = settingsForm(settings);
+      const key = JSON.stringify(next);
+      if (lastSyncedFormRef.current !== key) {
+        lastSyncedFormRef.current = key;
+        setForm(next);
+      }
+      setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isLoadingSettings, settings]);
+
+  // ─── Pension lock (preview inputs: the RITA controls update the estimate instantly) ─────
+  const parsedInpsRetirementAge = Number.parseInt(form.inpsRetirementAge, 10);
   const previewInpsRetirementAge =
-    Number.isFinite(parsedInpsRetirementAge) &&
-    parsedInpsRetirementAge >= 60 &&
-    parsedInpsRetirementAge <= 75
+    Number.isFinite(parsedInpsRetirementAge) && parsedInpsRetirementAge >= 60 && parsedInpsRetirementAge <= 75
       ? parsedInpsRetirementAge
       : (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE);
-  const pensionUnlockSettings: PensionUnlockSettings = {
-    userAge: settings?.userAge,
-    pensionInpsRetirementAge: previewInpsRetirementAge,
-    pensionRitaLongUnemployment: tempRitaLongUnemployment,
-  };
+  const ritaLongUnemployment = form.ritaLongUnemployment;
+  const userAge = settings?.userAge;
 
   // Locked pension capital (unlock resolved by pensionUnlock.ts: per-fund override > RITA rule
   // from userAge > not modellable) stays in the app's total net worth everywhere else — it only
@@ -227,132 +231,96 @@ export function FireCalculatorTab() {
     if (!respectPensionLockIn || !assets) return null;
     return resolvePensionLockState(
       assets,
-      {
-        userAge: settings?.userAge,
-        pensionInpsRetirementAge: previewInpsRetirementAge,
-        pensionRitaLongUnemployment: tempRitaLongUnemployment,
-      },
+      { userAge, pensionInpsRetirementAge: previewInpsRetirementAge, pensionRitaLongUnemployment: ritaLongUnemployment },
       new Date(),
-      calculateAssetValue
+      calculateAssetValue,
     );
-  }, [
-    respectPensionLockIn,
-    assets,
-    settings?.userAge,
-    previewInpsRetirementAge,
-    tempRitaLongUnemployment,
-  ]);
+  }, [respectPensionLockIn, assets, userAge, previewInpsRetirementAge, ritaLongUnemployment]);
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
 
-  // Bridge model inputs. Funds with different unlock years are aggregated on the
-  // LATEST year — conservative when the floor binds, and neutral otherwise because the fund
-  // grows and is discounted at the same scenario real return.
-  const baseScenarioParams = (settings?.fireProjectionScenarios ?? getDefaultScenarios()).base;
-  const baseRealReturn = baseScenarioParams.growthRate - baseScenarioParams.inflationRate;
+  // Bridge model inputs. Funds with different unlock years are aggregated on the LATEST year —
+  // conservative when the floor binds, and neutral otherwise because the fund grows and is
+  // discounted at the same scenario real return. The PREVIEW base scenario, the one the
+  // projection runs on: the number and the year must move together while a parameter is edited.
+  const baseRealReturn = scenarios.base.growthRate - scenarios.base.inflationRate;
   const pensionUnlockYears =
-    pensionLockState && pensionLockState.inflows.length > 0
-      ? Math.max(...pensionLockState.inflows.map((inflow) => inflow.yearsFromNow))
-      : 0;
-  const pensionBridge: FireProjectionPensionBridge | null =
-    pensionLockedValue > 0 && pensionUnlockYears > 0
-      ? { valueToday: pensionLockedValue, yearsToUnlock: pensionUnlockYears }
-      : null;
-
-  // With the toggle on, the shown FIRE Number is the BRIDGE number: free assets must cover the
-  // spending bridge until the unlock, then the fund tops up the standard requirement.
-  const applyPensionBridge = (metrics: FIREMetrics): FIREMetrics => {
-    if (!pensionBridge) return metrics;
-    const { bridgeFireNumber } = calculateFireBridgeNumber({
-      annualExpenses: metrics.annualExpenses,
-      withdrawalRate: metrics.withdrawalRate,
-      realReturn: baseRealReturn,
-      yearsToUnlock: pensionBridge.yearsToUnlock,
-      pensionValueToday: pensionBridge.valueToday,
-      pensionGrowthRate: baseRealReturn,
-    });
-    return {
-      ...metrics,
-      fireNumber: bridgeFireNumber,
-      progressToFI: bridgeFireNumber > 0 ? (metrics.currentNetWorth / bridgeFireNumber) * 100 : 0,
-    };
-  };
-
-  const currentNetWorth = assets
-    ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue
-    : 0;
-  const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
-  const illiquidNetWorth = assets
-    ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue)
-    : 0;
-
-  const { data: fireData, isLoading: isLoadingFIRE } = useQuery({
-    queryKey: ['fireData', ownerId, currentNetWorth, withdrawalRate, includePrimaryResidence],
-    queryFn: () => getFIREData(user!.uid, currentNetWorth, withdrawalRate, includePrimaryResidence),
-    enabled: !!user && !!assets && currentNetWorth > 0,
-    staleTime: 300000,
-  });
-
-  // Enrich with liquid/illiquid breakdown after async fetch resolves
-  const fireMetrics = fireData?.metrics
-    ? applyPensionBridge(
-        calculateFIREMetrics(
-          currentNetWorth,
-          fireData.metrics.annualExpenses,
-          withdrawalRate,
-          liquidNetWorth,
-          illiquidNetWorth
-        )
-      )
-    : null;
-  const chartData = fireData?.chartData ?? [];
-  const rawRunwayData = fireData?.runwayData ?? [];
-
-  // Preview values: update instantly from temp state without persisting
-  const parsedPreviewWithdrawalRate = Number.parseFloat(tempWithdrawalRate);
-  const previewWithdrawalRate =
-    Number.isFinite(parsedPreviewWithdrawalRate) && parsedPreviewWithdrawalRate > 0
-      ? parsedPreviewWithdrawalRate
-      : withdrawalRate;
-  const hasUnsavedChanges =
-    tempWithdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
-    includePrimaryResidence !== (settings?.includePrimaryResidenceInFIRE ?? false) ||
-    respectPensionLockIn !== (settings?.respectPensionLockInFire ?? false) ||
-    tempInpsRetirementAge !==
-      (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
-    tempRitaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
-
-  // Decide the panel's initial state ONCE, after the form has settled to match saved settings
-  // (hasUnsavedChanges === false ⇒ temp state has been seeded). Collapsed when a withdrawal rate
-  // is already saved, open for config-first users. Waiting for the settled state avoids the
-  // transient first-render mismatch (temp '4.0' vs saved '4') popping the panel open. The settings
-  // inputs live inside the collapsible, so genuine edits only happen while it is already open.
-  const hasSeededSettingsRef = useRef(false);
-  useEffect(() => {
-    if (hasSeededSettingsRef.current || isLoadingSettings || hasUnsavedChanges) return;
-    hasSeededSettingsRef.current = true;
-    if (settings?.withdrawalRate == null) setSettingsOpen(true);
-  }, [isLoadingSettings, hasUnsavedChanges, settings?.withdrawalRate]);
-
-  // After seeding, reopen if a genuine unsaved edit appears (keeps the preview banner visible).
-  useEffect(() => {
-    if (hasSeededSettingsRef.current && hasUnsavedChanges) setSettingsOpen(true);
-  }, [hasUnsavedChanges]);
-
+    pensionLockState && pensionLockState.inflows.length > 0 ? Math.max(...pensionLockState.inflows.map((inflow) => inflow.yearsFromNow)) : 0;
+  const pensionBridge = useMemo<FireProjectionPensionBridge | null>(
+    () => (pensionLockedValue > 0 && pensionUnlockYears > 0 ? { valueToday: pensionLockedValue, yearsToUnlock: pensionUnlockYears } : null),
+    [pensionLockedValue, pensionUnlockYears],
+  );
   // Primitive mirrors of pensionBridge so the memos below can depend on stable values.
   const pensionBridgeValueToday = pensionBridge?.valueToday ?? 0;
   const pensionBridgeYearsToUnlock = pensionBridge?.yearsToUnlock ?? 0;
 
+  const includePrimaryResidence = form.includePrimaryResidence;
+  const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
+  const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
+  const illiquidNetWorth = assets ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue) : 0;
+
+  // `keepPreviousData`: the key moves with every lock flip and residence switch (currentNetWorth),
+  // and without it the whole tab fell back to the skeleton mid-interaction — the pressed switch
+  // unmounted, the Dettaglio closed, every figure counted up from zero.
+  const { data: fireData, isLoading: isLoadingFIRE } = useQuery({
+    queryKey: ['fireData', ownerId, currentNetWorth, withdrawalRate, includePrimaryResidence],
+    queryFn: () => getFIREData(ownerId!, currentNetWorth, withdrawalRate, includePrimaryResidence),
+    enabled: !!user && !!assets && currentNetWorth > 0,
+    staleTime: 300000,
+    placeholderData: keepPreviousData,
+  });
+  const chartData = useMemo(() => fireData?.chartData ?? [], [fireData]);
+  const rawRunwayData = useMemo(() => fireData?.runwayData ?? [], [fireData]);
+
+  // Preview values: update instantly from temp state without persisting
+  const parsedPreviewWithdrawalRate = Number.parseFloat(form.withdrawalRate);
+  const previewWithdrawalRate =
+    Number.isFinite(parsedPreviewWithdrawalRate) && parsedPreviewWithdrawalRate > 0 ? parsedPreviewWithdrawalRate : withdrawalRate;
+  const hasUnsavedChanges =
+    form.withdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
+    includePrimaryResidence !== (settings?.includePrimaryResidenceInFIRE ?? false) ||
+    form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
+    ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
+
+  // Decide the panel's initial state ONCE, after the form has settled to match saved settings
+  // (hasUnsavedChanges === false ⇒ temp state has been seeded). Collapsed when a withdrawal rate
+  // is already saved, open for config-first users. Waiting for the settled state avoids the
+  // transient first-render mismatch (temp '4.0' vs saved '4') popping the panel open.
+  const hasSeededSettingsRef = useRef(false);
+  const savedWithdrawalRate = settings?.withdrawalRate;
+  useEffect(() => {
+    if (hasSeededSettingsRef.current || isLoadingSettings || hasUnsavedChanges) return;
+    if (savedWithdrawalRate != null) {
+      hasSeededSettingsRef.current = true;
+      return;
+    }
+    // The flag is set INSIDE the timer: under StrictMode's double-invoke the first timer is
+    // cleared before it fires, and a flag set synchronously would leave the panel closed for good.
+    const timer = setTimeout(() => {
+      hasSeededSettingsRef.current = true;
+      setParametriOpen(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isLoadingSettings, hasUnsavedChanges, savedWithdrawalRate]);
+
+  // After seeding, reopen if a genuine unsaved edit appears (keeps the preview state visible).
+  useEffect(() => {
+    if (!hasSeededSettingsRef.current || !hasUnsavedChanges) return;
+    const timer = setTimeout(() => setParametriOpen(true), 0);
+    return () => clearTimeout(timer);
+  }, [hasUnsavedChanges]);
+
+  // ─── The numbers (pure layer over the existing engines) ──────────────────────
+  // The metrics on the PREVIEW withdrawal rate, with the bridge override when the lock is on:
+  // free assets must cover the spending bridge until the unlock, then the fund tops up the
+  // standard requirement. The expenses are the projection's (`getAnnualCashflowData`: the last
+  // full year, else the running year annualized and said so in the Base di calcolo aside) —
+  // ONE basis for the number, the verdict and the chart (The Same-Basis Rule). `getFIREData`'s
+  // own metrics read the last full year only, which on a fresh account is a 0 that would call
+  // the number «non calcolabile» while the projection kept drawing.
   const displayedFireMetrics = useMemo(() => {
-    if (!fireData?.metrics) return null;
-    const metrics = calculateFIREMetrics(
-      currentNetWorth,
-      fireData.metrics.annualExpenses,
-      previewWithdrawalRate,
-      liquidNetWorth,
-      illiquidNetWorth
-    );
+    if (!cashflowData || currentNetWorth <= 0) return null;
+    const metrics = calculateFIREMetrics(currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, liquidNetWorth, illiquidNetWorth);
     if (pensionBridgeValueToday <= 0 || pensionBridgeYearsToUnlock <= 0) return metrics;
-    // Same bridge override as applyPensionBridge, inlined so the memo depends on primitives.
     const { bridgeFireNumber } = calculateFireBridgeNumber({
       annualExpenses: metrics.annualExpenses,
       withdrawalRate: previewWithdrawalRate,
@@ -366,63 +334,37 @@ export function FireCalculatorTab() {
       fireNumber: bridgeFireNumber,
       progressToFI: bridgeFireNumber > 0 ? (currentNetWorth / bridgeFireNumber) * 100 : 0,
     };
-  }, [
-    currentNetWorth,
-    fireData?.metrics,
-    liquidNetWorth,
-    previewWithdrawalRate,
-    illiquidNetWorth,
-    pensionBridgeValueToday,
-    pensionBridgeYearsToUnlock,
-    baseRealReturn,
-  ]);
+  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, liquidNetWorth, previewWithdrawalRate, illiquidNetWorth, pensionBridgeValueToday, pensionBridgeYearsToUnlock, baseRealReturn]);
 
-  // The deterministic projection — the hero's "Quando?" and the Proiezione section share it.
+  // The deterministic projection — the verdict, the Traguardo and the Scenari share it.
   const projection = useMemo(() => {
-    if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) {
-      return null;
-    }
+    if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
     return calculateFIREProjection(
       currentNetWorth,
       projectionAnnualExpenses,
       annualSavings,
       previewWithdrawalRate,
       scenarios,
-      50,
-      pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0
-        ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock }
-        : undefined
+      PROJECTION_HORIZON_YEARS,
+      pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined,
     );
-  }, [
-    currentNetWorth,
-    projectionAnnualExpenses,
-    annualSavings,
-    previewWithdrawalRate,
-    scenarios,
-    pensionBridgeValueToday,
-    pensionBridgeYearsToUnlock,
-  ]);
+  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, pensionBridgeValueToday, pensionBridgeYearsToUnlock]);
 
   // Fan (Ventaglio) inputs: market exposure from the REAL portfolio via the shared normalizer
   // (identical to the Monte Carlo tab's), market params from the saved MC base scenario or the
   // defaults, expenses inflated with the SAME base-scenario inflation as the deterministic
   // target line. Inflows at TODAY's value, per the MC convention (AGENTS → FIRE).
   const pensionCapitalInflows = useMemo(
-    () =>
-      (pensionLockState?.inflows ?? []).map((inflow) => ({
-        year: inflow.yearsFromNow,
-        amount: inflow.amount,
-      })),
-    [pensionLockState]
+    () => (pensionLockState?.inflows ?? []).map((inflow) => ({ year: inflow.yearsFromNow, amount: inflow.amount })),
+    [pensionLockState],
   );
+  const monteCarloBase = settings?.monteCarloScenarios?.base;
   const fanInputs = useMemo<FanSimulationInputs | null>(() => {
     if (!assets || assets.length === 0) return null;
-    if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) {
-      return null;
-    }
+    if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
     const allocation = deriveMonteCarloAllocation(calculateCurrentAllocation(assets).byAssetClass);
     if (!allocation) return null;
-    const market = settings?.monteCarloScenarios?.base ?? getDefaultMarketParameters();
+    const market = monteCarloBase ?? getDefaultMarketParameters();
     return {
       initialPortfolio: currentNetWorth,
       annualSavings,
@@ -441,16 +383,15 @@ export function FireCalculatorTab() {
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
-  }, [
-    assets,
-    currentNetWorth,
-    projectionAnnualExpenses,
-    annualSavings,
-    previewWithdrawalRate,
-    scenarios.base.inflationRate,
-    settings?.monteCarloScenarios,
-    pensionCapitalInflows,
-  ]);
+  }, [assets, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloBase, pensionCapitalInflows]);
+
+  // The fan only pays its CPU cost while its view is open. Keyed on the same inputs that
+  // change the deterministic projection, so an edited parameter re-runs it immediately.
+  const fanYears = projection ? Math.min(projection.yearlyData.length, FAN_MAX_YEARS) : 0;
+  const fanResult = useMemo(() => {
+    if (view !== 'ventaglio' || !fanInputs || fanYears <= 0) return null;
+    return runAccumulationSimulation({ ...fanInputs, years: fanYears });
+  }, [view, fanInputs, fanYears]);
 
   const displayedRunwayData = useMemo(() => {
     const targetYearsOfExpenses = previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null;
@@ -459,9 +400,7 @@ export function FireCalculatorTab() {
       targetYearsOfExpenses,
       fireProgressToFI:
         point.trailing12mExpenses > 0 && previewWithdrawalRate > 0
-          ? (point.fireNetWorthUsed /
-              (point.trailing12mExpenses / (previewWithdrawalRate / 100))) *
-            100
+          ? (point.fireNetWorthUsed / (point.trailing12mExpenses / (previewWithdrawalRate / 100))) * 100
           : null,
     }));
   }, [previewWithdrawalRate, rawRunwayData]);
@@ -469,63 +408,70 @@ export function FireCalculatorTab() {
   const displayedRunwaySummary = useMemo(() => {
     const latestPoint = displayedRunwayData[displayedRunwayData.length - 1] ?? null;
     const comparisonPoint = latestPoint
-      ? (displayedRunwayData.find(
-          (p) => p.year === latestPoint.year - 1 && p.month === latestPoint.month
-        ) ?? null)
+      ? (displayedRunwayData.find((p) => p.year === latestPoint.year - 1 && p.month === latestPoint.month) ?? null)
       : null;
     return {
       currentMonthLabel: latestPoint?.monthLabel ?? null,
       currentYearsOfExpenses: latestPoint?.yearsOfExpenses ?? null,
       currentLiquidYearsOfExpenses: latestPoint?.liquidYearsOfExpenses ?? null,
-      totalDeltaVs12Months: calculateDisplayedRunwayDelta(
-        latestPoint?.yearsOfExpenses,
-        comparisonPoint?.yearsOfExpenses
-      ),
-      liquidDeltaVs12Months: calculateDisplayedRunwayDelta(
-        latestPoint?.liquidYearsOfExpenses,
-        comparisonPoint?.liquidYearsOfExpenses
-      ),
+      totalDeltaVs12Months: calculateDisplayedRunwayDelta(latestPoint?.yearsOfExpenses, comparisonPoint?.yearsOfExpenses),
+      liquidDeltaVs12Months: calculateDisplayedRunwayDelta(latestPoint?.liquidYearsOfExpenses, comparisonPoint?.liquidYearsOfExpenses),
       currentProgressToFI: latestPoint?.fireProgressToFI ?? null,
-      targetYearsOfExpenses:
-        latestPoint?.targetYearsOfExpenses ??
-        (previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null),
+      targetYearsOfExpenses: latestPoint?.targetYearsOfExpenses ?? (previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null),
     };
   }, [displayedRunwayData, previewWithdrawalRate]);
 
-  // Sync form state when settings load or change (runs once data has loaded — even when the user
-  // has no settings doc yet — so temp state always settles to the saved-or-default values).
-  useEffect(() => {
-    if (isLoadingSettings) return;
-    setTempWithdrawalRate((settings?.withdrawalRate ?? 4.0).toString());
-    setIncludePrimaryResidence(settings?.includePrimaryResidenceInFIRE ?? false);
-    setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
-    setTempInpsRetirementAge(
-      (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString()
-    );
-    setTempRitaLongUnemployment(settings?.pensionRitaLongUnemployment ?? false);
-  }, [isLoadingSettings, settings]);
+  const currentYear = getItalyYear();
+  const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: previewInpsRetirementAge, pensionRitaLongUnemployment: ritaLongUnemployment });
+  const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
+  const target = useMemo(() => (displayedFireMetrics ? summarizeTarget(displayedFireMetrics, pensionBridge !== null) : null), [displayedFireMetrics, pensionBridge]);
+  const timeline = useMemo(() => (projection ? summarizeTimeline(projection, currentYear, userAge, PROJECTION_HORIZON_YEARS) : null), [projection, currentYear, userAge]);
+  const scenarioRows = useMemo(() => (projection ? summarizeScenarios(projection, currentYear) : []), [projection, currentYear]);
+  const passiveIncome = useMemo(() => (displayedFireMetrics ? summarizePassiveIncome(displayedFireMetrics) : null), [displayedFireMetrics]);
+  const fanVerdict = useMemo(
+    () => (fanResult && projection ? resolveFanVerdict(fanResult, projection.baseYearsToFIRE, currentYear) : null),
+    [fanResult, projection, currentYear],
+  );
+  const allocationLabel = fanInputs ? formatAllocationLabel(fanInputs) : '';
 
-  const handleResetToSaved = () => {
-    setTempWithdrawalRate((settings?.withdrawalRate ?? 4.0).toString());
-    setIncludePrimaryResidence(settings?.includePrimaryResidenceInFIRE ?? false);
-    setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
-    setTempInpsRetirementAge(
-      (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString()
-    );
-    setTempRitaLongUnemployment(settings?.pensionRitaLongUnemployment ?? false);
-  };
+  const base: FireBase | null = displayedFireMetrics
+    ? {
+        netWorth: currentNetWorth,
+        annualExpenses: displayedFireMetrics.annualExpenses,
+        monthlyExpenses: displayedFireMetrics.annualExpenses / 12,
+        annualSavings,
+        monthlySavings: annualSavings / 12,
+        swr: previewWithdrawalRate,
+        referenceYear: cashflowData?.referenceYear ?? null,
+        isAnnualized: cashflowData?.isAnnualized ?? false,
+        includesResidence: includePrimaryResidence,
+      }
+    : null;
 
-  const mutation = useMutation({
-    mutationFn: (newSettings: {
-      withdrawalRate: number;
-      includePrimaryResidenceInFIRE?: boolean;
-      respectPensionLockInFire?: boolean;
-      pensionInpsRetirementAge?: number;
-      pensionRitaLongUnemployment?: boolean;
-    }) =>
-      setSettings(user!.uid, {
+  // ─── The words (pure layer) ───────────────────────────────────────────────────
+  const verdict = useMemo(
+    () =>
+      buildFireVerdict({
+        hasNetWorth: currentNetWorth > 0,
+        target,
+        timeline,
+        monthlySavings: annualSavings / 12,
+        swr: previewWithdrawalRate,
+        monthlyAllowance: passiveIncome?.monthly ?? 0,
+        lock,
+      }),
+    [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock],
+  );
+
+  // ─── Mutations ───────────────────────────────────────────────────────────────
+  // Every write spreads the cached `settings`, which can lag a lock save by one refetch: the lock
+  // state is the source of truth for that field, so each write restates it.
+  const settingsMutation = useMutation({
+    mutationFn: (newSettings: Partial<Settings>) =>
+      setSettings(ownerId!, {
         ...settings,
         targets: settings?.targets || getDefaultTargets(),
+        respectPensionLockInFire: respectPensionLockIn,
         ...newSettings,
       }),
     onSuccess: () => {
@@ -538,11 +484,29 @@ export function FireCalculatorTab() {
     },
   });
 
+  // The pension-lock switch persists at once: optimistic flip, reverted with a toast on failure.
+  const lockMutation = useMutation({
+    mutationFn: (active: boolean) =>
+      setSettings(ownerId!, { ...settings, targets: settings?.targets || getDefaultTargets(), respectPensionLockInFire: active }),
+    onMutate: (active) => setRespectPensionLockIn(active),
+    onSuccess: (_, active) => {
+      toast.success(active ? 'Fondo pensione considerato bloccato' : 'Fondo pensione considerato disponibile');
+      // Awaited: the switch stays disabled until the refetched doc carries the new value.
+      return queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
+    },
+    onError: (error, active) => {
+      console.error('Error saving the pension lock:', error);
+      setRespectPensionLockIn(!active);
+      toast.error('Errore nel salvataggio del vincolo sul fondo pensione');
+    },
+  });
+
   const scenarioSaveMutation = useMutation({
     mutationFn: () =>
-      setSettings(user!.uid, {
+      setSettings(ownerId!, {
         ...settings,
         targets: settings?.targets || getDefaultTargets(),
+        respectPensionLockInFire: respectPensionLockIn,
         fireProjectionScenarios: scenarios,
       }),
     onSuccess: () => {
@@ -561,909 +525,195 @@ export function FireCalculatorTab() {
   };
 
   const handleSaveSettings = () => {
-    const newWR = parseFloat(tempWithdrawalRate);
-
-    if (isNaN(newWR) || newWR <= 0 || newWR > 100) {
+    const newWR = parseFloat(form.withdrawalRate);
+    if (Number.isNaN(newWR) || newWR <= 0 || newWR > 100) {
       toast.error('Inserisci un Withdrawal Rate valido tra 0 e 100');
       return;
     }
-
-    const newInpsAge = Number.parseInt(tempInpsRetirementAge, 10);
+    const newInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
     if (!Number.isFinite(newInpsAge) || newInpsAge < 60 || newInpsAge > 75) {
       toast.error("Inserisci un'età pensione INPS valida tra 60 e 75");
       return;
     }
-
-    mutation.mutate({
+    settingsMutation.mutate({
       withdrawalRate: newWR,
       includePrimaryResidenceInFIRE: includePrimaryResidence,
-      respectPensionLockInFire: respectPensionLockIn,
       pensionInpsRetirementAge: newInpsAge,
-      pensionRitaLongUnemployment: tempRitaLongUnemployment,
+      pensionRitaLongUnemployment: ritaLongUnemployment,
     });
   };
 
-  // ===== Hero derivations (Quando? — base scenario of the deterministic projection) =====
-
-  const currentYear = getItalyYear();
-  const baseYearsToFIRE = projection?.baseYearsToFIRE ?? null;
-  const fireCalendarYear = baseYearsToFIRE !== null ? currentYear + baseYearsToFIRE : null;
-  const fireAge =
-    baseYearsToFIRE !== null && settings?.userAge != null
-      ? settings.userAge + baseYearsToFIRE
-      : null;
-  const fireReached =
-    !!displayedFireMetrics &&
-    displayedFireMetrics.fireNumber > 0 &&
-    currentNetWorth >= displayedFireMetrics.fireNumber;
-  const fireGap = displayedFireMetrics
-    ? Math.max(0, displayedFireMetrics.fireNumber - currentNetWorth)
-    : 0;
-  const pensionUnlockCalendarYear = currentYear + pensionUnlockYears;
-
   // One-shot confetti, inherited from the absorbed FireReachedBanner: SAME localStorage key
   // (`celebrated_fire_reached_{ownerId}` via celebrationUtils), so nobody who already saw it
-  // gets a second burst. Guarded on the SAVED metrics, never on a preview.
-  const fireReachedSaved =
-    !!fireMetrics && fireMetrics.fireNumber > 0 && currentNetWorth >= fireMetrics.fireNumber;
+  // gets a second burst. Guarded on the SAVED withdrawal rate, never on a preview.
+  const savedFireNumber = withdrawalRate > 0 ? projectionAnnualExpenses / (withdrawalRate / 100) : 0;
+  const fireReachedSaved = savedFireNumber > 0 && currentNetWorth >= savedFireNumber;
   useEffect(() => {
     if (!fireReachedSaved || !ownerId) return;
     const confettiKey = `fire_reached_${ownerId}`;
     if (hasCelebrated(confettiKey) || shouldReduceMotion()) return;
     import('canvas-confetti').then(({ default: confetti }) => {
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.3 },
-        colors: ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#f59e0b'],
-      });
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.3 }, colors: ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#f59e0b'] });
       markCelebrated(confettiKey);
     });
   }, [fireReachedSaved, ownerId]);
 
-  if (isLoadingSettings || isLoadingAssets || (currentNetWorth > 0 && isLoadingFIRE)) {
-    return <FireCalculatorSkeleton />;
+  // ─── Loading ─────────────────────────────────────────────────────────────────
+  if (isLoadingSettings || isLoadingAssets || isLoadingCashflow || (currentNetWorth > 0 && isLoadingFIRE)) {
+    return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
-  // Compact trigger label summarises active settings at a glance
-  const settingsTriggerLabel = `Safe Withdrawal Rate ${previewWithdrawalRate}%`;
+  // ─── Shared pieces ───────────────────────────────────────────────────────────
+  const parametri = (
+    <FireParametri
+      open={parametriOpen}
+      onOpenChange={setParametriOpen}
+      description={describeParametri({
+        swr: previewWithdrawalRate,
+        includesResidence: includePrimaryResidence,
+        lockActive: respectPensionLockIn,
+        inpsRetirementAge: previewInpsRetirementAge,
+        ritaUnlockAge,
+        scenarios,
+      })}
+      form={form}
+      onFormChange={onFormChange}
+      hasUnsavedChanges={hasUnsavedChanges}
+      isSaving={settingsMutation.isPending}
+      isDemo={isDemo}
+      onSave={handleSaveSettings}
+      onReset={() => setForm(settingsForm(settings))}
+      ritaPreview={describeRitaPreview({
+        ritaUnlockAge,
+        unlockCalendarYear: userAge !== undefined && ritaUnlockAge > userAge ? currentYear + (ritaUnlockAge - userAge) : null,
+        alreadyUnlockable: userAge !== undefined && ritaUnlockAge <= userAge,
+      })}
+      scenarios={scenarios}
+      onScenariosChange={setScenarios}
+      onSaveScenarios={() => scenarioSaveMutation.mutate()}
+      onResetScenarios={handleResetScenarios}
+      isSavingScenarios={scenarioSaveMutation.isPending}
+    />
+  );
 
-  // Estimated-unlock copy under the RITA controls: rule-driven funds get "Sblocco stimato",
-  // override-driven ones point at the per-fund date; funds with neither stay unmodelled + warned.
-  const lockedFunds = pensionLockState?.funds.filter((info) => info.isLocked) ?? [];
-  const overrideLockedFunds = lockedFunds.filter((info) => {
-    const override = info.fund.pensionFundDetails?.unlockDate;
-    return !!override && !Number.isNaN(new Date(override).getTime());
-  });
-  const ruleLockedFunds = lockedFunds.filter((info) => !overrideLockedFunds.includes(info));
-  const unmodellableFundCount =
-    pensionLockState?.funds.filter((info) => info.unlockDate === null).length ?? 0;
-  const ritaUnlockAge = resolveRitaUnlockAge(pensionUnlockSettings);
-  const ruleUnlockYear =
-    settings?.userAge !== undefined
-      ? currentYear + Math.max(0, ritaUnlockAge - settings.userAge)
-      : null;
-  let pensionUnlockSummary: string | null = null;
-  if (ruleLockedFunds.length > 0 && ruleUnlockYear !== null) {
-    pensionUnlockSummary = `Sblocco stimato: ${ruleUnlockYear}, a ${ritaUnlockAge} anni${
-      overrideLockedFunds.length > 0 ? ' (alcuni fondi usano la data impostata sul fondo)' : ''
-    }`;
-  } else if (overrideLockedFunds.length === 1 && overrideLockedFunds[0].unlockDate) {
-    pensionUnlockSummary = `Sblocco: data impostata sul fondo (${formatDate(overrideLockedFunds[0].unlockDate)})`;
-  } else if (overrideLockedFunds.length > 1) {
-    pensionUnlockSummary = 'Sblocco: date impostate sui singoli fondi';
+  const dettaglio = (
+    <FireDettaglio
+      description={describeDettaglio({
+        runwayYears: displayedRunwaySummary.currentYearsOfExpenses,
+        runwayDelta: displayedRunwaySummary.totalDeltaVs12Months,
+      })}
+      runwayData={displayedRunwayData}
+      runwaySummary={displayedRunwaySummary}
+      runwayReading={describeRunway({
+        years: displayedRunwaySummary.currentYearsOfExpenses,
+        liquidYears: displayedRunwaySummary.currentLiquidYearsOfExpenses,
+        delta: displayedRunwaySummary.totalDeltaVs12Months,
+        targetYears: displayedRunwaySummary.targetYearsOfExpenses,
+        // «07/2026» is the snapshot's own label; the sentence needs «luglio 2026».
+        monthLabel: displayedRunwaySummary.currentMonthLabel ? prepareRunwaySummaryLabel(displayedRunwaySummary.currentMonthLabel).toLowerCase() : null,
+        pointCount: displayedRunwayData.length,
+      })}
+      chartData={chartData}
+      simulationCount={FAN_SIMULATION_COUNT}
+    />
+  );
+
+  // ─── Empty states: the verdict says why, the settings stay reachable ─────────
+  if (!displayedFireMetrics || !target || !base || !passiveIncome) {
+    return (
+      <div className="space-y-4">
+        <div className="pt-1">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
+        </div>
+        {parametri}
+        {dettaglio}
+      </div>
+    );
   }
-  const pensionUnlockWarning =
-    unmodellableFundCount > 0
-      ? "Alcuni fondi non hanno né una data di sblocco né la tua età: imposta la tua età in Coast FIRE o una data di sblocco sul fondo. Finché mancano, restano trattati come non bloccati."
-      : null;
 
-  // Hero verdict per state — one announcement, tone included.
-  let heroValue = '—';
-  let heroQualifier: string | null = null;
-  let verdictHeadline = 'Proiezione non disponibile.';
-  let verdictDetail = 'Aggiungi entrate e uscite nel Cashflow per stimare l’anno del FIRE.';
-  let verdictToneClass = 'text-muted-foreground';
-  if (fireReached) {
-    heroValue = 'Oggi';
-    verdictHeadline = 'Obiettivo FIRE raggiunto.';
-    verdictDetail = `Il patrimonio FIRE copre già il FIRE Number con un SWR del ${previewWithdrawalRate}%.`;
-    verdictToneClass = 'text-positive';
-  } else if (fireCalendarYear !== null && baseYearsToFIRE !== null) {
-    heroValue = String(fireCalendarYear);
-    const inYears = baseYearsToFIRE === 1 ? 'tra 1 anno' : `tra ${baseYearsToFIRE} anni`;
-    heroQualifier = fireAge !== null ? `a ${fireAge} anni · ${inYears}` : inYears;
-    verdictHeadline = `FIRE proiettato nel ${fireCalendarYear}${fireAge !== null ? `, a ${fireAge} anni` : ''}.`;
-    verdictDetail = `Scenario base, con risparmio di ${formatCurrency(annualSavings)} l’anno e spese in crescita con l’inflazione.`;
-    verdictToneClass = 'text-foreground';
-  } else if (projection) {
-    heroValue = '50+';
-    heroQualifier = 'anni nello scenario base';
-    verdictHeadline = 'FIRE oltre l’orizzonte di proiezione.';
-    verdictDetail =
-      'Nello scenario base il traguardo non arriva entro 50 anni: aumenta il risparmio o rivedi le spese.';
-    verdictToneClass = 'text-amber-600 dark:text-amber-400';
-  }
+  // ─── The chart in the Traguardo, in the selected view ────────────────────────
+  const fanAvailable = fanInputs !== null;
+  const chart = !projection ? (
+    <p className="flex h-full items-center justify-center px-4 text-center text-[13px] text-muted-foreground">
+      Nessun dato per la proiezione: servono spese registrate nel Cashflow e un patrimonio FIRE positivo.
+    </p>
+  ) : view === 'scenari' || !fanAvailable ? (
+    <FIREProjectionChart
+      yearlyData={projection.yearlyData}
+      bearYearsToFIRE={projection.bearYearsToFIRE}
+      baseYearsToFIRE={projection.baseYearsToFIRE}
+      bullYearsToFIRE={projection.bullYearsToFIRE}
+      height="100%"
+      marginLeft={0}
+      pensionUnlockCalendarYear={pensionBridge ? currentYear + pensionUnlockYears : null}
+    />
+  ) : fanResult && fanVerdict ? (
+    <FireFanChart result={fanResult} startCalendarYear={currentYear} verdict={fanVerdict} height="100%" />
+  ) : null;
 
-  const fireNumberNote = pensionBridge
-    ? `Modello bridge: asset liberi per il ponte fino al ${pensionUnlockCalendarYear}, poi il fondo rientra`
-    : displayedFireMetrics
-      ? `${formatCurrency(displayedFireMetrics.annualExpenses)} ÷ ${previewWithdrawalRate}% — spese ${currentYear - 1} su SWR`
-      : '';
-
-  const basisParts = [
-    `SWR ${previewWithdrawalRate}%`,
-    includePrimaryResidence ? 'casa di abitazione inclusa' : 'casa di abitazione esclusa',
-    respectPensionLockIn
-      ? pensionBridge
-        ? `fondo pensione bloccato fino al ${pensionUnlockCalendarYear} (modello bridge)`
-        : 'vincolo fondo pensione attivo, nessun fondo bloccato'
-      : 'fondo pensione non vincolato',
-  ];
-
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
-      {/* ── HERO [2fr_1fr]: Quando? + Quanto posso spendere? ── */}
-      {displayedFireMetrics ? (
-        <>
-          {/* grid-cols-1 + min-w-0 are load-bearing, not tidiness: below `desktop:` the grid has
-              no explicit template, so its single implicit track is sized `auto` and cannot shrink
-              below the card's min-content — and a grid item defaults to min-width:auto anyway.
-              Without both, the hero measured 453px inside a 390px viewport and scrolled the page
-              sideways (AGENTS → *Tailwind Breakpoints and Responsive Layout*; same pair as
-              `CoastFireHero.tsx`). */}
-          <div className="grid grid-cols-1 gap-4 desktop:grid-cols-[2fr_1fr]">
-            {/* Dominant: the projected FIRE year, with verdict, progress and gap */}
-            <div className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-[22px]">
-              <div className="flex items-center gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                  Traguardo FIRE
-                </p>
-                <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  Scenario base
-                </span>
-              </div>
+    <div className="space-y-4">
+      <div className="pt-1">
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
+      </div>
 
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="font-mono text-[44px] font-bold leading-none tracking-[-0.03em] text-foreground desktop:text-[54px]">
-                  {heroValue}
-                </p>
-                {heroQualifier && (
-                  <span className="text-[11px] text-muted-foreground">{heroQualifier}</span>
-                )}
-              </div>
-
-              <p className="mt-3 text-sm">
-                <span className={cn('font-semibold', verdictToneClass)}>{verdictHeadline}</span>{' '}
-                <span className="text-muted-foreground">{verdictDetail}</span>
-              </p>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 font-mono text-xs font-medium tabular-nums text-foreground">
-                  <SettledPercentageValue value={displayedFireMetrics.progressToFI} />
-                  {' '}verso FI
-                </span>
-                {!fireReached && fireGap > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                    mancano{' '}
-                    <span className="font-mono tabular-nums text-foreground">
-                      {formatCurrency(fireGap)}
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              {/* Sticky footer: the two numbers behind the verdict, flat rows */}
-              <div className="mt-auto pt-4">
-                <div className="divide-y divide-border border-t border-border">
-                  <div className="flex items-center justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <span className="text-sm text-muted-foreground">FIRE Number</span>
-                      <p className="truncate text-[11px] text-muted-foreground/70">
-                        {fireNumberNote}
-                      </p>
-                    </div>
-                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
-                      <SettledCurrencyValue value={displayedFireMetrics.fireNumber} />
-                    </span>
-                  </div>
-                  {/* WR corrente: shown destructive when above the safe rate — the only metric
-                      that earns sign color here */}
-                  <div className="flex items-center justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <span className="text-sm text-muted-foreground">WR corrente</span>
-                      {displayedFireMetrics.currentWR > previewWithdrawalRate && (
-                        <p className="truncate font-mono text-[11px] tabular-nums text-muted-foreground/70">
-                          {formatCurrency(displayedFireMetrics.annualExpenses)} /{' '}
-                          {formatCurrency(currentNetWorth)} — spese {currentYear - 1} su patrimonio
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          'font-mono text-sm font-semibold tabular-nums',
-                          displayedFireMetrics.currentWR > previewWithdrawalRate
-                            ? 'text-destructive'
-                            : 'text-foreground'
-                        )}
-                      >
-                        <SettledPercentageValue value={displayedFireMetrics.currentWR} />
-                      </span>
-                      {displayedFireMetrics.currentWR > previewWithdrawalRate && (
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Companion: sustainable passive income */}
-            <div className="flex h-full min-w-0 flex-col rounded-2xl border border-border bg-card p-[22px]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                Reddito passivo sostenibile
-              </p>
-              <p className="mt-2 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">
-                <SettledCurrencyValue value={displayedFireMetrics.annualAllowance} />
-              </p>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                all&apos;anno — patrimonio FIRE {formatCurrency(currentNetWorth)} &times;{' '}
-                {previewWithdrawalRate}%
-              </p>
-
-              <div className="mt-4 divide-y divide-border border-t border-border">
-                <CompanionRow label="Mensile">
-                  <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                    <SettledCurrencyValue value={displayedFireMetrics.monthlyAllowance} />
-                  </span>
-                </CompanionRow>
-                <CompanionRow label="Giornaliero">
-                  <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                    <SettledCurrencyValue value={displayedFireMetrics.dailyAllowance} />
-                  </span>
-                </CompanionRow>
-                {/* yearsOfExpenses is the primary total; liquid/illiquid are the breakdown. */}
-                <CompanionRow label="Anni di spesa totali">
-                  <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                    {displayedFireMetrics.yearsOfExpenses > 0
-                      ? `${displayedFireMetrics.yearsOfExpenses.toFixed(1)} anni`
-                      : '—'}
-                  </span>
-                </CompanionRow>
-                <CompanionRow label="Di cui liquidi">
-                  <span className="font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                    {displayedFireMetrics.liquidYearsOfExpenses > 0
-                      ? `${displayedFireMetrics.liquidYearsOfExpenses.toFixed(1)} anni`
-                      : '—'}
-                  </span>
-                </CompanionRow>
-                {displayedFireMetrics.illiquidYearsOfExpenses > 0 && (
-                  <CompanionRow label="Di cui illiquidi">
-                    <span className="font-mono text-[13px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
-                      {displayedFireMetrics.illiquidYearsOfExpenses.toFixed(1)} anni
-                    </span>
-                  </CompanionRow>
-                )}
-                {pensionBridge && (
-                  <CompanionRow label="Fondo pensione">
-                    <span className="text-right font-mono text-[13px] font-semibold tabular-nums text-foreground">
-                      {formatCurrency(pensionBridge.valueToday)}{' '}
-                      <span className="font-sans font-normal text-muted-foreground">
-                        — rientra nel {pensionUnlockCalendarYear}
-                      </span>
-                    </span>
-                  </CompanionRow>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Basis line — assumptions declared, not implicit (same pattern as Rendimenti) */}
-          <p className="px-1 text-xs text-muted-foreground">
-            Base di calcolo: {basisParts.join(' · ')}.
-          </p>
-        </>
-      ) : (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="flex h-40 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              Aggiungi asset con un valore positivo per calcolare FIRE Number e reddito passivo
-              sostenibile.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Settings — collapsed by default, auto-opens when unsaved changes are present */}
-      <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <Card className="overflow-hidden">
-          <CollapsibleTrigger asChild>
-            <div className="flex cursor-pointer items-center justify-between px-6 py-4 transition-colors hover:bg-muted/30">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">Impostazioni FIRE</p>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {settingsTriggerLabel}
-                </p>
-              </div>
-              <div className="ml-3 flex shrink-0 items-center gap-2">
-                {hasUnsavedChanges && (
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-amber-500"
-                    aria-label="Modifiche non salvate"
-                  />
-                )}
-                <ChevronDown
-                  className={cn(
-                    'h-4 w-4 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
-                    settingsOpen && 'rotate-180'
-                  )}
-                />
-              </div>
-            </div>
-          </CollapsibleTrigger>
-
-          <CollapsibleContent>
-            <div className="space-y-4 border-t border-border px-6 py-4">
-              {/* Unsaved changes banner — Info at rest, Loader2 only during mutation */}
-              {hasUnsavedChanges && (
-                <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    {mutation.isPending ? (
-                      <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <div className="space-y-0.5">
-                      <p className="font-medium text-foreground">Anteprima locale attiva</p>
-                      <p className="text-xs text-muted-foreground">
-                        Le metriche riflettono i valori inseriti ma non ancora salvati.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid gap-4">
-                <div>
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <Label htmlFor="withdrawalRate">Safe Withdrawal Rate (%)</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none"
-                          aria-label="Informazioni sul Safe Withdrawal Rate"
-                        >
-                          <HelpCircle className="h-3.5 w-3.5" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent side="top" className="max-w-[280px] text-sm leading-relaxed">
-                        La percentuale del patrimonio che puoi prelevare ogni anno in modo
-                        sostenibile. Il 4% (regola del 4%, Trinity Study) garantisce la
-                        sopravvivenza del portafoglio su 30 anni nel 95% degli scenari storici.
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <Input
-                    id="withdrawalRate"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    value={tempWithdrawalRate}
-                    onChange={(e) => setTempWithdrawalRate(e.target.value)}
-                    className={FIRE_CONTROL_CLASSNAME}
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Tipicamente 4% secondo la regola del 4% (Trinity Study)
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
-                <div className="min-w-0 space-y-0.5">
-                  <Label htmlFor="includePrimaryResidence" className="leading-normal">
-                    Includi casa di abitazione nel FIRE
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Se disattivo, gli immobili di abitazione sono esclusi (metodologia FIRE
-                    standard).
-                  </p>
-                </div>
-                <Switch
-                  id="includePrimaryResidence"
-                  checked={includePrimaryResidence}
-                  onCheckedChange={setIncludePrimaryResidence}
-                  className="mt-0.5 shrink-0"
-                />
-              </div>
-
-              <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 space-y-0.5">
-                    <Label htmlFor="respectPensionLockIn" className="leading-normal">
-                      Considera il fondo pensione come capitale bloccato fino allo sblocco
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Se attivo, il FIRE Number diventa un modello a due fasi: fino allo sblocco
-                      servono solo gli asset liberi (il ponte), dallo sblocco il fondo rientra
-                      nel capitale. Lo sblocco segue la regola RITA, salvo data impostata sul
-                      singolo fondo.
-                    </p>
-                  </div>
-                  <Switch
-                    id="respectPensionLockIn"
-                    checked={respectPensionLockIn}
-                    onCheckedChange={setRespectPensionLockIn}
-                    className="mt-0.5 shrink-0"
-                  />
-                </div>
-
-                {respectPensionLockIn && (
-                  <div className="space-y-3 border-t border-border/60 pt-3">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <Label htmlFor="pensionInpsRetirementAge">Età pensione INPS</Label>
-                        <Input
-                          id="pensionInpsRetirementAge"
-                          type="number"
-                          min="60"
-                          max="75"
-                          step="1"
-                          value={tempInpsRetirementAge}
-                          onChange={(e) => setTempInpsRetirementAge(e.target.value)}
-                          className={FIRE_CONTROL_CLASSNAME}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          RITA anticipa lo sblocco di 5 anni rispetto a questa età.
-                        </p>
-                      </div>
-                      <div className="flex items-start justify-between gap-3 sm:pt-6">
-                        <div className="min-w-0 space-y-0.5">
-                          <Label htmlFor="pensionRitaLongUnemployment" className="leading-normal">
-                            {"Disoccupato ≥ 24 mesi dopo il FIRE"}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            {"Anticipa lo sblocco a INPS − 10 anni."}
-                          </p>
-                        </div>
-                        <Switch
-                          id="pensionRitaLongUnemployment"
-                          checked={tempRitaLongUnemployment}
-                          onCheckedChange={setTempRitaLongUnemployment}
-                          className="mt-0.5 shrink-0"
-                        />
-                      </div>
-                    </div>
-                    {pensionUnlockSummary && (
-                      <p className="text-xs text-muted-foreground">{pensionUnlockSummary}</p>
-                    )}
-                    {pensionUnlockWarning && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        {pensionUnlockWarning}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleSaveSettings}
-                  disabled={isDemo || mutation.isPending}
-                  title={isDemo ? 'Non disponibile in modalità demo' : undefined}
-                >
-                  {mutation.isPending
-                    ? 'Salvataggio...'
-                    : hasUnsavedChanges
-                      ? 'Salva Anteprima'
-                      : 'Salva Impostazioni'}
-                </Button>
-                {hasUnsavedChanges && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleResetToSaved}
-                    disabled={mutation.isPending}
-                  >
-                    Annulla
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      {/* ── PROIEZIONE: Scenari | Ventaglio ── */}
-      {displayedFireMetrics && currentNetWorth > 0 && (
-        isLoadingCashflow ? (
-          <div className="flex h-32 items-center justify-center">
-            <div className="text-muted-foreground">Calcolo risparmi annuali...</div>
-          </div>
-        ) : (
-          <FIREProjectionSection
-            projection={projection}
-            scenarios={scenarios}
-            onScenariosChange={setScenarios}
-            onSaveScenarios={() => scenarioSaveMutation.mutate()}
-            onResetScenarios={handleResetScenarios}
-            isSavingScenarios={scenarioSaveMutation.isPending}
-            annualSavings={annualSavings}
-            annualExpenses={projectionAnnualExpenses}
-            cashflowReferenceYear={cashflowData?.referenceYear ?? null}
-            cashflowIsAnnualized={cashflowData?.isAnnualized ?? false}
-            fanInputs={fanInputs}
-            pensionUnlockCalendarYear={pensionBridge ? pensionUnlockCalendarYear : null}
+      {/* Tablet (768-1439): Traguardo full, Scenari beside Reddito passivo, Base di calcolo full. */}
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
+          <TraguardoTile
+            reading={describeTarget(target)}
+            target={target}
+            caption={describeTargetCaption(target, displayedFireMetrics.annualExpenses)}
+            view={view}
+            onViewChange={setView}
+            fanAvailable={fanAvailable && projection !== null}
+            chart={chart}
+            footer={
+              projection
+                ? describeTargetFooter({
+                    view: fanAvailable ? view : 'scenari',
+                    fan: fanVerdict,
+                    fanAvailable,
+                    lock,
+                    simulationCount: FAN_SIMULATION_COUNT,
+                    allocationLabel,
+                    lastProjectedYear: projection.yearlyData[projection.yearlyData.length - 1]?.calendarYear ?? null,
+                  })
+                : null
+            }
           />
-        )
-      )}
+        </div>
 
-      {/* ── DETTAGLIO: the historical charts + explainer, demoted but intact ── */}
-      <Collapsible
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        className="border-t border-border/60 pt-4"
-      >
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="group flex w-full items-center justify-between gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-          >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              {detailOpen ? 'Nascondi dettaglio storico' : 'Mostra dettaglio storico'}
-            </span>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
-                detailOpen && 'rotate-180'
-              )}
-              aria-hidden="true"
-            />
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
-          <div className="space-y-6 pt-4">
-            {/* Runway FIRE storica */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Anni di Spesa Coperti nel Tempo</CardTitle>
-                <CardDescription>
-                  Runway FIRE storica basata sulle spese rolling 12 mesi. La linea tratteggiata
-                  mostra il target del tuo SWR.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {displayedRunwayData.length === 0 ? (
-                  <p className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                    Servono almeno 12 snapshot mensili per calcolare la runway storica.
-                  </p>
-                ) : (
-                  <>
-                    {/* Runway summary: flat divide-y rows — no nested cards */}
-                    <div className="divide-y divide-border rounded-lg border border-border">
-                      <div className="flex items-center justify-between px-4 py-3.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">Runway totale</p>
-                          <p className="text-xs text-muted-foreground">
-                            Liquidi + illiquidi &mdash;{' '}
-                            {prepareRunwaySummaryLabel(displayedRunwaySummary.currentMonthLabel)}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-0.5">
-                          <div className="flex items-baseline gap-1">
-                            <SettledYearsValue
-                              value={displayedRunwaySummary.currentYearsOfExpenses}
-                              className="font-mono text-xl font-bold tabular-nums text-foreground"
-                            />
-                            {displayedRunwaySummary.currentYearsOfExpenses !== null && (
-                              <span className="text-sm text-muted-foreground">anni</span>
-                            )}
-                          </div>
-                          {displayedRunwaySummary.totalDeltaVs12Months !== null && (
-                            <span
-                              className={cn(
-                                'font-mono text-xs tabular-nums',
-                                displayedRunwaySummary.totalDeltaVs12Months >= 0
-                                  ? 'text-positive'
-                                  : 'text-destructive'
-                              )}
-                            >
-                              {displayedRunwaySummary.totalDeltaVs12Months >= 0 ? '+' : ''}
-                              {displayedRunwaySummary.totalDeltaVs12Months.toFixed(1)} vs 12M
-                            </span>
-                          )}
-                        </div>
-                      </div>
+        <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-3 desktop:row-span-2')}>
+          <BaseDiCalcoloTile
+            reading={describeBase(base)}
+            aside={describeBaseAside(base)}
+            base={base}
+            lock={lock}
+            lockCaption={describeLock(lock)}
+            onLockChange={(active) => lockMutation.mutate(active)}
+            lockDisabled={isDemo || lockMutation.isPending}
+            lockDisabledReason={isDemo ? 'non modificabile in demo' : null}
+            footer={describeBaseFooter(includePrimaryResidence)}
+          />
+        </div>
 
-                      <div className="flex items-center justify-between px-4 py-3.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">Runway liquida</p>
-                          {/* Runway uses rolling 12M expenses as denominator; the hero uses last
-                              full year. The two can differ when the spending trend is changing. */}
-                          <p className="text-xs text-muted-foreground">
-                            Solo asset liquidi &mdash; spese rolling 12 mesi
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-0.5">
-                          <div className="flex items-baseline gap-1">
-                            <SettledYearsValue
-                              value={displayedRunwaySummary.currentLiquidYearsOfExpenses}
-                              className="font-mono text-xl font-bold tabular-nums text-foreground"
-                            />
-                            {displayedRunwaySummary.currentLiquidYearsOfExpenses !== null && (
-                              <span className="text-sm text-muted-foreground">anni</span>
-                            )}
-                          </div>
-                          {displayedRunwaySummary.liquidDeltaVs12Months !== null && (
-                            <span
-                              className={cn(
-                                'font-mono text-xs tabular-nums',
-                                displayedRunwaySummary.liquidDeltaVs12Months >= 0
-                                  ? 'text-positive'
-                                  : 'text-destructive'
-                              )}
-                            >
-                              {displayedRunwaySummary.liquidDeltaVs12Months >= 0 ? '+' : ''}
-                              {displayedRunwaySummary.liquidDeltaVs12Months.toFixed(1)} vs 12M
-                            </span>
-                          )}
-                        </div>
-                      </div>
+        <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-4')}>
+          <RedditoPassivoTile reading={describePassiveIncome(passiveIncome)} income={passiveIncome} />
+        </div>
 
-                      {displayedRunwaySummary.targetYearsOfExpenses !== null && (
-                        <div className="flex items-center justify-between px-4 py-3">
-                          {/* 1 / SWR = years of expenses the portfolio must cover to sustain the
-                              withdrawal indefinitely. The dashed reference line below. */}
-                          <p className="text-xs text-muted-foreground">
-                            Obiettivo patrimonio (anni di spese, linea tratteggiata)
-                          </p>
-                          <p className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
-                            {displayedRunwaySummary.targetYearsOfExpenses.toFixed(1)} anni
-                          </p>
-                        </div>
-                      )}
-                    </div>
+        <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-4')}>
+          {projection ? (
+            <ScenariTile reading={describeScenarios(scenarioRows)} rows={scenarioRows} horizonYears={PROJECTION_HORIZON_YEARS} footer={describeScenariosFooter()} />
+          ) : (
+            <div className="hidden desktop:block" aria-hidden="true" />
+          )}
+        </div>
+      </div>
 
-                    <ResponsiveContainer width="100%" height={isMobile ? 300 : 400}>
-                      <LineChart
-                        data={displayedRunwayData}
-                        margin={{ left: isMobile ? 10 : 50, bottom: 20 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="monthLabel" tick={{ fontSize: isMobile ? 10 : 12 }} />
-                        <YAxis
-                          width={isMobile ? 70 : 100}
-                          tickFormatter={(value) => `${Number(value).toFixed(0)}a`}
-                          tick={{ fontSize: isMobile ? 10 : 12 }}
-                        />
-                        <Tooltip
-                          content={({ active, payload, label }) => {
-                            if (!active || !payload || payload.length === 0) return null;
-                            const point = payload[0]?.payload;
-                            if (!point) return null;
-                            return (
-                              <div className="rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
-                                <p className="font-semibold text-foreground">{label}</p>
-                                <div className="mt-2 space-y-1 text-muted-foreground">
-                                  <p>
-                                    Runway totale:{' '}
-                                    <span className="font-medium text-foreground">
-                                      {point.yearsOfExpenses !== null
-                                        ? `${point.yearsOfExpenses.toFixed(1)} anni`
-                                        : '—'}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    Runway liquida:{' '}
-                                    <span className="font-medium text-foreground">
-                                      {point.liquidYearsOfExpenses !== null
-                                        ? `${point.liquidYearsOfExpenses.toFixed(1)} anni`
-                                        : '—'}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    Spese rolling 12M:{' '}
-                                    <span className="font-medium text-foreground">
-                                      {formatCurrency(point.trailing12mExpenses)}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    Patrimonio FIRE:{' '}
-                                    <span className="font-medium text-foreground">
-                                      {formatCurrency(point.fireNetWorthUsed)}
-                                    </span>
-                                  </p>
-                                  <p>
-                                    Progresso FIRE:{' '}
-                                    <span className="font-medium text-foreground">
-                                      {point.fireProgressToFI !== null
-                                        ? formatPercentage(point.fireProgressToFI)
-                                        : '—'}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          }}
-                        />
-                        <Legend />
-                        <ReferenceLine
-                          y={displayedRunwaySummary.targetYearsOfExpenses ?? undefined}
-                          stroke="var(--chart-3)"
-                          strokeWidth={1.5}
-                          strokeDasharray="6 4"
-                          label={
-                            displayedRunwaySummary.targetYearsOfExpenses !== null
-                              ? {
-                                  value: `Target ${displayedRunwaySummary.targetYearsOfExpenses.toFixed(1)} anni`,
-                                  position: 'insideTopRight',
-                                  fill: 'var(--chart-3)',
-                                  fontSize: 11,
-                                }
-                              : undefined
-                          }
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="yearsOfExpenses"
-                          stroke={chartColors[0]}
-                          strokeWidth={2.5}
-                          name="Totale FIRE"
-                          dot={{ r: 3 }}
-                          connectNulls={false}
-                          animationDuration={800}
-                          animationEasing="ease-out"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="liquidYearsOfExpenses"
-                          stroke={chartColors[1]}
-                          strokeWidth={2.5}
-                          name="Solo liquido"
-                          dot={{ r: 3 }}
-                          connectNulls={false}
-                          animationDuration={800}
-                          animationEasing="ease-out"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Cashflow e Reddito Passivo nel Tempo */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Cashflow e Reddito Passivo nel Tempo</CardTitle>
-                <CardDescription>
-                  Confronta entrate, uscite e reddito passivo mensile derivato dal patrimonio FIRE
-                  dello stesso mese.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {chartData.length === 0 ? (
-                  <p className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                    Nessuno storico disponibile. Gli snapshot mensili verranno creati
-                    automaticamente.
-                  </p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={isMobile ? 280 : 400}>
-                    <LineChart data={chartData} margin={{ left: isMobile ? 10 : 50, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="monthLabel" tick={{ fontSize: isMobile ? 10 : 12 }} />
-                      <YAxis
-                        width={isMobile ? 70 : 100}
-                        tickFormatter={(value) => formatCurrencyCompact(value)}
-                        tick={{ fontSize: isMobile ? 10 : 12 }}
-                      />
-                      <Tooltip
-                        formatter={fmtCurrency}
-                        contentStyle={{
-                          backgroundColor: 'var(--card)',
-                          border: '1px solid var(--border)',
-                          color: 'var(--card-foreground)',
-                        }}
-                        labelStyle={{ fontWeight: 600, color: 'var(--card-foreground)' }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="income"
-                        stroke={chartColors[1]}
-                        strokeWidth={2}
-                        name="Entrate Mensili"
-                        dot={{ r: 4 }}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="expenses"
-                        stroke={chartColors[4]}
-                        strokeWidth={2}
-                        name="Uscite Mensili"
-                        dot={{ r: 4 }}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="monthlyAllowance"
-                        stroke={chartColors[3]}
-                        strokeWidth={2}
-                        name="Reddito Passivo"
-                        dot={{ r: 4 }}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Come funziona il FIRE? — collapsible, no blue tinting */}
-            <Collapsible open={howItWorksOpen} onOpenChange={setHowItWorksOpen}>
-              <Card className="overflow-hidden">
-                <CollapsibleTrigger asChild>
-                  <div className="flex cursor-pointer items-center justify-between px-6 py-4 transition-colors hover:bg-muted/30">
-                    <p className="text-sm font-medium text-foreground">Come funziona il FIRE?</p>
-                    <ChevronDown
-                      className={cn(
-                        'h-4 w-4 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
-                        howItWorksOpen && 'rotate-180'
-                      )}
-                    />
-                  </div>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="space-y-3 border-t border-border px-6 py-4 text-sm text-muted-foreground">
-                    <p>
-                      <strong className="font-semibold text-foreground">FIRE Number:</strong>{' '}
-                      Il patrimonio target calcolato come Spese Annuali &divide; Safe Withdrawal
-                      Rate. Con un SWR del 4%, devi accumulare 25 volte le tue spese annuali.
-                    </p>
-                    <p>
-                      <strong className="font-semibold text-foreground">
-                        Safe Withdrawal Rate (SWR):
-                      </strong>{' '}
-                      La percentuale del patrimonio che puoi prelevare ogni anno in modo
-                      sostenibile. Il 4% è basato sul Trinity Study su un orizzonte di 30 anni.
-                    </p>
-                    <p>
-                      <strong className="font-semibold text-foreground">
-                        Reddito Passivo Mensile:
-                      </strong>{' '}
-                      Basato sul tuo patrimonio attuale e sul SWR impostato. Mostra quanto potresti
-                      già prelevare mensilmente in modo sostenibile.
-                    </p>
-                    <p>
-                      <strong className="font-semibold text-foreground">
-                        Come funziona la proiezione:
-                      </strong>{' '}
-                      Ogni anno il patrimonio cresce con il rendimento dello scenario, poi si
-                      aggiungono i risparmi annuali (finché il FIRE non è raggiunto). Le spese
-                      aumentano con l&apos;inflazione, facendo crescere il FIRE Number nel tempo. I
-                      risparmi annuali sono calcolati dal cashflow dell&apos;ultimo anno completo.
-                    </p>
-                    <p>
-                      <strong className="font-semibold text-foreground">Vista Ventaglio:</strong>{' '}
-                      La stessa fase di accumulo, simulata {FAN_SIMULATION_COUNT.toLocaleString('it-IT')}{' '}
-                      volte con rendimenti casuali derivati dalla tua allocazione: le bande mostrano
-                      dove finisce la maggior parte dei percorsi e la probabilità di FIRE entro
-                      l&apos;anno proiettato. Per l&apos;analisi del decumulo usa il tab Monte
-                      Carlo.
-                    </p>
-                  </div>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      {parametri}
+      {dettaglio}
     </div>
   );
 }
