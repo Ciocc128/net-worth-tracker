@@ -730,7 +730,10 @@ function classifyAction(difference: number): AllocationData['action'] {
 export function deriveTargetLeverageRatio(targets: AssetAllocationTarget | null): number {
   if (!targets) return 1;
   let sum = 0;
-  for (const data of Object.values(targets)) {
+  for (const [assetClass, data] of Object.entries(targets)) {
+    // A fixed-amount cash target keeps a stale `targetPercentage` beside it (Settings sums the
+    // other classes «excl. cash»); counting it read a 100% plan as a 1,05× leverage target.
+    if (assetClass === 'cash' && data.useFixedAmount) continue;
     sum += Math.max(0, data.targetPercentage || 0);
   }
   return sum > 0 ? sum / 100 : 1;
@@ -800,9 +803,12 @@ function toLegacyAllocationResult(
       targetValue = cashFixedAmount;
       targetPercentage = marketBase > 0 ? (targetValue / marketBase) * 100 : 0;
     } else {
-      targetPercentage = targetData.targetPercentage;
-      // % of the (possibly fixed-cash-reduced) market base, expressed as a notional € figure.
-      targetValue = (targetBase * targetPercentage) / 100;
+      // % of the (possibly fixed-cash-reduced) market base, expressed as a notional € figure —
+      // and, as a percentage, re-expressed on the MARKET base like `currentPercentage` is: with
+      // a 25k reserve on 200k, a 70% equity target is 61,25% of the market, and the p.p. drift
+      // must compare the two on one base or every class reads under target by the cash share.
+      targetValue = (targetBase * targetData.targetPercentage) / 100;
+      targetPercentage = marketBase > 0 ? (targetValue / marketBase) * 100 : 0;
     }
 
     const difference = currentPercentage - targetPercentage;

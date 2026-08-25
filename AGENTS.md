@@ -938,13 +938,14 @@ Companion documents — do not duplicate their content into this file:
   every other class's `targetValue = target% × totalValue` measures against the wrong base, and it breaks the
   Σ(current − target) = 0 invariant the balance score halves.
 - **Do NOT push the filter into `calculateCurrentAllocation`** — it also serves `/api/portfolio/snapshot`, which must keep
-  freezing the WHOLE portfolio. **Consequence kept on screen**: the Allocazione headline excludes `excluded`, so it is
-  SMALLER than the Panoramica net worth, and `frozen`/`excluded` get **separate** captions.
+  freezing the WHOLE portfolio. **Consequence kept on screen**: the Allocazione header's total excludes `excluded`, so it is
+  SMALLER than the Panoramica net worth; the Bilanciamento footer says so and keeps `frozen` (inside the total) and
+  `excluded` (outside it) as **two** sentences, and the Dettaglio lists them in two tiles.
 - **The orphaned target is the trap this feature sets**: flag the house and its 70% sub-target survives with zero
   allocatable value, so new money pours into a bucket that cannot hold it. Any target-driven surface owes two things:
   `findOrphanedTargets` (positive target + ~zero allocatable value + excluded value behind it; a class is not orphaned if
   any sub-target is still reachable) and `stripOrphanedSubTargets`, which must REMOVE them from the map handed to
-  `ActionPlanner` **and** `AllocationBreakdown`, not merely warn.
+  the Piano tile's plans **and** the Per classe rows, not merely warn.
 - **An empty target is not an orphaned target** — an unfunded sub-category MUST keep receiving money. The distinguishing
   condition is *excluded value behind it*, never "current value is zero".
 
@@ -984,6 +985,20 @@ Companion documents — do not duplicate their content into this file:
 - **Widening `AssetClass` only breaks the Records actually typed `Record<AssetClass, …>`** — grep first. The costly one is
   the zod `z.enum([...])` in `AssetDialog.tsx`, surfacing as indirect assignability errors on `reset()`/`setValue()`
   sites that never name the enum.
+
+### Allocazione — a verdict over tiles (`app/dashboard/allocation/page.tsx`, `components/allocation/tiles/*`, `lib/utils/{allocazioneSummary,allocazioneNarrative}.ts`)
+- **The page has no axis; the band is a SCOPE.** `BandToggle` (the `AsideToggle` form, with the custom `pp` field beside it) sits in the Bilanciamento tile's aside: it re-classifies every COMPRA/VENDI/OK — verdict, Piano, Per classe chips — while `computeBalanceScore` stays band-independent and the ring never moves. Never put the band beside the verdict (DESIGN.md → The Scope-Is-Not-An-Axis Rule).
+- **Three pieces of page state feed the words**: `band`, `planMode` and `amountInput` (default `'1000'`). The verdict's last clause is ALWAYS `summarizeNextMoney(planInputs, amount)` — the Versa split — whatever mode the Piano shows; the tile's reading is `describePlan(buildPlanView(mode, amount, inputs), band)`. A verdict that followed the toggle would be the tile's title.
+- **`leverageGapPp` is a leverage figure only when leverage is in play** (`hasLeveragedExposure || targetLeverageRatio > 1.01`). Otherwise a negative Σdrift is wealth in classes the targets do not name (`untargetedClassLabels`, from the holdings not in `byAssetClass`) and `describeBalance` says «il 78% è in classi senza target (Immobili, Liquidità)» — the page passes `leverageGapPp: 0` plus `untargeted` in that case, never both.
+- **A drift wears no sign token.** Every figure of `allocazioneNarrative.ts` is `mono` and uncoloured; the action hues (`useActionColors`, resolved ONCE per tile and passed down — `InstrumentTradeList` takes them as a required prop) colour the chips, the plan amounts and the ring only.
+- **`summarizeHoldings` counts ASSETS, not rows**: a composite asset is one holding per leg in `buildHoldings` (`id` = `{assetId}:{index}`), and «2 asset» for one 70/30 fund is a lie. The per-holding share of a group (`rows[].sharePct`) is the summary's, so the Dettaglio computes nothing.
+- **`PlanView` is a discriminated union and the Piano narrows on `view.mode`, never on the toggle**; under leverage it renders `trades` (instruments), never `moves`. `MIN_VISIBLE_AMOUNT` lives in `allocazioneSummary.ts` (re-exported by `PlanRow`). A Ribilancia with nothing to do draws no body: the reading already says «Tutto in linea», and «a saldo zero» is said only when Σsell and Σbuy agree within a euro (a class inside the band keeps its gap).
+- **`AllocationRow` is ONE line + a 3px `TargetTick`** with fixed mono columns (52 · 44 · min 76 px) and a `basis-[140px]` name block: below that room the columns drop to a second line (`ml-auto`) — at 390 the name used to shrink to an ellipsis. The orphan-stripped `bySubCategory` feeds the rows AND the plans; the orphans themselves are the tile's footer (a warning block), not a page banner. Classes follow `assetClassSequenceIndex` (`allocationUtils.ts`), not `ASSET_CLASS_ORDER` from `assetService`, which drags the SDK into a tile.
+- **Esposizione fetches on mount** (`usePortfolioExposure(userId, true)`; the server cache is 24 h and keyed on the composition) — the old collapsible waited for a click. The remainder row is «Resto del portafoglio» for every view; one row open at a time, its sources in a persistent `aria-live` block under the list (a live region mounted together with its content announces nothing); the empty-view sentences are `describeExposureEmpty`'s.
+- **The Previdenza tile is the ONE place the excluded wealth is part of a picture** (`buildPensionLookThrough` takes the full asset list, `calculateAssetValue` injected so the module stays SDK-free); its heading says «esclusi compresi» whenever it is, and the reading says whether the fund is inside the allocated total (`allFrozen`).
+- **A fixed-amount cash target («fisso €») keeps a STALE `targetPercentage` in Settings**, whose total reads «100% (excl. cash)». Two rules follow: `deriveTargetLeverageRatio` skips cash when `useFixedAmount` (it read a plain 100% plan as a 1,05× leverage target), and `compareAllocations` re-expresses every other class's `targetPercentage` on the MARKET base (`targetValue / marketBase`) so Σtarget% = 100 like Σcurrent% — before, a 70% equity target on 175k of 200k printed «70%» beside a current share measured on 200k, and every class read under target by the cash share. Read the EFFECTIVE targets from `byAssetClass`, never the raw Settings (the Bilanciamento target bar and the leverage engine's `targetPercentageByAssetClass` do).
+- **`buildCompositionPair` normalises the target on its own sum** (a leveraged target sums above 100) and computes `targetPercentage * 100 / sum`, not `(pct / sum) * 100` — the second prints `55.00000000000001`. `buildCompositionLegend` is the ONE legend of the two bars (current order, target-only classes appended, a gap where a side is missing).
+- **Deleted on 2026-08-25**: `AllocationHero`, `BalanceScoreGauge`, `RebalanceBandControl`, `ActionPlanner`, `RebalancePanel`/`ContributionPanel`/`WithdrawalPanel`, `AllocationCompositionBar`, `PensionAllocationCards`, `ExposureSection`, `AllocationPageSkeleton`. `CompositionList` prints its share through chartService's formatter since then (it printed `42.4%`).
 
 ### Fondo Pensione
 **Data model** (`types/pension.ts`, `lib/utils/pensionDeduction.ts`)
@@ -1049,7 +1064,7 @@ Companion documents — do not duplicate their content into this file:
   pension input — `prepareAssetClassHistoryData` reports which path a month took via
   `pensionSource`, and the UI names the boundary month rather than warning about an approximation
   that no longer applies.
-- `PensionAllocationCards` needs the FULL unfiltered asset list; **Storico reverses the split
+- `buildPensionLookThrough` (the Previdenza tile of Allocazione) needs the FULL unfiltered asset list; **Storico reverses the split
   `calculateCurrentAllocation` applied**, using the fund's CURRENT `composition` (a documented approximation); **FIRE's
   lock-in toggle subtracts from BOTH `currentNetWorth` and `illiquidNetWorth`** — and it is a bridge
   model across the whole FIRE page (see *FIRE, What If and Goals*).

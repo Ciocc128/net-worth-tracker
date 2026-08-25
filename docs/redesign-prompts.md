@@ -874,6 +874,8 @@ Qui: docs/screenshots/hall-of-fame.png.
 
 ## 10 · Allocazione
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/allocazione-redesign`) — proposta del canvas con l'**alternativa A** scelta in sessione: la soglia NON sta accanto al verdetto ma nell'aside di Bilanciamento, perché riclassifica le chip senza spostare lo score (uno scopo, non un asse — «The Scope-Is-Not-An-Axis Rule» in DESIGN.md); il verdetto legge sempre la risposta Versa all'importo del Piano (1000 € di default, stato della pagina), la tessera legge la modalità scelta. Griglia Bilanciamento 5 · Piano 7 / Per classe 6 · Esposizione 6 / Previdenza 12 (nessuna tessera a due righe: 5+7 chiudono la riga) e «Dettaglio» con Non negoziabili 7 · Esclusi 5; il pill del Piano è un `AsideToggle`, non un `SegmentedPill`. Scoperti e corretti in sessione: un Σdrift negativo senza leva veniva letto come «sotto il target di leva» (ora «in classi senza target»), una gamba di un fondo composito contava come un asset a sé, `CompositionList` stampava `42.4%`, e il target cash «fisso €» (segnalato da Giuseppe al collaudo) entrava nel target di leva e lasciava gli altri target sulla base ridotta. Undici componenti legacy eliminati. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/allocation/page.tsx`, `components/allocation/*`.
 
 **Modello/effort**: Fable 5 · ultracode — allocationRole, leva, QP per strumento, target orfani: la sezione con più invarianti.
