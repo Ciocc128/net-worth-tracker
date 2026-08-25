@@ -45,9 +45,11 @@ export function Tile({ eyebrow, aside, reading, ariaLabel, className, children }
         className,
       )}
     >
-      <div className="flex items-baseline justify-between gap-3">
+      {/* The head wraps: an aside that carries controls (a pill, a select, two actions) drops under the
+          eyebrow on a phone instead of pushing the tile past the viewport. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5">
         <p className={TILE_EYEBROW_CLASS}>{eyebrow}</p>
-        {aside && <div className="shrink-0 text-[10px] text-muted-foreground">{aside}</div>}
+        {aside && <div className="min-w-0 max-w-full shrink-0 text-[10px] text-muted-foreground">{aside}</div>}
       </div>
       {reading && (
         <NarrativeText segments={reading} className="mt-2 text-[13px] leading-[1.45] text-foreground" />

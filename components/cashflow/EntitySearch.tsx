@@ -61,9 +61,10 @@ export function EntitySearch({
         variant="outline"
         className={cn('text-muted-foreground', className)}
         onClick={() => setOpen(true)}
+        aria-label="Vai a categoria"
       >
         <Search />
-        Vai a categoria…
+        <span className="hidden sm:inline">Vai a categoria…</span>
       </Button>
 
       <ResponsiveModal

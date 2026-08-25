@@ -288,9 +288,10 @@ Companion documents — do not duplicate their content into this file:
   series is not editable from one of its rows.
 
 ### Cashflow Drill-Down: One Landing Path
-- **There is ONE drill destination and ONE transaction list**: every entity entry point on Analisi (composition row,
-  Sankey node, `EntitySearch`, anomaly chip, Confronto row) lands through `handleEntitySelect` in `AnalisiTab.tsx`, which
-  resolves labels exactly like a URL-restored focus. A new entry point calls that handler only.
+- **There is ONE drill destination and ONE transaction list**: every entity entry point on Analisi (a category row, a
+  Fuori scala row, a Spese maggiori row, a Sankey node, `EntitySearch`, a Confronto row) lands through
+  `handleEntitySelect` in `AnalisiTab.tsx`, which resolves labels exactly like a URL-restored focus and opens the
+  Scheda tile. A new entry point calls that handler only.
 
 ### Sankey: node identity is the node id (`lib/utils/cashflowSankey.ts`)
 - **d3-sankey resolves link endpoints through a `Map` of ids**, so a duplicate id keeps the LAST node and orphans the
@@ -299,18 +300,60 @@ Companion documents — do not duplicate their content into this file:
   expense category of the same name close a cycle through Budget and `computeNodeDepths` throws `"circular link"`,
   blanking the chart. **Ids are opaque**: `index` is the only sanctioned way to ask what a node is.
 
-### Analisi — entity-first (`components/cashflow/AnalisiTab.tsx`)
-- **The multi-year blocks in `EntityDossier` deliberately IGNORE the period axis** — the period is a cursor over the
-  entity's timeline, not a cage — and each block declares its own horizon in a caption.
-- **Each year row expands into its per-subcategory deltas**, comparing the row's OWN windows via `resolveYearRowWindows`,
-  which is what makes `Σ(subcategory delta) === row.delta` true by construction. Category level only.
-- **The focus SURVIVES period changes** (no `resetDrillDown()` in the period handlers) and is exited only via
-  breadcrumb/Indietro. The category colour is DERIVED at render, never stored in drill state. In the URL it is three
-  FLAT params (`?focusType&focusCat&focusSub`), because a name-fallback key IS a name and can contain any delimiter.
+### Analisi — a verdict over tiles (`components/cashflow/AnalisiTab.tsx`, `components/cashflow/analisi/*`, `lib/utils/{analisiSummary,analisiNarrative}.ts`)
+- **ONE axis, three modes** (Anno corrente | Anno | Storico, plus a month): `PeriodMode`/`AnalisiPeriod` live in
+  `analisiSummary.ts` — never import them from the component (`ConfrontoAnnualeSection` used to). The axis sits beside
+  the verdict from `desktop:` and under it below; the entity search is the compact header's action. Declare
+  `handlePeriodModeChange` AFTER `availableYears`, or the React Compiler refuses to preserve the page's memoization
+  ("Compilation Skipped" on the first `useMemo`s).
+- **Every number has one source**: `summarizePeriodCashflow` (totals), `computeTotalsPacing` + `buildCategoryComparison`
+  through `resolveComparisonScope` (the pacing and the movers, against year−1), `buildExpenseComposition` /
+  `buildIncomeComposition` (the category tiles, FULL lists), `rankTopExpenses`, `buildMonthlySpending` /
+  `buildYearlySpending`, `summarizeFlow`, `detectSpendingAnomalies` on `resolveSingleMonth`, `computeEntityRunRate` +
+  `buildEntityYearRows` for the Scheda's reading. **Every sentence** comes from `analisiNarrative.ts`
+  (`buildAnalisiVerdict`, the `describe*`) or from `cashflowNarrative.ts` (`describePeriodCashflow`,
+  `describeCategoryShare`), never from a component.
+- **«Fuori scala» is an Off-Axis tile**: the anomalies run on ONE month (`resolveSingleMonth`: the picked one, or
+  today's for the bare running year); the aside names it, and the verdict's clause names it too unless the period IS
+  that month. When no month can be meant (a past year without a month, the history) the tile is ABSENT and Spese
+  maggiori takes 7 columns — never an empty tile with a placeholder.
+- **The Periodo tile paces against year−1 only**, with ONE caption under the KPI trio (`pacing.baselineLabel`
+  verbatim); `CashflowKpiTrio` (shared with Tracciamento) prints only the arrow and the figure when `previousLabel` is
+  null. Its bars draw the previous year's same month in `--muted-foreground` beside the current bar; `prevYearValue` is
+  null — a gap — below the history floor OR when the previous year has no rows at all (the same refusal
+  `computeTotalsPacing` makes), the running bucket is at half tone and outlined, and in Storico the series is per year.
+- **The Scheda is a tile of the grid** (`SchedaTile`, 12 columns under the category tiles): every entry point lands
+  through `handleEntitySelect`, which resolves labels exactly like a URL-restored focus and owns the ONE scroll
+  (`scrollToScheda`, deferred a tick so the cell exists). The focus SURVIVES period changes and is exited only via
+  the breadcrumb, «Indietro» or «Chiudi»; in the URL it is three FLAT params (`?focusType&focusCat&focusSub`),
+  because a name-fallback key IS a name and can contain any delimiter. The category tiles keep their rows while the
+  Scheda is open: `activeKey` marks the focused row `aria-current` and FORCES the list open when the row sits past
+  «Mostra tutte». The series colour is derived from the kind at render (`COLORS[0]`/`COLORS[1]`), never stored.
+- **`EntityDossier` keeps ignoring the axis in its multi-year blocks** (the period is a cursor over the entity's
+  timeline, not a cage) and each block names its window; `columns` lays it out in two columns inside the Scheda and
+  `aside` receives the period's subcategory ranking (category level) or `FocusTransactions` (subcategory level).
+  Each year row expands into its per-subcategory deltas through `resolveYearRowWindows`, which is what makes
+  `Σ(subcategory delta) === row.delta` true by construction — category level only. Its percentages go through
+  chartService's `formatPercentage` (the Comma Rule; `toFixed` retired here on 2026-08-25).
 - **`lib/utils/comparisonDeltas.ts` is the single source of the same-months rule, scope included**:
-  `resolveComparisonScope` serves BOTH the KPI pacing rows and `ConfrontoAnnualeSection`, and returns **null for a month
-  that has not started**. **Honesty rule**: `prevYearValue` is `number | null` — a baseline month below the history
-  floor is UNKNOWABLE, not zero, and renders as a gap.
+  `resolveComparisonScope` serves the Periodo pacing, the verdict and the Confronto, and returns **null for a month
+  that has not started**. **Honesty rule**: `prevYearValue` is `number | null` — a baseline below the history floor is
+  UNKNOWABLE, not zero, and renders as a gap. The Confronto's comparison year is the USER'S pick (the Periodo tile
+  always paces against year−1): `ConfrontoDisclosure` owns that state and computes pacing, delta rows and the reading
+  ONCE, then hands them to `ConfrontoAnnualeSection`, which only renders (and builds the two chart series it alone
+  needs). Never recompute the rows in the section.
+- **`CashflowSankeyChart` is a plot, `FlussoTile` is the navigation**: the tile owns the subcategory toggle
+  (`aria-pressed`) and the single type drill, builds the `SankeyView` with the pure builders and passes it down;
+  node clicks come back as DESCRIPTORS (`view.index`), never parsed from the id. Colours stay hex (react-spring).
+- **`RankedRows` is a real `<ul>`, and a clickable row is a real `<button>` inside its `<li>`** — named
+  «{label} · {caption}, {amount}, {share}%» (the caption is the day and the subcategory of a single expense) with
+  `aria-current` on the focused one. Never `role="listitem"` on the button (the `CompositionList` habit): the explicit
+  role wins and strips the button semantics, so a screen reader announces a list item with no cue that it acts. **A `Tile` head WRAPS** (`flex-wrap`): an aside carrying controls (a pill, a
+  select, two actions) drops under the eyebrow on a phone instead of pushing the tile past 390px — the first collaudo
+  run measured 30–95px of horizontal scroll on the Scheda and the disclosures before it did.
+- **Playwright**: `getByRole('region', { name: 'Periodo' })` also matches «Verdetto del periodo» — pass `exact: true`;
+  the rows are located by role `button` (not `listitem`), and a Spese maggiori row is named after its category too
+  («Casa · 15 gen · Condominio, …»), so scope a `/^Casa, /` locator to its tile. The analisi projects seed their own account (every row in January).
 
 ### Cashflow › Tracciamento (`components/cashflow/ExpenseTrackingTab.tsx`, `components/cashflow/tiles/*`)
 - **ONE period axis, two slices.** `expenses` = `filterExpensesByPeriod(allExpenses, period)` feeds the verdict and
@@ -1308,6 +1351,9 @@ Companion documents — do not duplicate their content into this file:
   imported in a test body it charges its one-time cost to whichever case runs first, so under full-suite load that case
   blows the 5 s default and the failure MOVES with the run order. Hoist it into `beforeAll` with an explicit timeout —
   after checking nothing is read at module scope, otherwise per-test `vi.resetModules()` was load-bearing.
+- **A `tsc` that fails only inside `.next/dev/types/validator.ts` (TS1109 "Expression expected") is a half-written
+  generated file**, not a type error: a dev server was killed mid-write. Delete that one file (`next dev` regenerates
+  it) — never the whole `.next` of a server someone else may be running.
 - **Run the suite under `TZ=Europe/Rome` too.** Every date fixture is stamped at noon, twelve hours clear of the DST
   edge, so a whole class of timezone bug is structurally invisible to it — while production dates are **local midnight**
   and the pure layer runs in the user's browser. Compute day-of-year from calendar fields in UTC (`Date.UTC(y,m,d) -
@@ -1325,7 +1371,7 @@ Companion documents — do not duplicate their content into this file:
 | Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` |
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Cashflow › Dividendi | `dividendAnalytics`, `dividendiNarrative` (+ `patrimonioNarrative` for the articles) |
-| Analisi | `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
+| Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
 | Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx` |
 | Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio |
