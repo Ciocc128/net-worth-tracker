@@ -98,8 +98,8 @@ describe('computeReturnConsistency', () => {
 
   it('should surface the best and worst month with labels', () => {
     const c = computeReturnConsistency(heatmap);
-    expect(c.best).toEqual({ label: 'Mag 25', return: 8.1 });
-    expect(c.worst).toEqual({ label: 'Feb 25', return: -1.2 });
+    expect(c.best).toEqual({ label: 'Mag 25', year: 2025, month: 5, return: 8.1 });
+    expect(c.worst).toEqual({ label: 'Feb 25', year: 2025, month: 2, return: -1.2 });
   });
 
   it('should handle an empty heatmap', () => {

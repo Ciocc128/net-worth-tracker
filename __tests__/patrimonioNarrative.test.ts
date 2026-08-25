@@ -209,7 +209,7 @@ describe('tile readings', () => {
   });
 
   it('pluralArticleFor should elide before the vowel-initial numbers', () => {
-    expect([3, 8, 11, 15, 18, 80, 100].map(pluralArticleFor)).toEqual(['i', 'gli', 'gli', 'i', 'gli', 'gli', 'i']);
+    expect([3, 8, 11, 15, 18, 80, 100].map(pluralArticleFor)).toEqual(['i', 'gli', 'gli', 'i', 'i', 'gli', 'i']); // diciotto starts with a consonant
   });
 
   it('formatHoldingCounts should print the counts the verdict uses, as plain text', () => {

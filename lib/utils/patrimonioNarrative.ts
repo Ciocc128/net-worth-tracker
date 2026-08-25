@@ -82,9 +82,9 @@ function previousMonthIndex(month: number): number {
   return month === 1 ? 12 : month - 1;
 }
 
-/** Whether an Italian number name starts with a vowel: uno, otto, undici, diciotto, ottanta… */
-function startsWithVowel(integer: number): boolean {
-  return integer === 1 || integer === 8 || integer === 11 || integer === 18 || (integer >= 80 && integer <= 89) || (integer >= 800 && integer <= 899);
+/** Whether an Italian number name starts with a vowel: uno, otto, undici, ottanta… (diciotto does not). */
+export function startsWithVowel(integer: number): boolean {
+  return integer === 1 || integer === 8 || integer === 11 || (integer >= 80 && integer <= 89) || (integer >= 800 && integer <= 899);
 }
 
 /**
