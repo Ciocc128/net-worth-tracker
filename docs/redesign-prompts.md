@@ -955,7 +955,9 @@ Qui: docs/screenshots/asset-allocation.png.
 
 ## 11 · FIRE · Calcolatore
 
-**Superfici**: `components/fire-simulations/{FireCalculatorTab,FIREProjectionSection,FIREProjectionChart,FIREProjectionTable,FireFanChart}.tsx`.
+**Stato**: ✅ fatto il 2026-08-25 (`feature/fire-redesign`) — proposta del canvas scelta su tutte e tre le alternative: numero FIRE come hero del Traguardo (non l'anello), switch «Fondo pensione bloccato» DENTRO Base di calcolo e salvato al tap (non in Parametri con Salva), clausola del reddito passivo mantenuta ma resa inequivocabile — «da allora il 4% del patrimonio copre le tue spese: 2300 € al mese di oggi, 2667 € del 2032 con l'inflazione al 2,5%» — perché il revisore del canvas aveva letto il nominale come «più delle mie spese». Griglia Traguardo 5×2 · Base di calcolo 3×2 · Reddito passivo 4 / Scenari 4; «Parametri» (Impostazioni 6 · Scenari 6, parametri come Muted Sub-tile Variant B) e «Dettaglio» (Runway 6 · Cashflow 6 / Come funziona 12; la tabella anno per anno è stata tolta su richiesta, la ridondavano il grafico e la tessera Scenari). Scoperto e corretto al collaudo Playwright: il numero FIRE leggeva le spese dell'ANNO PIENO (`getFIREData`) mentre la proiezione quelle annualizzate (`getAnnualCashflowData`) — su un account senza anno pieno il numero era «non calcolabile» accanto a una proiezione disegnata; ora una sola base, dichiarata nell'aside (Same-Basis). `FIREProjectionSection` eliminato; `FireCalculatorSkeleton` resta per Coast. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `components/fire-simulations/{FireCalculatorTab,FireParametri,FireDettaglio,FIREProjectionChart,FireFanChart}.tsx` + `tiles/*`.
 
 **Modello/effort**: Fable 5 · ultracode — bridge pensione, Ventaglio coerente con la camminata deterministica, memoizzazione del fan.
 

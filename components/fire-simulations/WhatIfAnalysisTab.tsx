@@ -285,22 +285,22 @@ export function WhatIfAnalysisTab() {
 
   const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings | null>({
     queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(user!.uid),
-    enabled: !!user,
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
     queryKey: ['annualCashflowData', ownerId],
-    queryFn: () => getAnnualCashflowData(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAnnualCashflowData(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
