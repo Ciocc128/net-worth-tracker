@@ -15,8 +15,9 @@
 import { useMemo, useState } from 'react';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { Expense } from '@/types/expenses';
-import { SegmentedPill } from '@/components/ui/segmented-pill';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AsideToggle } from '@/components/cashflow/analisi/AsideToggle';
+import { formatPercentage } from '@/lib/services/chartService';
+import { Tile } from '@/components/ui/tile';
 import {
   LineChart,
   Line,
@@ -68,7 +69,7 @@ function SavingsRateLineChart({
           interval="preserveStartEnd"
         />
         <YAxis
-          tickFormatter={(v: number) => `${v.toFixed(0)}%`}
+          tickFormatter={(v: number) => formatPercentage(v, 0)}
           tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
           axisLine={false}
           tickLine={false}
@@ -78,7 +79,7 @@ function SavingsRateLineChart({
         {/* CSS vars for tooltip — never hardcoded hex (AGENTS.md: "Recharts tooltip") */}
         <Tooltip
           formatter={(value) =>
-            value != null ? [`${Number(value).toFixed(1)}%`, 'Tasso di risparmio'] : ['—', '']
+            value != null ? [formatPercentage(Number(value), 1), 'Tasso di risparmio'] : ['—', '']
           }
           contentStyle={{
             backgroundColor: 'var(--card)',
@@ -258,35 +259,24 @@ export function SavingsRateTrendSection({
     : 'intero storico';
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Andamento Risparmio
-          </CardTitle>
+    <Tile
+      eyebrow="Andamento risparmio"
+      aside={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span>tasso di risparmio mensile · {subtitle}</span>
           {!isScoped && (
-            <SegmentedPill
-              ariaLabel="Finestra temporale"
-              layoutId="savings-range-pill"
-              value={range}
-              onChange={setRange}
-              options={RANGE_OPTIONS}
-            />
+            <AsideToggle ariaLabel="Finestra temporale" value={range} onChange={setRange} options={RANGE_OPTIONS} />
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Tasso di risparmio mensile — {subtitle}
-        </p>
-      </CardHeader>
-      <CardContent className="pt-0">
+      }
+    >
+      <div className="mt-3">
         {!hasEnoughData ? (
-          <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
-            Servono almeno 3 mesi di entrate per il trend
-          </div>
+          <p className="py-6 text-center text-[13px] text-muted-foreground">Servono almeno 3 mesi di entrate per il trend</p>
         ) : (
           <SavingsRateLineChart data={trendData} colors={chartColors} />
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Tile>
   );
 }

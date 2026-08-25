@@ -546,6 +546,8 @@ nuovo a meno che non te lo chieda.
 
 ## 06 · Analisi
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/cashflow-analisi-redesign`) — l'asse a tre modi è rimasto (Anno corrente | Anno | Storico + mese) accanto al verdetto, «Vai a categoria…» nelle azioni dell'header compatto; riga 2 = «Spese per categoria» (4) + «Entrate per categoria» (3), liste complete cliccabili; «Fuori scala» (3) esiste solo su un mese e lo nomina (in Storico e in un anno passato senza mese «Spese maggiori» prende 7); la scheda dell'entità è una tessera a 12 colonne sotto le liste (proposta A del canvas, scelta in sessione), non più in-card; «Confronto annuale» e «Dettaglio» sono disclosure sotto la griglia; la card «Spese per tipo» è stata ritirata (il Sankey e la lettura di Flusso dicono già fisse/variabili/debiti); `AnomalieBlock` eliminato. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/analisi/page.tsx`, `components/cashflow/{AnalisiTab,EntityDossier,EntitySearch,ConfrontoAnnualeSection,CashflowSankeyChart,AnomalieBlock,SavingsRateTrendSection,AndamentoStoricoSection}.tsx`.
 
 **Modello/effort**: Fable 5 · ultracode — Sankey con identità per id, drill-down a un solo landing path, pacing YoY con null onesti.
