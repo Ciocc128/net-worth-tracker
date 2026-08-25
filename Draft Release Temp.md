@@ -134,6 +134,7 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed: the growth drivers on Storico counted the recurring rows already scheduled for the months ahead as this year's spending, which deflated the savings and handed the difference to "market"; a running year now counts the savings of the same months as its growth, and a first year starts the month after its first snapshot.
 - The monthly-returns heatmap now uses the app's sign colours at three intensities instead of fixed red and green, so it follows the colour theme like every other gain and loss (on Cyberpunk the negative colour is orange).
 - Fixed the Italian article before 18 across every page's sentences: "diciotto" starts with a consonant, so it is "il 18%" and "i 18", not "l'18%" and "gli 18".
 - A gap that rounds to zero is now "in linea" in the Rendimenti verdict and "alla pari" in the Benchmark tile at the same time — the two used to disagree by a hundredth of a point.
