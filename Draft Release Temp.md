@@ -229,6 +229,9 @@
 
 ## 🔧 Improvements
 
+- Improved the Rendimenti verdict: a drawdown that rounds to zero is no longer told as a story, a gap under a tenth of a point reads "in linea", and a return that prints as 0,0% carries no sign or colour.
+- Improved the plural article before amounts in every generated sentence ("degli 8000 €", "dei 18.000 €", "dei 1500 €").
+
 - The budget's "Salvato" / "non salvato" status now sits in the "Per categoria" tile beside the counts, and the reading line of that tile says how much of the ceiling you have assigned to categories and what is left unassigned — or, when the category budgets add up to more than the ceiling, by how much and that nothing is saved until they fit.
 - Budget bars are no longer green while under their limit: being under budget is not a gain. They stay neutral, turn amber from 90% and red when over; income targets turn green only once reached.
 - The dividend payments table dropped three columns — tax per share, net per share and cost per share. The cost basis at the time of each payment and the gross per share are one click away in the payment's own detail; the other two were derivable from figures already on the row, and thirteen columns made the table scroll before it said anything. If you used them, say so and they come back.
