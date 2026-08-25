@@ -158,3 +158,37 @@ describe('applyRebalanceBand preserves leverage metadata', () => {
     expect(banded.hasLeveragedExposure).toBe(true);
   });
 });
+
+describe('compareAllocations — fixed-amount cash target', () => {
+  // Settings keep a stale `targetPercentage` on cash beside `useFixedAmount`; the percentages of
+  // the other classes sum to 100 «excl. cash» and apply to the market base net of the reserve.
+  const fixedCashTargets = (): AssetAllocationTarget => {
+    const t = targets({ equity: 70, bonds: 30, cash: 5 });
+    t.cash = { targetPercentage: 5, useFixedAmount: true, fixedAmount: 25000 };
+    return t;
+  };
+  const assets = () => [
+    makeAsset({ assetClass: 'equity', quantity: 150, currentPrice: 1000 }), // 150k
+    makeAsset({ assetClass: 'bonds', quantity: 40, currentPrice: 1000 }), // 40k
+    makeAsset({ assetClass: 'cash', type: 'cash', quantity: 10000, currentPrice: 1 }), // 10k
+  ];
+
+  it('expresses every target on the MARKET base, so the drifts sum to zero like the currents do', () => {
+    // market 200k; the reserve is 25k, so 70/30 apply to 175k: equity 122.5k = 61,25% of 200k.
+    const result = compareAllocations(assets(), fixedCashTargets());
+    expect(result.byAssetClass.cash.targetPercentage).toBeCloseTo(12.5, 6);
+    expect(result.byAssetClass.cash.targetValue).toBe(25000);
+    expect(result.byAssetClass.equity.targetValue).toBeCloseTo(122500, 6);
+    expect(result.byAssetClass.equity.targetPercentage).toBeCloseTo(61.25, 6);
+    expect(result.byAssetClass.bonds.targetPercentage).toBeCloseTo(26.25, 6);
+    const targetSum = Object.values(result.byAssetClass).reduce((sum, d) => sum + d.targetPercentage, 0);
+    expect(targetSum).toBeCloseTo(100, 6);
+    const driftSum = Object.values(result.byAssetClass).reduce((sum, d) => sum + d.difference, 0);
+    expect(driftSum).toBeCloseTo(0, 6);
+    expect(result.byAssetClass.equity.difference).toBeCloseTo(75 - 61.25, 6);
+  });
+
+  it('is not a leverage target: the stale cash percentage never enters the ratio', () => {
+    expect(deriveTargetLeverageRatio(fixedCashTargets())).toBe(1);
+  });
+});
