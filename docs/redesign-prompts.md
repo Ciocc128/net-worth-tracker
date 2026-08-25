@@ -8,6 +8,10 @@
 > 10 Allocazione → 11-15 FIRE → 16 Previdenza → 03-07 resto del Cashflow → 17 Assistente →
 > 18 Impostazioni → 19 Auth → 20 Landing → 21 Dialog trasversali → 22 Stati → 23 Email/PDF.
 > Patrimonio per primo perché oggi è la pagina che stona di più (ha ancora l'hero gemello vecchio).
+>
+> Una sezione già propagata porta una riga **Stato** subito sotto il titolo, prima di «Superfici»:
+> ``**Stato**: ✅ fatto il YYYY-MM-DD (`branch`) — scostamenti dal prompt. Il prompt resta come riferimento di metodo.``
+> Sta lì e non in fondo perché chi scorre i titoli deve vedere se la sezione è chiusa senza attraversare il prompt.
 
 ## Modello ed effort — come leggere i suggerimenti
 
@@ -29,7 +33,7 @@ visiva da giudicare → il canvas conta più del modello.
 
 ## 00 · Shell e navigazione
 
-**Fatto il 2026-08-22** (branch `feature/shell-redesign`): compact default + `legacy`, tab sotto l'header con `aria-label`, `PageContainer width="wide"`, sidebar/rail/drawer, `TileGridSkeleton`, primitive in `components/ui/`. Le sezioni successive trovano già le primitive lì: importare `Tile`/`NarrativeText`/`RankedRows` da `components/ui/`, non dalla Panoramica.
+**Stato**: ✅ fatto il 2026-08-22 (`feature/shell-redesign`) — compact default + `legacy`, tab sotto l'header con `aria-label`, `PageContainer width="wide"`, sidebar/rail/drawer, `TileGridSkeleton`, primitive in `components/ui/`. Le sezioni successive trovano già le primitive lì: importare `Tile`/`NarrativeText`/`RankedRows` da `components/ui/`, non dalla Panoramica.
 
 **Superfici**: `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,AssistenteBanner,LogoutDialog}.tsx`, `components/ui/sidebar.tsx`, `app/dashboard/layout.tsx`, `lib/constants/navigation.ts`.
 
@@ -121,9 +125,9 @@ nuovo a meno che non te lo chieda.
 
 ## 01 · Patrimonio
 
-**Superfici**: `app/dashboard/assets/page.tsx`, `components/assets/{StrumentiTile,AssetRow,CashAccountDialog,AssetSparkline,AssetDialog,TransactionDialog,AssetMovementsDialog,TaxCalculatorModal}.tsx`, `components/assets/tiles/*`.
-
 **Stato**: ✅ fatto il 2026-08-22 (`feature/patrimonio-redesign`) — slot di riga 2 = «Rendimento»; Movimenti mostra 5 righe con «Mostra tutte» (non 3); in più la correzione del motore Δ (`assetPerformanceDeltas.ts`). Il prompt resta come riferimento di metodo.
+
+**Superfici**: `app/dashboard/assets/page.tsx`, `components/assets/{StrumentiTile,AssetRow,CashAccountDialog,AssetSparkline,AssetDialog,TransactionDialog,AssetMovementsDialog,TaxCalculatorModal}.tsx`, `components/assets/tiles/*`.
 
 **Modello/effort**: Fable 5 · ultracode — ledger, prezzi manuali, effetto prezzo per strumento, invalidazioni doppie.
 
@@ -214,9 +218,9 @@ nuovo a meno che non te lo chieda.
 
 ## 02 · Cashflow · Tracciamento
 
-**Superfici**: `app/dashboard/cashflow/page.tsx` (tab Tracciamento), `components/cashflow/{ExpenseTrackingTab,TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, `components/cashflow/tiles/*`, `components/expenses/{ExpenseDialog,ExpenseTable}.tsx`.
-
 **Stato**: ✅ fatto il 2026-08-22 (`feature/cashflow-tracciamento-redesign`) — la tessera «Trasferimenti» è stata scartata su richiesta: riga 2 = «Risparmio nel tempo» da solo (7 colonne); i filtri della toolbar restringono solo i Movimenti; la catena legacy (`CashflowHero`, `CashflowTrackingMobile`, `cashflow-kpi/*`, `CategoryBreakdownList`, `trackingSummary`) è stata eliminata. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `app/dashboard/cashflow/page.tsx` (tab Tracciamento), `components/cashflow/{ExpenseTrackingTab,TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, `components/cashflow/tiles/*`, `components/expenses/{ExpenseDialog,ExpenseTable}.tsx`.
 
 **Modello/effort**: Fable 5 · ultracode — segno per type, transfer net-zero, riconciliazioni a due conti, molti componenti.
 
@@ -301,9 +305,9 @@ nuovo a meno che non te lo chieda.
 
 ## 03 · Cashflow · Dividendi
 
-**Superfici**: `components/dividends/*`, tab Dividendi.
-
 **Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-dividendi-redesign`) — slot di riga 2 = «Per anno»; i due blocchi tabellari server vivono in un collapsible «Dettaglio» sotto la griglia. Scostamenti dal prompt, tutti deliberati: `DividendStats` NON è rimasto intoccato (si è spaccato in `useDividendStats`, una query senza date, più `DividendiDettaglio`) e la route `/api/dividends/stats` ha guadagnato i rendimenti netti che il motore già calcolava; la tessera «Rendimento» non segue l'asse del periodo e lo dichiara; il cross-filtro `focusedDate` del calendario è stato ritirato. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `components/dividends/*`, tab Dividendi.
 
 **Modello/effort**: Fable 5 · xhigh — il coupon cron è intoccato; il lavoro è di lettura e cadenza (DividendStats, invece, è stato ristrutturato).
 
@@ -383,9 +387,9 @@ Qui: docs/screenshots/dividend-calendar.png.
 
 ## 04 · Cashflow · Budget
 
-**Superfici**: `components/cashflow/BudgetTab.tsx`, `components/cashflow/budget/*`, `lib/utils/budgetUtils.ts`.
-
 **Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-budget-redesign`) — riga 2 = «Budget annuali» (7); impostazioni sotto la piega in una disclosure; la proiezione è stata allineata a quella di Tracciamento (decisione in sessione) e una categoria fissa non segue il ritmo; rischio (proiezione) e fatto (soglia superata) in due tessere distinte. La matita → dialog è rimasta (niente editing inline dell'importo, deciso in sessione).
+
+**Superfici**: `components/cashflow/BudgetTab.tsx`, `components/cashflow/budget/*`, `lib/utils/budgetUtils.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — budgetUtils ha regole precise ma contenute; niente cache.
 
@@ -465,11 +469,11 @@ nuovo a meno che non te lo chieda.
 
 ## 05 · Cashflow · Centri di Costo
 
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-centri-di-costo-redesign`) — l'asse del periodo è stato TOLTO su richiesta (ogni cifra «in totale», le finestre diverse si nominano: «Whole-Cost Corollary» in DESIGN.md); riga 2 della lista = «Dormienti» (7), gli archiviati in una disclosure sotto la griglia; nel dettaglio «Per categoria» (4) accanto a «Ciclo di vita» (3) e «Per sottocategoria» a 7; la proiezione annua è passata alla regola unica dell'app (`projectWindowEndWithScheduled`, ritirato il modello misto); il grafico a linee Recharts è diventato barre impilate per centro nella tessera Totale; le azioni del dettaglio stanno accanto al verdetto. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog,CostCenterErrorNotice}.tsx`, `costCenterStyles.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — nessun test sui componenti: l'effort va nell'estrarre e testare il layer puro.
-
-**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-centri-di-costo-redesign`) — l'asse del periodo è stato TOLTO su richiesta (ogni cifra «in totale», le finestre diverse si nominano: «Whole-Cost Corollary» in DESIGN.md); riga 2 della lista = «Dormienti» (7), gli archiviati in una disclosure sotto la griglia; nel dettaglio «Per categoria» (4) accanto a «Ciclo di vita» (3) e «Per sottocategoria» a 7; la proiezione annua è passata alla regola unica dell'app (`projectWindowEndWithScheduled`, ritirato il modello misto); il grafico a linee Recharts è diventato barre impilate per centro nella tessera Totale; le azioni del dettaglio stanno accanto al verdetto. Il prompt resta come riferimento di metodo.
 
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Cashflow · Centri di Costo» dell'app portandola sullo
@@ -628,11 +632,11 @@ Qui: docs/screenshots/cashflow-sankey.png, docs/screenshots/cashflow-drilldown.p
 
 ## 07 · Rendimenti
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/rendimenti-redesign`) — proposta A del canvas: riga 3 = «Plusvalenze realizzate» (5) + «Capitale e mercato» (7, l'Evoluzione di prima in una tessera; 12 senza vendite); benchmark sempre in EUR (lo switch USD è ritirato, il 60/40 resta il riferimento fisso del verdetto); il gap vs benchmark è sulla stessa base del numero (de-annualizzato sotto i 6 mesi); il drawdown del verdetto viene da un helper puro su `findMaxDrawdown` (mesi di calendario), non dalle stringhe del payload; Sortino e growth-of-100 sono usciti da `BenchmarkComparisonChart` in util puri; la heatmap usa i token di segno. Scoperto e corretto un bug di `patrimonioNarrative`: «diciotto» non è vocalico («l'18%»). Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/performance/page.tsx`, `components/performance/*`.
 
 **Modello/effort**: Fable 5 · ultracode — finestra di misura, base configurabile, cache con CACHE_MATH_VERSION: la pagina più facile da rompere in silenzio.
-
-**Stato**: ✅ fatto il 2026-08-25 (`feature/rendimenti-redesign`) — proposta A del canvas: riga 3 = «Plusvalenze realizzate» (5) + «Capitale e mercato» (7, l'Evoluzione di prima in una tessera; 12 senza vendite); benchmark sempre in EUR (lo switch USD è ritirato, il 60/40 resta il riferimento fisso del verdetto); il gap vs benchmark è sulla stessa base del numero (de-annualizzato sotto i 6 mesi); il drawdown del verdetto viene da un helper puro su `findMaxDrawdown` (mesi di calendario), non dalle stringhe del payload; Sortino e growth-of-100 sono usciti da `BenchmarkComparisonChart` in util puri; la heatmap usa i token di segno. Scoperto e corretto un bug di `patrimonioNarrative`: «diciotto» non è vocalico («l'18%»). Il prompt resta come riferimento di metodo.
 
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Rendimenti» dell'app portandola sullo
@@ -714,11 +718,11 @@ Qui: docs/screenshots/performance-metrics.png, docs/screenshots/monthly-heatmap.
 
 ## 08 · Storico
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/storico-redesign`) — griglia Evoluzione 8×2 · Raddoppi 4×2 (su due righe per chiudere la riga, non una) / Composizione 8 · Driver 4 / Valore per strumento 12; il «ritmo attuale» è l'aumento medio mensile in € degli ultimi 12 mesi, UNA base per la headline («accelera/rallenta») e per il prossimo raddoppio, lineare; Driver parte da `cashflowHistoryStartYear`; l'attribuzione prezzo/quantità è per strumento (`buildMonthAssetBreakdown`); Note, YoY, mensile e «Lavoro e investimenti» sono la disclosure «Dettaglio»; `HeroMetricBlock`/`MetricCard` eliminati, `AsideToggle` promosso a `components/ui`. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/history/page.tsx`, `components/history/*`, `lib/utils/historyComposition.ts`.
 
 **Modello/effort**: Fable 5 · ultracode — composizione 100% con residuo, pensionSource, attribuzione prezzo/quantità: matematica da non toccare e da non far regredire.
-
-**Stato**: ✅ fatto il 2026-08-25 (`feature/storico-redesign`) — griglia Evoluzione 8×2 · Raddoppi 4×2 (su due righe per chiudere la riga, non una) / Composizione 8 · Driver 4 / Valore per strumento 12; il «ritmo attuale» è l'aumento medio mensile in € degli ultimi 12 mesi, UNA base per la headline («accelera/rallenta») e per il prossimo raddoppio, lineare; Driver parte da `cashflowHistoryStartYear`; l'attribuzione prezzo/quantità è per strumento (`buildMonthAssetBreakdown`); Note, YoY, mensile e «Lavoro e investimenti» sono la disclosure «Dettaglio»; `HeroMetricBlock`/`MetricCard` eliminati, `AsideToggle` promosso a `components/ui`. Il prompt resta come riferimento di metodo.
 
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Storico» dell'app portandola sullo
@@ -796,11 +800,11 @@ Qui: docs/screenshots/history-networth.png.
 
 ## 09 · Hall of Fame
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/hall-of-fame-redesign`) — griglia Record del patrimonio 5×2 · Entrate 3 · Risparmio record 4 / Anni 7 / Note 12: Anni e Note hanno preso tutta la larghezza su richiesta, e così si è chiuso un buco di 3 colonne che il prompt non poteva vedere (il Record spanna due righe, quindi nella seconda ne restano 7, non 12). Tre scostamenti dal prompt, tutti decisi in sessione. **Lo switcher periodo+categoria NON è rimasto sopra la griglia**: le tessere SONO già le categorie, quindi un controllo sopra di loro risponde due volte alla stessa domanda — è sceso nella disclosure «Dettaglio», come aside della tessera con la classifica completa (20 mesi / 10 anni, colonna Nota), dove governa una cosa sola e non perde nessuna classifica («The Ranking-Is-Not-An-Axis Rule» in DESIGN.md). **«Spese minori» è diventata «Risparmio record»** (entrate − spese): la classifica per spesa più bassa premia sistematicamente il mese con meno *dati*, non il più parsimonioso — serviva un ranking nuovo nel documento (`bestMonthsBySavings`/`bestYearsBySavings` + un blocco `stats`, tutti opzionali, perché i documenti vecchi non li hanno e la tessera lo dichiara invece di stampare uno zero). **La «sparkline dei top 12» è diventata un grafico CRONOLOGICO** e il podio mostra cinque posizioni: il podio classifica, il grafico data — un grafico che ridisegna il podio sarebbe la One-Tile-One-Question rotta dentro una tessera sola. In più: il mese peggiore vive nel footer della tessera Patrimonio e mai nel verdetto, e `hallOfFameRecords.ts` ha assorbito la costruzione dei ranking (`buildHallOfFameRankings`) perché il writer client ne aveva una copia. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*`, `lib/utils/hallOfFameRecords.ts`.
 
 **Modello/effort**: Opus 5 · high — record già definiti in un util condiviso; è quasi solo cadenza e lettura.
-
-**Stato**: ✅ fatto il 2026-08-25 (`feature/hall-of-fame-redesign`) — griglia Record del patrimonio 5×2 · Entrate 3 · Risparmio record 4 / Anni 7 / Note 12: Anni e Note hanno preso tutta la larghezza su richiesta, e così si è chiuso un buco di 3 colonne che il prompt non poteva vedere (il Record spanna due righe, quindi nella seconda ne restano 7, non 12). Tre scostamenti dal prompt, tutti decisi in sessione. **Lo switcher periodo+categoria NON è rimasto sopra la griglia**: le tessere SONO già le categorie, quindi un controllo sopra di loro risponde due volte alla stessa domanda — è sceso nella disclosure «Dettaglio», come aside della tessera con la classifica completa (20 mesi / 10 anni, colonna Nota), dove governa una cosa sola e non perde nessuna classifica («The Ranking-Is-Not-An-Axis Rule» in DESIGN.md). **«Spese minori» è diventata «Risparmio record»** (entrate − spese): la classifica per spesa più bassa premia sistematicamente il mese con meno *dati*, non il più parsimonioso — serviva un ranking nuovo nel documento (`bestMonthsBySavings`/`bestYearsBySavings` + un blocco `stats`, tutti opzionali, perché i documenti vecchi non li hanno e la tessera lo dichiara invece di stampare uno zero). **La «sparkline dei top 12» è diventata un grafico CRONOLOGICO** e il podio mostra cinque posizioni: il podio classifica, il grafico data — un grafico che ridisegna il podio sarebbe la One-Tile-One-Question rotta dentro una tessera sola. In più: il mese peggiore vive nel footer della tessera Patrimonio e mai nel verdetto, e `hallOfFameRecords.ts` ha assorbito la costruzione dei ranking (`buildHallOfFameRankings`) perché il writer client ne aveva una copia. Il prompt resta come riferimento di metodo.
 
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Hall of Fame» dell'app portandola sullo
