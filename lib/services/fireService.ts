@@ -1380,14 +1380,27 @@ export function calculateCoastFIREProjection(
   };
 
   const maxYears = Math.max(retirementAge - currentAge, 0);
-  const fireNumberTarget = result.base.fireNumberAtRetirement;
   // The fund compounds from today inside its wrapper, so once unlocked its contribution at
   // year `index` is amountToday grown over the SAME index — the series shows a step at the
   // unlock year and the merged capital compounds together afterwards.
+  const unlockedInflowsAtYear = (index: number): PensionCapitalInflowToday[] =>
+    (capitalInflowsToday ?? []).filter((inflow) => Math.max(0, Math.round(inflow.yearsFromNow)) <= index);
   const unlockedCapitalAtYear = (index: number): number =>
-    (capitalInflowsToday ?? [])
-      .filter((inflow) => Math.max(0, Math.round(inflow.yearsFromNow)) <= index)
-      .reduce((sum, inflow) => sum + inflow.amountToday, 0);
+    unlockedInflowsAtYear(index).reduce((sum, inflow) => sum + inflow.amountToday, 0);
+  // The target line must step WITH the series. `retirementCapitalRequired` is already net of
+  // the fund (the walk subtracts it, valued at retirement: amountToday × (1+r)^yearsToRetirement
+  // whether it unlocks before or after the target age — see toRetirementWalkInflows), so before
+  // the unlock the line is what the FREE capital must reach, and from the unlock on — when the
+  // series includes the fund — it is the gross requirement. A flat net line beside a stepped
+  // series showed the portfolio crossing the target while the Coast number was not reached
+  // (caught while preparing the 2026-08-25 canvas). A fund unlocking after the target age is
+  // never on the plot and never added.
+  const baseRequirement = result.base.fireNumberAtRetirement;
+  const fundValueAtRetirement = (index: number): number =>
+    unlockedInflowsAtYear(index).reduce(
+      (sum, inflow) => sum + inflow.amountToday * Math.pow(1 + baseRealReturn / 100, maxYears),
+      0
+    );
   const projectionData: CoastFIREProjectionPoint[] = Array.from(
     { length: maxYears + 1 },
     (_, index) => ({
@@ -1397,7 +1410,7 @@ export function calculateCoastFIREProjection(
       bearPortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), bearRealReturn, index),
       basePortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), baseRealReturn, index),
       bullPortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), bullRealReturn, index),
-      fireNumberTarget,
+      fireNumberTarget: baseRequirement + fundValueAtRetirement(index),
     })
   );
 

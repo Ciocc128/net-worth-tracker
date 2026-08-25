@@ -1034,6 +1034,8 @@ Qui: docs/screenshots/fire-calculator.png.
 
 ## 12 · FIRE · Coast FIRE
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/coast-fire-redesign`) — proposta del canvas scelta: Traguardo 5×2 (gap come hero, chip «% del numero Coast» + traccia, proiezione che riempie) · Afflussi 7 · Scenari 7 (righe, non card); wording «numero Coast FIRE di oggi» in parallelo a «numero FIRE»; «Ipotesi» come quattro tessere (Profilo 5 · Pensioni statali 7 / Scaglioni IRPEF 5 · Modello 7) con UN solo «Salva ipotesi»; «Dettaglio» (Fasi 6 · Al target e a regime 6 / Impatto 12 / Come leggere 12). Il verdetto e le letture vivono in `coastFireView.ts` (numeri E parole, nessun modulo nuovo). Scoperto preparando i numeri del canvas e corretto in `fireService`: la linea tratteggiata del grafico era al NETTO del fondo che rientra mentre le serie lo aggiungevano allo sblocco — ora `fireNumberTarget` fa lo stesso gradino (The Stepped-Line Rule). Scoperto al collaudo 390: la tabella «Impatto delle pensioni» sforava, sotto `desktop:` è una lista piatta. `FireCalculatorSkeleton` e i cinque componenti `coast/*` precedenti eliminati. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/fire-simulations/CoastFireTab.tsx`, `coast/*`, `CoastFireProjectionChart.tsx`, `lib/utils/coastFireView.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — il tab non calcola: il rischio è far calcolare qualcosa alla UI.
