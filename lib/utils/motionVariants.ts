@@ -67,23 +67,6 @@ export const cardItem: Variants = {
   },
 };
 
-/** Hero KPI settle: slightly tighter spring to make the primary number feel precise. */
-export const heroMetricSettle: Variants = {
-  hidden: { opacity: 0, y: 18, scale: 0.985 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      type: "spring",
-      stiffness: 220,
-      damping: 24,
-      mass: 0.95,
-      delay: 0.04,
-    },
-  },
-};
-
 /** Metric settle spring for KPI values that should update precisely, not bounce. */
 export const metricSettleTransition: Transition = {
   type: "spring",

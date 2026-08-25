@@ -393,10 +393,10 @@ See [LICENSE.md](LICENSE.md) for the full license text.
 ### Performance & History
 
 ![Performance metrics](docs/screenshots/performance-metrics.png)
-*ROI, CAGR, Sharpe Ratio, drawdown and more*
+*Rendimenti: the verdict — how much the portfolio returns, and against what — over the TWR, the risk figures and the six model portfolios*
 
 ![Monthly heatmap](docs/screenshots/monthly-heatmap.png)
-*Monthly returns heatmap*
+*Rendimenti: the Consistenza tile — positive months over the measured ones, and every month's return as a heatmap*
 
 ![Net worth history](docs/screenshots/history-networth.png)
 *Net worth evolution over time*

@@ -710,6 +710,8 @@ e annota in PRODUCT.md → Evidence on Hand quali screenshot sono della nuova ge
 Qui: docs/screenshots/performance-metrics.png, docs/screenshots/monthly-heatmap.png.
 ```
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/rendimenti-redesign`) — proposta A del canvas: riga 3 = «Plusvalenze realizzate» (5) + «Capitale e mercato» (7, l'Evoluzione di prima in una tessera; 12 senza vendite); benchmark sempre in EUR (lo switch USD è ritirato, il 60/40 resta il riferimento fisso del verdetto); il gap vs benchmark è sulla stessa base del numero (de-annualizzato sotto i 6 mesi); il drawdown del verdetto viene da un helper puro su `findMaxDrawdown` (mesi di calendario), non dalle stringhe del payload; Sortino e growth-of-100 sono usciti da `BenchmarkComparisonChart` in util puri; la heatmap usa i token di segno. Scoperto e corretto un bug di `patrimonioNarrative`: «diciotto» non è vocalico («l'18%»). Il prompt resta come riferimento di metodo.
+
 ## 08 · Storico
 
 **Superfici**: `app/dashboard/history/page.tsx`, `components/history/*`, `lib/utils/historyComposition.ts`.
