@@ -23,7 +23,7 @@ import { articleForPercent, atThePercent, monthWithPrepositionA } from '@/lib/ut
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { DoublingMode, DoublingTimeSummary } from '@/types/assets';
 import type { CompositionCut, CompositionSeries } from '@/lib/utils/historyComposition';
-import { runningSinceMonth, type AllTimeHigh, type DoublingProjection, type DriverYear, type GrowthPace, type GrowthSummary, type LaborMetrics, type MonthlyMoves, type PeriodMonth } from '@/lib/utils/storicoSummary';
+import { resolveDriverShares, runningSinceMonth, type AllTimeHigh, type DoublingProjection, type DriverYear, type GrowthPace, type GrowthSummary, type LaborMetrics, type MonthlyMoves, type PeriodMonth } from '@/lib/utils/storicoSummary';
 import type { MonthAssetBreakdown } from '@/lib/utils/snapshotAssetBreakdown';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -361,23 +361,29 @@ export function describeComposition(series: CompositionSeries, cut: CompositionC
 // ─── Driver ───────────────────────────────────────────────────────────────────
 
 /**
- * «Nel 2026 il patrimonio è cresciuto di 21.400 €: 14.100 € dal risparmio e 7300 € dal
- * mercato.» A negative half is said in words («mentre il mercato ha tolto», «hai speso … più
- * di quanto hai incassato»), never as a share of a mixed-sign total.
+ * «Nel 2025 il patrimonio è cresciuto di 44.966 € (+18,2%): 23.678 € dal risparmio (53%) e
+ * 21.288 € dal mercato (47%).» A running year names its window — «Da gennaio ad agosto 2026»
+ * — because its savings are counted on the same months as its growth. A negative half is said
+ * in words («mentre il mercato ha tolto», «hai speso … più di quanto hai incassato»), never as
+ * a share of a mixed-sign total.
  */
 export function describeDrivers(input: { row: DriverYear; isRunning: boolean } | null): Narrative | null {
   if (!input) return null;
   const { row, isRunning } = input;
   const total = row.netWorthGrowth;
-  const opening = isRunning ? `Da ${MONTH_NAMES[runningSinceMonth(row) - 1].toLowerCase()} ${row.year} il patrimonio ` : `Nel ${row.year} il patrimonio `;
+  const opening = isRunning ? `${describeRunningWindow(row)} il patrimonio ` : `Nel ${row.year} il patrimonio `;
   const verb = total > 0 ? 'è cresciuto di ' : total < 0 ? 'è sceso di ' : "è rimasto dov'era";
-  const head: Narrative = total === 0 ? [prose(`${opening}${verb}`)] : [prose(`${opening}${verb}`), currencyWithSign(total)];
+  const pct: Narrative = total !== 0 && typeof row.growthPct === 'number' ? [prose(' ('), signedPercent(row.growthPct, 1), prose(')')] : [];
+  const head: Narrative = total === 0 ? [prose(`${opening}${verb}`)] : [prose(`${opening}${verb}`), currencyWithSign(total), ...pct];
 
   const savingsPositive = row.netSavings >= 0;
   const marketPositive = row.investmentGrowth >= 0;
+  const shares = resolveDriverShares(row);
   let tail: Narrative;
   if (savingsPositive && marketPositive) {
-    tail = [amount(row.netSavings), prose(' dal risparmio e '), amount(row.investmentGrowth), prose(' dal mercato')];
+    tail = shares
+      ? [amount(row.netSavings), prose(' dal risparmio ('), figure(`${shares.savings}%`), prose(') e '), amount(row.investmentGrowth), prose(' dal mercato ('), figure(`${shares.market}%`), prose(')')]
+      : [amount(row.netSavings), prose(' dal risparmio e '), amount(row.investmentGrowth), prose(' dal mercato')];
   } else if (savingsPositive) {
     tail = [amount(row.netSavings), prose(' dal risparmio, mentre il mercato ha tolto '), amount(row.investmentGrowth)];
   } else if (marketPositive) {
@@ -386,6 +392,25 @@ export function describeDrivers(input: { row: DriverYear; isRunning: boolean } |
     tail = [prose('il mercato ha tolto '), amount(row.investmentGrowth), prose(' e hai speso '), amount(row.netSavings), prose(' più di quanto hai incassato')];
   }
   return [...head, prose(': '), ...tail, prose('.')];
+}
+
+/**
+ * «Da gennaio ad agosto 2026» — the running year's window, from the month after its baseline
+ * to its last snapshot; «Ad agosto 2026» when the two coincide.
+ */
+export function describeRunningWindow(row: Pick<DriverYear, 'year' | 'baseline' | 'latest'>): string {
+  const since = runningSinceMonth(row);
+  const until = row.latest.month;
+  if (since === until) return `${capitalize(monthWithPrepositionA(until))} ${row.year}`;
+  return `Da ${MONTH_NAMES[since - 1].toLowerCase()} ${monthWithPrepositionA(until)} ${row.year}`;
+}
+
+/** «gen–ago» — the running year's window, as the Driver row prints it. */
+export function describeRunningWindowShort(row: Pick<DriverYear, 'baseline' | 'latest'>): string {
+  const since = runningSinceMonth(row);
+  const until = row.latest.month;
+  const short = (m: number) => MONTH_NAMES_SHORT[m - 1].toLowerCase();
+  return since === until ? short(until) : `${short(since)}–${short(until)}`;
 }
 
 // ─── Valore per strumento ─────────────────────────────────────────────────────

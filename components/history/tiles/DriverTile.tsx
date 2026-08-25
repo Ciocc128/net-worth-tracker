@@ -14,9 +14,10 @@
 
 import Link from 'next/link';
 import type { Narrative } from '@/lib/utils/narrative';
-import { runningSinceMonth, type DriverYear } from '@/lib/utils/storicoSummary';
-import type { MonthlyDriverRow } from '@/lib/utils/storicoNarrative';
+import { resolveDriverShares, type DriverYear } from '@/lib/utils/storicoSummary';
+import { describeRunningWindowShort, type MonthlyDriverRow } from '@/lib/utils/storicoNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { signTextClass } from '@/lib/utils/metricColors';
@@ -40,35 +41,46 @@ interface DriverTileProps {
 }
 
 const signed = (value: number) => `${value >= 0 ? '+' : '−'}${cachedFormatCurrencyEUR(Math.abs(value), true)}`;
+const signedPct = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPercentage(Math.abs(value), 1)}`;
 
 // ─── Year rows ────────────────────────────────────────────────────────────────
 
 /**
- * A year: the split bar shows the two positive halves as shares of what was ADDED; a negative
- * half has no width (a share of a mixed-sign total means nothing) and reads in the sub-line.
+ * A year: the growth in euro and in percent of the baseline, the split bar with the two positive
+ * halves as shares of what was ADDED (a negative half has no width — a share of a mixed-sign
+ * total means nothing — and reads in the sub-line), then each driver with its share when both
+ * added. A running year names its window («gen–ago»): its savings are counted on those months.
  */
 function YearRow({ row, isRunning }: { row: DriverYear; isRunning: boolean }) {
   const positive = Math.max(row.netSavings, 0) + Math.max(row.investmentGrowth, 0);
   const savingsWidth = positive > 0 ? (Math.max(row.netSavings, 0) / positive) * 100 : 0;
   const marketWidth = positive > 0 ? (Math.max(row.investmentGrowth, 0) / positive) * 100 : 0;
+  const shares = resolveDriverShares(row);
   return (
     <div className="flex flex-col gap-1.5 py-[9px]">
       <div className="flex items-center gap-3">
         <span className="w-[84px] shrink-0 text-[13px] text-foreground">
           {row.year}
-          {isRunning && <span className="ml-1 text-[11px] text-muted-foreground">da {MONTH_NAMES_SHORT[runningSinceMonth(row) - 1].toLowerCase()}</span>}
+          {isRunning && <span className="ml-1 font-mono text-[11px] tabular-nums text-muted-foreground">{describeRunningWindowShort(row)}</span>}
         </span>
         <div className="flex h-[3px] min-w-[40px] flex-1 overflow-hidden rounded-full bg-muted" role="presentation">
           <div className="h-full" style={{ width: `${savingsWidth}%`, background: 'var(--chart-2)' }} />
           <div className="h-full" style={{ width: `${marketWidth}%`, background: 'var(--chart-1)' }} />
         </div>
-        <span className={cn('w-[76px] shrink-0 text-right font-mono text-[13px] font-semibold tabular-nums', signTextClass(row.netWorthGrowth))}>{signed(row.netWorthGrowth)}</span>
+        <span className={cn('shrink-0 text-right font-mono text-[13px] font-semibold tabular-nums', signTextClass(row.netWorthGrowth))}>
+          {signed(row.netWorthGrowth)}
+          {row.growthPct !== null && <span className="ml-1.5 text-[11px] font-normal">({signedPct(row.growthPct)})</span>}
+        </span>
       </div>
       <div className="flex flex-wrap gap-x-2 font-mono text-[11px] tabular-nums text-muted-foreground">
-        <span className="whitespace-nowrap">risparmio {row.netSavings < 0 ? '−' : ''}{cachedFormatCurrencyEUR(Math.abs(row.netSavings), true)}</span>
+        <span className="whitespace-nowrap">
+          risparmio {row.netSavings < 0 ? '−' : ''}{cachedFormatCurrencyEUR(Math.abs(row.netSavings), true)}
+          {shares && ` (${shares.savings}%)`}
+        </span>
         <span aria-hidden="true">·</span>
         <span className="whitespace-nowrap">
           mercato <span className={row.investmentGrowth < 0 ? 'text-destructive' : undefined}>{signed(row.investmentGrowth)}</span>
+          {shares && ` (${shares.market}%)`}
         </span>
       </div>
     </div>
@@ -209,8 +221,10 @@ export function DriverTile({ reading, years, featured, total, startYear, months,
         {total && (
           <>
             {' '}
-            Dal {startYear}: <span className="font-mono tabular-nums text-foreground">{signed(total.netSavings)}</span> dal risparmio,{' '}
-            <span className={cn('font-mono tabular-nums', total.investmentGrowth < 0 ? 'text-destructive' : 'text-foreground')}>{signed(total.investmentGrowth)}</span> dal mercato.
+            Dal {startYear}: <span className="font-mono tabular-nums text-foreground">{signed(total.netSavings)}</span> dal risparmio
+            {resolveDriverShares(total) && <span className="font-mono tabular-nums"> ({resolveDriverShares(total)!.savings}%)</span>},{' '}
+            <span className={cn('font-mono tabular-nums', total.investmentGrowth < 0 ? 'text-destructive' : 'text-foreground')}>{signed(total.investmentGrowth)}</span> dal mercato
+            {resolveDriverShares(total) && <span className="font-mono tabular-nums"> ({resolveDriverShares(total)!.market}%)</span>}. Un anno in corso conta il risparmio degli stessi mesi della crescita.
           </>
         )}
       </p>

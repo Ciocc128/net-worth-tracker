@@ -14,6 +14,7 @@ import {
   monthSpan,
   PACE_MIN_HISTORY_MONTHS,
   projectNextDoubling,
+  resolveDriverShares,
   resolveFeaturedDriverYear,
   runningSinceMonth,
   selectDriverYears,
@@ -266,11 +267,19 @@ describe('projectNextDoubling', () => {
 
 describe('driver helpers', () => {
   const rows = [
-    { year: '2023', netSavings: 9000, investmentGrowth: 3000, netWorthGrowth: 12000 },
-    { year: '2024', netSavings: 12000, investmentGrowth: -1000, netWorthGrowth: 11000 },
-    { year: '2025', netSavings: 22800, investmentGrowth: 6900, netWorthGrowth: 29700 },
-    { year: '2026', netSavings: 14100, investmentGrowth: 7300, netWorthGrowth: 21400 },
+    { year: '2023', netSavings: 9000, investmentGrowth: 3000, netWorthGrowth: 12000, growthPct: 12, latest: { year: 2023, month: 12 } },
+    { year: '2024', netSavings: 12000, investmentGrowth: -1000, netWorthGrowth: 11000, growthPct: 9.8, latest: { year: 2024, month: 12 } },
+    { year: '2025', netSavings: 22800, investmentGrowth: 6900, netWorthGrowth: 29700, growthPct: 24.1, latest: { year: 2025, month: 12 } },
+    { year: '2026', netSavings: 14100, investmentGrowth: 7300, netWorthGrowth: 21400, growthPct: 14, latest: { year: 2026, month: 8 } },
   ];
+
+  it('should split a year between its drivers as shares that sum to 100, or refuse a mixed-sign split', () => {
+    expect(resolveDriverShares(rows[2])).toEqual({ savings: 77, market: 23 });
+    expect(resolveDriverShares({ netSavings: 23678, investmentGrowth: 21288 })).toEqual({ savings: 53, market: 47 });
+    expect(resolveDriverShares(rows[1])).toBeNull();
+    expect(resolveDriverShares({ netSavings: 0, investmentGrowth: 0 })).toBeNull();
+    expect(resolveDriverShares({ netSavings: 0, investmentGrowth: 500 })).toEqual({ savings: 0, market: 100 });
+  });
 
   it('should keep only the years from the cashflow floor, newest first', () => {
     expect(selectDriverYears(rows, 2025).map((r) => r.year)).toEqual(['2026', '2025']);

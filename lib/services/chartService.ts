@@ -434,16 +434,23 @@ export function prepareYoYVariationData(snapshots: MonthlySnapshot[]): {
  * Prepare yearly data showing breakdown of net worth growth into savings vs investment returns.
  *
  * For each year:
- * - Net Savings = Income - Expenses (cashflows from user)
- * - Net Worth Growth = End NW - Start NW (total portfolio change)
- * - Investment Growth = Net Worth Growth - Net Savings (market performance)
+ * - Net Worth Growth = last snapshot of the year − the baseline (the previous year's last
+ *   snapshot, normally December; the year's first snapshot when there is none)
+ * - Net Savings = income − spending of the cashflow rows dated in the SAME window: from the
+ *   month after the baseline to the month of the last snapshot, inclusive
+ * - Investment Growth = growth − savings (what the recorded cashflow does not explain)
  *
- * Uses December of the previous year as the starting baseline so that January's
- * net worth change is included in the annual totals (contiguous periods, no month lost).
- * Falls back to the first snapshot of the year itself when no prior December exists.
+ * The window is the point: a year still running is measured up to its last snapshot, so the
+ * rows already in the calendar for the months after it (materialised recurring series) must not
+ * count — they deflated the running year's savings and handed the gap to "market". Likewise the
+ * months BEFORE a first-year baseline (a history that starts in March has no January growth to
+ * explain). A closed year with a December baseline and a December snapshot is the calendar year.
+ *
+ * A year with no cashflow row in its window is skipped: without a recorded savings figure the
+ * split would silently read "all market".
  *
  * @param snapshots - Monthly snapshots with net worth data
- * @param expenses - All expense records (income and expenses)
+ * @param expenses - All expense records (income and expenses); transfers are net-zero and skipped
  * @returns Array of yearly data sorted by year
  */
 export function prepareSavingsVsInvestmentData(
@@ -454,15 +461,17 @@ export function prepareSavingsVsInvestmentData(
   netSavings: number;
   investmentGrowth: number;
   netWorthGrowth: number;
-  /** The snapshot the year is measured FROM (December of the previous year, or the year's first snapshot). */
+  /** Growth over the baseline's value, in percent; `null` without a positive baseline. */
+  growthPct: number | null;
+  /** The snapshot the year is measured FROM (the previous year's last snapshot, or the year's first). */
   baseline: { year: number; month: number };
+  /** The last snapshot of the year — where the window closes. */
+  latest: { year: number; month: number };
 }[] {
-  // Return empty array if missing data
   if (snapshots.length === 0 || expenses.length === 0) {
     return [];
   }
 
-  // Group snapshots by year
   const snapshotsByYear = new Map<number, MonthlySnapshot[]>();
   snapshots.forEach((snapshot) => {
     if (!snapshotsByYear.has(snapshot.year)) {
@@ -471,65 +480,55 @@ export function prepareSavingsVsInvestmentData(
     snapshotsByYear.get(snapshot.year)!.push(snapshot);
   });
 
-  // Group expenses by year using Italy timezone for consistency
-  const expensesByYear = new Map<number, { income: number; expenses: number }>();
+  // Cashflow by month (Italy timezone), so a year's window can open and close mid-year.
+  const flowsByMonth = new Map<number, { income: number; expenses: number }>();
   expenses.forEach((expense) => {
-    const year = getItalyYear(expense.date);
-    const current = expensesByYear.get(year) || { income: 0, expenses: 0 };
-
     // Transfers are net-zero — skip entirely
     if (expense.type === 'transfer') return;
+    const key = getItalyYear(expense.date) * 12 + (getItalyMonth(expense.date) - 1);
+    const current = flowsByMonth.get(key) || { income: 0, expenses: 0 };
     // Income is positive, expenses are stored as negative values
     if (expense.type === 'income') {
       current.income += expense.amount;
     } else {
       current.expenses += expense.amount; // Already negative
     }
-
-    expensesByYear.set(year, current);
+    flowsByMonth.set(key, current);
   });
 
-  // Calculate yearly breakdown data
-  const yearlyData: {
-    year: string;
-    netSavings: number;
-    investmentGrowth: number;
-    netWorthGrowth: number;
-    baseline: { year: number; month: number };
-  }[] = [];
+  const yearlyData: ReturnType<typeof prepareSavingsVsInvestmentData> = [];
 
   Array.from(snapshotsByYear.entries())
-    .sort((a, b) => a[0] - b[0]) // Sort by year ascending
+    .sort((a, b) => a[0] - b[0])
     .forEach(([year, yearSnapshots]) => {
-      // Skip years with no snapshots (can't determine end value)
       if (yearSnapshots.length < 1) return;
 
-      // Skip years with no expense data (can't calculate net savings)
-      if (!expensesByYear.has(year)) return;
-
-      // Sort snapshots by month to get the last (end) snapshot of this year
       yearSnapshots.sort((a, b) => a.month - b.month);
-
       const lastSnapshot = yearSnapshots[yearSnapshots.length - 1];
 
-      // Use December of previous year as baseline so January is included in the delta.
-      // Falls back to first snapshot of this year when prior December doesn't exist.
+      // The previous year's last snapshot (normally December) so January is included in the
+      // delta; the year's own first snapshot when there is none.
       const prevYearSnapshots = snapshotsByYear.get(year - 1);
-      const decPrevYear = prevYearSnapshots
-        ? [...prevYearSnapshots].sort((a, b) => a.month - b.month).at(-1)
-        : undefined;
-      const startSnapshot = decPrevYear ?? yearSnapshots[0];
+      const prevLast = prevYearSnapshots ? [...prevYearSnapshots].sort((a, b) => a.month - b.month).at(-1) : undefined;
+      const startSnapshot = prevLast ?? yearSnapshots[0];
 
-      const expenseData = expensesByYear.get(year)!;
+      // The window: the month after the baseline through the last snapshot's month.
+      const from = startSnapshot.year * 12 + (startSnapshot.month - 1) + 1;
+      const to = lastSnapshot.year * 12 + (lastSnapshot.month - 1);
+      let income = 0;
+      let spending = 0;
+      let hasRows = false;
+      for (let key = from; key <= to; key++) {
+        const flows = flowsByMonth.get(key);
+        if (!flows) continue;
+        hasRows = true;
+        income += flows.income;
+        spending += flows.expenses;
+      }
+      if (!hasRows) return;
 
-      // Calculate Net Worth Growth (end - start)
       const netWorthGrowth = lastSnapshot.totalNetWorth - startSnapshot.totalNetWorth;
-
-      // Calculate Net Savings (income + expenses, expenses already negative)
-      const netSavings = expenseData.income + expenseData.expenses;
-
-      // Calculate Investment Growth (total growth - savings)
-      // This isolates market performance from cashflow contributions
+      const netSavings = income + spending;
       const investmentGrowth = netWorthGrowth - netSavings;
 
       yearlyData.push({
@@ -537,7 +536,9 @@ export function prepareSavingsVsInvestmentData(
         netSavings,
         investmentGrowth,
         netWorthGrowth,
+        growthPct: startSnapshot.totalNetWorth > 0 ? (netWorthGrowth / startSnapshot.totalNetWorth) * 100 : null,
         baseline: { year: startSnapshot.year, month: startSnapshot.month },
+        latest: { year: lastSnapshot.year, month: lastSnapshot.month },
       });
     });
 

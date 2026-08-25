@@ -257,8 +257,25 @@ export interface DriverYear {
   netSavings: number;
   investmentGrowth: number;
   netWorthGrowth: number;
+  /** Growth over the baseline's value, in percent; `null` without a positive baseline. */
+  growthPct: number | null;
   /** The snapshot the year is measured FROM; absent on a legacy row means «December of the previous year». */
   baseline?: PeriodMonth;
+  /** The last snapshot of the year — where its window (and its savings) closes. */
+  latest: PeriodMonth;
+}
+
+/**
+ * The share of a year's growth each driver explains, 0-100 and summing to 100 by construction
+ * (the market's share is the remainder). `null` when either half is negative or nothing was
+ * added: a share of a mixed-sign total means nothing.
+ */
+export function resolveDriverShares(row: Pick<DriverYear, 'netSavings' | 'investmentGrowth'>): { savings: number; market: number } | null {
+  if (row.netSavings < 0 || row.investmentGrowth < 0) return null;
+  const total = row.netSavings + row.investmentGrowth;
+  if (total <= 0) return null;
+  const savings = Math.round((row.netSavings / total) * 100);
+  return { savings, market: 100 - savings };
 }
 
 /**

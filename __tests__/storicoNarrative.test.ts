@@ -333,18 +333,23 @@ describe('describeComposition', () => {
 });
 
 describe('describeDrivers', () => {
-  const row = (year: string, netSavings: number, investmentGrowth: number) => ({ year, netSavings, investmentGrowth, netWorthGrowth: netSavings + investmentGrowth });
+  const row = (year: string, netSavings: number, investmentGrowth: number, growthPct: number | null = null) => ({ year, netSavings, investmentGrowth, netWorthGrowth: netSavings + investmentGrowth, growthPct, latest: { year: Number(year), month: 12 } });
 
-  it('should split the year\'s growth between savings and the market', () => {
-    expect(plain(describeDrivers({ row: row('2026', 14100, 7300), isRunning: true }))).toBe('Da gennaio 2026 il patrimonio è cresciuto di 21.400 €: 14.100 € dal risparmio e 7300 € dal mercato.');
-    // A first year that starts in March is measured from April, and says so (The Same-Basis Rule).
-    expect(plain(describeDrivers({ row: { ...row('2026', 14100, 7300), baseline: { year: 2026, month: 3 } }, isRunning: true }))).toBe('Da aprile 2026 il patrimonio è cresciuto di 21.400 €: 14.100 € dal risparmio e 7300 € dal mercato.');
-    expect(plain(describeDrivers({ row: { ...row('2026', 14100, 7300), baseline: { year: 2025, month: 12 } }, isRunning: true }))).toContain('Da gennaio 2026');
-    expect(plain(describeDrivers({ row: row('2025', 22800, 6900), isRunning: false }))).toBe('Nel 2025 il patrimonio è cresciuto di 29.700 €: 22.800 € dal risparmio e 6900 € dal mercato.');
+  it("should split the year's growth between savings and the market, with the shares and the growth in percent", () => {
+    expect(plain(describeDrivers({ row: { ...row('2026', 14100, 7300), latest: { year: 2026, month: 8 } }, isRunning: true }))).toBe('Da gennaio ad agosto 2026 il patrimonio è cresciuto di 21.400 €: 14.100 € dal risparmio (66%) e 7300 € dal mercato (34%).');
+    expect(plain(describeDrivers({ row: row('2025', 22800, 6900), isRunning: false }))).toBe('Nel 2025 il patrimonio è cresciuto di 29.700 €: 22.800 € dal risparmio (77%) e 6900 € dal mercato (23%).');
+    // The growth in percent of the baseline when the baseline is positive; the shares always sum to 100.
+    expect(plain(describeDrivers({ row: row('2025', 23678, 21288, 18.2), isRunning: false }))).toBe('Nel 2025 il patrimonio è cresciuto di 44.966 € (+18,2%): 23.678 € dal risparmio (53%) e 21.288 € dal mercato (47%).');
+  });
+
+  it('should name the window a running year is measured on (The Same-Basis Rule)', () => {
+    expect(plain(describeDrivers({ row: { ...row('2026', 14100, 7300), baseline: { year: 2026, month: 3 }, latest: { year: 2026, month: 7 } }, isRunning: true }))).toBe('Da aprile a luglio 2026 il patrimonio è cresciuto di 21.400 €: 14.100 € dal risparmio (66%) e 7300 € dal mercato (34%).');
+    expect(plain(describeDrivers({ row: { ...row('2026', 14100, 7300), baseline: { year: 2025, month: 12 }, latest: { year: 2026, month: 8 } }, isRunning: true }))).toContain('Da gennaio ad agosto 2026');
+    expect(plain(describeDrivers({ row: { ...row('2026', 1400, 730), baseline: { year: 2026, month: 7 }, latest: { year: 2026, month: 8 } }, isRunning: true }))).toContain('Ad agosto 2026 il patrimonio');
   });
 
   it('should blame a negative market or negative savings in words, never as a share', () => {
-    expect(plain(describeDrivers({ row: row('2024', 12000, -1000), isRunning: false }))).toBe('Nel 2024 il patrimonio è cresciuto di 11.000 €: 12.000 € dal risparmio, mentre il mercato ha tolto 1000 €.');
+    expect(plain(describeDrivers({ row: row('2024', 12000, -1000, 5.5), isRunning: false }))).toBe('Nel 2024 il patrimonio è cresciuto di 11.000 € (+5,5%): 12.000 € dal risparmio, mentre il mercato ha tolto 1000 €.');
     expect(plain(describeDrivers({ row: row('2024', -3000, 7200), isRunning: false }))).toBe('Nel 2024 il patrimonio è cresciuto di 4200 €: 7200 € dal mercato, ma hai speso 3000 € più di quanto hai incassato.');
     expect(plain(describeDrivers({ row: row('2022', 9000, -14000), isRunning: false }))).toBe('Nel 2022 il patrimonio è sceso di 5000 €: 9000 € dal risparmio, mentre il mercato ha tolto 14.000 €.');
     expect(plain(describeDrivers({ row: row('2022', -3000, -2000), isRunning: false }))).toBe('Nel 2022 il patrimonio è sceso di 5000 €: il mercato ha tolto 2000 € e hai speso 3000 € più di quanto hai incassato.');
