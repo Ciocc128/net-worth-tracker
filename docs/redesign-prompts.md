@@ -718,6 +718,8 @@ Qui: docs/screenshots/performance-metrics.png, docs/screenshots/monthly-heatmap.
 
 **Modello/effort**: Fable 5 · ultracode — composizione 100% con residuo, pensionSource, attribuzione prezzo/quantità: matematica da non toccare e da non far regredire.
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/storico-redesign`) — griglia Evoluzione 8×2 · Raddoppi 4×2 (su due righe per chiudere la riga, non una) / Composizione 8 · Driver 4 / Valore per strumento 12; il «ritmo attuale» è l'aumento medio mensile in € degli ultimi 12 mesi, UNA base per la headline («accelera/rallenta») e per il prossimo raddoppio, lineare; Driver parte da `cashflowHistoryStartYear`; l'attribuzione prezzo/quantità è per strumento (`buildMonthAssetBreakdown`); Note, YoY, mensile e «Lavoro e investimenti» sono la disclosure «Dettaglio»; `HeroMetricBlock`/`MetricCard` eliminati, `AsideToggle` promosso a `components/ui`. Il prompt resta come riferimento di metodo.
+
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Storico» dell'app portandola sullo
 stile della Panoramica: «Verdict over Tiles» (DESIGN.md §1 «The 2026-08-22 turn» e §5: Page

@@ -49,14 +49,6 @@ export const staggerContainer: Variants = {
   },
 };
 
-/** Stagger container for long lists (40ms between children, e.g. table rows, record cards) */
-export const fastStaggerContainer: Variants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.04, delayChildren: 0 },
-  },
-};
-
 /** Card item: slide-up 16px + fade in */
 export const cardItem: Variants = {
   hidden: { opacity: 0, y: 16 },
@@ -73,16 +65,6 @@ export const metricSettleTransition: Transition = {
   stiffness: 320,
   damping: 34,
   mass: 0.8,
-};
-
-/** List item: subtle slide-up 8px + fade in (for rows, compact cards) */
-export const listItem: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: easeOutQuart },
-  },
 };
 
 /** Slide-down reveal for collapsible sections (use with AnimatePresence) */
@@ -124,21 +106,6 @@ export const chapterReveal: Variants = {
     opacity: 1,
     y: 0,
     transition: { duration: 0.32, ease: easeOutQuart },
-  },
-};
-
-/** Period switch shell: slight fade/settle used when dense data re-computes in place. */
-export const periodContentSettle: Variants = {
-  idle: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-  },
-  settle: {
-    opacity: [0.985, 1],
-    y: [4, 0],
-    scale: [0.998, 1],
-    transition: { duration: 0.24, ease: easeOutQuart },
   },
 };
 
@@ -245,12 +212,4 @@ export const tableShellSettle: Variants = {
     y: 0,
     transition: { duration: 0.18, ease: easeOutQuart },
   },
-};
-
-/** Progress bar settle: short spring with no visible bounce. */
-export const progressSettleTransition: Transition = {
-  type: "spring",
-  stiffness: 360,
-  damping: 34,
-  mass: 0.78,
 };
