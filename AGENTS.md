@@ -120,6 +120,9 @@ Companion documents — do not duplicate their content into this file:
   then skips the whole component).
 
 ### Two-Step Create Dialogs (`AssetDialog`, `ExpenseDialog`)
+- `AssetDialog`: step 1 picks the type, step 2 shows only that type's fields; edit reuses the same visibility logic and
+  shows a ledger asset's quantity/PMC read-only (the ledger owns them). Class select for ETFs, optional `displayTicker`,
+  `leverageRatio`, and an opt-in TER only for `etf`/`commodity`/`crypto`.
 > The default for a form whose fields depend on a discriminant. Keep the two implementations in step.
 - **The picker exists because the type is not one field among many** — it decides which categories/classes exist, which
   accounts are asked for, and how many balances move. Step 1 turns *one form with N conditional shapes* into *N plain
@@ -211,6 +214,12 @@ Companion documents — do not duplicate their content into this file:
 - **Do NOT bump `firebase-admin` past 13.x** — `@14 → jwks-rsa@4 → jose@6` is pure ESM and Vercel's Lambda runtime
   `require()`s it (`ERR_REQUIRE_ESM` on every Admin route).
 
+### Demo Mode
+- The public landing (`app/page.tsx`) auto-logs into the demo account; `useDemoMode()` compares `user.uid` with
+  `NEXT_PUBLIC_DEMO_USER_ID` and **gates every mutation** (buttons disabled with a named `aria-label`, handlers return
+  early). The snapshots and notes of that account are shared by every visitor: a write that slips through is visible
+  to all of them. The assistant is blocked there outright.
+
 ### Shared Account / Delegated Access
 - **Viewer vs owner**: `useAuth().user` is the viewer and never changes; `useActiveAccount().ownerId` is whose data is
   displayed. Pass `ownerId` in data-scoped hooks and pages; keep `user.uid` only for theme, profile, PDF author,
@@ -286,6 +295,16 @@ Companion documents — do not duplicate their content into this file:
 - **`recurringCount` is form-only and must never reach Firestore**: `updateExpense` spreads whatever it is handed, so
   the edit path passes it as `undefined` explicitly. The toggle itself is **creation-only** — the length of a saved
   series is not editable from one of its rows.
+
+### Expense CSV Import (`lib/utils/expenseImport.ts`, `lib/services/expenseImportService.ts`)
+- Impostazioni → Spese. A pure parse → validate → plan layer with a MANDATORY preview before any write; every row of
+  one import shares an `importBatchId`, which is what the one-tap undo deletes by. Category identity is **(name,
+  type)**, never the name alone. `transfer` rows are rejected and cash balances are never touched by an import.
+
+### PDF Export (`lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `lib/utils/pdfTimeFilters.ts`)
+- Seven configurable sections with a Total/Annual/Monthly filter. On Cashflow, **Export Totale applies
+  `cashflowHistoryStartYear` as a floor** (fallback 2025); Storico, Rendimenti and FIRE stay unbounded — do not "fix"
+  the asymmetry, the cashflow before the floor is bulk-imported noise.
 
 ### Cashflow Drill-Down: One Landing Path
 - **There is ONE drill destination and ONE transaction list**: every entity entry point on Analisi (a category row, a
@@ -795,6 +814,8 @@ Companion documents — do not duplicate their content into this file:
   override > RITA rule from `userAge` (INPS age − 5, or − 10 with `pensionRitaLongUnemployment`) > `null` = NOT locked
   (and the UI must say why). `pensionFire.calculatePensionLockedValue` is a thin wrapper — with no settings it is
   override-only, the behaviour the emulator exercise script relies on.
+- **Coast FIRE is the same IA on a different question** — «posso smettere di versare?» — answered by the shortfall
+  against `coastFireNumberToday`, with an inflow timeline that names the pension unlock and each state pension.
 - **The bridge model reuses the Coast walk, never a second formula.** `buildCoastFIRERetirementNeeds` takes
   `capitalInflows` (amounts AT the inflow year) and extends its horizon to `max(bridgeYears, max inflow year)` —
   without the extension the FIRE-tab case (no state pensions → bridgeYears 0) silently drops the inflow. The
@@ -840,6 +861,10 @@ Companion documents — do not duplicate their content into this file:
   the transaction (`pickNextGoalColor`), or two goals created concurrently come out the same hue.
 
 ### Asset Trade Ledger
+- Three trade types per asset — BUY / SELL / ADJUSTMENT — with an optional cash settlement that debits or credits a
+  cash account atomically, so a settled trade is net-worth-neutral. `TransactionDialog` writes, `AssetMovementsDialog`
+  reads (P&L, return, XIRR, per-sell realized % at the PMC of the trade). Feeds Rendimenti (invested capital, realized
+  gains) and Dividendi (holding start).
 **Engine** (`lib/utils/assetTransactionUtils.ts`, pure and Firebase-free)
 - ALL trade money-math lives here (replay, PMC, realized P&L, XIRR, total return, invested capital); the service/route
   layer is a thin atomic writer. A new `AssetTransactionType` must update the replay switch, the zod schema AND
@@ -1316,7 +1341,8 @@ Companion documents — do not duplicate their content into this file:
   44×44; `SidebarGroup`/`SidebarHeader`/`SidebarFooter` drop to `p-1.5` in icon mode for the same reason. A custom
   button in the rail (the collapse toggle) needs its own `group-data-[state=collapsed]:size-11`.
 - **`PageContainer width="wide"`** is the 1920px root of a tile page; the loading state must use the same width or
-  the page jumps when data lands (the Panoramica's skeleton was 1600 while the page was 1920).
+  the page jumps when data lands (the Panoramica's skeleton was 1600 while the page was 1920). The loading state of a
+  tile page is `TileGridSkeleton` with the page's own `cells` — never a per-page skeleton component.
 - **A shell component that reads `useSearchParams` puts it in a child rendered inside `<Suspense>`** (`AddExpenseFab` in
   `BottomNavigation`): the layout is client-rendered today, but the hook bails static rendering out without a boundary.
 - **Sidebar active state for `/dashboard` must be `pathname === item.href`**, never `startsWith`. **Bottom nav is
