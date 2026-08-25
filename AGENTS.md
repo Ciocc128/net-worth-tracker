@@ -859,9 +859,10 @@ Companion documents — do not duplicate their content into this file:
 - **Memoize every input feeding the fan's `useMemo`** — a `pensionLockState` (and therefore `fanInputs`) rebuilt per
   render re-runs 1000 simulations on every keystroke. The fan is armed only on first opening its view.
 - **The Coast tab computes nothing**: `lib/utils/coastFireView.ts` chooses which of `fireService`'s own fields to show
-  and in which words; `CoastFireTab.tsx` orchestrates, `components/fire-simulations/coast/*` render,
+  and in which words (the verdict included — see *FIRE › Coast FIRE — a verdict over tiles*); `CoastFireTab.tsx`
+  orchestrates, `components/fire-simulations/coast/tiles/*`, `CoastIpotesi` and `CoastDettaglio` render,
   `useCoastFireSettingsDraft` owns the form. A figure that cannot be pointed at inside a `CoastFIREScenarioMetrics` does
-  not belong on that tab. **The inflow timeline is the visual explanation of the discount**, not a second model: state
+  not belong on that tab. **The Afflussi tile is the visual explanation of the discount**, not a second model: state
   pensions come from the scenario's `pensionBreakdown`, the fund from `resolvePensionLockState`'s inflows AT TODAY'S
   VALUE — growing it there double-counts what the walk already does.
 - **Goal trajectory is annuity math in a tested pure layer** (`goalTrajectory.ts`), never a `useMemo` in the card; the
@@ -902,9 +903,9 @@ Companion documents — do not duplicate their content into this file:
   Coast, What If, Monte Carlo — Obiettivi already did). The React Query keys were namespaced by `ownerId` while the
   functions took `user!.uid`, so a guest on a shared account saw their OWN (empty) FIRE data and saved settings on
   their own doc. `enabled: !!user && !!ownerId` gates every query; `ownerId!` is safe past that gate.
-- **`PageContainer width="wide"` only while `activeTab === 'fire'`**: the four other tabs are not propagated and keep
-  the 1600px byte-identical. `FireCalculatorSkeleton` survives for Coast FIRE alone; the Calcolatore loads as
-  `TileGridSkeleton` with its own cells.
+- **`PageContainer width="wide"` only while `activeTab` is `'fire'` or `'coast'`**: the three other tabs (What If,
+  Monte Carlo, Obiettivi) are not propagated and keep the 1600px byte-identical. Both propagated tabs load as
+  `TileGridSkeleton` with their own cells (`FireCalculatorSkeleton` is gone).
 - **The passive income at the FIRE year is nominal and never stands alone** in the verdict: beside today's expenses
   with the inflation named («2300 € al mese di oggi, 2667 € del 2032 con l'inflazione al 2,5%»), or one figure when
   inflation is 0. A projection carries no sign colour; the only signed figure on the page is the current withdrawal
@@ -923,6 +924,48 @@ Companion documents — do not duplicate their content into this file:
   their VISIBLE text (`/^Parametri/`, `/^Dettaglio/` — no `aria-label`, so «Anteprima non salvata» is part of the
   name); the hero is `p:has-text("Numero FIRE") + span`, never «the first mono span» (the reading comes first). The
   390 guard opens Parametri, Dettaglio and the Ventaglio before measuring `main`.
+
+### FIRE › Coast FIRE — a verdict over tiles (`components/fire-simulations/CoastFireTab.tsx`, `components/fire-simulations/coast/*`, `lib/utils/coastFireView.ts`)
+- The tab answers «posso smettere di versare?» before any number and computes nothing: `coastFireView.ts` holds BOTH
+  the numbers (`summarizeCoastTarget`, `summarizeCoastScenarios`, `summarizeCoastPensions`, `buildCoastInflowEvents`,
+  `resolveCoastBridgeYears`) and the words (`buildCoastVerdict`, the `describe*` readings) — one module on purpose, the
+  one exception to the `*Summary`/`*Narrative` pair, because this tab CHOOSES what to show of `fireService` and one
+  file is where that choice is tested. The only arithmetic in it is a ratio (liquid progress) and a difference (surplus);
+  the parity test pins that every euro printed is one of the projection's own numbers.
+- **The target line of the projection steps WITH the fund** (`fireService.calculateCoastFIREProjection`, 2026-08-25):
+  `retirementCapitalRequired` is already net of the fund (the walk subtracts it valued at retirement —
+  `amountToday × (1+r)^yearsToRetirement`, whether it unlocks before or after the target age), so `fireNumberTarget`
+  is that net figure until the unlock and the gross one (net + the unlocked funds grown to retirement) from it. Before
+  the fix the flat net line beside a stepped series showed the portfolio crossing the target with 24% of the Coast
+  number still missing. A fund unlocking after the target age is never on the plot and never added. Pinned by tests.
+- **The verdict's two capital figures are net of the fund** (`futureValueAtRetirementWithoutNewContributions` grows the
+  FREE capital; `retirementCapitalRequired` is net of the fund's re-entry) and the lock sentence says so — «I 31.400 € nel
+  fondo pensione sono esclusi da queste cifre perché restano bloccati fino al 2045; il calcolo li conta da quell'anno
+  in poi». The Traguardo footer names the gross line («472.977 € con il fondo
+  pensione dentro») only when the unlock is on the plot; an unlock past the target age is said as such.
+- The lock is `summarizeLock(pensionLockState, { currentYear, ritaUnlockAge })` — the same `FireLock` the Calcolatore
+  reads — with `ritaUnlockAge` from the SAVED settings (`resolveRitaUnlockAge(settings)`): Coast has no RITA form of its
+  own. The page has NO switch: the pension lock is the Calcolatore's Base di calcolo control, the Ipotesi description
+  names its state («fondo pensione bloccato fino al 2048») and the Dettaglio explainer says where it lives.
+- **The pension clause lists EVERY pension with its start year** («dal 2052 la Pensione estera, dal 2055 la Pensione
+  INPS e dal 2061 la pensione di Marco coprono insieme …»), at `totalNetAnnualPensionAtSteadyState / 12`; a label
+  that starts with «Pension…» takes the article («la Pensione INPS»), any other label — a household names rows after
+  the person — reads «la pensione di Giuseppe». Start years come from the decorrenza, else
+  `currentYear + ceil(yearsUntilStart)` — the same rule as the Afflussi events. No pension → no clause, never
+  «nessuna pensione».
+- The Ipotesi disclosure has ONE «Salva ipotesi» (in the Profilo tile) for its four tiles: the form is one document and
+  `useCoastFireSettingsDraft` has one mutation. Config-first via the `useRef` seeded flag set INSIDE a `setTimeout(0)`
+  (StrictMode clears the first timer), open only while no age is saved, reopening on an unsaved edit or an
+  `incomplete` pension state; never auto-closed. The pension issues render as lines under the tile's reading (warning
+  tone for the incomplete ones), not as a banner.
+- The «Impatto delle pensioni» table is `hidden desktop:block`; below `desktop:` the same rows are a flat list — five
+  columns at 350px pushed the tile past the phone's edge (caught by `coast.mobile.spec.ts`, which measures `main`'s
+  offenders like `fire.mobile.spec.ts`).
+- Playwright locates the tiles by `role=region` + `aria-label` («Traguardo Coast FIRE», «Afflussi già considerati»,
+  «Scenari Coast FIRE»), the verdict by «Verdetto sul Coast FIRE», the disclosures by their VISIBLE text (`/^Ipotesi/`,
+  `/^Dettaglio/` — the Ipotesi trigger carries the basis line, so it can be asserted closed), the hero as
+  `p:has-text("numero Coast FIRE") + span`, the scenario list by `role=list` «Numero Coast FIRE per scenario». The
+  fixture fixes expenses but not the clock: structure and format only (AGENTS → *Browser-Driven E2E*).
 
 ### Asset Trade Ledger
 - Three trade types per asset — BUY / SELL / ADJUSTMENT — with an optional cash settlement that debits or credits a

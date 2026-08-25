@@ -14,9 +14,9 @@
  * inactive tabs). Desktop (≥ 1440px): standard TabsList with icons.
  * No lazy loading needed - components load quickly.
  *
- * The container is `wide` (1920px, the tile grid's root) only on the Calcolatore tab, the one
- * propagated to «Verdict over Tiles»; the other tabs keep the 1600px of the un-propagated pages,
- * byte-identical, until their own session.
+ * The container is `wide` (1920px, the tile grid's root) on the two tabs propagated to «Verdict
+ * over Tiles» — Calcolatore and Coast FIRE; the other tabs keep the 1600px of the un-propagated
+ * pages, byte-identical, until their own session.
  */
 
 'use client';
@@ -48,7 +48,7 @@ export default function FireSimulationsPage() {
   const [activeTab, setActiveTab] = useState<TabValue>('fire');
 
   return (
-    <PageContainer width={activeTab === 'fire' ? 'wide' : 'default'}>
+    <PageContainer width={activeTab === 'fire' || activeTab === 'coast' ? 'wide' : 'default'}>
       <PageHeader
         label="Pianificazione"
         title="FIRE e Simulazioni"
