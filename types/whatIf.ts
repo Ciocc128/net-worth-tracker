@@ -3,7 +3,8 @@ import type {
   CoastFirePensionInput,
   CoastFireTaxBracket,
 } from '@/types/assets';
-import type { PensionCapitalInflowToday } from '@/lib/services/fireService';
+import type { FIREProjectionResult } from '@/types/assets';
+import type { FireProjectionPensionBridge, PensionCapitalInflowToday } from '@/lib/services/fireService';
 
 /**
  * What If Analysis — life-event scenarios applied to the user's FIRE plan.
@@ -69,6 +70,10 @@ export interface WhatIfBaseline {
   withdrawalRate: number;
   scenarios: FIREProjectionScenarios;
   coast: WhatIfCoastBaseline | null;
+  // Bridge model (the Calcolatore's): the locked pension fund as a separate compartment that
+  // re-enters the FIRE walk at its unlock year, present only when the FIRE lock-in toggle is on
+  // (netWorth then excludes it). Absent or null → the plain walk, byte-identical to before.
+  pensionBridge?: FireProjectionPensionBridge | null;
 }
 
 /** Inputs after applying a scenario. Only the values the impact metrics depend on are tracked. */
@@ -101,8 +106,15 @@ export interface WhatIfCoastImpact {
   isCoastReachedAfter: boolean;
 }
 
+/** The two base-scenario walks the impact was read from — the chart draws them overlaid. */
+export interface WhatIfProjections {
+  before: FIREProjectionResult | null;
+  after: FIREProjectionResult | null;
+}
+
 export interface WhatIfImpact {
   adjusted: WhatIfAdjustedInputs;
   fire: WhatIfFireImpact;
   coast: WhatIfCoastImpact | null; // null when the baseline has no Coast configuration
+  projections: WhatIfProjections;
 }

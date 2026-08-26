@@ -827,7 +827,10 @@ Companion documents — do not duplicate their content into this file:
 ### FIRE, What If and Goals
 - **What If = perturbation + diff, no new projection math**: every v1 life event is a year-0 perturbation, then
   `fireService` is re-run on baseline vs adjusted and diffed. Do NOT add timed mid-projection cash events. **Keep the
-  pure layer category-agnostic** — the selection of lost income sources and its sum live in the UI.
+  pure layer category-agnostic** — the selection of lost income sources and its sum live in the UI
+  (`components/fire-simulations/whatif/incomeSelection.ts`). **The bridge rides on the baseline** (`WhatIfBaseline.pensionBridge`,
+  2026-08-25): with the lock on, `calculateWhatIfImpact` reads the bridge FIRE number (`calculateFireBridgeNumber`) and passes
+  the bridge to BOTH walks, so the «prima» side agrees with the Calcolatore's year; without it the walk is byte-identical.
 - **Pension unlock is ONE rule in ONE place** (`lib/utils/pensionUnlock.ts`, explicit `now`): per-fund `unlockDate`
   override > RITA rule from `userAge` (INPS age − 5, or − 10 with `pensionRitaLongUnemployment`) > `null` = NOT locked
   (and the UI must say why). `pensionFire.calculatePensionLockedValue` is a thin wrapper — with no settings it is
@@ -903,9 +906,9 @@ Companion documents — do not duplicate their content into this file:
   Coast, What If, Monte Carlo — Obiettivi already did). The React Query keys were namespaced by `ownerId` while the
   functions took `user!.uid`, so a guest on a shared account saw their OWN (empty) FIRE data and saved settings on
   their own doc. `enabled: !!user && !!ownerId` gates every query; `ownerId!` is safe past that gate.
-- **`PageContainer width="wide"` only while `activeTab` is `'fire'` or `'coast'`**: the three other tabs (What If,
-  Monte Carlo, Obiettivi) are not propagated and keep the 1600px byte-identical. Both propagated tabs load as
-  `TileGridSkeleton` with their own cells (`FireCalculatorSkeleton` is gone).
+- **`PageContainer width="wide"` only while `activeTab` is `'fire'`, `'coast'` or `'whatif'`**: the two other tabs (Monte
+  Carlo, Obiettivi) are not propagated and keep the 1600px byte-identical. Every propagated tab loads as
+  `TileGridSkeleton` with its own cells (`FireCalculatorSkeleton` and `WhatIfAnalysisSkeleton` are gone).
 - **The passive income at the FIRE year is nominal and never stands alone** in the verdict: beside today's expenses
   with the inflation named («2300 € al mese di oggi, 2667 € del 2032 con l'inflazione al 2,5%»), or one figure when
   inflation is 0. A projection carries no sign colour; the only signed figure on the page is the current withdrawal
@@ -966,6 +969,41 @@ Companion documents — do not duplicate their content into this file:
   `/^Dettaglio/` — the Ipotesi trigger carries the basis line, so it can be asserted closed), the hero as
   `p:has-text("numero Coast FIRE") + span`, the scenario list by `role=list` «Numero Coast FIRE per scenario». The
   fixture fixes expenses but not the clock: structure and format only (AGENTS → *Browser-Driven E2E*).
+
+### FIRE › What If — a verdict over tiles (`components/fire-simulations/WhatIfAnalysisTab.tsx`, `components/fire-simulations/whatif/*`, `lib/utils/{whatIfSummary,whatIfNarrative}.ts`)
+- The tab answers «cosa cambia se…?» and computes nothing: `calculateWhatIfImpact` (service) perturbs and diffs, `whatIfSummary.ts`
+  turns the impact into the event as stated, the before/after pairs, the merged series, the divergence and the sensitivity reading,
+  `whatIfNarrative.ts` puts them into words. The service now RETURNS the two base-scenario walks it runs (`projections`), so the
+  chart draws the series the years were read from — never a third walk in a component. The job-loss decomposition (retained income
+  covers the expenses first, the portfolio pays the uncovered part) is `decomposeJobLossHit`, out of the component.
+- **The headline and the tone come from the delta in years** (`timelineCase`: keeps · loses · gains · neverBoth · leaves · returns ·
+  same · moves), shared by the verdict and the Prima e dopo reading; a `yearsToFIRE` of 0 means reached, null means beyond the
+  50-year horizon (`WHAT_IF_HORIZON_YEARS`, the Calcolatore's). **Only the deltas carry a sign** (`signedAmount`), by the direction
+  that is good for the row (`buildDeltaRows`: net worth and income higherBetter, FIRE number, Coast number and gap lowerBetter);
+  a change under half a unit is «invariato», never «+0 €». **An empty perturbation** (`WhatIfEvent.isEmpty`: no months or no lost
+  income, a lump sum of 0, both cashflow deltas 0) gets «Nessun evento da simulare.» with today's plan, not a zero delta.
+- **The event clause is household-agnostic**: months, the lost amount and its share of expenses + savings (`lostShareOfIncomePct`,
+  null when the household earns nothing, and the clause drops). The names of the sources live only in the Evento tile's picker.
+- **The Prima e dopo tile has no hero on purpose** (the canvas's proposal): the year is the verdict's headline and the Delta's first
+  row. Its one figure is the divergence — both capitals at the FIRE year of the plan of today (`summarizeDivergence`; the
+  after-event year when today's never gets there; null when neither does or the target is already reached), read from the merged
+  series (`buildWhatIfComparisonSeries`: the union of the years, null where a walk stops — a walk ends five years after its last
+  scenario reaches FIRE, so a purchase lengthens the after side and `connectNulls={false}` leaves the gap). The plan of today is
+  `--muted-foreground` (a baseline is neutral), the plan after the event `--chart-1`; the before target is drawn only when the
+  event moves the FIRE number (`targetsDiffer`). Reference lines mark the two FIRE years, none for a side reached today.
+- **The Sensibilità matrix runs on the plan of TODAY**, centred on the actual or the typed reference expenses, never on the event —
+  the aside says «piano di oggi», the footer says why. Cells: the baseline outlined (`border-foreground`), better `bg-positive/15`,
+  worse `bg-destructive/15` — the sign tokens, not chart slots. Below `desktop:` it is one block per expense level with the savings
+  cells in two columns (a cardified matrix needs its own labels). `summarizeSensitivity` reads the −10% row at the baseline column
+  and the column right after the baseline (`+25%`, or `€5k` on the zero-savings fallback, whose label starts without `+`).
+- **Every Delta row is `flex-wrap`**: «Raggiunto → Raggiunto» in a 3-column tile drops under the label, right-aligned, instead of
+  splitting «Numero Coast oggi» over three lines (the Per classe row's rule).
+- Playwright locates the tiles by `role=region` + `aria-label` («Prima e dopo l'evento», «Delta dell'evento», «Evento simulato»,
+  «Sensibilità degli anni al FIRE»), the verdict by «Verdetto sul What If» (its sentence is the `p` under the heading — the region's
+  text starts with the headline), the event switch by `role=group` «Tipo di evento» (`aria-pressed` buttons), the rows by the lists
+  «Prima e dopo per il FIRE» / «…per il Coast FIRE», the picker by «Fonti di reddito», the matrix by its `table` (1440) or the
+  list «Anni al FIRE per livello di spesa» (390). On the base account the target is REACHED (small expenses), so a spec asserts the
+  headline against the set of live phrasings and the deltas against a typed amount, never a year.
 
 ### Asset Trade Ledger
 - Three trade types per asset — BUY / SELL / ADJUSTMENT — with an optional cash settlement that debits or credits a
@@ -1537,7 +1575,7 @@ Companion documents — do not duplicate their content into this file:
 | --- | --- |
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService`, `dashboardOverviewUtils` · **Verdetto e letture** `overviewNarrative` · **Badge** `savingsRateBadge` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) · **Verdetto e letture** `performanceNarrative`, `performanceSummaryTiles`, `performanceSummary` (+ `patrimonioNarrative` for the articles) |
-| Storico | `storicoSummary`, `storicoNarrative`, `snapshotAssetBreakdown`, `chartService`, `historyComposition` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal`, `coastFireView` |
+| Storico | `storicoSummary`, `storicoNarrative`, `snapshotAssetBreakdown`, `chartService`, `historyComposition` · **FIRE/Goals** `fireService`, `monteCarloService`, `goalService`, `goalMath`, `goalProposal`, `coastFireView`, `whatIfService`, `whatIfSummary`, `whatIfNarrative` |
 | Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` |
@@ -1578,6 +1616,9 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers the
 rules permitting the writes, real `Timestamp` values surviving `removeUndefinedDeep` and the real atomic transaction.
 - **Write them as `.mts`** — a `.ts` script is CJS under tsx and has no top-level await, and neither does `npx tsx -e`.
+- **A throwaway one-off (Python, Node) is a FILE too, never a bash heredoc**: a heredoc whose body carries apostrophes or
+  backticks dies in the tool shell with «unexpected EOF while looking for matching `'`» before running a line — write it
+  to the session scratchpad and run it by path (the doc updates of 2026-08-25 went that way after one failed heredoc).
 - **Run a throwaway script from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase F): from the session
   scratchpad `firebase-admin` fails with `ERR_MODULE_NOT_FOUND` — resolution starts at the script's directory — and the
   seed dies silently before the login it was meant to enable. A throwaway Playwright spec likewise lives in `e2e/`
