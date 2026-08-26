@@ -1,38 +1,50 @@
 /**
  * Analisi at 390px — the width DESIGN.md designs against first.
  *
- * Two things only a mobile viewport can prove: the Sankey's truncation is DECLARED
- * (the chart drops small slices for legibility — silent truncation was a recorded
- * defect), and the drill-to-dossier flow works under touch at the narrow layout.
+ * Three things only a mobile viewport can prove: the tiles stack in the declared reading order
+ * with nothing scrolling sideways, the Sankey's truncation is DECLARED (the chart drops small
+ * slices for legibility — silent truncation was a recorded defect), and the row-to-Scheda flow
+ * works under touch at the narrow layout.
  */
 
 import { test, expect } from '@playwright/test';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-function euro(amount: string): RegExp {
-  return new RegExp(`^${amount.replace(/[.]/g, '\\.')}[\\s\\u00a0]*€$`);
-}
-
 test.beforeEach(async ({ page }) => {
   await page.goto('/dashboard/analisi');
-  // `.first()`: the amount repeats in the income composition row (see analisi.spec.ts).
-  await expect(page.getByText(euro('2000,00')).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('region', { name: 'Verdetto del periodo' })).toBeVisible({ timeout: 30_000 });
 });
 
-test('declares the mobile Sankey truncation instead of dropping slices silently', async ({
-  page,
-}) => {
+test('stacks the tiles in the declared order with no horizontal overflow', async ({ page }) => {
+  const order = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('main section[aria-label]'))
+      .map((section) => ({ name: section.getAttribute('aria-label')!, top: section.getBoundingClientRect().top }))
+      .filter((section) => ['Periodo', 'Fuori scala', 'Spese per categoria', 'Entrate per categoria', 'Spese maggiori', 'Flusso'].includes(section.name))
+      .sort((a, b) => a.top - b.top)
+      .map((section) => section.name),
+  );
+  expect(order).toEqual(['Periodo', 'Fuori scala', 'Spese per categoria', 'Entrate per categoria', 'Spese maggiori', 'Flusso']);
+
+  // `main` is the horizontal scroll container (AGENTS.md): measure it and every element in it.
+  const overflow = await page.evaluate(() => {
+    const main = document.querySelector('main')!;
+    const limit = main.getBoundingClientRect().left + main.clientWidth + 1;
+    const culprits = Array.from(main.querySelectorAll('*')).filter((el) => el.getBoundingClientRect().right > limit).length;
+    return { scroll: main.scrollWidth - main.clientWidth, culprits };
+  });
+  expect(overflow).toEqual({ scroll: 0, culprits: 0 });
+});
+
+test('declares the mobile Sankey truncation instead of dropping slices silently', async ({ page }) => {
   await expect(page.getByText(/mostra solo le voci principali/)).toBeVisible();
 });
 
-test('drills to the dossier from the composition under touch', async ({ page }) => {
-  await page.getByRole('listitem', { name: /^Casa, /, exact: false }).click();
+test('opens the Scheda from a category row under touch', async ({ page }) => {
+  await page.getByRole('region', { name: 'Spese per categoria' }).getByRole('button', { name: /^Casa, / }).click();
 
   await expect(page.getByText(`Totale · ${CURRENT_YEAR}`)).toBeVisible();
-  await expect(
-    page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(euro('380,00'))
-  ).toBeVisible();
+  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(/^380,00[\s ]*€$/)).toBeVisible();
   // The per-year table renders as a flat list readable at 390px.
   await expect(page.getByText('Per anno', { exact: true })).toBeVisible();
 });

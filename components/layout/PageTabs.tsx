@@ -8,18 +8,21 @@ interface PageTabsProps {
   value: string;
   onValueChange: (v: string) => void;
   layoutId: string;
+  /** Accessible name of the tablist, forwarded to `PageTabBar`. */
+  ariaLabel?: string;
   /** Show a loading skeleton instead of the tab bar */
   loading?: boolean;
   children: React.ReactNode;
 }
 
-export function PageTabs({ tabs, value, onValueChange, layoutId, loading, children }: PageTabsProps) {
+export function PageTabs({ tabs, value, onValueChange, layoutId, ariaLabel, loading, children }: PageTabsProps) {
   return (
     <Tabs value={value} onValueChange={onValueChange} className="w-full">
       {loading ? (
-        <div className="h-12 w-full border-b border-border/50 bg-muted/30 animate-pulse mb-6" />
+        // Same height as the desktop underline bar (13px label + py-2.5) so nothing jumps.
+        <div className="h-10 w-full border-b border-border/50 bg-muted/30 animate-pulse" />
       ) : (
-        <PageTabBar tabs={tabs} value={value} onValueChange={onValueChange} layoutId={layoutId} />
+        <PageTabBar tabs={tabs} value={value} onValueChange={onValueChange} layoutId={layoutId} ariaLabel={ariaLabel} />
       )}
       {children}
     </Tabs>

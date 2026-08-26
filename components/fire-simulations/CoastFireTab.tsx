@@ -1,23 +1,31 @@
 'use client';
 
 /**
- * CoastFireTab — single-answer IA.
+ * FIRE › COAST FIRE — a verdict over tiles (2026-08-25)
  *
- * The page asks one question, "posso smettere di versare?", and answers it before anything else:
- *   1. HERO [2fr_1fr] — the shortfall (or surplus) against the Coast FIRE Number with the verdict
- *      in words, beside what the patrimonio becomes if contributions stop today. A basis line
- *      under the hero declares the assumptions.
- *   2. "Afflussi già considerati" — the events the backward walk already discounts: each state
- *      pension from its decorrenza, plus the pension fund unlocking.
- *   3. "Impostazioni Coast FIRE" — ONE collapsible, config-first collapse via a useRef seeded
- *      flag (never keyed on the transient hasUnsavedChanges — AGENTS → *FIRE, What If and Goals*).
- *   4. "Scenari" — Orso / Base / Toro as peer cards.
- *   5. "Proiezione" — the chart, with the unlock step named in its tooltip, and a "Dettaglio"
- *      collapsible holding the coverage phases, the per-pension impact and the explainer.
+ * The tab answers «posso smettere di versare?» before it shows a number: a rule-generated
+ * verdict (`buildCoastVerdict` in lib/utils/coastFireView.ts) names the gap to the Coast number
+ * of today, what the free capital becomes at the target age against what is required, the state
+ * pensions' share of the expenses and — with the bridge model on — the locked fund, over a
+ * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- * This file is the ORCHESTRATOR: the three queries, the projection, and the derivations that feed
- * the five sections. The form lives in `useCoastFireSettingsDraft`, the wording and the view model
- * in `lib/utils/coastFireView.ts`, the math in `fireService` — where it already was, unchanged.
+ *   Desktop (12 col): Traguardo(5, 2 rows) | Afflussi(7)
+ *                                          | Scenari(7)
+ *   Mobile (1 col):   Traguardo → Afflussi → Scenari
+ *
+ * Below the grid, two disclosures: «Ipotesi» (the form — ages, expenses, state pensions, IRPEF
+ * brackets — config-first: open only while no age is saved, reopening on an unsaved edit or an
+ * incomplete pension) and «Dettaglio» (coverage phases, target vs steady state, the pensions'
+ * impact, how to read it).
+ *
+ * The page has NO period axis — a Coast plan is read today — and no control of its own: the
+ * pension-lock switch is the Calcolatore's (Base di calcolo) and governs the WHOLE FIRE page.
+ *
+ * This file is the ORCHESTRATOR: the three queries, the projection, and the summaries the tiles
+ * read. The form lives in `useCoastFireSettingsDraft`, the numbers and the words in
+ * `lib/utils/coastFireView.ts`, the math in `fireService` — where it already was, unchanged.
+ * The tab computes nothing: a figure that cannot be pointed at inside a `CoastFIREScenarioMetrics`
+ * (or the lock state) does not belong here.
  *
  * The state-pension inputs are intentionally scoped to Coast FIRE only: they affect the
  * retirement-phase portfolio need, not the classic FIRE tab.
@@ -29,73 +37,86 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useCoastFireSettingsDraft } from '@/lib/hooks/useCoastFireSettingsDraft';
-import {
-  calculateCoastFIREProjection,
-  getAnnualExpenses,
-  getDefaultScenarios,
-  type PensionCapitalInflowToday,
-} from '@/lib/services/fireService';
-import {
-  calculateAssetValue,
-  calculateFIRENetWorth,
-  calculateLiquidFIRENetWorth,
-  getAllAssets,
-} from '@/lib/services/assetService';
+import { calculateCoastFIREProjection, getAnnualExpenses, getDefaultScenarios, type PensionCapitalInflowToday } from '@/lib/services/fireService';
+import { calculateAssetValue, calculateFIRENetWorth, calculateLiquidFIRENetWorth, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
-import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
+import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
+import { summarizeLock } from '@/lib/utils/fireSummary';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import {
   buildBaseScenarioInterpretation,
-  buildCoastBasisParts,
   buildCoastCoverageSteps,
   buildCoastInflowEvents,
   buildCoastVerdict,
-  formatAgeYears,
+  COAST_INFLOWS_FOOTER,
+  COAST_SCENARIOS_FOOTER,
+  describeCoastDettaglio,
+  describeCoastInflows,
+  describeCoastScenarios,
+  describeCoastTarget,
+  describeCoastTargetCaption,
+  describeCoastTargetFooter,
+  describeCoverage,
+  describeIpotesi,
+  describePensionImpact,
+  describeTargetAndSteadyState,
   getPensionConfigurationState,
+  resolveCoastBridgeYears,
   resolveCoastIncompleteReason,
+  sortPensionBreakdown,
+  summarizeCoastPensions,
+  summarizeCoastScenarios,
+  summarizeCoastTarget,
 } from '@/lib/utils/coastFireView';
-import { Card, CardContent } from '@/components/ui/card';
-import { FireCalculatorSkeleton } from '@/components/fire-simulations/FireCalculatorSkeleton';
-import { CoastFireConfigSection } from './coast/CoastFireConfigSection';
-import { CoastFireHero } from './coast/CoastFireHero';
-import { CoastFireProjectionSection } from './coast/CoastFireProjectionSection';
-import { CoastInflowTimeline } from './coast/CoastInflowTimeline';
-import { CoastScenarioCards } from './coast/CoastScenarioCards';
-import { Settings } from '@/types/settings';
+import type { Settings } from '@/types/settings';
+import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { cn } from '@/lib/utils';
+import { PageVerdict } from '@/components/ui/page-verdict';
+import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { CoastTraguardoTile } from './coast/tiles/CoastTraguardoTile';
+import { AfflussiTile } from './coast/tiles/AfflussiTile';
+import { CoastScenariTile } from './coast/tiles/CoastScenariTile';
+import { CoastIpotesi } from './coast/CoastIpotesi';
+import { CoastDettaglio } from './coast/CoastDettaglio';
+import { CoastFireProjectionChart } from './CoastFireProjectionChart';
+
+/** The grid's geometry, for the skeleton: the same spans as the tiles below. */
+const SKELETON_CELLS: TileSkeletonCell[] = [
+  { span: 5, rows: 2, lines: 12 },
+  { span: 7, lines: 5 },
+  { span: 7, lines: 4 },
+];
 
 export function CoastFireTab() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [ipotesiOpen, setIpotesiOpen] = useState(false);
 
+  // ─── Queries ─────────────────────────────────────────────────────────────────
   const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings | null>({
     queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(user!.uid),
-    enabled: !!user,
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets', ownerId],
-    queryFn: () => getAllAssets(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
   const { data: annualExpenses, isLoading: isLoadingAnnualExpenses } = useQuery({
     queryKey: ['coastFireAnnualExpenses', ownerId],
-    queryFn: () => getAnnualExpenses(user!.uid),
-    enabled: !!user,
+    queryFn: () => getAnnualExpenses(ownerId!),
+    enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
 
-  const draft = useCoastFireSettingsDraft({
-    settings,
-    isLoadingSettings,
-    userId: user?.uid,
-    ownerId,
-  });
+  const draft = useCoastFireSettingsDraft({ settings, isLoadingSettings, userId: user?.uid, ownerId });
 
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
@@ -104,8 +125,9 @@ export function CoastFireTab() {
   const currentAge = draft.currentAge;
   const retirementAge = draft.parsedRetirementAge;
 
-  // The FIRE lock-in toggle governs the WHOLE page. When on, locked pension funds leave
-  // the Coast starting capital and re-enter the walk as capital inflows at their unlock year.
+  // ─── Pension lock (the Calcolatore's switch governs the whole page) ──────────
+  // When on, locked pension funds leave the Coast starting capital and re-enter the walk as
+  // capital inflows at their unlock year, at TODAY's value.
   const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
   const pensionLockState = useMemo(() => {
     if (!respectPensionLockIn || !assets) return null;
@@ -117,48 +139,26 @@ export function CoastFireTab() {
         pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment,
       },
       new Date(),
-      calculateAssetValue
+      calculateAssetValue,
     );
-  }, [
-    respectPensionLockIn,
-    assets,
-    currentAge,
-    settings?.userAge,
-    settings?.pensionInpsRetirementAge,
-    settings?.pensionRitaLongUnemployment,
-  ]);
+  }, [respectPensionLockIn, assets, currentAge, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
-    () =>
-      (pensionLockState?.inflows ?? []).map((inflow) => ({
-        yearsFromNow: inflow.yearsFromNow,
-        amountToday: inflow.amount,
-      })),
-    [pensionLockState]
+    () => (pensionLockState?.inflows ?? []).map((inflow) => ({ yearsFromNow: inflow.yearsFromNow, amountToday: inflow.amount })),
+    [pensionLockState],
   );
-  const currentNetWorth = assets
-    ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue
-    : 0;
+  const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
 
   // Custom expenses when the toggle is on and the value parses to a positive number; otherwise
   // the last complete year's actuals from the query.
-  const effectiveAnnualExpenses = draft.usesCustomExpenses
-    ? draft.parsedCustomExpenses
-    : annualExpenses;
+  const effectiveAnnualExpenses = draft.usesCustomExpenses ? draft.parsedCustomExpenses : annualExpenses;
 
+  // ─── The projection (fireService, unchanged) ─────────────────────────────────
   const { previewPensions, previewTaxBrackets } = draft;
   const coastProjection = useMemo(() => {
-    if (
-      currentAge === null ||
-      retirementAge === null ||
-      effectiveAnnualExpenses === undefined ||
-      effectiveAnnualExpenses <= 0 ||
-      withdrawalRate <= 0 ||
-      currentNetWorth <= 0
-    ) {
+    if (currentAge === null || retirementAge === null || effectiveAnnualExpenses === undefined || effectiveAnnualExpenses <= 0 || withdrawalRate <= 0 || currentNetWorth <= 0) {
       return null;
     }
-
     return calculateCoastFIREProjection(
       currentNetWorth,
       effectiveAnnualExpenses,
@@ -169,63 +169,42 @@ export function CoastFireTab() {
       previewPensions,
       previewTaxBrackets,
       undefined, // currentDate: keep the function's own default
-      pensionInflowsToday
+      pensionInflowsToday,
     );
-  }, [
-    effectiveAnnualExpenses,
-    currentAge,
-    currentNetWorth,
-    pensionInflowsToday,
-    previewPensions,
-    previewTaxBrackets,
-    retirementAge,
-    scenarios,
-    withdrawalRate,
-  ]);
+  }, [effectiveAnnualExpenses, currentAge, currentNetWorth, pensionInflowsToday, previewPensions, previewTaxBrackets, retirementAge, scenarios, withdrawalRate]);
 
-  // ===== Derived view model — one place, so the five sections cannot disagree =====
-
+  // ─── The numbers (pure layer over the projection) ────────────────────────────
   const currentYear = getItalyYear();
   const baseScenario = coastProjection?.scenarios.base ?? null;
-  const liquidProgressBase =
-    baseScenario && baseScenario.coastFireNumberToday > 0
-      ? (liquidNetWorth / baseScenario.coastFireNumberToday) * 100
-      : 0;
   const resolvedRetirementAge = coastProjection?.retirementAge ?? retirementAge ?? 0;
-  const bridgeYears = baseScenario
-    ? Math.max(Math.ceil(baseScenario.latestPensionStartAge - resolvedRetirementAge), 0)
-    : 0;
-  const sortedPensionBreakdown = useMemo(
+  const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: settings?.pensionInpsRetirementAge, pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment });
+  const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
+  const isBridge = pensionInflowsToday.length > 0;
+
+  const target = useMemo(
     () =>
-      baseScenario
-        ? [...baseScenario.pensionBreakdown].sort((left, right) => left.startAge - right.startAge)
-        : [],
-    [baseScenario]
+      baseScenario && currentAge !== null
+        ? summarizeCoastTarget(baseScenario, { currentNetWorth, liquidNetWorth, currentAge, retirementAge: resolvedRetirementAge, isBridge })
+        : null,
+    [baseScenario, currentNetWorth, liquidNetWorth, currentAge, resolvedRetirementAge, isBridge],
   );
-  const pensionConfigurationState = getPensionConfigurationState(
-    previewPensions,
-    draft.pensionIssues
+  const pensions = useMemo(
+    () => (baseScenario ? summarizeCoastPensions(baseScenario, currentYear) : { count: 0, entries: [], annualNetReal: 0, monthlyNetReal: 0, annualNetRealAtRetirement: 0 }),
+    [baseScenario, currentYear],
   );
+  const scenarioRows = useMemo(() => (coastProjection ? summarizeCoastScenarios(coastProjection.scenarios, currentNetWorth) : []), [coastProjection, currentNetWorth]);
+  const bridgeYears = baseScenario ? resolveCoastBridgeYears(baseScenario, resolvedRetirementAge) : 0;
+  const sortedPensionBreakdown = useMemo(() => (baseScenario ? sortPensionBreakdown(baseScenario.pensionBreakdown) : []), [baseScenario]);
+  const inflowEvents = useMemo(
+    () => buildCoastInflowEvents(sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge),
+    [sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge],
+  );
+  const pensionConfigurationState = getPensionConfigurationState(previewPensions, draft.pensionIssues);
+  const incompleteReason = resolveCoastIncompleteReason(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
 
-  // Funds with different unlock years are aggregated on the LATEST one, exactly as the FIRE tab
-  // does (AGENTS → *FIRE, What If and Goals*): the tooltip names one step, and with growth equal
-  // to the discount rate the bridge number is insensitive to which one it names.
-  const pensionUnlockCalendarYear =
-    pensionInflowsToday.length > 0
-      ? currentYear +
-        Math.max(
-          ...pensionInflowsToday.map((inflow) => Math.max(0, Math.round(inflow.yearsFromNow)))
-        )
-      : null;
-
-  const incompleteReason = resolveCoastIncompleteReason(
-    currentNetWorth,
-    effectiveAnnualExpenses,
-    currentAge,
-    retirementAge
-  );
-  const verdict = buildCoastVerdict(baseScenario, currentNetWorth, incompleteReason);
-  const basisParts = buildCoastBasisParts({
+  // ─── The words (pure layer) ───────────────────────────────────────────────────
+  const verdict = useMemo(() => buildCoastVerdict({ target, incompleteReason, pensions, lock }), [target, incompleteReason, pensions, lock]);
+  const ipotesiDescription = describeIpotesi({
     currentAge,
     retirementAge,
     annualExpenses: effectiveAnnualExpenses,
@@ -233,125 +212,131 @@ export function CoastFireTab() {
     withdrawalRate,
     baseRealReturn: baseScenario?.realReturnRate ?? null,
     respectPensionLockIn,
-    pensionUnlockCalendarYear,
+    pensionUnlockCalendarYear: lock.unlockCalendarYear,
+    pensionCount: previewPensions.length,
   });
-  const inflowEvents = useMemo(
-    () => buildCoastInflowEvents(sortedPensionBreakdown, pensionInflowsToday, currentYear),
-    [sortedPensionBreakdown, pensionInflowsToday, currentYear]
-  );
-  const coverageSteps = buildCoastCoverageSteps(
-    baseScenario,
-    sortedPensionBreakdown,
-    resolvedRetirementAge,
-    bridgeYears
-  );
-  const interpretation = buildBaseScenarioInterpretation(
-    baseScenario,
-    effectiveAnnualExpenses,
-    bridgeYears,
-    resolvedRetirementAge
-  );
 
+  // ─── Config-first disclosure ─────────────────────────────────────────────────
   // Decide the initial collapsed/expanded state ONCE, after the form has settled to match saved
   // settings (hasUnsavedChanges === false ⇒ temp state seeded). Collapsed when the user has already
-  // configured their age (config-first for new users). Waiting for the settled state avoids the
-  // transient first-render mismatch (empty temp vs saved age) popping the panel open.
+  // configured their age (config-first for new users). The flag is set INSIDE the timer: under
+  // StrictMode's double-invoke the first timer is cleared before it fires, and a flag set
+  // synchronously would leave the panel closed for good.
   const hasSeededConfigRef = useRef(false);
   const hasUnsavedChanges = draft.hasUnsavedChanges;
+  const savedUserAge = settings?.userAge;
   useEffect(() => {
     if (hasSeededConfigRef.current || isLoadingSettings || hasUnsavedChanges) return;
-    hasSeededConfigRef.current = true;
-    if (settings?.userAge == null) setIsConfigOpen(true);
-  }, [isLoadingSettings, hasUnsavedChanges, settings?.userAge]);
+    if (savedUserAge != null) {
+      hasSeededConfigRef.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      hasSeededConfigRef.current = true;
+      setIpotesiOpen(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isLoadingSettings, hasUnsavedChanges, savedUserAge]);
 
   // After seeding, reopen on a genuine unsaved edit or an incomplete pension to fix.
   // Never auto-close: collapsing after save is disorienting if the user keeps editing.
   useEffect(() => {
     if (!hasSeededConfigRef.current) return;
-    if (hasUnsavedChanges || pensionConfigurationState === 'incomplete') setIsConfigOpen(true);
+    if (!hasUnsavedChanges && pensionConfigurationState !== 'incomplete') return;
+    const timer = setTimeout(() => setIpotesiOpen(true), 0);
+    return () => clearTimeout(timer);
   }, [hasUnsavedChanges, pensionConfigurationState]);
 
+  // ─── Loading ─────────────────────────────────────────────────────────────────
   if (isLoadingSettings || isLoadingAssets || isLoadingAnnualExpenses) {
-    return <FireCalculatorSkeleton />;
+    return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
+  const ipotesi = (
+    <CoastIpotesi
+      open={ipotesiOpen}
+      onOpenChange={setIpotesiOpen}
+      description={ipotesiDescription}
+      draft={draft}
+      isDemo={isDemo}
+      detectedAnnualExpenses={annualExpenses}
+      withdrawalRate={withdrawalRate}
+      includePrimaryResidence={includePrimaryResidence}
+      currentNetWorth={currentNetWorth}
+      liquidNetWorth={liquidNetWorth}
+      lockSubtracted={pensionLockedValue > 0}
+    />
+  );
+
+  // ─── Empty state: the verdict says what is missing, the Ipotesi stay reachable ─
+  if (!coastProjection || !baseScenario || !target) {
+    return (
+      <div className="space-y-4">
+        <div className="pt-1">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
+        </div>
+        {ipotesi}
+      </div>
+    );
+  }
+
+  const lastPoint = coastProjection.projectionData[coastProjection.projectionData.length - 1];
+
   return (
-    <div className="space-y-6 max-desktop:portrait:pb-20">
-      <CoastFireHero
-        verdict={verdict}
-        baseScenario={baseScenario}
-        currentNetWorth={currentNetWorth}
-        liquidNetWorth={liquidNetWorth}
-        liquidProgress={liquidProgressBase}
-        retirementAge={retirementAge}
-        basisParts={basisParts}
-      />
+    <div className="space-y-4">
+      <div className="pt-1">
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
+      </div>
 
-      <CoastInflowTimeline events={inflowEvents} />
-
-      <CoastFireConfigSection
-        open={isConfigOpen}
-        onOpenChange={setIsConfigOpen}
-        userAge={draft.userAge}
-        onUserAgeChange={draft.setUserAge}
-        retirementAge={draft.retirementAge}
-        onRetirementAgeChange={draft.setRetirementAge}
-        useCustomExpenses={draft.useCustomExpenses}
-        onUseCustomExpensesChange={draft.setUseCustomExpenses}
-        customExpenses={draft.customExpenses}
-        onCustomExpensesChange={draft.setCustomExpenses}
-        pensions={draft.pensions}
-        onAddPension={draft.addPension}
-        onUpdatePension={draft.updatePension}
-        onRemovePension={draft.removePension}
-        taxBrackets={draft.taxBrackets}
-        onAddTaxBracket={draft.addTaxBracket}
-        onUpdateTaxBracket={draft.updateTaxBracket}
-        onRemoveTaxBracket={draft.removeTaxBracket}
-        pensionIssues={draft.pensionIssues}
-        pensionConfigurationState={pensionConfigurationState}
-        ageLabel={currentAge !== null ? formatAgeYears(currentAge) : 'Da impostare'}
-        retirementAgeLabel={retirementAge !== null ? formatAgeYears(retirementAge) : 'Da impostare'}
-        effectiveAnnualExpenses={effectiveAnnualExpenses}
-        detectedAnnualExpenses={annualExpenses}
-        withdrawalRate={withdrawalRate}
-        includePrimaryResidence={includePrimaryResidence}
-        liquidNetWorth={liquidNetWorth}
-        hasUnsavedChanges={hasUnsavedChanges}
-        isSaving={draft.isSaving}
-        isDemo={isDemo}
-        onSave={draft.save}
-        onReset={draft.resetToSaved}
-      />
-
-      {coastProjection && baseScenario ? (
-        <>
-          <CoastScenarioCards
-            scenarios={coastProjection.scenarios}
-            liquidNetWorth={liquidNetWorth}
+      {/* Tablet (768-1439): every tile full width, in the phone's order. */}
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
+          <CoastTraguardoTile
+            reading={describeCoastTarget(target)}
+            target={target}
+            caption={describeCoastTargetCaption(target)}
+            chart={
+              <CoastFireProjectionChart
+                projectionData={coastProjection.projectionData}
+                height="100%"
+                marginLeft={0}
+                pensionUnlockCalendarYear={lock.unlockCalendarYear}
+              />
+            }
+            footer={describeCoastTargetFooter({
+              retirementAge: resolvedRetirementAge,
+              requiredNet: baseScenario.retirementCapitalRequired,
+              lastTargetOnPlot: lastPoint?.fireNumberTarget ?? baseScenario.retirementCapitalRequired,
+              lock,
+              lastProjectedYear: lastPoint?.calendarYear ?? currentYear,
+            })}
           />
+        </div>
 
-          <CoastFireProjectionSection
-            projectionData={coastProjection.projectionData}
-            baseScenario={baseScenario}
-            sortedPensionBreakdown={sortedPensionBreakdown}
-            coverageSteps={coverageSteps}
-            interpretation={interpretation}
-            effectiveAnnualExpenses={effectiveAnnualExpenses ?? 0}
-            bridgeYears={bridgeYears}
-            pensionUnlockCalendarYear={pensionUnlockCalendarYear}
-          />
-        </>
-      ) : (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="flex h-40 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              {incompleteReason ??
-                'Completa la configurazione qui sopra per vedere scenari e proiezione.'}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
+          <AfflussiTile reading={describeCoastInflows(inflowEvents, pensions, resolvedRetirementAge)} events={inflowEvents} footer={COAST_INFLOWS_FOOTER} />
+        </div>
+
+        <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
+          <CoastScenariTile reading={describeCoastScenarios(scenarioRows)} rows={scenarioRows} footer={COAST_SCENARIOS_FOOTER} />
+        </div>
+      </div>
+
+      {ipotesi}
+
+      <CoastDettaglio
+        description={describeCoastDettaglio({ bridgeYears, pensionCount: pensions.count })}
+        base={baseScenario}
+        sortedPensionBreakdown={sortedPensionBreakdown}
+        coverageSteps={buildCoastCoverageSteps(baseScenario, sortedPensionBreakdown, resolvedRetirementAge, bridgeYears)}
+        coverageReading={describeCoverage(baseScenario, pensions, resolvedRetirementAge, bridgeYears)}
+        targetReading={describeTargetAndSteadyState(baseScenario, resolvedRetirementAge, bridgeYears, withdrawalRate, isBridge)}
+        impactReading={describePensionImpact(pensions)}
+        interpretation={buildBaseScenarioInterpretation(baseScenario, effectiveAnnualExpenses, bridgeYears, resolvedRetirementAge)}
+        annualExpenses={effectiveAnnualExpenses ?? 0}
+        bridgeYears={bridgeYears}
+        retirementAge={resolvedRetirementAge}
+      />
     </div>
   );
 }

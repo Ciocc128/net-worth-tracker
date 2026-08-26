@@ -4,13 +4,16 @@
  * CoastFireProjectionChart visualises how the current patrimonio would evolve
  * without new retirement contributions under the three Coast FIRE scenarios.
  *
- * The target line stays flat because Coast FIRE uses a real-return model:
- * inflation is already netted out of each scenario, so the retirement FIRE
- * number is expressed in today's money throughout the chart.
+ * The target line is flat because Coast FIRE uses a real-return model: inflation is already
+ * netted out of each scenario, so the capital required at the target age is expressed in
+ * today's money throughout the chart.
  *
  * With the pension bridge model active, the unlock year shows a visible step in all three
- * series — the locked fund re-enters the spendable capital there. The tooltip names it, so the
- * step never reads as a data glitch (same treatment as `FIREProjectionChart`).
+ * series AND in the target line — the locked fund re-enters the spendable capital there, and
+ * the requirement (net of the fund until then) becomes the gross one (`fireService`, 2026-08-25).
+ * The tooltip names it, so the step never reads as a data glitch (same treatment as
+ * `FIREProjectionChart`). Inside a tile the chart takes `height="100%"` and stretches with the
+ * absolutely positioned box around it.
  */
 
 import { CoastFIREProjectionPoint } from '@/lib/services/fireService';
@@ -30,7 +33,8 @@ import {
 
 interface CoastFireProjectionChartProps {
   projectionData: CoastFIREProjectionPoint[];
-  height?: number;
+  /** Chart height: pixels, or "100%" inside an absolutely positioned box (a tile's chart area). */
+  height?: number | `${number}%`;
   marginLeft?: number;
   /** Calendar year the locked pension capital re-enters — the tooltip names the step. */
   pensionUnlockCalendarYear?: number | null;
@@ -66,7 +70,7 @@ function CoastTooltip({
     { name: 'Patrimonio Orso', value: row.bearPortfolioValue, color: colors.bear },
     { name: 'Patrimonio Base', value: row.basePortfolioValue, color: colors.base },
     { name: 'Patrimonio Toro', value: row.bullPortfolioValue, color: colors.bull },
-    { name: 'Capitale richiesto a pensione', value: row.fireNumberTarget, color: colors.target },
+    { name: 'Capitale richiesto al target', value: row.fireNumberTarget, color: colors.target },
   ];
 
   return (
@@ -79,7 +83,7 @@ function CoastTooltip({
         row.calendarYear === pensionUnlockCalendarYear && (
           <p className="mt-1 text-xs text-muted-foreground">
             Sblocco del fondo pensione: il capitale bloccato rientra quest&apos;anno (il gradino
-            nelle tre serie).
+            nelle tre serie e nella linea del capitale richiesto).
           </p>
         )}
       <div className="mt-2 space-y-1.5">
@@ -126,7 +130,7 @@ export function CoastFireProjectionChart({
         data={projectionData}
         margin={{ left: marginLeft, bottom: 20 }}
         role="img"
-        aria-label="Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Orso (rosso), Base (primario) e Toro (verde), con la linea tratteggiata del capitale richiesto a pensione"
+        aria-label="Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Orso (rosso), Base (primario) e Toro (verde), con la linea tratteggiata del capitale richiesto al target"
         accessibilityLayer={false}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
@@ -187,7 +191,7 @@ export function CoastFireProjectionChart({
           stroke={targetColor}
           strokeWidth={2}
           strokeDasharray="8 4"
-          name="Capitale richiesto a pensione"
+          name="Capitale richiesto al target"
           dot={false}
           isAnimationActive={false}
         />

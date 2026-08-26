@@ -222,6 +222,8 @@ const BUDGET_ALERT: BudgetAlert = {
   budgetAmount: 500,
   usedRatio: 1.24,
   forecastedOverrun: true,
+  thresholdCrossed: true,
+  crossedOn: null,
 };
 
 // ─── buildEmailAiPrompt ───────────────────────────────────────────────────────
@@ -340,6 +342,8 @@ describe('buildEmailAiPrompt', () => {
       budgetAmount: 500,
       usedRatio: 0.92,
       forecastedOverrun: true,
+      thresholdCrossed: true,
+      crossedOn: null,
     };
     const { userContent } = buildEmailAiPrompt(
       makeMonthlyData({ budgetAlerts: [BUDGET_ALERT, warning] }),

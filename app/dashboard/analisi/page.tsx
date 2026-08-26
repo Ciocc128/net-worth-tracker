@@ -17,15 +17,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useExpenses, useExpenseCategories } from '@/lib/hooks/useExpenses';
 import { getSettings } from '@/lib/services/assetAllocationService';
-import { queryKeys } from '@/lib/query/queryKeys';
 import { AnalisiTab } from '@/components/cashflow/AnalisiTab';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { PageHeader } from '@/components/layout/PageHeader';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -34,7 +31,6 @@ function getErrorMessage(error: unknown): string {
 export default function AnalisiPage() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
-  const queryClient = useQueryClient();
 
   const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(ownerId);
   // The taxonomy feeds AnalisiTab directly (entity search + URL-focus label
@@ -73,30 +69,14 @@ export default function AnalisiPage() {
     void loadSettings();
   }, [user, ownerId]);
 
-  const handleRefresh = async () => {
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.expenses.all(ownerId || ''),
-    });
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.expenses.categories(ownerId || ''),
-    });
-  };
-
   const loading = expensesLoading || categoriesLoading || !settingsSettled;
 
   return (
-    <PageContainer>
-      <PageHeader
-        label="Analisi"
-        title="Analisi Cashflow"
-        description="Distribuzione delle spese, pattern e trend nel tempo"
-      />
-
+    <PageContainer width="wide">
       <AnalisiTab
         allExpenses={allExpenses}
         categories={categories}
         loading={loading}
-        onRefresh={handleRefresh}
         historyStartYear={cashflowHistoryStartYear}
       />
     </PageContainer>

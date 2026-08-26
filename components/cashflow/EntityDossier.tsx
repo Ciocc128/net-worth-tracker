@@ -1,35 +1,38 @@
 /**
- * EntityDossier — the per-entity stats block rendered at the heart of the
- * Analisi drill-down (levels 2 and 3: a category, or one of its subcategories).
+ * EntityDossier — the per-entity stats block at the heart of the Analisi focus (the «Scheda»
+ * tile: a category, or one of its subcategories).
  *
  * WHY THIS EXISTS
- * The drill-down used to end in a period-scoped transaction list, so "how has
- * this entity changed over time?" (the condominio question) was unanswerable
- * without leaving the page. The dossier answers it in place: period total,
- * run-rate, a per-year table with signed deltas, and a 24-month trend.
+ * The drill-down used to end in a period-scoped transaction list, so "how has this entity
+ * changed over time?" (the condominio question) was unanswerable without leaving the page.
+ * The dossier answers it in place: period total, run-rate, a per-year table with signed
+ * deltas, and a 24-month trend.
  *
  * PERIOD SEMANTICS — deliberately split, each block declares its own horizon:
  * - Period-scoped: the hero total and its share of the period.
- * - Period-INDEPENDENT: the per-year table, the 12-month average and the
- *   monthly trend. They ignore the page's period axis on purpose — the period
- *   is a cursor over the entity's timeline, not a cage around it. This is what
- *   makes the dossier answer "this year vs last year" without ever holding two
- *   periods in state.
+ * - Period-INDEPENDENT: the per-year table, the 12-month average and the monthly trend. They
+ *   ignore the page's period axis on purpose — the period is a cursor over the entity's
+ *   timeline, not a cage around it. This is what makes the dossier answer "this year vs last
+ *   year" without ever holding two periods in state.
  *
  * SUBCATEGORY BREAKDOWN
- * On a category dossier each year row expands into its per-subcategory deltas
- * ("how much of Casa's +820 € is condominio?"). It hangs off the year row rather
- * than sitting in a block of its own precisely so the two windows compared are
- * the row's own — resolveYearRowWindows owns that pairing, which is what makes
- * Σ(subcategory delta) === the row's delta true by construction instead of by
- * vigilance. The most recent row opens by default: "this year vs last year" is
- * the question the drill-down exists to answer.
+ * On a category dossier each year row expands into its per-subcategory deltas ("how much of
+ * Casa's +820 € is condominio?"). It hangs off the year row rather than sitting in a block of
+ * its own precisely so the two windows compared are the row's own — resolveYearRowWindows owns
+ * that pairing, which is what makes Σ(subcategory delta) === the row's delta true by
+ * construction instead of by vigilance. The most recent row opens by default.
+ *
+ * LAYOUT
+ * Inside the Scheda tile (`columns`) the blocks sit in two columns from `desktop:` — the
+ * period total, the run-rate and the per-year table on the left, the trend and the caller's
+ * `aside` (the subcategory ranking, or the transactions) on the right; below `desktop:` and
+ * without `columns` everything stacks.
  *
  * All figures come from the pure, tested layer (lib/utils/expenseEntityStats).
  */
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
   Bar,
@@ -52,8 +55,11 @@ import {
   type EntitySubCategoryDeltaRow,
   type EntityYearRow,
 } from '@/lib/utils/expenseEntityStats';
-import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
+import { formatCurrency, formatCurrencyCompact, formatPercentage } from '@/lib/services/chartService';
+import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getItalyMonth, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
+import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
+import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { cn } from '@/lib/utils';
 
 // ── Shared chart styles (module-level, as-const — see AGENTS.md Recharts rules) ──
@@ -75,16 +81,6 @@ const TOOLTIP_ITEM_STYLE = {
   color: 'var(--card-foreground)',
 } as const;
 
-// Axis ticks are numbers/dates → the Mono Mandate applies, and a Tailwind class
-// cannot reach Recharts' SVG <text>, so the family goes through the tick prop.
-const CHART_TICK_STYLE = {
-  fontSize: 11,
-  fontFamily: 'var(--font-geist-mono)',
-  fill: 'var(--muted-foreground)',
-} as const;
-
-const EYEBROW_CLASS = 'text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground';
-
 // Resolves an expense's Italy-calendar month for the pure layer.
 const monthOf = (expense: Expense): { year: number; month: number } => {
   const date = toDate(expense.date);
@@ -92,38 +88,31 @@ const monthOf = (expense: Expense): { year: number; month: number } => {
 };
 
 /**
- * Sign classes for a delta, with spending semantics inverted (DESIGN.md
- * positiveGood rule): spending UP is bad, income UP is good. Shared by the year
- * rows and the subcategory rows so the two can never disagree on a colour.
+ * Sign classes for a delta, with spending semantics inverted (DESIGN.md positiveGood rule):
+ * spending UP is bad, income UP is good. Shared by the year rows and the subcategory rows so
+ * the two can never disagree on a colour.
  */
 const deltaSignClass = (delta: number | null, isIncome: boolean): string => {
   if (delta === null || delta === 0) return 'text-muted-foreground';
   return (isIncome ? delta > 0 : delta < 0) ? 'text-positive' : 'text-destructive';
 };
 
-/** Intl already emits the minus sign; only the plus has to be added. */
-const signOf = (value: number): string => (value > 0 ? '+' : '');
+/** «+50,00 €» / «−10,00 €» — Intl prints a hyphen for a negative amount; the Comma Rule wants the true minus (U+2212). */
+const signedCurrency = (value: number): string => (value > 0 ? `+${formatCurrency(value)}` : formatCurrency(value).replace(/^-/, '−'));
+
+/** «(+11,8%)» / «(−11,1%)» — the Comma Rule: it-IT decimals, never `toFixed`. */
+const signedPercent = (value: number, delta: number): string => `${delta > 0 ? '+' : ''}${formatPercentage(value, 1)}`.replace(/^-/, '−');
 
 // ── CollapseRegion ───────────────────────────────────────────────────────────
 
 /**
  * Pure-CSS `grid-template-rows: 0fr → 1fr` expansion. AGENTS.md flags Framer
- * `AnimatePresence` + `height:'auto'` as unreliable for lists of sub-items (it
- * left rows stuck at opacity 0); this needs no height measurement and nests.
- * Content stays mounted for the transition to size, so a closed region is
- * `inert` to keep it out of the focus order and the a11y tree.
- * (Second call site of the technique — see AllocationBreakdown; kept local
- * until a third one earns the shared primitive.)
+ * `AnimatePresence` + `height:'auto'` as unreliable for lists of sub-items (it left rows
+ * stuck at opacity 0); this needs no height measurement and nests. Content stays mounted for
+ * the transition to size, so a closed region is `inert` to keep it out of the focus order and
+ * the a11y tree.
  */
-function CollapseRegion({
-  open,
-  id,
-  children,
-}: {
-  open: boolean;
-  id: string;
-  children: React.ReactNode;
-}) {
+function CollapseRegion({ open, id, children }: { open: boolean; id: string; children: React.ReactNode }) {
   return (
     <div
       id={id}
@@ -142,24 +131,15 @@ function CollapseRegion({
 // ── DossierChip ──────────────────────────────────────────────────────────────
 // Module-level component required by React Compiler (no nested components).
 
-function DossierChip({
-  label,
-  value,
-  caption,
-}: {
-  label: string;
-  value: number;
-  caption?: string;
-}) {
+// A flat KPI (sub-eyebrow · 18px compact hero · 11px caption), the trio's shape: a tinted
+// sub-card inside the Scheda tile would be a card inside a card. Averages and projections are
+// estimates, so they print without cents.
+function DossierChip({ label, value, caption }: { label: string; value: number; caption?: string }) {
   return (
-    <div className="bg-muted/40 rounded-xl p-3.5 min-w-0">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5">
-        {label}
-      </p>
-      <p className="text-lg font-bold font-mono tabular-nums text-foreground leading-none break-words">
-        {formatCurrency(value)}
-      </p>
-      {caption && <p className="text-[11px] text-muted-foreground mt-1.5">{caption}</p>}
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <p className={TILE_SUB_EYEBROW_CLASS}>{label}</p>
+      <p className="font-mono text-[18px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">{cachedFormatCurrencyEUR(value, true)}</p>
+      {caption && <p className="text-[11px] text-muted-foreground">{caption}</p>}
     </div>
   );
 }
@@ -167,18 +147,12 @@ function DossierChip({
 // ── SubCategoryDeltaRow ──────────────────────────────────────────────────────
 
 /**
- * One subcategory inside an expanded year row. Both figures the drill-down is
- * asked for are on screen: the window's own total, and — under it — the signed
- * change with the baseline it is measured against ("da 920,00 €"), so the
- * comparison never depends on remembering the previous year's row.
+ * One subcategory inside an expanded year row. Both figures the drill-down is asked for are
+ * on screen: the window's own total, and — under it — the signed change with the baseline it
+ * is measured against ("da 920,00 €"), so the comparison never depends on remembering the
+ * previous year's row.
  */
-function SubCategoryDeltaRow({
-  row,
-  isIncome,
-}: {
-  row: EntitySubCategoryDeltaRow;
-  isIncome: boolean;
-}) {
+function SubCategoryDeltaRow({ row, isIncome }: { row: EntitySubCategoryDeltaRow; isIncome: boolean }) {
   return (
     <div className="py-1.5">
       <div className="flex items-baseline justify-between gap-3">
@@ -190,19 +164,16 @@ function SubCategoryDeltaRow({
             </span>
           )}
         </span>
-        <span className="shrink-0 text-[13px] font-mono tabular-nums text-foreground">
-          {formatCurrency(row.current)}
-        </span>
+        <span className="shrink-0 font-mono text-[13px] tabular-nums text-foreground">{formatCurrency(row.current)}</span>
       </div>
-      {/* Baseline LEFT, change RIGHT — one long "+50,00 € (+20.0%) · da 250,00 €"
-          string squeezed the label into an unreadable truncation at 390px. */}
+      {/* Baseline LEFT, change RIGHT — one long "+50,00 € (+20,0%) · da 250,00 €" string
+          squeezed the label into an unreadable truncation at 390px. */}
       {row.delta !== null && (
-        <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono tabular-nums">
+        <div className="flex items-baseline justify-between gap-3 font-mono text-[11px] tabular-nums">
           <span className="text-muted-foreground">da {formatCurrency(row.previous)}</span>
           <span className={deltaSignClass(row.delta, isIncome)}>
-            {signOf(row.delta)}
-            {formatCurrency(row.delta)}
-            {row.deltaPercent !== null && ` (${signOf(row.delta)}${row.deltaPercent.toFixed(1)}%)`}
+            {signedCurrency(row.delta)}
+            {row.deltaPercent !== null && ` (${signedPercent(row.deltaPercent, row.delta)})`}
           </span>
         </div>
       )}
@@ -215,10 +186,9 @@ function SubCategoryDeltaRow({
 /**
  * One row of the per-year table, expandable into its per-subcategory deltas.
  *
- * The row is only made expandable when the breakdown carries at least two
- * subcategories: with one, the nested list would restate the row it hangs off.
- * The chevron is always rendered on an expandable row — the affordance is
- * invisible without it (AGENTS.md).
+ * The row is only made expandable when the breakdown carries at least two subcategories:
+ * with one, the nested list would restate the row it hangs off. The chevron is always
+ * rendered on an expandable row — the affordance is invisible without it (AGENTS.md).
  */
 function YearRow({
   row,
@@ -242,20 +212,18 @@ function YearRow({
   const regionId = useId();
   const isExpandable = subRows.length > 1;
 
-  // The partial year compares like-for-like ("stessi mesi"); a partial year whose
-  // baseline predates the tracked history says so instead of showing a fake 0.
+  // The partial year compares like-for-like ("stessi mesi"); a partial year whose baseline
+  // predates the tracked history says so instead of showing a fake 0.
   const deltaLine = (() => {
     if (row.isPartial && row.prevSameMonthsTotal === null) {
       return <span className="text-muted-foreground">storico dal {historyStartYear}</span>;
     }
     if (row.delta === null) return <span className="text-muted-foreground">—</span>;
-    const pct =
-      row.deltaPercent !== null ? ` (${signOf(row.delta)}${row.deltaPercent.toFixed(1)}%)` : '';
+    const pct = row.deltaPercent !== null ? ` (${signedPercent(row.deltaPercent, row.delta)})` : '';
     const context = row.isPartial ? ` vs ${row.year - 1} stessi mesi` : ` vs ${row.year - 1}`;
     return (
       <span className={deltaSignClass(row.delta, isIncome)}>
-        {signOf(row.delta)}
-        {formatCurrency(row.delta)}
+        {signedCurrency(row.delta)}
         {pct}
         <span className="text-muted-foreground">{context}</span>
       </span>
@@ -264,44 +232,31 @@ function YearRow({
 
   const summary = (
     <>
-      <span className="flex items-center gap-2 shrink-0">
+      <span className="flex shrink-0 items-center gap-2">
         {isExpandable ? (
           <ChevronDown
-            className={cn(
-              'h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
-              isExpanded && 'rotate-180'
-            )}
+            className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none', isExpanded && 'rotate-180')}
             aria-hidden="true"
           />
         ) : (
-          // A year with nothing to decompose still holds the chevron's place, or the
-          // years would step in and out by 14px down a mixed table.
+          // A year with nothing to decompose still holds the chevron's place, or the years
+          // would step in and out by 14px down a mixed table.
           reserveToggleSpace && <span className="h-3.5 w-3.5" aria-hidden="true" />
         )}
-        <span className="text-sm font-medium font-mono tabular-nums text-foreground">
-          {row.year}
-        </span>
+        <span className="font-mono text-[13px] font-medium tabular-nums text-foreground">{row.year}</span>
         {row.isPartial && (
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border border-border rounded px-1 py-px">
-            YTD
-          </span>
+          <span className="rounded border border-border px-1 py-px text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">YTD</span>
         )}
       </span>
-      <span className="text-right min-w-0">
-        <span className="block text-sm font-semibold font-mono tabular-nums text-foreground">
-          {formatCurrency(row.total)}
-        </span>
-        <span className="block text-[11px] font-mono tabular-nums">{deltaLine}</span>
+      <span className="min-w-0 text-right">
+        <span className="block font-mono text-[13px] font-semibold tabular-nums text-foreground">{formatCurrency(row.total)}</span>
+        <span className="block font-mono text-[11px] tabular-nums">{deltaLine}</span>
       </span>
     </>
   );
 
   if (!isExpandable) {
-    return (
-      <div className={cn('flex items-center justify-between gap-3 py-2.5', reserveToggleSpace && 'px-1')}>
-        {summary}
-      </div>
-    );
+    return <div className={cn('flex items-center justify-between gap-3 py-2.5', reserveToggleSpace && 'px-1')}>{summary}</div>;
   }
 
   return (
@@ -316,10 +271,8 @@ function YearRow({
         {summary}
       </button>
       <CollapseRegion open={isExpanded} id={regionId}>
-        <div className="ml-1.5 border-l border-border/60 pl-3 pb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-0.5">
-            Per sottocategoria
-          </p>
+        <div className="ml-1.5 border-l border-border/60 pb-2 pl-3">
+          <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mb-0.5')}>Per sottocategoria</p>
           <div className="divide-y divide-border/40">
             {subRows.map((subRow) => (
               <SubCategoryDeltaRow key={subRow.key} row={subRow} isIncome={isIncome} />
@@ -337,7 +290,7 @@ interface EntityDossierProps {
   /** Full expense history — the dossier floors it itself via historyStartYear. */
   allExpenses: Expense[];
   scope: EntityScope;
-  /** Category color from the composition (theme-aware, resolved by the caller). */
+  /** Series colour for the trend (theme-aware, resolved by the caller through useChartColors). */
   color: string;
   /** The page's period state — scopes ONLY the hero total and its share. */
   period: { year: number | null; month: number | null };
@@ -345,17 +298,13 @@ interface EntityDossierProps {
   historyStartYear: number;
   /** Inverts delta sign semantics: income up = good, spending up = bad. */
   isIncome: boolean;
+  /** Two columns from `desktop:` (inside the Scheda tile); stacked otherwise. */
+  columns?: boolean;
+  /** Rendered after the trend (the right column with `columns`): the subcategory ranking or the transactions. */
+  aside?: ReactNode;
 }
 
-export function EntityDossier({
-  allExpenses,
-  scope,
-  color,
-  period,
-  periodLabel,
-  historyStartYear,
-  isIncome,
-}: EntityDossierProps) {
+export function EntityDossier({ allExpenses, scope, color, period, periodLabel, historyStartYear, isIncome, columns = false, aside }: EntityDossierProps) {
   const now = { year: getItalyYear(), month: getItalyMonth() };
 
   const yearRows = useMemo(
@@ -380,191 +329,172 @@ export function EntityDossier({
   /**
    * Per-subcategory decomposition of every year row, keyed by year.
    *
-   * Only on a CATEGORY dossier: at subcategory level there is nothing left to
-   * break down, and the map stays empty so no row becomes expandable. Each
-   * row's windows come from resolveYearRowWindows, so the nested deltas always
-   * sum back to the delta printed on the row above them.
+   * Only on a CATEGORY dossier: at subcategory level there is nothing left to break down, and
+   * the map stays empty so no row becomes expandable. Each row's windows come from
+   * resolveYearRowWindows, so the nested deltas always sum back to the delta printed on the
+   * row above them.
    */
   const subRowsByYear = useMemo(() => {
     const byYear = new Map<number, EntitySubCategoryDeltaRow[]>();
     if (scope.subCategory) return byYear;
     for (const row of yearRows) {
       const { current, baseline } = resolveYearRowWindows(row, now.month);
-      byYear.set(
-        row.year,
-        buildEntitySubCategoryDeltas(
-          allExpenses,
-          scope.category,
-          current,
-          baseline,
-          historyStartYear,
-          monthOf
-        )
-      );
+      byYear.set(row.year, buildEntitySubCategoryDeltas(allExpenses, scope.category, current, baseline, historyStartYear, monthOf));
     }
     return byYear;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allExpenses, scope, yearRows, historyStartYear]);
 
   /**
-   * Which year row is open. Stored WITH the entity it belongs to instead of
-   * being reset by an effect (`react-hooks/set-state-in-effect` bans the
-   * synchronous reset): when the dossier switches entity — same component
-   * instance, the JSX position never changes — the stored key stops matching
-   * and the default takes over again.
+   * Which year row is open. Stored WITH the entity it belongs to instead of being reset by an
+   * effect (`react-hooks/set-state-in-effect` bans the synchronous reset): when the dossier
+   * switches entity — same component instance, the JSX position never changes — the stored
+   * key stops matching and the default takes over again.
    */
   const scopeKey = `${scope.category.expenseType}:${scope.category.key}:${scope.subCategory?.key ?? ''}`;
-  const [toggledYear, setToggledYear] = useState<{ scopeKey: string; year: number | null } | null>(
-    null
-  );
+  const [toggledYear, setToggledYear] = useState<{ scopeKey: string; year: number | null } | null>(null);
   // The newest row is the "this year vs last year" answer — open by default.
-  const expandedYear =
-    toggledYear && toggledYear.scopeKey === scopeKey ? toggledYear.year : (yearRows[0]?.year ?? null);
+  const expandedYear = toggledYear && toggledYear.scopeKey === scopeKey ? toggledYear.year : (yearRows[0]?.year ?? null);
 
-  const hasAnyData = yearRows.some(row => row.total > 0);
-  // Same threshold YearRow uses to decide it is expandable — one subcategory would
-  // only restate the row, so it earns no chevron and no reserved space.
-  const hasExpandableYear = Array.from(subRowsByYear.values()).some(rows => rows.length > 1);
-  const hasTrendData = monthlySeries.some(point => point.value > 0 || (point.prevYearValue ?? 0) > 0);
+  const hasAnyData = yearRows.some((row) => row.total > 0);
+  // Same threshold YearRow uses to decide it is expandable — one subcategory would only
+  // restate the row, so it earns no chevron and no reserved space.
+  const hasExpandableYear = Array.from(subRowsByYear.values()).some((rows) => rows.length > 1);
+  const hasTrendData = monthlySeries.some((point) => point.value > 0 || (point.prevYearValue ?? 0) > 0);
   const seriesName = isIncome ? 'Entrate' : 'Spesa';
 
   // A single-month period's "monthly average" IS the hero total — hide the chip.
   const showPeriodAverage = runRate.periodMonthlyAverage !== null && period.month === null;
 
-  return (
-    <div className="space-y-5">
-      {/* Hero: the period-scoped total (the ONLY period-scoped figure with the share) */}
-      <div>
-        <p className={EYEBROW_CLASS}>Totale · {periodLabel}</p>
-        <p className="text-[22px] font-bold font-mono tracking-[-0.025em] tabular-nums leading-none mt-1.5 text-foreground">
-          {formatCurrency(runRate.periodTotal)}
+  // Hero: the period-scoped total (the ONLY period-scoped figure with the share)
+  const hero = (
+    <div>
+      <p className={TILE_SUB_EYEBROW_CLASS}>Totale · {periodLabel}</p>
+      <p className="mt-1.5 font-mono text-[22px] font-bold leading-none tracking-[-0.025em] tabular-nums text-foreground">
+        {formatCurrency(runRate.periodTotal)}
+      </p>
+      {runRate.shareOfPeriodTotal !== null && runRate.periodTotal > 0 && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {/* The pure layer returns a 0-1 share (its tests pin that contract) — scaled here. */}
+          <span className="font-mono tabular-nums">{formatPercentage(runRate.shareOfPeriodTotal * 100, 1)}</span> {isIncome ? 'delle entrate' : 'delle spese'} del periodo
         </p>
-        {runRate.shareOfPeriodTotal !== null && runRate.periodTotal > 0 && (
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {/* The pure layer returns a 0-1 share (its tests pin that contract) — scaled here. */}
-            {(runRate.shareOfPeriodTotal * 100).toFixed(1)}% {isIncome ? 'delle entrate' : 'delle spese'} del periodo
-          </p>
-        )}
-        {runRate.periodTotal === 0 && hasAnyData && (
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Nessuna transazione nel periodo — la tabella sotto copre tutto lo storico.
-          </p>
-        )}
-      </div>
-
-      {!hasAnyData ? (
-        <p className="text-sm text-muted-foreground">
-          Nessuna transazione registrata per questa voce dal {historyStartYear}.
-        </p>
-      ) : (
-        <>
-          {/* Run-rate — period-independent except the first chip; grid per the
-              Equal-Column Chip Rule (same-purpose chips share column widths) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {showPeriodAverage && (
-              <DossierChip label="Media mensile (periodo)" value={runRate.periodMonthlyAverage ?? 0} />
-            )}
-            {/* "ultimi" declares the anchor (today) — under a past-year or Storico
-                period this is NOT the selected period's monthly average. */}
-            <DossierChip
-              label="Media ultimi 12 mesi"
-              value={runRate.trailing12MonthlyAverage}
-              caption={runRate.observedMonths < 12 ? `ultimi ${runRate.observedMonths} mesi` : undefined}
-            />
-            {runRate.currentYearProjection !== null && (
-              <DossierChip label={`Proiezione ${now.year}`} value={runRate.currentYearProjection} />
-            )}
-          </div>
-
-          {/* Per anno — the year-over-year answer, period-independent */}
-          <div>
-            <p className={EYEBROW_CLASS}>Per anno</p>
-            <div className="divide-y divide-border/60 mt-1">
-              {yearRows.map(row => (
-                <YearRow
-                  key={row.year}
-                  row={row}
-                  isIncome={isIncome}
-                  historyStartYear={historyStartYear}
-                  subRows={subRowsByYear.get(row.year) ?? []}
-                  reserveToggleSpace={hasExpandableYear}
-                  isExpanded={expandedYear === row.year}
-                  onToggle={() =>
-                    setToggledYear({
-                      scopeKey,
-                      year: expandedYear === row.year ? null : row.year,
-                    })
-                  }
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Trend mensile — period-independent. Always rendered (AGENTS.md: rolling
-              charts never disappear silently); the empty window states itself. */}
-          <div>
-            <p className={cn(EYEBROW_CLASS, 'mb-1')}>Trend mensile · ultimi 24 mesi</p>
-            {hasTrendData ? (
-              <>
-                {/* Series legend as a normal-case caption — chart apparatus does not
-                    belong inside a 10px uppercase eyebrow. */}
-                <p className="text-[11px] text-muted-foreground mb-2">
-                  La linea tratteggiata &egrave; lo stesso mese dell&apos;anno precedente.
-                </p>
-                <ResponsiveContainer width="100%" height={180}>
-                  <ComposedChart data={monthlySeries} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={CHART_TICK_STYLE}
-                      axisLine={false}
-                      tickLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      tickFormatter={formatCurrencyCompact}
-                      tick={CHART_TICK_STYLE}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      // A null baseline (pre-floor month) is a gap, not a zero — the
-                      // tooltip must not resurrect the fabricated 0 the series refused.
-                      formatter={(value) => (value == null ? '—' : formatCurrency(Number(value)))}
-                      contentStyle={TOOLTIP_CONTENT_STYLE}
-                      labelStyle={TOOLTIP_LABEL_STYLE}
-                      itemStyle={TOOLTIP_ITEM_STYLE}
-                      cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
-                    />
-                    <Bar
-                      dataKey="value"
-                      name={seriesName}
-                      fill={color}
-                      animationDuration={600}
-                      animationEasing="ease-out"
-                      radius={[2, 2, 0, 0]}
-                    />
-                    {/* connectNulls stays false: pre-floor baseline months render as a gap. */}
-                    <Line
-                      dataKey="prevYearValue"
-                      name="Anno precedente"
-                      stroke="var(--muted-foreground)"
-                      strokeDasharray="4 3"
-                      strokeWidth={1.5}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground py-3">
-                Nessun movimento negli ultimi 24 mesi.
-              </p>
-            )}
-          </div>
-        </>
       )}
+      {runRate.periodTotal === 0 && hasAnyData && (
+        <p className="mt-1 text-[11px] text-muted-foreground">Nessuna transazione nel periodo — la tabella copre tutto lo storico.</p>
+      )}
+    </div>
+  );
+
+  if (!hasAnyData) {
+    return (
+      <div className="space-y-5">
+        {hero}
+        <p className="text-[13px] text-muted-foreground">Nessuna transazione registrata per questa voce dal {historyStartYear}.</p>
+      </div>
+    );
+  }
+
+  // Run-rate — period-independent except the first chip; a grid so the chips share widths.
+  const chips = (
+    <div className="grid grid-cols-3 gap-3.5">
+      {showPeriodAverage && <DossierChip label="Media mensile (periodo)" value={runRate.periodMonthlyAverage ?? 0} />}
+      {/* "ultimi" declares the anchor (today) — under a past-year or Storico period this is
+          NOT the selected period's monthly average. */}
+      <DossierChip
+        label="Media ultimi 12 mesi"
+        value={runRate.trailing12MonthlyAverage}
+        caption={runRate.observedMonths < 12 ? `ultimi ${runRate.observedMonths} mesi` : undefined}
+      />
+      {runRate.currentYearProjection !== null && <DossierChip label={`Proiezione ${now.year}`} value={runRate.currentYearProjection} caption="al ritmo attuale" />}
+    </div>
+  );
+
+  // Per anno — the year-over-year answer, period-independent
+  const perAnno = (
+    <div>
+      <p className={TILE_SUB_EYEBROW_CLASS}>Per anno</p>
+      <div className="mt-1 divide-y divide-border/60">
+        {yearRows.map((row) => (
+          <YearRow
+            key={row.year}
+            row={row}
+            isIncome={isIncome}
+            historyStartYear={historyStartYear}
+            subRows={subRowsByYear.get(row.year) ?? []}
+            reserveToggleSpace={hasExpandableYear}
+            isExpanded={expandedYear === row.year}
+            onToggle={() => setToggledYear({ scopeKey, year: expandedYear === row.year ? null : row.year })}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  // Trend mensile — period-independent. Always rendered (AGENTS.md: rolling charts never
+  // disappear silently); the empty window states itself.
+  const trend = (
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className={TILE_SUB_EYEBROW_CLASS}>Trend mensile · ultimi 24 mesi</p>
+        {hasTrendData && <p className="text-[11px] text-muted-foreground">La linea tratteggiata è lo stesso mese dell&apos;anno precedente</p>}
+      </div>
+      {hasTrendData ? (
+        <div className="mt-2">
+          <ResponsiveContainer width="100%" height={180}>
+            <ComposedChart
+              data={monthlySeries}
+              margin={{ top: 4, right: 4, left: -16, bottom: 0 }}
+              role="img"
+              accessibilityLayer={false}
+              aria-label={`${seriesName} per mese, ultimi 24 mesi. ${monthlySeries.map((point) => `${point.label}: ${formatCurrency(point.value)}${point.prevYearValue !== null ? `, anno precedente ${formatCurrency(point.prevYearValue)}` : ''}`).join('; ')}`}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="label" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis tickFormatter={formatCurrencyCompact} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+              <Tooltip
+                // A null baseline (pre-floor month) is a gap, not a zero — the tooltip must
+                // not resurrect the fabricated 0 the series refused.
+                formatter={(value) => (value == null ? '—' : formatCurrency(Number(value)))}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                itemStyle={TOOLTIP_ITEM_STYLE}
+                cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
+              />
+              <Bar dataKey="value" name={seriesName} fill={color} animationDuration={600} animationEasing="ease-out" radius={[2, 2, 0, 0]} />
+              {/* connectNulls stays false: pre-floor baseline months render as a gap. */}
+              <Line dataKey="prevYearValue" name="Anno precedente" stroke="var(--muted-foreground)" strokeDasharray="4 3" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="py-3 text-[13px] text-muted-foreground">Nessun movimento negli ultimi 24 mesi.</p>
+      )}
+    </div>
+  );
+
+  if (!columns) {
+    return (
+      <div className="space-y-5">
+        {hero}
+        {chips}
+        {perAnno}
+        {trend}
+        {aside}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-5 desktop:grid-cols-12 desktop:gap-x-6">
+      <div className="min-w-0 space-y-5 desktop:col-span-5">
+        {hero}
+        {chips}
+        {perAnno}
+      </div>
+      <div className="min-w-0 space-y-5 desktop:col-span-7">
+        {trend}
+        {aside}
+      </div>
     </div>
   );
 }

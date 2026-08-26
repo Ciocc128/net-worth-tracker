@@ -261,8 +261,27 @@ describe('dashboardOverviewService', () => {
       ],
     });
 
+    // Forty-four old months before the two that matter: «All» must carry every one of them
+    // (the sparkline used to be capped at the last 40 snapshots).
+    const oldMonths = Array.from({ length: 44 }, (_, i) => {
+      const year = 2022 + Math.floor(i / 12);
+      const month = (i % 12) + 1;
+      return {
+        data: () => ({
+          userId: 'user-1',
+          year,
+          month,
+          totalNetWorth: 10000 + i * 100,
+          liquidNetWorth: 5000,
+          illiquidNetWorth: 5000 + i * 100,
+          createdAt: new Date(Date.UTC(year, month - 1, 28)),
+        }),
+      };
+    });
+
     snapshotsGetMock.mockResolvedValue({
       docs: [
+        ...oldMonths,
         {
           data: () => ({
             userId: 'user-1',
@@ -329,6 +348,21 @@ describe('dashboardOverviewService', () => {
               updatedAt: new Date('2026-04-03T10:00:00.000Z'),
             }),
           },
+          {
+            // Dated after "now": counted in the month, reported as scheduled for the projection.
+            id: 'expense-scheduled',
+            data: () => ({
+              userId: 'user-1',
+              type: 'fixed',
+              categoryId: 'rent',
+              categoryName: 'Rata',
+              amount: -250,
+              currency: 'EUR',
+              date: new Date('2099-01-28T10:00:00.000Z'),
+              createdAt: new Date('2026-04-03T10:00:00.000Z'),
+              updatedAt: new Date('2026-04-03T10:00:00.000Z'),
+            }),
+          },
         ],
       })
       .mockResolvedValueOnce({
@@ -371,7 +405,11 @@ describe('dashboardOverviewService', () => {
     expect(result.flags.assetCount).toBe(2);
     expect(result.flags.hasCostBasisTracking).toBe(true);
     expect(result.flags.hasTERTracking).toBe(true);
-    expect(result.expenseStats?.currentMonth.net).toBe(2000);
+    // 44 old + Dec 2025 + Mar 2026 snapshots, plus the live point: nothing is cut.
+    expect(result.sparklineData).toHaveLength(47);
+    expect(result.sparklineData?.[0]).toMatchObject({ year: 2022, month: 1, totalNetWorth: 10000 });
+    expect(result.expenseStats?.currentMonth.net).toBe(1750);
+    expect(result.expenseStats?.currentMonth.expensesScheduled).toBe(250);
     expect(result.variations.monthly?.value).toBe(1000);
     expect(result.variations.monthly?.percentage).toBeCloseTo(5.2631578947, 6);
     expect(overviewSummaryDocSetMock).toHaveBeenCalledTimes(1);

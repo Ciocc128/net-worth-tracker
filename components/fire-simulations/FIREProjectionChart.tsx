@@ -37,8 +37,8 @@ interface FIREProjectionChartProps {
   bearYearsToFIRE: number | null;
   baseYearsToFIRE: number | null;
   bullYearsToFIRE: number | null;
-  /** Chart height in pixels — pass responsive value from parent via useMediaQuery */
-  height?: number;
+  /** Chart height: pixels, or "100%" inside an absolutely positioned box (a tile's chart area). */
+  height?: number | `${number}%`;
   /** Left margin for YAxis labels */
   marginLeft?: number;
   /** Calendar year the pension fund unlocks — the tooltip names the step. */

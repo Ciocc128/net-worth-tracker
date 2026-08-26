@@ -58,8 +58,12 @@ export interface PerformanceMetrics {
   sharpeRatio: number | null; // Risk-adjusted return
   volatility: number | null; // Annualized volatility (%)
   maxDrawdown: number | null; // Maximum portfolio decline from peak to trough (as percentage)
-  drawdownDuration: number | null; // Time from peak to recovery in months (null if not yet recovered)
-  recoveryTime: number | null; // Time from trough to recovery in months (null if not yet recovered)
+  // Index steps (one per snapshot), peak→recovery and trough→recovery; while still underwater they count to the
+  // last snapshot, and only `drawdownPeriod`/`recoveryPeriod` ending in ' - Presente' say so. Null only when the
+  // portfolio never declined or with fewer than two snapshots. The page reads calendar months from
+  // `resolveDrawdownStory` instead (lib/utils/performanceSummary.ts).
+  drawdownDuration: number | null;
+  recoveryTime: number | null;
 
   // Temporal context for drawdown metrics
   // Dates use format "MM/YY" (e.g., "04/25") or "MM/YY - Presente" if ongoing

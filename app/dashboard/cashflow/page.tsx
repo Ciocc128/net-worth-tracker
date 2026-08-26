@@ -9,10 +9,13 @@
  * - Reduces initial page load time, improves perceived performance
  *
  * TAB STRUCTURE:
- * - Tracking: Current year's transactions and charts
- * - Current Year: Current year analysis
- * - Total History: All-time cashflow analysis
- * - Dividends: Dividend tracking
+ * - Tracking: verdict + tile grid over the period's movements (ExpenseTrackingTab)
+ * - Dividends: dividend tracking
+ * - Budget: verdict + tile grid over the month's ceiling and the category budgets (BudgetTab)
+ * - Cost centers: optional 6th tab (settings.costCentersEnabled) — verdict + tile grid over the centers' whole cost
+ *
+ * The root is the 1920px tile-page width (`PageContainer width="wide"`): Tracciamento is a
+ * 12-column bento, and a bento uses width.
  *
  * WHY LAZY LOADING:
  * Each tab makes separate API calls and renders heavy charts.
@@ -25,11 +28,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Coins, Target, Layers, Plus, Settings } from 'lucide-react';
+import { ArrowRightLeft, Coins, Target, Layers, Download, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { cn } from '@/lib/utils';
 import { TabsContent } from '@/components/ui/tabs';
 import { ExpenseTrackingTab } from '@/components/cashflow/ExpenseTrackingTab';
 import { DividendTrackingTab } from '@/components/dividends/DividendTrackingTab';
@@ -206,7 +208,7 @@ export default function CashflowPage() {
     : CASHFLOW_TABS_BASE;
 
   return (
-    <PageContainer>
+    <PageContainer width="wide">
       <PageHeader
         label="Operatività"
         title="Cashflow"
@@ -227,6 +229,68 @@ export default function CashflowPage() {
                 Nuova Spesa
               </Button>
             )}
+            {/* Dividendi's two page-level actions. The tab owns the dialogs behind them, so the
+                header only dispatches — the same channel «Nuova Spesa» uses above. Both are
+                desktop-only: on a phone the add button sits beside the tab's period axis. */}
+            {/* Budget's page-level action: the tab owns the dialog, the header dispatches.
+                Desktop-only: on a phone the add button sits under the tab's verdict. */}
+            {activeTab === 'budget' && (
+              <Button
+                size="sm"
+                disabled={isDemo}
+                aria-label={isDemo ? 'Aggiungi budget — non disponibile in modalità demo' : 'Aggiungi budget'}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-budget'))}
+                className="hidden desktop:flex"
+              >
+                <Plus className="h-4 w-4" />
+                Aggiungi budget
+              </Button>
+            )}
+            {/* Centri di Costo's page-level action: same channel, same desktop-only rule. */}
+            {activeTab === 'cost-centers' && (
+              <Button
+                size="sm"
+                disabled={isDemo}
+                aria-label={isDemo ? 'Nuovo centro — non disponibile in modalità demo' : 'Nuovo centro'}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-cost-center'))}
+                className="hidden desktop:flex"
+              >
+                <Plus className="h-4 w-4" />
+                Nuovo centro
+              </Button>
+            )}
+            {activeTab === 'dividends' && (
+              <>
+                <Button
+                  size="sm"
+                  disabled={isDemo}
+                  aria-label={isDemo ? 'Aggiungi dividendo — non disponibile in modalità demo' : 'Aggiungi dividendo'}
+                  title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                  onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-dividend'))}
+                  className="hidden desktop:flex"
+                >
+                  <Plus className="h-4 w-4" />
+                  Aggiungi dividendo
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={isDemo}
+                  aria-label={
+                    isDemo
+                      ? 'Scarica dividendi storici — non disponibile in modalità demo'
+                      : 'Scarica dividendi storici per gli asset con ISIN'
+                  }
+                  title={isDemo ? 'Non disponibile in modalità demo' : 'Scarica dividendi storici'}
+                  onClick={() => window.dispatchEvent(new CustomEvent('cashflow:scrape-dividends'))}
+                  className="hidden desktop:flex"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             <Button
               size="icon"
               variant="ghost"
@@ -246,6 +310,7 @@ export default function CashflowPage() {
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="cashflow-tab"
+        ariaLabel="Sezioni di Cashflow"
         loading={costCentersEnabled === null}
       >
 

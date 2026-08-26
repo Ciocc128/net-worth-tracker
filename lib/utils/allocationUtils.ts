@@ -46,6 +46,12 @@ export const ASSET_CLASS_SEQUENCE: AssetClass[] = [
 
 /** Italian labels for the eight asset classes. Local to the feature; other label
  *  maps exist elsewhere (email, history) but consolidating them is out of scope. */
+/** Position of a class in `ASSET_CLASS_SEQUENCE`; a key the union does not know sorts last. */
+export function assetClassSequenceIndex(assetClass: string): number {
+  const index = (ASSET_CLASS_SEQUENCE as string[]).indexOf(assetClass);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
 export const ASSET_CLASS_LABELS: Record<string, string> = {
   equity: 'Azioni',
   bonds: 'Obbligazioni',

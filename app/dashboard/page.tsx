@@ -25,7 +25,6 @@ import { getGreeting } from '@/lib/utils/getGreeting';
 import { SparklinePeriod } from '@/components/dashboard/PeriodSelector';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { ASSET_CLASS_CHART_INDEX } from '@/lib/utils/allocationUtils';
 import { filterSparklineByPeriod } from '@/lib/utils/sparklinePeriod';
 import { buildOverviewVerdict } from '@/lib/utils/overviewNarrative';
@@ -33,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { OverviewVerdict } from '@/components/dashboard/overview/OverviewVerdict';
-import { PatrimonioTile } from '@/components/dashboard/overview/PatrimonioTile';
+import { PatrimonioTile, resolveHeroValueClass } from '@/components/dashboard/overview/PatrimonioTile';
 import { SintesiTile } from '@/components/dashboard/overview/SintesiTile';
 import { CashflowTile } from '@/components/dashboard/overview/CashflowTile';
 import { ComposizioneTile } from '@/components/dashboard/overview/ComposizioneTile';
@@ -41,7 +40,8 @@ import { CostiTile } from '@/components/dashboard/overview/CostiTile';
 import { ObiettivoTile } from '@/components/dashboard/overview/ObiettivoTile';
 import { CategoryTile } from '@/components/dashboard/overview/CategoryTile';
 import { AssetPrincipaliTile } from '@/components/dashboard/overview/AssetPrincipaliTile';
-import { OverviewTile } from '@/components/dashboard/overview/OverviewTile';
+import { OverviewTile, TILE_CELL_CLASS } from '@/components/dashboard/overview/OverviewTile';
+import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 
 const MotionButtonShell = motion.div;
 
@@ -71,22 +71,7 @@ const ITALIAN_LONG_DATE = new Intl.DateTimeFormat('it-IT', {
 });
 
 /** Grid cell wrapper: the tile stretches to the row height so `mt-auto` footers align. */
-const CELL_CLASS = 'flex min-w-0 [&>section]:flex-1';
-
-/** The tile shell of the loading state — same grid, same proportions, no numbers. */
-function SkeletonTile({ className, lines = 3 }: { className?: string; lines?: number }) {
-  return (
-    <div className={cn('rounded-2xl border border-border bg-card p-5', className)}>
-      <div className="mb-3 h-3 w-28 animate-pulse rounded bg-muted" />
-      <div className="mb-4 h-8 w-40 animate-pulse rounded bg-muted" />
-      <div className="space-y-2">
-        {Array.from({ length: lines }).map((_, i) => (
-          <div key={i} className="h-4 animate-pulse rounded bg-muted" />
-        ))}
-      </div>
-    </div>
-  );
-}
+const CELL_CLASS = TILE_CELL_CLASS;
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -152,13 +137,7 @@ export default function DashboardPage() {
   }, [overview, sparklinePeriod]);
 
   // Overflow guard for the hero number: a 7-8 figure total at 44/54px would wrap in the tile.
-  const heroValueClass = useMemo(() => {
-    const formattedLength = cachedFormatCurrencyEUR(totalValue).length;
-    return cn(
-      'font-mono font-bold tracking-[-0.035em] tabular-nums',
-      formattedLength > 13 ? 'text-[32px] desktop:text-[40px]' : 'text-[44px] desktop:text-[54px]',
-    );
-  }, [totalValue]);
+  const heroValueClass = useMemo(() => resolveHeroValueClass(totalValue), [totalValue]);
 
   // Composition remapped by ASSET_CLASS_CHART_INDEX so a class is the same hue as on
   // Allocazione/Storico — a positional remap drifts with object key order.
@@ -267,27 +246,14 @@ export default function DashboardPage() {
   // ─── Loading skeleton — mirrors the live layout ───────────────────────────────
   if (loadingOverview || !overview || !verdict) {
     return (
-      <PageContainer className="space-y-4">
+      <PageContainer width="wide">
         <PageHeader
-          variant="compact"
           label="Panoramica"
           title={header.title}
           description={header.date}
           separator={false}
         />
-        <div className="flex max-w-[920px] flex-col gap-2.5 pt-1">
-          <div className="h-8 w-72 animate-pulse rounded bg-muted" />
-          <div className="h-4 w-full animate-pulse rounded bg-muted" />
-          <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-        </div>
-        <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-          <SkeletonTile className="tablet:col-span-2 desktop:col-span-5 desktop:row-span-2" lines={8} />
-          <SkeletonTile className="desktop:col-span-3" lines={4} />
-          <SkeletonTile className="desktop:col-span-4" lines={4} />
-          <SkeletonTile className="desktop:col-span-3" lines={5} />
-          <SkeletonTile className="desktop:col-span-2" lines={2} />
-          <SkeletonTile className="desktop:col-span-2" lines={2} />
-        </div>
+        <TileGridSkeleton />
       </PageContainer>
     );
   }
@@ -299,207 +265,202 @@ export default function DashboardPage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <motion.div
-      layout="position"
-      transition={springLayoutTransition}
-      // 1920, not the 1600 of PageContainer: a bento of tiles uses width, and at 1600 a 27" left a
-      // third of the main area black on both sides.
-      className="mx-auto w-full max-w-[1920px] space-y-4 max-desktop:portrait:pb-20"
-    >
-      <PageHeader
-        variant="compact"
-        label="Panoramica"
-        title={header.title}
-        description={header.date}
-        separator={false}
-        actions={snapshotAction}
-      />
-
-      <motion.div variants={cardItem} initial="hidden" animate="visible" className="pt-1">
-        <OverviewVerdict verdict={verdict} />
-      </motion.div>
-
-      <motion.div
-        variants={staggerContainer}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12"
-      >
-        <motion.div
-          variants={cardItem}
-          className={cn(CELL_CLASS, 'tablet:col-span-2 desktop:col-span-5 desktop:row-span-2')}
-        >
-          <PatrimonioTile
-            overview={overview}
-            totalValue={totalValue}
-            heroValueClass={heroValueClass}
-            sparklinePeriod={sparklinePeriod}
-            onSparklinePeriodChange={setSparklinePeriod}
-            sparklineDisplay={sparklineDisplay}
-          />
-        </motion.div>
-
-        {/* Below desktop, Cashflow reads before Sintesi: the month is the more frequent question. */}
-        <motion.div
-          variants={cardItem}
-          className={cn(CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-3')}
-        >
-          <SintesiTile
-            metrics={overview.metrics}
-            hasCostBasisTracking={overview.flags.hasCostBasisTracking}
-          />
-        </motion.div>
-
-        <motion.div
-          variants={cardItem}
-          className={cn(CELL_CLASS, 'order-1 desktop:order-none desktop:col-span-4')}
-        >
-          {expenseStats ? (
-            <CashflowTile
-              expenseStats={expenseStats}
-              month={today.month}
-              dayOfMonth={today.dayOfMonth}
-              daysInMonth={today.daysInMonth}
-              savingsRate={savingsRate}
-              coverageRatio={coverageRatio}
-            />
-          ) : (
-            <OverviewTile eyebrow="Cashflow">
-              <p className="mt-3 text-[13px] text-muted-foreground">Nessun dato questo mese.</p>
-            </OverviewTile>
-          )}
-        </motion.div>
-
-        <motion.div
-          variants={cardItem}
-          className={cn(CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-3')}
-        >
-          <ComposizioneTile data={assetClassData} />
-        </motion.div>
-
-        {costsVisible && (
-          <motion.div
-            variants={cardItem}
-            className={cn(
-              CELL_CLASS,
-              'order-4 desktop:order-none',
-              goals.length > 0 ? 'desktop:col-span-2' : 'desktop:col-span-4',
-            )}
-          >
-            <CostiTile metrics={overview.metrics} flags={overview.flags} costDrivers={overview.costDrivers ?? []} />
-          </motion.div>
-        )}
-
-        {goals.length > 0 && (
-          <motion.div
-            variants={cardItem}
-            className={cn(
-              CELL_CLASS,
-              'order-5 desktop:order-none',
-              costsVisible ? 'desktop:col-span-2' : 'desktop:col-span-4',
-            )}
-          >
-            <ObiettivoTile goals={goals} />
-          </motion.div>
-        )}
-
-        {/* Keeps the second desktop row closed when neither optional tile renders. */}
-        {!costsVisible && goals.length === 0 && (
-          <div className="hidden desktop:block desktop:col-span-4" aria-hidden="true" />
-        )}
-
-        {expenseStats && (
-          <>
-            <motion.div
-              variants={cardItem}
-              className={cn(CELL_CLASS, 'order-6 desktop:order-none desktop:col-span-4')}
-            >
-              <CategoryTile
-                eyebrow="Spese per categoria"
-                total={expenseStats.currentMonth.expenses}
-                categories={expenseStats.topExpenseCategories}
-                color="var(--chart-1)"
-                emptyCopy="Nessuna spesa registrata questo mese."
-              />
-            </motion.div>
-            <motion.div
-              variants={cardItem}
-              className={cn(CELL_CLASS, 'order-7 desktop:order-none desktop:col-span-3')}
-            >
-              <CategoryTile
-                eyebrow="Entrate per categoria"
-                total={expenseStats.currentMonth.income}
-                categories={expenseStats.topIncomeCategories}
-                color="var(--chart-2)"
-                emptyCopy="Nessuna entrata registrata questo mese."
-              />
-            </motion.div>
-          </>
-        )}
-
-        <motion.div
-          variants={cardItem}
-          className={cn(
-            CELL_CLASS,
-            'order-8 desktop:order-none tablet:col-span-2',
-            expenseStats ? 'desktop:col-span-5' : 'desktop:col-span-12',
-          )}
-        >
-          <AssetPrincipaliTile
-            topAssets={overview.topAssets ?? []}
-            assetCount={overview.flags.assetCount}
-          />
-        </motion.div>
-      </motion.div>
-
-      {/* ── SNAPSHOT CONFIRM DIALOG ── */}
-      <Dialog
-        open={showConfirmDialog}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) setSnapshotDialogStyle(undefined);
-          setShowConfirmDialog(nextOpen);
-        }}
-      >
-        <DialogContent
-          ref={snapshotDialogRef}
-          style={snapshotDialogStyle}
-          className="data-[state=open]:zoom-in-90 data-[state=closed]:zoom-out-100 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-300 sm:max-w-md"
-          showCloseButton={false}
-        >
-          <DialogHeader>
-            <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
-              Snapshot mensile
-            </p>
-            <DialogTitle>Snapshot già esistente</DialogTitle>
-            <DialogDescription>
-              Esiste già uno snapshot per questo mese (
-              {`${String(today.month).padStart(2, '0')}/${today.year}`}
-              ). Vuoi sovrascriverlo con i dati attuali?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowConfirmDialog(false)}
-              disabled={creatingSnapshot}
-            >
-              Annulla
-            </Button>
-            <Button onClick={createSnapshot} disabled={creatingSnapshot}>
-              {creatingSnapshot ? 'Creazione...' : 'Sovrascrivi'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Savings rate celebration badge */}
-      {expenseStats && ownerId && (
-        <SavingsRateBadge
-          ownerId={ownerId}
-          previousMonthIncome={expenseStats.previousMonth.income}
-          previousMonthExpenses={expenseStats.previousMonth.expenses}
+    <PageContainer width="wide">
+      <motion.div layout="position" transition={springLayoutTransition} className="space-y-4">
+        <PageHeader
+          label="Panoramica"
+          title={header.title}
+          description={header.date}
+          separator={false}
+          actions={snapshotAction}
         />
-      )}
-    </motion.div>
+
+        <motion.div variants={cardItem} initial="hidden" animate="visible" className="pt-1">
+          <OverviewVerdict verdict={verdict} />
+        </motion.div>
+
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12"
+        >
+          <motion.div
+            variants={cardItem}
+            className={cn(CELL_CLASS, 'tablet:col-span-2 desktop:col-span-5 desktop:row-span-2')}
+          >
+            <PatrimonioTile
+              overview={overview}
+              totalValue={totalValue}
+              heroValueClass={heroValueClass}
+              sparklinePeriod={sparklinePeriod}
+              onSparklinePeriodChange={setSparklinePeriod}
+              sparklineDisplay={sparklineDisplay}
+            />
+          </motion.div>
+
+          {/* Below desktop, Cashflow reads before Sintesi: the month is the more frequent question. */}
+          <motion.div
+            variants={cardItem}
+            className={cn(CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-3')}
+          >
+            <SintesiTile
+              metrics={overview.metrics}
+              hasCostBasisTracking={overview.flags.hasCostBasisTracking}
+            />
+          </motion.div>
+
+          <motion.div
+            variants={cardItem}
+            className={cn(CELL_CLASS, 'order-1 desktop:order-none desktop:col-span-4')}
+          >
+            {expenseStats ? (
+              <CashflowTile
+                expenseStats={expenseStats}
+                month={today.month}
+                dayOfMonth={today.dayOfMonth}
+                daysInMonth={today.daysInMonth}
+                savingsRate={savingsRate}
+                coverageRatio={coverageRatio}
+              />
+            ) : (
+              <OverviewTile eyebrow="Cashflow">
+                <p className="mt-3 text-[13px] text-muted-foreground">Nessun dato questo mese.</p>
+              </OverviewTile>
+            )}
+          </motion.div>
+
+          <motion.div
+            variants={cardItem}
+            className={cn(CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-3')}
+          >
+            <ComposizioneTile data={assetClassData} />
+          </motion.div>
+
+          {costsVisible && (
+            <motion.div
+              variants={cardItem}
+              className={cn(
+                CELL_CLASS,
+                'order-4 desktop:order-none',
+                goals.length > 0 ? 'desktop:col-span-2' : 'desktop:col-span-4',
+              )}
+            >
+              <CostiTile metrics={overview.metrics} flags={overview.flags} costDrivers={overview.costDrivers ?? []} />
+            </motion.div>
+          )}
+
+          {goals.length > 0 && (
+            <motion.div
+              variants={cardItem}
+              className={cn(
+                CELL_CLASS,
+                'order-5 desktop:order-none',
+                costsVisible ? 'desktop:col-span-2' : 'desktop:col-span-4',
+              )}
+            >
+              <ObiettivoTile goals={goals} />
+            </motion.div>
+          )}
+
+          {/* Keeps the second desktop row closed when neither optional tile renders. */}
+          {!costsVisible && goals.length === 0 && (
+            <div className="hidden desktop:block desktop:col-span-4" aria-hidden="true" />
+          )}
+
+          {expenseStats && (
+            <>
+              <motion.div
+                variants={cardItem}
+                className={cn(CELL_CLASS, 'order-6 desktop:order-none desktop:col-span-4')}
+              >
+                <CategoryTile
+                  eyebrow="Spese per categoria"
+                  total={expenseStats.currentMonth.expenses}
+                  categories={expenseStats.topExpenseCategories}
+                  color="var(--chart-1)"
+                  emptyCopy="Nessuna spesa registrata questo mese."
+                />
+              </motion.div>
+              <motion.div
+                variants={cardItem}
+                className={cn(CELL_CLASS, 'order-7 desktop:order-none desktop:col-span-3')}
+              >
+                <CategoryTile
+                  eyebrow="Entrate per categoria"
+                  total={expenseStats.currentMonth.income}
+                  categories={expenseStats.topIncomeCategories}
+                  color="var(--chart-2)"
+                  emptyCopy="Nessuna entrata registrata questo mese."
+                />
+              </motion.div>
+            </>
+          )}
+
+          <motion.div
+            variants={cardItem}
+            className={cn(
+              CELL_CLASS,
+              'order-8 desktop:order-none tablet:col-span-2',
+              expenseStats ? 'desktop:col-span-5' : 'desktop:col-span-12',
+            )}
+          >
+            <AssetPrincipaliTile
+              topAssets={overview.topAssets ?? []}
+              assetCount={overview.flags.assetCount}
+            />
+          </motion.div>
+        </motion.div>
+
+        {/* ── SNAPSHOT CONFIRM DIALOG ── */}
+        <Dialog
+          open={showConfirmDialog}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setSnapshotDialogStyle(undefined);
+            setShowConfirmDialog(nextOpen);
+          }}
+        >
+          <DialogContent
+            ref={snapshotDialogRef}
+            style={snapshotDialogStyle}
+            className="data-[state=open]:zoom-in-90 data-[state=closed]:zoom-out-100 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-300 sm:max-w-md"
+            showCloseButton={false}
+          >
+            <DialogHeader>
+              <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
+                Snapshot mensile
+              </p>
+              <DialogTitle>Snapshot già esistente</DialogTitle>
+              <DialogDescription>
+                Esiste già uno snapshot per questo mese (
+                {`${String(today.month).padStart(2, '0')}/${today.year}`}
+                ). Vuoi sovrascriverlo con i dati attuali?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmDialog(false)}
+                disabled={creatingSnapshot}
+              >
+                Annulla
+              </Button>
+              <Button onClick={createSnapshot} disabled={creatingSnapshot}>
+                {creatingSnapshot ? 'Creazione...' : 'Sovrascrivi'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Savings rate celebration badge */}
+        {expenseStats && ownerId && (
+          <SavingsRateBadge
+            ownerId={ownerId}
+            previousMonthIncome={expenseStats.previousMonth.income}
+            previousMonthExpenses={expenseStats.previousMonth.expenses}
+          />
+        )}
+      </motion.div>
+    </PageContainer>
   );
 }

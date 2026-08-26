@@ -920,6 +920,51 @@ describe('calculateCoastFIREProjection — pension inflow step', () => {
     )
   })
 
+  it('steps the target line with the fund, so the series crosses it only when Coast is reached', () => {
+    // A fund large enough to matter and a free capital that does NOT reach the Coast number.
+    const result = calculateCoastFIREProjection(
+      96400,
+      27600,
+      4,
+      38,
+      60,
+      scenarios,
+      [],
+      getDefaultCoastFireTaxBrackets(),
+      FIXED_CURRENT_DATE,
+      [{ yearsFromNow: 19, amountToday: 31400 }]
+    )
+    const base = result.scenarios.base
+    const fundAtRetirement = 31400 * Math.pow(1.045, 22)
+
+    expect(base.isCoastReached).toBe(false)
+    // Before the unlock the line is what the FREE capital must reach at retirement.
+    expect(result.projectionData[18].fireNumberTarget).toBeCloseTo(base.retirementCapitalRequired, 4)
+    // From the unlock on, the fund is in the series AND in the line: the gross requirement.
+    expect(result.projectionData[19].fireNumberTarget).toBeCloseTo(base.retirementCapitalRequired + fundAtRetirement, 4)
+    // The chart agrees with the verdict: not reached ⇒ the last point sits under the line.
+    const last = result.projectionData[result.projectionData.length - 1]
+    expect(last.basePortfolioValue).toBeLessThan(last.fireNumberTarget)
+  })
+
+  it('leaves the target line flat when the fund unlocks after the target age', () => {
+    const result = calculateCoastFIREProjection(
+      96400,
+      27600,
+      4,
+      38,
+      60,
+      scenarios,
+      [],
+      getDefaultCoastFireTaxBrackets(),
+      FIXED_CURRENT_DATE,
+      [{ yearsFromNow: 24, amountToday: 31400 }]
+    )
+    const targets = new Set(result.projectionData.map((p) => p.fireNumberTarget))
+    expect(targets.size).toBe(1)
+    expect([...targets][0]).toBeCloseTo(result.scenarios.base.retirementCapitalRequired, 4)
+  })
+
   it('regression: no inflows → projection series identical to the previous behaviour', () => {
     const baseline = calculateCoastFIREProjection(250000, 30000, 4, 35, 45, scenarios)
     const withEmpty = calculateCoastFIREProjection(

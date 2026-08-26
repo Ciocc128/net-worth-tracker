@@ -81,6 +81,7 @@ import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
 import { CreateDummySnapshotModal } from '@/components/CreateDummySnapshotModal';
 import { DeleteDummyDataDialog } from '@/components/DeleteDummyDataDialog';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
 import type { TabDef } from '@/components/layout/PageTabBar';
 
@@ -1597,51 +1598,49 @@ export default function SettingsPage() {
   const hasTargetLeverage = derivedTargetLeverage > 1.005;
 
   return (
-    <PageContainer className="space-y-4 sm:space-y-6">
-      {/* Page header — editorial zone with eyebrow + border separator */}
-      <div className="flex flex-col gap-3 landscape:flex-row landscape:items-center landscape:justify-between border-b border-border pb-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Configurazione</p>
-          <h1 className="text-3xl font-bold text-foreground">Impostazioni</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Target di allocazione, preferenze e flussi
-          </p>
-        </div>
-        <div className="flex flex-col landscape:flex-row gap-2 w-full landscape:w-auto">
-          <div className="order-last landscape:order-first flex items-center text-xs text-muted-foreground">
+    <PageContainer>
+      <PageHeader
+        label="Configurazione"
+        title="Impostazioni"
+        description="Target di allocazione, preferenze e flussi"
+        separator={false}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* Save state as a quiet chip: it is context for the buttons, not a metric. */}
             {activeTabHasUnsavedChanges ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-primary">
+              <span className="hidden sm:inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
                 Anteprima attiva: modifiche non salvate
               </span>
             ) : hasUnsavedChanges ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1">
+              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
                 Modifiche non salvate in altre sezioni
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1">
+              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
                 Tutte le modifiche sono salvate
               </span>
             )}
-          </div>
-          {/* Reset is only meaningful for allocation targets */}
-          {activeTab === 'allocazione' && (
-            <Button variant="outline" onClick={handleReset} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined} className="w-full landscape:w-auto">
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Ripristina Default
+            {/* Reset is only meaningful for allocation targets */}
+            {activeTab === 'allocazione' && (
+              <Button variant="outline" size="sm" onClick={handleReset} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
+                <RotateCcw className="h-4 w-4" />
+                <span className="hidden sm:inline">Ripristina Default</span>
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={isDemo || saving} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
+              <Save className="h-4 w-4" />
+              {saving ? 'Salvataggio...' : 'Salva'}
             </Button>
-          )}
-          <Button onClick={handleSave} disabled={isDemo || saving} title={isDemo ? 'Non disponibile in modalità demo' : undefined} className="w-full landscape:w-auto">
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? 'Salvataggio...' : 'Salva'}
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <PageTabs
         tabs={SETTINGS_TABS}
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="settings-tab-pill"
+        ariaLabel="Sezioni delle Impostazioni"
       >
 
         {/* Tab: Impostazioni Generali (lazy) */}

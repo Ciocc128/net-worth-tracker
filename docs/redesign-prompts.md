@@ -8,6 +8,10 @@
 > 10 Allocazione → 11-15 FIRE → 16 Previdenza → 03-07 resto del Cashflow → 17 Assistente →
 > 18 Impostazioni → 19 Auth → 20 Landing → 21 Dialog trasversali → 22 Stati → 23 Email/PDF.
 > Patrimonio per primo perché oggi è la pagina che stona di più (ha ancora l'hero gemello vecchio).
+>
+> Una sezione già propagata porta una riga **Stato** subito sotto il titolo, prima di «Superfici»:
+> ``**Stato**: ✅ fatto il YYYY-MM-DD (`branch`) — scostamenti dal prompt. Il prompt resta come riferimento di metodo.``
+> Sta lì e non in fondo perché chi scorre i titoli deve vedere se la sezione è chiusa senza attraversare il prompt.
 
 ## Modello ed effort — come leggere i suggerimenti
 
@@ -28,6 +32,8 @@ visiva da giudicare → il canvas conta più del modello.
 ---
 
 ## 00 · Shell e navigazione
+
+**Stato**: ✅ fatto il 2026-08-22 (`feature/shell-redesign`) — compact default + `legacy`, tab sotto l'header con `aria-label`, `PageContainer width="wide"`, sidebar/rail/drawer, `TileGridSkeleton`, primitive in `components/ui/`. Le sezioni successive trovano già le primitive lì: importare `Tile`/`NarrativeText`/`RankedRows` da `components/ui/`, non dalla Panoramica.
 
 **Superfici**: `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,AssistenteBanner,LogoutDialog}.tsx`, `components/ui/sidebar.tsx`, `app/dashboard/layout.tsx`, `lib/constants/navigation.ts`.
 
@@ -119,7 +125,9 @@ nuovo a meno che non te lo chieda.
 
 ## 01 · Patrimonio
 
-**Superfici**: `app/dashboard/assets/page.tsx`, `components/assets/{AssetCard,AssetManagementTab,AssetSparkline,AssetDialog,TransactionDialog,AssetMovementsDialog,TaxCalculatorModal}.tsx`.
+**Stato**: ✅ fatto il 2026-08-22 (`feature/patrimonio-redesign`) — slot di riga 2 = «Rendimento»; Movimenti mostra 5 righe con «Mostra tutte» (non 3); in più la correzione del motore Δ (`assetPerformanceDeltas.ts`). Il prompt resta come riferimento di metodo.
+
+**Superfici**: `app/dashboard/assets/page.tsx`, `components/assets/{StrumentiTile,AssetRow,CashAccountDialog,AssetSparkline,AssetDialog,TransactionDialog,AssetMovementsDialog,TaxCalculatorModal}.tsx`, `components/assets/tiles/*`.
 
 **Modello/effort**: Fable 5 · ultracode — ledger, prezzi manuali, effetto prezzo per strumento, invalidazioni doppie.
 
@@ -210,7 +218,9 @@ nuovo a meno che non te lo chieda.
 
 ## 02 · Cashflow · Tracciamento
 
-**Superfici**: `app/dashboard/cashflow/page.tsx` (tab Tracciamento), `components/cashflow/{ExpenseTrackingTab,CashflowTrackingMobile,TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, `components/cashflow/cashflow-kpi/*`, `components/expenses/{ExpenseDialog,ExpenseTable}.tsx`.
+**Stato**: ✅ fatto il 2026-08-22 (`feature/cashflow-tracciamento-redesign`) — la tessera «Trasferimenti» è stata scartata su richiesta: riga 2 = «Risparmio nel tempo» da solo (7 colonne); i filtri della toolbar restringono solo i Movimenti; la catena legacy (`CashflowHero`, `CashflowTrackingMobile`, `cashflow-kpi/*`, `CategoryBreakdownList`, `trackingSummary`) è stata eliminata. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `app/dashboard/cashflow/page.tsx` (tab Tracciamento), `components/cashflow/{ExpenseTrackingTab,TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, `components/cashflow/tiles/*`, `components/expenses/{ExpenseDialog,ExpenseTable}.tsx`.
 
 **Modello/effort**: Fable 5 · ultracode — segno per type, transfer net-zero, riconciliazioni a due conti, molti componenti.
 
@@ -295,9 +305,11 @@ nuovo a meno che non te lo chieda.
 
 ## 03 · Cashflow · Dividendi
 
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-dividendi-redesign`) — slot di riga 2 = «Per anno»; i due blocchi tabellari server vivono in un collapsible «Dettaglio» sotto la griglia. Scostamenti dal prompt, tutti deliberati: `DividendStats` NON è rimasto intoccato (si è spaccato in `useDividendStats`, una query senza date, più `DividendiDettaglio`) e la route `/api/dividends/stats` ha guadagnato i rendimenti netti che il motore già calcolava; la tessera «Rendimento» non segue l'asse del periodo e lo dichiara; il cross-filtro `focusedDate` del calendario è stato ritirato. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/dividends/*`, tab Dividendi.
 
-**Modello/effort**: Fable 5 · xhigh — DividendStats server-side e coupon cron sono intoccati; il lavoro è di lettura e cadenza.
+**Modello/effort**: Fable 5 · xhigh — il coupon cron è intoccato; il lavoro è di lettura e cadenza (DividendStats, invece, è stato ristrutturato).
 
 ```
 Ciao Claude, in questa sessione ridisegniamo la sezione «Cashflow · Dividendi» dell'app portandola sullo
@@ -374,6 +386,8 @@ Qui: docs/screenshots/dividend-calendar.png.
 ```
 
 ## 04 · Cashflow · Budget
+
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-budget-redesign`) — riga 2 = «Budget annuali» (7); impostazioni sotto la piega in una disclosure; la proiezione è stata allineata a quella di Tracciamento (decisione in sessione) e una categoria fissa non segue il ritmo; rischio (proiezione) e fatto (soglia superata) in due tessere distinte. La matita → dialog è rimasta (niente editing inline dell'importo, deciso in sessione).
 
 **Superfici**: `components/cashflow/BudgetTab.tsx`, `components/cashflow/budget/*`, `lib/utils/budgetUtils.ts`.
 
@@ -455,6 +469,8 @@ nuovo a meno che non te lo chieda.
 
 ## 05 · Cashflow · Centri di Costo
 
+**Stato**: ✅ fatto il 2026-08-23 (`feature/cashflow-centri-di-costo-redesign`) — l'asse del periodo è stato TOLTO su richiesta (ogni cifra «in totale», le finestre diverse si nominano: «Whole-Cost Corollary» in DESIGN.md); riga 2 della lista = «Dormienti» (7), gli archiviati in una disclosure sotto la griglia; nel dettaglio «Per categoria» (4) accanto a «Ciclo di vita» (3) e «Per sottocategoria» a 7; la proiezione annua è passata alla regola unica dell'app (`projectWindowEndWithScheduled`, ritirato il modello misto); il grafico a linee Recharts è diventato barre impilate per centro nella tessera Totale; le azioni del dettaglio stanno accanto al verdetto. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog,CostCenterErrorNotice}.tsx`, `costCenterStyles.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — nessun test sui componenti: l'effort va nell'estrarre e testare il layer puro.
@@ -533,6 +549,8 @@ nuovo a meno che non te lo chieda.
 ```
 
 ## 06 · Analisi
+
+**Stato**: ✅ fatto il 2026-08-25 (`feature/cashflow-analisi-redesign`) — l'asse a tre modi è rimasto (Anno corrente | Anno | Storico + mese) accanto al verdetto, «Vai a categoria…» nelle azioni dell'header compatto; riga 2 = «Spese per categoria» (4) + «Entrate per categoria» (3), liste complete cliccabili; «Fuori scala» (3) esiste solo su un mese e lo nomina (in Storico e in un anno passato senza mese «Spese maggiori» prende 7); la scheda dell'entità è una tessera a 12 colonne sotto le liste (proposta A del canvas, scelta in sessione), non più in-card; «Confronto annuale» e «Dettaglio» sono disclosure sotto la griglia; la card «Spese per tipo» è stata ritirata (il Sankey e la lettura di Flusso dicono già fisse/variabili/debiti); `AnomalieBlock` eliminato. Il prompt resta come riferimento di metodo.
 
 **Superfici**: `app/dashboard/analisi/page.tsx`, `components/cashflow/{AnalisiTab,EntityDossier,EntitySearch,ConfrontoAnnualeSection,CashflowSankeyChart,AnomalieBlock,SavingsRateTrendSection,AndamentoStoricoSection}.tsx`.
 
@@ -613,6 +631,8 @@ Qui: docs/screenshots/cashflow-sankey.png, docs/screenshots/cashflow-drilldown.p
 ```
 
 ## 07 · Rendimenti
+
+**Stato**: ✅ fatto il 2026-08-25 (`feature/rendimenti-redesign`) — proposta A del canvas: riga 3 = «Plusvalenze realizzate» (5) + «Capitale e mercato» (7, l'Evoluzione di prima in una tessera; 12 senza vendite); benchmark sempre in EUR (lo switch USD è ritirato, il 60/40 resta il riferimento fisso del verdetto); il gap vs benchmark è sulla stessa base del numero (de-annualizzato sotto i 6 mesi); il drawdown del verdetto viene da un helper puro su `findMaxDrawdown` (mesi di calendario), non dalle stringhe del payload; Sortino e growth-of-100 sono usciti da `BenchmarkComparisonChart` in util puri; la heatmap usa i token di segno. Scoperto e corretto un bug di `patrimonioNarrative`: «diciotto» non è vocalico («l'18%»). Il prompt resta come riferimento di metodo.
 
 **Superfici**: `app/dashboard/performance/page.tsx`, `components/performance/*`.
 
@@ -698,6 +718,8 @@ Qui: docs/screenshots/performance-metrics.png, docs/screenshots/monthly-heatmap.
 
 ## 08 · Storico
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/storico-redesign`) — griglia Evoluzione 8×2 · Raddoppi 4×2 (su due righe per chiudere la riga, non una) / Composizione 8 · Driver 4 / Valore per strumento 12; il «ritmo attuale» è l'aumento medio mensile in € degli ultimi 12 mesi, UNA base per la headline («accelera/rallenta») e per il prossimo raddoppio, lineare; Driver parte da `cashflowHistoryStartYear`; l'attribuzione prezzo/quantità è per strumento (`buildMonthAssetBreakdown`); Note, YoY, mensile e «Lavoro e investimenti» sono la disclosure «Dettaglio»; `HeroMetricBlock`/`MetricCard` eliminati, `AsideToggle` promosso a `components/ui`. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/history/page.tsx`, `components/history/*`, `lib/utils/historyComposition.ts`.
 
 **Modello/effort**: Fable 5 · ultracode — composizione 100% con residuo, pensionSource, attribuzione prezzo/quantità: matematica da non toccare e da non far regredire.
@@ -778,6 +800,8 @@ Qui: docs/screenshots/history-networth.png.
 
 ## 09 · Hall of Fame
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/hall-of-fame-redesign`) — griglia Record del patrimonio 5×2 · Entrate 3 · Risparmio record 4 / Anni 7 / Note 12: Anni e Note hanno preso tutta la larghezza su richiesta, e così si è chiuso un buco di 3 colonne che il prompt non poteva vedere (il Record spanna due righe, quindi nella seconda ne restano 7, non 12). Tre scostamenti dal prompt, tutti decisi in sessione. **Lo switcher periodo+categoria NON è rimasto sopra la griglia**: le tessere SONO già le categorie, quindi un controllo sopra di loro risponde due volte alla stessa domanda — è sceso nella disclosure «Dettaglio», come aside della tessera con la classifica completa (20 mesi / 10 anni, colonna Nota), dove governa una cosa sola e non perde nessuna classifica («The Ranking-Is-Not-An-Axis Rule» in DESIGN.md). **«Spese minori» è diventata «Risparmio record»** (entrate − spese): la classifica per spesa più bassa premia sistematicamente il mese con meno *dati*, non il più parsimonioso — serviva un ranking nuovo nel documento (`bestMonthsBySavings`/`bestYearsBySavings` + un blocco `stats`, tutti opzionali, perché i documenti vecchi non li hanno e la tessera lo dichiara invece di stampare uno zero). **La «sparkline dei top 12» è diventata un grafico CRONOLOGICO** e il podio mostra cinque posizioni: il podio classifica, il grafico data — un grafico che ridisegna il podio sarebbe la One-Tile-One-Question rotta dentro una tessera sola. In più: il mese peggiore vive nel footer della tessera Patrimonio e mai nel verdetto, e `hallOfFameRecords.ts` ha assorbito la costruzione dei ranking (`buildHallOfFameRankings`) perché il writer client ne aveva una copia. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*`, `lib/utils/hallOfFameRecords.ts`.
 
 **Modello/effort**: Opus 5 · high — record già definiti in un util condiviso; è quasi solo cadenza e lettura.
@@ -849,6 +873,8 @@ Qui: docs/screenshots/hall-of-fame.png.
 ```
 
 ## 10 · Allocazione
+
+**Stato**: ✅ fatto il 2026-08-25 (`feature/allocazione-redesign`) — proposta del canvas con l'**alternativa A** scelta in sessione: la soglia NON sta accanto al verdetto ma nell'aside di Bilanciamento, perché riclassifica le chip senza spostare lo score (uno scopo, non un asse — «The Scope-Is-Not-An-Axis Rule» in DESIGN.md); il verdetto legge sempre la risposta Versa all'importo del Piano (1000 € di default, stato della pagina), la tessera legge la modalità scelta. Griglia Bilanciamento 5 · Piano 7 / Per classe 6 · Esposizione 6 / Previdenza 12 (nessuna tessera a due righe: 5+7 chiudono la riga) e «Dettaglio» con Non negoziabili 7 · Esclusi 5; il pill del Piano è un `AsideToggle`, non un `SegmentedPill`. Scoperti e corretti in sessione: un Σdrift negativo senza leva veniva letto come «sotto il target di leva» (ora «in classi senza target»), una gamba di un fondo composito contava come un asset a sé, `CompositionList` stampava `42.4%`, e il target cash «fisso €» (segnalato da Giuseppe al collaudo) entrava nel target di leva e lasciava gli altri target sulla base ridotta. Undici componenti legacy eliminati. Il prompt resta come riferimento di metodo.
 
 **Superfici**: `app/dashboard/allocation/page.tsx`, `components/allocation/*`.
 
@@ -929,7 +955,9 @@ Qui: docs/screenshots/asset-allocation.png.
 
 ## 11 · FIRE · Calcolatore
 
-**Superfici**: `components/fire-simulations/{FireCalculatorTab,FIREProjectionSection,FIREProjectionChart,FIREProjectionTable,FireFanChart}.tsx`.
+**Stato**: ✅ fatto il 2026-08-25 (`feature/fire-redesign`) — proposta del canvas scelta su tutte e tre le alternative: numero FIRE come hero del Traguardo (non l'anello), switch «Fondo pensione bloccato» DENTRO Base di calcolo e salvato al tap (non in Parametri con Salva), clausola del reddito passivo mantenuta ma resa inequivocabile — «da allora il 4% del patrimonio copre le tue spese: 2300 € al mese di oggi, 2667 € del 2032 con l'inflazione al 2,5%» — perché il revisore del canvas aveva letto il nominale come «più delle mie spese». Griglia Traguardo 5×2 · Base di calcolo 3×2 · Reddito passivo 4 / Scenari 4; «Parametri» (Impostazioni 6 · Scenari 6, parametri come Muted Sub-tile Variant B) e «Dettaglio» (Runway 6 · Cashflow 6 / Come funziona 12; la tabella anno per anno è stata tolta su richiesta, la ridondavano il grafico e la tessera Scenari). Scoperto e corretto al collaudo Playwright: il numero FIRE leggeva le spese dell'ANNO PIENO (`getFIREData`) mentre la proiezione quelle annualizzate (`getAnnualCashflowData`) — su un account senza anno pieno il numero era «non calcolabile» accanto a una proiezione disegnata; ora una sola base, dichiarata nell'aside (Same-Basis). `FIREProjectionSection` eliminato; `FireCalculatorSkeleton` resta per Coast. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `components/fire-simulations/{FireCalculatorTab,FireParametri,FireDettaglio,FIREProjectionChart,FireFanChart}.tsx` + `tiles/*`.
 
 **Modello/effort**: Fable 5 · ultracode — bridge pensione, Ventaglio coerente con la camminata deterministica, memoizzazione del fan.
 
@@ -1006,6 +1034,8 @@ Qui: docs/screenshots/fire-calculator.png.
 
 ## 12 · FIRE · Coast FIRE
 
+**Stato**: ✅ fatto il 2026-08-25 (`feature/coast-fire-redesign`) — proposta del canvas scelta: Traguardo 5×2 (gap come hero, chip «% del numero Coast» + traccia, proiezione che riempie) · Afflussi 7 · Scenari 7 (righe, non card); wording «numero Coast FIRE di oggi» in parallelo a «numero FIRE»; «Ipotesi» come quattro tessere (Profilo 5 · Pensioni statali 7 / Scaglioni IRPEF 5 · Modello 7) con UN solo «Salva ipotesi»; «Dettaglio» (Fasi 6 · Al target e a regime 6 / Impatto 12 / Come leggere 12). Il verdetto e le letture vivono in `coastFireView.ts` (numeri E parole, nessun modulo nuovo). Scoperto preparando i numeri del canvas e corretto in `fireService`: la linea tratteggiata del grafico era al NETTO del fondo che rientra mentre le serie lo aggiungevano allo sblocco — ora `fireNumberTarget` fa lo stesso gradino (The Stepped-Line Rule). Scoperto al collaudo 390: la tabella «Impatto delle pensioni» sforava, sotto `desktop:` è una lista piatta. `FireCalculatorSkeleton` e i cinque componenti `coast/*` precedenti eliminati. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/fire-simulations/CoastFireTab.tsx`, `coast/*`, `CoastFireProjectionChart.tsx`, `lib/utils/coastFireView.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — il tab non calcola: il rischio è far calcolare qualcosa alla UI.
@@ -1078,7 +1108,9 @@ nuovo a meno che non te lo chieda.
 
 ## 13 · FIRE · What If
 
-**Superfici**: `components/fire-simulations/{WhatIfAnalysisTab,WhatIfSensitivitySection}.tsx`, `lib/services/whatIfService.ts`.
+**Stato**: ✅ fatto il 2026-08-25 (`feature/what-if-redesign`) — proposta del canvas scelta sulle due alternative (niente hero nella tessera Prima e dopo: l'anno sta nel Delta; Prima e dopo a sinistra, non l'Evento). Griglia Prima e dopo 5 · Delta 3 · Evento 4 / Sensibilità 12 (una riga sola, nessuna tessera a due righe), nessuna disclosure: il form dell'evento È una tessera e sul telefono viene per primo («The Input Tile Rule» in DESIGN.md). Il layer puro è sdoppiato come altrove (`whatIfSummary.ts` numeri · `whatIfNarrative.ts` parole) e resta category-agnostic: la frase dice «31.800 € l'anno di entrate (il 64% del reddito)», mai la categoria; la scomposizione del colpo (mancati risparmi / spese dal portafoglio) è uscita dal componente. Uno scostamento deciso in sessione: **il ponte pensionistico passa anche nel What If** (`WhatIfBaseline.pensionBridge`, stesso `calculateFireBridgeNumber` e stesso gradino del Calcolatore), così l'anno «prima» coincide con quello del Calcolatore. La Sensibilità gira sul piano di oggi e lo dichiara nell'aside; le tinte sono i token di segno al 15% invece degli slot chart. `WhatIfAnalysisSkeleton` e `WhatIfSensitivitySection` eliminati. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `components/fire-simulations/WhatIfAnalysisTab.tsx`, `components/fire-simulations/whatif/*`, `lib/utils/{whatIfSummary,whatIfNarrative}.ts`, `lib/services/whatIfService.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — perturbazione + diff, layer puro category-agnostic.
 
@@ -1150,6 +1182,8 @@ nuovo a meno che non te lo chieda.
 ```
 
 ## 14 · FIRE · Monte Carlo
+
+**Stato**: ✅ fatto il 2026-08-26 (`feature/monte-carlo-redesign`) — proposta del canvas scelta: Probabilità 5 · Distribuzione 4 · Scenari a confronto 3 in UNA riga e Parametri a 12 sotto (l'alternativa con la Probabilità a due righe e Parametri a 7 accanto allungava il ventaglio a ~1000 px). Tre decisioni prese prima del canvas: il toggle «Simulazione singola | Confronto scenari» è sparito (una esecuzione = tre scenari, il Base è il riferimento, i «parametri di mercato avanzati» del form SONO lo scenario Base); auto-run all'apertura e poi «Esegui», con il footer di Parametri che dichiara i risultati «dell'ultima esecuzione» finché non si ricalcola («The Stale-Run Rule» in DESIGN.md); «Dettaglio» sotto la griglia (Traiettorie a confronto 6 · Percentili 6 / Come funziona 12). Il layer puro è sdoppiato (`monteCarloSummary.ts` numeri · `monteCarloNarrative.ts` parole); la mediana letta è quella di TUTTE le simulazioni (l'ultima riga dei percentili), non delle sole riuscite; `createDistribution` chiude le classi al 95° percentile con l'ultima che raccoglie la coda (scoperto dallo screenshot: nove classi vuote sotto un outlier) e porta `from`/`to`; scoperta e corretta l'elisione «nell'10,6%» (`startsWithVowel`). Sei componenti eliminati (`MonteCarloSkeleton`, `SimulationChart`, `DistributionChart`, `ParametersForm`, `ScenarioParameterCards`, `ScenarioComparisonResults`). Il prompt resta come riferimento di metodo.
 
 **Superfici**: `components/fire-simulations/MonteCarloTab.tsx`, `components/monte-carlo/*`.
 
@@ -1223,6 +1257,8 @@ Qui: docs/screenshots/monte-carlo.png.
 ```
 
 ## 15 · FIRE · Obiettivi (Goal-Based Investing)
+
+**Stato**: ✅ fatto il 2026-08-26 (`feature/goals-redesign`) — griglia Obiettivi 5×2 · Traiettoria 7 / Milestone 4 · Allocazione derivata 3 / Assegnazioni 12 (Milestone prende 7 senza allocazione goal-driven) e «Dettaglio» con Prossimo versamento 12 · Come funziona 12. Il verdetto giudica i soli obiettivi datati e dà a ogni obiettivo la sua clausola (i ritardatari con il ritmo IN PIÙ che la scadenza chiede). Tre decisioni prese in sessione: **la riga dell'obiettivo seleziona la Traiettoria** («The Selected-Row Rule» in DESIGN.md — nessun controllo sopra la griglia, le azioni Modifica/Elimina nell'aside della tessera sorella), **la Milestone non mostra mai una scadenza come arrivo** («15 mesi dopo la scadenza», «mai, al ritmo attuale»), **la quota libera chiude Assegnazioni** («Non assegnato» come residuo). Il colore dell'obiettivo è identità (stesso hex in ogni tessera e in Panoramica), le classi prendono lo slot dell'app; `AllocationComparisonBar` eliminato. Numeri in `goalsSummary.ts`, parole in `goalsNarrative.ts`; le date sono `{ year, month }` letti dalla stringa ISO. Il prompt resta come riferimento di metodo.
 
 **Superfici**: `components/fire-simulations/GoalBasedInvestingTab.tsx`, `components/goals/*`, `lib/utils/{goalTrajectory,goalMath}.ts`.
 
@@ -1298,6 +1334,8 @@ nuovo a meno che non te lo chieda.
 ```
 
 ## 16 · Previdenza
+
+**Stato**: ✅ fatto il 2026-08-26 (`feature/previdenza-redesign`) — proposta del canvas scelta su entrambe le alternative: l'anno fiscale è l'ASSE della pagina, accanto al verdetto (non uno scopo nell'aside di Anno fiscale), e governa le due clausole annuali del verdetto («nel 2026 il datore ha aggiunto 134 € e il fisco restituisce circa 275 €»), Anno fiscale, Versato e Versamenti; «Il fondo oggi» e «Rendimento» sono fuori asse e nominano la propria finestra. Griglia Il fondo oggi 5×2 · Rendimento 3 · Anno fiscale 4 / **Versato nel {anno} 7** / Versamenti 12 — le quattro tessere del prompt lasciavano sette colonne vuote in riga 2 (la trappola di Hall of Fame), la quinta le chiude — e «Dettaglio» con Da dove viene la crescita 6 · Come aggiornare il valore 6 (12 senza una misura). Tre scostamenti dal prompt, decisi in sessione: **il rendimento è calcolato PER CONTRIBUENTE** (stesse funzioni pure, fondi e versamenti del membro) così verdetto e tessera stampano lo stesso TWR; **«il fisco restituisce» senza «ti»** (un household può tracciare il fondo del coniuge); **«Registra versamento» resta nell'header compatto** (precedente «Crea snapshot»). Il layer puro è sdoppiato (`pensionSummary.ts` numeri · `pensionNarrative.ts` parole) con `calculateAssetValue` e l'IRPEF iniettati; l'eliminazione a due click ha perso il timer da 3 s (`useArmedDelete`); un fetch fallito degrada per tessera e il verdetto dice cosa non si è caricato; `PageHeader` ha perso la variante `legacy` (era l'ultima pagina a usarla). Le tre spec Playwright sono state riscritte sul nuovo DOM. Il prompt resta come riferimento di metodo.
 
 **Superfici**: `app/dashboard/pension/page.tsx`, `components/pension/*`, `lib/utils/pension*.ts`.
 

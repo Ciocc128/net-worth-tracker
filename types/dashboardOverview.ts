@@ -55,6 +55,16 @@ export interface DashboardOverviewMover {
   delta: number;
 }
 
+// One INSTRUMENT whose market price moved the portfolio this month, largest absolute
+// effect first — the same attribution as DashboardOverviewMover, before it is folded into
+// classes (see computeTopInstrumentMovers in lib/utils/dashboardOverviewUtils.ts). Patrimonio's
+// verdict names the first one; its hero footer lists the first three.
+export interface DashboardOverviewInstrumentMover {
+  id: string;
+  name: string;
+  delta: number;
+}
+
 // The single most relevant in-progress Goal-Based Investing goal, surfaced on the
 // companion card footer (see pickFeaturedGoalProgress in lib/utils/dashboardOverviewUtils.ts).
 export interface DashboardOverviewGoalProgress {
@@ -71,6 +81,12 @@ export interface DashboardOverviewExpenseStats {
     income: number;
     expenses: number;
     net: number;
+    /**
+     * The part of `expenses` dated after the payload was computed (instalments and
+     * recurring rows of the rest of the month): the month-end projection adds it as it is
+     * instead of scaling it by the days left. Absent on payloads older than source v10.
+     */
+    expensesScheduled?: number;
   };
   previousMonth: {
     income: number;
@@ -152,6 +168,9 @@ export interface DashboardOverviewPayload {
   // snapshot, or one without a per-asset breakdown), distinct from a measured 0.
   // Optional so old cached docs degrade gracefully.
   marketEffect?: number | null;
+  // The instruments behind `topMovers`, each by its own price effect (capped at ten). Optional
+  // so old cached docs degrade gracefully (Patrimonio's verdict drops its driver clause).
+  topInstrumentMovers?: DashboardOverviewInstrumentMover[];
   // Single most relevant in-progress goal (Goal-Based Investing), only present
   // when the user has the feature enabled and at least one goal in progress.
   goalProgress?: DashboardOverviewGoalProgress | null;

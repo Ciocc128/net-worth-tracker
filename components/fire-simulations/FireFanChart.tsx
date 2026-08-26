@@ -8,8 +8,9 @@
  * paths ("spaghetti") picked DETERMINISTICALLY (every k-th path — no Math.random at
  * render time), and the moving FIRE target as a dashed line.
  *
- * Below the chart, the one number the deterministic projection cannot give:
- * the cumulative probability of having reached FIRE by the base-scenario year.
+ * The one number the deterministic projection cannot give — the cumulative probability of
+ * having reached FIRE by the base-scenario year — is resolved by `resolveFanVerdict` in the pure
+ * layer and read by the Traguardo tile's footer; the chart only names it in its `aria-label`.
  *
  * All series share ONE data array (percentile fields + s0..sN spaghetti fields):
  * per-child `data` props inside a ComposedChart are unreliable, and a single array
@@ -30,22 +31,19 @@ import {
   YAxis,
 } from 'recharts';
 import type { AccumulationSimulationResult } from '@/lib/services/monteCarloService';
+import type { FanVerdict } from '@/lib/utils/fireSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
 interface FireFanChartProps {
   result: AccumulationSimulationResult;
-  /** Deterministic base-scenario years to FIRE — anchors the verdict row (null = not reached). */
-  deterministicBaseYearsToFIRE: number | null;
   /** Calendar year of the simulation's year 0. */
   startCalendarYear: number;
-  simulationCount: number;
-  /** 4-class allocation used to derive the market parameters — named in the caption. */
-  allocationLabel: string;
-  /** True when locked pension inflows are part of the run — the caption declares the model. */
-  hasPensionInflows: boolean;
-  height: number;
+  /** `resolveFanVerdict(result, …)` — named in the accessible label. */
+  verdict: FanVerdict;
+  /** Pixels, or "100%" inside an absolutely positioned box (a tile's chart area). */
+  height: number | `${number}%`;
 }
 
 /** Draw at most this many sample paths — enough to show dispersion without smearing the chart. */
@@ -147,15 +145,7 @@ function FanChartLegend(props: unknown) {
 
 const LEGEND_WRAPPER_STYLE = { paddingTop: 4 } as const;
 
-export function FireFanChart({
-  result,
-  deterministicBaseYearsToFIRE,
-  startCalendarYear,
-  simulationCount,
-  allocationLabel,
-  hasPensionInflows,
-  height,
-}: FireFanChartProps) {
+export function FireFanChart({ result, startCalendarYear, verdict, height }: FireFanChartProps) {
   const chartColors = useChartColors();
   // Fan + median share the primary series hue (the same one the Scenari view gives the base
   // scenario); the moving target keeps the amber the runway chart already uses for targets.
@@ -190,109 +180,81 @@ export function FireFanChart({
     return { rows: builtRows, spaghettiKeys: keys };
   }, [result, startCalendarYear]);
 
-  // The verdict anchors on the deterministic base-scenario FIRE year when it exists;
-  // otherwise on the simulation horizon, and the copy says which one it is.
-  const lastYearIndex = result.percentiles.length - 1;
-  const verdictYearIndex =
-    deterministicBaseYearsToFIRE !== null
-      ? Math.min(deterministicBaseYearsToFIRE, lastYearIndex)
-      : lastYearIndex;
-  const verdictCalendarYear = startCalendarYear + verdictYearIndex;
-  const verdictProbability = Math.round(result.percentiles[verdictYearIndex]?.fireProbability ?? 0);
-
   return (
-    <div>
-      <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart
-          data={rows}
-          margin={{ left: 10, bottom: 4 }}
-          role="img"
-          aria-label={
-            `Ventaglio Monte Carlo del patrimonio: bande dei percentili 10–90 e 25–75 e mediana ` +
-            `nel colore primario del grafico, ${spaghettiKeys.length} percorsi campione in trasparenza, ` +
-            `linea tratteggiata ambra del target FIRE. Probabilità di FIRE entro il ` +
-            `${verdictCalendarYear}: ${verdictProbability}%.`
-          }
-          accessibilityLayer={false}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
-          <YAxis
-            width={70}
-            tickFormatter={(value) => formatCurrencyCompact(Number(value))}
-            tick={CHART_TICK_STYLE}
-          />
-          <Tooltip content={FanChartTooltip} />
-          <Legend content={FanChartLegend} wrapperStyle={LEGEND_WRAPPER_STYLE} />
-          <Area
-            dataKey="band1090"
-            name="10°–90° percentile"
-            stroke="none"
-            fill={fanColor}
-            fillOpacity={0.1}
-            isAnimationActive={false}
-            activeDot={false}
-          />
-          <Area
-            dataKey="band2575"
-            name="25°–75° percentile"
-            stroke="none"
-            fill={fanColor}
-            fillOpacity={0.18}
-            isAnimationActive={false}
-            activeDot={false}
-          />
-          {spaghettiKeys.map((key) => (
-            <Line
-              key={key}
-              dataKey={key}
-              name="spaghetti"
-              legendType="none"
-              stroke={fanColor}
-              strokeWidth={1}
-              strokeOpacity={0.12}
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-            />
-          ))}
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart
+        data={rows}
+        margin={{ left: 10, bottom: 4 }}
+        role="img"
+        aria-label={
+          `Ventaglio Monte Carlo del patrimonio: bande dei percentili 10–90 e 25–75 e mediana ` +
+          `nel colore primario del grafico, ${spaghettiKeys.length} percorsi campione in trasparenza, ` +
+          `linea tratteggiata ambra del target FIRE. Probabilità di FIRE entro il ` +
+          `${verdict.calendarYear}: ${verdict.probabilityPct}%.`
+        }
+        accessibilityLayer={false}
+      >
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
+        <YAxis
+          width={70}
+          tickFormatter={(value) => formatCurrencyCompact(Number(value))}
+          tick={CHART_TICK_STYLE}
+        />
+        <Tooltip content={FanChartTooltip} />
+        <Legend content={FanChartLegend} wrapperStyle={LEGEND_WRAPPER_STYLE} />
+        <Area
+          dataKey="band1090"
+          name="10°–90° percentile"
+          stroke="none"
+          fill={fanColor}
+          fillOpacity={0.1}
+          isAnimationActive={false}
+          activeDot={false}
+        />
+        <Area
+          dataKey="band2575"
+          name="25°–75° percentile"
+          stroke="none"
+          fill={fanColor}
+          fillOpacity={0.18}
+          isAnimationActive={false}
+          activeDot={false}
+        />
+        {spaghettiKeys.map((key) => (
           <Line
-            dataKey="p50"
-            name="Mediana"
+            key={key}
+            dataKey={key}
+            name="spaghetti"
+            legendType="none"
             stroke={fanColor}
-            strokeWidth={2.5}
+            strokeWidth={1}
+            strokeOpacity={0.12}
             dot={false}
-            animationDuration={800}
-            animationEasing="ease-out"
+            activeDot={false}
+            isAnimationActive={false}
           />
-          <Line
-            dataKey="fireTarget"
-            name="Target FIRE"
-            stroke={targetColor}
-            strokeWidth={1.5}
-            strokeDasharray="6 4"
-            dot={false}
-            animationDuration={800}
-            animationEasing="ease-out"
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-
-      {/* Verdict: the number the deterministic projection cannot give. */}
-      <p className="mt-3 text-sm text-foreground">
-        Probabilità di FIRE entro il{' '}
-        <span className="font-mono font-semibold tabular-nums">{verdictCalendarYear}</span>
-        {deterministicBaseYearsToFIRE === null && (
-          <span className="text-muted-foreground"> (orizzonte della simulazione)</span>
-        )}
-        : <span className="font-mono font-semibold tabular-nums">{verdictProbability}%</span>
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Rendimenti e volatilità derivati dall&apos;allocazione attuale ({allocationLabel});{' '}
-        {simulationCount.toLocaleString('it-IT')} simulazioni.
-        {hasPensionInflows &&
-          ' Il fondo pensione entra all’anno di sblocco al valore di oggi.'}
-      </p>
-    </div>
+        ))}
+        <Line
+          dataKey="p50"
+          name="Mediana"
+          stroke={fanColor}
+          strokeWidth={2.5}
+          dot={false}
+          animationDuration={800}
+          animationEasing="ease-out"
+        />
+        <Line
+          dataKey="fireTarget"
+          name="Target FIRE"
+          stroke={targetColor}
+          strokeWidth={1.5}
+          strokeDasharray="6 4"
+          dot={false}
+          animationDuration={800}
+          animationEasing="ease-out"
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }

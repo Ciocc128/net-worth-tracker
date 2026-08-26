@@ -27,7 +27,7 @@
  * @param onSave - Async callback with year, month, note to save to database
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -84,18 +84,18 @@ export function SnapshotSearchDialog({
       };
     });
 
-  // Load note when snapshot selected
-  useEffect(() => {
-    if (selectedSnapshotId) {
-      const [year, month] = selectedSnapshotId.split('-').map(Number);
-      const snapshot = snapshots.find(
-        (s) => s.year === year && s.month === month
-      );
-      setNoteText(snapshot?.note || '');
-    } else {
+  // The note follows the selection: set together with it, in the handler, not in an effect
+  // (react-hooks/set-state-in-effect).
+  const handleSelectSnapshot = (id: string) => {
+    setSelectedSnapshotId(id);
+    if (!id) {
       setNoteText('');
+      return;
     }
-  }, [selectedSnapshotId, snapshots]);
+    const [year, month] = id.split('-').map(Number);
+    const snapshot = snapshots.find((s) => s.year === year && s.month === month);
+    setNoteText(snapshot?.note || '');
+  };
 
   const selectedSnapshot = (() => {
     if (!selectedSnapshotId) return null;
@@ -155,7 +155,7 @@ export function SnapshotSearchDialog({
               id="snapshot-select"
               options={snapshotOptions}
               value={selectedSnapshotId}
-              onValueChange={setSelectedSnapshotId}
+              onValueChange={handleSelectSnapshot}
               placeholder="Cerca per mese/anno..."
               searchPlaceholder="Es: Marzo 2024"
               emptyMessage="Nessuno snapshot trovato"

@@ -17,17 +17,12 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 
-export interface NarrativeSegment {
-  text: string;
-  /** Set the segment in the numeric face (Geist Mono). */
-  mono?: boolean;
-  /** Colour the segment as a gain or a loss; absent = inherit. */
-  sign?: 'positive' | 'negative';
-}
+import type { Narrative, NarrativeSegment, VerdictTone } from '@/lib/utils/narrative';
 
-export type Narrative = NarrativeSegment[];
-
-export type VerdictTone = 'positive' | 'neutral' | 'warning' | 'negative';
+// The segment shape and its plain-text rendering live in `narrative.ts` so every page's
+// narrative module shares them; re-exported here for the Panoramica's existing importers.
+export type { Narrative, VerdictTone } from '@/lib/utils/narrative';
+export { narrativeToText } from '@/lib/utils/narrative';
 
 export interface OverviewVerdictInput {
   /** Current calendar month, 1-12. */
@@ -48,11 +43,6 @@ export interface OverviewVerdict {
   headline: string;
   tone: VerdictTone;
   sentence: Narrative;
-}
-
-/** Plain-text rendering, for tests and accessible names. */
-export function narrativeToText(narrative: Narrative): string {
-  return narrative.map((segment) => segment.text).join('');
 }
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -316,17 +306,6 @@ export function describeGoal(currentValue: number, targetAmount: number): Narrat
   return [prose('Mancano '), figure(cachedFormatCurrencyEUR(missing, true)), prose('.')];
 }
 
-/**
- * Where the month's spending lands if the current daily pace holds — a plain linear
- * extrapolation, stated as such in the UI ("al ritmo attuale"). Income is deliberately NOT
- * projected the same way: a salary lands once, so extrapolating it would be nonsense.
- * Null before the month has started or on a malformed calendar.
- */
-export function projectMonthEndSpending(
-  spentSoFar: number,
-  dayOfMonth: number,
-  daysInMonth: number,
-): number | null {
-  if (dayOfMonth < 1 || daysInMonth < 1) return null;
-  return (spentSoFar / dayOfMonth) * daysInMonth;
-}
+// The projection rule lives in spendingProjection.ts (SDK-free, shared with the budget layer
+// and the emails); re-exported here for the two tiles that read it from this module.
+export { projectMonthEndSpending } from '@/lib/utils/spendingProjection';

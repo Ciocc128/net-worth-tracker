@@ -12,9 +12,11 @@ import { GoalAssetAssignment, GoalPriority, InvestmentGoal } from '@/types/goals
 import {
   DashboardOverviewCostDriver,
   DashboardOverviewGoalProgress,
+  DashboardOverviewInstrumentMover,
   DashboardOverviewMover,
 } from '@/types/dashboardOverview';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
@@ -70,8 +72,10 @@ function computePriceEffectsByAsset(
   const rawPreviousByAsset = previousSnapshot?.byAsset ?? [];
   if (rawPreviousByAsset.length === 0 || !previousSnapshot) return null;
 
+  // The hand-valued property, by TYPE: a REIT ETF in the realestate class is a quoted fund whose
+  // snapshot `price` is a native-currency quote, so it keeps the EUR attribution like any ETF.
   const realEstateIds = new Set(
-    assets.filter((asset) => asset.assetClass === 'realestate').map((asset) => asset.id)
+    assets.filter((asset) => asset.type === 'realestate').map((asset) => asset.id)
   );
   const previousByAsset = rawPreviousByAsset.map((row) =>
     realEstateIds.has(row.assetId) ? { ...row, totalValue: row.quantity * row.price } : row
@@ -163,6 +167,40 @@ export function computeTopMovers(
   return movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 }
 
+/** Patrimonio's verdict needs one driver and its hero footer three; ten keeps the payload small. */
+const MAX_INSTRUMENT_MOVERS = 10;
+
+/**
+ * The instruments behind `computeTopMovers`, each by its OWN price effect, largest absolute
+ * first — Patrimonio names the top one in its verdict ("Vanguard ha fatto il grosso") and lists
+ * the first three under its hero. Same attribution, same pension and real-estate rules, same
+ * €1 noise floor; an instrument is never split by its `composition`, so the sum over this list
+ * equals the sum over the class digest. Returns [] under the same conditions as
+ * `computeTopMovers`. `name` resolves via `getAssetDisplayTicker` (alias → ticker → name), like
+ * every other instrument label, so a long fund name isn't truncated mid-word in the digest.
+ */
+export function computeTopInstrumentMovers(
+  assets: Asset[],
+  previousSnapshot: MonthlySnapshot | null,
+  totalValue: number,
+  pension?: PensionMarketInput
+): DashboardOverviewInstrumentMover[] {
+  if (totalValue <= 0) return [];
+  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension);
+  if (!effects) return [];
+
+  const movers: DashboardOverviewInstrumentMover[] = [];
+  for (const asset of assets) {
+    const delta = effects.get(asset.id);
+    if (delta === undefined || Math.abs(delta) < 1) continue;
+    movers.push({ id: asset.id, name: getAssetDisplayTicker(asset), delta });
+  }
+
+  return movers
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, MAX_INSTRUMENT_MOVERS);
+}
+
 /**
  * Total market (price) effect over the whole portfolio since the previous snapshot — the
  * share of this month's net-worth change that is return rather than the user's own flows.
@@ -184,14 +222,16 @@ export function computeMarketEffect(
 /**
  * Held instruments that carry a TER, by what they cost per year (value × TER ÷ 100), largest
  * first — the same per-asset figure `calculateAnnualPortfolioCost` sums. Stamp duty is not
- * an instrument's cost and stays out.
+ * an instrument's cost and stays out. `name` is resolved via `getAssetDisplayTicker` (alias →
+ * ticker → name), the same fallback used everywhere else an instrument is labeled, so a long
+ * fund name doesn't get cut mid-word when the tile truncates it.
  */
 export function rankCostDrivers(assets: Asset[]): DashboardOverviewCostDriver[] {
   return assets
     .filter((asset) => asset.quantity > 0 && (asset.totalExpenseRatio ?? 0) > 0)
     .map((asset) => ({
       id: asset.id,
-      name: asset.name,
+      name: getAssetDisplayTicker(asset),
       totalExpenseRatio: asset.totalExpenseRatio!,
       annualCost: (calculateAssetValue(asset) * asset.totalExpenseRatio!) / 100,
     }))
