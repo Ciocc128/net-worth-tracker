@@ -143,8 +143,8 @@ export function AssetAssignmentDialog({
                     : trueAvail === 0 && alreadyAssigned
                       ? { label: 'Nessuna quota libera', cls: 'text-muted-foreground' }
                       : trueAvail < 50
-                        ? { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-amber-600 dark:text-amber-400' }
-                        : { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-emerald-600 dark:text-emerald-400' };
+                        ? { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-warning-foreground' }
+                        : { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-positive' };
 
                 return (
                   <button
