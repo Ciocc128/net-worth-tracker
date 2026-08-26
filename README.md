@@ -102,16 +102,11 @@ The app integrates with Yahoo Finance for real-time price updates and includes a
 - Fully responsive on mobile and tablet — tab navigation uses a dropdown on small screens
 
 ### Monte Carlo Simulations
-- Trade Republic-inspired layout: Success Rate (probability of not depleting the portfolio) is the dominant hero metric, always visible before and after a simulation run
-- Settings split into core inputs (always visible) and market parameters (collapsible, auto-opens when values differ from defaults) — reduces cognitive load from 18 simultaneous fields to 6
-- Animated mode switcher between Single Simulation and Bear/Base/Bull Scenario Comparison with spring pill animation
-- 4 asset classes: Equity, Bonds, Real Estate, Commodities — editable return and volatility per class
-- Progressive percentile fan chart (p10/p25/p50/p75/p90) and final-value distribution histogram with staged bar reveal
-- Bear/Base/Bull scenario comparison with overlay chart (3 median lines + p10–p90 bands), side-by-side distribution histograms, and a 5-year-interval comparison table
-- All chart colors and tooltips theme-aware across all six color themes
-- Auto-fill allocation from real portfolio (crypto and cash excluded, normalized to 100%)
-- Scenario parameters (return, volatility, inflation per asset class) saved to Firestore per user
-- Fully responsive on mobile and tablet — percentile table switches to a card layout, scenario parameter cards stack vertically
+- Opens with a one-sentence verdict on how likely the plan is to hold — "Il piano regge nell'84,2% dei casi." (green from 90%, amber from 80%, red below) — followed by the facts in words: the share of simulations in which the capital lasts to your age at the end of the horizon, what the median case closes with, the year the worst tenth runs out, how the bear and bull scenarios fare, and the pension fund that re-enters at its unlock when the bridge model is on
+- One run is the three scenarios (Bear / Base / Bull) on the same plan, and the base scenario is what the verdict reads. The simulation runs by itself when the tab opens — on your portfolio's allocation normalized to the four classes (crypto and cash excluded), your net worth net of any locked pension fund and your planned annual expenses — and afterwards on "Esegui simulazione"; until you press it, the Parametri tile says the figures still belong to the last run
+- Four tiles: the probability as the hero figure with the failures, the median failure year and the survivors, over the fan of the base scenario (10–90 and 25–75 bands, the median line, the capital exhausted as a dashed line); the final values as three percentiles and a ten-bin histogram, the median's bin outlined and the last bin taking the tail past the 95th percentile; the three scenarios as rows, each with its probability, its median final value and the year its worst tenth runs out; and the plan itself — starting capital with "Totale / Liquido" shortcuts, horizon, withdrawal, simulation count, the four-class allocation and the three scenarios' returns, volatilities and inflation, saved to Firestore per user
+- A "Dettaglio" disclosure below the tiles holds the three medians drawn over each other, the base scenario's percentiles every five years and an explainer of the method and its limits
+- All chart colours and tooltips theme-aware across the six colour themes; fully responsive — at 390px the tiles stack with the plan last and the percentile table scrolls inside its tile
 
 ### Other
 - **Navigation shell** — A quiet frame built so the page's verdict is the first thing you read: a one-line page header (section · title · date), a desktop sidebar with three route groups under small uppercase labels, the AI assistant as a plain route, and an icon rail with 44px targets when collapsed; on the phone a floating bottom pill with the three primary routes and an "Altro" drawer listing Analisi and Pianificazione; in landscape on tablets a top bar opens the same navigation as a sheet
@@ -404,7 +399,7 @@ See [LICENSE.md](LICENSE.md) for the full license text.
 *FIRE projections with Bear/Base/Bull scenarios*
 
 ![Monte Carlo](docs/screenshots/monte-carlo.png)
-*Monte Carlo simulation with scenario comparison*
+*FIRE › Monte Carlo — the verdict over Probabilità, Distribuzione and Scenari a confronto*
 
 ### Dividends & Hall of Fame
 

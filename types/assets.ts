@@ -511,6 +511,9 @@ export interface MonteCarloResults {
     range: string;
     count: number;
     percentage: number;
+    /** Bin bounds in EUR — half-open, the last bin closed on `to`. */
+    from: number;
+    to: number;
   }[];
   simulations: SingleSimulationResult[];
 }

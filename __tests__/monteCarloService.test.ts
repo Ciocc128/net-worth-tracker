@@ -288,3 +288,43 @@ describe('runAccumulationSimulation — Ventaglio engine', () => {
     expect(withEmpty.fireYears).toEqual(without.fireYears);
   });
 });
+
+describe('createDistribution (through runMonteCarloSimulation)', () => {
+  it('caps the equal-width bins at the 95th percentile and lets the last bin take the tail', () => {
+    const results = runMonteCarloSimulation({
+      portfolioSource: 'total',
+      initialPortfolio: 500000,
+      retirementYears: 30,
+      equityPercentage: 60,
+      bondsPercentage: 40,
+      realEstatePercentage: 0,
+      commoditiesPercentage: 0,
+      annualWithdrawal: 20000,
+      withdrawalAdjustment: 'inflation',
+      equityReturn: 7,
+      equityVolatility: 18,
+      bondsReturn: 3,
+      bondsVolatility: 6,
+      realEstateReturn: 5,
+      realEstateVolatility: 12,
+      commoditiesReturn: 3.5,
+      commoditiesVolatility: 20,
+      inflationRate: 2.5,
+      numberOfSimulations: 600,
+    });
+    const bins = results.distribution;
+    const finals = results.simulations.map((sim) => sim.finalValue).sort((a, b) => a - b);
+    const p95 = finals[Math.floor(finals.length * 0.95)];
+    const max = finals[finals.length - 1];
+
+    expect(bins).toHaveLength(10);
+    expect(bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(600);
+    // Nine equal bins up to the 95th percentile, the tenth from there to the maximum.
+    expect(bins[8].to).toBeCloseTo(finals[0] + ((p95 - finals[0]) / 10) * 9, 3);
+    expect(bins[9].from).toBeCloseTo(bins[8].to, 6);
+    expect(bins[9].to).toBe(max);
+    for (let i = 1; i < bins.length; i++) expect(bins[i].from).toBeCloseTo(bins[i - 1].to, 6);
+    // With a heavy right tail the last bin is the widest — never nine empty bins under one outlier.
+    expect(bins[9].to - bins[9].from).toBeGreaterThan(bins[0].to - bins[0].from);
+  });
+});
