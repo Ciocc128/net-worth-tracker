@@ -1183,6 +1183,8 @@ nuovo a meno che non te lo chieda.
 
 ## 14 · FIRE · Monte Carlo
 
+**Stato**: ✅ fatto il 2026-08-26 (`feature/monte-carlo-redesign`) — proposta del canvas scelta: Probabilità 5 · Distribuzione 4 · Scenari a confronto 3 in UNA riga e Parametri a 12 sotto (l'alternativa con la Probabilità a due righe e Parametri a 7 accanto allungava il ventaglio a ~1000 px). Tre decisioni prese prima del canvas: il toggle «Simulazione singola | Confronto scenari» è sparito (una esecuzione = tre scenari, il Base è il riferimento, i «parametri di mercato avanzati» del form SONO lo scenario Base); auto-run all'apertura e poi «Esegui», con il footer di Parametri che dichiara i risultati «dell'ultima esecuzione» finché non si ricalcola («The Stale-Run Rule» in DESIGN.md); «Dettaglio» sotto la griglia (Traiettorie a confronto 6 · Percentili 6 / Come funziona 12). Il layer puro è sdoppiato (`monteCarloSummary.ts` numeri · `monteCarloNarrative.ts` parole); la mediana letta è quella di TUTTE le simulazioni (l'ultima riga dei percentili), non delle sole riuscite; `createDistribution` chiude le classi al 95° percentile con l'ultima che raccoglie la coda (scoperto dallo screenshot: nove classi vuote sotto un outlier) e porta `from`/`to`; scoperta e corretta l'elisione «nell'10,6%» (`startsWithVowel`). Sei componenti eliminati (`MonteCarloSkeleton`, `SimulationChart`, `DistributionChart`, `ParametersForm`, `ScenarioParameterCards`, `ScenarioComparisonResults`). Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/fire-simulations/MonteCarloTab.tsx`, `components/monte-carlo/*`.
 
 **Modello/effort**: Fable 5 · xhigh — un solo normalizzatore, ordine dei passi, parametri in tile.

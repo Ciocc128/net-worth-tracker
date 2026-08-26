@@ -150,25 +150,33 @@ function calculatePercentiles(
 }
 
 /**
- * Create distribution bins for final portfolio values
+ * Create distribution bins for final portfolio values.
+ *
+ * Equal-width bins from the smallest final value up to the 95TH PERCENTILE, the last bin taking
+ * the tail up to the maximum (2026-08-26): a thirty-year run has a heavy right tail, and bins
+ * stretched to an outlier of ten times the median left nine of ten bins empty. The last bin is
+ * therefore wider than the others and the surface says so (the Distribuzione footer).
  */
 function createDistribution(
   simulations: SingleSimulationResult[],
   bins: number = 10
-): { range: string; count: number; percentage: number }[] {
+): MonteCarloResults['distribution'] {
   const finalValues = simulations.map((sim) => sim.finalValue);
-  const maxValue = Math.max(...finalValues);
-  const minValue = Math.min(...finalValues);
-  const binSize = (maxValue - minValue) / bins;
+  const sorted = [...finalValues].sort((a, b) => a - b);
+  const maxValue = sorted[sorted.length - 1];
+  const minValue = sorted[0];
+  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+  const cap = p95 > minValue ? p95 : maxValue;
+  // A flat distribution (every path identical) still needs a positive width.
+  const binSize = cap > minValue ? (cap - minValue) / bins : 1;
 
-  const distribution: { range: string; count: number; percentage: number }[] = [];
+  const distribution: MonteCarloResults['distribution'] = [];
 
   for (let i = 0; i < bins; i++) {
+    const isLast = i === bins - 1;
     const rangeStart = minValue + i * binSize;
-    const rangeEnd = minValue + (i + 1) * binSize;
-    const count = finalValues.filter(
-      (val) => val >= rangeStart && (i === bins - 1 ? val <= rangeEnd : val < rangeEnd)
-    ).length;
+    const rangeEnd = isLast ? Math.max(maxValue, minValue + bins * binSize) : minValue + (i + 1) * binSize;
+    const count = finalValues.filter((val) => val >= rangeStart && (isLast ? val <= rangeEnd : val < rangeEnd)).length;
 
     const rangeLabel =
       rangeStart === 0 && rangeEnd === 0
@@ -179,6 +187,8 @@ function createDistribution(
       range: rangeLabel,
       count,
       percentage: (count / simulations.length) * 100,
+      from: rangeStart,
+      to: rangeEnd,
     });
   }
 
