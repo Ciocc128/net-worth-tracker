@@ -1258,6 +1258,8 @@ Qui: docs/screenshots/monte-carlo.png.
 
 ## 15 · FIRE · Obiettivi (Goal-Based Investing)
 
+**Stato**: ✅ fatto il 2026-08-26 (`feature/goals-redesign`) — griglia Obiettivi 5×2 · Traiettoria 7 / Milestone 4 · Allocazione derivata 3 / Assegnazioni 12 (Milestone prende 7 senza allocazione goal-driven) e «Dettaglio» con Prossimo versamento 12 · Come funziona 12. Il verdetto giudica i soli obiettivi datati e dà a ogni obiettivo la sua clausola (i ritardatari con il ritmo IN PIÙ che la scadenza chiede). Tre decisioni prese in sessione: **la riga dell'obiettivo seleziona la Traiettoria** («The Selected-Row Rule» in DESIGN.md — nessun controllo sopra la griglia, le azioni Modifica/Elimina nell'aside della tessera sorella), **la Milestone non mostra mai una scadenza come arrivo** («15 mesi dopo la scadenza», «mai, al ritmo attuale»), **la quota libera chiude Assegnazioni** («Non assegnato» come residuo). Il colore dell'obiettivo è identità (stesso hex in ogni tessera e in Panoramica), le classi prendono lo slot dell'app; `AllocationComparisonBar` eliminato. Numeri in `goalsSummary.ts`, parole in `goalsNarrative.ts`; le date sono `{ year, month }` letti dalla stringa ISO. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `components/fire-simulations/GoalBasedInvestingTab.tsx`, `components/goals/*`, `lib/utils/{goalTrajectory,goalMath}.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — goalMath SDK-free e allowlist di persistenza; il doc goal si riscrive intero.
@@ -1332,6 +1334,8 @@ nuovo a meno che non te lo chieda.
 ```
 
 ## 16 · Previdenza
+
+**Stato**: ✅ fatto il 2026-08-26 (`feature/previdenza-redesign`) — proposta del canvas scelta su entrambe le alternative: l'anno fiscale è l'ASSE della pagina, accanto al verdetto (non uno scopo nell'aside di Anno fiscale), e governa le due clausole annuali del verdetto («nel 2026 il datore ha aggiunto 134 € e il fisco restituisce circa 275 €»), Anno fiscale, Versato e Versamenti; «Il fondo oggi» e «Rendimento» sono fuori asse e nominano la propria finestra. Griglia Il fondo oggi 5×2 · Rendimento 3 · Anno fiscale 4 / **Versato nel {anno} 7** / Versamenti 12 — le quattro tessere del prompt lasciavano sette colonne vuote in riga 2 (la trappola di Hall of Fame), la quinta le chiude — e «Dettaglio» con Da dove viene la crescita 6 · Come aggiornare il valore 6 (12 senza una misura). Tre scostamenti dal prompt, decisi in sessione: **il rendimento è calcolato PER CONTRIBUENTE** (stesse funzioni pure, fondi e versamenti del membro) così verdetto e tessera stampano lo stesso TWR; **«il fisco restituisce» senza «ti»** (un household può tracciare il fondo del coniuge); **«Registra versamento» resta nell'header compatto** (precedente «Crea snapshot»). Il layer puro è sdoppiato (`pensionSummary.ts` numeri · `pensionNarrative.ts` parole) con `calculateAssetValue` e l'IRPEF iniettati; l'eliminazione a due click ha perso il timer da 3 s (`useArmedDelete`); un fetch fallito degrada per tessera e il verdetto dice cosa non si è caricato; `PageHeader` ha perso la variante `legacy` (era l'ultima pagina a usarla). Le tre spec Playwright sono state riscritte sul nuovo DOM. Il prompt resta come riferimento di metodo.
 
 **Superfici**: `app/dashboard/pension/page.tsx`, `components/pension/*`, `lib/utils/pension*.ts`.
 
