@@ -1246,9 +1246,10 @@ Companion documents — do not duplicate their content into this file:
   above 20% means missing contributions, not a brilliant fund.
 
 **Page and integrations**
-- **The year axis governs chapters 2-3 only, never the fund value or the return**; `resolveActivePensionYear` (pure)
-  reconciles the selection with the derived axis so no effect has to sync them. Every chapter degrades to
-  `PensionErrorNotice` instead of zeros, and the copy agrees in number (`fundNoun()`).
+- **The year axis governs the annual tiles and the verdict's annual clauses only, never the fund value or the
+  return** (see *Previdenza — a verdict over tiles*); `resolveActivePensionYear` (pure) reconciles the selection with
+  the derived axis so no effect has to sync them. Every tile degrades to `PensionErrorNotice` instead of zeros, and
+  the copy agrees in number (`fundSubject()` in `pensionNarrative.ts`).
 - **Zod messages must be attached to the TYPE check, not only the constraint**: `valueAsNumber: true` turns an empty
   input into `NaN`, which fails `z.number()` itself — use `z.number({ error: '…' }).positive('…')`.
 - **A derived split that a later edit can invalidate must be FROZEN at write time.**
@@ -1267,6 +1268,39 @@ Companion documents — do not duplicate their content into this file:
   model across the whole FIRE page (see *FIRE, What If and Goals*).
 - **`performanceBase.ts` reads `byAsset`, never `byAssetClass`**, and the exclusion is applied in TWO places because the
   Rendimenti page has two independent snapshot-fetch paths.
+
+### Previdenza — a verdict over tiles (`components/pension/PensionOverview.tsx`, `components/pension/tiles/*`, `lib/utils/{pensionSummary,pensionNarrative}.ts`)
+- The page answers «il fondo sta lavorando?» and computes nothing: `pensionSummary.ts` chooses what each tile shows
+  (`summarizeFundToday` — the live value, the overlaid series, the month digest, what was ever paid in;
+  `summarizePensionMembers` — one block PER CONTRIBUTOR with the return AND the tax recap; `summarizeVersato` and
+  `summarizeLedger` on the axis year), `pensionNarrative.ts` puts it into words. `calculateAssetValue` and the IRPEF
+  function are INJECTED (`valueOf`, `taxOf`) so the module stays SDK-free.
+- **Three causes, three numbers, never one blended percentage** (The Three-Causes Rule): the verdict's sentence is
+  «{market clause}, nel {Y} il datore ha aggiunto Z € e il fisco restituisce circa W €» — the market on the block's
+  TRUSTED window («da novembre 2025», `resolvePensionReturnStart`), the other two on the AXIS year — and a cause with
+  nothing behind it drops its clause (no employer share, no RAL). A closed year is said in the past («ha restituito»).
+- **The return is computed per contributor**: the same `pensionReturn.ts` functions on the member's funds and the
+  member's contributions (the configured `pensionReturnStartMonth` still wins for everyone), so the verdict and the
+  Rendimento tile print the SAME TWR. A fund linked to no member is its own block, named by the fund, without a tax
+  clause — never folded into someone else's RAL. `returnState` (`measured` · `suspicious` · `idle` ·
+  `no-contributions` · `one-point`) is the one discriminator the verdict, the tile and the Dettaglio read; when it is
+  not `measured` the percentage is replaced by the reason everywhere, and «Da dove viene la crescita» is absent.
+- **The year axis sits beside the verdict** (Tracciamento's shape) and governs the verdict's two annual clauses,
+  «Anno fiscale», «Versato nel {Y}» and «Versamenti {Y}»; «Il fondo oggi» and «Rendimento» are OFF it and name their
+  own window in the aside («oggi», «nov 2025 → ago 2026»). The month digest of the hero (`monthEffect`) is measured
+  exactly as the Panoramica's «Previdenza» line — live value − the previous month's snapshot − contributions
+  recorded since (`valueEffectMonth`), null when the previous month has no snapshot with the fund or the window
+  starts later — so the two pages never disagree on a number.
+- **Errors degrade per tile and the verdict says what failed** (`buildPensionLoadErrorVerdict`): a failed
+  `pensionContributions` query hides the hero's reading and chips (a `[]` would say «nessun versamento registrato»)
+  and replaces Rendimento, Anno fiscale, Versato and Versamenti with `PensionErrorNotice`; a failed snapshots query
+  drops the series and the Rendimento tile. `assets`/`settings` errors stay blocking.
+- The ledger's delete is `useArmedDelete` (two clicks, no timer, announced on arm and disarm); the 3 s auto-disarm of
+  the old chapter is gone. Playwright locates the tiles by `role=region` + `aria-label` («Il fondo oggi»,
+  «Rendimento del fondo», «Anno fiscale» with `exact: true` — it is a prefix of «Anno fiscale 2026» nowhere, but
+  «Versamenti» IS a prefix of the delete buttons' names), the verdict by «Verdetto sul fondo pensione», the axis by
+  the tablist «Anno fiscale», the disclosure by `/^Dettaglio/`. The base fixture (`scripts/seedPensionE2E.mts`) runs
+  in whatever month: assert the cumulative TWR («+3,48%») and the structure, never the annualised figure.
 
 ### Assistant
 **Context service** (`lib/services/assistantMonthContextService.ts`)
@@ -1655,7 +1689,7 @@ Companion documents — do not duplicate their content into this file:
 | Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
 | Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx` |
-| Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio |
+| Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio · **Verdetto e letture** `pensionSummary`, `pensionNarrative` |
 
 Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allocationUtils` + the three ledger suites;
 widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading it.
