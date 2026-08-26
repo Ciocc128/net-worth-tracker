@@ -1238,6 +1238,13 @@ Companion documents — do not duplicate their content into this file:
   deferred salary → denominator, never numerator; the IRPEF saving stays in its own per-taxpayer card.
 - **The window starts where the data is trustworthy, not where the snapshots start** (`resolvePensionReturnStart`), and
   **a contribution is attributed to the month its VALUE MOVED (`createdAt`), not its accounting date**.
+- **A contribution the fund credits LATE reads as a temporary market loss** (decided 2026-08-26: no change). The model
+  moves the value on `createdAt` and the user overwrites the value monthly from the fund's site, which shows the
+  contribution 1-2 months later: the recording month subtracts a contribution the snapshot does not yet contain
+  (market X too low), the crediting month contains it with nothing to subtract (X too high); the window's total is
+  right once the credit lands and the value is updated. A «pending credit» contribution (registered for the tax
+  year, value effect deferred until marked credited) is the fix, if ever — it touches the service, `valueEffectMonth`
+  (shared with the Panoramica digest) and the dialog.
 - **The series ends at the fund's LIVE value, not the current month's snapshot** (`overlayLivePensionValue`): the asset
   rises immediately while the snapshot waits for the cron, so the TWR would drop by exactly the amount paid in. Storico
   and Rendimenti stay snapshot-based.
