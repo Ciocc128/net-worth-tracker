@@ -1108,7 +1108,9 @@ nuovo a meno che non te lo chieda.
 
 ## 13 · FIRE · What If
 
-**Superfici**: `components/fire-simulations/{WhatIfAnalysisTab,WhatIfSensitivitySection}.tsx`, `lib/services/whatIfService.ts`.
+**Stato**: ✅ fatto il 2026-08-25 (`feature/what-if-redesign`) — proposta del canvas scelta sulle due alternative (niente hero nella tessera Prima e dopo: l'anno sta nel Delta; Prima e dopo a sinistra, non l'Evento). Griglia Prima e dopo 5 · Delta 3 · Evento 4 / Sensibilità 12 (una riga sola, nessuna tessera a due righe), nessuna disclosure: il form dell'evento È una tessera e sul telefono viene per primo («The Input Tile Rule» in DESIGN.md). Il layer puro è sdoppiato come altrove (`whatIfSummary.ts` numeri · `whatIfNarrative.ts` parole) e resta category-agnostic: la frase dice «31.800 € l'anno di entrate (il 64% del reddito)», mai la categoria; la scomposizione del colpo (mancati risparmi / spese dal portafoglio) è uscita dal componente. Uno scostamento deciso in sessione: **il ponte pensionistico passa anche nel What If** (`WhatIfBaseline.pensionBridge`, stesso `calculateFireBridgeNumber` e stesso gradino del Calcolatore), così l'anno «prima» coincide con quello del Calcolatore. La Sensibilità gira sul piano di oggi e lo dichiara nell'aside; le tinte sono i token di segno al 15% invece degli slot chart. `WhatIfAnalysisSkeleton` e `WhatIfSensitivitySection` eliminati. Il prompt resta come riferimento di metodo.
+
+**Superfici**: `components/fire-simulations/WhatIfAnalysisTab.tsx`, `components/fire-simulations/whatif/*`, `lib/utils/{whatIfSummary,whatIfNarrative}.ts`, `lib/services/whatIfService.ts`.
 
 **Modello/effort**: Fable 5 · xhigh — perturbazione + diff, layer puro category-agnostic.
 
