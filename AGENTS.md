@@ -1664,7 +1664,7 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   scratchpad `firebase-admin` fails with `ERR_MODULE_NOT_FOUND` — resolution starts at the script's directory — and the
   seed dies silently before the login it was meant to enable. A throwaway Playwright spec likewise lives in `e2e/`
   (it must match a project's `testMatch`); it can override the project's session with `test.use({ storageState: {
-  cookies: [], origins: [] }, viewport, deviceScaleFactor, colorScheme })` and log in through the form.
+  cookies: [], origins: [] }, viewport, deviceScaleFactor, colorScheme })` and log in through the form. A README capture also hides the Next dev badge first (`page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' })`): it sits bottom-left in every dev screenshot.
   **Drive the mutations through the app's services** (client SDK, rule-evaluated) and do the script's own reads and
   fixture edits with the Admin SDK: from an `.mts` file a `doc()` imported there rejects a `db` built here, while
   sign-in still works, which makes the failure look unrelated.
@@ -1735,7 +1735,7 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   `evaluate()`. Same rule for anything measured during an animation.
 - **The emulator needs Java ≥ 21 and the system JVM here is 15** — prepend the portable Temurin at
   `%USERPROFILE%\.jdk\jdk-21.0.12+8-jre\bin` to `PATH` (SETUP.md → Step 6). Stopping the npm wrapper does **not** kill
-  the JVM: the ports stay taken and the next start fails with "port taken", naming no stale process.
+  the JVM: the ports stay taken and the next start fails with "port taken", naming no stale process. Free them by PID — `netstat -ano | grep LISTENING | grep :8080`, then `taskkill //PID <pid> //F //T`, the same for `next dev` on :3100 — and only AFTER the Hub export.
 - **On the BASE account, FIRE figures depend on the RUN MONTH**, so a spec there asserts STRUCTURE and FORMAT, never
   exact amounts — and the euro-format regex must accept ungrouped four-digit amounts:
   `(\d{1,3}(\.\d{3})+|\d{1,4}),\d{2}` (CLDR `minimumGroupingDigits = 2`, the *Italian Localization* trap).
