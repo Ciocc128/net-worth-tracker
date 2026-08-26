@@ -906,8 +906,8 @@ Companion documents — do not duplicate their content into this file:
   Coast, What If, Monte Carlo — Obiettivi already did). The React Query keys were namespaced by `ownerId` while the
   functions took `user!.uid`, so a guest on a shared account saw their OWN (empty) FIRE data and saved settings on
   their own doc. `enabled: !!user && !!ownerId` gates every query; `ownerId!` is safe past that gate.
-- **`PageContainer width="wide"` on every FIRE tab but `'goals'`**: Obiettivi is not propagated and keeps the 1600px
-  byte-identical. Every propagated tab loads as `TileGridSkeleton` with its own cells (`FireCalculatorSkeleton`,
+- **`PageContainer width="wide"` on every FIRE tab** (Obiettivi joined on 2026-08-26, the last of the five). Every
+  propagated tab loads as `TileGridSkeleton` with its own cells (`FireCalculatorSkeleton`, `GoalsSkeleton`,
   `WhatIfAnalysisSkeleton` and `MonteCarloSkeleton` are gone).
 - **The passive income at the FIRE year is nominal and never stands alone** in the verdict: beside today's expenses
   with the inflation named («2300 € al mese di oggi, 2667 € del 2032 con l'inflazione al 2,5%»), or one figure when
@@ -1045,6 +1045,33 @@ Companion documents — do not duplicate their content into this file:
   the fan by `[role="img"][aria-label*="Ventaglio del piano di prelievo"]` (the Calcolatore's is «Ventaglio Monte Carlo»), the inputs by their
   `#mc-*` ids, the disclosure by `/^Dettaglio/`. The figures are random draws: a spec asserts structure, format and the stale flag's round trip
   (edit → warning footer → Esegui → «Ultima esecuzione con questi parametri»), never a rate.
+
+### FIRE › Obiettivi — a verdict over tiles (`components/fire-simulations/GoalBasedInvestingTab.tsx`, `components/goals/tiles/*`, `lib/utils/{goalsSummary,goalsNarrative}.ts`)
+- The tab answers «sono in rotta?» and computes nothing: `computeGoalTrajectory` (per goal, ONE `now` per mount) and `calculateGoalProgress` run as
+  before, `goalsSummary.ts` chooses what each tile shows (`summarizeGoals` in urgency order with the counts and the assigned share, `summarizeTrajectory`
+  with the chart's series, `buildMilestones`, `summarizeDerivedAllocation` over `deriveTargetAllocationFromGoals`, `summarizeAssignments` closed by the
+  free shares), `goalsNarrative.ts` puts it into words. The verdict per goal is the trajectory's own (projected value at the deadline against the target,
+  1% tolerance); the headline judges the DATED goals only (`counts.dated`) — every one in time positive, some late warning, all late negative, nothing to
+  judge neutral — and the sentence gives every goal its clause, the late ones with the EXTRA pace (`required − planned`, the whole pace when nothing is planned).
+- **Dates are `{ year, month }`** (`goalDateFromIso` reads the ISO string, never a `Date`): a deadline typed as «2029-06-30» stays in June whatever
+  timezone renders it. `monthsBetween` still ceils on 30.44-day months, so «giugno 2029» from 2026-08-26 is 35 months, not 34 — derive a test
+  expectation from the function, never by hand (the first cut of the tests lost ten assertions to that and to Intl's ungrouped four-digit amounts, «1531 €»).
+- **The selection is a row** (`selectedGoalId`, falling back to the most urgent, following a deletion, session-only); the Traiettoria's actions (Modifica,
+  Elimina through `useArmedDelete`, the disarm announced by a `role="status"` span) sit in its aside — the Scheda's ghost buttons from `desktop:`, 44px
+  targets below. In demo the aside says «non modificabile in demo» and the Assegnazioni footer «In demo le quote non si modificano».
+- **The goal's hex is identity** (dot, track, milestone, projection, the Panoramica's ObiettivoTile); the classes of Allocazione derivata take
+  `ASSET_CLASS_CHART_INDEX` through `useChartColors` — the deleted `AllocationComparisonBar` carried a map of its own. Its «assigned» bar aggregates
+  every goal's quotas by euro (reached included) while the derived target excludes the reached goals: the footer says the reached do not weigh.
+- **The free shares are the residual**: `summarizeAssignments` lists an instrument with more than 0,5% and 0,50 € free, sums `freeTotal` over EVERY
+  instrument so the «Non assegnato» row adds up, and names an instrument assigned past 100% in the footer's warning tone (the amber card is gone). Orphaned
+  quotas are skipped as `goalMath` does; the tab still runs `cleanOrphanedAssignments` before every write, and every write rewrites the document whole.
+- **The Milestone never shows a deadline as an arrival**: a late goal keeps its projected month with «15 mesi dopo la scadenza di giugno 2029» under it, a goal
+  the pace never reaches reads «mai, al ritmo attuale», an open goal is not listed. The old timeline fell back to the target date and called it a milestone.
+- Playwright locates the tiles by `role=region` + `aria-label` («Obiettivi», «Milestone», «Allocazione derivata», «Assegnazioni» — pass `exact: true`,
+  «Obiettivi» is a prefix of the list's name; the Traiettoria by `/^Traiettoria di /`), the verdict by «Verdetto sugli obiettivi», the rows by the list
+  «Obiettivi in ordine di urgenza» (buttons named «{name}, {chip}», `aria-current` on the selected), the residual by the rowheader «Non assegnato», the
+  disclosure by `/^Dettaglio/`, the split by the list «Ripartizione del versamento». The base account has no goals: a spec plants its own fixture
+  (`goalBasedInvesting/{uid}` + the two settings flags with `merge: true`) and removes it.
 
 ### Asset Trade Ledger
 - Three trade types per asset — BUY / SELL / ADJUSTMENT — with an optional cash settlement that debits or credits a
@@ -1598,6 +1625,7 @@ Companion documents — do not duplicate their content into this file:
 > guided-verification protocol — live in **WORKFLOW.md**.
 
 ### Commands
+- **Phantom `tsc` errors**: `papaparse` and `@playwright/test` are declared but can be missing from the (untracked, branch-shared) `node_modules`. The tell is ~25 errors clustered in `e2e/` and `lib/utils/expenseImport.ts` rather than in what you touched — run `npm install` first.
 - `npm test -- <file>` / `npx vitest run <file>` for targeted tests; **`npx tsc --noEmit` before any PR**, re-run AFTER
   writing the tests, not only after the code.
 - **A slow `await import()` inside a test body reads as flakiness, not as slowness.** A heavy module graph is a FIXTURE:
