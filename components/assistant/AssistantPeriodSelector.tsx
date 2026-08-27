@@ -23,8 +23,7 @@ interface AssistantPeriodSelectorProps {
 
 // One axis, one place. The five tabs are periods — "Libera" is the former Chat
 // mode, i.e. a question with no period attached by default. Mode values stay on
-// the backend contract unchanged; only the control is the shared SegmentedPill
-// (the former bespoke pill strip duplicated what 8+ surfaces already share).
+// the backend contract unchanged; only the control is the shared SegmentedPill.
 const PERIOD_TABS: { value: AssistantMode; label: string }[] = [
   { value: 'month_analysis', label: 'Mese' },
   { value: 'year_analysis', label: 'Anno' },
@@ -44,13 +43,17 @@ const CHAT_CONTEXT_OPTIONS: { value: AssistantChatContextType; label: string }[]
   { value: 'history', label: 'Storico' },
 ];
 
+/** The sub-picker's trigger: 36px beside the verdict from desktop, a 44px target below it. */
+const TRIGGER_CLASS = 'h-11 w-auto min-w-[120px] desktop:h-9';
+
 /**
- * Single period axis for the assistant: SegmentedPill + the matching period
- * sub-picker, co-located so "what to analyse" and "for which period" are one
- * decision in one spot.
+ * The page's one axis — the period (SegmentedPill) and its sub-picker, co-located so «what to
+ * analyse» and «for which period» are one decision in one spot. It sits beside the verdict from
+ * `desktop:` and under it below that width (DESIGN.md → Page Verdict): the verdict, the tiles
+ * and the composer all read this selection.
  *
- * In Libera mode the sub-picker becomes an optional "Contesto" selector that can
- * attach a period to an otherwise free-form question.
+ * In Libera mode the sub-picker becomes an optional «Contesto» selector that can attach a
+ * period to an otherwise free-form question.
  */
 export function AssistantPeriodSelector({
   mode,
@@ -68,7 +71,7 @@ export function AssistantPeriodSelector({
   // Year picker reused by both year_analysis and Libera+year context.
   const yearPicker = (
     <Select value={String(selectedYear)} onValueChange={(v) => onYearChange(Number(v))} disabled={disabled}>
-      <SelectTrigger className="h-9 w-auto min-w-[100px]" aria-label="Anno di riferimento">
+      <SelectTrigger className={TRIGGER_CLASS} aria-label="Anno di riferimento">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -82,16 +85,17 @@ export function AssistantPeriodSelector({
   );
 
   const monthPicker = (
-    <div className="w-auto min-w-[160px]">
+    <div className="w-auto min-w-[160px] [&_button]:h-11 desktop:[&_button]:h-9">
       <AssistantMonthPicker value={selectedMonth} options={monthOptions} onChange={onMonthChange} disabled={disabled} />
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+    <div className="flex flex-col gap-3 desktop:flex-row desktop:flex-wrap desktop:items-center desktop:justify-end">
       {/* Scroll guard: five pills fit at 390px, but a wider system font must not
-          push the page into horizontal scroll — the strip scrolls on its own. */}
-      <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          push the page into horizontal scroll — the strip scrolls on its own, bleeding
+          to the page padding so the scroll reaches the edge. */}
+      <div className="max-w-full overflow-x-auto max-desktop:-mx-4 max-desktop:px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <SegmentedPill
           options={PERIOD_TABS}
           value={mode}
@@ -99,11 +103,12 @@ export function AssistantPeriodSelector({
           layoutId="assistant-period-pill"
           ariaLabel="Periodo di analisi"
           disabled={disabled}
+          className="max-desktop:[&>button]:min-h-11"
         />
       </div>
 
       {/* Inline sub-picker — its shape follows the active period. */}
-      <div className="flex min-h-[2rem] flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {mode === 'month_analysis' && monthPicker}
         {mode === 'year_analysis' && yearPicker}
         {mode === 'ytd_analysis' && <span className="text-xs text-muted-foreground">Da inizio anno a oggi</span>}
@@ -118,7 +123,7 @@ export function AssistantPeriodSelector({
               onValueChange={(v) => onChatContextTypeChange(v as AssistantChatContextType)}
               disabled={disabled}
             >
-              <SelectTrigger className="h-9 w-auto min-w-[120px]" aria-label="Contesto per la domanda libera">
+              <SelectTrigger className={TRIGGER_CLASS} aria-label="Contesto per la domanda libera">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

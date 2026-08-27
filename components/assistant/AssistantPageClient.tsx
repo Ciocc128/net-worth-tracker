@@ -4,19 +4,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AssistantComeFunziona } from '@/components/assistant/AssistantComeFunziona';
 import { AssistantComposer } from '@/components/assistant/AssistantComposer';
-import { AssistantContextCard, AssistantContextCardSkeleton } from '@/components/assistant/AssistantContextCard';
-import { AssistantConversationPanel } from '@/components/assistant/AssistantConversationPanel';
-import { AssistantEmptyState } from '@/components/assistant/AssistantEmptyState';
+import { AssistantConversazioneTile } from '@/components/assistant/AssistantConversazioneTile';
 import { AssistantHeader } from '@/components/assistant/AssistantHeader';
 import { AssistantLockedState } from '@/components/assistant/AssistantLockedState';
-import { AssistantMemorySummaryCard } from '@/components/assistant/AssistantMemorySummaryCard';
-import { AssistantPageSkeleton } from '@/components/assistant/AssistantPageSkeleton';
-import { AssistantPatrimonioTodayCard } from '@/components/assistant/AssistantPatrimonioTodayCard';
 import { AssistantPeriodSelector } from '@/components/assistant/AssistantPeriodSelector';
+import type { PromptRow } from '@/components/assistant/AssistantPromptRows';
 import { AssistantSheets } from '@/components/assistant/AssistantSheets';
 import { AssistantSuggestionsBanner } from '@/components/assistant/AssistantSuggestionsBanner';
+import { CashflowContestoTile } from '@/components/assistant/tiles/CashflowContestoTile';
+import { MemoriaTile } from '@/components/assistant/tiles/MemoriaTile';
+import { PatrimonioContestoTile } from '@/components/assistant/tiles/PatrimonioContestoTile';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PageVerdict } from '@/components/ui/page-verdict';
+import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useDashboardOverview } from '@/lib/hooks/useDashboardOverview';
@@ -25,7 +28,16 @@ import { useAssistantPeriodContext } from '@/lib/hooks/useAssistantPeriodContext
 import { useAssistantStreaming } from '@/lib/hooks/useAssistantStreaming';
 import { useAssistantThread, useAssistantThreads, useDeleteAssistantThread } from '@/lib/hooks/useAssistantThreads';
 import { assistantPromptChips } from '@/lib/constants/assistantPrompts';
+import {
+  buildAssistantPeriodVerdict,
+  buildNoContextVerdict,
+  describeAssistantHeader,
+  describeConversation,
+  formatPeriodInSentence,
+  toNoContextVerdictInput,
+} from '@/lib/utils/assistantNarrative';
 import { buildFollowUpSuggestions } from '@/lib/utils/assistantFollowUps';
+import { getAssistantPeriodLabel } from '@/lib/utils/assistantPeriodLabel';
 import {
   buildComposerPlaceholder,
   buildEmptyStateQuestion,
@@ -38,6 +50,7 @@ import {
 } from '@/lib/utils/assistantPeriodOptions';
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES } from '@/lib/constants/months';
+import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import {
   AssistantChatContextType,
   AssistantMode,
@@ -51,19 +64,41 @@ interface AssistantPageClientProps {
 }
 
 /**
- * Orchestrator for the Assistente page shell: period axis, thread and
- * memory queries, and the hero grid [2fr_1fr] — conversational heart left,
- * companion context (scheda + memoria/obiettivi) right. Streaming state and the
- * SSE lifecycle live in useAssistantStreaming; every visual block is an
- * extracted module-level component.
+ * ASSISTENTE AI — a verdict over tiles (2026-08-27)
+ *
+ * The page opens with the CONTEXT the assistant answers on, as a verdict: for a period the
+ * rule-generated sentence of `assistantNarrative.ts` («Luglio è andato bene.»), for a free
+ * question with no period the Panoramica's own verdict on the live payload, reused verbatim.
+ * The page's one axis — the period — sits beside the verdict from `desktop:` and under it
+ * below; it governs the verdict, the companion tiles and the composer alike.
+ *
+ * Under the verdict the hero is `[2fr_1fr]`: the conversation on the left (a tile whose body is
+ * the starter questions as rows, then the thread; the composer sticky under it) and, on the
+ * right, a sticky `self-start` column of tiles at the Panoramica's cadence — the period's net
+ * worth, its cashflow, what the memory holds. This is the one asymmetric hero left in the app:
+ * the conversation IS the content. Below the grid, «Come funziona» behind a disclosure.
+ *
+ *   Desktop:  [Conversazione · composer]  |  [Patrimonio · Cashflow · Cosa sa di te] (sticky)
+ *   Mobile:   verdict → axis → conversation → composer → the three tiles → Come funziona
+ *
+ * Streaming state and the SSE lifecycle live in useAssistantStreaming; every visual block is
+ * an extracted module-level component, and no component computes a figure.
  */
+
+/** The grid's geometry for the skeleton: the conversation left, two companion tiles right. */
+const SKELETON_CELLS: TileSkeletonCell[] = [
+  { span: 8, rows: 2, lines: 10 },
+  { span: 4, lines: 5 },
+  { span: 4, lines: 4 },
+];
+
 export function AssistantPageClient({ assistantConfigured }: AssistantPageClientProps) {
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
   // Italy current month/year — stable for the session
-  const { year: currentYear } = useMemo(() => getItalyMonthYear(new Date()), []);
+  const today = useMemo(() => getItalyMonthYear(new Date()), []);
 
   // Month and year options are stable for the session — computed once on mount
   const monthOptions = useMemo(() => buildMonthOptions(), []);
@@ -73,24 +108,23 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
   const [draft, setDraft] = useState('');
   const [mode, setMode] = useState<AssistantMode>('month_analysis');
   const [selectedMonth, setSelectedMonth] = useState<AssistantMonthSelectorValue>(
-    // Default to the last completed month — it always has data, so the period
-    // scheda and composer are usable from the first render (see getPreviousCompletedMonth).
+    // Default to the last completed month — it always has data, so the verdict and the
+    // composer are usable from the first render (see getPreviousCompletedMonth).
     () => getPreviousCompletedMonth()
   );
   const [selectedYear, setSelectedYear] = useState<number>(() => getItalyMonthYear(new Date()).year);
-  // Optional period attached to a free (Libera) question — drives both the scheda
-  // preview and what numeric bundle the server builds for the chat answer.
+  // Optional period attached to a free (Libera) question — drives both the verdict
+  // and what numeric bundle the server builds for the chat answer.
   const [chatContextType, setChatContextType] = useState<AssistantChatContextType>('none');
 
   // Sheets are controlled here because more than one surface opens them: the
-  // header icons, the empty state's "+N altri" and the companion memory card.
+  // header icons and the companion memory tile.
   const [isThreadSheetOpen, setIsThreadSheetOpen] = useState(false);
   const [isMemorySheetOpen, setIsMemorySheetOpen] = useState(false);
 
-  // Dashboard overview — used to source the current net worth for the "patrimonio oggi" scheda.
-  // Reuses the React Query cache from Panoramica if the user visited it this session,
-  // so in practice this is a cache hit and adds no network latency.
-  const { data: overviewData } = useDashboardOverview(ownerId);
+  // Dashboard overview — the numbers of «oggi» for a free question with no period attached.
+  // Reuses the React Query cache from Panoramica if the user visited it this session.
+  const { data: overviewData, isError: overviewError } = useDashboardOverview(ownerId);
 
   const { data: threads = [], isLoading: loadingThreads, error: threadsError } = useAssistantThreads(ownerId);
   const { data: threadDetail, isLoading: loadingThreadDetail, error: threadError } = useAssistantThread(
@@ -101,7 +135,7 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
   const updateMemoryMutation = useUpdateAssistantMemory(ownerId ?? '');
   const deleteThreadMutation = useDeleteAssistantThread(ownerId ?? '');
 
-  // ── Streaming engine (extracted verbatim from the former monolith) ──
+  // ── Streaming engine ──
   const streaming = useAssistantStreaming({
     ownerId,
     selectedThreadId,
@@ -128,9 +162,8 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
     setContextBundle,
   } = streaming;
 
-  // Effective period for the context scheda: a loaded thread pins its own period;
-  // otherwise the live selector drives a preview so the scheda fills in *before* the
-  // first question is asked.
+  // Effective period for the context: a loaded thread pins its own period; otherwise the
+  // live selector drives a preview so the verdict fills in *before* the first question.
   const hasActiveThread = !!selectedThreadId;
   const pinnedMonth = threadDetail?.thread.pinnedMonth ?? null;
   const pinnedYear = threadDetail?.thread.pinnedYear ?? null;
@@ -138,10 +171,12 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
   const previewMode = hasActiveThread ? threadMode : resolveAssistantPreviewMode(mode, chatContextType);
   const previewMonth = hasActiveThread ? pinnedMonth : selectedMonth;
   const previewYear = hasActiveThread ? pinnedYear : selectedYear;
+  // A free question with no period: the verdict and the first tile read the Panoramica's payload.
+  const isNoContext = previewMode === 'chat';
 
   // Fetch the context bundle whenever a period is selected and no SSE bundle is active.
   // SSE bundle always takes priority over the fetched one. Free (chat) mode has no
-  // numeric period, so it never fetches — the "patrimonio oggi" card stands in instead.
+  // numeric period, so it never fetches — «Patrimonio oggi» stands in instead.
   const shouldFetchContext =
     streamingMessages.length === 0 &&
     contextBundle === null &&
@@ -157,13 +192,13 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
     previewMode,
     previewMonth,
     previewYear,
-    currentYear,
+    today.year,
     // history start year: the hook fetches it server-side; pass 0 as placeholder key
     0,
     shouldFetchContext
   );
 
-  // Populate the context panel from the fetched bundle when no SSE bundle is present.
+  // Populate the context from the fetched bundle when no SSE bundle is present.
   // SSE bundle (set by the streaming hook) always takes priority — this effect
   // only fires when contextBundle is still null.
   useEffect(() => {
@@ -233,13 +268,52 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
 
   const canSubmit = draft.trim().length > 0 && !isStreaming && !isAnalysisBlocked;
 
-  const heroNetWorth = overviewData?.metrics.netTotal ?? null;
-  const heroVariation = overviewData?.variations.monthly ?? null;
+  // ── The words (pure layer) ──
+  const verdict = useMemo(() => {
+    if (isNoContext) {
+      if (overviewData === undefined && !overviewError) return null;
+      return buildNoContextVerdict(overviewData ? toNoContextVerdictInput(overviewData, today.month) : null);
+    }
+    return contextBundle ? buildAssistantPeriodVerdict(contextBundle, today) : null;
+  }, [isNoContext, overviewData, overviewError, contextBundle, today]);
 
+  const activeItems = useMemo(() => (memory?.items ?? []).filter((item) => item.status === 'active'), [memory]);
+  const activeGoalsCount = activeItems.filter((item) => item.category === 'goal').length;
+  const headerDescription = describeAssistantHeader({
+    threads: threads.length,
+    goals: activeGoalsCount,
+    facts: activeItems.length - activeGoalsCount,
+  });
+
+  const isEmptyState = renderedMessages.length === 0 && !selectedThreadId && !loadingThreadDetail;
+  const emptyStateQuestion = buildEmptyStateQuestion(mode, selectedMonth, selectedYear);
+  const conversationReading = useMemo(
+    () =>
+      describeConversation({
+        messageCount: renderedMessages.length,
+        question: emptyStateQuestion,
+        periodLabel: isNoContext || !contextBundle ? null : formatPeriodInSentence(contextBundle.selector),
+        webSearchUsed: renderedMessages.some((message) => message.role === 'assistant' && message.webSearchUsed === true),
+      }),
+    [renderedMessages, emptyStateQuestion, isNoContext, contextBundle]
+  );
+
+  // The starter questions as rows: the one targeting the active period leads.
+  const promptRows = useMemo<PromptRow[]>(() => {
+    const rows = assistantPromptChips.map<PromptRow>((chip) => ({
+      id: chip.id,
+      label: chip.label,
+      primary: chip.mode === mode,
+      webSearch: chip.webContextHint === 'macro',
+    }));
+    return [...rows.filter((row) => row.primary), ...rows.filter((row) => !row.primary)];
+  }, [mode]);
+
+  // ── Handlers ──
   const handleModeChange = (newMode: AssistantMode) => {
     if (isStreaming) return;
     setMode(newMode);
-    // Reset the bundle so the period scheda re-fetches the new period's preview.
+    // Reset the bundle so the verdict re-fetches the new period's preview.
     setContextBundle(null);
     // Auto-select an existing thread matching the new mode + period — explicit
     // user action only, scanning the already-loaded list (no extra fetch).
@@ -263,14 +337,16 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
     if (renderedMessages.length === 0) setContextBundle(null);
   };
 
-  // Attaching/detaching a period to a Libera question re-fetches the scheda preview.
+  // Attaching/detaching a period to a Libera question re-fetches the preview.
   const handleChatContextChange = (type: AssistantChatContextType) => {
     setChatContextType(type);
     if (renderedMessages.length === 0) setContextBundle(null);
   };
 
-  // Starter chips prefill the composer (so the user can confirm the period before sending).
-  const handleChipClick = (chip: AssistantPromptChip) => {
+  // Starter rows prefill the composer (so the user can confirm the period before sending).
+  const handlePromptSelect = (row: PromptRow) => {
+    const chip = assistantPromptChips.find((c: AssistantPromptChip) => c.id === row.id);
+    if (!chip) return;
     setMode(chip.mode);
     setContextBundle(null);
     setDraft(chip.prompt);
@@ -321,52 +397,72 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
   const activePeriodLabel = getActivePeriodLabel(mode, selectedMonth, selectedYear);
   const activeMonthLabel = `${MONTH_NAMES[selectedMonth.month - 1]} ${selectedMonth.year}`;
   const composerPlaceholder = buildComposerPlaceholder(mode, chatContextType, selectedMonth, selectedYear);
-  const emptyStateQuestion = buildEmptyStateQuestion(mode, selectedMonth, selectedYear);
 
   const composerErrorHint = isAnalysisBlocked
     ? `Nessun dato disponibile per ${activeMonthLabel}. Seleziona un altro periodo.`
     : undefined;
 
-  const activeMemoryCount = (memory?.items ?? []).filter((i) => i.status === 'active').length;
-  const isEmptyState = renderedMessages.length === 0 && !selectedThreadId && !loadingThreadDetail;
-
-  // Renders the period scheda (numeric grounding for the selected period).
-  // Reused on desktop (companion column) and mobile (inside the empty state).
-  const renderPeriodScheda = () => {
-    if (contextBundle) return <AssistantContextCard bundle={contextBundle} />;
-    if (loadingContextBundle) return <AssistantContextCardSkeleton />;
-    // Free question with no period attached → show net worth today as grounding.
-    if (mode === 'chat' && chatContextType === 'none') {
-      return <AssistantPatrimonioTodayCard netWorth={heroNetWorth} variation={heroVariation} />;
-    }
-    return (
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-          {activePeriodLabel}
-        </p>
-        <p className="text-xs text-muted-foreground">Nessun dato disponibile per questo periodo.</p>
-      </div>
-    );
-  };
+  const queryError = threadsError || threadError || memoryError;
 
   // Show skeleton while threads resolve on first load
   if (loadingThreads) {
     return (
       <ProtectedRoute>
-        <AssistantPageSkeleton />
+        <PageContainer width="wide">
+          <AssistantHeader
+            isDemo={isDemo}
+            isStreaming={false}
+            threadsCount={0}
+            activeMemoryCount={activeItems.length}
+            description="Caricamento…"
+            memory={memory}
+            loadingMemory={loadingMemory}
+            isPreferencesPending={false}
+            onPreferencesChange={handlePreferencesChange}
+            onNewThread={handleNewThread}
+            onOpenThreads={() => setIsThreadSheetOpen(true)}
+            onOpenMemory={() => setIsMemorySheetOpen(true)}
+          />
+          <TileGridSkeleton cells={SKELETON_CELLS} />
+        </PageContainer>
       </ProtectedRoute>
     );
   }
 
+  // The companion column: the numbers the assistant reasons on, then what it knows of the user.
+  const companionTiles = (
+    <>
+      {isNoContext ? (
+        <PatrimonioContestoTile mode="today" overview={overviewError ? null : overviewData} />
+      ) : contextBundle ? (
+        <>
+          <PatrimonioContestoTile mode="period" bundle={contextBundle} today={today} />
+          {contextBundle.dataQuality.hasCashflowData && (
+            <CashflowContestoTile cashflow={contextBundle.cashflow} periodLabel={getAssistantPeriodLabel(contextBundle.selector)} />
+          )}
+        </>
+      ) : loadingContextBundle ? (
+        <TileGridSkeleton verdict={false} cells={[{ span: 12, lines: 5 }, { span: 12, lines: 4 }]} />
+      ) : null}
+      <MemoriaTile memory={memory} onOpenMemory={() => setIsMemorySheetOpen(true)} />
+      {queryError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+          <AlertDescription>{queryError.message}</AlertDescription>
+        </Alert>
+      )}
+    </>
+  );
+
   return (
     <ProtectedRoute>
-      {/* max-desktop:portrait:pb-20 provides clearance for the fixed bottom navigation on mobile portrait */}
-      <div className="space-y-4 max-desktop:portrait:pb-20">
+      <PageContainer width="wide">
         <AssistantHeader
           isDemo={isDemo}
           isStreaming={isStreaming}
           threadsCount={threads.length}
-          activeMemoryCount={activeMemoryCount}
+          activeMemoryCount={activeItems.length}
+          description={headerDescription}
           memory={memory}
           loadingMemory={loadingMemory}
           isPreferencesPending={updateMemoryMutation.isPending}
@@ -404,11 +500,15 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
             description="La pagina resta accessibile, ma per usare l'assistente devi configurare ANTHROPIC_API_KEY nell'ambiente."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 desktop:grid-cols-[2fr_1fr]">
-            {/* ── Hero left: the conversational heart ── */}
-            <div className="flex min-w-0 flex-col">
-              {/* Single period axis */}
-              <div className="mb-4">
+          <>
+            {/* The verdict is the context; the page's one axis sits beside it from desktop. */}
+            <div className="flex flex-col gap-4 pt-1 desktop:flex-row desktop:items-start desktop:justify-between desktop:gap-6">
+              {verdict ? (
+                <PageVerdict verdict={verdict} ariaLabel="Verdetto sul contesto" />
+              ) : (
+                <TileGridSkeleton cells={[]} className="max-w-[920px] flex-1" />
+              )}
+              <div className="min-w-0 desktop:shrink-0">
                 <AssistantPeriodSelector
                   mode={mode}
                   onModeChange={handleModeChange}
@@ -423,32 +523,20 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
                   disabled={isStreaming}
                 />
               </div>
+            </div>
 
-              {/* Proactive goal-completion banner — visible in any state. */}
-              {ownerId && (
-                <AssistantSuggestionsBanner userId={ownerId} memory={memory} disabled={isStreaming} />
-              )}
+            <div className="grid grid-cols-1 gap-3 desktop:grid-cols-[2fr_1fr] desktop:items-start">
+              {/* ── Hero left: the conversation, the content of the page ── */}
+              <div className="flex min-w-0 flex-col gap-3">
+                {/* Proactive goal-completion tiles — visible in any state. */}
+                {ownerId && <AssistantSuggestionsBanner userId={ownerId} memory={memory} disabled={isStreaming} />}
 
-              {isEmptyState ? (
-                <>
-                  <AssistantEmptyState
-                    question={emptyStateQuestion}
-                    mode={mode}
-                    chips={assistantPromptChips}
-                    onChipSelect={handleChipClick}
-                    disabled={isStreaming}
-                    memory={memory}
-                    onOpenMemory={() => setIsMemorySheetOpen(true)}
-                  />
-                  {/* Mobile-only scheda — numeric grounding below the question where
-                      there is no companion column. A sibling, never inside the card
-                      (bg-card inside bg-card is the card-in-card violation). */}
-                  <div className="desktop:hidden mt-4">{renderPeriodScheda()}</div>
-                </>
-              ) : (
-                <AssistantConversationPanel
-                  activePeriodLabel={activePeriodLabel}
-                  contextBundle={contextBundle}
+                <AssistantConversazioneTile
+                  periodLabel={activePeriodLabel}
+                  reading={conversationReading}
+                  isEmpty={isEmptyState}
+                  promptRows={promptRows}
+                  onPromptSelect={handlePromptSelect}
                   renderedMessages={renderedMessages}
                   loadingThreadDetail={loadingThreadDetail}
                   hasSelectedThread={!!selectedThreadId}
@@ -462,44 +550,32 @@ export function AssistantPageClient({ assistantConfigured }: AssistantPageClient
                   onFollowUpSelect={(prompt) => streaming.submit(prompt)}
                   conversationEndRef={conversationEndRef}
                 />
-              )}
 
-              {/* Sticky composer — stays at bottom of viewport as conversation grows */}
-              <div className="sticky bottom-0 max-desktop:portrait:bottom-20 z-10">
-                <AssistantComposer
-                  draft={draft}
-                  onChange={setDraft}
-                  onSubmit={streaming.submit}
-                  onStop={streaming.stop}
-                  isStreaming={isStreaming}
-                  canSubmit={canSubmit}
-                  placeholder={composerPlaceholder}
-                  errorHint={composerErrorHint}
-                />
+                {/* Sticky composer — stays at the bottom of the viewport as the conversation grows. */}
+                <div className="sticky bottom-0 z-10 max-desktop:portrait:bottom-20">
+                  <AssistantComposer
+                    draft={draft}
+                    onChange={setDraft}
+                    onSubmit={streaming.submit}
+                    onStop={streaming.stop}
+                    isStreaming={isStreaming}
+                    canSubmit={canSubmit}
+                    placeholder={composerPlaceholder}
+                    errorHint={composerErrorHint}
+                  />
+                </div>
+              </div>
+
+              {/* ── Hero right: the companion, sticky and self-start so it can travel ── */}
+              <div className="flex min-w-0 flex-col gap-3 desktop:sticky desktop:top-5 desktop:self-start">
+                {companionTiles}
               </div>
             </div>
 
-            {/* ── Hero right: companion context, sticky (self-start so it can travel) ── */}
-            <div className="hidden desktop:flex desktop:flex-col desktop:gap-4 desktop:self-start desktop:sticky desktop:top-6">
-              {/* Period scheda — the numeric grounding for the selected period. */}
-              <div>{renderPeriodScheda()}</div>
-
-              {/* Memoria e obiettivi — visible extract; management stays in the sheet. */}
-              <AssistantMemorySummaryCard memory={memory} onOpenMemory={() => setIsMemorySheetOpen(true)} />
-
-              {/* Query-level error callout */}
-              {(threadsError || threadError || memoryError) && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    {(threadsError || threadError || memoryError)?.message}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          </div>
+            <AssistantComeFunziona />
+          </>
         )}
-      </div>
+      </PageContainer>
     </ProtectedRoute>
   );
 }
