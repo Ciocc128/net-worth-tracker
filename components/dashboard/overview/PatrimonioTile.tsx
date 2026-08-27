@@ -48,7 +48,12 @@ interface PatrimonioTileProps {
   className?: string;
 }
 
-function VariationChip({
+/**
+ * The grouped variation chip of a hero tile (DESIGN.md → The Grouped Chip Rule): the signed
+ * amount and percentage in the sign colour, an 11px caption under it. Exported because the
+ * Assistente's context tile shows the same variations — a second chip would drift.
+ */
+export function VariationChip({
   value,
   percentage,
   caption,

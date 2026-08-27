@@ -1404,6 +1404,47 @@ Companion documents — do not duplicate their content into this file:
   MUST fall through to a normal code block — the user still sees what the model wrote. `GoalProposalCard` reads owner,
   demo mode and query client itself because `MARKDOWN_COMPONENTS` has to stay module-level.
 
+### Assistente — a verdict over tiles (`components/assistant/AssistantPageClient.tsx`, `components/assistant/tiles/*`, `lib/utils/assistantNarrative.ts`)
+- **The verdict is the context, and the page computes nothing**: `buildAssistantPeriodVerdict(bundle, today)` reads the period
+  bundle the prompt receives (`selector`, `netWorth`, `cashflow`, `dataQuality`) and `buildNoContextVerdict(toNoContextVerdictInput(overview,
+  month))` reads the Panoramica payload for a Libera question with no context — `buildOverviewVerdict` verbatim, never a second
+  phrasing. `today` is a PARAMETER (`getItalyMonthYear` once per mount).
+- **Tense follows the period, and the bundle has no market attribution**: a closed month «è andato bene / in calo», a closed year
+  «è stato un anno in crescita», the running year and YTD «finora va bene», the history «è cresciuto»; growth with spending over
+  income is a warning («è cresciuto, ma le spese hanno superato le entrate»). `allocationChanges` are purchases + prices, so the
+  verdict NEVER says «il mercato ha pesato» here, and the old context card's sign-coloured class rows are gone. `netWorth.end ===
+  null` (a month without its snapshot; the running month is `isPartialMonth`) → «Di luglio conosco solo il cashflow.» /
+  «Agosto è ancora in corso.» with the cashflow figures; no snapshot AND no cashflow → «Nessun dato per …».
+- **The savings rate is `netCashFlow / (totalIncome + totalDividends)`** (`resolveSavingsRate`), null without inflows; the
+  Cashflow tile's reading is the Panoramica's `describeCashflow` on it (no month-over-month delta: the bundle carries one period).
+- **Every count on the page is a sentence from the pure layer**: the header's description (`describeAssistantHeader`), the
+  Conversazione reading (`describeConversation` — the period question while empty, then «2 messaggi; la risposta usa i numeri di
+  luglio 2026 e una ricerca web» with `formatPeriodInSentence`), «Cosa sa di te» (`describeMemory`), the sheet's Obiettivi and
+  Fatti (`describeGoalsTile`, `describeFactsTile`), a goal's state (`describeGoalProgress`: «Raggiunto» · «14.300 € / 20.000 €» ·
+  «Non tracciato», the percent kind with the comma — the memory rows' `toFixed` retired with it).
+- **Rows, not chips, inside a tile**: `AssistantPromptRows` renders the starter questions (the one whose `chip.mode === mode`
+  first and bold) and the follow-ups; a row is `min-h-11` below `desktop:`. A starter still PREFILLS the composer (the period must
+  be confirmed); a follow-up submits directly.
+- **Layout**: `PageContainer width="wide"`; verdict + `AssistantPeriodSelector` in `flex desktop:flex-row desktop:justify-between`;
+  the grid is `desktop:grid-cols-[2fr_1fr] desktop:items-start`, the companion `desktop:sticky desktop:top-5 desktop:self-start`
+  (sticky needs self-start, *Tailwind Breakpoints*) and it renders AFTER the composer on a phone; the composer stays
+  `sticky bottom-0 max-desktop:portrait:bottom-20` inside the left column. The pill's strip bleeds `max-desktop:-mx-4
+  max-desktop:px-4` (the page padding) and its tabs are 44px there. `TileGridSkeleton` with `cells={[]}` is the verdict's
+  placeholder while a bundle loads.
+- **Messages are flat** (`AssistantStreamingResponse`): the user's in a `bg-muted/40` sub-tile, the assistant's full-width prose;
+  `GoalProposalCard` is a `not-prose` muted sub-tile (never a card in the tile); `MARKDOWN_COMPONENTS` stays module-level. The
+  streaming badge lives in the tile's aside (`role="status"`); the interruption notice is a muted row with «Rigenera».
+- **The memory sheet is two tiles + an «Archiviati» disclosure**: the Attivi/Completati/Archiviati tabs are gone; a pending «goal
+  reached» suggestion shows on its goal's row (the durable «Ignora» is `ignoreSuggestion`, the same mutation the tile above the
+  conversation uses — two surfaces of ONE suggestion); the item delete is `useArmedDelete` (two clicks, no timer).
+  `AssistantMemoryPanel` lost its collapsible variant (only the sheet renders it).
+- **The guide is `AssistantComeFunziona`**, a Collapsible below the grid with three tiles; the header has three icon actions and
+  ONE primary; Conversazioni and Memoria wear their count as a dot AND the description says it in words (the dots were
+  dropped once and asked back the same day). Playwright locates: the verdict by `region` «Verdetto sul
+  contesto», the tiles by their eyebrow («Conversazione» with `exact: true` — «Conversazione con l'assistente» is the live
+  region), the rows by `list` «Domande suggerite», the axis by `tablist` «Periodo di analisi», the disclosure by `button` «Come
+  funziona».
+
 ### Periodic Emails (`lib/server/monthlyEmailService.ts`, `weeklyBudgetEmailService.ts`)
 - **Four period types** with independent cron phases, so 31 Dec can send Q4 + H2 + yearly (intentional). Adding one is a
   wide fan-out: the union, `MonthlyEmailData`, the date and label helpers, `buildPeriodEmailData`, `buildAndSend*`, the
@@ -1686,7 +1727,7 @@ Companion documents — do not duplicate their content into this file:
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService`, `dashboardOverviewUtils` · **Verdetto e letture** `overviewNarrative` · **Badge** `savingsRateBadge` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) · **Verdetto e letture** `performanceNarrative`, `performanceSummaryTiles`, `performanceSummary` (+ `patrimonioNarrative` for the articles) |
 | Storico | `storicoSummary`, `storicoNarrative`, `snapshotAssetBreakdown`, `chartService`, `historyComposition` · **FIRE/Goals** `fireService`, `monteCarloService`, `monteCarloSummary`, `monteCarloNarrative`, `goalService`, `goalMath`, `goalProposal`, `coastFireView`, `whatIfService`, `whatIfSummary`, `whatIfNarrative` |
-| Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
+| Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Verdetto e letture** `assistantNarrative` (+ `overviewNarrative` for the no-context verdict) · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` |
 | Cashflow › Budget | `budgetUtils`, `budgetSummary`, `budgetNarrative` (+ `patrimonioNarrative` for the articles, `weeklyBudgetEmailService`, `monthlyEmailService`) |
@@ -1802,9 +1843,15 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - **Two `boundingBox()` calls sample two different FRAMES.** While a drawer slides up the second element reads as
   *higher* than the first and a one-column layout looks like two. Read every rect a single assertion compares in ONE
   `evaluate()`. Same rule for anything measured during an animation.
-- **The emulator needs Java ≥ 21 and the system JVM here is 15** — prepend the portable Temurin at
-  `%USERPROFILE%\.jdk\jdk-21.0.12+8-jre\bin` to `PATH` (SETUP.md → Step 6). Stopping the npm wrapper does **not** kill
+- **The emulator needs Java ≥ 21** — since 2026-08-27 the system JDK here is Microsoft OpenJDK 21 (`java -version`), so the
+  portable Temurin SETUP.md → Step 6 describes is no longer needed on this machine. Stopping the npm wrapper does **not** kill
   the JVM: the ports stay taken and the next start fails with "port taken", naming no stale process. Free them by PID — `netstat -ano | grep LISTENING | grep :8080`, then `taskkill //PID <pid> //F //T`, the same for `next dev` on :3100 — and only AFTER the Hub export.
+- **Ports 8080/9099 answering is not proof that OUR emulators are up.** On 2026-08-27 they were another repo's suite
+  (`chronostep-9ab39`, started by hand with `--single_project_mode`): every seed «succeeded» into its `demo-net-worth`
+  namespace and `auth.setup.ts` died on `auth/user-not-found` — the client signs in against the emulator's own project.
+  Before trusting the ports read the owner's command line (`Get-CimInstance Win32_Process -Filter "ProcessId=<pid>" |
+  select CommandLine`); a foreign suite is never killed, and what the seeds left there is wiped with
+  `DELETE /emulator/v1/projects/demo-net-worth/databases/(default)/documents` and `…/projects/demo-net-worth/accounts`.
 - **On the BASE account, FIRE figures depend on the RUN MONTH**, so a spec there asserts STRUCTURE and FORMAT, never
   exact amounts — and the euro-format regex must accept ungrouped four-digit amounts:
   `(\d{1,3}(\.\d{3})+|\d{1,4}),\d{2}` (CLDR `minimumGroupingDigits = 2`, the *Italian Localization* trap).
