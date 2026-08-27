@@ -3,7 +3,7 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 /**
  * Returns a human-readable label for the period encoded in selector.
  * Shared between the server prompt builders (prompts.ts) and the client
- * AssistantContextCard — a single source avoids the two copies drifting
+ * context tiles (PatrimonioContestoTile, CashflowContestoTile) — a single source avoids the two copies drifting
  * (the client one used to lack a branch the server one had).
  *   month > 0   → "Marzo 2025"
  *   month === 0  → "Anno 2025"

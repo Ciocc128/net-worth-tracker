@@ -1415,6 +1415,8 @@ nuovo a meno che non te lo chieda.
 
 ## 17 · Assistente AI
 
+**Stato**: ✅ fatto il 2026-08-27 (`feature/assistant-redesign`) — il verdetto è il contesto (bundle → `assistantNarrative.ts` con i tempi del periodo; «Libera» senza contesto → `buildOverviewVerdict` tale e quale); scostamenti dal prompt: nessuna tessera Allocazione nel companion (le variazioni di classe sono acquisti + prezzo, non un rendimento), la guida è una disclosure «Come funziona» sotto la griglia, i pallini-conteggio sulle icone dell'header restano (la descrizione li ripete in parole); i follow-up sono righe come le domande iniziali. Il prompt resta come riferimento di metodo.
+
 **Superfici**: `app/dashboard/assistant/page.tsx`, `components/assistant/*`.
 
 **Modello/effort**: Fable 5 · xhigh — streaming, memoria, Popover vs Dropdown; riuso del verdetto della Panoramica, non duplicazione.

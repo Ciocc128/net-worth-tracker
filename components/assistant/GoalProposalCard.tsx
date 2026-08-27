@@ -5,11 +5,12 @@ import { Check, Loader2, Target, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
-import { formatCurrency, formatDate } from '@/lib/utils/formatters';
+import { cachedFormatCurrencyEUR, formatDate } from '@/lib/utils/formatters';
 import { GoalProposal } from '@/lib/utils/goalProposal';
 import { PRIORITY_META } from '@/components/goals/goalVerdictMeta';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,10 @@ type SubmitState = 'idle' | 'saving' | 'created' | 'dismissed';
  * The card carries no props beyond the parsed proposal and reads owner, demo mode and
  * the query client itself — `MARKDOWN_COMPONENTS` must stay module-level (ReactMarkdown
  * re-mounts the whole tree otherwise), so there is nowhere to thread handlers through.
+ *
+ * Inside an assistant message it is a muted sub-tile (`bg-muted/40`, 12px radius), never a
+ * card: a card inside the Conversazione tile would be a card inside a card. Its cadence is
+ * the tile's — the 10px eyebrow, the name at 15px, flat 13px rows with mono figures.
  *
  * The "created" state lives in component state only. On reload the message is re-parsed
  * from its stored text and the button comes back: pressing it again creates a second,
@@ -71,14 +76,14 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
   );
 
   return (
-    <div className="my-3 rounded-lg border border-border bg-muted/30 p-4">
+    <div className="not-prose my-3 rounded-xl bg-muted/40 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            <Target className="h-3.5 w-3.5" />
+          <p className={cn(TILE_EYEBROW_CLASS, 'inline-flex items-center gap-1.5')}>
+            <Target className="h-3 w-3" aria-hidden="true" />
             Proposta di obiettivo
-          </div>
-          <p className="mt-1 text-base font-semibold text-foreground">{proposal.name}</p>
+          </p>
+          <p className="mt-1 text-[15px] font-semibold leading-snug text-foreground">{proposal.name}</p>
         </div>
         <span
           className={cn(
@@ -93,26 +98,23 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
       <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
         <ProposalRow
           label="Importo target"
-          value={proposal.targetAmount != null ? formatCurrency(proposal.targetAmount) : 'Nessuno (aperto)'}
+          value={proposal.targetAmount != null ? cachedFormatCurrencyEUR(proposal.targetAmount, true) : 'Nessuno (aperto)'}
         />
         <ProposalRow
           label="Scadenza"
           value={proposal.targetDateIso ? formatDate(new Date(proposal.targetDateIso)) : 'Nessuna'}
         />
         {proposal.monthlyContribution != null && (
-          <ProposalRow
-            label="Contributo mensile"
-            value={formatCurrency(proposal.monthlyContribution)}
-          />
+          <ProposalRow label="Contributo mensile" value={cachedFormatCurrencyEUR(proposal.monthlyContribution, true)} />
         )}
       </dl>
 
       {allocationEntries.length > 0 && (
         <div className="mt-3 border-t border-border pt-3">
-          <p className="text-xs font-medium text-muted-foreground">Allocazione consigliata</p>
+          <p className={TILE_SUB_EYEBROW_CLASS}>Allocazione consigliata</p>
           <ul className="mt-1.5 space-y-1">
             {allocationEntries.map(([assetClass, percentage]) => (
-              <li key={assetClass} className="flex items-baseline justify-between gap-3 text-sm">
+              <li key={assetClass} className="flex items-baseline justify-between gap-3 text-[13px]">
                 <span className="min-w-0 truncate text-foreground">
                   {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
                 </span>
@@ -124,17 +126,17 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
       )}
 
       {proposal.notes && (
-        <p className="mt-3 text-sm text-muted-foreground">{proposal.notes}</p>
+        <p className="mt-3 text-[13px] leading-[1.45] text-muted-foreground">{proposal.notes}</p>
       )}
 
       <div className="mt-4 flex items-center gap-2">
         {state === 'created' ? (
-          <span className="flex items-center gap-1.5 text-sm font-medium text-positive">
-            <Check className="h-4 w-4" />
+          <span className="flex items-center gap-1.5 text-[13px] font-medium text-positive">
+            <Check className="h-4 w-4" aria-hidden="true" />
             Obiettivo creato
           </span>
         ) : state === 'dismissed' ? (
-          <span className="text-sm text-muted-foreground">Proposta ignorata</span>
+          <span className="text-[13px] text-muted-foreground">Proposta ignorata</span>
         ) : (
           <>
             <Button
@@ -142,11 +144,11 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
               className="h-9"
               onClick={handleConfirm}
               disabled={state === 'saving' || isDemo || !ownerId}
-              title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+              aria-label={isDemo ? 'Conferma — non disponibile in modalità demo' : 'Conferma'}
             >
               {state === 'saving' ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   Creazione…
                 </>
               ) : (
@@ -160,7 +162,7 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
               onClick={() => setState('dismissed')}
               disabled={state === 'saving'}
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
               Ignora
             </Button>
           </>
@@ -173,8 +175,8 @@ export function GoalProposalCard({ proposal }: GoalProposalCardProps) {
 function ProposalRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-sm tabular-nums text-foreground">{value}</dd>
+      <dt className="text-[13px] text-muted-foreground">{label}</dt>
+      <dd className="m-0 font-mono text-[13px] tabular-nums text-foreground">{value}</dd>
     </div>
   );
 }
