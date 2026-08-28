@@ -13,6 +13,7 @@ import {
   buildTimeBuckets,
   buildCategoryTimeSeries,
   buildTypeTimeSeries,
+  computeTrailingSavingsRateAverage,
 } from '@/lib/utils/cashflowTimeSeries';
 import type { Expense } from '@/types/expenses';
 
@@ -103,11 +104,13 @@ describe('buildTimeBuckets', () => {
 describe('buildCategoryTimeSeries', () => {
   it('keeps only the top-N categories and drops the rest (no "Altro" residual)', () => {
     // 4 categories with descending totals; topN=2 → keep two, drop the other two.
+    // Distinct ids: grouping is by category id, and distinct categories always
+    // have distinct documents in real data.
     const expenses: Expense[] = [
-      makeExpense({ categoryName: 'A', amount: -400, date: d(2025, 1) }),
-      makeExpense({ categoryName: 'B', amount: -300, date: d(2025, 1) }),
-      makeExpense({ categoryName: 'C', amount: -200, date: d(2025, 1) }),
-      makeExpense({ categoryName: 'D', amount: -100, date: d(2025, 1) }),
+      makeExpense({ categoryId: 'catA', categoryName: 'A', amount: -400, date: d(2025, 1) }),
+      makeExpense({ categoryId: 'catB', categoryName: 'B', amount: -300, date: d(2025, 1) }),
+      makeExpense({ categoryId: 'catC', categoryName: 'C', amount: -200, date: d(2025, 1) }),
+      makeExpense({ categoryId: 'catD', categoryName: 'D', amount: -100, date: d(2025, 1) }),
     ];
 
     const { series } = buildCategoryTimeSeries(expenses, 'year', 'expenses', 2025, 2);
@@ -116,6 +119,20 @@ describe('buildCategoryTimeSeries', () => {
     expect(series.map((s) => s.name)).toEqual(['A', 'B']);
     // Each kept series carries only its own total — never the C+D residual (300).
     expect(series.map((s) => s.values[0])).toEqual([400, 300]);
+  });
+
+  it('keeps two same-named categories apart and qualifies their labels', () => {
+    // "Casa" exists twice (fixed and variable): they must rank and plot as two
+    // lines, each labelled with its type qualifier.
+    const expenses: Expense[] = [
+      makeExpense({ categoryId: 'c-fix', categoryName: 'Casa', type: 'fixed', amount: -300, date: d(2025, 1) }),
+      makeExpense({ categoryId: 'c-var', categoryName: 'Casa', type: 'variable', amount: -100, date: d(2025, 1) }),
+    ];
+
+    const { series } = buildCategoryTimeSeries(expenses, 'year', 'expenses', 2025, 6);
+
+    expect(series.map((s) => s.name)).toEqual(['Casa (Spese Fisse)', 'Casa (Spese Variabili)']);
+    expect(series.map((s) => s.values[0])).toEqual([300, 100]);
   });
 
   it('aligns per-category values to the shared bucket axis', () => {
@@ -208,5 +225,43 @@ describe('buildTypeTimeSeries', () => {
     const result = buildTypeTimeSeries([], 'month', 2025);
     expect(result.buckets).toEqual([]);
     expect(result.series).toEqual([]);
+  });
+});
+
+describe('computeTrailingSavingsRateAverage', () => {
+  it('averages the savings rate over months that have income, skipping months without it', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'income', amount: 2000, date: d(2025, 1) }),
+      makeExpense({ type: 'variable', amount: -1000, date: d(2025, 1) }), // 50%
+      // February: no income → excluded from the average, not treated as 0%
+      makeExpense({ type: 'variable', amount: -200, date: d(2025, 2) }),
+      makeExpense({ type: 'income', amount: 1000, date: d(2025, 3) }),
+      makeExpense({ type: 'variable', amount: -700, date: d(2025, 3) }), // 30%
+    ];
+
+    const result = computeTrailingSavingsRateAverage(expenses, 2025, 3, 3);
+
+    expect(result).toBeCloseTo(40, 5); // (50 + 30) / 2
+  });
+
+  it('returns null when no month in the window has income', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'variable', amount: -100, date: d(2025, 1) }),
+    ];
+
+    expect(computeTrailingSavingsRateAverage(expenses, 2025, 1, 3)).toBeNull();
+  });
+
+  it('walks backward across a year boundary', () => {
+    const expenses: Expense[] = [
+      makeExpense({ type: 'income', amount: 1000, date: d(2024, 12) }),
+      makeExpense({ type: 'variable', amount: -600, date: d(2024, 12) }), // 40%
+      makeExpense({ type: 'income', amount: 1000, date: d(2025, 1) }),
+      makeExpense({ type: 'variable', amount: -800, date: d(2025, 1) }), // 20%
+    ];
+
+    const result = computeTrailingSavingsRateAverage(expenses, 2025, 1, 2);
+
+    expect(result).toBeCloseTo(30, 5); // (20 + 40) / 2
   });
 });

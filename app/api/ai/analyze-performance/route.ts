@@ -5,7 +5,7 @@ import { it } from 'date-fns/locale';
 import { formatTimePeriodLabel } from '@/lib/utils/formatters';
 import { PerformanceMetrics, TimePeriod } from '@/types/performance';
 import {
-  assertSameUser,
+  assertCanAccessAccount,
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json();
     const { userId, metrics: performanceMetrics, timePeriod } = requestBody;
 
-    assertSameUser(decodedToken, userId);
+    await assertCanAccessAccount(decodedToken, userId);
 
     const rateLimitResult = checkRateLimit(
       `${userId}:analyze`,
@@ -259,6 +259,8 @@ Fornisci un'analisi concisa e actionable (massimo 350 parole) che:
 4. Evidenzia i punti di forza della performance
 5. Identifica aree di miglioramento o rischi da considerare
 6. Se appropriato, offri 1-2 suggerimenti concreti
+
+Usa solo le metriche fornite sopra; non inventare cifre. Se una metrica è "n/a", dillo senza speculare sul suo valore.
 
 Usa un tono professionale ma accessibile. Rispondi in italiano con formattazione markdown (grassetto per concetti chiave, bullet points per elenchi).`;
 }

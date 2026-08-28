@@ -9,10 +9,13 @@
  * - Reduces initial page load time, improves perceived performance
  *
  * TAB STRUCTURE:
- * - Tracking: Current year's transactions and charts
- * - Current Year: Current year analysis
- * - Total History: All-time cashflow analysis
- * - Dividends: Dividend tracking
+ * - Tracking: verdict + tile grid over the period's movements (ExpenseTrackingTab)
+ * - Dividends: dividend tracking
+ * - Budget: verdict + tile grid over the month's ceiling and the category budgets (BudgetTab)
+ * - Cost centers: optional 6th tab (settings.costCentersEnabled) — verdict + tile grid over the centers' whole cost
+ *
+ * The root is the 1920px tile-page width (`PageContainer width="wide"`): Tracciamento is a
+ * 12-column bento, and a bento uses width.
  *
  * WHY LAZY LOADING:
  * Each tab makes separate API calls and renders heavy charts.
@@ -25,17 +28,17 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRightLeft, Coins, Target, Layers, Plus, Settings } from 'lucide-react';
+import { ArrowRightLeft, Coins, Target, Layers, Download, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { cn } from '@/lib/utils';
 import { TabsContent } from '@/components/ui/tabs';
 import { ExpenseTrackingTab } from '@/components/cashflow/ExpenseTrackingTab';
 import { DividendTrackingTab } from '@/components/dividends/DividendTrackingTab';
 import { BudgetTab } from '@/components/cashflow/BudgetTab';
 import { CostCentersTab } from '@/components/cashflow/CostCentersTab';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { Dividend } from '@/types/dividend';
 import { Asset } from '@/types/assets';
 import { useExpenses, useExpenseCategories } from '@/lib/hooks/useExpenses';
@@ -72,6 +75,7 @@ function getInitialTab(param: string | null): CashflowTabId {
 
 export default function CashflowPage() {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -84,9 +88,9 @@ export default function CashflowPage() {
   const [costCentersEnabled, setCostCentersEnabled] = useState<boolean | null>(null);
 
   // React Query hooks for expenses and categories
-  const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(user?.uid);
-  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories(user?.uid);
-  const { data: allAssets = [] } = useAssets(user?.uid);
+  const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(ownerId);
+  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories(ownerId);
+  const { data: allAssets = [] } = useAssets(ownerId);
 
   const assetNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -107,17 +111,17 @@ export default function CashflowPage() {
 
   // Load dividends and assets only when their tabs are mounted
   const loadOtherData = async () => {
-    if (!user || otherDataLoaded) return;
+    if (!user || !ownerId || otherDataLoaded) return;
 
     try {
       setOtherDataLoading(true);
 
       // Fetch only dividends and assets (expenses/categories handled by React Query)
       const [dividendsData, assetsData] = await Promise.all([
-        authenticatedFetch(`/api/dividends?userId=${user.uid}`)
+        authenticatedFetch(`/api/dividends?userId=${ownerId}`)
           .then(r => r.json())
           .then(d => d.dividends || []),
-        getAllAssets(user.uid),
+        getAllAssets(ownerId),
       ]);
 
       setDividends(dividendsData);
@@ -126,7 +130,7 @@ export default function CashflowPage() {
       setOtherDataLoaded(true);
     } catch (error) {
       console.error('Failed to load cashflow secondary data', {
-        userId: user.uid,
+        userId: ownerId,
         operation: 'loadOtherData',
         error: getErrorMessage(error),
       });
@@ -138,17 +142,17 @@ export default function CashflowPage() {
 
   useEffect(() => {
     const needsOtherData = mountedTabs.has('dividends');
-    if (user && needsOtherData && !otherDataLoaded) {
+    if (user && ownerId && needsOtherData && !otherDataLoaded) {
       loadOtherData();
     }
-  }, [user, mountedTabs, otherDataLoaded]);
+  }, [user, ownerId, mountedTabs, otherDataLoaded]);
 
   // Load cashflow history start year from user settings (one-time read per session)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !ownerId) return;
     const loadSettings = async () => {
       try {
-        const settings = await getSettings(user.uid);
+        const settings = await getSettings(ownerId);
 
         if (settings?.cashflowHistoryStartYear !== undefined) {
           setCashflowHistoryStartYear(settings.cashflowHistoryStartYear);
@@ -157,7 +161,7 @@ export default function CashflowPage() {
       } catch (error) {
         // Settings bootstrap is non-fatal for the page: keep safe defaults and log explicitly.
         console.error('Failed to load cashflow settings, using fallback defaults', {
-          userId: user.uid,
+          userId: ownerId,
           operation: 'loadCashflowSettings',
           fallbackHistoryStartYear: 2025,
           fallbackCostCentersEnabled: false,
@@ -168,15 +172,15 @@ export default function CashflowPage() {
     };
 
     void loadSettings();
-  }, [user]);
+  }, [user, ownerId]);
 
   const handleRefresh = async () => {
     // Invalidate React Query caches for expenses and categories
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.expenses.all(user?.uid || ''),
+      queryKey: queryKeys.expenses.all(ownerId || ''),
     });
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.expenses.categories(user?.uid || ''),
+      queryKey: queryKeys.expenses.categories(ownerId || ''),
     });
 
     // Force re-fetch of other data (dividends, assets)
@@ -204,7 +208,7 @@ export default function CashflowPage() {
     : CASHFLOW_TABS_BASE;
 
   return (
-    <PageContainer>
+    <PageContainer width="wide">
       <PageHeader
         label="Operatività"
         title="Cashflow"
@@ -225,6 +229,68 @@ export default function CashflowPage() {
                 Nuova Spesa
               </Button>
             )}
+            {/* Dividendi's two page-level actions. The tab owns the dialogs behind them, so the
+                header only dispatches — the same channel «Nuova Spesa» uses above. Both are
+                desktop-only: on a phone the add button sits beside the tab's period axis. */}
+            {/* Budget's page-level action: the tab owns the dialog, the header dispatches.
+                Desktop-only: on a phone the add button sits under the tab's verdict. */}
+            {activeTab === 'budget' && (
+              <Button
+                size="sm"
+                disabled={isDemo}
+                aria-label={isDemo ? 'Aggiungi budget — non disponibile in modalità demo' : 'Aggiungi budget'}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-budget'))}
+                className="hidden desktop:flex"
+              >
+                <Plus className="h-4 w-4" />
+                Aggiungi budget
+              </Button>
+            )}
+            {/* Centri di Costo's page-level action: same channel, same desktop-only rule. */}
+            {activeTab === 'cost-centers' && (
+              <Button
+                size="sm"
+                disabled={isDemo}
+                aria-label={isDemo ? 'Nuovo centro — non disponibile in modalità demo' : 'Nuovo centro'}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-cost-center'))}
+                className="hidden desktop:flex"
+              >
+                <Plus className="h-4 w-4" />
+                Nuovo centro
+              </Button>
+            )}
+            {activeTab === 'dividends' && (
+              <>
+                <Button
+                  size="sm"
+                  disabled={isDemo}
+                  aria-label={isDemo ? 'Aggiungi dividendo — non disponibile in modalità demo' : 'Aggiungi dividendo'}
+                  title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                  onClick={() => window.dispatchEvent(new CustomEvent('cashflow:add-dividend'))}
+                  className="hidden desktop:flex"
+                >
+                  <Plus className="h-4 w-4" />
+                  Aggiungi dividendo
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  disabled={isDemo}
+                  aria-label={
+                    isDemo
+                      ? 'Scarica dividendi storici — non disponibile in modalità demo'
+                      : 'Scarica dividendi storici per gli asset con ISIN'
+                  }
+                  title={isDemo ? 'Non disponibile in modalità demo' : 'Scarica dividendi storici'}
+                  onClick={() => window.dispatchEvent(new CustomEvent('cashflow:scrape-dividends'))}
+                  className="hidden desktop:flex"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </>
+            )}
             <Button
               size="icon"
               variant="ghost"
@@ -244,6 +310,7 @@ export default function CashflowPage() {
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="cashflow-tab"
+        ariaLabel="Sezioni di Cashflow"
         loading={costCentersEnabled === null}
       >
 
@@ -292,7 +359,7 @@ export default function CashflowPage() {
                 categories={categories}
                 loading={loading}
                 historyStartYear={cashflowHistoryStartYear}
-                userId={user?.uid ?? ''}
+                userId={ownerId ?? ''}
               />
             </motion.div>
           </TabsContent>

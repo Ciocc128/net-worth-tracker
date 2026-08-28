@@ -1,117 +1,175 @@
-/**
- * ALLOCATION PAGE
- *
- * Answers one question, in order: "How much do I have, am I in line with my targets,
- * and what should I do?" — then lets the user drill into the detail and look through to
- * real exposure. Two IA zones: a DECISION zone (hero → band → action) and a quieter
- * DETAIL zone (composition → exposure) under a labeled divider, so the action a user
- * actually takes never reads at the same weight as reference detail.
- *
- * Narrative (single layout, mobile-first; desktop only widens the hero into two columns):
- *   1. Hero    — total allocated wealth + composition shape (left) and the balance
- *                score gauge + band-dependent verdict (companion) — AllocationHero.
- *   2. Band    — the drift tolerance that defines "off target" (RebalanceBandControl).
- *   3. Action  — "Cosa faccio": Ribilancia (trade list) | Versa (no-sell contribution
- *                planner) behind one segmented switch (ActionPlanner).
- *   — Dettaglio —
- *   4. Breakdown — one card, inline accordion, asset class → sub-category → targets.
- *   5. Exposure  — true look-through holdings/sectors/issuers (ExposureSection).
- *
- * Targets come either from Settings or, when goal-driven allocation is enabled, are
- * derived from the user's goals. The rebalance BAND is session-only view state (default
- * ±2 p.p. = the server's own threshold) and re-classifies every COMPRA/VENDI/OK via
- * `applyRebalanceBand`; the hero balance score is band-INDEPENDENT (absolute distance from
- * target). The page has no mutations, so there is no demo-mode gating.
- */
 'use client';
 
+/**
+ * ALLOCAZIONE — a verdict over tiles (2026-08-25)
+ *
+ * The page answers «sono allineato al piano, e cosa faccio con i prossimi soldi?» before it shows
+ * a number: a rule-generated verdict (lib/utils/allocazioneNarrative.ts) names the balance score,
+ * the classes off target in points and where the next money goes, over a 12-column grid of tiles
+ * that each answer one question with a reading line above their figures.
+ *
+ * The page has NO period axis — an allocation is always read today. Its one control is the
+ * rebalance BAND (±2 · ±5 · 5/25 · custom), which re-classifies every COMPRA/VENDI/OK across the
+ * verdict, the Piano and the Per classe chips; it lives in the Bilanciamento tile's aside, next to
+ * the score it qualifies (Alt A of the canvas, chosen on 2026-08-25). The balance score itself is
+ * band-INDEPENDENT (`computeBalanceScore`) and never moves with the band.
+ *
+ *   Desktop (12 col): Bilanciamento(5) | Piano(7)
+ *                     Per classe(6)    | Esposizione(6)
+ *                     Previdenza(12, only with a pension fund)
+ *   Mobile (1 col):   Bilanciamento → Piano → Per classe → Esposizione → Previdenza → Dettaglio
+ *
+ * The «Dettaglio» disclosure under the grid holds the two holdings lists the old hero kept in
+ * popovers — Non negoziabili (inside the total, untouchable) and Esclusi (outside it).
+ *
+ * ALLOCATION ROLES: every asset carries an `allocationRole` — `tradable`, `frozen`, or `excluded`
+ * — and `partitionByAllocationRole` splits them BEFORE `compareAllocations`, never downstream (see
+ * `allocationUtils.ts` for why the filter cannot live after the comparison: it would break the
+ * Σ(current − target) = 0 invariant the plans rely on). `frozen` counts in the denominator and in
+ * the percentages but never appears in a plan; `excluded` leaves the page entirely, denominator
+ * included — which is why the header's total is SMALLER than the Panoramica net worth, and the
+ * Bilanciamento footer says so. `Asset.excludeFromAllocation` survives only as a read-fallback in
+ * `resolveAllocationRole`; never reintroduce it as a write path.
+ *
+ * The Piano's amount (default 1000 €) is page state on purpose: the verdict's last clause is the
+ * VERSA answer at that amount whatever mode the tile shows, so the two can never disagree.
+ * No component computes a figure or writes a sentence: numbers come from
+ * lib/utils/allocazioneSummary.ts, words from lib/utils/allocazioneNarrative.ts.
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
-import { getAllAssets } from '@/lib/services/assetService';
+import { SlidersHorizontal } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
+import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
 import {
   getSettings,
   compareAllocations,
+  deriveTargetLeverageRatio,
   getDefaultTargets,
   buildTargetsFromGoalAllocation,
-  deriveTargetLeverageRatio,
-  getExcludedClasses,
 } from '@/lib/services/assetAllocationService';
 import { getGoalData, deriveTargetAllocationFromGoals } from '@/lib/services/goalService';
-import { AllocationResult, Asset, AssetAllocationTarget, AllocationExclusions } from '@/types/assets';
-import { Button } from '@/components/ui/button';
-import { Settings, Sparkles, LayoutGrid } from 'lucide-react';
-import { toast } from 'sonner';
-import { PageContainer } from '@/components/layout/PageContainer';
-import { PageHeader } from '@/components/layout/PageHeader';
-import { AllocationPageSkeleton } from '@/components/allocation/AllocationPageSkeleton';
-import { AllocationHero } from '@/components/allocation/AllocationHero';
-import { RebalanceBandControl } from '@/components/allocation/RebalanceBandControl';
-import { ActionPlanner } from '@/components/allocation/ActionPlanner';
-import { AllocationBreakdown } from '@/components/allocation/AllocationBreakdown';
-import { PensionAllocationCards } from '@/components/allocation/PensionAllocationCards';
+import type { LeveragePlanInputs } from '@/lib/utils/leverageAwareAllocationUtils';
+import type { Asset, AllocationResult, AssetAllocationTarget } from '@/types/assets';
 import {
   applyRebalanceBand,
   summarizeBalance,
   computeBalanceScore,
-  buildRebalancePlan,
+  partitionByAllocationRole,
+  buildHoldings,
+  sumHoldingsByClass,
+  sumHoldingsBySubCategory,
+  sumTradableByClass,
+  findOrphanedTargets,
+  stripOrphanedSubTargets,
   DEFAULT_REBALANCE_BAND,
+  type AllocatableHolding,
   type RebalanceBand,
 } from '@/lib/utils/allocationUtils';
-import dynamic from 'next/dynamic';
+import {
+  buildCompositionPair,
+  buildPensionLookThrough,
+  buildPlanView,
+  offTargetGaps,
+  summarizeClassGaps,
+  summarizeHoldings,
+  summarizeNextMoney,
+  untargetedClassLabels,
+  type PlanInputs,
+  type PlanMode,
+} from '@/lib/utils/allocazioneSummary';
+import {
+  buildAllocazioneVerdict,
+  describeAllocazioneHeader,
+  describeBalance,
+  describeBalanceFooter,
+  describeClasses,
+  describePension,
+  describePensionAside,
+  describePlan,
+  describePlanFooter,
+} from '@/lib/utils/allocazioneNarrative';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { PageVerdict } from '@/components/ui/page-verdict';
+import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { BilanciamentoTile } from '@/components/allocation/tiles/BilanciamentoTile';
+import { PianoTile } from '@/components/allocation/tiles/PianoTile';
+import { PerClasseTile } from '@/components/allocation/tiles/PerClasseTile';
+import { EsposizioneTile } from '@/components/allocation/tiles/EsposizioneTile';
+import { PrevidenzaTile } from '@/components/allocation/tiles/PrevidenzaTile';
+import { AllocazioneDettaglio } from '@/components/allocation/AllocazioneDettaglio';
 
-const ExposureSection = dynamic(
-  () => import('@/components/allocation/ExposureSection').then((m) => ({ default: m.ExposureSection })),
-  { ssr: false }
-);
+/** The grid's geometry, for the skeleton: the same spans as the tiles below. */
+const SKELETON_CELLS: TileSkeletonCell[] = [
+  { span: 5, lines: 10 },
+  { span: 7, lines: 8 },
+  { span: 6, lines: 7 },
+  { span: 6, lines: 7 },
+  { span: 12, lines: 4 },
+];
+
+/** The Versa/Preleva amount the page opens with: the verdict needs one to name the next money. */
+const DEFAULT_PLAN_AMOUNT_INPUT = '1000';
+
+const EMPTY_HOLDINGS: AllocatableHolding[] = [];
 
 export default function AllocationPage() {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const [targets, setTargets] = useState<AssetAllocationTarget | null>(null);
   const [allocation, setAllocation] = useState<AllocationResult | null>(null);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  // Target leverage is DERIVED from the target set (Σ target % / 100), not a stored field —
-  // it feeds the instrument optimizer as a soft tie-breaker.
-  const [targetLeverageRatio, setTargetLeverageRatio] = useState<number | undefined>(undefined);
-  // Which classes the user keeps out of the allocation base (cash / real estate).
-  const [exclusions, setExclusions] = useState<AllocationExclusions>({});
   const [loading, setLoading] = useState(true);
   const [usingGoalTargets, setUsingGoalTargets] = useState(false);
 
-  // Drift tolerance that decides COMPRA/VENDI/OK. Session-only; default matches the
-  // server's ±2 p.p. so the first render is identical to the persisted classification.
+  // Per-instrument rows of everything IN the allocation — tradable and frozen alike. Each carries
+  // its own `tradable` flag: the frozen ones count in every total and percentage but are never
+  // offered as a source or destination, so the plans reach the target by moving the others.
+  const [holdings, setHoldings] = useState<AllocatableHolding[]>(EMPTY_HOLDINGS);
+  // The `tradable` assets themselves: the trade CANDIDATES for the leverage-aware planner.
+  const [tradableAssets, setTradableAssets] = useState<Asset[]>([]);
+  // The wealth this page deliberately ignores — the home you live in. Reported only.
+  const [excludedHoldings, setExcludedHoldings] = useState<AllocatableHolding[]>(EMPTY_HOLDINGS);
+  // Full, unfiltered asset list — the Previdenza tile's «tutto il patrimonio» needs every role.
+  const [allAssets, setAllAssets] = useState<Asset[]>([]);
+
+  // The page's one control: the drift tolerance that decides COMPRA/VENDI/OK. Session-only; the
+  // default matches the server's ±2 p.p. so the first render equals the persisted classification.
   const [band, setBand] = useState<RebalanceBand>(DEFAULT_REBALANCE_BAND);
+  const [planMode, setPlanMode] = useState<PlanMode>('rebalance');
+  const [amountInput, setAmountInput] = useState(DEFAULT_PLAN_AMOUNT_INPUT);
 
   const loadData = useCallback(async () => {
-    if (!user) return;
-
-    // `loading` initializes to true; no synchronous setState here (it would trigger a
-    // cascading-render lint error). Every setState below runs after the first await.
+    if (!user || !ownerId) return;
     try {
       const [assetsData, settings, goalData] = await Promise.all([
-        getAllAssets(user.uid),
-        getSettings(user.uid),
-        getGoalData(user.uid),
+        getAllAssets(ownerId),
+        getSettings(ownerId),
+        getGoalData(ownerId),
       ]);
 
-      // Derive targets from goals when goal-based investing is enabled; otherwise use
-      // the manual Settings targets (or sensible defaults for a fresh account).
+      // Split by role BEFORE any allocation math (see `partitionByAllocationRole`). Goal-derived
+      // targets keep reading the full asset list — a goal is funded by total wealth.
+      const { tradable, frozen, excluded } = partitionByAllocationRole(assetsData);
+      const inAllocation = [...tradable, ...frozen];
+
       let effectiveTargets: AssetAllocationTarget;
       let fromGoals = false;
-
       if (
         settings?.goalBasedInvestingEnabled &&
         settings?.goalDrivenAllocationEnabled &&
         goalData &&
         goalData.goals.length > 0
       ) {
-        const derived = deriveTargetAllocationFromGoals(
-          goalData.goals,
-          goalData.assignments,
-          assetsData
-        );
+        const derived = deriveTargetAllocationFromGoals(goalData.goals, goalData.assignments, assetsData);
         if (derived) {
-          // Preserve sub-category structure from Settings while overriding asset class targets.
           effectiveTargets = buildTargetsFromGoalAllocation(derived, settings?.targets);
           fromGoals = true;
         } else {
@@ -121,177 +179,296 @@ export default function AllocationPage() {
         effectiveTargets = settings?.targets || getDefaultTargets();
       }
 
-      // Cash / real estate exclusions come from Settings; they drop the class from the
-      // allocation base entirely (numerator + denominator) and disable its target.
-      const activeExclusions: AllocationExclusions = {
-        cash: settings?.excludeCashFromAllocation || false,
-        realestate: settings?.excludeRealEstateFromAllocation || false,
-      };
-
       setTargets(effectiveTargets);
       setUsingGoalTargets(fromGoals);
-      setExclusions(activeExclusions);
-      setAllocation(compareAllocations(assetsData, effectiveTargets, activeExclusions));
-      setAssets(assetsData);
-      // Derived from the target set (a target summing to 150% means a 1.5× leverage target),
-      // consistent with the leverage the class targets encode.
-      setTargetLeverageRatio(deriveTargetLeverageRatio(effectiveTargets, activeExclusions));
+      setAllocation(compareAllocations(inAllocation, effectiveTargets));
+      setHoldings(buildHoldings(inAllocation, calculateAssetValue));
+      setTradableAssets(tradable);
+      setExcludedHoldings(buildHoldings(excluded, calculateAssetValue));
+      setAllAssets(assetsData);
     } catch (error) {
       console.error('Error loading allocation data:', error);
       toast.error('Errore nel caricamento dei dati');
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, ownerId]);
 
   useEffect(() => {
-    loadData();
+    // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
+    const timer = setTimeout(() => {
+      loadData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadData]);
 
-  // Re-classify the whole result under the active band, then derive the verdict and plan
-  // from the banded copy so hero, plan, and breakdown chips always agree.
+  // ─── The numbers (pure layer) ───────────────────────────────────────────────
+  // Re-classify the whole result under the active band; the verdict, the plan and the chips all
+  // read the banded copy so they can never disagree.
   const bandedAllocation = useMemo(
     () => (allocation ? applyRebalanceBand(allocation, band) : null),
-    [allocation, band]
+    [allocation, band],
   );
   const balanceSummary = useMemo(
     () => (bandedAllocation ? summarizeBalance(bandedAllocation.byAssetClass) : null),
-    [bandedAllocation]
+    [bandedAllocation],
   );
-  // Band-independent "how close to target" score for the hero gauge. Derived from raw
-  // drift, so widening/tightening the band leaves it unchanged (only the verdict reacts).
   const balanceScore = useMemo(
     () => (bandedAllocation ? computeBalanceScore(bandedAllocation.byAssetClass) : null),
-    [bandedAllocation]
+    [bandedAllocation],
   );
-  const rebalancePlan = useMemo(
-    () => (bandedAllocation ? buildRebalancePlan(bandedAllocation.byAssetClass) : []),
-    [bandedAllocation]
-  );
+  const tradableByClass = useMemo(() => sumTradableByClass(holdings), [holdings]);
+  const frozenGroup = useMemo(() => summarizeHoldings(holdings.filter((h) => !h.tradable)), [holdings]);
+  const excludedGroup = useMemo(() => summarizeHoldings(excludedHoldings), [excludedHoldings]);
+  const targetLeverageRatio = useMemo(() => deriveTargetLeverageRatio(targets), [targets]);
 
-  // The instrument-aware Versa/Ribilancia optimizer must reason over the INVESTABLE base only:
-  // excluded classes (cash / real estate) and their instruments must not participate in trades.
-  // `bandedAllocation.byAssetClass[c].currentValue` is already the per-class notional exposure of
-  // the investable base, so the maps below are excluded-class-free by construction.
-  const investableAssets = useMemo(() => {
-    const excluded = getExcludedClasses(exclusions);
-    return assets.filter((asset) => !excluded.has(asset.assetClass));
-  }, [assets, exclusions]);
+  // The instrument-aware planner inputs — only when the portfolio actually has leverage.
+  const leverageInputs = useMemo<LeveragePlanInputs | undefined>(() => {
+    if (!allocation || !allocation.hasLeveragedExposure) return undefined;
+    const currentNotionalByAssetClass: Record<string, number> = {};
+    for (const [assetClass, data] of Object.entries(allocation.byAssetClass)) {
+      currentNotionalByAssetClass[assetClass] = data.currentValue;
+    }
+    // The comparison's EFFECTIVE targets, on the market base (a fixed-amount cash target keeps a
+    // stale percentage in Settings).
+    const targetPercentageByAssetClass: Record<string, number> = {};
+    for (const [assetClass, data] of Object.entries(allocation.byAssetClass)) {
+      targetPercentageByAssetClass[assetClass] = data.targetPercentage;
+    }
+    return {
+      tradableAssets,
+      currentNotionalByAssetClass,
+      currentNotionalTotal: allocation.notionalValue,
+      currentMarketTotal: allocation.marketValue,
+      targetPercentageByAssetClass,
+      targetLeverageRatio,
+    };
+  }, [allocation, tradableAssets, targetLeverageRatio]);
 
-  const currentNotionalByAssetClass = useMemo(
+  // A target whose entire value sits in excluded assets can never be reached by any buy or sell:
+  // the verdict declares it, and it is stripped from the maps handed to the planners AND to the
+  // Per classe rows (a COMPRA chip the user can never act on is the same lie in both places).
+  const orphanedTargets = useMemo(
     () =>
-      Object.fromEntries(
-        Object.entries(bandedAllocation?.byAssetClass ?? {}).map(([assetClass, data]) => [
-          assetClass,
-          data.currentValue,
-        ])
-      ),
-    [bandedAllocation]
+      bandedAllocation
+        ? findOrphanedTargets(
+            bandedAllocation.byAssetClass,
+            bandedAllocation.bySubCategory,
+            sumHoldingsByClass(excludedHoldings),
+            sumHoldingsBySubCategory(excludedHoldings),
+          )
+        : [],
+    [bandedAllocation, excludedHoldings],
+  );
+  const actionableSubCategories = useMemo(
+    () => (bandedAllocation ? stripOrphanedSubTargets(bandedAllocation.bySubCategory, orphanedTargets) : {}),
+    [bandedAllocation, orphanedTargets],
   );
 
-  if (loading) return <AllocationPageSkeleton />;
+  const gaps = useMemo(() => (bandedAllocation ? summarizeClassGaps(bandedAllocation.byAssetClass) : []), [bandedAllocation]);
+  const offTarget = useMemo(() => offTargetGaps(gaps), [gaps]);
+  const composition = useMemo(
+    () =>
+      bandedAllocation
+        ? buildCompositionPair(bandedAllocation.byAssetClass, bandedAllocation.notionalValue, bandedAllocation.hasLeveragedExposure)
+        : { current: [], target: [] },
+    [bandedAllocation],
+  );
 
-  if (!allocation || !bandedAllocation || !balanceSummary || !balanceScore) {
+  const planInputs = useMemo<PlanInputs | null>(
+    () =>
+      bandedAllocation
+        ? {
+            byAssetClass: bandedAllocation.byAssetClass,
+            bySubCategory: actionableSubCategories,
+            bySpecificAsset: bandedAllocation.bySpecificAsset,
+            holdings,
+            tradableByClass,
+            leverage: leverageInputs,
+          }
+        : null,
+    [bandedAllocation, actionableSubCategories, holdings, tradableByClass, leverageInputs],
+  );
+  const planAmount = Number(amountInput) || 0;
+  const planView = useMemo(
+    () => (planInputs ? buildPlanView(planMode, planAmount, planInputs) : null),
+    [planInputs, planMode, planAmount],
+  );
+  const nextMoney = useMemo(
+    () => (planInputs ? summarizeNextMoney(planInputs, planAmount) : null),
+    [planInputs, planAmount],
+  );
+  const pension = useMemo(() => buildPensionLookThrough(allAssets, calculateAssetValue), [allAssets]);
+  const pensionFundNames = useMemo(
+    () => allAssets.filter((asset) => asset.type === 'pensionFund').map((asset) => asset.name),
+    [allAssets],
+  );
+
+  const classCount = gaps.length;
+  const hasAssets = classCount > 0;
+  const leverageInPlay = !!bandedAllocation && (bandedAllocation.hasLeveragedExposure || targetLeverageRatio > 1.01);
+  const leverageReading = useMemo(
+    () => (bandedAllocation && leverageInPlay ? { current: bandedAllocation.leverageRatio, target: targetLeverageRatio } : null),
+    [bandedAllocation, leverageInPlay, targetLeverageRatio],
+  );
+  // Without leverage a negative Σdrift is wealth in classes the targets do not name (a house held
+  // with no `realestate` target), not «esposizione sotto il target di leva»: read it as what it is.
+  const untargeted = useMemo(() => {
+    if (!bandedAllocation || !balanceScore || leverageInPlay || balanceScore.leverageGapPp >= -0.5) return null;
+    return { pct: -balanceScore.leverageGapPp, labels: untargetedClassLabels(holdings, bandedAllocation.byAssetClass) };
+  }, [bandedAllocation, balanceScore, leverageInPlay, holdings]);
+
+  // ─── The words (pure layer) ─────────────────────────────────────────────────
+  const verdict = useMemo(
+    () =>
+      buildAllocazioneVerdict({
+        hasAssets,
+        excludedValue: excludedGroup.total,
+        score: balanceScore?.score ?? 0,
+        isBalanced: balanceSummary?.isBalanced ?? true,
+        band,
+        offTarget,
+        leverage: leverageReading,
+        nextMoney,
+        orphans: orphanedTargets,
+      }),
+    [hasAssets, excludedGroup.total, balanceScore, balanceSummary, band, offTarget, leverageReading, nextMoney, orphanedTargets],
+  );
+
+  const headerDescription = describeAllocazioneHeader({
+    marketValue: bandedAllocation?.marketValue ?? 0,
+    classCount,
+    targetSource: usingGoalTargets ? 'goals' : 'settings',
+  });
+
+  const header = (
+    <PageHeader
+      label="Pianificazione"
+      title="Allocazione"
+      description={headerDescription}
+      separator={false}
+      actions={
+        <Link href="/dashboard/settings" className="hidden desktop:block">
+          <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-xs">
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+            Modifica target
+          </Button>
+        </Link>
+      }
+    />
+  );
+
+  // Below desktop the header action sits under the verdict as a 44px button.
+  const mobileAction = (
+    <Link href="/dashboard/settings" className="desktop:hidden">
+      <Button variant="outline" className="h-11 w-full gap-1.5">
+        <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+        Modifica target
+      </Button>
+    </Link>
+  );
+
+  // ─── Loading and empty states ───────────────────────────────────────────────
+  if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="text-muted-foreground">Nessun dato disponibile</div>
-      </div>
+      <PageContainer width="wide">
+        {header}
+        <TileGridSkeleton cells={SKELETON_CELLS} />
+      </PageContainer>
     );
   }
 
-  const assetClassCount = Object.keys(bandedAllocation.byAssetClass).length;
-  const hasAssets = assetClassCount > 0;
+  if (!hasAssets || !bandedAllocation || !balanceSummary || !balanceScore || !planView) {
+    return (
+      <PageContainer width="wide">
+        {header}
+        <div className="pt-1">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sull'allocazione" />
+        </div>
+        {mobileAction}
+      </PageContainer>
+    );
+  }
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <PageContainer className="space-y-4 sm:space-y-6">
-      <PageHeader
-        label="Analisi composizione"
-        title="Allocazione Asset"
-        description="Confronta l'allocazione corrente con i tuoi obiettivi"
-        actions={
-          !usingGoalTargets ? (
-            <Link href="/dashboard/settings" className="w-full shrink-0 sm:w-auto">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                <Settings className="mr-2 h-4 w-4" />
-                Modifica Target
-              </Button>
-            </Link>
-          ) : undefined
-        }
-      />
+    <PageContainer width="wide">
+      {header}
 
-      {/* Goal-derived targets indicator — neutral, token-safe (no hardcoded green). */}
-      {usingGoalTargets && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <div>
-            <p className="text-sm font-medium text-foreground">Target dagli obiettivi</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Calcolato dal gap ancora da colmare per ogni obiettivo, pesato per priorità — Alta 3× ·
-              Media 2× · Bassa 1×. Gli obiettivi già raggiunti non influenzano il calcolo.
-            </p>
-          </div>
-        </div>
-      )}
+      <div className="pt-1">
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sull'allocazione" />
+      </div>
+      {mobileAction}
 
-      {!hasAssets ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <LayoutGrid className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">Nessun asset presente.</p>
-          <Link
-            href="/dashboard/assets"
-            className="text-xs text-muted-foreground/70 underline underline-offset-2"
-          >
-            Aggiungi asset per vedere l&apos;allocazione
-          </Link>
-        </div>
-      ) : (
-        <>
-          {/* DECISION zone: how much / how close to target / what to do. */}
-          <AllocationHero
-            totalValue={bandedAllocation.totalValue}
-            marketValue={bandedAllocation.marketValue ?? bandedAllocation.totalValue}
-            leverageRatio={bandedAllocation.leverageRatio ?? 1}
-            targetLeverageRatio={targetLeverageRatio}
-            excludedClasses={bandedAllocation.excludedClasses ?? []}
-            byAssetClass={bandedAllocation.byAssetClass}
-            summary={balanceSummary}
-            balance={balanceScore}
-            assetClassCount={assetClassCount}
+      {/* Tablet (768-1439): Bilanciamento and Piano full width, Per classe beside Esposizione, Previdenza full. */}
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5')}>
+          <BilanciamentoTile
+            reading={describeBalance({
+              marketValue: bandedAllocation.marketValue,
+              misallocationPct: balanceScore.misallocationPct,
+              leverageGapPp: leverageInPlay ? balanceScore.leverageGapPp : 0,
+              offTargetCount: balanceSummary.offTargetCount,
+              classCount,
+              band,
+              untargeted,
+            })}
+            band={band}
+            onBandChange={setBand}
+            score={balanceScore.score}
+            misallocationPct={balanceScore.misallocationPct}
+            misallocationValue={(balanceScore.misallocationPct / 100) * bandedAllocation.notionalValue}
+            offTargetCount={balanceSummary.offTargetCount}
+            classCount={classCount}
+            offTargetLabels={offTarget.map((gap) => gap.label)}
+            leverage={leverageReading}
+            composition={composition}
+            footer={describeBalanceFooter({
+              frozen: frozenGroup,
+              excluded: excludedGroup,
+              netWorth: bandedAllocation.marketValue + excludedGroup.total,
+            })}
           />
+        </div>
 
-          <RebalanceBandControl band={band} onChange={setBand} />
-
-          <ActionPlanner
-            moves={rebalancePlan}
-            byAssetClass={bandedAllocation.byAssetClass}
-            bySubCategory={bandedAllocation.bySubCategory}
-            assets={investableAssets}
-            currentNotionalByAssetClass={currentNotionalByAssetClass}
-            currentNotionalTotal={bandedAllocation.totalValue}
-            currentMarketTotal={bandedAllocation.marketValue ?? bandedAllocation.totalValue}
-            targetLeverageRatio={targetLeverageRatio}
+        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
+          <PianoTile
+            mode={planMode}
+            onModeChange={setPlanMode}
+            amountInput={amountInput}
+            onAmountInputChange={setAmountInput}
+            reading={describePlan(planView, band)}
+            view={planView}
+            footer={describePlanFooter(planMode, !!leverageInputs)}
           />
+        </div>
 
-          {/* DETAIL zone: quieter reference under a labeled divider (A5 rhythm). */}
-          <div className="space-y-4 pt-2 sm:space-y-6">
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                Dettaglio
-              </span>
-              <div className="h-px flex-1 bg-border/60" aria-hidden="true" />
-            </div>
+        <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-6')}>
+          <PerClasseTile
+            reading={describeClasses(gaps, band)}
+            aside="corrente · target · gap"
+            allocation={{ ...bandedAllocation, bySubCategory: actionableSubCategories }}
+            targets={targets}
+            orphans={orphanedTargets}
+          />
+        </div>
 
-            <AllocationBreakdown allocation={bandedAllocation} targets={targets} />
+        <div className={cn(TILE_CELL_CLASS, 'order-4 desktop:order-none desktop:col-span-6')}>
+          {user && ownerId && <EsposizioneTile userId={ownerId} />}
+        </div>
 
-            {/* Read-only previdenza views (spec §8.1) — the fund is excluded from the actionable pie
-                above; these two cards show its underlying mix and the combined split. */}
-            <PensionAllocationCards assets={assets} />
-
-            {user && <ExposureSection userId={user.uid} />}
+        {pension && (
+          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+            <PrevidenzaTile
+              reading={describePension(pension)}
+              aside={describePensionAside({ fundNames: pensionFundNames, fundValue: pension.fundValue, allFrozen: pension.allFrozen })}
+              lookThrough={pension}
+            />
           </div>
-        </>
-      )}
+        )}
+      </div>
+
+      <AllocazioneDettaglio frozen={frozenGroup} excluded={excludedGroup} />
     </PageContainer>
   );
 }

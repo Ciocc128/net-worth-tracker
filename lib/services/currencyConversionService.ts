@@ -126,24 +126,3 @@ export async function convertMultipleToEur(
   const rate = await getExchangeRateToEur(fromCurrency);
   return amounts.map(amount => amount * rate);
 }
-
-/**
- * Clear the exchange rate cache
- * Useful for testing or forcing a refresh
- */
-export function clearExchangeRateCache(): void {
-  rateCache.clear();
-  console.log('[CurrencyConversion] Cache cleared');
-}
-
-/**
- * Get current cache status (for debugging)
- */
-export function getCacheStatus(): { key: string; rate: number; age: number }[] {
-  const now = Date.now();
-  return Array.from(rateCache.entries()).map(([key, cached]) => ({
-    key,
-    rate: cached.rate,
-    age: Math.floor((now - cached.timestamp) / 1000 / 60), // age in minutes
-  }));
-}

@@ -46,7 +46,7 @@ export function PDFTable({
   // Example: 3 columns → ['33.333333333333336%', '33.333333333333336%', '33.333333333333336%']
   const widths = columnWidths || headers.map(() => `${100 / headers.length}%`);
 
-  // Style normalization pattern: Same as PDFText/PDFChart for consistency.
+  // Style normalization pattern: Same as PDFText for consistency.
   // Converts single style or array to unified format, merging with base table styles.
   const tableStyle = style
     ? Array.isArray(style)

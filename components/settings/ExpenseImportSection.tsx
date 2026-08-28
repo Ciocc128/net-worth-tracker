@@ -3,15 +3,19 @@
 /**
  * ExpenseImportSection — Settings → Spese sub-section.
  *
- * A 4-state wizard (idle → preview → importing → done) to migrate historical
+ * A 4-phase wizard (idle → preview → committing → done) to migrate historical
  * expense/income data from a standardized CSV. Parsing/validation is delegated to
  * the pure lib/utils/expenseImport.ts layer; the Firestore commit/undo to
  * lib/services/expenseImportService.ts. Every import is undoable via its batch id.
+ *
+ * Owner-scoped like every other Cashflow surface: `ownerId` comes from
+ * `useActiveAccount()`, not `user.uid`, so a shared-account delegate imports into
+ * the active account's data, not their own.
  */
 
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, Download, FileText, AlertTriangle, CheckCircle2, Undo2, Loader2 } from 'lucide-react';
+import { Upload, Download, FileText, AlertTriangle, CheckCircle2, Undo2, Loader2, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,18 +23,18 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatDate } from '@/lib/utils/formatters';
+import { cachedFormatCurrencyEUR, formatDate } from '@/lib/utils/formatters';
 import { getAllCategories } from '@/lib/services/expenseCategoryService';
 import { buildImportPlan, parseImportCsv, buildTemplateCsv } from '@/lib/utils/expenseImport';
 import { commitImportPlan, deleteExpensesByImportBatch } from '@/lib/services/expenseImportService';
 import { ImportPlan } from '@/types/expenseImport';
 
-type Phase = 'idle' | 'preview' | 'importing' | 'done';
+type Phase = 'idle' | 'preview' | 'committing' | 'done';
 
-interface Props {
-  userId: string;
+interface ExpenseImportSectionProps {
+  /** Called after a successful commit or undo, so the parent can refresh categories/expenses. */
   onImported?: () => void;
 }
 
@@ -41,7 +45,8 @@ const TYPE_LABELS: Record<string, string> = {
   income: 'Entrate',
 };
 
-export default function ExpenseImportSection({ userId, onImported }: Props) {
+export default function ExpenseImportSection({ onImported }: ExpenseImportSectionProps) {
+  const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -70,12 +75,12 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !ownerId) return;
     setFileName(file.name);
     try {
       const text = await file.text();
       const rows = parseImportCsv(text);
-      const categories = await getAllCategories(userId);
+      const categories = await getAllCategories(ownerId);
       const built = buildImportPlan(rows, categories);
       setPlan(built);
       setPhase('preview');
@@ -90,32 +95,35 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
   };
 
   const handleConfirm = async () => {
-    if (!plan || plan.validRows.length === 0) return;
-    setPhase('importing');
+    if (!plan || plan.validRows.length === 0 || !ownerId) return;
+    setPhase('committing');
     try {
-      const result = await commitImportPlan(userId, plan);
+      // Re-read categories right before committing: the preview may be stale if the
+      // user edited categories elsewhere while this dialog was open.
+      const categories = await getAllCategories(ownerId);
+      const result = await commitImportPlan(ownerId, plan, categories);
       setLastBatch(result);
       setPhase('done');
       toast.success(`Importate ${result.created} transazioni.`);
       onImported?.();
     } catch (err) {
       console.error('Import commit error:', err);
-      toast.error('Errore durante l\'importazione.');
+      toast.error("Errore durante l'importazione.");
       setPhase('preview');
     }
   };
 
   const handleUndo = async () => {
-    if (!lastBatch) return;
+    if (!lastBatch || !ownerId) return;
     setUndoing(true);
     try {
-      const deleted = await deleteExpensesByImportBatch(userId, lastBatch.importBatchId);
+      const deleted = await deleteExpensesByImportBatch(ownerId, lastBatch.importBatchId);
       toast.success(`Import annullato: ${deleted} transazioni rimosse.`);
       onImported?.();
       reset();
     } catch (err) {
       console.error('Undo import error:', err);
-      toast.error('Errore durante l\'annullamento.');
+      toast.error("Errore durante l'annullamento.");
     } finally {
       setUndoing(false);
     }
@@ -157,6 +165,7 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
                 accept=".csv,text/csv"
                 className="hidden"
                 onChange={handleFile}
+                aria-label="Carica file CSV storico spese"
               />
             </div>
           </div>
@@ -190,12 +199,30 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
                 <p className="text-sm font-medium">Categorie che verranno create:</p>
                 <ul className="text-sm text-muted-foreground space-y-0.5">
                   {plan.categoriesToCreate.map((c) => (
-                    <li key={c.name}>
+                    // Keyed by (type, name): two same-named categories of different
+                    // types can legitimately be created by the same import.
+                    <li key={`${c.type}::${c.name}`}>
                       • {c.name} <span className="opacity-70">({TYPE_LABELS[c.type] ?? c.type})</span>
                       {c.subCategories.length > 0 && (
                         <span className="opacity-70"> — {c.subCategories.join(', ')}</span>
                       )}
                     </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Deterministic choices the user must SEE before committing — e.g. two
+                same-named same-typed categories, rows attaching to the oldest one. */}
+            {plan.notices.length > 0 && (
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  Da sapere prima di importare:
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-0.5">
+                  {plan.notices.map((n) => (
+                    <li key={`${n.type}::${n.categoryName}`}>• {n.message}</li>
                   ))}
                 </ul>
               </div>
@@ -227,7 +254,7 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
                 title={isDemo ? 'Non disponibile in modalità demo' : undefined}
                 className="w-full sm:w-auto"
               >
-                Conferma importazione ({plan.validRows.length})
+                Importa {plan.validRows.length} voci
               </Button>
               <Button variant="outline" onClick={reset} className="w-full sm:w-auto">
                 Annulla
@@ -236,7 +263,7 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
           </div>
         )}
 
-        {phase === 'importing' && (
+        {phase === 'committing' && (
           <div className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             Importazione in corso…
@@ -254,7 +281,13 @@ export default function ExpenseImportSection({ userId, onImported }: Props) {
               annullare l&apos;intero import.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button variant="outline" onClick={handleUndo} disabled={undoing} className="w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={handleUndo}
+                disabled={undoing || isDemo}
+                title={isDemo ? 'Non disponibile in modalità demo' : undefined}
+                className="w-full sm:w-auto"
+              >
                 {undoing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Undo2 className="mr-2 h-4 w-4" />}
                 Annulla import
               </Button>

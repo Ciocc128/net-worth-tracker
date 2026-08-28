@@ -7,10 +7,11 @@ This guide will walk you through setting up the Portfolio Tracker web app from s
 1. [Prerequisites](#prerequisites)
 2. [Firebase Setup](#firebase-setup)
 3. [Local Development Setup](#local-development-setup)
-4. [Vercel Deployment](#vercel-deployment)
-5. [Price Data Provider Alternatives](#price-data-provider-alternatives)
-6. [Infrastructure Alternatives](#infrastructure-alternatives)
-7. [Troubleshooting](#troubleshooting)
+4. [Local Verification Troubleshooting](#local-verification-troubleshooting)
+5. [Vercel Deployment](#vercel-deployment)
+6. [Price Data Provider Alternatives](#price-data-provider-alternatives)
+7. [Infrastructure Alternatives](#infrastructure-alternatives)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -174,9 +175,11 @@ CRON_SECRET=your_secure_random_string_here
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Registration Control (optional - for restricting signups)
+# NOTE: the whitelist itself is server-only (no NEXT_PUBLIC_ prefix) — the email list
+# must never reach the client bundle. Only the two toggles are public.
 NEXT_PUBLIC_REGISTRATIONS_ENABLED=true
 NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=false
-NEXT_PUBLIC_REGISTRATION_WHITELIST=
+REGISTRATION_WHITELIST=
 
 # Development Features (optional - for testing/demo)
 NEXT_PUBLIC_ENABLE_TEST_SNAPSHOTS=false
@@ -214,6 +217,212 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 1. Navigate to `/register`
 2. Create an account with email/password or Google sign-in
 3. Log in and start adding your assets!
+
+### Step 5b (Optional): Shared account — delegated access
+
+A second user can be granted full co-owner read/write on your account (Impostazioni →
+Condivisione account). Three prerequisites, in this order, or the add fails:
+
+1. **The guest must be in the whitelist**: add their email to `REGISTRATION_WHITELIST`
+   (with `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED=true`) so they can register at all.
+2. **The guest must register first**: the add resolves their email to a Firebase UID, and
+   a non-existent user returns a 404 («La persona deve prima registrarsi»). Have them
+   complete `/register` before you add them.
+3. **`firestore.rules` must be deployed** (Step 4 of Firebase Setup): enforcement of the
+   delegated access lives in the rules; without the deploy the grant document exists but
+   reads are denied.
+
+The guest's theme stays their own; everything else (data, mutations) operates on the
+owner's account via the account switcher in the sidebar.
+
+### Step 6 (Optional but recommended): Local testing with the Firebase Emulator Suite
+
+Run the app against **local** Auth + Firestore emulators instead of the cloud project, so
+development and manual testing never touch production data. The emulator also loads
+`firestore.rules`, so you validate rule changes locally before deploying them.
+
+**Prerequisite — a Java runtime, version 21 OR ABOVE.** The Firestore emulator runs on Java,
+and current `firebase-tools` refuses anything older ("no longer supports Java version before 21"
+— an installed JDK 15 that used to work stopped working on 2026-08-14). On Windows:
+
+```powershell
+winget install Microsoft.OpenJDK.21
+# then open a NEW terminal so PATH refreshes, and verify:
+java -version
+```
+
+(macOS: `brew install temurin` · Debian/Ubuntu: `sudo apt install openjdk-21-jre`.)
+
+If you can't (or don't want to) replace the system Java, a portable JRE works: extract a
+Temurin 21 JRE zip anywhere (e.g. `%USERPROFILE%\.jdk\`) and prepend its `bin` to `PATH`
+just for the emulator terminal — that is how the E2E runs are driven on this machine.
+
+**Usage — three terminals:**
+
+```bash
+# 1) Start the emulators (Auth :9099, Firestore :8080, UI :4000). First run downloads the jars.
+npm run emulators
+
+# 2) Seed a synthetic test account (only needed once — see persistence note below).
+npm run emulators:seed
+
+# 3) Run the app pointed at the emulators.
+npm run dev:emulator
+```
+
+Then open [http://localhost:3000](http://localhost:3000) and log in with the seeded account:
+
+- **Email:** `test@example.com`  ·  **Password:** `test1234`
+
+Inspect the data live in the Emulator UI at [http://127.0.0.1:4000](http://127.0.0.1:4000).
+
+**What the seed creates** (`scripts/seedEmulator.ts`): the test user plus a representative
+portfolio — 4 ledger assets (ETF / stock / bond / crypto), a cash account, a primary residence,
+allocation settings, a few expense categories + expenses, and two monthly snapshots.
+
+**Data persistence:** `npm run emulators` imports the previous session's data on start and exports
+it on exit (`Ctrl+C`), so you **seed once** and your data survives restarts. To start clean, delete
+the `.emulator-data/` directory (gitignored) and re-seed.
+
+**Notes:**
+- Nothing here touches production: the client SDK is routed to the emulators by
+  `NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true`, and the Admin SDK by `FIRESTORE_EMULATOR_HOST` — both
+  set automatically by the npm scripts. The emulators run offline under the `demo-net-worth`
+  project id (no `firebase login` required).
+- The external integrations (Yahoo Finance, Frankfurter FX, Anthropic, FRED) still call the real
+  services — only Firestore and Auth are emulated.
+
+### Step 7 (Optional): Browser tests with Playwright
+
+The Vitest suite (`npm test`) covers the pure utilities and services, which is where this codebase
+keeps its logic. What it cannot see is anything that only exists once a browser lays the page out:
+the `desktop:` layout switch at 1440px, an animated collapsible, or a loading state that briefly
+shows the wrong content. That is what the Playwright suite is for.
+
+**Prerequisite — the emulators from Step 6 must already be running**, seeded once:
+
+```bash
+npm run emulators        # terminal 1, leave running
+npm run emulators:seed   # once, the base test account
+```
+
+Then install the browser (first time only) and run the suite:
+
+```bash
+npx playwright install chromium
+npm run test:e2e         # or: npm run test:e2e:ui  (interactive runner)
+```
+
+Playwright starts its own app server on **port 3100** and seeds its fixture automatically — no third
+terminal needed. If the emulators are not up it fails immediately with the two commands above
+rather than a connection stack trace.
+
+**Why port 3100 and a separate build directory:** Next refuses to start a second `next dev` for the
+same project directory whatever the port, because the lock lives inside the build dir. `npm run
+dev:e2e` therefore sets `NEXT_DIST_DIR=.next-e2e` (a conditional line in `next.config.ts`, inert
+everywhere else), so the tests can run while your normal dev server stays up on port 3000 — which
+also guarantees they never point at production data.
+
+**What it covers** (`e2e/`), across five projects — `desktop` (1440px), `mobile` (390px),
+`degraded` (1440px, second account), `analisi` (1440px) and `analisi-mobile` (390px):
+
+- **Previdenza** — layout switch, type scale, the year axis, the collapsible, the primary action's
+  position, that the empty state never flashes while data loads, and the three degraded states
+  (`suspicious` / `idle` / `fresh`).
+- **Analisi** — the focus-URL cold load, search → dossier (including a zero-spend entity and the
+  transfer exclusion), the focus surviving a period switch, the KPI pacing rows, the driver ranking
+  with `Cessata`, the per-subcategory breakdown inside a year row, and the mobile truncation caption.
+
+Three fixture accounts, each seeded by the global setup:
+
+| Script | Account | Why it is separate |
+| --- | --- | --- |
+| `npm run e2e:seed` | base + `test-user-degraded` | Pension data layered on the Step 6 seed; the degraded scenarios take an argument (`suspicious` \| `idle` \| `fresh`) |
+| `npm run e2e:seed:analisi` | `test-user-analisi` | Every expense dated **January**, so year-to-date windows contain them whatever month the suite runs in and every asserted figure stays exact all year. The base seed's current-month expenses would pollute them |
+
+Run either on its own if you want that data in the browser for manual inspection.
+
+**Area exercise scripts** (emulator, rules enforced, not part of the Playwright run):
+`npm run emulators:pension` drives the pension contribution services end to end;
+`npm run emulators:pension-p3` checks the Rendimenti-exclusion and FIRE lock-in wiring on a
+throwaway synthetic account.
+
+**Notes:**
+- Authentication happens once in `e2e/auth.setup.ts` and is reused by every spec via
+  `storageState`. It is captured with `indexedDB: true` because the Firebase Web SDK stores its
+  session there — without that flag the state file looks fine but every spec lands on the login page.
+- The suite runs with `workers: 1`: all specs share one emulator account, so parallel runs would
+  race on it.
+- Chromium only, for every project. The mobile projects are a 390px viewport on Chromium rather than
+  the WebKit-backed iPhone descriptor — one browser to install, and what is under test is the layout
+  at a width, not an engine difference.
+
+---
+
+## Local Verification Troubleshooting
+
+Environment traps that look like code defects. If errors cluster in files you never touched, suspect
+this section before the diff.
+
+### `tsc` reports missing modules right after a branch switch
+
+`node_modules` is shared across branches in one working directory and git does not track it. Checking
+out a branch swaps `package.json` back but not what is physically installed, so packages the new
+branch declares can simply be absent. **The tell is WHERE the errors land**: e.g. ~25 errors, all
+inside `e2e/`, `playwright.config.ts` and `lib/utils/expenseImport.ts` — the files owned by the
+missing `@playwright/test` and `papaparse` — and none in the code being changed. Run `npm install`
+before debugging, or `npm install --no-save <pkg>` for a one-off verification run that leaves the
+manifest and lockfile alone.
+
+### All three Playwright auth setups fail with the "npx playwright install" banner
+
+The Chromium build is missing after a Playwright version bump: `npx playwright install chromium`.
+Errors clustered in the *setups* rather than the specs mean environment, not diff.
+
+### A port is still held after stopping a background process
+
+Stopping a process does not kill its children on Windows: the emulator JVM and the dev server survive
+and keep holding 8080 / 9099 / 4000 / 3100, so the next start fails with `EADDRINUSE` *while the
+service still answers*. Find the real owner and stop it by PID:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8080 -State Listen
+```
+
+### `npm run start` refuses to serve the build
+
+`next.config.ts` sets `output: "standalone"`, so Next warns and refuses. Motion and
+perceived-performance work must be judged on a production build (dev exaggerates cost, and its CSS
+arrives via JS — under throttling it shows an unstyled window production does not have). The working
+recipe, including the two copies Next does **not** do for you (skip them and every asset 404s, so the
+page renders with no styles at all — easily mistaken for a rendering defect):
+
+```powershell
+npm run build
+Copy-Item -Recurse -Force .next/static .next/standalone/.next/static
+Copy-Item -Recurse -Force public .next/standalone/public
+node .next/standalone/server.js
+```
+
+### Font-loading changes cannot be verified in dev
+
+`next/font` emits no `<link rel="preload">` in `next dev` (0 on every route). The build filename
+carries the answer instead: `-s.p.` in the hashed woff2 name means preloaded
+(`797e433a….woff2` with `.p.` = preloaded; without `preload: true` the `.p.` is absent).
+
+### Inspecting or cleaning a few emulator documents
+
+An unauthenticated REST call against the Firestore emulator is silently filtered to an empty result
+by the rules engine rather than erroring — which looks exactly like "no documents exist". Use the
+emulator-only admin bypass token:
+
+```bash
+curl -H "Authorization: Bearer owner" \
+  "http://127.0.0.1:8080/v1/projects/demo-net-worth/databases/(default)/documents/expenses"
+```
+
+Same header with `-X DELETE` on a document path removes it, so a handful of leftovers from a manual
+test run do not require wiping `.emulator-data/`.
 
 ---
 
@@ -312,6 +521,15 @@ The schedule uses standard cron syntax: `minute hour day month dayOfWeek`
 **Suggested production split**:
 - `/api/cron/monthly-snapshot`: `0 18 28-31 * *`
 - `/api/cron/daily-dividend-processing`: keep daily, for example `0 18 * * *`
+
+⚠️ **Trade-off of the month-end schedule.** The daily run is not only a development convenience: it
+is what keeps the *current month's* snapshot close to reality. Anything that changes an asset's
+value immediately — recording a pension contribution is the clearest case — is reflected in the
+asset at once but only reaches the snapshot on the next cron run. Metrics computed from snapshots
+therefore disagree with the live figures until then: a pension contribution understates the fund's
+TWR by its own amount, and the Previdenza hero shows a value the return card is not yet using. With
+the daily schedule that window closes the same evening; with `0 18 28-31 * *` it can last weeks.
+Choose month-end for clean monthly data points, daily for figures that track what you just entered.
 
 **Custom time examples**:
 - `0 22 28-31 * *` - 22:00 UTC (23:00 CET, 00:00 CEST)

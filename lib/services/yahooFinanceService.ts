@@ -6,8 +6,6 @@
  * Features:
  * - Single ticker quotes: getQuote()
  * - Batch quotes: getMultipleQuotes() (parallel fetching with Promise.allSettled)
- * - Ticker search: searchTicker()
- * - Ticker validation: validateTicker()
  *
  * Error Handling Strategy:
  * Returns null prices on failure rather than throwing errors, allowing callers
@@ -15,6 +13,7 @@
  */
 
 import YahooFinance from 'yahoo-finance2';
+import { hasMarketPrice } from '@/lib/utils/assetPricing';
 
 // Create YahooFinance instance (required in v3+)
 const yahooFinance = new YahooFinance();
@@ -98,72 +97,16 @@ export async function getMultipleQuotes(
 }
 
 /**
- * Validate if a ticker exists and can be fetched
- *
- * @param ticker - Ticker symbol to validate
- * @returns True if ticker exists and has a price, false otherwise
- */
-export async function validateTicker(ticker: string): Promise<boolean> {
-  try {
-    const quote = await yahooFinance.quote(ticker);
-    return !!quote && !!quote.regularMarketPrice;
-  } catch (error) {
-    console.error(`Error validating ticker ${ticker}:`, error);
-    return false;
-  }
-}
-
-/**
- * Search for tickers by name or symbol
- *
- * @param query - Search query (company name or ticker symbol)
- * @returns Array of matching results (limited to top 10)
- */
-export async function searchTicker(
-  query: string
-): Promise<Array<{ symbol: string; name: string; exchange: string }>> {
-  try {
-    const results = await yahooFinance.search(query);
-
-    if (!results || !results.quotes) {
-      return [];
-    }
-
-    return results.quotes
-      .filter((quote) => quote.symbol && quote.shortname)
-      .map((quote) => ({
-        symbol: (quote.symbol || '') as string,
-        name: (quote.shortname || quote.longname || '') as string,
-        exchange: (quote.exchange || '') as string,
-      }))
-      .slice(0, 10); // Limit to top 10 results
-  } catch (error) {
-    console.error('Error searching ticker:', error);
-    return [];
-  }
-}
-
-/**
  * Helper to check if asset type requires price updates
  *
- * Determines which asset types support automatic price updates from market data.
+ * Kept as a named export because callers (priceUpdater, AssetDialog) read better with the
+ * intent-revealing verb, but the rule itself lives in `lib/utils/assetPricing.ts` — the
+ * single source of truth shared with the manual-price UI treatment on Patrimonio.
  *
- * @param assetType - Asset class (equity, bonds, cash, realestate, etc.)
+ * @param assetType - Asset type (stock, etf, bond, crypto, commodity, cash, realestate, pensionFund)
  * @param subCategory - Asset subcategory (e.g., "Private Equity")
  * @returns True if asset supports price updates, false otherwise
  */
 export function shouldUpdatePrice(assetType: string, subCategory?: string): boolean {
-  // Real estate and private equity have fixed/manual valuations (not market-traded)
-  // These assets require manual price updates based on appraisals, not market quotes
-  if (assetType === 'realestate' || subCategory === 'Private Equity') {
-    return false;
-  }
-
-  // Cash always has price = 1 (no updates needed)
-  // Cash is the base unit of measurement, not a traded asset
-  if (assetType === 'cash') {
-    return false;
-  }
-
-  return true;
+  return hasMarketPrice(assetType, subCategory);
 }

@@ -5,13 +5,13 @@
  *
  * Key Features:
  * - Dynamic field visibility based on asset type and class
- * - Intelligent defaults for isLiquid and autoUpdatePrice based on asset characteristics
+ * - Type-aware isLiquid default in create mode (suggestIsLiquid + touched-flag, like allocationRole)
  * - Price fetching: manual entry, Yahoo Finance API, or keep existing price
  * - Composition management for multi-asset portfolios (e.g., funds with multiple holdings)
  * - Inline subcategory creation without leaving the form
  * - Outstanding debt tracking for real estate assets
  * - Cost basis tracking for capital gains calculations
- * - Total Expense Ratio (TER) for ETFs and funds
+ * - Total Expense Ratio (TER) for ETFs, commodities and crypto (ETC wrappers)
  *
  * Form State Management:
  * - 10 useState hooks for UI state (composition, toggles, loading states)
@@ -34,15 +34,29 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
-import { Asset, AssetFormData, AssetType, AssetClass, AssetAllocationTarget, AssetComposition, CouponFrequency, BondDetails, CouponRateTier, AnnouncedInflationRate } from '@/types/assets';
-import { createAsset, updateAsset } from '@/lib/services/assetService';
+import { Asset, AssetFormData, AssetType, AssetClass, AllocationRole, AssetAllocationTarget, AssetComposition, CouponFrequency, BondDetails, CouponRateTier, AnnouncedInflationRate } from '@/types/assets';
+import type { PensionFundDetails } from '@/types/pension';
+import { createAsset, updateAsset, updateAssetMetadata } from '@/lib/services/assetService';
+import { isLedgerAssetType, type AssetTransactionFormData } from '@/types/assetTransactions';
+import { deleteAllAssetTransactionsForAsset } from '@/lib/services/assetTransactionService';
+import { useAssets } from '@/lib/hooks/useAssets';
+import { useAssetLedgerMeta, useCreateAssetTransaction } from '@/lib/hooks/useAssetTransactions';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/queryKeys';
+import { formatCurrency } from '@/lib/utils/formatters';
+import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
+import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
+import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { scheduleNextCoupon, scheduleFinalPremium } from '@/lib/services/couponScheduling';
-import { getTargets, addSubCategory } from '@/lib/services/assetAllocationService';
+import { getTargets, addSubCategory, getSettings } from '@/lib/services/assetAllocationService';
+import type { Settings } from '@/types/settings';
 import {
   Dialog,
   DialogContent,
@@ -66,40 +80,24 @@ import { Calculator, Plus, X, BarChart3, Landmark, Bitcoin, Wallet, Home, Packag
 import { Switch } from '@/components/ui/switch';
 
 /**
- * Determines if an asset type should fetch automatic price updates
+ * Determines if an asset type should fetch automatic price updates.
  *
- * Asset types with fixed or manual valuations should not auto-update:
- * - Real estate: Uses property appraisals, not market prices
- * - Private equity: Valuations done periodically by fund managers
- * - Cash: Always has price = 1 (no market fluctuation)
- *
- * All other asset types (stocks, ETFs, bonds, crypto, commodities) fetch prices
- * from Yahoo Finance API for real-time portfolio valuation.
- *
- * @param assetType - The asset type (stock, etf, bond, crypto, commodity, cash, realestate)
- * @param subCategory - Optional subcategory (e.g., "Private Equity" within equity class)
- * @returns true if asset should automatically update prices from Yahoo Finance
+ * Local alias over the shared rule so the ~8 call sites below keep reading in terms of
+ * "should I fetch a price?"; the rule itself lives in `lib/utils/assetPricing.ts` (it is
+ * shared with the price-update cron and with Patrimonio's manual-price row tint, which
+ * used to disagree with this file about `pensionFund`).
  */
-function shouldUpdatePrice(assetType: string, subCategory?: string): boolean {
-  // Real estate, private equity and pension funds have fixed/manual valuations (no market price)
-  if (assetType === 'realestate' || assetType === 'pension' || subCategory === 'Private Equity') {
-    return false;
-  }
-
-  // Cash always has price = 1 (no updates needed)
-  if (assetType === 'cash') {
-    return false;
-  }
-
-  return true;
-}
+const shouldUpdatePrice = hasMarketPrice;
 
 /**
  * Converts a raw price to EUR for bonds using Borsa Italiana's % of par convention.
  * Example: rawPrice=104.2, nominalValue=1000 → 1042€
  * Passthrough for all other asset types or bonds without a qualifying nominal value.
+ *
+ * Exported so `TransactionDialog` reuses the SAME conversion (reuse, never
+ * re-implement) — the trade ledger's `pricePerUnit` must mean exactly what `averageCost` means here.
  */
-function resolveBondPrice(
+export function resolveBondPrice(
   rawPrice: number,
   nominalValue: number | undefined,
   isBondWithIsin: boolean
@@ -200,6 +198,30 @@ function buildBondDetailsFromForm(
 }
 
 /**
+ * Assembles a PensionFundDetails object from validated form values.
+ * Returns undefined when the type isn't pensionFund or none of the fields were filled in — an empty
+ * block is pointless noise on the asset doc (removeUndefinedDeep-equivalent restraint at the source).
+ */
+function buildPensionFundDetailsFromForm(data: AssetFormValues): PensionFundDetails | undefined {
+  if (data.type !== 'pensionFund') return undefined;
+
+  const provider = data.pensionProvider?.trim();
+  const familyMemberId =
+    data.pensionFamilyMemberId && data.pensionFamilyMemberId !== '__none__'
+      ? data.pensionFamilyMemberId
+      : undefined;
+  const hasAnyField = !!provider || !!data.pensionUnlockDate || !!familyMemberId;
+
+  if (!hasAnyField) return undefined;
+
+  return {
+    provider: provider || '',
+    ...(data.pensionUnlockDate ? { unlockDate: data.pensionUnlockDate } : {}),
+    ...(familyMemberId ? { familyMemberId } : {}),
+  };
+}
+
+/**
  * Builds the AssetFormData payload from resolved form values and price data.
  * averageCost uses the same Borsa Italiana % of par convention as currentPrice:
  * entered as BI price, stored in EUR (e.g. user enters 100 → stored as nominalValue€).
@@ -210,58 +232,52 @@ function buildAssetFormDataFromValues(
   fetchedCurrentPriceEur: number | undefined,
   isComposite: boolean,
   composition: AssetComposition[],
-  isBondWithIsin: boolean,
+  isBondWithIsin: boolean
 ): AssetFormData {
   return {
     ticker: data.ticker,
-    // Optional display alias; blank → undefined so it's stripped/cleared rather than stored empty.
-    displayTicker: data.displayTicker?.trim() ? data.displayTicker.trim() : undefined,
+    displayTicker: data.displayTicker && data.displayTicker.trim() !== '' ? data.displayTicker.trim() : undefined,
     name: data.name,
-    isin:
-      data.isin && data.isin.trim() !== '' 
-        ? data.isin.trim().toUpperCase() 
-        : undefined,
+    isin: data.isin && data.isin.trim() !== '' ? data.isin.trim().toUpperCase() : undefined,
     type: data.type,
     assetClass: data.assetClass,
     subCategory: data.subCategory || undefined,
-    leverageRatio: 
-      data.leverageRatio && !isNaN(data.leverageRatio) && data.leverageRatio > 1 
-        ? data.leverageRatio
-        : undefined,
     currency: data.currency,
     quantity: data.quantity,
     averageCost:
       data.averageCost && !isNaN(data.averageCost) && data.averageCost > 0
         ? resolveBondPrice(data.averageCost, data.bondNominalValue, isBondWithIsin)
         : undefined,
-    taxRate: 
-      data.taxRate && !isNaN(data.taxRate) && data.taxRate >= 0
-        ? data.taxRate
-        : undefined,
+    // `data.taxRate &&` would treat an explicit 0 as falsy and drop it like an empty field;
+    // `!== undefined` + `!isNaN` together already exclude the empty-input case (valueAsNumber → NaN).
+    taxRate: data.taxRate !== undefined && !isNaN(data.taxRate) && data.taxRate >= 0 ? data.taxRate : undefined,
     totalExpenseRatio:
       data.totalExpenseRatio && !isNaN(data.totalExpenseRatio) && data.totalExpenseRatio >= 0
         ? data.totalExpenseRatio
+        : undefined,
+    // Leverage is an ETF-only concept; a value of exactly 1 means "no leverage" → store undefined.
+    leverageRatio:
+      data.type === 'etf' && data.leverageRatio && !isNaN(data.leverageRatio) && data.leverageRatio > 1
+        ? data.leverageRatio
         : undefined,
     stampDutyExempt: data.stampDutyExempt || false,
     currentPrice,
     currentPriceEur: fetchedCurrentPriceEur,
     isLiquid: data.isLiquid,
-    autoUpdatePrice: data.autoUpdatePrice,
+    // An asset with no market price can never be auto-updated, so never store `true` for one.
+    // The form default is `true` and the switch is hidden for cash/realestate/pensionFund, so
+    // without this clamp those assets were persisted claiming an auto-update they can't have.
+    autoUpdatePrice: hasMarketPrice(data.type, data.subCategory || undefined)
+      ? data.autoUpdatePrice
+      : false,
     composition: isComposite && composition.length > 0 ? composition : undefined,
     outstandingDebt:
       data.outstandingDebt && !isNaN(data.outstandingDebt) && data.outstandingDebt > 0
         ? data.outstandingDebt
         : undefined,
     isPrimaryResidence: data.isPrimaryResidence || false,
-    // Fondo pensione details — only for the pension type; undefined dates are stripped downstream.
-    pensionFundDetails:
-      data.type === 'pension'
-        ? {
-            provider: data.pensionProvider?.trim() || '',
-            enrollmentDate: data.pensionEnrollmentDate || undefined,
-            unlockDate: data.pensionUnlockDate || undefined,
-          }
-        : undefined,
+    allocationRole: data.allocationRole ?? 'tradable',
+    pensionFundDetails: buildPensionFundDetailsFromForm(data),
   };
 }
 
@@ -304,51 +320,71 @@ async function scheduleCouponDividends(
 const TYPE_TO_CLASS: Record<AssetType, AssetClass> = {
   stock: 'equity',
   etf: 'equity',
-  leveragedEtf: 'equity',
   bond: 'bonds',
   crypto: 'crypto',
   cash: 'cash',
   realestate: 'realestate',
   commodity: 'commodity',
-  pension: 'pension',
+  // A fondo pensione has no asset class of its OWN — its real exposure is the internal comparto mix,
+  // which lives in `Asset.composition` (decision D2: no `AssetClass 'pension'`). Every consumer that
+  // matters reads `composition` when present, so this entry is only the fallback for a fund whose
+  // composition has not been filled in yet; 'equity' is the least-wrong default for the typical
+  // (equity-tilted) comparto. The form always prompts for the composition.
+  pensionFund: 'equity',
 };
 
 // Type picker card definitions for step 1 of the create flow
 const TYPE_CARDS: { type: AssetType; label: string; title: string; Icon: React.ElementType; description: string }[] = [
   { type: 'stock', label: 'Azione', title: 'Nuova Azione', Icon: TrendingUp, description: 'Titoli azionari quotati in borsa' },
   { type: 'etf', label: 'ETF', title: 'Nuovo ETF', Icon: BarChart3, description: 'Fondi indicizzati diversificati' },
-  { type: 'leveragedEtf', label: 'ETF a Leva', title: 'Nuovo ETF a Leva', Icon: BarChart3, description: 'ETF con esposizione a leva, anche su più asset class' },
   { type: 'bond', label: 'Obbligazione', title: 'Nuova Obbligazione', Icon: Landmark, description: 'Titoli di debito con cedole' },
   { type: 'crypto', label: 'Criptovaluta', title: 'Nuova Criptovaluta', Icon: Bitcoin, description: 'Asset digitali decentralizzati' },
   { type: 'cash', label: 'Liquidità', title: 'Nuova Liquidità', Icon: Wallet, description: 'Conti correnti e conti deposito' },
   { type: 'realestate', label: 'Immobile', title: 'Nuovo Immobile', Icon: Home, description: 'Proprietà immobiliari' },
   { type: 'commodity', label: 'Materia Prima', title: 'Nuova Materia Prima', Icon: Package, description: 'Oro, argento, petrolio, ecc.' },
-  { type: 'pension', label: 'Fondo Pensione', title: 'Nuovo Fondo Pensione', Icon: PiggyBank, description: 'Previdenza complementare' },
+  { type: 'pensionFund', label: 'Fondo Pensione', title: 'Nuovo Fondo Pensione', Icon: PiggyBank, description: 'Previdenza complementare, valore da estratto conto' },
 ];
 
 // Zod validation schema for asset form
 // Note: .or(z.nan()) allows undefined values for optional numeric fields
 const assetSchema = z.object({
   ticker: z.string(),
+  // User-facing alias for `ticker`. Purely cosmetic — never
+  // touches price retrieval, which always reads `ticker`. Gated the same as `ticker` itself.
   displayTicker: z.string().optional(),
   name: z.string().min(1, 'Name is required'),
   isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
-  type: z.enum(['stock', 'etf', 'leveragedEtf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pension']),
-  assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry', 'pension']),
+  // Mirrors the AssetType union in types/assets.ts — keep the two in lock-step (tsc catches drift
+  // where the form value is passed back as an AssetType). 'pensionFund' is accepted here from P0 on;
+  // its type card and its dedicated fields land with the pension UI phase.
+  type: z.enum(['stock', 'etf', 'bond', 'crypto', 'commodity', 'cash', 'realestate', 'pensionFund']),
+  // Mirrors the AssetClass union in types/assets.ts (tsc catches drift the same way as `type` above).
+  // 'trendFollowing'/'carry' are accepted here from L0 on but have no picker entry yet in the
+  // `assetClasses` composition-leg Select below — that lands with the leverage UI (phase L2).
+  assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
   subCategory: z.string().optional(),
-  leverageRatio: z.number().gt(1, 'Leverage ratio must be greater than 1').optional().or(z.nan()),
   currency: z.string().min(1, 'Currency is required'),
   quantity: z.number().min(0, 'La quantità non può essere negativa'),
   manualPrice: z.number().positive('Price must be positive').optional().or(z.nan()),
   averageCost: z.number().positive('Average cost must be positive').optional().or(z.nan()),
   taxRate: z.number().min(0, 'Tax rate must be at least 0').max(100, 'Tax rate must be at most 100').optional().or(z.nan()),
   totalExpenseRatio: z.number().min(0, 'TER must be at least 0').max(100, 'TER must be at most 100').optional().or(z.nan()),
+  // Leverage multiplier for a leveraged/composite ETF (2 = 2x). Empty/1 = no leverage. Shown for
+  // type 'etf' only. It is metadata (multiplies notional
+  // exposure), independent of quantity/PMC — so for ledger types it rides updateAssetMetadata.
+  leverageRatio: z.number().min(1, 'La leva deve essere almeno 1').max(10, 'Leva massima 10').optional().or(z.nan()),
   stampDutyExempt: z.boolean().optional(),
   isLiquid: z.boolean().optional(),
   autoUpdatePrice: z.boolean().optional(),
   isComposite: z.boolean().optional(),
   outstandingDebt: z.number().nonnegative('Debt cannot be negative').optional().or(z.nan()),
   isPrimaryResidence: z.boolean().optional(),
+  allocationRole: z.enum(['tradable', 'frozen', 'excluded']).optional(),
+  // Opening-position fields (ledger create only): the first buy's date + optional settlement account.
+  // The opening quantity/price reuse `quantity`/`averageCost` (the price feeds both PMC and
+  // the first buy). Ignored for non-ledger types and in edit mode.
+  openingDate: z.string().optional(),
+  openingCashAssetId: z.string().optional(),
   // Bond coupon details (optional, only shown for type=bond + assetClass=bonds)
   bondCouponRate: z.number().min(0).max(100).optional().or(z.nan()),
   bondCouponFrequency: z.enum(['monthly', 'quarterly', 'semiannual', 'annual']).optional(),
@@ -366,12 +402,16 @@ const assetSchema = z.object({
   // Inflation-linked (BTP Italia Sì): coupon = fixed minimum + announced FOI inflation.
   // The announced rates themselves are managed from the Dividendi tab, not this form.
   bondIsInflationLinked: z.boolean().optional(),
-  // Fondo pensione details (optional, only shown for type=pension). Dates are ISO 'YYYY-MM-DD'.
+  // Fondo pensione details (type 'pensionFund' only) — dates as ISO strings (types/pension.ts).
+  // enrollmentDate/firstEmploymentDate/isFirstEmploymentPost2007 were removed from this form: they
+  // were never read by any calculation (only unlockDate is, for the FIRE lock-in), and now that RAL
+  // and "prima occupazione" live per family member in Settings, keeping a second unused copy here
+  // was actively confusing next to the new "Membro famiglia" field.
   pensionProvider: z.string().optional(),
-  pensionEnrollmentDate: z.string().optional(),
   pensionUnlockDate: z.string().optional(),
+  pensionFamilyMemberId: z.string().optional(),
 }).superRefine((data, ctx) => {
-  const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pension';
+  const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pensionFund';
   if (tickerRequired && (!data.ticker || data.ticker.trim().length === 0)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ticker is required', path: ['ticker'] });
   }
@@ -383,18 +423,49 @@ interface AssetDialogProps {
   open: boolean;
   onClose: () => void;
   asset?: Asset | null;
+  /**
+   * Opens the TransactionDialog for a ledger asset from the edit-mode read-only summary block
+   * ("Registra operazione"). Only wired where a TransactionDialog host exists (the Patrimonio page).
+   */
+  onRegisterTrade?: (asset: Asset) => void;
 }
 
 const assetTypes: { value: AssetType; label: string }[] = [
   { value: 'stock', label: 'Azione' },
   { value: 'etf', label: 'ETF' },
-  { value: 'leveragedEtf', label: 'ETF a Leva'},
   { value: 'bond', label: 'Obbligazione' },
   { value: 'crypto', label: 'Criptovaluta' },
   { value: 'commodity', label: 'Materia Prima' },
   { value: 'cash', label: 'Liquidità' },
   { value: 'realestate', label: 'Immobile' },
-  { value: 'pension', label: 'Fondo Pensione' },
+  { value: 'pensionFund', label: 'Fondo Pensione' },
+];
+
+/**
+ * The three allocation roles, in the order a user should reason about them: the default first, then
+ * the two ways an asset can be untouchable. The descriptions name the calculation each one drives —
+ * without that, three near-identical switches (this, "Asset Liquido", "Casa di Abitazione") are
+ * indistinguishable, which is exactly how the earlier boolean version misled.
+ */
+const ALLOCATION_ROLE_OPTIONS: { value: AllocationRole; label: string; description: string }[] = [
+  {
+    value: 'tradable',
+    label: 'Ribilanciabile',
+    description:
+      'Lo puoi comprare e vendere liberamente. Conta nelle percentuali e compare in Ribilancia, Versa e Preleva. È il caso normale: ETF, azioni, obbligazioni, liquidità.',
+  },
+  {
+    value: 'frozen',
+    label: 'Non negoziabile',
+    description:
+      'È denaro investito a tutti gli effetti, ma non lo puoi muovere: fondo pensione vincolato, private equity. Conta nelle percentuali (così vedi il rischio vero), ma i piani non lo toccano mai e raggiungono il target muovendo gli altri asset.',
+  },
+  {
+    value: 'excluded',
+    label: "Escluso dall'allocazione",
+    description:
+      "Non fa parte del portafoglio investito: la casa in cui vivi. Esce del tutto dalla pagina Allocazione, denominatore incluso — tenercelo dentro terrebbe la classe Immobili fuori target per sempre, contro una vendita che non farai mai.",
+  },
 ];
 
 const assetClasses: { value: AssetClass; label: string }[] = [
@@ -406,22 +477,41 @@ const assetClasses: { value: AssetClass; label: string }[] = [
   { value: 'commodity', label: 'Materie Prime' },
   { value: 'trendFollowing', label: 'Trend Following' },
   { value: 'carry', label: 'Carry' },
-  { value: 'pension', label: 'Fondo Pensione' },
 ];
 
-export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
+export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDialogProps) {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<1 | 2>(1);
   const isEdit = !!asset;
+
+  // Trade-ledger wiring (Phase C). Ledger assets (stock/etf/bond/crypto/commodity) manage quantity
+  // and PMC through the ledger: edit becomes metadata-only, create opens the position as a first buy.
+  const { data: ledgerMeta } = useAssetLedgerMeta(ownerId);
+  const { data: ledgerAllAssets = [] } = useAssets(ownerId);
+  const createTradeMutation = useCreateAssetTransaction(ownerId || '');
+  // Family members for the "Membro famiglia" Select on the pensionFund details section — sourced
+  // from Settings (Impostazioni → Preferenze → Famiglia), same queryKey every other settings
+  // consumer uses so a save there is picked up here too.
+  const { data: settings } = useQuery<Settings | null>({
+    queryKey: ['settings', ownerId],
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!ownerId,
+  });
+  const ledgerCashAssets = ledgerAllAssets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const [allocationTargets, setAllocationTargets] = useState<AssetAllocationTarget | null>(null);
-  const [loadingTargets, setLoadingTargets] = useState(false);
   const [showNewSubCategory, setShowNewSubCategory] = useState(false);
   const [newSubCategoryName, setNewSubCategoryName] = useState('');
   const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
   const [composition, setComposition] = useState<AssetComposition[]>([]);
   const [isComposite, setIsComposite] = useState(false);
   const [hasOutstandingDebt, setHasOutstandingDebt] = useState(false);
+  // True once the user has picked an allocation role by hand — from then on the type/sub-category
+  // driven suggestion stops overriding their choice.
+  const [allocationRoleTouched, setAllocationRoleTouched] = useState(false);
+  const [isLiquidTouched, setIsLiquidTouched] = useState(false);
   const [showCostBasis, setShowCostBasis] = useState(false);
   const [showTER, setShowTER] = useState(false);
   const [showBondDetails, setShowBondDetails] = useState(false);
@@ -445,7 +535,8 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
       isComposite: false,
       outstandingDebt: undefined,
       isPrimaryResidence: false,
-      leverageRatio: undefined,
+      allocationRole: 'tradable',
+      openingCashAssetId: '__none__',
     },
   });
 
@@ -470,10 +561,21 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
   const watchBondIsInflationLinked = useWatch({ control, name: 'bondIsInflationLinked' });
   const watchAverageCost = useWatch({ control, name: 'averageCost' });
   const watchIsPrimaryResidence = useWatch({ control, name: 'isPrimaryResidence' });
+  const watchAllocationRole = useWatch({ control, name: 'allocationRole' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
+  const watchOpeningCashAssetId = useWatch({ control, name: 'openingCashAssetId' });
+  const watchPensionFamilyMemberId = useWatch({ control, name: 'pensionFamilyMemberId' });
 
-  const isLeveragedEtf = selectedType === 'leveragedEtf';
-
+  // Ledger gating (Phase C):
+  //  - isLedgerEdit: editing a ledger asset → quantity/PMC are read-only, submit via updateAssetMetadata.
+  //  - isLedgerCreate: creating a ledger type → the quantity/price fields become the opening position.
+  //  - ledgerCreateReady: the ledger meta doc exists, so the first-buy Admin route will accept the trade.
+  //    While meta is absent we degrade to today's behavior (write quantity/PMC directly, no ledger).
+  const isLedgerEdit = isEdit && !!asset && isLedgerAssetType(asset.type);
+  const isLedgerCreate = !isEdit && !!selectedType && isLedgerAssetType(selectedType);
+  const ledgerCreateReady = isLedgerCreate && ledgerMeta != null;
+  const todayIso = new Date().toISOString().split('T')[0];
+  const baselineIso = ledgerMeta ? ledgerMeta.baselineDate.toISOString().split('T')[0] : undefined;
   // True when the bond qualifies for % of par ↔ EUR conversion:
   // must have ISIN (triggers Borsa Italiana pricing) AND nominalValue > 1.
   // Used to conditionally show % labels and apply the conversion on save.
@@ -484,53 +586,65 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     (watchBondNominalValue ?? 0) > 1;
 
   // Field visibility based on asset type — applies to both create and edit modes.
-  const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pension';
-  const newAsset_showISIN = selectedType === 'stock' || selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'bond';
-  const newAsset_quantityLabel =
-    selectedType === 'cash' ? 'Saldo'
-    : selectedType === 'realestate' ? 'Valore stimato'
-    : selectedType === 'pension' ? 'Valore attuale'
-    : 'Quantità';
-  const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pension';
-  const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pension';
-  const newAsset_showTER = selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'stock';
-  const newAsset_showComposition = selectedType === 'etf' || selectedType === 'leveragedEtf' || selectedType === 'pension';
-  const newAsset_showLeverageRatio = isLeveragedEtf;
-  // ETFs can hold any asset class (bond ETF, commodity ETF, Trend Following/Carry ETF, ...) —
-  // TYPE_TO_CLASS only seeds a default ('equity') at step 1, so the class must stay overridable
-  // in create mode too, not just edit mode.
-  const newAsset_showAssetClassOverride = selectedType === 'etf' || selectedType === 'leveragedEtf';
+  const newAsset_showTicker = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
+  const newAsset_showISIN = selectedType === 'stock' || selectedType === 'etf' || selectedType === 'bond';
+  const newAsset_quantityLabel = selectedType === 'cash' ? 'Saldo' : selectedType === 'realestate' ? 'Valore stimato' : selectedType === 'pensionFund' ? 'Valore attuale' : 'Quantità';
+  const newAsset_showAutoUpdate = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
+  const newAsset_showCostBasis = selectedType !== 'cash' && selectedType !== 'realestate' && selectedType !== 'pensionFund';
+  // TER applies to funds/ETC (ongoing management fee), never to a single stock. `commodity` and
+  // `crypto` both double as either a direct spot holding (no TER) or an ETC wrapper around that
+  // same underlying (e.g. WisdomTree Agriculture AIGA.MI, WisdomTree Physical Bitcoin) — the toggle
+  // stays opt-in and off by default, so exposing it costs nothing for the spot case.
+  const newAsset_showTER = selectedType === 'etf' || selectedType === 'commodity' || selectedType === 'crypto';
+  // Leva: only ETFs can be leveraged/composite instruments.
+  const newAsset_showLeverage = selectedType === 'etf';
+  const newAsset_showComposition = selectedType === 'etf' || selectedType === 'pensionFund';
 
   // Determine price source based on asset type
   const priceSource = selectedType === 'bond' && selectedAssetClass === 'bonds'
     ? 'Borsa Italiana'
     : 'Yahoo Finance';
-  // Set intelligent defaults for isLiquid and autoUpdatePrice based on asset class
-  // Why intelligent defaults? Reduces user errors and form friction.
-  // - Equity/bonds → liquid, auto-update enabled (traded on markets)
-  // - Real estate → not liquid, manual pricing (property appraisals)
-  // - Cash → liquid, no updates (price always 1)
+  // `autoUpdatePrice` has no type-driven default: it is clamped at the boundary instead — see
+  // `buildAssetFormDataFromValues`. `isLiquid` gets a create-mode suggestion below (touched-flag
+  // pattern, same as allocationRole); what the switch says at submit is persisted as-is.
+
+  // Suggest an allocation role for the two archetypal untouchable holdings, each getting the role
+  // that actually fits it: a property is `excluded` (it is not an investment), private equity is
+  // `frozen` (it IS an investment, you just cannot move it). This is a FORM default — visible in the
+  // select before saving and one click from changed — never a read-time fallback: no existing
+  // asset's role changes without the user asking. Once they pick a role, we stop steering.
   useEffect(() => {
-    if (selectedAssetClass) {
-      // Default for isLiquid: most assets are liquid except real estate and private equity
-      const defaultIsLiquid =
-        selectedAssetClass !== 'realestate' &&
-        selectedAssetClass !== 'pension' &&
-        selectedSubCategory !== 'Private Equity';
-
-      // Default for autoUpdatePrice: use shouldUpdatePrice logic
-      const defaultAutoUpdatePrice = shouldUpdatePrice(selectedType, selectedSubCategory);
-
-      // Only set if user hasn't explicitly changed the value
-      // This preserves user intent when they toggle these fields manually
-      if (watchIsLiquid === undefined) {
-        setValue('isLiquid', defaultIsLiquid);
-      }
-      if (watchAutoUpdatePrice === undefined) {
-        setValue('autoUpdatePrice', defaultAutoUpdatePrice);
-      }
+    if (isEdit || allocationRoleTouched) return;
+    const suggested: AllocationRole =
+      selectedAssetClass === 'realestate'
+        ? 'excluded'
+        : selectedSubCategory === 'Private Equity' || selectedType === 'pensionFund'
+          ? 'frozen'
+          : 'tradable';
+    if (watchAllocationRole !== suggested) {
+      setValue('allocationRole', suggested);
     }
-  }, [selectedAssetClass, selectedSubCategory, selectedType, watchIsLiquid, watchAutoUpdatePrice, setValue]);
+  }, [
+    isEdit,
+    allocationRoleTouched,
+    selectedAssetClass,
+    selectedSubCategory,
+    selectedType,
+    watchAllocationRole,
+    setValue,
+  ]);
+
+  // Same touched-flag pattern for liquidity: a property, a pension fund or a Private
+  // Equity position created without touching the switch must NOT enter liquid net worth.
+  // FORM default only — visible on the switch before saving, steering stops at the first
+  // manual toggle, and no existing asset changes without the user asking (edit is out).
+  useEffect(() => {
+    if (isEdit || isLiquidTouched) return;
+    const suggested = suggestIsLiquid(selectedType, selectedSubCategory);
+    if (watchIsLiquid !== suggested) {
+      setValue('isLiquid', suggested);
+    }
+  }, [isEdit, isLiquidTouched, selectedType, selectedSubCategory, watchIsLiquid, setValue]);
 
   // Auto-activate bond detail toggles for new bond assets
   // When type=bond and assetClass=bonds, automatically open the bond details and cost basis sections
@@ -551,12 +665,6 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     }
   }, [watchIsComposite]);
 
-  useEffect(() => {
-    if (selectedType !== 'leveragedEtf') {
-      setValue('leverageRatio', undefined);
-    }
-  }, [selectedType, setValue]);
-
   // Load allocation targets when dialog opens
   useEffect(() => {
     if (open && user) {
@@ -565,16 +673,13 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
   }, [open, user]);
 
   const loadAllocationTargets = async () => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     try {
-      setLoadingTargets(true);
-      const targets = await getTargets(user.uid);
+      const targets = await getTargets(ownerId);
       setAllocationTargets(targets);
     } catch (error) {
       console.error('Error loading allocation targets:', error);
-    } finally {
-      setLoadingTargets(false);
     }
   };
 
@@ -583,16 +688,19 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     // Without `open` in deps, `asset` stays null between opens and the effect never re-fires.
     if (!open) return;
     setStep(asset ? 2 : 1);
+    setAllocationRoleTouched(false);
+    setIsLiquidTouched(false);
 
     if (asset) {
-      // Determine default for isLiquid if not set
+      // Legacy fallback for documents saved before `isLiquid` existed — the same
+      // predicate as the create-mode suggestion and calculateLiquidNetWorth.
       const defaultIsLiquid = asset.isLiquid !== undefined
         ? asset.isLiquid
-        : (asset.assetClass !== 'realestate' && asset.assetClass !== 'pension' && asset.subCategory !== 'Private Equity');
+        : suggestIsLiquid(asset.type, asset.subCategory);
 
       reset({
         ticker: asset.ticker,
-        displayTicker: asset.displayTicker || '',
+        displayTicker: asset.displayTicker || undefined,
         name: asset.name,
         type: asset.type,
         assetClass: asset.assetClass,
@@ -623,20 +731,24 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               : undefined,
           };
         })(),
-        taxRate: asset.taxRate || undefined,
+        // `?? undefined`, not `||`: a saved taxRate of 0 is legitimate and must survive a
+        // round-trip through edit (`||` would treat 0 as falsy and blank the field).
+        taxRate: asset.taxRate ?? undefined,
         totalExpenseRatio: asset.totalExpenseRatio || undefined,
+        leverageRatio: asset.leverageRatio || undefined,
         stampDutyExempt: asset.stampDutyExempt || false,
         isLiquid: defaultIsLiquid,
         autoUpdatePrice: asset.autoUpdatePrice !== undefined ? asset.autoUpdatePrice : shouldUpdatePrice(asset.type, asset.subCategory),
         isComposite: !!(asset.composition && asset.composition.length > 0),
         outstandingDebt: asset.outstandingDebt || undefined,
         isPrimaryResidence: asset.isPrimaryResidence || false,
+        allocationRole: resolveAllocationRole(asset),
         isin: asset.isin || undefined,
-        leverageRatio: asset.leverageRatio || undefined,
-        // Fondo pensione details (dates stored as ISO strings → used directly by <input type="date">).
-        pensionProvider: asset.pensionFundDetails?.provider || '',
-        pensionEnrollmentDate: asset.pensionFundDetails?.enrollmentDate || '',
-        pensionUnlockDate: asset.pensionFundDetails?.unlockDate || '',
+        openingDate: todayIso,
+        openingCashAssetId: '__none__',
+        pensionProvider: asset.pensionFundDetails?.provider || undefined,
+        pensionUnlockDate: asset.pensionFundDetails?.unlockDate || undefined,
+        pensionFamilyMemberId: asset.pensionFundDetails?.familyMemberId || '__none__',
       });
 
       if (asset.composition && asset.composition.length > 0) {
@@ -687,25 +799,28 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     } else {
       reset({
         ticker: '',
-        displayTicker: '',
+        displayTicker: undefined,
         name: '',
         isin: undefined,
         type: 'etf',
         assetClass: 'equity',
         subCategory: '',
-        leverageRatio: undefined,
         currency: 'EUR',
         quantity: 0,
         manualPrice: undefined,
         averageCost: undefined,
         taxRate: undefined,
         totalExpenseRatio: undefined,
+        leverageRatio: undefined,
         stampDutyExempt: false,
         isLiquid: true,
         autoUpdatePrice: true,
         isComposite: false,
         outstandingDebt: undefined,
         isPrimaryResidence: false,
+        allocationRole: 'tradable',
+        openingDate: todayIso,
+        openingCashAssetId: '__none__',
         bondCouponRate: undefined,
         bondCouponFrequency: undefined,
         bondIssueDate: undefined,
@@ -714,6 +829,9 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
         bondCouponRateSchedule: [],
         bondFinalPremiumRate: undefined,
         bondIsInflationLinked: false,
+        pensionProvider: undefined,
+        pensionUnlockDate: undefined,
+        pensionFamilyMemberId: '__none__',
       });
       replaceTiers([]);
       setComposition([]);
@@ -753,14 +871,14 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
   };
 
   const handleAddSubCategory = async () => {
-    if (!user || !selectedAssetClass || !newSubCategoryName.trim()) {
+    if (!user || !ownerId || !selectedAssetClass || !newSubCategoryName.trim()) {
       toast.error('Inserisci un nome per la sottocategoria');
       return;
     }
 
     try {
       setIsAddingSubCategory(true);
-      await addSubCategory(user.uid, selectedAssetClass, newSubCategoryName.trim());
+      await addSubCategory(ownerId, selectedAssetClass, newSubCategoryName.trim());
       toast.success(`Sottocategoria "${newSubCategoryName}" creata con successo!`);
 
       // Ricarica i targets per ottenere la nuova sottocategoria
@@ -858,7 +976,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
    * 4. If all fail → set price to 0 as indicator for manual update
    */
   const onSubmit = async (data: AssetFormValues) => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     if (isSubCategoryEnabled() && !data.subCategory) {
       toast.error('La sottocategoria è obbligatoria per questa classe di asset');
@@ -866,11 +984,6 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
     }
 
     if (isComposite && !validateComposition()) {
-      return;
-    }
-
-    if (data.type === 'leveragedEtf' && (!data.leverageRatio || data.leverageRatio <= 1)) {
-      toast.error('Il leverage ratio deve essere maggiore di 1 per un ETF a leva');
       return;
     }
 
@@ -884,14 +997,45 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
         data.assetClass === 'bonds' &&
         !!(data.isin?.trim());
 
+      // Ledger flows (Phase C): edit is metadata-only; create opens the position as a first buy.
+      const ledgerEditFlow = !!asset && isLedgerAssetType(asset.type);
+      const ledgerCreateFlow = !asset && isLedgerAssetType(data.type) && ledgerMeta != null;
+
       // Step 1: Resolve current price using priority chain:
-      //   Path 1 — manual entry (highest priority)
+      //   Path 0 — ledger create: fetch the live market price for the asset's currentPrice (same rule
+      //            as the classic path), while the first BUY keeps the entered purchase price
+      //            (historical, what you paid). Fallback to the purchase price when no quote.
+      //   Path 1 — manual entry
       //   Path 2 — fetch from Borsa Italiana / Yahoo Finance
       //   Path 3 — default 1 (cash, real estate, private equity)
       let currentPrice = 1;
       let fetchedCurrentPriceEur: number | undefined;
+      // The opening BUY's price (native), kept separate from currentPrice so a freshly created
+      // position shows a real market value + G/P instead of a flat 0% until the next refresh.
+      let ledgerOpeningPrice = 0;
 
-      if (data.manualPrice && !isNaN(data.manualPrice) && data.manualPrice > 0) {
+      if (ledgerCreateFlow) {
+        ledgerOpeningPrice =
+          data.averageCost && !isNaN(data.averageCost) && data.averageCost > 0
+            ? resolveBondPrice(data.averageCost, data.bondNominalValue, isBondWithIsin)
+            : 0;
+        if (ledgerOpeningPrice <= 0) {
+          toast.error('Inserisci un prezzo di acquisto valido');
+          return;
+        }
+        if (shouldUpdatePrice(data.type, data.subCategory)) {
+          const fetched = await fetchMarketPrice(data.ticker, data.isin, data.bondNominalValue, isBondWithIsin);
+          if (fetched.price > 0) {
+            currentPrice = fetched.price;
+            if (fetched.currency) data.currency = fetched.currency;
+            fetchedCurrentPriceEur = fetched.priceEur;
+          } else {
+            currentPrice = ledgerOpeningPrice; // no quote → seed with the purchase price
+          }
+        } else {
+          currentPrice = ledgerOpeningPrice;
+        }
+      } else if (data.manualPrice && !isNaN(data.manualPrice) && data.manualPrice > 0) {
         currentPrice = resolveBondPrice(data.manualPrice, data.bondNominalValue, isBondWithIsin);
         toast.success(`Prezzo manuale impostato: ${currentPrice.toFixed(2)} ${data.currency}`);
       } else if (shouldUpdatePrice(data.type, data.subCategory)) {
@@ -910,23 +1054,84 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
 
       // Step 3: Persist asset
       let savedAssetId: string;
-      if (asset) {
-        // Keep existing price for assets that do not participate in market pricing
+      if (ledgerEditFlow && asset) {
+        // LEDGER EDIT — metadata only. Ledger types derive quantity/PMC from the trade ledger, so
+        // this path MUST NOT go through updateAsset: its undefined→deleteField() for averageCost
+        // would wipe the PMC on every metadata save. Strip the derived fields.
+        if (!shouldUpdatePrice(data.type, data.subCategory)) {
+          formData.currentPrice = asset.currentPrice;
+        }
+        const { quantity: _ledgerQty, averageCost: _ledgerPmc, ...metadata } = formData;
+        await updateAssetMetadata(asset.id, metadata);
+        savedAssetId = asset.id;
+        toast.success('Asset aggiornato con successo');
+
+        // Conversion to pensionFund: the asset leaves the
+        // ledger for good — pensionFund is not a LEDGER_ASSET_TYPE, so its trades would otherwise
+        // sit as an orphan the Rendimenti "Capitale investito" aggregation still sums. Delete them
+        // rather than leave a number that quietly stops matching the page it came from. Best-effort:
+        // a failure here does not roll back the (already successful) type conversion.
+        if (data.type === 'pensionFund' && ownerId) {
+          try {
+            await deleteAllAssetTransactionsForAsset(ownerId, asset.id);
+          } catch (cleanupError) {
+            console.error('Failed to clean up ledger trades after pensionFund conversion:', cleanupError);
+            toast.error('Asset convertito, ma la pulizia del registro operazioni è fallita.');
+          }
+        }
+      } else if (asset) {
+        // Classic edit (cash / realestate): keep existing price for non-market-priced assets.
         if (!shouldUpdatePrice(data.type, data.subCategory)) {
           formData.currentPrice = asset.currentPrice;
         }
         await updateAsset(asset.id, formData);
         savedAssetId = asset.id;
         toast.success('Asset aggiornato con successo');
+      } else if (ledgerCreateFlow) {
+        // LEDGER CREATE — the asset opens EMPTY (quantity 0, no PMC); the first buy opens the
+        // position (which writes the derived quantity/PMC back onto the asset). NON-ATOMIC by
+        // design: if the buy fails, the asset survives at quantity 0 (recoverable) and the user
+        // retries via «Registra operazione». We accept the two-step gap for a simpler create flow.
+        const openingQty = data.quantity;
+        if (isNaN(openingQty) || openingQty <= 0) {
+          toast.error('Inserisci una quantità valida');
+          return;
+        }
+        savedAssetId = await createAsset(ownerId, { ...formData, quantity: 0, averageCost: undefined });
+        const settlement =
+          data.openingCashAssetId && data.openingCashAssetId !== '__none__'
+            ? data.openingCashAssetId
+            : undefined;
+        const firstBuy: AssetTransactionFormData = {
+          assetId: savedAssetId,
+          type: 'buy',
+          date: data.openingDate ? new Date(data.openingDate) : new Date(),
+          quantity: openingQty,
+          pricePerUnit: ledgerOpeningPrice, // the historical purchase price (bond/GBp-resolved in Step 1)
+          linkedCashAssetId: settlement,
+        };
+        try {
+          await createTradeMutation.mutateAsync(firstBuy);
+        } catch (buyError) {
+          console.error('First-buy failed after asset creation:', buyError);
+          // Refresh so the qty-0 asset appears; keep the dialog open with the error for a retry.
+          queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(ownerId) });
+          const message = buyError instanceof Error ? buyError.message : "Registrazione dell'acquisto fallita.";
+          toast.error(`Asset creato, ma l'acquisto non è stato registrato: ${message}`);
+          return; // do NOT onClose — recoverable state
+        }
+        toast.success('Asset creato con successo');
       } else {
-        savedAssetId = await createAsset(user.uid, formData);
+        // Classic create (non-ledger, or ledger without meta → writes quantity/PMC directly).
+        savedAssetId = await createAsset(ownerId, formData);
         toast.success('Asset creato con successo');
       }
 
       // Step 4: Schedule coupon dividends for bonds with configured coupon details
       if (bondDetailsValue) {
         try {
-          await scheduleCouponDividends(bondDetailsValue, data, savedAssetId, user.uid);
+          await scheduleCouponDividends(bondDetailsValue, data, savedAssetId, ownerId);
         } catch (couponError) {
           // Non-critical: asset was saved; coupon generation failed
           console.error('Error generating coupon dividend:', couponError);
@@ -942,6 +1147,41 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
       setFetchingPrice(false);
     }
   };
+
+  // taxRate is asset metadata, not a ledger concept: the trade ledger derives quantity/PMC from
+  // operations, but a single tax rate covers both capital gains AND dividends/coupons for the
+  // asset (decision: one field, no separate dividendTaxRate). A render helper (not a nested
+  // component) keeps one input registered across the three branches — non-ledger, ledger edit,
+  // ledger create — without remounting it on every parent render.
+  const renderTaxRateField = () => (
+    <div className="space-y-2">
+      <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
+      <Input
+        id="taxRate"
+        type="number"
+        step="0.01"
+        min="0"
+        max="100"
+        {...register('taxRate', { valueAsNumber: true })}
+        placeholder="es. 26"
+      />
+      {errors.taxRate && (
+        <p className="text-sm text-red-500">{errors.taxRate.message}</p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Percentuale di tassazione su plusvalenze e proventi (dividendi/cedole) (es. 26 per 26%)
+      </p>
+      {(selectedType === 'bond' || selectedAssetClass === 'bonds') && (
+        <button
+          type="button"
+          onClick={() => setValue('taxRate', 12.5)}
+          className="text-xs text-primary underline hover:no-underline"
+        >
+          Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -1008,6 +1248,38 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
             </button>
           )}
 
+          {/* Classe Asset — ETF only, create mode.
+              Every other type is silently derived from TYPE_TO_CLASS: an equity ETF, a bond ETF and
+              a money-market ETF (e.g. XEON) are all `type: 'etf'`, and only the class tells them
+              apart — that ambiguity doesn't exist for stock/bond/crypto/etc, so they don't get a
+              picker. Defaults to 'equity' (set by `handleTypeSelect` in step 1), editable here
+              before the suggestion effects below fire (allocationRole off `selectedAssetClass`,
+              isLiquid off type/subCategory). Trend Following/Carry have no dedicated color/target yet in
+              Impostazioni (AGENTS.md → Leva L0) — offered anyway since they exist for leveraged ETFs. */}
+          {!isEdit && selectedType === 'etf' && (
+            <div className="space-y-2">
+              <Label htmlFor="assetClassEtf">Classe Asset *</Label>
+              <Select
+                value={selectedAssetClass}
+                onValueChange={(value) => setValue('assetClass', value as AssetClass)}
+              >
+                <SelectTrigger id="assetClassEtf">
+                  <SelectValue placeholder="Seleziona classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assetClasses.map((assetClass) => (
+                    <SelectItem key={assetClass.value} value={assetClass.value}>
+                      {assetClass.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.assetClass && (
+                <p className="text-sm text-red-500">{errors.assetClass.message}</p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ticker hidden for cash/realestate (no market price needed) */}
             {newAsset_showTicker && (
@@ -1037,19 +1309,17 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
             </div>
           </div>
 
-          {/* Display alias — shown instead of the ticker across the whole app. Only meaningful when
-              there's a ticker (hidden for cash/realestate, same gate as the ticker field). */}
+          {/* Alias visualizzato — hidden alongside the ticker */}
           {newAsset_showTicker && (
           <div className="space-y-2">
             <Label htmlFor="displayTicker">Alias visualizzato</Label>
             <Input
               id="displayTicker"
               {...register('displayTicker')}
-              placeholder="es. CL2 (lascia vuoto per usare il ticker)"
+              placeholder="es. CL2"
             />
             <p className="text-xs text-muted-foreground">
-              Nome breve mostrato al posto del ticker in tutta l&apos;app (Patrimonio, Allocazione,
-              grafici…). Il ticker resta invariato per l&apos;aggiornamento automatico dei prezzi.
+              Se impostato, sostituisce il ticker in tutta l&apos;app. Il ticker resta invariato per l&apos;aggiornamento prezzi.
             </p>
           </div>
           )}
@@ -1062,6 +1332,12 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               id="isin"
               {...register('isin')}
               placeholder="IE00B3RBWM25"
+              disabled={
+                // Enable for stocks/ETFs in equity class (dividends)
+                !((selectedType === 'stock' || selectedType === 'etf') && selectedAssetClass === 'equity') &&
+                // Enable for bonds in bonds class (price scraping)
+                !(selectedType === 'bond' && selectedAssetClass === 'bonds')
+              }
             />
             {errors.isin && (
               <p className="text-sm text-red-500">{errors.isin.message}</p>
@@ -1079,7 +1355,16 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               <Label htmlFor="type">Tipo *</Label>
               <Select
                 value={selectedType}
-                onValueChange={(value) => setValue('type', value as AssetType)}
+                onValueChange={(value) => {
+                  const newType = value as AssetType;
+                  setValue('type', newType);
+                  // Re-derive the class from the new type, mirroring create's `handleTypeSelect` —
+                  // except for `etf`, whose class stays whatever the user set in the Select below
+                  // (decision 6: only ETF exposes a class choice; every other type is type-derived).
+                  if (newType !== 'etf') {
+                    setValue('assetClass', TYPE_TO_CLASS[newType]);
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona tipo" />
@@ -1122,37 +1407,6 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
                 </p>
               )}
             </div>
-          </div>
-          )}
-
-          {/* AssetClass override — create mode, ETF/ETF a Leva only (they can hold any class;
-              step 1 only seeds the 'equity' default). Non-ETF types have a fixed type→class
-              mapping (see TYPE_TO_CLASS) so no override is needed for them at creation time. */}
-          {!isEdit && newAsset_showAssetClassOverride && (
-          <div className="space-y-2">
-            <Label htmlFor="assetClass">Classe Asset *</Label>
-            <Select
-              value={selectedAssetClass}
-              onValueChange={(value) =>
-                setValue('assetClass', value as AssetClass)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleziona classe" />
-              </SelectTrigger>
-              <SelectContent>
-                {assetClasses.map((assetClass) => (
-                  <SelectItem key={assetClass.value} value={assetClass.value}>
-                    {assetClass.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.assetClass && (
-              <p className="text-sm text-red-500">
-                {errors.assetClass.message}
-              </p>
-            )}
           </div>
           )}
 
@@ -1230,7 +1484,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className={`space-y-2${(isLedgerEdit || isLedgerCreate) ? ' sm:col-span-2' : ''}`}>
               <Label htmlFor="currency">Valuta *</Label>
               <Input
                 id="currency"
@@ -1242,6 +1496,9 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               )}
             </div>
 
+            {/* Quantity input — hidden for ledger types: on edit it is read-only (managed by the
+                ledger), on create it moves into the "Posizione iniziale" section below. */}
+            {!isLedgerEdit && !isLedgerCreate && (
             <div className="space-y-2">
               {/* Label varies by type: cash = Saldo, realestate = Valore stimato, others = Quantità */}
               <Label htmlFor="quantity">{`${newAsset_quantityLabel} *`}</Label>
@@ -1267,23 +1524,287 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
                 </p>
               )}
             </div>
+            )}
           </div>
 
-          {/* Liquidità */}
+          {/* LEDGER EDIT — quantity + PMC are read-only (managed by the trade ledger). The two
+              advisory hints and the cost-basis toggle/calculator are intentionally absent here. */}
+          {isLedgerEdit && asset && (
+            <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm text-foreground">
+                Quantità e PMC sono gestiti dal registro operazioni.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Quantità</p>
+                  <p className="font-mono text-sm font-semibold text-foreground tabular-nums">
+                    {asset.quantity.toLocaleString('it-IT', { maximumFractionDigits: 8 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">PMC</p>
+                  <p className="font-mono text-sm font-semibold text-foreground tabular-nums">
+                    {asset.averageCost ? formatCurrency(asset.averageCost, asset.currency, 4) : '—'}
+                  </p>
+                </div>
+              </div>
+              {newAsset_showCostBasis && renderTaxRateField()}
+              {onRegisterTrade && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    onRegisterTrade(asset);
+                  }}
+                >
+                  Registra operazione
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* LEDGER CREATE — the quantity/price fields become the opening position (first buy). */}
+          {isLedgerCreate && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label>Posizione iniziale (primo acquisto)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Registriamo questo acquisto come prima operazione del registro. Le operazioni
+                  successive si gestiscono da &laquo;Registra operazione&raquo;.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantità *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    step="0.00000001"
+                    min="0"
+                    {...register('quantity', { valueAsNumber: true })}
+                    placeholder="es. 5"
+                  />
+                  {errors.quantity && (
+                    <p className="text-sm text-red-500">{errors.quantity.message}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="averageCost">
+                    {isBondPctMode
+                      ? 'Prezzo di acquisto (quotazione Borsa Italiana) *'
+                      : `Prezzo di acquisto per unità (${watchCurrency}) *`}
+                  </Label>
+                  <Input
+                    id="averageCost"
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    {...register('averageCost', { valueAsNumber: true })}
+                    placeholder={isBondPctMode ? 'es. 100' : 'es. 85.1234'}
+                  />
+                  {errors.averageCost && (
+                    <p className="text-sm text-red-500">{errors.averageCost.message}</p>
+                  )}
+                  {isBondPctMode && (() => {
+                    const biPrice = watchAverageCost;
+                    const nominal = watchBondNominalValue;
+                    if (!biPrice || isNaN(biPrice) || !nominal) return null;
+                    const eurVal = biPrice * (nominal / 100);
+                    return (
+                      <p className="text-xs font-medium text-primary">
+                        ≈ {eurVal.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€ per unità
+                      </p>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="openingDate">Data di acquisto *</Label>
+                  <Input
+                    id="openingDate"
+                    type="date"
+                    min={baselineIso}
+                    max={todayIso}
+                    {...register('openingDate')}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="openingCashAssetId">Conto di regolamento</Label>
+                  <Select
+                    value={watchOpeningCashAssetId ?? '__none__'}
+                    onValueChange={(value) => setValue('openingCashAssetId', value)}
+                  >
+                    <SelectTrigger id="openingCashAssetId" aria-label="Conto di regolamento">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nessuno</SelectItem>
+                      {ledgerCashAssets.map((cash) => (
+                        <SelectItem key={cash.id} value={cash.id}>
+                          {cash.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {newAsset_showCostBasis && renderTaxRateField()}
+              {!ledgerCreateReady && (
+                <p className="text-xs text-muted-foreground">
+                  Il registro operazioni si sta inizializzando: la posizione viene salvata comunque.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Dettagli Fondo Pensione — only for type pensionFund. Dates feed the tax/plafond engine
+              (lib/utils/pensionDeduction.ts) and the FIRE lock-in (P3); none of it is required to
+              save the asset, so every field stays optional here. */}
+          {selectedType === 'pensionFund' && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label>Dettagli Fondo Pensione</Label>
+                <p className="text-xs text-muted-foreground">
+                  Usati per il calcolo del beneficio fiscale e del plafond nella vista Previdenza.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pensionProvider">Ente / Gestore</Label>
+                <Input
+                  id="pensionProvider"
+                  {...register('pensionProvider')}
+                  placeholder="es. Amundi, Fondo Cometa, PIP Poste Vita"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pensionUnlockDate">Data di sblocco</Label>
+                <Input
+                  id="pensionUnlockDate"
+                  type="date"
+                  {...register('pensionUnlockDate')}
+                />
+                <p className="text-xs text-muted-foreground">Da quando il capitale è accessibile (uso FIRE).</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pensionFamilyMemberId">Membro famiglia</Label>
+                {(settings?.familyMembers ?? []).length > 0 ? (
+                  <Select
+                    value={watchPensionFamilyMemberId ?? '__none__'}
+                    onValueChange={(value) => setValue('pensionFamilyMemberId', value)}
+                  >
+                    <SelectTrigger id="pensionFamilyMemberId">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Non assegnato</SelectItem>
+                      <SelectSeparator />
+                      {(settings?.familyMembers ?? []).map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Nessun membro configurato. Aggiungine uno in{' '}
+                    <Link href="/dashboard/settings" className="text-primary underline hover:no-underline">
+                      Impostazioni → Preferenze → Famiglia
+                    </Link>{' '}
+                    per collegare il beneficio fiscale a questo fondo.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Il beneficio fiscale in Previdenza si calcola per membro — un fondo non assegnato
+                  resta visibile ma senza calcolo.
+                </p>
+              </div>
+
+              <p className="text-xs text-muted-foreground border-t border-border/60 pt-3">
+                I versamenti si registrano dalla vista{' '}
+                <Link href="/dashboard/pension" className="text-primary underline hover:no-underline">
+                  Previdenza
+                </Link>
+                , non da qui. Il valore sopra resta il saldo aggiornato manualmente dal tuo estratto conto.
+              </p>
+            </div>
+          )}
+
+          {/* Liquidità — the three switches below (liquid / non-rebalanceable / primary residence)
+              each steer a DIFFERENT calculation, and the old copy never said which. Their
+              descriptions now name the calculation they touch, and say what they leave alone. */}
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="isLiquid">Asset Liquido</Label>
                 <p className="text-xs text-muted-foreground">
-                  Indica se questo asset può essere convertito rapidamente in contanti
+                  Si converte rapidamente in contanti. Determina solo la divisione tra patrimonio
+                  liquido e illiquido (Panoramica, FIRE): non tocca il ribilanciamento.
                 </p>
               </div>
               <Switch
                 id="isLiquid"
                 checked={watchIsLiquid}
-                onCheckedChange={(checked) => setValue('isLiquid', checked)}
+                onCheckedChange={(checked) => {
+                  // A manual toggle ends the type-aware steering for this dialog session.
+                  setIsLiquidTouched(true);
+                  setValue('isLiquid', checked);
+                }}
               />
             </div>
+          </div>
+
+          {/* Ruolo nell'allocazione — tre stati, non due switch sovrapposti. Le due domande
+              ("fa parte del portafoglio investito?" e "lo posso muovere?") sono distinte, e
+              confonderle era ciò che rendeva la vecchia coppia di flag indistinguibile. */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="allocationRole">Ruolo nell&apos;allocazione</Label>
+              <p className="text-xs text-muted-foreground">
+                Vale solo per la pagina Allocazione. Ovunque altro (Panoramica, Storico, FIRE)
+                l&apos;asset conta sempre nel patrimonio.
+              </p>
+            </div>
+            <Select
+              value={watchAllocationRole ?? 'tradable'}
+              onValueChange={(value) => {
+                // Radix fires onValueChange('') when the controlled value is set while
+                // the content is unmounted (no item to match — its "selected item
+                // removed" cleanup). A real user pick is never empty: ignoring the
+                // callback keeps the suggested role AND leaves the touched-flag armed.
+                if (!value) return;
+                setAllocationRoleTouched(true);
+                setValue('allocationRole', value as AllocationRole);
+              }}
+            >
+              <SelectTrigger id="allocationRole">
+                {/* Explicit children: the suggestion effect writes this value while the
+                    content is unmounted, and Radix's SelectValue has no item text to map
+                    it to — it rendered an empty trigger for every suggested role. */}
+                <SelectValue>
+                  {ALLOCATION_ROLE_OPTIONS.find((o) => o.value === (watchAllocationRole ?? 'tradable'))?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {ALLOCATION_ROLE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {ALLOCATION_ROLE_OPTIONS.find((o) => o.value === (watchAllocationRole ?? 'tradable'))
+                ?.description}
+            </p>
           </div>
 
           {/* autoUpdatePrice — hidden for cash/realestate (they don't use market prices) */}
@@ -1305,31 +1826,6 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           </div>
           )}
 
-          {/* LeverageRatio — only shown for LeveragedETF */}
-          {newAsset_showLeverageRatio && (
-            <div className="space-y-2 rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="leverageRatio">Leverage Ratio</Label>
-                <p className="text-xs text-muted-foreground">
-                  Indica la leva del prodotto. Esempi: 2 per un ETF 2x, 1.5 per un ETF con esposizione al 150%.
-                </p>
-              </div>
-
-              <Input
-                id="leverageRatio"
-                type="number"
-                step="0.1"
-                min="1"
-                placeholder="Es. 1.5"
-                {...register('leverageRatio', { valueAsNumber: true })}
-              />
-
-              {errors.leverageRatio && (
-                <p className="text-sm text-red-500">{errors.leverageRatio.message}</p>
-              )}
-            </div>
-          )}
-
           {/* Composizione — only shown for ETF */}
           {newAsset_showComposition && (
           <div className="space-y-2 rounded-lg border p-4">
@@ -1337,7 +1833,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
               <div className="space-y-0.5">
                 <Label htmlFor="isComposite">Asset Composto</Label>
                 <p className="text-xs text-muted-foreground">
-                Usa questa sezione se l’asset ha un’esposizione sottostante distribuita su più asset class, ad esempio ETF multi-asset o fondi pensione.
+                  Es. fondo pensione con mix di azioni e obbligazioni
                 </p>
               </div>
               <Switch
@@ -1500,8 +1996,9 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
                 <div className="space-y-0.5">
                   <Label htmlFor="isPrimaryResidence">Casa di Abitazione</Label>
                   <p className="text-xs text-muted-foreground">
-                    Marca questo immobile come casa di abitazione. Il calcolo FIRE può escludere questi immobili
-                    (configurabile nelle impostazioni FIRE).
+                    L&apos;immobile in cui vivi. Determina solo il net worth usato per il calcolo FIRE,
+                    che può escluderlo (lo decidi nelle impostazioni FIRE): non tocca il
+                    ribilanciamento, che dipende dal flag qui sopra.
                   </p>
                 </div>
                 <Switch
@@ -1802,8 +2299,10 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
             </div>
           )}
 
-          {/* Cost Basis Tracking — hidden for cash/realestate (no capital gains) */}
-          {newAsset_showCostBasis && (
+          {/* Cost Basis Tracking — hidden for cash/realestate (no capital gains) and for ledger
+              types (PMC is derived from the trade ledger: read-only on edit, set by the opening
+              buy on create). */}
+          {newAsset_showCostBasis && !isLedgerEdit && !isLedgerCreate && (
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -1878,33 +2377,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
                     })()}
 
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
-                    <Input
-                      id="taxRate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      {...register('taxRate', { valueAsNumber: true })}
-                      placeholder="es. 26"
-                    />
-                    {errors.taxRate && (
-                      <p className="text-sm text-red-500">{errors.taxRate.message}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Percentuale di tassazione sulle plusvalenze (es. 26 per 26%)
-                    </p>
-                    {(selectedType === 'bond' || selectedAssetClass === 'bonds') && (
-                      <button
-                        type="button"
-                        onClick={() => setValue('taxRate', 12.5)}
-                        className="text-xs text-primary underline hover:no-underline"
-                      >
-                        Titoli di Stato italiani (BTP, CCT, BOT): imposta 12,5%
-                      </button>
-                    )}
-                  </div>
+                  {renderTaxRateField()}
                 </div>
 
                 {/* Inline multi-broker PMC calculator — full width, outside the 2-col grid */}
@@ -1996,7 +2469,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           </div>
           )}
 
-          {/* TER — only shown for ETF and stock */}
+          {/* TER — only shown for ETF, commodity and crypto (all can be ETC wrappers) */}
           {newAsset_showTER && (
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
@@ -2041,6 +2514,35 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           </div>
           )}
 
+          {/* Leva — ETF a leva / compositi. Empty = 1 (nessuna leva). */}
+          {newAsset_showLeverage && (
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label htmlFor="leverageRatio">Leva</Label>
+            <div className="relative max-w-[160px]">
+              <Input
+                id="leverageRatio"
+                type="number"
+                step="0.1"
+                min="1"
+                max="10"
+                placeholder="1"
+                className="pr-7 font-mono tabular-nums"
+                {...register('leverageRatio', { valueAsNumber: true })}
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+                ×
+              </span>
+            </div>
+            {errors.leverageRatio && (
+              <p className="text-sm text-red-500">{errors.leverageRatio.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Solo per ETF a leva (es. 2 = 2×): moltiplica l&apos;esposizione nozionale in
+              Allocazione. Lascia vuoto per un ETF normale.
+            </p>
+          </div>
+          )}
+
           {/* Stamp duty exemption (imposta di bollo) */}
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
@@ -2056,7 +2558,7 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
             />
           </div>
 
-          {shouldUpdatePrice(selectedType, selectedSubCategory) && (
+          {shouldUpdatePrice(selectedType, selectedSubCategory) && !isLedgerCreate && (
             <div className="space-y-2">
               <Label htmlFor="manualPrice">Prezzo Manuale (opzionale)</Label>
               <Input
@@ -2082,46 +2584,16 @@ export function AssetDialog({ open, onClose, asset }: AssetDialogProps) {
           )}
 
           {/* color-mix() on --primary so the info box tracks the active theme colour. */}
-          {(selectedType === 'realestate' || selectedType === 'pension' || selectedSubCategory === 'Private Equity' || shouldUpdatePrice(selectedType, selectedSubCategory)) && (
+          {(selectedType === 'realestate' || selectedType === 'pensionFund' || selectedSubCategory === 'Private Equity' || shouldUpdatePrice(selectedType, selectedSubCategory)) && (
           <div className="rounded-lg bg-[color-mix(in_oklch,var(--primary)_8%,transparent)] border border-[color-mix(in_oklch,var(--primary)_20%,transparent)] p-3">
             <p className="text-sm text-foreground">
               <strong>Nota:</strong>
               {selectedType === 'realestate' && ' Per immobili, il prezzo deve essere aggiornato manualmente.'}
-              {selectedType === 'pension' && ' Per i fondi pensione, il valore deve essere aggiornato manualmente (nessun recupero automatico dei prezzi).'}
+              {selectedType === 'pensionFund' && " Per i fondi pensione, il valore va aggiornato manualmente quando arriva l'estratto conto: i versamenti registrati da Previdenza si sommano da soli."}
               {selectedSubCategory === 'Private Equity' && ' Per Private Equity, il prezzo deve essere aggiornato manualmente.'}
               {shouldUpdatePrice(selectedType, selectedSubCategory) && ` Puoi inserire un prezzo manuale nel campo apposito, oppure il prezzo verrà recuperato automaticamente da ${priceSource}. In caso di errore nel recupero automatico, potrai sempre impostare il prezzo manualmente.`}
             </p>
           </div>
-          )}
-
-          {/* Fondo pensione details — provider + enrollment/unlock dates (feed the tax & FIRE layers). */}
-          {selectedType === 'pension' && (
-            <div className="space-y-4 rounded-lg border border-border p-3">
-              <div className="space-y-2">
-                <Label htmlFor="pensionProvider">Fondo / PIP</Label>
-                <Input
-                  id="pensionProvider"
-                  {...register('pensionProvider')}
-                  placeholder="es. Fondo Cometa, PIP Alleata"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="pensionEnrollmentDate">Data adesione</Label>
-                  <Input id="pensionEnrollmentDate" type="date" {...register('pensionEnrollmentDate')} />
-                  <p className="text-xs text-muted-foreground">
-                    Da qui si stimano gli anni di adesione (aliquota agevolata 15→9%).
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pensionUnlockDate">Data di sblocco</Label>
-                  <Input id="pensionUnlockDate" type="date" {...register('pensionUnlockDate')} />
-                  <p className="text-xs text-muted-foreground">
-                    Quando il capitale diventa accessibile (per il vincolo FIRE).
-                  </p>
-                </div>
-              </div>
-            </div>
           )}
 
           </div>

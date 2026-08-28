@@ -8,6 +8,9 @@
  * MetricCard, and BenchmarkComparisonChart — three independent instantiations
  * that must agree on which token to emit (Rule of Three, DEVELOPMENT_GUIDELINES).
  *
+ * signTextClass/signChipClass sit alongside it for the same reason: the Panoramica and
+ * Patrimonio heroes render the same variation chips and must not drift apart.
+ *
  * Adding a new format: extend the MetricValueFormat union and add a branch below
  * if the format needs semantic color (most formats should remain neutral).
  */
@@ -30,4 +33,26 @@ export function getMetricValueColor(
     if (val < 0) return 'text-destructive';
   }
   return 'text-foreground';
+}
+
+/**
+ * Sign-aware text color for a financial value (gain vs loss).
+ *
+ * Differs from getMetricValueColor in that zero counts as positive — the hero variation
+ * chips and the fiscal blocks have always read "flat" as good news, not as neutral.
+ *
+ * Raw `text-green-*` / `text-red-*` is forbidden: those stay literal and diverge from
+ * `--destructive` on the non-default themes (Cyberpunk renders destructive as orange).
+ * See DESIGN.md "The Sign-Color Token Rule".
+ */
+export function signTextClass(value: number): string {
+  return value >= 0 ? 'text-positive' : 'text-destructive';
+}
+
+/**
+ * Sign-aware chip classes (tinted background + matching text) for a financial value.
+ * Same zero-is-positive convention as signTextClass.
+ */
+export function signChipClass(value: number): string {
+  return value >= 0 ? 'bg-positive/10 text-positive' : 'bg-destructive/10 text-destructive';
 }

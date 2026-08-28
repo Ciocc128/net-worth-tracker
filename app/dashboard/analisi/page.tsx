@@ -17,12 +17,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useExpenses, useExpenseCategories } from '@/lib/hooks/useExpenses';
 import { getSettings } from '@/lib/services/assetAllocationService';
-import { queryKeys } from '@/lib/query/queryKeys';
 import { AnalisiTab } from '@/components/cashflow/AnalisiTab';
+import { PageContainer } from '@/components/layout/PageContainer';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -30,71 +30,55 @@ function getErrorMessage(error: unknown): string {
 
 export default function AnalisiPage() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { ownerId } = useActiveAccount();
 
-  const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(user?.uid);
-  // Categories are loaded so AnalisiTab's sibling components (e.g. ExpenseTrackingTab)
-  // share the same RQ cache; we only need the loading flag here.
-  const { isLoading: categoriesLoading } = useExpenseCategories(user?.uid);
+  const { data: allExpenses = [], isLoading: expensesLoading } = useExpenses(ownerId);
+  // The taxonomy feeds AnalisiTab directly (entity search + URL-focus label
+  // resolution) and shares the RQ cache with the Cashflow page's sibling tabs.
+  const { data: categories = [], isLoading: categoriesLoading } = useExpenseCategories(ownerId);
 
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(
     new Date().getFullYear() - 1
   );
+  // The URL-focus restore in AnalisiTab validates against the floored history, so it
+  // must not fire until the DEFINITIVE floor is known — the restore is one-shot and
+  // a wrong provisional floor would silently drop a valid bookmarked focus.
+  const [settingsSettled, setSettingsSettled] = useState(false);
 
   // Load cashflowHistoryStartYear — same pattern as cashflow/page.tsx. Literal copy intentional:
   // avoid a shared hook abstraction for a one-time read used in two places with the same logic.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !ownerId) return;
     const loadSettings = async () => {
       try {
-        const settings = await getSettings(user.uid);
+        const settings = await getSettings(ownerId);
         if (settings?.cashflowHistoryStartYear !== undefined) {
           setCashflowHistoryStartYear(settings.cashflowHistoryStartYear);
         }
       } catch (error) {
         // Non-fatal: trend charts will simply show data from currentYear-1 onward.
         console.error('Failed to load analisi settings, using fallback defaults', {
-          userId: user.uid,
+          userId: ownerId,
           operation: 'loadAnalisiSettings',
           error: getErrorMessage(error),
         });
+      } finally {
+        setSettingsSettled(true);
       }
     };
     void loadSettings();
-  }, [user]);
+  }, [user, ownerId]);
 
-  const handleRefresh = async () => {
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.expenses.all(user?.uid || ''),
-    });
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.expenses.categories(user?.uid || ''),
-    });
-  };
-
-  const loading = expensesLoading || categoriesLoading;
+  const loading = expensesLoading || categoriesLoading || !settingsSettled;
 
   return (
-    <div className="space-y-6 max-desktop:portrait:pb-20">
-      {/* Header — standard dashboard page pattern */}
-      <div className="border-b border-border pb-4">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Analisi
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
-          Analisi Cashflow
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Distribuzione delle spese, pattern e trend nel tempo
-        </p>
-      </div>
-
+    <PageContainer width="wide">
       <AnalisiTab
         allExpenses={allExpenses}
+        categories={categories}
         loading={loading}
-        onRefresh={handleRefresh}
         historyStartYear={cashflowHistoryStartYear}
       />
-    </div>
+    </PageContainer>
   );
 }

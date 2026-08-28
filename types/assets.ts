@@ -10,13 +10,17 @@ import type { PensionFundDetails } from './pension';
 // - crypto -> crypto
 // - cash -> cash
 // - realestate -> realestate
-// - pension -> pension (fondo pensione: manually-valued, always OUT of allocation, locked for FIRE)
-export type AssetType = 'stock' | 'etf' | 'leveragedEtf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate' | 'pension';
-// trendFollowing/carry are strategy classes, not instrument types — they're held via
-// existing types (typically 'etf', sometimes 'stock') with assetClass set explicitly.
-// pension is its own class so the fondo pensione is kept out of the target allocation base
-// (see getExcludedClasses) and can be surfaced separately as locked, illiquid wealth.
-export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity' | 'trendFollowing' | 'carry' | 'pension';
+// - pensionFund -> equity (fallback only; the real mix lives in `composition`) - see TYPE_TO_CLASS
+//
+// WARNING: adding a type here requires updating TYPE_TO_CLASS in components/assets/AssetDialog.tsx
+// (exhaustive `Record<AssetType, AssetClass>` — tsc catches this one) and deciding whether the type
+// belongs in LEDGER_ASSET_TYPES (types/assetTransactions.ts — tsc does NOT catch that one).
+export type AssetType = 'stock' | 'etf' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'realestate' | 'pensionFund';
+// trendFollowing (managed futures) and carry are exposure-only classes reached via a leveraged/
+// composite `etf`'s `composition` legs — no
+// AssetType maps to them directly in TYPE_TO_CLASS.
+export type AssetClass = 'equity' | 'bonds' | 'crypto' | 'realestate' | 'cash' | 'commodity'
+                        | 'trendFollowing' | 'carry';
 
 // Coupon payment frequency for bonds.
 // Determines how many times per year the coupon is paid.
@@ -68,11 +72,33 @@ export interface BondDetails {
   announcedInflationRates?: AnnouncedInflationRate[]; // User-announced per-period inflation rates, keyed by coupon date
 }
 
+/**
+ * How the Allocazione page treats an asset. One field, three mutually exclusive states — NOT a
+ * pair of overlapping booleans, which is what an earlier cut had and what made the two ideas below
+ * impossible to tell apart in the UI.
+ *
+ * The two questions are orthogonal, and only three of the four combinations are meaningful:
+ *   "Is this part of my invested portfolio?"  ×  "Can I trade it?"
+ *
+ *  - `tradable`  (default) — yes / yes. ETFs, stocks, bonds, cash.
+ *  - `frozen`    — yes / no. It IS invested wealth and belongs in your asset-class percentages, but
+ *                  you cannot move it: a pension fund locked until retirement, a private-equity
+ *                  commitment. Counted in the DENOMINATOR (so your true equity/bond exposure is
+ *                  right and the plans compensate for it with the assets you CAN move), but never
+ *                  offered as a destination or a source in Ribilancia / Versa / Preleva.
+ *  - `excluded`  — no / no. Not an investment at all: the home you live in. Out of the Allocazione
+ *                  page entirely, denominator included — keeping it in would peg the realestate
+ *                  class permanently off-target against an impossible-to-execute trade.
+ *
+ * Orthogonal to `isLiquid` (liquid vs illiquid net-worth split) and `isPrimaryResidence` (FIRE net
+ * worth). Everywhere outside Allocazione — Panoramica, Storico, snapshots, FIRE, Patrimonio — all
+ * three roles count identically toward net worth.
+ */
+export type AllocationRole = 'tradable' | 'frozen' | 'excluded';
+
 export interface AssetComposition {
   assetClass: AssetClass;
-  percentage: number; // Percentage of this asset class in the composite asset
-  // For normal asset equals to 100%.
-  // For leveragedETF could be >100% (e.g., 200% for 2x leveraged ETF) or <100% (e.g., 50% for 0.5x leveraged ETF)
+  percentage: number;
   subCategory?: string; // Specific sub-category for this component of the composite asset
 }
 
@@ -83,17 +109,22 @@ export interface Asset {
   id: string;
   userId: string;
   ticker: string;
-  // Optional user-facing alias shown INSTEAD of `ticker` everywhere in the UI. `ticker` must stay
-  // in Yahoo format ("CL2.MI") for automatic price retrieval, but the user can display a clean label
-  // ("CL2"). Empty/absent → fall back to `ticker`. Resolve via `getAssetDisplayTicker`.
-  displayTicker?: string;
+  // User-facing alias for `ticker`, shown everywhere instead of the raw (often Yahoo-formatted,
+  // noisy) ticker. `ticker` itself is never renamed — price retrieval depends on its exact format.
+  // Resolve via `getAssetDisplayTicker` (lib/utils/assetDisplay.ts); never inline `?? ticker`.
+  displayTicker?: string | null;
   name: string;
   type: AssetType;
   assetClass: AssetClass;
   subCategory?: string;
   currency: string;
+  // DERIVED for LEDGER_ASSET_TYPES (stock/etf/bond/crypto/commodity, see types/assetTransactions.ts):
+  // `quantity` and `averageCost` are recomputed by replaying `assetTransactions` — via
+  // buildDerivedAssetFields in lib/utils/assetTransactionUtils.ts — and rewritten to this doc by the
+  // trade Admin API after every ledger mutation. Do NOT write them directly for ledger types; the
+  // ledger is the source of truth. cash/realestate keep direct editing and have no ledger.
   quantity: number;
-  averageCost?: number;
+  averageCost?: number; // Native-currency PMC (weighted avg of trade prices, fees excluded). Derived for ledger types — see note on `quantity`.
   taxRate?: number; // Tax rate percentage for unrealized gains (e.g., 26 for 26%)
   totalExpenseRatio?: number; // Total Expense Ratio (TER) as a percentage (e.g., 0.20 for 0.20%)
   stampDutyExempt?: boolean; // If true, asset is excluded from stamp duty (imposta di bollo) calculation (e.g. pension funds, real estate)
@@ -102,16 +133,21 @@ export interface Asset {
   currentPriceEur?: number; // currentPrice converted to EUR via Frankfurter FX; populated during price updates for non-EUR assets
   isLiquid?: boolean; // Default: true - indicates whether the asset is liquid or illiquid
   autoUpdatePrice?: boolean; // Default: true - indicates whether price should be automatically updated via Yahoo Finance
-  leverageRatio?: number; // For leveraged ETFs: 2 for 2x, 3 for 3x, 1 for regular ETF
   composition?: AssetComposition[]; // For composite assets (e.g., pension funds with mixed allocation: 60% equity, 40% bonds)
-  // Populated only for fondo pensione assets (type 'pension'): provider, enrollment/unlock dates and
-  // the caches the tax/FIRE layers need. The contributions themselves live in the dedicated
-  // `pensionContributions` collection (never as expenses). See types/pension.ts. Spec §2.1.
-  pensionFundDetails?: PensionFundDetails;
   outstandingDebt?: number; // Outstanding mortgage/loan for real estate. Net value calculation: value - outstandingDebt
   isPrimaryResidence?: boolean; // Indicates if this real estate is the primary residence (excluded from FIRE calculations based on user setting)
+  allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole. Absent → legacy excludeFromAllocation, else 'tradable'.
+  /** @deprecated Superseded by `allocationRole`. Read-only legacy fallback: true → 'excluded'. Never write it. */
+  excludeFromAllocation?: boolean;
+  // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage. Shown in AssetDialog
+  // for type 'etf' only (D4: no dedicated AssetType — the math depends solely on this field plus
+  // `composition`, never on `type`). Multiplies notionalValue in `expandAssetExposure`
+  // (lib/utils/assetExposureUtils.ts); `quantity`/`averageCost`/`pricePerUnit` stay per-quota and
+  // independent of it.
+  leverageRatio?: number;
   isin?: string; // ISIN code for dividend scraping (optional)
   bondDetails?: BondDetails; // Optional bond-specific details for coupon scheduling
+  pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (type 'pensionFund'); see types/pension.ts
   // Start of the CURRENT continuous holding, stamped on (re)purchase — createAsset on ISIN reuse,
   // or updateAsset when quantity goes 0 → >0. Lets YOC / Current-Yield ignore dividends from a
   // previous, discontinuous holding of the same instrument. Absent for assets held since before
@@ -124,7 +160,7 @@ export interface Asset {
 
 export interface AssetFormData {
   ticker: string;
-  displayTicker?: string; // Optional user-facing alias shown instead of the (Yahoo-format) ticker
+  displayTicker?: string | null;
   name: string;
   type: AssetType;
   assetClass: AssetClass;
@@ -140,16 +176,17 @@ export interface AssetFormData {
   currentPriceEur?: number; // currentPrice converted to EUR via FX; set at creation for non-EUR assets
   isLiquid?: boolean;
   autoUpdatePrice?: boolean;
-  leverageRatio?: number;
   composition?: AssetComposition[];
   outstandingDebt?: number;
   isPrimaryResidence?: boolean;
+  allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole.
+  leverageRatio?: number; // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage.
   isin?: string; // ISIN code for dividend scraping (optional)
   bondDetails?: BondDetails; // Optional bond-specific details for coupon scheduling
-  pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (provider, enrollment/unlock dates)
+  pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (type 'pensionFund'); see types/pension.ts
 }
 
-export interface SubCategoryConfig {
+interface SubCategoryConfig {
   enabled: boolean;
   categories: string[];
 }
@@ -209,6 +246,22 @@ export interface CoastFireTaxBracket {
   rate: number; // Percentage rate (e.g. 23 for 23%)
 }
 
+/**
+ * A household member the account's pension funds can be attributed to. The IRPEF
+ * pension-deduction ceiling is per TAXPAYER, not per account/household, so an
+ * account tracking more than one person's fondo pensione (e.g. both spouses) needs a per-person RAL
+ * and eligibility, not one shared value. `Asset.pensionFundDetails.familyMemberId` links a fund to
+ * one of these; a fund with no link, or a stale one (member deleted), is treated as unassigned by
+ * the Previdenza view rather than silently mixed into anyone else's calculation.
+ */
+export interface FamilyMember {
+  id: string;
+  name: string;
+  grossAnnualIncome?: number; // RAL — base for the marginal-rate IRPEF benefit estimate
+  isFirstEmploymentPost2007?: boolean; // Eligibility for the extra-deducibilità plafond recovery
+  firstEmploymentYear?: number; // First calendar year of participation — anchors the plafond 5/20-year windows
+}
+
 export interface AssetAllocationSettings {
   userAge?: number;
   riskFreeRate?: number;
@@ -218,11 +271,6 @@ export interface AssetAllocationSettings {
   coastFireCustomExpenses?: number; // User-defined annual retirement expenses for Coast FIRE; undefined = derive from last complete year
   coastFirePensions?: CoastFirePensionInput[]; // Optional state-pension inputs used only by the Coast FIRE tab
   coastFireTaxBrackets?: CoastFireTaxBracket[]; // Progressive IRPEF brackets used to estimate state-pension net income
-  // Pension (fondo pensione) tax parameters — person-level, shared across all funds (spec §3.1/§6.5).
-  grossAnnualIncome?: number; // RAL: authoritative gross annual income for the marginal-rate / tax-benefit estimate
-  isFirstEmploymentPost2007?: boolean; // Enables the extra-deducibilità plafond recovery (§3.4); only for first employment after 2007-01-01
-  firstEmploymentYear?: number; // Calendar year the first employment began — start of the 5-year plafond-accrual window (§3.4)
-  respectPensionLockInFire?: boolean; // When true, pension funds not yet unlocked are removed from FIRE-eligible net worth (§5.3)
   includePrimaryResidenceInFIRE?: boolean; // If true, include primary residences in FIRE calculations; if false, exclude them (FIRE standard)
   dividendIncomeCategoryId?: string; // Category ID for automatic dividend income entries
   dividendIncomeSubCategoryId?: string; // Subcategory ID for automatic dividend income entries
@@ -248,23 +296,33 @@ export interface AssetAllocationSettings {
   yearlyEmailEnabled?: boolean; // When true, a summary email is sent on December 31
   weeklyBudgetEmailEnabled?: boolean; // When true, a budget status email is sent every Sunday
   monthlyEmailRecipients?: string[]; // Recipient list shared by all periodic summary emails (monthly/quarterly/semiannual/yearly/weekly-budget)
-  // Target portfolio leverage (notional / market, e.g. 1.2 for +20% notional exposure over market value)
-  // used as a soft tie-breaker by the Versa/Ribilancia instrument optimizer (buildLeverageAwarePlan):
-  // among trades that reach the notional target similarly well, it prefers the one closer to this ratio.
-  // Undefined = no leverage preference (optimizer ignores the leverage term entirely).
-  //
-  // DERIVED, not user-entered: it equals Σ(target class %) / 100 for the classes that are part of the
-  // allocation (a target set summing to 150% expresses a 1.5× leverage target). Kept on the settings
-  // object so the optimizer can read it, but the source of truth is `targets`. See
-  // `deriveTargetLeverageRatio` in assetAllocationService.ts.
-  targetLeverageRatio?: number;
-  // When true, liquidity (cash) is EXCLUDED from the allocation base: it does not count toward the
-  // 100%+ denominator and cannot be assigned a target %. Cash is shown separately ("Fuori allocazione").
-  // Excluding cash also disables its fixed-amount reserve option (the two are alternative treatments).
-  excludeCashFromAllocation?: boolean;
-  // When true, real estate is EXCLUDED from the allocation base (same semantics as cash above). Lets a
-  // user treat their home as not part of the investable portfolio without distorting the target weights.
-  excludeRealEstateFromAllocation?: boolean;
+  // Fondo pensione — household members, one RAL/eligibility per taxpayer (see FamilyMember). Feeds
+  // computePensionTaxRecap in the Previdenza view, once per member with ≥1 linked fund. Editable
+  // from Impostazioni → Preferenze → Famiglia, not part of the FIRE Coast tax params above.
+  familyMembers?: FamilyMember[];
+  // When true, FireCalculatorTab subtracts locked pension-fund capital (unlockDate in the future)
+  // from the FIRE-eligible net worth — see lib/utils/pensionFire.ts. Off by default (opt-in, MVP).
+  respectPensionLockInFire?: boolean;
+  // RITA rule inputs — resolve when a pension fund unlocks in the FIRE bridge model,
+  // single source in lib/utils/pensionUnlock.ts: unlock age = INPS age − 5, or − 10 with the
+  // long-unemployment hypothesis. A per-fund pensionFundDetails.unlockDate overrides the rule.
+  pensionInpsRetirementAge?: number; // Applicative default 67; UI allows 60-75
+  pensionRitaLongUnemployment?: boolean; // Default false (−5); true → unemployed ≥ 24 months after FIRE (−10)
+  // Base di calcolo delle metriche Rendimenti (TWR/Sharpe/volatilità/MaxDD/ROI/CAGR).
+  // Entrambi OFF di default = base "portafoglio gestito": fuori i fondi pensione (capitale
+  // illiquido alimentato da versamenti) e gli asset allocationRole 'excluded' (la casa in cui vivi,
+  // valutata a mano). Attivarli riporta quel capitale dentro le metriche.
+  // WARNING (checklist comment): questi flag sono letti da resolvePerformanceBaseOptions
+  // (lib/utils/performanceBase.ts) e consumati da DUE chiamanti che devono restare allineati —
+  // lib/services/performanceService.ts e app/dashboard/performance/page.tsx. Cambiarli invalida
+  // anche la cache metriche (buildCacheKey ne incorpora la firma).
+  performanceIncludesPensionFunds?: boolean;
+  performanceIncludesExcludedAssets?: boolean;
+  // Mese (ISO 'YYYY-MM') da cui il rendimento del fondo pensione è calcolabile: prima di questa
+  // data i versamenti non venivano registrati e il valore del fondo veniva solo aggiornato a mano,
+  // quindi ogni crescita risulterebbe "rendimento di mercato". Assente = si parte dal primo
+  // versamento registrato. Vedi lib/utils/pensionReturn.ts.
+  pensionReturnStartMonth?: string;
   targets: AssetAllocationTarget;
 }
 
@@ -288,62 +346,32 @@ export interface AllocationResult {
   bySpecificAsset: {
     [specificAsset: string]: AllocationData; // Key format: "assetClass:subCategory:assetName"
   };
-  // NOTIONAL total of the investable base (excludes any excluded classes). This is the
-  // denominator for the composition bar's segment WIDTHS (pure shape). Equals `marketValue`
-  // when the portfolio is unleveraged, so an unleveraged/no-exclusion result is byte-identical
-  // to the pre-leverage behavior.
+  // Leverage-aware totals. For an unleveraged portfolio
+  // notional === market, so every field below collapses to the pre-leverage number and the
+  // result is byte-identical to before (invariant #1).
+  //
+  // `totalValue` is the NOTIONAL exposure total of the investable base — kept under this name
+  // for backward compatibility (existing readers get notional, == market when unleveraged). Each
+  // class's `currentValue`/`currentPercentage` is likewise a notional figure, so the percentages
+  // sum to `leverageRatio × 100` rather than to 100 under leverage.
   totalValue: number;
-  // Leverage/exclusion-aware metadata (optional so legacy consumers keep working).
-  // `marketValue` = investable market capital (the base the % are measured against — every
-  // currentPercentage/targetPercentage below is notional exposure over THIS, so they sum to
-  // leverage×100, not 100). `leverageRatio` = notional / market of the investable base.
-  marketValue?: number;
-  leverageRatio?: number;
-  // Classes removed from the allocation base (cash and/or real estate), with their market
-  // value, so the page can show a "Fuori allocazione" strip without recomputing.
-  excludedClasses?: AllocationExcludedClass[];
-}
-
-/** A class deliberately kept out of the allocation base, shown separately in the UI. */
-export interface AllocationExcludedClass {
-  assetClass: string;
+  /** Market total of the investable base (tradable + frozen). Hero "Patrimonio investito". */
   marketValue: number;
+  /** Notional exposure total of the investable base. Hero "Esposizione nozionale". == totalValue. */
+  notionalValue: number;
+  /** notionalValue / marketValue over the investable base (1 when unleveraged or market = 0). */
+  leverageRatio: number;
+  /** True when leverageRatio exceeds 1 by more than a rounding epsilon — drives the hero split. */
+  hasLeveragedExposure: boolean;
 }
-
-/** Which classes the user has chosen to keep out of the allocation base. */
-export interface AllocationExclusions {
-  cash?: boolean;
-  realestate?: boolean;
-}
-
-// New Asset Allocation contracts related to migration to calculate notional-based allocation targets
-export type AllocationBucketMap = Record<string, number>;
-
-export interface AllocationBasisSnapshot {
-  totalValue: number;
-  byAssetClass: AllocationBucketMap;
-  bySubCategory: Record<string,AllocationBucketMap>;
-  bySpecificAsset?: Record<string,AllocationBucketMap>;
-}
-
-export interface CurrentAllocationSnapshot {
-  market: AllocationBasisSnapshot;
-  notional: AllocationBasisSnapshot;
-  metadata: {
-    marketValue: number;
-    notionalValue: number;
-    leverageRatio: number;
-    hasLeveragedExposure: boolean;
-  };
-}
-
-export type AllocationBasis = 'market' | 'notional';
 
 export interface PieChartData {
   name: string;
   value: number;
   percentage: number;
   color: string;
+  /** Raw asset-class key (e.g. 'equity'), set only by asset-class distribution data. */
+  assetClass?: string;
   [key: string]: any; // Index signature for Recharts compatibility
 }
 
@@ -375,24 +403,35 @@ export interface MonthlySnapshot {
     price: number;
     totalValue: number;
   }>;
+  /**
+   * What the `pensionFund` assets contributed to THIS month's `byAssetClass`, frozen at write time.
+   *
+   * `byAssetClass` folds each fund into its classes through the fund's `composition`, so anything
+   * wanting to show Previdenza as a band of its own has to subtract that contribution back out.
+   * Without this field the only way to do it is to apply the fund's CURRENT composition to a past
+   * month — an estimate that silently drifts the day the user re-balances the fund, and whose
+   * per-class clamp can push the plotted parts above the total. Storing the split at write time
+   * makes the subtraction exact, and freezes it against later edits to the fund.
+   *
+   * OPTIONAL because snapshots written before 2026-08 do not have it, and hand-entered snapshots
+   * (`/api/portfolio/snapshot/manual`) never will — there is no pension input on that form. Absent
+   * means "unknown, fall back to the estimate"; present with `totalValue: 0` means "measured, and
+   * there were no pension funds". Those are different facts and must stay distinguishable.
+   */
+  pension?: {
+    totalValue: number;
+    byAssetClass: { [assetClass: string]: number };
+  };
   assetAllocation: {
     [assetClass: string]: number;
   };
-  portfolioLeverageRatio?: number;
   createdAt: Date;
   note?: string; // Optional note to document significant financial events (max 500 characters)
 }
 
-export interface PriceHistory {
-  ticker: string;
-  price: number;
-  date: Date;
-  currency: string;
-}
-
 // Monte Carlo Simulation Types
-export type PortfolioSource = 'total' | 'liquid' | 'custom';
-export type WithdrawalAdjustment = 'inflation' | 'fixed' | 'percentage';
+type PortfolioSource = 'total' | 'liquid' | 'custom';
+type WithdrawalAdjustment = 'inflation' | 'fixed' | 'percentage';
 export interface MonteCarloParams {
   // Portfolio settings
   portfolioSource: PortfolioSource;
@@ -401,13 +440,11 @@ export interface MonteCarloParams {
   // Retirement duration
   retirementYears: number;
 
-  // Asset allocation (all 6 must sum to 100%)
+  // Asset allocation (all 4 must sum to 100%)
   equityPercentage: number;
   bondsPercentage: number;
   realEstatePercentage: number;
   commoditiesPercentage: number;
-  trendFollowingPercentage: number;
-  carryPercentage: number;
 
   // Withdrawal settings
   annualWithdrawal: number;
@@ -422,17 +459,23 @@ export interface MonteCarloParams {
   realEstateVolatility: number;
   commoditiesReturn: number;
   commoditiesVolatility: number;
-  trendFollowingReturn: number;
-  trendFollowingVolatility: number;
-  carryReturn: number;
-  carryVolatility: number;
   inflationRate: number;
 
   // Simulation settings
   numberOfSimulations: number;
+
+  // One-off capital arrivals during the simulated horizon (a pension fund unlocking).
+  // Applied at the START of their year, before that year's market return and withdrawal;
+  // entries with year <= 0 are folded into the initial portfolio.
+  capitalInflows?: MonteCarloCapitalInflow[];
 }
 
-export interface SimulationPath {
+export interface MonteCarloCapitalInflow {
+  year: number; // 1-based simulation year; <= 0 = already available at start
+  amount: number;
+}
+
+interface SimulationPath {
   year: number;
   value: number;
 }
@@ -468,6 +511,9 @@ export interface MonteCarloResults {
     range: string;
     count: number;
     percentage: number;
+    /** Bin bounds in EUR — half-open, the last bin closed on `to`. */
+    from: number;
+    to: number;
   }[];
   simulations: SingleSimulationResult[];
 }
@@ -484,10 +530,6 @@ export interface MonteCarloScenarioParams {
   realEstateVolatility: number;
   commoditiesReturn: number;
   commoditiesVolatility: number;
-  trendFollowingReturn: number;
-  trendFollowingVolatility: number;
-  carryReturn: number;
-  carryVolatility: number;
   inflationRate: number;
 }
 
@@ -495,40 +537,6 @@ export interface MonteCarloScenarios {
   bear: MonteCarloScenarioParams;
   base: MonteCarloScenarioParams;
   bull: MonteCarloScenarioParams;
-}
-
-// Asset Price History Types
-export type AssetHistoryDisplayMode = 'price' | 'totalValue';
-
-export interface AssetHistoryDateFilter {
-  year: number;
-  month: number; // 1-12
-}
-
-export interface AssetHistoryTransformOptions {
-  filterYear?: number;
-  filterStartDate?: AssetHistoryDateFilter;
-  includePreviousMonthBaseline?: boolean;
-  excludeCash?: boolean;
-  // When true, only assets already present in the passed currentAssets array are shown.
-  // Snapshot-only assets (sold/deleted from the portfolio) are not re-introduced from
-  // historical snapshot data. Use this when the caller pre-filters currentAssets (e.g.
-  // to cost-basis-tracked assets only) and doesn't want deleted assets to bypass the filter.
-  restrictToPassedAssets?: boolean;
-}
-
-export interface AssetHistoryTotalRow {
-  monthColumns: string[];
-  totals: {
-    [monthKey: string]: number;
-  };
-  // Optional percentage fields for total row
-  monthlyChanges?: {
-    [monthKey: string]: number | undefined;  // undefined = first month (no previous)
-  };
-  ytd?: number;             // Year-to-date % (undefined if <2 months in current year)
-  fromStart?: number;       // From start % (undefined if <2 months total)
-  lastMonthChange?: number; // Change % of the last available month vs its predecessor
 }
 
 // Doubling Time Metric Types

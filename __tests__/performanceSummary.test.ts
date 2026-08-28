@@ -14,6 +14,7 @@ import {
   computeBenchmarkDelta,
   computeReturnConsistency,
   computeDrawdownStatus,
+  resolveHeroReturn,
 } from '@/lib/utils/performanceSummary';
 
 // ---------------------------------------------------------------------------
@@ -97,18 +98,47 @@ describe('computeReturnConsistency', () => {
 
   it('should surface the best and worst month with labels', () => {
     const c = computeReturnConsistency(heatmap);
-    expect(c.best).toEqual({ label: 'Mag 25', return: 8.1 });
-    expect(c.worst).toEqual({ label: 'Feb 25', return: -1.2 });
+    expect(c.best).toEqual({ label: 'Mag 25', year: 2025, month: 5, return: 8.1 });
+    expect(c.worst).toEqual({ label: 'Feb 25', year: 2025, month: 2, return: -1.2 });
   });
 
   it('should handle an empty heatmap', () => {
     expect(computeReturnConsistency([])).toEqual({
       positiveMonths: 0,
       totalMonths: 0,
-      positiveShare: 0,
+      positiveShare: null,
       best: null,
       worst: null,
     });
+  });
+
+  it('withholds the share on a sample too small to express one', () => {
+    // Un mese solo darebbe 0% o 100% secchi: sembra una statistica, non lo è. I conteggi restano —
+    // sono fatti — e la striscia mostra "1/1 mesi positivi" senza percentuale.
+    const single: MonthlyReturnHeatmapData[] = [
+      { year: 2026, months: [{ month: 1, return: 2.4 }] },
+    ];
+    const c = computeReturnConsistency(single);
+
+    expect(c.totalMonths).toBe(1);
+    expect(c.positiveMonths).toBe(1);
+    expect(c.positiveShare).toBeNull();
+    // Con un mese solo, migliore e peggiore sono lo stesso mese: chi renderizza deve mostrarlo una volta.
+    expect(c.best).toEqual(c.worst);
+  });
+
+  it('reports the share from the third month on', () => {
+    const three: MonthlyReturnHeatmapData[] = [
+      {
+        year: 2026,
+        months: [
+          { month: 1, return: 2.4 },
+          { month: 2, return: -1 },
+          { month: 3, return: 1 },
+        ],
+      },
+    ];
+    expect(computeReturnConsistency(three).positiveShare).toBeCloseTo(66.667, 3);
   });
 });
 
@@ -138,5 +168,57 @@ describe('computeDrawdownStatus', () => {
 
   it('should return null for an empty series', () => {
     expect(computeDrawdownStatus([])).toBeNull();
+  });
+});
+
+describe('resolveHeroReturn', () => {
+  // A7: annualizzare su due mesi trasforma una misura in una previsione. Sotto i 6 mesi l'hero
+  // mostra il rendimento del periodo, con l'etichetta che dice quale dei due sta guardando.
+
+  it('keeps the annualized figure from 6 months on', () => {
+    const result = resolveHeroReturn(12.68, 6);
+
+    expect(result.value).toBe(12.68);
+    expect(result.isPeriodReturn).toBe(false);
+    expect(result.label).toBe('annualizzato');
+  });
+
+  it('de-annualizes below the threshold and says so', () => {
+    // Un +4% in due mesi annualizza a 1,04^6 − 1 = 26,5319%: è quel numero che l'hero mostrava,
+    // una previsione a dodici mesi ricavata da due. Sotto soglia torna a dire +4%.
+    const result = resolveHeroReturn(26.5319, 2);
+
+    expect(result.isPeriodReturn).toBe(true);
+    expect(result.value!).toBeCloseTo(4, 4);
+    expect(result.label).toBe('nei 2 mesi');
+  });
+
+  it('uses the singular label for a single month', () => {
+    expect(resolveHeroReturn(12.68, 1).label).toBe('nel mese');
+  });
+
+  it('is the exact inverse of the annualization, so nothing is invented', () => {
+    const annualized = 15.93;
+    const months = 3;
+    const result = resolveHeroReturn(annualized, months);
+
+    // Ri-annualizzando si torna al punto di partenza.
+    const reAnnualized = (Math.pow(1 + result.value! / 100, 12 / months) - 1) * 100;
+    expect(reAnnualized).toBeCloseTo(annualized, 6);
+  });
+
+  it('handles a negative short-period return', () => {
+    const result = resolveHeroReturn(-30, 3);
+
+    expect(result.isPeriodReturn).toBe(true);
+    expect(result.value!).toBeLessThan(0);
+    expect(result.value!).toBeGreaterThan(-30); // la perdita di periodo è meno profonda dell'annualizzata
+  });
+
+  it('passes a missing return through without inventing a label', () => {
+    const result = resolveHeroReturn(null, 2);
+
+    expect(result.value).toBeNull();
+    expect(result.isPeriodReturn).toBe(false);
   });
 });

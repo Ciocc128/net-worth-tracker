@@ -88,7 +88,7 @@ async function countDummyCategories(userId: string): Promise<number> {
 /**
  * Deletes all dummy snapshots for a user
  */
-export async function deleteDummySnapshots(userId: string): Promise<number> {
+async function deleteDummySnapshots(userId: string): Promise<number> {
   const snapshotsCollection = collection(db, 'monthly-snapshots');
   const q = query(
     snapshotsCollection,
@@ -116,7 +116,7 @@ export async function deleteDummySnapshots(userId: string): Promise<number> {
 /**
  * Deletes all dummy expenses for a user
  */
-export async function deleteDummyExpenses(userId: string): Promise<number> {
+async function deleteDummyExpenses(userId: string): Promise<number> {
   const expensesCollection = collection(db, 'expenses');
   const q = query(
     expensesCollection,
@@ -148,7 +148,7 @@ export async function deleteDummyExpenses(userId: string): Promise<number> {
 /**
  * Deletes all dummy expense categories for a user
  */
-export async function deleteDummyCategories(userId: string): Promise<number> {
+async function deleteDummyCategories(userId: string): Promise<number> {
   const categoriesCollection = collection(db, 'expenseCategories');
   const q = query(
     categoriesCollection,

@@ -1,10 +1,11 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
-import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData, CurrentAllocationSnapshot, AllocationBasisSnapshot, AllocationExclusions, AllocationExcludedClass } from '@/types/assets';
+import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
-import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
+import { partitionByAllocationRole, ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
+import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
 
@@ -31,12 +32,34 @@ function serializeCoastFirePensions(
   }));
 }
 
+function serializeFamilyMembers(
+  members: AssetAllocationSettings['familyMembers']
+) {
+  if (!members) return members;
+
+  return members.map((member) => ({
+    id: member.id,
+    name: member.name,
+    ...(member.grossAnnualIncome !== undefined ? { grossAnnualIncome: member.grossAnnualIncome } : {}),
+    ...(member.isFirstEmploymentPost2007 !== undefined
+      ? { isFirstEmploymentPost2007: member.isFirstEmploymentPost2007 }
+      : {}),
+    ...(member.firstEmploymentYear !== undefined ? { firstEmploymentYear: member.firstEmploymentYear } : {}),
+  }));
+}
+
 /**
  * Get allocation settings for a user
  *
  * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses,
  * coastFireRetirementAge, coastFirePensions, coastFireTaxBrackets,
  * includePrimaryResidenceInFIRE, dividendIncomeCategoryId, dividendIncomeSubCategoryId
+ *
+ * WARNING (checklist comment): the mapping below is an EXPLICIT FIELD WHITELIST, not a spread of
+ * `data`. A new field on `AssetAllocationSettings` that is not added here is written to Firestore
+ * by `setSettings` and then silently dropped on read — the UI shows it saved until the next reload,
+ * when it reverts. Adding a setting means touching, in lock-step: the type in `types/assets.ts`,
+ * this mapping, and the state/load/save/dirty-snapshot wiring in `app/dashboard/settings/page.tsx`.
  */
 export async function getSettings(
   userId: string
@@ -62,6 +85,9 @@ export async function getSettings(
       coastFirePensions: data.coastFirePensions,
       coastFireTaxBrackets: data.coastFireTaxBrackets,
       includePrimaryResidenceInFIRE: data.includePrimaryResidenceInFIRE,
+      respectPensionLockInFire: data.respectPensionLockInFire,
+      pensionInpsRetirementAge: data.pensionInpsRetirementAge,
+      pensionRitaLongUnemployment: data.pensionRitaLongUnemployment,
       dividendIncomeCategoryId: data.dividendIncomeCategoryId,
       dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
       fireProjectionScenarios: data.fireProjectionScenarios,
@@ -80,19 +106,16 @@ export async function getSettings(
       assistantMacroContextEnabled: data.assistantMacroContextEnabled,
       assistantMemoryEnabled: data.assistantMemoryEnabled,
       costCentersEnabled: data.costCentersEnabled,
-      grossAnnualIncome: data.grossAnnualIncome,
-      isFirstEmploymentPost2007: data.isFirstEmploymentPost2007,
-      firstEmploymentYear: data.firstEmploymentYear,
-      respectPensionLockInFire: data.respectPensionLockInFire,
       monthlyEmailEnabled: data.monthlyEmailEnabled,
       quarterlyEmailEnabled: data.quarterlyEmailEnabled,
       semiAnnualEmailEnabled: data.semiAnnualEmailEnabled,
       yearlyEmailEnabled: data.yearlyEmailEnabled,
       weeklyBudgetEmailEnabled: data.weeklyBudgetEmailEnabled,
       monthlyEmailRecipients: data.monthlyEmailRecipients,
-      targetLeverageRatio: data.targetLeverageRatio,
-      excludeCashFromAllocation: data.excludeCashFromAllocation,
-      excludeRealEstateFromAllocation: data.excludeRealEstateFromAllocation,
+      familyMembers: data.familyMembers,
+      performanceIncludesPensionFunds: data.performanceIncludesPensionFunds,
+      performanceIncludesExcludedAssets: data.performanceIncludesExcludedAssets,
+      pensionReturnStartMonth: data.pensionReturnStartMonth,
       targets: data.targets as AssetAllocationTarget,
     };
   } catch (error) {
@@ -195,6 +218,18 @@ export async function setSettings(
       if (settings.autoCalculateEquityBonds !== undefined) {
         docData.autoCalculateEquityBonds = settings.autoCalculateEquityBonds;
       }
+      if (settings.respectPensionLockInFire !== undefined) {
+        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
+      }
+      // RITA rule inputs: written only by FireCalculatorTab with a complete form, not
+      // clearable — same reasoning as includePrimaryResidenceInFIRE, so the !== undefined guard
+      // is safe in both branches.
+      if (settings.pensionInpsRetirementAge !== undefined) {
+        docData.pensionInpsRetirementAge = settings.pensionInpsRetirementAge;
+      }
+      if (settings.pensionRitaLongUnemployment !== undefined) {
+        docData.pensionRitaLongUnemployment = settings.pensionRitaLongUnemployment;
+      }
       // Default cash accounts are user-clearable: a present-but-undefined value means
       // "Nessun default". setDoc here runs WITHOUT merge, so deleting the key from docData
       // (built from existingData) drops the stored value. The `in` check distinguishes
@@ -240,18 +275,6 @@ export async function setSettings(
       if (settings.costCentersEnabled !== undefined) {
         docData.costCentersEnabled = settings.costCentersEnabled;
       }
-      if (settings.grossAnnualIncome !== undefined) {
-        docData.grossAnnualIncome = settings.grossAnnualIncome;
-      }
-      if (settings.isFirstEmploymentPost2007 !== undefined) {
-        docData.isFirstEmploymentPost2007 = settings.isFirstEmploymentPost2007;
-      }
-      if (settings.firstEmploymentYear !== undefined) {
-        docData.firstEmploymentYear = settings.firstEmploymentYear;
-      }
-      if (settings.respectPensionLockInFire !== undefined) {
-        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
-      }
       if (settings.monthlyEmailEnabled !== undefined) {
         docData.monthlyEmailEnabled = settings.monthlyEmailEnabled;
       }
@@ -270,14 +293,23 @@ export async function setSettings(
       if (settings.monthlyEmailRecipients !== undefined) {
         docData.monthlyEmailRecipients = settings.monthlyEmailRecipients;
       }
-      if (settings.targetLeverageRatio !== undefined) {
-        docData.targetLeverageRatio = settings.targetLeverageRatio;
+      if (settings.familyMembers !== undefined) {
+        docData.familyMembers = serializeFamilyMembers(settings.familyMembers);
       }
-      if (settings.excludeCashFromAllocation !== undefined) {
-        docData.excludeCashFromAllocation = settings.excludeCashFromAllocation;
+      if (settings.performanceIncludesPensionFunds !== undefined) {
+        docData.performanceIncludesPensionFunds = settings.performanceIncludesPensionFunds;
       }
-      if (settings.excludeRealEstateFromAllocation !== undefined) {
-        docData.excludeRealEstateFromAllocation = settings.excludeRealEstateFromAllocation;
+      if (settings.performanceIncludesExcludedAssets !== undefined) {
+        docData.performanceIncludesExcludedAssets = settings.performanceIncludesExcludedAssets;
+      }
+      // Clearable (empty month input = "parti dal primo versamento"). Same shape as the default
+      // cash accounts above: this branch writes WITHOUT merge, so dropping the key removes it.
+      if ('pensionReturnStartMonth' in settings) {
+        if (settings.pensionReturnStartMonth !== undefined) {
+          docData.pensionReturnStartMonth = settings.pensionReturnStartMonth;
+        } else {
+          delete docData.pensionReturnStartMonth;
+        }
       }
 
       // Use setDoc WITHOUT merge to completely replace targets
@@ -343,6 +375,18 @@ export async function setSettings(
       if (settings.autoCalculateEquityBonds !== undefined) {
         docData.autoCalculateEquityBonds = settings.autoCalculateEquityBonds;
       }
+      if (settings.respectPensionLockInFire !== undefined) {
+        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
+      }
+      // RITA rule inputs: written only by FireCalculatorTab with a complete form, not
+      // clearable — same reasoning as includePrimaryResidenceInFIRE, so the !== undefined guard
+      // is safe in both branches.
+      if (settings.pensionInpsRetirementAge !== undefined) {
+        docData.pensionInpsRetirementAge = settings.pensionInpsRetirementAge;
+      }
+      if (settings.pensionRitaLongUnemployment !== undefined) {
+        docData.pensionRitaLongUnemployment = settings.pensionRitaLongUnemployment;
+      }
       // Default cash accounts are user-clearable. This branch writes with merge: true,
       // so omitting the key would leave the old value untouched — use deleteField() to
       // remove it when the user selects "Nessun default" (present-but-undefined).
@@ -385,18 +429,6 @@ export async function setSettings(
       if (settings.costCentersEnabled !== undefined) {
         docData.costCentersEnabled = settings.costCentersEnabled;
       }
-      if (settings.grossAnnualIncome !== undefined) {
-        docData.grossAnnualIncome = settings.grossAnnualIncome;
-      }
-      if (settings.isFirstEmploymentPost2007 !== undefined) {
-        docData.isFirstEmploymentPost2007 = settings.isFirstEmploymentPost2007;
-      }
-      if (settings.firstEmploymentYear !== undefined) {
-        docData.firstEmploymentYear = settings.firstEmploymentYear;
-      }
-      if (settings.respectPensionLockInFire !== undefined) {
-        docData.respectPensionLockInFire = settings.respectPensionLockInFire;
-      }
       if (settings.monthlyEmailEnabled !== undefined) {
         docData.monthlyEmailEnabled = settings.monthlyEmailEnabled;
       }
@@ -415,14 +447,22 @@ export async function setSettings(
       if (settings.monthlyEmailRecipients !== undefined) {
         docData.monthlyEmailRecipients = settings.monthlyEmailRecipients;
       }
-      if (settings.targetLeverageRatio !== undefined) {
-        docData.targetLeverageRatio = settings.targetLeverageRatio;
+      if (settings.familyMembers !== undefined) {
+        docData.familyMembers = serializeFamilyMembers(settings.familyMembers);
       }
-      if (settings.excludeCashFromAllocation !== undefined) {
-        docData.excludeCashFromAllocation = settings.excludeCashFromAllocation;
+      if (settings.performanceIncludesPensionFunds !== undefined) {
+        docData.performanceIncludesPensionFunds = settings.performanceIncludesPensionFunds;
       }
-      if (settings.excludeRealEstateFromAllocation !== undefined) {
-        docData.excludeRealEstateFromAllocation = settings.excludeRealEstateFromAllocation;
+      if (settings.performanceIncludesExcludedAssets !== undefined) {
+        docData.performanceIncludesExcludedAssets = settings.performanceIncludesExcludedAssets;
+      }
+      // Clearable, and this branch merges — omitting the key would leave the old month in place,
+      // so an explicit deleteField() is required (same as the default cash accounts above).
+      if ('pensionReturnStartMonth' in settings) {
+        docData.pensionReturnStartMonth =
+          settings.pensionReturnStartMonth !== undefined
+            ? settings.pensionReturnStartMonth
+            : deleteField();
       }
 
       // Use merge: true to preserve existing fields
@@ -441,19 +481,9 @@ export async function setSettings(
 }
 
 /**
- * Set allocation targets for a user (legacy function for backward compatibility)
- */
-export async function setTargets(
-  userId: string,
-  targets: AssetAllocationTarget
-): Promise<void> {
-  await setSettings(userId, { targets });
-}
-
-/**
  * Calculate current allocation from assets
  *
- * Handles both simple assets and composite assets (e.g., mixed pension funds or leveraged ETF).
+ * Handles both simple assets and composite assets (e.g., mixed pension funds).
  * For composite assets, distributes value across multiple asset classes based
  * on the composition percentages.
  *
@@ -479,28 +509,49 @@ export function calculateCurrentAllocation(assets: Asset[]): {
   const bySubCategory: { [subCategory: string]: number } = {};
 
   assets.forEach((asset) => {
-    const exposureComponents = expandAssetExposure(asset);
+    const value = calculateAssetValue(asset);
 
-    exposureComponents.forEach((comp) => {
-      const exposureValue = comp.notionalValue ?? comp.marketValue;
+    // For composite assets, distribute value across multiple asset classes
+    if (asset.composition && asset.composition.length > 0) {
+      asset.composition.forEach((comp) => {
+        const compValue = (value * comp.percentage) / 100;
+
+        // Aggregate by asset class
+        if (!byAssetClass[comp.assetClass]) {
+          byAssetClass[comp.assetClass] = 0;
+        }
+        byAssetClass[comp.assetClass] += compValue;
+
+        // Aggregate by sub-category if present in composition
+        // Each component can have its own specific sub-category
+        // Use composite key "assetClass:subCategory" to avoid collisions
+        if (comp.subCategory) {
+          const subCategoryKey = `${comp.assetClass}:${comp.subCategory}`;
+          if (!bySubCategory[subCategoryKey]) {
+            bySubCategory[subCategoryKey] = 0;
+          }
+          bySubCategory[subCategoryKey] += compValue;
+        }
+      });
+    } else {
+      // Simple asset (no composition) - standard aggregation
 
       // Aggregate by asset class
-      if (!byAssetClass[comp.assetClass]) {
-        byAssetClass[comp.assetClass] = 0;
+      if (!byAssetClass[asset.assetClass]) {
+        byAssetClass[asset.assetClass] = 0;
       }
-      byAssetClass[comp.assetClass] += exposureValue;
+      byAssetClass[asset.assetClass] += value;
 
-      // Aggregate by sub-category if present in composition
-      // Each component can have its own specific sub-category
+      // Aggregate by sub-category if present
       // Use composite key "assetClass:subCategory" to avoid collisions
-      if (comp.subCategory) {
-        const subCategoryKey = `${comp.assetClass}:${comp.subCategory}`;
+      if (asset.subCategory) {
+        const subCategoryKey = `${asset.assetClass}:${asset.subCategory}`;
         if (!bySubCategory[subCategoryKey]) {
           bySubCategory[subCategoryKey] = 0;
         }
-        bySubCategory[subCategoryKey] += exposureValue;
+        bySubCategory[subCategoryKey] += value;
       }
-    });
+    }
   });
 
   return {
@@ -510,128 +561,153 @@ export function calculateCurrentAllocation(assets: Asset[]): {
   };
 }
 
-export function calculateCurrentAllocationSnapshot(
+/**
+ * Find assets that match a specific asset name/ticker
+ *
+ * Matching is case-insensitive and checks both ticker and name fields.
+ * Only returns assets that match the specified asset class and subcategory.
+ *
+ * @param assets - Array of all portfolio assets
+ * @param specificAssetName - Name or ticker to search for (e.g., "Enel", "AAPL")
+ * @param assetClass - Asset class to filter by
+ * @param subCategory - Subcategory to filter by
+ * @returns Array of matching assets
+ */
+function findMatchingAssets(
+  assets: Asset[],
+  specificAssetName: string,
+  assetClass: string,
+  subCategory: string
+): Asset[] {
+  const searchTerm = specificAssetName.trim().toLowerCase();
+
+  return assets.filter(asset => {
+    // Must match asset class
+    if (asset.assetClass !== assetClass) return false;
+
+    // Must match subcategory
+    if (asset.subCategory !== subCategory) return false;
+
+    // Match on ticker or name (case-insensitive, partial match)
+    const tickerMatch = asset.ticker.toLowerCase().includes(searchTerm);
+    const nameMatch = asset.name.toLowerCase().includes(searchTerm);
+
+    return tickerMatch || nameMatch;
+  });
+}
+
+/**
+ * A single basis (market OR notional) of the exposure snapshot: totals and per-class /
+ * per-sub-category / per-specific-asset breakdowns, all in the same unit.
+ */
+interface AllocationBasisSnapshot {
+  totalValue: number;
+  byAssetClass: Record<string, number>;
+  /** class -> subCategory -> value. */
+  bySubCategory: Record<string, Record<string, number>>;
+  /** class -> specificAssetKey (asset id/name) -> value. */
+  bySpecificAsset: Record<string, Record<string, number>>;
+}
+
+/**
+ * Current allocation seen on BOTH bases at once: `market` (what it is worth) and `notional`
+ * (the risk exposure it carries, market × leverage). For an unleveraged portfolio the two are
+ * identical. Produced by `calculateCurrentAllocationSnapshot`, consumed by
+ * `toLegacyAllocationResult` and by the instrument-aware planner (via the page).
+ */
+interface CurrentAllocationSnapshot {
+  market: AllocationBasisSnapshot;
+  notional: AllocationBasisSnapshot;
+  metadata: {
+    marketValue: number;
+    notionalValue: number;
+    leverageRatio: number;
+    hasLeveragedExposure: boolean;
+  };
+}
+
+/** Fixed set of top-level asset classes, used to seed a `CurrentAllocationSnapshot`. */
+const ALL_ASSET_CLASSES: AssetClass[] = ASSET_CLASS_SEQUENCE;
+
+/**
+ * Expand every asset into per-class market AND notional exposure (`expandAssetExposure`, the
+ * single source per invariant #2) and aggregate into a two-basis snapshot. No asset is
+ * partitioned out here — the caller decides which set of assets to pass (`compareAllocations`,
+ * its only caller, passes the investable base = tradable + frozen).
+ */
+function calculateCurrentAllocationSnapshot(
   assets: Asset[],
   assetClasses: AssetClass[]
 ): CurrentAllocationSnapshot {
-  const createAssetClassMap = (): Record<string, number> =>
+  const seed = (): Record<string, number> =>
     assetClasses.reduce<Record<string, number>>((acc, assetClass) => {
       acc[assetClass] = 0;
       return acc;
     }, {});
 
-  const marketByAssetClass = createAssetClassMap();
-  const notionalByAssetClass = createAssetClassMap();
-
+  const marketByAssetClass = seed();
+  const notionalByAssetClass = seed();
   const marketBySubCategory: Record<string, Record<string, number>> = {};
   const notionalBySubCategory: Record<string, Record<string, number>> = {};
-
   const marketBySpecificAsset: Record<string, Record<string, number>> = {};
   const notionalBySpecificAsset: Record<string, Record<string, number>> = {};
 
   let totalMarketValue = 0;
   let totalNotionalValue = 0;
 
-  const ensureNestedBucket = (
+  const nested = (
     container: Record<string, Record<string, number>>,
     parentKey: string
-  ): Record<string, number> => {
-    if (!container[parentKey]) {
-      container[parentKey] = {};
-    }
-    return container[parentKey];
-  };
+  ): Record<string, number> => (container[parentKey] ??= {});
 
-  const addToBucket = (
-    bucket: Record<string, number>,
-    key: string | undefined,
-    value: number
-  ) => {
+  const add = (bucket: Record<string, number>, key: string | undefined, value: number) => {
     if (!key) return;
     bucket[key] = (bucket[key] ?? 0) + value;
   };
 
   for (const asset of assets) {
-    const components = expandAssetExposure(asset);
     const specificAssetKey = asset.id || asset.name;
 
-    for (const component of components) {
-      const marketValue = component.marketValue ?? 0;
-      const notionalValue = component.notionalValue ?? marketValue;
-      const assetClass = component.assetClass;
+    for (const component of expandAssetExposure(asset)) {
+      const { marketValue, notionalValue, assetClass } = component;
       const subCategory = component.subCategory?.trim();
 
       totalMarketValue += marketValue;
       totalNotionalValue += notionalValue;
 
-      addToBucket(marketByAssetClass, assetClass, marketValue);
-      addToBucket(notionalByAssetClass, assetClass, notionalValue);
+      add(marketByAssetClass, assetClass, marketValue);
+      add(notionalByAssetClass, assetClass, notionalValue);
 
       if (subCategory) {
-        addToBucket(
-          ensureNestedBucket(marketBySubCategory, assetClass),
-          subCategory,
-          marketValue
-        );
-        addToBucket(
-          ensureNestedBucket(notionalBySubCategory, assetClass),
-          subCategory,
-          notionalValue
-        );
+        add(nested(marketBySubCategory, assetClass), subCategory, marketValue);
+        add(nested(notionalBySubCategory, assetClass), subCategory, notionalValue);
       }
 
       if (specificAssetKey) {
-        addToBucket(
-          ensureNestedBucket(marketBySpecificAsset, assetClass),
-          specificAssetKey,
-          marketValue
-        );
-        addToBucket(
-          ensureNestedBucket(notionalBySpecificAsset, assetClass),
-          specificAssetKey,
-          notionalValue
-        );
+        add(nested(marketBySpecificAsset, assetClass), specificAssetKey, marketValue);
+        add(nested(notionalBySpecificAsset, assetClass), specificAssetKey, notionalValue);
       }
     }
   }
 
-  const buildBasisSnapshot = (
-    totalValue: number,
-    byAssetClass: Record<string, number>,
-    bySubCategory: Record<string, Record<string, number>>,
-    bySpecificAsset: Record<string, Record<string, number>>
-  ): AllocationBasisSnapshot => ({
-    totalValue,
-    byAssetClass,
-    bySubCategory,
-    bySpecificAsset,
-  });
-
-  const leverageRatio =
-    totalMarketValue > 0 ? totalNotionalValue / totalMarketValue : 1;
-
+  const leverageRatio = totalMarketValue > 0 ? totalNotionalValue / totalMarketValue : 1;
   const hasLeveragedExposure =
     totalMarketValue > 0 && Math.abs(totalNotionalValue - totalMarketValue) > 0.01;
 
   return {
-    market: buildBasisSnapshot(
-      totalMarketValue,
-      marketByAssetClass,
-      marketBySubCategory,
-      marketBySpecificAsset
-    ),
-    notional: buildBasisSnapshot(
-      totalNotionalValue,
-      notionalByAssetClass,
-      notionalBySubCategory,
-      notionalBySpecificAsset
-    ),
-    metadata: {
-      marketValue: totalMarketValue,
-      notionalValue: totalNotionalValue,
-      leverageRatio,
-      hasLeveragedExposure,
+    market: {
+      totalValue: totalMarketValue,
+      byAssetClass: marketByAssetClass,
+      bySubCategory: marketBySubCategory,
+      bySpecificAsset: marketBySpecificAsset,
     },
+    notional: {
+      totalValue: totalNotionalValue,
+      byAssetClass: notionalByAssetClass,
+      bySubCategory: notionalBySubCategory,
+      bySpecificAsset: notionalBySpecificAsset,
+    },
+    metadata: { marketValue: totalMarketValue, notionalValue: totalNotionalValue, leverageRatio, hasLeveragedExposure },
   };
 }
 
@@ -643,36 +719,21 @@ function classifyAction(difference: number): AllocationData['action'] {
 }
 
 /**
- * The classes kept OUT of the allocation base for a given exclusion config. Cash and real
- * estate are the only excludable classes (toggled by the user in Settings). See
- * `AllocationExclusions`.
+ * The TARGET leverage a target set encodes. Every target % is a desired notional exposure as a
+ * percentage of invested capital, so the SUM over the configured classes is exactly
+ * `leverage × 100` (equity 90% + bonds 60% ⇒ 1.50×). Read-only / derived: the app
+ * never stores a manual leverage input. Returns 1 for an empty/absent target set (no leverage).
+ *
+ * No exclusions parameter (D1): exclusions live on the asset (`allocationRole`), not on classes,
+ * so every configured class target counts toward the target leverage of the investable base.
  */
-export function getExcludedClasses(exclusions?: AllocationExclusions): Set<string> {
-  const excluded = new Set<string>();
-  // Pension is ALWAYS out of the allocation base (not a user toggle): a fondo pensione is locked,
-  // illiquid retirement capital, not a portfolio position to rebalance. It carries no target and
-  // never enters numerator/denominator or the target-leverage sum.
-  excluded.add('pension');
-  if (exclusions?.cash) excluded.add('cash');
-  if (exclusions?.realestate) excluded.add('realestate');
-  return excluded;
-}
-
-/**
- * The TARGET leverage that a target set encodes. In the leverage-aware model each target % is a
- * desired notional exposure expressed as a percentage of invested capital, so the SUM over the
- * investable classes is exactly `leverage × 100` (equity 90% + bonds 60% ⇒ 1.50×). Excluded
- * classes carry no target and don't count. Returns 1 for an empty/absent target set (no leverage).
- */
-export function deriveTargetLeverageRatio(
-  targets: AssetAllocationTarget | null,
-  exclusions?: AllocationExclusions
-): number {
+export function deriveTargetLeverageRatio(targets: AssetAllocationTarget | null): number {
   if (!targets) return 1;
-  const excluded = getExcludedClasses(exclusions);
   let sum = 0;
   for (const [assetClass, data] of Object.entries(targets)) {
-    if (excluded.has(assetClass)) continue;
+    // A fixed-amount cash target keeps a stale `targetPercentage` beside it (Settings sums the
+    // other classes «excl. cash»); counting it read a 100% plan as a 1,05× leverage target.
+    if (assetClass === 'cash' && data.useFixedAmount) continue;
     sum += Math.max(0, data.targetPercentage || 0);
   }
   return sum > 0 ? sum / 100 : 1;
@@ -682,66 +743,47 @@ export function deriveTargetLeverageRatio(
  * Build the `AllocationResult` (current vs target per class / sub-category / specific asset) on
  * the LEVERAGE-AWARE basis: every current/target percentage is a NOTIONAL exposure expressed as
  * a % of the investable MARKET capital, so a leveraged portfolio's weights legitimately sum to
- * MORE than 100% — their sum is the leverage ratio × 100. This is the "ragionare a leva" the
- * Allocazione page needs: current and target sit on the same axis and are directly comparable
- * (a class's `difference` in p.p. still drives COMPRA/VENDI/OK exactly as before).
+ * MORE than 100% — their sum is the leverage ratio × 100. Current and target sit on the same
+ * axis and stay directly comparable (a class's `difference` in p.p. drives COMPRA/VENDI/OK
+ * exactly as before).
  *
  *   - current value per class = its NOTIONAL exposure (`snapshot.notional`).
- *   - denominator (`marketBase`) = investable MARKET capital = Σ market value of the
- *     non-excluded classes. Excluded classes (cash / real estate, per `exclusions`) leave the
- *     base entirely — neither numerator nor denominator — and carry no target.
+ *   - denominator (`marketBase`) = investable MARKET capital = Σ market of the snapshot classes.
  *   - target value per class = `targetPercentage% × marketBase`, kept as a notional € figure so
  *     `differenceValue` is a real "how many € of exposure to move".
  *
- * For an unleveraged portfolio with no exclusions this reduces to the previous behavior (market
- * == notional, weights sum to 100), so pre-leverage results are unchanged.
+ * For an unleveraged portfolio this reduces to the previous behavior (market == notional,
+ * weights sum to 100), so pre-leverage results are unchanged (invariant #1).
  *
  * `assets` is only needed for the specific-asset level (matched by ticker/name via
  * `findMatchingAssets`, summing plain market value — specific-asset targets are individual
  * stocks, not leveraged instruments, so market value is an adequate proxy there).
  */
-export function toLegacyAllocationResult(
+function toLegacyAllocationResult(
   snapshot: CurrentAllocationSnapshot,
   targets: AssetAllocationTarget | null,
-  assets: Asset[],
-  exclusions?: AllocationExclusions
+  assets: Asset[]
 ): AllocationResult {
-  const excluded = getExcludedClasses(exclusions);
-
-  // Investable base: market capital (denominator) and notional exposure summed over the
-  // non-excluded classes.
-  let marketBase = 0;
-  for (const [assetClass, marketValue] of Object.entries(snapshot.market.byAssetClass)) {
-    if (!excluded.has(assetClass)) marketBase += marketValue;
-  }
-  let notionalInvestable = 0;
-  for (const [assetClass, notionalValue] of Object.entries(snapshot.notional.byAssetClass)) {
-    if (!excluded.has(assetClass)) notionalInvestable += notionalValue;
-  }
-
-  // Excluded classes with their market value, for the page's "Fuori allocazione" strip.
-  const excludedClasses: AllocationExcludedClass[] = [];
-  for (const assetClass of excluded) {
-    const marketValue = snapshot.market.byAssetClass[assetClass] ?? 0;
-    if (marketValue > 0) excludedClasses.push({ assetClass, marketValue });
-  }
+  const marketBase = snapshot.market.totalValue;
+  const notionalInvestable = snapshot.notional.totalValue;
 
   const baseMetadata = {
     totalValue: notionalInvestable,
     marketValue: marketBase,
-    leverageRatio: marketBase > 0 ? notionalInvestable / marketBase : 1,
-    excludedClasses,
+    notionalValue: notionalInvestable,
+    leverageRatio: snapshot.metadata.leverageRatio,
+    hasLeveragedExposure: snapshot.metadata.hasLeveragedExposure,
   };
 
   if (!targets || marketBase === 0) {
     return { byAssetClass: {}, bySubCategory: {}, bySpecificAsset: {}, ...baseMetadata };
   }
 
-  // Fixed-amount cash is a legacy alternative to a percentage target and only applies when cash
-  // is INCLUDED — excluding cash disables the fixed reserve (they're two ways of saying the same
-  // thing). The reserved € is carved out of the market base before other classes' targets apply.
+  // Fixed-amount cash is a legacy alternative to a percentage target: the reserved € is carved
+  // out of the market base before the other classes' targets apply. (Excluding cash from the base
+  // is a per-asset `allocationRole` decision now, so there is no class-level cash exclusion here.)
   const cashTarget = targets['cash'];
-  const useCashFixedAmount = !excluded.has('cash') && (cashTarget?.useFixedAmount || false);
+  const useCashFixedAmount = cashTarget?.useFixedAmount || false;
   const cashFixedAmount = useCashFixedAmount ? (cashTarget?.fixedAmount || 0) : 0;
   const targetBase = useCashFixedAmount ? Math.max(0, marketBase - cashFixedAmount) : marketBase;
 
@@ -750,9 +792,6 @@ export function toLegacyAllocationResult(
   const bySpecificAsset: AllocationResult['bySpecificAsset'] = {};
 
   Object.keys(targets).forEach((assetClass) => {
-    // Excluded classes carry no target and are not part of the base.
-    if (excluded.has(assetClass)) return;
-
     const targetData = targets[assetClass];
     const currentValue = snapshot.notional.byAssetClass[assetClass] || 0; // notional exposure
     const currentPercentage = marketBase > 0 ? (currentValue / marketBase) * 100 : 0;
@@ -760,14 +799,16 @@ export function toLegacyAllocationResult(
     let targetValue: number;
     let targetPercentage: number;
 
-    // Special handling for cash if using a fixed amount (only reachable when cash is included).
     if (assetClass === 'cash' && useCashFixedAmount) {
       targetValue = cashFixedAmount;
       targetPercentage = marketBase > 0 ? (targetValue / marketBase) * 100 : 0;
     } else {
-      targetPercentage = targetData.targetPercentage;
-      // % of the (possibly fixed-cash-reduced) market base, as a notional € figure.
-      targetValue = (targetBase * targetPercentage) / 100;
+      // % of the (possibly fixed-cash-reduced) market base, expressed as a notional € figure —
+      // and, as a percentage, re-expressed on the MARKET base like `currentPercentage` is: with
+      // a 25k reserve on 200k, a 70% equity target is 61,25% of the market, and the p.p. drift
+      // must compare the two on one base or every class reads under target by the cash share.
+      targetValue = (targetBase * targetData.targetPercentage) / 100;
+      targetPercentage = marketBase > 0 ? (targetValue / marketBase) * 100 : 0;
     }
 
     const difference = currentPercentage - targetPercentage;
@@ -826,8 +867,8 @@ export function toLegacyAllocationResult(
             // Use composite key "assetClass:subCategory:assetName"
             const specificAssetKey = `${assetClass}:${subCategory}:${specificAsset.name}`;
 
-            // Find matching assets in the portfolio and sum their (market) value. Specific-asset
-            // targets are individual unleveraged stocks, so market ≈ notional here.
+            // Find matching assets and sum their (market) value. Specific-asset targets are
+            // individual unleveraged stocks, so market ≈ notional here.
             const matchingAssets = findMatchingAssets(assets, specificAsset.name, assetClass, subCategory);
             const specificCurrentValue = matchingAssets.reduce(
               (sum, asset) => sum + calculateAssetValue(asset),
@@ -864,63 +905,26 @@ export function toLegacyAllocationResult(
 }
 
 /**
- * Find assets that match a specific asset name/ticker
- *
- * Matching is case-insensitive and checks both ticker and name fields.
- * Only returns assets that match the specified asset class and subcategory.
- *
- * @param assets - Array of all portfolio assets
- * @param specificAssetName - Name or ticker to search for (e.g., "Enel", "AAPL")
- * @param assetClass - Asset class to filter by
- * @param subCategory - Subcategory to filter by
- * @returns Array of matching assets
- */
-function findMatchingAssets(
-  assets: Asset[],
-  specificAssetName: string,
-  assetClass: string,
-  subCategory: string
-): Asset[] {
-  const searchTerm = specificAssetName.trim().toLowerCase();
-
-  return assets.filter(asset => {
-    // Must match asset class
-    if (asset.assetClass !== assetClass) return false;
-
-    // Must match subcategory
-    if (asset.subCategory !== subCategory) return false;
-
-    // Match on ticker or name (case-insensitive, partial match)
-    const tickerMatch = asset.ticker.toLowerCase().includes(searchTerm);
-    const nameMatch = asset.name.toLowerCase().includes(searchTerm);
-
-    return tickerMatch || nameMatch;
-  });
-}
-
-/** Fixed set of top-level asset classes, used to seed a `CurrentAllocationSnapshot`. */
-export const ALL_ASSET_CLASSES: AssetClass[] = ['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry'];
-
-/**
  * Compare current allocation against targets and generate rebalancing actions.
  *
- * Basis: LEVERAGE-AWARE — current/target percentages are notional exposure over investable
- * MARKET capital, so they sum to the leverage ratio × 100 (a leveraged portfolio exceeds 100%).
- * A target says "I want 90% of my capital's worth of equity exposure"; summing the targets
- * gives the target leverage. `exclusions` removes cash and/or real estate from the base
- * entirely (they're shown separately, "Fuori allocazione"). The € amounts this implies
- * (`differenceValue`, and the Ribilancia/Versa plans built from it) close the gap correctly as
- * long as the trade is executed through an unleveraged instrument — see the instrument-aware
- * planner (`leverageAwareAllocationUtils.ts`) for a version that reuses the leveraged
- * instruments already in the portfolio instead.
+ * LEVERAGE-AWARE invariant: current/target percentages
+ * are notional exposure over investable MARKET capital, so they sum to `leverageRatio × 100`.
+ *
+ * The investable base is `tradable + frozen` (invariant #5): `excluded`-role assets (the home
+ * you live in) leave num+denom entirely; `frozen` assets (a locked pension fund) stay in the
+ * denominator and the percentages but are never traded — the page's planners move the others
+ * around them. Partitioning happens HERE (via `partitionByAllocationRole`) so the function is
+ * correct whether it is handed the full asset list (e.g. the PDF export) or a pre-filtered one
+ * (the Allocazione page already passes tradable + frozen — idempotent).
  */
 export function compareAllocations(
   assets: Asset[],
-  targets: AssetAllocationTarget | null,
-  exclusions?: AllocationExclusions
+  targets: AssetAllocationTarget | null
 ): AllocationResult {
-  const snapshot = calculateCurrentAllocationSnapshot(assets, ALL_ASSET_CLASSES);
-  return toLegacyAllocationResult(snapshot, targets, assets, exclusions);
+  const { tradable, frozen } = partitionByAllocationRole(assets);
+  const investable = [...tradable, ...frozen];
+  const snapshot = calculateCurrentAllocationSnapshot(investable, ALL_ASSET_CLASSES);
+  return toLegacyAllocationResult(snapshot, targets, investable);
 }
 
 /**
@@ -1050,9 +1054,13 @@ export function buildTargetsFromGoalAllocation(
   derived: Partial<Record<AssetClass, number>>,
   existingTargets?: AssetAllocationTarget | null
 ): AssetAllocationTarget {
+  const allClasses: AssetClass[] = [
+    'equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity',
+  ];
+
   const targets: AssetAllocationTarget = {};
 
-  for (const cls of ALL_ASSET_CLASSES) {
+  for (const cls of allClasses) {
     const existing = existingTargets?.[cls];
     targets[cls] = {
       // Override asset class percentage with goal-derived value
@@ -1116,20 +1124,6 @@ export function getDefaultTargets(): AssetAllocationTarget {
       subCategoryConfig: {
         enabled: false,
         categories: DEFAULT_SUB_CATEGORIES.commodity,
-      },
-    },
-    trendFollowing: {
-      targetPercentage: 0,
-      subCategoryConfig: {
-        enabled: false,
-        categories: DEFAULT_SUB_CATEGORIES.trendFollowing,
-      },
-    },
-    carry: {
-      targetPercentage: 0,
-      subCategoryConfig: {
-        enabled: false,
-        categories: DEFAULT_SUB_CATEGORIES.carry,
       },
     },
   };

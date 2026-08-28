@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import type { AssistantMonthContextBundle } from '@/types/assistant';
 
 const {
   verifyIdTokenMock,
@@ -13,11 +14,15 @@ const {
   getAssistantThreadMock,
   getAssistantMemoryDocumentMock,
   updateAssistantMemoryDocumentMock,
+  applyAssistantMemoryMutationsMock,
   deleteAssistantMemoryDocumentMock,
   setAssistantGoalEvaluationMock,
   appendAssistantMessageMock,
   updateAssistantThreadMetadataMock,
   streamAssistantResponseMock,
+  extractMemoryCandidatesMock,
+  extractStructuredGoalFromTextMock,
+  accountAccessDocGetMock,
 } = vi.hoisted(() => ({
   verifyIdTokenMock: vi.fn(),
   buildAssistantMonthContextMock: vi.fn(),
@@ -30,11 +35,15 @@ const {
   getAssistantThreadMock: vi.fn(),
   getAssistantMemoryDocumentMock: vi.fn(),
   updateAssistantMemoryDocumentMock: vi.fn(),
+  applyAssistantMemoryMutationsMock: vi.fn(),
   deleteAssistantMemoryDocumentMock: vi.fn(),
   setAssistantGoalEvaluationMock: vi.fn(),
   appendAssistantMessageMock: vi.fn(),
   updateAssistantThreadMetadataMock: vi.fn(),
   streamAssistantResponseMock: vi.fn(),
+  extractMemoryCandidatesMock: vi.fn(),
+  extractStructuredGoalFromTextMock: vi.fn(),
+  accountAccessDocGetMock: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -47,6 +56,16 @@ vi.mock('@/lib/server/rateLimit', () => ({
 vi.mock('@/lib/firebase/admin', () => ({
   adminAuth: {
     verifyIdToken: verifyIdTokenMock,
+  },
+  adminDb: {
+    collection: vi.fn((name: string) => {
+      // Delegated-access lookup performed by assertCanAccessAccount when the
+      // caller's uid differs from the requested owner.
+      if (name === 'account-access') {
+        return { doc: vi.fn(() => ({ get: accountAccessDocGetMock })) };
+      }
+      throw new Error(`Unexpected collection: ${name}`);
+    }),
   },
 }));
 
@@ -64,6 +83,7 @@ vi.mock('@/lib/server/assistant/store', () => ({
   getAssistantThread: getAssistantThreadMock,
   getAssistantMemoryDocument: getAssistantMemoryDocumentMock,
   updateAssistantMemoryDocument: updateAssistantMemoryDocumentMock,
+  applyAssistantMemoryMutations: applyAssistantMemoryMutationsMock,
   deleteAssistantMemoryDocument: deleteAssistantMemoryDocumentMock,
   setAssistantGoalEvaluation: setAssistantGoalEvaluationMock,
   appendAssistantMessage: appendAssistantMessageMock,
@@ -76,7 +96,15 @@ vi.mock('@/lib/server/assistant/anthropicStream', () => ({
   streamAssistantResponse: streamAssistantResponseMock,
 }));
 
-import { GET as getThreadsRoute, POST as postThreadsRoute } from '@/app/api/ai/assistant/threads/route';
+// Keeps the fire-and-forget memory extraction off the network, and lets the goal
+// structuring path of PATCH be asserted without a real Haiku call.
+vi.mock('@/lib/server/assistant/memoryExtraction', () => ({
+  extractMemoryCandidates: extractMemoryCandidatesMock,
+  extractStructuredGoalFromText: extractStructuredGoalFromTextMock,
+  dedupeMemoryItems: vi.fn((candidates: unknown[]) => candidates),
+}));
+
+import { GET as getThreadsRoute } from '@/app/api/ai/assistant/threads/route';
 import { GET as getThreadRoute } from '@/app/api/ai/assistant/threads/[threadId]/route';
 import {
   GET as getMemoryRoute,
@@ -113,6 +141,11 @@ describe('Assistant private API routes', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
 
     verifyIdTokenMock.mockResolvedValue({ uid: 'user-1' });
+    // Default: no delegated-access grant, so cross-account calls are denied (403).
+    accountAccessDocGetMock.mockResolvedValue({ exists: false, data: () => undefined });
+    // `satisfies` is load-bearing: the mock is an untyped vi.fn(), so without it a
+    // renamed or dropped bundle field leaves this fixture green while it no longer
+    // resembles what the route actually receives.
     buildAssistantMonthContextMock.mockResolvedValue({
       selector: { year: 2026, month: 3 },
       currentSnapshot: null,
@@ -123,6 +156,7 @@ describe('Assistant private API routes', () => {
         totalDividends: 0,
         netCashFlow: 0,
         transactionCount: 0,
+        expenseTransactionCount: 0,
       },
       netWorth: {
         start: null,
@@ -131,9 +165,15 @@ describe('Assistant private API routes', () => {
         deltaPct: null,
       },
       allocationChanges: [],
-      topExpensesByCategory: [],
+      expensesByCategory: [],
+      incomeByCategory: [],
+      expensesByType: [],
       topIndividualExpenses: [],
       bySubCategoryAllocation: {},
+      targetAllocation: null,
+      targetAllocationSource: 'manual',
+      goals: null,
+      expenseCategories: [],
       dataQuality: {
         hasSnapshot: false,
         hasPreviousBaseline: false,
@@ -141,7 +181,7 @@ describe('Assistant private API routes', () => {
         isPartialMonth: true,
         notes: [],
       },
-    });
+    } satisfies AssistantMonthContextBundle);
     buildAssistantYearContextMock.mockResolvedValue(null);
     buildAssistantYtdContextMock.mockResolvedValue(null);
     buildAssistantHistoryContextMock.mockResolvedValue(null);
@@ -216,6 +256,19 @@ describe('Assistant private API routes', () => {
       hasDummySnapshots: false,
     });
     setAssistantGoalEvaluationMock.mockResolvedValue(undefined);
+    applyAssistantMemoryMutationsMock.mockResolvedValue({
+      preferences: {
+        responseStyle: 'balanced',
+        includeMacroContext: false,
+        memoryEnabled: true,
+        includeDummySnapshots: false,
+      },
+      items: [],
+      suggestions: [],
+      updatedAt: new Date(2026, 3, 5),
+    });
+    extractMemoryCandidatesMock.mockResolvedValue([]);
+    extractStructuredGoalFromTextMock.mockResolvedValue(undefined);
     appendAssistantMessageMock
       .mockResolvedValueOnce({
         id: 'user-msg-1',
@@ -271,37 +324,9 @@ describe('Assistant private API routes', () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
-      error: 'Authenticated user does not match requested user',
+      error: 'Authenticated user does not have access to requested account',
     });
     expect(listAssistantThreadsMock).not.toHaveBeenCalled();
-  });
-
-  it('creates a thread for the authenticated user', async () => {
-    const response = await postThreadsRoute(
-      createJsonRequest('http://localhost/api/ai/assistant/threads', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer valid-token',
-        },
-        body: {
-          userId: 'user-1',
-          mode: 'chat',
-        },
-      })
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      thread: {
-        id: 'thread-1',
-        userId: 'user-1',
-      },
-    });
-    expect(createAssistantThreadMock).toHaveBeenCalledWith({
-      userId: 'user-1',
-      mode: 'chat',
-      pinnedMonth: null,
-    });
   });
 
   it('returns a thread detail for the authenticated user', async () => {
@@ -363,6 +388,99 @@ describe('Assistant private API routes', () => {
         includeMacroContext: true,
       },
       item: undefined,
+    });
+  });
+
+  it('structures a goal written by hand in the memory panel', async () => {
+    // The panel sends id/text/category only, so without this the goal would never
+    // be auto-trackable — exactly what the structured-goals rework set out to fix.
+    extractStructuredGoalFromTextMock.mockResolvedValueOnce({
+      kind: 'cash_target',
+      targetValue: 20000,
+      unit: 'eur',
+      direction: 'at_most',
+    });
+
+    const response = await patchMemoryRoute(
+      createJsonRequest('http://localhost/api/ai/assistant/memory', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer valid-token' },
+        body: {
+          userId: 'user-1',
+          item: { id: 'goal-1', text: 'Ridurre il cash a 20k', category: 'goal' },
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(extractStructuredGoalFromTextMock).toHaveBeenCalledWith(
+      'Ridurre il cash a 20k',
+      expect.anything()
+    );
+    expect(updateAssistantMemoryDocumentMock).toHaveBeenCalledWith('user-1', {
+      preferences: undefined,
+      item: {
+        id: 'goal-1',
+        text: 'Ridurre il cash a 20k',
+        category: 'goal',
+        structuredGoal: {
+          kind: 'cash_target',
+          targetValue: 20000,
+          unit: 'eur',
+          direction: 'at_most',
+        },
+      },
+      suggestion: undefined,
+    });
+  });
+
+  it('does not spend a model call when only the status of a goal changes', async () => {
+    getAssistantMemoryDocumentMock.mockResolvedValueOnce({
+      preferences: {
+        responseStyle: 'balanced',
+        includeMacroContext: false,
+        memoryEnabled: true,
+        includeDummySnapshots: false,
+      },
+      items: [{
+        id: 'goal-1',
+        userId: 'user-1',
+        category: 'goal',
+        text: 'Ridurre il cash a 20k',
+        structuredGoal: { kind: 'cash_target', targetValue: 20000, unit: 'eur', direction: 'at_most' },
+        createdAt: new Date(2026, 3, 5),
+        updatedAt: new Date(2026, 3, 5),
+        status: 'active',
+      }],
+      suggestions: [],
+      updatedAt: null,
+      hasDummySnapshots: false,
+    });
+
+    const response = await patchMemoryRoute(
+      createJsonRequest('http://localhost/api/ai/assistant/memory', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer valid-token' },
+        body: {
+          userId: 'user-1',
+          item: {
+            id: 'goal-1',
+            text: 'Ridurre il cash a 20k',
+            category: 'goal',
+            status: 'archived',
+          },
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(extractStructuredGoalFromTextMock).not.toHaveBeenCalled();
+    // The stored structure survives an archive — it is not re-derived, nor dropped
+    expect(updateAssistantMemoryDocumentMock.mock.calls[0][1].item.structuredGoal).toEqual({
+      kind: 'cash_target',
+      targetValue: 20000,
+      unit: 'eur',
+      direction: 'at_most',
     });
   });
 
@@ -493,7 +611,7 @@ describe('Assistant private API routes', () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
-      error: 'Authenticated user does not match requested user',
+      error: 'Authenticated user does not have access to requested account',
     });
   });
 });

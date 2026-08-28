@@ -38,7 +38,6 @@ import type {
 } from '@/types/pdf';
 import type { TimePeriod } from '@/types/performance';
 import type { Asset, MonthlySnapshot } from '@/types/assets';
-import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   calculateAssetValue,
   calculateTotalValue,
@@ -49,6 +48,9 @@ import {
   calculateAnnualPortfolioCost,
   calculateFIRENetWorth,
 } from './assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
+import { EXPENSE_TYPE_LABELS, type ExpenseType } from '@/types/expenses';
 import {
   compareAllocations,
   getSettings,
@@ -107,10 +109,18 @@ export async function fetchPDFData(
     }
 
     if (sections.cashflow) {
-      // Filter expenses for cashflow section based on timeFilter and user-selected period
-      const filteredExpenses = timeFilter
-        ? filterExpensesByTime(cachedExpenses!, timeFilter, selectedYear, selectedMonth)
-        : cachedExpenses!;
+      // Filter expenses for cashflow section based on timeFilter and user-selected period.
+      // "Totale" has no period selection of its own to bound it, so it also applies the
+      // same cashflow-history floor the live Cashflow/Storico pages use to exclude
+      // bulk-imported older data (yearly/monthly exports are already bounded by the period).
+      const settings = await getSettings(userId);
+      const filteredExpenses = filterExpensesByTime(
+        cachedExpenses!,
+        timeFilter,
+        selectedYear,
+        selectedMonth,
+        settings?.cashflowHistoryStartYear
+      );
       data.cashflow = prepareCashflowData(filteredExpenses);
     }
 
@@ -150,7 +160,7 @@ export async function fetchPDFData(
 /**
  * Prepare portfolio data with asset details and totals
  */
-export function preparePortfolioData(assets: Asset[]): PortfolioData {
+function preparePortfolioData(assets: Asset[]): PortfolioData {
   if (assets.length === 0) {
     return {
       assets: [],
@@ -177,7 +187,6 @@ export function preparePortfolioData(assets: Asset[]): PortfolioData {
     totalUnrealizedGains += unrealizedGain;
 
     return {
-      // Display alias (falls back to the raw ticker) — the PDF is a user-facing recap.
       ticker: getAssetDisplayTicker(asset),
       name: asset.name,
       assetClass: asset.assetClass,
@@ -214,7 +223,7 @@ export function preparePortfolioData(assets: Asset[]): PortfolioData {
  * Prepare allocation data comparing current vs target
  * Uses compareAllocations() to ensure consistency with allocation page
  */
-export function prepareAllocationData(
+function prepareAllocationData(
   assets: Asset[],
   targets: any
 ): AllocationData {
@@ -235,7 +244,7 @@ export function prepareAllocationData(
 
   // Transform compareAllocations output to PDF format
   const assetClassData: AssetClassAllocation[] = [];
-  const assetClasses = ['equity', 'bonds', 'crypto', 'realestate', 'commodity', 'trendFollowing', 'carry', 'cash'];
+  const assetClasses = ['equity', 'bonds', 'crypto', 'realestate', 'commodity', 'cash'];
 
   assetClasses.forEach(assetClass => {
     const comparisonData = comparisonResult.byAssetClass[assetClass];
@@ -284,7 +293,7 @@ export function prepareAllocationData(
 /**
  * Prepare historical data from snapshots
  */
-export function prepareHistoryData(snapshots: MonthlySnapshot[]): HistoryData {
+function prepareHistoryData(snapshots: MonthlySnapshot[]): HistoryData {
   if (snapshots.length === 0) {
     return {
       netWorthEvolution: [],
@@ -319,8 +328,6 @@ export function prepareHistoryData(snapshots: MonthlySnapshot[]): HistoryData {
     crypto: s.byAssetClass?.crypto || 0,
     realestate: s.byAssetClass?.realestate || 0,
     commodity: s.byAssetClass?.commodity || 0,
-    trendFollowing: s.byAssetClass?.trendFollowing || 0,
-    carry: s.byAssetClass?.carry || 0,
     cash: s.byAssetClass?.cash || 0,
   }));
 
@@ -397,7 +404,7 @@ function calculateYoYComparison(snapshots: MonthlySnapshot[]): YoYDataPoint[] {
 /**
  * Prepare cashflow data from expenses
  */
-export function prepareCashflowData(expenses: any[]): CashflowData {
+function prepareCashflowData(expenses: any[]): CashflowData {
   if (expenses.length === 0) {
     return {
       totalIncome: 0,
@@ -414,7 +421,10 @@ export function prepareCashflowData(expenses: any[]): CashflowData {
   let totalIncome = 0;
   let totalExpenses = 0;
 
-  const categoryMap: Record<string, CategoryBreakdown> = {};
+  // Keyed by category id (name-fallback for legacy rows): two same-named categories
+  // are two distinct documents and must stay two rows — see lib/utils/expenseGrouping.ts.
+  // The qualifier is transient: it feeds label disambiguation and never reaches the PDF type.
+  const categoryMap: Record<string, CategoryBreakdown & { qualifier: string }> = {};
   const monthsSet = new Set<string>();
 
   expenses.forEach(expense => {
@@ -432,10 +442,11 @@ export function prepareCashflowData(expenses: any[]): CashflowData {
       totalExpenses += amount;
 
       // Aggregate by category
-      const key = expense.categoryName;
+      const key = getCategoryKey(expense);
       if (!categoryMap[key]) {
         categoryMap[key] = {
-          categoryName: expense.categoryName,
+          categoryName: getCategoryName(expense),
+          qualifier: EXPENSE_TYPE_LABELS[expense.type as ExpenseType] ?? '',
           amount: 0,
           percent: 0,
           transactionCount: 0,
@@ -447,14 +458,22 @@ export function prepareCashflowData(expenses: any[]): CashflowData {
   });
 
   // Calculate percentages and sort by amount
-  const byCategory = Object.values(categoryMap);
+  const byCategory = Object.entries(categoryMap).map(([key, cat]) => ({ key, ...cat }));
   byCategory.forEach(cat => {
     cat.percent = totalExpenses > 0 ? (cat.amount / totalExpenses) * 100 : 0;
   });
   byCategory.sort((a, b) => b.amount - a.amount);
 
-  // Take top 5 categories
-  const topCategories = byCategory.slice(0, 5);
+  // Take top 5 categories; a name shared by two keys in the rendered slice gets its
+  // type qualifier appended ("Casa (Spese Fisse)").
+  const topSlice = byCategory.slice(0, 5);
+  const labels = resolveDisplayLabels(
+    topSlice.map(({ key, categoryName, qualifier }) => ({ key, name: categoryName, qualifier }))
+  );
+  const topCategories: CategoryBreakdown[] = topSlice.map(({ key, qualifier: _qualifier, ...cat }) => ({
+    ...cat,
+    categoryName: labels.get(key) ?? cat.categoryName,
+  }));
 
   const netCashflow = totalIncome - totalExpenses;
   const incomeToExpenseRatio = totalExpenses > 0 ? totalIncome / totalExpenses : 0;
@@ -478,7 +497,7 @@ export function prepareCashflowData(expenses: any[]): CashflowData {
 /**
  * Prepare FIRE data with metrics
  */
-export async function prepareFireData(
+async function prepareFireData(
   userId: string,
   expenses: any[],
   currentNetWorth: number
@@ -520,7 +539,7 @@ export async function prepareFireData(
  * @param selectedYear - User-selected year for yearly exports (affects period label)
  * @returns PerformanceData with metrics and period label, or null if insufficient data
  */
-export async function preparePerformanceData(
+async function preparePerformanceData(
   userId: string,
   snapshots: MonthlySnapshot[],
   timeFilter: TimeFilter = 'total',
@@ -615,7 +634,7 @@ export async function preparePerformanceData(
 /**
  * Prepare summary data aggregating key metrics
  */
-export function prepareSummaryData(
+function prepareSummaryData(
   data: PDFSectionData,
   context: PDFDataContext,
   sections: SectionSelection
@@ -685,17 +704,8 @@ function getAssetClassName(assetClass: string): string {
     crypto: 'Criptovalute',
     realestate: 'Immobiliare',
     commodity: 'Materie Prime',
-    trendFollowing: 'Trend Following',
-    carry: 'Carry',
     cash: 'Liquidità',
   };
   return names[assetClass] || assetClass;
 }
 
-/**
- * Clear cached expenses (call when switching users)
- */
-export function clearPDFDataCache(): void {
-  cachedExpenses = null;
-  cachedUserId = null;
-}

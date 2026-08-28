@@ -1,10 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AssistantMemoryItem, AssistantMessage, AssistantMode, AssistantMonthContextBundle, AssistantMonthSelectorValue, AssistantPreferences } from '@/types/assistant';
 import {
+  AssistantPromptParts,
   buildChatPrompt,
   buildHistoryAnalysisPrompt,
   buildMonthAnalysisPrompt,
-  buildQuarterAnalysisPrompt,
   buildYearAnalysisPrompt,
   buildYtdAnalysisPrompt,
 } from './prompts';
@@ -38,6 +38,10 @@ interface StreamAssistantResponseArgs {
  * For month_analysis: uses the full structured bundle so Claude has reliable
  * numbers and knows exactly what data is/isn't available.
  * For chat: uses a lighter prompt without numeric context.
+ *
+ * Returns { system, userContent } — system is the cacheable static block
+ * (role, domain, guardrails, this mode's output contract); userContent is
+ * everything specific to this request.
  */
 function buildPrompt(
   mode: AssistantMode,
@@ -45,9 +49,8 @@ function buildPrompt(
   contextBundle: AssistantMonthContextBundle | null,
   month: AssistantMonthSelectorValue | null | undefined,
   preferences: AssistantPreferences,
-  memoryItems: AssistantMemoryItem[] = [],
-  enableWebSearch = false
-): string {
+  memoryItems: AssistantMemoryItem[] = []
+): AssistantPromptParts {
   const MONTH_NAMES = [
     'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
     'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
@@ -74,13 +77,9 @@ function buildPrompt(
     return buildHistoryAnalysisPrompt(contextBundle, prompt, preferences, memoryItems);
   }
 
-  if (mode === 'quarter_analysis' && contextBundle) {
-    return buildQuarterAnalysisPrompt(contextBundle, prompt, preferences, memoryItems);
-  }
-
   // Chat mode: pass the bundle when available so Claude has real numbers.
   // The prompt builder uses it without forcing a fixed response structure.
-  return buildChatPrompt(prompt, preferences, monthLabel, memoryItems, contextBundle, enableWebSearch);
+  return buildChatPrompt(prompt, preferences, monthLabel, memoryItems, contextBundle);
 }
 
 /**
@@ -99,7 +98,7 @@ function buildMessagesArray(
   currentUserContent: string,
   history: AssistantMessage[]
 ): Array<{ role: 'user' | 'assistant'; content: string }> {
-  const isStructured = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'quarter_analysis'].includes(mode);
+  const isStructured = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis'].includes(mode);
   // Structured modes cap at 3 pairs (6 msgs); chat allows 10 pairs (20 msgs).
   const maxMessages = isStructured ? 6 : 20;
 
@@ -110,6 +109,14 @@ function buildMessagesArray(
 
   return [...trimmedHistory, { role: 'user', content: currentUserContent }];
 }
+
+/**
+ * Appended when generation stops at max_tokens. Markdown italics so it reads as an
+ * annotation rather than as part of the answer; leading blank line so it lands in its
+ * own paragraph after whatever half-finished sentence precedes it.
+ */
+const TRUNCATION_NOTICE =
+  '\n\n_(Risposta interrotta: ho raggiunto il limite di lunghezza. Chiedimi di continuare o restringi la domanda.)_';
 
 export async function streamAssistantResponse({
   mode,
@@ -125,22 +132,35 @@ export async function streamAssistantResponse({
 }: StreamAssistantResponseArgs): Promise<{ text: string; webSearchUsed: boolean }> {
   let aggregatedText = '';
   let webSearchUsed = false;
+  let stopReason: string | null = null;
 
   try {
     onStatus(enableWebSearch ? 'searching' : 'writing');
 
-    // Structured analysis modes (month/year/ytd/history) use extended thinking (budget 4000)
-    // and more tokens for the structured breakdown. Chat without web search is light (3000).
-    // When chat triggers web search (macro/geopolitical question) the response
-    // is naturally longer — raise the cap to avoid mid-sentence truncation.
-    const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis', 'quarter_analysis'].includes(mode);
-    const chatMaxTokens = enableWebSearch ? 5000 : 3000;
+    // max_tokens is a budget for thinking AND text together: with adaptive thinking the
+    // model decides how much to reason, and whatever it spends there is gone from the
+    // answer. A cap sized for the prose alone truncates mid-sentence.
+    //
+    // Raised on 2026-07-29 after the data block became exhaustive (chat was at 3000 and
+    // started cutting real answers off), then doubled again on request to leave room for
+    // long consultative replies. Note the ceiling is not purely free headroom: unused
+    // tokens are never billed, but a larger budget also lets adaptive thinking reason
+    // longer, which is billed and adds latency. These values stay well inside the
+    // model's output limit and inside Vercel's 300s default function duration; if a
+    // future bump goes materially higher, set an explicit `maxDuration` on the route.
+    const isStructuredAnalysis = ['month_analysis', 'year_analysis', 'ytd_analysis', 'history_analysis'].includes(mode);
+    const chatMaxTokens = enableWebSearch ? 16000 : 12000;
+    const { system, userContent } = buildPrompt(mode, prompt, contextBundle, month, preferences, memoryItems);
     const stream = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: isStructuredAnalysis ? 7000 : chatMaxTokens,
-      ...(isStructuredAnalysis
-        ? { thinking: { type: 'enabled', budget_tokens: 4000 } }
-        : {}),
+      model: 'claude-sonnet-5',
+      max_tokens: isStructuredAnalysis ? 18000 : chatMaxTokens,
+      // Static role/domain/guardrail/format instructions, identical for every user and
+      // every request of this mode. No cache_control: this app's traffic pattern
+      // (sporadic single-user requests) rarely lands two calls within the 5-minute
+      // cache TTL, so caching would pay the 1.25x write premium without recouping it.
+      system: system,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'high' },
       ...(enableWebSearch
         ? {
             tools: [
@@ -152,11 +172,7 @@ export async function streamAssistantResponse({
             ],
           }
         : {}),
-      messages: buildMessagesArray(
-        mode,
-        buildPrompt(mode, prompt, contextBundle, month, preferences, memoryItems, enableWebSearch),
-        conversationHistory
-      ),
+      messages: buildMessagesArray(mode, userContent, conversationHistory),
       stream: true,
     });
 
@@ -164,6 +180,12 @@ export async function streamAssistantResponse({
       if (chunk.type === 'content_block_start' && chunk.content_block?.type === 'server_tool_use') {
         webSearchUsed = true;
         onStatus('searching');
+      }
+
+      // The terminal message_delta carries why generation stopped. Without reading it a
+      // truncated answer is indistinguishable from a finished one.
+      if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
+        stopReason = chunk.delta.stop_reason;
       }
 
       if (
@@ -179,9 +201,19 @@ export async function streamAssistantResponse({
       }
     }
 
+    // Hitting the ceiling leaves the answer cut off mid-sentence. Saying so turns a
+    // response that looks broken into one the user knows how to continue — the same
+    // reason the prompt's subcategory valve announces itself instead of truncating
+    // quietly (AGENTS.md -> A Silent Cap in a Context Builder...).
+    let text = aggregatedText.trim();
+    if (stopReason === 'max_tokens' && text.length > 0) {
+      onText(TRUNCATION_NOTICE);
+      text += TRUNCATION_NOTICE;
+    }
+
     onStatus('saving');
     return {
-      text: aggregatedText.trim(),
+      text,
       webSearchUsed,
     };
   } catch (error: any) {

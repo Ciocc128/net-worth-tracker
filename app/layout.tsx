@@ -25,6 +25,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ActiveAccountProvider } from "@/contexts/ActiveAccountContext";
 import { QueryClientProvider } from "@/lib/providers/QueryClientProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { MotionProvider } from "@/components/providers/MotionProvider";
@@ -37,13 +38,23 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-// preload: false because Geist Mono is only used on FIRE and Hall of Fame pages.
-// The default (preload: true) emits a <link rel="preload"> on every page in the
-// root layout, causing a browser warning on pages that never render font-mono elements.
+// Geist Mono IS preloaded: the Mono Mandate (DESIGN.md §3) puts it on every number of every page,
+// starting with the 44/54px page hero, so it belongs on the critical path.
+//
+// It used to carry `preload: false`, justified by "Geist Mono is only used on FIRE and Hall of Fame"
+// — a premise the Mono Mandate has since made false, which left the font to be discovered only after
+// the CSS was parsed: measured on Previdenza, `document.fonts.check('54px "Geist Mono"')` was still
+// false on the first frame that painted the hero. No layout shift results (next/font's
+// metric-adjusted fallback holds the width), but every number in the app is drawn in the system
+// monospace and then redrawn — losing, for that window, precisely the precision signal the mono font
+// is there to give.
+//
+// The cost this reinstates is the original objection: a "preloaded but not used" console warning on
+// the pages that render no number at all, i.e. /login and /register (the landing page does use it).
+// A warning on two auth pages against late numbers everywhere else.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -51,8 +62,6 @@ export const metadata: Metadata = {
   description: "Traccia e monitora il tuo portafoglio di investimenti",
   icons: {
     icon: [
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icon.svg', type: 'image/svg+xml' },
     ],
     apple: [
@@ -80,12 +89,14 @@ export default function RootLayout({
         <ThemeProvider>
           <MotionProvider>
             <AuthProvider>
-              <ColorThemeProvider>
-                <QueryClientProvider>
-                  {children}
-                  <Toaster />
-                </QueryClientProvider>
-              </ColorThemeProvider>
+              <ActiveAccountProvider>
+                <ColorThemeProvider>
+                  <QueryClientProvider>
+                    {children}
+                    <Toaster />
+                  </QueryClientProvider>
+                </ColorThemeProvider>
+              </ActiveAccountProvider>
             </AuthProvider>
           </MotionProvider>
         </ThemeProvider>

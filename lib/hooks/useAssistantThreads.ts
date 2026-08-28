@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AssistantCreateThreadInput,
   AssistantThread,
   AssistantThreadDetail,
   AssistantThreadResponse,
@@ -86,38 +85,6 @@ export function useDeleteAssistantThread(userId: string) {
         const errorResponse = await response.json().catch(() => null);
         throw new Error(errorResponse?.error ?? 'Impossibile eliminare il thread');
       }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.assistant.threads(userId),
-      });
-    },
-  });
-}
-
-export function useCreateAssistantThread(userId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: Omit<AssistantCreateThreadInput, 'userId'>) => {
-      const response = await authenticatedFetch('/api/ai/assistant/threads', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          ...input,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorResponse = await response.json().catch(() => null);
-        throw new Error(errorResponse?.error ?? 'Impossibile creare il thread');
-      }
-
-      const createThreadResponse = (await response.json()) as { thread: AssistantThread };
-      return normalizeThread(createThreadResponse.thread);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

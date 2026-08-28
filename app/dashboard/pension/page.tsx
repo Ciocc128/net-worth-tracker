@@ -1,34 +1,33 @@
-/**
- * PREVIDENZA COMPLEMENTARE PAGE
- *
- * Dedicated view for the fondo pensione, living in the Pianificazione nav group (spec §8.4): it is
- * planning content (contributions, tax benefit, plafond, FIRE integration), reachable both from the
- * nav and from a quick link on the pension asset card in Patrimonio.
- *
- * The body reuses `PensionTab` — the self-contained pension component.
- */
-
 'use client';
 
-import { PiggyBank } from 'lucide-react';
-import { PensionTab } from '@/components/fire-simulations/PensionTab';
+/**
+ * Previdenza Complementare — dedicated view for the fondo pensione.
+ *
+ * Lives in `planningNav` (Pianificazione), not as a `fire-simulations` tab: contributions, tax
+ * benefit and plafond are planning content in their own right, and this is also the target of the
+ * "Vai a Previdenza" quick link on a pensionFund asset card in Patrimonio.
+ *
+ * The compact header is a breadcrumb: the page's real headline is the verdict rendered by
+ * `PensionOverview` (DESIGN.md → Compact Page Header). «Registra versamento» keeps the header's
+ * actions slot, as the Panoramica's «Crea snapshot» does.
+ */
+
+import { PensionOverview } from '@/components/pension/PensionOverview';
+import { PensionHeaderAction } from '@/components/pension/PensionHeaderAction';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function PensionPage() {
   return (
-    <PageContainer>
+    <PageContainer width="wide">
       <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            <PiggyBank className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground" aria-hidden="true" />
-            Previdenza Complementare
-          </span>
-        }
-        description="Versamenti, beneficio fiscale e integrazione con il tuo piano FIRE"
+        label="Pianificazione"
+        title="Previdenza"
+        description="Versamenti, beneficio fiscale e plafond del tuo fondo pensione"
         separator={false}
+        actions={<PensionHeaderAction />}
       />
-      <PensionTab />
+      <PensionOverview />
     </PageContainer>
   );
 }

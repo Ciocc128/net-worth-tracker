@@ -4,7 +4,7 @@
 import { Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 import { PDFText } from '../primitives/PDFText';
 import { PDFTable } from '../primitives/PDFTable';
-import type { HistoryData, ChartImage } from '@/types/pdf';
+import type { HistoryData } from '@/types/pdf';
 import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
 
 /**
@@ -26,7 +26,6 @@ function formatDate(dateStr: string): string {
 
 interface HistorySectionProps {
   data: HistoryData;
-  chartImages: Map<string, ChartImage>;
 }
 
 /**
@@ -52,9 +51,8 @@ interface HistorySectionProps {
  * first and last snapshot of each year to calculate growth.
  *
  * @param data - Historical net worth data with evolution timeline and YoY comparison
- * @param chartImages - Pre-captured chart images (currently unused but reserved for future enhancements)
  */
-export function HistorySection({ data, chartImages }: HistorySectionProps) {
+export function HistorySection({ data }: HistorySectionProps) {
   // Require minimum 2 snapshots to calculate meaningful growth metrics.
   // With only 1 snapshot, we can't show evolution, growth rates, or comparisons.
   if (!data || data.netWorthEvolution.length < 2) {

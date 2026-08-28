@@ -25,8 +25,12 @@ export interface IndexedPoint {
 }
 
 /**
- * Filter a monthly return series to the [startDate, endDate] window and re-index it to
- * 100 at the first included month. Returns [] when no month falls in the window.
+ * Filter a monthly return series to the [startDate, endDate] window and compound it from a base of
+ * 100. Returns [] when no month falls in the window.
+ *
+ * NOTE: the first point is NOT 100 — it is 100 × (1 + return of the first month). The base sits
+ * conceptually just before the window, exactly like the TWR index on the portfolio side, so the
+ * first month of the benchmark counts as a month of return and the two sides stay comparable.
  */
 export function buildIndexedSeries(
   returns: MonthlyReturnPoint[],

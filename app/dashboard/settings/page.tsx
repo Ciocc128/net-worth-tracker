@@ -16,7 +16,8 @@
  * Based on Bogleheads investment principles.
  *
  * PERCENTAGE VALIDATION:
- * - Asset classes must sum to 100% (or remainder if cash uses fixed €)
+ * - Asset classes must sum to AT LEAST 100% (or remainder if cash uses fixed €); above 100% is a
+ *   legitimate target leverage (exactly 100% = no leverage)
  * - Sub-categories must sum to 100% within parent
  * - Specific assets must sum to 100% within parent sub-category
  * All validations run on save with clear error messages.
@@ -33,6 +34,7 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import {
@@ -42,7 +44,9 @@ import {
   calculateEquityPercentage,
   validateSpecificAssets,
 } from '@/lib/services/assetAllocationService';
-import { AssetAllocationTarget, AssetClass, SubCategoryTarget as SubCategoryTargetType } from '@/types/assets';
+import { resolveAutoEquityBondsSplit } from '@/lib/utils/equityBondsAutoTargets';
+import { AssetAllocationTarget, AssetClass, SubCategoryTarget as SubCategoryTargetType, FamilyMember } from '@/types/assets';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatPercentage } from '@/lib/services/chartService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,7 +59,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Save, RotateCcw, Plus, Trash2, ChevronDown, ChevronUp, Edit, Receipt, FlaskConical, Coins, ArrowRightLeft, Settings, PieChart, Palette, Mail, X, Send } from 'lucide-react';
+import { Save, RotateCcw, Plus, Trash2, ChevronDown, ChevronUp, Edit, Receipt, FlaskConical, Coins, ArrowRightLeft, Settings, PieChart, Palette, Mail, X, Send, Users } from 'lucide-react';
+import { AccountSharingSection } from '@/components/settings/AccountSharingSection';
+import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
+import { queryKeys } from '@/lib/query/queryKeys';
 import { useColorTheme, ColorTheme } from '@/contexts/ColorThemeContext';
 import { TabsContent } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -66,7 +73,7 @@ import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expen
 import { Asset } from '@/types/assets';
 import { getAllAssets } from '@/lib/services/assetService';
 import { getAllCategories, deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
-import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory } from '@/lib/services/expenseService';
+import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory, TransferBoundaryError } from '@/lib/services/expenseService';
 import { CategoryManagementDialog } from '@/components/expenses/CategoryManagementDialog';
 import { CategoryDeleteConfirmDialog } from '@/components/expenses/CategoryDeleteConfirmDialog';
 import { CategoryMoveDialog } from '@/components/expenses/CategoryMoveDialog';
@@ -74,9 +81,9 @@ import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
 import { CreateDummySnapshotModal } from '@/components/CreateDummySnapshotModal';
 import { DeleteDummyDataDialog } from '@/components/DeleteDummyDataDialog';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
 import type { TabDef } from '@/components/layout/PageTabBar';
-import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
 
 interface SubTarget {
   name: string;
@@ -108,21 +115,20 @@ const assetClassLabels: Record<AssetClass, string> = {
   commodity: 'Materie Prime (Commodity)',
   trendFollowing: 'Trend Following',
   carry: 'Carry',
-  pension: 'Fondo Pensione',
 };
 
-// Order: Azioni → Obbligazioni → Commodities → Trend Following → Carry → Real Estate → Cash → Crypto
-// NOTE: `pension` is intentionally absent from the allocatable list below — it is always out of the
-// allocation base (see getExcludedClasses), so it never gets a target row here.
+// Order: Azioni → Obbligazioni → Commodities → Real Estate → Cash → Crypto → Trend Following → Carry.
+// trendFollowing/carry get a settable target here from L2 on:
+// alt-beta sleeves whose desired notional exposure can push the total above 100% (= target leverage).
 const assetClasses: AssetClass[] = [
   'equity',
   'bonds',
   'commodity',
-  'trendFollowing',
-  'carry',
   'realestate',
   'cash',
   'crypto',
+  'trendFollowing',
+  'carry',
 ];
 
 // Helper function to round to 2 decimal places
@@ -130,18 +136,102 @@ const roundToTwoDecimals = (value: number): number => {
   return Math.round(value * 100) / 100;
 };
 
+/**
+ * Sum of every asset-class target OUTSIDE the auto-calculated Azioni/Obbligazioni pair.
+ *
+ * Cash drops out of the sum when it is configured as a fixed euro amount: it then lives outside
+ * the percentage budget entirely, which is what the total row means by "(excl. cash)".
+ */
+const sumOtherClassTargets = (
+  states: Record<AssetClass, AssetClassState>,
+  cashUseFixedAmount: boolean
+): number =>
+  assetClasses
+    .filter((assetClass) => assetClass !== 'equity' && assetClass !== 'bonds')
+    .filter((assetClass) => !(assetClass === 'cash' && cashUseFixedAmount))
+    .reduce((sum, assetClass) => sum + (states[assetClass]?.targetPercentage || 0), 0);
+
+// Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
+// total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage
+// Only an under-allocated total (< 100) is invalid. Shared by handleSave's guard and the
+// render-time isValidTotal so the two can never drift apart.
+const isTargetTotalValid = (total: number): boolean => total >= 100 - 0.01;
+
+// Famiglia — household members a pension fund can be attributed to (Impostazioni → Preferenze).
+// String-typed draft (never fights the user while typing), same shape as CoastFireTab's pension/tax
+// bracket draft editors — plain useState array, no react-hook-form field array anywhere in Settings.
+interface FamilyMemberDraft {
+  id: string;
+  name: string;
+  grossAnnualIncome: string;
+  isFirstEmploymentPost2007: boolean;
+  firstEmploymentYear: string;
+}
+
+// Local id generator — CoastFireTab.tsx has an identical `createLocalId`, not exported; duplicated
+// here rather than introducing a cross-module import for a one-line helper.
+function createFamilyMemberId(): string {
+  return `family-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function toFamilyMemberDrafts(members: FamilyMember[] | undefined): FamilyMemberDraft[] {
+  return (members ?? []).map((member) => ({
+    id: member.id,
+    name: member.name,
+    grossAnnualIncome: member.grossAnnualIncome != null ? String(member.grossAnnualIncome) : '',
+    isFirstEmploymentPost2007: member.isFirstEmploymentPost2007 ?? false,
+    firstEmploymentYear: member.firstEmploymentYear != null ? String(member.firstEmploymentYear) : '',
+  }));
+}
+
+// Drops rows with an empty/whitespace-only name (same cleanup-before-validation precedent as the
+// empty-subcategory-row cleanup in handleSave) — a nameless member can't be attributed to anything.
+function parseFamilyMemberDrafts(drafts: FamilyMemberDraft[]): FamilyMember[] {
+  return drafts
+    .filter((draft) => draft.name.trim() !== '')
+    .map((draft) => {
+      const ral = Number.parseFloat(draft.grossAnnualIncome.replace(',', '.'));
+      const year = Number.parseInt(draft.firstEmploymentYear, 10);
+      return {
+        id: draft.id,
+        name: draft.name.trim(),
+        grossAnnualIncome: Number.isFinite(ral) && ral > 0 ? ral : undefined,
+        isFirstEmploymentPost2007: draft.isFirstEmploymentPost2007,
+        firstEmploymentYear: Number.isInteger(year) ? year : undefined,
+      };
+    });
+}
+
+// Normalized, order-independent snapshot of a FamilyMember[] for the dirty-state comparison —
+// used for BOTH the saved baseline and the live draft state so the two are always comparable.
+function familyMembersSnapshotValue(members: FamilyMember[]) {
+  return [...members]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((member) => ({
+      id: member.id,
+      name: member.name,
+      grossAnnualIncome:
+        member.grossAnnualIncome !== undefined ? roundToTwoDecimals(member.grossAnnualIncome) : null,
+      isFirstEmploymentPost2007: member.isFirstEmploymentPost2007 ?? false,
+      firstEmploymentYear: member.firstEmploymentYear ?? null,
+    }));
+}
+
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
 const SETTINGS_TABS: TabDef[] = [
   { value: 'allocazione', label: 'Allocazione', icon: PieChart },
   { value: 'generale',    label: 'Preferenze',  icon: Settings },
   { value: 'spese',       label: 'Spese',       icon: Receipt  },
   { value: 'dividendi',   label: 'Dividendi',   icon: Coins    },
+  { value: 'condivisione', label: 'Condivisione', icon: Users   },
   { value: 'aspetto',     label: 'Aspetto',     icon: Palette  },
 ];
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
@@ -154,17 +244,13 @@ export default function SettingsPage() {
   const [goalDrivenAllocationEnabled, setGoalDrivenAllocationEnabled] = useState<boolean>(false);
   const [stampDutyEnabled, setStampDutyEnabled] = useState<boolean>(false);
   const [stampDutyRate, setStampDutyRate] = useState<number>(0.2);
-  // Target leverage (notional/market) — DERIVED from the target set on save (Σ target % / 100),
-  // no longer user-entered. Kept in state only so the derived value round-trips through load.
-  const [targetLeverageRatio, setTargetLeverageRatio] = useState<number | undefined>(undefined);
-  // Keep cash / real estate OUT of the allocation base (they're not "investable portfolio").
-  // Excluding a class disables its target input and, for cash, its fixed-amount reserve.
-  const [excludeCashFromAllocation, setExcludeCashFromAllocation] = useState<boolean>(false);
-  const [excludeRealEstateFromAllocation, setExcludeRealEstateFromAllocation] = useState<boolean>(false);
   const [checkingAccountSubCategory, setCheckingAccountSubCategory] = useState<string>('__none__');
   const [cashflowHistoryStartYear, setCashflowHistoryStartYear] = useState<number>(2025);
   const [laborIncomeCategoryIds, setLaborIncomeCategoryIds] = useState<string[]>([]);
   const [costCentersEnabled, setCostCentersEnabled] = useState<boolean>(false);
+  const [performanceIncludesPensionFunds, setPerformanceIncludesPensionFunds] = useState<boolean>(false);
+  const [performanceIncludesExcludedAssets, setPerformanceIncludesExcludedAssets] = useState<boolean>(false);
+  const [pensionReturnStartMonth, setPensionReturnStartMonth] = useState<string>('');
   const [monthlyEmailEnabled, setMonthlyEmailEnabled] = useState<boolean>(false);
   const [quarterlyEmailEnabled, setQuarterlyEmailEnabled] = useState<boolean>(false);
   const [semiAnnualEmailEnabled, setSemiAnnualEmailEnabled] = useState<boolean>(false);
@@ -225,8 +311,8 @@ export default function SettingsPage() {
   const enableTestSnapshots = process.env.NEXT_PUBLIC_ENABLE_TEST_SNAPSHOTS === 'true';
 
   // Tab navigation — lazy-loading pattern (same as Assets/Cashflow pages)
-  type SettingsTabId = 'generale' | 'allocazione' | 'spese' | 'dividendi' | 'aspetto';
-  const VALID_TABS: SettingsTabId[] = ['generale', 'allocazione', 'spese', 'dividendi', 'aspetto'];
+  type SettingsTabId = 'generale' | 'allocazione' | 'spese' | 'dividendi' | 'condivisione' | 'aspetto';
+  const VALID_TABS: SettingsTabId[] = ['generale', 'allocazione', 'spese', 'dividendi', 'condivisione', 'aspetto'];
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -238,6 +324,7 @@ export default function SettingsPage() {
   const { colorTheme, setColorTheme } = useColorTheme();
   const [allocationBaselineKey, setAllocationBaselineKey] = useState('');
   const [generalBaselineKey, setGeneralBaselineKey] = useState('');
+  const [familyMemberDrafts, setFamilyMemberDrafts] = useState<FamilyMemberDraft[]>([]);
   const [dividendBaselineKey, setDividendBaselineKey] = useState('');
   const [deleteDialogOrigin, setDeleteDialogOrigin] = useState<string | undefined>(
     undefined
@@ -269,14 +356,17 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (user && ownerId) {
       loadTargets();
       loadExpenseCategories();
-      getAllAssets(user.uid).then((assets) =>
-        setCashAssets(assets.filter((a) => a.assetClass === 'cash'))
+      getAllAssets(ownerId).then((assets) =>
+        // Default debit/credit account picker: an actual conto, not just a "cash-class" asset —
+        // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
+        // (convenzione stretta, AGENTS.md → hardening 2026-07-26).
+        setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'))
       );
     }
-  }, [user]);
+  }, [user, ownerId]);
 
   // Auto-calculate equity and bonds percentages when age or risk-free rate changes
   useEffect(() => {
@@ -286,27 +376,9 @@ export default function SettingsPage() {
       riskFreeRate !== undefined &&
       Object.keys(assetClassStates).length > 0
     ) {
-      const equityPercentage = roundToTwoDecimals(
-        calculateEquityPercentage(userAge, riskFreeRate)
-      );
-
-      // Calculate bonds percentage: 100 - sum of all other asset classes
-      // (excluding cash if using fixed amount)
-      const otherAssetClasses = assetClasses.filter(
-        (ac) => ac !== 'equity' && ac !== 'bonds'
-      );
-      const otherTotal = otherAssetClasses.reduce(
-        (sum, ac) => {
-          // Exclude cash from percentage total if using fixed amount
-          if (ac === 'cash' && cashUseFixedAmount) {
-            return sum;
-          }
-          return sum + (assetClassStates[ac]?.targetPercentage || 0);
-        },
-        0
-      );
-      const bondsPercentage = roundToTwoDecimals(
-        Math.max(0, 100 - equityPercentage - otherTotal)
+      const { equityPercentage, bondsPercentage } = resolveAutoEquityBondsSplit(
+        calculateEquityPercentage(userAge, riskFreeRate),
+        sumOtherClassTargets(assetClassStates, cashUseFixedAmount)
       );
 
       // Update equity and bonds percentages
@@ -324,7 +396,9 @@ export default function SettingsPage() {
     }
   }, [userAge, riskFreeRate, autoCalculate]);
 
-  // Recalculate bonds when other asset classes change (excluding equity and bonds)
+  // Recalculate the pair when another asset class changes. Both targets move now, not just
+  // bonds: the other classes are funded out of the equity sleeve, so raising the crypto target
+  // lowers Azioni while Obbligazioni stay at the formula's residual.
   useEffect(() => {
     if (
       autoCalculate &&
@@ -332,31 +406,23 @@ export default function SettingsPage() {
       riskFreeRate !== undefined &&
       Object.keys(assetClassStates).length > 0
     ) {
-      const equityPercentage = roundToTwoDecimals(
-        calculateEquityPercentage(userAge, riskFreeRate)
+      const { equityPercentage, bondsPercentage } = resolveAutoEquityBondsSplit(
+        calculateEquityPercentage(userAge, riskFreeRate),
+        sumOtherClassTargets(assetClassStates, cashUseFixedAmount)
       );
 
-      const otherAssetClasses = assetClasses.filter(
-        (ac) => ac !== 'equity' && ac !== 'bonds'
-      );
-      const otherTotal = otherAssetClasses.reduce(
-        (sum, ac) => {
-          // Exclude cash from percentage total if using fixed amount
-          if (ac === 'cash' && cashUseFixedAmount) {
-            return sum;
-          }
-          return sum + (assetClassStates[ac]?.targetPercentage || 0);
-        },
-        0
-      );
-      const bondsPercentage = roundToTwoDecimals(
-        Math.max(0, 100 - equityPercentage - otherTotal)
-      );
-
-      // Only update if bonds percentage has changed
-      if (assetClassStates.bonds?.targetPercentage !== bondsPercentage) {
+      // Only update when something actually moved — this effect also runs as a consequence of
+      // its own writes, and an unconditional setState would loop.
+      if (
+        assetClassStates.equity?.targetPercentage !== equityPercentage ||
+        assetClassStates.bonds?.targetPercentage !== bondsPercentage
+      ) {
         setAssetClassStates((prev) => ({
           ...prev,
+          equity: {
+            ...prev.equity,
+            targetPercentage: equityPercentage,
+          },
           bonds: {
             ...prev.bonds,
             targetPercentage: bondsPercentage,
@@ -369,15 +435,17 @@ export default function SettingsPage() {
     assetClassStates.realestate?.targetPercentage,
     assetClassStates.cash?.targetPercentage,
     assetClassStates.commodity?.targetPercentage,
+    assetClassStates.trendFollowing?.targetPercentage,
+    assetClassStates.carry?.targetPercentage,
     cashUseFixedAmount,
   ]);
 
   const loadTargets = async () => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     try {
       setLoading(true);
-      const settingsData = await getSettings(user.uid);
+      const settingsData = await getSettings(ownerId);
       const targets = settingsData?.targets || getDefaultTargets();
 
       // Load user age and risk-free rate if available
@@ -400,13 +468,13 @@ export default function SettingsPage() {
         // Load stamp duty settings
         setStampDutyEnabled(settingsData.stampDutyEnabled ?? false);
         setStampDutyRate(settingsData.stampDutyRate ?? 0.2);
-        setTargetLeverageRatio(settingsData.targetLeverageRatio);
-        setExcludeCashFromAllocation(settingsData.excludeCashFromAllocation ?? false);
-        setExcludeRealEstateFromAllocation(settingsData.excludeRealEstateFromAllocation ?? false);
         setCheckingAccountSubCategory(settingsData.checkingAccountSubCategory || '__none__');
         setCashflowHistoryStartYear(settingsData.cashflowHistoryStartYear ?? 2025);
         setLaborIncomeCategoryIds(settingsData.laborIncomeCategoryIds ?? []);
         setCostCentersEnabled(settingsData.costCentersEnabled ?? false);
+        setPerformanceIncludesPensionFunds(settingsData.performanceIncludesPensionFunds ?? false);
+        setPerformanceIncludesExcludedAssets(settingsData.performanceIncludesExcludedAssets ?? false);
+        setPensionReturnStartMonth(settingsData.pensionReturnStartMonth ?? '');
         setMonthlyEmailEnabled(settingsData.monthlyEmailEnabled ?? false);
         setQuarterlyEmailEnabled(settingsData.quarterlyEmailEnabled ?? false);
         setSemiAnnualEmailEnabled(settingsData.semiAnnualEmailEnabled ?? false);
@@ -416,6 +484,8 @@ export default function SettingsPage() {
         // Load dividend settings
         setDividendIncomeCategoryId(settingsData.dividendIncomeCategoryId || '');
         setDividendIncomeSubCategoryId(settingsData.dividendIncomeSubCategoryId || '');
+        // Load family members (fondo pensione per-taxpayer RAL/eligibility)
+        setFamilyMemberDrafts(toFamilyMemberDrafts(settingsData.familyMembers));
       }
 
       // Load cash fixed amount settings if available
@@ -488,8 +558,6 @@ export default function SettingsPage() {
             (settingsData?.userAge !== undefined && settingsData?.riskFreeRate !== undefined),
           cashUseFixedAmount: cashTargetData?.useFixedAmount || false,
           cashFixedAmount: roundToTwoDecimals(cashTargetData?.fixedAmount || 0),
-          excludeCashFromAllocation: settingsData?.excludeCashFromAllocation ?? false,
-          excludeRealEstateFromAllocation: settingsData?.excludeRealEstateFromAllocation ?? false,
           assetClassStates: assetClasses.map((assetClass) => ({
             assetClass,
             targetPercentage: roundToTwoDecimals(
@@ -519,7 +587,6 @@ export default function SettingsPage() {
             settingsData?.goalDrivenAllocationEnabled ?? false,
           stampDutyEnabled: settingsData?.stampDutyEnabled ?? false,
           stampDutyRate: roundToTwoDecimals(settingsData?.stampDutyRate ?? 0.2),
-          targetLeverageRatio: settingsData?.targetLeverageRatio ?? null,
           checkingAccountSubCategory:
             settingsData?.checkingAccountSubCategory || '__none__',
           defaultDebitCashAssetId:
@@ -529,12 +596,16 @@ export default function SettingsPage() {
           cashflowHistoryStartYear: settingsData?.cashflowHistoryStartYear ?? 2025,
           laborIncomeCategoryIds: [...(settingsData?.laborIncomeCategoryIds ?? [])].sort(),
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
+          performanceIncludesPensionFunds: settingsData?.performanceIncludesPensionFunds ?? false,
+          performanceIncludesExcludedAssets: settingsData?.performanceIncludesExcludedAssets ?? false,
+          pensionReturnStartMonth: settingsData?.pensionReturnStartMonth ?? '',
           monthlyEmailEnabled: settingsData?.monthlyEmailEnabled ?? false,
           quarterlyEmailEnabled: settingsData?.quarterlyEmailEnabled ?? false,
           semiAnnualEmailEnabled: settingsData?.semiAnnualEmailEnabled ?? false,
           yearlyEmailEnabled: settingsData?.yearlyEmailEnabled ?? false,
           weeklyBudgetEmailEnabled: settingsData?.weeklyBudgetEmailEnabled ?? false,
           monthlyEmailRecipients: [...(settingsData?.monthlyEmailRecipients ?? [])].sort(),
+          familyMembers: familyMembersSnapshotValue(settingsData?.familyMembers ?? []),
         })
       );
 
@@ -554,17 +625,29 @@ export default function SettingsPage() {
   };
 
   const loadExpenseCategories = async () => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     try {
       setLoadingCategories(true);
-      const categories = await getAllCategories(user.uid);
+      const categories = await getAllCategories(ownerId);
       setExpenseCategories(categories);
     } catch (error) {
       console.error('Error loading expense categories:', error);
       toast.error('Errore nel caricamento delle categorie spese');
     } finally {
       setLoadingCategories(false);
+    }
+  };
+
+  // Refresh categories (the import may have created new ones) and invalidate every
+  // Cashflow query key that reads expenses/categories/overview data, so the freshly
+  // imported transactions show up without a manual page reload.
+  const handleExpenseImported = () => {
+    loadExpenseCategories();
+    if (ownerId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(ownerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.categories(ownerId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(ownerId) });
     }
   };
 
@@ -583,11 +666,11 @@ export default function SettingsPage() {
     categoryName: string,
     triggerOrigin?: string
   ) => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     try {
       // Check if there are expenses associated with this category
-      const expenseCount = await getExpenseCountByCategoryId(categoryId, user.uid);
+      const expenseCount = await getExpenseCountByCategoryId(categoryId, ownerId);
 
       if (expenseCount > 0) {
         // Show reassignment dialog
@@ -618,7 +701,7 @@ export default function SettingsPage() {
     newCategoryId?: string,
     newSubCategoryId?: string
   ) => {
-    if (!categoryToDelete || !user) return;
+    if (!categoryToDelete || !user || !ownerId) return;
 
     try {
       // If no new category ID provided, delete without reassignment
@@ -626,7 +709,7 @@ export default function SettingsPage() {
         // Clear category assignment from expenses (set to "Senza categoria")
         const clearedCount = await clearExpensesCategoryAssignment(
           categoryToDelete.id,
-          user.uid
+          ownerId
         );
 
         // Delete the category
@@ -665,7 +748,7 @@ export default function SettingsPage() {
         categoryToDelete.id,
         newCategoryId,
         newCategory.name,
-        user.uid,
+        ownerId,
         newSubCategoryId,
         newSubCategoryName
       );
@@ -709,10 +792,10 @@ export default function SettingsPage() {
     categoryName: string,
     triggerOrigin?: string
   ) => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     try {
-      const expenseCount = await getExpenseCountByCategoryId(categoryId, user.uid);
+      const expenseCount = await getExpenseCountByCategoryId(categoryId, ownerId);
 
       if (expenseCount === 0) {
         toast.warning(`La categoria "${categoryName}" non ha transazioni da spostare`);
@@ -736,7 +819,7 @@ export default function SettingsPage() {
     newCategoryId: string,
     newSubCategoryId?: string
   ) => {
-    if (!categoryToMove || !user) return;
+    if (!categoryToMove || !user || !ownerId) return;
 
     try {
       const newCategory = await getCategoryById(newCategoryId);
@@ -763,7 +846,7 @@ export default function SettingsPage() {
         newCategoryId,
         newCategory.name,
         newCategory.type,
-        user.uid,
+        ownerId,
         newSubCategoryId,
         newSubCategoryName
       );
@@ -778,7 +861,9 @@ export default function SettingsPage() {
       setExpenseCountToMove(0);
     } catch (error) {
       console.error('Error during category move:', error);
-      toast.error('Errore nello spostamento delle transazioni');
+      toast.error(
+        error instanceof TransferBoundaryError ? error.message : 'Errore nello spostamento delle transazioni'
+      );
     }
   };
 
@@ -793,14 +878,14 @@ export default function SettingsPage() {
 
   // Dividend settings handlers
   const handleSaveDividendSettings = async () => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     try {
       setSaving(true);
-      const settingsData = await getSettings(user.uid);
+      const settingsData = await getSettings(ownerId);
       const targets = settingsData?.targets || getDefaultTargets();
 
-      await setSettings(user.uid, {
+      await setSettings(ownerId, {
         userAge,
         riskFreeRate,
         // Preserve FIRE settings (Bug #1 & #5 fix)
@@ -823,7 +908,7 @@ export default function SettingsPage() {
   };
 
   const handleSyncDividends = async () => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     if (!dividendIncomeCategoryId) {
       toast.error('Seleziona prima una categoria per le entrate da dividendi');
@@ -863,7 +948,7 @@ export default function SettingsPage() {
       }
 
       // Fetch all dividends for this user
-      const response = await authenticatedFetch(`/api/dividends?userId=${user.uid}`);
+      const response = await authenticatedFetch(`/api/dividends?userId=${ownerId}`);
       if (!response.ok) {
         throw new Error('Errore nel caricamento dei dividendi');
       }
@@ -877,7 +962,7 @@ export default function SettingsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: user.uid,
+          userId: ownerId,
           dividends,
           categoryId: dividendIncomeCategoryId,
           categoryName: category.name,
@@ -915,19 +1000,9 @@ export default function SettingsPage() {
     return expenseCategories.filter(cat => cat.type === type);
   };
 
-  // A class the user has removed from the allocation base. Excluded classes carry no target and
-  // don't count toward the ≥100% total (their target input is disabled below).
-  const isClassExcludedFromAllocation = (assetClass: AssetClass): boolean =>
-    (assetClass === 'cash' && excludeCashFromAllocation) ||
-    (assetClass === 'realestate' && excludeRealEstateFromAllocation);
-
   const calculateTotal = () => {
     return assetClasses.reduce(
       (sum, assetClass) => {
-        // Excluded classes are out of the allocation base entirely.
-        if (isClassExcludedFromAllocation(assetClass)) {
-          return sum;
-        }
         // Exclude cash from percentage total if using fixed amount
         if (assetClass === 'cash' && cashUseFixedAmount) {
           return sum;
@@ -938,10 +1013,6 @@ export default function SettingsPage() {
     );
   };
 
-  // Target leverage the current target set encodes: the investable target % sum / 100
-  // (100% = unleveraged, 150% = 1.5× leverage). Shown read-only; drives the optimizer.
-  const derivedTargetLeverage = calculateTotal() / 100;
-
   const calculateSubTargetTotal = (assetClass: AssetClass) => {
     return (
       assetClassStates[assetClass]?.subTargets.reduce(
@@ -951,8 +1022,31 @@ export default function SettingsPage() {
     );
   };
 
+  // Famiglia — add/update/remove a member row (plain array state, same pattern as
+  // updatePensionRow/removePensionRow in CoastFireTab.tsx).
+  const addFamilyMemberRow = () => {
+    setFamilyMemberDrafts((current) => [
+      ...current,
+      { id: createFamilyMemberId(), name: '', grossAnnualIncome: '', isFirstEmploymentPost2007: false, firstEmploymentYear: '' },
+    ]);
+  };
+
+  const updateFamilyMemberRow = (
+    id: string,
+    field: keyof Omit<FamilyMemberDraft, 'id'>,
+    value: string | boolean
+  ) => {
+    setFamilyMemberDrafts((current) =>
+      current.map((draft) => (draft.id === id ? { ...draft, [field]: value } : draft))
+    );
+  };
+
+  const removeFamilyMemberRow = (id: string) => {
+    setFamilyMemberDrafts((current) => current.filter((draft) => draft.id !== id));
+  };
+
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !ownerId) return;
 
     // Auto-cleanup empty subcategory rows before validation (Bug #8 fix)
     assetClasses.forEach(assetClass => {
@@ -969,11 +1063,9 @@ export default function SettingsPage() {
     });
 
     const total = calculateTotal();
-    // In the leverage-aware model the target % are notional exposure over invested capital, so
-    // the sum must be AT LEAST 100% (exactly 100 = unleveraged; above 100 = a leverage target).
-    if (total < 100 - 0.01) {
+    if (!isTargetTotalValid(total)) {
       toast.error(
-        `Il totale deve essere almeno 100% (oltre 100% = portafoglio a leva). Attualmente è ${formatPercentage(total)}`
+        `Il totale deve essere almeno 100%. Attualmente è ${formatPercentage(total)} — residuo da allocare ${formatPercentage(100 - total)}.`
       );
       return;
     }
@@ -1038,19 +1130,15 @@ export default function SettingsPage() {
       setSaving(true);
 
       // Fetch current settings to preserve FIRE fields
-      const settingsData = await getSettings(user.uid);
+      const settingsData = await getSettings(ownerId);
 
       const targets: AssetAllocationTarget = {};
 
       assetClasses.forEach((assetClass) => {
         const state = assetClassStates[assetClass];
-        const excluded = isClassExcludedFromAllocation(assetClass);
         targets[assetClass] = {
-          // Excluded classes carry no target — store 0 so the data stays clean and the
-          // leverage-aware allocation math ignores them regardless of a stale UI value.
-          targetPercentage: excluded ? 0 : state.targetPercentage,
-          // Excluding cash disables its fixed-amount reserve (the two are alternatives).
-          ...(assetClass === 'cash' && !excluded && {
+          targetPercentage: state.targetPercentage,
+          ...(assetClass === 'cash' && {
             useFixedAmount: cashUseFixedAmount,
             fixedAmount: cashFixedAmount,
           }),
@@ -1088,7 +1176,7 @@ export default function SettingsPage() {
         }
       });
 
-      await setSettings(user.uid, {
+      await setSettings(ownerId, {
         userAge,
         riskFreeRate,
         // Persist the toggle state explicitly so disabling it survives a page reload.
@@ -1108,25 +1196,31 @@ export default function SettingsPage() {
         defaultCreditCashAssetId: defaultCreditCashAssetId !== '__none__' ? defaultCreditCashAssetId : undefined,
         stampDutyEnabled,
         stampDutyRate,
-        // Derived from the target set, not user-entered: Σ investable target % / 100.
-        targetLeverageRatio: total / 100,
-        excludeCashFromAllocation,
-        excludeRealEstateFromAllocation,
         checkingAccountSubCategory,
         cashflowHistoryStartYear,
         laborIncomeCategoryIds,
         costCentersEnabled,
+        performanceIncludesPensionFunds,
+        performanceIncludesExcludedAssets,
+        // Stringa vuota = "nessun mese impostato": va salvata come undefined, non come '',
+        // altrimenti pensionReturn la leggerebbe come una data da parsare.
+        pensionReturnStartMonth: pensionReturnStartMonth || undefined,
         monthlyEmailEnabled,
         quarterlyEmailEnabled,
         semiAnnualEmailEnabled,
         yearlyEmailEnabled,
         weeklyBudgetEmailEnabled,
         monthlyEmailRecipients,
+        familyMembers: parseFamilyMemberDrafts(familyMemberDrafts),
       });
       toast.success('Impostazioni salvate con successo');
       setAllocationBaselineKey(allocationSnapshotKey);
       setGeneralBaselineKey(generalSnapshotKey);
       setDividendBaselineKey(dividendSnapshotKey);
+      // Other consumers (AssetDialog's family-member Select, PensionOverview) read settings via
+      // React Query with a 5-minute staleTime — without this, a just-added member wouldn't be
+      // selectable there until that cache naturally expired.
+      queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
     } catch (error) {
       console.error('Error saving targets:', error);
       toast.error('Errore nel salvataggio dei target');
@@ -1397,8 +1491,6 @@ export default function SettingsPage() {
         autoCalculate,
         cashUseFixedAmount,
         cashFixedAmount: roundToTwoDecimals(cashFixedAmount),
-        excludeCashFromAllocation,
-        excludeRealEstateFromAllocation,
         assetClassStates: assetClasses.map((assetClass) => ({
           assetClass,
           targetPercentage: roundToTwoDecimals(
@@ -1417,16 +1509,7 @@ export default function SettingsPage() {
           })),
         })),
       }),
-    [
-      userAge,
-      riskFreeRate,
-      autoCalculate,
-      cashUseFixedAmount,
-      cashFixedAmount,
-      excludeCashFromAllocation,
-      excludeRealEstateFromAllocation,
-      assetClassStates,
-    ]
+    [userAge, riskFreeRate, autoCalculate, cashUseFixedAmount, cashFixedAmount, assetClassStates]
   );
 
   const generalSnapshotKey = useMemo(
@@ -1437,19 +1520,22 @@ export default function SettingsPage() {
         goalDrivenAllocationEnabled,
         stampDutyEnabled,
         stampDutyRate: roundToTwoDecimals(stampDutyRate),
-        targetLeverageRatio: targetLeverageRatio ?? null,
         checkingAccountSubCategory,
         defaultDebitCashAssetId,
         defaultCreditCashAssetId,
         cashflowHistoryStartYear,
         laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         costCentersEnabled,
+        performanceIncludesPensionFunds,
+        performanceIncludesExcludedAssets,
+        pensionReturnStartMonth,
         monthlyEmailEnabled,
         quarterlyEmailEnabled,
         semiAnnualEmailEnabled,
         yearlyEmailEnabled,
         weeklyBudgetEmailEnabled,
         monthlyEmailRecipients: [...monthlyEmailRecipients].sort(),
+        familyMembers: familyMembersSnapshotValue(parseFamilyMemberDrafts(familyMemberDrafts)),
       }),
     [
       includePrimaryResidenceInFIRE,
@@ -1457,19 +1543,22 @@ export default function SettingsPage() {
       goalDrivenAllocationEnabled,
       stampDutyEnabled,
       stampDutyRate,
-      targetLeverageRatio,
       checkingAccountSubCategory,
       defaultDebitCashAssetId,
       defaultCreditCashAssetId,
       cashflowHistoryStartYear,
       laborIncomeCategoryIds,
       costCentersEnabled,
+      performanceIncludesPensionFunds,
+      performanceIncludesExcludedAssets,
+      pensionReturnStartMonth,
       monthlyEmailEnabled,
       quarterlyEmailEnabled,
       semiAnnualEmailEnabled,
       yearlyEmailEnabled,
       weeklyBudgetEmailEnabled,
       monthlyEmailRecipients,
+      familyMemberDrafts,
     ]
   );
 
@@ -1502,57 +1591,56 @@ export default function SettingsPage() {
   if (loading) return null;
 
   const total = calculateTotal();
-  // Leverage-aware: the target % (notional exposure over invested capital) must sum to AT LEAST
-  // 100% — exactly 100 = unleveraged, above 100 = a leverage target of total/100.
-  const isValidTotal = total >= 100 - 0.01;
-  const isLeveragedTarget = total > 100 + 0.01;
+  const isValidTotal = isTargetTotalValid(total);
+  // Derived, read-only target leverage = Σtarget / 100 (mirrors deriveTargetLeverageRatio). Shown
+  // when the user has actually set leverage (> 1); the app never stores a manual leverage input.
+  const derivedTargetLeverage = total > 0 ? total / 100 : 1;
+  const hasTargetLeverage = derivedTargetLeverage > 1.005;
 
   return (
-    <PageContainer className="space-y-4 sm:space-y-6">
-      {/* Page header — editorial zone with eyebrow + border separator */}
-      <div className="flex flex-col gap-3 landscape:flex-row landscape:items-center landscape:justify-between border-b border-border pb-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Configurazione</p>
-          <h1 className="text-3xl font-bold text-foreground">Impostazioni</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Target di allocazione, preferenze e flussi
-          </p>
-        </div>
-        <div className="flex flex-col landscape:flex-row gap-2 w-full landscape:w-auto">
-          <div className="order-last landscape:order-first flex items-center text-xs text-muted-foreground">
+    <PageContainer>
+      <PageHeader
+        label="Configurazione"
+        title="Impostazioni"
+        description="Target di allocazione, preferenze e flussi"
+        separator={false}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* Save state as a quiet chip: it is context for the buttons, not a metric. */}
             {activeTabHasUnsavedChanges ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-primary">
+              <span className="hidden sm:inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
                 Anteprima attiva: modifiche non salvate
               </span>
             ) : hasUnsavedChanges ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1">
+              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
                 Modifiche non salvate in altre sezioni
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1">
+              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
                 Tutte le modifiche sono salvate
               </span>
             )}
-          </div>
-          {/* Reset is only meaningful for allocation targets */}
-          {activeTab === 'allocazione' && (
-            <Button variant="outline" onClick={handleReset} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined} className="w-full landscape:w-auto">
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Ripristina Default
+            {/* Reset is only meaningful for allocation targets */}
+            {activeTab === 'allocazione' && (
+              <Button variant="outline" size="sm" onClick={handleReset} disabled={isDemo} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
+                <RotateCcw className="h-4 w-4" />
+                <span className="hidden sm:inline">Ripristina Default</span>
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={isDemo || saving} title={isDemo ? 'Non disponibile in modalità demo' : undefined}>
+              <Save className="h-4 w-4" />
+              {saving ? 'Salvataggio...' : 'Salva'}
             </Button>
-          )}
-          <Button onClick={handleSave} disabled={isDemo || saving} title={isDemo ? 'Non disponibile in modalità demo' : undefined} className="w-full landscape:w-auto">
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? 'Salvataggio...' : 'Salva'}
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <PageTabs
         tabs={SETTINGS_TABS}
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="settings-tab-pill"
+        ariaLabel="Sezioni delle Impostazioni"
       >
 
         {/* Tab: Impostazioni Generali (lazy) */}
@@ -1634,6 +1722,80 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Calcolo dei rendimenti — quale capitale entra nelle metriche di Rendimenti, e da quando il
+          rendimento del fondo pensione è misurabile. Entrambe le esclusioni sono OFF di default:
+          Rendimenti risponde a "come va il portafoglio che gestisco", Storico al patrimonio totale. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Calcolo dei rendimenti</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Le metriche di Rendimenti (TWR, Sharpe, volatilità, Max Drawdown) misurano il portafoglio
+            che gestisci attivamente. Il patrimonio completo resta in Storico.
+          </p>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="performanceIncludesPensionFunds" className="text-sm font-medium">
+                  Includi i fondi pensione
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Il fondo pensione è capitale illiquido e non ribilanciabile, che cresce soprattutto
+                  per versamenti (TFR, datoriale, volontario) e non per andamento di mercato.
+                  Includerlo fa leggere quei versamenti come rendimento.
+                </p>
+              </div>
+              <Switch
+                id="performanceIncludesPensionFunds"
+                checked={performanceIncludesPensionFunds}
+                onCheckedChange={setPerformanceIncludesPensionFunds}
+                className={interactiveControlClass}
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t pt-4">
+              <div>
+                <Label htmlFor="performanceIncludesExcludedAssets" className="text-sm font-medium">
+                  Includi gli asset esclusi dall&apos;allocazione
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tipicamente la casa in cui vivi: valutata a mano, resta ferma per mesi e poi si
+                  aggiorna con uno scalino. Includerla abbassa la volatilità misurata e alza lo
+                  Sharpe, perché una quota del patrimonio non si muove mai.
+                </p>
+              </div>
+              <Switch
+                id="performanceIncludesExcludedAssets"
+                checked={performanceIncludesExcludedAssets}
+                onCheckedChange={setPerformanceIncludesExcludedAssets}
+                className={interactiveControlClass}
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-4 border-t pt-4">
+              <div>
+                <Label htmlFor="pensionReturnStartMonth" className="text-sm font-medium">
+                  Rendimento fondo pensione calcolabile da
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Prima di questo mese i versamenti non venivano registrati e il valore del fondo
+                  veniva solo aggiornato a mano: ogni crescita risulterebbe rendimento di mercato.
+                  Lascia vuoto per partire dal primo versamento registrato.
+                </p>
+              </div>
+              <Input
+                id="pensionReturnStartMonth"
+                type="month"
+                value={pensionReturnStartMonth}
+                onChange={(e) => setPensionReturnStartMonth(e.target.value)}
+                className={cn('w-40 shrink-0', interactiveControlClass)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Portfolio Cost Settings */}
       <Card>
         <CardHeader>
@@ -1704,61 +1866,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Base di allocazione — leverage (derived, read-only) + class exclusions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Base di Allocazione</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6">
-          <div className="space-y-5">
-            {/* Derived target leverage — no longer hand-entered; it's Σ target % / 100. */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">Leva target</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Dedotta dalla somma dei target ({formatPercentage(total)} = {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×).
-                  Per impostare una leva, alloca target la cui somma supera 100%.
-                </p>
-              </div>
-              <span className="shrink-0 font-mono text-lg font-semibold text-foreground">
-                {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×
-              </span>
-            </div>
-
-            {/* Class exclusions: keep cash / real estate out of the allocation base. */}
-            <div className="space-y-3 border-t pt-4">
-              <p className="text-sm font-medium">Escludi dall&apos;allocazione</p>
-              <p className="text-xs text-muted-foreground">
-                Le classi escluse non fanno parte della base di allocazione (né dei target né del
-                confronto) e vengono mostrate a parte come &quot;Fuori allocazione&quot;.
-              </p>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="excludeCash" className="text-sm text-muted-foreground">
-                  Liquidità
-                </Label>
-                <Switch
-                  id="excludeCash"
-                  checked={excludeCashFromAllocation}
-                  onCheckedChange={setExcludeCashFromAllocation}
-                  className={cn('shrink-0', interactiveControlClass)}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="excludeRealEstate" className="text-sm text-muted-foreground">
-                  Immobili
-                </Label>
-                <Switch
-                  id="excludeRealEstate"
-                  checked={excludeRealEstateFromAllocation}
-                  onCheckedChange={setExcludeRealEstateFromAllocation}
-                  className={cn('shrink-0', interactiveControlClass)}
-                />
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -1913,6 +2020,117 @@ export default function SettingsPage() {
                 className={interactiveControlClass}
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Famiglia — household members a fondo pensione can be attributed to. The IRPEF pension
+          deduction ceiling is per taxpayer, not per account: an account tracking more than one
+          person's fund (e.g. both spouses) needs a RAL per person here, not one shared value, or
+          the Previdenza tax recap silently mixes their contributions together. */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Famiglia</CardTitle>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Aggiungi un membro per ogni persona i cui fondi pensione tracci in questo account, con la
+            propria RAL — il beneficio fiscale in Previdenza si calcola una volta per membro, non
+            sommando tutti i fondi insieme. Colleghi un fondo a un membro dalla sua scheda in
+            Patrimonio.
+          </p>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-3">
+            {familyMemberDrafts.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                Nessun membro inserito. I fondi pensione restano visibili in Previdenza ma senza
+                calcolo del beneficio fiscale finché non li assegni a un membro.
+              </div>
+            ) : (
+              familyMemberDrafts.map((member) => (
+                <div key={member.id} className="rounded-lg border border-border bg-card p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor={`family-name-${member.id}`}>Nome</Label>
+                      <Input
+                        id={`family-name-${member.id}`}
+                        value={member.name}
+                        onChange={(e) => updateFamilyMemberRow(member.id, 'name', e.target.value)}
+                        placeholder="es. Giuseppe"
+                        disabled={isDemo}
+                        className={interactiveControlClass}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeFamilyMemberRow(member.id)}
+                      disabled={isDemo}
+                      aria-label="Rimuovi membro"
+                      className="mt-6 h-10 w-10 shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor={`family-ral-${member.id}`}>Reddito annuo lordo (RAL)</Label>
+                      <Input
+                        id={`family-ral-${member.id}`}
+                        type="number"
+                        inputMode="decimal"
+                        value={member.grossAnnualIncome}
+                        onChange={(e) => updateFamilyMemberRow(member.id, 'grossAnnualIncome', e.target.value)}
+                        placeholder="es. 35000"
+                        disabled={isDemo}
+                        className={interactiveControlClass}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`family-year-${member.id}`}>Anno prima occupazione</Label>
+                      <Input
+                        id={`family-year-${member.id}`}
+                        type="number"
+                        value={member.firstEmploymentYear}
+                        onChange={(e) => updateFamilyMemberRow(member.id, 'firstEmploymentYear', e.target.value)}
+                        placeholder="es. 2022"
+                        disabled={isDemo || !member.isFirstEmploymentPost2007}
+                        className={interactiveControlClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+                    <Label htmlFor={`family-firstjob-${member.id}`} className="text-xs text-muted-foreground">
+                      Prima occupazione dopo il 2007 (abilita il recupero plafond)
+                    </Label>
+                    <Switch
+                      id={`family-firstjob-${member.id}`}
+                      checked={member.isFirstEmploymentPost2007}
+                      onCheckedChange={(checked) => updateFamilyMemberRow(member.id, 'isFirstEmploymentPost2007', checked)}
+                      disabled={isDemo}
+                      className={interactiveControlClass}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addFamilyMemberRow}
+              disabled={isDemo}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Aggiungi membro
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -2232,10 +2450,21 @@ export default function SettingsPage() {
             <p className={`text-4xl font-bold font-mono ${isValidTotal ? 'text-foreground' : 'text-destructive'}`}>
               {formatPercentage(total)}
             </p>
+            {hasTargetLeverage && (
+              <span className="mb-1 rounded-md bg-muted px-2 py-0.5 text-sm font-medium font-mono tabular-nums text-foreground">
+                Leva target {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×
+              </span>
+            )}
             {cashUseFixedAmount && (
               <span className="text-sm text-muted-foreground mb-1">esclusa liquidità fissa</span>
             )}
           </div>
+          {/* A total above 100% is not an error under leverage — the sum IS the target leverage. */}
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            La somma è l&apos;esposizione desiderata sul capitale investito: 100% = nessuna leva, oltre
+            100% = leva target. Per escludere un asset (casa, fondo pensione) usa il suo ruolo in
+            Patrimonio, non un target qui.
+          </p>
           <div className="divide-y border-t mt-4">
             <div className="flex items-center justify-between py-2.5">
               <span className="text-sm text-muted-foreground">Classi con allocazione &gt; 0%</span>
@@ -2243,11 +2472,21 @@ export default function SettingsPage() {
                 {Object.values(assetClassStates).filter((s) => s && s.targetPercentage > 0).length}
               </span>
             </div>
+            {hasTargetLeverage && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-muted-foreground">Leva target (derivata)</span>
+                <span className="text-sm font-semibold font-mono tabular-nums text-foreground">
+                  {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×
+                </span>
+              </div>
+            )}
             {autoCalculate && userAge !== undefined && riskFreeRate !== undefined && (
               <div className="flex items-center justify-between py-2.5">
                 <span className="text-sm text-muted-foreground">Auto-calc attivo</span>
+                {/* The RESOLVED target, not the raw formula: the other classes are funded out of
+                    the equity sleeve, so the two figures differ whenever any of them is set. */}
                 <span className="text-sm font-semibold font-mono text-primary">
-                  {calculateEquityPercentage(userAge, riskFreeRate).toFixed(1)}% Azioni
+                  {formatPercentage(assetClassStates.equity?.targetPercentage ?? 0, 1)} Azioni
                 </span>
               </div>
             )}
@@ -2259,22 +2498,7 @@ export default function SettingsPage() {
                 </span>
               </div>
             )}
-            {/* Derived target leverage: the target set encodes it (sum/100), shown read-only. */}
-            {isLeveragedTarget && (
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-muted-foreground">Leva target</span>
-                <span className="text-sm font-semibold font-mono text-foreground">
-                  {derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×
-                </span>
-              </div>
-            )}
           </div>
-          {!isValidTotal && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Le percentuali rappresentano l&apos;esposizione sul capitale investito: la somma deve
-              essere almeno 100% (oltre 100% = portafoglio a leva).
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -2352,13 +2576,21 @@ export default function SettingsPage() {
                   </a>
                   : 125 {'−'} età {'−'} (rate {'×'} 5) = % Azioni
                 </p>
+                {/* The formula's own output is only half the story: it prescribes an equity
+                    share, and the classes it says nothing about (materie prime, crypto,
+                    immobili, …) are funded out of that share. Naming both numbers here is what
+                    keeps the Azioni row below from looking like an arbitrary value. */}
                 {autoCalculate && userAge !== undefined && riskFreeRate !== undefined && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Risultato:{' '}
                     <strong className="text-foreground">
-                      {calculateEquityPercentage(userAge, riskFreeRate).toFixed(2)}% Azioni
+                      {formatPercentage(calculateEquityPercentage(userAge, riskFreeRate))} Azioni
                     </strong>
-                    {' '}· Obbligazioni calcolate come residuo
+                    {' '}· Obbligazioni{' '}
+                    {formatPercentage(assetClassStates.bonds?.targetPercentage ?? 0)} (residuo
+                    della formula) · le altre classi (
+                    {formatPercentage(sumOtherClassTargets(assetClassStates, cashUseFixedAmount))})
+                    {' '}scalano dalle Azioni
                   </p>
                 )}
               </div>
@@ -2377,14 +2609,21 @@ export default function SettingsPage() {
       {/* Unified target card — one card, flat divide-y, sub-categories expandable inline */}
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <p className="text-sm font-semibold">Target per Asset Class</p>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Target per Asset Class</p>
+            {/* The denominator these percentages apply to is not the net worth — say so here, or the
+                Allocazione page reads as if it had lost money. */}
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Si applicano al patrimonio ribilanciabile: gli asset marcati &quot;Escludi dal
+              ribilanciamento&quot; non entrano nel calcolo.
+            </p>
+          </div>
           <span
-            className={`text-xs font-semibold font-mono ${isValidTotal ? 'text-green-600' : 'text-red-600'}`}
+            className={`shrink-0 text-xs font-semibold font-mono ${isValidTotal ? 'text-green-600' : 'text-red-600'}`}
           >
             {formatPercentage(total)}
             {cashUseFixedAmount && ' (excl. cash)'}
-            {!isValidTotal && ' < 100%'}
-            {isLeveragedTarget && ` · leva ${derivedTargetLeverage.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`}
+            {!isValidTotal && ' ≠ 100%'}
           </span>
         </div>
         <div className="divide-y">
@@ -2394,7 +2633,6 @@ export default function SettingsPage() {
 
             const isAutoCalculated = autoCalculate && (assetClass === 'equity' || assetClass === 'bonds');
             const isCash = assetClass === 'cash';
-            const isExcluded = isClassExcludedFromAllocation(assetClass);
             const subTotal = calculateSubTargetTotal(assetClass);
             const isValidSubTotal = Math.abs(subTotal - 100) < 0.01;
 
@@ -2407,13 +2645,8 @@ export default function SettingsPage() {
                     {isAutoCalculated && (
                       <p className="text-xs text-primary mt-0.5">Calcolato automaticamente</p>
                     )}
-                    {isExcluded && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Escluso dall&apos;allocazione
-                      </p>
-                    )}
                   </div>
-                  {isCash && !isAutoCalculated && !isExcluded && (
+                  {isCash && !isAutoCalculated && (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Switch
                         id="cashFixedToggle"
@@ -2432,14 +2665,12 @@ export default function SettingsPage() {
                       type="number"
                       step="0.01"
                       min="0"
-                      // No 100 cap: a leveraged single-class target can exceed 100% (e.g. an
-                      // all-equity 1.5× target = 150% equity). Fixed-cash uses € (also uncapped).
+                      // No max cap: a single class can exceed 100% of invested capital under leverage.
+                      // The fixed-cash case is a € amount.
                       value={
-                        isExcluded
-                          ? 0
-                          : isCash && cashUseFixedAmount
-                            ? cashFixedAmount
-                            : state.targetPercentage || 0
+                        isCash && cashUseFixedAmount
+                          ? cashFixedAmount
+                          : state.targetPercentage || 0
                       }
                       onChange={(e) => {
                         if (isCash && cashUseFixedAmount) {
@@ -2450,15 +2681,15 @@ export default function SettingsPage() {
                           });
                         }
                       }}
-                      disabled={isAutoCalculated || isExcluded}
+                      disabled={isAutoCalculated}
                       className={cn(
                         'w-28 text-right font-mono',
                         interactiveControlClass,
-                        isAutoCalculated || isExcluded ? 'bg-muted' : ''
+                        isAutoCalculated ? 'bg-muted' : ''
                       )}
                     />
                     <span className="text-sm text-muted-foreground w-4 shrink-0">
-                      {isCash && cashUseFixedAmount && !isExcluded ? '€' : '%'}
+                      {isCash && cashUseFixedAmount ? '€' : '%'}
                     </span>
                   </div>
                   {/* Sub-category expand/collapse */}
@@ -2779,7 +3010,7 @@ export default function SettingsPage() {
         <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200">
           <div className="rounded-b-lg border border-t-0 border-border bg-muted/30 px-4 py-4">
             <ul className="space-y-1 text-sm text-muted-foreground">
-              <li>• Il totale delle allocazioni delle asset class deve essere esattamente 100%</li>
+              <li>• Il totale delle allocazioni delle asset class deve essere almeno 100%. Oltre il 100% rappresenta una leva target (es. 110% = leva 1,10×)</li>
               <li>• La liquidità può essere impostata come valore fisso in euro. In questo caso, le percentuali delle altre asset class si applicheranno al patrimonio rimanente (totale - liquidità fissa)</li>
               <li>• Per ogni asset class con sotto-categorie abilitate, il totale delle sotto-categorie deve essere esattamente 100%</li>
               <li>• Le sotto-categorie sono espresse come percentuale della loro asset class di appartenenza</li>
@@ -2929,11 +3160,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {user && (
-        <div className="mt-6">
-          <ExpenseImportSection userId={user.uid} onImported={loadExpenseCategories} />
-        </div>
-      )}
+      <div className="mt-6">
+        <ExpenseImportSection onImported={handleExpenseImported} />
+      </div>
 
           </TabsContent>
         )}
@@ -3078,6 +3307,13 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+          </TabsContent>
+        )}
+
+        {/* Tab: Condivisione account */}
+        {mountedTabs.has('condivisione') && (
+          <TabsContent value="condivisione" className="mt-6 space-y-4 sm:space-y-6">
+            <AccountSharingSection disabled={isDemo} />
           </TabsContent>
         )}
 
@@ -3270,7 +3506,7 @@ export default function SettingsPage() {
         <CreateDummySnapshotModal
           open={dummySnapshotModalOpen}
           onOpenChange={setDummySnapshotModalOpen}
-          userId={user?.uid || ''}
+          userId={ownerId || ''}
         />
       )}
 
@@ -3279,7 +3515,7 @@ export default function SettingsPage() {
         <DeleteDummyDataDialog
           open={deleteDummyDataDialogOpen}
           onOpenChange={setDeleteDummyDataDialogOpen}
-          userId={user?.uid || ''}
+          userId={ownerId || ''}
           onDeleted={() => {
             // Refresh page or data after deletion
             window.location.reload();

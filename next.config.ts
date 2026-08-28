@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
   // Standalone mode copies only the files needed to run in production,
   // skipping the full node_modules — cuts Docker image size significantly.
   output: "standalone",
+  // Next refuses to start a second `next dev` for the same project directory, whatever the port,
+  // because the lock lives inside the build dir. The Playwright suite (`npm run dev:e2e`) sets this
+  // to `.next-e2e` so it can run against the emulators while a normal dev server is still up.
+  // Unset everywhere else → the default `.next`.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   allowedDevOrigins: ['192.168.1.114'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

@@ -134,7 +134,14 @@ export interface YieldOnCostAsset {
 
 // Per-asset total return combining unrealized capital gain and all-time net dividend income.
 // Both components are expressed as % of the original cost basis (quantity × averageCost).
-// Only computed for assets with averageCost > 0, quantity > 0, and at least one dividend in the current holding.
+//
+// Two computation paths (Fase D):
+//   - LEDGER-BASED: assets with trade-ledger entries — capitalGain* is realized+unrealized from
+//     replayTransactions/computeAssetTotalReturn (includes closed positions and partial sells).
+//     `realizedPnlEur`/`isClosed` are present only on this path — additive fields, so older
+//     consumers reading only the pre-Fase-D shape keep working unchanged.
+//   - STATIC (legacy): assets without any ledger doc — unrealized price-vs-PMC only, requires
+//     averageCost > 0, quantity > 0, and at least one dividend in the current holding.
 export interface TotalReturnAsset {
   assetId: string;
   assetTicker: string;
@@ -145,10 +152,14 @@ export interface TotalReturnAsset {
   costBasis: number;                // quantity × averageCost
   currentValue: number;             // quantity × currentPrice
   netDividends: number;             // Net dividends in EUR counted for this card (current holding)
-  capitalGainAbsolute: number;      // currentValue - costBasis
+  capitalGainAbsolute: number;      // currentValue - costBasis (static) or realized+unrealized (ledger)
   capitalGainPercentage: number;    // capitalGainAbsolute / costBasis × 100
   dividendReturnPercentage: number; // Σ per-payment (net ÷ cost-at-payment) × 100, current holding
   totalReturnPercentage: number;    // capitalGainPercentage + dividendReturnPercentage
+  /** Ledger-based only: cumulative realized P&L (EUR) since the position's baseline. */
+  realizedPnlEur?: number;
+  /** Ledger-based only: true when the position is fully sold (quantity === 0, non-empty ledger). */
+  isClosed?: boolean;
 }
 
 // DPS (Dividend Per Share) growth analysis — equity only, excludes coupons and finalPremium.
@@ -179,20 +190,32 @@ export interface DividendGrowthData {
   portfolioAvgGrowth?: number;
 }
 
+/**
+ * What GET /api/dividends/stats returns and the Dividendi tab actually reads.
+ *
+ * Every field here is measured on a window of the SERVER'S choosing, never on the tab's
+ * period axis: YOC and current yield are TTM on the current holding, DPS growth and total
+ * return are all-time. That is why the tab fetches this once, without date bounds, and the
+ * Rendimento tile names its own window instead of borrowing the picker's.
+ */
+export interface DividendStatsPayload {
+  /** Portfolio yield on cost, gross, TTM. Absent when no held asset has a cost basis. */
+  portfolioYieldOnCost?: number;
+  /** Same, net of the withholding actually applied to each payment. */
+  portfolioYieldOnCostNet?: number;
+  /** Yield on today's market value, gross / net — the counterpart YOC is read against. */
+  portfolioCurrentYieldGross?: number;
+  portfolioCurrentYieldNet?: number;
+  totalCostBasis?: number;
+  yieldOnCostAssets?: YieldOnCostAsset[];
+  totalReturnAssets?: TotalReturnAsset[];
+  dividendGrowthData?: DividendGrowthData;
+}
+
 export interface ScrapedDividend {
   exDate: Date;
   paymentDate: Date;
   dividendPerShare: number;
   currency: string;
   dividendType: DividendType;
-}
-
-export interface DividendsByAsset {
-  assetId: string;
-  assetTicker: string;
-  assetName: string;
-  dividends: Dividend[];
-  totalGross: number;
-  totalTax: number;
-  totalNet: number;
 }

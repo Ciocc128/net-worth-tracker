@@ -1,29 +1,29 @@
-/**
- * PensionContributionDialog — the dedicated "Registra versamento" flow.
- *
- * Records a contribution into the dedicated `pensionContributions` collection (never as an expense).
- * Fields: fund, nature, amount, date, tax year. The nature carries an inline note about its fiscal
- * treatment (micro-education at the point of entry, spec §6.3).
- *
- * Scope note: the voluntary "source account" selector and the transfer/NAV wiring (§4.3) land in a
- * later step; for now every nature just records the fact.
- */
 'use client';
 
-import { useState } from 'react';
+/**
+ * PensionContributionDialog — "Registra versamento" flow.
+ *
+ * Records a contribution into the dedicated `pensionContributions` collection (never as an Expense
+ * of consumption — invariant #1). Nature carries an inline micro-education note at the point of
+ * entry: TFR/datoriale never leave the user's account, volontario does (modelled as a transfer, so
+ * the "conto di provenienza" selector only appears for that nature).
+ */
+
+import { useEffect } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
+import { useDemoMode } from '@/lib/hooks/useDemoMode';
+import { useAssets } from '@/lib/hooks/useAssets';
+import { useRecordPensionContribution } from '@/lib/hooks/usePensionContributions';
+import type { ContributionSource } from '@/types/pension';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -31,237 +31,290 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { recordPensionContribution } from '@/lib/services/pensionContributionService';
-import { queryKeys } from '@/lib/query/queryKeys';
-import type { ContributionSource } from '@/types/pension';
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import { getItalyDateIso, getItalyYear } from '@/lib/utils/dateHelpers';
 
-/** A selectable option (pension fund or cash account). */
-export interface PensionFundOption {
-  id: string;
-  name: string;
-}
+const NATURE_OPTIONS: { value: ContributionSource; label: string; hint: string }[] = [
+  {
+    value: 'voluntary',
+    label: 'Volontario',
+    hint: 'Deducibile IRPEF entro il tetto annuo. Se versato da un tuo conto, scegli quale sotto — se invece è trattenuto in busta paga, lascia il campo vuoto.',
+  },
+  {
+    value: 'employer',
+    label: 'Datoriale',
+    hint: 'Quota versata dal datore di lavoro: deducibile IRPEF, non transita dal tuo conto.',
+  },
+  {
+    value: 'tfr',
+    label: 'TFR',
+    hint: 'Trattamento di fine rapporto conferito al fondo: NON deducibile, non transita dal tuo conto.',
+  },
+];
+
+/**
+ * Every numeric field carries its OWN type-error message, not just a constraint message.
+ * `valueAsNumber` turns an empty input into `NaN`, which fails the *type* check — and a message
+ * attached only to `.positive()`/`.int()` leaves zod's English default ("Invalid input: expected
+ * number, received NaN") to surface in an all-Italian form, on the most likely first mistake.
+ */
+const contributionSchema = z.object({
+  assetId: z.string().min(1, 'Seleziona un fondo pensione'),
+  source: z.enum(['tfr', 'voluntary', 'employer']),
+  amount: z
+    .number({ error: 'Inserisci un importo' })
+    .positive('Inserisci un importo maggiore di zero'),
+  date: z.string().min(1, 'Inserisci una data'),
+  taxYear: z
+    .number({ error: "Inserisci l'anno fiscale" })
+    .int("L'anno fiscale deve essere un numero intero"),
+  sourceCashAssetId: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type ContributionFormValues = z.infer<typeof contributionSchema>;
 
 interface PensionContributionDialogProps {
   open: boolean;
   onClose: () => void;
-  userId: string;
-  funds: PensionFundOption[];
-  /** Cash accounts a voluntary contribution can be drawn from (the transfer origin, §4.3). */
-  cashAccounts: PensionFundOption[];
+  /** Pre-select a fund, e.g. when opened from a specific fund's context. */
+  defaultAssetId?: string;
 }
 
-export function PensionContributionDialog({
-  open,
-  onClose,
-  userId,
-  funds,
-  cashAccounts,
-}: PensionContributionDialogProps) {
-  const queryClient = useQueryClient();
-  const [assetId, setAssetId] = useState(() => funds[0]?.id ?? '');
-  const [nature, setNature] = useState<ContributionSource>('voluntary');
-  const [sourceCashAssetId, setSourceCashAssetId] = useState(() => cashAccounts[0]?.id ?? '');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [taxYear, setTaxYear] = useState(() => String(new Date().getFullYear()));
-  const [saving, setSaving] = useState(false);
+export function PensionContributionDialog({ open, onClose, defaultAssetId }: PensionContributionDialogProps) {
+  const { ownerId } = useActiveAccount();
+  const isDemo = useDemoMode();
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const { data: assets = [] } = useAssets(ownerId);
+  const recordMutation = useRecordPensionContribution(ownerId || '');
 
-  const resetFields = () => {
-    setAssetId(funds[0]?.id ?? '');
-    setNature('voluntary');
-    setSourceCashAssetId(cashAccounts[0]?.id ?? '');
-    setAmount('');
-    setDate(new Date().toISOString().slice(0, 10));
-    setTaxYear(String(new Date().getFullYear()));
-  };
+  const funds = assets.filter((a) => a.type === 'pensionFund');
+  const cashAccounts = assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash');
+  // Ora italiana, non UTC: dalle 22:00 (23:00 d'inverno) `toISOString` restituisce il giorno prima,
+  // e il form proporrebbe ieri a chi registra un versamento la sera. Stesso motivo per l'anno fiscale.
+  const todayIso = getItalyDateIso();
+  const currentTaxYear = getItalyYear();
 
-  const handleSubmit = async () => {
-    if (!assetId) {
-      toast.error('Seleziona un fondo pensione');
-      return;
-    }
-    const value = parseFloat(amount.replace(',', '.'));
-    if (!Number.isFinite(value) || value <= 0) {
-      toast.error('Inserisci un importo valido');
-      return;
-    }
-    const year = parseInt(taxYear, 10);
-    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-      toast.error('Inserisci un anno fiscale valido');
-      return;
-    }
-    if (nature === 'voluntary' && !sourceCashAssetId) {
-      toast.error('Seleziona il conto di provenienza per il versamento volontario');
-      return;
-    }
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<ContributionFormValues>({
+    resolver: zodResolver(contributionSchema),
+    defaultValues: {
+      assetId: '',
+      source: 'voluntary',
+      amount: undefined,
+      date: todayIso,
+      taxYear: currentTaxYear,
+      sourceCashAssetId: '__none__',
+      notes: '',
+    },
+  });
 
-    setSaving(true);
+  const watchSource = useWatch({ control, name: 'source' });
+  const watchAssetId = useWatch({ control, name: 'assetId' });
+  const watchSourceCashAssetId = useWatch({ control, name: 'sourceCashAssetId' });
+
+  // Dialog reset pattern (AGENTS.md): `open` in deps, guard on !open, enumerate every field.
+  useEffect(() => {
+    if (!open) return;
+    reset({
+      assetId: defaultAssetId ?? funds[0]?.id ?? '',
+      source: 'voluntary',
+      amount: undefined,
+      date: todayIso,
+      taxYear: currentTaxYear,
+      sourceCashAssetId: '__none__',
+      notes: '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultAssetId, reset]);
+
+  const onSubmit = async (data: ContributionFormValues) => {
     try {
-      await recordPensionContribution(userId, {
-        assetId,
-        source: nature,
-        amount: value,
-        date: new Date(date),
-        taxYear: year,
-        sourceCashAssetId: nature === 'voluntary' ? sourceCashAssetId : undefined,
+      await recordMutation.mutateAsync({
+        assetId: data.assetId,
+        source: data.source,
+        amount: data.amount,
+        date: new Date(data.date),
+        taxYear: data.taxYear,
+        notes: data.notes?.trim() || undefined,
+        sourceCashAssetId:
+          data.source === 'voluntary' && data.sourceCashAssetId !== '__none__'
+            ? data.sourceCashAssetId
+            : undefined,
       });
-      // The value effect touches the fund (and, for voluntary, the source cash account) → refresh
-      // assets + dashboard as well as the contributions list.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.pensionContributions.all(userId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(userId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(userId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(userId) }),
-      ]);
       toast.success('Versamento registrato');
-      resetFields();
       onClose();
     } catch (error) {
       console.error('Error recording pension contribution:', error);
-      toast.error('Errore nella registrazione del versamento');
-    } finally {
-      setSaving(false);
+      const message = error instanceof Error ? error.message : 'Errore nella registrazione del versamento';
+      toast.error(message);
     }
   };
 
   const hasFunds = funds.length > 0;
+  const selectedNature = NATURE_OPTIONS.find((o) => o.value === watchSource);
+
+  const footer = isMobile ? (
+    <>
+      <Button type="submit" form="pension-contribution-form" disabled={isSubmitting || isDemo || !hasFunds} className="w-full">
+        {isSubmitting ? 'Salvataggio...' : 'Registra'}
+      </Button>
+      <Button type="button" variant="outline" className="w-full" disabled={isSubmitting} onClick={onClose}>
+        Annulla
+      </Button>
+    </>
+  ) : (
+    <>
+      <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+        Annulla
+      </Button>
+      <Button type="submit" form="pension-contribution-form" disabled={isSubmitting || isDemo || !hasFunds}>
+        {isSubmitting ? 'Salvataggio...' : 'Registra'}
+      </Button>
+    </>
+  );
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Registra versamento</DialogTitle>
-          <DialogDescription>
-            Aggiungi un versamento al fondo pensione: fondo, natura, importo, data e anno fiscale.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open}
+      onClose={onClose}
+      title="Registra versamento"
+      description="Aggiungi un versamento al fondo pensione: fondo, natura, importo, data e anno fiscale."
+      dialogClassName="max-w-md"
+      footer={footer}
+    >
+      {!hasFunds ? (
+        <p className="text-sm text-muted-foreground">
+          Prima crea un asset «Fondo Pensione» in Patrimonio: i versamenti si collegano a quel fondo.
+        </p>
+      ) : (
+        <form id="pension-contribution-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="pc-fund">Fondo</Label>
+            <Select value={watchAssetId} onValueChange={(value) => setValue('assetId', value)}>
+              <SelectTrigger id="pc-fund" aria-label="Fondo pensione" disabled={isDemo}>
+                <SelectValue placeholder="Seleziona fondo" />
+              </SelectTrigger>
+              <SelectContent>
+                {funds.map((fund) => (
+                  <SelectItem key={fund.id} value={fund.id}>
+                    {fund.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.assetId && <p className="text-sm text-destructive">{errors.assetId.message}</p>}
+          </div>
 
-        {!hasFunds ? (
-          <p className="py-4 text-sm text-muted-foreground">
-            Prima crea un asset «Fondo Pensione» in Patrimonio: i versamenti si collegano a quel
-            fondo.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {funds.length > 1 && (
-              <div className="space-y-2">
-                <Label htmlFor="pc-fund">Fondo</Label>
-                <Select value={assetId} onValueChange={setAssetId}>
-                  <SelectTrigger id="pc-fund">
+          <div className="space-y-2">
+            <Label htmlFor="pc-nature">Natura</Label>
+            <Select
+              value={watchSource}
+              onValueChange={(value) => setValue('source', value as ContributionSource)}
+            >
+              <SelectTrigger id="pc-nature" aria-label="Natura del versamento" disabled={isDemo}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NATURE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedNature && (
+              <p className="text-xs text-muted-foreground">{selectedNature.hint}</p>
+            )}
+          </div>
+
+          {watchSource === 'voluntary' && (
+            <div className="space-y-2">
+              <Label htmlFor="pc-source">Conto di provenienza (opzionale)</Label>
+              {cashAccounts.length > 0 ? (
+                <Select
+                  value={watchSourceCashAssetId}
+                  onValueChange={(value) => setValue('sourceCashAssetId', value)}
+                >
+                  <SelectTrigger id="pc-source" aria-label="Conto di provenienza" disabled={isDemo}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {funds.map((fund) => (
-                      <SelectItem key={fund.id} value={fund.id}>
-                        {fund.name}
+                    <SelectItem value="__none__">Nessuno (trattenuto in busta paga)</SelectItem>
+                    {cashAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="pc-nature">Natura</Label>
-              <Select value={nature} onValueChange={(v) => setNature(v as ContributionSource)}>
-                <SelectTrigger id="pc-nature">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="voluntary">Volontario (deducibile)</SelectItem>
-                  <SelectItem value="employer">Datoriale (deducibile)</SelectItem>
-                  <SelectItem value="tfr">TFR (non deducibile)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {nature === 'voluntary'
-                  ? 'Versato dai tuoi risparmi: deducibile IRPEF entro il tetto annuo. Esce dal conto scelto come trasferimento.'
-                  : nature === 'employer'
-                    ? 'Quota versata dal datore: deducibile IRPEF, non transita dal tuo conto.'
-                    : 'Trattamento di fine rapporto: non deducibile, non transita dal tuo conto.'}
-              </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Nessun conto di liquidità disponibile: se il versamento è trattenuto in busta paga
+                  puoi comunque registrarlo senza selezionare un conto.
+                </p>
+              )}
+              {errors.sourceCashAssetId && (
+                <p className="text-sm text-destructive">{errors.sourceCashAssetId.message}</p>
+              )}
             </div>
+          )}
 
-            {nature === 'voluntary' && (
-              <div className="space-y-2">
-                <Label htmlFor="pc-source">Conto di provenienza</Label>
-                {cashAccounts.length > 0 ? (
-                  <Select value={sourceCashAssetId} onValueChange={setSourceCashAssetId}>
-                    <SelectTrigger id="pc-source">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cashAccounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Nessun conto liquidità disponibile: crea un asset di tipo «Liquidità» in
-                    Patrimonio per registrare un versamento volontario.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="pc-amount">Importo (€)</Label>
-              <Input
-                id="pc-amount"
-                type="number"
-                step="0.01"
-                min="0"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="pc-date">Data</Label>
-                <Input
-                  id="pc-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pc-taxyear">Anno fiscale</Label>
-                <Input
-                  id="pc-taxyear"
-                  type="number"
-                  step="1"
-                  value={taxYear}
-                  onChange={(e) => setTaxYear(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Il versamento aumenta subito il valore del fondo. Il rendimento di mercato lo aggiorni
-              a mano dal tuo asset in Patrimonio quando arriva l&apos;estratto conto.
-            </p>
+          <div className="space-y-2">
+            <Label htmlFor="pc-amount">Importo (€)</Label>
+            <Input
+              id="pc-amount"
+              type="number"
+              step="0.01"
+              min="0"
+              inputMode="decimal"
+              disabled={isDemo}
+              {...register('amount', { valueAsNumber: true })}
+              placeholder="0,00"
+            />
+            {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
           </div>
-        )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Annulla
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={saving || !hasFunds || (nature === 'voluntary' && cashAccounts.length === 0)}
-          >
-            {saving ? 'Salvataggio...' : 'Registra'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="pc-date">Data</Label>
+              <Input id="pc-date" type="date" disabled={isDemo} {...register('date')} />
+              {errors.date && <p className="text-sm text-destructive">{errors.date.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pc-taxyear">Anno fiscale</Label>
+              <Input
+                id="pc-taxyear"
+                type="number"
+                step="1"
+                disabled={isDemo}
+                {...register('taxYear', { valueAsNumber: true })}
+              />
+              {errors.taxYear && <p className="text-sm text-destructive">{errors.taxYear.message}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="pc-notes">Note (opzionale)</Label>
+            <Textarea id="pc-notes" disabled={isDemo} rows={2} {...register('notes')} />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Il versamento aumenta subito il valore del fondo. Registra prima tutti i versamenti del
+            mese (TFR, tuo, datore), poi aggiorna «Valore attuale» dal tuo asset in Patrimonio quando
+            arriva l&apos;estratto conto — altrimenti li conti due volte, perché l&apos;estratto conto
+            li include già. Meglio farlo entro la fine del mese di competenza: lo storico congela una
+            fotografia a fine mese, quindi un versamento registrato in ritardo compare nel valore del
+            mese in cui lo inserisci.
+          </p>
+        </form>
+      )}
+    </ResponsiveModal>
   );
 }

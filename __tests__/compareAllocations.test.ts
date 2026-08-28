@@ -1,184 +1,194 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+/**
+ * Tests for the leverage-aware allocation math in lib/services/assetAllocationService.ts:
+ * `compareAllocations` / `toLegacyAllocationResult` / `deriveTargetLeverageRatio`.
+ *
+ * Focus: current% is on the MARKET base (not the notional total), a target set
+ * summing to 150 encodes leverage 1.5, an `excluded` asset leaves numerator AND denominator, a
+ * `frozen` asset stays in the denominator but its on-target delta generates no trade, and the
+ * unleveraged case is byte-identical to before (invariant #1). Also: `applyRebalanceBand` must
+ * preserve the leverage metadata.
+ *
+ * assetAllocationService pulls in the client Firebase SDK at module load — mock it out (same
+ * convention as __tests__/assetExposure.test.ts).
+ */
+import { describe, it, expect, vi } from 'vitest';
 import type { Asset, AssetAllocationTarget } from '@/types/assets';
 
-vi.mock('@/lib/firebase/config', () => ({
-  db: {},
-}));
-
+vi.mock('@/lib/firebase/config', () => ({ db: {} }));
+vi.mock('@/lib/utils/authFetch', () => ({ authenticatedFetch: vi.fn() }));
 vi.mock('@/lib/services/dashboardOverviewInvalidation', () => ({
   invalidateDashboardOverviewSummary: vi.fn(),
 }));
+vi.mock('firebase/firestore', () => ({
+  doc: vi.fn(),
+  getDoc: vi.fn(),
+  setDoc: vi.fn(),
+  deleteField: vi.fn(),
+}));
 
-vi.mock('@/lib/services/assetService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/services/assetService')>();
+import { compareAllocations, deriveTargetLeverageRatio } from '@/lib/services/assetAllocationService';
+import { applyRebalanceBand } from '@/lib/utils/allocationUtils';
 
+let assetSeq = 0;
+function makeAsset(overrides: Partial<Asset> = {}): Asset {
+  assetSeq += 1;
   return {
-    ...actual,
-    calculateAssetValue: vi.fn(),
-    calculateTotalValue: vi.fn(),
-  };
-});
-
-import {
-  compareAllocations,
-  deriveTargetLeverageRatio,
-} from '@/lib/services/assetAllocationService';
-import { calculateAssetValue } from '@/lib/services/assetService';
-
-const mockedCalculateAssetValue = vi.mocked(calculateAssetValue);
-
-function createMockAsset(overrides: Partial<Asset> = {}): Asset {
-  return {
-    id: crypto.randomUUID(),
-    userId: 'test-user',
-    ticker: 'TEST',
-    name: 'Test Asset',
+    id: `a${assetSeq}`,
+    userId: 'u1',
+    ticker: 'VWCE',
+    name: 'Asset',
     type: 'etf',
     assetClass: 'equity',
     currency: 'EUR',
     quantity: 1,
-    currentPrice: 100,
-    lastPriceUpdate: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    currentPrice: 1000, // market = quantity × currentPrice (EUR)
+    lastPriceUpdate: new Date(0),
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
     ...overrides,
   };
 }
 
-describe('compareAllocations', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+const targets = (percentages: Record<string, number>): AssetAllocationTarget => {
+  const out: AssetAllocationTarget = {};
+  for (const [assetClass, targetPercentage] of Object.entries(percentages)) {
+    out[assetClass] = { targetPercentage };
+  }
+  return out;
+};
 
-  // Shared portfolio: VT (plain equity) + NTSG (1.5x, 60% equity / 40% bonds), each 50 market.
-  //   market:   equity 80 (50 VT + 30 NTSG), bonds 20 (NTSG)               → market total 100
-  //   notional: equity 95 (50 VT + 45 NTSG), bonds 30 (NTSG × 1.5)         → notional total 125
-  //   ⇒ current leverage 1.25×. In the leverage-aware model current % are notional over the
-  //     100 market base, so equity 95% + bonds 30% = 125% (they sum to leverage × 100).
-  const leveragedAssets: Asset[] = [
-    createMockAsset({ ticker: 'VT', name: 'Vanguard Total World Stock ETF', type: 'etf', assetClass: 'equity' }),
-    createMockAsset({
-      ticker: 'NTSG',
-      name: 'WisdomTree NTSG',
-      type: 'leveragedEtf',
-      assetClass: 'equity',
-      leverageRatio: 1.5,
-      composition: [
-        { assetClass: 'equity', percentage: 60 },
-        { assetClass: 'bonds', percentage: 40 },
-      ],
-    }),
-  ];
-
-  it('expresses current % as notional exposure over invested market capital (weights sum to leverage × 100)', () => {
-    // Leveraged target: equity 90% + bonds 60% = 150% ⇒ target leverage 1.5×.
-    const targets: AssetAllocationTarget = {
-      equity: { targetPercentage: 90 },
-      bonds: { targetPercentage: 60 },
-    };
-
-    mockedCalculateAssetValue.mockReturnValueOnce(50).mockReturnValueOnce(50);
-
-    const result = compareAllocations(leveragedAssets, targets);
-
-    // Investable base metadata: market 100, notional 125, leverage 1.25.
-    expect(result.marketValue).toBe(100);
-    expect(result.totalValue).toBe(125); // notional total = composition-bar denominator
-    expect(result.leverageRatio).toBeCloseTo(1.25, 5);
-    expect(result.excludedClasses).toEqual([]);
-
-    // equity: 95 notional / 100 market = 95%; target 90% ⇒ +5 p.p. (over) → VENDI.
-    expect(result.byAssetClass.equity).toEqual({
-      currentPercentage: 95,
-      currentValue: 95,
-      targetPercentage: 90,
-      targetValue: 90,
-      difference: 5,
-      differenceValue: 5,
-      action: 'VENDI',
-    });
-
-    // bonds: 30 notional / 100 market = 30%; target 60% ⇒ −30 p.p. (under) → COMPRA.
-    expect(result.byAssetClass.bonds).toEqual({
-      currentPercentage: 30,
-      currentValue: 30,
-      targetPercentage: 60,
-      targetValue: 60,
-      difference: -30,
-      differenceValue: -30,
-      action: 'COMPRA',
-    });
-  });
-
-  it('is byte-identical to the old behavior for an unleveraged portfolio (weights sum to 100)', () => {
-    const assets: Asset[] = [
-      createMockAsset({ ticker: 'VWCE', assetClass: 'equity' }),
-      createMockAsset({ ticker: 'AGGH', assetClass: 'bonds' }),
+describe('compareAllocations — unleveraged (invariant #1)', () => {
+  it('reduces to plain market weights when nothing is leveraged', () => {
+    const assets = [
+      makeAsset({ assetClass: 'equity', quantity: 60, currentPrice: 1000 }), // 60k
+      makeAsset({ assetClass: 'bonds', quantity: 40, currentPrice: 1000 }),  // 40k
     ];
-    const targets: AssetAllocationTarget = {
-      equity: { targetPercentage: 60 },
-      bonds: { targetPercentage: 40 },
-    };
+    const result = compareAllocations(assets, targets({ equity: 60, bonds: 40 }));
 
-    mockedCalculateAssetValue.mockReturnValueOnce(70).mockReturnValueOnce(30);
-
-    const result = compareAllocations(assets, targets);
-
-    expect(result.marketValue).toBe(100);
-    expect(result.totalValue).toBe(100); // notional == market, no leverage
+    expect(result.marketValue).toBe(100000);
+    expect(result.notionalValue).toBe(100000);
+    expect(result.totalValue).toBe(100000);
     expect(result.leverageRatio).toBe(1);
-    expect(result.byAssetClass.equity.currentPercentage).toBe(70);
-    expect(result.byAssetClass.equity.difference).toBe(10); // 70 − 60 → VENDI
-    expect(result.byAssetClass.equity.action).toBe('VENDI');
-    expect(result.byAssetClass.bonds.currentPercentage).toBe(30);
-  });
+    expect(result.hasLeveragedExposure).toBe(false);
 
-  it('removes an excluded class from the base and reports it under excludedClasses', () => {
-    const assets: Asset[] = [
-      createMockAsset({ ticker: 'VWCE', assetClass: 'equity' }),
-      createMockAsset({ ticker: 'CASH', assetClass: 'cash' }),
-    ];
-    // Cash excluded → target has no cash entry; equity is the whole investable base.
-    const targets: AssetAllocationTarget = {
-      equity: { targetPercentage: 100 },
-    };
-
-    mockedCalculateAssetValue.mockReturnValueOnce(60).mockReturnValueOnce(40);
-
-    const result = compareAllocations(assets, targets, { cash: true });
-
-    // Base is equity only (60); cash (40) is out of numerator + denominator.
-    expect(result.marketValue).toBe(60);
-    expect(result.totalValue).toBe(60);
-    expect(result.byAssetClass.equity.currentPercentage).toBe(100);
+    expect(result.byAssetClass.equity.currentPercentage).toBeCloseTo(60, 6);
+    expect(result.byAssetClass.bonds.currentPercentage).toBeCloseTo(40, 6);
     expect(result.byAssetClass.equity.action).toBe('OK');
-    expect(result.byAssetClass.cash).toBeUndefined();
-    expect(result.excludedClasses).toEqual([{ assetClass: 'cash', marketValue: 40 }]);
+    expect(result.byAssetClass.bonds.action).toBe('OK');
+  });
+});
+
+describe('compareAllocations — leverage (current% on the MARKET base)', () => {
+  it('sums current% to leverage × 100, not to 100', () => {
+    const assets = [
+      makeAsset({ assetClass: 'equity', quantity: 1, currentPrice: 1000 }), // market 1000, notional 1000
+      makeAsset({ assetClass: 'equity', quantity: 1, currentPrice: 1000, leverageRatio: 3 }), // market 1000, notional 3000
+    ];
+    // marketBase = 2000, notional equity = 4000 → leverage 2.
+    const result = compareAllocations(assets, targets({ equity: 100 }));
+
+    expect(result.marketValue).toBe(2000);
+    expect(result.notionalValue).toBe(4000);
+    expect(result.leverageRatio).toBe(2);
+    expect(result.hasLeveragedExposure).toBe(true);
+
+    // On the MARKET base: 4000 / 2000 × 100 = 200 (it would be 100 on the notional-total base).
+    expect(result.byAssetClass.equity.currentPercentage).toBeCloseTo(200, 6);
+    expect(result.byAssetClass.equity.currentValue).toBe(4000); // notional exposure
+    expect(result.byAssetClass.equity.targetValue).toBe(2000);  // 100% × marketBase
+    expect(result.byAssetClass.equity.differenceValue).toBe(2000); // 2000 notional € over target
   });
 });
 
 describe('deriveTargetLeverageRatio', () => {
-  it('returns 1 for targets that sum to 100 (no leverage)', () => {
-    expect(
-      deriveTargetLeverageRatio({ equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } })
-    ).toBe(1);
+  it('sums the target percentages / 100 (150 → 1.5)', () => {
+    expect(deriveTargetLeverageRatio(targets({ equity: 90, bonds: 60 }))).toBeCloseTo(1.5, 6);
   });
-
-  it('reads the leverage off a target set summing above 100', () => {
-    expect(
-      deriveTargetLeverageRatio({ equity: { targetPercentage: 90 }, bonds: { targetPercentage: 60 } })
-    ).toBeCloseTo(1.5, 5);
-  });
-
-  it('ignores excluded classes when summing', () => {
-    const targets: AssetAllocationTarget = {
-      equity: { targetPercentage: 100 },
-      cash: { targetPercentage: 20 },
-    };
-    expect(deriveTargetLeverageRatio(targets, { cash: true })).toBe(1);
-  });
-
-  it('returns 1 for an absent target set', () => {
+  it('returns 1 for an unleveraged (sum 100) set and for an empty/absent set', () => {
+    expect(deriveTargetLeverageRatio(targets({ equity: 60, bonds: 40 }))).toBe(1);
+    expect(deriveTargetLeverageRatio(targets({}))).toBe(1);
     expect(deriveTargetLeverageRatio(null)).toBe(1);
+  });
+});
+
+describe('compareAllocations — allocationRole partitioning', () => {
+  it('drops an excluded asset from BOTH numerator and denominator', () => {
+    const assets = [
+      makeAsset({ assetClass: 'equity', quantity: 1, currentPrice: 1000 }), // 1000, tradable
+      makeAsset({ assetClass: 'realestate', quantity: 1, currentPrice: 1000, allocationRole: 'excluded' }), // 1000, out
+    ];
+    const result = compareAllocations(assets, targets({ equity: 100 }));
+
+    // If the excluded house counted, marketBase would be 2000 and equity% would be 50.
+    expect(result.marketValue).toBe(1000);
+    expect(result.byAssetClass.equity.currentPercentage).toBeCloseTo(100, 6);
+    expect(result.byAssetClass.realestate).toBeUndefined();
+  });
+
+  it('keeps a frozen asset in the denominator but generates no trade for its on-target delta', () => {
+    const assets = [
+      makeAsset({ assetClass: 'equity', quantity: 600, currentPrice: 1000 }), // 600k tradable
+      makeAsset({ assetClass: 'bonds', quantity: 400, currentPrice: 1000, allocationRole: 'frozen' }), // 400k frozen
+    ];
+    const result = compareAllocations(assets, targets({ equity: 60, bonds: 40 }));
+
+    expect(result.marketValue).toBe(1000000);
+    // Frozen bonds count in the denominator: equity is 600k/1000k = 60% (not 600k/600k = 100%).
+    expect(result.byAssetClass.equity.currentPercentage).toBeCloseTo(60, 6);
+    expect(result.byAssetClass.bonds.currentPercentage).toBeCloseTo(40, 6);
+    // Both on target → no trade signalled.
+    expect(result.byAssetClass.equity.action).toBe('OK');
+    expect(result.byAssetClass.bonds.action).toBe('OK');
+  });
+});
+
+describe('applyRebalanceBand preserves leverage metadata', () => {
+  it('keeps marketValue / notionalValue / leverageRatio / hasLeveragedExposure after re-banding', () => {
+    const assets = [
+      makeAsset({ assetClass: 'equity', quantity: 1, currentPrice: 1000, leverageRatio: 2 }), // notional 2000
+      makeAsset({ assetClass: 'bonds', quantity: 1, currentPrice: 1000 }), // notional 1000
+    ];
+    const result = compareAllocations(assets, targets({ equity: 100, bonds: 50 }));
+    const banded = applyRebalanceBand(result, { type: 'fixed', pp: 5 });
+
+    expect(banded.marketValue).toBe(result.marketValue);
+    expect(banded.notionalValue).toBe(result.notionalValue);
+    expect(banded.leverageRatio).toBe(result.leverageRatio);
+    expect(banded.hasLeveragedExposure).toBe(result.hasLeveragedExposure);
+    expect(banded.hasLeveragedExposure).toBe(true);
+  });
+});
+
+describe('compareAllocations — fixed-amount cash target', () => {
+  // Settings keep a stale `targetPercentage` on cash beside `useFixedAmount`; the percentages of
+  // the other classes sum to 100 «excl. cash» and apply to the market base net of the reserve.
+  const fixedCashTargets = (): AssetAllocationTarget => {
+    const t = targets({ equity: 70, bonds: 30, cash: 5 });
+    t.cash = { targetPercentage: 5, useFixedAmount: true, fixedAmount: 25000 };
+    return t;
+  };
+  const assets = () => [
+    makeAsset({ assetClass: 'equity', quantity: 150, currentPrice: 1000 }), // 150k
+    makeAsset({ assetClass: 'bonds', quantity: 40, currentPrice: 1000 }), // 40k
+    makeAsset({ assetClass: 'cash', type: 'cash', quantity: 10000, currentPrice: 1 }), // 10k
+  ];
+
+  it('expresses every target on the MARKET base, so the drifts sum to zero like the currents do', () => {
+    // market 200k; the reserve is 25k, so 70/30 apply to 175k: equity 122.5k = 61,25% of 200k.
+    const result = compareAllocations(assets(), fixedCashTargets());
+    expect(result.byAssetClass.cash.targetPercentage).toBeCloseTo(12.5, 6);
+    expect(result.byAssetClass.cash.targetValue).toBe(25000);
+    expect(result.byAssetClass.equity.targetValue).toBeCloseTo(122500, 6);
+    expect(result.byAssetClass.equity.targetPercentage).toBeCloseTo(61.25, 6);
+    expect(result.byAssetClass.bonds.targetPercentage).toBeCloseTo(26.25, 6);
+    const targetSum = Object.values(result.byAssetClass).reduce((sum, d) => sum + d.targetPercentage, 0);
+    expect(targetSum).toBeCloseTo(100, 6);
+    const driftSum = Object.values(result.byAssetClass).reduce((sum, d) => sum + d.difference, 0);
+    expect(driftSum).toBeCloseTo(0, 6);
+    expect(result.byAssetClass.equity.difference).toBeCloseTo(75 - 61.25, 6);
+  });
+
+  it('is not a leverage target: the stale cash percentage never enters the ratio', () => {
+    expect(deriveTargetLeverageRatio(fixedCashTargets())).toBe(1);
   });
 });

@@ -28,6 +28,7 @@ import { useState, useMemo, useEffect, Suspense } from 'react';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { Expense, ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
 import {
@@ -73,6 +74,7 @@ interface ExpenseTableProps {
 
 export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasActiveFilters = false, categories = [] }: ExpenseTableProps) {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
 
   // categoryId → { icon, color } for icon display in the category cell
@@ -153,8 +155,8 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
       } else if (expense.linkedCashAssetId) {
         await updateCashAssetBalance(expense.linkedCashAssetId, -expense.amount);
       }
-      if (user && (expense.linkedCashAssetId || expense.transferCashAssetId)) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
+      if (user && ownerId && (expense.linkedCashAssetId || expense.transferCashAssetId)) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
       await deleteExpense(expense.id);
       toast.success('Voce eliminata con successo');
@@ -168,19 +170,22 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
   };
 
   const deleteAllRecurringExpenses = async (recurringParentId: string) => {
+    // The series query is scoped by owner (firestore.rules refuses an unscoped list), so
+    // without an owner there is nothing to delete — and no way to ask for it.
+    if (!ownerId) return;
     try {
       setDeletingId(recurringParentId);
       // Reverse balance effects before bulk-deleting (only the first entry stores linkedCashAssetId)
-      const seriesExpenses = await getExpensesByRecurringParentId(recurringParentId);
+      const seriesExpenses = await getExpensesByRecurringParentId(ownerId, recurringParentId);
       for (const exp of seriesExpenses) {
         if (exp.linkedCashAssetId) {
           await updateCashAssetBalance(exp.linkedCashAssetId, -exp.amount);
         }
       }
-      if (user && seriesExpenses.some(e => e.linkedCashAssetId)) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
+      if (user && ownerId && seriesExpenses.some(e => e.linkedCashAssetId)) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
-      await deleteRecurringExpenses(recurringParentId);
+      await deleteRecurringExpenses(ownerId, recurringParentId);
       toast.success('Tutte le voci ricorrenti sono state eliminate');
       onRefresh();
     } catch (error) {
@@ -192,19 +197,22 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
   };
 
   const deleteAllInstallmentExpenses = async (installmentParentId: string) => {
+    // The series query is scoped by owner (firestore.rules refuses an unscoped list), so
+    // without an owner there is nothing to delete — and no way to ask for it.
+    if (!ownerId) return;
     try {
       setDeletingId(installmentParentId);
       // Reverse balance effects before bulk-deleting (only the first installment stores linkedCashAssetId)
-      const seriesExpenses = await getExpensesByInstallmentParentId(installmentParentId);
+      const seriesExpenses = await getExpensesByInstallmentParentId(ownerId, installmentParentId);
       for (const exp of seriesExpenses) {
         if (exp.linkedCashAssetId) {
           await updateCashAssetBalance(exp.linkedCashAssetId, -exp.amount);
         }
       }
-      if (user && seriesExpenses.some(e => e.linkedCashAssetId)) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(user.uid) });
+      if (user && ownerId && seriesExpenses.some(e => e.linkedCashAssetId)) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
-      await deleteInstallmentExpenses(installmentParentId);
+      await deleteInstallmentExpenses(ownerId, installmentParentId);
       toast.success('Tutte le rate sono state eliminate');
       onRefresh();
     } catch (error) {

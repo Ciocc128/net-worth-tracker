@@ -14,12 +14,18 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import {
   CostCenter,
   CostCenterFormData,
   CostCenterBudgetPeriod,
-  COST_CENTER_COLORS,
 } from '@/types/costCenters';
+import {
+  COST_CENTER_COLOR_KEYS,
+  resolveCostCenterColor,
+  resolveCostCenterColorSlot,
+} from '@/lib/utils/costCenterColors';
+import { useChartColors } from '@/lib/hooks/useChartColors';
 import { createCostCenter, updateCostCenter } from '@/lib/services/costCenterService';
 import {
   Dialog,
@@ -35,18 +41,10 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-// Human-readable labels for screen readers — hex values are unpronounceable.
-// Keep in sync with COST_CENTER_COLORS in types/costCenters.ts.
-const COLOR_LABELS: Record<string, string> = {
-  '#3b82f6': 'Blu',
-  '#10b981': 'Verde smeraldo',
-  '#f59e0b': 'Ambra',
-  '#ef4444': 'Rosso',
-  '#8b5cf6': 'Viola',
-  '#ec4899': 'Rosa',
-  '#06b6d4': 'Ciano',
-  '#84cc16': 'Verde lime',
-};
+// Screen-reader labels for the swatches. Named by POSITION, not by hue: a slot resolves to a
+// different colour on each of the six themes, so "Blu" would be a lie on Cyberpunk. The
+// position is the stable fact, and it is the one the user is actually choosing.
+const colorLabel = (index: number) => `Colore ${index + 1} di ${COST_CENTER_COLOR_KEYS.length}`;
 
 interface CostCenterDialogProps {
   open: boolean;
@@ -63,9 +61,11 @@ export function CostCenterDialog({
   onSuccess,
 }: CostCenterDialogProps) {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState<string>(COST_CENTER_COLORS[0]);
+  const [color, setColor] = useState<string>(COST_CENTER_COLOR_KEYS[0]);
+  const chartColors = useChartColors();
   // Optional spending ceiling. Empty string = no budget; the field is opt-in.
   const [budgetAmount, setBudgetAmount] = useState('');
   const [budgetPeriod, setBudgetPeriod] = useState<CostCenterBudgetPeriod>('annual');
@@ -76,20 +76,22 @@ export function CostCenterDialog({
     if (costCenter) {
       setName(costCenter.name);
       setDescription(costCenter.description ?? '');
-      setColor(costCenter.color ?? COST_CENTER_COLORS[0]);
+      // A pre-migration document still holds a hex, which matches no slot key — resolving it
+      // to its slot both highlights the right swatch and migrates the value on the next save.
+      setColor(COST_CENTER_COLOR_KEYS[resolveCostCenterColorSlot(costCenter.color, costCenter.id)]);
       setBudgetAmount(costCenter.budgetAmount != null ? String(costCenter.budgetAmount) : '');
       setBudgetPeriod(costCenter.budgetPeriod ?? 'annual');
     } else {
       setName('');
       setDescription('');
-      setColor(COST_CENTER_COLORS[0]);
+      setColor(COST_CENTER_COLOR_KEYS[0]);
       setBudgetAmount('');
       setBudgetPeriod('annual');
     }
   }, [costCenter, open]);
 
   const handleSave = async () => {
-    if (!user || !name.trim()) return;
+    if (!user || !ownerId || !name.trim()) return;
 
     // A non-positive or empty budget input means "no ceiling": persist undefined so
     // the verdict logic skips it.
@@ -111,7 +113,7 @@ export function CostCenterDialog({
         onSuccess({ ...costCenter, ...formData });
         toast.success('Centro di costo aggiornato');
       } else {
-        const created = await createCostCenter(user.uid, formData);
+        const created = await createCostCenter(ownerId, formData);
         onSuccess(created);
         toast.success('Centro di costo creato');
       }
@@ -126,7 +128,13 @@ export function CostCenterDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      {/* max-h here, scroll on the BODY below — not on this element. The dialog is vertically
+          centred and had no scroll container at all, so on a short viewport (a phone in
+          landscape, a desktop window at ~500px) the form grew past the screen and Annulla/Crea
+          became unreachable: the cancel path itself. Scrolling DialogContent would have fixed
+          that and broken something else, because its close button is `absolute top-4 right-4`
+          and would have scrolled away with the content. */}
+      <DialogContent className="sm:max-w-md max-h-[85dvh]">
         <DialogHeader>
           <DialogTitle>
             {costCenter ? 'Modifica centro di costo' : 'Nuovo centro di costo'}
@@ -138,7 +146,8 @@ export function CostCenterDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        {/* min-h-0 is what lets a grid child actually shrink below its content height. */}
+        <div className="min-h-0 space-y-4 overflow-y-auto py-2">
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor="ccName">Nome *</Label>
@@ -172,21 +181,33 @@ export function CostCenterDialog({
           <div className="space-y-2">
             <Label>Colore</Label>
             <div className="flex flex-wrap gap-2">
-              {COST_CENTER_COLORS.map((c) => (
+              {COST_CENTER_COLOR_KEYS.map((key, i) => (
                 <button
-                  key={c}
+                  key={key}
                   type="button"
+                  // 44×44 hit area around a 32px swatch: the target meets 2.5.5 without the
+                  // dots growing into each other and losing the palette's compactness.
                   className={cn(
-                    'h-8 w-8 rounded-full border-2 transition-transform duration-100',
-                    color === c
-                      ? 'border-foreground scale-110'
-                      : 'border-transparent hover:scale-105'
+                    'group grid h-11 w-11 place-items-center rounded-full',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                   )}
-                  style={{ backgroundColor: c }}
-                  onClick={() => setColor(c)}
-                  aria-label={`${COLOR_LABELS[c] ?? c}${color === c ? ' (selezionato)' : ''}`}
-                  aria-pressed={color === c}
-                />
+                  onClick={() => setColor(key)}
+                  aria-label={`${colorLabel(i)}${color === key ? ' (selezionato)' : ''}`}
+                  aria-pressed={color === key}
+                >
+                  <span
+                    className={cn(
+                      // group-hover, not hover: the 6px ring that makes the target 44px is
+                      // part of the button, so pointing at it must give the same feedback as
+                      // pointing at the dot.
+                      'block h-8 w-8 rounded-full border-2 transition-transform duration-100 motion-reduce:transition-none',
+                      color === key
+                        ? 'border-foreground scale-110'
+                        : 'border-transparent group-hover:scale-105'
+                    )}
+                    style={{ backgroundColor: resolveCostCenterColor(key, key, chartColors) }}
+                  />
+                </button>
               ))}
             </div>
           </div>

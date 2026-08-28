@@ -6,15 +6,62 @@ import {
   getAllDividends
 } from '@/lib/services/dividendService';
 import { adminDb } from '@/lib/firebase/admin';
-import { AssetDividendGrowth, DividendGrowthData, TotalReturnAsset, YieldOnCostAsset } from '@/types/dividend';
+import { AssetDividendGrowth, Dividend, DividendGrowthData, TotalReturnAsset, YieldOnCostAsset } from '@/types/dividend';
 import { computeDividendYieldMetrics } from '@/lib/utils/yieldOnCost';
-import { getUserSnapshotsAdmin } from '@/lib/server/assetAdminRepository';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { getUserSnapshotsAdmin, getAssetTransactionsAdmin } from '@/lib/server/assetAdminRepository';
 import { deriveHoldingStartDates } from '@/lib/utils/snapshotAssetBreakdown';
 import {
-  assertSameUser,
+  replayTransactions,
+  computeAssetTotalReturn,
+  type LedgerPositionState,
+} from '@/lib/utils/assetTransactionUtils';
+import type { AssetTransaction } from '@/types/assetTransactions';
+import {
+  assertCanAccessAccount,
   getApiAuthErrorResponse,
   requireFirebaseAuth,
 } from '@/lib/server/apiAuth';
+
+// Mirror of calculateAssetValue() (lib/services/assetService.ts) for ledger-based total return —
+// assetService.ts imports the client Firebase SDK and cannot be used in this Admin route (same
+// reasoning as resolveAssetValueEur in portfolioExposureService.ts). Ledger asset types
+// (stock/etf/bond/crypto/commodity) never carry outstandingDebt, so that branch is omitted.
+function resolveLedgerAssetValueEur(asset: {
+  quantity: number;
+  currentPrice: number;
+  currentPriceEur?: number;
+  currency?: string;
+}): number {
+  const isGBp = asset.currency === 'GBp';
+  const normalizedPrice = isGBp ? asset.currentPrice / 100 : asset.currentPrice;
+  const priceEur =
+    asset.currency && asset.currency.toUpperCase() !== 'EUR' && asset.currentPriceEur !== undefined
+      ? asset.currentPriceEur
+      : normalizedPrice;
+  return asset.quantity * priceEur;
+}
+
+/**
+ * Per-payment dividend return %, summing (net ÷ cost-basis-AT-PAYMENT-TIME) for each dividend —
+ * the YOC v3 approach: uses `Dividend.costPerShare` (the historical PMC snapshot at creation time)
+ * so a later purchase never dilutes an earlier payment's yield. `fallbackAverageCost` covers legacy
+ * records without the stamp. Shared by BOTH the ledger and static totalReturnAssets paths below —
+ * `costPerShare` is stamped from `asset.averageCost` at dividend-creation time regardless of asset
+ * type, and for ledger assets that field is kept authoritative by the trade replay, so the exact
+ * same per-payment math applies without any ledger-specific branching.
+ */
+function computeDividendReturnPercentage(
+  assetDividends: Dividend[],
+  fallbackAverageCost: number
+): number {
+  return assetDividends.reduce((sum, div) => {
+    const effectiveCostPerShare = div.costPerShare ?? fallbackAverageCost;
+    const costBasisAtTime = div.quantity * effectiveCostPerShare;
+    if (costBasisAtTime <= 0) return sum;
+    return sum + (div.netAmountEur ?? div.netAmount) / costBasisAtTime * 100;
+  }, 0);
+}
 
 /**
  * GET /api/dividends/stats
@@ -30,7 +77,7 @@ export async function GET(request: NextRequest) {
     const endDateStr = searchParams.get('endDate');
     const assetId = searchParams.get('assetId') || undefined;
 
-    assertSameUser(decodedToken, userId);
+    await assertCanAccessAccount(decodedToken, userId);
     const authenticatedUserId = userId as string;
 
     let startDate: Date | undefined;
@@ -78,14 +125,28 @@ export async function GET(request: NextRequest) {
     const userAssets = assetsSnapshot.docs.map(doc => ({
       id: doc.id,
       ticker: doc.data().ticker || '',
+      displayTicker: doc.data().displayTicker as string | null | undefined,
       name: doc.data().name || '',
       quantity: doc.data().quantity || 0,
       currentPrice: doc.data().currentPrice || 0,
+      currentPriceEur: doc.data().currentPriceEur as number | undefined,
+      currency: doc.data().currency as string | undefined,
       averageCost: doc.data().averageCost,
       // Prefer the exact start stamped at (re)purchase; fall back to the snapshot-derived value.
       holdingStartDate: doc.data().holdingStartDate?.toDate() ?? holdingStarts.get(doc.id),
     }));
     const assetsMap = new Map(userAssets.map(a => [a.id, a]));
+
+    // Trade-ledger transactions, grouped by asset (Fase D §6): assets WITH ledger entries get a
+    // date-exact total return via replayTransactions; assets without one keep the static fallback
+    // below (only possible for a position opened and never migrated/re-bought).
+    const allTrades = await getAssetTransactionsAdmin(authenticatedUserId);
+    const tradesByAssetId = new Map<string, AssetTransaction[]>();
+    allTrades.forEach(t => {
+      const arr = tradesByAssetId.get(t.assetId) ?? [];
+      arr.push(t);
+      tradesByAssetId.set(t.assetId, arr);
+    });
 
     // Only show upcoming dividends for assets still owned
     const activeUpcomingDividends = upcomingDividends.filter(div => {
@@ -146,15 +207,20 @@ export async function GET(request: NextRequest) {
       dividendsByAsset.set(div.assetId, arr);
     });
 
-    // Compute total return per asset: unrealized capital gain % + dividend return % on cost.
-    // Excludes sold assets (quantity = 0) since we don't track the actual realized sell price,
-    // and assets without averageCost (e.g. cash) since cost basis is required for % calculation.
+    // Compute total return per asset: capital gain % + dividend return % on cost.
     // Dividends are scoped to the CURRENT holding (paymentDate >= holdingStartDate): a rebought
     // asset's prior-holding dividends must not be credited to the new position — the capital-gain
     // term is already current-holding only, so the dividend term must match (consistent with YOC).
+    //
+    // Two paths (Fase D) SHARE the dividend-return method (computeDividendReturnPercentage,
+    // per-payment historical cost basis) and diverge only on the capital-gain term:
+    //   - LEDGER-BASED (asset has trade-ledger entries): replayTransactions + computeAssetTotalReturn
+    //     is authoritative — includes CLOSED positions (quantity 0, isClosed: true) and partial
+    //     sells, which the static path below cannot represent (it has no realized-sell price).
+    //   - STATIC fallback (no ledger doc for this asset — never migrated/re-bought): unchanged
+    //     unrealized price-vs-PMC calculation, gated on averageCost > 0 && quantity > 0 && dividends.
     const totalReturnAssets: TotalReturnAsset[] = userAssets
-      .filter(asset => asset.averageCost && asset.averageCost > 0 && asset.quantity > 0)
-      .map(asset => {
+      .map((asset): TotalReturnAsset | null => {
         // Scope to the current holding. holdingStartDate = exact stamp at (re)purchase ?? snapshot-
         // derived; absent for continuously-held assets (then all dividends count, as before).
         const assetDividends = (dividendsByAsset.get(asset.id) ?? []).filter(div =>
@@ -164,24 +230,68 @@ export async function GET(request: NextRequest) {
           (sum, div) => sum + (div.netAmountEur ?? div.netAmount),
           0
         );
+
+        const trades = tradesByAssetId.get(asset.id);
+        if (trades && trades.length > 0) {
+          let state: LedgerPositionState;
+          try {
+            state = replayTransactions(trades);
+          } catch {
+            // A corrupted/invalid stored sequence should not crash the whole stats route — skip it.
+            return null;
+          }
+          if (state.investedEur <= 0) return null; // nothing ever bought (shouldn't happen)
+
+          const currentValueEur = state.quantity > 0 ? resolveLedgerAssetValueEur(asset) : 0;
+          const totalReturn = computeAssetTotalReturn(state, currentValueEur, netDividends);
+          // Capital gain = the price-driven component (realized + unrealized), symmetric with the
+          // static path below where capitalGainPercentage + dividendReturnPercentage = total.
+          const capitalGainAbsolute = totalReturn.realizedPnlEur + totalReturn.unrealizedPnlEur;
+          const capitalGainPercentage = (capitalGainAbsolute / totalReturn.investedEur) * 100;
+          // Same per-payment method as the static path (see computeDividendReturnPercentage) — NOT
+          // a flat netDividends/investedEur ratio, which would silently lose the anti-dilution
+          // property the static path has always had. Fallback is NATIVE currency (state.averageCost,
+          // not averageCostEur) to match the unit div.costPerShare was stamped in (asset.averageCost
+          // is native — see the helper's doc comment).
+          const dividendReturnPercentage = computeDividendReturnPercentage(
+            assetDividends,
+            state.averageCost ?? asset.averageCost ?? 0
+          );
+
+          return {
+            assetId: asset.id,
+            assetTicker: getAssetDisplayTicker(asset),
+            assetName: asset.name,
+            quantity: asset.quantity,
+            averageCost: state.averageCostEur ?? asset.averageCost ?? 0,
+            currentPrice: asset.currentPrice,
+            costBasis: state.costBasisEur,
+            currentValue: currentValueEur,
+            netDividends,
+            capitalGainAbsolute,
+            capitalGainPercentage,
+            dividendReturnPercentage,
+            totalReturnPercentage: capitalGainPercentage + dividendReturnPercentage,
+            realizedPnlEur: totalReturn.realizedPnlEur,
+            isClosed: totalReturn.isClosed,
+          };
+        }
+
+        // Static fallback: no ledger doc for this asset (never migrated/re-bought at quantity 0).
+        // Excludes sold assets (quantity = 0) since we don't track the actual realized sell price,
+        // and assets without averageCost (e.g. cash) since cost basis is required for % calculation.
+        if (!asset.averageCost || asset.averageCost <= 0 || asset.quantity <= 0) return null;
         // Dividend-return card: an asset with no dividends in the current holding has no story here.
         if (netDividends <= 0) return null;
 
-        const costBasis = asset.quantity * asset.averageCost!;
+        const costBasis = asset.quantity * asset.averageCost;
         const currentValue = asset.quantity * asset.currentPrice;
         const capitalGainAbsolute = currentValue - costBasis;
         const capitalGainPercentage = (capitalGainAbsolute / costBasis) * 100;
-        // Per-payment historical cost basis (costPerShare snapshot at dividend creation, YOC v3),
-        // fallback to current averageCost for legacy records. Prevents dilution from later buys.
-        const dividendReturnPercentage = assetDividends.reduce((sum, div) => {
-          const effectiveCostPerShare = div.costPerShare ?? asset.averageCost!;
-          const costBasisAtTime = div.quantity * effectiveCostPerShare;
-          if (costBasisAtTime <= 0) return sum;
-          return sum + (div.netAmountEur ?? div.netAmount) / costBasisAtTime * 100;
-        }, 0);
+        const dividendReturnPercentage = computeDividendReturnPercentage(assetDividends, asset.averageCost!);
         return {
           assetId: asset.id,
-          assetTicker: asset.ticker,
+          assetTicker: getAssetDisplayTicker(asset),
           assetName: asset.name,
           quantity: asset.quantity,
           averageCost: asset.averageCost!,
@@ -260,7 +370,7 @@ export async function GET(request: NextRequest) {
 
       assetGrowthList.push({
         assetId: aid,
-        assetTicker: asset.ticker,
+        assetTicker: getAssetDisplayTicker(asset),
         assetName: asset.name,
         currency: sampleDiv?.currency ?? 'EUR',
         yearlyDps,
@@ -341,6 +451,11 @@ export async function GET(request: NextRequest) {
     const averageYield = ttmMetrics.portfolioCurrentYieldGross ?? 0;
 
     let portfolioYieldOnCost: number | undefined;
+    // The net counterparts come from the SAME engine call: computeDividendYieldMetrics has
+    // always produced them per asset and portfolio-wide, and dropping them here forced every
+    // consumer that wanted a net figure to re-derive it from an average tax rate.
+    let portfolioYieldOnCostNet: number | undefined;
+    let portfolioCurrentYieldNet: number | undefined;
     let totalCostBasis: number | undefined;
     let yieldOnCostAssets: YieldOnCostAsset[] | undefined;
 
@@ -348,7 +463,10 @@ export async function GET(request: NextRequest) {
       yieldOnCostAssets = ttmMetrics.assets
         .map<YieldOnCostAsset>(a => ({
           assetId: a.assetId,
-          assetTicker: a.assetTicker,
+          // ttmMetrics.assets comes from the shared yieldOnCost.ts engine, which resolves the raw
+          // ticker (also used by performanceService.ts's own YOC surfaces, out of this feature's
+          // scope) — re-resolve the alias here from the live asset instead of the engine's output.
+          assetTicker: assetsMap.has(a.assetId) ? getAssetDisplayTicker(assetsMap.get(a.assetId)!) : a.assetTicker,
           assetName: a.assetName,
           quantity: a.quantity,
           averageCost: a.averageCost,
@@ -360,6 +478,8 @@ export async function GET(request: NextRequest) {
         }))
         .sort((a, b) => b.yocPercentage - a.yocPercentage);
       portfolioYieldOnCost = ttmMetrics.portfolioYocGross;
+      portfolioYieldOnCostNet = ttmMetrics.portfolioYocNet ?? undefined;
+      portfolioCurrentYieldNet = ttmMetrics.portfolioCurrentYieldNet ?? undefined;
       totalCostBasis = ttmMetrics.totalCostBasis;
     }
 
@@ -384,6 +504,12 @@ export async function GET(request: NextRequest) {
       // Include YOC data only if available
       ...(portfolioYieldOnCost !== undefined && {
         portfolioYieldOnCost,
+        portfolioYieldOnCostNet,
+        // Named explicitly, unlike the deprecated `averageYield` above: the Dividendi tab reads
+        // YOC against the yield on today's market value, and a field called "average" is not
+        // something a reading can state the base of.
+        portfolioCurrentYieldGross: ttmMetrics.portfolioCurrentYieldGross ?? undefined,
+        portfolioCurrentYieldNet,
         totalCostBasis,
         yieldOnCostAssets,
       }),

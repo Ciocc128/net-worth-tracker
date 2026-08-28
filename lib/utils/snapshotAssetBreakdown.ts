@@ -8,6 +8,7 @@
  *  - sort a month's assets by value,
  *  - sum a user-selected subset for a given month,
  *  - build the cross-month trend of a selected subset's combined value,
+ *  - read one month instrument by instrument, each with its price/quantity attribution,
  *  - derive each asset's current holding-start date from its quantity gaps (consumed by the
  *    yield-on-cost engine to ignore dividends from a previous, discontinuous holding).
  *
@@ -45,7 +46,7 @@ export interface SelectedAssetTrendPoint {
 }
 
 /** Price/quantity split of a month-over-month value change. */
-interface ChangeAttribution {
+export interface ChangeAttribution {
   priceEffect: number;
   quantityEffect: number;
 }
@@ -60,8 +61,15 @@ function buildMonthLabel(year: number, month: number): string {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
-/** True when a snapshot carries a non-empty per-asset breakdown. */
-function hasAssetBreakdown(snapshot: MonthlySnapshot): boolean {
+/**
+ * True when a snapshot carries a non-empty per-asset breakdown.
+ *
+ * Exported because it is the shared definition of "this snapshot predates `byAsset`", and a second
+ * consumer depends on it: `lib/utils/performanceBase.ts` uses it to decide when to fall back to a
+ * backfilled exclusion value. Keeping one predicate avoids the divergent-copies failure mode that
+ * `lib/utils/assetPricing.ts` was created to fix.
+ */
+export function hasAssetBreakdown(snapshot: MonthlySnapshot): boolean {
   return Array.isArray(snapshot.byAsset) && snapshot.byAsset.length > 0;
 }
 
@@ -238,6 +246,137 @@ export function buildSelectedAssetTrend(
       previousLabel,
     };
   });
+}
+
+/** One instrument of a month, with its change against the previous month that has a breakdown. */
+export interface MonthAssetRow {
+  assetId: string;
+  name: string;
+  ticker: string;
+  quantity: number;
+  totalValue: number;
+  /** Share of the snapshot's `totalNetWorth`, 0-100 (0 when the total is not positive). */
+  sharePct: number;
+  /** All three `null` on the first month with a breakdown; otherwise `delta = priceEffect + quantityEffect`. */
+  delta: number | null;
+  priceEffect: number | null;
+  quantityEffect: number | null;
+}
+
+export interface MonthAssetBreakdown {
+  month: SnapshotMonthOption;
+  /** The closest earlier month WITH a breakdown (a legacy month in between is skipped), or null. */
+  previous: SnapshotMonthOption | null;
+  /** The snapshot's own total — never a re-derived sum. */
+  total: number;
+  instrumentCount: number;
+  /** The month's instruments, largest first. */
+  rows: MonthAssetRow[];
+  /**
+   * The change over the UNION of both months' instruments — an instrument sold in full has no
+   * row this month but still explains part of the drop. Null on the first month.
+   */
+  change: ChangeAttribution & { delta: number } | null;
+  /** Instruments of the previous month with no row this month (sold in full), with the value they had. */
+  departed: Array<{ assetId: string; previousValue: number }>;
+}
+
+/**
+ * The «Valore per strumento» reading of one month: every instrument frozen in the snapshot,
+ * ranked, with its month-over-month change split into a price effect and a quantity effect
+ * (the same maths as `attributeSelectedChange`, applied one instrument at a time). Values are
+ * read, never recomputed — `totalValue` already went through `calculateAssetValue()`.
+ *
+ * @param snapshots - All user snapshots (any order)
+ * @param monthKey - `${year}-${month}` of the month to read
+ * @returns The breakdown, or null when that month has no per-asset detail
+ */
+export function buildMonthAssetBreakdown(snapshots: MonthlySnapshot[], monthKey: string): MonthAssetBreakdown | null {
+  const ordered = snapshots
+    .filter(hasAssetBreakdown)
+    .slice()
+    .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+  const index = ordered.findIndex((s) => buildMonthKey(s.year, s.month) === monthKey);
+  if (index === -1) return null;
+
+  const snapshot = ordered[index];
+  const previous = index > 0 ? ordered[index - 1] : null;
+  const total = snapshot.totalNetWorth;
+
+  const rows: MonthAssetRow[] = sortAssetsByValue(snapshot.byAsset).map((asset) => {
+    const base = {
+      assetId: asset.assetId,
+      name: asset.name,
+      ticker: asset.ticker,
+      quantity: asset.quantity,
+      totalValue: asset.totalValue,
+      sharePct: total > 0 ? (asset.totalValue / total) * 100 : 0,
+    };
+    if (!previous) return { ...base, delta: null, priceEffect: null, quantityEffect: null };
+    const { priceEffect, quantityEffect } = attributeSelectedChange(previous.byAsset, snapshot.byAsset, new Set([asset.assetId]));
+    return { ...base, delta: priceEffect + quantityEffect, priceEffect, quantityEffect };
+  });
+
+  let change: MonthAssetBreakdown['change'] = null;
+  let departed: MonthAssetBreakdown['departed'] = [];
+  if (previous) {
+    const union = new Set([...previous.byAsset.map((a) => a.assetId), ...snapshot.byAsset.map((a) => a.assetId)]);
+    const { priceEffect, quantityEffect } = attributeSelectedChange(previous.byAsset, snapshot.byAsset, union);
+    change = { priceEffect, quantityEffect, delta: priceEffect + quantityEffect };
+    const present = new Set(snapshot.byAsset.map((a) => a.assetId));
+    departed = previous.byAsset.filter((a) => !present.has(a.assetId)).map((a) => ({ assetId: a.assetId, previousValue: a.totalValue }));
+  }
+
+  const toOption = (s: MonthlySnapshot): SnapshotMonthOption => ({
+    key: buildMonthKey(s.year, s.month),
+    year: s.year,
+    month: s.month,
+    label: buildMonthLabel(s.year, s.month),
+  });
+
+  return {
+    month: toOption(snapshot),
+    previous: previous ? toOption(previous) : null,
+    total,
+    instrumentCount: snapshot.byAsset.length,
+    rows,
+    change,
+    departed,
+  };
+}
+
+export interface SelectionSummary {
+  /** Selected instruments present in this month. */
+  count: number;
+  value: number;
+  /** Share of the month's total, 0-100. */
+  sharePct: number;
+  /**
+   * Over the ticked instruments of BOTH months, like `change`: one ticked in an earlier month and
+   * sold in full counts its whole previous value as a quantity effect, so the panel agrees with
+   * the trend line under it. `null` on the first month with a breakdown.
+   */
+  delta: number | null;
+  priceEffect: number | null;
+  quantityEffect: number | null;
+}
+
+/** The ticked instruments of a month, as the selection panel reads them. */
+export function summarizeSelection(breakdown: MonthAssetBreakdown, selectedIds: Set<string>): SelectionSummary {
+  const rows = breakdown.rows.filter((row) => selectedIds.has(row.assetId));
+  const value = rows.reduce((sum, row) => sum + row.totalValue, 0);
+  const hasChange = breakdown.change !== null;
+  const sumOf = (pick: (row: MonthAssetRow) => number | null) => rows.reduce((sum, row) => sum + (pick(row) ?? 0), 0);
+  // A full close is a pure quantity action, the same convention as `attributeSelectedChange`.
+  const departedLoss = breakdown.departed.filter((d) => selectedIds.has(d.assetId)).reduce((sum, d) => sum + d.previousValue, 0);
+  return {
+    count: rows.length,
+    value,
+    sharePct: breakdown.total > 0 ? (value / breakdown.total) * 100 : 0,
+    delta: hasChange ? sumOf((row) => row.delta) - departedLoss : null,
+    priceEffect: hasChange ? sumOf((row) => row.priceEffect) : null,
+    quantityEffect: hasChange ? sumOf((row) => row.quantityEffect) - departedLoss : null,
+  };
 }
 
 /**

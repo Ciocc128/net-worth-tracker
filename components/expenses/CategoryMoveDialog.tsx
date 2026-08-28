@@ -32,6 +32,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import {
   ExpenseCategory,
   ExpenseSubCategory,
@@ -57,6 +58,7 @@ import {
 import { ArrowRightLeft, Plus, Check } from 'lucide-react';
 import { CategoryManagementDialog } from './CategoryManagementDialog';
 import { getAllCategories } from '@/lib/services/expenseCategoryService';
+import { crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
 import { cn } from '@/lib/utils';
 
 interface CategoryMoveDialogProps {
@@ -81,6 +83,7 @@ export function CategoryMoveDialog({
   triggerOrigin,
 }: CategoryMoveDialogProps) {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -102,15 +105,22 @@ export function CategoryMoveDialog({
    * All categories except the source (when moving a whole category).
    * For subcategory moves, we keep the source category available since the user
    * might want to move to a different subcategory within the same category.
+   *
+   * Destinations across the transfer boundary are never offered: the moved rows
+   * touch two cash accounts and cannot be re-typed in batch (the service refuses
+   * with TransferBoundaryError — see crossesTransferBoundary).
    */
   const availableCategories = useMemo(() => {
+    const sameSideOfBoundary = localCategories.filter(
+      cat => !crossesTransferBoundary(sourceCategory.type, cat.type)
+    );
     if (sourceSubCategory) {
-      // Subcategory move: all categories available (including parent)
-      return localCategories;
+      // Subcategory move: all same-side categories available (including parent)
+      return sameSideOfBoundary;
     }
     // Category move: exclude source category
-    return localCategories.filter(cat => cat.id !== sourceCategory.id);
-  }, [localCategories, sourceCategory.id, sourceSubCategory]);
+    return sameSideOfBoundary.filter(cat => cat.id !== sourceCategory.id);
+  }, [localCategories, sourceCategory.id, sourceCategory.type, sourceSubCategory]);
 
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -194,8 +204,8 @@ export function CategoryMoveDialog({
    * After inline category creation, reload categories and auto-select the new one.
    */
   const handleCategoryCreated = async () => {
-    if (user) {
-      const updatedCategories = await getAllCategories(user.uid);
+    if (user && ownerId) {
+      const updatedCategories = await getAllCategories(ownerId);
       setLocalCategories(updatedCategories);
 
       // Auto-select newest category

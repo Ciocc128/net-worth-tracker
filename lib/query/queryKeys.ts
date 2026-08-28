@@ -23,15 +23,12 @@ export const queryKeys = {
     all: (userId: string) => ['expenses', userId] as const,
     month: (userId: string, year: number, month: number) =>
       ['expenses', userId, year, month] as const,
-    stats: (userId: string) => ['expense-stats', userId] as const,
     categories: (userId: string) => ['expense-categories', userId] as const,
   },
 
-  // Pension contributions (dedicated collection, per user; optionally scoped to one fund asset).
-  pensionContributions: {
-    all: (userId: string) => ['pension-contributions', userId] as const,
-    byAsset: (userId: string, assetId: string) =>
-      ['pension-contributions', userId, assetId] as const,
+  // Budget — the monthly records of the configuration, written only by the cron
+  budgetHistory: {
+    months: (userId: string, monthKeys: string[]) => ['budget-history', userId, ...monthKeys] as const,
   },
 
   // Assistant
@@ -62,6 +59,23 @@ export const queryKeys = {
   // Portfolio
   portfolio: {
     exposure: (userId: string) => ['portfolio', 'exposure', userId] as const,
+  },
+
+  // Asset trade ledger (Registro operazioni asset).
+  // `all` is a prefix of `byAsset` so invalidating `all` refreshes any open movements list
+  // (the costCenters prefix-invalidation precedent).
+  assetTransactions: {
+    all: (userId: string) => ['asset-transactions', userId] as const,
+    byAsset: (userId: string, assetId: string) => ['asset-transactions', userId, assetId] as const,
+    meta: (userId: string) => ['asset-transactions-meta', userId] as const,
+  },
+
+  // Fondo pensione — contributions in the dedicated `pensionContributions` collection.
+  // `all` is a prefix of `byAsset` so invalidating `all` also refreshes any per-fund view.
+  pensionContributions: {
+    all: (userId: string) => ['pension-contributions', userId] as const,
+    byAsset: (userId: string, assetId: string) =>
+      ['pension-contributions', userId, assetId] as const,
   },
 
   // Cost centers (list + per-center spend stats derived from expenses).

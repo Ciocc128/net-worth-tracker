@@ -1,61 +1,65 @@
-import { Asset, AssetComposition } from '@/types/assets';
-import { calculateAssetValue } from '../services/assetService';
+/**
+ * assetExposureUtils — the single source of market vs notional exposure: the market→notional
+ * expansion lives here and nowhere else.
+ *
+ * A leveraged/composite ETF's market value (what you paid) and notional value (the risk
+ * exposure it carries) diverge once `Asset.leverageRatio` is set. `expandAssetExposure`
+ * expands a single asset into its per-class components with both figures, so every
+ * consumer (allocation snapshot, planners, portfolio-level leverage) reads from one place.
+ *
+ * No asset type is special-cased — including `pensionFund` (decision D5):
+ * a fund with a `composition` is looked through leg-by-leg exactly like any other composite
+ * asset, and a fund without one falls back to its own `asset.assetClass` (already
+ * `TYPE_TO_CLASS['pensionFund']` at creation time) exactly like any other single-class asset.
+ * The `frozen` allocationRole keeps it out of trade plans elsewhere (allocationUtils.ts) —
+ * that's an allocation-role concern, not an exposure-shape one, so it stays out of this module.
+ */
+import { Asset } from '@/types/assets';
+import { calculateAssetValue } from '@/lib/services/assetService';
 
 export interface ExposureComponent {
-    assetClass: string;
-    subCategory?: string;
-    marketValue: number; // Market value of an asset
-    notionalValue: number; // Notional value: marketValue * leverageRatio
+  assetClass: string;
+  subCategory?: string;
+  marketValue: number;
+  notionalValue: number; // marketValue × leverageRatio (single-class) or per-leg (composite)
 }
 
+/** Expands an asset into its per-class exposure components (market + notional). */
 export function expandAssetExposure(asset: Asset): ExposureComponent[] {
-    const marketValue = calculateAssetValue(asset);
-    const leverage = asset.leverageRatio ?? 1;
+  const marketValue = calculateAssetValue(asset);
+  const leverage = asset.leverageRatio ?? 1;
 
-    // A fondo pensione is kept WHOLE as its own 'pension' class in every aggregate view (target
-    // allocation, net worth, storico) REGARDLESS of any underlying composition. Its composition is
-    // looked through ONLY in the dedicated Previdenza views (spec §2.1/§8.1): expanding it here would
-    // dilute the actionable allocation targets and dissolve the distinct previdenza net-worth segment.
-    if (asset.type === 'pension') {
-        return [{
-            assetClass: asset.assetClass,
-            subCategory: asset.subCategory,
-            marketValue,
-            notionalValue: marketValue,
-        }];
-    }
+  // Single-class: no composition legs, the whole market value sits in the asset's own class,
+  // but leverage still multiplies its notional exposure (a plain leveraged ETF).
+  if (!asset.composition || asset.composition.length === 0) {
+    return [{
+      assetClass: asset.assetClass,
+      subCategory: asset.subCategory,
+      marketValue,
+      notionalValue: marketValue * leverage,
+    }];
+  }
 
-    // Single-class leveraged ETF (e.g. a plain 2x S&P500): no composition legs, the
-    // whole market value sits in the asset's own class, but leverage still multiplies
-    // its notional exposure. Composite legs (below) apply leverage per-leg instead.
-    if (!asset.composition || asset.composition.length === 0) {
-        return [{
-            assetClass: asset.assetClass,
-            subCategory: asset.subCategory,
-            marketValue,
-            notionalValue: marketValue * leverage,
-        }];
-    }
-
-    return asset.composition.map((comp) => ({
-        assetClass: comp.assetClass,
-        subCategory: comp.subCategory,
-        marketValue: marketValue * comp.percentage / 100,
-        notionalValue: marketValue * comp.percentage / 100 * leverage,
-    }));
+  // Composite: leverage applies per-leg, same rationale as the single-class case.
+  return asset.composition.map((comp) => ({
+    assetClass: comp.assetClass,
+    subCategory: comp.subCategory,
+    marketValue: (marketValue * comp.percentage) / 100,
+    notionalValue: (marketValue * comp.percentage * leverage) / 100,
+  }));
 }
 
+/** Portfolio-wide leverage: Σnotional / Σmarket across all components (1 if market total is 0). */
 export function calculatePortfolioLeverage(assets: Asset[]): number {
-    let totalMarketValue = 0;
-    let totalNotionalValue = 0;
+  let totalMarketValue = 0;
+  let totalNotionalValue = 0;
 
-    assets.forEach(asset => {
-        const components = expandAssetExposure(asset);
-        components.forEach(comp => {
-            totalMarketValue += comp.marketValue;
-            totalNotionalValue += comp.notionalValue ?? comp.marketValue; // If notionalValue is undefined, use marketValue
-        });
-    });
+  for (const asset of assets) {
+    for (const component of expandAssetExposure(asset)) {
+      totalMarketValue += component.marketValue;
+      totalNotionalValue += component.notionalValue;
+    }
+  }
 
-    return totalMarketValue > 0 ? totalNotionalValue / totalMarketValue : 1;
+  return totalMarketValue > 0 ? totalNotionalValue / totalMarketValue : 1;
 }

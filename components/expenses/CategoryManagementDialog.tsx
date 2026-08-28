@@ -5,6 +5,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import {
   ExpenseCategory,
   ExpenseCategoryFormData,
@@ -18,10 +19,13 @@ import {
   getAllCategories,
 } from '@/lib/services/expenseCategoryService';
 import {
+  getExpenseCountByCategoryId,
   getExpenseCountBySubCategoryId,
   reassignExpensesSubCategory,
   moveExpensesFromSubCategory,
+  TransferBoundaryError,
 } from '@/lib/services/expenseService';
+import { crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
 import { CategoryDeleteConfirmDialog } from './CategoryDeleteConfirmDialog';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
@@ -101,6 +105,8 @@ export interface CategoryManagementDialogProps {
 // ---------------------------------------------------------------------------
 interface FormBodyProps {
   category?: ExpenseCategory | null;
+  /** Expenses linked to the category being edited; null = unknown (still loading). */
+  linkedExpenseCount: number | null;
   subCategories: ExpenseSubCategory[];
   newSubCategoryName: string;
   setNewSubCategoryName: (v: string) => void;
@@ -116,6 +122,7 @@ interface FormBodyProps {
 
 function CategoryFormBody({
   category,
+  linkedExpenseCount,
   subCategories,
   newSubCategoryName,
   setNewSubCategoryName,
@@ -193,22 +200,36 @@ function CategoryFormBody({
             </span>
           </SelectTrigger>
           <SelectContent>
-            {TYPE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                <div className="flex flex-col gap-0.5 py-0.5">
-                  <span className="font-medium">{opt.label}</span>
-                  <span className="text-xs text-muted-foreground font-normal">{opt.description}</span>
-                </div>
-              </SelectItem>
-            ))}
+            {TYPE_OPTIONS.map((opt) => {
+              // Crossing the transfer boundary is blocked while expenses are linked
+              // (or their count is still unknown): those rows touch two cash accounts
+              // and cannot be re-typed in batch — see crossesTransferBoundary.
+              const blocked =
+                !!category &&
+                crossesTransferBoundary(category.type, opt.value) &&
+                (linkedExpenseCount === null || linkedExpenseCount > 0);
+              return (
+                <SelectItem key={opt.value} value={opt.value} disabled={blocked}>
+                  <div className="flex flex-col gap-0.5 py-0.5">
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {blocked
+                        ? 'Non disponibile: le voci collegate toccano due conti e non sono convertibili in blocco'
+                        : opt.description}
+                    </span>
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         {errors.type && (
           <p className="text-xs text-destructive">{errors.type.message}</p>
         )}
         {category && selectedType !== category.type && (() => {
-          const crossesBoundary = (category.type === 'income') !== (selectedType === 'income');
-          return crossesBoundary ? (
+          const flipsSign = (category.type === 'income') !== (selectedType === 'income') &&
+            !crossesTransferBoundary(category.type, selectedType);
+          return flipsSign ? (
             <p className="text-xs text-amber-600 dark:text-amber-400">
               Attenzione: tutti gli importi cambieranno segno (da {EXPENSE_TYPE_LABELS[category.type]} a {EXPENSE_TYPE_LABELS[selectedType]}).
             </p>
@@ -390,6 +411,7 @@ export function CategoryManagementDialog({
   initialSubCategoryName,
 }: Readonly<CategoryManagementDialogProps>) {
   const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const [subCategories, setSubCategories] = useState<ExpenseSubCategory[]>([]);
@@ -406,6 +428,19 @@ export function CategoryManagementDialog({
   const [subCategoryToMove, setSubCategoryToMove] = useState<ExpenseSubCategory | null>(null);
   const [subCategoryMoveExpenseCount, setSubCategoryMoveExpenseCount] = useState(0);
   const [allCategoriesForMove, setAllCategoriesForMove] = useState<ExpenseCategory[]>([]);
+
+  // A category with linked expenses must not cross the transfer boundary (each such
+  // row touches two cash accounts — see crossesTransferBoundary). null = count not
+  // known yet: the boundary options stay disabled until the fetch resolves, so a
+  // slow or failed count can never let a corrupting conversion through.
+  const [linkedExpenseCount, setLinkedExpenseCount] = useState<number | null>(null);
+  useEffect(() => {
+    setLinkedExpenseCount(null);
+    if (!open || !category || !ownerId) return;
+    getExpenseCountByCategoryId(category.id, ownerId)
+      .then(setLinkedExpenseCount)
+      .catch((error) => console.error('Error counting category expenses:', error));
+  }, [open, category, ownerId]);
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -451,9 +486,9 @@ export function CategoryManagementDialog({
   };
 
   const handleRemoveSubCategory = async (subCategoryId: string) => {
-    if (category && user) {
+    if (category && user && ownerId) {
       try {
-        const expenseCount = await getExpenseCountBySubCategoryId(category.id, subCategoryId, user.uid);
+        const expenseCount = await getExpenseCountBySubCategoryId(category.id, subCategoryId, ownerId);
         if (expenseCount > 0) {
           const subCat = subCategories.find((s) => s.id === subCategoryId);
           if (subCat) {
@@ -474,18 +509,18 @@ export function CategoryManagementDialog({
   };
 
   const handleConfirmSubCategoryDelete = async (newCategoryId?: string, newSubCategoryId?: string) => {
-    if (!category || !subCategoryToDelete || !user) return;
+    if (!category || !subCategoryToDelete || !user || !ownerId) return;
     try {
       if (newCategoryId) {
         await reassignExpensesSubCategory(
-          category.id, subCategoryToDelete.id, user.uid,
+          category.id, subCategoryToDelete.id, ownerId,
           newSubCategoryId,
           newSubCategoryId ? subCategories.find((s) => s.id === newSubCategoryId)?.name : undefined
         );
         setSubCategories(subCategories.filter((s) => s.id !== subCategoryToDelete.id));
         toast.success('Spese riassegnate e sottocategoria rimossa');
       } else {
-        await reassignExpensesSubCategory(category.id, subCategoryToDelete.id, user.uid);
+        await reassignExpensesSubCategory(category.id, subCategoryToDelete.id, ownerId);
         setSubCategories(subCategories.filter((s) => s.id !== subCategoryToDelete.id));
         toast.success(`Sottocategoria "${subCategoryToDelete.name}" eliminata. Le spese rimarranno nella categoria senza sottocategoria.`);
       }
@@ -499,15 +534,15 @@ export function CategoryManagementDialog({
   };
 
   const handleMoveSubCategory = async (subCategoryId: string) => {
-    if (!category || !user) return;
+    if (!category || !user || !ownerId) return;
     try {
-      const expenseCount = await getExpenseCountBySubCategoryId(category.id, subCategoryId, user.uid);
+      const expenseCount = await getExpenseCountBySubCategoryId(category.id, subCategoryId, ownerId);
       if (expenseCount === 0) {
         const subCat = subCategories.find((s) => s.id === subCategoryId);
         toast.warning(`La sottocategoria "${subCat?.name}" non ha transazioni da spostare`);
         return;
       }
-      const categories = await getAllCategories(user.uid);
+      const categories = await getAllCategories(ownerId);
       const subCat = subCategories.find((s) => s.id === subCategoryId);
       if (subCat) {
         setSubCategoryToMove(subCat);
@@ -522,7 +557,7 @@ export function CategoryManagementDialog({
   };
 
   const handleConfirmMoveSubCategory = async (newCategoryId: string, newSubCategoryId?: string) => {
-    if (!category || !subCategoryToMove || !user) return;
+    if (!category || !subCategoryToMove || !user || !ownerId) return;
     try {
       const newCategory = allCategoriesForMove.find((cat) => cat.id === newCategoryId);
       if (!newCategory) { toast.error('Categoria di destinazione non trovata'); return; }
@@ -535,7 +570,7 @@ export function CategoryManagementDialog({
       const movedCount = await moveExpensesFromSubCategory(
         category.id, subCategoryToMove.id, category.type,
         newCategoryId, newCategory.name, newCategory.type,
-        user.uid, newSubCategoryId, resolvedSubName
+        ownerId, newSubCategoryId, resolvedSubName
       );
       const destLabel = resolvedSubName ? `${newCategory.name} \u2192 ${resolvedSubName}` : newCategory.name;
       toast.success(`${movedCount} ${movedCount === 1 ? 'transazione spostata' : 'transazioni spostate'} da "${category.name} \u2192 ${subCategoryToMove.name}" a "${destLabel}"`);
@@ -544,12 +579,14 @@ export function CategoryManagementDialog({
       setSubCategoryMoveExpenseCount(0);
     } catch (error) {
       console.error('Error moving subcategory expenses:', error);
-      toast.error('Errore nello spostamento delle transazioni');
+      toast.error(
+        error instanceof TransferBoundaryError ? error.message : 'Errore nello spostamento delle transazioni'
+      );
     }
   };
 
   const onSubmit = async (data: CategoryFormValues) => {
-    if (!user) { toast.error('Devi essere autenticato'); return; }
+    if (!user || !ownerId) { toast.error('Devi essere autenticato'); return; }
     try {
       const categoryData: ExpenseCategoryFormData = {
         name: data.name.trim(),
@@ -559,17 +596,19 @@ export function CategoryManagementDialog({
         subCategories,
       };
       if (category) {
-        await updateCategory(category.id, categoryData, user.uid);
+        await updateCategory(category.id, categoryData, ownerId);
         toast.success('Categoria aggiornata');
       } else {
-        await createCategory(user.uid, categoryData);
+        await createCategory(ownerId, categoryData);
         toast.success('Categoria creata');
       }
       onSuccess?.();
       onClose();
     } catch (error) {
       console.error('Error saving category:', error);
-      toast.error('Errore nel salvataggio della categoria');
+      toast.error(
+        error instanceof TransferBoundaryError ? error.message : 'Errore nel salvataggio della categoria'
+      );
     }
   };
 
@@ -579,6 +618,7 @@ export function CategoryManagementDialog({
 
   const formBodyProps: FormBodyProps = {
     category,
+    linkedExpenseCount,
     subCategories,
     newSubCategoryName,
     setNewSubCategoryName,

@@ -1,24 +1,16 @@
-/**
- * Unit tests for pensionFire.ts — the locked-capital helper that removes not-yet-unlocked pension
- * funds from the FIRE-eligible net worth (spec §5.3).
- */
-
 import { describe, it, expect } from 'vitest';
 import { calculatePensionLockedValue } from '@/lib/utils/pensionFire';
 import type { Asset } from '@/types/assets';
 
-/** Minimal Asset fixture — only the fields the helper reads matter; value is carried in `quantity`. */
-function mkAsset(overrides: Partial<Asset>): Asset {
+function makeAsset(overrides: Partial<Asset> & { id: string; type: Asset['type'] }): Asset {
   return {
-    id: 'a',
-    userId: 'u',
+    userId: 'user-1',
     ticker: '',
-    name: 'Fondo',
-    type: 'pension',
-    assetClass: 'pension',
+    name: 'Asset',
+    assetClass: 'equity',
     currency: 'EUR',
-    quantity: 0,
-    currentPrice: 1,
+    quantity: 1,
+    currentPrice: 100,
     lastPriceUpdate: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -26,37 +18,115 @@ function mkAsset(overrides: Partial<Asset>): Asset {
   } as Asset;
 }
 
-const valueOf = (a: Asset) => a.quantity; // manual pension: value lives in quantity
+const NOW = new Date(2026, 6, 1);
+const valueOf = (asset: Asset) => asset.quantity * asset.currentPrice;
 
 describe('calculatePensionLockedValue', () => {
-  const now = new Date('2026-07-21');
-
-  it('sums pension funds whose unlock date is in the future', () => {
+  it('sums funds whose unlockDate is strictly in the future', () => {
     const assets = [
-      mkAsset({ quantity: 10000, pensionFundDetails: { provider: 'A', unlockDate: '2040-01-01' } }),
-      mkAsset({ quantity: 5000, pensionFundDetails: { provider: 'B', unlockDate: '2050-06-01' } }),
+      makeAsset({
+        id: 'p1',
+        type: 'pensionFund',
+        quantity: 10000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo X', unlockDate: '2040-01-01' },
+      }),
     ];
-    expect(calculatePensionLockedValue(assets, now, valueOf)).toBe(15000);
+
+    expect(calculatePensionLockedValue(assets, NOW, valueOf)).toBe(10000);
   });
 
-  it('excludes funds already unlocked at the valuation date', () => {
+  it('excludes a fund whose unlockDate has already passed', () => {
     const assets = [
-      mkAsset({ quantity: 10000, pensionFundDetails: { provider: 'A', unlockDate: '2020-01-01' } }),
-      mkAsset({ quantity: 5000, pensionFundDetails: { provider: 'B', unlockDate: '2040-01-01' } }),
+      makeAsset({
+        id: 'p1',
+        type: 'pensionFund',
+        quantity: 10000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo X', unlockDate: '2020-01-01' },
+      }),
     ];
-    expect(calculatePensionLockedValue(assets, now, valueOf)).toBe(5000);
+
+    expect(calculatePensionLockedValue(assets, NOW, valueOf)).toBe(0);
   });
 
-  it('treats a fund without an unlock date as not locked', () => {
-    const assets = [mkAsset({ quantity: 10000, pensionFundDetails: { provider: 'A' } })];
-    expect(calculatePensionLockedValue(assets, now, valueOf)).toBe(0);
+  it('excludes a fund with no unlockDate declared', () => {
+    const assets = [
+      makeAsset({
+        id: 'p1',
+        type: 'pensionFund',
+        quantity: 10000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo X' },
+      }),
+    ];
+
+    expect(calculatePensionLockedValue(assets, NOW, valueOf)).toBe(0);
   });
 
-  it('ignores non-pension assets', () => {
+  it('excludes a fund with an unparseable unlockDate', () => {
     const assets = [
-      mkAsset({ type: 'etf', assetClass: 'equity', quantity: 99999 }),
-      mkAsset({ quantity: 3000, pensionFundDetails: { provider: 'A', unlockDate: '2045-01-01' } }),
+      makeAsset({
+        id: 'p1',
+        type: 'pensionFund',
+        quantity: 10000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo X', unlockDate: 'not-a-date' },
+      }),
     ];
-    expect(calculatePensionLockedValue(assets, now, valueOf)).toBe(3000);
+
+    expect(calculatePensionLockedValue(assets, NOW, valueOf)).toBe(0);
+  });
+
+  it('ignores non-pensionFund assets entirely', () => {
+    const assets = [
+      makeAsset({ id: 'etf-1', type: 'etf', quantity: 10, currentPrice: 100 }),
+    ];
+
+    expect(calculatePensionLockedValue(assets, NOW, valueOf)).toBe(0);
+  });
+
+  it('sums multiple locked funds and skips one already unlocked', () => {
+    const assets = [
+      makeAsset({
+        id: 'p1',
+        type: 'pensionFund',
+        quantity: 5000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo A', unlockDate: '2040-01-01' },
+      }),
+      makeAsset({
+        id: 'p2',
+        type: 'pensionFund',
+        quantity: 3000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo B', unlockDate: '2045-01-01' },
+      }),
+      makeAsset({
+        id: 'p3',
+        type: 'pensionFund',
+        quantity: 2000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo C', unlockDate: '2020-01-01' },
+      }),
+    ];
+
+    expect(calculatePensionLockedValue(assets, NOW, valueOf)).toBe(8000);
+  });
+
+  it('treats unlockDate exactly equal to atDate as unlocked (strict inequality)', () => {
+    const assets = [
+      makeAsset({
+        id: 'p1',
+        type: 'pensionFund',
+        quantity: 10000,
+        currentPrice: 1,
+        pensionFundDetails: { provider: 'Fondo X', unlockDate: '2026-07-01' },
+      }),
+    ];
+    // Same instant the unlockDate string parses to, so this is TZ-independent.
+    const exactUnlockInstant = new Date('2026-07-01');
+
+    expect(calculatePensionLockedValue(assets, exactUnlockInstant, valueOf)).toBe(0);
   });
 });

@@ -442,21 +442,3 @@ async function generateMonthlyExpenses(
     await setDoc(docRef, expense, { merge: true });
   }
 }
-
-/**
- * Generates a single dummy snapshot for a specific month
- */
-export async function generateSingleDummySnapshot(
-  userId: string,
-  year: number,
-  month: number,
-  netWorth: number
-): Promise<void> {
-  // Use the main function with 1 month and adjust the date
-  await generateDummySnapshots({
-    userId,
-    initialNetWorth: netWorth,
-    monthlyGrowthRate: 0,
-    numberOfMonths: 1,
-  });
-}

@@ -28,9 +28,9 @@ export const PENSION_DEDUCTION_CEILING_LEGACY = 5164.57;
 export const PENSION_DEDUCTION_CEILING_2026 = 5300;
 
 /** Length of the plafond-accrual window (first N participation years). */
-export const PENSION_ACCRUAL_YEARS = 5;
+const PENSION_ACCRUAL_YEARS = 5;
 /** Length of the plafond-usage window that follows the accrual window (next N years). */
-export const PENSION_USAGE_YEARS = 20;
+const PENSION_USAGE_YEARS = 20;
 
 /**
  * Ordinary annual deduction ceiling in force for a given year.
@@ -146,7 +146,8 @@ export function computePensionDeductionState(input: PensionDeductionInput): Pens
  * IRPEF: `tax(RAL) − tax(RAL − deducted)`. Correct even when the deduction straddles two brackets.
  *
  * `taxOf` is injected (dependency inversion) so this stays decoupled from the Coast-FIRE tax engine;
- * callers pass `(income) => calculateProgressiveTax(income, brackets)`.
+ * callers pass `(income) => calculateProgressiveTax(income, brackets)` with the user's
+ * `CoastFireTaxBracket[]`.
  */
 export function computePensionTaxBenefit(
   deductedAmount: number,
@@ -162,7 +163,7 @@ export function computePensionTaxBenefit(
 }
 
 /**
- * Benefit (prestazione) tax rate on the deducted contributions at payout — spec §5.2.
+ * Benefit (prestazione) tax rate on the deducted contributions at payout.
  *
  * TEACHER: a fondo pensione's final payout is taxed at a favourable, seniority-decreasing rate,
  * unlike the 26% on ETF capital gains. It starts at 15% and drops 0.30 percentage points for each
@@ -170,11 +171,11 @@ export function computePensionTaxBenefit(
  * fund is worth, net, more than €1.000 in a taxed instrument. Kept configurable (constants below) as
  * the rule can change; ref. art. 11 c.6 D.Lgs. 252/2005.
  */
-export const PENSION_BENEFIT_TAX_RATE_MAX = 15;
-export const PENSION_BENEFIT_TAX_RATE_MIN = 9;
+const PENSION_BENEFIT_TAX_RATE_MAX = 15;
+const PENSION_BENEFIT_TAX_RATE_MIN = 9;
 /** Participation years after which the rate starts decreasing, and the per-year decrement (points). */
-export const PENSION_BENEFIT_TAX_DECREASE_AFTER_YEAR = 15;
-export const PENSION_BENEFIT_TAX_DECREASE_PER_YEAR = 0.3;
+const PENSION_BENEFIT_TAX_DECREASE_AFTER_YEAR = 15;
+const PENSION_BENEFIT_TAX_DECREASE_PER_YEAR = 0.3;
 
 /**
  * The favourable payout tax rate (as a percentage) for a given number of participation years.
@@ -186,7 +187,7 @@ export function deriveBenefitTaxRate(yearsEnrolled: number): number {
   return Math.max(PENSION_BENEFIT_TAX_RATE_MIN, Math.min(PENSION_BENEFIT_TAX_RATE_MAX, rate));
 }
 
-/** The three figures surfaced in the annual "Previdenza" tax recap (spec §3.2/§8.4). */
+/** The figures surfaced in the annual "Previdenza" tax recap. */
 export interface PensionTaxRecap {
   /** Full per-year deduction/plafond state (deducted amount, effective ceiling, plafond, …). */
   state: PensionDeductionState;

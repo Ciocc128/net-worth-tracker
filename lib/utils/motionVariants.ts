@@ -49,14 +49,6 @@ export const staggerContainer: Variants = {
   },
 };
 
-/** Stagger container for long lists (40ms between children, e.g. table rows, record cards) */
-export const fastStaggerContainer: Variants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.04, delayChildren: 0 },
-  },
-};
-
 /** Card item: slide-up 16px + fade in */
 export const cardItem: Variants = {
   hidden: { opacity: 0, y: 16 },
@@ -67,39 +59,12 @@ export const cardItem: Variants = {
   },
 };
 
-/** Hero KPI settle: slightly tighter spring to make the primary number feel precise. */
-export const heroMetricSettle: Variants = {
-  hidden: { opacity: 0, y: 18, scale: 0.985 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      type: "spring",
-      stiffness: 220,
-      damping: 24,
-      mass: 0.95,
-      delay: 0.04,
-    },
-  },
-};
-
 /** Metric settle spring for KPI values that should update precisely, not bounce. */
 export const metricSettleTransition: Transition = {
   type: "spring",
   stiffness: 320,
   damping: 34,
   mass: 0.8,
-};
-
-/** List item: subtle slide-up 8px + fade in (for rows, compact cards) */
-export const listItem: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: easeOutQuart },
-  },
 };
 
 /** Slide-down reveal for collapsible sections (use with AnimatePresence) */
@@ -131,31 +96,6 @@ export const chartReveal: Variants = {
     opacity: 0,
     y: -6,
     transition: { duration: 0.18, ease: easeOutQuart },
-  },
-};
-
-/** Chapter reveal: controlled section entry for long editorial pages. */
-export const chapterReveal: Variants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.32, ease: easeOutQuart },
-  },
-};
-
-/** Period switch shell: slight fade/settle used when dense data re-computes in place. */
-export const periodContentSettle: Variants = {
-  idle: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-  },
-  settle: {
-    opacity: [0.985, 1],
-    y: [4, 0],
-    scale: [0.998, 1],
-    transition: { duration: 0.24, ease: easeOutQuart },
   },
 };
 
@@ -197,19 +137,6 @@ export const tabPanelSwitch: Variants = {
     opacity: 1,
     y: 0,
     transition: { duration: 0.2, ease: easeOutQuart },
-  },
-};
-
-/** Section-level refresh feedback: brief pulse for the active shell only. */
-export const sectionRefreshPulse: Variants = {
-  idle: {
-    opacity: 1,
-    scale: 1,
-  },
-  pulse: {
-    opacity: [1, 1, 1],
-    scale: [1, 1.004, 1],
-    transition: { duration: 0.42, ease: easeOutQuart },
   },
 };
 
@@ -275,77 +202,4 @@ export const tableShellSettle: Variants = {
     y: 0,
     transition: { duration: 0.18, ease: easeOutQuart },
   },
-};
-
-/** Allocation drill-down shell: quick structural swap without animating rows/cells. */
-export const drillDownShell: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 10,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.22, ease: easeOutQuart },
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-    transition: { duration: 0.14, ease: easeOutQuart },
-  },
-};
-
-/** Contextual sheet content swap: settle the shell first, then reveal children. */
-export const contextualSheetPanel: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 12,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.2,
-      ease: easeOutQuart,
-      when: "beforeChildren",
-      staggerChildren: 0.04,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: 8,
-    transition: { duration: 0.14, ease: easeOutQuart },
-  },
-};
-
-/** Dialog surface settle: contextual fallback when transform-origin continuity is available. */
-export const contextualDialogSurface: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 8,
-    scale: 0.975,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      duration: 0.2,
-      ease: easeOutQuart,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: 4,
-    scale: 0.985,
-    transition: { duration: 0.14, ease: easeOutQuart },
-  },
-};
-
-/** Progress bar settle: short spring with no visible bounce. */
-export const progressSettleTransition: Transition = {
-  type: "spring",
-  stiffness: 360,
-  damping: 34,
-  mass: 0.78,
 };

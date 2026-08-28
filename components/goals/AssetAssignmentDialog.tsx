@@ -64,8 +64,7 @@ export function AssetAssignmentDialog({
       (a) =>
         a.name.toLowerCase().includes(term) ||
         a.ticker.toLowerCase().includes(term) ||
-        // Also match the display alias so users can search by the label they see.
-        (a.displayTicker?.toLowerCase().includes(term) ?? false)
+        getAssetDisplayTicker(a).toLowerCase().includes(term)
     );
   }, [assets, searchTerm]);
 
@@ -144,8 +143,8 @@ export function AssetAssignmentDialog({
                     : trueAvail === 0 && alreadyAssigned
                       ? { label: 'Nessuna quota libera', cls: 'text-muted-foreground' }
                       : trueAvail < 50
-                        ? { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-amber-600 dark:text-amber-400' }
-                        : { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-emerald-600 dark:text-emerald-400' };
+                        ? { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-warning-foreground' }
+                        : { label: `${trueAvail.toFixed(0)}% libero`, cls: 'text-positive' };
 
                 return (
                   <button

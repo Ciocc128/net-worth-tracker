@@ -20,12 +20,49 @@ export function toDate(date: Date | Timestamp | string | undefined | null): Date
 }
 
 /**
+ * Last instant of a calendar month, in local time.
+ *
+ * Day 0 of the following month IS the last day of this one — the Date constructor rolls it back,
+ * December included, without anyone having to know how many days February has this year.
+ *
+ * Use it for every INCLUSIVE upper bound on a month. A range filter reads `date <= endDate`, so a
+ * bound left at midnight silently drops everything recorded later that day — in practice the whole
+ * closing month of the window, which is exactly how the rolling performance periods used to lose a
+ * month of expenses while the main period metrics (which already used this bound) kept it.
+ *
+ * @param year - Full year
+ * @param month - Month, 1-based (1 = January)
+ */
+export function endOfMonthBound(year: number, month: number): Date {
+  return new Date(year, month, 0, 23, 59, 59, 999);
+}
+
+/**
  * Get date converted to Italy timezone (Europe/Rome)
  * Ensures consistent month/year extraction across client and server
  */
 export function getItalyDate(date: Date | Timestamp | string | undefined | null = new Date()): Date {
   const dateObj = toDate(date);
   return toZonedTime(dateObj, ITALY_TIMEZONE);
+}
+
+/**
+ * Today as 'YYYY-MM-DD' in Italian wall-clock time — the value an `<input type="date">` wants.
+ *
+ * `new Date().toISOString().split('T')[0]` is the obvious spelling and is wrong for a whole hour
+ * every evening: `toISOString` is UTC, so from 22:00 Italian summer time (23:00 in winter) it hands
+ * back YESTERDAY, and a form that defaults to "today" proposes the previous day to anyone recording
+ * something late at night.
+ *
+ * Built from the zoned date's own components rather than from `toISOString`: `getItalyDate` returns a
+ * Date whose LOCAL fields carry the Italian wall clock, so re-serialising it through UTC would undo
+ * exactly the shift it just applied.
+ */
+export function getItalyDateIso(date: Date | Timestamp | string | undefined | null = new Date()): string {
+  const italyDate = getItalyDate(date);
+  const month = String(italyDate.getMonth() + 1).padStart(2, '0');
+  const day = String(italyDate.getDate()).padStart(2, '0');
+  return `${italyDate.getFullYear()}-${month}-${day}`;
 }
 
 /**

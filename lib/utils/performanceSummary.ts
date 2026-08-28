@@ -18,16 +18,21 @@
  */
 
 import type {
+  CashFlowData,
   MonthlyReturnHeatmapData,
+  PeriodMonth,
   UnderwaterDrawdownData,
 } from '@/types/performance';
+import type { MonthlySnapshot } from '@/types/assets';
+import { buildTwrIndex, findMaxDrawdown, type TwrIndexPoint } from '@/lib/utils/drawdownSeries';
+import { annualizeTWR, buildIndexedSeries, type MonthlyReturnPoint } from '@/lib/utils/benchmarkPeriodReturn';
 
 // ---------------------------------------------------------------------------
 // B1 — performance verdict
 // ---------------------------------------------------------------------------
 
 /** Qualitative tone of the verdict. Maps to a color band in the UI (action colors). */
-export type PerformanceTone = 'strong' | 'solid' | 'fragile' | 'weak' | 'neutral';
+type PerformanceTone = 'strong' | 'solid' | 'fragile' | 'weak' | 'neutral';
 
 export interface PerformanceVerdict {
   tone: PerformanceTone;
@@ -119,6 +124,62 @@ export function summarizePerformance(params: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// A7 — what the hero number actually is on a short period
+// ---------------------------------------------------------------------------
+
+/**
+ * Below this many months the hero shows the PERIOD return instead of the annualized one.
+ *
+ * Annualizing extrapolates: +4% over two months becomes "+26% a year", a forecast dressed as a
+ * measurement, and two months of a portfolio say nothing about a year of it. Six months is where
+ * the extrapolation stops dominating the number. Above it, annualized stays — it is what makes
+ * periods and benchmarks comparable.
+ */
+const MIN_MONTHS_FOR_ANNUALIZATION = 6;
+
+export interface HeroReturn {
+  /** The figure to display, already in percent. */
+  value: number | null;
+  /** true when `value` is the plain period return because the window is too short to annualize. */
+  isPeriodReturn: boolean;
+  /** Qualifier to print next to the number, so it is never ambiguous which one it is. */
+  label: string;
+}
+
+/**
+ * Decide whether the hero states an annualized rate or the return of the period itself.
+ *
+ * De-annualizing is the exact inverse of the annualization the TWR already applied:
+ * `(1 + annual)^(months/12) − 1`, so no information is invented — the cumulative return the
+ * portfolio actually produced is recovered.
+ *
+ * Only the DISPLAYED number changes. The verdict and the benchmark delta keep using the annualized
+ * TWR, because comparing to a risk-free rate or to a benchmark is only meaningful per year.
+ *
+ * @param annualizedReturn - TWR as computed by the service (annualized), or null
+ * @param numberOfMonths - Length of the measured period
+ */
+export function resolveHeroReturn(
+  annualizedReturn: number | null,
+  numberOfMonths: number
+): HeroReturn {
+  if (annualizedReturn === null) {
+    return { value: null, isPeriodReturn: false, label: 'annualizzato' };
+  }
+
+  if (numberOfMonths >= MIN_MONTHS_FOR_ANNUALIZATION) {
+    return { value: annualizedReturn, isPeriodReturn: false, label: 'annualizzato' };
+  }
+
+  const periodReturn = (Math.pow(1 + annualizedReturn / 100, numberOfMonths / 12) - 1) * 100;
+  return {
+    value: isFinite(periodReturn) ? periodReturn : null,
+    isPeriodReturn: true,
+    label: numberOfMonths === 1 ? 'nel mese' : `nei ${numberOfMonths} mesi`,
+  };
+}
+
 /**
  * Signed gap between the portfolio's annualized TWR and a reference benchmark's
  * annualized return, in percentage points. Null when either side is missing.
@@ -136,13 +197,32 @@ export function computeBenchmarkDelta(
 // B2 — return consistency (from the monthly-returns heatmap)
 // ---------------------------------------------------------------------------
 
+/**
+ * Below this many months the positive-month SHARE is not reported.
+ *
+ * A proportion computed on one or two observations can only come out 0, 50 or 100: it looks like a
+ * statistic and reads like one ("100% di mesi positivi"), while carrying no more information than
+ * the raw count already shown next to it. The counts stay — they are facts — only the percentage,
+ * which is the part that invites over-reading, goes away. Same reasoning as the volatility floor in
+ * performanceService.ts, and the same threshold.
+ */
+const MIN_MONTHS_FOR_POSITIVE_SHARE = 3;
+
+/** One month of the consistency reading: the short label the strip prints, the calendar month the narrative names. */
+export interface ConsistencyMonth {
+  label: string;
+  year: number;
+  month: number;
+  return: number;
+}
+
 export interface ReturnConsistency {
   positiveMonths: number;
   totalMonths: number;
-  /** Share of months with a positive return, 0–100. 0 when there are no months. */
-  positiveShare: number;
-  best: { label: string; return: number } | null;
-  worst: { label: string; return: number } | null;
+  /** Share of months with a positive return, 0–100. Null on a sample too small to express one. */
+  positiveShare: number | null;
+  best: ConsistencyMonth | null;
+  worst: ConsistencyMonth | null;
 }
 
 const MONTH_ABBR = [
@@ -160,30 +240,34 @@ function formatMonthLabel(year: number, month: number): string {
  * Read the monthly-returns heatmap for steadiness signals: how many months were
  * positive, and the single best and worst month. A flat month (return exactly 0) is
  * counted as non-positive — it neither grew nor lost. Months with no data are skipped.
+ *
+ * `positiveShare` is null below MIN_MONTHS_FOR_POSITIVE_SHARE months; `best` and `worst` are the
+ * SAME month when there is only one, which the caller should render once rather than twice.
  */
 export function computeReturnConsistency(
   heatmap: MonthlyReturnHeatmapData[]
 ): ReturnConsistency {
   let positiveMonths = 0;
   let totalMonths = 0;
-  let best: { label: string; return: number } | null = null;
-  let worst: { label: string; return: number } | null = null;
+  let best: ConsistencyMonth | null = null;
+  let worst: ConsistencyMonth | null = null;
 
   for (const yearRow of heatmap) {
     for (const m of yearRow.months) {
       if (m.return === null) continue;
       totalMonths += 1;
       if (m.return > 0) positiveMonths += 1;
-      const label = formatMonthLabel(yearRow.year, m.month);
-      if (!best || m.return > best.return) best = { label, return: m.return };
-      if (!worst || m.return < worst.return) worst = { label, return: m.return };
+      const entry: ConsistencyMonth = { label: formatMonthLabel(yearRow.year, m.month), year: yearRow.year, month: m.month, return: m.return };
+      if (!best || m.return > best.return) best = entry;
+      if (!worst || m.return < worst.return) worst = entry;
     }
   }
 
   return {
     positiveMonths,
     totalMonths,
-    positiveShare: totalMonths > 0 ? (positiveMonths / totalMonths) * 100 : 0,
+    positiveShare:
+      totalMonths >= MIN_MONTHS_FOR_POSITIVE_SHARE ? (positiveMonths / totalMonths) * 100 : null,
     best,
     worst,
   };
@@ -214,4 +298,253 @@ export function computeDrawdownStatus(
   if (underwater.length === 0) return null;
   const current = underwater[underwater.length - 1].drawdown;
   return { atPeak: Math.abs(current) < AT_PEAK_THRESHOLD, current };
+}
+
+// ---------------------------------------------------------------------------
+// The tiles (2026-08-25) — every number a tile shows that the payload did not carry
+// ---------------------------------------------------------------------------
+
+/**
+ * The heatmap as a sorted decimal series — the ONE bridge from the page's percent months to
+ * the growth-of-100 and the risk ratios. It used to live inside BenchmarkComparisonChart, which
+ * meant a second copy for every surface that needed it.
+ */
+export function flattenHeatmapReturns(heatmap: MonthlyReturnHeatmapData[]): MonthlyReturnPoint[] {
+  const flat: MonthlyReturnPoint[] = [];
+  for (const yearRow of heatmap) {
+    for (const m of yearRow.months) {
+      if (m.return === null) continue;
+      flat.push({ year: yearRow.year, month: m.month, return: m.return / 100 });
+    }
+  }
+  return flat.sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+}
+
+/**
+ * Same floor as `calculateVolatility` in performanceService.ts: below three monthly returns a
+ * deviation is noise dressed as a statistic, and the Sortino built on it inherits that.
+ */
+const MIN_RETURNS_FOR_DEVIATION = 3;
+
+/**
+ * Annualised downside deviation (%) of monthly returns in PERCENT, with 0 as the minimum
+ * acceptable return: only the negative months contribute, squared, over ALL the months.
+ * No outlier filter — the same rule as volatility (a real crash is what this must report).
+ */
+export function computeDownsideDeviation(monthlyReturnsPct: number[]): number | null {
+  if (monthlyReturnsPct.length < MIN_RETURNS_FOR_DEVIATION) return null;
+  const meanSquared =
+    monthlyReturnsPct.reduce((sum, r) => sum + Math.pow(Math.min(r, 0), 2), 0) / monthlyReturnsPct.length;
+  return Math.sqrt(meanSquared) * Math.sqrt(12);
+}
+
+/**
+ * Sortino = (annualised TWR − risk-free) / downside deviation. Null below the floor, without an
+ * annualised return, or when no month was negative — a zero denominator is not an infinite ratio.
+ */
+export function computeSortinoRatio(
+  heatmap: MonthlyReturnHeatmapData[],
+  annualizedReturn: number | null,
+  riskFreeRate: number
+): number | null {
+  if (annualizedReturn === null) return null;
+  const returnsPct = flattenHeatmapReturns(heatmap).map((p) => p.return * 100);
+  const downside = computeDownsideDeviation(returnsPct);
+  if (downside === null || downside === 0) return null;
+  return (annualizedReturn - riskFreeRate) / downside;
+}
+
+/** The deepest drawdown of the period, told in calendar months. */
+export interface DrawdownStory {
+  /** Negative percent, e.g. −4.1. */
+  value: number;
+  peak: PeriodMonth;
+  trough: PeriodMonth;
+  /** First month back at the peak's level; null while still underwater. */
+  recovery: PeriodMonth | null;
+  /** Trough → recovery, in months; null while still underwater. */
+  monthsToRecover: number | null;
+  /** Peak → recovery, or peak → last snapshot while still underwater. */
+  durationMonths: number;
+}
+
+function monthOf(point: TwrIndexPoint): PeriodMonth {
+  return { year: point.snapshot.year, month: point.snapshot.month };
+}
+
+/**
+ * The verdict's drawdown clause — «−4,1% a marzo, recuperato in 2 mesi» — from the SAME TWR index
+ * the heatmap and the Underwater chart draw (`drawdownSeries.ts`), so the months are exact. The
+ * payload only carries the story as 'MM/YY - Presente' strings; this reads the structure instead.
+ * Null when the portfolio never fell below a peak, or with fewer than two snapshots.
+ */
+export function resolveDrawdownStory(
+  periodSnapshots: MonthlySnapshot[],
+  cashFlows: CashFlowData[]
+): DrawdownStory | null {
+  const index = buildTwrIndex(periodSnapshots, cashFlows);
+  if (index.length < 2) return null;
+  const dd = findMaxDrawdown(index);
+  // A dip shallower than the at-peak threshold is floating-point noise, not a story to tell.
+  if (dd.value > -AT_PEAK_THRESHOLD) return null;
+  const peak = monthOf(index[dd.peakIndex]);
+  const trough = monthOf(index[dd.troughIndex]);
+  const recovery = dd.recoveryIndex === null ? null : monthOf(index[dd.recoveryIndex]);
+  // Calendar months, not index steps: a missing snapshot must not shorten «recuperato in N mesi».
+  return {
+    value: dd.value,
+    peak,
+    trough,
+    recovery,
+    monthsToRecover: recovery === null ? null : monthSpan(trough, recovery),
+    durationMonths: monthSpan(peak, recovery ?? monthOf(index[index.length - 1])),
+  };
+}
+
+/** Calendar months from `a` to `b` (Jan → Mar = 2). */
+export function monthSpan(a: PeriodMonth, b: PeriodMonth): number {
+  return (b.year - a.year) * 12 + (b.month - a.month);
+}
+
+export interface GrowthPoint {
+  year: number;
+  month: number;
+  portfolio: number;
+  /** Null where the benchmark has no month yet (the running month, a series that ends earlier). */
+  benchmark: number | null;
+}
+
+export interface GrowthOfHundredSeries {
+  /** The month the base 100 sits on — the snapshot before the first measured month. */
+  baseMonth: PeriodMonth | null;
+  /** The base point first, then one point per measured month. */
+  points: GrowthPoint[];
+  portfolioEnd: number | null;
+  /** The benchmark's OWN last available month, not the portfolio's. */
+  benchmarkEnd: number | null;
+}
+
+function previousMonth(startDate: Date): PeriodMonth {
+  const month = startDate.getMonth() + 1;
+  return month === 1 ? { year: startDate.getFullYear() - 1, month: 12 } : { year: startDate.getFullYear(), month: month - 1 };
+}
+
+/**
+ * The Rendimento tile's chart: the portfolio and the reference benchmark compounded from 100 over
+ * the measured window, through the same `buildIndexedSeries` the ranking uses. Both series carry
+ * an explicit base point, because a chart that starts at 100 × (1 + r₁) hides the first month.
+ */
+export function buildGrowthOfHundred(input: {
+  heatmap: MonthlyReturnHeatmapData[];
+  /** Already in the portfolio's currency (EUR-converted); null while loading or unavailable. */
+  benchmarkReturns: MonthlyReturnPoint[] | null;
+  startDate: Date;
+  endDate: Date;
+}): GrowthOfHundredSeries {
+  const portfolio = buildIndexedSeries(flattenHeatmapReturns(input.heatmap), input.startDate, input.endDate);
+  if (portfolio.length === 0) return { baseMonth: null, points: [], portfolioEnd: null, benchmarkEnd: null };
+
+  const benchmark = input.benchmarkReturns ? buildIndexedSeries(input.benchmarkReturns, input.startDate, input.endDate) : [];
+  const benchmarkByKey = new Map(benchmark.map((p) => [`${p.year}-${p.month}`, p.indexed]));
+  const baseMonth = previousMonth(input.startDate);
+
+  const points: GrowthPoint[] = [
+    { ...baseMonth, portfolio: 100, benchmark: benchmark.length > 0 ? 100 : null },
+    ...portfolio.map((p) => ({ year: p.year, month: p.month, portfolio: p.indexed, benchmark: benchmarkByKey.get(`${p.year}-${p.month}`) ?? null })),
+  ];
+
+  return {
+    baseMonth,
+    points,
+    portfolioEnd: portfolio[portfolio.length - 1].indexed,
+    benchmarkEnd: benchmark.length > 0 ? benchmark[benchmark.length - 1].indexed : null,
+  };
+}
+
+export interface BenchmarkRankingRow {
+  id: string;
+  name: string;
+  /** Annualised return (%) over the period, on the model's own last available month. */
+  annualized: number | null;
+  /** Portfolio minus model, in percentage points; null without either side. */
+  delta: number | null;
+  lastMonth: PeriodMonth | null;
+}
+
+export interface BenchmarkRanking {
+  /** Best return first; models without data last, in the order given. */
+  rows: BenchmarkRankingRow[];
+  /** Models the portfolio beats by at least a printed tenth of a point. */
+  beaten: number;
+  /** Models within a tenth of a point of the portfolio — «alla pari», neither beaten nor above. */
+  tied: number;
+  /** Models with a return at all. */
+  measured: number;
+}
+
+/** A gap as the reader sees it, one decimal: below 0,05 it prints as 0,0 and reads as a tie. */
+export function printedGap(delta: number): number {
+  return Math.round(delta * 10) / 10;
+}
+
+/**
+ * The Benchmark tile: every model portfolio annualised over the SAME window as the portfolio TWR
+ * (`annualizeTWR` with the page's `numberOfMonths`), measured up to each model's own last month.
+ * A model whose series is not loaded keeps its row with nulls, so the table never shrinks.
+ */
+export function computeBenchmarkRanking(input: {
+  portfolioTWR: number | null;
+  numberOfMonths: number;
+  startDate: Date;
+  endDate: Date;
+  benchmarks: Array<{ id: string; name: string }>;
+  /** Series already in the portfolio's currency; undefined while a model is loading. */
+  returnsById: Record<string, MonthlyReturnPoint[] | undefined>;
+}): BenchmarkRanking {
+  const rows: BenchmarkRankingRow[] = input.benchmarks.map((b) => {
+    const returns = input.returnsById[b.id];
+    const indexed = returns ? buildIndexedSeries(returns, input.startDate, input.endDate) : [];
+    if (indexed.length === 0) return { id: b.id, name: b.name, annualized: null, delta: null, lastMonth: null };
+    const last = indexed[indexed.length - 1];
+    const annualized = annualizeTWR(last.indexed, input.numberOfMonths);
+    return {
+      id: b.id,
+      name: b.name,
+      annualized,
+      delta: computeBenchmarkDelta(input.portfolioTWR, annualized),
+      lastMonth: { year: last.year, month: last.month },
+    };
+  });
+
+  rows.sort((a, b) => {
+    if (a.annualized === null && b.annualized === null) return 0;
+    if (a.annualized === null) return 1;
+    if (b.annualized === null) return -1;
+    return b.annualized - a.annualized;
+  });
+
+  const measuredRows = rows.filter((r) => r.annualized !== null);
+  const compared = input.portfolioTWR === null ? [] : measuredRows.filter((r) => r.delta !== null);
+  return {
+    rows,
+    measured: measuredRows.length,
+    beaten: compared.filter((r) => printedGap(r.delta as number) > 0).length,
+    tied: compared.filter((r) => printedGap(r.delta as number) === 0).length,
+  };
+}
+
+export interface RealizedGainsSummary {
+  total: number;
+  /** Newest fiscal year first. */
+  years: Array<{ year: number; amount: number }>;
+}
+
+/** The Plusvalenze tile's rows, newest year first, with their total. Null without a closed sale. */
+export function summarizeRealizedGains(byYear: Record<number, number>): RealizedGainsSummary | null {
+  const years = Object.keys(byYear)
+    .map(Number)
+    .sort((a, b) => b - a)
+    .map((year) => ({ year, amount: byYear[year] }));
+  if (years.length === 0) return null;
+  return { total: years.reduce((sum, y) => sum + y.amount, 0), years };
 }

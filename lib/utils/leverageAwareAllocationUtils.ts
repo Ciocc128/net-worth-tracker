@@ -1,5 +1,5 @@
 /**
- * Instrument-aware Versa/Ribilancia planner.
+ * Instrument-aware Versa/Ribilancia/Preleva planner.
  *
  * `allocationUtils.ts` answers "how many € to move per ASSET CLASS" — it has no notion of
  * which concrete instrument the € goes into, so it silently assumes a plain (1x) purchase:
@@ -13,32 +13,39 @@
  * class (`buildInstrumentExposures`, via `expandAssetExposure`). Trading €x_i of instrument i
  * moves notional exposure by `x_i * exposureVector_i`, and — crucially, given the budget
  * constraint below — this makes the whole problem LINEAR in the trade vector `x`:
- *   - Versa (contribution): Σx_i = amount (fixed), so the new market total is fixed too.
- *   - Ribilancia (rebalance): Σx_i = 0 (no new cash), so the market total doesn't move.
+ *   - Versa (contribution):   Σx_i = amount (fixed) → new market total is fixed.
+ *   - Ribilancia (rebalance): Σx_i = 0 (no new cash) → market total doesn't move.
+ *   - Preleva (withdrawal):   Σx_i = −amount (fixed) → new market total is fixed.
  * With the post-trade market total fixed, both "gap to the notional target" and "resulting
  * leverage ratio" are affine functions of `x`, so minimizing their squared error is a convex
  * QUADRATIC program: sum of squares of affine functions, subject to a budget equality and a
- * box per instrument (can't sell more than you hold; Versa never sells).
+ * box per instrument (can't sell more than you hold; Versa never sells; Preleva never buys).
  *
  * Objective (see `solve`): target-gap term is DOMINANT (weight 1 per class, in €² — same
  * units `differenceValue` already uses elsewhere), leverage-target term is a soft tie-breaker
  * (`LEVERAGE_TIEBREAKER_WEIGHT`, low weight, euro-scaled so it's comparable rather than
- * arbitrary) — confirmed with the user: never trade a meaningfully better exposure fit for a
- * better leverage fit, only choose between similarly-good exposure fits by leverage.
+ * arbitrary) — never trade a meaningfully better exposure fit for a better leverage fit, only
+ * choose between similarly-good exposure fits by leverage.
  *
  * Solved via projected gradient descent with a monotone backtracking line search (halve the
  * step until the objective doesn't increase) — always converges for a convex smooth objective
  * regardless of the initial step size, and needs no eigenvalue/Lipschitz-constant estimate.
  * The projection step (`projectOntoBudgetBox`) is the classic bisection ("water-filling")
- * solution to "closest point to y under Σx=budget, lo≤x≤hi" — f(t)=Σclamp(y_i−t,lo_i,hi_i) is
- * monotonic in t, so the budget-matching t is found by bisection.
+ * solution to "closest point to y under Σx=budget, lo≤x≤hi".
  *
- * Scope (confirmed with user): asset-class level only for v1 — sub-category/specific-asset
- * splits keep using the simpler proportional logic in `allocationUtils.ts`.
+ * Scope: asset-class level only for v1 — sub-category/specific-asset splits keep using the
+ * simpler proportional logic in `allocationUtils.ts`.
+ *
+ * Candidates: only the `tradable` assets are passed in (the page filters); `frozen`/`excluded`
+ * are never candidates. Their notional contribution enters `solve` as constants via
+ * `currentNotionalByAssetClass` / `currentNotionalTotal` / `currentMarketTotal` (computed on the
+ * investable base = tradable + frozen), so the trades compensate for the frozen exposure without
+ * touching it (invariant #5).
  */
 
 import type { Asset, AssetClass } from '@/types/assets';
 import { expandAssetExposure } from './assetExposureUtils';
+import { getAssetDisplayTicker } from './assetDisplay';
 
 /**
  * Weight of the leverage-target tie-breaker relative to a single asset class's target-gap
@@ -47,13 +54,14 @@ import { expandAssetExposure } from './assetExposureUtils';
  * similarly-good exposure fits. The leverage residual is euro-scaled (see `solve`) so this
  * weight is directly comparable to the class weights, not an arbitrary magic number.
  */
-export const LEVERAGE_TIEBREAKER_WEIGHT = 0.1;
+const LEVERAGE_TIEBREAKER_WEIGHT = 0.1;
 
 /** A held instrument's market value and its notional exposure per €1 traded, per asset class. */
 export interface InstrumentExposure {
   assetId: string;
   ticker: string;
-  /** User-facing alias (falls back to `ticker`), so trade lists can show the label the user set. */
+  /** User-facing alias, already fallback-resolved via `getAssetDisplayTicker` — equals `ticker`
+   *  when the asset has no alias set. */
   displayTicker?: string;
   name: string;
   marketValue: number;
@@ -68,8 +76,7 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
 
   for (const asset of assets) {
     // Expand once and derive marketValue from the components' own sum — calling
-    // calculateAssetValue(asset) again here would duplicate the work expandAssetExposure
-    // already does internally.
+    // calculateAssetValue(asset) again here would duplicate the work expandAssetExposure does.
     const components = expandAssetExposure(asset);
     const marketValue = components.reduce((sum, c) => sum + c.marketValue, 0);
     if (marketValue <= 0) continue; // fully sold / zero-value holdings aren't tradeable candidates
@@ -84,7 +91,7 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
     instruments.push({
       assetId: asset.id,
       ticker: asset.ticker,
-      displayTicker: asset.displayTicker,
+      displayTicker: getAssetDisplayTicker(asset),
       name: asset.name,
       marketValue,
       exposurePerEuro,
@@ -98,7 +105,7 @@ export function buildInstrumentExposures(assets: Asset[]): InstrumentExposure[] 
 export interface InstrumentTrade {
   assetId: string;
   ticker: string;
-  /** User-facing alias (falls back to `ticker`) for display in the trade list. */
+  /** User-facing alias, fallback-resolved — carried over from `InstrumentExposure.displayTicker`. */
   displayTicker?: string;
   name: string;
   amount: number;
@@ -109,6 +116,22 @@ export interface LeverageAwarePlan {
   resultingNotionalByAssetClass: Record<string, number>;
   resultingMarketTotal: number;
   resultingLeverageRatio: number;
+}
+
+/**
+ * The current-state inputs the three `planInstrument*` functions all need, bundled so the page can
+ * compute them once (from the leverage-aware `AllocationResult` + the tradable partition) and hand
+ * them to the Ribilancia/Versa/Preleva panels. `tradableAssets` are the trade CANDIDATES (only
+ * `tradable`); the notional/market totals are on the investable base (`tradable + frozen`), so the
+ * frozen exposure enters the solver as a constant and the trades compensate for it (invariant #5).
+ */
+export interface LeveragePlanInputs {
+  tradableAssets: Asset[];
+  currentNotionalByAssetClass: Record<string, number>;
+  currentNotionalTotal: number;
+  currentMarketTotal: number;
+  targetPercentageByAssetClass: Record<string, number>;
+  targetLeverageRatio: number;
 }
 
 function dot(a: number[], b: number[]): number {
@@ -124,10 +147,9 @@ function clamp(value: number, lo: number, hi: number): number {
 /**
  * Euclidean projection of `y` onto `{x : Σx = budget, lo_i ≤ x_i ≤ hi_i}` (continuous
  * knapsack / capped-simplex projection), via bisection on the shift `t` in
- * `x_i = clamp(y_i - t, lo_i, hi_i)`. `f(t) = Σx_i(t)` is non-increasing in `t`, ranging from
- * `Σhi_i` (t → -∞) to `Σlo_i` (t → +∞), so the root of `f(t) = budget` is found by bisection.
- * `budget` is clamped into `[Σlo_i, Σhi_i]` first so the projection is always well-defined
- * even if the caller asks for an infeasible budget (e.g. more cash than can be absorbed).
+ * `x_i = clamp(y_i - t, lo_i, hi_i)`. `f(t) = Σx_i(t)` is non-increasing in `t`, so the root of
+ * `f(t) = budget` is found by bisection. `budget` is clamped into `[Σlo_i, Σhi_i]` first so the
+ * projection is always well-defined even if the caller asks for an infeasible budget.
  */
 function projectOntoBudgetBox(y: number[], lo: number[], hi: number[], budget: number): number[] {
   const n = y.length;
@@ -195,21 +217,38 @@ function solve(params: SolveParams): number[] {
     Object.values(inst.exposurePerEuro).reduce((sum: number, v) => sum + (v ?? 0), 0)
   );
 
-  // Per class c: r_c(x) = classConst[c] + classCoeff[c] . x
+  // The market total AFTER the trade is fixed by the budget (Σx = budget is enforced by the
+  // projection), so `marketAfterTrade` is a CONSTANT on the feasible set, not a function of x.
+  // A class's target notional exposure is therefore the constant `targetFraction[c] ×
+  // marketAfterTrade` (budget = 0 Ribilancia, +amount Versa, −amount Preleva).
+  const marketAfterTrade = currentMarketTotal + budget;
+
+  // Per class c: r_c(x) = notionalAfter[c] − target[c]
+  //   = (currentNotional[c] + Σ_i exposurePerEuro[c][i]·x_i) − targetFraction[c]·marketAfterTrade
+  //   = classConst[c] + classCoeff[c] · x, with classCoeff[c][i] = exposurePerEuro[c][i].
+  //
+  // D5 BUG FIX. The fork's residual was
+  //   notionalAfter[c] − targetFraction[c]·notionalTotalAfter
+  // via classConst = currentNotional[c] − tf·currentNotionalTotal AND classCoeff = epe − tf·L.
+  // BOTH terms carried the error: the class target must be a fraction of the post-trade MARKET
+  // base, not of the notional total (which rescales by the current leverage and double-counts it,
+  // wrong whenever current leverage ≠ target leverage). The spec called out `classConst`; the
+  // `− targetFraction·instrumentLeverage` in `classCoeff` is the same error and is dropped here
+  // too, otherwise the class gap never actually closes to `tf·marketAfterTrade` (verified by the
+  // "class target on the post-trade MARKET base" test).
   const classCoeff: Record<string, number[]> = {};
   const classConst: Record<string, number> = {};
   for (const assetClass of classes) {
     classCoeff[assetClass] = instruments.map(
-      (inst, i) => (inst.exposurePerEuro[assetClass as AssetClass] ?? 0) - targetFraction[assetClass] * instrumentLeverage[i]
+      (inst) => inst.exposurePerEuro[assetClass as AssetClass] ?? 0
     );
-    classConst[assetClass] = (currentNotionalByAssetClass[assetClass] ?? 0) - targetFraction[assetClass] * currentNotionalTotal;
+    classConst[assetClass] = (currentNotionalByAssetClass[assetClass] ?? 0) - targetFraction[assetClass] * marketAfterTrade;
   }
 
   // Leverage residual, euro-scaled so it's comparable to the class residuals above:
-  // r_L(x) = NotionalTotal(x) - targetLeverageRatio * marketTotalAfterTrade
-  //        = (currentNotionalTotal + leverage . x) - targetLeverageRatio * (currentMarketTotal + budget)
+  // r_L(x) = NotionalTotal(x) - targetLeverageRatio * marketAfterTrade
+  //        = (currentNotionalTotal + leverage . x) - targetLeverageRatio * marketAfterTrade
   const hasLeverageTerm = targetLeverageRatio !== undefined && targetLeverageRatio > 0;
-  const marketAfterTrade = currentMarketTotal + budget;
   const leverageCoeff = instrumentLeverage;
   const leverageConst = currentNotionalTotal - (targetLeverageRatio ?? 0) * marketAfterTrade;
 
@@ -396,4 +435,43 @@ export function planInstrumentRebalance(
   });
 
   return buildPlanResult(instruments, x, currentNotionalByAssetClass, currentNotionalTotal, currentMarketTotal, 0);
+}
+
+/**
+ * Preleva: raise `amount` of cash by selling toward the notional target — the decumulation
+ * mirror of `planInstrumentContribution` (and of `buildWithdrawalPlan` in allocationUtils.ts).
+ * Budget = −amount; every instrument may be SOLD down to zero (`lowerBounds = −marketValue`) but
+ * none may be bought (`upperBounds = 0`), so the withdrawal drains whatever is above target while
+ * respecting the leverage target on the remaining, smaller portfolio.
+ */
+export function planInstrumentWithdrawal(
+  assets: Asset[],
+  currentNotionalByAssetClass: Record<string, number>,
+  currentNotionalTotal: number,
+  currentMarketTotal: number,
+  targetPercentageByAssetClass: Record<string, number>,
+  amount: number,
+  targetLeverageRatio?: number
+): LeverageAwarePlan {
+  const instruments = buildInstrumentExposures(assets);
+  if (instruments.length === 0 || amount <= 0) {
+    return emptyPlan(currentNotionalByAssetClass, currentNotionalTotal, currentMarketTotal);
+  }
+
+  const lowerBounds = instruments.map((inst) => -inst.marketValue);
+  const upperBounds = instruments.map(() => 0);
+
+  const x = solve({
+    instruments,
+    currentNotionalByAssetClass,
+    currentNotionalTotal,
+    currentMarketTotal,
+    targetPercentageByAssetClass,
+    budget: -amount,
+    lowerBounds,
+    upperBounds,
+    targetLeverageRatio,
+  });
+
+  return buildPlanResult(instruments, x, currentNotionalByAssetClass, currentNotionalTotal, currentMarketTotal, -amount);
 }

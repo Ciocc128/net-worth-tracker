@@ -1,19 +1,26 @@
 /**
  * Color palette for asset classes
  */
-export const ASSET_CLASS_COLORS: Record<string, string> = {
-  equity: '#3B82F6',         // blue
-  bonds: '#EF4444',          // red
-  crypto: '#F59E0B',         // amber
-  realestate: '#10B981',     // green
-  cash: '#6B7280',           // gray
-  commodity: '#92400E',      // brown
-  trendFollowing: '#14B8A6', // teal
-  carry: '#F97316',          // orange
+const ASSET_CLASS_COLORS: Record<string, string> = {
+  equity: '#3B82F6',      // blue
+  bonds: '#EF4444',       // red
+  crypto: '#F59E0B',      // amber
+  realestate: '#10B981',  // green
+  cash: '#6B7280',        // gray
+  commodity: '#92400E',   // brown
+  trendFollowing: '#8B5CF6', // violet
+  carry: '#EC4899',       // pink
 };
 
 /**
- * Chart colors for various visualizations
+ * Chart colors for various visualizations.
+ *
+ * Indices 5-9 also back the theme-independent tail of useChartColors() and the
+ * cost-center slots chart-6..8, where they are 4px identity rails on a light card:
+ * every hue must clear the WCAG 1.4.11 3:1 floor against white AND against the dark
+ * themes' cards — the ~0.12-0.30 relative-luminance band. Teal and orange sit at
+ * their -600 steps for exactly this reason (3.74:1 and 3.56:1 vs white); their -500
+ * originals measured 2.49:1 and 2.80:1.
  */
 export const CHART_COLORS = [
   '#3B82F6', // blue
@@ -22,8 +29,8 @@ export const CHART_COLORS = [
   '#F59E0B', // amber
   '#8B5CF6', // violet
   '#EC4899', // pink
-  '#14B8A6', // teal
-  '#F97316', // orange
+  '#0D9488', // teal (teal-600)
+  '#EA580C', // orange (orange-600)
   '#6366F1', // indigo
   '#84CC16', // lime
 ];
@@ -38,30 +45,24 @@ export function getAssetClassColor(assetClass: string): string {
 }
 
 /**
- * Fixed mapping from asset class to a ready-to-use, theme-reactive CSS color value.
+ * Fixed mapping from asset class to CSS custom property (e.g. "--chart-1").
  * Use this for badge/chip styling so colours follow the active theme.
  * Recharts components must keep using getAssetClassColor (hex) since they
  * cannot consume CSS variables at render time.
- *
- * Most classes map 1:1 to a theme chart slot (`var(--chart-N)`). trendFollowing/carry
- * have no dedicated theme slot (the design system only defines --chart-1..5), so they
- * are derived via color-mix() blends of two existing slots — same technique already
- * used for a 6th color in components/goals/AllocationComparisonBar.tsx.
  */
-const ASSET_CLASS_COLOR_VALUE: Record<string, string> = {
-  equity:         'var(--chart-1)',
-  bonds:          'var(--chart-2)',
-  realestate:     'var(--chart-3)',
-  crypto:         'var(--chart-4)',
-  commodity:      'var(--chart-5)',
-  cash:           'var(--muted-foreground)',
-  trendFollowing: 'color-mix(in srgb, var(--chart-2) 65%, var(--chart-4))',
-  carry:          'color-mix(in srgb, var(--chart-3) 65%, var(--chart-1))',
-  pension:        'color-mix(in srgb, var(--chart-1) 55%, var(--chart-5))',
+// trendFollowing/carry have no dedicated slot yet (only 5 --chart-* vars exist) — they fall back
+// to --muted-foreground below like cash, pending an L2/L3 design pass on the 2 new classes.
+const ASSET_CLASS_CSS_VAR: Record<string, string> = {
+  equity:     '--chart-1',
+  bonds:      '--chart-2',
+  realestate: '--chart-3',
+  crypto:     '--chart-4',
+  commodity:  '--chart-5',
+  cash:       '--muted-foreground',
 };
 
 export function getAssetClassCssVar(assetClass: string): string {
-  return ASSET_CLASS_COLOR_VALUE[assetClass] ?? 'var(--muted-foreground)';
+  return ASSET_CLASS_CSS_VAR[assetClass] ?? '--muted-foreground';
 }
 
 /**

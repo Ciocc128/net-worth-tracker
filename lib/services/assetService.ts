@@ -18,6 +18,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firestoreData';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
+import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { Asset, AssetFormData, BondDetails } from '@/types/assets';
 
@@ -29,22 +30,20 @@ function getErrorMessage(error: unknown): string {
 
 /**
  * Define asset class ordering priority
- * Order: Azioni → Obbligazioni → Commodities → Trend Following → Carry → Real Estate → Cash → Crypto
+ * Order: Azioni → Obbligazioni → Commodities → Real Estate → Cash → Crypto
  */
 export const ASSET_CLASS_ORDER: Record<string, number> = {
   equity: 1,
   bonds: 2,
   commodity: 3,
-  trendFollowing: 4,
-  carry: 5,
-  realestate: 6,
-  cash: 7,
-  crypto: 8,
+  realestate: 4,
+  cash: 5,
+  crypto: 6,
 };
 
 /**
  * Get all assets for a specific user
- * Assets are sorted by ASSET_CLASS_ORDER (equity, bonds, commodity, trendFollowing, carry, realestate, cash, crypto)
+ * Assets are sorted by asset class (equity, bonds, realestate, crypto, commodity, cash)
  * and then by name within each class
  */
 export async function getAllAssets(userId: string): Promise<Asset[]> {
@@ -85,48 +84,6 @@ export async function getAllAssets(userId: string): Promise<Asset[]> {
       error: getErrorMessage(error),
     });
     throw new Error(`Failed to fetch assets for user ${userId}`, { cause: error });
-  }
-}
-
-/**
- * Get all equity assets with ISIN for a specific user
- * Used for automatic dividend scraping
- * Filters: assetClass === 'equity' AND isin exists AND isin is not empty
- */
-export async function getAssetsWithIsin(userId: string): Promise<Asset[]> {
-  try {
-    const assetsRef = collection(db, ASSETS_COLLECTION);
-    const q = query(
-      assetsRef,
-      where('userId', '==', userId),
-      where('assetClass', '==', 'equity')
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    const assets = querySnapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        lastPriceUpdate: doc.data().lastPriceUpdate?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        holdingStartDate: doc.data().holdingStartDate?.toDate(),
-      }))
-      .filter(asset => {
-        // Filter out assets without ISIN or with empty ISIN
-        const assetData = asset as Asset;
-        return assetData.isin && assetData.isin.trim() !== '';
-      }) as Asset[];
-
-    return assets;
-  } catch (error) {
-    console.error('Failed to fetch assets with ISIN', {
-      userId,
-      operation: 'getAssetsWithIsin',
-      error: getErrorMessage(error),
-    });
-    throw new Error(`Failed to fetch assets with ISIN for user ${userId}`, { cause: error });
   }
 }
 
@@ -271,8 +228,15 @@ export async function updateAsset(
 
     if (updates.averageCost === undefined) cleanedUpdates.averageCost = deleteField();
     if (updates.taxRate === undefined) cleanedUpdates.taxRate = deleteField();
-    // Display alias is clearable: the form sends undefined when the field is emptied, so translate
-    // it to deleteField() (removeUndefinedFields would otherwise just omit it, keeping the old alias).
+    // leverageRatio is user-clearable (empty = no leverage). Only clear it when the caller
+    // actually sends the key undefined (the form always does) — the `in` check protects partial
+    // callers (e.g. a price update) from wiping it. See AssetDialog leverage input.
+    if ('leverageRatio' in updates && updates.leverageRatio === undefined) {
+      cleanedUpdates.leverageRatio = deleteField();
+    }
+    // displayTicker is user-clearable (empty alias → fall back to ticker). The only real caller
+    // is AssetDialog with a complete formData, so a bare undefined check is safe here (same
+    // reasoning as averageCost/taxRate above, unlike leverageRatio's `in` guard).
     if (updates.displayTicker === undefined) cleanedUpdates.displayTicker = deleteField();
 
     // Rebuy on the same doc: quantity goes from 0 (sold but kept) back to > 0. Stamp the new
@@ -300,6 +264,62 @@ export async function updateAsset(
   }
 }
 
+/** AssetFormData minus the ledger-derived fields (quantity, averageCost) — see types/assetTransactions.ts. */
+export type AssetMetadataFormData = Omit<AssetFormData, 'quantity' | 'averageCost'>;
+
+/**
+ * Update an asset WITHOUT touching the ledger-derived fields.
+ *
+ * For LEDGER_ASSET_TYPES (stock/etf/bond/crypto/commodity) `quantity`/`averageCost` are derived by
+ * replaying `assetTransactions` and rewritten by the trade Admin API — they must NOT be written from
+ * a metadata edit. This is the AssetDialog (edit mode) path for ledger assets: `updateAsset`
+ * translates an ABSENT `averageCost` into `deleteField()`, so calling it once the dialog stops
+ * sending quantity/averageCost would wipe the PMC on every metadata save. `updateAsset` is unchanged and still
+ * used for cash/realestate.
+ *
+ * `taxRate`/`displayTicker` keep the same undefined→deleteField() clearing as `updateAsset` (the
+ * form always sends the key, undefined when cleared). quantity/averageCost/holdingStartDate are
+ * structurally absent from the payload type, so the ledger-derived fields can never be cleared by
+ * a metadata edit.
+ */
+export async function updateAssetMetadata(
+  assetId: string,
+  updates: Partial<AssetMetadataFormData>
+): Promise<void> {
+  try {
+    const assetRef = doc(db, ASSETS_COLLECTION, assetId);
+    const existingAsset = await getDoc(assetRef);
+
+    const cleanedUpdates: Record<string, unknown> = removeUndefinedFields({
+      ...updates,
+      updatedAt: new Date(),
+    });
+
+    if (updates.taxRate === undefined) cleanedUpdates.taxRate = deleteField();
+    // leverageRatio is a metadata field for ledger types (etf) — clearable, same rule as updateAsset.
+    if ('leverageRatio' in updates && updates.leverageRatio === undefined) {
+      cleanedUpdates.leverageRatio = deleteField();
+    }
+    // displayTicker is a metadata field too — clearable, same rule as updateAsset.
+    if (updates.displayTicker === undefined) cleanedUpdates.displayTicker = deleteField();
+
+    await updateDoc(assetRef, cleanedUpdates);
+
+    const userId = existingAsset.data()?.userId;
+    if (userId) {
+      await invalidateDashboardOverviewSummary(userId, 'asset_updated');
+    }
+  } catch (error) {
+    console.error('Failed to update asset metadata', {
+      assetId,
+      operation: 'updateAssetMetadata',
+      updateKeys: Object.keys(updates),
+      error: getErrorMessage(error),
+    });
+    throw new Error(`Failed to update asset metadata ${assetId}`, { cause: error });
+  }
+}
+
 /**
  * Updates ONLY a bond's bondDetails (and updatedAt).
  *
@@ -321,38 +341,6 @@ export async function updateAssetBondDetails(assetId: string, bondDetails: BondD
       error: getErrorMessage(error),
     });
     throw new Error(`Failed to update bond details for asset ${assetId}`, { cause: error });
-  }
-}
-
-/**
- * Update asset price and timestamp
- */
-export async function updateAssetPrice(
-  assetId: string,
-  price: number
-): Promise<void> {
-  try {
-    const assetRef = doc(db, ASSETS_COLLECTION, assetId);
-    const existingAsset = await getDoc(assetRef);
-
-    await updateDoc(assetRef, {
-      currentPrice: price,
-      lastPriceUpdate: new Date(),
-      updatedAt: new Date(),
-    });
-
-    const userId = existingAsset.data()?.userId;
-    if (userId) {
-      await invalidateDashboardOverviewSummary(userId, 'asset_price_updated');
-    }
-  } catch (error) {
-    console.error('Failed to update asset price', {
-      assetId,
-      operation: 'updateAssetPrice',
-      price,
-      error: getErrorMessage(error),
-    });
-    throw new Error(`Failed to update asset price for ${assetId}`, { cause: error });
   }
 }
 
@@ -570,7 +558,8 @@ export function calculateTotalValue(assets: Asset[]): number {
  *
  * Liquidity determination:
  * - If isLiquid field is explicitly defined, use that value (allows user override)
- * - Otherwise use legacy logic: exclude real estate and private equity (for backwards compatibility)
+ * - Otherwise fall back to suggestIsLiquid (type realestate / pensionFund / Private Equity
+ *   are illiquid) for documents saved before the field existed
  *
  * The isLiquid override takes precedence because users may have unique situations
  * (e.g., illiquid bonds, liquid real estate like REITs).
@@ -585,12 +574,9 @@ export function calculateLiquidNetWorth(assets: Asset[]): number {
       if (asset.isLiquid !== undefined) {
         return asset.isLiquid === true;
       }
-      // Otherwise use legacy logic for backwards compatibility
-      // (assets created before isLiquid field was added)
-      return (
-        asset.assetClass !== 'realestate' &&
-        asset.subCategory !== 'Private Equity'
-      );
+      // Legacy fallback for documents saved before the field existed — the same
+      // predicate as the AssetDialog default (see lib/utils/assetLiquidity.ts).
+      return suggestIsLiquid(asset.type, asset.subCategory);
     })
     .reduce((total, asset) => total + calculateAssetValue(asset), 0);
 }
@@ -610,11 +596,9 @@ export function calculateIlliquidNetWorth(assets: Asset[]): number {
       if (asset.isLiquid !== undefined) {
         return asset.isLiquid === false;
       }
-      // Otherwise use legacy logic for backwards compatibility
-      return (
-        asset.assetClass === 'realestate' ||
-        asset.subCategory === 'Private Equity'
-      );
+      // Legacy fallback — exact complement of calculateLiquidNetWorth's, so the
+      // two totals always partition the whole portfolio.
+      return !suggestIsLiquid(asset.type, asset.subCategory);
     })
     .reduce((total, asset) => total + calculateAssetValue(asset), 0);
 }
@@ -722,7 +706,7 @@ export function calculateUnrealizedGains(asset: Asset): number {
  * Calculate estimated taxes on unrealized gains for a single asset
  * Returns 0 if taxRate is not set or gains are negative/zero
  */
-export function calculateEstimatedTaxes(asset: Asset): number {
+function calculateEstimatedTaxes(asset: Asset): number {
   const gains = calculateUnrealizedGains(asset);
 
   if (gains <= 0 || !asset.taxRate || asset.taxRate <= 0) {
@@ -764,14 +748,6 @@ export function calculateLiquidEstimatedTaxes(assets: Asset[]): number {
       );
     })
     .reduce((total, asset) => total + calculateEstimatedTaxes(asset), 0);
-}
-
-/**
- * Calculate gross total (current portfolio value)
- * Alias for calculateTotalValue for clarity in cost basis context
- */
-export function calculateGrossTotal(assets: Asset[]): number {
-  return calculateTotalValue(assets);
 }
 
 /**
@@ -859,8 +835,14 @@ export function calculateStampDuty(
     .filter(a => !a.stampDutyExempt)
     .reduce((total, asset) => {
       const value = calculateAssetValue(asset);
-      // Conti correnti: apply stamp duty only if value strictly > 5000€
+      // Conti correnti: the flat-fee rule (34,20€ above 5.000€) is a checking-account tax rule,
+      // not a "cash-class asset" one — a money-market ETF (e.g. XEON) can carry `assetClass: 'cash'`
+      // for allocation purposes while remaining a security for tax purposes (0,2% like any other
+      // instrument). Strict convention: `type === 'cash' && assetClass === 'cash'` (spec
+      // 6-asset-class-selection.md decision 4; same rule as the cash-account pickers in AGENTS.md's
+      // 2026-07-26 hardening note).
       if (
+        asset.type === 'cash' &&
         asset.assetClass === 'cash' &&
         checkingAccountSubCategory &&
         asset.subCategory === checkingAccountSubCategory
