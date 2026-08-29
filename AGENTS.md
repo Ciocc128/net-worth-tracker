@@ -168,7 +168,18 @@ Companion documents — do not duplicate their content into this file:
   `settingsRoundTrip`, whose `STORED_SETTINGS` fixture must carry the new field, or the round-trip stays green while the
   read mapping is still broken.
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
-  `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`.
+  `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`. **The bug this
+  prevents is invisible until a hard refresh**: the write succeeds, the toast says «salvate», the form still shows the
+  cleared field — and the old value comes back on the next load, because the no-merge branch rebuilds the document from
+  `...existingData` and `!== undefined` never overwrites it. On 2026-08-29 four fields were found without the guard and
+  fixed — `userAge`, `riskFreeRate`, `dividendIncomeCategoryId`, `dividendIncomeSubCategoryId` — with the round-trip
+  cases added to `settingsRoundTrip` (they fail on the pre-fix service, checked). **Adding the guard is safe only
+  because `getSettings` returns EVERY key**: the callers that spread `...settings` (the FIRE tabs, Coast, Monte Carlo)
+  carry the current value, so the guard rewrites it unchanged or deletes an already-absent field; callers that build a
+  fresh object (registration) omit the key entirely. Re-check that before guarding a new field.
+- **Only a hard refresh proves a setting was saved.** Reading the value back from Firestore proves the WRITE landed;
+  it says nothing about whether `getSettings` maps the field back into the form. Verify a settings change by reloading
+  the page and reading the FORM — that is the half of the round trip where the historical bugs live.
 - **There is a SIXTH place for any setting the SERVER reads**: the settings mapper in
   `lib/services/dashboardOverviewService.ts` re-lists the same fields from the admin doc, independently of
   `getSettings`. `settingsRoundTrip` does not cover it — check it by hand.
@@ -176,8 +187,42 @@ Companion documents — do not duplicate their content into this file:
   `AssetAllocationSettings`, never in `UserPreferences`, and dirty-state snapshot keys contain **only persisted
   fields**, captured *after* the Firestore state is applied.
 - **One Save button validates the whole page** — `handleSave` returns early when allocation targets do not total 100, and
-  must `invalidateQueries(['settings', ownerId])`, which `AssetDialog` reads.
+  must `invalidateQueries(['settings', ownerId])`, which `AssetDialog` reads. **A tab must not grow a second Save**: the
+  Dividendi one was deleted on 2026-08-29 because `handleSave` already persisted its two fields, so the tab's own button
+  was a second write path for the same data (it also re-read the doc first, and could therefore clobber a concurrent edit).
+- **A field's dirty-snapshot must follow the TAB THAT EDITS IT, not the tab that consumes it**: `userAge`/`riskFreeRate`
+  moved from `allocationSnapshotKey` to `generalSnapshotKey` when the Profilo tile moved to Preferenze, while the
+  auto-calculated `equity`/`bonds` targets they FEED stayed in the allocation snapshot. Get this wrong and the header's
+  chip says "salvato" over an edited field.
 - `cashflowHistoryStartYear` is shared (Cashflow / Storico / Assistant / overview) — never rename it page-specifically.
+
+### Impostazioni — tessere senza verdetto (`app/dashboard/settings/page.tsx`, `lib/utils/settingsNarrative.ts`)
+- **The page has NO verdict and must not grow one.** A configuration page measures nothing, so there is no question for
+  a sentence to answer; what it keeps is the CADENCE — compact header + `PageTabBar`, then a 12-column grid where every
+  group of settings is a `Tile`: eyebrow = the group, ONE reading line stating the current state in words, controls
+  below. `settingsNarrative.ts` therefore exports 22 `describe*` functions and NO `build*Verdict`.
+- **A reading declares the effect DOWNSTREAM, not the control under it.** «Base gestita: fondi pensione e asset esclusi
+  restano fuori» beats «due interruttori»: the reader is deciding, and a setting they cannot place is one they will not
+  trust. The Narrative Honesty Rule holds — a missing input drops its clause and says what stalls without it («senza il
+  risk-free rate l'auto-calcolo dei target non parte»), never a placeholder.
+- **A field another page OWNS is DECLARED, never edited here** (The Declaration-Tile Rule, DESIGN.md). «Parametri del
+  piano» and «Assistente» are read-only tiles: label · mono value rows (`DeclarationRow`) and a footer that LINKS the
+  write surface. Two reasons, both structural: the FIRE parameters save from FIRE › Calcolatore/Coast FIRE, and a
+  second surface would be a second write path (see the Dividendi Save above); the assistant's preferences live in its
+  memory document and the settings doc is a MIRROR THAT LOSES ON READ (`lib/server/assistant/store.ts` prefers the
+  stored value), so an edit made here would be silently overwritten. A never-synced mirror prints no default — the
+  reading says where the truth lives instead.
+- **The applicative default is named as a default**: «pensione INPS a 67 anni (predefinita)» — printing 67 like a saved
+  choice tells the reader they decided something they did not. The RITA age is never derived here: it comes from
+  `resolveRitaUnlockAge`, the app's one unlock rule.
+- **The color theme saves itself, the rest waits for Salva.** `setColorTheme` writes through `ColorThemeContext` and the
+  Modalità pill through next-themes, both outside `handleSave` — say so in the tile's footer, or the page promises a
+  save that never happens. The Modalità reading is `null` before hydration (`useSyncExternalStore`, the ThemePicker
+  guard): the mode genuinely does not exist server-side, and guessing it is a hydration mismatch.
+- **`ExpenseImportSection` and `AccountSharingSection` render their own `Tile`** — the page places them in a grid cell
+  and passes nothing but their props. Their reading lines come from the same pure module, so the wizard's phase
+  («142 voci da importare, 6 righe scartate, 3 categorie da creare») and the grant list are stated in words before the
+  controls, like every other tile.
 
 ### Auto-Calculated Targets (`lib/utils/equityBondsAutoTargets.ts`)
 - **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so they are funded out of
@@ -1677,8 +1722,10 @@ Companion documents — do not duplicate their content into this file:
   Three rules: **migrate without a backfill** (`LEGACY_HEX_SLOTS` maps each old hex to the slot at the same position);
   **derive the no-colour fallback from the document id** (FNV-1a), never from the row's rank, which repaints half the
   list on every period switch; **only indices 0-4 are theme-aware** (CLAUDE.md → Known Issues).
-- **Adding a theme**: CSS blocks `[data-theme="name"]` + `.dark[data-theme="name"]`, the `ColorTheme` union, the swatch
-  in `settings/page.tsx`, grid columns, `tsc`.
+- **Adding a theme**: CSS blocks `[data-theme="name"]` + `.dark[data-theme="name"]`, the `ColorTheme` union, an entry in
+  `COLOR_THEME_SWATCHES` (module level in `settings/page.tsx`), the swatch grid columns, `tsc`. The swatch previews carry
+  each theme's own literal oklch values ON PURPOSE — they preview a palette that is NOT active, which no CSS token can
+  express — and the accessible name is the POSITION («Colore 3 di 6: Midnight Bloom»), never the hue.
 
 ### Navigation
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
@@ -1778,6 +1825,7 @@ Companion documents — do not duplicate their content into this file:
 | Cashflow › Budget | `budgetUtils`, `budgetSummary`, `budgetNarrative` (+ `patrimonioNarrative` for the articles, `weeklyBudgetEmailService`, `monthlyEmailService`) |
 | Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` |
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
+| Impostazioni | **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` |
 | Cashflow › Dividendi | `dividendAnalytics`, `dividendiNarrative` (+ `patrimonioNarrative` for the articles) |
 | Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
@@ -1917,6 +1965,10 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   And a decoy-absence check on `main` fails on Cashflow, where every tab stays mounted (`forceMount`) and hidden: scope
   it to `[role="tabpanel"][data-state="active"]`. **`getByRole(…, { name })` matches substrings**: «Avvisi» also
   resolves «Avvisi soglia», «Impostazioni del budget» also «Vai alle impostazioni del budget» — pass `exact: true`.
+- **A settings change is only verified by a RELOAD.** Reading the value back from Firestore proves the write; the form
+  is rebuilt by `getSettings`, and that is the half where the bugs live (2026-08-29: four fields wrote fine and came
+  back to their old value on the next load). Drive the UI, save, `page.reload({waitUntil: 'load'})`, then assert on the
+  INPUTS. And test the two directions separately — setting a value and CLEARING it fail for different reasons.
 - **A throwaway session spec must match an existing project's `testMatch`** (`*.spec.ts` → `desktop`,
   `*.mobile.spec.ts` → `mobile`), assert against Firestore rather than the page, plant a decoy word that appears nowhere
   in the seed, delete the documents it created, and delete itself.
@@ -1946,7 +1998,11 @@ Moved verbatim from CLAUDE.md's Known Issues on 2026-08-28, when that file reach
 
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread sheet keeps its 3 s auto-disarm delete (on request) while the memory rows use `useArmedDelete`; a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
 - **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause; the Ventaglio runs only while open, its probability lives in the Traguardo footer; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit.
+- **Impostazioni**: no Playwright spec (the throwaway ones were deleted); the dialogs keep their pre-redesign chrome; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva; the header chip no longer says WHICH tab has unsaved changes (one sentence for the whole page); the Costi tile shows the rate and the checking subcategory only with the duty on; the category count ignores types outside the four listed (transfers); `settings/page.tsx` carries 7 pre-existing `react-hooks` errors and `AccountSharingSection` 1.
 - **Allocazione**: no Playwright spec; Esposizione fetches `/api/portfolio/exposure` on mount (Yahoo on the first visit, then the 24 h cache) and truncates names at 128 px; a class held WITHOUT a target never enters `byAssetClass` (`compareAllocations` iterates the targets), so the score charges it as drift — the Bilanciamento reading names it, the verdict lists only targeted classes; a Ribilancia is «a saldo zero» only when the in-band classes carry no gap; «Modifica target» points to Impostazioni even with goal-derived targets; theoretical specific-asset targets are rows without a tick; `BandToggle` snaps 2 or 5 typed in the custom field back to the preset.
+- **FIRE › Coast FIRE**: the verdict's two capital figures are net of the locked fund and only the lock sentence says so; the pension clause reads «la Pensione INPS» for labels starting with «Pension…», «la pensione di Giuseppe» otherwise (every pension listed, never counted); `coast.spec.ts` asserts structure and format only (the fixture fixes expenses, not the clock); the Ipotesi disclosure reopens on every unsaved edit or incomplete pension row, ONE save for four tiles; the «Impatto delle pensioni» table exists from 1440 only; `buildCoastInflowEvents` merges funds unlocking in the same year.
+- **FIRE › Monte Carlo**: no Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); `results.medianFinalValue` has no surface.
+- **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation, nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; the Sensibilità reference expenses are session-only; `isPrimaryResidence` is informational.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

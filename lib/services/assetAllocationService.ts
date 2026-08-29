@@ -163,12 +163,23 @@ export async function setSettings(
         updatedAt: new Date(),
       };
 
-      // Override with new values for defined fields
-      if (settings.userAge !== undefined) {
-        docData.userAge = settings.userAge;
+      // Override with new values for defined fields.
+      // Età and risk-free rate are USER-CLEARABLE (an emptied input sends undefined), so they
+      // take the `'x' in settings` guard: with `!== undefined` the spread of existingData above
+      // kept the old value and the cleared field came back on the next load.
+      if ('userAge' in settings) {
+        if (settings.userAge !== undefined) {
+          docData.userAge = settings.userAge;
+        } else {
+          delete docData.userAge;
+        }
       }
-      if (settings.riskFreeRate !== undefined) {
-        docData.riskFreeRate = settings.riskFreeRate;
+      if ('riskFreeRate' in settings) {
+        if (settings.riskFreeRate !== undefined) {
+          docData.riskFreeRate = settings.riskFreeRate;
+        } else {
+          delete docData.riskFreeRate;
+        }
       }
       if (settings.withdrawalRate !== undefined) {
         docData.withdrawalRate = settings.withdrawalRate;
@@ -197,11 +208,20 @@ export async function setSettings(
       if (settings.includePrimaryResidenceInFIRE !== undefined) {
         docData.includePrimaryResidenceInFIRE = settings.includePrimaryResidenceInFIRE;
       }
-      if (settings.dividendIncomeCategoryId !== undefined) {
-        docData.dividendIncomeCategoryId = settings.dividendIncomeCategoryId;
+      // Also user-clearable, from the «Cancella» buttons of Impostazioni → Dividendi.
+      if ('dividendIncomeCategoryId' in settings) {
+        if (settings.dividendIncomeCategoryId !== undefined) {
+          docData.dividendIncomeCategoryId = settings.dividendIncomeCategoryId;
+        } else {
+          delete docData.dividendIncomeCategoryId;
+        }
       }
-      if (settings.dividendIncomeSubCategoryId !== undefined) {
-        docData.dividendIncomeSubCategoryId = settings.dividendIncomeSubCategoryId;
+      if ('dividendIncomeSubCategoryId' in settings) {
+        if (settings.dividendIncomeSubCategoryId !== undefined) {
+          docData.dividendIncomeSubCategoryId = settings.dividendIncomeSubCategoryId;
+        } else {
+          delete docData.dividendIncomeSubCategoryId;
+        }
       }
       if (settings.fireProjectionScenarios !== undefined) {
         docData.fireProjectionScenarios = settings.fireProjectionScenarios;
@@ -321,11 +341,15 @@ export async function setSettings(
         updatedAt: new Date(),
       };
 
-      if (settings.userAge !== undefined) {
-        docData.userAge = settings.userAge;
+      // Età and risk-free rate are user-clearable (an emptied input sends undefined):
+      // with merge: true, omitting the key would leave the stale value in place.
+      if ('userAge' in settings) {
+        docData.userAge =
+          settings.userAge !== undefined ? settings.userAge : deleteField();
       }
-      if (settings.riskFreeRate !== undefined) {
-        docData.riskFreeRate = settings.riskFreeRate;
+      if ('riskFreeRate' in settings) {
+        docData.riskFreeRate =
+          settings.riskFreeRate !== undefined ? settings.riskFreeRate : deleteField();
       }
       if (settings.withdrawalRate !== undefined) {
         docData.withdrawalRate = settings.withdrawalRate;
@@ -354,11 +378,14 @@ export async function setSettings(
       if (settings.includePrimaryResidenceInFIRE !== undefined) {
         docData.includePrimaryResidenceInFIRE = settings.includePrimaryResidenceInFIRE;
       }
-      if (settings.dividendIncomeCategoryId !== undefined) {
-        docData.dividendIncomeCategoryId = settings.dividendIncomeCategoryId;
+      // Also user-clearable, from the «Cancella» buttons of Impostazioni → Dividendi.
+      if ('dividendIncomeCategoryId' in settings) {
+        docData.dividendIncomeCategoryId =
+          settings.dividendIncomeCategoryId !== undefined ? settings.dividendIncomeCategoryId : deleteField();
       }
-      if (settings.dividendIncomeSubCategoryId !== undefined) {
-        docData.dividendIncomeSubCategoryId = settings.dividendIncomeSubCategoryId;
+      if ('dividendIncomeSubCategoryId' in settings) {
+        docData.dividendIncomeSubCategoryId =
+          settings.dividendIncomeSubCategoryId !== undefined ? settings.dividendIncomeSubCategoryId : deleteField();
       }
       if (settings.fireProjectionScenarios !== undefined) {
         docData.fireProjectionScenarios = settings.fireProjectionScenarios;
