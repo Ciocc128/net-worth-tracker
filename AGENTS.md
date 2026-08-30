@@ -224,6 +224,49 @@ Companion documents — do not duplicate their content into this file:
   («142 voci da importare, 6 righe scartate, 3 categorie da creare») and the grant list are stated in words before the
   controls, like every other tile.
 
+### Accesso e Registrazione (`app/login/page.tsx`, `app/register/page.tsx`, `components/auth/*`, `lib/utils/authNarrative.ts`)
+- **ONE tile, no grid.** A form is a single tile, and a 12-column grid of one cell is a grid pretending. The page is a
+  420px column — eyebrow, `PageVerdict`, the `Tile`, the secondary link — inside `AuthShell`, which both pages share.
+  `p-5 desktop:p-6` on that tile is deliberate and the only place the 24px padding is still right (DESIGN.md → Cards).
+- **The verdict is the PRODUCT's promise, but it is still generated.** These pages measure nothing, so the sentence
+  cannot be a reading of data — it is a claim about the app. It is nonetheless built by rules over the page's state
+  (`buildLoginVerdict`, `buildRegisterVerdict(access)`), never written in JSX, so the whitelist clause can honestly
+  disappear and every phrasing is pinned by a test. The tone stays `neutral` in every state: a promise that flipped to
+  `negative` on a mistyped password would be the page disowning itself over a typo.
+- **The tile's reading IS the form's status line** (The Status-Is-The-Reading Rule, DESIGN.md). `describeLoginStatus` /
+  `describeRegisterStatus` return an `AuthReading` — the words plus a tone — for idle · submitting · success · error,
+  and `AuthStatusLine` paints the negative tone `text-destructive`. Two traps. The container's role must NOT swap
+  between `status` and `alert`: it is a different node to the accessibility tree, and the swap can announce nothing at
+  all — it stays one stable `role="status" aria-live="polite" aria-atomic="true"`. And `NarrativeText` colours only
+  `mono` segments, so a prose sentence cannot carry its own colour through a `sign`: the tone is applied by the
+  component, which is why `AuthReading` exists instead of a bare `Narrative`.
+- **`describeAuthError` is the ONE translation of a failure, and an unknown code never falls through to the provider.**
+  Firebase throws «Firebase: Error (auth/invalid-credential).» — English, provider-named, code in parentheses: a log
+  line, not a sentence. 14 codes are mapped; anything else takes a sentence that claims nothing about the cause
+  (Narrative Honesty applied to an error). Adding a case is a line in `AUTH_ERROR_TEXT` plus its test.
+- **A code must survive the context layer.** `AuthContext` used to rethrow `new Error(error.message)`, which DROPS
+  `code` and leaves the page nothing to map. Use `withCode(message, code)` and, in a catch, rethrow an `Error` as is.
+  The 403 of `/api/auth/check-registration` carries `code: 'registration/not-allowed'` for the same reason: the words
+  live in the pure module, so a copy edit in the route can never change what the reader sees.
+- **`resolveRegistrationAccess` MIRRORS `isRegistrationAllowed` — deroga included.** With the whitelist on, a listed
+  email registers even while `NEXT_PUBLIC_REGISTRATIONS_ENABLED` is `'false'` (SETUP.md → Step 5b relies on it to
+  onboard a shared-account guest). So `whitelistEnabled` wins in BOTH directions and only "registrations off AND no
+  whitelist" resolves to `closed`. If the server's precedence ever changes, change it here in the same commit: a page
+  promising a closed door the server leaves ajar is worse than no page.
+- **The password rows are the two rules the submit actually enforces**, read from the same predicate
+  (`evaluatePasswordRequirements` → `arePasswordRequirementsMet`), so the screen and the validation cannot disagree.
+  The match rule stays UNMET on two empty fields — they are equal, but nothing was typed. A met row takes the check
+  icon and `text-foreground`, **never `text-positive`**: the sign tokens mean money gained and lost, and a satisfied
+  requirement is neither.
+- **The submit stays enabled with the rules unmet** (as before the redesign) and answers with the reading; a disabled
+  submit is a new gate and hides its own reason from the keyboard. On SUCCESS the form freezes instead: the redirect
+  lives in the `useEffect` watching `user`/`authLoading`, and an unfrozen form during that beat invites a second
+  submit that races it.
+- **The demo button is env-gated, Google is not.** `NEXT_PUBLIC_DEMO_EMAIL` + `NEXT_PUBLIC_DEMO_PASSWORD` decide
+  whether the demo exists at all; Google renders unconditionally and fails at click time if the provider is off in the
+  Firebase console (`auth/operation-not-allowed`, mapped). Do not "fix" that by hiding the button behind a flag that
+  does not exist.
+
 ### Auto-Calculated Targets (`lib/utils/equityBondsAutoTargets.ts`)
 - **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so they are funded out of
   Azioni**: `bonds = 100 − formula`, `equity = formula − other`. Charging them to the bond sleeve makes the *defensive*
@@ -1826,6 +1869,7 @@ Companion documents — do not duplicate their content into this file:
 | Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` |
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Impostazioni | **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` |
+| Accesso / Registrazione | **Verdetti, letture ed errori** `authNarrative` · **Policy** `registrationPolicy` (i due devono restare d'accordo sulla precedenza whitelist/flag) |
 | Cashflow › Dividendi | `dividendAnalytics`, `dividendiNarrative` (+ `patrimonioNarrative` for the articles) |
 | Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
@@ -1883,6 +1927,11 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   dist dir (`NEXT_DIST_DIR=.next-throwaway`) rather than deleting someone else's, and **keep the `.next-` prefix**,
   which is what `.gitignore` matches. Two traps on the way out: `next dev` rewrites `tsconfig.json`, so check it out
   again; and the server keeps writing briefly after it is stopped, so delete the dist dir after the process is gone.
+- **A Firestore `DELETE` on a document that does not exist answers 200**, so a phase-F cleanup aimed at the wrong
+  collection reports success and leaves the fixture in the export. Know where each write actually lands before deleting:
+  a registration plants `users/{uid}` AND `assetAllocationTargets/{uid}` — `setSettings` writes to
+  `assetAllocationTargets`, NOT to a `settings` collection (verified 2026-08-30). Confirm with `listCollectionIds` and a
+  `GET` per candidate, then grep the export for the uid rather than trusting the delete's status code.
 - **A throwaway account that logs in leaves `dashboardOverviewSummaries/{uid}` behind** (the server-owned overview
   summary is written on the first dashboard visit): a wipe that deletes only what the seed planted keeps it in the
   export — grep the exported `output-0` for the uid before calling the restore done. The Hub export body takes a
@@ -1949,7 +1998,11 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   claimed a system OpenJDK 21; it is not there, so CHECK `java -version` instead of trusting either claim). The portable
   Temurin of SETUP.md → Step 6 is the way: `winget` is NOT on this shell's PATH, so fetch the zip directly
   (`https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse`), expand it into the session
-  scratchpad and export `JAVA_HOME`/`PATH` for the `npm run emulators` process only — no system change, nothing to undo. Stopping the npm wrapper does **not** kill
+  scratchpad and export `JAVA_HOME`/`PATH` for the `npm run emulators` process only — no system change, nothing to undo.
+  **In the Bash tool, `PATH` entries must be MSYS paths (`/c/Users/…`), not `C:/Users/…`**: `PATH` is colon-separated, so a
+  drive letter splits the entry in two, the portable JDK never resolves, `java -version` still prints the system 15 and
+  firebase-tools dies with "no longer supports Java version before 21" — a failure that reads as a missing download
+  (verified 2026-08-30). `JAVA_HOME` itself is fine either way; check with `which java` before starting the emulators. Stopping the npm wrapper does **not** kill
   the JVM: the ports stay taken and the next start fails with "port taken", naming no stale process. Free them by PID — `netstat -ano | grep LISTENING | grep :8080`, then `taskkill //PID <pid> //F //T`, the same for `next dev` on :3100 — and only AFTER the Hub export.
 - **Ports 8080/9099 answering is not proof that OUR emulators are up.** On 2026-08-27 they were another repo's suite
   (`chronostep-9ab39`, started by hand with `--single_project_mode`): every seed «succeeded» into its `demo-net-worth`
@@ -1996,6 +2049,7 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 
 Moved verbatim from CLAUDE.md's Known Issues on 2026-08-28, when that file reached its 40.000-character budget. These are behaviours that look like bugs and are not — read them before "fixing" one.
 
+- **Accesso e Registrazione**: no Playwright spec (the session's throwaway ones were deleted); `ProtectedRoute` keeps its pre-redesign spinner, the last piece of old chrome on the sign-in path. The submit button stays ENABLED with the password rules unmet, as before the redesign — the refusal is the reading line, not a dead control. That reading lives in a **polite** `role="status"` even on failure: a node that switched to `role="alert"` would change identity in the accessibility tree and some screen readers announce nothing across the swap. On success the form stays frozen until the redirect (it used to re-enable). The outcome toasts are gone from both pages: the tile says the state. `describeAuthError` covers 14 codes and anything else takes the generic sentence, so a NEW Firebase cause is invisible until it is added. The whitelist stays a DEROGATION from `REGISTRATIONS_ENABLED=false` (SETUP.md → Step 5b depends on it): `resolveRegistrationAccess` mirrors that, it does not correct it.
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread sheet keeps its 3 s auto-disarm delete (on request) while the memory rows use `useArmedDelete`; a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
 - **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause; the Ventaglio runs only while open, its probability lives in the Traguardo footer; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit.
 - **Impostazioni**: no Playwright spec (the throwaway ones were deleted); the dialogs keep their pre-redesign chrome; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva; the header chip no longer says WHICH tab has unsaved changes (one sentence for the whole page); the Costi tile shows the rate and the checking subcategory only with the duty on; the category count ignores types outside the four listed (transfers); `settings/page.tsx` carries 7 pre-existing `react-hooks` errors and `AccountSharingSection` 1.
