@@ -12,6 +12,41 @@ La descrizione della modifica al codice, pensata per una PR upstream, sta in
 > oggi è in `.gitignore`: contiene dati finanziari reali (spese, saldi, patrimonio) e non deve
 > finire su un repository pubblico.
 
+---
+
+## ⬜ PUNTI APERTI — leggi qui alla ripresa
+
+**1. Rimettere `performanceIncludesExcludedAssets` a `false`** (Impostazioni → Preferenze).
+È l'unica cosa che separa il lavoro fatto dal vederlo a schermo: il codice è corretto e deployato,
+ma finché il flag è ON la base include la liquidità e i flussi restano quelli del Cashflow. Era
+stato acceso il 29/08 come tappabuchi per D1; con D1 chiuso è attivamente sbagliato.
+Con il flag su `false` la pagina deve leggere: Storico **+29,50%** (ann. **+16,16%**), 1 anno
+**+22,58%**, YTD 2026 **+11,01%**. Se non combaciano, il posto da cui ripartire è `portfolioFlows.ts`.
+
+**2. Hall of Fame: «Aggiorna i record».** I 15 mesi nuovi (ott 2024 → dic 2025) non entrano nelle
+classifiche finché non si ricalcola. Altrimenti ci pensa il cron notturno, ma solo dopo uno snapshot
+riuscito.
+
+**3. Riconciliare i due numeri che non tornano.** Sullo stesso perimetro, feb–ago 2026: la misura per
+strumento dà **+10,29%**, la ricostruzione del 29/08 dava **~16,9%**. Metodi diversi — la prima
+neutralizza ogni acquisto per strumento, la seconda a livello di portafoglio — e la differenza non è
+mai stata spiegata. Finché non tornano, nessuno dei due è definitivo.
+
+**4. Riconciliazione registro ↔ Δquantità** (follow-up della PR, già scritto in
+`docs/performance-flows-pr.md`). Per un asset coperto dal registro, un'operazione che dimentichi di
+registrare sparisce dal flusso e gonfia il rendimento, senza che niente lo segnali. Le due fonti
+sono calcolabili entrambe per ogni mese: basta confrontarle e segnalare le divergenze oltre soglia.
+
+### Non aperti, ma da ricordare
+- Il **vecchio portafoglio liquidato ad aprile 2025** (XTRAC AI, FF-GD, SHR CHINA, VNT-US EQ,
+  FR TR EU, su MedioBanca) non ha nessuna vendita registrata in nessun registro: è modellato come
+  uscito ai prezzi di marzo, quindi aprile 2025 legge 0,00% e quel mese non è recuperabile.
+- Il **L&G (IE00BFXR6159)**, comprato e rivenduto in una settimana ad agosto 2026, è escluso
+  dall'import su richiesta: si perde solo la minusvalenza di 18,07 €.
+- Lo **`scratchpad/`** non è su git e vive solo sulla macchina di Giorgio.
+
+---
+
 ## 2026-08-29 (mattina) — diagnosi completa, due fix pronti, due in attesa di dati
 
 ### Da dove siamo partiti
@@ -483,9 +518,4 @@ sono calcolabili entrambe per ogni mese: basta confrontarle e segnalare le diver
 Da aprire come issue, non parte di questa PR.
 
 ### Cosa resta da fare
-- ⬜ Rimettere `performanceIncludesExcludedAssets` a **false** in produzione (da Impostazioni). È
-  l'interruttore che accende tutto: finché è ON, base e flussi restano quelli vecchi.
-- ⬜ Hall of Fame: «Aggiorna i record» per far entrare i 15 mesi nuovi nelle classifiche.
-- ⬜ Riconciliare i due numeri della sessione del 29/08 che non tornano (+10,29% per strumento vs
-  ~16,9% ricostruito allora sullo stesso perimetro): metodi diversi, differenza mai spiegata.
-- ⬜ La riconciliazione registro/Δquantità qui sopra.
+Vedi **PUNTI APERTI** in testa al file: è l'unica lista, per non averne due che divergono.
