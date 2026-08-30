@@ -86,8 +86,10 @@ Companion documents — do not duplicate their content into this file:
   stay `text-muted-foreground`: colouring it asserts a verdict the surface has no target to justify.
 - **`--warning` is near-white in light mode**, so text on a `bg-warning` fill MUST be `text-warning-foreground`;
   standalone amber text is a different case (a caution reading uses `text-warning-foreground`, the verdict's dot too).
-- **A chart slot is not a text colour** — `--chart-1..5` target ~3:1 against a plot area (`text-[var(--chart-3)]`
-  measured 1.02:1 on one theme). The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips are exempt.
+- **A chart slot is not a text colour** — `--chart-1..8` target ~3:1 against a plot area (`text-[var(--chart-3)]`
+  measured 1.02:1 on one theme). The 2026-08-30 tail was audited to the same floor across all twelve blocks (worst case
+  3.38:1), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
+  are exempt.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
   items uses `hover:text-sidebar-foreground`. **Inline `style` blocks Tailwind hover variants**, so migrate to classes
   before adding `hover:`/`focus:`.
@@ -125,6 +127,16 @@ Companion documents — do not duplicate their content into this file:
 - `AssetDialog`: step 1 picks the type, step 2 shows only that type's fields; edit reuses the same visibility logic and
   shows a ledger asset's quantity/PMC read-only (the ledger owns them). Class select for ETFs, optional `displayTicker`,
   `leverageRatio`, and an opt-in TER only for `etf`/`commodity`/`crypto`.
+- **A marker on a label is a claim the validation has to honour.** The asterisk convention here is: `*` = required,
+  `(opzionale)` in `text-muted-foreground font-normal` = explicitly optional. Sottocategoria carried BOTH problems at
+  once until 2026-08-30 — a zod schema saying `.optional()`, an imperative guard in `onSubmit` that blocked the save,
+  and an asterisk whose condition (`availableSubCategories().length > 0`) was NARROWER than the guard's, so a class with
+  subcategories enabled and an empty list blocked the save with no marker at all. It is now genuinely optional: the
+  guard is gone, the label says `(opzionale)`, the Select carries a «Nessuna» item (`NO_SUB_CATEGORY_VALUE`, since Radix
+  reserves `''`), and BOTH write paths clear the field — `updateAsset` for cash/realestate/pensionFund and
+  `updateAssetMetadata` for every ledger type, each with the `'subCategory' in updates` guard so a partial caller does
+  not wipe a classification it never sent. The allocation consequence is not optional either: see
+  *Allocation — `allocationRole`* → the `NO_SUBCATEGORY_LABEL` bucket.
 > The default for a form whose fields depend on a discriminant. Keep the two implementations in step.
 - **The picker exists because the type is not one field among many** — it decides which categories/classes exist, which
   accounts are asked for, and how many balances move. Step 1 turns *one form with N conditional shapes* into *N plain
@@ -503,9 +515,17 @@ Companion documents — do not duplicate their content into this file:
   the last scheduled row's: the amount is bounded by the window the reader is looking at, so «361 € entro ottobre»
   would be a different and smaller claim. Two resolvers, one per period type (`describeScheduledHorizon` for `Period`,
   `describeAnalisiScheduledHorizon` for `AnalisiPeriod`), both returning null where no end can be named (the history),
-  so the clause is dropped rather than guessed. A row dated after today is `isScheduledRow`: chip «In calendario» in the
-  feed, the table and the detail drawer, and its amount drops the sign colour (the sign tokens mean gained and lost,
-  and it is neither yet). The two month charts draw the months not started at reduced opacity, never outlined — the
+  so the clause is dropped rather than guessed. **The clause is a DECOMPOSITION and must say so**: it opens on «Nel
+  totale» and closes the amount with «già in calendario», because the figure it names is INSIDE the total the verdict
+  just printed. The bare existential form shipped until 2026-08-30 and read as an addition — «spese 2910 €. In
+  calendario ci sono ancora 1850 €» invites the reader to sum to 4760 — and Centri di Costo says the same words about
+  a total that genuinely EXCLUDES them, so on Tracciamento and Analisi the words have to be unambiguous.
+  **A row dated after today is `isScheduledRow`** — after TODAY, by Italian calendar DAY and never by instant
+  (`isItalyDayAfter`): a row saved from the dialog carries its creation time and the page's `now` is frozen at mount,
+  so an instant comparison chipped a spesa recorded an hour ago. The same day rule governs `splitSpendingAtDate`,
+  `budgetUtils`' two splits and `costCenterSummary`'s `isBooked`, so the four surfaces agree on what «oggi» is.
+  A scheduled row takes the chip «In calendario» in the feed, the table and the detail drawer, and its amount drops
+  the sign colour (the sign tokens mean gained and lost, and it is neither yet). The two month charts draw the months not started at reduced opacity, never outlined — the
   outline stays the month in progress. **The figures of a running year therefore contain a forecast; that is the
   owner's decision, and the page says so.**
 - **«Da inizio anno» is a period of its own** (`Period` gained `{ kind: 'ytd'; year; throughMonth }`, and Analisi's
@@ -514,8 +534,15 @@ Companion documents — do not duplicate their content into this file:
   fully-described value; the picker fills it from today. It is a kind and NOT a custom range because it HAS an honest
   predecessor — the same months a year earlier, `{ kind: 'ytd', year: year − 1, throughMonth }` — and a name of its
   own («2026 · gen–ago», never the bare year, which is a different period). Its subject is «Nel 2026 finora» on both
-  pages, it has nothing scheduled by construction, and `resolveComparisonScope` treats `'ytd'` exactly like
-  `'current'` (`sameMonths`), so under it the headline and the percentage finally measure the SAME window.
+  pages, and it is the ONE window with no forecast in it, so `resolveComparisonScope` keeps it on `sameMonths`: the
+  headline and the percentage measure the same months on both sides. **`'current'` compares FULL YEARS** since
+  2026-08-30 (owner's call): its period spans gen–dic, so a `sameMonths` delta printed beside a whole-year total put
+  two windows in one sentence. The cost is stated in that function's docblock and must not be silently reverted — the
+  current side's remaining months hold only what is already booked, so the delta is biased DOWNWARD as the year runs,
+  and it is the verdict's scheduled clause that keeps it honest. **It is NOT a window without scheduled rows** (corrected
+  2026-08-30, three comments in the codebase claimed it was): `periodToRange` closes it on `endOfMonth(throughMonth)`,
+  i.e. the END of today's month, so it carries the rest of this month — which is why
+  `describeAnalisiScheduledHorizon` answers «a fine mese» for it. **Two conventions now coexist on purpose**: `expenseEntityStats` (a category's Scheda) and `cashflowNarrative` (Tracciamento) still measure a running year on the same months of the year before. They are honest because each NAMES its base («sugli stessi mesi del 2025»), so they were left alone — aligning them is a separate decision, not a cleanup.
 - **Two windows stay anchored to today, on purpose, and must not be «fixed» to follow the period.**
   `resolveAnchorMonth` anchors the trailing SAVINGS HISTORY, which is history and must not run into months not lived
   (`resolveFlowWindow` is the period's own chart and does cover all twelve). `currentComparisonWindow(period, now)`
@@ -773,6 +800,17 @@ Companion documents — do not duplicate their content into this file:
   is data entry, never re-bucketing cash flows or excluding cash (CLAUDE.md → Known Issues has the mirror case).
 - **Two CAGR formulas, intentionally different**: Storico's verdict = `(endNW/startNW)^(12/months) − 1` (wealth growth, said «versamenti inclusi»),
   Rendimenti = `(endNW/(startNW+netCashFlow))^(1/years) − 1` (investment return).
+- **A form that CROSS-VALIDATES a sum against a declared total must offer a field for EVERY member of the union.**
+  `CreateManualSnapshotModal` refuses to write unless `sumClassAmounts(byClass)` matches the declared `totalNetWorth`
+  within 0.01, so a class it does not ask for does not make the form incomplete — it makes an honest snapshot
+  **impossible**: with `trendFollowing` or `carry` in the portfolio the six hard-coded fields could never reach the
+  total, and every attempt was refused with an arithmetic message that named no cause. The fields are generated from
+  `ASSET_CLASS_SEQUENCE` with `ASSET_CLASS_LABELS`, and the pure helpers live in `lib/utils/manualSnapshotAmounts.ts`
+  (`emptyClassAmounts` · `parseAmount` · `sumClassAmounts`). **The sum iterates the SEQUENCE, never the record's own
+  keys**, so a stale key left by an older document cannot inflate the figure the user is asked to reconcile. The values
+  stay STRINGS — an `<input type="number">` where an empty field, a half-typed `1.` and a `0` are three different
+  things — and parsing happens once, at the boundary. The same test that pins one field per union member is what a
+  future widening trips on.
 
 ### Storico — a verdict over tiles (`app/dashboard/history/page.tsx`, `components/history/tiles/*`, `lib/utils/{storicoSummary,storicoNarrative}.ts`)
 - **The page has NO axis, and its growth is WEALTH growth.** `summarizeGrowth` measures first → latest snapshot with contributions included, and every sentence that prints its CAGR says «versamenti inclusi»; never feed it to a surface that means an investment return (that is Rendimenti's `(endNW/(startNW+netCashFlow))^(1/years)`, AGENTS → History and Snapshot Baselines).
@@ -941,9 +979,14 @@ Companion documents — do not duplicate their content into this file:
   on the closed panel): a card per row inside the Strumenti tile would be a card inside a card. Class chips take
   their label from `ASSET_CLASS_LABELS` (Italian); `lib/utils/assetUtils.ts` with its English map is gone.
 - **Italian articles are data, not guesses**: `articleForPercent` («l'8%», «il 7%», «lo 0,5%»), `ofThePercent`
-  («del 3%», «dell'8%», «dello 0,5%») and `pluralArticleFor` («gli 8», «i 3») in `patrimonioNarrative.ts` — use them
-  for any count or percentage a sentence names. **The article follows the figure as PRINTED**: 7,96 rounds to
-  «8,0%», so it takes «l'», not «il» — decide on `formatPercentage`'s output, never on the raw value.
+  («del 3%», «dell'8%», «dello 0,5%»), `atThePercent` («al 71%», «all'8%», «allo 0,5%») and `pluralArticleFor`
+  («gli 8», «i 3») in `patrimonioNarrative.ts` — use them for any count or percentage a sentence names. **The article
+  follows the figure as PRINTED**: 7,96 rounds to «8,0%», so it takes «l'», not «il» — decide on `formatPercentage`'s
+  output, never on the raw value. **An articulated preposition typed by hand is a bug waiting for a small number**:
+  `overviewNarrative`'s `describeComposition` wrote «al » literally and printed «carry al 0,1%» the first time a class
+  landed under 0,5% on the Panoramica (found in the browser, 2026-08-30). A hard-coded «al »/«del » is correct for most
+  figures, which is precisely why it survives review — grep for a quoted preposition sitting next to a
+  `formatPercentage` call before writing another one.
 - **A failed overview is an alert, not a skeleton**: the page gates the skeleton on `isLoading` of EVERY query it
   reads (assets, overview, snapshots, ledger meta) and, when the overview errs, keeps Liquidità, Movimenti and
   Strumenti alive on the live assets (`totalValue` falls back to `calculateTotalValue(assets)`) behind a
@@ -1272,6 +1315,15 @@ Companion documents — do not duplicate their content into this file:
   the Piano tile's plans **and** the Per classe rows, not merely warn.
 - **An empty target is not an orphaned target** — an unfunded sub-category MUST keep receiving money. The distinguishing
   condition is *excluded value behind it*, never "current value is zero".
+- **The subcategory is OPTIONAL, so every euro of a class must land in a bucket** (2026-08-30). The snapshot files a
+  holding with no `subCategory` under `NO_SUBCATEGORY_LABEL` («Senza sottocategoria»): dropping it made the class total
+  — the DENOMINATOR of every sleeve — larger than the sum of the sleeves, so each targeted sleeve read under target by
+  the unclassified share while its euros appeared nowhere. `toLegacyAllocationResult` emits that bucket as a row with
+  **no target, no gap and action `OK`**, rendered by `AllocationRow untargeted` (share and value, no chip, no tick) and
+  sorted LAST: the answer to «troppo o troppo poco?» there is «classificalo», which no COMPRA/VENDI chip can say. Both
+  plans must treat it as "no opinion": `buildContributionPlan` drops it as a destination (you cannot buy the absence of
+  a sleeve) and `buildWithdrawalSubCategoryNodes` ignores its 0 target and keeps the pro-rata fallback, or a withdrawal
+  would drain the unclassified holdings first.
 
 ### Allocation — the two plans and the leverage engine
 - **"Versa" and "Preleva" are ONE tree with the sign flipped**: both return `PlanNode[]` (`amount` always positive).
@@ -1305,10 +1357,30 @@ Companion documents — do not duplicate their content into this file:
   anything new starts past 8.
 - **`ASSET_CLASS_SEQUENCE` (`lib/utils/allocationUtils.ts`) is the ONE enumeration of the `AssetClass` union**, typed
   `AssetClass[]` so widening the union without extending it is a compile error. A surface that hand-lists class names
-  drops the newer ones in silence. `assetAllocationService`'s `ALL_ASSET_CLASSES` and `chartService`'s `byClass` read it.
+  drops the newer ones in silence — and **dropping a class drops its EUROS, not merely its label**: `pdfDataService`'s
+  six-name array left `trendFollowing` and `carry` out of the PDF's allocation table entirely, so the printed rows
+  stopped accounting for the whole portfolio while every one of them still looked right (2026-08-30). Known readers, all of which must stay
+  readers: `assetAllocationService`'s `ALL_ASSET_CLASSES` and `buildTargetsFromGoalAllocation`, `chartService`'s
+  `byClass`, `pdfDataService`, `historyComposition`'s band vocabulary, `manualSnapshotAmounts`, `GoalFormDialog`,
+  `AllocationBreakdown`'s order, and the goal-proposal schema in `lib/server/assistant/prompts.ts` — the model cannot
+  propose a class it is never shown, while `goalProposal.ts` already accepted it. **Two maps stay hand-written on
+  purpose and must be extended by hand**: `assetService`'s `ASSET_CLASS_ORDER` holds RANKS, not membership, and a class
+  missing from it sorts last (`|| 999`) whatever its weight; `getDefaultTargets` holds the seed PERCENTAGES a new user
+  starts from, and a class missing from it never appears in their target document at all.
 - **Widening `AssetClass` only breaks the Records actually typed `Record<AssetClass, …>`** — grep first. The costly one is
   the zod `z.enum([...])` in `AssetDialog.tsx`, surfacing as indirect assignability errors on `reset()`/`setValue()`
   sites that never name the enum.
+- **A label map has its own REGISTER and is extended, never consolidated.** Five Italian label maps exist on purpose:
+  `allocationUtils.ASSET_CLASS_LABELS` (nominal — «Azioni», the canonical one), `chartService.getAssetClassName`
+  (nominal, feeds Panoramica › Composizione and Patrimonio › Classi), `pdfDataService.getAssetClassName` (**adjectival**
+  — «Azionario»), `PortfolioSection.getAssetClassShort` (abbreviated to the column — «Materie P.») and
+  `monthlyEmailService.ASSET_CLASS_LABELS` (lowercase — «Materie prime»). Routing them all through one constant renames
+  four classes in the PDF for a fix that was meant to add two keys. **Add the key to each map**; they all close with
+  `|| assetClass`, so a missing one prints the camelCase Firestore key on screen (2026-08-30: it did, for
+  `trendFollowing` and `carry`, on the Panoramica, Patrimonio, the PDF and the periodic emails).
+- **A raw class key must never reach the model either.** `lib/server/assistant/prompts.ts` resolves every
+  `assetClass` through `assetClassLabel()` before interpolating: the blocks are quoted back to the user in Italian
+  prose, so «dell'trendFollowing» is how a Firestore key becomes a sentence.
 
 ### Allocazione — a verdict over tiles (`app/dashboard/allocation/page.tsx`, `components/allocation/tiles/*`, `lib/utils/{allocazioneSummary,allocazioneNarrative}.ts`)
 - **The page has no axis; the band is a SCOPE.** `BandToggle` (the `AsideToggle` form, with the custom `pp` field beside it) sits in the Bilanciamento tile's aside: it re-classifies every COMPRA/VENDI/OK — verdict, Piano, Per classe chips — while `computeBalanceScore` stays band-independent and the ring never moves. Never put the band beside the verdict (DESIGN.md → The Scope-Is-Not-An-Axis Rule).
@@ -1755,6 +1827,13 @@ Companion documents — do not duplicate their content into this file:
 - **oklch luminance filter**: L > 0.82 in light or L < 0.30 in dark falls back to the static palette, so a theme with
   chart colours at extreme luminance always falls back — fix it at the CSS level. Below ~0.015 chroma everything looks
   identically gray, so `--card`/`--background`/`--muted` need chroma ≥ 0.020.
+- **The token you AUTHOR is not the token the browser RETURNS.** Turbopack's CSS transform transpiles `oklch()` for the
+  build's browser targets, and `getComputedStyle(document.documentElement).getPropertyValue('--chart-6')` came back as a
+  `lab(…)` string under `npm run dev:e2e` (measured 2026-08-30). Two consequences. A Playwright assertion on a resolved
+  token must compare CHANNELS or DISTINCTNESS — never match `/^oklch\(/`, a regex on the authored syntax that fails on a
+  correct value and can only ever pass by accident. And `parseOklchL` returns `null` for anything not literally
+  `oklch(`, so the luminance fallback above is **inert** wherever the served string is transpiled: the colour passes
+  through unfiltered. Read the served string before trusting either.
 - **Action/semantic colors that must follow the theme: clamp lightness, do not index-fallback.** `useActionColors` clamps
   only the oklch L channel, preserving hue and chroma; `useChartColors`' same-index fallback would lose the theme hue and
   can collapse two states onto one colour. Resolve **once per section** and pass the colour down.
@@ -1764,7 +1843,17 @@ Companion documents — do not duplicate their content into this file:
 - **A user-chosen identity colour is a SLOT, not a hex** (`'chart-1'..'chart-8'`, resolved by `resolveCostCenterColor`).
   Three rules: **migrate without a backfill** (`LEGACY_HEX_SLOTS` maps each old hex to the slot at the same position);
   **derive the no-colour fallback from the document id** (FNV-1a), never from the row's rank, which repaints half the
-  list on every period switch; **only indices 0-4 are theme-aware** (CLAUDE.md → Known Issues).
+  list on every period switch; **indices 0-7 are theme-aware** (`--chart-1..8` exist in all twelve blocks since
+  2026-08-30), 8-9 still pad from the static `CHART_COLORS`.
+- **`--chart-6/7/8` carry a meaning across every theme** (2026-08-30): 6 = Materie Prime (gold/olive), 7 = Trend
+  Following (teal/cyan), 8 = Carry (rose/magenta) — the hue band is held per theme across light AND dark so a slot does
+  not change identity when the mode flips, and only L and C are re-pitched to the block's surface. Before this the tail
+  padded from `CHART_COLORS`, where the static teal at index 6 measured **ΔE00 0.87** from the default theme's
+  `--chart-2`: Trend Following and Obbligazioni were not similar, they were the same colour.
+- **`ASSET_CLASS_CSS_VAR` no longer exists.** `getAssetClassCssVar` DERIVES the token from `ASSET_CLASS_CHART_INDEX`
+  (`--chart-${slot + 1}`), because the hand-written map was a second source that disagreed with the first: crypto's chip
+  was `--chart-4` while its chart slot was 2, so one class wore two hues on one screen. `cash` keeps
+  `--muted-foreground` on purpose — liquidity is the absence of a position, not a series.
 - **Adding a theme**: CSS blocks `[data-theme="name"]` + `.dark[data-theme="name"]`, the `ColorTheme` union, an entry in
   `COLOR_THEME_SWATCHES` (module level in `settings/page.tsx`), the swatch grid columns, `tsc`. The swatch previews carry
   each theme's own literal oklch values ON PURPOSE — they preview a palette that is NOT active, which no CSS token can
@@ -1923,7 +2012,11 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   ACTUALLY in the collection, then assert the planted record is contained in it.
 - **A throwaway fixture must not share document ids with the seed** (`{uid}-{year}-{month}` is the trap): overwriting
   them means deleting the fixture also deletes the seed's own rows. Re-seed if it happens.
-- **A 404 from `npm run dev:e2e` on a route that exists is a stale `.next-e2e` cache, not a routing bug** — use a fresh
+- **A stale `.next-e2e` serves stale CSS as readily as stale routes.** A 404 from `npm run dev:e2e` on a route that
+  exists is that cache, not a routing bug — and so is a BRAND-NEW CSS custom property resolving to the empty string in
+  the browser while it is plainly there in `app/globals.css` (2026-08-30: `--chart-6/7/8` read `''` until the dist dir
+  was deleted and the server restarted, which reads as "the tokens were never added"). Delete the dist dir and restart
+  before doubting the selector, the token or your own edit. Use a fresh
   dist dir (`NEXT_DIST_DIR=.next-throwaway`) rather than deleting someone else's, and **keep the `.next-` prefix**,
   which is what `.gitignore` matches. Two traps on the way out: `next dev` rewrites `tsconfig.json`, so check it out
   again; and the server keeps writing briefly after it is stopped, so delete the dist dir after the process is gone.
@@ -1994,9 +2087,17 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 - **Two `boundingBox()` calls sample two different FRAMES.** While a drawer slides up the second element reads as
   *higher* than the first and a one-column layout looks like two. Read every rect a single assertion compares in ONE
   `evaluate()`. Same rule for anything measured during an animation.
-- **The emulator needs Java ≥ 21, and this machine's system JDK is 15** (verified 2026-08-28 — an earlier note here
-  claimed a system OpenJDK 21; it is not there, so CHECK `java -version` instead of trusting either claim). The portable
-  Temurin of SETUP.md → Step 6 is the way: `winget` is NOT on this shell's PATH, so fetch the zip directly
+- **The emulator needs Java ≥ 21; this machine now HAS it, and a shell already running may still not see it.** Temurin
+  21 (`C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot`) was installed on 2026-08-30, the USER `JAVA_HOME`
+  points at it and the user `PATH` carries `%JAVA_HOME%\bin`; the `Oracle\Java\javapath` shim — which resolved `java` to
+  the JDK 15 whatever `JAVA_HOME` said — was removed from BOTH the user and machine scopes (the directory is still on
+  disk, it is only off the PATH). **An environment change never reaches a process that is already running**: a session
+  started before it keeps the old `PATH`, so `java -version` inside it still prints 15 and `(Get-Command java).Source`
+  still names the shim — which is what the pre-2026-08-30 note above recorded as "this machine has no JDK 21". Read the
+  SCOPES, not the process: `[Environment]::GetEnvironmentVariable('Path','Machine')` and `…'User'`, plus
+  `[Environment]::GetEnvironmentVariable('JAVA_HOME','User')`. A new terminal picks the change up. The portable route of
+  SETUP.md → Step 6 remains the fallback where it has not been picked up (`winget` is NOT on this shell's PATH): fetch
+  the zip directly
   (`https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse`), expand it into the session
   scratchpad and export `JAVA_HOME`/`PATH` for the `npm run emulators` process only — no system change, nothing to undo.
   **In the Bash tool, `PATH` entries must be MSYS paths (`/c/Users/…`), not `C:/Users/…`**: `PATH` is colon-separated, so a
@@ -2018,13 +2119,21 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   And a decoy-absence check on `main` fails on Cashflow, where every tab stays mounted (`forceMount`) and hidden: scope
   it to `[role="tabpanel"][data-state="active"]`. **`getByRole(…, { name })` matches substrings**: «Avvisi» also
   resolves «Avvisi soglia», «Impostazioni del budget» also «Vai alle impostazioni del budget» — pass `exact: true`.
+  **`getByLabel` matches by substring AND case-insensitively**, which is worse here because Italian class labels nest:
+  a search for «Azioni (€)» also resolves «Obbligazioni (€)», so a form whose fields are generated from
+  `ASSET_CLASS_SEQUENCE` answers with a strict-mode violation naming two inputs — indistinguishable, at a glance, from
+  the field not existing (2026-08-30, the manual-snapshot dialog). Pass `{ exact: true }` on every generated field.
 - **A settings change is only verified by a RELOAD.** Reading the value back from Firestore proves the write; the form
   is rebuilt by `getSettings`, and that is the half where the bugs live (2026-08-29: four fields wrote fine and came
   back to their old value on the next load). Drive the UI, save, `page.reload({waitUntil: 'load'})`, then assert on the
   INPUTS. And test the two directions separately — setting a value and CLEARING it fail for different reasons.
-- **A throwaway session spec must match an existing project's `testMatch`** (`*.spec.ts` → `desktop`,
-  `*.mobile.spec.ts` → `mobile`), assert against Firestore rather than the page, plant a decoy word that appears nowhere
-  in the seed, delete the documents it created, and delete itself.
+- **A throwaway session spec must match an existing project's `testMatch`, and the FILENAME chooses the account.**
+  `*.spec.ts` → `desktop` (base account), `*.mobile.spec.ts` → `mobile`, `*.degraded.spec.ts` → the degraded account,
+  and **only a name containing `analisi.spec.ts` reaches the Analisi fixture account** (`testMatch: /analisi\.spec\.ts/`,
+  while `desktop` carries `testIgnore: /analisi\./`). A throwaway named after what it verifies rather than after its
+  project is therefore either not collected at all or collected against the WRONG fixture — and both read as the
+  feature being broken, not as a config miss. It should also assert against Firestore rather than the page, plant a
+  decoy word that appears nowhere in the seed, delete the documents it created, and delete itself.
 
 ---
 
@@ -2047,7 +2156,7 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 
 ### Per-page blind spots
 
-Moved verbatim from CLAUDE.md's Known Issues on 2026-08-28, when that file reached its 40.000-character budget. These are behaviours that look like bugs and are not — read them before "fixing" one.
+Moved verbatim from CLAUDE.md's Known Issues each time that file reached its 40.000-character budget — three pages on 2026-08-28, three on 2026-08-29, the rest on 2026-08-30. CLAUDE.md now keeps only the cross-cutting entries and points here. These are behaviours that look like bugs and are not — read them before "fixing" one.
 
 - **Accesso e Registrazione**: no Playwright spec (the session's throwaway ones were deleted); `ProtectedRoute` keeps its pre-redesign spinner, the last piece of old chrome on the sign-in path. The submit button stays ENABLED with the password rules unmet, as before the redesign — the refusal is the reading line, not a dead control. That reading lives in a **polite** `role="status"` even on failure: a node that switched to `role="alert"` would change identity in the accessibility tree and some screen readers announce nothing across the swap. On success the form stays frozen until the redirect (it used to re-enable). The outcome toasts are gone from both pages: the tile says the state. `describeAuthError` covers 14 codes and anything else takes the generic sentence, so a NEW Firebase cause is invisible until it is added. The whitelist stays a DEROGATION from `REGISTRATIONS_ENABLED=false` (SETUP.md → Step 5b depends on it): `resolveRegistrationAccess` mirrors that, it does not correct it.
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread sheet keeps its 3 s auto-disarm delete (on request) while the memory rows use `useArmedDelete`; a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
@@ -2057,6 +2166,17 @@ Moved verbatim from CLAUDE.md's Known Issues on 2026-08-28, when that file reach
 - **FIRE › Coast FIRE**: the verdict's two capital figures are net of the locked fund and only the lock sentence says so; the pension clause reads «la Pensione INPS» for labels starting with «Pension…», «la pensione di Giuseppe» otherwise (every pension listed, never counted); `coast.spec.ts` asserts structure and format only (the fixture fixes expenses, not the clock); the Ipotesi disclosure reopens on every unsaved edit or incomplete pension row, ONE save for four tiles; the «Impatto delle pensioni» table exists from 1440 only; `buildCoastInflowEvents` merges funds unlocking in the same year.
 - **FIRE › Monte Carlo**: no Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); `results.medianFinalValue` has no surface.
 - **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation, nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; the Sensibilità reference expenses are session-only; `isPrimaryResidence` is informational.
+- **Patrimonio**: Δ columns are empty for pension funds and cash accounts by design; the Rendimento tile ranks only within the overview's `topAssets` (15 largest); «Movimenti del mese» reads the whole ledger and filters in memory; the 2-click delete auto-disarms on a 3 s timer (kept on request); G/P against PMC compares a native-currency `averageCost` with the EUR value; `TaxCalculatorModal` simulates in the native price but labels €; `AssetDialog.tsx` carries 7 pre-existing `react-hooks` errors. **Two accepted side effects of the optional Sottocategoria** (2026-08-30; neither is new — without the asterisk they are only less signalled): a cash account without the «conti correnti» subcategory loses the 5.000 € stamp-duty threshold (`calculateStampDuty`, a rule Impostazioni already states), and changing Tipo or Classe does not clear `subCategory`, so an out-of-class value can survive invisibly — Radix shows the placeholder because the value is not among the items.
+- **Tracciamento**: «Tabella» renders `ExpenseTable` unchanged inside Movimenti; the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip).
+- **Budget**: `BudgetItemDialog` stays for create/edit (no inline editing); **the ceiling history starts with the first cron run after the deploy** (earlier months read against today's ceiling, «prima quello attuale»), a month's record is its LAST captured configuration; the crossing day comes from the EXPENSE DATES (a backdated row moves it), an annual budget has no crossing sentence; a budget with every threshold off and already exceeded shows only in Per categoria; `app/dashboard/cashflow/page.tsx` carries two pre-existing `react-hooks` findings.
+- **Centri di Costo**: no Playwright spec; `CostCenterDialog` keeps its pre-redesign chrome; an annual ceiling has no crossing day (`crossedOn` is monthly only); «Al mese» divides by the calendar months since the first expense (an idle project reads as a lower monthly cost, by design); «in totale» counts rows dated up to today (a future row is «in calendario»); the subcategory lens and the movements window (25 + «Mostra altre») are per-center, session-only state.
+- **Analisi**: «Fuori scala» runs on ONE month only (25% / 50 € over a 6-month average, hardcoded); a month not started gets «non è ancora iniziato»; «Mostra tutte», the Confronto year and the Flusso toggles are session-only; the Scheda's transactions window is 25 + «Mostra altre»; `EntityDossier` stays Recharts; `SavingsRateTrendSection`/`AndamentoStoricoSection` compute in the component (untested); the Sankey drops small slices on phones; no spec covers «Anno» with a month.
+- **Dividendi**: the payments table dropped *Tax/Netto/Costo per azione*; the calendar day opens the day dialog instead of filtering; under «Mese» no month arrows, under «Anno» they stop at January/December; the 2-click delete keeps its 3 s auto-disarm; the list toolbar is rendered twice. The yield never follows the period (TTM on the current holding); the DPS running-year column is a partial sum; no `averageCost` → the tile becomes an explanation.
+- **Rendimenti**: no Playwright spec; the six benchmark series + FX load on every visit (6h `staleTime`), only a FAILED FX route falls back to USD (the aside says so); Sharpe/Sortino use the settings' risk-free rate; the payload's `drawdownDuration`/`recoveryTime` are no longer displayed (the tiles read `resolveDrawdownStory`); a 1-anno window without the current month's snapshot measures 11 months and says so; the rolling readings live in `PerformanceDettaglio` (untested); `AIAnalysisDialog`/`CustomDateRangeDialog` keep their old chrome.
+- **Storico**: no Playwright spec; the pace and the next-doubling projection need the snapshot of EXACTLY twelve months earlier and the pace verdict 24 months of history; the projection is linear, dropped beyond fifty years; the Driver shows only years from `cashflowHistoryStartYear` (untracked income lands in «mercato») and its bars the last twelve CALENDAR months; the Lavoro net can be negative on a positive gross (taxes on ALL latent gains); the Evoluzione Y axis prints full amounts under 10.000 € of span; the confetti keeps literal hexes; the two dialogs keep their old chrome.
+- **Previdenza**: a contribution the fund credits late reads as a temporary market loss in the month it is recorded (the window's total heals once credited and the value updated — by design, → *Fondo Pensione*); the sparkline starts where the snapshots carry `byAsset`; the month chip needs the previous month's snapshot; two contributors stack one block per person; the IRPEF saving uses the default brackets; the dialog keeps its old chrome.
+- **Hall of Fame**: no Playwright spec; the two savings rankings and `stats` do not exist in documents written before 2026-08-25 — until a recalculation the Risparmio tile explains instead of ranking; the nightly cron recalculates only AFTER a successful snapshot (an account without assets has only «Aggiorna i record», disabled in demo). A month with income and ZERO expenses reads 100% savings; Note sorts by annotated PERIOD; the 12-record chart drops the SMALLEST records past the twelfth; a note survives its period leaving the top twenty; `HallOfFameNoteDialog` keeps its old chrome and two pre-existing `react-hooks` errors.
+- **FIRE › Obiettivi**: no Playwright spec; ONE `now` per mount; with three goals the Obiettivi tile leaves air under the rows; a goal past its deadline gets no pace; free shares under 0,5% / 0,50 € are not listed; the selection is session-only; the «assigned» bar counts the reached goals, the derived target does not; the two dialogs keep their old chrome and two pre-existing `react-hooks` errors.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
