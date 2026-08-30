@@ -1,655 +1,491 @@
-# SESSION NOTES — 2026-07-21 — Review compliance vs `spec-fondo-pensione.md`
+# SESSION NOTES — 2026-08-29/31 — Audit dei Rendimenti, ricostruzione storica, fix D1
 
-## Obiettivo della sessione
-Verificare il branch `pension-fund` contro `scratchpad/spec-fondo-pensione.md` (specifiche funzionali
-autorevoli, §7 decisioni prese, §8 viste) e produrre un **piano di review + refactor** per renderlo
-compliant. La spec è la fonte di verità: dove le decisioni del 2026-07-19 (sotto) divergono, **vince
-la spec** salvo diversa indicazione di Giorgio.
+**Esito**: i quattro difetti dell'audit sono chiusi. 23 mesi di storia (da ottobre 2024) ricostruiti
+e scritti in produzione, registro operazioni completato con le vendite, e il calcolo dei rendimenti
+corretto nel codice — dove i flussi ora seguono la base invece di venire sempre dal Cashflow.
+Da 35,1% annualizzato (raddoppiato) a **16,16%** misurato.
 
-## Stato verificato (2026-07-21)
-- `npx tsc --noEmit` **pulito**; `vitest` sui 4 file pension **30/30 verdi**.
-- `firestore.rules`: **nessuna** regola `pensionContributions` (la collection dedicata non esiste).
-- Il **layer fiscale puro è solido e in gran parte compliant**: `types/pension.ts` +
-  `lib/utils/pensionDeduction.ts` (deducibilità ordinaria + fold extra-deducibilità con
-  accumulo/drawdown/scadenza, tetti configurabili per-anno, `taxOf` iniettato). Da mantenere.
+La descrizione della modifica al codice, pensata per una PR upstream, sta in
+**`docs/performance-flows-pr.md`**. Questo file è il diario: come ci siamo arrivati e cosa resta.
 
-## Divergenze modello vs spec (ordinate per gravità)
+> Gli script e i dump usati per la ricostruzione vivono in `scratchpad/rendimenti-audit/`, che da
+> oggi è in `.gitignore`: contiene dati finanziari reali (spese, saldi, patrimonio) e non deve
+> finire su un repository pubblico.
 
-### 🔴 BLOCCANTI (l'architettura scelta contraddice esplicitamente la spec)
-1. **Contribuzioni come `Expense` taggate (`pensionContributionNature`) invece della collection
-   dedicata `pensionContributions`.** La spec §2.2/§2.3 lo **vieta esplicitamente** ("❌ Non
-   modellare le contribuzioni come `expenses`... inquinerebbero savings rate e budget"). L'impl
-   attuale è costretta a neutralizzare/filtrare i contributi in *ogni* choke point di cashflow —
-   esattamente il "combattere l'architettura" che la spec evita. → serve collection dedicata
-   (pattern `dividends`) + regole + indici.
-2. **`pension` aggiunto come nuovo `AssetClass`.** Spec §2.1: «il fondo **NON** è una nuova asset
-   class» — è equity+bonds via `composition[]`. Va aggiunto solo `AssetType: 'pensionFund'` + blocco
-   `PensionFundDetails`, tenendo il fondo fuori dalla base d'allocazione con un'esclusione dedicata
-   (non una classe fantasma da patchare in ogni `Record<AssetClass,…>`).
-3. **`PensionFundDetails` assente.** Spec §2.1: provider, `enrollmentDate`, `firstEmploymentDate`,
-   `isFirstEmploymentPost2007`, `unlockDate`, `currentBenefitTaxRate`, cumulativi. Nessuno esiste →
-   FIRE/tassazione/plafond non hanno i dati d'ingresso previsti.
-4. **Volontario NON è un transfer.** Spec §4.3/§7.2: flusso dedicato che riusa `reconcileTransferCreate`
-   (decrementa conto, incrementa valore fondo) + crea `PensionContribution`. Impl: spesa `variable`
-   neutralizzata, senza conto di provenienza, senza toccare il NAV.
-5. **Semantica del valore del fondo assente.** Spec §4.2/§7.1: versamento → `valore += importo`
-   immediato; estratto conto → overwrite assoluto. Impl: valore 100% manuale, i contributi non lo
-   toccano → si perde il rendimento money-weighted (§8.3).
+## 2026-08-29 (mattina) — diagnosi completa, due fix pronti, due in attesa di dati
 
-### 🟠 IMPORTANTI (default/semantica invertiti o feature mancanti in scope Fase 1-2)
-6. **Toggle cashflow invertito.** Spec §4.1/§7.3: `includePensionContributionsInCashflow`, default
-   **off** (TFR/datoriale NON sono income di default). Impl: `excludePensionAccrualsFromCashflow` —
-   default TFR/datoriale **sono** income, toggle per escluderli. Default opposto alla spec.
-7. **Campo RAL `grossAnnualIncome` in Settings mancante** (spec §3.1/§6.5) → il beneficio fiscale non
-   è calcolabile end-to-end pur avendo la util pronta.
-8. **`PensionContributionDialog` incompleto** (spec §6.3): mancano anno fiscale, selettore conto di
-   provenienza per il volontario, micro-education per natura.
+### Da dove siamo partiti
+Giorgio dubitava dei numeri della pagina **Rendimenti**. Fonte di confronto: un foglio Google
+(`Portafoglio` → tab `Yearly Return`) dove traccia l'XIRR a mano dal 2025. Screenshot e dati in
+`scratchpad/rendimenti-audit/`.
 
-### 🟡 VISTE / FASI SUCCESSIVE (Fase 3-4 spec, non ancora iniziate — coerente con lo stato)
-9. FIRE: toggle "capitale bloccato fino a `unlockDate`" per-fondo + aliquota 15→9% (spec §5). Assente.
-10. Coast FIRE: fondo come terza gamba distinta da INPS (spec §5.4). Assente.
-11. Viste §8: Allocazione (2 card read-only), Storico (segmento previdenza), Rendimenti
-    (`performanceBase` portfolio/netWorth), **vista dedicata "Previdenza complementare" in
-    Pianificazione** con link dalla card in Patrimonio. Assenti.
+**Domanda della sessione**: errore nel codice, o porting sbagliato del registro operazioni?
+**Risposta**: entrambi, e sono separabili. Il difetto dominante è di **codice** (perimetro), i
+difetti minori sono di **dati** (porting).
 
-### ⚠️ Conflitti decisione 2026-07-19 ↔ spec (da confermare con Giorgio)
-- **Casa della feature**: 2026-07-19 → tab "Previdenza" in `fire-simulations`. Spec §8.4 → **vista
-  dedicata nel gruppo Pianificazione** + link dalla card asset. La spec vince salvo diversa scelta.
-- **Contribuzioni via Cashflow** (2026-07-19) ↔ collection dedicata (spec §2.2). La spec vince.
-- Queste erano scelte pragmatiche MVP; la spec, più recente e autorevole, le supera.
+### La ricostruzione è affidabile
+Ho scaricato i dati di produzione in sola lettura (`scratchpad/rendimenti-audit/dump.mts`,
+uid dell'account, letto da `.env.local`) e ho riprodotto la pipeline dell'app fuori dall'app.
+I numeri della schermata escono identici, quindi ogni conclusione qui sotto è misurata, non dedotta:
 
-## Decisioni Giorgio (2026-07-21)
-- **Contribuzioni → collection dedicata** `pensionContributions` (spec §2.2), refactor completo:
-  rimuovere il tag da `Expense` e tutta la neutralizzazione nei choke point.
-- **Casa feature → vista dedicata in Pianificazione** (spec §8.4) + link dalla card asset; NON più il
-  tab in fire-simulations.
-- **Si parte da R0-R1** (fondamenta dati + migrazione contribuzioni).
+| | schermata | ricostruzione |
+|---|---|---|
+| ROI periodo (YTD, feb–ago 2026) | 19,28% | 19,28% |
+| CAGR | 35,02% | 35,02% |
+| IRR | 35,08% | 35,12% |
+| TWR annualizzato | 35,1% | 35,13% |
+| «rendimento di mercato» | 17.391 € | 17.391,36 € |
 
-## FATTO in questa sessione (R1 completo + C + R0 additivo) — tutto verde
-Verifica finale: `npx tsc --noEmit` **pulito**, suite **1037 test verdi** (60 file).
-
-- **R0 additivo**: `PensionContribution` + `PensionFundDetails` in `types/pension.ts`; `Asset` ha ora
-  `pensionFundDetails?` (`types/assets.ts`). Alias `ContributionSource` = `PensionContributionNature`
-  + helper `isDeductibleSource`.
-- **R1 — collection dedicata `pensionContributions`** (spec §2.2):
-  - `lib/services/pensionContributionService.ts` riscritto → scrive/legge su `pensionContributions`
-    (client Firestore, referenzia il fondo via `assetId`, `taxYear`, `deductible` derivato).
-  - `firestore.rules`: nuovo blocco `pensionContributions` (clone di `expenses`). `firestore.indexes.json`:
-    indici `(userId,date desc)` e `(userId,assetId,date desc)`. **DA DEPLOYARE** (`firebase deploy
-    --only firestore:rules,firestore:indexes`).
-  - `lib/hooks/usePensionContributions.ts` + `queryKeys.pensionContributions`.
-  - `lib/utils/pensionContributions.ts` riscritto per `PensionContribution[]` (chiave = `taxYear`).
-  - `PensionContributionDialog`: selettore fondo + natura + importo + data + anno fiscale; scrive su
-    collection. `PensionTab`: legge da `usePensionContributions`, deriva i fondi da `useAssets`
-    (`type==='pension'`).
-- **C — rimosso tutto l'accoppiamento con `Expense`**: eliminato `pensionContributionNature` da
-  `Expense`/`ExpenseFormData` e la neutralizzazione in `expenseService` (isCountableExpense/summary),
-  `cashflowTimeSeries`, `budgetUtils`, `dashboardOverviewService`, `monthlyEmailService`. Rimosso il
-  selettore natura da `ExpenseDialog`. Rimosso il flag `excludePensionAccrualsFromCashflow`
-  (types/assets, assetAllocationService ×2 write-path, settings page ×6 incl. Switch UI, cashflow
-  page ×3, ExpenseTrackingTab). Eliminati `lib/utils/pensionCashflow.ts`, `__tests__/pensionCashflow.test.ts`,
-  `__tests__/pensionMetricNeutralization.test.ts`. Riscritto `__tests__/pensionContributions.test.ts`.
-  Motivazione: nel modello spec i volontari NON sono expenses (vanno in collection dedicata, e in R2
-  diventano `transfer` già neutralizzati) → tutta la neutralizzazione era codice morto.
-
-## FATTO in questa sessione — parte 2 (R2 + R3 + R4a) — tutto verde
-Verifica: `tsc` pulito, **1042 test verdi** (60 file).
-
-- **R2 — valore fondo + volontario come transfer** (§4.2/§4.3): `pensionContributionService` ora
-  orchestratore. TFR/datoriale → `updateCashAssetBalance(fondo, +importo)` (il valore del fondo vive
-  in `quantity`, prezzo 1, come il cash). Volontario → `ensureTransferCategory` + `createExpense`
-  (transfer conto→fondo) + `reconcileTransferCreate` (conto −importo, fondo +importo, atomico) +
-  `PensionContribution.linkedExpenseId`. Dialog: selettore conto di provenienza (solo volontario) +
-  invalidazione asset/expenses/dashboard. L'estratto conto resta un edit manuale dell'asset (overwrite).
-- **R3 — RAL + beneficio fiscale + plafond** (§3): `computePensionTaxRecap` puro (wrapper su
-  deduction state + `computePensionTaxBenefit` con `taxOf` iniettato) + test. Settings:
-  `grossAnnualIncome` (RAL), `isFirstEmploymentPost2007`, `firstEmploymentYear` (persistiti in
-  `assetAllocationService` 2 write-path). PensionTab: card «Beneficio fiscale {anno}» (deducibili,
-  TFR escluso, risparmio IRPEF via `calculateProgressiveTax` + brackets Coast FIRE) + card «Plafond
-  deducibilità» (creato/residuo/extra) per prima-occupazione-post-2007; RAL/prima-occupazione
-  editabili inline. **NOTA**: il toggle `includePensionContributionsInCashflow` (§4.1) NON è stato
-  fatto — nel nuovo modello (contributi fuori dal cashflow) richiederebbe iniezione di income
-  figurativo cross-superficie; default-off = app corretta senza. Da valutare se serve davvero.
-- **R4a — aliquota prestazione 15→9%** (§5.2): `deriveBenefitTaxRate(yearsEnrolled)` puro + test
-  (15% ≤15 anni, −0,30 p.p./anno, floor 9% a 35 anni).
-- **Storico versamenti + eliminazione** (post-test): lista in PensionTab con delete 2-click che
-  **storna l'effetto**: `deletePensionContribution(contribution)` fa il reverse — TFR/datoriale →
-  `updateCashAssetBalance(fondo, −importo)`; volontario → `reconcileTransferDelete` (conto +importo,
-  fondo −importo) + `deleteExpense(linkedExpenseId)`. `PensionContribution` ha ora `sourceCashAssetId`
-  persistito per lo storno. **Edit versamento: NON ancora fatto** (per ora = elimina + reinserisci).
-
-## FATTO in questa sessione — parte 3 (AssetDialog + R4b + viste §8.2/§8.4) — tutto verde
-Verifica: `tsc` pulito, **1046 test verdi** (61 file). Firestore già deployato.
-
-- **AssetDialog — `PensionFundDetails`**: campi provider / data adesione / data sblocco per il tipo
-  pension (schema zod + reset edit + assemblaggio submit + UI). Date come **stringhe ISO** (round-trip
-  Firestore pulito, niente conversione Timestamp). `AssetFormData` += `pensionFundDetails`.
-- **R4b — FIRE capitale bloccato** (§5.3): setting `respectPensionLockInFire` + toggle nel
-  Calcolatore FIRE. Helper puro `lib/utils/pensionFire.ts::calculatePensionLockedValue` (valueOf
-  iniettato) + test. `FireCalculatorTab`: `currentNetWorth = fireNW − valore fondi bloccati` quando on
-  (il valore resta nel patrimonio totale). Coast FIRE terza gamba + withdrawal netto 15→9% = Fase 2/3
-  spec, **rimandati**.
-- **Vista dedicata «Previdenza»** (§8.4): nuova pagina `/dashboard/pension` (riusa `PensionTab`),
-  registrata in `planningNav` (gruppo Pianificazione), tab rimosso da `fire-simulations`, **link
-  «Vai a Previdenza»** dalla card asset pension in Patrimonio.
-- **Storico segmento previdenza** (§8.2): `prepareAssetClassHistoryData` (`chartService`) aggiungeva
-  6 classi hardcoded e **droppava `pension`** → aggiunto `pension`/`pensionPercentage`; serie
-  «Previdenza» nei due grafici Composizione (Line % + Area). **Conferma**: la classe `pension` è ciò
-  che alimenta il segmento → tenerla era giusto (checkpoint D di rimozione classe è quindi SCONSIGLIATO).
-
-## FATTO in questa sessione — parte 4 (§8.1 + §8.3) — tutto verde
-Verifica: `tsc` pulito, **1049 test verdi** (62 file).
-
-- **§8.3 — Rendimenti base portafoglio**: helper puro `lib/utils/performanceBase.ts`
-  (`toPerformanceBaseSnapshots`, enum `PerformanceBase` estendibile) + test. Applicato in
-  `getAllPerformanceData` (fetch interno) e nella pagina Rendimenti (`cachedSnapshots`) → tutte le
-  metriche di portafoglio (TWR/Sharpe/vol/MaxDD/ROI/CAGR) ora escludono `byAssetClass.pension`. Unico
-  consumer = pagina Rendimenti, nessun impatto altrove. Versione MINIMA come da spec («niente di
-  più»); limite noto documentato nell'helper: il volontario è un outflow di portafoglio non
-  neutralizzato nel TWR (TFR/datoriale non toccano il portafoglio → nessun effetto).
-- **§8.1 — Allocazione 2 card read-only**: `components/allocation/PensionAllocationCards.tsx` —
-  toggle «Mostra previdenza complementare» → Card A (sottostante fondo via `expandAssetExposure`) +
-  Card B (portafoglio + previdenza). Torta principale/action chip **intoccate** (fondo già escluso).
-  Aggiunto dopo il divider «Dettaglio».
-
-## FATTO — parte 5: allocazione sottostante del fondo (composition look-through)
-Verifica: `tsc` pulito, **1049 test verdi**.
-
-Modello (spec §2.1): la `composition` del fondo esprime l'allocazione sottostante (es. 75% azioni /
-20% obbligazioni / 5% REIT) ma va guardata attraverso **solo** nella vista dedicata; ovunque altrove
-il fondo resta INTERO come classe `pension` (allocazione azionabile esclusa, net worth, segmento
-storico §8.2 preservato).
-- **`expandAssetExposure`**: early-return per `type === 'pension'` → un solo componente classe
-  `pension`, IGNORA la composition (niente leak nelle viste aggregate). `goalService` guardato allo
-  stesso modo.
-- **AssetDialog**: editor «Asset Composto» abilitato per il tipo pension (`newAsset_showComposition`);
-  righe classe+% che sommano a 100 (validazione esistente); reset edit già type-agnostico.
-- **PensionAllocationCards**: `assetLegs()` guarda attraverso la composition del fondo (Card A e B);
-  gli altri asset via `expandAssetExposure`. È l'UNICO punto di look-through.
-
-## STATO FEATURE: COMPLETA (tutte le fasi + §8)
-Tutto il documento di specifiche è implementato tranne item esplicitamente rimandati DALLA SPEC
-(Coast FIRE terza gamba §5.4, withdrawal netto asset-aware / Monte Carlo §5.3 fase 2, chiusura del
-cerchio 730 §3.3 fase 2, toggle `includePensionContributionsInCashflow` §4.1 — default-off rende
-l'app corretta senza). Cosmetico SCONSIGLIATO: rename `AssetType pension→pensionFund` (churn inutile;
-`AssetClass pension` va TENUTA — alimenta il segmento Storico §8.2 e l'esclusione allocazione).
-
-### Deviazione consapevole (checkpoint D deferito)
-`AssetType` resta `'pension'` (non ancora `'pensionFund'`) e `AssetClass 'pension'` è **mantenuta**:
-è il meccanismo che oggi (a) esclude il fondo dall'allocazione azionabile (§8.1, via
-`getExcludedClasses`) e (b) fornisce gratis il segmento previdenza distinto nel net worth che §8.2
-richiede. Rimuoverla in isolamento regredirebbe §8.2; va fatta insieme alle viste §8 (R5/D), dove
-l'esclusione diventa type-based e il segmento è renderizzato esplicitamente. È l'unico punto di
-non-compliance-sulla-carta residuo; funzionalmente il comportamento è già quello voluto dalla spec.
-
-## Piano di refactor — vedi risposta in chat (fasi R0→R5)
-Layer fiscale puro = da conservare. Il grosso del lavoro è spostare le contribuzioni sulla collection
-dedicata, introdurre `PensionFundDetails` + `pensionFund` come AssetType (non class), il volontario
-come transfer con incremento NAV, e invertire il default del toggle cashflow.
+Ricalcolando **lo stesso perimetro** correttamente: TWR ≈ 16,9%, IRR ≈ 17,5%, ROI 12,2%,
+guadagno di mercato 7.933 €. Il foglio dà 21,73% su gen–ago e su un perimetro più stretto (solo
+Fineco). **L'app raddoppiava il rendimento reale.**
 
 ---
 
-# SESSION NOTES — 2026-07-19
+## I difetti trovati
 
-## 🔖 RIPRESA SESSIONE — Handoff
+### D1 — [CODICE, dominante] Base e flussi misurano perimetri diversi
+Tutti gli 11 conti liquidi (più l'ETF monetario `XEON.DE`) hanno `allocationRole: 'excluded'`.
+`resolvePerformanceExclusions` (`lib/utils/performanceBase.ts`) legge `allocationRole === 'excluded'`
+come «fuori dalla base dei Rendimenti» → **la base misurata era il solo capitale investito**.
 
-### Cosa (implementato in questa sessione)
-- **Fix UI**: sovrapposizione dei due numeri a leva nell'hero Allocazione su mobile
-  (`AllocationHero.tsx`, `grid-cols-1 … tablet:grid-cols-2`). **Da pushare su main** (branch attuale
-  = `pension-fund`); il resto sta sul branch.
-- **Fondo pensione — Fasi 0→3 complete + Fase 4 parziale**:
-  - Core fiscale puro: `types/pension.ts`, `lib/utils/pensionDeduction.ts` (deducibilità ordinaria +
-    fold extradeducibilità), `lib/utils/pensionContributions.ts` (rollup per anno/natura). Tutti con test.
-  - Asset type `pension` (Patrimonio, valutazione manuale come immobili, sempre fuori allocazione).
-  - Contributi per natura (TFR/Volontario/Datoriale) tracciati via Cashflow (`Expense.pensionContributionNature`).
-  - Flusso dedicato **"Registra versamento"** + tab **Previdenza** (`fire-simulations`): registra i
-    versamenti e mostra il **versato** per natura/anno.
-- **Metriche cashflow**: volontario SEMPRE neutralizzato (tutti i choke point). TFR/datoriale =
-  entrate, con **toggle in Impostazioni** ("Escludi TFR e datoriale dal cashflow") — per ora
-  agganciato solo all'**hero Tracciamento**.
+Ma i flussi che dovrebbero neutralizzarla vengono da `getCashFlowsFromExpenses`
+(`lib/services/performanceService.ts:906`), che calcola `entrate − uscite` del Cashflow e **salta i
+trasferimenti**. Lo spostamento di denaro da un conto liquido a un ETF non esiste, per costruzione.
 
-### Perché (motivazioni chiave)
-- Fondo pensione fuori allocazione + valutazione manuale = è capitale bloccato/illiquido, non una
-  posizione da ribilanciare, e non c'è API prezzi (aggiornamento manuale come gli immobili).
-- Volontario neutro = è un trasferimento dei propri risparmi nel fondo, non consumo. TFR/datoriale
-  opzionali = sono entrate reali ma non di immediato accesso, quindi la scelta è dell'utente.
-- Flusso dedicato = il selettore natura nelle "Impostazioni avanzate" dell'ExpenseDialog non era
-  scopribile; il mini-form nasconde la complessità (tipo entry + categoria).
-- Filtro condiviso (`filterCashflowExpenses`) invece di threadare un flag in ogni funzione = non
-  cambia le firme esistenti → rischio minimo, superfici consistenti wrappando l'input.
+Numeri: feb–ago 2026 sono stati comprati **35.208 €** di strumenti mentre la classe `cash` scendeva
+da 48.300 € a 18.475 €. Quei 35.208 € entrano nella base e vengono letti come **rendimento**.
+I flussi neutralizzati erano 659 €. Febbraio: l'app leggeva **+13,14%**, il reale era **+2,87%**.
 
-### Nota (gotcha / dettagli importanti)
-- **Non posso compilare da qui** (shell non monta il repo): tutti i `npx tsc --noEmit` / `vitest` /
-  `npm run build` li lancia Giorgio. Verificato live: il filtro cashflow funziona nel tab.
-- **Test dei service**: importano moduli Firebase → in vitest vanno mockati (`vi.mock` su
-  `@/lib/firebase/config` o sui service), come in `fireService.test.ts`.
-- **Query categorie**: usare `getAllCategories` (indice esistente) + filtro in memoria, NON
-  `getCategoriesByType` (richiede un indice composito non deployato) — vale per chiunque tocchi le categorie.
-- **Union AssetClass/AssetType**: aggiungendo `pension` ho dovuto patchare i `Record<AssetClass,…>`
-  completi (settings, defaultSubCategories, goalTrajectory, AllocationComparisonBar). Se aggiungi
-  altre classi/tipi, cerca gli usi esaustivi.
-- Il tetto deducibilità è **costante per-anno** (`getPensionDeductionCeiling`): 5.164,57 ≤2025, 5.300 ≥2026.
+`allocationRole: 'excluded'` risponde a «cosa non ribilancio»; viene riusato per «cosa non misuro».
+Sono due domande diverse. Il `KNOWN LIMITATION` in testa a `performanceBase.ts` descrive già il
+fenomeno per i versamenti volontari al fondo pensione, ma lo tratta come un piccolo residuo: con la
+liquidità esclusa è il termine dominante.
 
-### DA FARE alla ripresa (in ordine)
-1. **Decidere insieme**: a quali altre sezioni estendere il filtro accrual (Analisi, Storico, Anno
-   Corrente, budget, Panoramica/overview, email) e **dove rendere visibile la componente fondo pensione**.
-2. **Estendere il filtro** alle superfici scelte (one-liner `filterCashflowExpenses` per punto — vedi
-   log "Opzione Escludi TFR/datoriale").
-3. **Completare Fase 4**: recap fiscale nel tab Previdenza — input **RAL** + 3 cifre (risparmio
-   fiscale dell'anno, plafond creato, bank residuo) usando `pensionDeduction.ts`.
-4. **Fase 5**: tassazione in uscita (15%→9% per anzianità) → il fondo conta NETTO nel FIRE.
-5. Push fix mobile su main; poi verifiche tsc/build su tutto il branch.
+**Stato: MITIGATO** — Giorgio ha attivato `performanceIncludesExcludedAssets: true` (verificato in
+produzione il 2026-08-29). La base torna a essere il patrimonio e i flussi tornano coerenti:
+**TWR 19,84%, ROI 11,16%**. Il difetto di codice resta aperto per chiunque altro.
 
----
+> Nota d'ordine, contro-intuitiva: **i fix ai dati vanno fatti DOPO questa decisione, non prima.**
+> Ricostruendo solo il `byAsset` di gen–giu senza toccare il perimetro, la base di gennaio sarebbe
+> scesa a 65.115 € e il ROI sarebbe schizzato a **+65%**. I due difetti si compensavano a metà.
 
-## 1. RISOLTO — Sovrapposizione mobile nell'hero Allocazione (numeri a leva)
+### D2 — [DATI] `byAssetClass` di luglio 2026 corrotto
+Somma **155.628 €** contro un `totalNetWorth` di 126.655 €. Equity +17.704, bonds +9.518, e il fondo
+pensione messo in una classe `pension` propria invece che spalmato per `composition`. `byAsset`
+invece torna al centesimo. Non tocca i Rendimenti (che leggono `totalNetWorth`), ma falsa
+Storico → Composizione e la storia di Allocazione.
 
-### Sintomo
-Pagina Allocazione, viewport mobile: i due numeri grandi **Patrimonio investito** ed
-**Esposizione nozionale** si sovrapponevano orizzontalmente — la `€` del numero di sinistra
-collideva con la prima cifra di quello di destra (screenshot utente, larghezza iPhone ~390px).
+**Stato: ✅ APPLICATO il 2026-08-30** (`scratchpad/rendimenti-audit/fix-snapshots.mts --apply`).
+Ricalcolo da `byAsset` con la regola del writer. Luglio ora somma 126.655,32 = patrimonio; la classe
+fantasma `pension` è sparita, `realestate` +92,13. Verificato con `check-state.mts`.
 
-### Causa
-`components/allocation/AllocationHero.tsx`, ramo `hasLeverage`: i due numeri paritari erano in
-`grid grid-cols-2 gap-4`. Ogni numero è `font-mono text-[30px]` (es. `125.469,10 €`). Due numeri
-così non entrano affiancati in due colonne da ~175px su un telefono → overflow e collisione. Il bug
-compare **solo con portafoglio a leva** (il ramo a numero singolo era già a posto).
+### D3 — [DATI] Fondo pensione assente da apr/mag/giu 2026
+I versamenti partono dal 30/04/2026, ma il fondo è nato come asset il 28/08 e quegli snapshot
+(creati a mano il 24/07) non lo contengono. Contributi cumulati: apr 725,54 · mag 1.088,31 ·
+giu 1.451,09 €. Giorgio ha chiesto di aggiungerlo.
 
-### Fix
-Reso responsive lo split a due colonne (prima era incondizionato):
+**Stato: ✅ APPLICATO il 2026-08-30** (stesso script). Contributi **cumulati**, quindi tutto il
+rendimento del fondo resta attribuito a luglio (che vale 1.842,69 contro 1.813,86 di contributi).
+Se hai gli estratti mensili del fondo, portali e sostituisco i valori.
 
-```
-- <div className="grid grid-cols-2 gap-4">
-+ <div className="grid grid-cols-1 gap-4 tablet:grid-cols-2">
-```
+### D4 — [DATI] assetId orfano nel `byAsset` di luglio — **✅ CHIUSO il 2026-08-30**
+Lo snapshot di luglio referenzia l'`assetId` di un «Fondo Pensione Intesa» (1.842,69 €), un
+asset cancellato. L'attuale è un altro id, «Fondo Pensione ISP» (stesso fondo, confermato
+da Giorgio; composizione 70/25/5 invariata). Le esclusioni si costruiscono dagli asset *attuali*,
+quindi a luglio il fondo resta dentro la base e ad agosto ne esce.
 
-- Telefoni: i due numeri si impilano in verticale, ognuno a piena larghezza — nessuna collisione.
-- `tablet:` (`--breakpoint-tablet: 768px` in `app/globals.css`, già usato altrove es. `GoalsHero`,
-  `CashflowWidget`): due colonne da ~354px nell'hero a piena larghezza — spazio ampio per un numero
-  mono da 30px.
+**Perché NON l'ho corretto**: correggerlo da solo **peggiora la pagina di 3,4 punti**. Misurato:
 
-Modifica di una riga + commento esplicativo. Nessuna superficie di tipi toccata.
+| scenario | TWR | ROI |
+|---|---|---|
+| stato attuale (solo flag attivo) | 19,83% | 11,16% |
+| + pensione su apr–giu, orfano non corretto | **19,84%** | **11,16%** |
+| + orfano corretto, pensione non aggiunta | 23,22% | 13,00% |
+| entrambi | 23,24% | 13,00% |
+| **ideale (pensione esatta ogni mese)** | **19,84%** | **11,16%** |
 
-### Verifica
-- Modifica su sola stringa di classi Tailwind; `tablet:` è una variante breakpoint v4 registrata e
-  già usata altrove → compila.
-- **Nota**: in questa sessione il sandbox bash non ha potuto montare la cartella del progetto, quindi
-  `npx tsc --noEmit` / `npx vitest` **non sono stati eseguiti qui**. Consigliato lanciare
-  `npx tsc --noEmit` prima del commit (rischio tipi nullo per una modifica di sole classi).
-- Commit suggerito: `fix: stack Allocazione hero leverage figures on mobile to avoid overlap`
+La causa: appena l'orfano è risolto, il fondo diventa visibile nelle esclusioni di luglio, quindi
+`resolveBackfillValue` calcola `E₀ = 1.842,69` e lo sottrae **come costante** a tutti i mesi
+gen–giu, che non hanno `byAsset`. Ma il fondo a gennaio valeva 0. Il commento di
+`performanceBase.ts` sostiene che una costante «non introduce nessun rendimento spurio»: vero dentro
+il blocco pre-breakdown, **falso attraverso il giunto** e falso per ROI/CAGR/IRR, che confrontano
+inizio e fine e non sono concatenati.
 
-## 2. APERTO — Tracciare il fondo pensione (da progettare prossima sessione)
+→ Va fatto **insieme** alla ricostruzione del `byAsset` di gen–giu (Punto 2 sotto), che elimina del
+tutto il backfill. Da soli si danneggiano a vicenda.
 
-Giorgio vuole che il tracker consideri anche il **fondo pensione**. Punto esplicitamente rimandato:
-decidere l'approccio e implementarlo in una sessione successiva. Note per inquadrare la discussione,
-non una decisione.
+**Chiuso il 2026-08-30**, nell'ordine giusto: prima l'import di 23 mesi con `byAsset` ovunque
+(quindi nessun mese su cui il backfill possa scattare), poi `fix-orphan.mts --apply` che riscrive
+l'`assetId` di luglio da quello cancellato a quello attuale. Senza, il fondo entrava
+nella base a luglio e ne usciva ad agosto: uno scalino da 1.842,69 €.
 
-### Perché non è "solo un altro asset"
-Un fondo pensione ha proprietà che nessuna delle 6 classi attuali
-(azioni/obbligazioni/crypto/immobili/materie prime/liquidità) cattura bene:
-
-- **È un contenitore, non una foglia.** Ha un'allocazione interna (*comparto*:
-  garantito / obbligazionario / bilanciato / azionario). Domanda: il comparto deve confluire
-  nell'esposizione dell'Allocazione (pesare su azioni/obbligazioni) o restare fuori come la
-  liquidità esclusa?
-- **È illiquido fino alla pensione.** Conta per **runway** FIRE e **Coast FIRE** (capitale bloccato
-  non spendibile prima della pensione, ma *sì* verso il numero FIRE raggiunto all'età target).
-  `fireService` / `whatIfService` dovrebbero sapere che un asset è "bloccato fino all'età N".
-- **Contributi di origine mista.** TFR + versamenti volontari + eventuale contributo datoriale. I
-  volontari sono deducibili IRPEF fino a €5.164,57/anno (si aggancia alle aliquote IRPEF già in
-  Coast FIRE, se mai modellassimo il beneficio fiscale).
-- **Tassazione agevolata in uscita** (aliquota finale 15% → 9%). Rilevante solo se proiettiamo il
-  netto in uscita.
-
-### Approcci candidati (da valutare)
-1. **Nuova classe `pension` / nuovo tipo asset**, con flag opzionale `isLocked` + `unlockAge`.
-   Più pulito per patrimonio + storico; richiede che Allocazione e FIRE gestiscano blocco e
-   look-through al comparto.
-2. **Modellarlo come "conto" che contiene tipi asset esistenti** (look-through gratis), con flag
-   wrapper che lo marca bloccato/escluso. Più fedele, più lavoro.
-3. **MVP minimo: una singola riga di saldo**, esclusa dall'Allocazione (riuso del meccanismo
-   "Fuori allocazione" esistente), inclusa nel patrimonio totale + Storico, flaggata bloccata per
-   FIRE. Valore veloce; look-through in seguito.
-
-### Decisioni Giorgio (2026-07-19)
-1. **Fuori allocazione** — il comparto NON pesa sull'esposizione azioni/obbligazioni. Riuso del
-   meccanismo "Fuori allocazione" esistente.
-2. **Saldo unico aggregato** — niente dettaglio per-comparto.
-3. **FIRE**: alimenta il FIRE come **capitale bloccato e illiquido**. **Deduzione IRPEF = da
-   decidere** (vedi "Nodo aperto" sotto): è la scelta di prodotto su cui ci stiamo fermando.
-4. **Contributi via Cashflow** (traccia la differenza di contributi), MA **valore/andamento
-   dell'investimento gestito a mano** — nessuna API prezzi. → si modella come asset a **valutazione
-   manuale**, identico al pattern `realestate` già esistente in `AssetDialog` (niente ticker/
-   auto-update, label "Valore stimato", "prezzo aggiornato manualmente").
-
-### Nodo aperto — come modellare la deduzione IRPEF (scelta di prodotto)
-Livelli di ambizione (da decidere con Giorgio):
-- **L0** — non modellarla: solo saldo bloccato che cresce a mano.
-- **L1 (tracker, informativo)** — metrica annuale "Beneficio fiscale stimato" =
-  `aliquota_marginale × min(contributi_volontari_anno, 5.164,57 €)`. Nessun movimento di cassa
-  fittizio. Aliquota marginale derivabile dagli scaglioni IRPEF già presenti in Coast FIRE.
-- **L2 (cassa reale, occhio al timing)** — il beneficio NON arriva al versamento ma l'anno dopo con
-  la dichiarazione (minori imposte / rimborso). Va registrato quando incassato (a mano), non come
-  income istantaneo al contributo.
-- **L3 (planner/FIRE, motore)** — la deduzione alza il rendimento effettivo dei contributi; in
-  uscita scontare la tassazione agevolata (15%→9% oltre il 15° anno). Il fondo pensione rende più
-  di un investimento tassato a parità di versato.
-
-Sotto-decisioni collegate: (a) aliquota marginale auto-derivata o inserita a mano; (b) distinguere
-**TFR** (non deducibile, non nel tetto) da **volontari + datoriali** (deducibili, nel tetto
-5.164,57 €); (c) modellare la tassazione in uscita ora o dopo.
-
-Raccomandazione di partenza: **L1 nel tracker + tassazione-in-uscita nel FIRE**, deduzione-come-
-rendimento (L3) opzionale in un secondo momento. Da confermare.
-
-### Decisioni Giorgio (2026-07-19, secondo giro)
-2. **Distinguere TFR vs Volontari vs Datoriali.** Solo Volontari + Datoriali sono deducibili e
-   condividono il tetto 5.164,57 €; il TFR conferito è escluso dalla deduzione (e non concorre al
-   tetto). → il modello dati dei contributi ha bisogno di un campo "natura contributo".
-3. **Modellare la tassazione in uscita** nel FIRE. Aliquota 15%, −0,30%/anno oltre il 15° anno di
-   partecipazione, minimo 9%. Il fondo conta **netto** verso il numero FIRE.
-
-### RITROVAMENTO — nessun campo RAL/reddito oggi (risponde al dubbio di Giorgio, punto 1)
-Verificato: in app NON esiste un input per RAL / reddito imponibile. Gli scaglioni IRPEF
-(`CoastFireTaxBracket`, default 23/25/35/43 in `fireService.ts`) sono usati SOLO per tassare la
-**pensione pubblica** in Coast FIRE (`calculateProgressiveTax(annualGrossIncome, brackets)`, dove
-`annualGrossIncome` = lordo pensione, non lo stipendio attuale). Quindi per l'aliquota marginale
-della deduzione serve un nuovo dato.
-
-Opzioni per l'aliquota marginale:
-- **A (SCELTA da Giorgio 2026-07-19)** — nuovo campo **"Reddito annuo lordo (RAL)"** (Settings o
-  config fondo); beneficio = `tax(RAL) − tax(RAL − contributi_deducibili)` riusando
-  `calculateProgressiveTax` + `CoastFireTaxBracket` esistenti. Accurato anche se la deduzione
-  attraversa due scaglioni.
-- **B** — inserimento diretto dell'aliquota marginale (es. 35%). Semplice, statico, meno preciso.
-- **C** — inferenza dalle entrate Cashflow. Fragile (netto vs lordo, anno parziale, bonus) → scartata.
-
-### Tetto deducibilità — AGGIORNATO (Legge di Bilancio 2026)
-Da **1° gennaio 2026** il tetto ordinario passa da **€5.164,57 → €5.300** (norma in vigore dal
-1° luglio 2026, effetto retroattivo sull'intero 2026). Extra-deducibilità fino a €2.650 (totale
-€7.950); plafond non usato nei primi 5 anni recuperabile nei 20 successivi. → NON hardcodare 5.300
-come magic number: **costante con anno di validità** (`PENSION_DEDUCTION_CEILING_BY_YEAR` o simile),
-così futuri aggiornamenti di legge sono una riga sola. Extra-deducibilità/recupero = considerazioni
-future, fuori MVP.
-
-### Extradeducibilità (recupero plafond primi 5 anni) — meccanica + modello
-Fonte: Mefop, "Deducibilità ed extradeducibilità post legge di bilancio 2026" (art. 8 c.6
-D.Lgs. 252/2005). Meccanica confermata:
-- **Solo** lavoratori di **prima occupazione post 1/1/2007** (contribuzione obbligatoria iniziata
-  dopo quella data). Requisito che l'app NON può dedurre → flag utente.
-- **Fase accumulo (primi 5 anni di partecipazione)**: per ogni anno con contributi deducibili sotto
-  il tetto, si accumula `unused_y = max(0, tetto_y − contributi_deducibili_y)`. Tetto per anno:
-  5.164,57 € fino al 2025, 5.300 € dal 2026 (esempio Mefop: iscritto 2022 → 4 anni × 5.164,57 +
-  1 anno (2026) × 5.300).
-- **Fase utilizzo (20 anni successivi, cioè anni 6–25)**: il tetto annuo può salire dell'accumulato
-  residuo, con **cap annuo = metà del tetto ordinario** (2.650 € dal 2026) → deduzione max
-  complessiva 7.950 €/anno. Ogni euro extra usato **scala il "bank"** residuo.
-- TFR sempre **escluso** dal computo.
-
-**Natura del modello**: NON è un calcolo annuale isolato — è un **fold pluriennale con drawdown**
-del bank. Serve la storia dei contributi deducibili per anno + data iscrizione + flag prima
-occupazione. Pura funzione candidata (tested):
-```
-CEILING(y)   = y >= 2026 ? 5300 : 5164.57      // costante per-anno
-EXTRA_CAP(y) = CEILING(y) / 2                   // 2650 dal 2026
-computePensionDeduction({ enrollmentYear, isFirstJobPost2007,
-                          deductibleContribByYear, targetYear, ral, brackets }):
-  ordinary = CEILING(targetYear)
-  if !isFirstJobPost2007 → effectiveCeiling = ordinary; extra = 0
-  else:
-    bank = Σ_{y=enrollmentYear..enrollmentYear+4, y<=targetYear} max(0, CEILING(y) − contrib(y))
-    // consuma il bank sugli anni 6..targetYear (drawdown storico), poi
-    extraAvailableThisYear = min(bankResiduo, EXTRA_CAP(targetYear))
-    effectiveCeiling = ordinary + extraAvailableThisYear
-  deducted = min(contrib(targetYear), effectiveCeiling)
-  beneficio = tax(ral, brackets) − tax(ral − deducted, brackets)   // riusa calculateProgressiveTax
-```
-
-**Raccomandazione prodotto — FASARE**:
-- **MVP (Fase 1)**: SOLO deducibilità ordinaria. `beneficio = tax(RAL) − tax(RAL −
-  min(contrib_deducibili_anno, tetto_anno))`. Funzione a singolo anno, semplice, testabile. Label
-  UI "solo deducibilità ordinaria".
-- **Fase 2 (gated)**: extradeducibilità come fold pluriennale, dietro il flag `isFirstJobPost2007`
-  + `pensionEnrollmentYear`. **CONFERMATO IN SCOPE (Giorgio 2026-07-19)**: è alla prima occupazione
-  (⇒ post-2007, idoneo) e nei primi 5 anni verserà **solo il contributo datoriale**, tenendosi sotto
-  il tetto → accumula plafond ogni anno. Quindi Fase 2 va costruita.
-
-  Vincoli pratici da riflettere nella UI/nel modello:
-  1. **Drawdown limitato**: anche con un bank grande (es. 5 × (5.300 − datoriale)), il recupero è
-     max 2.650 €/anno → servono più anni per esaurirlo.
-  2. **Per usare l'extra bisogna superare il tetto ordinario** negli anni 6+: solo i contributi
-     oltre 5.300 € attingono al bank (volontari che portano il totale verso 7.950 €).
-  3. **Finestra di utilizzo = anni 6–25**: il bank non usato entro il 25° anno di partecipazione si
-     perde → modellare la scadenza.
-
-  Opportunità prodotto: durante gli anni di accumulo, mostrare il **plafond recuperabile accumulato**
-  ("hai accumulato €X di deduzione futura") come segnale di pianificazione forward-looking, non solo
-  il beneficio dell'anno corrente. → DA CONFERMARE con Giorgio se vuole questo numero in UI.
-- Disclaimer: stima informativa, non consulenza fiscale; casi limite (trasferimenti tra fondi,
-  RITA, riscatti) fuori scope.
-
-### Posizionamento UI della stima "beneficio fiscale" — DECISO (Giorgio 2026-07-19)
-Cadenza **annuale, in un recap di fine anno** — NON a ogni versamento (over-information, e il
-beneficio si realizza con la dichiarazione, non al versamento). Concretamente:
-- **Beneficio fiscale dell'anno + plafond recuperabile accumulato** → **recap annuale**. Case
-  naturali: blocco **FIRE/Previdenza** (vista per anno) + **email riepilogo annuale** (`monthly-
-  snapshot` cron, periodicità yearly già esistente).
-
-  **Casa della sezione — DECISO (Giorgio 2026-07-19)**: nuovo **tab "Previdenza"/"Fondo Pensione"
-  in `app/dashboard/fire-simulations/page.tsx`** (oggi tab: Calcolatore FIRE / Coast FIRE / What If /
-  Monte Carlo / Obiettivi — array `TAB_CONFIG` + componente per tab). Scelto il tab e NON una pagina
-  top-level: il fondo è un singolo asset, una voce di nav a sé è sovradimensionata; il tab riusa il
-  pattern esistente e co-loca RAL + scaglioni IRPEF già presenti in Coast FIRE. Distribuzione:
-  Patrimonio = asset saldo (`pension`, manuale, fuori allocazione); Cashflow = contributi per natura
-  (no hint fiscali inline); FIRE tab = sezione tax/plafond + valore netto d'uscita. Nota impl.: RAL
-  condivisa tra Coast FIRE e nuovo tab → mettere RAL/brackets in un punto condiviso (Settings o
-  contesto) per non duplicare.
-
-  Contenuto sezione fondo pensione — **TRE cifre distinte** (confermato Giorgio 2026-07-19):
-  1. **Risparmio fiscale maturato dell'anno** = `tax(RAL) − tax(RAL − dedotto_anno)`.
-  2. **Plafond extradeducibilità creato nell'anno corrente** =
-     `max(0, tetto_anno − contributi_deducibili_anno)`, **solo entro i primi 5 anni** (fuori finestra
-     = 0).
-  3. **Plafond storico accumulato (bank residuo)** = Σ creato − Σ già recuperato, con scadenza al
-     25° anno.
-  Nota UX: nei primi 5 anni (1) e (2) vanno lette **insieme** — il risparmio corrente è più basso
-  perché si lascia plafond, (2) mostra il vantaggio futuro costruito in cambio (trade-off esplicito).
-- **Cashflow**: NIENTE messaggistica plafond per-versamento. Al più il contributo si registra con
-  la sua natura (TFR/Volontari/Datoriali) e basta; nessun hint fiscale inline.
-- **Patrimonio (asset)**: solo il saldo secco del fondo (asset a valutazione manuale).
-
-### File probabili quando lo costruiamo
-`types/assets.ts`, `lib/utils/{allocationUtils,assetExposureUtils}.ts`,
-`components/assets/AssetDialog.tsx`, `lib/services/{assetService,fireService,whatIfService}.ts`,
-`components/allocation/AllocationHero.tsx` (striscia esclusioni), aggregazione Storico/overview.
+### D5 — [NON È UN DIFETTO] Date sul confine del mese
+Ritirato. 388 righe su 496 vengono dall'import CSV e stanno a **mezzogiorno** locale, inattaccabili.
+Le 54 a mezzanotte locale (elencate in `scratchpad/rendimenti-audit/righe-mezzanotte.csv`) cadono
+tutte il 1° del mese o il giorno dello stipendio: plausibile. Resta solo una domanda da porre a
+Giorgio: il rimborso da 1.097,27 € era del 1° febbraio o del 31 gennaio? L'app lo conta a febbraio.
 
 ---
 
-# SESSION NOTES — Allocazione a leva (portafogli > 100%)
+## Cosa è già stato fatto
 
-**Data inizio**: 2026-07-15
-**Obiettivo**: migliorare il supporto dell'allocazione a portafogli con leva (esposizione nozionale > patrimonio market), rendendo la UI chiara sulla dualità market/nozionale e permettendo di escludere liquidità/immobili dalla base di allocazione.
+- ✅ **D1 mitigato**: `performanceIncludesExcludedAssets: true` attivo in produzione (verificato).
+- ✅ Dump read-only dei dati di produzione in `scratchpad/rendimenti-audit/` (snapshot, asset,
+  spese, categorie, registro operazioni, contributi pensione, impostazioni).
+- ✅ **D2 + D3 applicati il 2026-08-30**, backup dello stato precedente in
+  `backup-snapshots.pre-apply.json`. Stato verificato dopo la scrittura (`check-state.mts`):
 
-## Fase attuale: BRAINSTORMING (nessun codice ancora)
+  ```
+  2026-04 | NW 121986.31 | illiq  725.54 | somma classi 121986.31 | pension  725.54 | byAsset 0
+  2026-05 | NW 125550.19 | illiq 1088.31 | somma classi 125550.19 | pension 1088.31 | byAsset 0
+  2026-06 | NW 127947.50 | illiq 1451.09 | somma classi 127947.50 | pension 1451.09 | byAsset 0
+  2026-07 | NW 126655.32 | illiq 1842.69 | somma classi 126655.32 | pension 1842.69 | byAsset 25
+  ```
 
----
+- ⚠️ **Il classifier dell'auto mode blocca ogni `--apply` su Firestore di produzione**: i comandi di
+  scrittura vanno lanciati da Giorgio con il prefisso `!`, e **dalla radice del repo** (lo script
+  scrive il backup con un percorso relativo).
 
-## Problemi riportati dall'utente
+## Cosa fare alla ripresa (2026-08-30)
 
-1. **Nessun indicatore di leva corrente in UI** — da nessuna parte si legge la leva del portafoglio (nozionale/market).
-2. **Ambiguità market vs nozionale nella pagina Allocazione** — l'hero mostra il totale nozionale ma lo etichetta "Patrimonio allocato" (market). Serve dualità per chi usa leva; se leva = 1 lasciare com'è (nozionale = market).
-3. **Con leva, tutto deve ragionare in percentuali nozionali** — esploso di dettaglio + confronto attuale/target. In più mostrare in UI sia patrimonio allocato (market) che esposizione nozionale.
-4. **Escludere liquidità e immobili dall'allocazione target** — se non esplicitamente inclusi dall'utente, non devono far parte della base di allocazione (non sono "asset di portafoglio").
+### ✅ Passo 0 — FATTO
+`fix-snapshots.mts --apply`, 4 documenti (2026-04, 05, 06, 07 di `monthly-snapshots`).
+La cache dei Rendimenti si invalida da sola (`buildCacheKey` hasha ogni `totalNetWorth`); in caso,
+il bottone «Aggiorna».
 
----
+### Punto 2 — `byAsset` di gen–giu 2026 — **NON è bloccato dai dati** (rivisto il 2026-08-30)
+Il **totale** della liquidità mese per mese è già negli snapshot (48.299,98 · 51.429,85 · 44.765,80 ·
+39.501,77 · 35.083,61 · 31.966,42). L'unica cosa che manca in `cassa-mensile.csv` è la
+**ripartizione fra i 12 conti** — e per i Rendimenti è indifferente: la base legge `totalNetWorth` e
+sottrae per `assetId` solo gli asset esclusi (il fondo pensione).
 
-## Analisi stato attuale del codice
+Quindi il piano B (spalmare il totale pro-quota sulla ripartizione di luglio) **non è un ripiego**:
+sblocca subito la ricostruzione del `byAsset` di gen–giu e la correzione **contestuale di D4**. Il
+solo costo è l'attribuzione per conto in Storico → Composizione su sei mesi; su Patrimonio non
+cambia niente (i conti liquidi non hanno colonna Δ per design). Se i saldi veri arrivano dopo, è una
+ri-esecuzione dello stesso script.
 
-- `assetExposureUtils.ts::expandAssetExposure` → già espande ogni asset in `{ marketValue, notionalValue }` per classe, applicando `leverageRatio` (single-class) o per-leg (composite). `calculatePortfolioLeverage` esiste ma **non è usata in UI**.
-- `assetAllocationService.ts::calculateCurrentAllocationSnapshot` → produce `CurrentAllocationSnapshot` con `market` + `notional` + `metadata { marketValue, notionalValue, leverageRatio, hasLeveragedExposure }`. **La metadata leva NON è mostrata da nessuna parte.**
-- `compareAllocations` → usa basis **notional** (`toLegacyAllocationResult(snapshot, 'notional', ...)`). Quindi le percentuali attuali/target SONO già nozionali. ✅ (parziale point 3)
-- **Bug/confusione (point 2)**: `AllocationHero` etichetta `totalValue` (= totale **nozionale**) come "Patrimonio allocato". Con leva > 1 il numero grande è gonfiato rispetto al market reale. `AllocationCompositionBar` usa `currentValue/totalValue` (entrambi nozionali) → i segmenti sono % nozionali ma sotto un'etichetta "market".
-- `toLegacyAllocationResult` calcola **una sola** basis alla volta (currentValue = nozionale). Per mostrare la dualità a livello riga servirebbe passare anche lo snapshot market o arricchire `AllocationData`.
-- Esclusione classi: oggi `toLegacyAllocationResult` itera `Object.keys(targets)` — ogni classe con target entra nel 100%. Cash ha già `useFixedAmount`/`fixedAmount` (riserva un fisso, alloca il resto). Nessun meccanismo di esclusione classe.
-- `targetLeverageRatio` esiste in `AssetAllocationSettings` (soft tie-breaker per l'optimizer strumenti). Nessuna "leva corrente" persistita/mostrata.
+Tutto il resto è derivabile:
+- **quantità**: il registro ha 53 operazioni, **tutte `buy`, nessuna vendita** → la riproduzione a
+  ritroso è esatta. Le due eccezioni sono `XEON.DE` (2,4685 quote) e `BRK-B` (0,05), che non hanno
+  operazioni: erano già in portafoglio prima del registro, e vanno tenute costanti.
+- **prezzi**: Yahoo li copre **tutti**. Vedi la correzione qui sotto.
 
-## File chiave toccati/da toccare (previsione)
-- `lib/utils/allocationUtils.ts` (pure) — verdetto/piano/composizione
-- `lib/services/assetAllocationService.ts` — snapshot + `toLegacyAllocationResult` (esclusione classi, dualità)
-- `types/assets.ts` — nuovo flag esclusione, eventuale arricchimento `AllocationData`
-- `app/dashboard/allocation/page.tsx` + `components/allocation/*` (Hero, CompositionBar, Breakdown, ActionPlanner)
-- `app/dashboard/settings/page.tsx` — toggle esclusione classi
-- `__tests__/` — test per esclusione + dualità
+> **Correzione alla sessione del 29/08**: «Yahoo non copre `NTSG-ETFP.MI` e `SGLN.MI`» era sbagliato,
+> ed era un problema di **stringa del ticker**, non di copertura. La serie storica c'è sotto
+> **`NTSG.MI`** (EUR) e combacia al centesimo con i prezzi già memorizzati: luglio 2026 → 29,230
+> contro il 29,23 dello snapshot. `SGLN.MI` risponde ma è rada (scambi sottili su Milano); fallback
+> `SGLN.L` in GBp con FX. Il ticker salvato `NTSG-ETFP.MI` funziona per la **quotazione live**
+> (l'asset si è aggiornato il 28/08): è solo `chart()` che vuole `NTSG.MI`.
 
----
+### Punto 5 — snapshot 2025: servono **sette numeri**, non un export (rivisto il 2026-08-30)
+Non esiste nessuno snapshot prima di gennaio 2026, mentre il registro arriva all'11/06/2025 e il
+foglio ad aprile 2025. Finché è così, «1 anno», «3 anni» e «Storico» misurano tutti gli stessi sette
+mesi.
 
-## Decisioni allineate (2026-07-15)
+Nel 2025 il portafoglio conteneva **solo tre strumenti**: `EIMI.MI` dall'11/06, `NTSG.MI` dal 04/08,
+`DBMFE.PA` dal 05/11 — più `BRK-B` e `XEON.DE` fermi da prima del registro. Quantità derivabili dal
+registro, prezzi ora tutti disponibili su Yahoo.
 
-1. **Hero con leva** → **Due numeri paritari**: "Patrimonio Allocato" (market) + "Esposizione Nozionale", chip `Leva X.XX×` tra i due. Composizione = % nozionale. Se `hasLeveragedExposure === false` → UI identica a oggi (un solo numero).
-2. **Esclusione** → **Due toggle dedicati** in Impostazioni: "Escludi liquidità" / "Escludi immobili" (NON un flag generico per-classe). Classi escluse fuori da num+denom; mostrate in striscia "Fuori allocazione".
-3. **Righe dettaglio** → **Solo nozionale** (come oggi). Dualità market/nozionale solo nell'hero aggregato.
-4. **Cash escluso vs `useFixedAmount`** → **Esclusione ha priorità**: se cash escluso, l'opzione importo fisso è ignorata/nascosta.
+**Non derivabile resta solo la liquidità**: le spese partono da gennaio 2026 (una riga sola a
+dicembre 2025), quindi non si può camminare a ritroso sulla cassa. Serve:
 
-## Chiamate mie (implicite dalle decisioni, vetabili dall'utente)
-- Base hero/composizione con esclusioni attive = **base investita** (esclusi cash/immobili), non l'intero patrimonio. I due numeri market/nozionale dell'hero riflettono la base investita; striscia "Fuori allocazione" mostra cash/immobili a parte.
-- **Leva mostrata calcolata sulla base investita** (non sull'intero patrimonio): cash/immobili a leva 1 diluirebbero la leva verso 1 e nasconderebbero la vera leva degli strumenti. → `leverageRatio` da ricomputare sul subset investibile quando ci sono esclusioni.
-- Settings: nuovi campi `AssetAllocationSettings` → `excludeCashFromAllocation?: boolean`, `excludeRealEstateFromAllocation?: boolean` (default false; regola 3 posti + snapshot key Settings).
-- ActionPlanner (Versa/Ribilancia): opera solo sulle classi/strumenti investibili (filtrare cash/immobili da `byAssetClass` e dagli strumenti passati all'optimizer).
+> **patrimonio totale a fine mese, giugno → dicembre 2025** (o, equivalentemente, la sola liquidità:
+> l'altro si ricava per differenza). Fonte: il tab `Historical NW Helper` / `2025 Dashboard`.
 
-## MODELLO TARGET RIFORMULATO (decisione utente 2026-07-15) — chiave di volta
+### Poi — il fix di codice (D1), da discutere
+Due strade:
+1. **I flussi vengono dal registro operazioni** (acquisti − vendite = denaro che attraversa il
+   confine della base) quando la base esclude la liquidità. È il numero che la pagina già calcola e
+   mostra accanto, nella tessera Contributi.
+2. **Disaccoppiare i due `excluded`**: `allocationRole` smette di decidere la base dei Rendimenti,
+   che prende un campo proprio.
 
-Le % target sono **% del capitale investito (market)** e rappresentano l'**esposizione nozionale** desiderata per classe:
-- Possono sommare a **> 100%**; la somma **È** la leva target: `equity 90 + bonds 60 = 150% → leva target 1,50×`.
-- **Validazione `>= 100`** (100 = no leva; >100 = leva). NON più `== 100`.
-- **`targetLeverageRatio` = derivato** (= somma target / 100), **read-only**, alimenta l'optimizer strumenti (che così è già coerente: i target di classe codificano la leva). Il campo manuale attuale viene rimosso/derivato.
-- **Classe esclusa** ⇒ input % bloccato per quella classe e fuori dalla somma.
-- Anche le **% attuali** in base **% capitale investito**: `notional_classe / market_totale` → sommano a `leva_corrente × 100`. Current e target direttamente confrontabili; delta in p.p. → COMPRA/VENDI/OK come oggi.
-
-### Conseguenze tecniche
-- `toLegacyAllocationResult`: current% = `notional_classe / market_totale` (NON `/ notional_totale`). Target as-is. Accetta il set di classi escluse (fuori da num+denom, base = market investito).
-- **Balance score**: `computeBalanceScore` **lasciato INVARIATO** (Σ|drift|/2). Con leva_corrente≠leva_target il gap di leva confluisce già nel Σ|drift| — essere sotto/sovra-leva *è* essere fuori target, quindi il punteggio lo penalizza correttamente. La scomposizione formale è stata scartata perché i test esistenti passano solo `difference` (niente current/target%), e normalizzare per-lato li romperebbe. La **leva corrente vs target** è mostrata a parte nell'hero come informazione (non altera lo score).
-- Composition bar: larghezze normalizzate (mix), etichette = % a leva, caption "su capitale investito · leva X×".
-- `compareAllocations` cambia firma per accettare le esclusioni (`{ excludeCash, excludeRealEstate }`).
-
----
-
-## PIANO IMPLEMENTATIVO (fasi)
-
-- **Fase 0 — Tipi & Settings**: `AssetAllocationSettings` += `excludeCashFromAllocation?`, `excludeRealEstateFromAllocation?` (regola 3 posti: type, getSettings, setSettings — entrambi i rami). Snapshot key Settings (dirty-state). `targetLeverageRatio` → derivato (stop persistenza manuale, o mantieni derivato in load).
-- **Fase 1 — Core puro + test**: rework `toLegacyAllocationResult` (base %-capitale, esclusioni), `compareAllocations` firma, leva su base investita, `computeBalanceScore` (scomposizione leva/composizione), export helper per leva target/corrente. `__tests__/` (esclusione + leva ≥100 + dualità + balance score).
-- **Fase 2 — Settings UI**: due toggle esclusione, validazione `>=100`, blocco input classi escluse, display "Leva target" derivata read-only.
-- **Fase 3 — Pagina Allocazione UI**: hero due numeri + chip Leva + striscia "Fuori allocazione"; composition bar etichette leveraged + caption; breakdown % leveraged; ActionPlanner filtrato alle sole classi investibili.
-- **Fase 4 — Verify**: `npx tsc --noEmit`, vitest sui file toccati, guida `/verify` sul flusso reale.
-
-Stato: **Fasi 0–3 + Settings COMPLETE** (tsc pulito, 1017 test verdi). Resta solo la verifica live nel browser.
-
-### Fatto (TUTTE le fasi 0→3 + Settings)
-- **Tipi** (`types/assets.ts`): `excludeCash/RealEstateFromAllocation`, `AllocationResult` arricchito (`marketValue`,`leverageRatio`,`excludedClasses`), `AllocationExclusions`, `AllocationExcludedClass`.
-- **Core** (`assetAllocationService.ts`): getSettings/setSettings (2 rami) per i due flag; `getExcludedClasses`, `deriveTargetLeverageRatio`, `toLegacyAllocationResult` riscritta (base %-market leverage-aware, esclusioni, fixed-cash solo se incluso), `compareAllocations(assets, targets, exclusions?)`.
-- **Pagina** (`app/dashboard/allocation/page.tsx`): legge esclusioni, passa a compareAllocations, deriva leva target, filtra classi/strumenti investibili per ActionPlanner, passa metadata all'hero.
-- **allocationUtils**: `applyRebalanceBand` ora preserva `marketValue/leverageRatio/excludedClasses` (bug fix: altrimenti l'hero perdeva leva/esclusioni). `computeBalanceScore` invariato (scelta).
-- **AllocationHero**: due numeri paritari (market + nozionale) + chip Leva (corrente · target) quando leva>1, striscia "Fuori allocazione", relabel "Patrimonio investito" con esclusioni. Layout single-number identico a prima senza leva.
-- **AllocationCompositionBar**: larghezze=share nozionale, etichette=% a leva (`currentPercentage`), caption "su capitale investito" quando leva>1.
-- **Settings** (`app/dashboard/settings/page.tsx`): stato+load+save+2 snapshot-key per i flag; `calculateTotal` salta escluse; validazione `≥100`; `isValidTotal`/`isLeveragedTarget`/`derivedTargetLeverage`; hero totale con riga "Leva target"; card "Base di Allocazione" (leva derivata read-only + 2 toggle esclusione, sostituisce l'input manuale leva); righe classi escluse disabilitate + nota "Escluso"; rimosso cap `max=100` (leva single-class >100 possibile); payload scrive `targetLeverageRatio = total/100` + flag.
-
-### Verifica
-- `npx tsc --noEmit` pulito.
-- Suite completa **1017 test verdi** (58 file), inclusi i nuovi `compareAllocations` + `deriveTargetLeverageRatio`.
-- **Verifica live utente (2026-07-15)**: pagina Allocazione + Impostazioni funzionano. UNICO punto dubbio: il **motore Versa/Ribilancia**.
+Fix minori, indipendenti:
+- `resolveBackfillValue`: per i mesi senza `byAsset` usare `byAssetClass.cash` invece di una
+  costante (stima molto migliore, già nei dati).
+- Far ricadere l'esclusione su ticker/nome quando l'`assetId` è orfano.
 
 ---
 
-## APERTO PER PROSSIMA SESSIONE — motore Versa/Ribilancia sotto il nuovo modello
+## 2026-08-30 (sera) — il workbook risolve i punti 2 e 5 insieme
 
-L'utente ha dubbi sui risultati di Versa/Ribilancia. **Ipotesi di root cause (da verificare):** l'optimizer strumenti (`lib/utils/leverageAwareAllocationUtils.ts::solve`) non è stato aggiornato al nuovo modello a leva.
+Giorgio ha portato `scratchpad/Portafoglio Fogli Google.xlsx`. Contiene molto piu' del previsto:
+**valore per strumento e per conto, mese per mese, da ottobre 2024 ad agosto 2026, piu' le righe
+prezzo** — quindi le quantita' si ricavano per divisione. Nessuna fonte esterna serve piu': Yahoo,
+il registro operazioni e il template `cassa-mensile.csv` diventano tutti superflui.
 
-- Nel nuovo modello i `targetPercentage` di classe sono **% del capitale MARKET** (sommano a leva×100), mentre `solve()` calcola il residuo target come:
-  `classConst[c] = currentNotional[c] − targetFraction[c] · currentNotionalTotal`
-  cioè usa **`currentNotionalTotal`** come base delle frazioni target. Ma la frazione target ora è relativa al **market**, non al nozionale. Il target nozionale desiderato per classe dovrebbe essere `targetFraction[c] · marketTotal` (rebalance: `currentMarketTotal`; versa: `currentMarketTotal + budget`), NON `· currentNotionalTotal`.
-- `ActionPlanner` deriva `targetPercentageByAssetClass` da `byAssetClass[c].targetPercentage` (già % market/leveraged) → coerente col nuovo modello, ma passa base sbagliata a `solve`.
-- Il termine leva (`leverageConst = currentNotionalTotal − targetLeverageRatio · marketAfterTrade`) è già market-based e coerente; l'incoerenza è solo nel termine di classe.
-- **Fix candidato**: in `solve`, sostituire `targetFraction[c] · currentNotionalTotal` con `targetFraction[c] · (currentMarketTotal + budget)` (budget=0 per Ribilancia). Verificare anche `RebalancePanel`/`ContributionPanel` e i loro eventuali test.
-- Da controllare anche: `buildRebalancePlan`/`allocateContribution` in `allocationUtils.ts` (usati dal piano per-classe non-strumento) — lì `differenceValue`/target € vengono già dal core corretto, quindi probabilmente ok; il dubbio è concentrato sull'optimizer strumenti.
+*(Nota: `cassa-mensile.csv` e' rimasto vuoto — l'editing non e' stato salvato. Non serve piu'.)*
 
-**NON toccato in questa sessione** (deferito su richiesta utente).
+### I tre bug di formula del foglio
+Le righe aggregate (`Simple`, e quindi `Historical NW Helper`) **non** sono affidabili. Le formule:
+
+| riga | formula | difetto |
+|---|---|---|
+| `Stocks` | `SUMIF(B3:B13,"=D",D3:D12)*D56` | le posizioni in USD sono **moltiplicate** per EURUSD invece che divise |
+| `Cash` | `SUMIF($B$19:$B$23,…)` | il range si ferma alla riga 23: **Satispay, Contante e Buoni Pasto non entrano mai** |
+| `Extras` | `SUMIF(…,"=E",…)*D55` | un importo gia' in euro viene moltiplicato per EURCHF |
+
+Impatto misurato: equity 2025-01/02/03 sovrastimata di 266 / 274 / 514 €; cassa sottostimata da 2 a
+450 € in sette mesi del 2025. **Gli snapshot 2026-01..03 dell'app coincidono al centesimo con questi
+aggregati**, cioe' l'app ha ereditato i bug — ma solo dove mordono, e nel 2026 non ci sono righe in
+valuta prima di luglio, quindi quei tre mesi restano corretti.
+
+La ricostruzione parte dalle **righe grezze**, non dagli aggregati, e converte le valute nel verso
+giusto.
+
+### Cosa produce
+`build-history.py` -> `reconstructed-snapshots.json`; `write-history.mts` scrive (dry-run default).
+
+- **15 snapshot NUOVI**, 2024-10 -> 2025-12. Prima non esisteva nulla prima di gennaio 2026.
+- **6 snapshot AGGIORNATI**, 2026-01 -> 2026-06: si aggiunge il `byAsset` che non avevano,
+  `totalNetWorth` **intatto**. Questo chiude anche **D4**: con un breakdown in ogni mese il
+  backfill costante di `resolveBackfillValue` non scatta mai piu'.
+
+Validazione: in tutti e 21 i mesi la somma delle classi eguaglia il patrimonio. Sui mesi 2026 la
+ricostruzione riproduce il totale dell'app **a zero residuo in quattro mesi su sei**; maggio e
+giugno hanno un residuo di 1.011,97 e 1.118,31 € (foglio e app divergono davvero), distribuito
+**pro-quota sui conti liquidi** — non sappiamo dove sia, e caricarlo su un conto solo sarebbe
+un'affermazione che i dati non reggono.
+
+### Due scelte di merito, da rivedere se non convincono
+1. **NTSG splittato 60/40 sempre.** Il foglio lo splitta da settembre 2025 in poi e non prima; l'app
+   ha `composition: [equity 60, bonds 40]` sull'asset e la applica in look-through. Ho seguito la
+   regola dell'app. Effetto: 2025-08 sposta 2.193,30 € da equity a bonds.
+2. **Aprile 2025 e' un mese di sola cassa.** Le righe grezze mostrano tutti gli strumenti a zero e
+   31.036 € su Fineco (liquidazione, reinvestita a maggio in MWEQ+SWDA). L'`Historical NW Helper`
+   invece forza 30.080,72 € in «Stocks» con una formula a mano (`=I9-G9-H9`). Ho seguito le righe
+   grezze.
+
+### ⚠️ La decisione aperta: cosa fanno i Rendimenti col 2025
+Il cashflow dell'app parte da **gennaio 2026** (una riga sola a dicembre 2025). `getCashFlowsFromExpenses`
+legge solo `expenses`, quindi per ogni mese del 2025 il flusso netto e' **zero** e tutta la crescita
+del patrimonio diventa **rendimento**. Misurato sulla storia ricostruita:
+
+| | TWR cumulato | annualizzato |
+|---|---|---|
+| senza cashflow 2025 | **+280,0%** | **+107,1%** |
+| col cashflow del foglio 2025 | +285,8% | +108,8% |
+
+I due scenari quasi coincidono perche' il foglio dichiara un risparmio netto 2025 di **−537 €**: la
+crescita da 33.849 a 110.348 € **non viene da versamenti esterni**, viene dal bankroll del betting,
+che vive nella classe `cash`. Aggiungere il cashflow del 2025 non risolve niente.
+
+Non e' un errore aritmetico — e' D1 di nuovo: la base include un capitale la cui P&L non e' un
+rendimento di mercato. Va deciso **prima** di importare, perche' dopo l'import «Storico», «3 anni» e
+«1 anno» leggeranno quei numeri.
+
+### La base: una sola misura, non due (deciso il 2026-08-30)
+
+**Come coesistono oggi le due letture**: non coesistono a schermo. `PerformanceBase` ha
+`'portfolio' | 'netWorth'` nel tipo, ma **nessun chiamante usa `'netWorth'`** — la base e' sempre
+`portfolio`. Il controllo vero sono i due switch in Impostazioni (`performanceIncludesPensionFunds`,
+`performanceIncludesExcludedAssets`) che decidono *cosa resta dentro*. Attivando il secondo il
+29/08, la base e' passata da «solo strumenti» a «tutto il patrimonio». Una impostazione, due
+posizioni, un numero alla volta.
+
+**Giorgio (2026-08-30)**: «il rendimento del betting non mi interessa, e' fermo da marzo 2026 e lo
+sto svuotando e reinvestendo». I dati confermano: bankroll 34.694 € a febbraio -> 6.321 € ad agosto.
+
+Quindi **niente toggle**: base «solo strumenti», flussi dalle variazioni di quantita'. I prelievi dal
+betting diventano *versamenti* al portafoglio e vengono neutralizzati correttamente. Il +107% non
+compare da nessuna parte e l'import del 2025 torna sicuro.
+
+Sfumatura utile: la scelta della base pesa **moltissimo sulla storia** e **quasi nulla in avanti**.
+Il +107% nasce dal bankroll che cresceva nel 2024-2025; da marzo 2026 si svuota, e quando sara' a
+zero le due basi coincidono.
+
+⚠️ **Numero non ancora riconciliato**: la misura per strumento da' feb-ago 2026 = **+10,29%**, la
+ricostruzione del 29/08 sullo stesso perimetro dava **~16,9%**. Metodi diversi (la prima neutralizza
+ogni acquisto per strumento, la seconda a livello di portafoglio) e la differenza non e' stata
+spiegata. Nessuno dei due e' da considerare definitivo finche' non tornano.
+
+### Ordine di lavoro
+1. ✅ **Import completo applicato il 2026-08-30** (`write-history.mts --apply`): 15 snapshot creati
+   (2024-10 -> 2025-12), 6 aggiornati (2026-01 -> 2026-06). Backup in `backup-history.json`.
+   Giorgio ha scelto di importare tutto in una volta: «l'applicazione la consulto solo io e ora non
+   la sto usando», quindi la finestra in cui i Rendimenti leggono numeri gonfi non e' un problema.
+2. ✅ **D4 chiuso** (`fix-orphan.mts --apply`).
+3. ✅ **D1 chiuso nel codice il 2026-08-30** — `tsc` pulito, **3034 test verdi**:
+   - nuovo `lib/utils/portfolioFlows.ts` (+ 11 test): `buildPortfolioCashFlows` legge i flussi dalle
+     **variazioni di quantita'** di `byAsset`, `Σ (q1 - q0) x p1`. Non dal registro operazioni: 53
+     operazioni tutte `buy`, nessuna delle vendite del 2025 e' registrata (a novembre il registro
+     legge +24.218 EUR dove il flusso vero e' +5.707).
+   - `performanceService.ts`: la sorgente segue **`includeExcludedAssets`**, non `exclusions.length`
+     (un fondo pensione e' escluso quasi sempre, ma cio' che conta e' dove sta la LIQUIDITA').
+     Nuovo campo `PerformanceMetrics.flowSource`. `CACHE_MATH_VERSION` v5 -> **v6**.
+   - `page.tsx`: stessa condizione per il periodo CUSTOM, o CUSTOM e YTD userebbero serie diverse.
+   - `ContributiTile` + `describeContributions`: con `flowSource: 'portfolio'` la tessera mostra la
+     serie MISURATA (acquisti/vendite dalle Δquantita') invece del registro, e «Contributi netti»
+     torna a essere il solo risparmio del Cashflow. Stampare il registro mentre si misura con
+     un'altra serie significava mostrare un numero che nessuna formula aveva usato.
+   - **Bonus, difetto latente trovato importando**: cinque divisioni guardavano `=== 0` ma non il
+     negativo (`calculateROI`, TWR, IRR, volatilita', rendimenti mensili, piu' `buildTwrIndex`).
+     Con aprile 2025 (mese interamente liquidato) la base puo' andare sotto zero, e un denominatore
+     negativo non fallisce: ribalta il segno e azzera la catena del TWR. Ora sono tutte `<= 0`.
+4. ⬜ Rimettere `performanceIncludesExcludedAssets` a **false** (da Impostazioni) (oggi e' ON solo come mitigazione di
+   D1: con i flussi giusti diventa attivamente sbagliato).
+5. ⬜ Riconciliare i due numeri che non tornano (+10,29% per strumento vs ~16,9% del 29/08).
+6. ⬜ Hall of Fame: «Aggiorna i record» per far entrare i 15 mesi nuovi nelle classifiche.
+7. ✅ **Aprile 2025 + i conti storici — APPLICATO il 2026-08-30.** I due conti creati
+   (`create-historical-accounts.mts --apply`), i 21 snapshot riscritti (`write-history.mts --apply`),
+   backup in `backup-history.json`. `diff-vs-prod.mts`: tutti e 21 i mesi identici alla
+   ricostruzione.
+
+   **Aprile 2025 non era un mese di sola cassa.** Il foglio lo vede cosi' per via della DATA VALUTA:
+   il registro Fineco (`Titoli FinecoBank.xlsx`) dice che il 30/04/2025 sono state comprate 3.199
+   quote MWEQ a 4,689 e 161 SWDA a 93,57 — **30.064,88 EUR**, al centesimo il costo che Giorgio
+   aveva messo a mano nella riga di aprile dell'`Historical NW Helper`; regolate il 05/05. Non e'
+   una liquidazione: e' il mese in cui NASCE il portafoglio nuovo (Giorgio, 2026-08-30). Valorizzato
+   ai prezzi d'acquisto, con la stessa cifra tolta da Fineco (31.036 -> 971,12, che si allaccia ai
+   1.070,74 di maggio). Il patrimonio totale non cambia.
+
+   Effetto sulla misura, piu' grande di quanto sembri: prima maggio ripartiva da zero e il suo
+   **+4,62%** andava perso. TWR storico **+23,74% -> +29,50%** (annualizzato 12,32% -> **15,14%**),
+   e **nessun mese ha piu' una base non positiva** — la guardia `<= 0` torna a essere una difesa di
+   riserva invece che una toppa.
+
+   *Limite dichiarato*: la vendita del vecchio portafoglio (XTRAC AI, FF-GD, SHR CHINA, VNT-US EQ,
+   FR TR EU) non e' in nessun registro — erano su MedioBanca, e il file Fineco parte dal 30/04/2025.
+   Modellati come usciti ai prezzi di marzo, quindi aprile legge 0,00% e cio' che hanno fatto in
+   quel mese non e' recuperabile.
+
+   **I conti storici — opzione 1, scelta da Giorgio.** Una voce di `byAsset` e' autosufficiente
+   (Storico legge nome e quantita' da li'), quindi un `assetId` senza documento in `assets` compare
+   gia' SOLO in Storico e mai in Patrimonio. L'unica cosa che non funziona e' l'esclusione, che si
+   costruisce dagli asset attuali. Percio': due conti reali a quantita' 0, `allocationRole:
+   'excluded'`, **con gli stessi id gia' scritti in produzione** (nessuna rimappatura del gia'
+   scritto): `hist-mediobanca` «MedioBanca» e `hist-others` «Altri conti (storico)», in cui
+   confluiscono Satispay, «Altri conti» e Debiti/Crediti. In Patrimonio due righe a 0 EUR marcate
+   «Azzerato», come Hype e Splital gia' oggi. «Altri conti (storico)» e' NEGATIVO in alcuni mesi
+   (-2.969 EUR a dicembre 2025): sono partite in uscita, ed e' voluto.
+
+   Scartata l'alternativa `isHistorical` sull'`Asset`: e' la strada generale, ma il flag andrebbe
+   onorato in ~6 elenchi (Patrimonio, Allocazione, e i selettori conto in ExpenseDialog /
+   TransactionDialog / DividendDialog / PensionContributionDialog), e ogni punto dimenticato e' un
+   posto dove un conto chiuso riappare. Da fare quando un conto vero verra' chiuso davvero.
+
+   Scartata anche l'idea di togliere `byAsset` da quei mesi: riaprirebbe D4, perche' il backfill
+   costante prenderebbe il primo mese con breakdown (aprile 2026, 725,54 EUR di fondo pensione) e lo
+   sottrarrebbe a tutto il 2024-2025.
+
+   Dove arriva la misura (base = solo strumenti, flussi = Delta-quantita', tutti i conti esclusi):
+
+   | finestra | rendimento | annualizzato |
+   |---|---|---|
+   | Storico (ott 2024 -> ago 2026) | +29,50% | **+15,14%** |
+   | 1 anno (ago 2025 -> ago 2026) | +18,41% | +18,41% |
+   | YTD 2026 | +11,07% | +17,06% |
+
+   Contro il **+35,1%** che la pagina mostrava a inizio audit e il **+107%** che avrebbe mostrato
+   importando la storia senza il fix D1.
+
+   **Questi numeri NON sono ancora a schermo**: si accendono solo rimettendo il flag a false (punto 4).
+
+8. ✅ **Registro Fineco importato il 2026-08-30** (`fineco-parse.py` -> `import-fineco.mts --apply`).
+   Il diff era piccolo e pulito: l'app aveva gia' i 53 acquisti degli asset ancora posseduti e
+   **nulla che il file non avesse**. Mancavano le 9 operazioni dei due strumenti dismessi (4 acquisti
+   + 5 vendite di MWEQ e SWDA). Ora **62 operazioni, 5 vendite**, entrambe le sequenze chiuse a zero.
+   - **L&G (IE00BFXR6159) escluso su richiesta**: comprato e rivenduto in una settimana ad agosto
+     2026, un acquisto per errore. Togliendo entrambe le righe le quantita' restano coerenti; si
+     perde solo la minusvalenza di 18,07 EUR.
+   - **Nessun asset creato** per MWEQ/SWDA: `aggregateRealizedByYear` e `computeInvestedCapital`
+     leggono solo `AssetTransaction[]`, quindi le plusvalenze compaiono senza righe nuove in
+     Patrimonio. **Plusvalenze realizzate 2025: +4.169,67 EUR** (MWEQ +1.260,50, SWDA +2.909,16),
+     informazione che prima non esisteva.
+
+9. ✅ **I flussi ora preferiscono il registro, per asset** (`portfolioFlows.ts` riscritto, 19 test).
+   Misurato prima di decidere:
+
+   | sorgente | storico (ott 24 -> ago 26) | dove il registro copre (mag 25 ->) |
+   |---|---|---|
+   | Delta-quantita' | +15,14%/anno | +22,00%/anno |
+   | solo registro | **-100%** | +23,81%/anno |
+   | **ibrido per asset** | **+16,16%/anno** | +23,47%/anno |
+
+   Il registro da solo e' catastrofico: ad aprile 2025 registra l'acquisto del portafoglio nuovo
+   (+30.065) e non la vendita del vecchio, che stava su MedioBanca e in nessun registro. Ma dove
+   copre e' piu' preciso, perche' e' datato all'OPERAZIONE mentre lo snapshot e' datato alla
+   rilevazione (722 quote NTSG comprate il 20/08/2025: registro ad agosto, snapshot a settembre).
+   La regola per asset prende il meglio dei due e aprile torna esatto (+9.742,55, rendimento 0,00%).
+
+   **Serve al futuro, non al passato**: oggi 15 asset su 21 sono coperti dal registro; continuando a
+   tracciare le operazioni la misura e' interamente basata su quello. `buildCacheKey` ha ora anche
+   una firma del registro (conteggio + operazione piu' recente), altrimenti registrare una vendita
+   non invaliderebbe la cache.
+
+   ⚠️ **Rischio da presidiare**: per un asset coperto, un'operazione NON registrata sparisce e le
+   Delta-quantita' non la salvano. La guardia naturale e' una riconciliazione fra le due fonti che
+   segnali le divergenze oltre soglia — non c'e' ancora.
 
 ---
 
-## FEATURE 2 — Alias di visualizzazione strumenti (2026-07-15)
+## Riferimenti
+- Dump e script: `scratchpad/rendimenti-audit/` (`dump.mts`, `dump2.mts`, `fix-snapshots.mts`,
+  `verify-flag.mts`, `probe.mts`, `probe-ntsg.mts`, `probe-ntsg2.mts`, `check-state.mts`,
+  `build-history.py`, `write-history.mts`)
+- Sorgente della storia: `scratchpad/Portafoglio Fogli Google.xlsx` (fogli `2024`, `2025`, `2026`,
+  `Historical NW Helper`) -> `sheet-raw.json` -> `reconstructed-snapshots.json`
+- `check-state.mts` = read-only, stampa lo stato dei `monthly-snapshots` (usalo prima e dopo ogni fix)
+- Opzionale: `cassa-mensile.csv` (solo per l'attribuzione per conto) · da controllare:
+  `righe-mezzanotte.csv`
+- Screenshot della sessione: `Screenshot 2026-08-29 alle 10.0*.png`
 
-Obiettivo: il `ticker` deve restare in formato Yahoo ("CL2.MI") per il retrieve prezzi, ma l'utente può impostare un **alias** ("CL2") mostrato al suo posto in tutta l'app.
-
-### Fatto
-- **Dati**: `Asset.displayTicker?` + `AssetFormData.displayTicker?` (`types/assets.ts`). Helper unico `getAssetDisplayTicker(asset)` in `lib/utils/assetDisplay.ts` (alias.trim() || ticker).
-- **AssetDialog**: campo "Alias visualizzato" (schema Zod, `buildAssetFormDataFromValues`, reset edit+new — enumerato per la gotcha), gated come il ticker (nascosto per cash/realestate).
-- **assetService.updateAsset**: `displayTicker` undefined → `deleteField()` (clearabile; unico chiamante reale è AssetDialog con formData completo → sicuro).
-- **Sweep display** (usano `getAssetDisplayTicker`): AssetCard, AssetManagementTab, AssetPriceHistoryTable (+ `displayTicker` plumato in `AssetPriceHistoryRow`/builder), TaxCalculatorModal, DividendDialog, GoalDetailCard, AssetAssignmentDialog (+ ricerca per alias), GoalBasedInvestingTab→GoalsHero (`FreeAsset.ticker` = alias), PDF (`pdfDataService` AssetRow), RebalancePanel/ContributionPanel (+ `displayTicker` in `InstrumentExposure`/`InstrumentTrade`), MonthlyAssetBreakdownSection (resolver `assetId→alias` da assets live passati dalla pagina Storico).
-- **Lasciati grezzi (intenzionale)**: input modifica ticker (CreateManualSnapshotModal), logging scraping (DividendTrackingTab), costituenti benchmark (BenchmarkComparisonSection), **ExposureSection** (look-through: dati server-derived con cache 24h → plumbing rischioso per deploy in giornata; NOTA per futuro).
-- **Fix post-test utente (2026-07-15)**: il pie chart "Distribuzione per Asset" (Panoramica) mostrava ancora il ticker grezzo → `chartService.ts::prepareAssetDistributionData` ora usa `getAssetDisplayTicker` per la label della fetta. NB: l'overview è cachato server-side (invalidato da `updateAsset`), quindi la label si aggiorna al primo ricalcolo/edit asset o allo scadere del TTL.
-
-### Verifica FEATURE 2
-- `npx tsc --noEmit` pulito · **1017 test verdi** · **`npm run build` OK** (tutte le pagine).
-
----
-
-## STATO PER DEPLOY (oggi)
-Working tree su `main`, NON committato: contiene FEATURE 1 (allocazione a leva) + FEATURE 2 (alias). Entrambe: tsc + 1017 test + build OK. Versa/Ribilancia = feature futura (non bloccante). Da decidere con l'utente come impacchettare i commit per il deploy.
+## Igiene
+`.env.local` contiene una service account key Firebase completa in un blocco commentato. È in
+`.gitignore` e non è mai finita su git. Se quel file è stato condiviso o incollato altrove, ruotare
+la chiave.
 
 ---
 
-## Log
-- 2026-07-19: **Opzione "Escludi TFR/datoriale dal cashflow"**. Il volontario resta sempre neutro
-  (default fisso); TFR+datoriale sono entrate bloccate e l'utente sceglie se contarle. Setting
-  `excludePensionAccrualsFromCashflow?` (`types/assets.ts`) + persistenza `getSettings`/`setSettings`
-  (2 write path) in `assetAllocationService`. Helper puro `lib/utils/pensionCashflow.ts`
-  (`filterCashflowExpenses`/`isPensionAccrual`, no-op quando off) + test `__tests__/pensionCashflow.test.ts`.
-  Toggle in Impostazioni (stato+load+snapshot+payload+deps+Switch). Agganciato alla superficie
-  **principale**: hero Tracciamento (`ExpenseTrackingTab` filtra SOLO il calcolo dei totali —
-  income/spese/netto + delta MoM — le voci restano visibili nel feed), prop passata da
-  `app/dashboard/cashflow/page.tsx`. **DA ESTENDERE (stesso helper, one-liner) alle altre superfici**:
-  `AnalisiTab`/`cashflowTimeSeries`, `TotalHistoryTab`, `CurrentYearTab`, budget, overview Panoramica
-  (`dashboardOverviewService`), email (`monthlyEmailService`). Finché non estese, quelle viste
-  contano ancora gli accrual come income (comportamento di default). — verificare tsc/build/test.
-- 2026-07-19: **Fase 4 (parziale) — flusso dedicato "Registra versamento" + tab Previdenza**.
-  Motivazione: il selettore natura nelle "Impostazioni avanzate" dell'ExpenseDialog non era
-  scopribile. Nuovo `lib/services/pensionContributionService.ts` (`recordPensionContribution`:
-  nasconde tipo+categoria — volontario→`variable` neutralizzato, TFR/datoriale→`income`; find-or-create
-  categoria "Fondo Pensione" per tipo). Dialog `components/pension/PensionContributionDialog.tsx`
-  (3 campi: natura/importo/data). Tab `components/fire-simulations/PensionTab.tsx` (versato anno per
-  natura + versato totale + bottone), registrato in `app/dashboard/fire-simulations/page.tsx` (tab
-  "Previdenza", icona PiggyBank). Modello UX confermato da Giorgio: il tab traccia il **versato**, il
-  valore del fondo (versato+rendimento) si aggiorna a mano sull'asset in Patrimonio. **Ancora da
-  fare (Fase 4 completa)**: recap fiscale (RAL + 3 cifre: risparmio fiscale, plafond creato, bank
-  residuo) e tassazione in uscita (Fase 5).
-- 2026-07-19: **Fase 3 — contributi per natura in Cashflow**. Campo tipizzato
-  `pensionContributionNature?` su `Expense` + `ExpenseFormData` (`types/expenses.ts`). Util pura
-  `lib/utils/pensionContributions.ts` (`derivePensionDeductibleByYear` = volontari+datoriali per
-  anno, TFR escluso; `derivePensionContributionsByYearAndNature` = split completo) + test
-  (`__tests__/pensionContributions.test.ts`). UI: selettore natura in "Impostazioni avanzate"
-  dell'ExpenseDialog (schema zod, watch, entrambi i rami di reset, submit, `isAdvancedPrePopulated`).
-  Persistenza: `expenseService.createExpense` (whitelist) + update (spread) + read (spread).
-  **NODO RISOLTO (trattamento metriche, Giorgio 2026-07-19)**: **volontario = neutralizzato** dalle
-  metriche di cashflow (risparmio, non consumo — come un `transfer`); **TFR e datoriale = contano
-  come entrate a tutti gli effetti** (inseriti come voci di tipo "Entrata"; nessun codice extra, e
-  il datoriale resta deducibile via tag). Neutralizzazione del volontario applicata a TUTTI i choke
-  point di spesa: `expenseService.isCountableExpense` + `getMonthlyExpenseSummary` (hero, saldo
-  netto, rapporto, riepilogo), `budgetUtils` (expenseMatchesItem + spesa mensile per item),
-  `cashflowTimeSeries` (isExpenseRecord + buildTimeBuckets), `dashboardOverviewService`,
-  `monthlyEmailService`. Test: `__tests__/pensionMetricNeutralization.test.ts`.
-- 2026-07-19: **Fase 0-1 fondo pensione (branch pension-fund)**. `types/pension.ts` (nature TFR/
-  volontari/datoriali, input/output deduzione), `lib/utils/pensionDeduction.ts` (ordinaria + fold
-  extradeducibilità con accumulo/drawdown/scadenza, beneficio via `taxOf` iniettato), `__tests__/
-  pensionDeduction.test.ts` (12 casi). NON eseguiti (shell non raggiunge il repo) → tsc/vitest da Giorgio.
-- 2026-07-19: **Fase 2 — asset type `pension`**. `AssetType`/`AssetClass` += `pension` (`types/
-  assets.ts`); AssetDialog: type card "Fondo Pensione" (icona PiggyBank), valutazione manuale come
-  realestate (no ticker/auto-update/cost-basis, label "Valore attuale", illiquido di default, nota
-  manuale, `shouldUpdatePrice`=false), zod enum + `tickerRequired` aggiornati, `TYPE_TO_CLASS`.
-  Esclusione: `getExcludedClasses` aggiunge SEMPRE `pension` (fuori base allocazione). Label/colori:
-  `allocationUtils` (ASSET_CLASS_LABELS/CHART_INDEX), `assetUtils.formatAssetClassName`,
-  `colors.getAssetClassCssVar`, `AssetManagementTab.requiresManualPricing`. Breaker `Record<AssetClass>`
-  completi patchati: `settings/page.tsx`, `defaultSubCategories.ts`, `goalTrajectory.ts`,
-  `AllocationComparisonBar.tsx`. **Da verificare da Giorgio: `npx tsc --noEmit` + `npm run build` +
-  test creazione asset in dev.**
-- 2026-07-15: lette AGENTS/COMMENTS/DEVELOPMENT_GUIDELINES/CLAUDE + core allocazione. Avvio brainstorming.
-</content>
-</invoke>
+## 2026-08-31 — irrobustimento per una PR upstream
+
+Giorgio: «questo progetto è un fork di una repo a cui voglio fare una PR, vorrei che la soluzione
+non sia tailored per il mio caso ma un miglioramento per chi già usa l'app». Rileggendo il diff con
+gli occhi di un utente upstream sono emerse **due regressioni** che sono state corrette.
+
+1. **La condizione era troppo larga.** Era legata a `!includeExcludedAssets`, che è il default:
+   scattava anche per chi non esclude nulla, dove `exclusions` è vuoto, la base è già tutto il
+   patrimonio e il Cashflow è la fonte *giusta*. Ora è `exclusions.length > 0`.
+   *Correzione a un ragionamento precedente*: avevo cambiato quella condizione sostenendo che con la
+   liquidità dentro la base un acquisto sarebbe stato contato due volte. Falso — il flusso è la somma
+   su TUTTI gli asset in base, quindi l'ETF fa +X e il conto −X e si annullano da soli.
+
+2. **Senza `byAsset`, flussi a zero.** `buildPortfolioCashFlows` filtrava i mesi con breakdown; per
+   uno storico di snapshot inseriti a mano restituiva `[]` — e un array vuoto è *truthy*, quindi
+   `flowSource` diventava `'portfolio'` con flussi nulli e ogni versamento letto come rendimento.
+   Era la stessa dinamica del +280%, servita a un utente che oggi ha numeri corretti. Ora il modulo
+   emette una voce per ogni coppia **misurabile** (zeri compresi, per distinguerli dai mesi assenti)
+   e il service ricade sul Cashflow **mese per mese** dove la misura non è possibile.
+
+Più due limiti dichiarati e presidiati:
+
+3. **Asset opachi al flusso.** Un `pensionFund` tiene il valore in `quantity` con prezzo 1, quindi la
+   quantità cresce sia per i versamenti sia per il mercato: con `includePensionFunds: true` le
+   Δquantità avrebbero cancellato il rendimento del fondo. Ora sono esclusi da quel ramo (i loro
+   versamenti restano non neutralizzati = la limitazione odierna, non una regressione). Un conto
+   corrente **non** è opaco, e un test fissa la differenza.
+4. **`flowSource` ha tre valori** (`portfolio` / `cashflow` / `mixed`), calcolati contando i mesi
+   misurati e quelli in ripiego, così la tessera Contributi può dire «in parte» invece di mentire.
+
+Più: il `catch` sulla lettura del registro **logga** invece di degradare in silenzio, ed è
+documentato che quella lettura sta prima del controllo di cache (una query indicizzata in più per
+caricamento, il prezzo di non servire numeri stantii dopo un'operazione).
+
+**Profilo di rischio finale**: nessun cambiamento per chi non esclude nulla o non ha `byAsset`;
+strettamente più corretto per chi esclude qualcosa e ha gli snapshot per misurarlo.
+
+### Follow-up aperto per la PR
+**Riconciliazione fra registro e Δquantità.** Per un asset coperto dal registro, un'operazione non
+registrata sparisce dal flusso e gonfia il rendimento, senza che niente lo segnali. Le due fonti
+sono calcolabili entrambe per ogni mese: basta confrontarle e segnalare le divergenze oltre soglia.
+Da aprire come issue, non parte di questa PR.
+
+### Cosa resta da fare
+- ⬜ Rimettere `performanceIncludesExcludedAssets` a **false** in produzione (da Impostazioni). È
+  l'interruttore che accende tutto: finché è ON, base e flussi restano quelli vecchi.
+- ⬜ Hall of Fame: «Aggiorna i record» per far entrare i 15 mesi nuovi nelle classifiche.
+- ⬜ Riconciliare i due numeri della sessione del 29/08 che non tornano (+10,29% per strumento vs
+  ~16,9% ricostruito allora sullo stesso perimetro): metodi diversi, differenza mai spiegata.
+- ⬜ La riconciliazione registro/Δquantità qui sopra.

@@ -75,3 +75,6 @@ skills-lock.json
 /test-results/
 /playwright-report/
 /e2e/.auth/
+
+# Scratchpad: dump di dati reali, script one-off e fogli di lavoro. Mai su git.
+/scratchpad/
