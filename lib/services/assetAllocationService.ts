@@ -4,7 +4,7 @@ import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOver
 import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
-import { partitionByAllocationRole, ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
+import { partitionByAllocationRole, ASSET_CLASS_SEQUENCE, NO_SUBCATEGORY_LABEL } from '@/lib/utils/allocationUtils';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 
 const ALLOCATION_TARGETS_COLLECTION = 'assetAllocationTargets';
@@ -705,10 +705,14 @@ function calculateCurrentAllocationSnapshot(
       add(marketByAssetClass, assetClass, marketValue);
       add(notionalByAssetClass, assetClass, notionalValue);
 
-      if (subCategory) {
-        add(nested(marketBySubCategory, assetClass), subCategory, marketValue);
-        add(nested(notionalBySubCategory, assetClass), subCategory, notionalValue);
-      }
+      // A holding with no subcategory still belongs to the class, so it must land in a bucket:
+      // dropping it made the class total (the denominator of every sleeve) larger than the sum of
+      // the sleeves, and each targeted sleeve read under target by the unclassified share, with
+      // its euros nowhere on screen. `NO_SUBCATEGORY_LABEL` is the residual bucket — it carries no
+      // target and receives no verdict; `toLegacyAllocationResult` emits it as a stated row.
+      const subCategoryKey = subCategory || NO_SUBCATEGORY_LABEL;
+      add(nested(marketBySubCategory, assetClass), subCategoryKey, marketValue);
+      add(nested(notionalBySubCategory, assetClass), subCategoryKey, notionalValue);
 
       if (specificAssetKey) {
         add(nested(marketBySpecificAsset, assetClass), specificAssetKey, marketValue);
@@ -925,6 +929,23 @@ function toLegacyAllocationResult(
           });
         }
       });
+
+      // The class's own euros that carry no sleeve. They are already inside `currentValue`, so
+      // without this row the sleeves visibly fail to reach 100% and the reader has no way to see
+      // why. It is a STATEMENT, not a verdict: no target, no gap, no action — the answer to
+      // «troppo o troppo poco?» would be «classificalo», which no COMPRA/VENDI chip can say.
+      const unclassified = subCurrentValues[NO_SUBCATEGORY_LABEL] ?? 0;
+      if (unclassified > 0) {
+        bySubCategory[`${assetClass}:${NO_SUBCATEGORY_LABEL}`] = {
+          currentPercentage: assetClassCurrentTotal > 0 ? (unclassified / assetClassCurrentTotal) * 100 : 0,
+          currentValue: unclassified,
+          targetPercentage: 0,
+          targetValue: 0,
+          difference: 0,
+          differenceValue: 0,
+          action: 'OK',
+        };
+      }
     }
   });
 
@@ -1081,9 +1102,10 @@ export function buildTargetsFromGoalAllocation(
   derived: Partial<Record<AssetClass, number>>,
   existingTargets?: AssetAllocationTarget | null
 ): AssetAllocationTarget {
-  const allClasses: AssetClass[] = [
-    'equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity',
-  ];
+  // The app-wide enumeration, never a literal: a class missing here keeps whatever target it had
+  // while every other class is overwritten, so a goal-derived plan would silently leave a stale
+  // trendFollowing/carry weight in a document that claims to describe the goal.
+  const allClasses: AssetClass[] = ASSET_CLASS_SEQUENCE;
 
   const targets: AssetAllocationTarget = {};
 
@@ -1151,6 +1173,20 @@ export function getDefaultTargets(): AssetAllocationTarget {
       subCategoryConfig: {
         enabled: false,
         categories: DEFAULT_SUB_CATEGORIES.commodity,
+      },
+    },
+    trendFollowing: {
+      targetPercentage: 0,
+      subCategoryConfig: {
+        enabled: false,
+        categories: DEFAULT_SUB_CATEGORIES.trendFollowing,
+      },
+    },
+    carry: {
+      targetPercentage: 0,
+      subCategoryConfig: {
+        enabled: false,
+        categories: DEFAULT_SUB_CATEGORIES.carry,
       },
     },
   };
