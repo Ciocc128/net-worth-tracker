@@ -5,6 +5,11 @@ e scritti in produzione, registro operazioni completato con le vendite, e il cal
 corretto nel codice — dove i flussi ora seguono la base invece di venire sempre dal Cashflow.
 Da 35,1% annualizzato (raddoppiato) a **16,16%** misurato.
 
+**Aggiornamento del 2026-08-31 (sera)**: i punti aperti 1, 3 e 4 sono chiusi — il flag era già
+a posto, i due numeri «che non tornavano» erano lo stesso numero in unità diverse, e la
+riconciliazione registro ↔ Δquantità non trova nessuna operazione mancante. **Resta solo la Hall of
+Fame.** Vedi PUNTI APERTI qui sotto e la sezione datata in fondo.
+
 La descrizione della modifica al codice, pensata per una PR upstream, sta in
 **`docs/performance-flows-pr.md`**. Questo file è il diario: come ci siamo arrivati e cosa resta.
 
@@ -16,26 +21,69 @@ La descrizione della modifica al codice, pensata per una PR upstream, sta in
 
 ## ⬜ PUNTI APERTI — leggi qui alla ripresa
 
-**1. Rimettere `performanceIncludesExcludedAssets` a `false`** (Impostazioni → Preferenze).
-È l'unica cosa che separa il lavoro fatto dal vederlo a schermo: il codice è corretto e deployato,
-ma finché il flag è ON la base include la liquidità e i flussi restano quelli del Cashflow. Era
-stato acceso il 29/08 come tappabuchi per D1; con D1 chiuso è attivamente sbagliato.
-Con il flag su `false` la pagina deve leggere: Storico **+29,50%** (ann. **+16,16%**), 1 anno
-**+22,58%**, YTD 2026 **+11,01%**. Se non combaciano, il posto da cui ripartire è `portfolioFlows.ts`.
+**1. ✅ CHIUSO il 2026-08-31.** Il flag `performanceIncludesExcludedAssets` è **già `false`** in
+produzione (verificato con `verify-flag.mts`), insieme a `performanceIncludesPensionFunds`. La
+pagina misura quindi già con la base «solo strumenti» e i flussi per asset.
+
+I numeri che aveva in testa questo file erano **sbagliati, e mescolavano due misurazioni diverse**.
+Riprodotta la pipeline vera fuori dall'app (`measure.mts`, che chiama le funzioni del codice su
+dati letti in sola lettura), la pagina legge:
+
+| finestra | TWR annualizzato | cumulato | ROI | IRR |
+|---|---|---|---|---|
+| Storico (ott 2024 → ago 2026, 22 mesi) | **+16,16%** | +31,60% | +79,60% | +17,24% |
+| 1 anno (ago 2025 → ago 2026) | **+22,58%** | +22,58% | +31,14% | +19,81% |
+| YTD 2026 (8 mesi) | **+16,97%** | +11,02% | +13,64% | +16,58% |
+
+> **La trappola in cui era caduta la nota**: `calculateTimeWeightedReturn` restituisce **già
+> l'annualizzato**, e la tessera lo mostra tale e quale sopra i 6 mesi (`resolveHeroReturn`).
+> Il «+29,50%» scritto qui era il **cumulato della misura a sole Δquantità** — cioè il numero del
+> punto 7, rimasto in testa al file dopo che il punto 9 aveva cambiato la sorgente dei flussi.
+> Verificato: forzando le sole Δquantità si riottiene esattamente +29,51% cumulato / +15,15%
+> annualizzato, e 1 anno +18,42%. L'ibrido registro+Δquantità dà i numeri della tabella qui sopra.
 
 **2. Hall of Fame: «Aggiorna i record».** I 15 mesi nuovi (ott 2024 → dic 2025) non entrano nelle
 classifiche finché non si ricalcola. Altrimenti ci pensa il cron notturno, ma solo dopo uno snapshot
-riuscito.
+riuscito. **È l'unico punto ancora aperto, ed è un'azione da fare a schermo.**
 
-**3. Riconciliare i due numeri che non tornano.** Sullo stesso perimetro, feb–ago 2026: la misura per
-strumento dà **+10,29%**, la ricostruzione del 29/08 dava **~16,9%**. Metodi diversi — la prima
-neutralizza ogni acquisto per strumento, la seconda a livello di portafoglio — e la differenza non è
-mai stata spiegata. Finché non tornano, nessuno dei due è definitivo.
+**3. ✅ CHIUSO il 2026-08-31 — i due numeri non erano in disaccordo.** (`reconcile.mts`)
 
-**4. Riconciliazione registro ↔ Δquantità** (follow-up della PR, già scritto in
-`docs/performance-flows-pr.md`). Per un asset coperto dal registro, un'operazione che dimentichi di
-registrare sparisce dal flusso e gonfia il rendimento, senza che niente lo segnali. Le due fonti
-sono calcolabili entrambe per ogni mese: basta confrontarle e segnalare le divergenze oltre soglia.
+Due cause, entrambe misurate sulla stessa finestra (baseline gen 2026, feb→ago 2026, 7 mesi):
+
+- **Unità, non metodo.** «+10,29%» era il **cumulato**, «~16,9%» l'**annualizzato**. La misura per
+  strumento di oggi dà **+10,27% cumulato = +18,24% annualizzato**. L'IRR combacia con la
+  ricostruzione del 29/08 al decimo: +17,52% contro «≈17,5%». Cinque dei 6,6 punti di scarto
+  apparente erano questo.
+- **Il residuo di 1,33 pp è BRK-B.** La ricostruzione del 29/08 prendeva i flussi dal **solo
+  registro a livello di portafoglio**: riprodotta, dà flussi 35.208 € (i «35.208 € di acquisti» di
+  D1), TWR **+16,91%**, ROI **+12,19%** — i suoi numeri al centesimo. Ma BRK-B **non ha operazioni
+  registrate**, quindi quel metodo non poteva vedere la sua uscita e leggeva i 463 € svaniti a
+  febbraio come una **perdita di mercato**. La regola per asset li legge come un **prelievo**,
+  perché lì cadono sulle Δquantità.
+  **Ha ragione la regola per asset**: il foglio dichiara `1BRK` a **0,00 da febbraio 2026** (era
+  463,00 € a gennaio) — è una vendita vera. E lo 0,05 quote che ricompare a luglio è una posizione
+  **nuova**: l'asset in app è stato creato il **12/07/2026**. Entrambi i movimenti sono flussi reali.
+  Controprova: togliendo BRK-B dalla base i flussi convergono (35.211 € contro 35.208 €).
+
+  **Il numero definitivo per feb–ago 2026 è +18,24% annualizzato (+10,27% cumulato).**
+
+**4. Riconciliazione registro ↔ Δquantità — eseguita a mano il 2026-08-31.** (`reconcile-ledger.mts`)
+
+Fatta girare su tutta la storia, prima di scrivere la guardia. Due risultati:
+
+- **Nessuna operazione manca.** Sui 15 asset coperti dal registro, la **quantità** che il registro
+  dichiara e quella che gli snapshot implicano coincidono a **0.0000 per tutti e 15**. Il rischio
+  descritto nella PR è reale in linea di principio, ma su questi dati non si è mai verificato.
+- **La guardia va scritta sulle QUANTITÀ, non sugli euro.** In euro la riconciliazione produce
+  9 falsi allarmi sopra i 50 € — fino a **18.388 €** su un singolo mese — perché il registro è
+  datato all'operazione e lo snapshot alla rilevazione: NTSG ad agosto 2025 sul registro e a
+  settembre nello snapshot, CL2 a giugno 2026 sul registro e a luglio nello snapshot. Nel cumulato
+  quegli scarti si annullano e resta un residuo che **non significa niente** (NTSG −957 €, tutti gli
+  altri sotto i 100 €): è solo la convenzione di prezzo, Δquantità valorizza a fine mese.
+  In quantità il segnale è esatto e senza rumore.
+- **Conseguenza di disegno**: confrontare mese per mese segnalerebbe ogni scarto di confine.
+  La guardia deve confrontare le **quantità cumulate a oggi** per asset, e segnalare solo una
+  divergenza che **persiste oltre il mese successivo**. Da aprire come issue, non parte della PR.
 
 ### Non aperti, ma da ricordare
 - Il **vecchio portafoglio liquidato ad aprile 2025** (XTRAC AI, FF-GD, SHR CHINA, VNT-US EQ,
@@ -331,7 +379,11 @@ Sfumatura utile: la scelta della base pesa **moltissimo sulla storia** e **quasi
 Il +107% nasce dal bankroll che cresceva nel 2024-2025; da marzo 2026 si svuota, e quando sara' a
 zero le due basi coincidono.
 
-⚠️ **Numero non ancora riconciliato**: la misura per strumento da' feb-ago 2026 = **+10,29%**, la
+⚠️ ~~**Numero non ancora riconciliato**~~ — **riconciliato il 2026-08-31, vedi PUNTI APERTI n. 3:
+erano lo stesso numero in unita' diverse (cumulato vs annualizzato), piu' 1,33 pp dovuti a BRK-B.**
+Il testo originale resta qui sotto per memoria.
+
+la misura per strumento da' feb-ago 2026 = **+10,29%**, la
 ricostruzione del 29/08 sullo stesso perimetro dava **~16,9%**. Metodi diversi (la prima neutralizza
 ogni acquisto per strumento, la seconda a livello di portafoglio) e la differenza non e' stata
 spiegata. Nessuno dei due e' da considerare definitivo finche' non tornano.
@@ -359,9 +411,8 @@ spiegata. Nessuno dei due e' da considerare definitivo finche' non tornano.
      negativo (`calculateROI`, TWR, IRR, volatilita', rendimenti mensili, piu' `buildTwrIndex`).
      Con aprile 2025 (mese interamente liquidato) la base puo' andare sotto zero, e un denominatore
      negativo non fallisce: ribalta il segno e azzera la catena del TWR. Ora sono tutte `<= 0`.
-4. ⬜ Rimettere `performanceIncludesExcludedAssets` a **false** (da Impostazioni) (oggi e' ON solo come mitigazione di
-   D1: con i flussi giusti diventa attivamente sbagliato).
-5. ⬜ Riconciliare i due numeri che non tornano (+10,29% per strumento vs ~16,9% del 29/08).
+4. ✅ **Flag rimesso a `false`** — verificato il 2026-08-31 (`verify-flag.mts`).
+5. ✅ **Riconciliato il 2026-08-31** (`reconcile.mts`): unita' diverse + BRK-B. PUNTI APERTI n. 3.
 6. ⬜ Hall of Fame: «Aggiorna i record» per far entrare i 15 mesi nuovi nelle classifiche.
 7. ✅ **Aprile 2025 + i conti storici — APPLICATO il 2026-08-30.** I due conti creati
    (`create-historical-accounts.mts --apply`), i 21 snapshot riscritti (`write-history.mts --apply`),
@@ -460,6 +511,17 @@ spiegata. Nessuno dei due e' da considerare definitivo finche' non tornano.
 - Dump e script: `scratchpad/rendimenti-audit/` (`dump.mts`, `dump2.mts`, `fix-snapshots.mts`,
   `verify-flag.mts`, `probe.mts`, `probe-ntsg.mts`, `probe-ntsg2.mts`, `check-state.mts`,
   `build-history.py`, `write-history.mts`)
+- **Strumenti di misura, aggiunti il 2026-08-31 — tutti in sola lettura, nessuno scrive:**
+  - `measure.mts` — riproduce `getAllPerformanceData` fuori dall'app chiamando le funzioni VERE su
+    dati letti con l'Admin SDK: stampa YTD/1A/3A/5A/Storico con TWR annualizzato, cumulato, ROI,
+    CAGR, IRR, base e sorgente dei flussi. `FLOWS=qty` forza le sole Δquantità (serve a riprodurre
+    le misure del 30/08). **È il modo di sapere cosa mostra la pagina senza aprirla.**
+  - `reconcile.mts` — la stessa finestra del 29/08 (feb→ago 2026) misurata con cinque sorgenti di
+    flusso a confronto, mese per mese: per asset (ibrido), sole Δquantità, solo registro (il metodo
+    del 29/08), livello di portafoglio, Cashflow.
+  - `reconcile-ledger.mts` — la riconciliazione registro ↔ Δquantità su tutta la storia, in euro e
+    **in quantità** (`SOGLIA=<eur>` per la soglia dei falsi allarmi in euro).
+  - `diff-months.mts` · `brkb.mts` · `brkb-asset.mts` — le tre sonde puntuali usate per isolare BRK-B.
 - Sorgente della storia: `scratchpad/Portafoglio Fogli Google.xlsx` (fogli `2024`, `2025`, `2026`,
   `Historical NW Helper`) -> `sheet-raw.json` -> `reconstructed-snapshots.json`
 - `check-state.mts` = read-only, stampa lo stato dei `monthly-snapshots` (usalo prima e dopo ogni fix)
@@ -519,3 +581,40 @@ Da aprire come issue, non parte di questa PR.
 
 ### Cosa resta da fare
 Vedi **PUNTI APERTI** in testa al file: è l'unica lista, per non averne due che divergono.
+
+---
+
+## 2026-08-31 (sera) — verifica: i punti aperti 1, 3 e 4 chiusi con la misura
+
+Sessione di sola misura: **nessuna scrittura su Firestore, nessuna modifica al codice
+dell'app**. L'unica cosa prodotta sono gli strumenti in `scratchpad/rendimenti-audit/` e
+questo aggiornamento alle note. `tsc` pulito.
+
+### Il metodo: riprodurre la pagina invece di stimarla
+Le misure delle sessioni precedenti erano ricostruzioni a mano, e le due volte in cui i numeri
+«non tornavano» era colpa della ricostruzione, non della pagina. `measure.mts` chiude la questione
+alla radice: legge i dati di produzione con l'Admin SDK e poi chiama **le funzioni vere**
+(`resolvePerformanceBaseOptions` → `resolvePerformanceExclusions` → `toPerformanceBaseSnapshots` →
+`buildPortfolioCashFlows` → `calculatePerformanceForPeriod`). `calculatePerformanceForPeriod`
+accetta `preFetchedExpenses` e `portfolioFlows`, quindi con entrambi passati **non tocca Firestore**:
+è lo stesso codice della pagina, senza la cache. Prova che è fedele: «1 anno» esce **+22,58%**,
+identico al numero annotato il 30/08.
+
+### Cosa ha rivelato
+1. **Il flag era già a posto.** Il punto 1 chiedeva un'azione che risultava già fatta.
+2. **I numeri attesi scritti in testa al file erano sbagliati.** Non per un errore di calcolo, ma
+   perché mescolavano il **cumulato** di una misurazione con l'**annualizzato** di un'altra.
+   `calculateTimeWeightedReturn` restituisce già l'annualizzato: leggerlo come cumulato ha prodotto
+   due «discrepanze» che non esistevano. **Quando si annota un rendimento, va sempre scritto quale
+   dei due è** — è la lezione operativa di questa sessione.
+3. **Il residuo vero era uno solo, e piccolo**: 1,33 pp su feb–ago 2026, tutto imputabile a BRK-B,
+   un asset senza operazioni registrate. E la regola per asset lo tratta correttamente.
+4. **La riconciliazione del punto 4, eseguita, non trova nulla** — ed è la notizia migliore:
+   registro e snapshot concordano sulla quantità di **tutti e 15** gli asset coperti, a 0.0000.
+   Ma ha insegnato come va scritta la guardia: **in quantità, sul cumulato**. In euro e mese per
+   mese produrrebbe una valanga di falsi allarmi (fino a 18.388 € su un mese solo) generati
+   unicamente dallo sfasamento di un mese fra data d'operazione e data di rilevazione.
+
+### Cosa resta
+Solo **Hall of Fame → «Aggiorna i record»**, che è un bottone. E, se lo si vuole, l'issue upstream
+per la guardia del punto 4, ora con il disegno già deciso e le prove che serve in quantità.
