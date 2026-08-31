@@ -47,9 +47,11 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  * WARNING (checklist comment): bump on ANY change that alters what the pipeline computes from
  * unchanged inputs, and only then. History: v2 = baseline data-driven + first-month cash flows +
  * TWR annualization; v3 = rolling windows; v4 = IRR signs and timeline; v5 = volatility without
- * the ±50% filter, and its 3-observation floor.
+ * the ±50% filter, and its 3-observation floor; v6 = i flussi seguono la base nei periodi fissi;
+ * v7 = i flussi seguono la base anche nelle finestre rolling, e un CAGR non misurabile smette di
+ * essere letto come 0.
  */
-const CACHE_MATH_VERSION = 'v6';
+const CACHE_MATH_VERSION = 'v7';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -970,6 +972,58 @@ export function getCashFlowsFromExpenses(
 }
 
 /**
+ * I FLUSSI SEGUONO LA BASE (fix D1, 2026-08-30), **mese per mese**.
+ *
+ * Una base sono due meta': QUALE capitale si misura (`toPerformanceBaseSnapshots`) e QUALI flussi
+ * lo attraversano. Applicarne una sola produce una coppia incoerente — capitale del portafoglio
+ * con i versamenti dell'intero patrimonio — che non risponde a nessuna delle due domande. Questa
+ * funzione e' l'unica risposta alla seconda meta', condivisa da ogni finestra di misura: i cinque
+ * periodi fissi e le finestre rolling.
+ *
+ * `portfolioFlows` porta una voce per ogni mese MISURABILE (serve il `byAsset` di entrambi i mesi
+ * della coppia), zeri compresi. Un mese assente non e' un mese a flusso nullo: e' un mese che non
+ * si puo' misurare, e li' si ricade sul Cashflow. Senza questo fallback uno storico fatto di
+ * snapshot inseriti a mano — nessun breakdown — finirebbe con flussi tutti nulli e ogni
+ * versamento verrebbe letto come rendimento: una regressione grave e silenziosa rispetto al
+ * comportamento precedente.
+ *
+ * `portfolioFlows` assente significa «la base E' il patrimonio» (nessuna esclusione): il Cashflow
+ * e' allora la fonte GIUSTA, non un ripiego, e la funzione degrada a identita'.
+ *
+ * @param expenseFlows - I flussi del Cashflow della finestra, gia' filtrati per data
+ * @param portfolioFlows - I flussi per asset su tutta la storia, o `undefined` senza esclusioni
+ * @param startDate - Inizio della finestra misurata (incluso)
+ * @param endDate - Fine della finestra misurata (inclusa)
+ */
+function resolveBaseAwareCashFlows(
+  expenseFlows: CashFlowData[],
+  portfolioFlows: CashFlowData[] | undefined,
+  startDate: Date,
+  endDate: Date
+): { cashFlows: CashFlowData[]; flowSource: PerformanceMetrics['flowSource'] } {
+  const measured = (portfolioFlows ?? []).filter(cf => cf.date >= startDate && cf.date <= endDate);
+  const measuredMonths = new Set(measured.map(cf => monthKeyOf(cf.date)));
+  const fallback = portfolioFlows
+    ? expenseFlows.filter(cf => !measuredMonths.has(monthKeyOf(cf.date)))
+    : expenseFlows;
+  const cashFlows = portfolioFlows
+    ? [...measured, ...fallback].sort((a, b) => a.date.getTime() - b.date.getTime())
+    : expenseFlows;
+
+  // Dichiarare la sorgente per PERIODO sarebbe una semplificazione bugiarda quando le due
+  // convivono: la tessera Contributi deve poter dire «in parte».
+  const flowSource: PerformanceMetrics['flowSource'] = !portfolioFlows
+    ? 'cashflow'
+    : fallback.length === 0
+      ? 'portfolio'
+      : measured.length === 0
+        ? 'cashflow'
+        : 'mixed';
+
+  return { cashFlows, flowSource };
+}
+
+/**
  * Calculate performance metrics for a specific time period
  *
  * @param preFetchedExpenses - Optional pre-fetched expenses array to avoid redundant Firestore queries
@@ -1103,30 +1157,9 @@ export async function calculatePerformanceForPeriod(
     ? getCashFlowsFromExpenses(preFetchedExpenses, startDate, endDate, dividendCategoryId)
     : await getCashFlowsForPeriod(userId, startDate, endDate, dividendCategoryId);
 
-  // I FLUSSI SEGUONO LA BASE (fix D1, 2026-08-30), **mese per mese**.
-  //
-  // `portfolioFlows` porta una voce per ogni mese MISURABILE (serve il `byAsset` di entrambi i mesi
-  // della coppia), zeri compresi. Un mese assente non e' un mese a flusso nullo: e' un mese che non
-  // si puo' misurare, e li' si ricade sul Cashflow. Senza questo fallback uno storico fatto di
-  // snapshot inseriti a mano — nessun breakdown — finirebbe con flussi tutti nulli e ogni
-  // versamento verrebbe letto come rendimento: una regressione grave e silenziosa rispetto al
-  // comportamento precedente.
-  const measured = (portfolioFlows ?? []).filter(cf => cf.date >= startDate && cf.date <= endDate);
-  const measuredMonths = new Set(measured.map(cf => monthKeyOf(cf.date)));
-  const fallback = portfolioFlows
-    ? expenseFlows.filter(cf => !measuredMonths.has(monthKeyOf(cf.date)))
-    : expenseFlows;
-  const cashFlows = portfolioFlows ? [...measured, ...fallback].sort((a, b) => a.date.getTime() - b.date.getTime()) : expenseFlows;
-
-  // Dichiarare la sorgente per PERIODO sarebbe una semplificazione bugiarda quando le due
-  // convivono: la tessera Contributi deve poter dire «in parte».
-  const flowSource: PerformanceMetrics['flowSource'] = !portfolioFlows
-    ? 'cashflow'
-    : fallback.length === 0
-      ? 'portfolio'
-      : measured.length === 0
-        ? 'cashflow'
-        : 'mixed';
+  // I flussi che neutralizzano il rendimento seguono la base — la regola sta tutta in
+  // resolveBaseAwareCashFlows, condivisa con le finestre rolling.
+  const { cashFlows, flowSource } = resolveBaseAwareCashFlows(expenseFlows, portfolioFlows, startDate, endDate);
 
   // Entrate/uscite/dividendi vengono SEMPRE dal Cashflow: un acquisto non e' ne' uno stipendio ne'
   // una spesa, e sommarlo li' mescolerebbe due perimetri.
@@ -1310,7 +1343,6 @@ function serializePerformanceData(data: PerformanceData): FirestorePerformanceDa
     fiveYear: serializeMetrics(data.fiveYear),
     allTime: serializeMetrics(data.allTime),
     rolling12M: data.rolling12M.map(serializeRolling),
-    rolling36M: data.rolling36M.map(serializeRolling),
     lastUpdated: Timestamp.fromDate(data.lastUpdated),
     snapshotCount: data.snapshotCount,
   };
@@ -1325,7 +1357,6 @@ function deserializePerformanceData(raw: FirestorePerformanceData): PerformanceD
     allTime: deserializeMetrics(raw.allTime),
     custom: null,
     rolling12M: raw.rolling12M.map(deserializeRolling),
-    rolling36M: raw.rolling36M.map(deserializeRolling),
     lastUpdated: raw.lastUpdated.toDate(),
     snapshotCount: raw.snapshotCount,
   };
@@ -1580,8 +1611,8 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
   ]);
 
   // ==== STEP 5: Calculate rolling periods (reuse allExpenses — no extra Firestore queries) ====
-  const rolling12M = await calculateRollingPeriods(userId, snapshots, 12, riskFreeRate, dividendCategoryId, allExpenses);
-  const rolling36M = await calculateRollingPeriods(userId, snapshots, 36, riskFreeRate, dividendCategoryId, allExpenses);
+  // `portfolioFlows` come per i periodi fissi: stessa base, stessi flussi, una sola risposta.
+  const rolling12M = await calculateRollingPeriods(userId, snapshots, 12, riskFreeRate, dividendCategoryId, allExpenses, portfolioFlows);
 
   const result: PerformanceData = {
     ytd,
@@ -1591,7 +1622,6 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
     allTime,
     custom: null,
     rolling12M,
-    rolling36M,
     lastUpdated: new Date(),
     snapshotCount: snapshots.length,
   };
@@ -1616,6 +1646,14 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
  *
  * Uses in-memory filtering of pre-fetched expenses to avoid N Firestore queries.
  *
+ * I FLUSSI SEGUONO LA BASE anche qui. Gli snapshot arrivano gia' proiettati sulla base
+ * (`toPerformanceBaseSnapshots`), quindi il capitale misurato e' quello giusto; senza
+ * `portfolioFlows` pero' i flussi resterebbero quelli del Cashflow, dimensionati sull'intero
+ * patrimonio, e ogni finestra sottrarrebbe da un capitale ridotto i versamenti di tutto il
+ * patrimonio. E' la stessa coppia capitale/flussi dei cinque periodi fissi — vedi
+ * `resolveBaseAwareCashFlows` — e senza di essa le rolling divergono dai numeri delle tessere
+ * mostrate sopra, nella stessa pagina.
+ *
  * ASSUMPTION: snapshots are monthly and contiguous, so `windowMonths + 1` snapshots span
  * `windowMonths` measured months. It is the same assumption the index arithmetic below already
  * makes; with a hole in the series a window would cover more calendar time than its name says.
@@ -1625,6 +1663,9 @@ export async function getAllPerformanceData(userId: string, forceRefresh = false
  * @param windowMonths - Size of the rolling window in months
  * @param riskFreeRate - Risk-free rate for Sharpe ratio calculation
  * @param dividendCategoryId - Category ID for dividend income (from user settings)
+ * @param prefetchedExpenses - Spese gia' lette, per evitare una query per finestra
+ * @param portfolioFlows - I flussi per asset di `buildPortfolioCashFlows`, o `undefined` quando la
+ *   base e' tutto il patrimonio (nessuna esclusione) e il Cashflow e' la fonte giusta
  * @returns Array of rolling period performance data
  */
 export async function calculateRollingPeriods(
@@ -1633,7 +1674,8 @@ export async function calculateRollingPeriods(
   windowMonths: number,
   riskFreeRate: number,
   dividendCategoryId?: string,
-  prefetchedExpenses?: Expense[]
+  prefetchedExpenses?: Expense[],
+  portfolioFlows?: CashFlowData[]
 ): Promise<RollingPeriodPerformance[]> {
   const sortedSnapshots = [...allSnapshots]
     .sort((a, b) => {
@@ -1669,7 +1711,11 @@ export async function calculateRollingPeriods(
     // Get snapshots and cash flows for this window
     const windowSnapshots = sortedSnapshots.slice(i - windowMonths, i + 1);
     // OPTIMIZATION: Use in-memory filtering instead of Firestore query
-    const cashFlows = getCashFlowsFromExpenses(allExpenses, periodStartDate, periodEndDate, dividendCategoryId);
+    const expenseFlows = getCashFlowsFromExpenses(allExpenses, periodStartDate, periodEndDate, dividendCategoryId);
+    // Le date coincidono per costruzione: `buildPortfolioCashFlows` data ogni voce al 1° del mese
+    // e `periodStartDate` e' il 1° del mese successivo alla valutazione, la stessa convenzione del
+    // ramo per periodo.
+    const { cashFlows } = resolveBaseAwareCashFlows(expenseFlows, portfolioFlows, periodStartDate, periodEndDate);
 
     // Calculate CAGR
     const netCashFlow = cashFlows.reduce((sum, cf) => sum + cf.netCashFlow, 0);
@@ -1692,7 +1738,10 @@ export async function calculateRollingPeriods(
     rollingPeriods.push({
       periodEndDate,
       periodStartDate,
-      cagr: cagr || 0,
+      // `?? null`, mai `|| 0`: un CAGR non misurabile non e' un rendimento nullo, e uno zero
+      // legittimo (la finestra e' finita dov'era partita) e' un rendimento vero da non schiacciare.
+      // Sharpe e volatilita' qui sotto sono `null` per lo stesso motivo da sempre.
+      cagr: cagr ?? null,
       sharpeRatio,
       volatility,
     });
