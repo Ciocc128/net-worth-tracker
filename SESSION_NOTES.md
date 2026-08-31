@@ -1,17 +1,21 @@
-# SESSION NOTES — 2026-08-29/31 — Audit dei Rendimenti, ricostruzione storica, fix D1
+# SESSION NOTES — 2026-08-29/31 — Audit dei Rendimenti, ricostruzione storica, fix D1, PR upstream
 
 **Esito**: i quattro difetti dell'audit sono chiusi. 23 mesi di storia (da ottobre 2024) ricostruiti
 e scritti in produzione, registro operazioni completato con le vendite, e il calcolo dei rendimenti
 corretto nel codice — dove i flussi ora seguono la base invece di venire sempre dal Cashflow.
 Da 35,1% annualizzato (raddoppiato) a **16,16%** misurato.
 
-**Aggiornamento del 2026-08-31 (sera)**: **tutti i punti aperti sono chiusi.** Il flag era già a
-posto, i due numeri «che non tornavano» erano lo stesso numero in unità diverse, la riconciliazione
-registro ↔ Δquantità non trova nessuna operazione mancante, e la Hall of Fame è stata ricalcolata.
+**Aggiornamento del 2026-08-31 (sera)**: **tutti i punti aperti sono chiusi, e il lavoro è uscito
+dal fork.** Il flag era già a posto, i due numeri «che non tornavano» erano lo stesso numero in
+unità diverse, la riconciliazione registro ↔ Δquantità non trova nessuna operazione mancante, e la
+Hall of Fame è stata ricalcolata. Il fix è stato proposto upstream come
+**[PR #319](https://github.com/GiuseppeDM98/net-worth-tracker/pull/319)** su `develop`, con il
+follow-up come **[issue #320](https://github.com/GiuseppeDM98/net-worth-tracker/issues/320)**.
 Vedi PUNTI APERTI qui sotto e la sezione datata in fondo.
 
-La descrizione della modifica al codice, pensata per una PR upstream, sta in
-**`docs/performance-flows-pr.md`**. Questo file è il diario: come ci siamo arrivati e cosa resta.
+La descrizione della modifica al codice sta in **`docs/performance-flows-pr.md`** (è il corpo della
+#319), il testo del follow-up in **`docs/ledger-reconciliation-issue.md`** (è il corpo della #320).
+Questo file è il diario: come ci siamo arrivati e cosa resta.
 
 > Gli script e i dump usati per la ricostruzione vivono in `scratchpad/rendimenti-audit/`, che da
 > oggi è in `.gitignore`: contiene dati finanziari reali (spese, saldi, patrimonio) e non deve
@@ -625,7 +629,7 @@ identico al numero annotato il 30/08.
 verificata (`check-hof.mts`): 22 mesi, tre anni in classifica, i 15 mesi ricostruiti dentro.
 
 **La PR upstream è aperta**: [#319](https://github.com/GiuseppeDM98/net-worth-tracker/pull/319) su
-`develop`, dal branch `pr/rendimenti-flussi-seguono-base` (worktree `.claude/worktrees/pr-upstream`).
+`develop`, dal branch `pr/rendimenti-flussi-seguono-base`.
 Costruito da `upstream/develop` + il solo `45fa86e`, e **verificato su quella base prima di aprirlo**:
 cherry-pick pulito, albero identico al nostro `main` sugli 11 file, `tsc` pulito, **145 file / 3253
 test verdi** sotto `TZ=Europe/Rome` (upstream ne ha più di noi: `develop` ha portato i test della
@@ -642,5 +646,29 @@ ticker, nessun nome di strumento, solo aggregati; verificato con una scansione p
 > `docs/performance-flows-pr.md` → `#319`, `docs/ledger-reconciliation-issue.md` → il suo riassunto.
 > Altrimenti chi legge trova link morti.
 
-**Da qui in avanti la palla è del manutentore.** Se arrivano richieste di modifica sulla PR, il
-branch è ancora in piedi nel worktree `.claude/worktrees/pr-upstream`.
+**Da qui in avanti la palla è del manutentore.**
+
+### Come riprendere se arrivano richieste di modifica sulla PR
+Il worktree `pr-upstream` è stato **rimosso**, ma il **branch resta** — è la head della #319, e
+cancellarlo l'avrebbe lasciata orfana (verificato dopo la rimozione: PR ancora `OPEN` e
+`MERGEABLE` su `a41db38`). Per ripartire:
+
+```
+git switch pr/rendimenti-flussi-seguono-base
+npm install          # il node_modules se n'è andato con la cartella del worktree
+npx tsc --noEmit && TZ=Europe/Rome npx vitest run
+```
+
+Attenzione: quel branch sta su `upstream/develop`, **non** sul nostro `main`. Non ha il fondo
+pensione, l'allocazione leverage-aware, l'import CSV né le classi Trend/Carry — è la base di
+upstream, ed è giusto così. Le modifiche vanno fatte lì e pushate su `origin`; la PR si aggiorna
+da sé.
+
+### Stato del repository alla chiusura (2026-08-31)
+- `main` a `2523328`, allineato a `origin/main`, working tree pulito.
+- Un solo worktree: il checkout principale. Tutti quelli di sessione sono stati rimossi.
+- `pr/rendimenti-flussi-seguono-base` a `a41db38`, tracciato su `origin`, **da non cancellare**
+  finché la #319 è aperta.
+- `gh` installato e autenticato come `Ciocc128` (scope `gist`, `read:org`, `repo`).
+- Flag di produzione: `performanceIncludesExcludedAssets` e `performanceIncludesPensionFunds`
+  entrambi **`false`** — è la configurazione con cui valgono tutti i numeri di questo file.
