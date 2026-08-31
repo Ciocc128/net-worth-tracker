@@ -503,37 +503,37 @@ describe('computePensionReturn — isCoverageContradictory', () => {
     values.map(([year, month, value]) => ({ year, month, value }));
 
   /**
-   * Il caso reale del 2026-08-31, ridotto ai suoi numeri: cinque mesi di versamenti registrati
-   * tutti lo stesso giorno, quindi attribuiti da `valueEffectMonth` a un mese solo. La finestra
-   * legge +50%, +33% e +27% di "mercato" (che erano versamenti) e poi sottrae 2.176,64 € da un
-   * mese che ne vale 2.195,27: TWR −97,43%, stampato come misura finché la guardia guardava solo
-   * verso l'alto.
+   * Il caso del 2026-08-31, ridotto ai suoi numeri e riscritto su importi tondi: cinque mesi di
+   * versamenti registrati tutti lo stesso giorno, quindi attribuiti da `valueEffectMonth` a un
+   * mese solo. La finestra legge +50%, +33% e +25% di "mercato" (che erano versamenti) e poi
+   * sottrae 2.250 € da un mese che ne vale 2.270: TWR −97,33%, stampato come misura finché la
+   * guardia guardava solo verso l'alto.
    */
   const backfilledAllInAugust = [
-    contribution(2026, 4, 388.27, 'tfr', new Date(2026, 7, 28)),
-    contribution(2026, 4, 337.27, 'employer', new Date(2026, 7, 28)),
-    contribution(2026, 5, 194.13, 'tfr', new Date(2026, 7, 28)),
-    contribution(2026, 5, 168.64, 'employer', new Date(2026, 7, 28)),
-    contribution(2026, 6, 194.14, 'tfr', new Date(2026, 7, 28)),
-    contribution(2026, 6, 168.64, 'employer', new Date(2026, 7, 28)),
-    contribution(2026, 7, 194.13, 'tfr', new Date(2026, 7, 31)),
-    contribution(2026, 7, 168.64, 'employer', new Date(2026, 7, 28)),
-    contribution(2026, 8, 194.14, 'tfr', new Date(2026, 7, 31)),
-    contribution(2026, 8, 168.64, 'employer', new Date(2026, 7, 31)),
+    contribution(2026, 4, 400, 'tfr', new Date(2026, 7, 28)),
+    contribution(2026, 4, 350, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 5, 200, 'tfr', new Date(2026, 7, 28)),
+    contribution(2026, 5, 175, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 6, 200, 'tfr', new Date(2026, 7, 28)),
+    contribution(2026, 6, 175, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 7, 200, 'tfr', new Date(2026, 7, 31)),
+    contribution(2026, 7, 175, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 8, 200, 'tfr', new Date(2026, 7, 31)),
+    contribution(2026, 8, 175, 'employer', new Date(2026, 7, 31)),
   ];
 
-  const realWindow = series([
-    [2026, 4, 725.54],
-    [2026, 5, 1088.31],
-    [2026, 6, 1451.09],
-    [2026, 7, 1842.69],
-    [2026, 8, 2195.27],
+  const backfilledWindow = series([
+    [2026, 4, 750],
+    [2026, 5, 1125],
+    [2026, 6, 1500],
+    [2026, 7, 1875],
+    [2026, 8, 2270],
   ]);
 
   it('non spaccia per misura un TWR che i versamenti hanno prodotto', () => {
-    const result = computePensionReturn(realWindow, backfilledAllInAugust, '2026-04')!;
+    const result = computePensionReturn(backfilledWindow, backfilledAllInAugust, '2026-04')!;
 
-    expect(result.twr).toBeCloseTo(-97.43, 1);
+    expect(result.twr).toBeCloseTo(-97.33, 1);
     expect(result.isCoverageContradictory).toBe(true);
     expect(isPensionReturnMeasurable(result)).toBe(false);
   });
@@ -544,12 +544,12 @@ describe('computePensionReturn — isCoverageContradictory', () => {
     // confronto senza far scattare nulla (`NaN > 20` è false) e finisce a schermo come «NaN%».
     const result = computePensionReturn(
       series([
-        [2026, 4, 725.54],
-        [2026, 5, 1088.31],
-        [2026, 6, 1451.09],
-        [2026, 7, 1842.69],
-        [2026, 8, 1832.49],
-        [2026, 9, 2200],
+        [2026, 4, 750],
+        [2026, 5, 1125],
+        [2026, 6, 1500],
+        [2026, 7, 1875],
+        [2026, 8, 1860],
+        [2026, 9, 2300],
       ]),
       backfilledAllInAugust,
       '2026-04'
@@ -567,15 +567,15 @@ describe('computePensionReturn — isCoverageContradictory', () => {
     // il valore di apertura" — ed è vero. È il rimedio senza modifiche al codice.
     const result = computePensionReturn(
       series([
-        [2026, 8, 2195.27],
-        [2026, 9, 2583.63],
+        [2026, 8, 2270],
+        [2026, 9, 2670],
       ]),
-      [...backfilledAllInAugust, contribution(2026, 9, 362.78, 'tfr', new Date(2026, 8, 30))],
+      [...backfilledAllInAugust, contribution(2026, 9, 375, 'tfr', new Date(2026, 8, 30))],
       '2026-08'
     )!;
 
-    expect(result.contributions.total).toBeCloseTo(362.78, 2);
-    expect(result.twr).toBeCloseTo(1.17, 1);
+    expect(result.contributions.total).toBeCloseTo(375, 2);
+    expect(result.twr).toBeCloseTo(1.1, 1);
     expect(result.isCoverageContradictory).toBe(false);
     expect(isPensionReturnMeasurable(result)).toBe(true);
   });

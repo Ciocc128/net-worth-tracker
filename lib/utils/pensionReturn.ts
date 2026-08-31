@@ -35,8 +35,8 @@
  * fondo conteneva già quei soldi al momento della registrazione (uno storico inserito a posteriori,
  * mentre «Valore attuale» veniva tenuto aggiornato a mano dall'estratto conto); la correzione
  * manuale del NAV che ne segue è indistinguibile, da qui, da un crollo di mercato. Caso reale:
- * 2.176,64 € attribuiti a un mese solo hanno prodotto un TWR di −97,43 %, stampato come misura
- * perché la guardia guardava solo verso l'alto. Un fondo non a leva non può perdere più del 100 %,
+ * cinque mesi di versamenti attribuiti a un mese solo hanno prodotto un TWR di −97 %, stampato
+ * come misura perché la guardia guardava solo verso l'alto. Un fondo non a leva non può perdere più del 100 %,
  * nessun mese può chiudere sotto zero, e un valore cresciuto non convive con un TWR quasi azzerato:
  * dove l'aritmetica esce dal reale, il numero non è una misura. Le due cause sono opposte e vogliono
  * parole diverse, quindi due flag distinti.
