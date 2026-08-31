@@ -624,5 +624,7 @@ identico al numero annotato il 30/08.
 **Niente su questo audit.** La Hall of Fame è stata ricalcolata dall'applicazione in giornata e
 verificata (`check-hof.mts`): 22 mesi, tre anni in classifica, i 15 mesi ricostruiti dentro.
 
-L'unica cosa che sopravvive è **facoltativa e upstream**: l'issue per la guardia del punto 4, ora
-con il disegno già deciso (quantità, sul cumulato) e le prove che in euro non funziona.
+L'unica cosa che sopravvive è **facoltativa e upstream**: l'issue per la guardia del punto 4.
+**Testo scritto**, in `docs/ledger-reconciliation-issue.md`, e collegato dal documento della PR.
+Da incollare su GitHub quando si vuole; nessun dato personale dentro (nessun ticker, nessun nome di
+strumento — solo aggregati, come già fa `performance-flows-pr.md`).

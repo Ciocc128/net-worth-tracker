@@ -146,4 +146,10 @@ Suite completa: **3045 test verdi**, `tsc --noEmit` pulito.
 prima»: per un asset coperto, un'operazione che l'utente dimentica di registrare sparisce dal flusso
 e gonfia il rendimento, senza che niente lo segnali. Le due fonti sono calcolabili entrambe per ogni
 mese; basta confrontarle e segnalare le divergenze oltre una soglia — nella tessera Contributi o
-nel Dettaglio. Da aprire come issue.
+nel Dettaglio.
+
+Testo pronto in **`docs/ledger-reconciliation-issue.md`**, con un risultato che cambia il disegno:
+la riconciliazione va fatta **in quantità sul cumulato**, non in euro mese per mese. Provata su 23
+mesi di un account reale, in euro produce 9 falsi allarmi — fino a 18.388 € su un mese solo —
+generati unicamente dallo sfasamento fra data d'operazione e data di rilevazione; in quantità torna
+esatta a 0.0000 su tutti e 15 gli asset coperti.
