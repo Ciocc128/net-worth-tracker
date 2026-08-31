@@ -5,10 +5,10 @@ e scritti in produzione, registro operazioni completato con le vendite, e il cal
 corretto nel codice — dove i flussi ora seguono la base invece di venire sempre dal Cashflow.
 Da 35,1% annualizzato (raddoppiato) a **16,16%** misurato.
 
-**Aggiornamento del 2026-08-31 (sera)**: i punti aperti 1, 3 e 4 sono chiusi — il flag era già
-a posto, i due numeri «che non tornavano» erano lo stesso numero in unità diverse, e la
-riconciliazione registro ↔ Δquantità non trova nessuna operazione mancante. **Resta solo la Hall of
-Fame.** Vedi PUNTI APERTI qui sotto e la sezione datata in fondo.
+**Aggiornamento del 2026-08-31 (sera)**: **tutti i punti aperti sono chiusi.** Il flag era già a
+posto, i due numeri «che non tornavano» erano lo stesso numero in unità diverse, la riconciliazione
+registro ↔ Δquantità non trova nessuna operazione mancante, e la Hall of Fame è stata ricalcolata.
+Vedi PUNTI APERTI qui sotto e la sezione datata in fondo.
 
 La descrizione della modifica al codice, pensata per una PR upstream, sta in
 **`docs/performance-flows-pr.md`**. Questo file è il diario: come ci siamo arrivati e cosa resta.
@@ -19,7 +19,7 @@ La descrizione della modifica al codice, pensata per una PR upstream, sta in
 
 ---
 
-## ⬜ PUNTI APERTI — leggi qui alla ripresa
+## ✅ PUNTI APERTI — tutti chiusi il 2026-08-31 (tenuti qui per memoria)
 
 **1. ✅ CHIUSO il 2026-08-31.** Il flag `performanceIncludesExcludedAssets` è **già `false`** in
 produzione (verificato con `verify-flag.mts`), insieme a `performanceIncludesPensionFunds`. La
@@ -42,9 +42,11 @@ dati letti in sola lettura), la pagina legge:
 > Verificato: forzando le sole Δquantità si riottiene esattamente +29,51% cumulato / +15,15%
 > annualizzato, e 1 anno +18,42%. L'ibrido registro+Δquantità dà i numeri della tabella qui sopra.
 
-**2. Hall of Fame: «Aggiorna i record».** I 15 mesi nuovi (ott 2024 → dic 2025) non entrano nelle
-classifiche finché non si ricalcola. Altrimenti ci pensa il cron notturno, ma solo dopo uno snapshot
-riuscito. **È l'unico punto ancora aperto, ed è un'azione da fare a schermo.**
+**2. ✅ CHIUSO il 2026-08-31.** Giorgio ha premuto «Aggiorna i record» dall'applicazione.
+Verificato in Firestore (`check-hof.mts`): `hall-of-fame/{uid}` risale alle **08:55 del 31/08**,
+`stats.monthCount` **22** (da **nov 2024** ad ago 2026 — il primo snapshot, ottobre 2024, è la
+valutazione d'apertura e non produce un mese misurato), e le classifiche annuali contengono ora
+**2024, 2025 e 2026**. I 15 mesi ricostruiti sono dentro.
 
 **3. ✅ CHIUSO il 2026-08-31 — i due numeri non erano in disaccordo.** (`reconcile.mts`)
 
@@ -84,6 +86,8 @@ Fatta girare su tutta la storia, prima di scrivere la guardia. Due risultati:
 - **Conseguenza di disegno**: confrontare mese per mese segnalerebbe ogni scarto di confine.
   La guardia deve confrontare le **quantità cumulate a oggi** per asset, e segnalare solo una
   divergenza che **persiste oltre il mese successivo**. Da aprire come issue, non parte della PR.
+
+**Nessuno dei quattro resta aperto.** Sopravvive solo, facoltativa, l'issue upstream del punto 4.
 
 ### Non aperti, ma da ricordare
 - Il **vecchio portafoglio liquidato ad aprile 2025** (XTRAC AI, FF-GD, SHR CHINA, VNT-US EQ,
@@ -413,7 +417,7 @@ spiegata. Nessuno dei due e' da considerare definitivo finche' non tornano.
      negativo non fallisce: ribalta il segno e azzera la catena del TWR. Ora sono tutte `<= 0`.
 4. ✅ **Flag rimesso a `false`** — verificato il 2026-08-31 (`verify-flag.mts`).
 5. ✅ **Riconciliato il 2026-08-31** (`reconcile.mts`): unita' diverse + BRK-B. PUNTI APERTI n. 3.
-6. ⬜ Hall of Fame: «Aggiorna i record» per far entrare i 15 mesi nuovi nelle classifiche.
+6. ✅ **Hall of Fame ricalcolata** dall'applicazione il 2026-08-31, verificata con `check-hof.mts`.
 7. ✅ **Aprile 2025 + i conti storici — APPLICATO il 2026-08-30.** I due conti creati
    (`create-historical-accounts.mts --apply`), i 21 snapshot riscritti (`write-history.mts --apply`),
    backup in `backup-history.json`. `diff-vs-prod.mts`: tutti e 21 i mesi identici alla
@@ -522,6 +526,7 @@ spiegata. Nessuno dei due e' da considerare definitivo finche' non tornano.
   - `reconcile-ledger.mts` — la riconciliazione registro ↔ Δquantità su tutta la storia, in euro e
     **in quantità** (`SOGLIA=<eur>` per la soglia dei falsi allarmi in euro).
   - `diff-months.mts` · `brkb.mts` · `brkb-asset.mts` — le tre sonde puntuali usate per isolare BRK-B.
+  - `check-hof.mts` — stato della Hall of Fame: data del ricalcolo, `stats` e ampiezza delle classifiche.
 - Sorgente della storia: `scratchpad/Portafoglio Fogli Google.xlsx` (fogli `2024`, `2025`, `2026`,
   `Historical NW Helper`) -> `sheet-raw.json` -> `reconstructed-snapshots.json`
 - `check-state.mts` = read-only, stampa lo stato dei `monthly-snapshots` (usalo prima e dopo ogni fix)
@@ -616,5 +621,8 @@ identico al numero annotato il 30/08.
    unicamente dallo sfasamento di un mese fra data d'operazione e data di rilevazione.
 
 ### Cosa resta
-Solo **Hall of Fame → «Aggiorna i record»**, che è un bottone. E, se lo si vuole, l'issue upstream
-per la guardia del punto 4, ora con il disegno già deciso e le prove che serve in quantità.
+**Niente su questo audit.** La Hall of Fame è stata ricalcolata dall'applicazione in giornata e
+verificata (`check-hof.mts`): 22 mesi, tre anni in classifica, i 15 mesi ricostruiti dentro.
+
+L'unica cosa che sopravvive è **facoltativa e upstream**: l'issue per la guardia del punto 4, ora
+con il disegno già deciso (quantità, sul cumulato) e le prove che in euro non funziona.
