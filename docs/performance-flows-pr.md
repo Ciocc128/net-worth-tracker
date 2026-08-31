@@ -1,5 +1,14 @@
 # Rendimenti: i flussi seguono la base
 
+> **Aperta il 2026-08-31 come [PR #319](https://github.com/GiuseppeDM98/net-worth-tracker/pull/319)**
+> su `develop` di upstream, dal branch `pr/rendimenti-flussi-seguono-base` (`upstream/develop` +
+> il solo commit `45fa86e`). Verificata su quella base prima di aprirla: cherry-pick pulito,
+> `tsc` pulito, **145 file / 3253 test verdi** sotto `TZ=Europe/Rome`.
+>
+> Il corpo inviato a GitHub differisce da questo file in due punti, di proposito: il rimando a
+> `docs/ledger-reconciliation-issue.md` è sostituito dal suo riassunto (quel file esiste solo in
+> questo fork), e il conteggio dei test è quello misurato sulla base upstream, non sul fork.
+
 ## Il problema
 
 `lib/utils/performanceBase.ts` permette all'utente di **escludere capitale** dalla base dei

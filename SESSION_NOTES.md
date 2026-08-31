@@ -624,7 +624,13 @@ identico al numero annotato il 30/08.
 **Niente su questo audit.** La Hall of Fame è stata ricalcolata dall'applicazione in giornata e
 verificata (`check-hof.mts`): 22 mesi, tre anni in classifica, i 15 mesi ricostruiti dentro.
 
-L'unica cosa che sopravvive è **facoltativa e upstream**: l'issue per la guardia del punto 4.
-**Testo scritto**, in `docs/ledger-reconciliation-issue.md`, e collegato dal documento della PR.
-Da incollare su GitHub quando si vuole; nessun dato personale dentro (nessun ticker, nessun nome di
-strumento — solo aggregati, come già fa `performance-flows-pr.md`).
+**La PR upstream è aperta**: [#319](https://github.com/GiuseppeDM98/net-worth-tracker/pull/319) su
+`develop`, dal branch `pr/rendimenti-flussi-seguono-base` (worktree `.claude/worktrees/pr-upstream`).
+Costruito da `upstream/develop` + il solo `45fa86e`, e **verificato su quella base prima di aprirlo**:
+cherry-pick pulito, albero identico al nostro `main` sugli 11 file, `tsc` pulito, **145 file / 3253
+test verdi** sotto `TZ=Europe/Rome` (upstream ne ha più di noi: `develop` ha portato i test della
+«divisione spese coppia»).
+
+Resta **l'issue del punto 4**, non ancora aperta. Testo pronto in
+`docs/ledger-reconciliation-issue.md`; il corpo della PR la annuncia («la aprirò come issue
+separata»). Nessun dato personale dentro — nessun ticker, nessun nome di strumento, solo aggregati.
