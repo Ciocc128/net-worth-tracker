@@ -631,6 +631,16 @@ cherry-pick pulito, albero identico al nostro `main` sugli 11 file, `tsc` pulito
 test verdi** sotto `TZ=Europe/Rome` (upstream ne ha più di noi: `develop` ha portato i test della
 «divisione spese coppia»).
 
-Resta **l'issue del punto 4**, non ancora aperta. Testo pronto in
-`docs/ledger-reconciliation-issue.md`; il corpo della PR la annuncia («la aprirò come issue
-separata»). Nessun dato personale dentro — nessun ticker, nessun nome di strumento, solo aggregati.
+**Anche l'issue del punto 4 è aperta**:
+[#320](https://github.com/GiuseppeDM98/net-worth-tracker/issues/320), che cita la #319 (il
+collegamento incrociato lo fa GitHub da sé, non serve un commento sulla PR). Testo in
+`docs/ledger-reconciliation-issue.md`. Nessun dato personale in nessuno dei due corpi — nessun
+ticker, nessun nome di strumento, solo aggregati; verificato con una scansione prima di inviare.
+
+> **Regola che vale per entrambi**: i documenti in `docs/` sono scritti per questo fork e citano
+> file che upstream non ha. Il corpo inviato a GitHub va sempre derivato sostituendo quei rimandi —
+> `docs/performance-flows-pr.md` → `#319`, `docs/ledger-reconciliation-issue.md` → il suo riassunto.
+> Altrimenti chi legge trova link morti.
+
+**Da qui in avanti la palla è del manutentore.** Se arrivano richieste di modifica sulla PR, il
+branch è ancora in piedi nel worktree `.claude/worktrees/pr-upstream`.

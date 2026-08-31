@@ -1,5 +1,10 @@
 # Rendimenti: segnalare quando il registro operazioni e gli snapshot non concordano
 
+> **Aperta il 2026-08-31 come [issue #320](https://github.com/GiuseppeDM98/net-worth-tracker/issues/320)**
+> su upstream, come follow-up della [PR #319](https://github.com/GiuseppeDM98/net-worth-tracker/pull/319).
+> Nel corpo inviato a GitHub il rimando qui sotto a `docs/performance-flows-pr.md` è sostituito da
+> `#319`: quel file esiste solo in questo fork e per chi legge upstream sarebbe un link morto.
+
 > Follow-up di *«Rendimenti: i flussi seguono la base»* (`docs/performance-flows-pr.md`), dove è
 > annotato come punto aperto. Questa è la guardia che rende difendibile la regola «registro prima».
 

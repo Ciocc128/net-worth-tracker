@@ -8,6 +8,9 @@
 > Il corpo inviato a GitHub differisce da questo file in due punti, di proposito: il rimando a
 > `docs/ledger-reconciliation-issue.md` è sostituito dal suo riassunto (quel file esiste solo in
 > questo fork), e il conteggio dei test è quello misurato sulla base upstream, non sul fork.
+>
+> Il follow-up annunciato nel corpo è poi diventato la
+> [issue #320](https://github.com/GiuseppeDM98/net-worth-tracker/issues/320).
 
 ## Il problema
 
