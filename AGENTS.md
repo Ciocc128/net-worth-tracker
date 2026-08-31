@@ -78,10 +78,13 @@ Companion documents — do not duplicate their content into this file:
 - **`CardHeader` is `flex flex-col`**, so a `flex justify-between` row inside it makes a `flex-1` grandchild act
   vertically (`truncate` dies, `shrink-0` siblings get pushed off-screen) — use a plain `<div className="px-4 py-3 flex
   items-start gap-2">`.
-- **`ResponsiveModal`** is the convergence target for form modals (`max-w-4xl` default, footer resolved by the caller,
-  `Description` handled internally); small confirms and the 2-step `AssetDialog` may stay plain `Dialog`s.
+- **`ResponsiveModal` is now the ONE modal** (2026-08-31): every surface with a form, a list or a report goes through
+  it. Only two things stay a plain primitive — `LogoutDialog`, an `AlertDialog` because it interrupts and wants
+  `role="alertdialog"` with the focus on «Annulla», and the popovers, which are not modals. See *Dialog e form
+  trasversali* below.
 - **`DialogDescription`/`DrawerDescription` is required** in every `DialogContent`/`DrawerContent` (`sr-only` if it
-  should not show); never silence the warning with `aria-describedby={undefined}`.
+  should not show); never silence the warning with `aria-describedby={undefined}`. `ResponsiveModal` handles it: the
+  `reading` becomes the Description through `asChild`, and without one the `description` prop is rendered `sr-only`.
 
 ### Layout and Color Tokens
 - Never hardcode structural colors in shell components — `bg-background`, `text-foreground`, `border-border`.
@@ -130,6 +133,40 @@ Companion documents — do not duplicate their content into this file:
   does not clear field arrays.
 - **`useWatch()` for render, `getValues()` for handlers — never `watch()`** (incompatible with the React Compiler, which
   then skips the whole component).
+
+### Dialog e form trasversali (`components/ui/responsive-modal.tsx`, `lib/utils/dialogNarrative.ts`)
+- **A modal is a tile lifted off the page** (DESIGN.md → The Modal-Is-A-Tile Rule): eyebrow · title 20px · reading ·
+  body · footer. `ResponsiveModal` owns the whole shell, so a caller passes content and never chrome — and never
+  branches on `useMediaQuery` to order two buttons: the footer is `justify-end` on a dialog and `flex-col-reverse` at
+  `h-11` on a drawer, so writing «Annulla» then the primary in DOM order puts the primary on TOP on a phone.
+- **Four widths, and no others**: `sm` 420 · `md` 560 · `lg` 720 · `xl` 960. `dialogClassName` survives as an escape
+  hatch and currently has no user; reach for a width name first.
+- **The reading IS the status line.** `describeModalStatus(status, copy)` returns the idle/submitting/error sentence
+  and its tone; `ModalStatusLine` renders it as ONE stable node — `role="status" aria-live="polite"
+  aria-atomic="true"` — that is also Radix's `Description`. Two traps, both already paid for on /login: the container
+  must never swap `status` for `alert` (a different node to the a11y tree, and some readers announce nothing across
+  the swap), and `NarrativeText` colours only `mono` segments, so the tone is applied by the component.
+- **`describeWriteError` is the ONE translation of a failed write**, exactly as `describeAuthError` is for a sign-in.
+  11 Firestore codes are mapped; anything else takes a sentence that claims nothing rather than falling through to
+  «Missing or insufficient permissions.» A server message written FOR a reader survives only if the thrower marks it
+  with `userFacingError` — `assetTransactionService.parseWriteResponse` does, because the 422 bodies of the trade
+  routes are the only sentences that know why an operation was refused.
+- **Two-click confirms live in `lib/hooks/useArmedDelete.ts`** (moved there from `components/cashflow/budget/` when
+  the fourth caller appeared). No timer, ever. **Escape while armed means DISARM**, and that cannot be done from the
+  button: Radix's dismiss layer registers its document listener when the dialog MOUNTS, so it always runs before one
+  added at arm time — capture phase included, and `stopPropagation` never reaches it. The hook therefore exports
+  `hasArmedConfirm()`, a module-level count that `ResponsiveModal` reads in `onEscapeKeyDown` to `preventDefault()`.
+  Verified in a browser on 2026-08-31: without it, Escape closed the modal with the row still armed.
+- **The words are pure and tested.** `dialogNarrative.ts` holds every sentence a modal speaks — the status copy, the
+  three `describe*Intent` builders (expense, trade, asset: they name the CONSEQUENCE, not the fields) and the readings
+  that carry figures (movements, category delete/move, a dividend day, the test data). It imports from `formatters`,
+  never `chartService`, so it stays SDK-free.
+- **A summary block inside a modal is `bg-muted`**, never `bg-card` — on this surface that is a card inside a card.
+- **The eyebrow's scope is the SINGULAR of one row's type.** `EXPENSE_TYPE_LABELS` is the plural of a category group
+  («Spese Variabili»); the picker's own label is the one a modal about ONE row wants («Spesa variabile»).
+- **In light mode `--card` and `--background` are both `oklch(1 0 0)`**, so a test that proves a modal is «lifted» by
+  comparing it with the page background passes only in dark mode. What separates it there is the border and the Float
+  shadow; assert the modal's surface equals a TILE's instead.
 
 ### Two-Step Create Dialogs (`AssetDialog`, `ExpenseDialog`)
 - `AssetDialog`: step 1 picks the type, step 2 shows only that type's fields; edit reuses the same visibility logic and
@@ -1878,7 +1915,8 @@ Companion documents — do not duplicate their content into this file:
   which declares the SSR/hydration split in the signature.
 - **`react-hooks/refs`: a custom hook must never RETURN a ref inside its object** — every read of that object during
   render (`del.armed`, `del.onClick`) is flagged "Cannot access refs during render". Take the ref as an argument
-  (`useArmedDelete(ref, onDelete)`, `components/cashflow/budget/useArmedDelete.ts`).
+  (`useArmedDelete(ref, onDelete)`, `lib/hooks/useArmedDelete.ts` — moved there from the budget folder
+  on 2026-08-31, when the fourth caller appeared).
 - **`react-hooks/preserve-manual-memoization` ("Compilation Skipped")**: the compiler refuses to optimize the whole
   component when a dep array is *more specific* than what it infers — align the dep to the inferred value.
 - **Loading skeleton over spinner** on any page investing in count-up and chart scheduling, with `PageContainer` imported
@@ -2024,9 +2062,14 @@ Companion documents — do not duplicate their content into this file:
 - **Two-click confirm: no timer, and not `onBlur` alone.** A 3-second auto-disarm is a WCAG 2.2.1 time limit, and Safari
   does not focus a `<button>` on tap. Use a document `pointerdown` listener with a `ref.contains(target)` guard, plus
   Escape, plus `onBlur`. **Disarm BEFORE delegating** — on success the parent usually unmounts, so nothing resets the
-  flag on failure and the next single click fires the destructive action.
+  flag on failure and the next single click fires the destructive action. **Inside a modal, Escape cannot be
+  intercepted from the button**: Radix's dismiss layer registers its document listener when the dialog MOUNTS, so it
+  runs before any listener added at arm time — capture phase included, and `stopPropagation` never reaches it. The
+  hook exports `hasArmedConfirm()` and `ResponsiveModal` calls `preventDefault()` in `onEscapeKeyDown`; without it
+  Escape closes the dialog with the row still armed (seen in a browser, 2026-08-31).
 - **Form error text needs the sign token too**: `text-red-500` fails AA in both modes on a dialog surface AND diverges
-  from `--destructive` on the non-default themes.
+  from `--destructive` on the non-default themes. The dialog sweep of 2026-08-31 retired the last 76 of them; a
+  FORM-level failure now belongs to the modal's reading line, not to a paragraph of its own.
 - **`PageTabBar` tabs carry `aria-label={label}` unconditionally** (closed 2026-08-22): below 1440px the inactive tabs are
   icon-only, so without it they had no accessible name. Pass `ariaLabel` to `PageTabs` so the tablist is named too.
 
@@ -2243,6 +2286,11 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   project is therefore either not collected at all or collected against the WRONG fixture — and both read as the
   feature being broken, not as a config miss. It should also assert against Firestore rather than the page, plant a
   decoy word that appears nowhere in the seed, delete the documents it created, and delete itself.
+- **A fixture a spec creates should be removed BY THE APP, not by a `curl -X DELETE`.** The dialog verification of
+  2026-08-31 registered a trade to have something to arm: deleting it through the ledger's own button re-ran the
+  replay that rebuilds the asset's quantity and PMC, which a REST delete would have skipped, leaving the asset
+  inconsistent with a register that no longer holds the row. Loop the deletion rather than removing one row: an
+  earlier failed run may have left its own.
 
 ---
 
@@ -2279,10 +2327,11 @@ Moved verbatim from CLAUDE.md's Known Issues each time that file reached its 40.
 - **Landing pubblica**: no Playwright spec (the session's throwaway one was deleted after 18/18 green at 1440 and 390, with the demo flag both ON and OFF, and three guards falsified). The sample profile is a FIXED snapshot of agosto 2026, so the Cashflow tile says «agosto» whatever month it is read in — declared, not hidden. The period selector over the sparkline works and filters the invented series: it is the app's own hero, selector included. `ObiettivoTile` shows at most three goals and the sample has exactly three. The three promise tiles carry no `aria` beyond the tile's own region label. The count of colour themes is NOT stated anywhere: `ColorTheme` is a union type with no runtime enumeration, so it could not be read from code and was dropped rather than typed by hand. The page is prerendered as static content, but what the prerender contains is the SPINNER (`loading` is true until Firebase auth resolves in the browser), so `getItalyYear()` — which decides the pension ceiling the Previdenza promise prints — is only ever evaluated on the client.
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread sheet keeps its 3 s auto-disarm delete (on request) while the memory rows use `useArmedDelete`; a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
 - **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause; the Ventaglio runs only while open, its probability lives in the Traguardo footer; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit.
-- **Impostazioni**: no Playwright spec (the throwaway ones were deleted); the dialogs keep their pre-redesign chrome; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva; the header chip no longer says WHICH tab has unsaved changes (one sentence for the whole page); the Costi tile shows the rate and the checking subcategory only with the duty on; the category count ignores types outside the four listed (transfers); `settings/page.tsx` carries 7 pre-existing `react-hooks` errors and `AccountSharingSection` 1.
+- **Impostazioni**: no Playwright spec (the throwaway ones were deleted); the dialogs opened from here take the 2026-08-31 modal vocabulary; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva; the header chip no longer says WHICH tab has unsaved changes (one sentence for the whole page); the Costi tile shows the rate and the checking subcategory only with the duty on; the category count ignores types outside the four listed (transfers); `settings/page.tsx` carries 7 pre-existing `react-hooks` errors and `AccountSharingSection` 1.
 - **Allocazione**: no Playwright spec; Esposizione fetches `/api/portfolio/exposure` on mount (Yahoo on the first visit, then the 24 h cache) and truncates names at 128 px; a class held WITHOUT a target never enters `byAssetClass` (`compareAllocations` iterates the targets), so the score charges it as drift — the Bilanciamento reading names it, the verdict lists only targeted classes; a Ribilancia is «a saldo zero» only when the in-band classes carry no gap; «Modifica target» points to Impostazioni even with goal-derived targets; theoretical specific-asset targets are rows without a tick; `BandToggle` snaps 2 or 5 typed in the custom field back to the preset.
 - **FIRE › Coast FIRE**: the verdict's two capital figures are net of the locked fund and only the lock sentence says so; the pension clause reads «la Pensione INPS» for labels starting with «Pension…», «la pensione di Giuseppe» otherwise (every pension listed, never counted); `coast.spec.ts` asserts structure and format only (the fixture fixes expenses, not the clock); the Ipotesi disclosure reopens on every unsaved edit or incomplete pension row, ONE save for four tiles; the «Impatto delle pensioni» table exists from 1440 only; `buildCoastInflowEvents` merges funds unlocking in the same year.
 - **FIRE › Monte Carlo**: no Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); `results.medianFinalValue` has no surface.
+- **Dialog e form trasversali**: no Playwright spec (the session's throwaway ones were deleted). Four two-click deletes still auto-disarm on a 3 s timer BY DESIGN, because they live on rows and not in modals and the owner kept them (`AssetRow`, `StrumentiTile`, `DividendTable`, `AssistantThreadList`); the ones that moved into the modal vocabulary lost theirs. `describeWriteError` maps 11 Firestore codes and anything else takes the generic sentence, so a NEW cause is invisible until it is added — and a server message survives only if the thrower marks it `userFacingError`, which today only `assetTransactionService` does. The status line is FORM-level: per-field zod errors keep their own line under the field, and the two can both be visible at once. `dialogClassName` still exists as a width escape hatch and has no user — reach for a `width` name. `AssetDialog` and `ExpenseDialog` carry their pre-existing `react-hooks` errors, untouched by the propagation. `PDFExportDialog`'s «Genera PDF» moved from the body into the footer, so a spec that located it inside the scrollable area needs updating.
 - **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation, nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; the Sensibilità reference expenses are session-only; `isPrimaryResidence` is informational.
 - **Patrimonio**: Δ columns are empty for pension funds and cash accounts by design; the Rendimento tile ranks only within the overview's `topAssets` (15 largest); «Movimenti del mese» reads the whole ledger and filters in memory; the 2-click delete auto-disarms on a 3 s timer (kept on request); G/P against PMC compares a native-currency `averageCost` with the EUR value; `TaxCalculatorModal` simulates in the native price but labels €; `AssetDialog.tsx` carries 7 pre-existing `react-hooks` errors. **Two accepted side effects of the optional Sottocategoria** (2026-08-30; neither is new — without the asterisk they are only less signalled): a cash account without the «conti correnti» subcategory loses the 5.000 € stamp-duty threshold (`calculateStampDuty`, a rule Impostazioni already states), and changing Tipo or Classe does not clear `subCategory`, so an out-of-class value can survive invisibly — Radix shows the placeholder because the value is not among the items.
 - **Tracciamento**: «Tabella» renders `ExpenseTable` unchanged inside Movimenti; the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip).

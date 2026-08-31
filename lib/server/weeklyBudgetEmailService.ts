@@ -24,6 +24,7 @@ import {
 } from '@/lib/utils/budgetUtils';
 import type { BudgetItem, BudgetPeriod } from '@/types/budget';
 import type { Expense } from '@/types/expenses';
+import { EMAIL_ANALYSIS_MODEL } from '@/lib/constants/aiModels';
 
 const WARNING_RATIO = 0.8;
 
@@ -285,7 +286,7 @@ Niente elenchi, saluti, premesse o titoli.`;
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
+      model: EMAIL_ANALYSIS_MODEL,
       max_tokens: 400,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'high' },
