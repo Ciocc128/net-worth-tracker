@@ -41,7 +41,7 @@ import { calculateAssetValue, calculateLiquidNetWorth, calculateTotalValue, getA
 import { calculateCurrentAllocation, getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { buildParamsFromScenario, getDefaultMarketParameters, getDefaultMonteCarloScenarios, runMonteCarloSimulation } from '@/lib/services/monteCarloService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import { deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS, deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import {
@@ -98,7 +98,7 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 ];
 
 const DEFAULT_RETIREMENT_YEARS = 30;
-const DEFAULT_SIMULATIONS = 10000;
+const DEFAULT_SIMULATIONS = DEFAULT_MONTE_CARLO_SIMULATIONS;
 const DEFAULT_WITHDRAWAL = 30000;
 
 /** A run keeps the inputs it was made with, so the page can tell a stale form from a fresh one. */
