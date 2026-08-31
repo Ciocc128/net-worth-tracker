@@ -360,9 +360,11 @@ export default function AssetsPage() {
           {!overviewUnavailable && (
             <motion.div variants={cardItem} className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-5 desktop:row-span-2')}>
               <PatrimonioTile
-                overview={overview}
                 totalValue={totalValue}
                 heroValueClass={heroValueClass}
+                variations={overview.variations}
+                isNewATH={overview.ath?.isNewATH ?? false}
+                hasCurrentMonthSnapshot={overview.flags.currentMonthSnapshotExists}
                 sparklinePeriod={sparklinePeriod}
                 onSparklinePeriodChange={setSparklinePeriod}
                 sparklineDisplay={sparklineDisplay}

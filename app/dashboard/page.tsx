@@ -150,6 +150,13 @@ export default function DashboardPage() {
     [overview, chartColors],
   );
 
+  // The hero's "Mercato:" digest on this page is per CLASS; Patrimonio passes instruments
+  // instead, which is why the mapping lives at the call site and not inside the tile.
+  const classMovers = useMemo(
+    () => (overview?.topMovers ?? []).map((m) => ({ key: m.assetClass, label: m.label, delta: m.delta })),
+    [overview],
+  );
+
   const verdict = useMemo(() => {
     if (!overview) return null;
     return buildOverviewVerdict({
@@ -290,12 +297,16 @@ export default function DashboardPage() {
             className={cn(CELL_CLASS, 'tablet:col-span-2 desktop:col-span-5 desktop:row-span-2')}
           >
             <PatrimonioTile
-              overview={overview}
               totalValue={totalValue}
               heroValueClass={heroValueClass}
+              variations={overview.variations}
+              isNewATH={overview.ath?.isNewATH ?? false}
               sparklinePeriod={sparklinePeriod}
               onSparklinePeriodChange={setSparklinePeriod}
               sparklineDisplay={sparklineDisplay}
+              movers={classMovers}
+              assetCount={overview.flags.assetCount}
+              hasCurrentMonthSnapshot={overview.flags.currentMonthSnapshotExists}
             />
           </motion.div>
 

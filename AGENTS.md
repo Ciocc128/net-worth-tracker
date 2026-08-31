@@ -290,6 +290,51 @@ Companion documents — do not duplicate their content into this file:
   Firebase console (`auth/operation-not-allowed`, mapped). Do not "fix" that by hiding the button behind a flag that
   does not exist.
 
+### Landing pubblica (`app/page.tsx`, `components/landing/LandingPromiseTile.tsx`, `lib/utils/{landingNarrative,landingSampleData}.ts`)
+- **The landing renders the app's OWN tiles, not pictures of them.** `PatrimonioTile`, `CashflowTile`,
+  `ComposizioneTile` and `ObiettivoTile` are imported from `components/dashboard/overview/` and fed an
+  invented profile (`landingSampleData.ts`). A mock-up of the Panoramica would age the moment the
+  Panoramica changed, and the landing is the one surface where staleness is read as dishonesty.
+- **The hero is ONE component for THREE surfaces now.** `PatrimonioTile` used to take the whole
+  `DashboardOverviewPayload` and read five fields of it; it takes those five as props
+  (`variations`, `isNewATH`, `movers`, `assetCount`, `hasCurrentMonthSnapshot`), because the landing
+  has no account and therefore no payload. `movers` no longer defaults to `overview.topMovers`: the
+  Panoramica maps its per-CLASS movers at the call site, Patrimonio passes instruments.
+- **The sample profile has invariants, and `__tests__/landingSampleData.test.ts` pins them**: the six
+  classes sum to the gross total and their shares to 100%, both variations are DERIVED from the
+  sparkline (last two points; the previous December), the market digest is smaller than the monthly
+  variation (the rest is contributions), income − expenses = net in both months, and the month-end
+  projection at day 27 lands below the previous month so the tile's positive token is earned. Change
+  one figure and the tests say which relation broke.
+- **The month is FIXED (agosto 2026), not derived from the clock.** A profile whose month followed
+  today would need its expenses to follow the day too, and a projection computed on the 3rd is
+  nonsense. A snapshot that is labelled ages better than a half-simulated "now".
+- **The verdict is the PRODUCT's promise and is the SAME sentence as /login's** —
+  `PRODUCT_PROMISE_HEADLINE` in `authNarrative.ts`, imported by both. Its one state is
+  `demoAvailable`: without the demo credentials the clause about the demo disappears from the
+  sentence AND the button is not rendered, so the page can never point at a control it does not have.
+- **The «dati d'esempio» declaration belongs to the REGION, not to the tile.** One eyebrow +
+  one 13px reading at the head of the grid (`SAMPLE_PROFILE_EYEBROW`, `describeSampleProfile`), plus
+  the hero's own count line («11 asset · profilo d'esempio»). A caption under a single number reads
+  as a footnote to that number alone; four repetitions of the word read as an apology.
+- **The three promise tiles print no invented figures at all** (`LandingPromiseTile`): they name what
+  a section computes, one measure per row. The only numbers they carry are facts about the TOOL, and
+  each is read from the module that owns it — `BENCHMARKS.length`,
+  `DEFAULT_MONTE_CARLO_SIMULATIONS`, `getPensionDeductionCeiling(year)`. Never type one of those
+  numbers here. `DEFAULT_MONTE_CARLO_SIMULATIONS` had to LEAVE `MonteCarloTab` for
+  `lib/utils/monteCarloParams.ts` (which has no imports at all): the obvious home,
+  `monteCarloService`, imports `chartService` and therefore the client Firebase SDK — the same
+  reach problem that moved the it-IT formatters (→ *Italian Localization*).
+- **The footer counts the asset classes from `ASSET_CLASS_SEQUENCE`.** The pre-redesign landing
+  claimed «6 classi di asset» and kept claiming it after `trendFollowing` and `carry` were added
+  (2026-08-21); PRODUCT.md → *Evidence on Hand* cited that very line as an example of an honest
+  surface, so both were wrong together.
+- **The «Registrati» link mirrors the server**: `resolveRegistrationAccess` again (the same function
+  the registration page uses), and `describeRegistrationInvite` returns `null` on `closed` — an
+  invitation behind a door the server keeps shut is worse than no link.
+- **The page root is `PageContainer width="wide"` with `max-desktop:portrait:pb-0`**: the container's
+  bottom padding exists for the phone's nav pill, and the landing has none.
+
 ### Auto-Calculated Targets (`lib/utils/equityBondsAutoTargets.ts`)
 - **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so they are funded out of
   Azioni**: `bonds = 100 − formula`, `equity = formula − other`. Charging them to the bond sleeve makes the *defensive*
@@ -332,6 +377,11 @@ Companion documents — do not duplicate their content into this file:
   `NEXT_PUBLIC_DEMO_USER_ID` and **gates every mutation** (buttons disabled with a named `aria-label`, handlers return
   early). The snapshots and notes of that account are shared by every visitor: a write that slips through is visible
   to all of them. The assistant is blocked there outright.
+- **The dashboard's demo banner is the app's cadence on a warning fill** (`app/dashboard/layout.tsx`):
+  the label is `TILE_EYEBROW_CLASS` recoloured to `text-warning-foreground` (the eyebrow's geometry is
+  shared, its colour is not — `--warning` is near-white in light mode), and the consequence is a 12px
+  reading beside it, visible at EVERY width. It used to hide below 640px, which is exactly where a
+  reader needs to be told why a button does nothing.
 
 ### Shared Account / Delegated Access
 - **Viewer vs owner**: `useAuth().user` is the viewer and never changes; `useActiveAccount().ownerId` is whose data is
@@ -2017,6 +2067,7 @@ Companion documents — do not duplicate their content into this file:
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Impostazioni | **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` |
 | Accesso / Registrazione | **Verdetti, letture ed errori** `authNarrative` · **Policy** `registrationPolicy` (i due devono restare d'accordo sulla precedenza whitelist/flag) |
+| Landing pubblica | **Parole** `landingNarrative` · **Invarianti del profilo** `landingSampleData` (+ `authNarrative` per la promessa condivisa e la precedenza registrazioni) |
 | Cashflow › Dividendi | `dividendAnalytics`, `dividendiNarrative` (+ `patrimonioNarrative` for the articles) |
 | Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
@@ -2225,6 +2276,7 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
 Moved verbatim from CLAUDE.md's Known Issues each time that file reached its 40.000-character budget — three pages on 2026-08-28, three on 2026-08-29, the rest on 2026-08-30. CLAUDE.md now keeps only the cross-cutting entries and points here. These are behaviours that look like bugs and are not — read them before "fixing" one.
 
 - **Accesso e Registrazione**: no Playwright spec (the session's throwaway ones were deleted); `ProtectedRoute` keeps its pre-redesign spinner, the last piece of old chrome on the sign-in path. The submit button stays ENABLED with the password rules unmet, as before the redesign — the refusal is the reading line, not a dead control. That reading lives in a **polite** `role="status"` even on failure: a node that switched to `role="alert"` would change identity in the accessibility tree and some screen readers announce nothing across the swap. On success the form stays frozen until the redirect (it used to re-enable). The outcome toasts are gone from both pages: the tile says the state. `describeAuthError` covers 14 codes and anything else takes the generic sentence, so a NEW Firebase cause is invisible until it is added. The whitelist stays a DEROGATION from `REGISTRATIONS_ENABLED=false` (SETUP.md → Step 5b depends on it): `resolveRegistrationAccess` mirrors that, it does not correct it.
+- **Landing pubblica**: no Playwright spec (the session's throwaway one was deleted after 18/18 green at 1440 and 390, with the demo flag both ON and OFF, and three guards falsified). The sample profile is a FIXED snapshot of agosto 2026, so the Cashflow tile says «agosto» whatever month it is read in — declared, not hidden. The period selector over the sparkline works and filters the invented series: it is the app's own hero, selector included. `ObiettivoTile` shows at most three goals and the sample has exactly three. The three promise tiles carry no `aria` beyond the tile's own region label. The count of colour themes is NOT stated anywhere: `ColorTheme` is a union type with no runtime enumeration, so it could not be read from code and was dropped rather than typed by hand. The page is prerendered as static content, but what the prerender contains is the SPINNER (`loading` is true until Firebase auth resolves in the browser), so `getItalyYear()` — which decides the pension ceiling the Previdenza promise prints — is only ever evaluated on the client.
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread sheet keeps its 3 s auto-disarm delete (on request) while the memory rows use `useArmedDelete`; a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
 - **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause; the Ventaglio runs only while open, its probability lives in the Traguardo footer; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit.
 - **Impostazioni**: no Playwright spec (the throwaway ones were deleted); the dialogs keep their pre-redesign chrome; «Parametri del piano» and «Assistente» are READ-ONLY and list only the fields already saved — the assistant's mirror loses on read, so a never-synced preference makes the tile say where the truth lives instead of printing a default; the colour theme and the light/dark mode save themselves, outside the page's Salva; the header chip no longer says WHICH tab has unsaved changes (one sentence for the whole page); the Costi tile shows the rate and the checking subcategory only with the duty on; the category count ignores types outside the four listed (transfers); `settings/page.tsx` carries 7 pre-existing `react-hooks` errors and `AccountSharingSection` 1.
