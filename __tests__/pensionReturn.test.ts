@@ -497,3 +497,106 @@ describe('isPensionReturnMeasurable', () => {
     expect(isPensionReturnMeasurable(result!)).toBe(false);
   });
 });
+
+describe('computePensionReturn — isCoverageContradictory', () => {
+  const series = (values: [number, number, number][]) =>
+    values.map(([year, month, value]) => ({ year, month, value }));
+
+  /**
+   * Il caso reale del 2026-08-31, ridotto ai suoi numeri: cinque mesi di versamenti registrati
+   * tutti lo stesso giorno, quindi attribuiti da `valueEffectMonth` a un mese solo. La finestra
+   * legge +50%, +33% e +27% di "mercato" (che erano versamenti) e poi sottrae 2.176,64 € da un
+   * mese che ne vale 2.195,27: TWR −97,43%, stampato come misura finché la guardia guardava solo
+   * verso l'alto.
+   */
+  const backfilledAllInAugust = [
+    contribution(2026, 4, 388.27, 'tfr', new Date(2026, 7, 28)),
+    contribution(2026, 4, 337.27, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 5, 194.13, 'tfr', new Date(2026, 7, 28)),
+    contribution(2026, 5, 168.64, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 6, 194.14, 'tfr', new Date(2026, 7, 28)),
+    contribution(2026, 6, 168.64, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 7, 194.13, 'tfr', new Date(2026, 7, 31)),
+    contribution(2026, 7, 168.64, 'employer', new Date(2026, 7, 28)),
+    contribution(2026, 8, 194.14, 'tfr', new Date(2026, 7, 31)),
+    contribution(2026, 8, 168.64, 'employer', new Date(2026, 7, 31)),
+  ];
+
+  const realWindow = series([
+    [2026, 4, 725.54],
+    [2026, 5, 1088.31],
+    [2026, 6, 1451.09],
+    [2026, 7, 1842.69],
+    [2026, 8, 2195.27],
+  ]);
+
+  it('non spaccia per misura un TWR che i versamenti hanno prodotto', () => {
+    const result = computePensionReturn(realWindow, backfilledAllInAugust, '2026-04')!;
+
+    expect(result.twr).toBeCloseTo(-97.43, 1);
+    expect(result.isCoverageContradictory).toBe(true);
+    expect(isPensionReturnMeasurable(result)).toBe(false);
+  });
+
+  it('normalizza a null l’annualizzato che uscirebbe NaN da un indice negativo', () => {
+    // Un mese in più e lo snapshot di agosto congelato sotto i versamenti che gli sono attribuiti:
+    // l'indice diventa negativo e `Math.pow(negativo, 12/5)` è NaN. Un NaN a valle passa ogni
+    // confronto senza far scattare nulla (`NaN > 20` è false) e finisce a schermo come «NaN%».
+    const result = computePensionReturn(
+      series([
+        [2026, 4, 725.54],
+        [2026, 5, 1088.31],
+        [2026, 6, 1451.09],
+        [2026, 7, 1842.69],
+        [2026, 8, 1832.49],
+        [2026, 9, 2200],
+      ]),
+      backfilledAllInAugust,
+      '2026-04'
+    )!;
+
+    expect(result.twr).toBeLessThan(-100);
+    expect(result.annualizedTwr).toBeNull();
+    expect(Number.isNaN(result.annualizedTwr as number)).toBe(false);
+    expect(result.isCoverageContradictory).toBe(true);
+    expect(isPensionReturnMeasurable(result)).toBe(false);
+  });
+
+  it('con la finestra aperta ad agosto la stessa storia torna misurabile', () => {
+    // I dieci versamenti hanno mese-effetto 2026-08 = `firstKey`, quindi escono come "già dentro
+    // il valore di apertura" — ed è vero. È il rimedio senza modifiche al codice.
+    const result = computePensionReturn(
+      series([
+        [2026, 8, 2195.27],
+        [2026, 9, 2583.63],
+      ]),
+      [...backfilledAllInAugust, contribution(2026, 9, 362.78, 'tfr', new Date(2026, 8, 30))],
+      '2026-08'
+    )!;
+
+    expect(result.contributions.total).toBeCloseTo(362.78, 2);
+    expect(result.twr).toBeCloseTo(1.17, 1);
+    expect(result.isCoverageContradictory).toBe(false);
+    expect(isPensionReturnMeasurable(result)).toBe(true);
+  });
+
+  it('NON si mangia un ribasso di mercato vero — la guardia sta all’impossibile, non all’implausibile', () => {
+    // −25% in un anno è il 2022 di un comparto azionario: sgradevole, non contraddittorio.
+    const result = computePensionReturn(
+      series([
+        [2026, 1, 10_000],
+        [2026, 2, 9_400],
+        [2026, 3, 8_900],
+        [2026, 4, 8_200],
+        [2026, 5, 7_500],
+      ]),
+      [],
+      '2026-01'
+    )!;
+
+    expect(result.twr).toBeCloseTo(-25, 0);
+    expect(result.isCoverageContradictory).toBe(false);
+    expect(result.isCoverageSuspicious).toBe(false);
+    expect(isPensionReturnMeasurable(result)).toBe(true);
+  });
+});
