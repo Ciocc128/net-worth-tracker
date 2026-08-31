@@ -710,19 +710,18 @@ da altrettante sessioni parallele sono stati verificati, portati in deploy e pro
 - **#323** (`pr/previdenza-copertura-contraddittoria`), nuova, da `upstream/develop`: `tsc` pulito,
   **146 file / 3262 test**. Corpo in `docs/pension-coverage-contradictory-pr.md`.
 
-### ⚠️ Entrambe le PR sono in DRAFT
+### Le due PR sono aperte — e una verifica è ancora in corso
 
-Giorgio ha fermato la propagazione mentre le PR uscivano: *«forse ho trovato qualcosa che non mi
-torna ancora nelle metriche»*, e ha lanciato un'altra sessione a indagare. Il deploy è stato
-lasciato aggiornato, di proposito, per poter guardare il dubbio sulla pagina vera.
+Giorgio ha fermato la propagazione mentre le PR uscivano (*«forse ho trovato qualcosa che non mi
+torna ancora nelle metriche»*, altra sessione a indagare), poi ha deciso di **procedere lo stesso**:
+*«eventualmente domani ne apriremo un'altra»*. Entrambe sono quindi **ready for review** e
+`MERGEABLE`, e il corpo della #319 ha ora la sezione sulle rolling (con la rimozione di `rolling36M`
+dichiarata e l'offerta di rimetterlo).
 
-Alla ripresa, quando la verifica chiude:
-1. aggiornare il **corpo della #319** (manca la sezione sulle rolling: allineate, CAGR `null`,
-   `rolling36M` rimosso) e `gh pr ready 319`;
-2. `gh pr ready 323`.
-
-Se invece la verifica trova un difetto, il commit da rivedere è `9c78d10` (rolling): sta su `main`,
-sul branch della #319 e nel worktree `rendimenti-rolling-base`, che è ancora aperto.
+**Quindi c'è una verifica aperta su codice già proposto upstream.** Se trova un difetto, il commit
+da rivedere è `9c78d10` (rolling): sta su `main`, sul branch della #319 come `f1708c2`, e nel
+worktree `rendimenti-rolling-base`, ancora aperto. La correzione va **in avanti** — un commit nuovo
+sul branch della PR, che si aggiorna da sé — non riscrivendo la storia di un branch pubblico.
 
 ### Nota di igiene
 

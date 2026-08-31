@@ -13,11 +13,11 @@
 > [issue #320](https://github.com/GiuseppeDM98/net-worth-tracker/issues/320).
 >
 > **Aggiornamento del 2026-08-31 (sera)**: la head della #319 è ora `f1708c2` — al commit dei flussi
-> si è aggiunto quello delle finestre rolling (sezione «Anche le finestre rolling» qui sotto).
-> **Il corpo su GitHub NON è ancora stato aggiornato**: manca la sezione che dichiara le tre cose
-> nuove (rolling allineate, CAGR `null`, `rolling36M` rimosso). La PR è stata messa **in draft** su
-> richiesta di Giorgio, che stava verificando un altro numero delle metriche. Alla ripresa:
-> aggiornare il corpo, poi `gh pr ready 319`.
+> si è aggiunto quello delle finestre rolling — e il corpo su GitHub ha una sezione in più, «Anche le
+> finestre rolling (secondo commit)», più i due numeri corretti: cache `v7`, **145 file / 3256 test**.
+> La PR è passata da draft a **ready for review**; `MERGEABLE` verificato. La sezione dichiara
+> esplicitamente la rimozione di `rolling36M`, con l'offerta di rimetterlo se il manutentore lo
+> preferisce.
 
 ## Il problema
 

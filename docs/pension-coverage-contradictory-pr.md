@@ -2,9 +2,9 @@
 
 > **Aperta il 2026-08-31 come [PR #323](https://github.com/GiuseppeDM98/net-worth-tracker/pull/323)**
 > su `develop` di upstream, dal branch `pr/previdenza-copertura-contraddittoria`
-> (`upstream/develop` + un solo commit). **Messa subito in draft su richiesta di Giorgio**, che
-> stava verificando un altro numero delle metriche: va tolta dal draft (`gh pr ready 323`) quando
-> quella verifica chiude.
+> (`upstream/develop` + un solo commit). Tenuta in draft per un quarto d'ora mentre Giorgio
+> verificava un altro numero delle metriche, poi aperta su sua indicazione: **ready for review**,
+> `MERGEABLE`.
 >
 > Questo file è il corpo inviato a GitHub. Vale la regola del repo: il corpo non cita mai file che
 > esistono solo in questo fork.
