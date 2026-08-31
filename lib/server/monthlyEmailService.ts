@@ -11,6 +11,7 @@
  * Never import it from client components.
  */
 
+import { EMAIL_ANALYSIS_MODEL } from '@/lib/constants/aiModels';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
@@ -793,7 +794,7 @@ async function generateEmailAiComment(
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
+      model: EMAIL_ANALYSIS_MODEL,
       max_tokens: EMAIL_AI_MAX_TOKENS[emailData.periodType],
       system: system,
       thinking: { type: 'adaptive' },

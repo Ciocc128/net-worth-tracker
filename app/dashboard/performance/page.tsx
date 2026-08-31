@@ -776,6 +776,9 @@ export default function PerformancePage() {
             if (!open) setAiDialogOrigin(undefined);
           }}
           metrics={metrics}
+          // The modal's title IS this verdict: one sentence judging these numbers, never a
+          // second phrasing of it inside the dialog (DESIGN.md → The Verdict-First Rule).
+          verdict={verdict}
           timePeriod={selectedPeriod}
           userId={ownerId}
           triggerOrigin={aiDialogOrigin}

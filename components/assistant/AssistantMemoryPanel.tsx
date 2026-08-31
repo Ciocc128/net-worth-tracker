@@ -1,19 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChevronDown, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { AssistantMemoryItemRow } from '@/components/assistant/AssistantMemoryItemRow';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
+import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
+import { armedActionLabel } from '@/lib/utils/dialogNarrative';
 import { Tile, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { cn } from '@/lib/utils';
@@ -288,35 +283,91 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
       )}
 
       {/* Reset all confirmation dialog */}
-      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <RotateCcw className="h-4 w-4 text-destructive" aria-hidden="true" />
-              Elimina tutta la memoria
-            </DialogTitle>
-            <DialogDescription>
-              Tutti i ricordi ({items.length}) verranno eliminati in modo permanente. Le preferenze (stile, contesto macro,
-              apprendimento) vengono conservate. Questa operazione non è reversibile.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowResetDialog(false)} disabled={deleteMutation.isPending}>
+      <ResponsiveModal
+        open={showResetDialog}
+        onClose={() => setShowResetDialog(false)}
+        eyebrow="Assistente · Memoria"
+        title="Svuota la memoria"
+        reading={{
+          narrative: [
+            { text: `${items.length}`, mono: true },
+            { text: items.length === 1 ? ' ricordo sparisce' : ' ricordi spariscono' },
+            {
+              text: ' per sempre. Le preferenze — stile, contesto macro, apprendimento — restano dove sono.',
+            },
+          ],
+          tone: 'neutral',
+        }}
+        width="sm"
+        footerNote="Esc annulla la conferma"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowResetDialog(false)}
+              disabled={deleteMutation.isPending}
+            >
               Annulla
             </Button>
-            <Button variant="destructive" onClick={handleResetAll} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  Eliminazione…
-                </>
-              ) : (
-                'Elimina tutto'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <ArmedResetAll
+              label={`Elimina ${items.length === 1 ? '1 ricordo' : `${items.length} ricordi`}`}
+              disabled={deleteMutation.isPending}
+              onConfirm={handleResetAll}
+              pending={deleteMutation.isPending}
+            />
+          </>
+        }
+      >
+        <p className="text-sm leading-[1.6] text-muted-foreground">
+          L&apos;assistente ricomincerà a imparare da zero: quello che sa di te oggi non tornerà.
+        </p>
+      </ResponsiveModal>
     </div>
+  );
+}
+
+/** The memory wipe: two clicks, no timer, Escape disarms. */
+function ArmedResetAll({
+  label,
+  disabled,
+  pending,
+  onConfirm,
+}: {
+  label: string;
+  disabled: boolean;
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const { armed, onClick, onBlur } = useArmedDelete(ref, onConfirm);
+  const [wasArmed, setWasArmed] = useState(false);
+  if (armed && !wasArmed) setWasArmed(true);
+
+  return (
+    <>
+      <Button
+        ref={ref}
+        type="button"
+        variant="destructive"
+        onClick={onClick}
+        onBlur={onBlur}
+        disabled={disabled}
+        aria-pressed={armed}
+      >
+        {pending ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            Eliminazione…
+          </>
+        ) : armed ? (
+          armedActionLabel(label)
+        ) : (
+          label
+        )}
+      </Button>
+      <span className="sr-only" role="status" aria-live="polite">
+        {armed ? armedActionLabel(label) : wasArmed ? 'Eliminazione annullata' : ''}
+      </span>
+    </>
   );
 }
