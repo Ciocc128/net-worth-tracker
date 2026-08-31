@@ -132,7 +132,9 @@ export interface PerformanceMetrics {
 export interface RollingPeriodPerformance {
   periodEndDate: Date;
   periodStartDate: Date;
-  cagr: number;
+  // `null` = finestra non misurabile, esattamente come per gli altri due. Un CAGR nullo disegnato
+  // come 0% direbbe «quell'anno non ha reso niente» al posto di «quell'anno non si puo' misurare».
+  cagr: number | null;
   sharpeRatio: number | null;
   volatility: number | null;
 }
@@ -149,7 +151,6 @@ export interface PerformanceData {
 
   // Rolling period trends
   rolling12M: RollingPeriodPerformance[];
-  rolling36M: RollingPeriodPerformance[];
 
   // Metadata
   lastUpdated: Date;
@@ -214,7 +215,6 @@ export interface FirestorePerformanceData {
   fiveYear: FirestorePerformanceMetrics;
   allTime: FirestorePerformanceMetrics;
   rolling12M: FirestoreRollingPeriodPerformance[];
-  rolling36M: FirestoreRollingPeriodPerformance[];
   lastUpdated: Timestamp;
   snapshotCount: number;
 }
