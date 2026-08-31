@@ -1100,8 +1100,11 @@ describe('buildCacheKey', () => {
     // v5 -> v6 il 2026-08-30: i flussi seguono la base (fix D1, portfolioFlows.ts). Ogni numero
     // in cache era stato calcolato con i flussi del Cashflow anche dove la base escludeva la
     // liquidita', ed e' da buttare.
-    expect(buildCacheKey(baseline).startsWith('v6-')).toBe(true)
-    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v6-')).toBe(true)
+    // v6 -> v7 il 2026-08-31: la stessa regola arriva alle finestre rolling, che erano rimaste
+    // fuori dal fix D1 (capitale del portafoglio, flussi del patrimonio), e un CAGR non
+    // misurabile smette di essere scritto come 0.
+    expect(buildCacheKey(baseline).startsWith('v7-')).toBe(true)
+    expect(buildCacheKey({ ...baseline, snapshots: [] }).startsWith('v7-')).toBe(true)
   })
 
   it('ignores the order snapshots arrive in', () => {

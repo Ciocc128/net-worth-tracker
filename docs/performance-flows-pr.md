@@ -104,6 +104,21 @@ i flussi di chi non ha breakdown, ed è la regressione che questa forma evita.
 numeri, e la tessera Contributi lo riporta invece di stampare un capitale investito che nessuna
 formula ha usato.
 
+### Anche le finestre rolling (2026-08-31)
+
+La prima versione di questo fix era arrivata ai cinque periodi fissi e non a `calculateRollingPeriods`,
+che restava sul Cashflow: **capitale della base, flussi del patrimonio**. Le due tessere rolling del
+«Dettaglio» leggevano quindi come versamento nel portafoglio ogni euro risparmiato fuori dal
+portafoglio, e divergevano dai numeri di periodo mostrati sopra, nella stessa pagina.
+
+La regola sta ora in una funzione sola — `resolveBaseAwareCashFlows` in `performanceService.ts` —
+condivisa da ogni finestra di misura, periodi fissi e rolling. Nessuna delle due metà della base
+(quale capitale, quali flussi) può più essere applicata senza l'altra.
+
+Nella stessa passata: un CAGR rolling non misurabile è `null` invece di `0` (era `cagr || 0`, che
+schiacciava anche uno zero legittimo), e `rolling36M` — calcolato, serializzato e cachato senza che
+nessuna superficie lo leggesse — è stato rimosso.
+
 ## Limiti dichiarati
 
 - **Δquantità: prezzo di fine mese, non di operazione.** Un acquisto a metà mese è valorizzato alla

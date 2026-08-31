@@ -522,7 +522,10 @@ export default function PerformancePage() {
     });
     // A 3-month moving average smooths the month-to-month noise without lagging behind the trend.
     return rows.map((entry, index) => {
-      const window = rows.slice(Math.max(0, index - 2), index + 1).map((r) => r.cagr).filter((v) => Number.isFinite(v));
+      const window = rows
+        .slice(Math.max(0, index - 2), index + 1)
+        .map((r) => r.cagr)
+        .filter((v): v is number => v !== null && Number.isFinite(v));
       return { ...entry, cagrMA: window.length > 0 ? window.reduce((s, v) => s + v, 0) / window.length : null };
     });
   }, [performanceData, metrics]);
