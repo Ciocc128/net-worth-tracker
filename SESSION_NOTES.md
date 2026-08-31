@@ -672,3 +672,62 @@ da sé.
 - `gh` installato e autenticato come `Ciocc128` (scope `gist`, `read:org`, `repo`).
 - Flag di produzione: `performanceIncludesExcludedAssets` e `performanceIncludesPensionFunds`
   entrambi **`false`** — è la configurazione con cui valgono tutti i numeri di questo file.
+
+
+---
+
+## 2026-08-31 (sera, 2) — i due fix in deploy, le due PR in draft
+
+Sessione di sole operazioni: nessuna misura nuova, nessuna scrittura su Firestore. Due fix scritti
+da altrettante sessioni parallele sono stati verificati, portati in deploy e proposti upstream.
+
+### Cosa è stato corretto
+
+1. **Le finestre rolling erano rimaste fuori dal fix D1.** `calculateRollingPeriods` prendeva gli
+   snapshot già proiettati sulla base ma i flussi dal solo Cashflow: capitale del portafoglio,
+   versamenti del patrimonio. Con esclusioni attive ogni finestra sottraeva da un capitale ridotto i
+   versamenti di tutto il patrimonio, e le due tessere rolling del «Dettaglio» divergevano dalle
+   tessere di periodo mostrate sopra, nella stessa pagina. La regola vive ora in
+   `resolveBaseAwareCashFlows`, condivisa da periodi fissi e rolling. Nella stessa passata: un CAGR
+   rolling non misurabile è `null` invece di `0`, `rolling36M` (mai letto da nessuna superficie) è
+   stato rimosso, `CACHE_MATH_VERSION` v6 → **v7**.
+2. **La copertura del fondo pensione si rompeva anche al contrario.** `isCoverageSuspicious`
+   guardava solo verso l'alto; versamenti registrati per PIÙ della crescita — lo storico inserito a
+   posteriori mentre «Valore attuale» era tenuto aggiornato a mano — uscivano come misura, con un
+   TWR prossimo a −100% stampato come mercato e, un mese più in là, un `annualizedTwr` **NaN** che
+   supera ogni confronto (`NaN > 20` è `false`) fino ad arrivare a schermo come «NaN%». Nuovo
+   `isCoverageContradictory`, `annualizedTwr` normalizzato a `null`, stato `contradictory` in
+   `pensionSummary` e le sue frasi in `pensionNarrative`. Soglie all'**impossibile** e non
+   all'implausibile: −25% in un anno resta una misura, e un test lo fissa.
+
+### Dove è finito
+
+- **`main` → `origin/main` (deploy)**: `c52810a` (pensione) · `9c78d10` (rolling) · `5253542`
+  (fixture con importi neutri). `tsc` pulito, **140 file / 3052 test verdi** sotto `TZ=Europe/Rome`.
+- **#319** (`pr/rendimenti-flussi-seguono-base`): head `a41db38` → **`f1708c2`**, cherry-pick del
+  solo codice+test (niente `CLAUDE.md`, niente `docs/` — lo stesso taglio del commit precedente).
+  Verificata sulla base upstream: `tsc` pulito, **145 file / 3256 test**.
+- **#323** (`pr/previdenza-copertura-contraddittoria`), nuova, da `upstream/develop`: `tsc` pulito,
+  **146 file / 3262 test**. Corpo in `docs/pension-coverage-contradictory-pr.md`.
+
+### ⚠️ Entrambe le PR sono in DRAFT
+
+Giorgio ha fermato la propagazione mentre le PR uscivano: *«forse ho trovato qualcosa che non mi
+torna ancora nelle metriche»*, e ha lanciato un'altra sessione a indagare. Il deploy è stato
+lasciato aggiornato, di proposito, per poter guardare il dubbio sulla pagina vera.
+
+Alla ripresa, quando la verifica chiude:
+1. aggiornare il **corpo della #319** (manca la sezione sulle rolling: allineate, CAGR `null`,
+   `rolling36M` rimosso) e `gh pr ready 319`;
+2. `gh pr ready 323`.
+
+Se invece la verifica trova un difetto, il commit da rivedere è `9c78d10` (rolling): sta su `main`,
+sul branch della #319 e nel worktree `rendimenti-rolling-base`, che è ancora aperto.
+
+### Nota di igiene
+
+Il fixture del fix pensione riproduceva il caso reale con i **versamenti veri**. Riscritto su importi
+tondi (400+350 il primo mese, 200+175 nei quattro successivi, valore che chiude a 2.270) prima di
+qualunque push verso upstream: stesse quattro proprietà verificate, TWR di prova −97,43% → −97,33%.
+Il commento in testa a `pensionReturn.ts` non cita più il totale al centesimo. Il fork è PUBBLICO —
+vale la pena ricordarselo prima di scrivere un numero vero in un test.
