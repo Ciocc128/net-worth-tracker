@@ -98,9 +98,23 @@ describe('resolveInstrumentProfiles — curated aliasing', () => {
     expect(fetchYahooFundData).toHaveBeenCalledWith('NTSG.MI');
     const profile = profiles.get('NTSG-ETFP.MI')!;
     expect(profile.issuer).toBe('WisdomTree'); // curated override, not the raw Yahoo family
-    expect(profile.currencies).toEqual([{ code: 'USD', weight: 1 }]); // curated rule, not derived
     expect(profile.legs?.equity?.holdings).toEqual([{ key: 'NVDA', label: 'Nvidia', weight: 0.05 }]);
-    expect(profile.legs?.bonds).toBeUndefined(); // no curated bond-sleeve geography yet — declared gap
+
+    // The currency mix is DERIVED from the equity sleeve's curated countries, not asserted as
+    // USD 100%. An earlier cut hard-coded the latter from Yahoo's top-8 holdings (all US
+    // megacaps); WisdomTree's factsheet disproved it — a top-10 by security is not a country
+    // breakdown. USD stays dominant but no longer exclusive, and the eurozone weight is the sum
+    // of France, Germany, Netherlands and Spain.
+    const byCurrency = new Map(profile.currencies?.map((c) => [c.code, c.weight]));
+    expect(byCurrency.get('USD')).toBeCloseTo(0.6932, 4);
+    expect(byCurrency.get('JPY')).toBeCloseTo(0.0608, 4);
+    expect(byCurrency.get('EUR')).toBeCloseTo(0.0869, 4); // FR 3.25 + DE 2.47 + NL 1.58 + ES 1.39
+    expect(byCurrency.has('OTHER')).toBe(false); // an unmapped country drops out, never invented
+
+    // The bond sleeve resolves to a curated entry that carries NO weights: the factsheet names
+    // the four government-futures markets but publishes no split, so Geografia reads it as
+    // `nonLetta` rather than assuming an equal one.
+    expect(profile.legs?.bonds?.countries ?? []).toEqual([]);
   });
 
   it('CL2.MI queries Yahoo via its CSUS.MI proxy and derives US/USD from the curated msci-usa index', async () => {
