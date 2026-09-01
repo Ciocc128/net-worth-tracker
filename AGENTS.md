@@ -1082,6 +1082,12 @@ Companion documents — do not duplicate their content into this file:
 - ALL trade money-math lives here (replay, PMC, realized P&L, XIRR, total return, invested capital); the service/route
   layer is a thin atomic writer. A new `AssetTransactionType` must update the replay switch, the zod schema AND
   `TransactionDialog`. **Native PMC excludes fees**, which live only on the EUR side, and a sell never moves it.
+- **`buildDerivedAssetFields` projects BOTH PMCs onto the asset doc**: native `averageCost` AND EUR-side
+  `averageCostEur` (`costBasisEur / quantity`, fees and the trade-date FX rate included). G/P math (`hasCostBasis` /
+  `computeUnrealizedGain` in `patrimonioSummary.ts`, and `dashboardOverviewService.ts`'s `topAssets.returnPercent`) MUST
+  compare `averageCostEur` against `calculateAssetValue` — never the native `averageCost` against a EUR value, which
+  silently mixes two currencies for any non-EUR position (was the bug; `costBasisPerUnitEur` is the one function that
+  resolves the right basis, falling back to `averageCost` only for a EUR-native asset).
 - **The migration baseline (`isBaseline` BUY) NEVER stamps `holdingStartDate`**, and `replayTransactions` returning
   `holdingStartDate: undefined` means **leave the asset doc untouched** — never `deleteField()`, which would zero YOC for
   the whole portfolio.
@@ -1104,6 +1110,12 @@ Companion documents — do not duplicate their content into this file:
   DIRECTLY in-tx, not via `updateAsset`.
 - **Migration is idempotent**: meta doc present → done; else one baseline BUY per eligible asset, batched ≤400, **meta
   doc written LAST**. Mutation hooks invalidate a TRIPLE: `assetTransactions.all` + `assets.all` + `dashboard.overview`.
+- **`backfillAverageCostEur` (same file) follows the identical one-shot pattern** on its own meta field
+  (`averageCostEurBackfilledAt`), triggered from `AssetsPage` right after migration resolves. It needs no new FX
+  lookups — every trade, baseline included, has always carried a correct trade-date `priceEur` — so it is a pure
+  re-projection via `replayTransactions` + `buildDerivedAssetFields` onto pre-existing asset docs. Guard order matters:
+  it no-ops without creating a meta doc when migration hasn't run yet, so it can never be mistaken by
+  `migrateAssetLedger` for "already migrated".
 - **`updateAssetMetadata` closes the `deleteField()` trap** — ledger-type edits go through it, never `updateAsset`.
   **Testing the atomic write**: the in-memory Admin fake is built inside the hoisted `vi.mock` factory, so reference
   `vi.hoisted(...)` state, never a plain const.
