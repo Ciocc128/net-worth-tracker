@@ -346,6 +346,13 @@ describe('computeExposure — oldestProfileAsOf', () => {
   });
 });
 
+describe('computeExposure — quotationCurrencies', () => {
+  it('is the distinct set of QUOTATION currencies among base assets, not exposure currencies', () => {
+    // The whole fixture is quoted in EUR even though the Valuta view is dominated by USD exposure.
+    expect(result.quotationCurrencies).toEqual(['EUR']);
+  });
+});
+
 describe('computeExposure — non-regression (no leverage, no exclusions)', () => {
   it('a single unleveraged, fully-covered equity ETF: exposureEur is a plain weight × market value', () => {
     const single = computeExposure(

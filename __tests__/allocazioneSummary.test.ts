@@ -19,6 +19,7 @@ import {
   offTargetGaps,
   summarizeClassGaps,
   summarizeExposure,
+  summarizeExposureCoverage,
   summarizeExposureHighlights,
   summarizeHoldings,
   summarizeNextMoney,
@@ -188,30 +189,64 @@ describe('summarizeHoldings', () => {
   });
 });
 
+function emptyExposureView(): PortfolioExposureData['geography'] {
+  return { entries: [], coverage: { baseEur: 0, read: { amountEur: 0, instruments: [] }, notApplicable: { amountEur: 0, instruments: [] }, unread: { amountEur: 0, instruments: [] } } };
+}
+
+function fullyReadView(
+  entries: Array<{ key: string; label: string; exposureEur: number; sources?: PortfolioExposureData['holdings']['entries'][number]['sources'] }>,
+  baseEur: number
+): PortfolioExposureData['holdings'] {
+  return {
+    entries: entries.map((e) => ({ ...e, exposurePct: baseEur > 0 ? e.exposureEur / baseEur : 0, sources: e.sources ?? [] })),
+    coverage: { baseEur, read: { amountEur: baseEur, instruments: [] }, notApplicable: { amountEur: 0, instruments: [] }, unread: { amountEur: 0, instruments: [] } },
+  };
+}
+
 describe('summarizeExposure', () => {
   const exposure: PortfolioExposureData = {
-    topHoldings: [
-      { symbol: 'AAPL', name: 'Apple', exposureEur: 10045, exposurePct: 0.041, sources: [{ assetName: 'A', ticker: 'IWDA', contributionEur: 5000, holdingPct: 0.05 }, { assetName: 'B', ticker: 'CSPX', contributionEur: 5045, holdingPct: 0.07 }] },
-      { symbol: 'MSFT', name: 'Microsoft', exposureEur: 9310, exposurePct: 0.038, sources: [] },
-      { symbol: 'NVDA', name: 'Nvidia', exposureEur: 8575, exposurePct: 0.035, sources: [] },
-    ],
-    sectors: [
-      { key: 'technology', label: 'Tecnologia', exposureEur: 59535, exposurePct: 0.243, sources: [] },
-      { key: 'financial', label: 'Finanza', exposureEur: 30000, exposurePct: 0.122, sources: [] },
-    ],
-    issuers: [
-      { family: 'iShares', exposureEur: 100000, exposurePct: 0.408, assets: [] },
-      { family: 'Vanguard', exposureEur: 64000, exposurePct: 0.261, assets: [] },
-    ],
-    totalAnalyzedValue: 164000,
-    totalPortfolioValue: 245000,
-    analyzedAssets: 12,
+    holdings: fullyReadView(
+      [
+        {
+          key: 'AAPL',
+          label: 'Apple',
+          exposureEur: 10045,
+          sources: [
+            { assetName: 'A', ticker: 'IWDA', contributionEur: 5000, weight: 0.05, baseValueEur: 100000 },
+            { assetName: 'B', ticker: 'CSPX', contributionEur: 5045, weight: 0.07, baseValueEur: 72071 },
+          ],
+        },
+        { key: 'MSFT', label: 'Microsoft', exposureEur: 9310 },
+        { key: 'NVDA', label: 'Nvidia', exposureEur: 8575 },
+      ],
+      245000
+    ),
+    sectors: fullyReadView(
+      [
+        { key: 'technology', label: 'Tecnologia', exposureEur: 59535 },
+        { key: 'financial', label: 'Finanza', exposureEur: 30000 },
+      ],
+      245000
+    ),
+    issuers: fullyReadView(
+      [
+        { key: 'iShares', label: 'iShares', exposureEur: 100000 },
+        { key: 'Vanguard', label: 'Vanguard', exposureEur: 64000 },
+      ],
+      245000
+    ),
+    geography: emptyExposureView(),
+    currency: emptyExposureView(),
+    allocatableMarketValueEur: 245000,
+    allocatableAssets: 12,
     totalAssets: 16,
+    quotationCurrencies: ['EUR'],
     computedAt: '2026-08-24T06:15:00.000Z',
     cacheKey: 'k',
+    oldestProfileAsOf: null,
   };
 
-  it('turns a view into ranked rows in percent of the portfolio, closed by a residual', () => {
+  it('turns a view into ranked rows in percent of the VIEW\'S OWN base, closed by the read residual', () => {
     const view = summarizeExposure(exposure, 'holdings', 2);
     expect(view.rows.map((r) => [r.key, r.amount, r.percentage])).toEqual([
       ['AAPL', 10045, 4.1],
@@ -222,19 +257,51 @@ describe('summarizeExposure', () => {
     expect(summarizeExposure(exposure, 'issuers', 5).remainder?.label).toBe('Resto del portafoglio');
   });
 
-  it('has no residual when the rows cover the portfolio, and keeps drill-down sources', () => {
-    const view = summarizeExposure({ ...exposure, topHoldings: [{ symbol: 'ALL', name: 'Tutto', exposureEur: 245000, exposurePct: 1, sources: [] }] }, 'holdings', 5);
+  it('has no residual when the rows cover the read base, and keeps drill-down sources', () => {
+    const view = summarizeExposure({ ...exposure, holdings: fullyReadView([{ key: 'ALL', label: 'Tutto', exposureEur: 245000 }], 245000) }, 'holdings', 5);
     expect(view.remainder).toBeNull();
     expect(summarizeExposure(exposure, 'holdings', 5).rows[0].sources).toHaveLength(2);
   });
 
-  it('extracts the highlights the reading names, with the issuer share of the ETFs', () => {
+  it('extracts the highlights the reading names, on the allocatable base — no ETF-only re-normalisation needed', () => {
     expect(summarizeExposureHighlights(exposure)).toEqual({
       topHolding: { name: 'Apple', pct: 4.1, sourceCount: 2 },
       topSector: { label: 'Tecnologia', pct: 24.3 },
-      topIssuer: { family: 'iShares', etfShare: 61 },
+      topIssuer: { family: 'iShares', pct: 40.8 },
+      topGeography: null,
+      topCurrency: null,
+      currencyQuotationContrast: false,
     });
-    expect(summarizeExposureHighlights({ ...exposure, topHoldings: [], sectors: [], issuers: [] })).toEqual({ topHolding: null, topSector: null, topIssuer: null });
+    expect(
+      summarizeExposureHighlights({ ...exposure, holdings: emptyExposureView(), sectors: emptyExposureView(), issuers: emptyExposureView() })
+    ).toEqual({ topHolding: null, topSector: null, topIssuer: null, topGeography: null, topCurrency: null, currencyQuotationContrast: false });
+  });
+
+  it('summarizeExposureCoverage reports the base, the read share, and the two declared-gap buckets', () => {
+    const withGaps: PortfolioExposureData = {
+      ...exposure,
+      holdings: {
+        entries: exposure.holdings.entries,
+        coverage: {
+          baseEur: 74400,
+          read: { amountEur: 65064, instruments: ['NTSG'] },
+          notApplicable: { amountEur: 0, instruments: [] },
+          unread: { amountEur: 9336, instruments: ['CL2'] },
+        },
+      },
+    };
+    const coverage = summarizeExposureCoverage(withGaps, 'holdings');
+    expect(coverage).toEqual({
+      view: 'holdings',
+      baseLabel: 'azionario',
+      baseEur: 74400,
+      readEur: 65064,
+      readPct: 87.5,
+      notApplicableEur: 0,
+      notApplicableInstruments: [],
+      unreadEur: 9336,
+      unreadInstruments: ['CL2'],
+    });
   });
 });
 

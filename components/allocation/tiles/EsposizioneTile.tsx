@@ -1,25 +1,28 @@
 'use client';
 
 /**
- * ESPOSIZIONE — «a cosa sono esposto davvero, attraverso gli ETF?»: the six heaviest holdings,
- * sectors or issuers of the look-through as ranked rows closed by the residual of the portfolio,
- * one view at a time (the toggle as the aside), and — when a row is opened — the instruments that
- * carry that exposure, as a flat block under the list.
+ * ESPOSIZIONE — «a cosa sono esposto davvero?»: five views (Titoli · Settori · Emittenti · Paesi ·
+ * Valute) as ranked rows closed by the READ residual, one at a time (the toggle as the aside), a
+ * coverage line above the list that names what the base doesn't cover and WHY, and — when a row
+ * is opened — the instruments behind it, as a flat block under the list.
  *
  * This is the one tile of the page that owns its data. Every other tile reads the assets the page
- * already holds; the look-through comes from `/api/portfolio/exposure` (Yahoo Finance behind a
- * 24h server cache), so it is fetched here, on mount — the old collapsible waited for a click,
- * but a tile is always visible and its reading line needs the payload to say anything at all.
- * The figures come from `summarizeExposure` / `summarizeExposureHighlights`
- * (`allocazioneSummary.ts`), the words from `describeExposure` and its aside/footer siblings
+ * already holds; the look-through comes from `/api/portfolio/exposure` (curated tables cascaded
+ * with Yahoo Finance behind a 24h server cache, see `lib/server/portfolioExposureService.ts`), so
+ * it is fetched here, on mount — the old collapsible waited for a click, but a tile is always
+ * visible and its reading line needs the payload to say anything at all. The figures come from
+ * `summarizeExposure` / `summarizeExposureCoverage` / `summarizeExposureHighlights`
+ * (`allocazioneSummary.ts`), the words from `describeExposure` and its coverage/footer siblings
  * (`allocazioneNarrative.ts`): this file only renders.
  *
- * Three tabs became one list with a view switch because the question is one — what am I really
- * exposed to — and the three cuts are three answers to it, not three tiles (the
- * One-Tile-One-Question Rule). The drill-down is a single block under the list rather than a
- * panel inside each row: one row was ever open at a time in the old card too, and keeping the
- * sources out of the rows leaves the ranked columns aligned. No sign colour anywhere: an
- * exposure is a share of the portfolio, neither a gain nor a loss.
+ * Five tabs stay one list with a view switch because the question is one — what am I really
+ * exposed to — and each cut is an answer to it, not a tile of its own (the One-Tile-One-Question
+ * Rule). Three views (Titoli/Settori/Paesi) measure NOTIONAL — leverage counts, `AsideToggle`'s
+ * base label says so via the coverage line; two (Emittenti/Valute) measure MARKET VALUE — leverage
+ * does not multiply a currency or a counterparty exposure. The drill-down is a single block under
+ * the list rather than a panel inside each row: one row was ever open at a time in the old card
+ * too, and keeping the sources out of the rows leaves the ranked columns aligned. No sign colour
+ * anywhere: an exposure is a share of a base, neither a gain nor a loss.
  */
 
 import { useMemo, useState } from 'react';
@@ -27,12 +30,13 @@ import { RefreshCw } from 'lucide-react';
 import { usePortfolioExposure } from '@/lib/hooks/usePortfolioExposure';
 import {
   summarizeExposure,
+  summarizeExposureCoverage,
   summarizeExposureHighlights,
   type ExposureRow,
   type ExposureRowSource,
   type ExposureViewKey,
 } from '@/lib/utils/allocazioneSummary';
-import { describeExposure, describeExposureAside, describeExposureEmpty, describeExposureFooter } from '@/lib/utils/allocazioneNarrative';
+import { describeExposure, describeExposureCoverage, describeExposureEmpty, describeExposureFooter } from '@/lib/utils/allocazioneNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
@@ -49,17 +53,23 @@ interface EsposizioneTileProps {
 /** Rows the tile ranks; the rest folds into the residual so the shares still add up. */
 const VISIBLE_ROWS = 6;
 
+// Short labels because `AsideToggle` has no overflow: five options already wrap onto a second
+// line under `desktop:` (~92px taller) — see AGENTS.md → Allocazione — Esposizione.
 const VIEW_OPTIONS: ReadonlyArray<{ value: ExposureViewKey; label: string }> = [
   { value: 'holdings', label: 'Titoli' },
   { value: 'sectors', label: 'Settori' },
   { value: 'issuers', label: 'Emittenti' },
+  { value: 'geography', label: 'Paesi' },
+  { value: 'currency', label: 'Valute' },
 ];
 
-/** Accessible name of the list, per view. */
+/** Accessible name of the list, per view — spelled out in full for the screen reader. */
 const LIST_LABELS: Record<ExposureViewKey, string> = {
   holdings: 'Titoli più pesanti',
   sectors: 'Settori',
-  issuers: 'Emittenti degli ETF',
+  issuers: 'Emittenti degli strumenti',
+  geography: 'Composizione geografica',
+  currency: 'Composizione valutaria',
 };
 
 /**
@@ -141,10 +151,11 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
   // React Query keeps the last payload through a failed refresh, so "no data" and "error" are
   // two different states: a stale list beats an empty tile.
   const isLoading = !exposure && !isError;
-  const isEmpty = !!exposure && exposure.analyzedAssets === 0;
+  const isEmpty = !!exposure && exposure.allocatableAssets === 0;
 
   const reading = useMemo(() => (exposure ? describeExposure(summarizeExposureHighlights(exposure)) : null), [exposure]);
   const exposureView = useMemo(() => (exposure ? summarizeExposure(exposure, view, VISIBLE_ROWS) : null), [exposure, view]);
+  const coverage = useMemo(() => (exposure ? summarizeExposureCoverage(exposure, view) : null), [exposure, view]);
   const rows = useMemo<RankedRow[]>(
     () =>
       (exposureView?.rows ?? []).map((row) => ({
@@ -176,12 +187,7 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
     setActiveKey((current) => (current === row.key ? null : row.key));
   };
 
-  const aside = (
-    <div className="flex flex-wrap items-center gap-2">
-      {exposure && <span>{describeExposureAside(exposure)}</span>}
-      {!isEmpty && <AsideToggle options={VIEW_OPTIONS} value={view} onChange={handleViewChange} ariaLabel="Vista dell'esposizione" />}
-    </div>
-  );
+  const aside = !isEmpty && <AsideToggle options={VIEW_OPTIONS} value={view} onChange={handleViewChange} ariaLabel="Vista dell'esposizione" />;
 
   return (
     <Tile eyebrow="Esposizione" aside={aside} reading={reading} className={className} ariaLabel="Esposizione del portafoglio">
@@ -209,6 +215,10 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
 
       {exposure && exposureView && !isEmpty && (
         <div className="mt-2">
+          {/* The coverage line: what the view's base IS, how much of it is read, and — only when
+              non-zero — the notApplicabile/nonLetta names. Replaces the old aside's blended
+              "X asset su Y analizzati", which counted an asset as analysed even empty-handed. */}
+          {coverage && <p className="mb-2 text-[12px] leading-[1.5] text-muted-foreground">{describeExposureCoverage(coverage)}</p>}
           {rows.length === 0 ? (
             <p className="mt-1 text-[13px] leading-[1.45] text-muted-foreground">{describeExposureEmpty(view)}</p>
           ) : (
@@ -231,7 +241,7 @@ export function EsposizioneTile({ userId, className }: EsposizioneTileProps) {
 
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3.5 text-[11px] leading-[1.5] text-muted-foreground">
         <p>
-          {describeExposureFooter(exposure?.computedAt ?? null)}
+          {describeExposureFooter(exposure?.computedAt ?? null, exposure?.oldestProfileAsOf ?? null)}
           {cached ? ' Dalla cache.' : ''}
         </p>
         <Button

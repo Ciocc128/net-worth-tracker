@@ -27,7 +27,7 @@ import {
   describeClasses,
   describeExcluded,
   describeExposure,
-  describeExposureAside,
+  describeExposureCoverage,
   describeExposureEmpty,
   describeExposureFooter,
   describeFrozen,
@@ -434,38 +434,108 @@ describe('describeClasses', () => {
   });
 });
 
+const NO_GEO_CURRENCY_HIGHLIGHTS = { topGeography: null, topCurrency: null, currencyQuotationContrast: false } as const;
+
 describe('describeExposure', () => {
-  it('names the heaviest holding, the first sector and the biggest issuer', () => {
+  it('names the heaviest holding, the first sector and the biggest issuer (share of the allocatable portfolio)', () => {
     expect(
       plain(
         describeExposure({
           topHolding: { name: 'Apple', pct: 4.1, sourceCount: 3 },
           topSector: { label: 'Tecnologia', pct: 24.3 },
-          topIssuer: { family: 'iShares', etfShare: 61 },
+          topIssuer: { family: 'iShares', pct: 61 },
+          ...NO_GEO_CURRENCY_HIGHLIGHTS,
         }),
       ),
-    ).toBe('Il titolo più pesante è Apple (4,1% del portafoglio, in 3 strumenti); il primo settore è Tecnologia (24,3%) e iShares emette il 61% degli ETF.');
+    ).toBe('Il titolo più pesante è Apple (4,1% dell\'azionario, in 3 strumenti); il primo settore è Tecnologia (24,3%) e iShares gestisce il 61% del portafoglio.');
+  });
+
+  it('appends the EUR-quotation-vs-real-exposure contrast only when it applies', () => {
+    expect(
+      plain(
+        describeExposure({
+          topHolding: null,
+          topSector: null,
+          topIssuer: null,
+          topGeography: null,
+          topCurrency: { code: 'USD', label: 'Dollaro USA', pct: 78 },
+          currencyQuotationContrast: true,
+        }),
+      ),
+    ).toBe('Gran parte del rischio valutario è in Dollaro USA (78%), anche se ogni tuo strumento quota in euro.');
   });
 
   it('drops what is missing and is null with nothing', () => {
-    expect(plain(describeExposure({ topHolding: { name: 'Enel', pct: 2, sourceCount: 1 }, topSector: null, topIssuer: null }))).toBe(
-      'Il titolo più pesante è Enel (2,0% del portafoglio, in 1 strumento).',
-    );
-    expect(describeExposure({ topHolding: null, topSector: null, topIssuer: null })).toBeNull();
+    expect(
+      plain(describeExposure({ topHolding: { name: 'Enel', pct: 2, sourceCount: 1 }, topSector: null, topIssuer: null, ...NO_GEO_CURRENCY_HIGHLIGHTS })),
+    ).toBe('Il titolo più pesante è Enel (2,0% dell\'azionario, in 1 strumento).');
+    expect(describeExposure({ topHolding: null, topSector: null, topIssuer: null, ...NO_GEO_CURRENCY_HIGHLIGHTS })).toBeNull();
   });
 
-  it('names what an empty view means', () => {
+  it('names what an empty view means, for all five views', () => {
     expect(describeExposureEmpty('holdings')).toContain('Nessun titolo riconosciuto');
-    expect(describeExposureEmpty('sectors')).toBe('Nessun dato settoriale per gli ETF in portafoglio.');
-    expect(describeExposureEmpty('issuers')).toBe('Nessun ETF in portafoglio.');
+    expect(describeExposureEmpty('sectors')).toBe('Nessun dato settoriale per gli strumenti in portafoglio.');
+    expect(describeExposureEmpty('geography')).toBe('Nessun dato geografico per gli strumenti in portafoglio.');
+    expect(describeExposureEmpty('currency')).toBe('Nessun dato valutario per gli strumenti in portafoglio.');
+    expect(describeExposureEmpty('issuers')).toBe('Nessun emittente riconosciuto.');
   });
 
-  it('has an aside and a footer', () => {
-    expect(describeExposureAside({ analyzedAssets: 12, totalAssets: 16 })).toBe('12 asset su 16 analizzati');
-    expect(describeExposureFooter('2026-08-24T06:15:00.000Z')).toBe(
-      'Prime ~10 posizioni per ETF da Yahoo Finance: approssimato per i fondi molto diversificati. Nessuna copertura geografica. Aggiornato il 24/08/2026.',
+  it('describeExposureCoverage states the base, the read share, and the two declared-gap buckets in words', () => {
+    expect(
+      describeExposureCoverage({
+        view: 'holdings',
+        baseLabel: 'azionario',
+        baseEur: 74400,
+        readEur: 74400,
+        readPct: 100,
+        notApplicableEur: 0,
+        notApplicableInstruments: [],
+        unreadEur: 0,
+        unreadInstruments: [],
+      }),
+    ).toBe('Dei 74.400 € di azionario ne leggo il 100%.');
+
+    expect(
+      describeExposureCoverage({
+        view: 'holdings',
+        baseLabel: 'azionario',
+        baseEur: 106_000,
+        readEur: 74400,
+        readPct: 70.2,
+        notApplicableEur: 31_700,
+        notApplicableInstruments: ['iShares Physical Gold', 'iMGP DBi Managed Futures', 'WisdomTree Enhanced Commodity Carry'],
+        unreadEur: 0,
+        unreadInstruments: [],
+      }),
+    ).toBe(
+      "Dei 106.000 € di azionario ne leggo il 70%. 31.700 € (iShares Physical Gold, iMGP DBi Managed Futures e WisdomTree Enhanced Commodity Carry) non hanno una composizione azionaria per natura."
     );
-    expect(describeExposureFooter(null)).toBe('Prime ~10 posizioni per ETF da Yahoo Finance: approssimato per i fondi molto diversificati. Nessuna copertura geografica.');
+
+    expect(
+      describeExposureCoverage({
+        view: 'geography',
+        baseLabel: 'azionario e obbligazionario',
+        baseEur: 103_700,
+        readEur: 74400,
+        readPct: 71.7,
+        notApplicableEur: 0,
+        notApplicableInstruments: [],
+        unreadEur: 29_300,
+        unreadInstruments: ['WisdomTree Global Efficient Core'],
+      }),
+    ).toBe('Dei 103.700 € di azionario e obbligazionario ne leggo il 72%. 29.300 € (WisdomTree Global Efficient Core) non è ancora letto.');
+  });
+
+  it('has a footer with the method, the computation date, and the oldest curated fact used', () => {
+    expect(describeExposureFooter('2026-08-24T06:15:00.000Z', null)).toBe(
+      'Titoli e settori dalle prime ~10 posizioni per fondo (Yahoo Finance o un alias curato); geografia e valuta da una tabella curata, aggiornata periodicamente. Aggiornato il 24/08/2026.',
+    );
+    expect(describeExposureFooter(null, null)).toBe(
+      'Titoli e settori dalle prime ~10 posizioni per fondo (Yahoo Finance o un alias curato); geografia e valuta da una tabella curata, aggiornata periodicamente.',
+    );
+    expect(describeExposureFooter('2026-09-01T00:00:00.000Z', '2026-05-01')).toBe(
+      'Titoli e settori dalle prime ~10 posizioni per fondo (Yahoo Finance o un alias curato); geografia e valuta da una tabella curata, aggiornata periodicamente. Aggiornato il 01/09/2026. La tabella curata più vecchia usata risale al 01/05/2026.',
+    );
   });
 });
 

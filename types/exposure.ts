@@ -114,6 +114,10 @@ export interface PortfolioExposureData {
   issuers: ExposureViewData; // market value, every allocatable asset
   /** Market value of every `tradable`/`frozen` asset — the Valuta/Emittenti base. */
   allocatableMarketValueEur: number;
+  /** The distinct `asset.currency` (QUOTATION, not exposure) values among the base assets — lets
+   *  the tile contrast "every instrument quotes in EUR" against the Valuta view's real exposure
+   *  mix without re-deriving it from the assets client-side. `['EUR']` on this portfolio. */
+  quotationCurrencies: string[];
   /** Count of `tradable`/`frozen` assets with quantity > 0 — the base this whole payload measures. */
   allocatableAssets: number;
   /** Count of ALL active assets, `excluded` included — for a footer line, never a denominator. */

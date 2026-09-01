@@ -368,6 +368,7 @@ export function computeExposure(
 
   const allocatableMarketValueEur = baseAssets.reduce((sum, b) => sum + b.marketValueEur, 0);
   const totalAssets = assets.filter((a) => a.quantity > 0).length;
+  const quotationCurrencies = Array.from(new Set(baseAssets.map((b) => b.asset.currency))).sort();
 
   return {
     holdings,
@@ -378,6 +379,7 @@ export function computeExposure(
     allocatableMarketValueEur,
     allocatableAssets: baseAssets.length,
     totalAssets,
+    quotationCurrencies,
     computedAt,
     cacheKey,
     oldestProfileAsOf: resolveOldestAsOf(baseAssets),

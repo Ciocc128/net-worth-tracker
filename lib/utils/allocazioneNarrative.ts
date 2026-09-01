@@ -27,7 +27,9 @@ import type { InstrumentTrade } from '@/lib/utils/leverageAwareAllocationUtils';
 import type {
   ClassGap,
   ClassSlice,
+  ExposureCoverageSummary,
   ExposureHighlights,
+  ExposureViewKey,
   HoldingsGroup,
   NextMoney,
   PlanMode,
@@ -466,21 +468,34 @@ export function describeClasses(gaps: ClassGap[], band: RebalanceBand): Narrativ
 // ─── Esposizione ──────────────────────────────────────────────────────────────
 
 /**
- * «Il titolo più pesante è Apple (4,1% del portafoglio, in 3 strumenti); il primo settore è
- * Tecnologia (24,3%) e iShares emette il 61% degli ETF.» Null when nothing was analysed.
+ * «Il titolo più pesante è Apple (4,1% dell'azionario, in 3 strumenti); il primo settore è
+ * Tecnologia (24,3%) e iShares gestisce il 22% del portafoglio; gran parte del rischio valutario
+ * è in Dollaro USA (78%), anche se ogni tuo strumento quota in euro.» Null when nothing was read.
+ *
+ * The currency clause appears ONLY under the contrast the Valuta view exists to surface (every
+ * instrument quotes in EUR, the real exposure is elsewhere) — otherwise it stays out of this
+ * composite sentence; a plain top-currency line lives in the Valuta view itself when selected.
  */
 export function describeExposure(highlights: ExposureHighlights): Narrative | null {
   const clauses: Narrative[] = [];
   if (highlights.topHolding) {
     const { name, pct, sourceCount } = highlights.topHolding;
-    clauses.push([prose(`Il titolo più pesante è ${name} (`), percent(pct, 1), prose(` del portafoglio, in ${sourceCount} strument${sourceCount === 1 ? 'o' : 'i'})`)]);
+    clauses.push([prose(`Il titolo più pesante è ${name} (`), percent(pct, 1), prose(` dell'azionario, in ${sourceCount} strument${sourceCount === 1 ? 'o' : 'i'})`)]);
   }
   if (highlights.topSector) {
     clauses.push([prose(`il primo settore è ${highlights.topSector.label} (`), percent(highlights.topSector.pct, 1), prose(')')]);
   }
   if (highlights.topIssuer) {
-    const share = highlights.topIssuer.etfShare;
-    clauses.push([prose(`${highlights.topIssuer.family} emette ${articleForPercent(share, 0)}`), figure(`${share}%`), prose(' degli ETF')]);
+    const { family, pct } = highlights.topIssuer;
+    clauses.push([prose(`${family} gestisce ${articleForPercent(pct, 0)}`), figure(`${Math.round(pct)}%`), prose(' del portafoglio')]);
+  }
+  if (highlights.currencyQuotationContrast && highlights.topCurrency) {
+    const { label, pct } = highlights.topCurrency;
+    clauses.push([
+      prose(`gran parte del rischio valutario è in ${label} (`),
+      percent(pct, 0),
+      prose('), anche se ogni tuo strumento quota in euro'),
+    ]);
   }
   if (clauses.length === 0) return null;
   const [first, ...rest] = clauses;
@@ -491,31 +506,85 @@ export function describeExposure(highlights: ExposureHighlights): Narrative | nu
 }
 
 /** What an empty exposure view means — the rule each list encoded, one line, no figure. */
-export function describeExposureEmpty(view: 'holdings' | 'sectors' | 'issuers'): string {
+export function describeExposureEmpty(view: ExposureViewKey): string {
   switch (view) {
     case 'holdings':
-      return 'Nessun titolo riconosciuto: verifica che i ticker degli ETF siano noti a Yahoo Finance.';
+      return 'Nessun titolo riconosciuto: verifica che i ticker siano noti a Yahoo Finance o nella tabella curata.';
     case 'sectors':
-      return 'Nessun dato settoriale per gli ETF in portafoglio.';
-    default:
-      return 'Nessun ETF in portafoglio.';
+      return 'Nessun dato settoriale per gli strumenti in portafoglio.';
+    case 'geography':
+      return 'Nessun dato geografico per gli strumenti in portafoglio.';
+    case 'currency':
+      return 'Nessun dato valutario per gli strumenti in portafoglio.';
+    case 'issuers':
+      return 'Nessun emittente riconosciuto.';
   }
 }
 
-/** «12 asset su 16 analizzati» — the tile's aside. */
-export function describeExposureAside(input: { analyzedAssets: number; totalAssets: number }): string {
-  return `${input.analyzedAssets} asset su ${input.totalAssets} analizzati`;
+/** «a, b e c» for plain instrument-name lists — the coverage line's parenthetical, not a `Narrative`. */
+function joinNamesItalian(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
 }
 
-const EXPOSURE_METHOD = 'Prime ~10 posizioni per ETF da Yahoo Finance: approssimato per i fondi molto diversificati. Nessuna copertura geografica.';
+/** What "no security-level look-through" is called, per view — only holdings/sectors/geography
+ *  ever populate `notApplicabile` (a currency or an issuer applies to every instrument). */
+const LOOKTHROUGH_NOUN: Record<ExposureViewKey, string> = {
+  holdings: 'azionaria',
+  sectors: 'azionaria',
+  geography: 'geografica',
+  currency: 'valutaria',
+  issuers: 'sull’emittente',
+};
 
-/** The tile's footer: the method, then the day of the last computation when known. */
-export function describeExposureFooter(computedAt: string | null): string {
-  if (!computedAt) return EXPOSURE_METHOD;
-  const date = new Date(computedAt);
-  if (Number.isNaN(date.getTime())) return EXPOSURE_METHOD;
-  const day = new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Rome' }).format(date);
-  return `${EXPOSURE_METHOD} Aggiornato il ${day}.`;
+/**
+ * The coverage line — replaces the old "12 asset su 15 analizzati", which counted an asset as
+ * analysed even when nothing came back for it. Up to three sentences, each naming a distinct
+ * destiny: `letta` is always said; `nonApplicabile` (a class with NO look-through by nature —
+ * gold, managed futures, carry) and `nonLetta` (in scope, just not covered yet) only appear when
+ * non-zero, so the reader never has to infer which is which from a single blended percentage.
+ */
+export function describeExposureCoverage(summary: ExposureCoverageSummary): string {
+  const readPctText = formatPercentage(summary.readPct, 0);
+  const sentences = [
+    `Dei ${cachedFormatCurrencyEUR(summary.baseEur, true)} di ${summary.baseLabel} ne leggo ${articleForPercent(summary.readPct, 0)}${readPctText}.`,
+  ];
+
+  if (summary.notApplicableEur > 0.5 && summary.notApplicableInstruments.length > 0) {
+    const verb = summary.notApplicableInstruments.length === 1 ? 'non ha' : 'non hanno';
+    sentences.push(
+      `${cachedFormatCurrencyEUR(summary.notApplicableEur, true)} (${joinNamesItalian(summary.notApplicableInstruments)}) ${verb} una composizione ${LOOKTHROUGH_NOUN[summary.view]} per natura.`
+    );
+  }
+
+  if (summary.unreadEur > 0.5 && summary.unreadInstruments.length > 0) {
+    const verb = summary.unreadInstruments.length === 1 ? 'non è ancora letto' : 'non sono ancora letti';
+    sentences.push(`${cachedFormatCurrencyEUR(summary.unreadEur, true)} (${joinNamesItalian(summary.unreadInstruments)}) ${verb}.`);
+  }
+
+  return sentences.join(' ');
+}
+
+const EXPOSURE_METHOD =
+  'Titoli e settori dalle prime ~10 posizioni per fondo (Yahoo Finance o un alias curato); geografia e valuta da una tabella curata, aggiornata periodicamente.';
+
+/** The tile's footer: the method, then the day of the last computation AND the oldest curated
+ *  fact this computation relied on, when older — a fresh Yahoo call can still rest on a
+ *  months-old factsheet. */
+export function describeExposureFooter(computedAt: string | null, oldestProfileAsOf: string | null): string {
+  const parts = [EXPOSURE_METHOD];
+  const computedDate = computedAt ? new Date(computedAt) : null;
+  if (computedDate && !Number.isNaN(computedDate.getTime())) {
+    const day = new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Rome' }).format(computedDate);
+    parts.push(`Aggiornato il ${day}.`);
+  }
+  const asOfDate = oldestProfileAsOf ? new Date(oldestProfileAsOf) : null;
+  if (asOfDate && !Number.isNaN(asOfDate.getTime())) {
+    const day = new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Rome' }).format(asOfDate);
+    parts.push(`La tabella curata più vecchia usata risale al ${day}.`);
+  }
+  return parts.join(' ');
 }
 
 // ─── Previdenza ───────────────────────────────────────────────────────────────
