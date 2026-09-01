@@ -4,6 +4,7 @@ import { getUserAssetsAdmin } from '@/lib/server/assetAdminRepository';
 import { computePortfolioExposure, buildExposureCacheKey } from '@/lib/server/portfolioExposureService';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 import { PortfolioExposureData, PortfolioExposureResponse } from '@/types/exposure';
 
 const EXPOSURE_CACHE_COLLECTION = 'exposure-cache';
@@ -65,12 +66,14 @@ export async function GET(request: NextRequest) {
     // Cache miss, stale, or force refresh — recompute from Yahoo Finance
     const exposure = await computePortfolioExposure(assets);
 
-    // Persist to Firestore (fire-and-forget — cache failure must never break the response)
-    adminDb.collection(EXPOSURE_CACHE_COLLECTION).doc(userId).set({
+    // Persist to Firestore (fire-and-forget — cache failure must never break the response).
+    // `removeUndefinedDeep`: a declared-gap `ExposureRowSource` or a `nonLetta` instrument can
+    // carry `undefined` fields, which Firestore rejects outright.
+    adminDb.collection(EXPOSURE_CACHE_COLLECTION).doc(userId).set(removeUndefinedDeep({
       cachedAt: Timestamp.now(),
       cacheKey: exposure.cacheKey,
       exposure,
-    }).catch((err: unknown) => {
+    })).catch((err: unknown) => {
       console.error('[exposure] Failed to write cache for', userId, err);
     });
 

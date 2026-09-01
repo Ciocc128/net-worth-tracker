@@ -28,6 +28,7 @@ import { fetchYahooFundData, fetchYahooStockData } from './yahooSource';
 import { resolveIssuer } from './issuerResolver';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { removeUndefinedDeep } from '@/lib/utils/firestoreData';
 
 const INSTRUMENT_PROFILE_CACHE_COLLECTION = 'instrument-profile-cache';
 /** 30 days — a fund's holdings/sectors/issuer change slowly; the Yahoo calls this cache absorbs
@@ -223,10 +224,13 @@ async function readCachedProfile(ticker: string): Promise<CachedProfile | null> 
 }
 
 function writeCachedProfileFireAndForget(ticker: string, profile: InstrumentProfile): void {
+  // Most profiles carry `undefined` fields by construction (a kind instrument has no `asOf`, a
+  // placeholder indexId has no `legs`) — Firestore rejects `undefined` outright, so strip it
+  // recursively rather than special-casing every optional field here.
   adminDb
     .collection(INSTRUMENT_PROFILE_CACHE_COLLECTION)
     .doc(ticker)
-    .set({ cachedAt: Timestamp.now(), profile })
+    .set(removeUndefinedDeep({ cachedAt: Timestamp.now(), profile }))
     .catch((err: unknown) => {
       console.error('[exposure] Failed to write instrument-profile-cache for', ticker, err);
     });

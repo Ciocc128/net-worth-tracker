@@ -78,3 +78,9 @@ skills-lock.json
 
 # Scratchpad: dump di dati reali, script one-off e fogli di lavoro. Mai su git.
 /scratchpad/
+
+# Esposizione — Allocazione: i factsheet degli emittenti (materiale protetto da copyright,
+# scaricato a mano dove lo script non puo') e il JSON di lavoro di ogni `exposure:refresh`.
+# Mai su git — vedi AGENTS.md -> Allocazione - Esposizione.
+/data/factsheets/
+/data/exposure/
