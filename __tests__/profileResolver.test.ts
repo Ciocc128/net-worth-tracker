@@ -111,10 +111,19 @@ describe('resolveInstrumentProfiles — curated aliasing', () => {
     expect(byCurrency.get('EUR')).toBeCloseTo(0.0869, 4); // FR 3.25 + DE 2.47 + NL 1.58 + ES 1.39
     expect(byCurrency.has('OTHER')).toBe(false); // an unmapped country drops out, never invented
 
-    // The bond sleeve resolves to a curated entry that carries NO weights: the factsheet names
-    // the four government-futures markets but publishes no split, so Geografia reads it as
-    // `nonLetta` rather than assuming an equal one.
-    expect(profile.legs?.bonds?.countries ?? []).toEqual([]);
+    // The bond sleeve carries the four government-futures markets the factsheet names, weighted
+    // pro quota by their relative market capitalisation (a declared RULE, not a published table —
+    // see `ntsg-bond-sleeve` in instrumentProfiles.ts). The weights are the equity sleeve's four
+    // matching countries renormalised, so US dominates but never reaches 100%.
+    const bondCountries = new Map(profile.legs?.bonds?.countries?.map((c) => [c.key, c.weight]));
+    expect(bondCountries.get('US')).toBeCloseTo(0.857, 3);
+    expect(bondCountries.get('JP')).toBeCloseTo(0.0752, 4);
+    expect([...bondCountries.keys()].sort()).toEqual(['DE', 'GB', 'JP', 'US']);
+
+    // The bond sleeve must NOT reach the currency mix: unfunded futures carry duration abroad
+    // without buying a foreign currency, and `resolveCurrency` derives only from the EQUITY leg.
+    // If this ever regresses, JPY/GBP would jump on a fund that never bought yen or sterling.
+    expect(byCurrency.get('USD')).toBeCloseTo(0.6932, 4);
   });
 
   it('CL2.MI queries Yahoo via its CSUS.MI proxy and derives US/USD from the curated msci-usa index', async () => {

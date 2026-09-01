@@ -62,32 +62,38 @@ const DOWNLOAD_REGISTRY: Record<string, DownloadRegistryEntry> = {
   // -sheet-en-gb.pdf` pattern (the product-page `.ajax` endpoints died with the site's Astro
   // rewrite and now serve HTML for every `fileType`). Verified 2026-09-01: HTTP 200,
   // application/pdf, 358 KB.
+  // The iShares factsheet downloads fine but renders its GEOGRAPHIC BREAKDOWN as a chart, so the
+  // numbers are not in the text layer — MSCI's own index factsheet carries them as text instead.
   'msci-em-imi': {
-    issuer: 'iShares',
+    issuer: 'MSCI (indice)',
     mode: 'auto',
-    url: 'https://www.ishares.com/uk/individual/en/literature/fact-sheet/eimi-ishares-core-msci-em-imi-ucits-etf-fund-fact-sheet-en-gb.pdf',
-    fileName: 'ishares-eimi-factsheet.pdf',
+    url: 'https://www.msci.com/documents/10199/255599/msci-emerging-markets-imi-usd-net-since-2007.pdf',
+    fileName: 'idx-msci-em-imi.pdf',
   },
-  // DWS product pages are a JS shell (2.3 KB of HTML, no document link in the payload), so the
-  // three Xtrackers entries stay `manual` — but each points at ITS OWN fund, keyed by ISIN, so
-  // the download is two clicks and never a search. Verified 2026-09-01.
+  // Go to the INDEX PROVIDER, not the ETF issuer. MSCI and FTSE Russell publish the country
+  // weights of the index itself as unauthenticated PDFs — which is both the more primary source
+  // (several ETFs track one index) and the more scriptable one: the issuers that wrap these
+  // indexes all block scripts one way or another (DWS serves a 2.3 KB JS shell, Dimensional
+  // builds its document links client-side, WisdomTree sits behind Cloudflare), while the index
+  // providers just serve the file. This is what turned the monthly pass from five manual
+  // downloads into one. All four verified 2026-09-01: HTTP 200, application/pdf, data JUL 31 2026.
   'msci-world-ex-usa': {
-    issuer: 'Xtrackers / DWS',
-    mode: 'manual',
-    url: 'https://etf.dws.com/en-gb/IE0006WW1TQ4-msci-world-ex-usa-ucits-etf-1c/',
-    fileName: 'xtrackers-exus-factsheet.pdf',
+    issuer: 'MSCI (indice)',
+    mode: 'auto',
+    url: 'https://www.msci.com/documents/10199/255599/msci-world-ex-usa-index.pdf',
+    fileName: 'idx-msci-world-ex-usa.pdf',
   },
   'msci-world-momentum': {
-    issuer: 'Xtrackers / DWS',
-    mode: 'manual',
-    url: 'https://etf.dws.com/en-gb/IE00BL25JP72-msci-world-momentum-ucits-etf-1c/',
-    fileName: 'xtrackers-xdem-factsheet.pdf',
+    issuer: 'MSCI (indice)',
+    mode: 'auto',
+    url: 'https://www.msci.com/documents/10199/255599/msci-world-momentum-index-usd-net.pdf',
+    fileName: 'idx-msci-world-momentum.pdf',
   },
   'ftse-all-world': {
-    issuer: 'Xtrackers / DWS',
-    mode: 'manual',
-    url: 'https://etf.dws.com/en-gb/IE000L6ZMMC4-ftse-all-world-ucits-etf-1c/',
-    fileName: 'xtrackers-allw-factsheet.pdf',
+    issuer: 'FTSE Russell (indice)',
+    mode: 'auto',
+    url: 'https://research.ftserussell.com/Analytics/Factsheets/Home/DownloadSingleIssue?issueName=AWORLDS',
+    fileName: 'idx-ftse-all-world.pdf',
   },
   // Dimensional serves the real product page (140 KB of HTML) but builds its document links
   // client-side; `manual`, straight at the fund. Verified 2026-09-01.
@@ -128,8 +134,14 @@ async function tryAutoDownload(entry: DownloadRegistryEntry): Promise<'downloade
     const contentType = response.headers.get('content-type') ?? '';
     const buffer = Buffer.from(await response.arrayBuffer());
 
-    if (!contentType.includes('pdf')) {
-      console.log(`  [auto→manuale] ${entry.issuer}: risposta ${contentType || 'sconosciuta'} invece di un PDF (${entry.url})`);
+    // Trust the BYTES, not the label. FTSE Russell serves a perfectly valid PDF as
+    // `application/octet-stream`, and rejecting it on the header alone sent a working automatic
+    // source back to the manual pile. The magic number is what actually decides whether pdfjs can
+    // read this, so an HTML error page still falls back correctly while a mislabelled PDF works.
+    const looksLikePdf = buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+    if (!looksLikePdf) {
+      const label = contentType || 'sconosciuta';
+      console.log(`  [auto→manuale] ${entry.issuer}: risposta ${label}, non un PDF (${entry.url})`);
       return 'fell-back-to-manual';
     }
 

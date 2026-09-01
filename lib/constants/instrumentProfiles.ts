@@ -239,24 +239,83 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
   // on unfunded contracts, not exposure. Four known countries, four unknown weights: the row
   // stays empty so the engine reads the leg as `nonLetta` (≈28% of the Geografia base) instead of
   // asserting an equal split nobody published.
+  //
+  // A DECLARED RULE, not a published table — the one entry in this file that is neither. The
+  // factsheet names the four government-futures markets and says the sleeve rebalances quarterly,
+  // but publishes no split between them; the holdings CSV cannot supply one either (its eight
+  // futures rows carry −0.00%…−0.08%, unrealised P&L on unfunded contracts, not exposure). The
+  // rule applied here — the four markets are weighted by their relative market capitalisation —
+  // is the fund owner's reading of the index methodology, and it is implemented by taking the
+  // FOUR matching weights from this fund's own equity sleeve and renormalising them pro quota:
+  //   US 69.32 · JP 6.08 · GB 3.02 · DE 2.47  (sum 80.89)
+  //   →  85.70% · 7.52% · 3.73% · 3.05%
+  // Two caveats to re-examine if the numbers ever look wrong: a GOVERNMENT-BOND basket weighted
+  // by EQUITY capitalisation is unusual (sovereign baskets are normally weighted by debt
+  // outstanding or by duration, which would raise Japan's share considerably), and these weights
+  // move with the equity sleeve rather than with the bond market. Because it is a rule and not a
+  // document, `sourceUrl` points at the factsheet that names the four markets — the part that IS
+  // published — and `asOf` tracks the equity table this is derived from.
   'ntsg-bond-sleeve': {
     indexId: 'ntsg-bond-sleeve',
     label: 'WisdomTree Global Efficient Core — obbligazionario',
+    countries: [
+      { code: 'US', label: 'Stati Uniti', weight: 0.857 },
+      { code: 'JP', label: 'Giappone', weight: 0.0752 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0373 },
+      { code: 'DE', label: 'Germania', weight: 0.0305 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl:
+      'https://www.wisdomtree.com/se/products/equities/wisdomtree-global-efficient-core-ucits-etf---usd-acc',
   },
+  // ── The four rows below come from the INDEX PROVIDER's own factsheet, not the ETF issuer's ──
+  // MSCI and FTSE Russell publish country weights for the index itself, which is both the more
+  // primary source and the more stable one: several ETFs can track one index, and a provider's
+  // factsheet does not depend on which issuer's website happens to be scriptable this month. All
+  // four are dated JUL 31, 2026 and download unauthenticated (see DOWNLOAD_REGISTRY in
+  // scripts/exposureRefresh.mts). MSCI publishes a top-5 plus "Other"; that residual is carried
+  // as an explicit OTHER row, never spread across the named countries.
   'msci-world-ex-usa': {
     indexId: 'msci-world-ex-usa',
     label: 'MSCI World ex USA',
-    // countries/currencies intentionally absent — see this file's header. EXUS.MI (Xtrackers).
+    countries: [
+      { code: 'JP', label: 'Giappone', weight: 0.2047 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.1292 },
+      { code: 'CA', label: 'Canada', weight: 0.1221 },
+      { code: 'FR', label: 'Francia', weight: 0.0872 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0827 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.3741 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl: 'https://www.msci.com/documents/10199/255599/msci-world-ex-usa-index.pdf',
   },
   'msci-em-imi': {
     indexId: 'msci-em-imi',
     label: 'MSCI Emerging Markets IMI',
-    // countries/currencies intentionally absent — see this file's header. EIMI.MI (iShares).
+    countries: [
+      { code: 'TW', label: 'Taiwan', weight: 0.2642 },
+      { code: 'CN', label: 'Cina', weight: 0.1999 },
+      { code: 'KR', label: 'Corea del Sud', weight: 0.1952 },
+      { code: 'IN', label: 'India', weight: 0.1292 },
+      { code: 'BR', label: 'Brasile', weight: 0.0409 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1706 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl: 'https://www.msci.com/documents/10199/255599/msci-emerging-markets-imi-usd-net-since-2007.pdf',
   },
   'msci-world-momentum': {
     indexId: 'msci-world-momentum',
     label: 'MSCI World Momentum',
-    // countries/currencies intentionally absent — see this file's header. XDEM.MI (Xtrackers).
+    countries: [
+      { code: 'US', label: 'Stati Uniti', weight: 0.5633 },
+      { code: 'JP', label: 'Giappone', weight: 0.1137 },
+      { code: 'CA', label: 'Canada', weight: 0.0686 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.054 },
+      { code: 'NL', label: 'Paesi Bassi', weight: 0.0315 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1688 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl: 'https://www.msci.com/documents/10199/255599/msci-world-momentum-index-usd-net.pdf',
   },
   // Dimensional's own factsheet, "TOP COUNTRIES" (five rows, 87.18%); remainder as OTHER.
   'dimensional-global-core': {
@@ -288,9 +347,28 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
     asOf: '2026-07-31',
     sourceUrl: 'https://res.americancentury.com/docs/avantis-global-small-cap-value-ucits-etf-fact-sheet.pdf',
   },
+  // FTSE Russell publishes the FULL country table (47 markets), not a top-5 plus "Other" the way
+  // MSCI does. Kept to the twelve heaviest (89.37%) with the tail as OTHER: past the twelfth every
+  // market is under 1% and would never surface in a six-row tile, while the file stays readable.
   'ftse-all-world': {
     indexId: 'ftse-all-world',
     label: 'FTSE All-World',
-    // countries/currencies intentionally absent — see this file's header. ALLW.MI (Xtrackers).
+    countries: [
+      { code: 'US', label: 'Stati Uniti', weight: 0.6166 },
+      { code: 'JP', label: 'Giappone', weight: 0.0595 },
+      { code: 'TW', label: 'Taiwan', weight: 0.0317 },
+      { code: 'CA', label: 'Canada', weight: 0.0297 },
+      { code: 'CN', label: 'Cina', weight: 0.0282 },
+      { code: 'KR', label: 'Corea del Sud', weight: 0.0241 },
+      { code: 'FR', label: 'Francia', weight: 0.0207 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0204 },
+      { code: 'DE', label: 'Germania', weight: 0.0188 },
+      { code: 'IN', label: 'India', weight: 0.0163 },
+      { code: 'AU', label: 'Australia', weight: 0.0162 },
+      { code: 'NL', label: 'Paesi Bassi', weight: 0.0115 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1063 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl: 'https://research.ftserussell.com/Analytics/Factsheets/Home/DownloadSingleIssue?issueName=AWORLDS',
   },
 };
