@@ -17,8 +17,34 @@ import {
   ExposureIssuer,
   PortfolioExposureData,
 } from '@/types/exposure';
+import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 
 const yahooFinance = new YahooFinance();
+
+/**
+ * Bumped whenever `computePortfolioExposure`'s MATH changes but the inputs (assets) do not —
+ * the manual lever, same convention as `CACHE_MATH_VERSION` in performanceService.ts.
+ */
+export const EXPOSURE_CACHE_MATH_VERSION = 'v2';
+
+/**
+ * The ONE cache key builder for `exposure-cache/{userId}` — shared by the service (which writes
+ * the cache) and the API route (which reads it), so the two can never drift apart again.
+ *
+ * Fixed the 2026-09 bug: the route built a 3-segment key (etf count/tickers + rounded total
+ * value) to compare against the service's 4-segment key (which also folded in stock tickers),
+ * so `cached.cacheKey === expectedCacheKey` was never true and every visit re-hit Yahoo. The key
+ * is now built from ticker + quantity + allocation role for every active asset — no rounded
+ * total value: a single price tick used to invalidate the cache for no reason.
+ */
+export function buildExposureCacheKey(assets: Asset[]): string {
+  const signature = assets
+    .filter((a) => a.quantity > 0)
+    .map((a) => `${a.ticker}:${a.quantity}:${resolveAllocationRole(a)}`)
+    .sort()
+    .join('|');
+  return `${EXPOSURE_CACHE_MATH_VERSION}-${signature}`;
+}
 
 // Italian labels for Yahoo Finance sector keys.
 const SECTOR_LABELS: Record<string, string> = {
@@ -330,7 +356,7 @@ export async function computePortfolioExposure(
     etfAssets.reduce((s, a) => s + (assetValues.get(a.id) ?? 0), 0) +
     stockAssets.reduce((s, a) => s + (assetValues.get(a.id) ?? 0), 0);
 
-  const cacheKey = `${etfAssets.length}-${etfAssets.map((a) => a.ticker).sort().join(',')}-${stockAssets.map((a) => a.ticker).sort().join(',')}-${Math.round(totalPortfolioValue)}`;
+  const cacheKey = buildExposureCacheKey(assets);
 
   return {
     topHoldings,

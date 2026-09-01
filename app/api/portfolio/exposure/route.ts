@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiAuthErrorResponse, requireFirebaseAuth } from '@/lib/server/apiAuth';
 import { getUserAssetsAdmin } from '@/lib/server/assetAdminRepository';
-import { computePortfolioExposure } from '@/lib/server/portfolioExposureService';
+import { computePortfolioExposure, buildExposureCacheKey } from '@/lib/server/portfolioExposureService';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { PortfolioExposureData, PortfolioExposureResponse } from '@/types/exposure';
@@ -39,20 +39,10 @@ export async function GET(request: NextRequest) {
 
     const assets = await getUserAssetsAdmin(userId);
 
-    // Build the expected cache key before reading cache, so we can validate staleness
-    const activeAssets = assets.filter((a) => a.quantity > 0);
-    const etfAssets = activeAssets.filter((a) => a.type === 'etf');
-    const totalPortfolioValue = activeAssets.reduce((sum, a) => {
-      const isGBp = a.currency === 'GBp';
-      const normalised = isGBp ? a.currentPrice / 100 : a.currentPrice;
-      const priceEur =
-        a.currency?.toUpperCase() !== 'EUR' && a.currentPriceEur != null
-          ? a.currentPriceEur
-          : normalised;
-      const base = a.quantity * priceEur;
-      return sum + (a.type === 'realestate' && a.outstandingDebt ? base - a.outstandingDebt : base);
-    }, 0);
-    const expectedCacheKey = `${etfAssets.length}-${etfAssets.map((a) => a.ticker).sort().join(',')}-${Math.round(totalPortfolioValue)}`;
+    // Build the expected cache key before reading cache, so we can validate staleness — the
+    // SAME function the service uses to write it (see buildExposureCacheKey's doc comment for
+    // the bug this fixed: two independently-built keys that could never match).
+    const expectedCacheKey = buildExposureCacheKey(assets);
 
     // Attempt to serve from cache (skipped on force refresh)
     if (!forceRefresh) {
