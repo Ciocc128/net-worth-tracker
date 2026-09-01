@@ -13,16 +13,14 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /**
  * GET /api/portfolio/exposure
  *
- * Returns a breakdown of the user's portfolio exposure by:
- * - Top company holdings (cross-ETF aggregated, direct stocks at 100%)
- * - Sector weights (from Yahoo Finance topHoldings)
- * - ETF fund families/issuers
+ * Returns the user's five-dimension exposure breakdown — Titoli · Settori · Geografia (notional,
+ * leverage-aware) and Valuta · Emittenti (market value, leverage does NOT multiply) — computed by
+ * `lib/server/portfolioExposureService.ts` (curated tables cascaded with Yahoo Finance, see
+ * `lib/server/exposure/profileResolver.ts` and the pure `lib/utils/exposureEngine.ts`).
  *
- * Data is computed server-side from Yahoo Finance quoteSummary and cached
- * in Firestore `exposure-cache/{userId}` for 24h (Admin SDK write only).
- *
- * The cache key encodes the ETF composition + total portfolio value so it
- * auto-invalidates when the user adds/removes ETFs or makes significant trades.
+ * Cached in Firestore `exposure-cache/{userId}` for 24h (Admin SDK write only) — the cache key
+ * (`buildExposureCacheKey`) is ticker + quantity + allocation role for every active asset, so it
+ * auto-invalidates on a trade or a role change but NOT on a mere price tick.
  *
  * Auth: authenticated user — returns only their own exposure data.
  */
