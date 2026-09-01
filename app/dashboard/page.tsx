@@ -42,6 +42,8 @@ import { CategoryTile } from '@/components/dashboard/overview/CategoryTile';
 import { AssetPrincipaliTile } from '@/components/dashboard/overview/AssetPrincipaliTile';
 import { OverviewTile, TILE_CELL_CLASS } from '@/components/dashboard/overview/OverviewTile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { ErrorNotice } from '@/components/ui/error-notice';
+import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 
 const MotionButtonShell = motion.div;
 
@@ -89,7 +91,8 @@ export default function DashboardPage() {
     return { title, date: ITALIAN_LONG_DATE.format(now) };
   }, [user?.displayName]);
 
-  const { data: overview, isLoading: loadingOverview } = useDashboardOverview(ownerId);
+  const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } =
+    useDashboardOverview(ownerId);
   const createSnapshotMutation = useCreateSnapshot(ownerId || '');
 
   // ─── UI State ─────────────────────────────────────────────────────────────────
@@ -250,17 +253,44 @@ export default function DashboardPage() {
     </MotionButtonShell>
   );
 
-  // ─── Loading skeleton — mirrors the live layout ───────────────────────────────
-  if (loadingOverview || !overview || !verdict) {
+  // ─── Loading, then failure — never the two collapsed into one ─────────────────
+  // `loadingOverview || !overview` used to be ONE branch, so a failed read pulsed forever: the
+  // skeleton is a WAIT, and a wait that cannot end is a lie (lib/utils/statesNarrative.ts).
+  const overviewState = resolveSurfaceState({
+    loading: loadingOverview,
+    failed: overviewError || !overview || !verdict,
+  });
+
+  const pageChrome = (
+    <PageHeader label="Panoramica" title={header.title} description={header.date} separator={false} />
+  );
+
+  if (overviewState === 'loading') {
     return (
       <PageContainer width="wide">
-        <PageHeader
-          label="Panoramica"
-          title={header.title}
-          description={header.date}
-          separator={false}
-        />
+        {pageChrome}
         <TileGridSkeleton />
+      </PageContainer>
+    );
+  }
+
+  // The `!overview || !verdict` repeat is what narrows the types below; `overviewState` is what
+  // says WHY the page is here.
+  if (overviewState === 'failed' || !overview || !verdict) {
+    return (
+      <PageContainer width="wide">
+        {pageChrome}
+        {/* The whole page reads ONE payload, so no tile is left that could answer: the grid is
+            absent rather than filled with six cells repeating the same failure. */}
+        <ErrorNotice
+          className="max-w-[920px]"
+          onRetry={() => void refetchOverview()}
+          notice={describeReadFailure({
+            consequence:
+              'La Panoramica legge un riepilogo solo, e non è stato letto: non c’è nessuna tessera che possa rispondere senza di esso.',
+            canRetry: true,
+          })}
+        />
       </PageContainer>
     );
   }

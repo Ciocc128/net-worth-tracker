@@ -39,6 +39,7 @@ import {
 } from '@/types/expenses';
 import { CostCenter } from '@/types/costCenters';
 import { getCostCenters } from '@/lib/services/costCenterService';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Asset, FamilyMember } from '@/types/assets';
 import { createExpense, updateExpense } from '@/lib/services/expenseService';
 import { getAllAssets } from '@/lib/services/assetService';
@@ -555,7 +556,7 @@ function ExpenseFormBody({
         <div className="space-y-2">
           <Label htmlFor="categoryId">Categoria *</Label>
           {loadingCategories ? (
-            <div className="h-9 rounded-md bg-muted animate-pulse" />
+            <Skeleton className="h-9 rounded-md" />
           ) : (
             <>
               <SearchableCombobox
