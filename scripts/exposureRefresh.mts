@@ -58,17 +58,19 @@ interface DownloadRegistryEntry {
  * — the registry only records what was true the last time a human checked.
  */
 const DOWNLOAD_REGISTRY: Record<string, DownloadRegistryEntry> = {
-  // The plan verified a real iShares factsheet PDF URL returns HTTP 200/application-pdf — but
-  // that exact URL was never recorded, and this guess (the common iShares literature-PDF
-  // pattern) returns the HTML product page instead: confirmed 2026-09-01, this session — the
-  // `tryAutoDownload` fall-back below caught it correctly (no crash, no silent "success").
-  // TODO: replace `url` with the verified PDF link the next time someone has it in a browser.
+  // iShares' literature PDFs live at a stable `/literature/fact-sheet/{ticker}-{slug}-fund-fact
+  // -sheet-en-gb.pdf` pattern (the product-page `.ajax` endpoints died with the site's Astro
+  // rewrite and now serve HTML for every `fileType`). Verified 2026-09-01: HTTP 200,
+  // application/pdf, 358 KB.
   'msci-em-imi': {
     issuer: 'iShares',
     mode: 'auto',
-    url: 'https://www.ishares.com/uk/individual/en/products/264659/ishares-msci-em-imi-etf/1467271812596.ishares-emim-factsheet-en-gb.pdf',
+    url: 'https://www.ishares.com/uk/individual/en/literature/fact-sheet/eimi-ishares-core-msci-em-imi-ucits-etf-fund-fact-sheet-en-gb.pdf',
     fileName: 'ishares-eimi-factsheet.pdf',
   },
+  // DWS product pages are a JS shell (2.3 KB of HTML, no document link in the payload), so the
+  // three Xtrackers entries stay `manual` — but each points at ITS OWN fund, keyed by ISIN, so
+  // the download is two clicks and never a search. Verified 2026-09-01.
   'msci-world-ex-usa': {
     issuer: 'Xtrackers / DWS',
     mode: 'manual',
@@ -78,25 +80,29 @@ const DOWNLOAD_REGISTRY: Record<string, DownloadRegistryEntry> = {
   'msci-world-momentum': {
     issuer: 'Xtrackers / DWS',
     mode: 'manual',
-    url: 'https://etf.dws.com/en-gb/',
+    url: 'https://etf.dws.com/en-gb/IE00BL25JP72-msci-world-momentum-ucits-etf-1c/',
     fileName: 'xtrackers-xdem-factsheet.pdf',
   },
   'ftse-all-world': {
     issuer: 'Xtrackers / DWS',
     mode: 'manual',
-    url: 'https://etf.dws.com/en-gb/',
+    url: 'https://etf.dws.com/en-gb/IE000L6ZMMC4-ftse-all-world-ucits-etf-1c/',
     fileName: 'xtrackers-allw-factsheet.pdf',
   },
+  // Dimensional serves the real product page (140 KB of HTML) but builds its document links
+  // client-side; `manual`, straight at the fund. Verified 2026-09-01.
   'dimensional-global-core': {
     issuer: 'Dimensional',
     mode: 'manual',
-    url: 'https://www.dimensional.com/europe/en-gb',
+    url: 'https://www.dimensional.com/gb-en/funds/ie000eggfvg6/global-core-equity-ucits-etf-acc',
     fileName: 'dimensional-degc-factsheet.pdf',
   },
+  // Avantis publishes the factsheet as a plain PDF on American Century's asset host — no product
+  // page in the way. Verified 2026-09-01: HTTP 200, application/pdf, 124 KB.
   'global-small-cap-value': {
     issuer: 'Avantis',
-    mode: 'manual',
-    url: 'https://www.avantisinvestors.com',
+    mode: 'auto',
+    url: 'https://res.americancentury.com/docs/avantis-global-small-cap-value-ucits-etf-fact-sheet.pdf',
     fileName: 'avantis-avws-factsheet.pdf',
   },
   'ntsg-wisdomtree-csv': {
