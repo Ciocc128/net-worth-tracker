@@ -209,6 +209,24 @@ function hasUsableData(profile: InstrumentProfile): boolean {
 interface CachedProfile {
   profile: InstrumentProfile;
   cachedAtMs: number;
+  curatedFingerprint: string | null;
+}
+
+/**
+ * Fingerprint of everything the CURATED tables say about this ticker — its `INSTRUMENT_PROFILES`
+ * row plus every `INDEX_PROFILES` entry that row points at.
+ *
+ * Why the cache needs it: the 30-day TTL is about how fast an ISSUER's data goes stale, not about
+ * how fast OURS does. Editing a curated table is a deliberate human act — the whole point of
+ * `npm run exposure:refresh` — and without this the edit would sit invisible behind a fresh cache
+ * entry for up to a month, which makes the monthly maintenance loop do nothing at all. Same idea
+ * as `CACHE_MATH_VERSION` in performanceService.ts, derived automatically instead of hand-bumped.
+ */
+function curatedFingerprint(asset: Asset): string {
+  const entry = INSTRUMENT_PROFILES[asset.ticker];
+  if (!entry) return 'none';
+  const indexIds = [entry.indexId, ...Object.values(entry.legIndexIds ?? {})].filter(Boolean) as string[];
+  return JSON.stringify({ entry, indexes: indexIds.map((id) => INDEX_PROFILES[id] ?? null) });
 }
 
 async function readCachedProfile(ticker: string): Promise<CachedProfile | null> {
@@ -217,20 +235,26 @@ async function readCachedProfile(ticker: string): Promise<CachedProfile | null> 
     if (!snap.exists) return null;
     const data = snap.data();
     if (!data?.profile || !data.cachedAt) return null;
-    return { profile: data.profile as InstrumentProfile, cachedAtMs: (data.cachedAt as Timestamp).toMillis() };
+    return {
+      profile: data.profile as InstrumentProfile,
+      cachedAtMs: (data.cachedAt as Timestamp).toMillis(),
+      // Absent on documents written before fingerprinting existed — treated as "unknown", which
+      // fails the equality check below and forces one fresh resolve. Self-healing, no migration.
+      curatedFingerprint: (data.curatedFingerprint as string | undefined) ?? null,
+    };
   } catch {
     return null; // a cache-read failure must never block resolution — fall through to Yahoo
   }
 }
 
-function writeCachedProfileFireAndForget(ticker: string, profile: InstrumentProfile): void {
+function writeCachedProfileFireAndForget(ticker: string, profile: InstrumentProfile, fingerprint: string): void {
   // Most profiles carry `undefined` fields by construction (a kind instrument has no `asOf`, a
   // placeholder indexId has no `legs`) — Firestore rejects `undefined` outright, so strip it
   // recursively rather than special-casing every optional field here.
   adminDb
     .collection(INSTRUMENT_PROFILE_CACHE_COLLECTION)
     .doc(ticker)
-    .set(removeUndefinedDeep({ cachedAt: Timestamp.now(), profile }))
+    .set(removeUndefinedDeep({ cachedAt: Timestamp.now(), profile, curatedFingerprint: fingerprint }))
     .catch((err: unknown) => {
       console.error('[exposure] Failed to write instrument-profile-cache for', ticker, err);
     });
@@ -246,13 +270,20 @@ function writeCachedProfileFireAndForget(ticker: string, profile: InstrumentProf
  */
 async function resolveWithCache(asset: Asset): Promise<InstrumentProfile> {
   const cached = await readCachedProfile(asset.ticker);
-  if (cached && Date.now() - cached.cachedAtMs < INSTRUMENT_PROFILE_CACHE_TTL_MS) {
+  const fingerprint = curatedFingerprint(asset);
+  // Two conditions, not one: the entry must be young enough AND describe the curated tables as
+  // they read right now. An edit to `instrumentProfiles.ts` invalidates it immediately.
+  if (
+    cached &&
+    Date.now() - cached.cachedAtMs < INSTRUMENT_PROFILE_CACHE_TTL_MS &&
+    cached.curatedFingerprint === fingerprint
+  ) {
     return cached.profile;
   }
 
   const fresh = await resolveOneInstrument(asset);
   if (hasUsableData(fresh)) {
-    writeCachedProfileFireAndForget(asset.ticker, fresh);
+    writeCachedProfileFireAndForget(asset.ticker, fresh, fingerprint);
     return fresh;
   }
   return cached?.profile ?? fresh;

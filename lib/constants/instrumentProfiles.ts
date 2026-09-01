@@ -98,20 +98,22 @@ export const INSTRUMENT_PROFILES: Record<string, CuratedInstrumentEntry> = {
     ticker: 'NTSG-ETFP.MI',
     yahooExposureTicker: 'NTSG.MI', // the Milan share class Yahoo has never indexed; the LSE/XETRA line has.
     issuer: 'WisdomTree',
-    // The whole instrument's CAPITAL sits in USD, regardless of the 60/40 equity/bonds split: the
-    // equity sleeve is 8-for-8 US-megacap on Yahoo's own disclosed holdings, and the bond sleeve
-    // is government BOND FUTURES — unfunded, so they carry duration abroad without ever buying a
-    // foreign currency (Yahoo's own `bondPosition: -0.97%` on NTSG.MI is the mark-to-market of
-    // those futures, not 40% of AUM sitting in euros/sterling/yen — see the plan's "NTSG e i
-    // futures" section). This is a RULE about how unfunded futures work, not a factsheet fact.
-    currencies: [{ code: 'USD', weight: 1 }],
-    asOf: '2026-09-01',
+    // NO whole-instrument currency override. An earlier cut asserted USD 100% by reading Yahoo's
+    // top-8 holdings (all US megacaps) as "the sleeve is American"; WisdomTree's factsheet
+    // disproves it — the equity sleeve holds 6.1% Japan, 8.7% eurozone, 3.0% UK, 3.0% Canada and
+    // 2.6% Switzerland. A top-10 by SECURITY is not a country breakdown. The currency mix is now
+    // derived from the equity sleeve's countries (`profileResolver.resolveCurrency`), which is the
+    // right answer for the CAPITAL: the equity sleeve genuinely buys foreign shares in foreign
+    // currencies. The BOND sleeve stays out of it for the opposite reason — unfunded futures carry
+    // duration abroad without ever buying a foreign currency (Yahoo's `bondPosition: -0.97%` is
+    // those contracts' mark-to-market, not 40% of AUM sitting in euros; see the plan's "NTSG e i
+    // futures"), and `ntsg-bond-sleeve` carries no weights, so it contributes nothing here.
+    // Approximation left standing: the ~10% cash collateral (USD/EUR/GBP/JPY per the factsheet)
+    // is treated as following the equity mix rather than being split out.
+    legIndexIds: { equity: 'wt-global-efficient-core', bonds: 'ntsg-bond-sleeve' },
+    asOf: '2026-07-31',
     sourceUrl:
       'https://www.wisdomtree.com/se/products/equities/wisdomtree-global-efficient-core-ucits-etf---usd-acc',
-    // legIndexIds intentionally empty: neither the equity sleeve's nor the bond sleeve's geography
-    // is solid enough to assert yet — see this file's header. Both legs read `nonLetta` in
-    // Geografia until a human deposits WisdomTree's holdings CSV (Cloudflare blocks the script,
-    // 403 on every header combination tried) in `data/factsheets/` for `exposure:refresh` to read.
   },
   'CL2.MI': {
     ticker: 'CL2.MI',
@@ -203,6 +205,44 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
     asOf: '2026-09-01',
     sourceUrl: 'https://www.msci.com/indexes/index/990300',
   },
+  // NTSG's EQUITY sleeve, from WisdomTree's own monthly factsheet ("Primi 10 Paesi", data al
+  // 31/07/2026). The ten disclosed weights sum to 94.24%; the remainder is carried as an explicit
+  // OTHER row rather than being spread across the named ten, which would overstate every one of
+  // them. Note this DISPROVES the "8-for-8 US megacap ⇒ all-USD" reading of Yahoo's top holdings:
+  // a top-10 by SECURITY is US-heavy while the fund still holds 6.1% Japan, 8.7% eurozone, 3.0%
+  // UK, 3.0% Canada and 2.6% Switzerland. The BOND sleeve is deliberately NOT here — see the
+  // 'ntsg-bond-sleeve' entry.
+  'wt-global-efficient-core': {
+    indexId: 'wt-global-efficient-core',
+    label: 'WisdomTree Global Efficient Core — azionario',
+    countries: [
+      { code: 'US', label: 'Stati Uniti', weight: 0.6932 },
+      { code: 'JP', label: 'Giappone', weight: 0.0608 },
+      { code: 'FR', label: 'Francia', weight: 0.0325 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0302 },
+      { code: 'CA', label: 'Canada', weight: 0.0298 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0258 },
+      { code: 'DE', label: 'Germania', weight: 0.0247 },
+      { code: 'NL', label: 'Paesi Bassi', weight: 0.0158 },
+      { code: 'AU', label: 'Australia', weight: 0.0157 },
+      { code: 'ES', label: 'Spagna', weight: 0.0139 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.0576 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl:
+      'https://www.wisdomtree.com/se/products/equities/wisdomtree-global-efficient-core-ucits-etf---usd-acc',
+  },
+  // NTSG's BOND sleeve: the factsheet names the four government-futures markets ("titoli di stato
+  // statunitensi, tedeschi, britannici e giapponesi", rebalanced quarterly to a 60% notional) but
+  // publishes NO weights, and the holdings CSV cannot supply them either — its eight futures rows
+  // carry mark-to-market values of −0.00% to −0.08% (≈ −0.27% in total), which is unrealised P&L
+  // on unfunded contracts, not exposure. Four known countries, four unknown weights: the row
+  // stays empty so the engine reads the leg as `nonLetta` (≈28% of the Geografia base) instead of
+  // asserting an equal split nobody published.
+  'ntsg-bond-sleeve': {
+    indexId: 'ntsg-bond-sleeve',
+    label: 'WisdomTree Global Efficient Core — obbligazionario',
+  },
   'msci-world-ex-usa': {
     indexId: 'msci-world-ex-usa',
     label: 'MSCI World ex USA',
@@ -218,15 +258,35 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
     label: 'MSCI World Momentum',
     // countries/currencies intentionally absent — see this file's header. XDEM.MI (Xtrackers).
   },
+  // Dimensional's own factsheet, "TOP COUNTRIES" (five rows, 87.18%); remainder as OTHER.
   'dimensional-global-core': {
     indexId: 'dimensional-global-core',
     label: 'Dimensional Global Core Equity',
-    // countries/currencies intentionally absent — see this file's header. DEGC.DE (Dimensional).
+    countries: [
+      { code: 'US', label: 'Stati Uniti', weight: 0.7145 },
+      { code: 'JP', label: 'Giappone', weight: 0.0641 },
+      { code: 'CA', label: 'Canada', weight: 0.0364 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0349 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0219 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1282 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl: 'https://www.dimensional.com/gb-en/funds/ie000eggfvg6/global-core-equity-ucits-etf-acc',
   },
+  // Avantis/American Century factsheet, country table (five rows, 89.05%); remainder as OTHER.
   'global-small-cap-value': {
     indexId: 'global-small-cap-value',
     label: 'Global Small Cap Value',
-    // countries/currencies intentionally absent — see this file's header. AVWS.DE (Avantis).
+    countries: [
+      { code: 'US', label: 'Stati Uniti', weight: 0.6924 },
+      { code: 'JP', label: 'Giappone', weight: 0.1022 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0361 },
+      { code: 'CA', label: 'Canada', weight: 0.0327 },
+      { code: 'AU', label: 'Australia', weight: 0.0271 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1095 },
+    ],
+    asOf: '2026-07-31',
+    sourceUrl: 'https://res.americancentury.com/docs/avantis-global-small-cap-value-ucits-etf-fact-sheet.pdf',
   },
   'ftse-all-world': {
     indexId: 'ftse-all-world',
