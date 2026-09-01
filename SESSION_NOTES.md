@@ -730,3 +730,54 @@ tondi (400+350 il primo mese, 200+175 nei quattro successivi, valore che chiude 
 qualunque push verso upstream: stesse quattro proprietà verificate, TWR di prova −97,43% → −97,33%.
 Il commento in testa a `pensionReturn.ts` non cita più il totale al centesimo. Il fork è PUBBLICO —
 vale la pena ricordarselo prima di scrivere un numero vero in un test.
+
+---
+
+## 2026-09-01 — ripresa della review del ROI: misurata, e chiusa in una issue upstream
+
+Sessione di sola misura e di scrittura documentale: **nessuna modifica al codice dell'app, nessuna
+scrittura su Firestore.** Riprende la verifica sospesa il 31/08 (piano in
+`~/.claude/plans/verifica-il-roi-come-compressed-petal.md`), di cui restava aperto il passo 1:
+misurare sui dati veri invece di dedurre dal codice. Strumento: `roi-diagnosi.mts` (read-only) in
+`scratchpad/rendimenti-audit/`.
+
+### La diagnosi di ieri guardava i dati sbagliati — come Giorgio sospettava
+
+**Tutti e 23 gli snapshot (2024-10 → 2026-08) hanno `byAsset`**: la ricostruzione storica del 30/08
+li ha scritti col dettaglio per strumento. Quindi le tre ipotesi del piano **non toccano questi
+numeri**: il backfill E₀ non scatta mai (l'escluso è misurato al valore reale di ogni mese, da
+13.880 € a ottobre 2024 a 20.286 € ad agosto 2026), i flussi sono `portfolio` su **tutte** le
+finestre — Storico compreso, 22 mesi misurati su 22 coppie possibili — e il caso degenere non si
+presenta. Le esclusioni (15 asset) sono applicate ovunque: **«Storico misura tutto il patrimonio»
+non è vero sulla pagina.**
+
+### Quello che non torna davvero: il denominatore del ROI
+
+`calculateROI` divide il guadagno per il **solo capitale iniziale**. Su «Storico» — 19.969 € di
+partenza, 72.400 € di versamenti, 106.885 € finali, 14.516 € di guadagno — il ROI esce **+72,69%**
+contro un TWR cumulato di **+29,85%** e un ROI su capitale medio (Dietz) di **+25,84%**. Due volte
+e mezzo. L'errore cresce con la finestra: YTD +11,50% vs +9,54% cumulato, 1 anno +18,12% vs
++13,61%. E la chip che lo mostra ha didascalia «ROI del periodo», che è esattamente la lettura
+sbagliata. Nello stesso file `calculateCAGR` i flussi al denominatore li mette (`start + flussi`):
+il ROI è l'unica metrica del modulo a non farlo.
+
+### Il bug confermato e quantificato: l'export PDF
+
+`pdfDataService.ts:571-580` passa gli snapshot **grezzi** e nessun `portfolioFlows`, mentre
+`getAllPerformanceData` proietta la base. Misurato: PDF «Totale» ROI **+273,90%**, CAGR +103,85%,
+TWR **+105,28%** annualizzato, contro +72,69% / +8,29% / +15,31% della pagina. Il grosso non viene
+dal perimetro ma dai **flussi**: lo storico del Cashflow parte da dicembre 2025, gli snapshot da
+ottobre 2024, quindi `ALL` confronta 22 mesi di capitale con 8 mesi di flussi e legge come
+rendimento i versamenti dei primi 14. La sezione del PDF si intitola «Performance Portafoglio»
+mentre misura il patrimonio.
+
+### Deciso: nessun fix qui, una issue upstream
+
+Giorgio non ha mai usato l'export PDF e non sa se il manutentore lo voglia sul patrimonio o sul
+portafoglio: la domanda va posta a lui, non risolta nel fork. Entrambi i punti sono quindi in
+**[issue #324](https://github.com/GiuseppeDM98/net-worth-tracker/issues/324)** — il ROI con quattro
+alternative (chip = TWR cumulato · ROI su capitale medio · togliere il ROI · tenere formula e
+cambiare le parole; le prime e l'ultima sono compatibili), il PDF con la domanda di perimetro.
+Corpo in `docs/roi-denominator-issue.md`. Nessun nome di strumento, importi arrotondati.
+
+**Le tre issue/PR upstream aperte sono ora #319 (PR), #323 (PR), #324 (issue).**
