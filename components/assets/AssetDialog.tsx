@@ -907,7 +907,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
       setShowNewSubCategory(false);
     } catch (error: any) {
       console.error('Error adding subcategory:', error);
-      toast.error(error.message || 'Errore nella creazione della sottocategoria');
+      toast.error(describeWriteError(error));
     } finally {
       setIsAddingSubCategory(false);
     }

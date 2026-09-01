@@ -134,6 +134,54 @@ Companion documents — do not duplicate their content into this file:
 - **`useWatch()` for render, `getValues()` for handlers — never `watch()`** (incompatible with the React Compiler, which
   then skips the whole component).
 
+### Stati: caricamento, vuoto, zero, errore (`lib/utils/statesNarrative.ts`, `components/ui/{skeleton,empty-state,error-notice}.tsx`)
+- **An absence has three names, and they are not interchangeable** (DESIGN.md → The Absence-Has-Three-Names Rule):
+  `missing` (nothing recorded) · `zero` (something is, and it is zero) · `failed` (the read did not happen). The
+  `AbsenceKind` union in `statesNarrative.ts` exists so a component cannot collapse them into a boolean.
+- **`resolveSurfaceState({ loading, failed })` is the ONE decision on which of the four states a surface is in**, and
+  `loading` wins over `failed` because React Query re-enters `isLoading` while it retries — a retry is an attempt, not
+  a verdict. What it exists to stop is `loading || !data`, the collapse that made the Panoramica pulse **forever** on a
+  failed read (fixed 2026-09-01); the E2E probe that catches it asserts the skeleton's `role="status"` is GONE once the
+  alert is up.
+- **A failed read is checked BEFORE the empty branch, always.** Every query in this app defaults to `[]` or
+  `undefined`, so a dropped connection is byte-identical to a new account — and the empty branch would then print a
+  verdict about a set that was never read («non hai nessun centro di costo», to someone with eight).
+- **`describeReadFailure` requires its `consequence`.** There is no generic fallback on purpose: a shared module does
+  not know the Italian agreement of a subject it was handed («Classi non è stato letto» is wrong), and a sentence that
+  claims nothing is worse than no sentence. The caller knows what it lost. `untouched` is optional and defaults to
+  «Nessun dato registrato è stato toccato»; `canRetry` and `onRetry` travel together, so no button is ever offered
+  that does nothing.
+- **The reassurance is said once per page**: `compact` drops it inside a cell of 4 columns or fewer, because three
+  lines in a 3/12 cell make the notice taller than the tiles beside it. On a page where several queries fail together
+  at least one of them is wide, so the sentence survives.
+- **A service must not swallow its own failure into zeros.** `getAnnualCashflowData` did (a `catch` returning
+  `annualSavings: 0`), which meant the FIRE calculator answered a dropped connection with «servono spese registrate
+  nel Cashflow» — a sentence about the reader's data, told about data nobody read. It rejects now; both its callers
+  hold an `ErrorNotice` branch that only a rejection can reach. When wiring a new surface, check the service too: an
+  `isError` branch above a service that never rejects is decoration.
+- **`Skeleton` (`components/ui/skeleton.tsx`) is the only muted placeholder.** `motion-safe:animate-pulse` — Tailwind's
+  bare `animate-pulse` has no reduced-motion guard, and it was hand-written in eight files at six different heights —
+  and `aria-hidden`, so the wait is announced once by `TileGridSkeleton`'s `role="status"`. `animate-spin` is
+  deliberately left alone: a spinner IS the "in flight" signal, and at 16px it is not the vestibular problem the
+  preference is about.
+- **Reduced motion reduces the MOTION, not the content.** `shouldShowSavingsBadge` used to take `reducedMotion` as a
+  show condition, so a reader who had asked the OS for stillness was never told their savings rate. It now governs the
+  entrance transition only, in the component. The two remaining `shouldReduceMotion()` callers gate CONFETTI, which is
+  motion carrying nothing — those are correct as they are.
+- **A toast's severity is the icon and a 2px leading rule, never the surface.** Sonner maps `--normal-bg` for every
+  type, so before this an error and a success were the same grey tile with a different 16px glyph. The tint variant was
+  rejected: `bg-*/10` washes the fill with the text's own hue and this project already records those combinations as
+  structurally below AA.
+- **A failed WRITE speaks `describeWriteError`, on a toast exactly as in a modal.** Thirteen call sites passed
+  `(err as Error).message` straight through — the thing that module exists to prevent. Where the message really is the
+  product's own Italian (the assistant hooks' `payload?.error ?? '<italiano>'`), the throw is marked with
+  `userFacingError` so the translation keeps it; everything unmarked takes the generic sentence. The assistant's SSE
+  route no longer forwards the Anthropic SDK's English message to the client either — that string is a log line.
+- **Where the 20 surfaces are**: `app/dashboard/{page,assets,history,performance,allocation,hall-of-fame,settings}`,
+  the five Cashflow tabs (the `loadFailed` prop is threaded from `app/dashboard/{cashflow,analisi}/page.tsx`, because
+  the tabs do not own their queries), Dividendi, the five FIRE tabs, Previdenza and Centri di Costo. Adding a
+  twenty-first means: read the query's `isError`, branch with `resolveSurfaceState`, and write the `consequence`.
+
 ### Dialog e form trasversali (`components/ui/responsive-modal.tsx`, `lib/utils/dialogNarrative.ts`)
 - **A modal is a tile lifted off the page** (DESIGN.md → The Modal-Is-A-Tile Rule): eyebrow · title 20px · reading ·
   body · footer. `ResponsiveModal` owns the whole shell, so a caller passes content and never chrome — and never
@@ -1604,7 +1652,7 @@ Companion documents — do not duplicate their content into this file:
 **Page and integrations**
 - **The year axis governs the annual tiles and the verdict's annual clauses only, never the fund value or the
   return** (see *Previdenza — a verdict over tiles*); `resolveActivePensionYear` (pure) reconciles the selection with
-  the derived axis so no effect has to sync them. Every tile degrades to `PensionErrorNotice` instead of zeros, and
+  the derived axis so no effect has to sync them. Every tile degrades to an `ErrorNotice` instead of zeros, and
   the copy agrees in number (`fundSubject()` in `pensionNarrative.ts`).
 - **Zod messages must be attached to the TYPE check, not only the constraint**: `valueAsNumber: true` turns an empty
   input into `NaN`, which fails `z.number()` itself — use `z.number({ error: '…' }).positive('…')`.
@@ -1649,7 +1697,7 @@ Companion documents — do not duplicate their content into this file:
   starts later — so the two pages never disagree on a number.
 - **Errors degrade per tile and the verdict says what failed** (`buildPensionLoadErrorVerdict`): a failed
   `pensionContributions` query hides the hero's reading and chips (a `[]` would say «nessun versamento registrato»)
-  and replaces Rendimento, Anno fiscale, Versato and Versamenti with `PensionErrorNotice`; a failed snapshots query
+  and replaces Rendimento, Anno fiscale, Versato and Versamenti with an `ErrorNotice`; a failed snapshots query
   drops the series and the Rendimento tile. `assets`/`settings` errors stay blocking.
 - The ledger's delete is `useArmedDelete` (two clicks, no timer, announced on arm and disarm); the 3 s auto-disarm of
   the old chapter is gone. Playwright locates the tiles by `role=region` + `aria-label` («Il fondo oggi»,
@@ -1882,7 +1930,9 @@ Companion documents — do not duplicate their content into this file:
 - **`SavingsRateBadge` is once per calendar month per account**, recorded in localStorage through
   `celebrationUtils` under `savings_rate_{ownerId}_{YYYY-MM}` — a sessionStorage flag dies with every new window and
   re-greets the user on every login. The decision is pure (`lib/utils/savingsRateBadge.ts`); the effect defers its
-  `setVisible` with `setTimeout(…, 0)` (react-hooks/set-state-in-effect).
+  `setVisible` with `setTimeout(…, 0)` (react-hooks/set-state-in-effect). **`reducedMotion` is NOT part of that
+  decision** (removed 2026-09-01): it used to suppress the badge outright, so a reader who asked the OS for stillness
+  was never told their savings rate. It governs the entrance transition only, in the component.
 
 ### Shared Constants and Fixed Hooks
 - **Rule of Three**: a map used in 3+ files lives in `lib/constants/<domain>.ts`. The canonical symptom of a duplicated
@@ -1921,7 +1971,12 @@ Companion documents — do not duplicate their content into this file:
   component when a dep array is *more specific* than what it infers — align the dep to the inferred value.
 - **Loading skeleton over spinner** on any page investing in count-up and chart scheduling, with `PageContainer` imported
   inside it or wrapped at the call site. Verify it is wired up — `tsc` does not catch an unused component. Mobile CPU
-  budget is ~3-5× tighter, so validate motion in a production build, not `next dev`.
+  budget is ~3-5× tighter, so validate motion in a production build, not `next dev`. The skeleton is a WAIT and never a
+  failure (→ *Stati: caricamento, vuoto, zero, errore*).
+- **Every looping animation carries `motion-safe:`.** Tailwind's `animate-pulse` does not, which is why the app's ONE
+  placeholder is `components/ui/skeleton.tsx` and nothing hand-rolls `animate-pulse bg-muted` any more. `animate-spin`
+  is the deliberate exception: a spinner IS the "in flight" signal. And a preference for less motion must never remove
+  CONTENT — see the `SavingsRateBadge` entry under *Panoramica and Dashboard Data Isolation*.
 
 ### Recharts
 - **`useChartColors()` is mandatory for every series** — read CSS vars after paint and pass `chartColors[0..4]` as props.
@@ -2300,6 +2355,9 @@ rules permitting the writes, real `Timestamp` values surviving `removeUndefinedD
   (`assetPricing.ts` is the worked example).
 
 ### Audit habits
+- **An `isError` branch above a service that never rejects is decoration.** Before wiring a surface's failure state,
+  read the service: a `catch` that returns `[]`, `0` or a defaulted object turns every failure into a truthful-looking
+  answer, and the branch can never fire (`getAnnualCashflowData` did exactly that until 2026-09-01).
 - **"Keep" verdicts need the same grep as "Delete" verdicts.** A wrong Delete breaks the build immediately; a wrong Keep
   burns a whole commit polishing a component with zero importers.
 - **A doc comment naming a caller is a claim, not evidence — grep it**, and when the grep contradicts the comment fix the

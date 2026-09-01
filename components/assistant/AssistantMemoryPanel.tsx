@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
-import { armedActionLabel } from '@/lib/utils/dialogNarrative';
+import { describeWriteError, armedActionLabel } from '@/lib/utils/dialogNarrative';
 import { Tile, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { cn } from '@/lib/utils';
@@ -84,7 +84,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
     try {
       await updateMutation.mutateAsync({ item: { id, text, category: item.category, status: item.status } });
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
       throw err; // Re-throw so the row can keep edit mode open
     }
   };
@@ -96,7 +96,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
     try {
       await updateMutation.mutateAsync({ item: { id, text: item.text, category: item.category, status: newStatus } });
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
     }
   };
 
@@ -104,7 +104,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
     try {
       await deleteMutation.mutateAsync({ itemId: id });
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
     }
   };
 
@@ -113,7 +113,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
       await updateMutation.mutateAsync({ action: 'reactivateGoal', itemId });
       toast.success('Obiettivo riattivato');
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
     }
   };
 
@@ -122,7 +122,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
       await updateMutation.mutateAsync({ action: 'acceptSuggestion', suggestionId, itemId });
       toast.success('Obiettivo segnato come completato');
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
     }
   };
 
@@ -130,7 +130,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
     try {
       await updateMutation.mutateAsync({ action: 'ignoreSuggestion', suggestionId });
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
     }
   };
 
@@ -140,7 +140,7 @@ export function AssistantMemoryPanel({ userId, memory, isLoading }: AssistantMem
       setShowResetDialog(false);
       toast.success('Memoria resettata');
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(describeWriteError(err));
     }
   };
 

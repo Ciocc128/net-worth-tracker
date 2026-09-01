@@ -21,6 +21,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import {
   useAssetTransactions,
@@ -213,7 +214,7 @@ export function AssetMovementsDialog({ open, onClose, asset }: AssetMovementsDia
           {isLoading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
+                <Skeleton key={i} className="h-14 rounded-lg" />
               ))}
             </div>
           ) : sortedDesc.length === 0 ? (
