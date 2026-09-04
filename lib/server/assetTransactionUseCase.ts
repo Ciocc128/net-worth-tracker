@@ -6,6 +6,7 @@ import {
   replayTransactions,
   buildDerivedAssetFields,
   computeCashDelta,
+  EPSILON,
 } from '@/lib/utils/assetTransactionUtils';
 import {
   resolveTradePriceEur,
@@ -406,6 +407,23 @@ async function commitTradeMutation(
 
     // ── COMPUTE (pure) ─────────────────────────────────────────────────────────
     const existing = existingSnap.docs.map((d) => docToAssetTransaction(d.id, d.data()));
+
+    // Guard against the "silent wipe" gap: an asset can carry a manually-tracked, non-zero
+    // `quantity` while having ZERO trades (imported data, or a quantity set after this owner's
+    // one-shot ledger migration already ran). The FIRST trade ever written for such an asset would
+    // otherwise replay from empty and overwrite that quantity with just the new trade's — exactly
+    // the bug that hit XEON on 2026-09-04. Only the very first trade (existing.length === 0) is at
+    // risk; every later mutation replays against real history and is unaffected.
+    if (plan.op === 'set' && existing.length === 0 && assetSnap.exists) {
+      const priorQuantity = (assetSnap.data()?.quantity as number) ?? 0;
+      if (Math.abs(priorQuantity) > EPSILON) {
+        throw new TradeUseCaseError(
+          409,
+          `Questo asset ha già una quantità tracciata (${Number(priorQuantity.toFixed(6))}) ma nessuna operazione nel registro: la prima operazione la sovrascriverebbe invece di sommarsi. Aggiungi prima un'operazione datata prima di questa che rappresenti la posizione di partenza (es. un adeguamento con quella quantità), poi registra questa operazione.`
+        );
+      }
+    }
+
     const newSequence = buildNewSequence(existing, plan);
 
     // replayTransactions throws LedgerValidationError (→ 422) on any invalid history.

@@ -147,6 +147,7 @@ import {
   createAssetTransaction,
   updateAssetTransaction,
   deleteAssetTransaction,
+  TradeUseCaseError,
 } from '@/lib/server/assetTransactionUseCase';
 import { resolveTradePriceEur } from '@/lib/server/tradeFxService';
 
@@ -304,5 +305,42 @@ describe('assetTransactionUseCase — atomic write transaction', () => {
     expect(asset.quantity).toBe(20);
     expect(asset.averageCost).toBe(150); // (10·100 + 10·200) / 20
     expect(asset.holdingStartDate).toBe(originalHoldingStart); // untouched, never deleteField()
+  });
+
+  it('blocks the first-ever trade on an asset that already carries a manually-tracked quantity', async () => {
+    // No assetTransactions doc exists for asset-1, yet the asset already has a non-zero quantity
+    // (imported data, or set after this owner's ledger migration already ran) — the exact XEON
+    // "silent wipe" scenario: replaying just the new trade would overwrite it.
+    seedAsset({ quantity: 2.568421, averageCost: 149.21 });
+
+    await expect(
+      createAssetTransaction(OWNER, {
+        assetId: 'asset-1',
+        type: 'buy',
+        date: new Date(),
+        quantity: 0.099953,
+        pricePerUnit: 150.07,
+      })
+    ).rejects.toBeInstanceOf(TradeUseCaseError);
+
+    // The asset doc must be untouched — no partial/incorrect write.
+    const asset = store.get(docKey('assets', 'asset-1'))!;
+    expect(asset.quantity).toBe(2.568421);
+    expect(asset.averageCost).toBe(149.21);
+    expect(store.has(docKey('assetTransactions', 'auto-1'))).toBe(false);
+  });
+
+  it('allows the first-ever trade on a freshly created ledger asset (quantity starts at 0)', async () => {
+    seedAsset({ quantity: 0 });
+
+    const result = await createAssetTransaction(OWNER, {
+      assetId: 'asset-1',
+      type: 'buy',
+      date: new Date(),
+      quantity: 5,
+      pricePerUnit: 100,
+    });
+
+    expect(result.derived).toEqual({ quantity: 5, averageCost: 100, averageCostEur: 100 });
   });
 });
