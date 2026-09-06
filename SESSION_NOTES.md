@@ -90,3 +90,70 @@ tipi sono tutti presenti.
   parola per parola dai test Vitest.
 - I totali restano in euro interi come ogni lettura della pagina: una ricerca su righe da pochi
   centesimi arrotonda (registrato in CLAUDE.md → Known Issues).
+
+
+---
+
+# Seconda parte — allineamento con upstream e giro guidato
+
+## Cosa è successo dopo il primo deploy
+
+1. **`0b166ed` in deploy** su `main` (con `a927114` della sessione precedente, per decisione dell'owner).
+2. **PR #332** aperta verso `GiuseppeDM98:develop`, poi **chiusa** su richiesta, poi **riaperta**:
+   la somma nella ricerca non ha equivalente da nessuna parte in upstream — la lettura conta e
+   basta, l'aside è un conteggio, tabella e feed non hanno riga di totali, e l'indice di ricerca
+   di Analisi copre categorie e sottocategorie, **mai la nota**.
+3. **`6a0154c` — merge di `upstream/develop`**, 16 conflitti, quattro cause.
+
+## Trend Following e Carry — due mie affermazioni sbagliate, corrette
+
+- **«è una feature solo del fork»**: falso. Upstream ce l'ha da `ab89812` (leverage L0);
+  l'union `AssetClass` è identica sui due lati.
+- **«rimetto a mano le due righe»**: piano sbagliato. Upstream ha **cancellato** le liste locali e
+  deriva tutto da `ASSET_CLASS_SEQUENCE`/`ASSET_CLASS_LABELS`; `CreateManualSnapshotModal` lo
+  scrive in testa — *«NEVER hand-list the classes here»*. Presi i 4 file di upstream verbatim:
+  40 righe del fork diventano 0 e il comportamento non cambia.
+
+## Le altre risoluzioni
+
+- **Movimenti** (4 file) → la fusione `c12418e`: somme per tipo **+** «di cui N in calendario».
+- **AGENTS.md** spezzato da upstream in `doc/guide/*`: le note del fork **ricollocate** nella guida
+  giusta (Movimenti → `cashflow-tracciamento.md`, Esposizione → `allocazione.md`, PMC in EUR →
+  `patrimonio.md`, dove è stato tolto il blind spot che descriveva il bug già corretto dalla #326).
+- **`CLAUDE.md`**: struttura di upstream, più ciò che loro non hanno (`portfolioFlows.ts` della
+  #319, l'Esposizione a cinque viste).
+- **`docs/` → `doc/`**: i 6 file del fork spostati.
+
+## Fase F — giro guidato (la regola arrivata con questo stesso merge)
+
+Cinque punti, esche `fenicottero`/`ornitorinco` vive. L'owner ha riportato: **tutto torna**.
+Il giro ha trovato **due difetti del giro, non del prodotto**:
+
+| | Cosa | Esito |
+| --- | --- | --- |
+| 5 | «non vedo la scheda Divisione» | **Mio errore**: è una tab opzionale (`settings.expenseSplitEnabled`), il fixture non ce l'aveva. Acceso, verificata, poi ripristinato. |
+| 4 | «non riconosco dei dialog nuovi» | **Domanda mal posta**: chiedevo di riconoscere un cambiamento senza un «prima». Il codice nuovo c'era ed era servito (`Nuova voce · Passo 1 di 2`). |
+
+Entrambi promossi ad asserzione durante il giro, poi rimossi con la spec usa-e-getta: erano
+controlli sul *fixture* e sul *fatto che il merge fosse servito*, non su un comportamento del
+prodotto. **Nessun difetto di prodotto trovato.**
+
+## Verifica finale (sul tree mergiato)
+
+- `npx tsc --noEmit` pulito (restano i due errori preesistenti di `scripts/exposureRefresh.mts`,
+  manca `pdfjs-dist`).
+- `TZ=Europe/Rome npx vitest run` → **158 file / 3603 test** verdi.
+- `npx playwright test` → **40 spec** verdi.
+- Lint invariato sui file toccati: le 5 segnalazioni rimaste sono di upstream, su file presi identici.
+
+## Fase G — ripristino
+
+Righe-esca cancellate (riletto dal database: 0), `expenseSplitEnabled` rimosso dal fixture, script
+e spec usa-e-getta eliminati, `test-results/`/`.next-e2e` rimossi, dev server ed emulatori spenti.
+
+## Rimasto aperto
+
+- **Nessuna spec Playwright permanente** sulla lettura fusa dei Movimenti. È il punto che regredirà
+  al prossimo merge da upstream (ci ho già sbattuto una volta oggi): servirebbe promuovere la
+  fixture-esca in uno dei seed tracciati e tenere la spec.
+- `doc/storico-labor-window-issue.md` resta non tracciato (spostato da `docs/`, non è di questa sessione).
