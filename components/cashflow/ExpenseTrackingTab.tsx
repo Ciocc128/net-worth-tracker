@@ -29,6 +29,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Expense, ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import {
   getExpensesByRecurringParentId,
@@ -68,6 +69,8 @@ import { MobileFiltersDrawer } from '@/components/cashflow/MobileFiltersDrawer';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { ErrorNotice } from '@/components/ui/error-notice';
+import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { CategoryTile } from '@/components/dashboard/overview/CategoryTile';
 import { CashflowPeriodoTile, type SpendingProjection } from '@/components/cashflow/tiles/CashflowPeriodoTile';
 import { RisparmioTile } from '@/components/cashflow/tiles/RisparmioTile';
@@ -88,6 +91,7 @@ import { projectMonthEndSpending } from '@/lib/utils/overviewNarrative';
 import {
   buildTrailingMonthFlows,
   computePeriodDelta,
+  currentComparisonWindow,
   filterExpensesByPeriod,
   previousPeriod,
   rankCategories,
@@ -97,6 +101,7 @@ import {
   splitSpendingAtDate,
   summarizeMovements,
   summarizePeriodCashflow,
+  summarizeScheduled,
   summarizeSavingsHistory,
 } from '@/lib/utils/tracciamentoSummary';
 import {
@@ -136,6 +141,8 @@ interface ExpenseTrackingTabProps {
   allExpenses: Expense[];
   categories: ExpenseCategory[];
   loading: boolean;
+  /** The queries behind `allExpenses`/`categories` failed: say so, never render zeros. */
+  loadFailed: boolean;
   onRefresh: () => Promise<void>;
   /** id→name map for cash assets; built in the parent to avoid a cross-domain subscription here. */
   assetNameMap: Map<string, string>;
@@ -207,6 +214,7 @@ export function ExpenseTrackingTab({
   allExpenses,
   categories,
   loading,
+  loadFailed,
   onRefresh,
   assetNameMap,
 }: ExpenseTrackingTabProps) {
@@ -302,9 +310,14 @@ export function ExpenseTrackingTab({
   // end of a year still running.
   const now = useMemo(() => new Date(), []);
 
-  // The period slice: what the verdict and every tile read. The toolbar filters below
-  // narrow `filteredExpenses` (the Movimenti list), never this.
-  const expenses = useMemo(() => filterExpensesByPeriod(allExpenses, period, now), [allExpenses, period, now]);
+  // The period slice: the calendar's bounds, whole. «Il 2026» is January → December even in
+  // August, so a materialised instalment due in October is in the tiles AND in the list.
+  // `scheduled` is the part of it that has not happened yet: the verdict names it, the list
+  // marks each such row, and no figure passes a forecast off as a fact.
+  //
+  // The toolbar filters below narrow `filteredExpenses` (the Movimenti list), never this.
+  const expenses = useMemo(() => filterExpensesByPeriod(allExpenses, period), [allExpenses, period]);
+  const scheduled = useMemo(() => summarizeScheduled(expenses, now), [expenses, now]);
 
   const handleAddExpense = () => {
     setEditingExpense(null);
@@ -517,7 +530,8 @@ export function ExpenseTrackingTab({
     }));
   }, [soloSelectedCategory]);
 
-  // Account options: accounts that appear in the current period expenses.
+  // Account options: accounts that appear in the LISTED rows — the filter narrows the list,
+  // so an account that only a scheduled row touches must still be offered.
   // Only shown when at least 2 distinct accounts exist (otherwise the filter is useless).
   const accountOptions = useMemo(() => {
     const ids = new Set<string>();
@@ -604,21 +618,30 @@ export function ExpenseTrackingTab({
   // the period has no honest predecessor (a custom range).
   const previousTotals = useMemo(() => {
     const previous = previousPeriod(period, now);
-    return previous ? summarizePeriodCashflow(filterExpensesByPeriod(allExpenses, previous, now)) : null;
+    return previous ? summarizePeriodCashflow(filterExpensesByPeriod(allExpenses, previous)) : null;
   }, [allExpenses, period, now]);
+
+  // The delta compares like with like. `totals` spans the whole period — for a year still
+  // running that includes months the previous year cannot match — so the percentages are
+  // computed on the shared window instead (`describeComparisonPhrase` names it: «su gen–ago
+  // 2025»). Only the delta is scoped; every figure the tiles print stays the period's own.
+  const comparableTotals = useMemo(() => {
+    const window = currentComparisonWindow(period, now);
+    return window ? summarizePeriodCashflow(filterExpensesByPeriod(allExpenses, window)) : totals;
+  }, [allExpenses, period, now, totals]);
   const delta = useMemo(
-    () => (previousTotals ? computePeriodDelta(totals, previousTotals) : null),
-    [totals, previousTotals],
+    () => (previousTotals ? computePeriodDelta(comparableTotals, previousTotals) : null),
+    [comparableTotals, previousTotals],
   );
 
-  const verdict = useMemo(() => buildCashflowVerdict({ period, now, totals, delta }), [period, now, totals, delta]);
+  const verdict = useMemo(() => buildCashflowVerdict({ period, now, totals, delta, scheduled }), [period, now, totals, delta, scheduled]);
   const comparisonPhrase = describeComparisonPhrase(period, now);
   const previousLabel = describePreviousPeriodLabel(period, now);
 
   // The income-vs-spending bars: the trailing months for a month, the year's own months for a year.
   const flows = useMemo(() => {
     const window = resolveFlowWindow(period, now, FLOW_MONTHS);
-    return buildTrailingMonthFlows(allExpenses, window.endYear, window.endMonth, window.count);
+    return buildTrailingMonthFlows(allExpenses, window.endYear, window.endMonth, window.count, now);
   }, [allExpenses, period, now]);
   const anchor = useMemo(() => resolveAnchorMonth(period, now), [period, now]);
   // Only a month is ONE bar of the chart; a year or a range is the whole axis.
@@ -645,15 +668,28 @@ export function ExpenseTrackingTab({
   const expenseRanking = useMemo(() => rankCategories(expenses, 'expenses'), [expenses]);
   const incomeRanking = useMemo(() => rankCategories(expenses, 'income'), [expenses]);
 
-  // The inventory describes what is LISTED: with a filter on, the reading counts the filtered rows.
-  const movementsSummary = useMemo(() => summarizeMovements(filteredExpenses), [filteredExpenses]);
+  // The inventory describes what is LISTED: with a filter on, the reading counts the filtered
+  // rows. `now` splits them into happened and scheduled — the clause the tiles above need.
+  const movementsSummary = useMemo(() => summarizeMovements(filteredExpenses, now), [filteredExpenses, now]);
+
+  if (resolveSurfaceState({ loading: loading, failed: loadFailed }) === 'failed') {
+    return (
+      <ErrorNotice
+        className="max-w-[920px]"
+        notice={describeReadFailure({
+          consequence: 'I movimenti non sono stati letti: il mese non è misurabile, e uno zero qui sarebbe falso.',
+          untouched: 'I movimenti registrati non sono stati toccati.',
+        })}
+      />
+    );
+  }
 
   if (loading) {
     return (
       <TileGridSkeleton
         cells={SKELETON_CELLS}
         className="pt-1"
-        toolbar={<div className="desktop:hidden mx-auto h-9 w-[190px] animate-pulse rounded-md bg-muted" />}
+        toolbar={<Skeleton className="desktop:hidden mx-auto h-9 w-[190px] rounded-md" />}
       />
     );
   }
@@ -661,6 +697,7 @@ export function ExpenseTrackingTab({
   const feed = (
     <TransactionFeed
       transactions={mobileSortedExpenses}
+      now={now}
       totalCount={filteredExpenses.length}
       showCount={mobileShowCount}
       onLoadMore={showMore}
@@ -670,7 +707,7 @@ export function ExpenseTrackingTab({
       isDemo={isDemo}
       hasActiveFilters={hasActiveFilters}
       categoryMetaMap={categoryMetaMap}
-      emptyHint="Aggiungi la prima voce per iniziare a tracciare."
+      emptyHint="Nessun movimento registrato nel periodo: aggiungi la prima voce per iniziare a tracciare."
       surface="flat"
     />
   );
@@ -901,7 +938,7 @@ export function ExpenseTrackingTab({
             previousLabel={previousLabel}
             flows={flows}
             highlightKey={highlightKey}
-            windowLabel={describeFlowWindow(flows, period.kind === 'year', now)}
+            windowLabel={describeFlowWindow(flows, period.kind === 'year' || period.kind === 'ytd', now)}
             projection={projection}
           />
         </div>
@@ -956,6 +993,7 @@ export function ExpenseTrackingTab({
                 <div className="hidden desktop:block">
                   <ExpenseTable
                     expenses={filteredExpenses}
+                    now={now}
                     onEdit={handleEditExpense}
                     onRefresh={onRefresh}
                     isDemo={isDemo}

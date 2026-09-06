@@ -47,24 +47,38 @@ export type ComparisonMonthScope =
  * under review) and a selected month that has not started yet (comparing a month
  * of zeros against a full baseline would print "−100%" for a month that simply
  * has not happened).
+ *
+ * THE TRADE-OFF ON «ANNO CORRENTE», decided by the owner on 2026-08-30 and NOT to be
+ * "fixed" back without asking. That period spans twelve months, so its comparison does too
+ * — the alternative, matching only the months already lived, put a delta computed on
+ * gen–ago beside a total covering gen–dic, and a reader takes two adjacent figures as one
+ * comparison. Same basis on both sides is the property that was chosen.
+ * The cost is real and runs the other way: the current side's remaining months hold only what
+ * is already booked ahead (instalments, recurring rows), so the delta is biased DOWNWARD and
+ * the bias grows through the year — in November it can read «spendi meno dell'anno scorso»
+ * while spending more. What keeps it honest is the verdict's closing clause, which always
+ * names how much of the figure is still only scheduled. «Da inizio anno» remains the window
+ * with no forecast in it at all, and it keeps the same-months rule.
  */
 export function resolveComparisonScope(
-  periodMode: 'current' | 'year' | 'history',
+  periodMode: 'ytd' | 'current' | 'year' | 'history',
   selectedMonth: number | null,
   todayMonth: number,
 ): ComparisonMonthScope | null {
   if (periodMode === 'history') return null;
+  const isRunningYear = periodMode === 'current' || periodMode === 'ytd';
   if (selectedMonth !== null) {
-    if (periodMode === 'current' && selectedMonth > todayMonth) return null;
+    if (isRunningYear && selectedMonth > todayMonth) return null;
     return {
       kind: 'singleMonth',
       month: selectedMonth,
-      inProgress: periodMode === 'current' && selectedMonth === todayMonth,
+      inProgress: isRunningYear && selectedMonth === todayMonth,
     };
   }
-  return periodMode === 'current'
-    ? { kind: 'sameMonths', upToMonth: todayMonth }
-    : { kind: 'fullYear' };
+  // A whole-window comparison takes the window the PERIOD covers, so the delta describes the
+  // figure printed next to it. «Da inizio anno» spans January → the end of today's month, so it
+  // matches the same months a year earlier; «Anno corrente» and a closed year both span twelve.
+  return periodMode === 'ytd' ? { kind: 'sameMonths', upToMonth: todayMonth } : { kind: 'fullYear' };
 }
 
 export type CategoryComparisonStatus = 'ongoing' | 'new' | 'gone';

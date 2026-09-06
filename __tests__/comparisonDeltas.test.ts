@@ -368,8 +368,20 @@ describe('resolveComparisonScope', () => {
     expect(resolveComparisonScope('history', 3, 8)).toBeNull();
   });
 
-  it('should map Anno Corrente without a month to same-months pacing up to today', () => {
-    expect(resolveComparisonScope('current', null, 8)).toEqual({ kind: 'sameMonths', upToMonth: 8 });
+  it('should compare Anno Corrente on the twelve months the period actually spans', () => {
+    // The period covers gen–dic, so its delta must too: a same-months delta printed beside a
+    // whole-year total reads as one comparison of two different windows (owner's call,
+    // 2026-08-30 — see the trade-off in resolveComparisonScope's docblock).
+    expect(resolveComparisonScope('current', null, 8)).toEqual({ kind: 'fullYear' });
+  });
+
+  it('should keep «da inizio anno» on the same months — its window IS January→today', () => {
+    // The one window with no forecast in it: matching the same months a year earlier compares
+    // like with like, and the period's own span already stops at today's month.
+    expect(resolveComparisonScope('ytd', null, 8)).toEqual({ kind: 'sameMonths', upToMonth: 8 });
+    expect(resolveComparisonScope('ytd', 8, 8)).toEqual({ kind: 'singleMonth', month: 8, inProgress: true });
+    // A month the running year has not reached has nothing to compare.
+    expect(resolveComparisonScope('ytd', 11, 8)).toBeNull();
   });
 
   it('should map a past year without a month to a full-year comparison', () => {

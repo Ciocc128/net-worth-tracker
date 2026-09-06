@@ -7,20 +7,14 @@
 
 import { useState, useEffect } from 'react';
 import { AssetClass } from '@/types/assets';
+import { ASSET_CLASS_LABELS, ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
 import {
   InvestmentGoal,
   GoalPriority,
   GOAL_TEMPLATES,
   GOAL_COLORS,
 } from '@/types/goals';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatPercentageIt } from '@/lib/utils/formatters';
 import { Check, Loader2 } from 'lucide-react';
 
 interface GoalFormDialogProps {
@@ -47,16 +42,14 @@ const PRIORITY_OPTIONS: { value: GoalPriority; label: string }[] = [
   { value: 'bassa', label: 'Bassa' },
 ];
 
-const ALLOCATION_CLASSES: { value: AssetClass; label: string }[] = [
-  { value: 'equity', label: 'Azioni' },
-  { value: 'bonds', label: 'Obbligazioni' },
-  { value: 'cash', label: 'Liquidita' },
-  { value: 'realestate', label: 'Immobili' },
-  { value: 'crypto', label: 'Crypto' },
-  { value: 'commodity', label: 'Materie Prime' },
-  { value: 'trendFollowing', label: 'Trend Following' },
-  { value: 'carry', label: 'Carry' },
-];
+/**
+ * Every class, in the app's order and with the app's labels. Derived, not hand-written: the old
+ * literal listed six of eight, so a goal could never point at Trend Following or Carry — and it
+ * spelled two of the six differently from the rest of the app («Liquidita», «Crypto»).
+ */
+const ALLOCATION_CLASSES: { value: AssetClass; label: string }[] = ASSET_CLASS_SEQUENCE.map(
+  (value) => ({ value, label: ASSET_CLASS_LABELS[value] ?? value })
+);
 
 export function GoalFormDialog({
   open,
@@ -163,20 +156,39 @@ export function GoalFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? 'Modifica nome, importo target, data e priorita del tuo obiettivo.'
-              : 'Definisci nome, importo target, data e priorita per il tuo obiettivo.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
+    <ResponsiveModal
+      open={open}
+      onClose={onClose}
+      eyebrow="FIRE · Obiettivi"
+      title={isEditing ? 'Modifica obiettivo' : 'Nuovo obiettivo'}
+      reading={
+        targetDate
+          ? 'Con una scadenza l’obiettivo entra nel verdetto: la pagina dirà se sei in rotta e quanto manca al ritmo attuale.'
+          : 'Senza scadenza l’obiettivo resta fuori dal verdetto: la pagina ne stima l’arrivo, ma non giudica un ritardo che nessuna data definisce.'
+      }
+      width="md"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Annulla
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={
+              saving ||
+              !name.trim() ||
+              (targetAmount !== '' && parseFloat(targetAmount) < 0) ||
+              !isAllocationValid
+            }
+          >
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+            {saving ? 'Salvataggio...' : isEditing ? 'Salva modifiche' : 'Crea obiettivo'}
+          </Button>
+        </>
+      }
+    >
+        <div className="space-y-4">
           {/* Quick templates (create mode only) */}
           {!isEditing && (
             <div className="space-y-2">
@@ -332,7 +344,7 @@ export function GoalFormDialog({
                   isAllocationValid ? 'text-positive' : 'text-destructive'
                 }`}
               >
-                Totale: {allocationTotal.toFixed(1)}%
+                Totale: {formatPercentageIt(allocationTotal, 1)}
                 {!isAllocationValid && ' (deve essere 100%)'}
               </p>
             )}
@@ -355,7 +367,7 @@ export function GoalFormDialog({
                 notes.length > 400
                   ? notes.length > 480
                     ? 'text-destructive'
-                    : 'text-amber-600 dark:text-amber-400'
+                    : 'text-warning-foreground'
                   : 'text-muted-foreground/60'
               }`}
             >
@@ -363,30 +375,6 @@ export function GoalFormDialog({
             </p>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Annulla
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={
-              saving ||
-              !name.trim() ||
-              (targetAmount !== '' && parseFloat(targetAmount) < 0) ||
-              !isAllocationValid
-            }
-          >
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {saving
-              ? 'Salvataggio...'
-              : isEditing
-                ? 'Salva Modifiche'
-                : 'Crea Obiettivo'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

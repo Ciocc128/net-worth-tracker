@@ -10,7 +10,7 @@
  * guess at render: the tense follows whether the period is still running, the article
  * follows the percentage AS PRINTED (`articleForPercent`), «ad» before a vowel month.
  *
- * Percentages go through chartService's it-IT formatter (comma decimals); currency through
+ * Percentages go through the it-IT formatter of lib/utils/formatters (comma decimals); currency through
  * `cachedFormatCurrencyEUR` (nbsp before €, four-digit amounts ungrouped).
  */
 
@@ -23,9 +23,12 @@ import type {
   PeriodCashflowTotals,
   PeriodDelta,
   SavingsHistory,
+  ScheduledSlice,
 } from '@/lib/utils/tracciamentoSummary';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatNumber, formatPercentage } from '@/lib/services/chartService';
+import { formatNumberIt as formatNumber, formatPercentageIt as formatPercentage } from '@/lib/utils/formatters';
 import { articleForPercent, ofThePercent, pluralArticleFor } from '@/lib/utils/patrimonioNarrative';
 import { getItalyDate, getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES } from '@/lib/constants/months';
@@ -75,8 +78,9 @@ export function printedDelta(delta: number): number {
 }
 
 /**
- * "gen–ago 2025" — the same months of the previous year, the only honest comparison for a
- * year still running (a full previous year against eight months reads as a drop by construction).
+ * "gen–ago 2025" — January to the period's anchor month, one year earlier. The only honest
+ * comparison for a window that stops mid-year: a full previous year against eight months
+ * reads as a drop by construction.
  */
 function sameMonthsLastYear(period: Period, now: Date): string {
   const anchor = resolveAnchorMonth(period, now);
@@ -109,6 +113,14 @@ export function describePeriodSubject(period: Period, now: Date): PeriodSubject 
   if (period.kind === 'year') {
     return { subject: `Il ${period.year}`, inPeriod: `nel ${period.year}`, ongoing: period.year === today.year };
   }
+  // «Il 2026 finora» — never the bare year, which names the whole twelve months.
+  if (period.kind === 'ytd') {
+    return {
+      subject: `Il ${period.year} finora`,
+      inPeriod: `nel ${period.year} finora`,
+      ongoing: period.year === today.year && period.throughMonth >= today.month,
+    };
+  }
   const todayDate = getItalyDate(now);
   todayDate.setHours(0, 0, 0, 0);
   return { subject: 'Il periodo', inPeriod: 'nel periodo', ongoing: period.to >= todayDate };
@@ -124,6 +136,7 @@ function previousMonthIndex(month: number): number {
  */
 export function describeComparisonPhrase(period: Period, now: Date): string | null {
   if (period.kind === 'month') return `su ${monthInSentence(previousMonthIndex(period.month))}`;
+  if (period.kind === 'ytd') return `su ${sameMonthsLastYear(period, now)}`;
   if (period.kind === 'year') return isYearToDate(period, now) ? `su ${sameMonthsLastYear(period, now)}` : `sul ${period.year - 1}`;
   return null;
 }
@@ -131,6 +144,7 @@ export function describeComparisonPhrase(period: Period, now: Date): string | nu
 /** "luglio", "2025", "gen–ago 2025" — the previous period as the caption of a delta ("vs luglio"); null for a custom range. */
 export function describePreviousPeriodLabel(period: Period, now: Date): string | null {
   if (period.kind === 'month') return monthInSentence(previousMonthIndex(period.month));
+  if (period.kind === 'ytd') return sameMonthsLastYear(period, now);
   if (period.kind === 'year') return isYearToDate(period, now) ? sameMonthsLastYear(period, now) : String(period.year - 1);
   return null;
 }
@@ -149,6 +163,80 @@ export interface CashflowVerdictInput {
   totals: PeriodCashflowTotals;
   /** Against the previous period; null when there is none (a custom range). */
   delta: PeriodDelta | null;
+  /**
+   * The part of the period that has not happened yet — instalments and recurring rows dated
+   * ahead. The totals above INCLUDE it, so the verdict closes by naming it: without that
+   * sentence a forecast would read as a fact.
+   */
+  scheduled: ScheduledSlice;
+}
+
+/**
+ * "da qui a fine mese", "da qui a fine anno", "da qui al 20 marzo" — how far the scheduled
+ * figure reaches. It is the PERIOD's end, not the last scheduled row's: the amount is
+ * bounded by the window the reader is looking at, and «361 € entro ottobre» would be a
+ * different (and smaller) claim than the figure actually is.
+ *
+ * Null for a period with no end to name — the clause is then dropped rather than guessed
+ * (the Narrative Honesty Rule).
+ */
+export function describeScheduledHorizon(period: Period, now: Date): string | null {
+  const today = getItalyMonthYear(now);
+  const endOfMonthNamed = (year: number, month: number) =>
+    year === today.year && month === today.month ? 'a fine mese' : `a fine ${monthInSentence(month)}`;
+
+  if (period.kind === 'month') return endOfMonthNamed(period.year, period.month);
+  // A ytd window runs to the END of today's month (period.ts → periodToRange), so it DOES carry
+  // the rest of this month: its horizon is that month's end.
+  if (period.kind === 'ytd') return endOfMonthNamed(period.year, period.throughMonth);
+  if (period.kind === 'year') return period.year === today.year ? 'a fine anno' : `a fine ${period.year}`;
+  // A custom range ends on a day, not on a calendar unit: name the day.
+  return `al ${format(period.to, 'd MMMM', { locale: it })}`;
+}
+
+/**
+ * "Nel totale ci sono ancora 1850 € di spese e 500 € di entrate già in calendario da qui a fine
+ * anno." — the second sentence of the verdict whenever the period reaches past today; null when
+ * it does not.
+ *
+ * It opens on «Nel totale» and not on «In calendario» because the amount is INSIDE the figure
+ * the verdict has just printed, not beside it. The bare existential form shipped until
+ * 2026-08-30 and read as an addition — «spese 2910 €. In calendario ci sono ancora 1850 €»
+ * invites the reader to sum to 4760, when 1850 is part of the 2910. Centri di Costo says the
+ * same words about a total that genuinely EXCLUDES them, which is the other half of the reason
+ * this one has to be unambiguous.
+ *
+ * The verb agrees with the AMOUNT, not with the number of clauses: «1850 €» is plural however
+ * few clauses follow it. Only a lone «1 €» takes the singular, and «1 €» means the figure AS
+ * PRINTED — the euro figures here are compact, so 1,40 € prints as «1 €» and reads as one.
+ * Same rule as `articleForPercent`: Italian grammar follows what the reader sees.
+ *
+ * `horizon` closes the sentence with how far the figure reaches («a fine mese»); without one
+ * the sentence still stands, it just stops at the amount.
+ */
+export function scheduledSentence(scheduled: ScheduledSlice, horizon: string | null): Narrative | null {
+  const amounts: number[] = [];
+  const parts: Narrative[] = [];
+  if (scheduled.expenses > 0) {
+    amounts.push(scheduled.expenses);
+    parts.push([figure(euro(scheduled.expenses)), prose(' di spese')]);
+  }
+  if (scheduled.income > 0) {
+    amounts.push(scheduled.income);
+    parts.push([figure(euro(scheduled.income)), prose(' di entrate')]);
+  }
+  if (parts.length === 0) return null;
+
+  const singular = amounts.length === 1 && Math.round(amounts[0]) === 1;
+  const narrative: Narrative = [prose(' Nel totale '), prose(singular ? "c'è ancora " : 'ci sono ancora ')];
+  parts.forEach((part, index) => {
+    if (index > 0) narrative.push(prose(' e '));
+    narrative.push(...part);
+  });
+  narrative.push(prose(' già in calendario'));
+  if (horizon) narrative.push(prose(` da qui ${horizon}`));
+  narrative.push(prose('.'));
+  return narrative;
 }
 
 function resolveTone(savingsRate: number | null, expenses: number): VerdictTone {
@@ -196,7 +284,7 @@ export function buildCashflowVerdict(input: CashflowVerdictInput): PageVerdictMo
       totals.transferCount > 0
         ? [prose(`Solo ${totals.transferCount} ${pluralize(totals.transferCount, 'trasferimento', 'trasferimenti')} tra i tuoi conti.`)]
         : [prose('Nessun movimento registrato.')];
-    return { headline, tone, sentence };
+    return { headline, tone, sentence: [...sentence, ...(scheduledSentence(input.scheduled, describeScheduledHorizon(input.period, input.now)) ?? [])] };
   }
 
   const opening = capitalise(subject.inPeriod);
@@ -221,6 +309,7 @@ export function buildCashflowVerdict(input: CashflowVerdictInput): PageVerdictMo
     sentence.push(prose(': entrate '), figure(euro(totals.income)), prose(', spese '), figure(euro(totals.expenses)));
   }
   sentence.push(...expensesDeltaClause(input.delta, describeComparisonPhrase(input.period, input.now)), prose('.'));
+  sentence.push(...(scheduledSentence(input.scheduled, describeScheduledHorizon(input.period, input.now)) ?? []));
 
   return { headline, tone, sentence };
 }
@@ -429,14 +518,19 @@ function countWithTotal(count: number, singular: string, plural: string, total: 
 }
 
 /**
- * "47 movimenti: 40 spese per 3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €; la
- * voce più grande è Stipendio (4200 €)." — the inventory's own count and sum by type, and
- * its largest row.
+ * "47 movimenti: 40 spese per 3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €, di
+ * cui 2 in calendario (406 €); la voce più grande è Stipendio (4200 €)." — the inventory's
+ * own count and sum by type, and its largest row.
  *
  * The sums are what makes a free-text search an aggregate: with «caffè» typed in the toolbar
  * the reading answers «120 movimenti: 120 spese per 264 €», which is the whole point of
  * reusing one note as an implicit subcategory. They are the sums of the rows the list SHOWS
  * (`filteredExpenses`), never of the period — that is what the tiles above are for.
+ *
+ * The «di cui … in calendario» clause is what keeps the list honest: the register lists rows
+ * dated after today, the figures above it COUNT them, and this is the sentence that decomposes
+ * the count the same way `scheduledSentence` decomposes the amount. Both say «di cui» / «nel
+ * totale» on purpose — the page speaks one dialect, and neither clause is an addition.
  */
 export function describeMovements(summary: MovementsSummary): Narrative | null {
   if (summary.count === 0) return null;
@@ -453,6 +547,9 @@ export function describeMovements(summary: MovementsSummary): Narrative | null {
     if (index > 0) narrative.push(prose(index === parts.length - 1 ? ' e ' : ', '));
     narrative.push(...part);
   });
+  if (summary.scheduled.count > 0) {
+    narrative.push(prose(', di cui '), figure(String(summary.scheduled.count)), prose(' in calendario ('), figure(euro(summary.scheduled.total)), prose(')'));
+  }
   if (summary.largest) {
     narrative.push(prose(`; la voce più grande è ${summary.largest.label} (`), figure(euro(summary.largest.amount)), prose(')'));
   }

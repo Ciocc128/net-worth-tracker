@@ -55,7 +55,7 @@ import {
   describeYearEndKpi,
 } from '@/lib/utils/costCenterNarrative';
 import { resolveCostCenterColor } from '@/lib/utils/costCenterColors';
-import { toDate } from '@/lib/utils/dateHelpers';
+import { isItalyDayAfter, toDate } from '@/lib/utils/dateHelpers';
 import { useChartColors } from '@/lib/hooks/useChartColors';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -63,7 +63,8 @@ import { PageVerdict } from '@/components/ui/page-verdict';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
-import { CostCenterErrorNotice } from './CostCenterErrorNotice';
+import { ErrorNotice } from '@/components/ui/error-notice';
+import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import { CostoTile } from './cost-centers/tiles/CostoTile';
 import { CategorieTile } from './cost-centers/tiles/CategorieTile';
 import { CicloTile } from './cost-centers/tiles/CicloTile';
@@ -190,7 +191,7 @@ export function CostCenterDetail({
   // --- Every number, from the pure layer ---
   const summary = useMemo(() => summarizeCenter(costCenter, allExpenses, now), [costCenter, allExpenses, now]);
   const stack = useMemo(() => buildCenterMonthStack([{ summary, share: 100, rank: 100 }], now, TRAILING_MONTHS), [summary, now]);
-  const booked = useMemo(() => allExpenses.filter((e) => toDate(e.date) <= now), [allExpenses, now]);
+  const booked = useMemo(() => allExpenses.filter((e) => !isItalyDayAfter(toDate(e.date), now)), [allExpenses, now]);
   const composition = useMemo(() => buildCategoryComposition(booked), [booked]);
   const subComposition = useMemo(() => buildSubCategoryComposition(booked), [booked]);
   const netSubTotal = useMemo(
@@ -280,7 +281,13 @@ export function CostCenterDetail({
       {loading ? (
         <TileGridSkeleton verdict={false} cells={SKELETON_CELLS} />
       ) : isError ? (
-        <CostCenterErrorNotice message="Non è stato possibile caricare le spese di questo centro." />
+        <ErrorNotice
+          className="max-w-[920px]"
+          notice={describeReadFailure({
+            consequence: 'Le spese collegate a questo centro non sono state lette: il costo del progetto non è calcolabile.',
+            untouched: 'Il centro e le spese registrate non sono stati toccati.',
+          })}
+        />
       ) : (
         /* ── Tile grid ─────────────────────────────────────────────────────────── */
         <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">

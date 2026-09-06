@@ -1,6 +1,7 @@
 'use client';
 
 import type { Narrative } from '@/lib/utils/narrative';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { YieldSummary } from '@/lib/utils/dividendAnalytics';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -47,7 +48,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * by the server over the trailing twelve months on the CURRENT holding, and DPS growth over
  * closed calendar years. That is stated in the aside and spelled out in the footer, because a
  * view that shows figures from a window other than the picker's must name that window
- * (AGENTS.md → Centri di Costo).
+ * (doc/guide/centri-di-costo.md § Centri di Costo).
  *
  * A failed fetch is an alert, not an empty tile: the rest of the page keeps working.
  */
@@ -69,9 +70,9 @@ export function RendimentoTile({ summary, reading, footer, isLoading, isError, c
         </p>
       ) : isLoading ? (
         <div className="mt-4 space-y-3" aria-hidden="true">
-          <div className="h-[22px] w-2/3 animate-pulse rounded bg-muted" />
-          <div className="h-3.5 w-full animate-pulse rounded bg-muted" />
-          <div className="h-3.5 w-4/5 animate-pulse rounded bg-muted" />
+          <Skeleton className="h-[22px] w-2/3" />
+          <Skeleton className="h-3.5 w-full" />
+          <Skeleton className="h-3.5 w-4/5" />
         </div>
       ) : !summary ? (
         <p className="mt-3 text-[13px] leading-[1.45] text-muted-foreground">

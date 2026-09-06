@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useChartColors } from '@/lib/hooks/useChartColors';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import {
@@ -48,7 +49,7 @@ import {
   NO_SUBCATEGORY_KEY,
   NO_SUBCATEGORY_LABEL,
 } from '@/types/expenses';
-import { endOfMonthBound, getItalyDate, getItalyMonth, getItalyMonthYear, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
+import { getItalyDate, getItalyMonth, getItalyMonthYear, getItalyYear, toDate } from '@/lib/utils/dateHelpers';
 import {
   buildExpenseComposition,
   buildIncomeComposition,
@@ -62,13 +63,13 @@ import { getCategoryKey, getSubCategoryKey, getSubCategoryLabel, selectExpensesF
 import { buildCategoryComparison, computeTotalsPacing, resolveComparisonScope } from '@/lib/utils/comparisonDeltas';
 import { buildEntityYearRows, computeEntityRunRate, type EntityScope } from '@/lib/utils/expenseEntityStats';
 import { type EntitySearchTarget } from '@/lib/utils/entitySearch';
-import { summarizePeriodCashflow } from '@/lib/utils/tracciamentoSummary';
+import { summarizePeriodCashflow, summarizeScheduled } from '@/lib/utils/tracciamentoSummary';
 import {
   buildMonthlySpending,
   buildYearlySpending,
   rankTopExpenses,
   resolveCategoryMovers,
-  resolvePeriodMonthCount,
+  resolvePeriodThroughMonth,
   resolveSingleMonth,
   summarizeFlow,
   type AnalisiPeriod,
@@ -95,6 +96,8 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { ErrorNotice } from '@/components/ui/error-notice';
+import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { EntitySearch } from '@/components/cashflow/EntitySearch';
 import { AnalisiPeriodControls } from '@/components/cashflow/analisi/AnalisiPeriodControls';
 import { ConfrontoDisclosure } from '@/components/cashflow/analisi/ConfrontoDisclosure';
@@ -139,6 +142,8 @@ interface AnalisiTabProps {
   /** Full category taxonomy — resolves labels for a URL-restored focus and feeds the entity search. */
   categories: ExpenseCategory[];
   loading: boolean;
+  /** The queries behind `allExpenses`/`categories` failed: say so, never render zeros. */
+  loadFailed: boolean;
   historyStartYear?: number;
 }
 
@@ -214,13 +219,13 @@ function resolveFocusLabels(
 // link degrades to the default view rather than crashing or showing garbage.
 function readPeriodFromSearchParams(searchParams: URLSearchParams, currentYear: number): { periodMode: PeriodMode; selectedYear: number | null; selectedMonth: number | null } {
   const periodParam = searchParams.get('period');
-  const periodMode: PeriodMode = periodParam === 'year' || periodParam === 'history' ? periodParam : 'current';
+  const periodMode: PeriodMode = periodParam === 'year' || periodParam === 'history' || periodParam === 'ytd' ? periodParam : 'current';
 
   const monthParam = searchParams.get('month');
   const parsedMonth = monthParam ? parseInt(monthParam, 10) : NaN;
   const selectedMonth = periodMode !== 'history' && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : null;
 
-  if (periodMode === 'current') return { periodMode, selectedYear: currentYear, selectedMonth };
+  if (periodMode === 'current' || periodMode === 'ytd') return { periodMode, selectedYear: currentYear, selectedMonth };
   if (periodMode === 'history') return { periodMode, selectedYear: null, selectedMonth: null };
 
   const yearParam = searchParams.get('year');
@@ -239,7 +244,7 @@ function resolvePeriodLabel(period: AnalisiPeriod): string {
   return String(period.year);
 }
 
-export function AnalisiTab({ allExpenses, categories, loading, historyStartYear = 2024 }: AnalisiTabProps) {
+export function AnalisiTab({ allExpenses, categories, loading, loadFailed, historyStartYear = 2024 }: AnalisiTabProps) {
   const COLORS = useChartColors();
   const router = useRouter();
   const pathname = usePathname();
@@ -247,6 +252,10 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
 
   // Today in the Italian calendar — the tense, the anomaly month and the running bucket.
   const today = useMemo((): MonthRef => getItalyMonthYear(), []);
+  // The same clock as a Date — what splits the period into happened and scheduled. A raw instant,
+  // like Tracciamento's: `summarizeScheduled` reads the Italian day off it itself, and handing it
+  // an already-zoned Date would shift it twice.
+  const nowDate = useMemo(() => new Date(), []);
   const currentYear = today.year;
   const calendar = useMemo(() => {
     const date = getItalyDate();
@@ -335,7 +344,7 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
   // study (its Scheda spans every year regardless of the window), not a filter of the period.
   const handlePeriodModeChange = (mode: PeriodMode) => {
     setPeriodMode(mode);
-    if (mode === 'current') {
+    if (mode === 'current' || mode === 'ytd') {
       setSelectedYear(currentYear);
       setSelectedMonth(null);
     } else if (mode === 'history') {
@@ -352,18 +361,25 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
     setSelectedMonth(null);
   };
 
-  // The running year stops at the end of today's month (the Tracciamento rule): recurring series
-  // are materialised as future-dated rows, and «nel 2026 (8 mesi)» must not count December's rent.
+  // A year is January → December even while it is running (the Tracciamento rule): recurring
+  // series and instalments are materialised as real future-dated rows, and the page shows
+  // them rather than hiding them. What has not happened yet is never passed off as done —
+  // `scheduled` below carries it, and the verdict closes by naming it.
   const periodExpenses = useMemo(() => {
     if (selectedYear === null) return baseExpenses;
-    const runningYearBound = selectedYear === today.year && selectedMonth === null ? endOfMonthBound(today.year, today.month) : null;
+    // «Da inizio anno» stops at the end of today's month; every other window takes its months whole.
+    const throughMonth = resolvePeriodThroughMonth({ mode: periodMode, year: selectedYear, month: selectedMonth }, today);
     return baseExpenses.filter((e) => {
       const date = toDate(e.date);
       if (getItalyYear(date) !== selectedYear) return false;
-      if (runningYearBound && date > runningYearBound) return false;
+      if (throughMonth !== null && getItalyMonth(date) > throughMonth) return false;
       return selectedMonth === null || getItalyMonth(date) === selectedMonth;
     });
-  }, [baseExpenses, selectedYear, selectedMonth, today]);
+  }, [baseExpenses, periodMode, selectedYear, selectedMonth, today]);
+
+  // The part of the period still ahead. The figures above include it; this is what lets every
+  // sentence say so instead of letting a forecast read as a fact.
+  const scheduled = useMemo(() => summarizeScheduled(periodExpenses, nowDate), [periodExpenses, nowDate]);
 
   // ─── Figures (pure modules) ──────────────────────────────────────────────────
 
@@ -381,8 +397,10 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
   );
 
   // YoY pacing against the year before — scope AND caption from the SAME module the Confronto
-  // reads, so the same-months rule cannot diverge. Null in Storico, for a month that has not
-  // started, or when the previous year predates the tracked history.
+  // reads, so the two cannot diverge on which window they measure. Each period compares on its
+  // OWN span: «Da inizio anno» on the months lived, «Anno corrente» and a closed year on twelve.
+  // Null in Storico, for a month that has not started, or when the previous year predates the
+  // tracked history.
   const comparisonYear = selectedYear !== null && selectedYear - 1 >= historyStartYear ? selectedYear - 1 : null;
   const scope = useMemo(() => resolveComparisonScope(periodMode, selectedMonth, today.month), [periodMode, selectedMonth, today.month]);
   const pacing = useMemo(() => {
@@ -400,9 +418,11 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
   const chartKind: 'month' | 'year' = selectedYear === null ? 'year' : 'month';
   const spendingPoints = useMemo(() => {
     if (selectedYear === null) return buildYearlySpending(allExpenses, historyStartYear, monthOf, today);
-    const throughMonth = selectedYear === today.year ? today.month : 12;
+    // The chart draws the period: twelve months for a year, up to today's month for «Da
+    // inizio anno». The months still ahead are marked, never dropped.
+    const throughMonth = resolvePeriodThroughMonth({ mode: periodMode, year: selectedYear, month: null }, today) ?? 12;
     return buildMonthlySpending(allExpenses, selectedYear, throughMonth, historyStartYear, monthOf, today);
-  }, [allExpenses, selectedYear, historyStartYear, today]);
+  }, [allExpenses, periodMode, selectedYear, historyStartYear, today]);
 
   // ─── Words (analisiNarrative / cashflowNarrative) ────────────────────────────
 
@@ -413,7 +433,7 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
         today,
         historyStartYear,
         totals,
-        monthCount: resolvePeriodMonthCount(period, today),
+        scheduled,
         pacing,
         baseline,
         topCategory: expenseSlices[0]
@@ -549,11 +569,28 @@ export function AnalisiTab({ allExpenses, categories, loading, historyStartYear 
   );
 
   // Structural skeleton only on the initial load: a refetch with data present shows the data.
+  // A failed read comes before every reading: `allExpenses` is `[]` on failure too, and a
+  // Sankey of an unread ledger is a picture of nothing presented as a picture of something.
+  if (resolveSurfaceState({ loading: loading, failed: loadFailed }) === 'failed') {
+    return (
+      <>
+        {header}
+        <ErrorNotice
+          className="max-w-[920px]"
+          notice={describeReadFailure({
+            consequence: 'I movimenti non sono stati letti: senza di essi non c’è nulla da confrontare né da scomporre.',
+            untouched: 'I movimenti registrati non sono stati toccati.',
+          })}
+        />
+      </>
+    );
+  }
+
   if (loading && allExpenses.length === 0) {
     return (
       <>
         {header}
-        <TileGridSkeleton cells={SKELETON_CELLS} className="pt-1" toolbar={<div className="mx-auto h-9 w-[280px] animate-pulse rounded-md bg-muted desktop:hidden" />} />
+        <TileGridSkeleton cells={SKELETON_CELLS} className="pt-1" toolbar={<Skeleton className="mx-auto h-9 w-[280px] rounded-md desktop:hidden" />} />
       </>
     );
   }

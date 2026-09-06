@@ -49,6 +49,7 @@ import {
   calculateFIRENetWorth,
 } from './assetService';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { ASSET_CLASS_SEQUENCE } from '@/lib/utils/allocationUtils';
 import { getCategoryKey, getCategoryName, resolveDisplayLabels } from '@/lib/utils/expenseGrouping';
 import { EXPENSE_TYPE_LABELS, type ExpenseType } from '@/types/expenses';
 import {
@@ -57,8 +58,7 @@ import {
 } from './assetAllocationService';
 import { getAllExpenses } from './expenseService';
 import { getAnnualExpenses, getAnnualIncome, calculateFIREMetrics } from './fireService';
-import { formatCurrency, formatPercentage } from './chartService';
-import { filterExpensesByTime } from '@/lib/utils/pdfTimeFilters';
+import { filterExpensesByTime, DEFAULT_CASHFLOW_HISTORY_START_YEAR } from '@/lib/utils/pdfTimeFilters';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { calculatePerformanceForPeriod } from './performanceService';
 
@@ -121,7 +121,13 @@ export async function fetchPDFData(
         selectedMonth,
         settings?.cashflowHistoryStartYear
       );
-      data.cashflow = prepareCashflowData(filteredExpenses);
+      // Only a Totale export carries a floor; a picked year or month is bounded by itself.
+      data.cashflow = prepareCashflowData(
+        filteredExpenses,
+        timeFilter === 'total'
+          ? (settings?.cashflowHistoryStartYear ?? DEFAULT_CASHFLOW_HISTORY_START_YEAR)
+          : null,
+      );
     }
 
     // FIRE: uses all expenses (not filtered) - FIRE needs complete annual data
@@ -244,7 +250,10 @@ function prepareAllocationData(
 
   // Transform compareAllocations output to PDF format
   const assetClassData: AssetClassAllocation[] = [];
-  const assetClasses = ['equity', 'bonds', 'crypto', 'realestate', 'commodity', 'cash'];
+  // The app-wide enumeration, never a literal: a hand-written list silently drops whatever the
+  // AssetClass union gained since it was written — which is how trendFollowing and carry
+  // disappeared from the PDF's allocation table and its rebalancing list, euros included.
+  const assetClasses = ASSET_CLASS_SEQUENCE;
 
   assetClasses.forEach(assetClass => {
     const comparisonData = comparisonResult.byAssetClass[assetClass];
@@ -404,7 +413,7 @@ function calculateYoYComparison(snapshots: MonthlySnapshot[]): YoYDataPoint[] {
 /**
  * Prepare cashflow data from expenses
  */
-function prepareCashflowData(expenses: any[]): CashflowData {
+function prepareCashflowData(expenses: any[], historyFloorYear: number | null): CashflowData {
   if (expenses.length === 0) {
     return {
       totalIncome: 0,
@@ -415,6 +424,8 @@ function prepareCashflowData(expenses: any[]): CashflowData {
       monthlyTrend: [],
       numberOfMonthsTracked: 0,
       averageMonthlySavings: 0,
+      windowMonths: [],
+      historyFloorYear,
     };
   }
 
@@ -432,7 +443,7 @@ function prepareCashflowData(expenses: any[]): CashflowData {
 
     // Track unique months
     const date = expense.date;
-    const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     monthsSet.add(monthKey);
 
     if (expense.type === 'transfer') return;
@@ -491,6 +502,9 @@ function prepareCashflowData(expenses: any[]): CashflowData {
     monthlyTrend: [],
     numberOfMonthsTracked,
     averageMonthlySavings,
+    // Zero-padded and sorted, so 'YYYY-MM' sorts chronologically as a string.
+    windowMonths: Array.from(monthsSet).sort(),
+    historyFloorYear,
   };
 }
 
@@ -705,6 +719,8 @@ function getAssetClassName(assetClass: string): string {
     realestate: 'Immobiliare',
     commodity: 'Materie Prime',
     cash: 'Liquidità',
+    trendFollowing: 'Trend Following',
+    carry: 'Carry',
   };
   return names[assetClass] || assetClass;
 }

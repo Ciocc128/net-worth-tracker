@@ -39,7 +39,8 @@ import {
 } from '@/types/expenses';
 import { CostCenter } from '@/types/costCenters';
 import { getCostCenters } from '@/lib/services/costCenterService';
-import { Asset } from '@/types/assets';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Asset, FamilyMember } from '@/types/assets';
 import { createExpense, updateExpense } from '@/lib/services/expenseService';
 import { getAllAssets } from '@/lib/services/assetService';
 import {
@@ -60,7 +61,6 @@ import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -102,7 +102,13 @@ import {
   RECURRENCE_FREQUENCY_LABELS,
   resolveRecurrenceFrequency,
 } from '@/lib/utils/recurrenceDates';
-import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import {
+  describeExpenseIntent,
+  describeModalStatus,
+  describeWriteError,
+  EXPENSE_TYPE_PICKER_READING,
+  type ModalStatus,
+} from '@/lib/utils/dialogNarrative';
 import { cn } from '@/lib/utils';
 
 
@@ -115,7 +121,9 @@ const expenseSchema = z
     type: z.enum(['fixed', 'variable', 'debt', 'income', 'transfer']),
     categoryId: z.string().min(1, "Categoria è obbligatoria"),
     subCategoryId: z.string().optional(),
-    amount: z.number().positive("L'importo deve essere positivo"),
+    // Optional here, required by the superRefine below — an instalment plan states its cost in
+    // its own fields («Importo totale»), and this one is neither read nor saved for it.
+    amount: z.number().positive("L'importo deve essere positivo").optional(),
     currency: z.string().min(1, "Valuta è obbligatoria"),
     date: z.date(),
     notes: z.string().optional(),
@@ -137,7 +145,7 @@ const expenseSchema = z
     (data) => {
       if (data.isInstallment) {
         if (!data.installmentCount || data.installmentCount < 2) return false;
-        if (data.installmentMode === 'auto' && !data.installmentTotalAmount) return false;
+        if (!data.installmentTotalAmount) return false;
         if (
           data.installmentMode === 'manual' &&
           data.installmentAmounts?.length !== data.installmentCount
@@ -148,6 +156,14 @@ const expenseSchema = z
     },
     { message: 'Campi rate incompleti o non validi' }
   )
+  .superRefine((data, ctx) => {
+    // The cost of the thing is declared ONCE. Without an instalment plan that place is this
+    // field; with one it is «Importo totale», and this field is hidden rather than asked for
+    // and ignored (it used to be required and then overwritten by the plan).
+    if (!data.isInstallment && (data.amount === undefined || Number.isNaN(data.amount))) {
+      ctx.addIssue({ code: 'custom', path: ['amount'], message: "L'importo è obbligatorio" });
+    }
+  })
   .superRefine((data, ctx) => {
     // The ceiling depends on the cadence, so it cannot live on the field's own schema, and
     // the message has to name the cadence's own unit — which is why this is a superRefine
@@ -172,20 +188,22 @@ type ExpenseFormValues = z.infer<typeof expenseSchema>;
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Sentence case, like every other title in the app: a modal title is a sentence about an act,
+// not a headline in a newspaper.
 const CREATE_TITLES: Record<ExpenseType, string> = {
-  variable: 'Nuova Spesa Variabile',
-  fixed: 'Nuova Spesa Fissa',
-  debt: 'Nuovo Debito',
-  income: 'Nuova Entrata',
-  transfer: 'Nuovo Trasferimento',
+  variable: 'Nuova spesa variabile',
+  fixed: 'Nuova spesa fissa',
+  debt: 'Nuovo debito',
+  income: 'Nuova entrata',
+  transfer: 'Nuovo trasferimento',
 };
 
 const EDIT_TITLES: Record<ExpenseType, string> = {
-  variable: 'Modifica Spesa',
-  fixed: 'Modifica Spesa',
-  debt: 'Modifica Debito',
-  income: 'Modifica Entrata',
-  transfer: 'Modifica Trasferimento',
+  variable: 'Modifica spesa',
+  fixed: 'Modifica spesa',
+  debt: 'Modifica debito',
+  income: 'Modifica entrata',
+  transfer: 'Modifica trasferimento',
 };
 
 /**
@@ -200,9 +218,9 @@ interface TypeOption {
 }
 
 const TYPE_OPTIONS: TypeOption[] = [
-  { value: 'variable', label: 'Spesa Variabile', description: 'Ristorante, shopping, svago, imprevisti', Icon: ShoppingCart },
-  { value: 'fixed', label: 'Spesa Fissa', description: 'Affitto, abbonamenti, bollette, utenze', Icon: Receipt },
-  { value: 'debt', label: 'Debito / Rata', description: 'Mutuo, prestito, finanziamento ricorrente', Icon: CreditCard },
+  { value: 'variable', label: 'Spesa variabile', description: 'Ristorante, shopping, svago, imprevisti', Icon: ShoppingCart },
+  { value: 'fixed', label: 'Spesa fissa', description: 'Affitto, abbonamenti, bollette, utenze', Icon: Receipt },
+  { value: 'debt', label: 'Debito / rata', description: 'Mutuo, prestito, finanziamento ricorrente', Icon: CreditCard },
   { value: 'income', label: 'Entrata', description: 'Stipendio, bonus, dividendi, rimborsi', Icon: TrendingUp },
   { value: 'transfer', label: 'Trasferimento', description: 'Sposta denaro tra conti', Icon: ArrowLeftRight },
 ];
@@ -275,10 +293,9 @@ interface ExpenseTypePickerProps {
  */
 function ExpenseTypePicker({ selectedType, onSelect }: Readonly<ExpenseTypePickerProps>) {
   return (
+    // No introductory paragraph: the modal's reading line already says what the type decides,
+    // and a second copy of it a row below is the same job done twice.
     <div>
-      <p className="text-sm text-muted-foreground mb-5">
-        Scegli il tipo di voce da registrare
-      </p>
       <div
         role="radiogroup"
         aria-label="Tipo di voce"
@@ -352,6 +369,12 @@ interface FormBodyProps {
   costCentersEnabled: boolean;
   selectedCostCenterId: string;
   setSelectedCostCenterId: (id: string) => void;
+  /** Cashflow › Divisione is on AND the household has someone to attribute a row to. */
+  splitEnabled: boolean;
+  familyMembers: FamilyMember[];
+  /** '' means «in comune» — the default, and what every row written before this feature is. */
+  personalMemberId: string;
+  setPersonalMemberId: (id: string) => void;
   availableCategories: ComboboxOption[];
   availableSubCategories: ComboboxOption[];
   onCreateCategory: (name: string) => void;
@@ -397,6 +420,10 @@ function ExpenseFormBody({
   costCentersEnabled,
   selectedCostCenterId,
   setSelectedCostCenterId,
+  splitEnabled,
+  familyMembers,
+  personalMemberId,
+  setPersonalMemberId,
   availableCategories,
   availableSubCategories,
   onCreateCategory,
@@ -467,31 +494,38 @@ function ExpenseFormBody({
             )}
           />
           {typeChangeNotice && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">{typeChangeNotice}</p>
+            <p className="text-xs text-warning-foreground">{typeChangeNotice}</p>
           )}
         </div>
       )}
 
-      {/* ---- Importo + Data ---- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2 min-w-0">
-          <Label htmlFor="amount">Importo (euro) *</Label>
-          <Input
-            id="amount"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="0,00"
-            {...register('amount', { valueAsNumber: true })}
-            className={errors.amount ? 'border-destructive' : ''}
-          />
-          {selectedType !== 'income' && selectedType !== 'transfer' && (
-            <p className="text-xs text-muted-foreground">Salvato come negativo</p>
-          )}
-          {errors.amount && (
-            <p className="text-sm text-destructive">{errors.amount.message}</p>
-          )}
-        </div>
+      {/* ---- Importo + Data ----
+           With «Acquisto rateale» on, the plan declares the cost («Importo totale») and this
+           field is HIDDEN: it used to be required and then silently overwritten by the plan,
+           so typing 100 here and 600 there saved 600 without a word. The date then takes the
+           whole row. The toggle is creation-only, so an existing instalment row still edits
+           its own amount here. */}
+      <div className={cn('grid grid-cols-1 gap-4', !watchedIsInstallment && 'sm:grid-cols-2')}>
+        {!watchedIsInstallment && (
+          <div className="space-y-2 min-w-0">
+            <Label htmlFor="amount">Importo (euro) *</Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0,00"
+              {...register('amount', { valueAsNumber: true })}
+              className={errors.amount ? 'border-destructive' : ''}
+            />
+            {selectedType !== 'income' && selectedType !== 'transfer' && (
+              <p className="text-xs text-muted-foreground">Salvato come negativo</p>
+            )}
+            {errors.amount && (
+              <p className="text-sm text-destructive">{errors.amount.message}</p>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2 min-w-0">
           <Label htmlFor="date">Data *</Label>
@@ -522,7 +556,7 @@ function ExpenseFormBody({
         <div className="space-y-2">
           <Label htmlFor="categoryId">Categoria *</Label>
           {loadingCategories ? (
-            <div className="h-9 rounded-md bg-muted animate-pulse" />
+            <Skeleton className="h-9 rounded-md" />
           ) : (
             <>
               <SearchableCombobox
@@ -658,6 +692,53 @@ function ExpenseFormBody({
         </div>
       ) : null}
 
+      {/* ---- Divisione: di chi è questa voce (feature-gated) ----
+          In the MAIN body and not behind «Impostazioni avanzate», unlike the cost centre: in a
+          household that splits its spending this is touched on most rows, and the default
+          («In comune») is the one that costs no interaction at all.
+          Native radios rather than the SegmentedPill primitive — this picks a VALUE, not a
+          panel, so `role=radio` is what a screen reader should meet, and the browser gives the
+          arrow-key behaviour for free. */}
+      {splitEnabled && familyMembers.length > 0 && selectedType !== 'transfer' && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium leading-none">
+            {selectedType === 'income' ? 'Entrata di' : 'Spesa di'}
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {[{ id: '', name: 'In comune' }, ...familyMembers].map((option) => {
+              const checked = personalMemberId === option.id;
+              return (
+                <label
+                  key={option.id || '__common__'}
+                  className={cn(
+                    'inline-flex h-11 cursor-pointer items-center rounded-full border px-4 text-sm transition-colors',
+                    'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+                    checked
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-background text-foreground hover:bg-muted'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="personalMemberId"
+                    className="sr-only"
+                    value={option.id}
+                    checked={checked}
+                    onChange={() => setPersonalMemberId(option.id)}
+                  />
+                  {option.name}
+                </label>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {selectedType === 'income'
+              ? 'Gli stipendi intestati a una persona danno le quote della Divisione.'
+              : 'Le voci in comune si dividono in proporzione agli stipendi; le personali restano a chi le ha fatte.'}
+          </p>
+        </fieldset>
+      )}
+
       {/* ================================================================
           IMPOSTAZIONI AVANZATE
       ================================================================ */}
@@ -751,6 +832,9 @@ function ExpenseFormBody({
                       setValue('isRecurring', false);
                       setValue('installmentMode', 'auto');
                       setValue('installmentStartDate', getValues('date'));
+                      // Carry over an amount already typed before the toggle was flipped —
+                      // the field is hidden from here on, so this is its last chance to
+                      // become the plan's total instead of being silently dropped.
                       const currentAmount = getValues('amount');
                       if (currentAmount && currentAmount > 0) {
                         setValue('installmentTotalAmount', currentAmount);
@@ -834,6 +918,20 @@ function ExpenseFormBody({
                   </TabsContent>
 
                   <TabsContent value="manual" className="space-y-4 mt-4">
+                    {/* The total lives here too, not only in «auto»: it is the ONE place that
+                        declares what the purchase costs, and the seed «Genera campi rate»
+                        divides. The per-instalment fields below still win on save. */}
+                    <div className="space-y-2">
+                      <Label htmlFor="installmentTotalAmountManual">Importo totale *</Label>
+                      <Input
+                        id="installmentTotalAmountManual"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="333.41"
+                        {...register('installmentTotalAmount', { valueAsNumber: true })}
+                      />
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="installmentCountManual">Numero di rate *</Label>
@@ -877,7 +975,7 @@ function ExpenseFormBody({
                           size="sm"
                           onClick={() => {
                             const count = getValues('installmentCount') || 2;
-                            const baseAmount = getValues('amount') || 0;
+                            const baseAmount = getValues('installmentTotalAmount') || 0;
                             const perInstallment = Number((baseAmount / count).toFixed(2));
                             setValue(
                               'installmentAmounts',
@@ -1062,9 +1160,9 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
-  const isMobile = useMediaQuery('(max-width: 768px)');
 
-
+  // The modal's reading IS the status line: what the form wants, what it is doing, how it went.
+  const [status, setStatus] = useState<ModalStatus>({ phase: 'idle' });
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [cashAssets, setCashAssets] = useState<Asset[]>([]);
@@ -1073,6 +1171,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [costCentersEnabled, setCostCentersEnabled] = useState(false);
   const [selectedCostCenterId, setSelectedCostCenterId] = useState<string>('__none__');
+  // Divisione: '' is «in comune», the default. Stored as its own state rather than a form field
+  // because it is not validated and has no error state — same shape as the cost centre above.
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [personalMemberId, setPersonalMemberId] = useState<string>('');
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [categoryInitialName, setCategoryInitialName] = useState('');
   const [categoryEditTarget, setCategoryEditTarget] = useState<ExpenseCategory | null>(null);
@@ -1159,6 +1262,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     if (!open) return;
     // Re-run on every open so a second "nuova voce" starts from the picker again — without
     // `open` in the deps, `expense` stays null between opens and the step is never reset.
+    setStatus({ phase: 'idle' });
     setStep(expense ? 2 : 1);
     setAdvancedOpen(isAdvancedPrePopulated(expense));
     transferCategoryIdRef.current = null; // Reset transfer category cache on dialog open
@@ -1240,6 +1344,8 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
       setDefaultCreditCashAssetId(creditId);
       setCostCentersEnabled(settings?.costCentersEnabled ?? false);
       setCostCenters(centers);
+      setSplitEnabled(settings?.expenseSplitEnabled ?? false);
+      setFamilyMembers(settings?.familyMembers ?? []);
       if (!expense) {
         const currentType = getValues('type');
         const defaultId = currentType === 'income' ? creditId : debitId;
@@ -1274,6 +1380,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         transferCashAssetId: expense.transferCashAssetId || '__none__',
       });
       setSelectedCostCenterId(expense.costCenterId || '__none__');
+      setPersonalMemberId(expense.personalMemberId || '');
     } else {
       reset({
         type: 'variable',
@@ -1292,6 +1399,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         transferCashAssetId: '__none__',
       });
       setSelectedCostCenterId('__none__');
+      setPersonalMemberId('');
     }
   }, [expense, reset, open]);
 
@@ -1378,16 +1486,20 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
   };
 
   const onSubmit = async (data: ExpenseFormValues) => {
+    // Every refusal lands on the modal's reading line, where the reader is already looking —
+    // a toast in the corner asks them to look away from the form that caused it.
     if (!user || !ownerId) {
-      toast.error('Devi essere autenticato');
+      setStatus({ phase: 'error', message: 'La sessione è scaduta: rientra e riprova.' });
       return;
     }
 
     const category = categories.find((cat) => cat.id === data.categoryId);
     if (!category) {
-      toast.error('Categoria non trovata');
+      setStatus({ phase: 'error', message: 'La categoria scelta non esiste più: scegline un’altra.' });
       return;
     }
+
+    setStatus({ phase: 'submitting' });
 
     let subCategoryName: string | undefined;
     if (data.subCategoryId) {
@@ -1402,6 +1514,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
       data.transferCashAssetId === '__none__' ? undefined : data.transferCashAssetId;
     const resolvedCostCenterId =
       selectedCostCenterId === '__none__' ? undefined : selectedCostCenterId;
+    // A transfer is net-zero and belongs to no one: it moves money between the household's own
+    // accounts, which is exactly what feeding a joint account looks like. Marking it personal
+    // would put plumbing into somebody's column.
+    const resolvedPersonalMemberId =
+      splitEnabled && data.type !== 'transfer' && personalMemberId ? personalMemberId : undefined;
     const resolvedCostCenterName = resolvedCostCenterId
       ? costCenters.find((c) => c.id === resolvedCostCenterId)?.name
       : undefined;
@@ -1411,7 +1528,9 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         type: data.type,
         categoryId: data.categoryId,
         subCategoryId: data.subCategoryId,
-        amount: data.amount,
+        // An instalment plan overwrites this per row (createInstallmentExpenses), and its
+        // own field is hidden — 0 is the honest placeholder, never a saved figure.
+        amount: data.amount ?? 0,
         currency: data.currency,
         date: data.date,
         notes: data.notes,
@@ -1438,6 +1557,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         transferCashAssetId,
         costCenterId: resolvedCostCenterId,
         costCenterName: resolvedCostCenterName,
+        personalMemberId: resolvedPersonalMemberId,
       };
 
       if (expense) {
@@ -1447,10 +1567,13 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           transferCashAssetId: data.type === 'transfer' ? (transferCashAssetId ?? null) : null,
           costCenterId: resolvedCostCenterId ?? null,
           costCenterName: resolvedCostCenterName ?? null,
+          // updateDoc only touches the fields it is handed and removeUndefinedDeep strips
+          // undefined, so moving a row back to «in comune» has to be written explicitly.
+          personalMemberId: resolvedPersonalMemberId ?? null,
           // `isRecurring: false` above is authoritative, but `recurringDay: undefined` is
           // stripped by removeUndefinedDeep before the write, leaving the old day behind
           // in Firestore. Reachable now that a debt can be turned into a plain expense
-          // from this form — see AGENTS.md → Firestore Optional Field Deletion.
+          // from this form — see AGENTS.md § Firestore Writes.
           recurringDay: expenseData.isRecurring ? expenseData.recurringDay : deleteField(),
           recurringFrequency: expenseData.isRecurring
             ? expenseData.recurringFrequency
@@ -1474,8 +1597,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         // two accounts, so crossing that boundary needs the cross-shape reconcilers.
         const wasTransfer = expense.type === 'transfer';
         const isTransfer = data.type === 'transfer';
+        // Editing always has an amount: the instalment toggle is creation-only, so the
+        // field is never hidden here.
+        const editedAmount = data.amount ?? 0;
         const newSignedAmount =
-          data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount);
+          data.type === 'income' ? Math.abs(editedAmount) : -Math.abs(editedAmount);
 
         if (wasTransfer && isTransfer) {
           assetUpdated = await reconcileTransferEdit({
@@ -1484,7 +1610,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
             newOriginId: linkedCashAssetId,
             newDestId: transferCashAssetId,
             oldAmount: Math.abs(expense.amount),
-            newAmount: Math.abs(data.amount),
+            newAmount: Math.abs(editedAmount),
           });
         } else if (wasTransfer) {
           assetUpdated = await reconcileTransferToSingleEdit({
@@ -1500,7 +1626,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
             oldSignedAmount: expense.amount,
             newOriginId: linkedCashAssetId,
             newDestId: transferCashAssetId,
-            newAmount: Math.abs(data.amount),
+            newAmount: Math.abs(editedAmount),
           });
         } else {
           assetUpdated = await reconcileSingleEdit({
@@ -1530,7 +1656,7 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           const transferUpdated = await reconcileTransferCreate({
             originId: linkedCashAssetId,
             destId: transferCashAssetId,
-            amount: Math.abs(data.amount),
+            amount: Math.abs(expenseData.amount),
           });
           if (transferUpdated) {
             queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
@@ -1560,10 +1686,10 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
             expenseData.recurringCount &&
             expenseData.recurringCount > 0
           ) {
-            firstSignedAmount = -Math.abs(data.amount);
+            firstSignedAmount = -Math.abs(expenseData.amount);
           } else {
             firstSignedAmount =
-              data.type === 'income' ? Math.abs(data.amount) : -Math.abs(data.amount);
+              data.type === 'income' ? Math.abs(expenseData.amount) : -Math.abs(expenseData.amount);
           }
 
           await reconcileSingleCreate({ linkedAssetId: linkedCashAssetId, signedAmount: firstSignedAmount });
@@ -1601,32 +1727,36 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
       onClose();
     } catch (error) {
       console.error('Error saving expense:', error);
-      toast.error('Errore nel salvataggio della spesa');
+      setStatus({ phase: 'error', message: describeWriteError(error) });
     }
   };
 
   const isTypePicker = !isEdit && step === 1;
 
   // Both titles follow the SELECTED type, not the stored one: in edit mode the type is
-  // now changeable, and a header still saying "Modifica Entrata" while the form has
+  // now changeable, and a header still saying "Modifica entrata" while the form has
   // been switched to a spesa would contradict the control right below it. On step 1 no
   // type has been chosen yet, so the header names the flow instead.
-  let dialogTitle: string;
-  if (isTypePicker) {
-    dialogTitle = 'Nuova Voce';
-  } else {
-    dialogTitle = isEdit ? EDIT_TITLES[selectedType] : CREATE_TITLES[selectedType];
-  }
-  let dialogDescription: string;
-  if (isTypePicker) {
-    dialogDescription = 'Scegli il tipo di voce da registrare';
-  } else {
-    dialogDescription = isEdit
-      ? 'Modifica i dettagli della voce selezionata'
-      : 'Inserisci i dettagli della nuova voce';
-  }
-  const baseLabel = isEdit ? 'Salva modifiche' : 'Crea voce';
-  const submitLabel = isSubmitting ? 'Salvataggio...' : baseLabel;
+  const dialogTitle = isTypePicker
+    ? 'Che cosa vuoi registrare?'
+    : isEdit
+      ? EDIT_TITLES[selectedType]
+      : CREATE_TITLES[selectedType];
+
+  // The eyebrow carries the context and, after a centred dot, the scope — which is where the
+  // type badge went: a Badge beside the title was a second label register for the same fact.
+  // The scope names ONE row's type, so it takes the picker's singular label («Spesa variabile»)
+  // and not `EXPENSE_TYPE_LABELS`, which is the plural of a category group («Spese Variabili»).
+  const dialogEyebrow = isTypePicker
+    ? 'Nuova voce · Passo 1 di 2'
+    : `${isEdit ? 'Modifica voce' : 'Nuova voce'} · ${TYPE_OPTIONS.find((o) => o.value === selectedType)?.label ?? ''}`;
+
+  const reading = describeModalStatus(isSubmitting ? { phase: 'submitting' } : status, {
+    idle: isTypePicker ? EXPENSE_TYPE_PICKER_READING : describeExpenseIntent(selectedType),
+    submitting: isEdit ? 'Sto salvando le modifiche.' : 'Sto registrando la voce.',
+  });
+
+  const submitLabel = isSubmitting ? 'Salvataggio...' : isEdit ? 'Salva modifiche' : 'Crea voce';
 
   /**
    * Re-point the category when the type changes.
@@ -1734,6 +1864,10 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
     costCentersEnabled,
     selectedCostCenterId,
     setSelectedCostCenterId,
+    splitEnabled,
+    familyMembers,
+    personalMemberId,
+    setPersonalMemberId,
     availableCategories,
     availableSubCategories,
     onCreateCategory: handleCreateCategory,
@@ -1750,36 +1884,18 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
       <ResponsiveModal
         open={open}
         onClose={onClose}
+        eyebrow={dialogEyebrow}
         title={dialogTitle}
-        description={dialogDescription}
-        headerExtra={
-          isEdit ? (
-            <Badge variant="outline" className="ml-auto text-xs font-normal">
-              {EXPENSE_TYPE_LABELS[selectedType]}
-            </Badge>
-          ) : undefined
-        }
+        reading={reading}
+        width="lg"
         footer={
           /* Step 1 has nothing to submit: picking a card IS the action, so the only footer
-             control is the way out. */
+             control is the way out. The modal lays the buttons out — «Annulla» then the
+             primary in DOM order — so no caller branches on the viewport any more. */
           isTypePicker ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className={isMobile ? 'w-full' : undefined}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Annulla
             </Button>
-          ) : isMobile ? (
-            <>
-              <Button type="submit" form="expense-form" disabled={isSubmitting} className="w-full">
-                {submitLabel}
-              </Button>
-              <Button type="button" variant="outline" className="w-full" disabled={isSubmitting} onClick={onClose}>
-                Annulla
-              </Button>
-            </>
           ) : (
             <>
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
