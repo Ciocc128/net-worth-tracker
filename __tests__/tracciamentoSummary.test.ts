@@ -326,6 +326,40 @@ describe('summarizeMovements', () => {
     expect(summary.largest).toEqual({ label: 'Stipendio', amount: 4200, type: 'income' });
   });
 
+  it('should sum each type the way the page does: spending as a magnitude, income signed, transfers as moved', () => {
+    const summary = summarizeMovements(AUGUST_ROWS);
+
+    expect(summary.expenseTotal).toBe(2910);
+    expect(summary.incomeTotal).toBe(4850);
+    expect(summary.transferTotal).toBe(1500);
+  });
+
+  it('should classify the totals by type, not by sign: a positive spending row still raises the spending total', () => {
+    const summary = summarizeMovements([
+      makeExpense({ type: 'income', amount: 1000, date: d(2026, 8) }),
+      makeExpense({ type: 'income', amount: -100, date: d(2026, 8) }),
+      makeExpense({ type: 'variable', amount: 50, date: d(2026, 8) }),
+      makeExpense({ type: 'variable', amount: -400, date: d(2026, 8) }),
+    ]);
+
+    expect(summary.incomeTotal).toBe(900);
+    expect(summary.expenseTotal).toBe(450);
+  });
+
+  it('should sum the rows it is handed: a search on one note is its own total', () => {
+    // The owner's shape: one recurring note used as an implicit subcategory. The list is
+    // already filtered by the toolbar — summarizeMovements only totals what it receives.
+    const summary = summarizeMovements([
+      makeExpense({ type: 'variable', amount: -1.2, categoryName: 'Bar', notes: 'caffè', date: d(2026, 3) }),
+      makeExpense({ type: 'variable', amount: -1.2, categoryName: 'Bar', notes: 'caffè', date: d(2026, 5) }),
+      makeExpense({ type: 'variable', amount: -2.6, categoryName: 'Bar', notes: 'caffè', date: d(2026, 8) }),
+    ]);
+
+    expect(summary).toMatchObject({ count: 3, expenseCount: 3, incomeCount: 0, transferCount: 0 });
+    expect(summary.expenseTotal).toBeCloseTo(5, 5);
+    expect(summary.largest).toEqual({ label: 'caffè', amount: 2.6, type: 'variable' });
+  });
+
   it('should label the largest by its note when there is one', () => {
     const summary = summarizeMovements([
       makeExpense({ type: 'fixed', amount: -820, categoryName: 'Casa', notes: 'Rata mutuo ', date: d(2026, 8) }),
@@ -335,7 +369,16 @@ describe('summarizeMovements', () => {
   });
 
   it('should report nothing on an empty list', () => {
-    expect(summarizeMovements([])).toEqual({ count: 0, expenseCount: 0, incomeCount: 0, transferCount: 0, largest: null });
+    expect(summarizeMovements([])).toEqual({
+      count: 0,
+      expenseCount: 0,
+      incomeCount: 0,
+      transferCount: 0,
+      expenseTotal: 0,
+      incomeTotal: 0,
+      transferTotal: 0,
+      largest: null,
+    });
   });
 });
 

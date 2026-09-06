@@ -349,19 +349,91 @@ describe('describeSavingsHistory', () => {
 });
 
 describe('describeMovements', () => {
-  it('should count the rows by type and name the largest', () => {
-    const summary = { count: 47, expenseCount: 40, incomeCount: 5, transferCount: 2, largest: { label: 'Stipendio', amount: 4200, type: 'income' as const } };
-    expect(plain(describeMovements(summary))).toBe('47 movimenti: 40 spese, 5 entrate e 2 trasferimenti; la voce più grande è Stipendio (4200 €).');
+  it('should count the rows by type, sum each type and name the largest', () => {
+    const summary = {
+      count: 47,
+      expenseCount: 40,
+      incomeCount: 5,
+      transferCount: 2,
+      expenseTotal: 3200,
+      incomeTotal: 4500,
+      transferTotal: 500,
+      largest: { label: 'Stipendio', amount: 4200, type: 'income' as const },
+    };
+    expect(plain(describeMovements(summary))).toBe(
+      '47 movimenti: 40 spese per 3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €; la voce più grande è Stipendio (4200 €).',
+    );
+  });
+
+  it('should total a search on one note, which is what makes the reading an aggregate', () => {
+    const summary = {
+      count: 120,
+      expenseCount: 120,
+      incomeCount: 0,
+      transferCount: 0,
+      expenseTotal: 264,
+      incomeTotal: 0,
+      transferTotal: 0,
+      largest: { label: 'caffè', amount: 4, type: 'variable' as const },
+    };
+    expect(plain(describeMovements(summary))).toBe('120 movimenti: 120 spese per 264 €; la voce più grande è caffè (4 €).');
+  });
+
+  it('should keep the minus on an income total reversed to below zero', () => {
+    const summary = {
+      count: 1,
+      expenseCount: 0,
+      incomeCount: 1,
+      transferCount: 0,
+      expenseTotal: 0,
+      incomeTotal: -200,
+      transferTotal: 0,
+      largest: { label: 'Storno', amount: 200, type: 'income' as const },
+    };
+    expect(plain(describeMovements(summary))).toBe('1 movimento: 1 entrata per −200 €; la voce più grande è Storno (200 €).');
   });
 
   it('should drop an empty type and decline the singulars', () => {
-    expect(plain(describeMovements({ count: 2, expenseCount: 1, incomeCount: 1, transferCount: 0, largest: { label: 'Casa', amount: 800, type: 'fixed' as const } }))).toBe(
-      '2 movimenti: 1 spesa e 1 entrata; la voce più grande è Casa (800 €).',
-    );
-    expect(plain(describeMovements({ count: 1, expenseCount: 0, incomeCount: 0, transferCount: 1, largest: { label: 'Giroconto', amount: 300, type: 'transfer' as const } }))).toBe(
-      '1 movimento: 1 trasferimento; la voce più grande è Giroconto (300 €).',
-    );
-    expect(describeMovements({ count: 0, expenseCount: 0, incomeCount: 0, transferCount: 0, largest: null })).toBeNull();
+    expect(
+      plain(
+        describeMovements({
+          count: 2,
+          expenseCount: 1,
+          incomeCount: 1,
+          transferCount: 0,
+          expenseTotal: 800,
+          incomeTotal: 1500,
+          transferTotal: 0,
+          largest: { label: 'Casa', amount: 800, type: 'fixed' as const },
+        }),
+      ),
+    ).toBe('2 movimenti: 1 spesa per 800 € e 1 entrata per 1500 €; la voce più grande è Casa (800 €).');
+    expect(
+      plain(
+        describeMovements({
+          count: 1,
+          expenseCount: 0,
+          incomeCount: 0,
+          transferCount: 1,
+          expenseTotal: 0,
+          incomeTotal: 0,
+          transferTotal: 300,
+          largest: { label: 'Giroconto', amount: 300, type: 'transfer' as const },
+        }),
+      ),
+    ).toBe('1 movimento: 1 trasferimento per 300 €; la voce più grande è Giroconto (300 €).');
+    expect(
+      describeMovements({
+        count: 0,
+        expenseCount: 0,
+        incomeCount: 0,
+        transferCount: 0,
+        expenseTotal: 0,
+        incomeTotal: 0,
+        transferTotal: 0,
+        largest: null,
+      }),
+    ).toBeNull();
   });
 
   it('should size the aside as shown of total when the list is filtered', () => {
