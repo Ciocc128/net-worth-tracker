@@ -97,6 +97,8 @@ export function describeProfile({ userAge, riskFreeRate }: ProfileInput): Narrat
 export interface PerformanceBaseInput {
   includesPensionFunds: boolean;
   includesExcludedAssets: boolean;
+  /** «Liquidità fuori dalla base»: the cash accounts leave the metrics, what they pay for is a measured flow. */
+  excludesCash?: boolean;
   /** ISO 'YYYY-MM'; empty string = start from the first recorded contribution. */
   pensionReturnStartMonth: string;
 }
@@ -105,22 +107,24 @@ export interface PerformanceBaseInput {
 export function describePerformanceBase({
   includesPensionFunds,
   includesExcludedAssets,
+  excludesCash = false,
   pensionReturnStartMonth,
 }: PerformanceBaseInput): Narrative {
   let base: string;
   if (!includesPensionFunds && !includesExcludedAssets) {
     base = 'Base gestita: fondi pensione e asset esclusi restano fuori';
   } else if (includesPensionFunds && !includesExcludedAssets) {
-    base = 'Base allargata ai fondi pensione (i versamenti pesano nel rendimento); gli asset esclusi restano fuori';
+    base = 'Base allargata ai fondi pensione dal mese tracciato (i versamenti sono flussi, non rendimento); gli asset esclusi restano fuori';
   } else if (!includesPensionFunds && includesExcludedAssets) {
     base = 'Base allargata agli asset esclusi (la casa ferma abbassa la volatilità); i fondi pensione restano fuori';
   } else {
-    base = 'Base completa: fondi pensione e asset esclusi contano nelle metriche';
+    base = 'Base completa: fondi pensione (dal mese tracciato) e asset esclusi contano nelle metriche';
   }
+  const cashClause = excludesCash ? '; la liquidità resta fuori e gli acquisti pagati dai conti sono flussi misurati, non rendimento' : '';
   const monthClause = pensionReturnStartMonth
     ? `; il rendimento del fondo si misura da ${monthYearInSentence(pensionReturnStartMonth)}.`
     : '; il rendimento del fondo si misura dal primo versamento registrato.';
-  return [prose(base), prose(monthClause)];
+  return [prose(base), prose(cashClause), prose(monthClause)];
 }
 
 /** For checking accounts the stamp duty applies only above this balance (Italian rule). */

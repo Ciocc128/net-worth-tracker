@@ -41,6 +41,7 @@ const STORED_SETTINGS = {
   targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
   performanceIncludesPensionFunds: true,
   performanceIncludesExcludedAssets: true,
+  performanceExcludesCash: true,
   pensionReturnStartMonth: '2026-07',
   costCentersEnabled: true,
   includePrimaryResidenceInFIRE: true,
@@ -78,6 +79,7 @@ describe('getSettings — lettura', () => {
 
     expect(settings?.performanceIncludesPensionFunds).toBe(true);
     expect(settings?.performanceIncludesExcludedAssets).toBe(true);
+    expect(settings?.performanceExcludesCash).toBe(true);
     expect(settings?.pensionReturnStartMonth).toBe('2026-07');
   });
 
@@ -112,12 +114,14 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
       targets: TARGETS,
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: true,
+      performanceExcludesCash: true,
       pensionReturnStartMonth: '2026-07',
     } as AssetAllocationSettings);
 
     expect(writtenPayload()).toMatchObject({
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: true,
+      performanceExcludesCash: true,
       pensionReturnStartMonth: '2026-07',
     });
   });
@@ -205,12 +209,14 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     await setSettings('user-1', {
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: false,
+      performanceExcludesCash: false,
       pensionReturnStartMonth: '2026-07',
     } as AssetAllocationSettings);
 
     expect(writtenPayload()).toMatchObject({
       performanceIncludesPensionFunds: true,
       performanceIncludesExcludedAssets: false,
+      performanceExcludesCash: false,
       pensionReturnStartMonth: '2026-07',
     });
   });
@@ -237,7 +243,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
 
   // Un flag di funzionalità deve sopravvivere a ENTRAMBE le catene: il ramo `targets` scrive
   // con setDoc senza merge, quindi un campo non ricopiato lì sparisce al primo salvataggio
-  // dell'allocazione (AGENTS -> Settings — the FIVE places).
+  // dell'allocazione (doc/guide/impostazioni.md § Settings — the FIVE places).
   it('writes expenseSplitEnabled through both chains', async () => {
     await setSettings('user-1', { expenseSplitEnabled: true } as AssetAllocationSettings);
     expect(writtenPayload().expenseSplitEnabled).toBe(true);

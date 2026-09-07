@@ -458,7 +458,24 @@ describe('describeMovements', () => {
   it('should name the scheduled rows — the clause that keeps the list honest against the tiles', () => {
     expect(
       plain(describeMovements({ count: 47, expenseCount: 40, incomeCount: 5, transferCount: 2, expenseTotal: 3200, incomeTotal: 4500, transferTotal: 500, largest: { label: 'Stipendio', amount: 4200, type: 'income' as const }, scheduled: { count: 2, total: 406 } })),
-    ).toBe('47 movimenti: 40 spese per 3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €, di cui 2 in calendario (406 €); la voce più grande è Stipendio (4200 €).');
+    ).toBe('47 movimenti, di cui 2 in calendario (406 €): 40 spese per 3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €; la voce più grande è Stipendio (4200 €).');
+  });
+
+  it('should say «meno di 1 €» for a total that rounds to zero, never «3 spese per 0 €»', () => {
+    expect(
+      plain(describeMovements({ count: 3, expenseCount: 3, incomeCount: 0, transferCount: 0, expenseTotal: 0.36, incomeTotal: 0, transferTotal: 0, largest: { label: 'caffè', amount: 0.12, type: 'variable' as const }, scheduled: NO_SCHEDULED })),
+    ).toBe('3 movimenti: 3 spese per meno di 1 €; la voce più grande è caffè (0 €).');
+    // An exact zero is a real figure (two incomes that net out), and stays one.
+    expect(
+      plain(describeMovements({ count: 2, expenseCount: 0, incomeCount: 2, transferCount: 0, expenseTotal: 0, incomeTotal: 0, transferTotal: 0, largest: { label: 'Storno', amount: 200, type: 'income' as const }, scheduled: NO_SCHEDULED })),
+    ).toBe('2 movimenti: 2 entrate per 0 €; la voce più grande è Storno (200 €).');
+  });
+
+  it('should carry the negative sign on the segment, so the tile colours it', () => {
+    const segments = describeMovements({ count: 1, expenseCount: 0, incomeCount: 1, transferCount: 0, expenseTotal: 0, incomeTotal: -200, transferTotal: 0, largest: { label: 'Storno', amount: 200, type: 'income' as const }, scheduled: NO_SCHEDULED })!;
+    // Intl puts a no-break space before the €.
+    expect(segments.find((s) => s.text.replace(/\u00a0/g, ' ') === '−200 €')).toMatchObject({ mono: true, sign: 'negative' });
+    expect(segments.filter((s) => 'sign' in s && s.sign)).toHaveLength(1);
   });
 
   it('should size the aside as shown of total when the list is filtered', () => {

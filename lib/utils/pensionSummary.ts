@@ -256,10 +256,13 @@ export interface PensionMemberBlock {
 function resolveReturnState(result: PensionReturnResult | null, startMonth: string | null): PensionReturnState {
   if (result) {
     if (isPensionReturnMeasurable(result)) return 'measured';
-    // Order matters: a contradictory window can also read as idle-ish once the flags overlap, and
-    // the contradiction is the more specific — and the more actionable — of the two.
-    if (result.isCoverageSuspicious) return 'suspicious';
+    // Order matters, and the contradiction comes FIRST. The two flags can both be true: a month
+    // that closes at or below zero net of its contributions turns the index negative, a second one
+    // turns it positive again, and a recovery on top can annualize past the suspicious threshold.
+    // That window is broken data, not a fund with missing contributions — and «registra i
+    // versamenti mancanti» would be exactly the wrong advice for it (the suspicious reading's).
     if (result.isCoverageContradictory) return 'contradictory';
+    if (result.isCoverageSuspicious) return 'suspicious';
     return 'idle';
   }
   return startMonth === null ? 'no-contributions' : 'one-point';

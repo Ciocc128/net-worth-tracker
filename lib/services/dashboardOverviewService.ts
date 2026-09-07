@@ -46,7 +46,7 @@ import {
 import { calculateMonthlyChange, calculateYearlyChange } from '@/lib/services/snapshotService';
 import { getItalyMonthYear, ITALY_TIMEZONE, toDate } from '@/lib/utils/dateHelpers';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
-import { costBasisPerUnitEur } from '@/lib/utils/patrimonioSummary';
+import { costBasisPerUnitEur } from '@/lib/utils/costBasisEur';
 import {
   DASHBOARD_OVERVIEW_SOURCE_VERSION,
   DASHBOARD_OVERVIEW_SUMMARY_COLLECTION,
@@ -466,8 +466,9 @@ function buildLiveOverviewPayload(
     },
     flags: {
       assetCount: assets.filter((asset) => asset.quantity > 0).length,
+      // A foreign asset with only a native PMC has no basis the EUR figures can use (costBasisEur.ts).
       hasCostBasisTracking: assets.some(
-        (asset) => (asset.averageCost && asset.averageCost > 0) || (asset.taxRate && asset.taxRate > 0)
+        (asset) => costBasisPerUnitEur(asset) !== undefined || (asset.taxRate && asset.taxRate > 0)
       ),
       hasTERTracking: assets.some((asset) => !!(asset.totalExpenseRatio && asset.totalExpenseRatio > 0)),
       hasStampDuty: !!(settings?.stampDutyEnabled && annualStampDuty > 0),

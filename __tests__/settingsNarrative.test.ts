@@ -90,6 +90,21 @@ describe('describePerformanceBase', () => {
     );
   });
 
+  it('adds the liquidity clause when the cash accounts are out of the base', () => {
+    expect(
+      plain(
+        describePerformanceBase({
+          includesPensionFunds: false,
+          includesExcludedAssets: false,
+          excludesCash: true,
+          pensionReturnStartMonth: '2025-11',
+        })
+      )
+    ).toBe(
+      'Base gestita: fondi pensione e asset esclusi restano fuori; la liquidità resta fuori e gli acquisti pagati dai conti sono flussi misurati, non rendimento; il rendimento del fondo si misura da novembre 2025.'
+    );
+  });
+
   it('reads the first-contribution fallback when no month is set', () => {
     expect(
       plain(
@@ -113,7 +128,7 @@ describe('describePerformanceBase', () => {
           pensionReturnStartMonth: '',
         })
       )
-    ).toContain('Base allargata ai fondi pensione');
+    ).toContain('Base allargata ai fondi pensione dal mese tracciato (i versamenti sono flussi, non rendimento)');
     expect(
       plain(
         describePerformanceBase({

@@ -3,10 +3,10 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type { Transaction, DocumentData, DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
 import {
+  EPSILON,
   replayTransactions,
   buildDerivedAssetFields,
   computeCashDelta,
-  EPSILON,
 } from '@/lib/utils/assetTransactionUtils';
 import {
   resolveTradePriceEur,
@@ -660,21 +660,29 @@ export async function migrateAssetLedger(ownerId: string): Promise<MigrationResu
 
 export type AverageCostEurBackfillResult =
   | { alreadyBackfilled: true }
-  | { alreadyBackfilled?: false; recomputedAssetCount: number };
+  | { alreadyBackfilled?: false; recomputedAssetCount: number; skippedAssetCount: number };
 
 /**
  * One-shot backfill of `averageCostEur` onto ledger asset docs that predate the field. No new FX
  * lookups: every trade has carried a correct trade-date `priceEur` since the ledger shipped
  * (including the migration baseline — resolveBaselinePriceEur), so this is a pure re-projection of
  * data already in `assetTransactions` via buildDerivedAssetFields, exactly what every trade mutation
- * already writes going forward (commitTradeMutation). Only rewrites quantity/averageCost/averageCostEur
- * — the fields buildDerivedAssetFields projects — never holdingStartDate (invariant #4).
+ * already writes going forward (commitTradeMutation). Writes ONLY `averageCostEur` — the field it
+ * exists to add: quantity and the native PMC are already the replay's (every mutation rewrites
+ * them), and a backfill that also rewrote them could move a figure the owner did not ask to move.
+ * Never holdingStartDate (invariant #4).
  *
  * Idempotent — `averageCostEurBackfilledAt` on the ledger meta doc is the "done" signal. Requires the
  * meta doc to already exist (ledger migration must have run first, and the caller is expected to have
  * awaited migrateAssetLedger before this): with no meta doc yet there is nothing to backfill, and this
  * returns a no-op WITHOUT creating one, so it can never be mistaken by migrateAssetLedger for
  * "already migrated".
+ *
+ * One asset's failure (a ledger the replay rejects, a write that errors) is logged and counted in
+ * `skippedAssetCount`, never fatal: the other assets get their field, the done-signal is still
+ * written — that asset keeps whatever G/P it had, and its next trade mutation projects the field
+ * the normal way. Re-running on every visit for a ledger that is broken anyway would cost a full
+ * ledger read per page load and fix nothing.
  */
 export async function backfillAverageCostEur(ownerId: string): Promise<AverageCostEurBackfillResult> {
   const metaRef = adminDb.collection(ASSET_TRANSACTIONS_META_COLLECTION).doc(ownerId);
@@ -687,34 +695,33 @@ export async function backfillAverageCostEur(ownerId: string): Promise<AverageCo
   const ledgerAssets = assets.filter((a) => isLedgerAssetType(a.type) && a.quantity > 0);
 
   let recomputedAssetCount = 0;
+  let skippedAssetCount = 0;
   for (const asset of ledgerAssets) {
-    const tradesSnap = await adminDb
-      .collection(ASSET_TRANSACTIONS_COLLECTION)
-      .where('userId', '==', ownerId)
-      .where('assetId', '==', asset.id)
-      .get();
-    if (tradesSnap.empty) continue;
+    try {
+      const tradesSnap = await adminDb
+        .collection(ASSET_TRANSACTIONS_COLLECTION)
+        .where('userId', '==', ownerId)
+        .where('assetId', '==', asset.id)
+        .get();
+      if (tradesSnap.empty) continue;
 
-    const trades = tradesSnap.docs.map((d) => docToAssetTransaction(d.id, d.data() as DocumentData));
-    const state = replayTransactions(trades);
-    const derived = buildDerivedAssetFields(state);
-    await adminDb.collection(ASSETS_COLLECTION).doc(asset.id).update(
-      removeUndefinedDeep({
-        quantity: derived.quantity,
-        averageCost: derived.averageCost,
-        averageCostEur: derived.averageCostEur,
-        updatedAt: new Date(),
-      })
-    );
-    recomputedAssetCount += 1;
+      const trades = tradesSnap.docs.map((d) => docToAssetTransaction(d.id, d.data() as DocumentData));
+      const { averageCostEur } = buildDerivedAssetFields(replayTransactions(trades));
+      if (averageCostEur === undefined) continue; // a closed position: nothing to stand a G/P on
+      await adminDb.collection(ASSETS_COLLECTION).doc(asset.id).update({ averageCostEur, updatedAt: new Date() });
+      recomputedAssetCount += 1;
+    } catch (error) {
+      skippedAssetCount += 1;
+      console.error(`[backfillAverageCostEur] asset ${asset.id} skipped:`, error);
+    }
   }
 
   await metaRef.update({ averageCostEurBackfilledAt: new Date(), updatedAt: new Date() });
 
-  // The overview payload's topAssets.returnPercent reads averageCostEur too (dashboardOverviewService).
+  // Every G/P figure of the overview payload reads averageCostEur (dashboardOverviewService).
   if (recomputedAssetCount > 0) {
     await invalidateDashboardOverviewSummaryServer(ownerId, 'average_cost_eur_backfilled');
   }
 
-  return { recomputedAssetCount };
+  return { recomputedAssetCount, skippedAssetCount };
 }

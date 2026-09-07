@@ -137,14 +137,23 @@ export interface PensionReturnResult {
    * La causa opposta di `isCoverageSuspicious`: i versamenti registrati spiegano PIÙ della
    * crescita che c'è stata, e il calcolo è finito fuori dal reale. Vero in tre casi:
    *   - un singolo mese chiude a valore non positivo tolti i suoi versamenti — a quel mese ne sono
-   *     attribuiti più di quanti il fondo intero ne valga;
-   *   - la finestra perde più del 100 % (senza leva non si può perdere più di tutto);
-   *   - il valore è CRESCIUTO ma il TWR segna una perdita oltre ogni ribasso reale: il TWR è neutro
-   *     ai flussi, quindi le due cose insieme non stanno in piedi.
+   *     attribuiti più di quanti il fondo intero ne valga (IMPOSSIBILE: un fondo non vale meno di
+   *     zero);
+   *   - la finestra perde più del 100 % — anch'esso impossibile, e in pratica già coperto dal
+   *     primo: un indice negativo vuole un numero dispari di fattori negativi, cioè almeno un mese
+   *     non positivo. Resta come cintura e bretelle, non come caso in più;
+   *   - il valore è CRESCIUTO ma il TWR segna una perdita oltre `CONTRADICTORY_LOSS_WHILE_GROWING`:
+   *     il TWR è neutro ai flussi, quindi le due cose insieme non stanno in piedi. Questo è un
+   *     giudizio di PLAUSIBILITÀ, non di impossibilità — la soglia sta oltre ogni ribasso reale
+   *     conosciuto, ma un ribasso peggiore del −75 % con versamenti che riportano il valore sopra
+   *     l'apertura verrebbe letto come contraddizione. Accettato: quel fondo avrebbe altro di cui
+   *     preoccuparsi.
    *
    * Non è un rendimento pessimo: è un versamento contato due volte, o già dentro il valore che
    * l'utente ha inserito a mano. Tenuto separato perché la frase da mostrare è un'altra —
-   * «registra i versamenti mancanti» sarebbe il consiglio esattamente sbagliato.
+   * «registra i versamenti mancanti» sarebbe il consiglio esattamente sbagliato — e per lo stesso
+   * motivo `resolveReturnState` (pensionSummary) lo legge PRIMA di `isCoverageSuspicious` quando
+   * i due flag si sovrappongono.
    */
   isCoverageContradictory: boolean;
   /**

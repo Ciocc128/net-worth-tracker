@@ -32,8 +32,9 @@
  */
 
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
-import type { PeriodMonth, TimePeriod } from '@/types/performance';
-import type { PerformanceBaseOptions } from '@/lib/utils/performanceBase';
+import type { FlowSource, PeriodMonth, TimePeriod } from '@/types/performance';
+import type { PerformanceBaseResolution } from '@/lib/utils/performanceBase';
+import { RESIDUAL_ALERT_SHARE, type ResidualMonth, type ReturnAttribution } from '@/lib/utils/performanceAttribution';
 import type {
   BenchmarkRanking,
   DrawdownStory,
@@ -42,7 +43,7 @@ import type {
   RealizedGainsSummary,
   ReturnConsistency,
 } from '@/lib/utils/performanceSummary';
-import { printedGap } from '@/lib/utils/performanceSummary';
+import { deannualizeReturn, printedGap } from '@/lib/utils/performanceSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent, monthWithPrepositionA, ofThePercent, startsWithVowel } from '@/lib/utils/patrimonioNarrative';
@@ -212,7 +213,6 @@ const PERIOD_LABELS: Record<TimePeriod, string> = {
   ALL: 'Storico',
   CUSTOM: 'Personalizzato',
   ROLLING_12M: '12 mesi',
-  ROLLING_36M: '36 mesi',
 };
 
 /** «ago 2025 – lug 2026», or «gen – lug 2026» inside one year. */
@@ -245,9 +245,9 @@ export interface PerformanceVerdictInput extends PerformancePeriodInput {
   consistency: ReturnConsistency;
 }
 
-/** `(1 + annual)^(months/12) − 1`, the inverse of the annualisation — the same step `resolveHeroReturn` takes. */
+/** The page's one de-annualisation (`performanceSummary.deannualizeReturn`) — the same step the hero and the period chip take. */
 function deannualise(annualPct: number, months: number): number {
-  return (Math.pow(1 + annualPct / 100, months / 12) - 1) * 100;
+  return deannualizeReturn(annualPct, months);
 }
 
 /**
@@ -439,48 +439,101 @@ export function describeConsistency(c: ReturnConsistency): Narrative {
   return out;
 }
 
+/** The measured boundary flows of the period, when the base is a subset and some month could be measured. */
+export interface PortfolioFlowReading {
+  /** Σ of the measured flows over the months that had one. */
+  flow: number;
+  source: FlowSource;
+  measuredMonths: number;
+  totalMonths: number;
+}
+
 /**
- * Two figures that measure two different things, side by side on purpose: the capital that went
- * into the instruments and the cashflow's income minus spending.
- *
- * Where the first figure comes from depends on `flowSource` — I FLUSSI SEGUONO LA BASE. Con
- * `portfolio` (o `mixed`) è la serie MISURATA (`portfolioFlows.ts`), cioè esattamente quella che il
- * rendimento ha neutralizzato; con `cashflow` la base è tutto il patrimonio e il capitale investito
- * può solo venire dal registro operazioni, che potrebbe non essere attivo.
+ * Two figures that measure two different things, side by side on purpose: the ledger's buys minus
+ * sells and the cashflow's income minus spending. Without the ledger the reading says so. When the
+ * base is a subset, a third sentence says what the formulas actually neutralised — the capital
+ * measured on the base's boundary — and on how many months, since it is neither of the two.
  */
 export function describeContributions(input: {
   invested: { investedEur: number; divestedEur: number; netInvestedEur: number } | null;
   netCashFlow: number;
-  flowSource: 'portfolio' | 'cashflow' | 'mixed';
-  /** Entrate meno uscite del Cashflow: il risparmio, sempre e comunque. */
-  cashflowNet: number;
+  /** The pension channel of the period; absent or 0 drops its sentence. */
+  pension?: { flow: number; entryFlow: number; entryMonth: string | null; internalFlow?: number };
+  /** The measured boundary flows; absent or `source: 'cashflow'` drops its sentence. */
+  portfolio?: PortfolioFlowReading;
 }): Narrative {
-  const savingsClause: Narrative =
-    input.cashflowNet >= 0
-      ? [figure(euro(input.cashflowNet)), prose(' messi da parte')]
-      : [prose('dal cashflow sono usciti '), figure(euro(input.cashflowNet)), prose(' più di quanto è entrato')];
+  const cashflowClause: Narrative =
+    input.netCashFlow >= 0
+      ? [figure(euro(input.netCashFlow)), prose(' messi da parte')]
+      : [prose('dal cashflow sono usciti '), figure(euro(input.netCashFlow)), prose(' più di quanto è entrato')];
 
-  if (input.flowSource === 'portfolio' || input.flowSource === 'mixed') {
-    const net = input.netCashFlow;
-    const out: Narrative = [
-      prose(net >= 0 ? 'Sono entrati ' : 'Sono usciti '),
-      figure(euro(net)),
-      prose(net >= 0 ? ' negli strumenti' : ' dagli strumenti'),
-    ];
-    out.push(prose(input.cashflowNet >= 0 ? ', a fronte di ' : ', mentre '), ...savingsClause, prose('.'));
-    return out;
-  }
-
+  const out: Narrative = [];
   if (!input.invested) {
-    return input.cashflowNet >= 0
-      ? [prose('Dal cashflow hai messo da parte '), figure(euro(input.cashflowNet)), prose(' nel periodo; il registro operazioni non è attivo.')]
-      : [prose('Dal cashflow sono usciti '), figure(euro(input.cashflowNet)), prose(' più di quanto è entrato nel periodo; il registro operazioni non è attivo.')];
+    out.push(
+      ...(input.netCashFlow >= 0
+        ? [prose('Dal cashflow hai messo da parte '), figure(euro(input.netCashFlow)), prose(' nel periodo; il registro operazioni non è attivo.')]
+        : [prose('Dal cashflow sono usciti '), figure(euro(input.netCashFlow)), prose(' più di quanto è entrato nel periodo; il registro operazioni non è attivo.')])
+    );
+  } else {
+    const net = input.invested.netInvestedEur;
+    out.push(prose(net >= 0 ? 'Hai investito ' : 'Hai disinvestito '), figure(euro(net)), prose(' dal registro'));
+    out.push(prose(input.netCashFlow >= 0 ? ', a fronte di ' : ', mentre '), ...cashflowClause, prose('.'));
   }
-
-  const net = input.invested.netInvestedEur;
-  const out: Narrative = [prose(net >= 0 ? 'Hai investito ' : 'Hai disinvestito '), figure(euro(net)), prose(' dal registro')];
-  out.push(prose(input.cashflowNet >= 0 ? ', a fronte di ' : ', mentre '), ...savingsClause, prose('.'));
+  out.push(...describeMeasuredFlows(input.portfolio));
+  out.push(...describePensionChannel(input.pension));
   return out;
+}
+
+/**
+ * The measured boundary flows as their own sentence: what the return formulas neutralised when the
+ * base is a subset, and over how many months — «Nella base sono entrati 4200 € misurati sul
+ * confine (registro e quantità) in 8 mesi su 9; negli altri vale il risparmio del cashflow.» A
+ * negative figure is capital that left. Nothing when every month used the cashflow.
+ */
+function describeMeasuredFlows(portfolio: PortfolioFlowReading | undefined): Narrative {
+  if (!portfolio || portfolio.source === 'cashflow' || portfolio.measuredMonths === 0) return [];
+  const verb = portfolio.flow >= 0 ? ' Nella base sono entrati ' : ' Dalla base sono usciti ';
+  const out: Narrative = [prose(verb), figure(euro(portfolio.flow)), prose(' misurati sul confine (registro e quantità)')];
+  if (portfolio.source === 'portfolio') {
+    out.push(prose(portfolio.measuredMonths === 1 ? ' nel mese.' : ` in tutti i ${portfolio.measuredMonths} mesi.`));
+  } else {
+    out.push(prose(` in ${portfolio.measuredMonths} ${portfolio.measuredMonths === 1 ? 'mese' : 'mesi'} su ${portfolio.totalMonths}; negli altri vale il risparmio del cashflow.`));
+  }
+  return out;
+}
+
+/**
+ * The pension channel as its own sentence, after the cashflow's: money that reached the funds
+ * from outside is capital, not savings, and the funds' entry into the base is neither — it is
+ * named for what it is, with its month. Nothing when the channel is empty. A `transfer` from an
+ * account inside the base only restores what the measured flows already counted on the account's
+ * side: it is named as moved within the base, never as money from outside.
+ */
+function describePensionChannel(pension: { flow: number; entryFlow: number; entryMonth: string | null; internalFlow?: number } | undefined): Narrative {
+  if (!pension || Math.round(pension.flow) === 0) return [];
+  const internal = pension.internalFlow ?? 0;
+  const external = pension.flow - internal;
+  if (Math.round(external) === 0 && Math.round(internal) !== 0) {
+    return [prose(' Nei fondi pensione sono passati '), figure(euro(internal)), prose(' da un conto già nella base: capitale spostato, non entrato.')];
+  }
+  if (pension.flow < 0) {
+    return [prose(' Dai conti sono passati '), figure(euro(pension.flow)), prose(' ai fondi pensione, fuori dalla base.')];
+  }
+  const out: Narrative = [prose(' Nei fondi pensione sono entrati '), figure(euro(external))];
+  if (Math.round(pension.entryFlow) > 0 && pension.entryMonth) {
+    out.push(prose(', di cui '), figure(euro(pension.entryFlow)), prose(` per l'ingresso del fondo nella base a ${monthYearFromKey(pension.entryMonth)}`));
+  } else {
+    out.push(prose(' da fuori (TFR, datoriale, busta paga)'));
+  }
+  if (Math.round(internal) !== 0) out.push(prose('; altri '), figure(euro(internal)), prose(' sono passati da un conto già nella base'));
+  out.push(prose('.'));
+  return out;
+}
+
+/** «luglio 2026» from a 'YYYY-MM' key. */
+function monthYearFromKey(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  return `${monthInSentence(month)} ${year}`;
 }
 
 /**
@@ -568,28 +621,153 @@ export function describeCapitalAndMarket(last: { netWorth: number; investedBase:
  * The line under the verdict that names the measured base. It exists because the recurring
  * question is «perché il drawdown non torna con Storico?» — the two pages measure different
  * capitals, and that must be said on the page, not left to deduce.
+ *
+ * With the pension toggle on the funds are in only from `pensionEntryMonth`, so the line names
+ * that month and what a contribution is from then on; a toggle that is on with nothing trackable
+ * says why the funds are still out (The Narrative Honesty Rule).
  */
-export function describeMeasurementBase(options: PerformanceBaseOptions): string {
+export function describeMeasurementBase(base: Pick<PerformanceBaseResolution, 'options' | 'pensionEntryMonth' | 'pensionFundIds'>): string {
+  const { options } = base;
+  const hasFunds = base.pensionFundIds.length > 0;
   const excluded = [
-    options.includePensionFunds ? null : 'fondo pensione',
-    options.includeExcludedAssets ? null : "immobili esclusi dall'allocazione",
+    options.includePensionFunds ? null : 'dei fondi pensione',
+    options.includeExcludedAssets ? null : "degli asset esclusi dall'allocazione",
+    // The liquidity toggle: the cash accounts are out, and what they pay for is a measured flow.
+    options.excludeCash ? 'della liquidità (gli acquisti pagati dai conti sono flussi)' : null,
   ].filter((x): x is string => x !== null);
-  if (excluded.length === 0) return 'Base: patrimonio totale, fondo pensione e immobili inclusi.';
-  return `Base: portafoglio gestito, al netto di ${excluded.join(' e ')}.`;
+  const fundsIn = options.includePensionFunds && base.pensionEntryMonth !== null;
+  const fundsClause = fundsIn ? `i fondi pensione da ${monthYearFromKey(base.pensionEntryMonth!)} (i versamenti sono flussi, non rendimento)` : null;
+  const notYet =
+    options.includePensionFunds && hasFunds && !fundsIn
+      ? ' I fondi pensione restano fuori finché non c’è un versamento registrato o un mese di partenza in Impostazioni.'
+      : '';
+
+  if (excluded.length === 0) {
+    return fundsClause ? `Base: patrimonio totale, con ${fundsClause}.` : `Base: patrimonio totale.${notYet}`;
+  }
+  const head = fundsClause ? `Base: portafoglio gestito più ${fundsClause}` : 'Base: portafoglio gestito';
+  const list = excluded.length <= 2 ? excluded.join(' e ') : `${excluded.slice(0, -1).join(', ')} e ${excluded[excluded.length - 1]}`;
+  return `${head}, al netto ${list}.${notYet}`;
+}
+
+// ─── Da dove viene il rendimento ─────────────────────────────────────────────
+
+/** «2%» — the guard's threshold as the screen prints it. */
+const residualThreshold = () => formatPercentage(RESIDUAL_ALERT_SHARE * 100, 0);
+
+/** «marzo 2026 (−1850 €, il 4% della base)», the months of the residual guard, at most three, joined. */
+function residualMonthsList(months: ResidualMonth[]): Narrative {
+  const shown = months.slice(0, 3);
+  const out: Narrative = [];
+  shown.forEach((m, index) => {
+    if (index > 0) out.push(prose(index === shown.length - 1 ? ' e ' : ', '));
+    out.push(prose(`${monthAndYear(m.month)} (`), signed(signedEuro(m.unattributed), m.unattributed), prose(`, il ${formatPercentage(m.share * 100, 0)} della base)`));
+  });
+  if (months.length > shown.length) out.push(prose(` e altri ${months.length - shown.length} mesi`));
+  return out;
+}
+
+/**
+ * The Dettaglio's reading over the full table: «10 strumenti attribuiti su 9 mesi (da gennaio a
+ * settembre 2026); −2269 € non attribuibili a uno strumento. In marzo 2026 (−1850 €, il 4% della
+ * base) il non attribuito supera il 2% della base di inizio mese: qualcosa ha mosso il totale
+ * senza passare dal prezzo di uno strumento — un dividendo incassato, un saldo corretto a mano, una
+ * spesa pagata da un conto fuori dal tracciamento.» When the breakdown covers only part of the
+ * period, the measured count is named beside the attributed one; the second sentence exists only
+ * when the residual guard named a month (`residualMonths`).
+ */
+export function describeAttributionCoverage(attribution: ReturnAttribution): Narrative {
+  const { coverage, rows, unattributed, residualMonths } = attribution;
+  if (coverage.attributedMonths === 0 || !coverage.firstAttributed || !coverage.lastAttributed) {
+    return [prose('Nessun mese del periodo ha il dettaglio per strumento.')];
+  }
+  const sameMonth = coverage.attributedMonths === 1;
+  const window = sameMonth
+    ? monthAndYear(coverage.firstAttributed)
+    : `da ${monthInSentence(coverage.firstAttributed.month)}${coverage.firstAttributed.year !== coverage.lastAttributed.year ? ` ${coverage.firstAttributed.year}` : ''} a ${monthAndYear(coverage.lastAttributed)}`;
+  const out: Narrative = [
+    figure(`${rows.length} ${pluralize(rows.length, 'strumento', 'strumenti')}`),
+    prose(` ${pluralize(rows.length, 'attribuito', 'attribuiti')} su `),
+    figure(`${coverage.attributedMonths} ${pluralize(coverage.attributedMonths, 'mese', 'mesi')}`),
+    prose(` (${window})`),
+  ];
+  if (coverage.attributedMonths < coverage.measuredMonths) out.push(prose(` dei ${coverage.measuredMonths} misurati`));
+  if (Math.abs(Math.round(unattributed)) >= 1) {
+    out.push(prose('; '), signed(signedEuro(unattributed), unattributed), prose(' non attribuibili a uno strumento'));
+  }
+  out.push(prose('.'));
+  if (residualMonths.length > 0) {
+    out.push(
+      prose(' In '),
+      ...residualMonthsList(residualMonths),
+      prose(
+        ` il non attribuito supera il ${residualThreshold()} della base di inizio mese: qualcosa ha mosso il totale senza passare dal prezzo di uno strumento — un dividendo incassato, un saldo corretto a mano, una spesa pagata da un conto fuori dal tracciamento.`,
+      ),
+    );
+  }
+  return out;
+}
+
+/**
+ * «Il mercato ha reso +16.836 € da gennaio: Vanguard All-World ne ha portati +16.569 €, MSCI World
+ * +2977 €; −2269 € non sono attribuibili a uno strumento (in marzo 2026 oltre il 2% della base).»
+ * The gain is the page's own (the TWR numerator over the attributed months), the top instruments
+ * are named with their euro effect, and the residual is said, never spread — with the month(s)
+ * the residual guard flagged in brackets, so the reader knows WHERE the sum comes from. When only
+ * part of the period has a per-instrument breakdown the sentence names the covered window instead
+ * of pretending the sum is the period's.
+ */
+export function describeAttribution(attribution: ReturnAttribution): Narrative {
+  const { coverage, rows, gain, unattributed, residualMonths } = attribution;
+  if (coverage.attributedMonths === 0) {
+    return [prose('Nessun mese del periodo ha il dettaglio per strumento: l’attribuzione parte dagli snapshot che lo registrano.')];
+  }
+
+  const partial = coverage.attributedMonths < coverage.measuredMonths && coverage.firstAttributed;
+  const window = partial
+    ? ` nei ${coverage.attributedMonths} ${pluralize(coverage.attributedMonths, 'mese', 'mesi')} con il dettaglio per strumento (da ${monthAndYear(coverage.firstAttributed!)})`
+    : '';
+  const shownGain = Math.round(gain);
+  const lead: Narrative =
+    shownGain > 0
+      ? [prose('Il mercato ha reso '), signed(signedEuro(gain), gain), prose(window)]
+      : shownGain < 0
+        ? [prose('Il mercato ha tolto '), signed(signedEuro(gain), gain), prose(window)]
+        : [prose(`Il mercato ha chiuso in pari${window}`)];
+
+  if (rows.length === 0) {
+    return [...lead, prose(': nessuno strumento ha mosso il rendimento.')];
+  }
+
+  const [first, second] = rows;
+  const out: Narrative = [...lead, prose(': '), prose(`${first.name} `), prose(first.total >= 0 ? 'ne ha portati ' : 'ne ha tolti '), signed(signedEuro(first.total), first.total)];
+  if (second) out.push(prose(`, ${second.name} `), signed(signedEuro(second.total), second.total));
+  if (Math.abs(Math.round(unattributed)) >= 1) {
+    out.push(prose('; '), signed(signedEuro(unattributed), unattributed), prose(' non sono attribuibili a uno strumento'));
+    if (residualMonths.length > 0) {
+      const named = residualMonths.slice(0, 2).map((m) => monthAndYear(m.month));
+      const tail = residualMonths.length > 2 ? ` e altri ${residualMonths.length - 2} mesi` : '';
+      out.push(prose(` (in ${named.join(' e ')}${tail} oltre il ${residualThreshold()} della base)`));
+    }
+  }
+  out.push(prose('.'));
+  return out;
 }
 
 // ─── Dettaglio readings ───────────────────────────────────────────────────────
 
 /**
- * «ROI del 9,8% nel periodo e CAGR del 7,6%; il tuo timing ha reso l'8,9% (IRR).» A negative value
- * takes a direction word and the absolute figure («ROI negativo dell'8,1%», «ha perso il 2,3%»): an
- * elided article never lands on a minus sign.
+ * «ROI del 9,8% sul capitale iniziale e CAGR del 7,6%; il tuo timing ha reso l'8,9% (IRR).» A
+ * negative value takes a direction word and the absolute figure («ROI negativo dell'8,1%», «ha
+ * perso il 2,3%»): an elided article never lands on a minus sign. The ROI names its denominator
+ * because that is what it is — a gain over the FIRST month's capital, never the period's return
+ * (the cumulative TWR is the Rendimento tile's chip).
  */
 export function describeReturnMetrics(m: { roi: number | null; cagr: number | null; moneyWeightedReturn: number | null }): Narrative {
   const absPercent = (value: number) => signed(formatPercentage(Math.abs(printed(value)), 1), printed(value));
   const parts: Narrative[] = [];
   if (m.roi !== null) {
-    parts.push([prose(`ROI ${printed(m.roi) < 0 ? 'negativo ' : ''}${ofThePercent(m.roi, 1)}`), absPercent(m.roi), prose(' nel periodo')]);
+    parts.push([prose(`ROI ${printed(m.roi) < 0 ? 'negativo ' : ''}${ofThePercent(m.roi, 1)}`), absPercent(m.roi), prose(' sul capitale iniziale')]);
   }
   if (m.cagr !== null) {
     parts.push([prose(`CAGR ${printed(m.cagr) < 0 ? 'negativo ' : ''}${ofThePercent(m.cagr, 1)}`), absPercent(m.cagr)]);

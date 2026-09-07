@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
-import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SubCategoryTarget, SpecificAssetAllocation, AllocationData } from '@/types/assets';
+import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SpecificAssetAllocation, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
 import { partitionByAllocationRole, ASSET_CLASS_SEQUENCE, NO_SUBCATEGORY_LABEL } from '@/lib/utils/allocationUtils';
@@ -116,6 +116,7 @@ export async function getSettings(
       familyMembers: data.familyMembers,
       performanceIncludesPensionFunds: data.performanceIncludesPensionFunds,
       performanceIncludesExcludedAssets: data.performanceIncludesExcludedAssets,
+      performanceExcludesCash: data.performanceExcludesCash,
       pensionReturnStartMonth: data.pensionReturnStartMonth,
       targets: data.targets as AssetAllocationTarget,
     };
@@ -157,7 +158,7 @@ export async function setSettings(
       const existingData = existingDoc.exists() ? existingDoc.data() : {};
 
       // Build complete document with all fields
-      const docData: any = {
+      const docData: Record<string, unknown> = {
         ...existingData, // Keep all existing fields
         userId,
         targets: settings.targets, // COMPLETELY REPLACE targets (not merge)
@@ -326,6 +327,9 @@ export async function setSettings(
       if (settings.performanceIncludesExcludedAssets !== undefined) {
         docData.performanceIncludesExcludedAssets = settings.performanceIncludesExcludedAssets;
       }
+      if (settings.performanceExcludesCash !== undefined) {
+        docData.performanceExcludesCash = settings.performanceExcludesCash;
+      }
       // Clearable (empty month input = "parti dal primo versamento"). Same shape as the default
       // cash accounts above: this branch writes WITHOUT merge, so dropping the key removes it.
       if ('pensionReturnStartMonth' in settings) {
@@ -340,7 +344,7 @@ export async function setSettings(
       await setDoc(targetRef, docData);
     } else {
       // No targets update, use normal merge behavior
-      const docData: any = {
+      const docData: Record<string, unknown> = {
         userId,
         updatedAt: new Date(),
       };
@@ -489,6 +493,9 @@ export async function setSettings(
       }
       if (settings.performanceIncludesExcludedAssets !== undefined) {
         docData.performanceIncludesExcludedAssets = settings.performanceIncludesExcludedAssets;
+      }
+      if (settings.performanceExcludesCash !== undefined) {
+        docData.performanceExcludesCash = settings.performanceExcludesCash;
       }
       // Clearable, and this branch merges — omitting the key would leave the old month in place,
       // so an explicit deleteField() is required (same as the default cash accounts above).

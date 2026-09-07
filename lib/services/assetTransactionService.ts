@@ -195,7 +195,7 @@ export async function migrateAssetLedger(ownerId: string): Promise<AssetLedgerMi
 
 export type AverageCostEurBackfillResult =
   | { alreadyBackfilled: true }
-  | { alreadyBackfilled?: false; recomputedAssetCount: number };
+  | { alreadyBackfilled?: false; recomputedAssetCount: number; skippedAssetCount: number };
 
 /** Idempotent averageCostEur backfill for the owner. Silent no-op once already run. */
 export async function backfillAverageCostEur(ownerId: string): Promise<AverageCostEurBackfillResult> {

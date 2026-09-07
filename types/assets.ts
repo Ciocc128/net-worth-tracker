@@ -329,6 +329,12 @@ export interface AssetAllocationSettings {
   // anche la cache metriche (buildCacheKey ne incorpora la firma).
   performanceIncludesPensionFunds?: boolean;
   performanceIncludesExcludedAssets?: boolean;
+  // «Liquidità fuori dalla base» (2026-09-07): i conti di tipo `cash` escono dalle metriche di
+  // Rendimenti senza toccare il loro `allocationRole` (restano nell'Allocazione). Un ETF monetario
+  // ha un prezzo di mercato e resta dentro. Default OFF = il comportamento di sempre. Acceso, ogni
+  // acquisto pagato da un conto è capitale che entra nella base: lo misurano il registro operazioni
+  // e le Δquantità (lib/utils/portfolioFlows.ts), non il cashflow. Stesso fan-out dei due flag sopra.
+  performanceExcludesCash?: boolean;
   // Mese (ISO 'YYYY-MM') da cui il rendimento del fondo pensione è calcolabile: prima di questa
   // data i versamenti non venivano registrati e il valore del fondo veniva solo aggiornato a mano,
   // quindi ogni crescita risulterebbe "rendimento di mercato". Assente = si parte dal primo
@@ -383,7 +389,7 @@ export interface PieChartData {
   color: string;
   /** Raw asset-class key (e.g. 'equity'), set only by asset-class distribution data. */
   assetClass?: string;
-  [key: string]: any; // Index signature for Recharts compatibility
+  [key: string]: unknown; // Index signature for Recharts compatibility
 }
 
 export interface User {

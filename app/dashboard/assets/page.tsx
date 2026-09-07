@@ -128,14 +128,15 @@ export default function AssetsPage() {
       });
   }, [ownerId, isLedgerMetaLoading, ledgerMeta, queryClient]);
 
-  // ─── averageCostEur backfill trigger ───────────────────────────────────────────
+  // ─── averageCostEur backfill trigger ──────────────────────────────────────────
   // One-shot, post-migration: projects the EUR-side PMC onto ledger assets written before the
   // field existed, so G/P on a foreign-currency position stops comparing a native-currency PMC
-  // against a EUR value. Silent, same posture as the migration above.
+  // against a EUR value. Silent, same posture as the migration above. Gated on the demo like every
+  // other write (useDemoMode): the demo account's docs stay as seeded.
   const averageCostEurBackfillAttemptedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!ownerId || isLedgerMetaLoading || !ledgerMeta) return;
+    if (!ownerId || isDemo || isLedgerMetaLoading || !ledgerMeta) return;
     if (ledgerMeta.averageCostEurBackfilledAt) return;
     if (averageCostEurBackfillAttemptedRef.current === ownerId) return;
     averageCostEurBackfillAttemptedRef.current = ownerId;
@@ -149,7 +150,7 @@ export default function AssetsPage() {
       .catch((error) => {
         console.error('[AssetsPage] averageCostEur backfill failed:', error);
       });
-  }, [ownerId, isLedgerMetaLoading, ledgerMeta, queryClient]);
+  }, [ownerId, isDemo, isLedgerMetaLoading, ledgerMeta, queryClient]);
 
   // The whole ledger of the owner, filtered to the month in memory: a month query would need a
   // (userId, date) composite index that does not exist, and every trade mutation already
@@ -327,8 +328,8 @@ export default function AssetsPage() {
   // set, so an error is an alert, never a skeleton that never lifts.
   if (loadingAssets || loadingOverview || loadingSnapshots || isLedgerMetaLoading) {
     return (
-      <PageContainer width="wide">
-        <PageHeader label="Patrimonio" title="Strumenti e conti" separator={false} />
+      <PageContainer>
+        <PageHeader label="Patrimonio" title="Strumenti e conti" />
         <TileGridSkeleton cells={SKELETON_CELLS} />
       </PageContainer>
     );
@@ -336,8 +337,8 @@ export default function AssetsPage() {
 
   if (assetsError) {
     return (
-      <PageContainer width="wide">
-        <PageHeader label="Patrimonio" title="Strumenti e conti" separator={false} />
+      <PageContainer>
+        <PageHeader label="Patrimonio" title="Strumenti e conti" />
         <ErrorNotice
           className="max-w-[920px]"
           notice={describeReadFailure({
@@ -356,13 +357,12 @@ export default function AssetsPage() {
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <PageContainer width="wide">
+    <PageContainer>
       <motion.div layout="position" transition={springLayoutTransition} className="space-y-4">
         <PageHeader
           label="Patrimonio"
           title="Strumenti e conti"
           description={lastPriceUpdate ?? undefined}
-          separator={false}
           actions={headerActions}
         />
 

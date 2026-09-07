@@ -512,12 +512,22 @@ export function describeDeficitMonths(history: SavingsHistory, now: Date): Narra
  * reversed to more than it was received) keeps its minus and its colour, like every other
  * signed figure of the page.
  */
+/**
+ * «40 spese per 3200 €». A total that would round to «0 €» while the rows are not nothing (three
+ * coffees at 1,20 € are 3,60 €; a search on a 0,40 € note) says «meno di 1 €» instead — an
+ * inventory that prints zero for rows it has just counted reads as broken.
+ */
 function countWithTotal(count: number, singular: string, plural: string, total: number): Narrative {
+  const head: Narrative = [figure(String(count)), prose(` ${pluralize(count, singular, plural)} per `)];
+  if (total !== 0 && Math.abs(total) < 0.5) return [...head, prose('meno di '), figure(euro(1))];
   const amount = total < 0 ? signed(`−${euro(total)}`, 'negative') : figure(euro(total));
-  return [figure(String(count)), prose(` ${pluralize(count, singular, plural)} per `), amount];
+  return [...head, amount];
 }
 
 /**
+ * "47 movimenti, di cui 2 in calendario (406 €): 40 spese per 3200 €, 5 entrate per 4500 € e 2
+ * trasferimenti per 500 €; la voce più grande è Stipendio (4200 €)." — the reading of the
+ * Movimenti tile. Earlier wording, superseded:
  * "47 movimenti: 40 spese per 3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €, di
  * cui 2 in calendario (406 €); la voce più grande è Stipendio (4200 €)." — the inventory's
  * own count and sum by type, and its largest row.
@@ -542,14 +552,18 @@ export function describeMovements(summary: MovementsSummary): Narrative | null {
     parts.push(countWithTotal(summary.transferCount, 'trasferimento', 'trasferimenti', summary.transferTotal));
   }
 
-  const narrative: Narrative = [figure(String(summary.count)), prose(` ${pluralize(summary.count, 'movimento', 'movimenti')}: `)];
+  // The calendar clause qualifies the COUNT («47 movimenti, di cui 2 in calendario») and comes
+  // before the colon: after the per-type totals it read as «2 trasferimenti, di cui 2 in
+  // calendario» — a subset of the last type instead of the list.
+  const narrative: Narrative = [figure(String(summary.count)), prose(` ${pluralize(summary.count, 'movimento', 'movimenti')}`)];
+  if (summary.scheduled.count > 0) {
+    narrative.push(prose(', di cui '), figure(String(summary.scheduled.count)), prose(' in calendario ('), figure(euro(summary.scheduled.total)), prose(')'));
+  }
+  narrative.push(prose(': '));
   parts.forEach((part, index) => {
     if (index > 0) narrative.push(prose(index === parts.length - 1 ? ' e ' : ', '));
     narrative.push(...part);
   });
-  if (summary.scheduled.count > 0) {
-    narrative.push(prose(', di cui '), figure(String(summary.scheduled.count)), prose(' in calendario ('), figure(euro(summary.scheduled.total)), prose(')'));
-  }
   if (summary.largest) {
     narrative.push(prose(`; la voce più grande è ${summary.largest.label} (`), figure(euro(summary.largest.amount)), prose(')'));
   }

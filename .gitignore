@@ -84,3 +84,6 @@ skills-lock.json
 # Mai su git — vedi AGENTS.md -> Allocazione - Esposizione.
 /data/factsheets/
 /data/exposure/
+
+# Note di sessione: vivono in locale, mai in un commit (WORKFLOW.md § 3)
+SESSION_NOTES.md

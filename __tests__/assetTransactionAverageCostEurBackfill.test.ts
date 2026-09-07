@@ -127,20 +127,89 @@ describe('backfillAverageCostEur', () => {
 
   it('projects a EUR-side PMC distinct from the native PMC for a foreign-currency asset', async () => {
     seedMeta();
-    mocks.assetsStore.set('asset-usd', { userId: OWNER, type: 'etf', currency: 'USD', quantity: 10 });
+    mocks.assetsStore.set('asset-usd', { userId: OWNER, type: 'etf', currency: 'USD', quantity: 10, averageCost: 100 });
     mocks.ledgerAssets = [{ id: 'asset-usd', type: 'etf', quantity: 10 }];
     // 10 units at 100 USD/quota, but the trade-date rate made it 90 EUR/quota.
     seedTrade('asset-usd', 't1', { type: 'buy', date: new Date(2026, 0, 5), quantity: 10, pricePerUnit: 100, priceEur: 90 });
 
     const result = await backfillAverageCostEur(OWNER);
 
-    expect(result).toEqual({ recomputedAssetCount: 1 });
+    expect(result).toEqual({ recomputedAssetCount: 1, skippedAssetCount: 0 });
     const asset = mocks.assetsStore.get('asset-usd')!;
     expect(asset.quantity).toBe(10);
     expect(asset.averageCost).toBe(100); // native PMC, unchanged
     expect(asset.averageCostEur).toBe(90); // the field this backfill exists to add
     expect(mocks.metaStore.get(OWNER)!.averageCostEurBackfilledAt).toBeInstanceOf(Date);
     expect(mocks.invalidate).toHaveBeenCalledWith(OWNER, 'average_cost_eur_backfilled');
+  });
+
+  it('writes ONLY averageCostEur: a doc whose quantity drifted from its ledger keeps its quantity', async () => {
+    seedMeta();
+    mocks.assetsStore.set('asset-eur', { userId: OWNER, type: 'etf', currency: 'EUR', quantity: 12, averageCost: 100 });
+    mocks.ledgerAssets = [{ id: 'asset-eur', type: 'etf', quantity: 12 }];
+    seedTrade('asset-eur', 't1', { type: 'buy', date: new Date(2026, 0, 5), quantity: 10, pricePerUnit: 100, priceEur: 100, fees: 10 });
+
+    await backfillAverageCostEur(OWNER);
+
+    const asset = mocks.assetsStore.get('asset-eur')!;
+    expect(asset.quantity).toBe(12); // not rewritten by the backfill
+    expect(asset.averageCost).toBe(100); // native PMC: fees excluded, and not rewritten
+    expect(asset.averageCostEur).toBe(101); // (10 × 100 + 10) / 10 — the fiscal cost
+  });
+
+  it('projects the field from a baseline-only ledger (a position never traded since migration)', async () => {
+    seedMeta();
+    mocks.assetsStore.set('asset-usd', { userId: OWNER, type: 'stock', currency: 'USD', quantity: 4, averageCost: 50 });
+    mocks.ledgerAssets = [{ id: 'asset-usd', type: 'stock', quantity: 4 }];
+    seedTrade('asset-usd', 'baseline-asset-usd', {
+      type: 'buy',
+      isBaseline: true,
+      date: new Date(2025, 0, 1),
+      quantity: 4,
+      pricePerUnit: 50,
+      priceEur: 46,
+    });
+
+    const result = await backfillAverageCostEur(OWNER);
+
+    expect(result).toEqual({ recomputedAssetCount: 1, skippedAssetCount: 0 });
+    expect(mocks.assetsStore.get('asset-usd')!.averageCostEur).toBe(46);
+  });
+
+  it('skips a ledger the replay rejects, finishes the others and still writes the done-signal', async () => {
+    seedMeta();
+    mocks.assetsStore.set('asset-bad', { userId: OWNER, type: 'etf', currency: 'USD', quantity: 10, averageCost: 100 });
+    mocks.assetsStore.set('asset-ok', { userId: OWNER, type: 'etf', currency: 'USD', quantity: 10, averageCost: 100 });
+    mocks.ledgerAssets = [
+      { id: 'asset-bad', type: 'etf', quantity: 10 },
+      { id: 'asset-ok', type: 'etf', quantity: 10 },
+    ];
+    // A sell before any buy: the replay throws SELL_EXCEEDS_HOLDING.
+    seedTrade('asset-bad', 't-bad', { type: 'sell', date: new Date(2026, 0, 5), quantity: 10, pricePerUnit: 100, priceEur: 90 });
+    seedTrade('asset-ok', 't-ok', { type: 'buy', date: new Date(2026, 0, 5), quantity: 10, pricePerUnit: 100, priceEur: 90 });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await backfillAverageCostEur(OWNER);
+
+    expect(result).toEqual({ recomputedAssetCount: 1, skippedAssetCount: 1 });
+    expect(mocks.assetsStore.get('asset-bad')!.averageCostEur).toBeUndefined();
+    expect(mocks.assetsStore.get('asset-ok')!.averageCostEur).toBe(90);
+    expect(mocks.metaStore.get(OWNER)!.averageCostEurBackfilledAt).toBeInstanceOf(Date);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+
+  it('leaves a closed position alone (no EUR PMC to stand a G/P on)', async () => {
+    seedMeta();
+    mocks.assetsStore.set('asset-closed', { userId: OWNER, type: 'etf', currency: 'USD', quantity: 0.0000001, averageCost: 100 });
+    mocks.ledgerAssets = [{ id: 'asset-closed', type: 'etf', quantity: 0.0000001 }];
+    seedTrade('asset-closed', 't1', { type: 'buy', date: new Date(2026, 0, 5), quantity: 10, pricePerUnit: 100, priceEur: 90 });
+    seedTrade('asset-closed', 't2', { type: 'sell', date: new Date(2026, 1, 5), quantity: 10, pricePerUnit: 110, priceEur: 100 });
+
+    const result = await backfillAverageCostEur(OWNER);
+
+    expect(result).toEqual({ recomputedAssetCount: 0, skippedAssetCount: 0 });
+    expect(mocks.assetsStore.get('asset-closed')!.averageCostEur).toBeUndefined();
   });
 
   it('skips a ledger asset with no trades and never touches holdingStartDate', async () => {
@@ -157,7 +226,7 @@ describe('backfillAverageCostEur', () => {
 
     const result = await backfillAverageCostEur(OWNER);
 
-    expect(result).toEqual({ recomputedAssetCount: 0 });
+    expect(result).toEqual({ recomputedAssetCount: 0, skippedAssetCount: 0 });
     const asset = mocks.assetsStore.get('asset-empty')!;
     expect(asset.averageCostEur).toBeUndefined();
     expect(asset.holdingStartDate).toEqual(new Date(2020, 0, 1));

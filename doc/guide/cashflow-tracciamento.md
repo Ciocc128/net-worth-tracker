@@ -11,18 +11,9 @@
 ## Cashflow › Tracciamento (`components/cashflow/ExpenseTrackingTab.tsx`, `components/cashflow/tiles/*`)
 - **ONE period axis, two slices.** `expenses` = `filterExpensesByPeriod(allExpenses, period)` feeds the verdict and
   every tile; `filteredExpenses` = `applyListFilters(expenses, …)` feeds ONLY the Movimenti list (its aside says
-  «12 di 47 voci» while narrowed, its reading counts AND sums the filtered rows). Before the redesign the toolbar also
+  «12 di 47 voci» while narrowed, its reading counts the filtered rows). Before the redesign the toolbar also
   narrowed the KPIs — a savings rate computed over «Alimentari» is not a savings rate. Never route a tile through
   `filteredExpenses`.
-- **The Movimenti reading is the search's aggregate** (2026-09-06). `summarizeMovements` carries a total per type
-  beside each count — `expenseTotal` a magnitude, `incomeTotal` a SIGNED sum (a reversal lowers it, and
-  `describeMovements` keeps its minus and the loss colour), `transferTotal` the amount MOVED (an inventory figure:
-  a transfer is still net-zero, and no cashflow number is built from it) — and the reading prints «40 spese per
-  3200 €, 5 entrate per 4500 € e 2 trasferimenti per 500 €», before the «di cui … in calendario» clause. The reason
-  is a real usage shape: one recurring note («caffè») used as an implicit subcategory, searched over a year, whose
-  answer is a SUM. The totals are the totals of the rows handed in, so they follow the toolbar — the period's own
-  totals live in the tiles above, never here. Figures are whole euros like every reading of the page (`euro` =
-  compact): a search over cents-sized rows rounds.
 - **Every number is born in `lib/utils/tracciamentoSummary.ts`** (`summarizePeriodCashflow`, `previousPeriod`,
   `computePeriodDelta`, `resolveAnchorMonth`/`resolveFlowWindow`, `buildTrailingMonthFlows`,
   `summarizeSavingsHistory`, `rankCategories`, `summarizeMovements`, `resolvePeriodCalendar`), every sentence in
@@ -115,12 +106,15 @@
 - **`CategoryTile` takes an optional `reading`** (the Panoramica passes none): the rows keep the overview payload's
   shape (`category`, `categoryKey`, `amount`, `percentage`) so `rankCategories` feeds the same component, and the
   residual row appears only when categories were cut.
-- **Below `desktop:` the filters move INTO the Movimenti tile, and the period is repeated there**
-  (`MobileFiltersDrawer` in the tile's `mobileToolbar` slot, row `[periodo] [Filtri ①] [⇅]`): the drawer narrows that
-  list, and four tiles away from it the badge read as unrelated. The tile's picker and the one under the verdict
-  drive the SAME `period` state — one axis with two handles, never two axes — because a search is always read over a
-  window and, with the only picker four tiles up, changing it meant scrolling away from the answer (2026-09-06).
-  «Ripristina» (desktop toolbar and drawer alike) resets the list
+- **Below `desktop:` the period stays under the verdict and the filters move INTO the Movimenti tile**
+  (`MobileFiltersDrawer` in the tile's `mobileToolbar` slot): the drawer narrows that list, and four tiles away from
+  it the badge read as unrelated. **Since 2026-09-07 the drawer's bar repeats the period picker** beside «Filtri» and
+  the sort (PR #332): a search («caffè») is read over a window, and with the only picker four tiles up, changing the
+  window meant scrolling away from the answer. It is a second handle on the SAME `period` state — never a second
+  axis — with its own accessible name («Periodo dei movimenti») and `min-w-0` over the trigger's `min-w-[190px]`,
+  so the picker yields before «Filtri» and the sort when a phone runs out of room; `e2e/cashflow.mobile.spec.ts`
+  measures `main` at 390 and 360 (green even with the override removed — it pins the fit, not a fix) and drives the
+  page's period from the tile. «Ripristina» (desktop toolbar and drawer alike) resets the list
   filters and the sort, **never the period** — the axis belongs to the picker — and `hasActiveFilters` no longer
   counts a non-current month as a filter. The landscape «Aggiungi» button lives beside the period
   (`max-desktop:portrait:hidden`): in portrait the bottom-nav FAB (`cashflow:add-expense`) is the only add
@@ -136,4 +130,4 @@
 
 ## Per-page blind spots
 
-- **Tracciamento**: **no Playwright spec covers the Movimenti reading.** The per-type sums and the «di cui … in calendario» clause share ONE sentence built by two different concerns, and only Vitest pins it — a merge from upstream can reshape it without anything going red in the browser (it already conflicted once, 2026-09-06). A permanent spec needs the throwaway decoy fixture promoted into a tracked seed. The Movimenti reading's totals follow the TOOLBAR, not the period (they are the sum of what the list shows) and print in whole euros like every reading, so a search over cents-sized rows rounds; below `desktop:` the period picker appears twice (under the verdict and in the Movimenti bar) over ONE state; «Tabella» renders `ExpenseTable` unchanged inside Movimenti; the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip).
+- **Tracciamento**: «Tabella» renders `ExpenseTable` unchanged inside Movimenti; the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip).

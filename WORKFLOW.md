@@ -135,6 +135,11 @@ The app **is** locally runnable; there is no fallback to declare.
 
 - **The tour server**: `npm run dev:emulator` → `http://localhost:3000`. It reads the emulators, so
   nothing seen there can touch production data.
+- **One `next dev` at a time.** Stop the :3100 server before the tour: it exists for the suite only.
+  On 2026-09-07 three background processes (the emulators and two `next dev`) plus Playwright and
+  Vitest exhausted the machine's memory and the system killed all three; an emulator killed that
+  way exports nothing, so the fixtures have to be re-seeded. The tour runs on the emulators plus
+  ONE server.
 - **Getting in**: the login is email/password on `/login` — no OAuth, no MFA, so it is a five-second
   manual step and also fully scriptable. Fixture identities (all password `test1234`):
 
@@ -150,6 +155,14 @@ The app **is** locally runnable; there is no fallback to declare.
   `http://localhost:3000/dashboard/pension`, not "go to Previdenza".
 - **The routes** are `/dashboard` plus `assets · cashflow · analisi · dividends · performance ·
   history · allocation · pension · fire-simulations · hall-of-fame · assistant · settings`.
+- **The owner's REAL data, without touching production — the standard since 2026-09-07**: `npm run mirror:seed --
+  <production email>` reads the production account (service account from `.env.local`, `.get()` only, refuses to run
+  with `FIRESTORE_EMULATOR_HOST`) and seeds it into the emulators under `mirror@example.com` / `test1234` (uid
+  `prod-mirror`), re-keyed, in one command and with nothing written to disk (`scripts/mirrorProdAccount.mts`). The
+  ACCOUNT is the standard, the DATA is not: it is re-read on every seed because a month later it has changed, and
+  `npm run mirror:remove` takes it out at the end of the session (phase G). It is the right tour when the change moves
+  the owner's own figures (Rendimenti, Storico): a fixture proves the mechanism, the mirror shows what the owner will
+  see tomorrow.
 - **A reading the owner cannot open with their own account**: this app has a role split — *viewer*
   (`user.uid`) vs *owner* (`ownerId`), grants in `account-access/{ownerUid}`. To show the delegated
   view, seed a grant for the second identity and log in as *that* identity (SETUP.md → Step 5b);
@@ -179,7 +192,9 @@ The app **is** locally runnable; there is no fallback to declare.
   knows (AGENTS.md → *Browser-Driven E2E*).
 - **Prove the check can fail.** Break the thing under test on purpose once and watch the assertion
   go red. A green check that has never been seen red is indistinguishable from one asserting
-  nothing.
+  nothing. **When it stays green, the sentence that motivated the test was wrong, not the test**
+  (2026-09-07: «the picker overflows a 360 phone» — it did not): rewrite the claim everywhere it was
+  written, keep the test as a regression guard, and say in its header which of the two it is.
 - **Phase E here is the delegation boundary**: `assertCanAccessAccount`, `firestore.rules`,
   `REGISTRATION_WHITELIST`. The positive/negative pair is the owner's document against another
   account's document — same collection, same shape.

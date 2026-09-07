@@ -35,6 +35,8 @@ import {
   describeBenchmarkRanking,
   describeCapitalAndMarket,
   describeConsistency,
+  describeAttribution,
+  describeAttributionCoverage,
   describeContributions,
   describeDrawdownDetail,
   describeGrowthOfHundred,
@@ -333,38 +335,39 @@ describe('describeConsistency', () => {
 });
 
 describe('describeContributions', () => {
-  const ledger = { flowSource: 'cashflow' as const };
-
   it('sets the ledger beside the cashflow', () => {
-    const r = describeContributions({ ...ledger, invested: { investedEur: 16700, divestedEur: 2500, netInvestedEur: 14200 }, netCashFlow: 11850, cashflowNet: 11850 });
+    const r = describeContributions({ invested: { investedEur: 16700, divestedEur: 2500, netInvestedEur: 14200 }, netCashFlow: 11850 });
     expect(plain(r)).toBe('Hai investito 14.200 € dal registro, a fronte di 11.850 € messi da parte.');
   });
 
   it('says when the cashflow is negative and when the ledger sold more than it bought', () => {
-    expect(plain(describeContributions({ ...ledger, invested: { investedEur: 1000, divestedEur: 4000, netInvestedEur: -3000 }, netCashFlow: -2300, cashflowNet: -2300 }))).toBe('Hai disinvestito 3000 € dal registro, mentre dal cashflow sono usciti 2300 € più di quanto è entrato.');
-    expect(plain(describeContributions({ ...ledger, invested: { investedEur: 5000, divestedEur: 0, netInvestedEur: 5000 }, netCashFlow: -900, cashflowNet: -900 }))).toBe('Hai investito 5000 € dal registro, mentre dal cashflow sono usciti 900 € più di quanto è entrato.');
+    expect(plain(describeContributions({ invested: { investedEur: 1000, divestedEur: 4000, netInvestedEur: -3000 }, netCashFlow: -2300 }))).toBe('Hai disinvestito 3000 € dal registro, mentre dal cashflow sono usciti 2300 € più di quanto è entrato.');
+    expect(plain(describeContributions({ invested: { investedEur: 5000, divestedEur: 0, netInvestedEur: 5000 }, netCashFlow: -900 }))).toBe('Hai investito 5000 € dal registro, mentre dal cashflow sono usciti 900 € più di quanto è entrato.');
   });
 
   it('without a ledger it reads the cashflow alone', () => {
-    expect(plain(describeContributions({ ...ledger, invested: null, netCashFlow: 11850, cashflowNet: 11850 }))).toBe('Dal cashflow hai messo da parte 11.850 € nel periodo; il registro operazioni non è attivo.');
-    expect(plain(describeContributions({ ...ledger, invested: null, netCashFlow: -2300, cashflowNet: -2300 }))).toBe('Dal cashflow sono usciti 2300 € più di quanto è entrato nel periodo; il registro operazioni non è attivo.');
+    expect(plain(describeContributions({ invested: null, netCashFlow: 11850 }))).toBe('Dal cashflow hai messo da parte 11.850 € nel periodo; il registro operazioni non è attivo.');
+    expect(plain(describeContributions({ invested: null, netCashFlow: -2300 }))).toBe('Dal cashflow sono usciti 2300 € più di quanto è entrato nel periodo; il registro operazioni non è attivo.');
   });
 
-  it('reads the MEASURED flow, not the ledger, when the flows follow the portfolio base', () => {
-    // Il registro dice 14.200, la serie misurata 12.400: vince quella misurata, perche' e' quella
-    // che il rendimento ha neutralizzato. Stampare il registro sarebbe un numero mai usato.
-    const r = describeContributions({
-      invested: { investedEur: 16700, divestedEur: 2500, netInvestedEur: 14200 },
-      netCashFlow: 12400,
-      flowSource: 'portfolio',
-      cashflowNet: 11850,
-    });
-    expect(plain(r)).toBe('Sono entrati 12.400 € negli strumenti, a fronte di 11.850 € messi da parte.');
+  it('names the measured boundary flows, their direction and their coverage, and nothing when the cashflow was the source', () => {
+    const invested = { investedEur: 16700, divestedEur: 2500, netInvestedEur: 14200 };
+    expect(plain(describeContributions({ invested, netCashFlow: 11850, portfolio: { flow: 4200, source: 'mixed', measuredMonths: 8, totalMonths: 9 } }))).toBe(
+      'Hai investito 14.200 € dal registro, a fronte di 11.850 € messi da parte. Nella base sono entrati 4200 € misurati sul confine (registro e quantità) in 8 mesi su 9; negli altri vale il risparmio del cashflow.'
+    );
+    expect(plain(describeContributions({ invested, netCashFlow: 11850, portfolio: { flow: -300, source: 'portfolio', measuredMonths: 9, totalMonths: 9 } }))).toBe(
+      'Hai investito 14.200 € dal registro, a fronte di 11.850 € messi da parte. Dalla base sono usciti 300 € misurati sul confine (registro e quantità) in tutti i 9 mesi.'
+    );
+    expect(plain(describeContributions({ invested, netCashFlow: 11850, portfolio: { flow: 0, source: 'cashflow', measuredMonths: 0, totalMonths: 9 } }))).toBe('Hai investito 14.200 € dal registro, a fronte di 11.850 € messi da parte.');
   });
 
-  it('says it the other way round when the portfolio was net sold', () => {
-    const r = describeContributions({ invested: null, netCashFlow: -3000, flowSource: 'portfolio', cashflowNet: -900 });
-    expect(plain(r)).toBe('Sono usciti 3000 € dagli strumenti, mentre dal cashflow sono usciti 900 € più di quanto è entrato.');
+  it('names a transfer from an account inside the base as capital moved, never as money from outside', () => {
+    expect(plain(describeContributions({ invested: null, netCashFlow: 500, pension: { flow: 200, entryFlow: 0, entryMonth: null, internalFlow: 200 } }))).toBe(
+      'Dal cashflow hai messo da parte 500 € nel periodo; il registro operazioni non è attivo. Nei fondi pensione sono passati 200 € da un conto già nella base: capitale spostato, non entrato.'
+    );
+    expect(plain(describeContributions({ invested: null, netCashFlow: 500, pension: { flow: 1410, entryFlow: 0, entryMonth: null, internalFlow: 200 } }))).toBe(
+      'Dal cashflow hai messo da parte 500 € nel periodo; il registro operazioni non è attivo. Nei fondi pensione sono entrati 1210 € da fuori (TFR, datoriale, busta paga); altri 200 € sono passati da un conto già nella base.'
+    );
   });
 });
 
@@ -452,11 +455,133 @@ describe('describeCapitalAndMarket', () => {
 });
 
 describe('describeMeasurementBase', () => {
-  const both: PerformanceBaseOptions = { includePensionFunds: false, includeExcludedAssets: false };
+  const base = (options: PerformanceBaseOptions, pensionEntryMonth: string | null = null, pensionFundIds = ['fund-1']) => ({ options, pensionEntryMonth, pensionFundIds });
+
   it('names what is left out of the base', () => {
-    expect(describeMeasurementBase(both)).toBe("Base: portafoglio gestito, al netto di fondo pensione e immobili esclusi dall'allocazione.");
-    expect(describeMeasurementBase({ includePensionFunds: true, includeExcludedAssets: false })).toBe("Base: portafoglio gestito, al netto di immobili esclusi dall'allocazione.");
-    expect(describeMeasurementBase({ includePensionFunds: true, includeExcludedAssets: true })).toBe('Base: patrimonio totale, fondo pensione e immobili inclusi.');
+    expect(describeMeasurementBase(base({ includePensionFunds: false, includeExcludedAssets: false }))).toBe("Base: portafoglio gestito, al netto dei fondi pensione e degli asset esclusi dall'allocazione.");
+    expect(describeMeasurementBase(base({ includePensionFunds: false, includeExcludedAssets: true }))).toBe('Base: portafoglio gestito, al netto dei fondi pensione.');
+  });
+
+  it('names the liquidity out of the base, and what that makes of a purchase', () => {
+    expect(describeMeasurementBase(base({ includePensionFunds: false, includeExcludedAssets: false, excludeCash: true }))).toBe(
+      "Base: portafoglio gestito, al netto dei fondi pensione, degli asset esclusi dall'allocazione e della liquidità (gli acquisti pagati dai conti sono flussi)."
+    );
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: true, excludeCash: true }, '2026-07'))).toBe(
+      'Base: portafoglio gestito più i fondi pensione da luglio 2026 (i versamenti sono flussi, non rendimento), al netto della liquidità (gli acquisti pagati dai conti sono flussi).'
+    );
+  });
+
+  it('names the month the funds entered and what a contribution is from then on', () => {
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: false }, '2026-07'))).toBe(
+      "Base: portafoglio gestito più i fondi pensione da luglio 2026 (i versamenti sono flussi, non rendimento), al netto degli asset esclusi dall'allocazione."
+    );
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: true }, '2026-07'))).toBe(
+      'Base: patrimonio totale, con i fondi pensione da luglio 2026 (i versamenti sono flussi, non rendimento).'
+    );
+  });
+
+  it('says why the funds are still out when the toggle is on but nothing is trackable', () => {
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: false }, null))).toBe(
+      "Base: portafoglio gestito, al netto degli asset esclusi dall'allocazione. I fondi pensione restano fuori finché non c’è un versamento registrato o un mese di partenza in Impostazioni."
+    );
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: true }, null))).toBe(
+      'Base: patrimonio totale. I fondi pensione restano fuori finché non c’è un versamento registrato o un mese di partenza in Impostazioni.'
+    );
+  });
+
+  it('drops every pension clause on an account with no fund', () => {
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: false }, null, []))).toBe("Base: portafoglio gestito, al netto degli asset esclusi dall'allocazione.");
+    expect(describeMeasurementBase(base({ includePensionFunds: true, includeExcludedAssets: true }, null, []))).toBe('Base: patrimonio totale.');
+  });
+});
+
+describe('describeContributions — the pension channel', () => {
+  const invested = { investedEur: 16700, divestedEur: 2500, netInvestedEur: 14200 };
+
+  it('adds the funds\' entry as its own sentence, with its month, after the cashflow', () => {
+    expect(plain(describeContributions({ invested, netCashFlow: 11850, pension: { flow: 31862, entryFlow: 31852, entryMonth: '2026-07' } }))).toBe(
+      "Hai investito 14.200 € dal registro, a fronte di 11.850 € messi da parte. Nei fondi pensione sono entrati 31.862 €, di cui 31.852 € per l'ingresso del fondo nella base a luglio 2026."
+    );
+  });
+
+  it('names outside money when there is no entry, and money leaving the base when the funds are out', () => {
+    expect(plain(describeContributions({ invested: null, netCashFlow: 500, pension: { flow: 1214, entryFlow: 0, entryMonth: '2026-07' } }))).toBe(
+      'Dal cashflow hai messo da parte 500 € nel periodo; il registro operazioni non è attivo. Nei fondi pensione sono entrati 1214 € da fuori (TFR, datoriale, busta paga).'
+    );
+    expect(plain(describeContributions({ invested: null, netCashFlow: 500, pension: { flow: -152, entryFlow: 0, entryMonth: null } }))).toBe(
+      'Dal cashflow hai messo da parte 500 € nel periodo; il registro operazioni non è attivo. Dai conti sono passati 152 € ai fondi pensione, fuori dalla base.'
+    );
+  });
+
+  it('says nothing about the channel when it is empty', () => {
+    expect(plain(describeContributions({ invested: null, netCashFlow: 500, pension: { flow: 0, entryFlow: 0, entryMonth: null } }))).toBe(
+      'Dal cashflow hai messo da parte 500 € nel periodo; il registro operazioni non è attivo.'
+    );
+  });
+});
+
+describe('describeAttribution', () => {
+  const row = (name: string, total: number) => ({ assetId: name, name, ticker: '', marketEffect: total, dividends: 0, total, isPensionFund: false, monthsAttributed: 9 });
+  const full = { measuredMonths: 9, attributedMonths: 9, firstAttributed: { year: 2026, month: 1 }, lastAttributed: { year: 2026, month: 9 } };
+  const residualMonths: never[] = [];
+
+  it('names the gain, the two biggest instruments and the residual', () => {
+    const r = describeAttribution({ rows: [row('Vanguard All-World', 16569), row('MSCI World', 2977), row('Oro', -877)], attributed: 18669, gain: 16836, unattributed: -1833, coverage: full, residualMonths });
+    expect(plain(r)).toBe('Il mercato ha reso +16.836 €: Vanguard All-World ne ha portati +16.569 €, MSCI World +2977 €; −1833 € non sono attribuibili a uno strumento.');
+    const segment = (text: string) => r.find((seg) => seg.text.replace(/\u00a0/g, ' ') === text);
+    expect(segment('+16.836 €')?.sign).toBe('positive');
+    expect(segment('−1833 €')?.sign).toBe('negative');
+  });
+
+  it('reads a losing period with «tolto» and a losing instrument with «tolti», and drops a residual under a euro', () => {
+    expect(plain(describeAttribution({ rows: [row('Vanguard All-World', -7275)], attributed: -7275, gain: -7275.4, unattributed: -0.4, coverage: full, residualMonths }))).toBe(
+      'Il mercato ha tolto −7275 €: Vanguard All-World ne ha tolti −7275 €.'
+    );
+  });
+
+  it('names the covered window when only part of the period has a breakdown', () => {
+    const coverage = { measuredMonths: 44, attributedMonths: 10, firstAttributed: { year: 2025, month: 12 }, lastAttributed: { year: 2026, month: 9 } };
+    expect(plain(describeAttribution({ rows: [row('Vanguard All-World', 20000)], attributed: 20000, gain: 21000, unattributed: 1000, coverage, residualMonths }))).toBe(
+      'Il mercato ha reso +21.000 € nei 10 mesi con il dettaglio per strumento (da dicembre 2025): Vanguard All-World ne ha portati +20.000 €; +1000 € non sono attribuibili a uno strumento.'
+    );
+  });
+
+  it('reads the coverage for the Dettaglio: instruments, months, window and residual', () => {
+    expect(plain(describeAttributionCoverage({ rows: [row('a', 1), row('b', 2), row('c', 3)], attributed: 6, gain: 8, unattributed: 2, coverage: full, residualMonths }))).toBe(
+      '3 strumenti attribuiti su 9 mesi (da gennaio a settembre 2026); +2 € non attribuibili a uno strumento.'
+    );
+    expect(plain(describeAttributionCoverage({ rows: [row('a', 1)], attributed: 1, gain: 1, unattributed: 0.2, coverage: { ...full, measuredMonths: 12, attributedMonths: 1, firstAttributed: { year: 2026, month: 9 }, lastAttributed: { year: 2026, month: 9 } }, residualMonths }))).toBe(
+      '1 strumento attribuito su 1 mese (settembre 2026) dei 12 misurati.'
+    );
+    expect(plain(describeAttributionCoverage({ rows: [], attributed: 0, gain: 0, unattributed: 0, coverage: { measuredMonths: 3, attributedMonths: 0, firstAttributed: null, lastAttributed: null }, residualMonths }))).toBe(
+      'Nessun mese del periodo ha il dettaglio per strumento.'
+    );
+  });
+
+  it('names the months the residual guard flagged — on the tile in brackets, in the Dettaglio with the figures', () => {
+    const flagged = [
+      { month: { year: 2026, month: 3 }, unattributed: -1850, share: 0.041 },
+      { month: { year: 2026, month: 7 }, unattributed: 900, share: 0.025 },
+    ];
+    expect(plain(describeAttribution({ rows: [row('Vanguard All-World', 16569)], attributed: 16569, gain: 14736, unattributed: -1833, coverage: full, residualMonths: flagged }))).toBe(
+      'Il mercato ha reso +14.736 €: Vanguard All-World ne ha portati +16.569 €; −1833 € non sono attribuibili a uno strumento (in marzo 2026 e luglio 2026 oltre il 2% della base).'
+    );
+    expect(plain(describeAttributionCoverage({ rows: [row('a', 1)], attributed: 1, gain: -949, unattributed: -950, coverage: full, residualMonths: flagged }))).toBe(
+      '1 strumento attribuito su 9 mesi (da gennaio a settembre 2026); −950 € non attribuibili a uno strumento. In marzo 2026 (−1850 €, il 4% della base) e luglio 2026 (+900 €, il 3% della base) il non attribuito supera il 2% della base di inizio mese: qualcosa ha mosso il totale senza passare dal prezzo di uno strumento — un dividendo incassato, un saldo corretto a mano, una spesa pagata da un conto fuori dal tracciamento.'
+    );
+    // Beyond three months the list is cut and counted, never silently truncated.
+    const four = [3, 5, 7, 8].map((month) => ({ month: { year: 2026, month }, unattributed: 300, share: 0.03 }));
+    expect(plain(describeAttribution({ rows: [row('a', 1)], attributed: 1, gain: 1201, unattributed: 1200, coverage: full, residualMonths: four }))).toContain(
+      '(in marzo 2026 e maggio 2026 e altri 2 mesi oltre il 2% della base)'
+    );
+    expect(plain(describeAttributionCoverage({ rows: [row('a', 1)], attributed: 1, gain: 1201, unattributed: 1200, coverage: full, residualMonths: four }))).toContain('e luglio 2026 (+300 €, il 3% della base) e altri 1 mesi il non attribuito');
+  });
+
+  it('says when nothing can be attributed, and when nothing moved', () => {
+    expect(plain(describeAttribution({ rows: [], attributed: 0, gain: 0, unattributed: 0, coverage: { measuredMonths: 3, attributedMonths: 0, firstAttributed: null, lastAttributed: null }, residualMonths }))).toBe(
+      'Nessun mese del periodo ha il dettaglio per strumento: l’attribuzione parte dagli snapshot che lo registrano.'
+    );
+    expect(plain(describeAttribution({ rows: [], attributed: 0, gain: 0, unattributed: 0, coverage: full, residualMonths }))).toBe('Il mercato ha chiuso in pari: nessuno strumento ha mosso il rendimento.');
   });
 });
 
@@ -464,13 +589,14 @@ describe('describeMeasurementBase', () => {
 
 describe('describeReturnMetrics / describeDrawdownDetail / describeYields', () => {
   it('reads ROI and CAGR beside the TWR', () => {
-    expect(plain(describeReturnMetrics({ roi: 9.8, cagr: 7.6, moneyWeightedReturn: 8.9 }))).toBe("ROI del 9,8% nel periodo e CAGR del 7,6%; il tuo timing ha reso l'8,9% (IRR).");
+    // The ROI names its denominator: a gain over the first month's capital is not the period's return.
+    expect(plain(describeReturnMetrics({ roi: 9.8, cagr: 7.6, moneyWeightedReturn: 8.9 }))).toBe("ROI del 9,8% sul capitale iniziale e CAGR del 7,6%; il tuo timing ha reso l'8,9% (IRR).");
     expect(plain(describeReturnMetrics({ roi: null, cagr: null, moneyWeightedReturn: null }))).toBe('ROI, CAGR e IRR non sono calcolabili su questo periodo.');
     expect(plain(describeReturnMetrics({ roi: null, cagr: null, moneyWeightedReturn: 2.3 }))).toBe('Il tuo timing ha reso il 2,3% (IRR).');
   });
 
   it('never elides an article onto a minus: a negative value takes a direction word', () => {
-    expect(plain(describeReturnMetrics({ roi: -8.1, cagr: -0.4, moneyWeightedReturn: -2.3 }))).toBe("ROI negativo dell'8,1% nel periodo e CAGR negativo dello 0,4%; il tuo timing ha perso il 2,3% (IRR).");
+    expect(plain(describeReturnMetrics({ roi: -8.1, cagr: -0.4, moneyWeightedReturn: -2.3 }))).toBe("ROI negativo dell'8,1% sul capitale iniziale e CAGR negativo dello 0,4%; il tuo timing ha perso il 2,3% (IRR).");
   });
 
   it('tells the drawdown story in months', () => {

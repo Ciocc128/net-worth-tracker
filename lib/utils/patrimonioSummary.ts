@@ -12,6 +12,7 @@ import type { Asset } from '@/types/assets';
 import type { AssetTransaction } from '@/types/assetTransactions';
 import type { DashboardOverviewTopAsset } from '@/types/dashboardOverview';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { costBasisPerUnitEur } from '@/lib/utils/costBasisEur';
 import { hasMarketPrice } from '@/lib/utils/assetPricing';
 import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 
@@ -130,18 +131,8 @@ export interface UnrealizedGainsSummary {
   count: number;
 }
 
-/**
- * The EUR-denominated PMC to compare against `calculateAssetValue` (itself always EUR) — never
- * the native `averageCost`, which would mix a foreign-currency PMC with a EUR value. Falls back to
- * `averageCost` only for a EUR-native asset (the two are identical by construction there) or for an
- * asset that predates `averageCostEur` and has not had a ledger mutation since; a non-EUR asset
- * without `averageCostEur` yet has no comparable basis at all.
- */
-export function costBasisPerUnitEur(asset: Asset): number | undefined {
-  if (asset.averageCostEur !== undefined && asset.averageCostEur > 0) return asset.averageCostEur;
-  if (asset.currency.toUpperCase() === 'EUR') return asset.averageCost;
-  return undefined;
-}
+/** The EUR PMC to compare against `calculateAssetValue` (itself always EUR) — see costBasisEur.ts. */
+export { costBasisPerUnitEur };
 
 /**
  * Whether an asset's G/P against its PMC is meaningful. Cash accounts do not represent invested

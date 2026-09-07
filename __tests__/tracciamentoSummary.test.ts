@@ -364,6 +364,42 @@ describe('summarizeMovements', () => {
     expect(summary.expenseTotal).toBe(450);
   });
 
+  it('should total spending exactly as the period tile does (summarizePeriodCashflow)', () => {
+    // Two implementations of «quanto ho speso» would drift; the tile and the inventory must agree.
+    const rows = [
+      ...AUGUST_ROWS,
+      makeExpense({ type: 'variable', amount: 30, date: d(2026, 8) }), // a positive spending row
+      makeExpense({ type: 'income', amount: -50, date: d(2026, 8) }), // a reversal of income
+    ];
+    const movements = summarizeMovements(rows, NOW);
+    const period = summarizePeriodCashflow(rows);
+    expect(movements.expenseTotal).toBeCloseTo(period.expenses, 6);
+    expect(movements.incomeTotal).toBeCloseTo(period.income, 6);
+  });
+
+  it('should count a transfer as the amount MOVED whatever its sign', () => {
+    const summary = summarizeMovements(
+      [
+        makeExpense({ type: 'transfer', amount: -300, date: d(2026, 8) }),
+        makeExpense({ type: 'transfer', amount: 200, date: d(2026, 8) }),
+      ],
+      NOW,
+    );
+    expect(summary.transferTotal).toBe(500);
+  });
+
+  it('should keep a scheduled row inside its type total AND inside the calendar subset', () => {
+    const summary = summarizeMovements(
+      [
+        makeExpense({ type: 'fixed', amount: -100, date: d(2026, 8) }),
+        makeExpense({ type: 'fixed', amount: -406, date: new Date(2026, 8, 28, 12) }), // after NOW
+      ],
+      NOW,
+    );
+    expect(summary.expenseTotal).toBe(506);
+    expect(summary.scheduled).toEqual({ count: 1, total: 406 });
+  });
+
   it('should sum the rows it is handed: a search on one note is its own total', () => {
     // One recurring note used as an implicit subcategory. The list is already filtered by the
     // toolbar — summarizeMovements only totals what it receives.
