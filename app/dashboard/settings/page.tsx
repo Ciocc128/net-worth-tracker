@@ -343,6 +343,16 @@ const COLOR_THEME_SWATCHES = [
     swatchPrimaryDark: 'oklch(0.5924 0.2025 355.8943)',
     swatchAccent: 'oklch(0.6437 0.1019 187.3840)',
   },
+  {
+    id: 'lime-frost' as ColorTheme,
+    name: 'Lime Frost',
+    description: 'Lime su ardesia',
+    swatchBg: 'oklch(0.9600 0.0120 118.0000)',
+    swatchBgDark: 'oklch(0.1288 0.0406 264.6952)',
+    swatchPrimary: 'oklch(0.5200 0.1480 128.5041)',
+    swatchPrimaryDark: 'oklch(0.8871 0.2122 128.5041)',
+    swatchAccent: 'oklch(0.3717 0.0392 257.2870)',
+  },
 ] as const;
 
 /** Label · mono value row of a read-only declaration tile (Parametri del piano, Assistente, BTP Italia). */
@@ -3483,7 +3493,7 @@ export default function SettingsPage() {
           </TabsContent>
         )}
 
-        {/* Tab: Aspetto — light/dark/system beside the six color themes */}
+        {/* Tab: Aspetto — light/dark/system beside the seven color themes */}
         {mountedTabs.has('aspetto') && (
           <TabsContent value="aspetto" className="mt-4">
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
@@ -3518,10 +3528,10 @@ export default function SettingsPage() {
                 </Tile>
               </div>
 
-              {/* Tema colori — the six palettes, synced on the account */}
+              {/* Tema colori — the seven palettes, synced on the account */}
               <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-8')}>
                 <Tile eyebrow="Tema colori" aside="tutti i dispositivi" reading={describeColorTheme(activeSwatch.name)}>
-                  <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 desktop:grid-cols-6">
+                  <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                     {COLOR_THEME_SWATCHES.map((swatch, index) => {
                       const isActive = colorTheme === swatch.id;
                       return (

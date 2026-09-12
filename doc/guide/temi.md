@@ -1,6 +1,6 @@
 # Temi colore (Color Theme System)
 
-> **When to open this guide** — whoever touches `app/globals.css` (the twelve theme blocks: `:root` + `.dark` and the five named themes, each as `[data-theme="name"]` + `.dark[data-theme="name"]`), `contexts/ColorThemeContext.tsx`, `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`, `lib/utils/costCenterColors.ts`, `lib/constants/colors.ts`, `components/layout/ThemePicker.tsx` or the `COLOR_THEME_SWATCHES` in `app/dashboard/settings/page.tsx`. The palette itself is in `DESIGN.md` → §2 (Colors: The Zero-Chroma Foundation). `AGENTS.md` keeps the stub with the essentials plus the repo-wide token rules (`AGENTS.md § Layout and Color Tokens`, `AGENTS.md § Recharts`); here is the full rule.
+> **When to open this guide** — whoever touches `app/globals.css` (the fourteen theme blocks: `:root` + `.dark` and the six named themes, each as `[data-theme="name"]` + `.dark[data-theme="name"]`), `contexts/ColorThemeContext.tsx`, `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`, `lib/utils/costCenterColors.ts`, `lib/constants/colors.ts`, `components/layout/ThemePicker.tsx` or the `COLOR_THEME_SWATCHES` in `app/dashboard/settings/page.tsx`. The palette itself is in `DESIGN.md` → §2 (Colors: The Zero-Chroma Foundation). `AGENTS.md` keeps the stub with the essentials plus the repo-wide token rules (`AGENTS.md § Layout and Color Tokens`, `AGENTS.md § Recharts`); here is the full rule.
 
 ## Color Theme System
 - **Parallel theming**: next-themes owns `.dark`, the custom system owns `data-theme` — fully independent. CSS:
@@ -24,12 +24,12 @@
   only the oklch L channel, preserving hue and chroma; `useChartColors`' same-index fallback would lose the theme hue and
   can collapse two states onto one colour. Resolve **once per section** and pass the colour down.
 - **Sign tokens must be verified per theme**: `--positive` is declared twice and no theme overrides it, so one value fixes
-  all twelve combinations, while `--destructive` is declared **twelve times** (cyberpunk's is orange) and must be
+  all fourteen combinations, while `--destructive` is declared **fourteen times** (cyberpunk's is orange) and must be
   measured per theme. Never assume a token change lands globally without counting its declarations.
 - **A user-chosen identity colour is a SLOT, not a hex** (`'chart-1'..'chart-8'`, resolved by `resolveCostCenterColor`).
   Three rules: **migrate without a backfill** (`LEGACY_HEX_SLOTS` maps each old hex to the slot at the same position);
   **derive the no-colour fallback from the document id** (FNV-1a), never from the row's rank, which repaints half the
-  list on every period switch; **indices 0-7 are theme-aware** (`--chart-1..8` exist in all twelve blocks since
+  list on every period switch; **indices 0-7 are theme-aware** (`--chart-1..8` exist in every block since
   2026-08-30), 8-9 still pad from the static `CHART_COLORS`.
 - **`--chart-6/7/8` carry a meaning across every theme** (2026-08-30): 6 = Materie Prime (gold/olive), 7 = Trend
   Following (teal/cyan), 8 = Carry (rose/magenta) — the hue band is held per theme across light AND dark so a slot does
@@ -43,5 +43,18 @@
 - **Adding a theme**: CSS blocks `[data-theme="name"]` + `.dark[data-theme="name"]`, the `ColorTheme` union, an entry in
   `COLOR_THEME_SWATCHES` (module level in `settings/page.tsx`), the swatch grid columns, `tsc`. The swatch previews carry
   each theme's own literal oklch values ON PURPOSE — they preview a palette that is NOT active, which no CSS token can
-  express — and the accessible name is the POSITION («Colore 3 di 6: Midnight Bloom»), never the hue.
+  express — and the accessible name is the POSITION («Colore 3 di 7: Midnight Bloom»), never the hue.
+- **Porting a theme from a registry is a conversion, not a paste** (Lime Frost, 2026-09-12, from 21st.dev — the source
+  tokens come from `GET https://21st.dev/api/trpc/themes.getBySlug?input={"json":{"slug":"<slug>"}}`, the page itself is
+  client-rendered). Convert hex → oklch, add what the registry does not know (`--chart-6/7/8` in their hue bands,
+  `--warning*`), drop fonts/shadows/letter-spacing, then **measure** every sign token and chart slot against the block's
+  own `--card` and re-pitch L/C with the hue held: Lime Frost's light red-500 was 3.76:1 and its lime/green-500/slate-400
+  chart slots 2.04-2.56:1. The deviations are listed in the comment above the CSS block.
+- **A light primary is also a TEXT colour — measure it as one.** `--primary` backs 48 `text-primary` uses (links,
+  checks, the sidebar's account label) and thin `border-primary` rings, so a registry's electric accent that works as a
+  button fill can vanish as text: Lime Frost's lime (L 0.887) measured 1.34:1 on white. The owner's call after the tour
+  (2026-09-12): keep the electric lime in DARK only (13.36:1) and darken it in LIGHT to L 0.52 (5.25:1 on `--card`,
+  4.69:1 on `--background`), which flips `--primary-foreground` to white. **Darkening a light `--background` moves
+  every text token that sits on it**: lifting the tiles (card/background 1.03 → 1.12:1) took `--muted-foreground` and
+  `--destructive` down with it, because the verdict's prose and sign values sit on the ground, not on a card.
 

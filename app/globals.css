@@ -655,6 +655,101 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --sidebar-ring: oklch(0.5676 0.2021 283.0838);
 }
 
+/* Lime Frost — electric lime on slate, after the 21st.dev community theme by Serafim
+ * (21st.dev/@serafimcloud/themes/lime-frost), converted from hex. Deviations from the source,
+ * L/C only with the hue kept: in LIGHT, the lime --primary/--ring darkened from L 0.887 to 0.52
+ * (owner's call, 2026-09-12: as text it measured 1.34:1 on white, now 5.25:1 on --card and 4.69:1
+ * on --background, so its foreground turns white), --background darkened from L 0.989 to 0.96 to
+ * lift the tiles off it (card/background 1.03 → 1.12:1), --muted-foreground and --destructive
+ * darkened with it to stay ≥ 4.5:1 on the new ground (4.91 / 4.62:1), and --chart-1/3/4/5 re-pitched to clear the 3:1 chart floor on white (the source's lime,
+ * green-500 and slate-400 measured 2.04-2.56:1; slate-500/400 also pulled apart so two slots do
+ * not read as one); in DARK, --destructive lifted from red-800 (L 0.44, too dark for sign text) to
+ * L 0.69 (5.91:1);
+ * --chart-6/7/8 and --warning* added with the meaning every theme gives them, and the source's
+ * fonts, shadows and letter-spacing left out (themes do not touch the type scale). */
+[data-theme="lime-frost"] {
+  --radius: 1rem;
+  --background: oklch(0.9600 0.0120 118.0000);
+  --foreground: oklch(0.2077 0.0398 265.7549);
+  --card: oklch(1.0000 0 0);
+  --card-foreground: oklch(0.2077 0.0398 265.7549);
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.2077 0.0398 265.7549);
+  --primary: oklch(0.5200 0.1480 128.5041);
+  --primary-foreground: oklch(1.0000 0 0);
+  --secondary: oklch(0.3717 0.0392 257.2870);
+  --secondary-foreground: oklch(0.9842 0.0034 247.8575);
+  --muted: oklch(0.9683 0.0069 247.8956);
+  --muted-foreground: oklch(0.5200 0.0410 257.4166);
+  --accent: oklch(0.9819 0.0181 155.8263);
+  --accent-foreground: oklch(0.4479 0.1083 151.3277);
+  --destructive: oklch(0.5600 0.2100 27.3250);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --warning: oklch(0.986 0.022 90);
+  --warning-foreground: oklch(0.468 0.098 75);
+  --warning-border: oklch(0.855 0.062 85);
+  --border: oklch(0.9288 0.0126 255.5078);
+  --input: oklch(0.9288 0.0126 255.5078);
+  --ring: oklch(0.5200 0.1480 128.5041);
+  --chart-1: oklch(0.6300 0.1800 128.5041);
+  --chart-2: oklch(0.3717 0.0392 257.2870);
+  --chart-3: oklch(0.5270 0.1370 150.0000);
+  --chart-4: oklch(0.4700 0.0400 257.4166);
+  --chart-5: oklch(0.6600 0.0360 256.7878);
+  --chart-6: oklch(0.6200 0.1200 95.0000);
+  --chart-7: oklch(0.5400 0.0900 205.0000);
+  --chart-8: oklch(0.5600 0.1900 345.0000);
+  --sidebar: oklch(1.0000 0 0);
+  --sidebar-foreground: oklch(0.2077 0.0398 265.7549);
+  --sidebar-primary: oklch(0.5200 0.1480 128.5041);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
+  --sidebar-accent: oklch(0.9842 0.0034 247.8575);
+  --sidebar-accent-foreground: oklch(0.2077 0.0398 265.7549);
+  --sidebar-border: oklch(0.9683 0.0069 247.8956);
+  --sidebar-ring: oklch(0.5200 0.1480 128.5041);
+}
+
+.dark[data-theme="lime-frost"] {
+  --background: oklch(0.1288 0.0406 264.6952);
+  --foreground: oklch(0.9842 0.0034 247.8575);
+  --card: oklch(0.2077 0.0398 265.7549);
+  --card-foreground: oklch(0.9842 0.0034 247.8575);
+  --popover: oklch(0.2077 0.0398 265.7549);
+  --popover-foreground: oklch(0.9842 0.0034 247.8575);
+  --primary: oklch(0.8871 0.2122 128.5041);
+  --primary-foreground: oklch(0.0000 0 0);
+  --secondary: oklch(0.2795 0.0368 260.0310);
+  --secondary-foreground: oklch(0.9842 0.0034 247.8575);
+  --muted: oklch(0.2795 0.0368 260.0310);
+  --muted-foreground: oklch(0.7107 0.0351 256.7878);
+  --accent: oklch(0.3925 0.0896 152.5353);
+  --accent-foreground: oklch(0.8871 0.2122 128.5041);
+  --destructive: oklch(0.6900 0.1900 25.3313);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --warning: oklch(0.260 0.038 78);
+  --warning-foreground: oklch(0.854 0.090 82);
+  --warning-border: oklch(0.460 0.085 75);
+  --border: oklch(0.2795 0.0368 260.0310);
+  --input: oklch(0.2795 0.0368 260.0310);
+  --ring: oklch(0.8871 0.2122 128.5041);
+  --chart-1: oklch(0.8871 0.2122 128.5041);
+  --chart-2: oklch(0.6231 0.1880 259.8145);
+  --chart-3: oklch(0.7227 0.1920 149.5793);
+  --chart-4: oklch(0.6268 0.2325 303.9004);
+  --chart-5: oklch(0.7686 0.1647 70.0804);
+  --chart-6: oklch(0.7000 0.1300 95.0000);
+  --chart-7: oklch(0.7000 0.1100 205.0000);
+  --chart-8: oklch(0.6900 0.1800 345.0000);
+  --sidebar: oklch(0.1288 0.0406 264.6952);
+  --sidebar-foreground: oklch(0.9842 0.0034 247.8575);
+  --sidebar-primary: oklch(0.8871 0.2122 128.5041);
+  --sidebar-primary-foreground: oklch(0.0000 0 0);
+  --sidebar-accent: oklch(0.2795 0.0368 260.0310);
+  --sidebar-accent-foreground: oklch(0.9842 0.0034 247.8575);
+  --sidebar-border: oklch(0.2795 0.0368 260.0310);
+  --sidebar-ring: oklch(0.8871 0.2122 128.5041);
+}
+
 /* Disable continuous rotation for users who prefer reduced motion.
  * Tailwind's animate-spin has no built-in reduced-motion guard, so we
  * neutralise it globally here rather than wrapping every spinner. */

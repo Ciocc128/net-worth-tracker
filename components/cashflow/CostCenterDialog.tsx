@@ -36,7 +36,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 // Screen-reader labels for the swatches. Named by POSITION, not by hue: a slot resolves to a
-// different colour on each of the six themes, so "Blu" would be a lie on Cyberpunk. The
+// different colour on each of the seven themes, so "Blu" would be a lie on Cyberpunk. The
 // position is the stable fact, and it is the one the user is actually choosing.
 const colorLabel = (index: number) => `Colore ${index + 1} di ${COST_CENTER_COLOR_KEYS.length}`;
 

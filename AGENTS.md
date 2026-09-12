@@ -110,7 +110,7 @@ about a domain goes in that domain's guide, never here.
 - **`--warning` is near-white in light mode**, so text on a `bg-warning` fill MUST be `text-warning-foreground`;
   standalone amber text is a different case (a caution reading uses `text-warning-foreground`, the verdict's dot too).
 - **A chart slot is not a text colour** — `--chart-1..8` target ~3:1 against a plot area (`text-[var(--chart-3)]`
-  measured 1.02:1 on one theme). The 2026-08-30 tail was audited to the same floor across all twelve blocks (worst case
+  measured 1.02:1 on one theme). The 2026-08-30 tail was audited to the same floor across all twelve blocks of that date (worst case
   3.38:1), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
   are exempt.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
