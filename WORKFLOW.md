@@ -214,7 +214,10 @@ The app **is** locally runnable; there is no fallback to declare.
   whatever is active (usually `develop`) and merges into it by PR.
 - **The outcome of a verification**: `SESSION_NOTES.md` during the session (untracked — delete it
   before the commit); it is folded into `CLAUDE.md` (the "Latest" entry) and `Draft Release Temp.md`
-  before the PR.
+  before the PR. **The draft ACCUMULATES until a release is tagged**: a session PREPENDS its entries to the
+  existing sections and never rewrites the file from scratch — on 2026-09-11 a session replaced 534 lines with 5
+  and 308 commits of draft had to be recovered from git two days later. It is emptied only when the owner cuts
+  the tag, and `git log -1 --format=%ad <last tag>` says whether that has happened.
 - **Impeccable critiques are committed** (since 2026-09-12): `.impeccable/critique/*.md` is tracked,
   so the snapshot `polish` reads as its backlog is the same on every machine. A critique is
   committed in the session that produces it; one that describes a surface since rebuilt is
