@@ -547,11 +547,12 @@ file used to carry.
 
 ### Recharts
 - **`useChartColors()` is mandatory for every series** — read CSS vars after paint and pass `chartColors[0..4]` as props.
-- **A Recharts series can drive the PAGE, not just its tooltip**: `onMouseMove` hands `activeTooltipIndex` (a number OR
-  a numeric string in 3.x — coerce, `activeIndexOf` in `EvoluzioneTile`) and `onMouseLeave` the end; lift the index's
+- **A Recharts series CAN drive the page, not just its tooltip — but no page does today**: `onMouseMove` hands
+  `activeTooltipIndex` (a number OR a numeric string in 3.x — coerce it) and `onMouseLeave` the end; lift the index's
   PERIOD, never the index (the tiles that follow have their own arrays), attach the handlers only under `(pointer:
-  fine)`, and let a pure module resolve what every follower shows (`lib/utils/storicoScrub.ts` is the worked example).
-  A hand-written SVG that must glide between windows resamples the OLD series onto the new length and tweens per
+  fine)`, and let a pure module resolve what every follower shows. Storico did this for one day (4b0a2dd,
+  `storicoScrub.ts`) and the owner retired it on 2026-09-13 (DESIGN.md → The Scrub Rule, retired): the worked example
+  lives in `git show 4b0a2dd`, not in the tree. A hand-written SVG that must glide between windows resamples the OLD series onto the new length and tweens per
   index (`lib/hooks/useMorphingSeries.ts`); the hover reads the landed data, never the frame.
 - **Never pass `useChartColors()` to a Nivo/react-spring component**: `@react-spring/web` cannot interpolate hex→oklch
   and throws on load. Sankey node colors stay hardcoded hex; only Recharts is react-spring-free.
