@@ -377,6 +377,24 @@ export function describeTradeIntent(intent: TradeIntent): Narrative {
   }
 }
 
+/**
+ * The clause under a settlement-account picker, decided by the trade's date.
+ *
+ * The account's balance moves TODAY, whatever date the trade carries: a purchase recorded with a
+ * date in an earlier month has, in most cases, already left the account (the balance the user
+ * keeps up to date reflects it), and settling it again would debit it twice. So a date in a past
+ * month changes the sentence from a promise into a warning; the current month keeps the promise,
+ * because a trade of two weeks ago not yet on the account is the legitimate case. Both arguments
+ * are `YYYY-MM-DD` strings — the form's own value and the form's own today — so the function reads
+ * no clock; an empty or malformed date is read as today's month.
+ */
+export function describeSettlementTiming(tradeDateIso: string, todayIso: string): string {
+  const isPastMonth = tradeDateIso.length >= 7 && tradeDateIso.slice(0, 7) < todayIso.slice(0, 7);
+  return isPastMonth
+    ? "Il saldo del conto si muove oggi, non alla data dell'operazione: se lo riflette già, lascia «Nessuno»."
+    : 'Se selezionato, il saldo del conto viene aggiornato automaticamente.';
+}
+
 export interface CategoryDeletionFacts {
   /** The category or subcategory about to be deleted. */
   name: string;

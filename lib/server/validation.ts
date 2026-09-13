@@ -68,8 +68,8 @@ export const dividendDataSchema = z.object({
  * Asset trade-ledger schemas (Registro operazioni asset).
  *
  * These are the HTTP-boundary gate. Semantic checks that need Firestore data (asset exists and is
- * a ledger type, date >= baselineDate, linked asset is `cash`, no-negative-position replay) live in
- * the use-case layer, NOT here.
+ * a ledger type, date not in the future, linked asset is `cash`, no-negative-position replay with
+ * the baseline first) live in the use-case layer, NOT here.
  */
 const assetTransactionTypeSchema = z.enum(['buy', 'sell', 'adjustment']);
 

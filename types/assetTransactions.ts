@@ -46,7 +46,8 @@ export interface AssetTransaction {
   userId: string;            // data owner (ownerId), same scoping as every data collection
   assetId: string;
   type: AssetTransactionType;
-  date: Date;                // execution date; baselineDate <= date <= today (Italy)
+  date: Date;                // execution date; any past date up to today (Italy) — a migrated asset's
+                             // trades cannot precede its baseline (replay: BASELINE_NOT_FIRST)
   quantity: number;
   pricePerUnit: number;      // native currency per unit (>= 0)
   priceEur: number;          // EUR per unit at trade date (>= 0); == pricePerUnit for EUR assets
@@ -82,7 +83,9 @@ export interface AssetTransactionFormData {
 export interface AssetTransactionsMeta {
   userId: string;
   migratedAt: Date;
-  baselineDate: Date;        // start-of-day (Italy) of migration day; global floor for trade dates
+  baselineDate: Date;        // start-of-day (Italy) of migration day: the date of every baseline BUY.
+                             // NOT a floor for trade dates since 2026-09-13 (an asset without a
+                             // baseline accepts any past date)
   migratedAssetCount: number;
   // One-shot signal for backfillAverageCostEur (assetTransactionUseCase.ts): every ledger asset's
   // averageCostEur is derivable from trades that already carry a correct per-trade priceEur, so the
