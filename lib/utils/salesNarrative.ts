@@ -23,9 +23,19 @@ function signedCompactEuro(value: number): NarrativeSegment {
   };
 }
 
-/** The tail of a falling headline, after «{subject} è in calo». Empty for `unknown`. */
-export function declineHeadlineTail(cause: DeclineCause): string {
+/**
+ * The tail of a falling headline, after «{subject} è in calo». Empty for `unknown`. The
+ * `taxes-despite-market` tail names the instrument sold («per le tasse sulla vendita di VWCE, non
+ * per il mercato») when the period's sales carry exactly one, «sulle vendite» otherwise — the
+ * headline is the ONE place the cause is stated, so it must say which sale.
+ */
+export function declineHeadlineTail(cause: DeclineCause, sales?: PeriodSalesSummary | null): string {
   switch (cause) {
+    case 'taxes-despite-market': {
+      const instruments = sales?.instruments ?? [];
+      const subject = instruments.length === 1 ? `sulla vendita di ${instruments[0].name}` : 'sulle vendite';
+      return ` per le tasse ${subject}, non per il mercato.`;
+    }
     case 'despite-market':
       return ', nonostante il mercato.';
     case 'taxes-over-market':

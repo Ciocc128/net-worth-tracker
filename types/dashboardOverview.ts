@@ -1,4 +1,5 @@
 import { PieChartData } from '@/types/assets';
+import type { ExpenseType } from '@/types/expenses';
 import type { PeriodSalesSummary } from '@/lib/utils/periodSales';
 
 export interface DashboardOverviewSparklinePoint {
@@ -19,6 +20,9 @@ export interface DashboardOverviewCategoryAmount {
   // Category document id (name-fallback for legacy rows) — the row's identity.
   // Optional only because payloads cached before source version 5 lack it.
   categoryKey?: string;
+  // The category's type ('income' for the income list) — the second half of the Scheda's
+  // address on Analisi (?focusType&focusCat). Optional: payloads before source version 17 lack it.
+  expenseType?: ExpenseType;
   amount: number;
   // Percentage of the total expenses (or total income) for the current month.
   percentage: number;

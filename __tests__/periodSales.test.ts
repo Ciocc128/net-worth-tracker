@@ -174,8 +174,21 @@ describe('resolveDeclineCause', () => {
   });
 
   it('should never blame the market when it gained, whatever the tax', () => {
-    expect(resolveDeclineCause({ marketEffect: 900, ownFlows: -3000, salesTax: 4088.86 })).toBe('despite-market');
     expect(resolveDeclineCause({ marketEffect: 0, ownFlows: -3000, salesTax: null })).toBe('despite-market');
+    // A tax below half of the drop is not the story: the own flows are.
+    expect(resolveDeclineCause({ marketEffect: 900, ownFlows: -9000, salesTax: 4000 })).toBe('despite-market');
+  });
+
+  it('should name the tax when the market gained and the tax is at least half of the drop', () => {
+    // The real account, settembre 2026: +153 € of market, a 4.156 € drop, 4.089 € withheld.
+    expect(resolveDeclineCause({ marketEffect: 153, ownFlows: -4308.63, salesTax: 4088.86 })).toBe('taxes-despite-market');
+    // Exactly half still counts; a hair under does not.
+    expect(resolveDeclineCause({ marketEffect: 0, ownFlows: -8000, salesTax: 4000 })).toBe('taxes-despite-market');
+    expect(resolveDeclineCause({ marketEffect: 0, ownFlows: -8000, salesTax: 3999 })).toBe('despite-market');
+  });
+
+  it('should keep «despite-market» when the drop cannot be measured (the email passes no own flows)', () => {
+    expect(resolveDeclineCause({ marketEffect: 900, ownFlows: null, salesTax: 4088.86 })).toBe('despite-market');
   });
 
   it('should know nothing without a market effect', () => {

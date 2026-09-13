@@ -158,9 +158,7 @@ export function PatrimonioTile({
         <>
           <div className="mt-5 flex flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-between tablet:gap-3">
             <p className={TILE_SUB_EYEBROW_CLASS}>Andamento</p>
-            <div className="w-full tablet:w-[240px]">
-              <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} />
-            </div>
+            <PeriodSelector value={sparklinePeriod} onChange={onSparklinePeriodChange} />
           </div>
           {/* Edge-to-edge (the -mx matches the tile padding). The SVG is absolutely positioned
               so its 100% height resolves against the flex-sized box instead of its own viewBox

@@ -31,15 +31,21 @@ colors:
   antique-gold: "oklch(0.660 0.135 100)"
   petrol-trend: "oklch(0.720 0.115 215)"
   rose-carry: "oklch(0.700 0.190 340)"
-  # Data visualization — LIGHT mode (`:root --chart-1..8`), declared 2026-09-06. Slot 1 is an
-  # orange (hue 41), not an indigo: the named identities above hold in dark mode only. This is
-  # the palette `lib/constants/printTokens.ts` mirrors as `PRINT_CHART_HEX`, so every email and
-  # PDF chart hex is the sRGB rendering of one of these eight. Slots 6-8 keep the dark hue bands.
-  chart-1-light: "oklch(0.646 0.222 41.116)"
-  chart-2-light: "oklch(0.6 0.118 184.704)"
-  chart-3-light: "oklch(0.398 0.07 227.392)"
-  chart-4-light: "oklch(0.828 0.189 84.429)"
-  chart-5-light: "oklch(0.769 0.188 70.08)"
+  # Data visualization — LIGHT mode (`:root --chart-1..8`), declared 2026-09-06 and re-pitched
+  # 2026-09-13: every slot now holds the SAME hue band as its dark twin (blue · green · amber ·
+  # violet · coral · gold · petrol · rose), with L and C set for a white surface, so «equities
+  # are indigo» is true in both modes. The shadcn preset that stood here until then painted
+  # three oranges and two teals (Liquidità measured ΔE00 10.1 from Immobili, Trend Following
+  # 16.2 from Obbligazioni) and drew the hero's curve in the hue of --destructive. The floor is
+  # ΔE00 ≥ 14 between any two slots of a mode (`__tests__/chartPaletteDistinctness.test.ts`;
+  # the light set's closest pair is now 16.0, the dark set's 18.8). This is the palette
+  # `lib/constants/printTokens.ts` mirrors as `PRINT_CHART_HEX`, so every email and PDF chart
+  # hex is the sRGB rendering of one of these eight.
+  chart-1-light: "oklch(0.500 0.200 262)"
+  chart-2-light: "oklch(0.600 0.125 172)"
+  chart-3-light: "oklch(0.700 0.160 72)"
+  chart-4-light: "oklch(0.480 0.210 298)"
+  chart-5-light: "oklch(0.620 0.200 16)"
   chart-6-light: "oklch(0.600 0.118 100)"
   chart-7-light: "oklch(0.550 0.092 215)"
   chart-8-light: "oklch(0.560 0.205 340)"
@@ -317,7 +323,7 @@ The default palette has no hue anywhere. Every neutral is a pure OKLCH gray. Cha
 
 Eight chart colors cover the semantic range of portfolio data — five from the beginning, three added on 2026-08-30 so that each of the eight asset classes owns a theme-aware hue instead of padding from a static tail. These are the system's only sanctioned source of hue in the default theme. Which class holds which slot is `ASSET_CLASS_CHART_INDEX`'s to say (`lib/utils/allocationUtils.ts`), and it is the ONLY place that says it: the hand-written class → `--chart-N` map in `lib/constants/colors.ts` was deleted on 2026-08-30 for putting crypto on `--chart-4` while the charts drew it on `--chart-3`, so one class wore two hues on one screen; `getAssetClassCssVar` is now derived from the index. What that file still holds (corrected 2026-09-06) is the older HEX map, `ASSET_CLASS_COLORS` (equity `#3B82F6`, …), exported as `getAssetClassColor` and read by one caller, `lib/services/chartService.ts:61`, as the Recharts fallback for a series that has not resolved its CSS variable yet — a theme-blind palette, declared in the DOM-side inventory below and not a second copy of the slot map. The attributions below follow that map; they are not a second copy of it either.
 
-**These eight are the DARK palette (`.dark --chart-1..8`), and the identities hold there only** (stated 2026-09-06). The light palette is a different set of eight — `:root --chart-1..8`, declared in the frontmatter as `chart-1-light` … `chart-8-light`: slot 1 is an orange at hue 41, slot 2 a teal, slot 3 a deep petrol — so in light mode «equities are indigo» is false, and it is false on every email and every PDF, which take the light palette through `PRINT_CHART_HEX` (**The Out-Of-DOM Token Rule**). What a slot means (equities, bonds, crypto…) is stable across modes; what it looks like is not, except for slots 6-8.
+**These eight are the DARK palette (`.dark --chart-1..8`); the light palette holds the same hue bands since 2026-09-13.** Until then the light set — `:root --chart-1..8`, declared in the frontmatter as `chart-1-light` … `chart-8-light` — was a different set of eight (slot 1 an orange at hue 41, slot 2 a teal, slot 3 a deep petrol), which the 2026-09-06 note recorded as «in light mode “equities are indigo” is false». The Panoramica critique of 2026-09-13 measured what that cost on the real account: Liquidità and Immobili 10.1 ΔE00 apart (three of seven classes orange), Trend Following 16.2 from Obbligazioni, and the hero's rising curve painted in the hue of `--destructive`. Slots 1-5 were re-pitched onto the dark hue bands (blue · green · amber · violet · coral) with L and C set for a white surface, so what a slot means AND what it looks like are now stable across modes — on every email and every PDF too, which take the light palette through `PRINT_CHART_HEX` (**The Out-Of-DOM Token Rule**). The floor, ΔE00 ≥ 14 between any two slots of one mode, is a test (`__tests__/chartPaletteDistinctness.test.ts`) and holds for the default theme only: the five named themes are not measured by it (see Known Issues, CLAUDE.md).
 
 - **Indigo Signal** (`oklch(0.488 0.243 264.376)`): Primary chart series; equities, main portfolio line. (It was also the sidebar's active-state colour through `--sidebar-primary` until the shell redesign of 2026-08-22; no component paints that token now — see Navigation.)
 - **Jade Return** (`oklch(0.696 0.17 162.48)`): Secondary chart series; bonds, positive comparison benchmarks.
@@ -386,12 +392,14 @@ reason a CSS variable cannot serve, and nowhere else:
   `lib/services/chartService.ts:116` (the «altri» grey) — waived by name in
   `.impeccable/config.json`'s `ignoreValues`.
 
-Everything else is debt, recorded here as fact and not as a fix. Three chrome hues of the default
+Everything else is debt, recorded here as fact and not as a fix. Two chrome hues of the default
 theme violate **The Zero-Chroma Rule** today: `components/ui/switch.tsx:14` paints the dark ON
 state `bg-blue-600` (because `--primary` is near-white there and a white pill on a white track is
-invisible — the reason is real, the hue is still wrong); `components/ProtectedRoute.tsx:43` draws
-the auth spinner `border-gray-300 border-t-blue-600`; and `app/layout.tsx:71` declares an emerald
-`mask-icon` (`#10B981`) for a brand that has no brand colour. Two sign-colour literals sit beside
+invisible — the reason is real, the hue is still wrong), and `components/ProtectedRoute.tsx:43` draws
+the auth spinner `border-gray-300 border-t-blue-600`. The third — an emerald Safari `mask-icon`
+(`#10B981`) in `app/layout.tsx` for a brand that has no brand colour — was removed on 2026-09-13:
+the tag is legacy (Safari reads the ordinary favicon since 2018) and the icon is multicolour, so it
+never worked as a monochrome mask either. Two sign-colour literals sit beside
 them: `components/expenses/ExpenseTable.tsx:528` colours income `text-emerald-600 dark:text-emerald-400`
 next to a `text-destructive` expense (**The Sign-Color Token Rule** broken on the Tabella view of
 Tracciamento), and `AssetSparkline.tsx:32` is listed above only because it is a fallback — the
