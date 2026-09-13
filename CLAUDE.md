@@ -13,29 +13,18 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **166 files / 3694 tests** green + **43 Playwright E2E specs** (46 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-13): **Un acquisto più vecchio del registro si registra con la sua data, e Rendimenti legge l'ingresso di
-  uno strumento come un flusso.** Segnalazione di un utente: il pavimento della data era `assetTransactionsMeta.baselineDate`,
-  il giorno di apertura del registro — su un account nuovo la prima visita a Patrimonio, quindi «oggi»: azioni comprate nel
-  2024 non erano inseribili. Ora il server controlla solo il futuro (`assertDateNotInFuture`); l'UNICO pavimento è la
-  posizione iniziale dell'asset stesso (asset migrati), imposto dal replay (`BASELINE_NOT_FIRST`, il cui messaggio nomina il
-  giorno: «Su questo asset le operazioni partono dalla posizione iniziale del 22/08/2026») e rispecchiato dal `min` del
-  dialog operazione letto da `existingTransactions`, mai dalla meta; la «Data di acquisto» di un nuovo asset non ha `min`.
-  Due conseguenze dichiarate, non nascoste: (1) il conto di regolamento è addebitato OGGI qualunque sia la data → con una
-  data in un mese passato i due dialog sostituiscono la promessa con l'avviso (`describeSettlementTiming`,
-  `lib/utils/dialogNarrative.ts`); (2) `portfolioFlows.ts` § THE ENTRY MONTH — il ledger parla per uno strumento in un mese
-  solo se la base l'aveva già VISTO (nello snapshot precedente, o comprato nel mese); altrimenti il mese è l'ingresso e il
-  valore di fine mese è il flusso sul ramo delle quantità. Prima, un acquisto retrodatato leggeva l'intero valore come
-  rendimento del mese d'ingresso (sonda: 10 × 100 € comprati nel 2024 e digitati a settembre → flusso 0, 1.000 € di
-  guadagno fantasma; ora 1000). `CACHE_MATH_VERSION` v8. Scelte del proprietario: solo asset senza baseline (nessuna storia
-  di sostituzione della posizione iniziale), avviso e non blocco sul regolamento. **SiftingIO valutato e scartato**: solo
-  titoli USA, un mese di storico nel free tier, niente holdings — nessuno dei tre usi di Yahoo (prezzi EU, benchmark dal
-  2000, esposizione). **Collaudo**: 166 file / 3694 test sotto `TZ=Europe/Rome` (+12), `tsc`, lint 0; tour Playwright
-  usa-e-getta sugli emulatori (seed base, decoy «Ornitorinco Energia»): nuovo titolo con acquisto 15/03/2024 → trade e
-  `holdingStartDate` a quella data, nessun `min`, avviso sul regolamento; seconda operazione 10/06/2025 → quantità 15; VWCE
-  (migrato) → `min` 2026-08-22 e la riga «posizione iniziale del 22/08/2026»; sotto la UI un POST del 10/01/2026 su VWCE →
-  422 col giorno, uno del 10/01/2023 sul nuovo → 200 (quantità 16, `holdingStartDate` 2023); l'eliminazione dal dialog
-  Movimenti rilancia il replay (DELETE 200, quantità 11); decoy rimosso, zero fallimenti API sul server caldo.
+- `tsc` clean; **165 files / 3687 tests** green + **43 Playwright E2E specs** (46 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-13, seconda sessione): **Storico senza overdrive, bozza di release ripristinata e razionalizzata.** Il
+  proprietario ha tolto da Storico i due effetti dell'overdrive Impeccable: lo scrub del 12/09 (The Scrub Rule, ora
+  «retired» in DESIGN.md — page, Evoluzione/Composizione/Driver ripristinati a prima di 4b0a2dd, `storicoScrub.ts` e
+  `buildBreakdownForRow`/`findCompositionRow` rimossi) e il confetti dei raddoppi (`RaddoppiTile` senza `celebrationUtils`;
+  `canvas-confetti` resta solo nel Calcolatore FIRE). Rendimenti (Period-Transforms) e Shell (Page Scene) invariati.
+  `Draft Release Temp.md`: il commit ed4f8c2 dell'11/09 lo aveva riscritto da zero (534 → 5 righe) senza alcuna release
+  dopo v8.0.0 — ricostruito dal contenuto pre-taglio più le voci successive, poi razionalizzato per area (488 → 438 voci:
+  via le descrizioni dei layout pre-redesign di Previdenza/Assistente/FIRE/Coast, il selettore di periodo dei Centri di
+  Costo poi rimosso, i duplicati fra sezioni). **Collaudo**: 165 file / 3687 test sotto `TZ=Europe/Rome`, `tsc`, lint 0.
+  Nota: `.next/dev/types/routes.d.ts` troncato da un `next dev` interrotto fa fallire `tsc` — rigenerare o copiare
+  `.next/types/routes.d.ts`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -138,7 +127,7 @@ Entry points only: each `doc/guide/<tema>.md` opens with the full file list of i
 - **Cashflow**: `app/dashboard/cashflow/page.tsx`; Tracciamento `components/cashflow/ExpenseTrackingTab.tsx` + `components/cashflow/{TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx`, pure `lib/utils/{tracciamentoSummary,cashflowNarrative,movementsOwnerFilter}.ts` (the «Intestatario» filter and the owner chip), spec `e2e/cashflow.mobile.spec.ts`; Budget `components/cashflow/BudgetTab.tsx` + `components/cashflow/budget/*`, pure `lib/utils/{budgetSummary,budgetNarrative,budgetUtils,budgetHistory}.ts`, `lib/hooks/{useBudgetConfig,useBudgetHistory}.ts`, `lib/server/budgetHistoryService.ts` (cron phase 8), collections `budgets/{userId}`, `budgetHistory/{userId}/months/{YYYY-MM}`; Divisione `components/cashflow/ExpenseSplitTab.tsx`, pure `lib/utils/{expenseSplitSummary,expenseSplitNarrative}.ts` (`resolveSplitBasis`, `allocateByShare`); Centri di Costo `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx` + `cost-centers/*`, pure `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils}.ts`, `costCenterStyles.ts` (`CHART_TICK_STYLE`); services `lib/services/{budgetService,costCenterService,cashBalanceReconciliation,expenseImportService}.ts`, `lib/utils/expenseImport.ts`
 - **Analisi**: `components/cashflow/AnalisiTab.tsx` (`handleEntitySelect`) + `components/cashflow/analisi/*`, `components/cashflow/{EntityDossier,EntitySearch,ConfrontoAnnualeSection,CashflowSankeyChart,SavingsRateTrendSection,AndamentoStoricoSection}.tsx`; pure `lib/utils/{analisiSummary,analisiNarrative,expenseGrouping,cashflowSankey,cashflowComposition,expenseCategoryMatching,comparisonDeltas,expenseEntityStats,entitySearch}.ts`
 - **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative}.ts`, `lib/hooks/useDividendStats.ts` → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `types/dividend.ts`
-- **Storico / snapshots**: `app/dashboard/history/page.tsx`, `components/history/*` (+ `tiles/*`), pure `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition,snapshotUserFields,storicoScrub}.ts` (`resolveScrubView` = the ONE resolution of the month under the pointer; `buildBreakdownForRow` = a month's composition list, latest or scrubbed) (`preserveUserAuthoredSnapshotFields` = i campi che nessuna pipeline ricalcola, portati attraverso la sostituzione; `summarizeLaborMetrics` + `laborWindowsOf` = il recap Lavoro sulle finestre del Driver), `lib/services/{chartService,snapshotService}.ts`, `components/CreateManualSnapshotModal.tsx` over `lib/utils/manualSnapshotAmounts.ts`; collection `monthly-snapshots`
+- **Storico / snapshots**: `app/dashboard/history/page.tsx`, `components/history/*` (+ `tiles/*`), pure `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition,snapshotUserFields}.ts` (`preserveUserAuthoredSnapshotFields` = i campi che nessuna pipeline ricalcola, portati attraverso la sostituzione; `summarizeLaborMetrics` + `laborWindowsOf` = il recap Lavoro sulle finestre del Driver), `lib/services/{chartService,snapshotService}.ts`, `components/CreateManualSnapshotModal.tsx` over `lib/utils/manualSnapshotAmounts.ts`; collection `monthly-snapshots`
 - **Hall of Fame**: `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*` (+ `tiles/*`), pure `lib/utils/{hallOfFameSummary,hallOfFameNarrative}.ts` over `lib/utils/hallOfFameRecords.ts` (the ONE definition of record and ranking, shared with the email), `lib/constants/hallOfFame.ts`, `lib/services/hallOfFameService{,.server}.ts`, `app/api/hall-of-fame/recalculate/route.ts`; collection `hall-of-fame/{userId}`
 - **Benchmark**: `lib/constants/benchmarks.ts`, `app/api/benchmarks/*`, `lib/server/ecbRatesService.ts`; caches `benchmark-cache/*`, `fx-rate-cache/usd-eur`, `ecb-rate-cache/deposit-rate`
 - **FIRE**: Calcolatore `components/fire-simulations/FireCalculatorTab.tsx` + `tiles/*` + `{FireParametri,FireDettaglio,FIREProjectionChart,FireFanChart,SettledValue}.tsx`, pure `lib/utils/{fireSummary,fireNarrative}.ts`; shared `lib/services/{fireService,whatIfService,monteCarloService,goalService}.ts`, `lib/utils/{pensionUnlock,monteCarloParams,goalTrajectory,goalMath}.ts` (`pensionUnlock` = the single unlock resolution, `deriveMonteCarloAllocation`, `serializeGoalForFirestore` = the persistence allowlist); Coast `CoastFireTab.tsx` + `coast/*`, pure `lib/utils/coastFireView.ts`, `lib/hooks/useCoastFireSettingsDraft.ts`; What If `WhatIfAnalysisTab.tsx` + `whatif/*`, pure `lib/utils/{whatIfSummary,whatIfNarrative}.ts`, `types/whatIf.ts`; Monte Carlo `MonteCarloTab.tsx` + `components/monte-carlo/*` (`SCENARIO_SLOT`), pure `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`; Obiettivi `GoalBasedInvestingTab.tsx` + `components/goals/*`, pure `lib/utils/{goalsSummary,goalsNarrative}.ts`; specs `e2e/fire*.spec.ts`, `e2e/coast*.spec.ts`, fixture `scripts/seedCoastFireE2E.mts`
