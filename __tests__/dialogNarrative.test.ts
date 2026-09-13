@@ -9,6 +9,7 @@ import {
   describeExpenseIntent,
   describeModalStatus,
   describeMovementsReading,
+  describePensionValueCopy,
   describeSettlementTiming,
   describeTradeIntent,
   describeWriteError,
@@ -16,6 +17,8 @@ import {
   userFacingError,
   ASSET_TYPE_PICKER_READING,
   EXPENSE_TYPE_PICKER_READING,
+  PENSION_CONTRIBUTION_COPY,
+  PENSION_CONTRIBUTION_RECORDED,
   type ModalStatusCopy,
 } from '@/lib/utils/dialogNarrative';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
@@ -386,5 +389,22 @@ describe('describeAssetIntent', () => {
     expect(text).toContain('campi');
     expect(text).toContain('prezzato');
     expect(text).toContain('Allocazione');
+  });
+});
+
+describe('Previdenza modals', () => {
+  it('states the trap of the value overwrite: the month’s contributions are already in the statement', () => {
+    const withPaidIn = describePensionValueCopy({ fundName: null, currentValue: 29_800, monthPaidIn: 821, stale: false });
+    expect(plain(withPaidIn.idle)).toBe('Il fondo vale 29.800,00 €: scrivi il valore dell’estratto conto. I 821,00 € versati questo mese sono già dentro l’estratto: non aggiungerli.');
+
+    const named = describePensionValueCopy({ fundName: 'Cometa', currentValue: 100, monthPaidIn: 0, stale: true });
+    expect(plain(named.idle)).toBe('Cometa vale 100,00 € da un mese chiuso: scrivi il valore dell’estratto conto. Se questo mese hai versato, registra prima i versamenti: l’estratto li include già.');
+    expect(named.submitting).toBe('Aggiornamento del valore in corso…');
+  });
+
+  it('teaches the order in the toast after a contribution', () => {
+    expect(PENSION_CONTRIBUTION_RECORDED.next).toContain('aggiorna il valore del fondo');
+    expect(PENSION_CONTRIBUTION_RECORDED.action).toBe('Aggiorna valore');
+    expect(plain(PENSION_CONTRIBUTION_COPY.idle)).toContain('alza la deduzione IRPEF');
   });
 });
