@@ -10,6 +10,7 @@ target_fingerprint: "sha256:5c9b03f24962f4016a0e50a10533b01617305dc89722801d7f45
 target_path: "C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\pension\\page.tsx"
 timestamp: 2026-09-13T15-03-59Z
 slug: app-dashboard-pension-page-tsx
+closed: true
 ---
 Method: dual-agent (A: design review sub-agent · B: detector/browser sub-agent). Browser: Chrome extension not connected; live evidence via repo Playwright (headless, dark/light, 1440 and 390) — screenshots, overflow, targets, console, detect.js overlay.
 

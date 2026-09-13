@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isPensionValueStale,
+  resolveLastFundUpdate,
   summarizeFundToday,
   summarizeLedger,
   summarizePensionMembers,
@@ -178,6 +180,20 @@ describe('summarizeFundToday', () => {
     const indexed = summarizeFundToday({ ...INPUT, snapshotIndex: indexPensionSnapshots(SNAPSHOTS, [FUND.id]) });
     expect(indexed.series).toEqual(summarizeFundToday(INPUT).series);
     expect(indexed.monthEffect).toBe(summarizeFundToday(INPUT).monthEffect);
+  });
+
+  it('judges the age of a value with ONE rule, shared with the «Aggiorna valore» modal', () => {
+    // The last day of the previous month is a closed month; the first of the current one is not.
+    expect(isPensionValueStale(new Date(2026, 6, 31, 23, 30), NOW)).toBe(true);
+    expect(isPensionValueStale(new Date(2026, 7, 1, 0, 30), NOW)).toBe(false);
+    // A value never updated has no age to judge.
+    expect(isPensionValueStale(null, NOW)).toBe(false);
+    // `lastPriceUpdate` wins over `updatedAt` (a later `updatedAt` does not make the value fresh);
+    // the latest fund wins across several.
+    const older = { ...FUND, id: 'older', lastPriceUpdate: new Date(2026, 5, 1), updatedAt: new Date(2026, 7, 20) };
+    const newer = { ...FUND, id: 'newer', lastPriceUpdate: new Date(2026, 7, 12), updatedAt: new Date(2026, 7, 12) };
+    expect(resolveLastFundUpdate([older, newer])).toEqual(new Date(2026, 7, 12));
+    expect(resolveLastFundUpdate([])).toBeNull();
   });
 
   it('closes the series on the live value (the Panoramica rule) and keeps it chronological', () => {

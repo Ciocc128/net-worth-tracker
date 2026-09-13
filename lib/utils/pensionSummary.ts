@@ -155,7 +155,7 @@ function computeMonthEffect(
 /** The whole account's funds today: value, series, digest, what was ever paid in. */
 export function summarizeFundToday(input: PensionSummaryInput): FundTodaySummary {
   const { funds, contributions, now, configuredStartMonth, valueOf } = input;
-  const { current, currentKey, previousKey } = resolveMonths(now);
+  const { current, previousKey } = resolveMonths(now);
   const index = resolveSnapshotIndex(input);
 
   const value = funds.reduce((sum, fund) => sum + valueOf(fund), 0);
@@ -174,11 +174,7 @@ export function summarizeFundToday(input: PensionSummaryInput): FundTodaySummary
   const firstContributionMonth =
     fundContributions.length > 0 ? fundContributions.map(accountingMonthKey).sort()[0] : null;
 
-  const lastUpdated = funds.reduce<Date | null>((latest, fund) => {
-    const candidate = fund.lastPriceUpdate ?? fund.updatedAt;
-    if (!candidate) return latest;
-    return latest === null || candidate > latest ? candidate : latest;
-  }, null);
+  const lastUpdated = resolveLastFundUpdate(funds);
 
   return {
     value,
@@ -191,8 +187,28 @@ export function summarizeFundToday(input: PensionSummaryInput): FundTodaySummary
     monthPaidIn: paidIn,
     series,
     lastUpdated,
-    valueIsStale: lastUpdated !== null && monthKey(getItalyYear(lastUpdated), getItalyMonth(lastUpdated)) < currentKey,
+    valueIsStale: isPensionValueStale(lastUpdated, now),
   };
+}
+
+/** The latest manual update across the funds (`lastPriceUpdate`, else `updatedAt`); null without one. */
+export function resolveLastFundUpdate(funds: Asset[]): Date | null {
+  return funds.reduce<Date | null>((latest, fund) => {
+    const candidate = fund.lastPriceUpdate ?? fund.updatedAt;
+    if (!candidate) return latest;
+    return latest === null || candidate > latest ? candidate : latest;
+  }, null);
+}
+
+/**
+ * The ONE judgement on a hand-kept value's age, shared by the hero's footer («valore fermo
+ * dal …») and the «Aggiorna valore» modal's reading («da un mese chiuso»): stale when the last
+ * update belongs to an Italian calendar month before `now`'s — the statement of a closed month
+ * has not been entered yet. A value never updated has no age to judge.
+ */
+export function isPensionValueStale(lastUpdated: Date | null, now: Date): boolean {
+  if (lastUpdated === null) return false;
+  return monthKey(getItalyYear(lastUpdated), getItalyMonth(lastUpdated)) < resolveMonths(now).currentKey;
 }
 
 /** The page's memoized index, or one built here for a caller that passed only the snapshots. */

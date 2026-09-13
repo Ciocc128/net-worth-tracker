@@ -154,11 +154,16 @@
   `assertFundValueLivesInQuantity` guard, `lastPriceUpdate` stamped, no record, no transfer. Its reading states the
   trap (the month's paid-in figure «sono già dentro l'estratto: non aggiungerli»), the contribution toast offers it
   as the next step, and `describeFondoOggiFooter` judges the value's age («valore fermo dal 12 ago 2026»,
-  `valueIsStale` = last update in a closed month) instead of printing a neutral date. «Anno fiscale» in the
+  `valueIsStale` = last update in a closed month) instead of printing a neutral date. **That age is ONE rule**,
+  `isPensionValueStale(resolveLastFundUpdate(funds), now)` in `pensionSummary.ts`, read by the hero's footer AND by the
+  modal's reading («da un mese chiuso») — the modal re-derived it by hand until the polish pass of 2026-09-13. «Anno fiscale» in the
   contribution form is a Select derived from the date (year −1 · year · year +1, the ±1 rule of the service now named
   beside the field by a `superRefine`); every error is wired to its field (`aria-invalid`, `aria-describedby`,
   `role="alert"`); the dialog's words are `PENSION_CONTRIBUTION_COPY` / `describePensionValueCopy` in
-  `dialogNarrative.ts`.
+  `dialogNarrative.ts`. In the Rendimento tile — the page's 3-column tile — a row's hint («retribuzione, non
+  rendimento») takes its own line under the label: inline, «Contributo datoriale» broke mid-word into three lines at
+  1440 (the critique's last minor observation, measured by Playwright, closed by the polish pass). Anno fiscale and the
+  Dettaglio keep the inline hint: at 4 and 6 columns it fits.
 - **The snapshots are reduced ONCE** (`indexPensionSnapshots(snapshots, fundIds)` → `PensionSnapshotIndex`, memoized
   by the page on the snapshots alone and passed as `PensionSummaryInput.snapshotIndex`): `buildPensionValueSeries`
   used to re-read every `byAsset` of every month for the total, per contributor and per fund, and `computeMonthEffect`
