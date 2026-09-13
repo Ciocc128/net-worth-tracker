@@ -165,6 +165,20 @@ const expenseSchema = z
     }
   })
   .superRefine((data, ctx) => {
+    // A transfer IS the pair of accounts: the two labels carried an asterisk the schema did
+    // not honour (AGENTS.md → «a marker on a label is a claim the validation has to honour»),
+    // so a transfer saved without them moved no money and nothing said so (2026-09-13). The
+    // Select stores the `__none__` sentinel, which counts as empty here.
+    if (data.type !== 'transfer') return;
+    const origin = data.linkedCashAssetId && data.linkedCashAssetId !== '__none__' ? data.linkedCashAssetId : null;
+    const destination = data.transferCashAssetId && data.transferCashAssetId !== '__none__' ? data.transferCashAssetId : null;
+    if (!origin) ctx.addIssue({ code: 'custom', path: ['linkedCashAssetId'], message: 'Scegli il conto di origine' });
+    if (!destination) ctx.addIssue({ code: 'custom', path: ['transferCashAssetId'], message: 'Scegli il conto di destinazione' });
+    if (origin && destination && origin === destination) {
+      ctx.addIssue({ code: 'custom', path: ['transferCashAssetId'], message: 'Origine e destinazione devono essere due conti diversi' });
+    }
+  })
+  .superRefine((data, ctx) => {
     // The ceiling depends on the cadence, so it cannot live on the field's own schema, and
     // the message has to name the cadence's own unit — which is why this is a superRefine
     // and not a second .refine (whose params must be a literal in zod 4).
@@ -622,7 +636,11 @@ function ExpenseFormBody({
               value={watchedLinkedCashAssetId || '__none__'}
               onValueChange={(value) => setValue('linkedCashAssetId', value)}
             >
-              <SelectTrigger id="linkedCashAssetId">
+              <SelectTrigger
+                id="linkedCashAssetId"
+                aria-invalid={!!errors.linkedCashAssetId}
+                aria-describedby={errors.linkedCashAssetId ? 'linkedCashAssetId-error' : undefined}
+              >
                 <SelectValue placeholder="Seleziona conto" />
               </SelectTrigger>
               <SelectContent>
@@ -634,6 +652,11 @@ function ExpenseFormBody({
                 ))}
               </SelectContent>
             </Select>
+            {errors.linkedCashAssetId && (
+              <p id="linkedCashAssetId-error" role="alert" className="text-sm text-destructive">
+                {errors.linkedCashAssetId.message}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="transferCashAssetId">
@@ -643,7 +666,11 @@ function ExpenseFormBody({
               value={watchedTransferCashAssetId || '__none__'}
               onValueChange={(value) => setValue('transferCashAssetId', value)}
             >
-              <SelectTrigger id="transferCashAssetId">
+              <SelectTrigger
+                id="transferCashAssetId"
+                aria-invalid={!!errors.transferCashAssetId}
+                aria-describedby={errors.transferCashAssetId ? 'transferCashAssetId-error' : undefined}
+              >
                 <SelectValue placeholder="Seleziona conto" />
               </SelectTrigger>
               <SelectContent>
@@ -657,11 +684,21 @@ function ExpenseFormBody({
                   ))}
               </SelectContent>
             </Select>
+            {errors.transferCashAssetId && (
+              <p id="transferCashAssetId-error" role="alert" className="text-sm text-destructive">
+                {errors.transferCashAssetId.message}
+              </p>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             Il saldo di entrambi i conti viene aggiornato automaticamente.
           </p>
         </div>
+      ) : selectedType === 'transfer' ? (
+        /* No cash account at all: the schema refuses the transfer, so say why before the click. */
+        <p role="alert" className="text-sm text-destructive">
+          Un trasferimento sposta soldi tra due conti correnti: crea prima i conti in Patrimonio.
+        </p>
       ) : cashAssets.length > 0 ? (
         <div className="space-y-2">
           <Label htmlFor="linkedCashAssetId">
@@ -1702,7 +1739,12 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
             expenseData.recurringCount &&
             expenseData.recurringCount > 0
           ) {
-            firstSignedAmount = -Math.abs(expenseData.amount);
+            // The first occurrence is the only one that moves the account, with the SIGN of its
+            // type — the same rule as the two branches beside it. It was hard-coded negative until
+            // 2026-09-13: harmless only because `canTypeRecur` keeps incomes out of recurrence, a
+            // guard this branch must not rely on.
+            firstSignedAmount =
+              data.type === 'income' ? Math.abs(expenseData.amount) : -Math.abs(expenseData.amount);
           } else {
             firstSignedAmount =
               data.type === 'income' ? Math.abs(expenseData.amount) : -Math.abs(expenseData.amount);

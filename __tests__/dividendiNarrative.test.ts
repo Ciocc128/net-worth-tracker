@@ -41,6 +41,7 @@ import {
   describeComparisonLabel,
   describeConcentration,
   describeDpsGrowth,
+  describeFilteredDividends,
   describeTotalReturn,
   describeMonthlyWindow,
   describeNetIncome,
@@ -679,5 +680,14 @@ describe('describeYearlyIncome — a first year with nothing to compare it to', 
     expect(
       describeYearlyIncome({ years: [], closedCount: 0, average: null, best: null, worst: null, ongoing: null })
     ).toBeNull();
+  });
+});
+
+describe('describeFilteredDividends', () => {
+  it('counts what the scrape dropped and offers the recovery only when a floor was the creation date', () => {
+    expect(describeFilteredDividends(7, 1)).toBe(
+      '7 dividendi non importati perché precedenti alla data in cui possiedi il titolo: per un titolo creato nell’app dopo l’acquisto, registra l’acquisto nel Registro operazioni con la sua data reale e scarica di nuovo.'
+    );
+    expect(describeFilteredDividends(1, 0)).toBe('1 dividendo non importato perché precedente alla data in cui possiedi il titolo.');
   });
 });

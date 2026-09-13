@@ -109,6 +109,7 @@ import {
   describePaymentsFooter,
   describePaymentsInventory,
   describePeriodEyebrow,
+  describeFilteredDividends,
   describeReliability,
   describeYearlyFooter,
   describeYearlyIncome,
@@ -339,6 +340,12 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
       setScraping(true);
       let successCount = 0;
       let failedCount = 0;
+      // What the route dropped as older than each asset's floor (holding start, else the day
+      // the asset was created in the app): counted so the toast can say WHY a history-rich
+      // instrument produced nothing, and how to recover — until 2026-09-13 this read as
+      // «Nessun nuovo dividendo trovato» and nothing else.
+      let filteredCount = 0;
+      let filteredByCreation = 0;
       for (const asset of assetsWithIsin) {
         try {
           const response = await authenticatedFetch('/api/dividends/scrape', {
@@ -348,7 +355,11 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
           });
           if (response.ok) {
             const result = await response.json();
-            if (result.scraped > 0) successCount++;
+            if (result.created > 0) successCount++;
+            if (typeof result.filtered === 'number' && result.filtered > 0) {
+              filteredCount += result.filtered;
+              if (result.floorSource === 'created') filteredByCreation++;
+            }
           } else failedCount++;
         } catch (error) {
           console.error(`Error scraping ${asset.ticker}:`, error);
@@ -360,6 +371,9 @@ export function DividendTrackingTab({ dividends, assets, loading, loadFailed, on
         await onRefresh();
       } else {
         toast.warning('Nessun nuovo dividendo trovato');
+      }
+      if (filteredCount > 0) {
+        toast.info(describeFilteredDividends(filteredCount, filteredByCreation), { duration: 12_000 });
       }
       if (failedCount > 0) toast.warning(`${failedCount} asset hanno fallito lo scraping`);
     } catch (error) {
