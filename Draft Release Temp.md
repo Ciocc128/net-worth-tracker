@@ -14,6 +14,7 @@
 
 ## 🔧 Improvements
 
+- Improved the Rendimento tile on Previdenza: each row's caption («retribuzione, non rendimento», «mercato + datore») sits on its own line under the label, so «Contributo datoriale» no longer breaks mid-word into three lines on desktop.
 - Improved «Il fondo oggi»: its footer judges the age of the hand-kept value — «valore fermo dal 12 ago 2026» when the last update belongs to a closed month — instead of printing a neutral date.
 - Improved the contribution flow: after a contribution the confirmation names the next step («Quando arriva l'estratto conto, aggiorna il valore del fondo: lo include già») with an «Aggiorna valore» action, so the order that prevents a double count is taught where it matters.
 - Improved the fiscal-year switch on Previdenza: it scrolls inside itself once the years outgrow the row, and «Il fondo oggi» no longer recomputes when the year changes.

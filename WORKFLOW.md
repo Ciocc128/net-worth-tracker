@@ -231,7 +231,11 @@ The app **is** locally runnable; there is no fallback to declare.
   so the snapshot `polish` reads as its backlog is the same on every machine. A critique is
   committed in the session that produces it; one that describes a surface since rebuilt is
   deleted, not kept as history (the eleven pre-«Verdict over Tiles» ones were removed that day).
-  `.impeccable/hook.cache.json` stays local (`.git/info/exclude`).
+  `.impeccable/hook.cache.json` stays local (`.git/info/exclude`). **A snapshot closes only through
+  `polish`, never by fixing the code** (2026-09-13): `critique-storage latest` judges it current from the
+  fingerprint of the ONE target file (`page.tsx`, a 32-line wrapper), so corrections made in the
+  components leave it open — the polish pass verifies each Priority Issue against the code and runs
+  `critique-storage close`, which stamps `closed: true` in the tracked file.
 - **Do not duplicate project conventions here.** Code and comment conventions live in
   `DEVELOPMENT_GUIDELINES.md` and `COMMENTS.md`, repo-wide patterns and traps in `AGENTS.md`, the
   per-area rules in `doc/guide/<tema>.md`, the aesthetic in `DESIGN.md`, environment and emulators

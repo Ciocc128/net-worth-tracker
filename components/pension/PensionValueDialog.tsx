@@ -25,6 +25,7 @@ import { useAssets } from '@/lib/hooks/useAssets';
 import { usePensionContributions, useUpdatePensionFundValue } from '@/lib/hooks/usePensionContributions';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { valueEffectMonth } from '@/lib/utils/pensionReturn';
+import { isPensionValueStale, resolveLastFundUpdate } from '@/lib/utils/pensionSummary';
 import { getItalyMonth, getItalyYear } from '@/lib/utils/dateHelpers';
 import { describeModalStatus, describePensionValueCopy, describeWriteError, type ModalStatus } from '@/lib/utils/dialogNarrative';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
@@ -99,12 +100,8 @@ export function PensionValueDialog({ open, onClose, defaultAssetId }: PensionVal
   }, [fund, contributions]);
 
   const currentValue = fund ? calculateAssetValue(fund) : 0;
-  const lastUpdated = fund?.lastPriceUpdate ?? fund?.updatedAt ?? null;
-  const stale = (() => {
-    if (!lastUpdated) return false;
-    const now = new Date();
-    return getItalyYear(lastUpdated) * 12 + getItalyMonth(lastUpdated) < getItalyYear(now) * 12 + getItalyMonth(now);
-  })();
+  // The same judgement the hero's footer prints («valore fermo dal …»): one rule, one place.
+  const stale = isPensionValueStale(resolveLastFundUpdate(fund ? [fund] : []), new Date());
 
   const reading = describeModalStatus(
     isSubmitting ? { phase: 'submitting' } : status,
