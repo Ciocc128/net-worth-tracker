@@ -9,6 +9,7 @@ import {
   describeExpenseIntent,
   describeModalStatus,
   describeMovementsReading,
+  describeSettlementTiming,
   describeTradeIntent,
   describeWriteError,
   pluralize,
@@ -336,6 +337,29 @@ describe('describeTradeIntent', () => {
     expect(plain(describeTradeIntent({ ...base, type: 'sell', isDemo: true }))).toBe(
       'In modalità demo il registro operazioni è di sola lettura.',
     );
+  });
+});
+
+describe('describeSettlementTiming', () => {
+  it('promises the automatic update for a trade dated in the current month', () => {
+    expect(describeSettlementTiming('2026-09-02', '2026-09-13')).toBe(
+      'Se selezionato, il saldo del conto viene aggiornato automaticamente.',
+    );
+  });
+
+  it('warns that the balance moves today for a trade dated in an earlier month', () => {
+    // A purchase recorded years later has already left the account: settling it again would
+    // debit it twice, and the sentence has to say so before the user picks an account.
+    expect(describeSettlementTiming('2024-03-15', '2026-09-13')).toBe(
+      "Il saldo del conto si muove oggi, non alla data dell'operazione: se lo riflette già, lascia «Nessuno».",
+    );
+    // The month boundary, not a number of days: the 31st against the 1st is a past month.
+    expect(describeSettlementTiming('2026-08-31', '2026-09-01')).toContain('si muove oggi');
+  });
+
+  it('reads an empty or malformed date as today', () => {
+    expect(describeSettlementTiming('', '2026-09-13')).toContain('aggiornato automaticamente');
+    expect(describeSettlementTiming('2026', '2026-09-13')).toContain('aggiornato automaticamente');
   });
 });
 

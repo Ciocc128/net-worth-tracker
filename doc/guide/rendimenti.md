@@ -28,8 +28,17 @@
   real account's July 2026). **Flow-opaque instruments** — every hand-valued asset except cash: pension funds,
   properties — contribute 0 to the quantity branch; the funds' money rides its own channel. A month with no entry is NOT
   measurable and falls back to the cashflow's savings; with nothing ever excluded the list is empty and not a decimal
-  moves. Declared limits: end-of-month price on the quantity branch, a split or an in-kind transfer reads as a flow, a
-  trade left out of the ledger vanishes, interest credited on an account inside the base reads as a deposit.
+  moves. **THE ENTRY MONTH** (2026-09-13, the trade date floor lifted): the ledger speaks for an instrument in a month
+  only once the base has SEEN it — held in the previous snapshot, or bought inside the month; an instrument the
+  snapshots meet for the first time with no trade in that month (a purchase recorded with its real, older date; an
+  asset created in the migration month, whose baseline covers it) ENTERS at its end-of-month value on the quantity
+  branch. Before that rule the ledger's «no trade = 0» read the whole position as that month's return (10 × 100 € bought
+  in 2024 and typed in September: 1.000 € of phantom gain, proven by `portfolioFlows.test.ts`). The history before the
+  app saw the instrument is not measured — a TWR cannot attribute two years of a price move to the month the position
+  was typed in — and the backdated month itself produces no entry, since no snapshot pair holds the instrument.
+  `CACHE_MATH_VERSION` v8. Declared limits: end-of-month price on the quantity branch, a split or an in-kind transfer
+  reads as a flow, a trade left out of the ledger vanishes, interest credited on an account inside the base reads as
+  a deposit.
 - **«Liquidità fuori dalla base»** (`performanceExcludesCash`, default OFF): the `cash` accounts leave the base by TYPE,
   their `allocationRole` untouched (Allocazione keeps them); a money-market ETF has a price and stays in. It exists only
   now because without the measured flows it would read every purchase as return. `classifyContribution` reads the

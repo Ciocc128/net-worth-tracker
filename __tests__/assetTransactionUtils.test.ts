@@ -307,6 +307,27 @@ describe('replayTransactions — position replay and PMC', () => {
     expect(sorted[0].isBaseline).toBe(true);
     expect(sorted[3].type).toBe('sell');
   });
+
+  it('refuses a trade dated before the baseline, naming the day it cannot precede', () => {
+    // Since 2026-09-13 the baseline is the ONLY floor a trade date has (an asset without one
+    // accepts any past date), so the message must say which day — in the Italian calendar: a
+    // baseline sits at start-of-day Italy, the previous evening in UTC.
+    const baseline = tx({ type: 'buy', date: day(0), quantity: 10, pricePerUnit: 1, isBaseline: true });
+    const earlier = tx({ type: 'buy', date: day(-30), quantity: 1, pricePerUnit: 1 });
+
+    expect(() => replayTransactions([baseline, earlier])).toThrow(LedgerValidationError);
+    try {
+      replayTransactions([baseline, earlier]);
+    } catch (error) {
+      const failure = error as LedgerValidationError;
+      expect(failure.code).toBe('BASELINE_NOT_FIRST');
+      expect(failure.userMessage).toBe(
+        'Su questo asset le operazioni partono dalla posizione iniziale del 01/01/2024: una data precedente non è registrabile.',
+      );
+    }
+    // The same trade dated on or after the baseline day replays fine.
+    expect(replayTransactions([baseline, tx({ type: 'buy', date: day(0), quantity: 1, pricePerUnit: 1 })]).quantity).toBe(11);
+  });
 });
 
 // ===========================================================================

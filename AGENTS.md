@@ -288,6 +288,7 @@ file used to carry.
 - ALL trade money-math (replay, PMC, realized P&L, XIRR, invested capital) lives in `assetTransactionUtils.ts`, pure; the service/route layer is a thin atomic writer. A new `AssetTransactionType` updates the replay switch, the zod schema AND `TransactionDialog`.
 - Writes are Admin-API-only, all reads before any writes, derived fields written in-tx (never via `updateAsset`); ledger-type edits go through `updateAssetMetadata`.
 - The migration baseline (`isBaseline` BUY) NEVER stamps `holdingStartDate`; `replayTransactions` returning `holdingStartDate: undefined` means leave the doc untouched (never `deleteField()`).
+- A trade date has ONE floor — the asset's OWN baseline, enforced by the replay's `BASELINE_NOT_FIRST` (its message names the day) and mirrored by the dialog's `min` from `existingTransactions` — and the future as its only ceiling (2026-09-13): `assetTransactionsMeta.baselineDate` is the baselines' date, NOT a floor, so an asset without a baseline records a purchase made years before the ledger existed with its real date. A settlement account is debited TODAY whatever the date (`describeSettlementTiming` warns on a past month).
 - Per-transaction derived data comes from `replayTransactionsWithEffects` (one pass), never re-running replay on every prefix.
 - `buildDerivedAssetFields` projects `quantity`, the native `averageCost` AND `averageCostEur` (fees included) onto the asset doc; `backfillAverageCostEur` adds the third to pre-existing docs once, writing only that field.
 - Il resto — `resolveBondPrice` reuse (from `bondPricing.ts`, a BTP€i trade storing its coefficient), the two `totalReturnAssets` paths, the static-copy audit rule — in `doc/guide/registro-operazioni.md`.
@@ -362,7 +363,7 @@ file used to carry.
 ### Rendimenti → `doc/guide/rendimenti.md`
 - Any exclusion read from `byAsset` MUST be backfilled across pre-`byAsset` months (subtract a constant `E₀`) or it becomes a phantom crash — this fixes the DENOMINATOR, not the numerator. The base is resolved ONCE by `resolvePerformanceBase` for its THREE call sites (service, page, PDF); `buildCacheKey` fingerprints its options, entry month and both flow channels.
 - The pension toggle WINS over a fund's `allocationRole` (it was an OR, and a no-op on every fund marked `excluded`). ON, the funds enter the base from the tracked month as a FLOW and every later outside contribution is a flow (`CashFlowData.pensionFlow`); `netCashFlow` stays the cashflow's savings. A contribution is a flow iff it crosses the base's boundary.
-- **The flows follow the base** (2026-09-07): with anything out of the base, the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows (`lib/utils/portfolioFlows.ts`: ledger first per instrument, quantities as the net, baseline/adjustment move no money, hand-valued instruments opaque) on the third channel `CashFlowData.portfolioFlow`; `externalFlowOf` = `(portfolioFlow ?? netCashFlow) + pensionFlow`. «Liquidità fuori dalla base» (`performanceExcludesCash`) takes the `cash` accounts out by type. The Rendimento tile's second chip is the cumulative TWR (`resolvePeriodReturnChip`), never the ROI.
+- **The flows follow the base** (2026-09-07): with anything out of the base, the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows (`lib/utils/portfolioFlows.ts`: ledger first per instrument, quantities as the net, baseline/adjustment move no money, hand-valued instruments opaque) on the third channel `CashFlowData.portfolioFlow`; `externalFlowOf` = `(portfolioFlow ?? netCashFlow) + pensionFlow`. **The ledger speaks for an instrument only once the base has SEEN it** (2026-09-13): held in the previous snapshot or bought in the month; otherwise the month is the instrument's ENTRY and its value is the flow — a backdated purchase must never read as the entry month's return. «Liquidità fuori dalla base» (`performanceExcludesCash`) takes the `cash` accounts out by type. The Rendimento tile's second chip is the cumulative TWR (`resolvePeriodReturnChip`), never the ROI.
 - The first snapshot of a period is the starting valuation, never a measured month — the window opens on the 1st of the month AFTER it. The page must NEVER re-derive the window from `new Date()` (`metrics.nominalPeriodStart` travels in the payload).
 - No silent filters inside a single metric — volatility/Sharpe floor at ≥ 3 monthly returns, else `null` with a reason. Below 6 months the hero is the PERIOD return, not annualized.
 - The per-instrument attribution (`performanceAttribution.ts`) is EURO and reconciled: Σ rows + «Non attribuito» = the TWR numerator over the months with `byAsset`; a row at quantity 0 is a closed position (`attributeSelectedChange`). The residual is also read month by month: a month whose unattributed part exceeds `RESIDUAL_ALERT_SHARE` (2%) of its starting base is NAMED in the reading (`residualMonths`) — where to look, never what happened.
@@ -801,7 +802,9 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   `firebase` CLI process itself: on macOS `kill -INT <cli pid>` does it (2026-09-06); on Windows, where only the wrapper
   can be killed, POST `http://127.0.0.1:4400/_admin/export` with `{"path": "<abs>/.emulator-data"}` (forward slashes —
   a backslashed path 400s; `/emulators/export` 404s), then terminate. **Verify the directory's mtime moved**: a 200 with
-  an unchanged mtime is the failure that looks like success.
+  an unchanged mtime is the failure that looks like success — and a path that lost its slashes (`C:UsersGiuseppe…`,
+  2026-09-13) still answers 200 and writes a full export into a directory of THAT name in the repo root, which `git
+  status` then shows as untracked: delete it.
 
 ### Browser-Driven E2E (Playwright)
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,
@@ -852,6 +855,12 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
 - **A settings change is only verified by a RELOAD** (2026-08-29: four fields wrote fine and came back old on the next
   load — the form is rebuilt by `getSettings`, the half where the bugs live): drive the UI, save,
   `page.reload({waitUntil: 'load'})`, assert on the INPUTS, and test setting and CLEARING separately.
+- **A two-click confirm in a spec waits for the ARMED label before the second click** (2026-09-13): on a cold dev server the
+  second `click()` on «Elimina operazione» landed on a button not yet re-rendered as armed and the row stayed, with no
+  error anywhere; `await expect(row.getByRole('button', { name: /Premi di nuovo per/ })).toBeVisible()` between the two
+  clicks, and `page.waitForResponse` on the DELETE to read its status, made the same step green. A first run against a
+  cold server also logs an overview «Lettura fallita» and a failed backfill that a warm server does not reproduce — read
+  the API bodies (`page.on('response')` on `/api/` ≥ 400) before calling either a defect.
 - **A throwaway spec: own config, right filename, removed by the app, deleted.** The broad `desktop` project collects any
   `*.spec.ts`, so a spec written for its own fixture account fails under the base account in a full run — give it
   `playwright.<name>.config.ts` with its own setup project and a narrow `testMatch`, run with `--config=`, delete it

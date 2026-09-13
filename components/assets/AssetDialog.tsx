@@ -72,6 +72,7 @@ import {
   ASSET_TYPE_PICKER_READING,
   describeAssetIntent,
   describeModalStatus,
+  describeSettlementTiming,
   describeWriteError,
   type ModalStatus,
 } from '@/lib/utils/dialogNarrative';
@@ -557,6 +558,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const watchAllocationRole = useWatch({ control, name: 'allocationRole' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
   const watchOpeningCashAssetId = useWatch({ control, name: 'openingCashAssetId' });
+  const watchOpeningDate = useWatch({ control, name: 'openingDate' });
   const watchPensionFamilyMemberId = useWatch({ control, name: 'pensionFamilyMemberId' });
 
   // Ledger gating (Phase C):
@@ -567,8 +569,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   const isLedgerEdit = isEdit && !!asset && isLedgerAssetType(asset.type);
   const isLedgerCreate = !isEdit && !!selectedType && isLedgerAssetType(selectedType);
   const ledgerCreateReady = isLedgerCreate && ledgerMeta != null;
+  // The opening purchase carries its real date, however old: a new asset has no baseline, so
+  // nothing floors it (2026-09-13). Only the future is refused.
   const todayIso = isoDateToday();
-  const baselineIso = ledgerMeta ? ledgerMeta.baselineDate.toISOString().split('T')[0] : undefined;
   // True when the bond's prices are Borsa Italiana quotes (% of par ↔ EUR conversion): a bond with
   // an ISIN, whatever its nominal — with the field empty one unit is 1 € of nominal
   // (`lib/utils/bondPricing.ts`). Used to show the % labels and apply the conversion on save.
@@ -1695,7 +1698,6 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                   <Input
                     id="openingDate"
                     type="date"
-                    min={baselineIso}
                     max={todayIso}
                     {...register('openingDate')}
                   />
@@ -1718,6 +1720,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {describeSettlementTiming(watchOpeningDate ?? '', todayIso)}
+                  </p>
                 </div>
               </div>
               {newAsset_showCostBasis && renderTaxRateField()}

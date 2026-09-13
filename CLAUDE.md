@@ -13,37 +13,29 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **166 files / 3682 tests** green + **43 Playwright E2E specs** (46 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-12): **Tre gesti «overdrive» (Impeccable), uno per superficie, e le critique entrano nel repo.**
-  (1) **Storico legge il mese sotto il mouse** (DESIGN → The Scrub Rule): con un pointer fine la serie di Evoluzione è
-  l'asse dei mesi della pagina — il mese sotto il puntatore sale alla pagina, `resolveScrubView`
-  (`lib/utils/storicoScrub.ts`, puro, testato) decide in UN punto cosa mostra ogni tessera, e ognuna riceve la sua
-  fetta: il valore in testa scivola sulla cifra del mese (`useCountUp({ fromPrevious })`, riga di didascalia a
-  altezza fissa: «settembre 2024 · sul mese prima +1165 €»), Composizione elenca la ripartizione di QUEL mese
-  (`buildBreakdownForRow` estratta da `buildSeries`, la STESSA funzione dell'ultimo mese; righe che si riordinano
-  sulla molla 400/35; `ReferenceLine` sul grafico), Valore per strumento salta al mese SOLO se lo snapshot ha
-  `byAsset` (la Select rispecchia, la scelta dell'utente sopravvive), le barre del Driver si accendono. Esc o uscita
-  dal grafico = oggi; le parole non cambiano mai, il tooltip porta solo la nota mentre la testa segue; pointer
-  grosso = nessuno scrub. (2) **Rendimenti: il periodo si trasforma** (DESIGN → The Period-Transforms Rule): via la
-  `key={periodRenderKey}` che rimontava la griglia (e `renderKey`/`revealKey` fino all'underwater); il TWR scivola
-  dalla cifra vecchia, «Crescita di 100» e «Capitale e mercato» si deformano indice per indice
-  (`lib/utils/seriesMorph.ts` puro e testato — la serie a schermo RICAMPIONATA sulla lunghezza nuova, poi ogni indice
-  in ease-out-quart 420 ms, un `null` resta un buco — sotto `lib/hooks/useMorphingSeries.ts`; l'hover legge i dati
-  atterrati, mai il frame), la heatmap sfuma cella per cella (`heatmapCellStyle`, `color-mix` inline) e le righe
-  degli anni entrano/escono in dissolvenza, Attribuzione riordina e fa scorrere le barre. Solo «Aggiorna» attenua
-  la griglia. (3) **Navigazione: una scena** (DESIGN → The Page Scene): i link della shell sono `SceneLink`
-  (`components/layout/SceneLink.tsx`), `useSceneNavigation` avvolge `router.push` in una view transition nativa
-  la cui update si risolve al cambio di `usePathname()` (guardia 700 ms); `lib/utils/viewTransition.ts` è l'UNICO
-  ingresso a `document.startViewTransition` e marca `<html data-vt="theme|page">`, così le regole
-  `::view-transition-*` di `globals.css` sono scopate (la clip circolare del tema era globale). Tre regioni nominate:
-  `page-main` (il `<main>` del layout), `page-header`, `page-verdict` (condiviso con lo skeleton); `template.tsx` si
-  ritira quando la scena è in volo. React 19.2 stabile non esporta `ViewTransition`: Firefox e reduced-motion
-  restano sul fade. **Collaudo**: 166 file / 3682 test sotto `TZ=Europe/Rome`, `tsc`, lint 0; tour Playwright
-  usa-e-getta sugli emulatori (fixture di 24 snapshot 2024-25 con il decoy «Fenicottero Capital», perché il seed base
-  ha un solo anno e YTD = Storico disegnano lo stesso percorso): 20 asserzioni verdi sul DOM (didascalia, footer di
-  Composizione, Select, Esc, uscita, `data-vt` durante e dopo la scena, 8-9 frame intermedi del path SVG, fill
-  `color-mix`, nessun overflow a 390, zero errori in console). **Critique di Impeccable ora tracciate**
-  (`.gitignore`, WORKFLOW.md § Where things are recorded; le 11 pre-«Verdict over Tiles» cancellate).
+- `tsc` clean; **166 files / 3694 tests** green + **43 Playwright E2E specs** (46 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-13): **Un acquisto più vecchio del registro si registra con la sua data, e Rendimenti legge l'ingresso di
+  uno strumento come un flusso.** Segnalazione di un utente: il pavimento della data era `assetTransactionsMeta.baselineDate`,
+  il giorno di apertura del registro — su un account nuovo la prima visita a Patrimonio, quindi «oggi»: azioni comprate nel
+  2024 non erano inseribili. Ora il server controlla solo il futuro (`assertDateNotInFuture`); l'UNICO pavimento è la
+  posizione iniziale dell'asset stesso (asset migrati), imposto dal replay (`BASELINE_NOT_FIRST`, il cui messaggio nomina il
+  giorno: «Su questo asset le operazioni partono dalla posizione iniziale del 22/08/2026») e rispecchiato dal `min` del
+  dialog operazione letto da `existingTransactions`, mai dalla meta; la «Data di acquisto» di un nuovo asset non ha `min`.
+  Due conseguenze dichiarate, non nascoste: (1) il conto di regolamento è addebitato OGGI qualunque sia la data → con una
+  data in un mese passato i due dialog sostituiscono la promessa con l'avviso (`describeSettlementTiming`,
+  `lib/utils/dialogNarrative.ts`); (2) `portfolioFlows.ts` § THE ENTRY MONTH — il ledger parla per uno strumento in un mese
+  solo se la base l'aveva già VISTO (nello snapshot precedente, o comprato nel mese); altrimenti il mese è l'ingresso e il
+  valore di fine mese è il flusso sul ramo delle quantità. Prima, un acquisto retrodatato leggeva l'intero valore come
+  rendimento del mese d'ingresso (sonda: 10 × 100 € comprati nel 2024 e digitati a settembre → flusso 0, 1.000 € di
+  guadagno fantasma; ora 1000). `CACHE_MATH_VERSION` v8. Scelte del proprietario: solo asset senza baseline (nessuna storia
+  di sostituzione della posizione iniziale), avviso e non blocco sul regolamento. **SiftingIO valutato e scartato**: solo
+  titoli USA, un mese di storico nel free tier, niente holdings — nessuno dei tre usi di Yahoo (prezzi EU, benchmark dal
+  2000, esposizione). **Collaudo**: 166 file / 3694 test sotto `TZ=Europe/Rome` (+12), `tsc`, lint 0; tour Playwright
+  usa-e-getta sugli emulatori (seed base, decoy «Ornitorinco Energia»): nuovo titolo con acquisto 15/03/2024 → trade e
+  `holdingStartDate` a quella data, nessun `min`, avviso sul regolamento; seconda operazione 10/06/2025 → quantità 15; VWCE
+  (migrato) → `min` 2026-08-22 e la riga «posizione iniziale del 22/08/2026»; sotto la UI un POST del 10/01/2026 su VWCE →
+  422 col giorno, uno del 10/01/2023 sul nuovo → 200 (quantità 16, `holdingStartDate` 2023); l'eliminazione dal dialog
+  Movimenti rilancia il replay (DELETE 200, quantità 11); decoy rimosso, zero fallimenti API sul server caldo.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -60,7 +52,7 @@ One line per feature: what it is, then where it is described. *What the user see
 - **Shell**: compact `PageHeader` (one variant) · `PageTabBar` · `PageContainer` (1920, its only width) + `TileGridSkeleton` · sidebar with eyebrow group labels · bottom pill + «Altro» drawer. DESIGN → §5 Compact Page Header / Tile Grid; AGENTS → *Navigation*.
 - **Panoramica**: a rule-generated verdict over a 12-column tile grid, one question per tile, on `GET /api/dashboard/overview`. README → *Portfolio Management*; doc/guide/panoramica.md; DESIGN → §5 Page Verdict / Tile / Tile Grid.
 - **Patrimonio**: the verdict's driver is an instrument; six tiles, Strumenti is the management table at the tile's cadence; a Δ is a unit-price variation; the Sottocategoria is optional; every G/P stands EUR against EUR, fees included (`costBasisEur.ts`). doc/guide/patrimonio.md.
-- **AssetDialog + Asset trade ledger (Registro operazioni)**: 2-step create; BUY/SELL/ADJUSTMENT with cash settlement, Admin-API writes, the asset doc rebuilt by full replay. README → *Portfolio Management*; AGENTS → *Two-Step Create Dialogs*; doc/guide/registro-operazioni.md.
+- **AssetDialog + Asset trade ledger (Registro operazioni)**: 2-step create; BUY/SELL/ADJUSTMENT with cash settlement, Admin-API writes, the asset doc rebuilt by full replay; a trade carries any past date, floored only by the asset's own baseline. README → *Portfolio Management*; AGENTS → *Two-Step Create Dialogs*; doc/guide/registro-operazioni.md.
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis; transfers are net-zero with atomic reconciliation; recurrence materialises real future rows; the Movimenti reading totals each type and its mobile bar repeats the period picker. README → *Cashflow*; doc/guide/cashflow-tracciamento.md; doc/guide/cashflow.md (segno, ricorrenze).
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, today's mark on every track, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md; DESIGN → Budget Track, Risk-vs-Fact.
 - **Centri di Costo**: optional tab; «quanto sta costando il progetto?» with no axis — a project's cost is its whole cost. doc/guide/centri-di-costo.md; DESIGN → Whole-Cost Corollary.
@@ -102,7 +94,7 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **YOC/Current Yield** exclude sold assets and are scoped to the current holding via `holdingStartDate`; a sell+rebuy inside one month counts the prior holding's dividends against the new cost basis (an overstated YOC, never a regression).
 - **Rendimenti before `byAsset`: correct denominator, wrong numerator** (2023-01 → 2025-10 on the real account): the basis step is removed, but the excluded assets' variation stays inside the measured return. Not reconstructible — and those months cannot be attributed to an instrument either: «Da dove viene il rendimento» names the months it covers.
 - **«Non attribuito» in Rendimenti is a measurement, not a bug**: cash interest, balances corrected by hand, expenses paid from untracked accounts and dividends recorded in only one of cashflow/registry all move the total without moving an instrument's unit value (−2.326 € on a 16.836 € YTD gain on the real account). Per-instrument dividends come from the `dividends` registry, the gain from the cashflow: a dividend present in one place only lands there. With the pension toggle ON, a period straddling the entry month carries the funds' whole value as a flow in that month, and a late-credited statement reads as a temporary market loss on this page too.
-- **TWR monthly-bucket artifact (by design)**: an expense is neutralised only when the net-worth drop and the cash flow land in the same month; recording a purchase both as an expense and as an asset produces a phantom gain. Record balances in the month they belong to. **Since 2026-09-07, on any account with something out of the base (the default), the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows instead of the cashflow's savings** (`portfolioFlows`): a deposit on an account inside the base counts even without an income row, interest credited on it reads as a deposit, a split or an in-kind transfer as a purchase, a trade left out of the ledger vanishes for a covered instrument; the months before `byAsset` still use the cashflow, and the Contributi tile says how many were measured. doc/guide/rendimenti.md.
+- **TWR monthly-bucket artifact (by design)**: an expense is neutralised only when the net-worth drop and the cash flow land in the same month; recording a purchase both as an expense and as an asset produces a phantom gain. Record balances in the month they belong to. **Since 2026-09-07, on any account with something out of the base (the default), the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows instead of the cashflow's savings** (`portfolioFlows`): a deposit on an account inside the base counts even without an income row, interest credited on it reads as a deposit, a split or an in-kind transfer as a purchase, a trade left out of the ledger vanishes for a covered instrument; the months before `byAsset` still use the cashflow, and the Contributi tile says how many were measured. **Since 2026-09-13 the ledger speaks for an instrument only once the base has SEEN it**: an instrument the snapshots meet for the first time enters at its value, whatever its trade date (a backdated purchase is history, not that month's return). doc/guide/rendimenti.md.
 - **The Assistant's cashflow figures changed on 2026-07-29**; saved threads are prose and are not regenerated.
 - **Chart slots 8-9 are still not theme-aware** (`useChartColors()` pads the last two from the static `CHART_COLORS`): slot 8 is Storico's synthetic «Previdenza» band and 9 is unused by the class palette, so nothing user-facing collides. Slots 0-7 are theme-aware since 2026-08-30. doc/guide/temi.md.
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md.
