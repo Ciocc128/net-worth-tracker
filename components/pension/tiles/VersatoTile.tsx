@@ -40,12 +40,13 @@ export interface VersatoTileProps {
   className?: string;
 }
 
-/** Row list name — the same words as the tile's accessible name, so the list reads as the tile's body. */
+/** Row list name — the list reads as the tile's body. */
 const ROWS_ARIA_LABEL = 'Versato per natura';
 
 export function VersatoTile({ taxYear, reading, aside, footer, rows, className }: VersatoTileProps) {
   return (
-    <Tile eyebrow={`Versato nel ${taxYear}`} aside={aside} reading={reading} ariaLabel={ROWS_ARIA_LABEL} className={className}>
+    // The tile's name is its visible eyebrow, year included (WCAG 2.5.3: the name contains the label).
+    <Tile eyebrow={`Versato nel ${taxYear}`} aside={aside} reading={reading} ariaLabel={`Versato nel ${taxYear}`} className={className}>
       {/* Without a contribution in the year the reading already says so; an empty list would only
           add a border under the sentence. */}
       {rows.length > 0 && (

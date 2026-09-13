@@ -180,6 +180,15 @@ The app **is** locally runnable; there is no fallback to declare.
 
 ### Obligation 4 — automate it here
 
+- **When the Claude-in-Chrome extension is not connected** («Browser extension is not connected» from
+  `tabs_context_mcp`, 2026-09-13 — for the session and its sub-agents alike), do not retry it: the live
+  evidence an Impeccable critique or audit needs (screenshots at 1440 and 390, `main` overflow, sub-44px
+  targets, console, the `detect.js` overlay) comes from a throwaway Playwright script on the emulator
+  dev server — copied into the repo root as `.tmp-*.mjs` so `import 'playwright'` resolves, deleted
+  after — that logs in for real and waits on the page's `h1`, never on `networkidle` (Firestore keeps
+  its sockets open). Say in the report that the evidence is Playwright's. And the tour still goes on
+  the MIRROR (below), not on the fixture: the fixture proves the mechanism, the mirror shows what the
+  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce.
 - **Throwaway fixtures** follow the existing seed pattern (`scripts/seedEmulator.ts`,
   `scripts/seedAnalisiE2E.mts`, `scripts/seedPensionE2E.mts`, `scripts/seedCoastFireE2E.mts`) or
   live as a throwaway `.mts` in the session scratchpad. `.mts`, never `.ts`: a `.ts` script is CJS

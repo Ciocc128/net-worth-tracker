@@ -538,6 +538,58 @@ function joinClauses(clauses: Narrative[]): Narrative {
   return out;
 }
 
+// ── Previdenza ──────────────────────────────────────────────────────────────
+
+/** «Registra un versamento»: the status line of the contribution form. */
+export const PENSION_CONTRIBUTION_COPY: ModalStatusCopy = {
+  idle: [
+    {
+      text: 'Un versamento volontario scala il conto collegato e alza la deduzione IRPEF dell’anno fiscale che scegli; quello del datore no — è compenso, non capitale tuo.',
+    },
+  ],
+  submitting: 'Registrazione del versamento in corso…',
+};
+
+/** The toast after a contribution: the next step, so the order is taught where it matters. */
+export const PENSION_CONTRIBUTION_RECORDED = {
+  title: 'Versamento registrato',
+  next: 'Quando arriva l’estratto conto, aggiorna il valore del fondo: lo include già.',
+  action: 'Aggiorna valore',
+} as const;
+
+export interface PensionValueFacts {
+  /** The fund's name, or null when the modal still asks which fund. */
+  fundName: string | null;
+  /** The value the fund holds now. */
+  currentValue: number;
+  /** Contributions recorded in the current month — they are already inside a fresh statement. */
+  monthPaidIn: number;
+  /** Whether a fund's value still belongs to a closed month (`FundTodaySummary.valueIsStale`). */
+  stale: boolean;
+}
+
+/**
+ * «Aggiorna il valore del fondo»: the reading says what the form overwrites and states the
+ * one trap of the act — a statement already contains the month's contributions, so they
+ * must be registered BEFORE the value, never after.
+ */
+export function describePensionValueCopy(facts: PensionValueFacts): ModalStatusCopy {
+  const subject = facts.fundName ? `${facts.fundName} vale ` : 'Il fondo vale ';
+  const idle: Narrative = [{ text: subject }, { text: cachedFormatCurrencyEUR(facts.currentValue), mono: true }];
+  if (facts.stale) idle.push({ text: ' da un mese chiuso' });
+  idle.push({ text: ': scrivi il valore dell’estratto conto.' });
+  if (facts.monthPaidIn > 0) {
+    idle.push(
+      { text: ' I ' },
+      { text: cachedFormatCurrencyEUR(facts.monthPaidIn), mono: true },
+      { text: ' versati questo mese sono già dentro l’estratto: non aggiungerli.' },
+    );
+  } else {
+    idle.push({ text: ' Se questo mese hai versato, registra prima i versamenti: l’estratto li include già.' });
+  }
+  return { idle, submitting: 'Aggiornamento del valore in corso…' };
+}
+
 /**
  * Lowercases the first letter of an action so it can follow «Premi di nuovo per».
  *
