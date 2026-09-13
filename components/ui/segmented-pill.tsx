@@ -121,7 +121,10 @@ export function SegmentedPill<T extends string>({
             onKeyDown={(e) => handleKeyDown(e, index)}
             className={cn(
               'relative shrink-0 px-3 py-1.5 text-sm font-medium rounded-full transition-colors',
-              isSelected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+              // The inactive label is the foreground at 70%, not `text-muted-foreground`: that
+              // token is tuned against `--background`, and on the pill's `bg-muted` surface it
+              // measured 4,34:1 in light (below AA) on the Panoramica's period pill, 2026-09-13.
+              isSelected ? 'text-foreground' : 'text-foreground/70 hover:text-foreground',
               optionClassName
             )}
           >

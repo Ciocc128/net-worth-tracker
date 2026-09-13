@@ -272,7 +272,8 @@ file used to carry.
 ### Panoramica → `doc/guide/panoramica.md`
 - Overview data flows through `GET /api/dashboard/overview` + `useDashboardOverview()` only — no page-level fan-out, no full-history expense queries; `dashboardOverviewSummaries/{userId}` is server-owned and every overview-relevant mutation invalidates it. Both endpoints owner-scoped.
 - `topMovers`/`marketEffect` are MARKET return (`q_prev × (u_curr − u_prev)`), never the user's flows; `[]` when the previous snapshot has no `byAsset`, `null` when not attributable (≠ measured 0). Pension funds are their own "Previdenza" line; real estate is measured gross of debt.
-- Every sentence from `overviewNarrative.ts` — a falling month blames the market only when `marketEffect < 0`, and never the market ALONE when the estimated tax on the month's sales (`monthSales`, from the ledger) or the own flows weighed more: `resolveDeclineCause` (`lib/utils/periodSales.ts`) is the ONE decision for Panoramica, Patrimonio and the email, `salesNarrative.ts` the shared words («pagato circa …», never «pagherai»).
+- Every sentence from `overviewNarrative.ts` — a falling month blames the market only when `marketEffect < 0`, and never the market ALONE when the estimated tax on the month's sales (`monthSales`, from the ledger) or the own flows weighed more: `resolveDeclineCause` (`lib/utils/periodSales.ts`) is the ONE decision for Panoramica, Patrimonio and the email, `salesNarrative.ts` the shared words («pagato circa …», never «pagherai»). When the market gained and the tax is at least half of the drop, the HEADLINE names it (`taxes-despite-market`: «per le tasse sulla vendita di VWCE, non per il mercato», 2026-09-13). Every subject the driver clause can name is in `CLASS_SUBJECTS`, `PENSION_BAND_KEY` included; an unknown key drops the clause, never prints itself.
+- A category row deep-links to its Scheda on Analisi (`?focusType&focusCat`, `expenseType` in the payload since source version 17); the Panoramica links to the page that owns the depth and has no «Dettaglio» of its own.
 - Il resto — the hero step-down, the tile grid, the superseded-pattern rule, the Italian-copy test trap — in `doc/guide/panoramica.md`.
 
 ### Patrimonio · Asset Pricing, FX and Assets → `doc/guide/patrimonio.md`
@@ -643,7 +644,9 @@ file used to carry.
 - **Tabs**: `role="tab"` + `aria-selected` inside a `role="tablist"` with an `aria-label`; for a real tab/panel
   relationship also wire `id` + `aria-controls`. **A `SegmentedPill` that picks a VALUE the whole page reads (an axis
   year, a period) is `semantics="radio"`** — a tablist with no tabpanel is a promise the DOM cannot keep; `tabs` only
-  where the pill switches a panel (2026-09-13, Previdenza; the other pills stay `tabs` until each is reviewed).
+  where the pill switches a panel (2026-09-13, Previdenza and the Panoramica's sparkline period; the other pills stay
+  `tabs` until each is reviewed). The primitive's inactive label is `text-foreground/70`, not `text-muted-foreground`,
+  which is tuned against `--background` and measured 4,34:1 on the pill's `bg-muted` in light.
   **A tile's `ariaLabel` is its visible eyebrow, year included** (`Anno fiscale 2026`, never `Anno fiscale`): a name
   shorter than the label is what a screen reader hears while a sighted reader sees more (WCAG 2.5.3) — Playwright
   locates it with a regex, never by shaping the name around `exact: true`. An active state with no tab in the tablist (a CUSTOM range) needs a

@@ -13,28 +13,23 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **165 files / 3692 tests** green + **46 Playwright E2E specs** (49 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-13, quinta sessione, su develop): **Tre punti emersi rispondendo a un utente self-hosted.** (1) Il ramo ricorrente di
-  `firstSignedAmount` in `ExpenseDialog` aveva il segno fisso negativo: latente, non un bug (`canTypeRecur` tiene le
-  entrate fuori dalla ricorrenza, verificato nel browser: nessun interruttore «Ricorrenza» su un'entrata); ora i tre
-  rami condividono la regola del segno per tipo. (2) Un trasferimento si salvava senza
-  conti e non muoveva nulla: `superRefine` richiede origine e destinazione, diverse, con l'errore sotto ogni Select;
-  senza conti il dialog lo dice. (3) Lo scrape scartava in silenzio i dividendi con ex-date anteriore a
-  `asset.createdAt`: il pavimento è UNA regola (`lib/utils/dividendEligibility.ts`: `holdingStartDate` dal ledger,
-  altrimenti la creazione), condivisa da route e cron; la route restituisce `filtered`/`floorDate`/`floorSource` e il
-  toast (`describeFilteredDividends`) dice quanti e come recuperarli (acquisto nel Registro con la data reale).
-  **Collaudo**: `tsc`, lint 0, Vitest `dividendEligibility` (nuovo), `dividendiNarrative`, `dividendProcessor`,
-  `transferFeature`, `cashBalanceReconciliation` (121); E2E Cashflow 4/4 + la nuova `e2e/cashflow.accounts.spec.ts`
-  (2, asserisce su Firestore: il refine del trasferimento e la ricorrenza che addebita una volta sola — vista rossa col
-  segno invertito). Non provato nel browser: il toast dei dividendi scartati (serve Borsa Italiana).
-- Precedente (2026-09-13, quarta sessione): **Polish Impeccable su Previdenza: il backlog della critica verificato voce per
-  voce nel codice e lo snapshot chiuso** (`closed: true`; il fingerprint stava su `page.tsx`, non toccato dalle correzioni,
-  quindi risultava ancora aperto). Due residui chiusi: la regola «valore fermo» è UNA (`isPensionValueStale` +
-  `resolveLastFundUpdate` in `pensionSummary.ts`, riusata da `PensionValueDialog` che la rifaceva a mano) e nella tessera
-  Rendimento l'hint di riga va su riga propria («Contributo datoriale» spezzava in tre righe a 1440, misurato). Non toccato:
-  i bottoni dell'header a 40px sotto desktop (floor delle azioni primarie, AGENTS) e lo spazio sotto Anno fiscale (stretch
-  della riga della griglia). **Collaudo**: `tsc`, lint 0, 11 suite dell'area (258), E2E Previdenza 15/15, Playwright
-  1440/390 dark+light (overflow 0, console 0). Chrome non connesso.
+- `tsc` clean; **167 files / 3710 tests** green + **46 Playwright E2E specs** (49 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-13, sesta sessione, su develop): **Critique Impeccable della Panoramica (23/40) e polish nella stessa
+  sessione, sul mirror del conto reale.** Cinque voci chiuse. (1) Il verdetto stampava una chiave del database («e
+  **pension** hanno fatto il grosso del lavoro»): `CLASS_SUBJECTS` ha «i fondi pensione» e una chiave ignota fa cadere
+  la clausola; la tessera Cashflow diceva «A agosto» (ora `atPreviousMonth`). (2) La causa nel titolo (scelta del
+  proprietario): `taxes-despite-market` — mercato in guadagno e tassa stimata ≥ metà del calo — dà «Settembre è in
+  calo per le tasse sulla vendita di VWCE, non per il mercato.», la vendita sale al secondo posto e lo split sparisce;
+  Patrimonio segue. (3) Le righe di Spese/Entrate per categoria aprono la Scheda su Analisi (`expenseType` nel payload,
+  versione 17), le due tessere hanno la lettura di Tracciamento e un footer verso Analisi, Composizione verso
+  Allocazione; niente «Dettaglio» in pagina (scelta del proprietario). (4) Palette light riportata sulle bande di tinta
+  della dark (Liquidità era a ΔE00 10,1 da Immobili, la curva dell'eroe nella tinta di `--destructive`): floor ΔE00 ≥ 14
+  in entrambi i modi come test che legge `globals.css`; `PRINT_CHART_HEX` ri-derivato, `PRINT_RANK_HEX` allo slot 7.
+  (5) `RankedRows` con etichetta al 42% della riga (basta «Stipendio Giu…»), terza riga 4·4·4, Costi senza buco, il
+  pill del periodo è `SegmentedPill` radio a 14px/44px con l'inattivo AA. Più: `mask-icon` smeraldo rimossa e waiver
+  del detector per le story. **Collaudo**: `tsc`, lint 0, Vitest intero sotto `TZ=Europe/Rome`, Playwright sul mirror a
+  1440/390 dark+light (overflow 0, console 0, API ≥400 zero, verdetto e deep link letti dal DOM, etichette non
+  troncate, spill 0). Snapshot `.impeccable/critique/2026-09-13T18-13-59Z__app-dashboard-page-tsx.md` chiuso.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -94,6 +89,7 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **«Non attribuito» in Rendimenti is a measurement, not a bug**: cash interest, balances corrected by hand, expenses paid from untracked accounts and dividends recorded in only one of cashflow/registry all move the total without moving an instrument's unit value (−2.326 € on a 16.836 € YTD gain on the real account). Per-instrument dividends come from the `dividends` registry, the gain from the cashflow: a dividend present in one place only lands there. With the pension toggle ON, a period straddling the entry month carries the funds' whole value as a flow in that month, and a late-credited statement reads as a temporary market loss on this page too.
 - **TWR monthly-bucket artifact (by design)**: an expense is neutralised only when the net-worth drop and the cash flow land in the same month; recording a purchase both as an expense and as an asset produces a phantom gain. Record balances in the month they belong to. **Since 2026-09-07, on any account with something out of the base (the default), the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows instead of the cashflow's savings** (`portfolioFlows`): a deposit on an account inside the base counts even without an income row, interest credited on it reads as a deposit, a split or an in-kind transfer as a purchase, a trade left out of the ledger vanishes for a covered instrument; the months before `byAsset` still use the cashflow, and the Contributi tile says how many were measured. **Since 2026-09-13 the ledger speaks for an instrument only once the base has SEEN it**: an instrument the snapshots meet for the first time enters at its value, whatever its trade date (a backdated purchase is history, not that month's return). doc/guide/rendimenti.md.
 - **The Assistant's cashflow figures changed on 2026-07-29**; saved threads are prose and are not regenerated.
+- **The five named themes' chart slots are not measured for distinctness** (2026-09-13): `__tests__/chartPaletteDistinctness.test.ts` holds the default theme to ΔE00 ≥ 14 between any two slots in both modes, but retro-arcade declares `--chart-2` and `--chart-4` IDENTICAL, elegant-luxury paints slots 1-3 in three reds, and solar-dusk's 2/4/5 are near-greys — a composition bar on those themes is not readable by colour. Fixing them means re-pitching five palettes by hand; not done. doc/guide/temi.md.
 - **Chart slots 8-9 are still not theme-aware** (`useChartColors()` pads the last two from the static `CHART_COLORS`): slot 8 is Storico's synthetic «Previdenza» band and 9 is unused by the class palette, so nothing user-facing collides. Slots 0-7 are theme-aware since 2026-08-30. doc/guide/temi.md.
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md.
 - **Sign-colour CHIPS sit below AA, structurally** (`bg-positive/10 text-positive` washes the background with the text's hue: 15 of 24 combinations at 3.34–4.40:1; deliberately not fixed). `MonthlyReturnsHeatmap` fills its cells with the sign tokens at 30/55/85% (the figure is never printed in the cell, so the AA text floor does not apply).
@@ -105,7 +101,7 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **Divisione's shares follow the PERIOD's salaries** (owner's call): a thirteenth salary moves the percentage, and a month with no salary recorded has no shares at all — `resolveSplitBasis` says so by name instead of printing 100/0. It **shipped without an end-to-end run with the flag ON**: the pure layer, flag-off invariance, `tsc`, suite and build are proven; the `personalMemberId` writes and the rendering are not. doc/guide/cashflow-divisione.md.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 - **Otto superfici stanno ancora fuori dal vocabolario delle modali** (2026-09-06): `app/dashboard/page.tsx`, `dividends/{DividendiDettaglio,DividendTrackingTab}`, `expenses/ExpenseTable`, `cashflow/{ExpenseTrackingTab,TransactionFeed,MobileFiltersDrawer}`, `assistant/AssistantSheets` montano `Dialog`/`AlertDialog`/`Drawer`/`Sheet` grezzi (titolo 18/16px, quinta larghezza 512px). Elenco in DESIGN.md → §5 Modal, Coverage.
-- **Tre tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner, mask-icon smeraldo) più `ExpenseTable.tsx` `text-emerald-*`; gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
+- **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13) più `ExpenseTable.tsx` `text-emerald-*`; gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
 - **The market digest's blind spots**: a position opened this month contributes 0 until next month; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt.
 - **Bonds saved before 2026-09-11 with the nominal empty or 1 keep a wrong PMC and opening trade** (the raw quote as
   euro: 99 for 0,99); the current price heals at the next cron, the PMC does not — corrected by the user from the

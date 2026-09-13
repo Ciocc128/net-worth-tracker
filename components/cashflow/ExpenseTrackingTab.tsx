@@ -1031,7 +1031,7 @@ export function ExpenseTrackingTab({
             reading={describeCategoryShare(incomeRanking, 'income')}
             color="var(--chart-2)"
             emptyCopy="Nessuna entrata registrata nel periodo."
-            labelClassName="w-[72px]"
+            labelClassName="min-w-[72px]"
             footer={analisiLink}
           />
         </div>

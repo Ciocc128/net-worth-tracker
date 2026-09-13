@@ -685,7 +685,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
               activeKey={focus?.kind === 'income' ? activeSliceKey : null}
               onSelect={handleCategorySelect}
               emptyCopy="Nessuna entrata registrata nel periodo."
-              labelClassName="w-[72px]"
+              labelClassName="min-w-[72px]"
             />
           </div>
 

@@ -64,7 +64,7 @@ export function VersatoTile({ taxYear, reading, aside, footer, rows, className }
             // truncates it before the label: at 132px «Volontario · deducibile» is a few pixels
             // over, so from desktop, where a 7-column tile has the room, the column widens.
             // Below it 132px is the most a 390px phone can give the row (the bar keeps 40px).
-            labelClassName="w-[132px] desktop:w-[168px]"
+            labelClassName="min-w-[132px] desktop:min-w-[168px]"
             ariaLabel={ROWS_ARIA_LABEL}
           />
         </div>

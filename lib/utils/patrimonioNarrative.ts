@@ -20,7 +20,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentageIt as formatPercentage } from '@/lib/utils/formatters';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
-import { resolveDeclineCause, type PeriodSalesSummary } from '@/lib/utils/periodSales';
+import { resolveDeclineCause, type DeclineCause, type PeriodSalesSummary } from '@/lib/utils/periodSales';
 import { declineHeadlineTail, describeOwnFlowsSplit, describeSales } from '@/lib/utils/salesNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 
@@ -140,14 +140,21 @@ export function pluralArticleFor(count: number): string {
 
 // ─── Verdict ──────────────────────────────────────────────────────────────────
 
-function resolveHeadline(input: PatrimonioVerdictInput): { headline: string; tone: VerdictTone } {
+interface ResolvedHeadline {
+  headline: string;
+  tone: VerdictTone;
+  /** The cause of a falling month; null when the month did not fall. */
+  declineCause: DeclineCause | null;
+}
+
+function resolveHeadline(input: PatrimonioVerdictInput): ResolvedHeadline {
   if (!input.monthlyVariation) {
-    return { headline: `Il tuo portafoglio ${withPrepositionA(monthInSentence(input.month))}.`, tone: 'neutral' };
+    return { headline: `Il tuo portafoglio ${withPrepositionA(monthInSentence(input.month))}.`, tone: 'neutral', declineCause: null };
   }
   // The record is measured on the live total, the monthly change on the month's snapshot: the
   // two can disagree intraday, and the headline must never contradict the sign the sentence prints.
   if (input.isNewATH && input.monthlyVariation.value >= 0) {
-    return { headline: 'Il portafoglio è al massimo storico.', tone: 'positive' };
+    return { headline: 'Il portafoglio è al massimo storico.', tone: 'positive', declineCause: null };
   }
 
   const marketLost = input.marketEffect !== null && input.marketEffect < 0;
@@ -155,8 +162,8 @@ function resolveHeadline(input: PatrimonioVerdictInput): { headline: string; ton
   if (input.monthlyVariation.value >= 0) {
     // Grown while the market lost: the user's own flows did it, and the sentence must not
     // credit the market.
-    if (marketLost) return { headline: 'Il portafoglio cresce, nonostante il mercato.', tone: 'positive' };
-    return { headline: 'Il portafoglio cresce.', tone: 'positive' };
+    if (marketLost) return { headline: 'Il portafoglio cresce, nonostante il mercato.', tone: 'positive', declineCause: null };
+    return { headline: 'Il portafoglio cresce.', tone: 'positive', declineCause: null };
   }
 
   // A falling month is blamed on the market only when the market actually lost money — and never
@@ -168,8 +175,10 @@ function resolveHeadline(input: PatrimonioVerdictInput): { headline: string; ton
     salesTax: input.sales?.estimatedTax ?? null,
   });
   return {
-    headline: `Il portafoglio è in calo${declineHeadlineTail(cause)}`,
-    tone: cause === 'despite-market' ? 'warning' : 'negative',
+    headline: `Il portafoglio è in calo${declineHeadlineTail(cause, input.sales)}`,
+    // The market did not lose: a tax withheld on a gain is worth attention, not alarm.
+    tone: cause === 'despite-market' || cause === 'taxes-despite-market' ? 'warning' : 'negative',
+    declineCause: cause,
   };
 }
 
@@ -205,7 +214,7 @@ export function formatHoldingCounts(instrumentCount: number, accountCount: numbe
  * driver, even if a top mover was handed in.
  */
 export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): PatrimonioVerdict {
-  const { headline, tone } = resolveHeadline(input);
+  const { headline, tone, declineCause } = resolveHeadline(input);
   const sentence: Narrative = [prose('Il portafoglio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
 
   if (input.monthlyVariation) {
@@ -227,8 +236,9 @@ export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): Patrimoni
 
   sentence.push(prose('.'));
 
-  // The market-vs-flows split and the sale behind it, the same words the Panoramica prints.
-  if (input.monthlyVariation && input.marketEffect !== null) {
+  // The market-vs-flows split and the sale behind it, the same words the Panoramica prints. When
+  // the headline already blames the tax on the sale, the split is redundant and only the sale stays.
+  if (declineCause !== 'taxes-despite-market' && input.monthlyVariation && input.marketEffect !== null) {
     sentence.push(prose(' '), ...describeOwnFlowsSplit(input.monthlyVariation.value, input.marketEffect));
   }
   if (input.sales) {

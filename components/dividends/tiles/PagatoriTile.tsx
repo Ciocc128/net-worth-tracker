@@ -36,7 +36,7 @@ export function PagatoriTile({ ranking, reading, footer, emptyCopy, className }:
         <p className="mt-3 text-[13px] text-muted-foreground">{emptyCopy}</p>
       ) : (
         <div className="mt-2">
-          <RankedRows rows={ranking.rows} color="var(--chart-2)" remainder={ranking.remainder} labelClassName="w-[108px]" />
+          <RankedRows rows={ranking.rows} color="var(--chart-2)" remainder={ranking.remainder} labelClassName="min-w-[108px]" />
         </div>
       )}
       {footer && (
