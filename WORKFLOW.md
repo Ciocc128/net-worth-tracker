@@ -180,6 +180,15 @@ The app **is** locally runnable; there is no fallback to declare.
 
 ### Obligation 4 — automate it here
 
+- **When the Claude-in-Chrome extension is not connected** («Browser extension is not connected» from
+  `tabs_context_mcp`, 2026-09-13 — for the session and its sub-agents alike), do not retry it: the live
+  evidence an Impeccable critique or audit needs (screenshots at 1440 and 390, `main` overflow, sub-44px
+  targets, console, the `detect.js` overlay) comes from a throwaway Playwright script on the emulator
+  dev server — copied into the repo root as `.tmp-*.mjs` so `import 'playwright'` resolves, deleted
+  after — that logs in for real and waits on the page's `h1`, never on `networkidle` (Firestore keeps
+  its sockets open). Say in the report that the evidence is Playwright's. And the tour still goes on
+  the MIRROR (below), not on the fixture: the fixture proves the mechanism, the mirror shows what the
+  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce.
 - **Throwaway fixtures** follow the existing seed pattern (`scripts/seedEmulator.ts`,
   `scripts/seedAnalisiE2E.mts`, `scripts/seedPensionE2E.mts`, `scripts/seedCoastFireE2E.mts`) or
   live as a throwaway `.mts` in the session scratchpad. `.mts`, never `.ts`: a `.ts` script is CJS
@@ -222,7 +231,11 @@ The app **is** locally runnable; there is no fallback to declare.
   so the snapshot `polish` reads as its backlog is the same on every machine. A critique is
   committed in the session that produces it; one that describes a surface since rebuilt is
   deleted, not kept as history (the eleven pre-«Verdict over Tiles» ones were removed that day).
-  `.impeccable/hook.cache.json` stays local (`.git/info/exclude`).
+  `.impeccable/hook.cache.json` stays local (`.git/info/exclude`). **A snapshot closes only through
+  `polish`, never by fixing the code** (2026-09-13): `critique-storage latest` judges it current from the
+  fingerprint of the ONE target file (`page.tsx`, a 32-line wrapper), so corrections made in the
+  components leave it open — the polish pass verifies each Priority Issue against the code and runs
+  `critique-storage close`, which stamps `closed: true` in the tracked file.
 - **Do not duplicate project conventions here.** Code and comment conventions live in
   `DEVELOPMENT_GUIDELINES.md` and `COMMENTS.md`, repo-wide patterns and traps in `AGENTS.md`, the
   per-area rules in `doc/guide/<tema>.md`, the aesthetic in `DESIGN.md`, environment and emulators

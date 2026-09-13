@@ -340,6 +340,22 @@ export function describeReliability(reliability: DividendReliability, dryMonthNa
   return [...opening, prose(`: ${list} non è arrivato niente.`)];
 }
 
+/**
+ * The toast after «Scarica dividendi storici» when the route dropped payments older than an
+ * asset's floor (lib/utils/dividendEligibility.ts): says HOW MANY, WHY and the recovery. The
+ * recovery — record the purchase in the Registro operazioni with its real date — is offered
+ * only when at least one floor was the asset's creation date: a floor that already comes from
+ * the ledger cannot be moved by recording the purchase again.
+ */
+export function describeFilteredDividends(filteredCount: number, assetsFlooredByCreation: number): string {
+  const head =
+    filteredCount === 1
+      ? '1 dividendo non importato perché precedente alla data in cui possiedi il titolo'
+      : `${filteredCount} dividendi non importati perché precedenti alla data in cui possiedi il titolo`;
+  if (assetsFlooredByCreation === 0) return `${head}.`;
+  return `${head}: per un titolo creato nell’app dopo l’acquisto, registra l’acquisto nel Registro operazioni con la sua data reale e scarica di nuovo.`;
+}
+
 /** The Affidabilità aside: the window, with the noun agreeing with the number in front of it. */
 export function describeReliabilityWindow(months: number): Narrative {
   return [figure(String(months)), prose(` ${pluralize(months, 'mese', 'mesi')}`)];

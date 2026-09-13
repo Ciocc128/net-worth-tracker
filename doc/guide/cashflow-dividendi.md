@@ -83,6 +83,12 @@
 - **YOC, Current Yield and per-asset Total Return are scoped to the CURRENT holding** (`createAsset` re-links by ISIN, so
   dividends before `holdingStartDate` are dropped, with `deriveHoldingStartDates` for legacy rebuys). **DPS growth is
   deliberately NOT scoped** — it is a security-level payout history.
+- **A scraped dividend has ONE floor** (`lib/utils/dividendEligibility.ts`, 2026-09-13): the holding start from the
+  ledger when there is one, else the asset's creation date — shared by `/api/dividends/scrape` and cron Phase 1. A
+  floor is never silent: the route returns `filtered`, `floorDate` and `floorSource`, and «Scarica dividendi storici»
+  toasts `describeFilteredDividends` — how many were dropped and, when a floor was the creation date, the recovery
+  (record the purchase in the Registro operazioni with its real date and scrape again). Until then the button said
+  «Nessun nuovo dividendo trovato» for every stock added to the app after its dividends, which read as «none exist».
 - **Received metrics filter on `paymentDate`, not `exDate`**; use `setHours(23,59,59,999)` for the upper bound, or a
   `…T00:00:00Z` dividend reads as future.
 - **Two inflation mechanisms, ONE field** (`BondDetails.inflationIndexation`, read only through
