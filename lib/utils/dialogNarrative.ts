@@ -634,6 +634,69 @@ export function describeCategoryMoveReading(facts: { name: string; expenseCount:
   ];
 }
 
+// ─── Dividendi: the form, the delete, the scrape ─────────────────────────────
+
+export interface DividendIntent {
+  isEdit: boolean;
+  /** The record's instrument, on an edit («la cedola di BTP Valore»). */
+  ticker?: string;
+  /** A bond's payment is a coupon, and the sentence says so. */
+  isBond?: boolean;
+}
+
+/**
+ * The idle reading of the dividend form: what it wants, and the one rule a reader must know
+ * before typing a date. The withholding proposal names its source — the instrument's own tax
+ * rate — because a 26% typed by a component was wrong on every BTP until 2026-09-14.
+ */
+export function describeDividendIntent(intent: DividendIntent): Narrative {
+  const what = intent.isBond ? 'la cedola' : 'il dividendo';
+  if (intent.isEdit) {
+    return [
+      { text: `Stai modificando ${what}${intent.ticker ? ` di ${intent.ticker}` : ''}. Un pagamento datato in futuro resta «annunciato»: entra nel calendario, non negli incassi, finché la data non arriva.` },
+    ];
+  }
+  return [
+    {
+      text: 'Scegli lo strumento e l’importo lordo per unità: la ritenuta è proposta dall’aliquota dello strumento e resta modificabile. Un pagamento datato in futuro resta «annunciato» finché la data non arriva.',
+    },
+  ];
+}
+
+export interface DividendDeleteFacts {
+  /** «la cedola», «il dividendo», «il premio finale» — already with its article. */
+  what: string;
+  /** The payment date as printed («10/12/2026»). */
+  paymentDate: string;
+  /** A coupon the cron booked in the Cashflow: deleting takes that row with it. */
+  hasExpense: boolean;
+}
+
+/**
+ * What the second press of a dividend row's delete does — printed IN the row while the button
+ * says «Conferma» (AGENTS.md → Accessibility). The DELETE route removes the linked cashflow
+ * expense too, so the sentence says it when there is one.
+ */
+export function describeDividendDeleteConsequence(facts: DividendDeleteFacts): string {
+  const head = `Eliminando, ${facts.what} del ${facts.paymentDate} sparisce dal registro`;
+  return facts.hasExpense ? `${head} e dal Cashflow.` : `${head}.`;
+}
+
+/**
+ * The reading of the «Scarica dividendi storici» confirm: which instruments, and the floor
+ * the route applies (lib/utils/dividendEligibility.ts) — said BEFORE the run, not only in the
+ * toast after it.
+ */
+export function describeScrapeReading(tickers: string[]): Narrative {
+  if (tickers.length === 0) return [{ text: 'Nessuno strumento ha un ISIN: non c’è nulla da scaricare.' }];
+  const who = tickers.length <= 4 ? listInItalian(tickers) : `${tickers.length} strumenti con ISIN`;
+  return [
+    { text: `Scarico da Borsa Italiana i dividendi di ${who}. I pagamenti precedenti alla data in cui possiedi ogni titolo vengono scartati: puoi spostarla registrando l’acquisto nel Registro operazioni.` },
+  ];
+}
+
+export const DIVIDEND_SCRAPE_SUBMITTING = 'Sto scaricando: può richiedere alcuni minuti.';
+
 export interface DividendDayCounts {
   received: number;
   announced: number;

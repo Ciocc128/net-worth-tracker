@@ -13,22 +13,21 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **167 files / 3748 tests** green + **49 Playwright E2E specs** (49 green in one full run on 2026-09-14 morning incl. 3 auth setups; the 7 Cashflow specs re-run green the same evening). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-14, nona sessione, su develop): **Critique Impeccable di Cashflow › Budget (26/40) chiusa nella
-  stessa sessione, sul mirror del conto reale.** (1) «Speso» è solo il contabilizzato: verdetto a due lati («hai speso
-  656 € e hai altri 1297 € già in calendario (1953 € su 3000 €, il 65% del tetto)»), hero su `spentToDate`, traccia a
-  DUE riempimenti, lettura sul `spentToDatePct`. (2) Avvisi: una soglia è un fatto del CONTABILIZZATO letto contro il
-  calendario della SUA finestra (`period`/`calendarPct`/`aheadOfCalendar`): ambra solo se avanti, «da gennaio» sugli
-  annuali. (3) `BudgetItemDialog` nel vocabolario delle modali (lettura = status line, submit mai `disabled`, rifiuto
-  con `aria-invalid` e fuoco, `RadioChoice` a un tab stop, fuoco restituito). (4) `BudgetDeleteButton`: «Conferma» in
-  parole, conseguenza NELLA riga, una live region per tessera. (5) 44px sul touch, `aria-valuetext` sulle tracce, piè
-  non ripetuti, «Salvato» che svanisce. (6) **Trasversale**: `ModalStatusLine` fondeva le proprie classi prima di
-  quelle della `Description` di Radix — la lettura di OGNI modale era 14px muted e nessun rifiuto è mai stato rosso
-  dal 2026-08-31. **Collaudo**: `tsc`, lint 0, Vitest intero `TZ=Europe/Rome` (3748), Playwright
-  `e2e/cashflow.{budget,budget.mobile,tracciamento}.spec.ts` 7/7 (scrittura e cancellazione lette su Firestore, colore
-  del rifiuto), cattura sul mirror a 1440/1024/390 dark e light (overflow 0, console 0), detector 0, giro del
-  proprietario ok. Snapshot `2026-09-14T11-21-27Z__components-cashflow-budgettab-tsx` chiuso; i quattro precedenti
-  ora con path Mac e fingerprint LF (WORKFLOW.md § Where things are recorded).
+- `tsc` clean; **167 files / 3764 tests** green + **51 Playwright E2E specs** (57 tests green in one full run on 2026-09-14 evening, 2,3 min, incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-14, decima sessione, su develop): **Critique Impeccable di Cashflow › Dividendi (23/40) chiusa
+  nella stessa sessione, sul mirror del conto reale (6 dividendi: Eni e Saipem venduti, tre cedole BTP Valore).**
+  (1) **Due popolazioni, entrambe nominate**: verdetto e inventario leggono il REGISTRO (anche i venduti); Affidabilità
+  e Chi paga di più misurano il PORTAFOGLIO di oggi (`heldAssetIds`) e nominano ciò che i venduti hanno pagato («altri
+  186 € da 2 strumenti venduti», riga residua, piè) — «Concentrazione alta: SPM.MI» era un rischio su un titolo venduto.
+  (2) Il verdetto nomina finestra e popolazione del rendimento («l'unico strumento con costo medio rende l'1,3% lordo
+  negli ultimi 12 mesi»), «in linea» a scarto zero, «nell'unico mese», «10 mar 2032». (3) `DividendDialog` nel
+  vocabolario delle modali: status line, `describeFormRefusal`, submit mai `disabled`, picker con bond e venduti (la
+  cedola del BTP non era registrabile), ritenuta dall'aliquota dello STRUMENTO (mai il 26% cablato), «Cedola» su un bond.
+  (4) Tastiera: riga-bottone in tabella, `useArmedDelete` senza timer con conseguenza e live region,
+  `ResponsiveModal.returnFocusTo`, calendario con frecce, asse `SegmentedPill radio`. (5) Sotto 1440 «Attesa» in
+  parole: chip, due totali, «attesa» in cella. (6) Stato vuoto a UNA tessera; `statsError` detto. **Collaudo**: `tsc`,
+  lint 0, Vitest intero `TZ=Europe/Rome` (167 / 3764), Playwright `e2e/cashflow.dividendi{,.mobile}.spec.ts` 4/4 e
+  suite COMPLETA 57/57, giro Playwright sul mirror a 1440/390 (overflow 0, console 0) e giro del proprietario. Snapshot `2026-09-14T13-56-26Z__components-dividends-dividendtrackingtab-tsx` chiuso da polish.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -63,7 +62,7 @@ One line per feature: what it is, then where it is described. *What the user see
 - **Impostazioni**: sei tab, nessun verdetto (è un form) ma la cadenza delle tessere; un solo Salva per pagina, e due tessere che dichiarano senza scrivere. doc/guide/impostazioni.md; il fan-out di scrittura in doc/guide/impostazioni.md § Settings — the FIVE places.
 - **Accesso e Registrazione**: due pagine pubbliche, una colonna da 420 con UNA tessera; il verdetto è generato dallo stato (accesso · aperta · su invito · chiusa), la lettura è la status line del form, gli errori sono parole italiane e mai la stringa di Firebase. doc/guide/accesso-registrazione.md; DESIGN → The Status-Is-The-Reading Rule.
 - **Stati**: caricamento · nulla di registrato · zero misurato · lettura fallita — quattro forme distinte alla cadenza della tessera, su 20 superfici. doc/guide/stati.md; DESIGN → **The Absence-Has-Three-Names Rule**.
-- **Dialog e form trasversali**: 30 modali su un vocabolario unico — occhiello · titolo 20px · riga di lettura (che è la status line del form) · corpo · footer, in `ResponsiveModal` a quattro larghezze; sei superfici montano ancora `Dialog`/`AlertDialog`/`Drawer`/`Sheet` grezzi (Known Issues). Un delete su una RIGA di tabella si arma nella riga (`useArmedDelete`); una scelta («solo questa o tutte?») è una modale (`SeriesDeleteDialog`). doc/guide/dialog.md; DESIGN → **The Modal-Is-A-Tile Rule**, §5 Modal.
+- **Dialog e form trasversali**: 30 modali su un vocabolario unico — occhiello · titolo 20px · riga di lettura (che è la status line del form) · corpo · footer, in `ResponsiveModal` a quattro larghezze; quattro superfici montano ancora `Dialog`/`Drawer`/`Sheet` grezzi (Known Issues). Un delete su una RIGA di tabella si arma nella riga (`useArmedDelete`); una scelta («solo questa o tutte?») è una modale (`SeriesDeleteDialog`). doc/guide/dialog.md; DESIGN → **The Modal-Is-A-Tile Rule**, §5 Modal.
 - **Email periodiche · Email budget**: quattro periodi su UN template — verdetto da regole (anche come preheader), commento AI secondo, poi le tessere; «Rispetto a un anno fa» sparisce sull'annuale. La budget arriva la domenica e non contiene nulla di settimanale: ogni tessera dichiara la propria finestra. doc/guide/email-pdf.md.
 - **PDF export**: sette sezioni alla cadenza della tessera, la copertina è il verdetto, il pavimento del Cashflow è detto; niente monospace né meno tipografico, dichiarati. doc/guide/email-pdf.md.
 - **Token fuori dal DOM · Multi-theme**: `lib/constants/printTokens.ts` è l'unica sede di un hex per email e PDF (DESIGN → **The Out-Of-DOM Token Rule**); temi in doc/guide/temi.md.
@@ -99,7 +98,7 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Divisione's shares follow the PERIOD's salaries** (owner's call): a thirteenth salary moves the percentage, and a month with no salary recorded has no shares at all — `resolveSplitBasis` says so by name instead of printing 100/0. It **shipped without an end-to-end run with the flag ON**: the pure layer, flag-off invariance, `tsc`, suite and build are proven; the `personalMemberId` writes and the rendering are not. doc/guide/cashflow-divisione.md.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
-- **Sei superfici stanno ancora fuori dal vocabolario delle modali** (2026-09-06, ricontate 2026-09-14): `app/dashboard/page.tsx`, `dividends/{DividendiDettaglio,DividendTrackingTab}`, `cashflow/{TransactionFeed,MobileFiltersDrawer}`, `assistant/AssistantSheets` montano `Dialog`/`AlertDialog`/`Drawer`/`Sheet` grezzi (titolo 18/16px, quinta larghezza 512px); la conferma del drawer di dettaglio del feed è un drawer ANNIDATO in un drawer. `ExpenseTable` ed `ExpenseTrackingTab` sono usciti il 2026-09-14 (`SeriesDeleteDialog` + delete armato in riga). Elenco in DESIGN.md → §5 Modal, Coverage.
+- **Quattro superfici stanno ancora fuori dal vocabolario delle modali** (2026-09-06, ricontate 2026-09-14 sera): `app/dashboard/page.tsx`, `cashflow/{TransactionFeed,MobileFiltersDrawer}`, `assistant/AssistantSheets` montano `Dialog`/`Drawer`/`Sheet` grezzi (titolo 18/16px, quinta larghezza 512px); la conferma del drawer di dettaglio del feed è un drawer ANNIDATO in un drawer. `ExpenseTable`, `ExpenseTrackingTab` (`SeriesDeleteDialog` + delete armato in riga) e `dividends/{DividendiDettaglio,DividendTrackingTab}` (scarico e DPS per anno in `ResponsiveModal sm`, delete armato in riga) sono usciti il 2026-09-14. Elenco in DESIGN.md → §5 Modal, Coverage.
 - **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
 - **The market digest's blind spots**: a position opened this month contributes 0 until next month; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt.
 - **Bonds saved before 2026-09-11 with the nominal empty or 1 keep a wrong PMC and opening trade** (the raw quote as

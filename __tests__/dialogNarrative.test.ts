@@ -6,6 +6,9 @@ import {
   describeCategoryDeleteReading,
   describeCategoryMoveReading,
   describeDividendDayReading,
+  describeDividendIntent,
+  describeDividendDeleteConsequence,
+  describeScrapeReading,
   describeDummyDataReading,
   describeExpenseDeleteConsequence,
   describeExpenseIntent,
@@ -237,6 +240,45 @@ describe('describeCategoryMoveReading', () => {
     expect(plain(describeCategoryMoveReading({ name: 'Casa', expenseCount: 0 }))).toBe(
       'Non c’è nessun movimento da spostare: Casa è già vuota.',
     );
+  });
+});
+
+describe('describeDividendIntent', () => {
+  it('asks for the instrument and the gross amount, and names where the withholding comes from', () => {
+    expect(narrativeToText(describeDividendIntent({ isEdit: false }))).toBe(
+      'Scegli lo strumento e l’importo lordo per unità: la ritenuta è proposta dall’aliquota dello strumento e resta modificabile. Un pagamento datato in futuro resta «annunciato» finché la data non arriva.'
+    );
+  });
+
+  it('names the record on an edit, as a coupon for a bond', () => {
+    expect(narrativeToText(describeDividendIntent({ isEdit: true, ticker: 'BTP Valore', isBond: true }))).toContain(
+      'Stai modificando la cedola di BTP Valore.'
+    );
+    expect(narrativeToText(describeDividendIntent({ isEdit: true, ticker: 'ENI' }))).toContain('Stai modificando il dividendo di ENI.');
+  });
+});
+
+describe('describeDividendDeleteConsequence', () => {
+  it('says what leaves the registry, and the Cashflow when a booked expense goes with it', () => {
+    expect(describeDividendDeleteConsequence({ what: 'la cedola', paymentDate: '10/12/2026', hasExpense: true })).toBe(
+      'Eliminando, la cedola del 10/12/2026 sparisce dal registro e dal Cashflow.'
+    );
+    expect(describeDividendDeleteConsequence({ what: 'il dividendo', paymentDate: '20/05/2026', hasExpense: false })).toBe(
+      'Eliminando, il dividendo del 20/05/2026 sparisce dal registro.'
+    );
+  });
+});
+
+describe('describeScrapeReading', () => {
+  it('names the instruments and the floor before the run', () => {
+    expect(narrativeToText(describeScrapeReading(['VWCE', 'AAPL', 'BTP']))).toBe(
+      'Scarico da Borsa Italiana i dividendi di VWCE, AAPL e BTP. I pagamenti precedenti alla data in cui possiedi ogni titolo vengono scartati: puoi spostarla registrando l’acquisto nel Registro operazioni.'
+    );
+  });
+
+  it('counts them past four, and says when there is nothing to download', () => {
+    expect(narrativeToText(describeScrapeReading(['A', 'B', 'C', 'D', 'E']))).toContain('i dividendi di 5 strumenti con ISIN.');
+    expect(narrativeToText(describeScrapeReading([]))).toBe('Nessuno strumento ha un ISIN: non c’è nulla da scaricare.');
   });
 });
 
