@@ -156,6 +156,116 @@ export function pluralize(count: number, singular: string, plural: string): stri
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+/**
+ * The form-level sentence of a submit the client validation refused, for the modal's reading
+ * line (the status line, DESIGN.md → The Status-Is-The-Reading Rule): a per-field message under
+ * a field three screens away is a dead end, so the reading counts and names the fields.
+ * Missing fields come first, invalid ones after; either list may be empty.
+ */
+export function describeFormRefusal(missing: string[], invalid: string[]): string {
+  const parts: string[] = [];
+  if (missing.length > 0) {
+    parts.push(
+      missing.length === 1 ? `Manca un campo: ${missing[0]}` : `Mancano ${missing.length} campi: ${listInItalian(missing)}`,
+    );
+  }
+  if (invalid.length > 0) {
+    parts.push(
+      invalid.length === 1
+        ? `un valore non è valido: ${invalid[0]}`
+        : `${invalid.length} valori non sono validi: ${listInItalian(invalid)}`,
+    );
+  }
+  if (parts.length === 0) return 'Controlla i campi evidenziati.';
+  const sentence = parts.join('; ');
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`;
+}
+
+/** «Ticker, Nome e Valuta» — the Italian serial list, no Oxford comma. */
+function listInItalian(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`;
+}
+
+// ── Cash account detail ─────────────────────────────────────────────────────
+
+export interface CashAccountFacts {
+  name: string;
+  balanceEur: number;
+  /** The two-click delete is armed: the reading says what the second press loses. */
+  armed: boolean;
+  isDemo: boolean;
+}
+
+/**
+ * The reading of the cash-account detail modal. Idle it explains how the balance moves; armed it
+ * names the consequence of the second press — the balance goes, the linked movements stay in the
+ * cashflow without an account, nothing comes back — because the button is a compact «Premi di
+ * nuovo» and the ROW carries the sentence (AGENTS.md → Accessibility, the Versamenti precedent).
+ */
+export function describeCashAccountReading(facts: CashAccountFacts): ModalReading {
+  if (facts.isDemo) {
+    return { narrative: [{ text: 'In modalità demo i conti sono di sola lettura.' }], tone: 'neutral' };
+  }
+  if (facts.armed) {
+    return {
+      narrative: [
+        { text: `Elimini ${facts.name} e il suo saldo di ` },
+        { text: cachedFormatCurrencyEUR(facts.balanceEur), mono: true },
+        { text: ': i movimenti collegati restano nel cashflow senza conto. Non è reversibile.' },
+      ],
+      tone: 'negative',
+    };
+  }
+  return {
+    narrative: [{ text: 'Il saldo si muove da solo quando registri un movimento collegato a questo conto.' }],
+    tone: 'neutral',
+  };
+}
+
+// ── Ledger return vital ─────────────────────────────────────────────────────
+
+export interface LedgerReturnVital {
+  label: string;
+  /** The percentage, 0-100 scale, signed. */
+  percent: number;
+  /** The words under the figure: the window it is measured on. */
+  sub: string;
+  info: string;
+}
+
+/**
+ * The third vital of the Movimenti modal: the XIRR when the position is old enough to be
+ * annualised, otherwise the plain return over the ledger's own window, named — «+66,9% in 47
+ * giorni, non annualizzato». A money-weighted return compounded from a few weeks to a year is
+ * not a measure (the Narrative Honesty Rule; Rendimenti draws the same line at six months).
+ * Null when neither figure exists.
+ */
+export function describeLedgerReturnVital(input: {
+  xirr: number | null;
+  totalReturnPct: number | null;
+  spanDays: number | null;
+  minAnnualizableDays: number;
+}): LedgerReturnVital | null {
+  const annualizable = input.spanDays !== null && input.spanDays >= input.minAnnualizableDays;
+  if (annualizable && input.xirr !== null) {
+    return {
+      label: 'XIRR',
+      percent: input.xirr * 100,
+      sub: 'annualizzato',
+      info: 'Rendimento annualizzato ponderato per i flussi (XIRR), dalle date reali delle operazioni.',
+    };
+  }
+  if (input.totalReturnPct === null || input.spanDays === null) return null;
+  const days = Math.max(1, Math.round(input.spanDays));
+  return {
+    label: 'Rendimento sul periodo',
+    percent: input.totalReturnPct * 100,
+    sub: `in ${days} ${days === 1 ? 'giorno' : 'giorni'}, non annualizzato`,
+    info: `Rendimento sul capitale investito nella finestra del registro. Sotto i ${input.minAnnualizableDays} giorni non viene annualizzato: compounded a un anno, poche settimane darebbero una cifra che non misura nulla.`,
+  };
+}
+
 // ── Readings that carry figures ─────────────────────────────────────────────
 
 export interface MovementsCounts {

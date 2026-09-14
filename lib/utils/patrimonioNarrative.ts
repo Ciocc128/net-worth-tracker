@@ -345,6 +345,43 @@ export function describeInstruments(
   return narrative;
 }
 
+/** «04/03» in the same year as `now`, «04/03/2032» otherwise — the compact date a row's sub-line uses. */
+function shortDate(date: Date, now: Date): string {
+  const d = getItalyDate(date);
+  const sameYear = d.getFullYear() === getItalyDate(now).getFullYear();
+  const dayMonth = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return sameYear ? dayMonth : `${dayMonth}/${d.getFullYear()}`;
+}
+
+/**
+ * «scade il 04/03/2032 · prossima cedola 04/09» — the sub-line of a bond row, so a BTP is not
+ * typographically a crypto row (TER and PMC say nothing about a bond; its maturity and its next
+ * coupon do). The coupon clause drops for a zero coupon or once the bond has matured; the whole
+ * line drops without a maturity. `nextCoupon` is the caller's (couponUtils knows the schedule).
+ */
+export function describeBondRow(
+  bond: { maturityDate: Date; hasCoupons: boolean },
+  nextCoupon: Date | null,
+  now: Date,
+): string | null {
+  if (!(bond.maturityDate instanceof Date) || Number.isNaN(bond.maturityDate.getTime())) return null;
+  const parts = [`scade il ${shortDate(bond.maturityDate, now)}`];
+  if (bond.hasCoupons && nextCoupon && nextCoupon <= bond.maturityDate) {
+    parts.push(`prossima cedola ${shortDate(nextCoupon, now)}`);
+  }
+  return parts.join(' · ');
+}
+
+/**
+ * «valore a mano dal 12/08» — the sub-line of a hand-valued row (a property, a fund, a
+ * private-equity stake): the table prints its value and WHEN the owner last typed it, instead
+ * of a quantity and a price of 1,0000 € that describe the storage, not the holding.
+ */
+export function describeManualValuation(lastUpdate: Date | null | undefined, now: Date): string | null {
+  if (!(lastUpdate instanceof Date) || Number.isNaN(lastUpdate.getTime())) return null;
+  return `valore a mano dal ${shortDate(lastUpdate, now)}`;
+}
+
 /**
  * "prezzi aggiornati oggi alle 09:12" — the compact header's description. Day words follow the
  * Italian wall clock of both instants; beyond yesterday the date is spelled as dd/MM.

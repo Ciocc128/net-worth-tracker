@@ -2,11 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   armedActionLabel,
   describeAssetIntent,
+  describeCashAccountReading,
   describeCategoryDeleteReading,
   describeCategoryMoveReading,
   describeDividendDayReading,
   describeDummyDataReading,
   describeExpenseIntent,
+  describeFormRefusal,
+  describeLedgerReturnVital,
   describeModalStatus,
   describeMovementsReading,
   describePensionValueCopy,
@@ -406,5 +409,57 @@ describe('Previdenza modals', () => {
     expect(PENSION_CONTRIBUTION_RECORDED.next).toContain('aggiorna il valore del fondo');
     expect(PENSION_CONTRIBUTION_RECORDED.action).toBe('Aggiorna valore');
     expect(plain(PENSION_CONTRIBUTION_COPY.idle)).toContain('alza la deduzione IRPEF');
+  });
+});
+
+describe('describeFormRefusal — the reading line of a refused submit', () => {
+  it('counts and names the missing fields, then the invalid ones, in an Italian list', () => {
+    expect(describeFormRefusal(['Ticker', 'Nome'], [])).toBe('Mancano 2 campi: Ticker e Nome.');
+    expect(describeFormRefusal(['Nome'], [])).toBe('Manca un campo: Nome.');
+    expect(describeFormRefusal([], ['ISIN'])).toBe('Un valore non è valido: ISIN.');
+    expect(describeFormRefusal(['Ticker', 'Nome', 'Valuta'], ['ISIN', 'TER'])).toBe(
+      'Mancano 3 campi: Ticker, Nome e Valuta; 2 valori non sono validi: ISIN e TER.',
+    );
+    expect(describeFormRefusal([], [])).toBe('Controlla i campi evidenziati.');
+  });
+});
+
+describe('describeCashAccountReading — the consequence lands in the reading while armed', () => {
+  it('explains how the balance moves when idle, and what the second press loses when armed', () => {
+    const idle = describeCashAccountReading({ name: 'Conto BNL', balanceEur: 6044.37, armed: false, isDemo: false });
+    expect(idle.tone).toBe('neutral');
+    expect(plain(idle.narrative)).toBe('Il saldo si muove da solo quando registri un movimento collegato a questo conto.');
+
+    const armed = describeCashAccountReading({ name: 'Conto BNL', balanceEur: 6044.37, armed: true, isDemo: false });
+    expect(armed.tone).toBe('negative');
+    expect(plain(armed.narrative)).toBe(
+      'Elimini Conto BNL e il suo saldo di 6044,37 €: i movimenti collegati restano nel cashflow senza conto. Non è reversibile.',
+    );
+  });
+
+  it('is read-only in demo whatever the arm state', () => {
+    expect(plain(describeCashAccountReading({ name: 'X', balanceEur: 1, armed: true, isDemo: true }).narrative)).toContain('sola lettura');
+  });
+});
+
+describe('describeLedgerReturnVital — an XIRR only once the ledger spans six months', () => {
+  it('annualises at or past the floor', () => {
+    const vital = describeLedgerReturnVital({ xirr: 0.0812, totalReturnPct: 0.05, spanDays: 180, minAnnualizableDays: 180 });
+    expect(vital).toMatchObject({ label: 'XIRR', sub: 'annualizzato' });
+    expect(vital?.percent).toBeCloseTo(8.12, 6);
+  });
+
+  it('prints the period return with its window under the floor — never +4388% on 47 days', () => {
+    const vital = describeLedgerReturnVital({ xirr: 43.8868, totalReturnPct: 0.669, spanDays: 47.4, minAnnualizableDays: 180 });
+    expect(vital).toMatchObject({ label: 'Rendimento sul periodo', sub: 'in 47 giorni, non annualizzato' });
+    expect(vital?.percent).toBeCloseTo(66.9, 6);
+    expect(vital?.info).toContain('180 giorni');
+    expect(describeLedgerReturnVital({ xirr: 1, totalReturnPct: 0.1, spanDays: 1, minAnnualizableDays: 180 })?.sub).toBe('in 1 giorno, non annualizzato');
+  });
+
+  it('falls back to the period return when the XIRR did not converge, and to nothing without a window', () => {
+    expect(describeLedgerReturnVital({ xirr: null, totalReturnPct: 0.2, spanDays: 400, minAnnualizableDays: 180 })?.label).toBe('Rendimento sul periodo');
+    expect(describeLedgerReturnVital({ xirr: null, totalReturnPct: null, spanDays: 400, minAnnualizableDays: 180 })).toBeNull();
+    expect(describeLedgerReturnVital({ xirr: 0.1, totalReturnPct: 0.1, spanDays: null, minAnnualizableDays: 180 })).toBeNull();
   });
 });

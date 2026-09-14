@@ -14,6 +14,8 @@ import {
   computeCashDelta,
   buildXirrFlows,
   computeAssetXirr,
+  ledgerSpanDays,
+  MIN_ANNUALIZABLE_DAYS,
   computeAssetTotalReturn,
   computeInvestedCapital,
   aggregateRealizedByYear,
@@ -652,3 +654,13 @@ describe('aggregateRealizedByYear — realized P&L by fiscal year, across assets
 function getYearOf(date: Date): number {
   return date.getUTCFullYear();
 }
+
+describe('ledgerSpanDays / MIN_ANNUALIZABLE_DAYS — how long the ledger covers', () => {
+  it('measures from the earliest real flow, baseline included, to now; adjustments do not open a window', () => {
+    const buys = [tx({ type: 'buy', date: day(10), quantity: 1, pricePerUnit: 1 }), tx({ type: 'sell', date: day(30), quantity: 1, pricePerUnit: 1 })];
+    expect(ledgerSpanDays(buys, day(57))).toBeCloseTo(47, 6);
+    expect(ledgerSpanDays([tx({ type: 'adjustment', date: day(0), quantity: 1, pricePerUnit: 1 })], day(57))).toBeNull();
+    expect(ledgerSpanDays([], day(57))).toBeNull();
+    expect(MIN_ANNUALIZABLE_DAYS).toBe(180);
+  });
+});

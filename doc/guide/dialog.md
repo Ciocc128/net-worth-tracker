@@ -38,10 +38,12 @@
 
 ## Per-page blind spots
 
-- **Blind spot** (looks like a bug, is not): no Playwright spec (the session's throwaway ones were deleted). Four
+- **Blind spot** (looks like a bug, is not): no Playwright spec (the session's throwaway ones were deleted). Two
   two-click deletes still auto-disarm on a 3 s timer BY DESIGN, because they live on rows and not in modals and the
-  owner kept them (`AssetRow`, `StrumentiTile`, `DividendTable`, `AssistantThreadList`); the ones that moved into the
-  modal vocabulary lost theirs. `describeWriteError` maps 11 Firestore codes and anything else takes the generic
+  owner kept them (`DividendTable`, `AssistantThreadList`); the ones that moved into the modal vocabulary lost
+  theirs, and on 2026-09-14 Patrimonio's three (`AssetRow`, `StrumentiTile`, `CashAccountDialog` — the last one a
+  MODAL whose armed state the page held on a timer, so Escape closed it with the row armed) went to `useArmedDelete`
+  by the owner's call (doc/guide/patrimonio.md). `describeWriteError` maps 11 Firestore codes and anything else takes the generic
   sentence, so a NEW cause is invisible until it is added — and a server message survives only if the thrower marks it
   `userFacingError`, which today only `assetTransactionService` does. The status line is FORM-level: per-field zod
   errors keep their own line under the field, and the two can both be visible at once. `dialogClassName` still exists as
