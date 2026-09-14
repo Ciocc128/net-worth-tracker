@@ -36,7 +36,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Timestamp } from 'firebase/firestore';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
@@ -71,6 +71,7 @@ import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import {
   ASSET_TYPE_PICKER_READING,
   describeAssetIntent,
+  describeFormRefusal,
   describeModalStatus,
   describeSettlementTiming,
   describeWriteError,
@@ -336,8 +337,8 @@ const assetSchema = z.object({
   // User-facing alias for `ticker`. Purely cosmetic — never
   // touches price retrieval, which always reads `ticker`. Gated the same as `ticker` itself.
   displayTicker: z.string().optional(),
-  name: z.string().min(1, 'Name is required'),
-  isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'Invalid ISIN format (example: IT0003128367)').optional().or(z.literal('')),
+  name: z.string().min(1, 'Serve il nome'),
+  isin: z.string().regex(/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/, 'ISIN non valido (esempio: IT0003128367)').optional().or(z.literal('')),
   // Mirrors the AssetType union in types/assets.ts — keep the two in lock-step (tsc catches drift
   // where the form value is passed back as an AssetType). 'pensionFund' is accepted here from P0 on;
   // its type card and its dedicated fields land with the pension UI phase.
@@ -347,12 +348,12 @@ const assetSchema = z.object({
   // `assetClasses` composition-leg Select below — that lands with the leverage UI (phase L2).
   assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
   subCategory: z.string().optional(),
-  currency: z.string().min(1, 'Currency is required'),
+  currency: z.string().min(1, 'Serve la valuta'),
   quantity: z.number().min(0, 'La quantità non può essere negativa'),
-  manualPrice: z.number().positive('Price must be positive').optional().or(z.nan()),
-  averageCost: z.number().positive('Average cost must be positive').optional().or(z.nan()),
-  taxRate: z.number().min(0, 'Tax rate must be at least 0').max(100, 'Tax rate must be at most 100').optional().or(z.nan()),
-  totalExpenseRatio: z.number().min(0, 'TER must be at least 0').max(100, 'TER must be at most 100').optional().or(z.nan()),
+  manualPrice: z.number().positive('Il prezzo deve essere maggiore di zero').optional().or(z.nan()),
+  averageCost: z.number().positive('Il prezzo di carico deve essere maggiore di zero').optional().or(z.nan()),
+  taxRate: z.number().min(0, "L'aliquota non può essere negativa").max(100, "L'aliquota non può superare il 100%").optional().or(z.nan()),
+  totalExpenseRatio: z.number().min(0, 'Il TER non può essere negativo').max(100, 'Il TER non può superare il 100%').optional().or(z.nan()),
   // Leverage multiplier for a leveraged/composite ETF (2 = 2x). Empty/1 = no leverage. Shown for
   // type 'etf' only. It is metadata (multiplies notional
   // exposure), independent of quantity/PMC — so for ledger types it rides updateAssetMetadata.
@@ -361,7 +362,7 @@ const assetSchema = z.object({
   isLiquid: z.boolean().optional(),
   autoUpdatePrice: z.boolean().optional(),
   isComposite: z.boolean().optional(),
-  outstandingDebt: z.number().nonnegative('Debt cannot be negative').optional().or(z.nan()),
+  outstandingDebt: z.number().nonnegative('Il debito non può essere negativo').optional().or(z.nan()),
   isPrimaryResidence: z.boolean().optional(),
   allocationRole: z.enum(['tradable', 'frozen', 'excluded']).optional(),
   // Opening-position fields (ledger create only): the first buy's date + optional settlement account.
@@ -400,7 +401,7 @@ const assetSchema = z.object({
 }).superRefine((data, ctx) => {
   const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pensionFund';
   if (tickerRequired && (!data.ticker || data.ticker.trim().length === 0)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ticker is required', path: ['ticker'] });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Serve il ticker', path: ['ticker'] });
   }
 });
 
@@ -415,7 +416,42 @@ interface AssetDialogProps {
    * ("Registra operazione"). Only wired where a TransactionDialog host exists (the Patrimonio page).
    */
   onRegisterTrade?: (asset: Asset) => void;
+  /**
+   * Create mode only: skip the type picker and open on step 2 for this type. «Aggiungi conto»
+   * in the Liquidità tile passes `cash` — the reader has already said what they want, and a
+   * «Che cosa vuoi aggiungere?» with eight choices answered a question they did not ask
+   * (2026-09-14). Ignored in edit mode.
+   */
+  initialType?: AssetType;
 }
+
+/**
+ * The words a refused submit names each field by, for the reading line («Mancano 2 campi:
+ * Ticker e Nome»). A field absent here is named by its key, which is the bug to fix next.
+ */
+const FIELD_LABELS: Partial<Record<keyof AssetFormValues, string>> = {
+  ticker: 'Ticker',
+  displayTicker: 'Alias',
+  name: 'Nome',
+  isin: 'ISIN',
+  type: 'Tipo',
+  assetClass: 'Classe',
+  subCategory: 'Sottocategoria',
+  currency: 'Valuta',
+  quantity: 'Quantità',
+  manualPrice: 'Prezzo',
+  averageCost: 'Prezzo di carico',
+  taxRate: 'Aliquota fiscale',
+  totalExpenseRatio: 'TER',
+  leverageRatio: 'Leva',
+  outstandingDebt: 'Debito residuo',
+  openingDate: 'Data di acquisto',
+  bondCouponRate: 'Tasso cedola',
+  bondNominalValue: 'Valore nominale',
+  bondFinalPremiumRate: 'Premio finale',
+  bondIndexationCoefficient: 'Coefficiente di indicizzazione',
+  bondCouponRateSchedule: 'Tasso variabile',
+};
 
 const assetTypes: { value: AssetType; label: string }[] = [
   { value: 'stock', label: 'Azione' },
@@ -471,7 +507,7 @@ const assetClasses: { value: AssetClass; label: string }[] = [
   { value: 'carry', label: 'Carry' },
 ];
 
-export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDialogProps) {
+export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType }: AssetDialogProps) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const queryClient = useQueryClient();
@@ -517,6 +553,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     reset,
     setValue,
     control,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<AssetFormValues>({
     resolver: zodResolver(assetSchema),
@@ -698,7 +735,9 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
     setOpenSubject({ open, asset });
     if (open) {
       setStatus({ phase: 'idle' });
-      setStep(asset ? 2 : 1);
+      // A caller that already knows the type (the Liquidità tile's «Aggiungi conto») lands on
+      // the form; the type is set by the reset effect below, from the same prop.
+      setStep(asset || initialType ? 2 : 1);
       setAllocationRoleTouched(false);
       setIsLiquidTouched(false);
       // Reset calculator on every open to avoid stale data from previous session
@@ -838,8 +877,8 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
         displayTicker: undefined,
         name: '',
         isin: undefined,
-        type: 'etf',
-        assetClass: 'equity',
+        type: initialType ?? 'etf',
+        assetClass: TYPE_TO_CLASS[initialType ?? 'etf'],
         subCategory: '',
         currency: 'EUR',
         quantity: 0,
@@ -872,7 +911,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
       });
       replaceTiers([]);
     }
-  }, [asset, reset, open, setValue, replaceTiers]);
+  }, [asset, reset, open, setValue, replaceTiers, initialType]);
 
   // Selects the asset type in step 1, auto-derives the class, and advances to step 2
   const handleTypeSelect = (type: AssetType) => {
@@ -1010,6 +1049,41 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
    * 3. shouldUpdatePrice=false → use default price of 1 (cash, real estate)
    * 4. If all fail → set price to 0 as indicator for manual update
    */
+  /**
+   * A submit the client validation refused. The per-field messages stay under their fields,
+   * but on a form three screens tall the READING has to say it (the status line, DESIGN.md →
+   * The Status-Is-The-Reading Rule) and the first refused field has to come into view —
+   * until 2026-09-14 the reading kept its idle sentence and `scrollTop` stayed at 0.
+   */
+  const onInvalid = (fieldErrors: FieldErrors<AssetFormValues>) => {
+    const values = getValues();
+    const form = document.getElementById(ASSET_FORM_ID);
+    const fieldOf = (key: string) => form?.querySelector<HTMLElement>(`[name="${key}"], #${key}`) ?? null;
+    // Named in the order the reader meets the fields, not in zod's (the custom ticker issue
+    // comes last there while the Ticker input is the first on the form).
+    const keys = (Object.keys(fieldErrors) as (keyof AssetFormValues)[]).sort((a, b) => {
+      const ea = fieldOf(a);
+      const eb = fieldOf(b);
+      if (!ea || !eb) return ea ? -1 : eb ? 1 : 0;
+      return ea.compareDocumentPosition(eb) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    const missing: string[] = [];
+    const invalid: string[] = [];
+    for (const key of keys) {
+      const label = FIELD_LABELS[key] ?? key;
+      const value = values[key];
+      const isEmpty = value === undefined || value === '' || (typeof value === 'number' && Number.isNaN(value));
+      (isEmpty ? missing : invalid).push(label);
+    }
+    setStatus({ phase: 'error', message: describeFormRefusal(missing, invalid) });
+
+    const target = keys.length > 0 ? fieldOf(keys[0]) : null;
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target.focus({ preventScroll: true });
+    }
+  };
+
   const onSubmit = async (data: AssetFormValues) => {
     if (!user || !ownerId) return;
 
@@ -1189,7 +1263,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
   // ledger create — without remounting it on every parent render.
   const renderTaxRateField = () => (
     <div className="space-y-2">
-      <Label htmlFor="taxRate">Aliquota Fiscale (%)</Label>
+      <Label htmlFor="taxRate">Aliquota fiscale (%)</Label>
       <Input
         id="taxRate"
         type="number"
@@ -1237,7 +1311,10 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
       eyebrow={
         isTypePicker
           ? 'Patrimonio · Passo 1 di 2'
-          : `Patrimonio · ${isEdit ? 'Modifica strumento' : TYPE_CARDS.find((c) => c.type === selectedType)?.label ?? 'Nuovo strumento'}`
+          : isEdit
+            ? 'Patrimonio · Modifica strumento'
+            // Step 2 keeps the counter: the eyebrow used to drop from «Passo 1 di 2» to the type alone.
+            : `Patrimonio · Passo 2 di 2 · ${TYPE_CARDS.find((c) => c.type === selectedType)?.label ?? 'Nuovo strumento'}`
       }
       title={
         isEdit
@@ -1300,7 +1377,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
 
         {/* Step 2: form — edit mode OR create mode after type selection */}
         {(isEdit || step === 2) && (
-        <form id={ASSET_FORM_ID} onSubmit={handleSubmit(onSubmit)}>
+        <form id={ASSET_FORM_ID} onSubmit={handleSubmit(onSubmit, onInvalid)}>
           <div className="space-y-4">
 
           {/* Back to type picker — create mode only */}
@@ -1325,7 +1402,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
               Impostazioni (doc/guide/allocazione.md § Allocation — the two plans and the leverage engine) — offered anyway since they exist for leveraged ETFs. */}
           {!isEdit && selectedType === 'etf' && (
             <div className="space-y-2">
-              <Label htmlFor="assetClassEtf">Classe Asset *</Label>
+              <Label htmlFor="assetClassEtf">Classe *</Label>
               <Select
                 value={selectedAssetClass}
                 onValueChange={(value) => setValue('assetClass', value as AssetClass)}
@@ -1450,7 +1527,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="assetClass">Classe Asset *</Label>
+              <Label htmlFor="assetClass">Classe *</Label>
               <Select
                 value={selectedAssetClass}
                 onValueChange={(value) =>
@@ -1740,7 +1817,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
           {selectedType === 'pensionFund' && (
             <div className="space-y-4 rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label>Dettagli Fondo Pensione</Label>
+                <Label>Dettagli fondo pensione</Label>
                 <p className="text-xs text-muted-foreground">
                   Usati per il calcolo del beneficio fiscale e del plafond nella vista Previdenza.
                 </p>
@@ -1816,7 +1893,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="isLiquid">Asset Liquido</Label>
+                <Label htmlFor="isLiquid">Asset liquido</Label>
                 <p className="text-xs text-muted-foreground">
                   Si converte rapidamente in contanti. Determina solo la divisione tra patrimonio
                   liquido e illiquido (Panoramica, FIRE): non tocca il ribilanciamento.
@@ -1884,7 +1961,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="autoUpdatePrice">Aggiornamento Automatico Prezzo</Label>
+                <Label htmlFor="autoUpdatePrice">Aggiornamento automatico del prezzo</Label>
                 <p className="text-xs text-muted-foreground">
                   Indica se il prezzo deve essere aggiornato automaticamente da {priceSource}
                 </p>
@@ -1903,7 +1980,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="isComposite">Asset Composto</Label>
+                <Label htmlFor="isComposite">Asset composto</Label>
                 <p className="text-xs text-muted-foreground">
                   Es. fondo pensione con mix di azioni e obbligazioni
                 </p>
@@ -1918,7 +1995,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             {isComposite && (
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>Composizione Percentuale</Label>
+                  <Label>Composizione percentuale</Label>
                   <Button
                     type="button"
                     variant="outline"
@@ -2022,7 +2099,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             <div className="space-y-2 rounded-lg border p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="hasOutstandingDebt">Debito Residuo</Label>
+                  <Label htmlFor="hasOutstandingDebt">Debito residuo</Label>
                   <p className="text-xs text-muted-foreground">
                     Es. mutuo residuo sull&apos;immobile. Il valore netto sarà: valore - debito
                   </p>
@@ -2041,7 +2118,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
 
               {hasOutstandingDebt && (
                 <div className="mt-4 space-y-2">
-                  <Label htmlFor="outstandingDebt">Importo Debito Residuo ({watchCurrency})</Label>
+                  <Label htmlFor="outstandingDebt">Importo del debito residuo ({watchCurrency})</Label>
                   <Input
                     id="outstandingDebt"
                     type="number"
@@ -2066,7 +2143,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             <div className="space-y-2 rounded-lg border p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="isPrimaryResidence">Casa di Abitazione</Label>
+                  <Label htmlFor="isPrimaryResidence">Casa di abitazione</Label>
                   <p className="text-xs text-muted-foreground">
                     L&apos;immobile in cui vivi. Determina solo il net worth usato per il calcolo FIRE,
                     che può escluderlo (lo decidi nelle impostazioni FIRE): non tocca il
@@ -2087,7 +2164,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
             <div className="space-y-2 rounded-lg border p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="showBondDetails">Dettagli Cedole</Label>
+                  <Label htmlFor="showBondDetails">Dettagli cedole</Label>
                   <p className="text-xs text-muted-foreground">
                     Configura il piano cedolare per generare automaticamente la prossima cedola
                   </p>
@@ -2193,7 +2270,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bondCouponFrequency">Periodicità Cedole</Label>
+                      <Label htmlFor="bondCouponFrequency">Periodicità delle cedole</Label>
                       <Select
                         value={watchBondCouponFrequency || ''}
                         onValueChange={(value) => setValue('bondCouponFrequency', value as CouponFrequency)}
@@ -2213,7 +2290,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="bondIssueDate">Data di Emissione</Label>
+                      <Label htmlFor="bondIssueDate">Data di emissione</Label>
                       <Input
                         id="bondIssueDate"
                         type="date"
@@ -2225,7 +2302,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                       <p className="text-xs text-muted-foreground">Ancora del calendario cedolare</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bondMaturityDate">Data di Rimborso</Label>
+                      <Label htmlFor="bondMaturityDate">Data di rimborso</Label>
                       <Input
                         id="bondMaturityDate"
                         type="date"
@@ -2240,7 +2317,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
 
                   <div className="space-y-2">
                     <Label htmlFor="bondNominalValue">
-                      Valore Nominale per Unità ({watchCurrency}){' '}
+                      Valore nominale per unità ({watchCurrency}){' '}
                       <span className="text-muted-foreground/70 font-normal">(opzionale, 1 se vuoto)</span>
                     </Label>
                     <Input
@@ -2385,7 +2462,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
                   {/* Premio Finale */}
                   <div className="space-y-2">
                     <Label htmlFor="bondFinalPremiumRate">
-                      Premio Finale a Scadenza (%){' '}
+                      Premio finale a scadenza (%){' '}
                       <span className="text-muted-foreground/70 font-normal">(opzionale)</span>
                     </Label>
                     <Input
@@ -2432,7 +2509,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
           <div className="space-y-2 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="showCostBasis">Tracciamento Cost Basis</Label>
+                <Label htmlFor="showCostBasis">Prezzo di carico (PMC)</Label>
                 <p className="text-xs text-muted-foreground">
                   Abilita il calcolo di plusvalenze non realizzate e tasse stimate
                 </p>
@@ -2686,7 +2763,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade }: AssetDial
 
           {shouldUpdatePrice(selectedType, selectedSubCategory) && !isLedgerCreate && (
             <div className="space-y-2">
-              <Label htmlFor="manualPrice">Prezzo Manuale (opzionale)</Label>
+              <Label htmlFor="manualPrice">Prezzo manuale (opzionale)</Label>
               {/* `step="any"`: on edit the field is prefilled with the stored price back-converted to a
                   Borsa Italiana quote, which carries five decimals (97,38726) — a fixed step made the
                   browser's native validation refuse the form's own value (found 2026-09-11). */}

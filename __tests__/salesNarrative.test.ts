@@ -92,4 +92,16 @@ describe('declineHeadlineTail', () => {
     expect(declineHeadlineTail('market')).toBe(': il mercato ha pesato.');
     expect(declineHeadlineTail('unknown')).toBe('.');
   });
+
+  it('should name the instrument sold when the tax is the cause, and «le vendite» for more than one', () => {
+    expect(declineHeadlineTail('taxes-despite-market', SEPTEMBER_SALE)).toBe(
+      ' per le tasse sulla vendita di Vanguard FTSE All-World, non per il mercato.',
+    );
+    const twoSales: PeriodSalesSummary = {
+      ...SEPTEMBER_SALE,
+      instruments: [SEPTEMBER_SALE.instruments[0], { ...SEPTEMBER_SALE.instruments[0], id: 'swda', name: 'iShares Core MSCI World' }],
+    };
+    expect(declineHeadlineTail('taxes-despite-market', twoSales)).toBe(' per le tasse sulle vendite, non per il mercato.');
+    expect(declineHeadlineTail('taxes-despite-market')).toBe(' per le tasse sulle vendite, non per il mercato.');
+  });
 });

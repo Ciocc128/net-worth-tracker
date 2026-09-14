@@ -188,7 +188,7 @@ The app **is** locally runnable; there is no fallback to declare.
   after — that logs in for real and waits on the page's `h1`, never on `networkidle` (Firestore keeps
   its sockets open). Say in the report that the evidence is Playwright's. And the tour still goes on
   the MIRROR (below), not on the fixture: the fixture proves the mechanism, the mirror shows what the
-  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce.
+  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce. **A restart of the Claude Code session kills its background tasks** (emulators and dev server alike, 2026-09-14) and an emulator killed that way exports nothing: before the tour, check the ports and re-seed the mirror. **And the session's memory watchdog kills them too** (2026-09-14 evening, three times in a row on the 8 GB Mac right after a full Playwright run, with 37–67% of memory free): for the owner's tour, the emulators and the dev server are started from the OWNER's terminals, which the watchdog does not touch; the agent only re-seeds the mirror and reports the URLs.
 - **Throwaway fixtures** follow the existing seed pattern (`scripts/seedEmulator.ts`,
   `scripts/seedAnalisiE2E.mts`, `scripts/seedPensionE2E.mts`, `scripts/seedCoastFireE2E.mts`) or
   live as a throwaway `.mts` in the session scratchpad. `.mts`, never `.ts`: a `.ts` script is CJS
@@ -235,7 +235,11 @@ The app **is** locally runnable; there is no fallback to declare.
   `polish`, never by fixing the code** (2026-09-13): `critique-storage latest` judges it current from the
   fingerprint of the ONE target file (`page.tsx`, a 32-line wrapper), so corrections made in the
   components leave it open — the polish pass verifies each Priority Issue against the code and runs
-  `critique-storage close`, which stamps `closed: true` in the tracked file.
+  `critique-storage close`, which stamps `closed: true` in the tracked file. **A snapshot's `target_path` and
+  `target_fingerprint` are those of the machine that wrote it** (2026-09-14): `latest` accepts only the local
+  absolute path and the local bytes (a Windows checkout is CRLF under `* text=auto`, so its fingerprint never
+  matches a Mac's), while `trend` and `signals` match by slug. The four snapshots written on Windows were
+  rewritten to this Mac's path and LF fingerprint; the owner works from the Mac only.
 - **Do not duplicate project conventions here.** Code and comment conventions live in
   `DEVELOPMENT_GUIDELINES.md` and `COMMENTS.md`, repo-wide patterns and traps in `AGENTS.md`, the
   per-area rules in `doc/guide/<tema>.md`, the aesthetic in `DESIGN.md`, environment and emulators

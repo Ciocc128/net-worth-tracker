@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 1
 p1_count: 3
-target_identity: "file:C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\pension\\page.tsx"
-target_fingerprint: "sha256:5c9b03f24962f4016a0e50a10533b01617305dc89722801d7f45d93b652bf9da"
-target_path: "C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\pension\\page.tsx"
+target_identity: "file:/Users/giuseppedimaio/Documents/Github.nosync/net-worth-tracker/app/dashboard/pension/page.tsx"
+target_fingerprint: "sha256:d99bc625c7ddbd89ebeb2204126a73d2fdf49fe8b791ecdf50311d05df36532c"
+target_path: "/Users/giuseppedimaio/Documents/Github.nosync/net-worth-tracker/app/dashboard/pension/page.tsx"
 timestamp: 2026-09-13T15-03-59Z
 slug: app-dashboard-pension-page-tsx
 closed: true

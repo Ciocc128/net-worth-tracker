@@ -214,6 +214,9 @@ interface CategoryTotal {
   name: string;
   // Type label, appended to the name only when two same-named categories collide on screen.
   qualifier: string;
+  // The category's expense type — a category has ONE type, so the first row's is the bucket's.
+  // Travels to the Panoramica so a row can deep-link to its Scheda on Analisi (?focusType&focusCat).
+  expenseType: Expense['type'];
   amount: number;
 }
 
@@ -238,6 +241,7 @@ function summarizeExpenses(expenses: Expense[]): ExpenseSummary {
     const entry = map.get(key) ?? {
       name: getCategoryName(expense),
       qualifier: EXPENSE_TYPE_LABELS[expense.type],
+      expenseType: expense.type,
       amount: 0,
     };
     entry.amount += amount;
@@ -284,6 +288,7 @@ function buildTopCategories(
   return top.map(([key, totals]) => ({
     category: labels.get(key) ?? totals.name,
     categoryKey: key,
+    expenseType: totals.expenseType,
     amount: totals.amount,
     percentage: total > 0 ? (totals.amount / total) * 100 : 0,
   }));

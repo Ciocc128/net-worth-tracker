@@ -89,3 +89,47 @@
   the rAF ticks write. Two readings changed, neither a bug: the first frame shows the start value instead of `null`, and
   a `null` target hides the stale number on the same render. A tick queued before a newer target's cleanup is dropped
   by the writer's own guard.
+
+## The critique of 2026-09-13 — what changed and why
+
+- **Every subject the driver clause can name is in `CLASS_SUBJECTS`, the pension band included** (`overviewNarrative.ts`).
+  The market digest lists the pension funds as their own line (`PENSION_BAND_KEY`), so the top mover can be that key —
+  on the real account it was, and the verdict printed «e pension hanno fatto il grosso del lavoro». A key the map does
+  not know DROPS the clause (the Narrative Honesty Rule), never prints the key with a guessed verb; the test walks
+  `ASSET_CLASS_SEQUENCE ∪ {PENSION_BAND_KEY}`. The Cashflow tile's «Ad agosto» / «come ad agosto» come from
+  `atPreviousMonth` in the same module — no component types a preposition.
+- **The tax on a sale is named in the HEADLINE when it explains the drop** (owner's call): `resolveDeclineCause` has a
+  seventh cause, `taxes-despite-market` — the market gained and the estimated tax is at least half of the whole drop
+  (`Δ = market + own flows`, so a caller without the own-flows half, the email, cannot reach it) — and
+  `declineHeadlineTail(cause, sales)` prints «per le tasse sulla vendita di VWCE, non per il mercato.» (the instrument
+  when the period sold exactly one). The sentence then puts the sale right after the variation, before the savings
+  rate, and drops the market-vs-flows split the headline made redundant; Patrimonio's verdict follows the same rule.
+  Tone stays `warning`: the market did not lose.
+- **A category row is a button that opens its Scheda on Analisi** (`/dashboard/analisi?focusType&focusCat`, the three
+  flat params the Scheda writes itself). The type travels in the payload — `DashboardOverviewCategoryAmount.expenseType`,
+  source version 17 — because a category has ONE type and the deep link needs it; a row from an older payload stays a
+  row. The two category tiles read the concentration through `rankingFromOverview` → `describeCategoryShare` (the
+  words Tracciamento uses), and close on «Tutte le categorie in Analisi.»; Composizione closes on «Il piano in
+  Allocazione.» — the Panoramica links to the page that owns the depth and has no «Dettaglio» of its own (owner's call).
+- **The sparkline period is the shared `SegmentedPill`, `semantics="radio"`** (`PeriodSelector.tsx`): it picks a value
+  the chart reads, so no tablist; roving tabindex, 14px labels, 44px of height under `desktop:`. The primitive's
+  inactive label is `text-foreground/70` since the same day — `text-muted-foreground` on `bg-muted` measured 4,34:1.
+- **`RankedRows`' label column is a share of the row (42%, floored), the bar takes the rest** (`components/ui/ranked-rows.tsx`):
+  a fixed 92px column cut «Stipendio Giuseppe» to «Stipendio Giu…» at every width while the bar grew to 210px, and
+  the rows of one list must share one track. The third desktop row is 4 · 4 · 4: at 3 columns the income tile could
+  not hold a label, a 40px bar and two figures. Costi's «Pesano di più» follows the figures (`mt-4`), not the tile's
+  bottom: pinned, it left ~110px of nothing whenever a taller tile shared the row.
+- **The light chart palette holds the dark hue bands** — doc/guide/temi.md § the default theme's light slots.
+
+## Per-page blind spots
+
+- **The sale clause moves before the savings clause only when the headline names the tax**; on every other falling month
+  the sentence keeps its order (variation · savings and driver · split · sale).
+- **A category row is not a link until the overview summary is recomputed** (payload version 17): the server-owned
+  `dashboardOverviewSummaries/{userId}` is rebuilt on the first read after the bump, so a stale tab may show plain rows
+  once.
+- **The sparkline's stroke is the SIGN of the window** (`NetWorthSparkline`: positive/destructive), not a chart slot: a
+  window that ends lower than it started draws red in both modes, by design.
+- **«Crea snapshot» is 36px tall and its confirm is a raw `Dialog`** (one of the eight surfaces outside the modal
+  vocabulary, CLAUDE.md → Known Issues); the inline footer links («Analisi», «Patrimonio») are text links inside a
+  sentence, 15px tall — the house idiom, not a target.

@@ -31,15 +31,21 @@ colors:
   antique-gold: "oklch(0.660 0.135 100)"
   petrol-trend: "oklch(0.720 0.115 215)"
   rose-carry: "oklch(0.700 0.190 340)"
-  # Data visualization — LIGHT mode (`:root --chart-1..8`), declared 2026-09-06. Slot 1 is an
-  # orange (hue 41), not an indigo: the named identities above hold in dark mode only. This is
-  # the palette `lib/constants/printTokens.ts` mirrors as `PRINT_CHART_HEX`, so every email and
-  # PDF chart hex is the sRGB rendering of one of these eight. Slots 6-8 keep the dark hue bands.
-  chart-1-light: "oklch(0.646 0.222 41.116)"
-  chart-2-light: "oklch(0.6 0.118 184.704)"
-  chart-3-light: "oklch(0.398 0.07 227.392)"
-  chart-4-light: "oklch(0.828 0.189 84.429)"
-  chart-5-light: "oklch(0.769 0.188 70.08)"
+  # Data visualization — LIGHT mode (`:root --chart-1..8`), declared 2026-09-06 and re-pitched
+  # 2026-09-13: every slot now holds the SAME hue band as its dark twin (blue · green · amber ·
+  # violet · coral · gold · petrol · rose), with L and C set for a white surface, so «equities
+  # are indigo» is true in both modes. The shadcn preset that stood here until then painted
+  # three oranges and two teals (Liquidità measured ΔE00 10.1 from Immobili, Trend Following
+  # 16.2 from Obbligazioni) and drew the hero's curve in the hue of --destructive. The floor is
+  # ΔE00 ≥ 14 between any two slots of a mode (`__tests__/chartPaletteDistinctness.test.ts`;
+  # the light set's closest pair is now 16.0, the dark set's 18.8). This is the palette
+  # `lib/constants/printTokens.ts` mirrors as `PRINT_CHART_HEX`, so every email and PDF chart
+  # hex is the sRGB rendering of one of these eight.
+  chart-1-light: "oklch(0.500 0.200 262)"
+  chart-2-light: "oklch(0.600 0.125 172)"
+  chart-3-light: "oklch(0.700 0.160 72)"
+  chart-4-light: "oklch(0.480 0.210 298)"
+  chart-5-light: "oklch(0.620 0.200 16)"
   chart-6-light: "oklch(0.600 0.118 100)"
   chart-7-light: "oklch(0.550 0.092 215)"
   chart-8-light: "oklch(0.560 0.205 340)"
@@ -317,7 +323,7 @@ The default palette has no hue anywhere. Every neutral is a pure OKLCH gray. Cha
 
 Eight chart colors cover the semantic range of portfolio data — five from the beginning, three added on 2026-08-30 so that each of the eight asset classes owns a theme-aware hue instead of padding from a static tail. These are the system's only sanctioned source of hue in the default theme. Which class holds which slot is `ASSET_CLASS_CHART_INDEX`'s to say (`lib/utils/allocationUtils.ts`), and it is the ONLY place that says it: the hand-written class → `--chart-N` map in `lib/constants/colors.ts` was deleted on 2026-08-30 for putting crypto on `--chart-4` while the charts drew it on `--chart-3`, so one class wore two hues on one screen; `getAssetClassCssVar` is now derived from the index. What that file still holds (corrected 2026-09-06) is the older HEX map, `ASSET_CLASS_COLORS` (equity `#3B82F6`, …), exported as `getAssetClassColor` and read by one caller, `lib/services/chartService.ts:61`, as the Recharts fallback for a series that has not resolved its CSS variable yet — a theme-blind palette, declared in the DOM-side inventory below and not a second copy of the slot map. The attributions below follow that map; they are not a second copy of it either.
 
-**These eight are the DARK palette (`.dark --chart-1..8`), and the identities hold there only** (stated 2026-09-06). The light palette is a different set of eight — `:root --chart-1..8`, declared in the frontmatter as `chart-1-light` … `chart-8-light`: slot 1 is an orange at hue 41, slot 2 a teal, slot 3 a deep petrol — so in light mode «equities are indigo» is false, and it is false on every email and every PDF, which take the light palette through `PRINT_CHART_HEX` (**The Out-Of-DOM Token Rule**). What a slot means (equities, bonds, crypto…) is stable across modes; what it looks like is not, except for slots 6-8.
+**These eight are the DARK palette (`.dark --chart-1..8`); the light palette holds the same hue bands since 2026-09-13.** Until then the light set — `:root --chart-1..8`, declared in the frontmatter as `chart-1-light` … `chart-8-light` — was a different set of eight (slot 1 an orange at hue 41, slot 2 a teal, slot 3 a deep petrol), which the 2026-09-06 note recorded as «in light mode “equities are indigo” is false». The Panoramica critique of 2026-09-13 measured what that cost on the real account: Liquidità and Immobili 10.1 ΔE00 apart (three of seven classes orange), Trend Following 16.2 from Obbligazioni, and the hero's rising curve painted in the hue of `--destructive`. Slots 1-5 were re-pitched onto the dark hue bands (blue · green · amber · violet · coral) with L and C set for a white surface, so what a slot means AND what it looks like are now stable across modes — on every email and every PDF too, which take the light palette through `PRINT_CHART_HEX` (**The Out-Of-DOM Token Rule**). The floor, ΔE00 ≥ 14 between any two slots of one mode, is a test (`__tests__/chartPaletteDistinctness.test.ts`) and holds for the default theme only: the five named themes are not measured by it (see Known Issues, CLAUDE.md).
 
 - **Indigo Signal** (`oklch(0.488 0.243 264.376)`): Primary chart series; equities, main portfolio line. (It was also the sidebar's active-state colour through `--sidebar-primary` until the shell redesign of 2026-08-22; no component paints that token now — see Navigation.)
 - **Jade Return** (`oklch(0.696 0.17 162.48)`): Secondary chart series; bonds, positive comparison benchmarks.
@@ -386,17 +392,21 @@ reason a CSS variable cannot serve, and nowhere else:
   `lib/services/chartService.ts:116` (the «altri» grey) — waived by name in
   `.impeccable/config.json`'s `ignoreValues`.
 
-Everything else is debt, recorded here as fact and not as a fix. Three chrome hues of the default
+Everything else is debt, recorded here as fact and not as a fix. Two chrome hues of the default
 theme violate **The Zero-Chroma Rule** today: `components/ui/switch.tsx:14` paints the dark ON
 state `bg-blue-600` (because `--primary` is near-white there and a white pill on a white track is
-invisible — the reason is real, the hue is still wrong); `components/ProtectedRoute.tsx:43` draws
-the auth spinner `border-gray-300 border-t-blue-600`; and `app/layout.tsx:71` declares an emerald
-`mask-icon` (`#10B981`) for a brand that has no brand colour. Two sign-colour literals sit beside
-them: `components/expenses/ExpenseTable.tsx:528` colours income `text-emerald-600 dark:text-emerald-400`
-next to a `text-destructive` expense (**The Sign-Color Token Rule** broken on the Tabella view of
-Tracciamento), and `AssetSparkline.tsx:32` is listed above only because it is a fallback — the
-hexes it falls back to are the ones the emails retired. None is declared; a linter that flags them
-is right.
+invisible — the reason is real, the hue is still wrong), and `components/ProtectedRoute.tsx:43` draws
+the auth spinner `border-gray-300 border-t-blue-600`. The third — an emerald Safari `mask-icon`
+(`#10B981`) in `app/layout.tsx` for a brand that has no brand colour — was removed on 2026-09-13:
+the tag is legacy (Safari reads the ordinary favicon since 2018) and the icon is multicolour, so it
+never worked as a monochrome mask either. One sign-colour literal sits beside them:
+`AssetSparkline.tsx:32`, listed above only because it is a fallback — the hexes it falls back to
+are the ones the emails retired (the other, `ExpenseTable.tsx`'s `text-emerald-*` on an income
+amount, went to `text-positive` on 2026-09-14, when the table's type badges also joined the feed's
+dots and the hero's legend on ONE map, `lib/constants/expenseTypeColors.ts` — until then the
+table said `income → --chart-1`, `fixed → --chart-2` while the legend 400px above said the
+opposite, and the same green meant «Entrate» in one place and «Spese Fisse» in the other). None is
+declared; a linter that flags them is right.
 
 ## 3. Typography
 
@@ -547,14 +557,20 @@ the viewport and its separation is the scrim, not a shadow (`components/ui/drawe
 (`describeModalStatus`, `describeWriteError`, the `describe*Intent`/`describe*Reading` builders),
 never typed in a component; the destructive primary arms through `lib/hooks/useArmedDelete.ts`.
 
-**Coverage (counted 2026-09-06).** 29 surfaces are `ResponsiveModal` — the vocabulary above.
-The vocabulary is NOT yet total: besides `components/layout/LogoutDialog.tsx`, which stays an
-`AlertDialog` on purpose because it interrupts, eight files still mount the raw shadcn primitives —
-`app/dashboard/page.tsx` (a `Dialog`), `components/dividends/DividendiDettaglio.tsx` (a `Dialog`,
-its title at `text-base`), `components/expenses/ExpenseTable.tsx`,
-`components/cashflow/ExpenseTrackingTab.tsx` and `components/dividends/DividendTrackingTab.tsx`
-(`AlertDialog` confirms), `components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at
-`text-lg`), `components/cashflow/MobileFiltersDrawer.tsx` (a `Drawer`) and
+**Coverage (counted 2026-09-06, recounted 2026-09-14 evening).** 32 surfaces are `ResponsiveModal` —
+the vocabulary above. The thirtieth is `components/expenses/SeriesDeleteDialog.tsx`, the one question
+a delete asks on a row of an instalment plan or a recurring series («solo questa o tutte?»), shared by
+the Movimenti table and the tab, which each kept an `AlertDialog` for it until that day; the
+thirty-first and thirty-second are Dividendi's «Scarica dividendi storici» confirm (`sm`, its reading
+naming the instruments and the floor, then «Sto scaricando» for the whole run — the `AlertDialog` it
+replaced closed on the click) and the per-year DPS figures of one row below `desktop:` (`sm`, a
+drawer on a phone; it was a `Dialog max-w-xs` at 16px). A PLAIN row of the Movimenti table and a row
+of the Dividendi table no longer open a modal at all: the delete arms in the row (`useArmedDelete`,
+the row prints the consequence). The vocabulary is NOT yet total: besides
+`components/layout/LogoutDialog.tsx`, which stays an `AlertDialog` on purpose because it interrupts,
+four files still mount the raw shadcn primitives — `app/dashboard/page.tsx` (a `Dialog`),
+`components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at `text-lg`, the detail drawer's
+confirm a drawer NESTED in a drawer), `components/cashflow/MobileFiltersDrawer.tsx` (a `Drawer`) and
 `components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit `DialogContent`'s own
 `sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of which is on the ramp
 above. Recorded as the remaining distance, not as a licence.
@@ -609,9 +625,9 @@ The footer line of the net-worth tile: `Mercato:` followed by every asset class 
 
 ### Table inside a Tile (Strumenti)
 
-The management table of Patrimonio keeps being a table — sortable columns, the three Δ columns behind «Andamento», the optional grouping by class, the `--chart-3` tint on hand-priced rows, the 2-click delete — but it lives inside a tile and takes its cadence: eyebrow (`Strumenti`), the toggles as the aside (`h-7`, 11px outline buttons, `aria-pressed`), a reading line («16 strumenti, 2 valutati a mano; i 3 maggiori pesano il 39,3%»), then the rows. Column headers are the 9px sub-eyebrow (`TILE_SUB_EYEBROW_CLASS`, `scope="col"`, `aria-sort` on the sortable ones), cells are 13px with every number `font-mono tabular-nums`, rows separate with a 1px `border-border` and nothing else, and the first cell of each row is a `<th scope="row">`. By default the table fits the tile at 1440; with the Δ columns on it scrolls inside its own `overflow-x-auto` wrapper (`-mx-5 px-5`, so the scroll reaches the tile's edge), never the page. A muted footer pinned with `mt-auto` explains the tint and what a Δ is.
+The management table of Patrimonio keeps being a table — sortable columns (the three Δ windows included), the «Andamento» VIEW, the optional grouping by class, the `--chart-3` tint on hand-priced rows, the two-click delete without a timer (`useArmedDelete`, one live region per tile) — but it lives inside a tile and takes its cadence: eyebrow (`Strumenti`), the toggles as the aside (`h-8`, 11px outline buttons, `aria-pressed`, remembered per browser), a reading line («16 strumenti, 2 valutati a mano; i 3 maggiori pesano il 39,3%»), then the rows. Column headers are the 9px sub-eyebrow (`TILE_SUB_EYEBROW_CLASS`, `scope="col"`; a sortable one carries `aria-sort` and a `<button>` inside, never a focusable `<th>`), the actions header is named for a screen reader only («Azioni sulla riga» — a visible «AZIONI» sat over a column of «Azioni» class chips), cells are 13px with every number `font-mono tabular-nums`, rows separate with a 1px `border-border` and nothing else, and the first cell of each row is a `<th scope="row">` whose sub-line says what the storage does not: a bond's maturity and next coupon («scade il 10/03/2032 · prossima cedola 10/12»), a hand-valued holding's «valore a mano dal 12/08» with «—» in Quantità · Prezzo · PMC (its value lives in `quantity` at price 1, and a PMC equal to the price is not a PMC). «Andamento» replaces Quantità · Prezzo · PMC · TER with the three Δ windows — a view, not four more columns — so the table fits the tile at 1440 in both states and never scrolls the page; should it ever scroll (its own `overflow-x-auto` wrapper, `-mx-5 px-5`), the actions column is `sticky right-0` on the card surface with a 1px left rule only while it does. A muted footer pinned with `mt-auto` explains the tint and, per state, what the columns are (2026-09-14).
 
-Below `desktop:` the same rows are a flat `divide-y` list of expandable rows (`AssetRow`): name · class chip · value · G/P on the closed row, and on open — the CSS `grid-rows-[0fr] → [1fr]` technique with `inert` on the closed panel — the details grid, the unit-price sparkline, the three Δ windows and the actions as `h-11` (44px) outline buttons in a two-column grid. A card per row would be a card inside the tile (the old `AssetCard` was one), so the rows are flat on purpose.
+Below `desktop:` the same rows are a flat `divide-y` list of expandable rows (`AssetRow`): name · class chip · value · G/P on the closed row (the sub-line under the chip), and on open — the CSS `grid-rows-[0fr] → [1fr]` technique with `inert` on the closed panel — the details grid, the unit-price sparkline (`role="img"`, named, out of the tab order), the three Δ windows and the actions as `h-11` (44px) outline buttons in a two-column grid. A card per row would be a card inside the tile (the old `AssetCard` was one), so the rows are flat on purpose.
 
 ### Feed inside a Tile (Movimenti)
 
@@ -627,7 +643,7 @@ Every class, sub-category and — without a tick — theoretical target of Alloc
 
 ### Budget Track (the 3px bar with today's mark)
 
-Every budget row of Cashflow › Budget — the ceiling's hero, the annual budgets, the per-category list — is a 3px track whose fill is what is used and whose 1px `--muted-foreground` mark is **today on the window** (day / days in month for a monthly budget, day of year / days in year for an annual one): «73% used at 71% of the month» is legible at a glance only because the two are drawn on the same track, and the reading line says the same in points («2 punti avanti rispetto al calendario»). `BudgetTrack` (`components/cashflow/budget/BudgetTrack.tsx`) is the one component; an income target carries no mark (a salary lands once, the calendar says nothing about it). Fill colour follows the budget, not the sign tokens: `--foreground` while under the limit (a budget under its limit is not a gain), `--warning-foreground` from 90%, `--destructive` over it; an income target is muted until reached and `--positive` then (`budgetProgressStyle.ts`). The `h-1.5` bars of the old budget list retired with it (2026-08-23). On the hero's six-month bars the ceiling is drawn **per month** — one dashed segment at the ceiling that month HAD (the daily cron records it in `budgetHistory/{uid}/months/{YYYY-MM}`), a step where it changed — and the caption names whose ceiling each month is read against; once the ceiling is crossed, the KPIs change face: «Restano / Al giorno per restare nel tetto» becomes «Oltre, dal 22 / spesi al giorno · il tetto ne regge 65», and the verdict says WHEN («Lo hai superato il 22; …», «…, superando il tetto il 29»).
+Every budget row of Cashflow › Budget — the ceiling's hero, the annual budgets, the per-category list — is a 3px track whose fill is what is used and whose 1px `--muted-foreground` mark is **today on the window** (day / days in month for a monthly budget, day of year / days in year for an annual one): «73% used at 71% of the month» is legible at a glance only because the two are drawn on the same track, and the reading line says the same in points («2 punti avanti rispetto al calendario»). `BudgetTrack` (`components/cashflow/budget/BudgetTrack.tsx`) is the one component; an income target carries no mark (a salary lands once, the calendar says nothing about it). **The comparison with the calendar reads what is BOOKED, and the ceiling's track carries two fills** (2026-09-14): the rows dated after today are a second, lighter segment of the same colour after the booked one, the hero prints `spentToDate` over «speso» with «+ 1297 € in calendario» beside it, and the reading compares only the booked share («Hai speso il 22% del tetto al 47% del mese: 25 punti indietro …; con le spese in calendario sei al 65%») — the Scheduled-Is-Not-Spent Rule applied to the one page that still folded a mortgage due on the 27th into «hai usato il 65%». The same calendar governs the Avvisi rows: a crossed quota threshold is painted `--warning-foreground` only when its share is ahead of the calendar of its OWN window («soglia 50% · anno al 70%» stays muted), the thresholds count booked spend only, and an annual row names its window («da gennaio»). A screen reader hears the track's real share through `aria-valuetext` («231%, oltre di 1963 €»), never the clamped 100. Fill colour follows the budget, not the sign tokens: `--foreground` while under the limit (a budget under its limit is not a gain), `--warning-foreground` from 90%, `--destructive` over it; an income target is muted until reached and `--positive` then (`budgetProgressStyle.ts`). The `h-1.5` bars of the old budget list retired with it (2026-08-23). On the hero's six-month bars the ceiling is drawn **per month** — one dashed segment at the ceiling that month HAD (the daily cron records it in `budgetHistory/{uid}/months/{YYYY-MM}`), a step where it changed — and the caption names whose ceiling each month is read against; once the ceiling is crossed, the KPIs change face: «Restano / Al giorno per restare nel tetto» becomes «Oltre, dal 22 / spesi al giorno · il tetto ne regge 65», and the verdict says WHEN («Lo hai superato il 22; …», «…, superando il tetto il 29»).
 
 ### Scheda inside the Grid (Analisi)
 
