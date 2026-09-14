@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 0
 p1_count: 4
-target_identity: "file:C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\cashflow\\page.tsx"
-target_fingerprint: "sha256:a07c3ccc3620cb41fae2de2c71bb201e4526104b3b5b4ba16c67499d9545bd0c"
-target_path: "C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\cashflow\\page.tsx"
+target_identity: "file:/Users/giuseppedimaio/Documents/Github.nosync/net-worth-tracker/app/dashboard/cashflow/page.tsx"
+target_fingerprint: "sha256:b71a0112f0c0931d10796d1145228a3712e4495f21c25d6291eb93bd533b6714"
+target_path: "/Users/giuseppedimaio/Documents/Github.nosync/net-worth-tracker/app/dashboard/cashflow/page.tsx"
 timestamp: 2026-09-14T06-15-58Z
 slug: app-dashboard-cashflow-page-tsx
 closed: true

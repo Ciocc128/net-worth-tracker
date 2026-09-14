@@ -34,7 +34,16 @@
   («Spese Variabili»); the picker's own label is the one a modal about ONE row wants («Spesa variabile»).
 - **A refused submit lands in the reading line, in Italian, and scrolls to the field** (`describeFormRefusal` →
   «Mancano 2 campi: Importo e Categoria.»; `handleSubmit(onSubmit, onInvalid)`, `aria-invalid` on the field,
-  `scrollIntoView` + focus on the first): `AssetDialog` since 2026-09-14 morning, `ExpenseDialog` since the afternoon.
+  `scrollIntoView` + focus on the first): `AssetDialog` since 2026-09-14 morning, `ExpenseDialog` since the afternoon,
+  `BudgetItemDialog` since the evening (its submit was `disabled` until the form was valid, so a keyboard reader
+  pressed Enter on a dead button and nothing said why; the two rule refusals — the allocation ceiling and the
+  duplicate — are `describeBudgetAmountRefusal` / `describeBudgetDuplicateRefusal` in `budgetNarrative.ts`).
+  **And the refusal is red only since that evening, on EVERY modal**: `ModalStatusLine` merged its classes BEFORE
+  the ones Radix's `Description` hands down through `asChild` (`text-sm text-muted-foreground` from shadcn's
+  wrapper), and `tailwind-merge` kept the last — so the reading was 14px muted in both tones and a refusal never
+  took `text-destructive` (a size utility also drops `leading-[1.45]`). The incoming `className` now comes first.
+  A refusal's colour is asserted by `e2e/cashflow.budget.spec.ts` against a `text-destructive` probe; the two
+  Tracciamento and Patrimonio specs check the words only.
   A zod `z.number()` fed `NaN` by `valueAsNumber` says «Invalid input» unless the schema carries `{ error: '…' }` —
   every number the expense form can leave empty now does. Step 2 keeps the counter in the eyebrow («Passo 2 di 2 ·
   Spesa variabile»).

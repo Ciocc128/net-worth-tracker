@@ -9,6 +9,10 @@
 - Added the «solo questa o tutte?» modal for deleting a row of an instalment plan or a recurring series (from the table and from the feed), naming the row, the plan and what the account gets back; a plain row of the Tabella view now arms in place and prints «Eliminando, il conto viene riaccreditato di 373,81 €» beside «Conferma».
 - Added memory to the «Feed | Tabella» switch of Movimenti: the table stays the table across visits.
 
+- Added «in calendario» as its own figure on Cashflow › Budget: the verdict names what is spent and what is still dated after today («hai speso 656 € e hai altri 1297 € già in calendario (1953 € su 3000 €, il 65% del tetto)»), the hero prints the spent amount with «+ 1297 € in calendario» beside it, and the bar carries two fills — spent, then scheduled in a lighter shade.
+- Added the calendar to every Avvisi row: «soglia 50% · anno al 70%» under a crossed threshold, painted amber only when the share is ahead of its own window, «da gennaio» on an annual budget already over, and «soglie di quota» in the aside.
+- Added «Conferma» in words to every budget row's delete, the consequence printed in the row («Eliminando, il budget di Cibo sparisce; le spese restano.») and an announcement for screen readers; the pencil steps aside while the row is armed.
+
 - Added the maturity and the next coupon under a bond’s name in the Strumenti table («scade il 10/03/2032 · prossima cedola 10/12»), on desktop and on a phone: a BTP no longer reads like a crypto row.
 - Added «Andamento» as a view of the Strumenti table: the three Δ windows take the place of Quantità, Prezzo, PMC and TER, are sortable, and the table no longer scrolls sideways at 1440; both toggles are remembered.
 
@@ -25,6 +29,14 @@
 - Fixed the transfer form: origin and destination accounts are now required and must differ, with the reason under each field; a transfer could be saved without accounts and moved no money.
 - Fixed the Movimenti table for a screen reader and for the eye: every header names its column and the sorted one says its direction, dates and amounts are in the mono face; «Tutte le categorie in Analisi» is a 32px target (44 on touch).
 - Fixed the tense of a future period («Nel 2043 hai speso») — a year of instalments is not gone yet.
+
+- Fixed the Budget verdict and hero calling «usato/speso» what was still in the calendar: with a mortgage due on the 27th the page said «hai usato il 65% del tetto … 18 punti avanti rispetto al calendario» on the 14th, for 656 € actually spent; the reading now compares only the spent share («il 22% del tetto al 47% del mese: 25 punti indietro … con le spese in calendario sei al 65%»).
+- Fixed the Budget thresholds counting rows dated after today and ignoring the calendar: «Budget complessivo 65% · soglia 50%» in amber for a ceiling at 22%, and «Tecnologia 54% · soglia 50%» in amber with the year at 70%; a threshold is now a fact of what is spent, and a row behind its calendar is a number, not a warning.
+- Fixed the budget form refusing in silence: the submit was disabled until the form was valid and the two refusals were red paragraphs under the amount; the reading line now says «Mancano 2 campi: Categoria e Importo.» or «L'importo supera i 2330 € disponibili sotto il tetto.», the field is marked and focused, the four radios are one tab stop, and the focus returns to «Aggiungi budget» on close.
+- Fixed the Budget touch targets under 44px on a phone (the threshold chips, the ceiling input, the switch's row, the drawer's radios, select and amount, the empty state's button) and the progress bars announcing an exceeded budget as «100» to a screen reader (now «231%, oltre di 1963 €»).
+- Fixed «Salvato» staying in the Per categoria aside forever, the «fissa» rule repeated in three footers (now once, with its cause: the category's type), and the small animations of the tab that ignored the reduced-motion setting.
+
+- Fixed the reading line of every modal, which was rendered smaller and greyer than designed and never turned red on a refused submit («Mancano 2 campi: …» was grey since the modals were unified): a refusal is now in the alert colour at the reading's size, on every form.
 
 - Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».
 - Fixed the asset form refusing a submit in English and in silence («Ticker is required»): the messages are Italian, the reading line says «Mancano 2 campi: Ticker e Nome.» and the first refused field scrolls into view.

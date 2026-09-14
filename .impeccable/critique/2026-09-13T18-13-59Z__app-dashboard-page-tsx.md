@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 1
 p1_count: 2
-target_identity: "file:C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\page.tsx"
-target_fingerprint: "sha256:d726b12ba272d62457c356ffabb18e19b866af70e4e0271a68478bc94164039e"
-target_path: "C:\\Users\\Giuseppe\\Documents\\GitHub\\net-worth-tracker\\app\\dashboard\\page.tsx"
+target_identity: "file:/Users/giuseppedimaio/Documents/Github.nosync/net-worth-tracker/app/dashboard/page.tsx"
+target_fingerprint: "sha256:e93b83f08513fd5bf8d299128d690b45a0c6aaad32eb1af3929adb1b783b2563"
+target_path: "/Users/giuseppedimaio/Documents/Github.nosync/net-worth-tracker/app/dashboard/page.tsx"
 timestamp: 2026-09-13T18-13-59Z
 slug: app-dashboard-page-tsx
 closed: true

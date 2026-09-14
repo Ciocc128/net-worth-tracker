@@ -235,7 +235,11 @@ The app **is** locally runnable; there is no fallback to declare.
   `polish`, never by fixing the code** (2026-09-13): `critique-storage latest` judges it current from the
   fingerprint of the ONE target file (`page.tsx`, a 32-line wrapper), so corrections made in the
   components leave it open — the polish pass verifies each Priority Issue against the code and runs
-  `critique-storage close`, which stamps `closed: true` in the tracked file.
+  `critique-storage close`, which stamps `closed: true` in the tracked file. **A snapshot's `target_path` and
+  `target_fingerprint` are those of the machine that wrote it** (2026-09-14): `latest` accepts only the local
+  absolute path and the local bytes (a Windows checkout is CRLF under `* text=auto`, so its fingerprint never
+  matches a Mac's), while `trend` and `signals` match by slug. The four snapshots written on Windows were
+  rewritten to this Mac's path and LF fingerprint; the owner works from the Mac only.
 - **Do not duplicate project conventions here.** Code and comment conventions live in
   `DEVELOPMENT_GUIDELINES.md` and `COMMENTS.md`, repo-wide patterns and traps in `AGENTS.md`, the
   per-area rules in `doc/guide/<tema>.md`, the aesthetic in `DESIGN.md`, environment and emulators

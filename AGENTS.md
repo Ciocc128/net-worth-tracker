@@ -105,14 +105,19 @@ about a domain goes in that domain's guide, never here.
 - **`DialogDescription`/`DrawerDescription` is required** in every `DialogContent`/`DrawerContent` (`sr-only` if it
   should not show); never silence the warning with `aria-describedby={undefined}`. `ResponsiveModal` handles it: the
   `reading` becomes the Description through `asChild`, and without one the `description` prop is rendered `sr-only`.
+- **A shadcn wrapper's own classes ride through `asChild` and win the merge** (2026-09-14): `DialogDescription`
+  hands `text-sm text-muted-foreground` down to the child, and a child that runs `cn(own…, className)` lets
+  `tailwind-merge` keep the wrapper's — `ModalStatusLine` was 14px muted in both tones on every modal for two weeks,
+  and a font-size utility also drops a `leading-*`. Put the incoming `className` BEFORE the classes that must win,
+  and read the result with `getComputedStyle` (a screenshot showed a grey refusal that nobody flagged).
 
 ### Layout and Color Tokens
 - Never hardcode structural colors in shell components — `bg-background`, `text-foreground`, `border-border`.
 - **Sign colors are tokens: `text-positive`/`text-destructive`**, chips `bg-positive/10`, resolved via
   `getMetricValueColor()`. Two gotchas: **drop `dark:` variants** (the token swaps itself) and the function returns
   neutral for the `currency` format by design — signed currency uses `signChipClass`/`signTextClass`. Legacy
-  `text-emerald-*` survives in the dividend dialogs/table and `budgetProgressStyle` (the Tracciamento feed retired
-  its own on 2026-08-22, `ExpenseTable` on 2026-09-14).
+  `text-emerald-*` survives in the dividend dialogs/table only (the Tracciamento feed retired its own on 2026-08-22,
+  `ExpenseTable` on 2026-09-14; `budgetProgressStyle` speaks tokens).
 - **An expense type has ONE colour map** (`lib/constants/expenseTypeColors.ts`, 2026-09-14): the feed's dot, the
   table's badge and the hero's legend read it. A row's `income` is the sign token `positive`, each outflow a chart
   slot, `fixed` on the slot the flow series paints spending with; the SERIES (bars) take chart slots, never the sign
@@ -333,7 +338,7 @@ file used to carry.
 ### Cashflow › Budget → `doc/guide/cashflow-budget.md`
 - Opt-in (`reconcileBudgetItems` never auto-creates); NO period axis (always the current Italian month; annual budgets are year-to-date on their own Off-Axis tile).
 - ONE projection rule, the app's: `buildSpendingForecast` over the month's spending SPLIT at today (`spendingProjection.ts`, shared with Panoramica/Tracciamento); a FIXED category never follows the pace; `MIN_FORECAST_DAYS` (4).
-- Risk vs fact: «Categorie a rischio» = projection over amount AND not over yet; a budget already over is a fact for «Avvisi». No row in two tiles.
+- Risk vs fact: «Categorie a rischio» = projection over amount AND not over yet; a budget already over is a fact for «Avvisi». No row in two tiles. A threshold is a fact of what is BOOKED (`BudgetAlert.spent` = up to today), read against the calendar of its own window (`calendarPct`, `aheadOfCalendar`): the amber is for the rows ahead of it only. «Speso» is `spentToDate`; the scheduled rows are their own clause in every sentence (2026-09-14).
 - The ceiling IS historicised by the cron (phase 8, one doc per month, `budgetHistory/{uid}/months/{YYYY-MM}`, `allow write: if false`). The crossing day is a fact of the EXPENSE DATES, never a cron's memory.
 - Il resto — `summarizeCeiling`, the two-face KPIs on `exceeded`, `BudgetTrack`, the `cashflow:add-budget` event — in `doc/guide/cashflow-budget.md`.
 
