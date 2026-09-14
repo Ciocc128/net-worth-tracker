@@ -13,7 +13,25 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **171 files / 3796 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **173 files / 3836 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-14, fork): **Lime Frost chiaro diventa una palette per ruoli, ritoccata dal proprietario con Agentation.**
+  Toolbar `agentation` montata solo in sviluppo (`components/providers/AgentationToolbar.tsx`, server MCP su :4747). Sul
+  mirror dell'account reale: terreno verde piatto (L 0.955, tinta 133), lime come riempimento d'azione (`--action`,
+  etichetta ardesia) e verde scuro solo come testo; freddo per dati e selezione (patrimonio `--hero-series` ghiaccio 228,
+  spese `--flow-out` 232, entrate `--flow-in` 138, lavanda per Sharpe/VENDI/Orso, opzione scelta bianca, hover ghiaccio
+  sulle icone); segno solo per i giudizi. Circa 30 token di ruolo in quattro famiglie, ognuno col default del colore di
+  prima (gli altri temi non si muovono; il blocco scuro riprende ogni letterale); grafici di patrimonio, entrate e
+  scenari spostati dai `--chart-N` ai token (`lib/constants/scenarioColors.ts`); variante `outlineDestructive`; icone
+  categoria neutre via `lib/utils/categoryIconStyle.ts`. **Tre bug trovati per strada**: la pillola dei `SegmentedPill`
+  sparisce con due istanze montate (layoutId globale di Framer → ora per istanza); il drawdown di Rendimenti era nero in
+  ogni tema e la correzione dei colori d'azione non scattava mai, perché il CSS servito è `#hex`/`lab()` e non `oklch()`
+  (`lib/utils/colorLightness.ts`, testato; `useChartColors` ha lo stesso difetto, aperto); il «100%» usciva dalla
+  riga categorie a 3 colonne (`RankedRows`). Funzionali: Piano di Allocazione e Liquidità a 6 righe con «Mostra tutte»,
+  cestini della Previdenza al passaggio del mouse, gruppi di Strumenti nel colore della classe. Regole e verifica pagina
+  per pagina nell'artifact «Carta del tema Lime Frost»; doc/guide/temi.md. Collaudo: `tsc` 0, ESLint 0, 173 file / 3836
+  test, schermate di tutte le pagine in chiaro e di tre in scuro sul mirror, zero errori in pagina. **Non eseguiti:
+  build e Playwright** (dev server attivo sulla stessa cartella `.next`). **Aperto per la prossima sessione**: Cashflow
+  (cifre delle spese), `useChartColors`, Sankey con la divisione 50/30/20 opzionale, poi il ribaltamento sul tema scuro.
 - Latest (2026-09-12, fork): **Secondo riallineamento a upstream (PR #342–#345), un solo conflitto e solo di testo.**
   Merge di `upstream/main` (`dea85f5`, 4 commit) sopra `9b064f5` (spec permanente `e2e/fork-features.spec.ts` per le
   funzioni solo-fork, `CACHE_MATH_VERSION` = `'v7-fork'`, distinta da upstream qualunque forma abbia la chiave — chiude il vecchio Known

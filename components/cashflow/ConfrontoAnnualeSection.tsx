@@ -12,13 +12,13 @@
  * the same-months rule cannot diverge from the Periodo tile's pacing. This component only
  * renders; it builds the two chart series it alone needs.
  *
- * Colors: chartColors[0] = current year, chartColors[1] = comparison year (useChartColors,
- * per AGENTS.md). Delta rows use the sign tokens with inverted spending semantics.
+ * Colors: the current year is spending, `--flow-out` (the one money-out token of every
+ * cashflow surface); the comparison year is the neutral baseline. Delta rows use the sign
+ * tokens with inverted spending semantics.
  */
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import { type Expense, type ExpenseType } from '@/types/expenses';
 import type { CategoryDeltaRow, ComparisonMonthScope, TotalsPacing } from '@/lib/utils/comparisonDeltas';
 import type { PeriodMode } from '@/lib/utils/analisiSummary';
@@ -85,17 +85,15 @@ const MAX_DELTA_ROWS = 10;
 
 // ── MensileBarChart ───────────────────────────────────────────────────────────
 
-/** Side-by-side monthly bars for the YoY comparison. colors[0] = current year; the comparison year is the neutral baseline. */
+/** Side-by-side monthly bars for the YoY comparison: the current year in `--flow-out`, the comparison year the neutral baseline. */
 function MensileBarChart({
   data,
   currentYear,
   comparisonYear,
-  colors,
 }: {
   data: Array<{ month: string; current: number; comparison: number }>;
   currentYear: number;
   comparisonYear: number;
-  colors: string[];
 }) {
   return (
     <ResponsiveContainer width="100%" height={240}>
@@ -119,7 +117,7 @@ function MensileBarChart({
           cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
         />
         <Legend formatter={(value) => (value === 'current' ? currentYear.toString() : comparisonYear.toString())} wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }} />
-        <Bar dataKey="current" fill={colors[0]} animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="current" fill="var(--flow-out)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
         {/* The baseline year is a neutral, as on the Periodo tile — never a series colour. */}
         <Bar dataKey="comparison" fill="var(--muted-foreground)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
       </BarChart>
@@ -206,7 +204,7 @@ function CategoryDeltaList({
 // ── HistoryBarChart ───────────────────────────────────────────────────────────
 
 /** Multi-year annual totals for the history — one bar per year. */
-function HistoryBarChart({ data, colors }: { data: Array<{ year: string; spese: number }>; colors: string[] }) {
+function HistoryBarChart({ data }: { data: Array<{ year: string; spese: number }> }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart
@@ -226,7 +224,7 @@ function HistoryBarChart({ data, colors }: { data: Array<{ year: string; spese: 
           itemStyle={TOOLTIP_ITEM_STYLE}
           cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }}
         />
-        <Bar dataKey="spese" fill={colors[0]} animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="spese" fill="var(--flow-out)" animationDuration={600} animationEasing="ease-out" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -268,7 +266,6 @@ export function ConfrontoAnnualeSection({
   reading,
   onCategoryFocus,
 }: ConfrontoAnnualeSectionProps) {
-  const chartColors = useChartColors();
   const [viewMode, setViewMode] = useState<'mensile' | 'categoria'>('categoria');
 
   /** A month picked in "Anno corrente" that has not started yet — declared, not compared. */
@@ -370,10 +367,10 @@ export function ConfrontoAnnualeSection({
           </p>
         )}
 
-        {periodMode === 'history' && hasComparisonData && <HistoryBarChart data={multiYearData} colors={chartColors} />}
+        {periodMode === 'history' && hasComparisonData && <HistoryBarChart data={multiYearData} />}
 
         {periodMode !== 'history' && hasComparisonData && currentYear !== null && comparisonYear !== null && viewMode === 'mensile' && (
-          <MensileBarChart data={mensileData} currentYear={currentYear} comparisonYear={comparisonYear} colors={chartColors} />
+          <MensileBarChart data={mensileData} currentYear={currentYear} comparisonYear={comparisonYear} />
         )}
 
         {periodMode !== 'history' && hasComparisonData && comparisonYear !== null && viewMode === 'categoria' && (

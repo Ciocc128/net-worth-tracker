@@ -22,14 +22,13 @@ import type { MonteCarloPlan, ScenarioKey } from '@/lib/utils/monteCarloSummary'
 import { formatInputAmount } from '@/lib/utils/monteCarloSummary';
 import { describePensionInflowRow } from '@/lib/utils/monteCarloNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
-import { SCENARIO_SLOT } from '@/components/monte-carlo/ScenarioOverlayChart';
 
 export interface MonteCarloForm {
   initialPortfolio: string;
@@ -111,7 +110,6 @@ export function ParametriTile({
   stale,
   className,
 }: ParametriTileProps) {
-  const chartColors = useChartColors();
   const allocationOff = Math.abs(allocationSum - 100) > 0.01;
 
   const updateScenario = (key: ScenarioKey, field: keyof MonteCarloScenarioParams, value: string) => {
@@ -209,7 +207,7 @@ export function ParametriTile({
                 <div key={key} className="flex flex-col gap-3 rounded-xl border border-border bg-muted p-3.5">
                   {/* A chart slot is not a text colour: the slot is the swatch, the label stays muted. */}
                   <p className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: chartColors[SCENARIO_SLOT[key]] }} aria-hidden="true" />
+                    <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
                     <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                     {label}
                   </p>

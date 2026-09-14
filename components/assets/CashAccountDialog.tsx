@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { formatCurrency } from '@/lib/services/chartService';
 import { calculateAssetValue } from '@/lib/services/assetService';
-import { cn } from '@/lib/utils';
 
 const ITALIAN_DATE = new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -61,8 +60,8 @@ export function CashAccountDialog({ asset, open, onClose, onEdit, pendingDeleteI
           </Button>
           <Button
             type="button"
-            variant={isPending ? 'destructive' : 'outline'}
-            className={cn('flex-1', !isPending && 'text-destructive hover:text-destructive')}
+            variant={isPending ? 'destructive' : 'outlineDestructive'}
+            className="flex-1"
             onClick={() => onDeleteClick(asset.id)}
             disabled={isDemo}
             aria-pressed={isPending}

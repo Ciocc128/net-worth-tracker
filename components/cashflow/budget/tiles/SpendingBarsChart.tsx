@@ -20,7 +20,7 @@ const BAR_SHARE = 0.68;
 /**
  * Total spending per month against today's ceiling — the element that stretches when the
  * Tetto tile spans two rows. Hand-written SVG, the In-tile Bars pattern: spending in the
- * slot the category tiles use for it (`--chart-1`), the ceiling as a dashed `--foreground`
+ * token the category tiles use for it (`--flow-out`), the ceiling as a dashed `--foreground`
  * line with no label (the caption beside the sub-eyebrow says what it is), the running
  * month at reduced fill AND outlined (real data, not comparable with the closed months),
  * the axis labels outside the SVG so they never stretch with it.
@@ -63,7 +63,7 @@ export function SpendingBarsChart({ months, minHeight = 110, className }: Spendi
                   y={VIEW_H - height}
                   width={barWidth}
                   height={height}
-                  fill="var(--chart-1)"
+                  fill="var(--flow-out)"
                   fillOpacity={month.ongoing ? 0.55 : 1}
                   stroke={month.ongoing ? 'var(--foreground)' : 'none'}
                   vectorEffect="non-scaling-stroke"

@@ -18,7 +18,7 @@
 
 import { FIREProjectionYearData } from '@/types/assets';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 import {
   LineChart,
@@ -114,11 +114,7 @@ export function FIREProjectionChart({
   marginLeft = 50,
   pensionUnlockCalendarYear = null,
 }: FIREProjectionChartProps) {
-  const chartColors = useChartColors();
-  // Semantic mapping: Orso (bear/pessimistic) → red token [4], Base → primary [0], Toro (bull) → green token [1]
-  const bearColor = chartColors[4] || 'var(--chart-5)';
-  const baseColor = chartColors[0] || 'var(--chart-1)';
-  const bullColor = chartColors[1] || 'var(--chart-2)';
+  const { bear: bearColor, base: baseColor, bull: bullColor } = SCENARIO_COLOR;
 
   if (yearlyData.length === 0) {
     return (

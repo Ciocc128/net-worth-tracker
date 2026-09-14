@@ -14,10 +14,9 @@
 import type { Narrative } from '@/lib/utils/narrative';
 import type { ScenarioKey } from '@/lib/utils/monteCarloSummary';
 import { formatPercentage } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { Tile } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
-import { SCENARIO_SLOT } from '@/components/monte-carlo/ScenarioOverlayChart';
 
 export interface ScenarioRow {
   key: ScenarioKey;
@@ -35,13 +34,12 @@ interface ScenariConfrontoTileProps {
 }
 
 export function ScenariConfrontoTile({ reading, aside, rows, footer, className }: ScenariConfrontoTileProps) {
-  const chartColors = useChartColors();
 
   return (
     <Tile eyebrow="Scenari a confronto" aside={aside} reading={reading} ariaLabel="Scenari a confronto" className={className}>
       <ul className="mt-3.5 flex flex-col divide-y divide-border" aria-label="Probabilità di successo per scenario">
         {rows.map((row) => {
-          const color = chartColors[SCENARIO_SLOT[row.key]] || `var(--chart-${SCENARIO_SLOT[row.key] + 1})`;
+          const color = SCENARIO_COLOR[row.key];
           const fill = Math.min(100, Math.max(0, row.successRate));
           const decimals = Number.isInteger(Math.round(row.successRate * 10) / 10) ? 0 : 1;
           return (

@@ -34,7 +34,32 @@
   /* Semantic positive (green) — mirrors --destructive for the positive half of metric values.
      Custom themes that do not override --positive inherit the default light/dark value. */
   --color-positive: var(--positive);
-  --color-accent-foreground: var(--accent-foreground);
+  /* The light fill of an outline button; the ground itself unless a theme lifts it off the ground. */
+  --color-outline-surface: var(--outline-surface);
+  /* The raised option of a segmented control / tab list; the ground unless a theme cools it. */
+  --color-segment-active: var(--segment-active);
+  /* A ghost button's hover (row icons, close buttons); the accent unless a theme sets it apart. */
+  --color-ghost-hover: var(--ghost-hover);
+  --color-ghost-hover-foreground: var(--ghost-hover-foreground);
+  /* A filled button's colour: the primary unless a theme fills its buttons with a colour too
+     light to be its text colour (Lime Frost light: lime fill, deep green text). */
+  --color-action: var(--action);
+  --color-action-foreground: var(--action-foreground);
+  --color-action-hover: var(--action-hover);
+  /* A pressed toggle button (Strumenti's «Andamento», «Raggruppa per classe»). */
+  --color-toggle-on: var(--toggle-on);
+  --color-toggle-on-foreground: var(--toggle-on-foreground);
+  --color-toggle-on-hover: var(--toggle-on-hover);
+  /* A tile-aside view switch's pressed option (Storico, Allocazione, FIRE). */
+  --color-aside-toggle-on: var(--aside-toggle-on);
+  --color-aside-toggle-on-foreground: var(--aside-toggle-on-foreground);
+  /* A cost or tax figure (Panoramica's Costi and Sintesi): the warning ink unless a theme keeps
+     amber for real warnings only. */
+  --color-cost-figure: var(--cost-figure);
+  /* The `outlineDestructive` button («Elimina» before it is armed). */
+  --color-destructive-surface: var(--destructive-surface);
+  --color-destructive-surface-hover: var(--destructive-surface-hover);
+  --color-destructive-outline: var(--destructive-outline);  --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
@@ -79,6 +104,62 @@
   --warning-border: oklch(0.855 0.062 85);
   --positive: oklch(0.482 0.194 149.214);
   --ai-accent: oklch(0.65 0.2 305);
+  /* ── Role tokens (2026-09-13/14, born of the Lime Frost light pass) ─────────────────────────
+     Every one defaults to what the component painted before, so only a theme that names it
+     changes. Four families — look here before adding a fifth:
+       · Surfaces     --outline-surface · --segment-active · --destructive-surface(-hover) ·
+                      --destructive-outline · --progress-fill
+       · Interaction  --action(-foreground, -hover) · --toggle-on(-foreground, -hover) ·
+                      --aside-toggle-on(-foreground) · --ghost-hover(-foreground)
+       · Flows        --flow-in · --flow-out · --cost-figure · --trade-buy · --trade-sell · --trade-ok
+       · Series       --hero-series · --capital-networth · --capital-invested · --sharpe-series ·
+                      --drawdown · --scenario-bear/-base/-bull · --manual-row
+     Plus --category-icon(-bg), undeclared on purpose (lib/utils/categoryIconStyle.ts). A theme
+     block that writes one of these as a literal must take it back in its dark block. */
+  /* Category-bar colours for money in / money out (Panoramica, Tracciamento). Default to the
+     slots they used before, so a theme that does not set them renders exactly as it did. */
+  --flow-in: var(--chart-2);
+  --flow-out: var(--chart-1);
+  --outline-surface: var(--background);
+  /* The hero's net-worth series (Panoramica, Patrimonio). A chart slot unless a theme names its own. */
+  --hero-series: var(--chart-1);
+  --segment-active: var(--background);
+  --ghost-hover: var(--accent);
+  --ghost-hover-foreground: var(--accent-foreground);
+  /* The wash behind a hand-priced row in Strumenti. */
+  --manual-row: var(--chart-3);
+  --action: var(--primary);
+  --action-foreground: var(--primary-foreground);
+  /* The /90 wash the filled button always had, spelled as a token so a theme can darken instead. */
+  --action-hover: color-mix(in oklab, var(--action) 90%, transparent);
+  --toggle-on: var(--action);
+  --toggle-on-foreground: var(--action-foreground);
+  --toggle-on-hover: var(--action-hover);
+  --aside-toggle-on: var(--muted);
+  --aside-toggle-on-foreground: var(--foreground);
+  /* Allocazione's COMPRA / VENDI / OK (chips, amounts, the balance ring), read and clamped by
+     useActionColors. The chart slots of ACTION_CHART_NUMBER unless a theme names its own. */
+  --trade-buy: var(--chart-3);
+  --trade-sell: var(--chart-5);
+  --trade-ok: var(--chart-2);
+  /* Projection scenarios (FIRE, Coast, Monte Carlo): the slots SCENARIO_SLOT always named. */
+  --scenario-bear: var(--chart-5);
+  --scenario-base: var(--chart-1);
+  --scenario-bull: var(--chart-2);
+  /* A spending budget's progress fill below its warning threshold. */
+  --progress-fill: var(--foreground);
+  --cost-figure: var(--warning-foreground);
+  /* An outline «Elimina»: the outline button's own fill, hover and border unless a theme neutralises it. */
+  --destructive-surface: var(--outline-surface);
+  --destructive-surface-hover: var(--accent);
+  --destructive-outline: var(--border);
+  /* Rendimenti's named series: the net-worth line over the invested-capital area, the rolling
+     Sharpe line, and the underwater drawdown area. Chart slots / the negative sign colour unless
+     a theme names its own. */
+  --capital-networth: var(--chart-3);
+  --capital-invested: var(--chart-1);
+  --sharpe-series: var(--chart-3);
+  --drawdown: var(--destructive);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -669,44 +750,121 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
  * fonts, shadows and letter-spacing left out (themes do not touch the type scale). */
 [data-theme="lime-frost"] {
   --radius: 1rem;
-  --background: oklch(0.9600 0.0120 118.0000);
+  /* Lime-peel ground nudged toward the source theme's pea green (hue 133: 140 read too emerald,
+     125 too olive), every button on the same hue, and a flat ground: owner's calls, 2026-09-13.
+     L 0.955 rather than 0.962 buys the tiles margin over the 1.1:1 floor (1.13:1); --primary as
+     text still clears 4.5:1 on it (4.52:1). */
+  --background: oklch(0.9550 0.0200 133.0000);
   --foreground: oklch(0.2077 0.0398 265.7549);
   --card: oklch(1.0000 0 0);
   --card-foreground: oklch(0.2077 0.0398 265.7549);
   --popover: oklch(1.0000 0 0);
   --popover-foreground: oklch(0.2077 0.0398 265.7549);
-  --primary: oklch(0.5200 0.1480 128.5041);
+  --primary: oklch(0.5250 0.1490 133.0000);
   --primary-foreground: oklch(1.0000 0 0);
   --secondary: oklch(0.3717 0.0392 257.2870);
   --secondary-foreground: oklch(0.9842 0.0034 247.8575);
   --muted: oklch(0.9683 0.0069 247.8956);
   --muted-foreground: oklch(0.5200 0.0410 257.4166);
-  --accent: oklch(0.9819 0.0181 155.8263);
+  /* Hover of outline buttons and menu rows: DARKER than both the ground (0.962) and the outline fill
+     (0.985), so a pointer over a button always reads as a press into it (owner's call). */
+  --accent: oklch(0.9300 0.0450 133.0000);
   --accent-foreground: oklch(0.4479 0.1083 151.3277);
-  --destructive: oklch(0.5600 0.2100 27.3250);
+  --destructive: oklch(0.5400 0.2100 27.3250);
+  /* Gains in the ground's green family, a notch deeper than --primary so a figure is not a link. */
+  --positive: oklch(0.5000 0.1500 138.0000);
   --destructive-foreground: oklch(1.0000 0 0);
   --warning: oklch(0.986 0.022 90);
   --warning-foreground: oklch(0.468 0.098 75);
   --warning-border: oklch(0.855 0.062 85);
-  --border: oklch(0.9288 0.0126 255.5078);
-  --input: oklch(0.9288 0.0126 255.5078);
-  --ring: oklch(0.5200 0.1480 128.5041);
-  --chart-1: oklch(0.6300 0.1800 128.5041);
-  --chart-2: oklch(0.3717 0.0392 257.2870);
-  --chart-3: oklch(0.5270 0.1370 150.0000);
-  --chart-4: oklch(0.4700 0.0400 257.4166);
-  --chart-5: oklch(0.6600 0.0360 256.7878);
-  --chart-6: oklch(0.6200 0.1200 95.0000);
-  --chart-7: oklch(0.5400 0.0900 205.0000);
-  --chart-8: oklch(0.5600 0.1900 345.0000);
+  --border: oklch(0.8900 0.0320 133.0000);
+  --input: oklch(0.8900 0.0320 133.0000);
+  --ring: oklch(0.5250 0.1490 133.0000);
+  --outline-surface: oklch(0.9850 0.0120 133.0000);
+  /* A destructive outline button (red «Elimina») sits on a near-neutral, fill AND outline: red on
+     green vibrates, red on grey does not. The red clears 5.2:1 at rest, 4.5:1 on hover. */
+  --destructive-surface: oklch(0.9700 0.0030 250.0000);
+  --destructive-surface-hover: oklch(0.9250 0.0040 250.0000);
+  --destructive-outline: oklch(0.8900 0.0050 250.0000);
+  --hero-series: oklch(0.6200 0.1000 228.0000);
+  /* Cool, not green, for what the pointer and the selection touch inside a tile, so the green stays
+     the ground's and the buttons': every raised segment is the white of the chart period picker
+     (on the same slate --muted track), the row icons' hover takes the hero series' blue, and
+     hand-priced rows the same ice blue as a wash — violet collided with Immobili's chip (owner's
+     calls, 2026-09-13). */
+  --segment-active: oklch(1.0000 0 0);
+  --ghost-hover: oklch(0.9300 0.0250 228.0000);
+  --ghost-hover-foreground: oklch(0.4800 0.0850 228.0000);
+  --manual-row: oklch(0.6200 0.1000 228.0000);
+  /* The lime itself, as a FILL with a slate label (12.9:1) — the dark block's gesture brought into
+     the light; --primary stays the deep green that must read as text. "Frosted": lighter and a
+     third less chroma than the gamut's edge, so it marks the action without shouting over data. */
+  --action: oklch(0.8800 0.1500 128.5041);
+  --action-foreground: oklch(0.2077 0.0398 265.7549);
+  /* Pointer over lime presses INTO it (darker), like every outline button; the lime is kept for
+     the page's main action, a pressed toggle takes the outline buttons' hover green instead
+     (owner's calls, 2026-09-14). */
+  --action-hover: oklch(0.8300 0.1600 128.5041);
+  --toggle-on: oklch(0.9300 0.0450 133.0000);
+  --toggle-on-foreground: oklch(0.2077 0.0398 265.7549);
+  --toggle-on-hover: oklch(0.9000 0.0550 133.0000);
+  --aside-toggle-on: var(--toggle-on);
+  --aside-toggle-on-foreground: var(--toggle-on-foreground);
+  /* Trades in the theme's vocabulary, never the sign colours (a trade is neither gain nor loss):
+     COMPRA the money-in green (adding to a position), VENDI frost lavender (reducing without
+     alarm), OK an ice grey that steps aside. Text-dark variants: each clears 4.5:1 on white as
+     the Piano's amounts (owner's call, 2026-09-14, option A). */
+  --trade-buy: oklch(0.5000 0.1500 138.0000);
+  --trade-sell: oklch(0.5000 0.1200 295.0000);
+  --trade-ok: oklch(0.5500 0.0300 240.0000);
+  /* Scenarios in the data vocabulary: the bull grows like money in, the base is the net-worth
+     ice blue, and a prudent bear is frost lavender — never the red of an error. A budget's
+     progress is mid slate, not a full-black bar (2026-09-14 consistency pass). */
+  --scenario-bear: oklch(0.6400 0.1200 295.0000);
+  --scenario-base: var(--hero-series);
+  --scenario-bull: var(--flow-in);
+  --progress-fill: oklch(0.5500 0.0400 257.0000);
+  /* Amber is kept for warnings and thresholds; a cost or an estimated tax is a fact, in slate. */
+  --cost-figure: var(--foreground);
+  /* Category icon badges in the theme's neutrals instead of each category's saved hue (see
+     lib/utils/categoryIconStyle.ts: undeclared in :root, so every other theme keeps the hue). */
+  --category-icon: var(--muted-foreground);
+  --category-icon-bg: var(--muted);
+  /* Rendimenti in the theme's cold half: patrimonio in the hero's ice blue (as on Panoramica and
+     Patrimonio), the rolling Sharpe in frost lavender, drawdowns in a dark ice grey with a blue
+     edge instead of red (2026-09-14). */
+  --capital-networth: var(--hero-series);
+  /* The invested capital recedes to a light ice grey (the area is drawn at 35%) so the ice-blue
+     net-worth line above it is the one that reads. */
+  --capital-invested: oklch(0.7200 0.0250 235.0000);
+  --sharpe-series: oklch(0.6400 0.1200 295.0000);
+  --drawdown: oklch(0.4800 0.0450 240.0000);
+  /* The default dark palette's hues at 80% of their chroma (the pastel pass had 60%), each lifted
+     only as far as the 3:1 chart floor on white allows — as lively as the green, still light. */
+  --chart-1: oklch(0.6650 0.1770 264.3760);
+  --chart-2: oklch(0.6400 0.1360 162.4800);
+  --chart-3: oklch(0.6650 0.1440 70.0800);
+  --chart-4: oklch(0.6800 0.2090 303.9000);
+  /* Slot 5 is Liquidità (ASSET_CLASS_CHART_INDEX.cash): a neutral ice grey, as its chip already
+     is — the class that holds no position must not read as a loss (still ≥ 3:1 on white). */
+  --chart-5: oklch(0.6400 0.0350 235.0000);
+  --chart-6: oklch(0.6550 0.1080 100.0000);
+  --chart-7: oklch(0.6500 0.0920 215.0000);
+  --chart-8: oklch(0.6800 0.1520 340.0000);
+  /* Money in / out as one pair across bars and columns: lime-family green in, ice blue out, at the
+     same lightness and near the same chroma so neither reads louder; each ≥ 3:1 on white. Blue,
+     not red: spending is not an error (owner's call, 2026-09-14). */
+  --flow-in: oklch(0.6450 0.1400 138.0000);
+  --flow-out: oklch(0.6450 0.1200 232.0000);
   --sidebar: oklch(1.0000 0 0);
   --sidebar-foreground: oklch(0.2077 0.0398 265.7549);
-  --sidebar-primary: oklch(0.5200 0.1480 128.5041);
+  --sidebar-primary: oklch(0.5250 0.1490 133.0000);
   --sidebar-primary-foreground: oklch(1.0000 0 0);
-  --sidebar-accent: oklch(0.9842 0.0034 247.8575);
+  --sidebar-accent: oklch(0.9550 0.0220 133.0000);
   --sidebar-accent-foreground: oklch(0.2077 0.0398 265.7549);
-  --sidebar-border: oklch(0.9683 0.0069 247.8956);
-  --sidebar-ring: oklch(0.5200 0.1480 128.5041);
+  /* One outline for the whole light theme: the sidebar's edge and separators take --border. */
+  --sidebar-border: oklch(0.8900 0.0320 133.0000);
+  --sidebar-ring: oklch(0.5250 0.1490 133.0000);
 }
 
 .dark[data-theme="lime-frost"] {
@@ -726,6 +884,8 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --accent-foreground: oklch(0.8871 0.2122 128.5041);
   --destructive: oklch(0.6900 0.1900 25.3313);
   --destructive-foreground: oklch(1.0000 0 0);
+  /* The light block's deeper gain green would cascade in over `.dark` (same specificity, later rule). */
+  --positive: oklch(0.740 0.156 148.655);
   --warning: oklch(0.260 0.038 78);
   --warning-foreground: oklch(0.854 0.090 82);
   --warning-border: oklch(0.460 0.085 75);
@@ -740,6 +900,38 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-6: oklch(0.7000 0.1300 95.0000);
   --chart-7: oklch(0.7000 0.1100 205.0000);
   --chart-8: oklch(0.6900 0.1800 345.0000);
+  --flow-in: var(--chart-2);
+  --flow-out: var(--chart-1);
+  /* Every token the light block names outright would cascade in here (same specificity, earlier
+     rule loses): dark takes each back to its default alias. */
+  --hero-series: var(--chart-1);
+  --segment-active: var(--background);
+  --ghost-hover: var(--accent);
+  --ghost-hover-foreground: var(--accent-foreground);
+  --manual-row: var(--chart-3);
+  --action: var(--primary);
+  --action-foreground: var(--primary-foreground);
+  --action-hover: color-mix(in oklab, var(--action) 90%, transparent);
+  --toggle-on: var(--action);
+  --toggle-on-foreground: var(--action-foreground);
+  --toggle-on-hover: var(--action-hover);
+  --aside-toggle-on: var(--muted);
+  --aside-toggle-on-foreground: var(--foreground);
+  --trade-buy: var(--chart-3);
+  --trade-sell: var(--chart-5);
+  --trade-ok: var(--chart-2);
+  --scenario-bear: var(--chart-5);
+  --scenario-base: var(--chart-1);
+  --scenario-bull: var(--chart-2);
+  --progress-fill: var(--foreground);
+  --cost-figure: var(--warning-foreground);
+  /* `initial` invalidates the variable, so categoryIconStyle falls back to the saved hue. */
+  --category-icon: initial;
+  --category-icon-bg: initial;
+  --capital-networth: var(--chart-3);
+  --capital-invested: var(--chart-1);
+  --sharpe-series: var(--chart-3);
+  --drawdown: var(--destructive);
   --sidebar: oklch(0.1288 0.0406 264.6952);
   --sidebar-foreground: oklch(0.9842 0.0034 247.8575);
   --sidebar-primary: oklch(0.8871 0.2122 128.5041);

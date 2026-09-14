@@ -303,8 +303,8 @@ export function AssetRow({
               </Button>
               <Button
                 type="button"
-                variant={isPendingDelete ? 'destructive' : 'outline'}
-                className={cn('h-11', deleteSpansRow && 'col-span-2', !isPendingDelete && 'text-destructive hover:text-destructive')}
+                variant={isPendingDelete ? 'destructive' : 'outlineDestructive'}
+                className={cn('h-11', deleteSpansRow && 'col-span-2')}
                 onClick={handleDeleteClick}
                 disabled={isDemo}
                 title={isDemo ? 'Non disponibile in modalità demo' : undefined}

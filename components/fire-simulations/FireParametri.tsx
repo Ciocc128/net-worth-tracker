@@ -23,7 +23,7 @@ import { ChevronDown, HelpCircle, RotateCcw, Save, Target, TrendingDown, Trendin
 import type { FIREProjectionScenarios, FIREScenarioParams } from '@/types/assets';
 import type { Narrative } from '@/lib/utils/narrative';
 import { describeImpostazioni, describeScenarioParams } from '@/lib/utils/fireNarrative';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -67,10 +67,10 @@ interface FireParametriProps {
 
 type ScenarioKey = keyof FIREProjectionScenarios;
 
-const SCENARIO_META: { key: ScenarioKey; label: string; slot: number; icon: typeof Target }[] = [
-  { key: 'bear', label: 'Scenario Orso', slot: 4, icon: TrendingDown },
-  { key: 'base', label: 'Scenario Base', slot: 0, icon: Target },
-  { key: 'bull', label: 'Scenario Toro', slot: 1, icon: TrendingUp },
+const SCENARIO_META: { key: ScenarioKey; label: string; icon: typeof Target }[] = [
+  { key: 'bear', label: 'Scenario Orso', icon: TrendingDown },
+  { key: 'base', label: 'Scenario Base', icon: Target },
+  { key: 'bull', label: 'Scenario Toro', icon: TrendingUp },
 ];
 
 export function FireParametri({
@@ -91,7 +91,6 @@ export function FireParametri({
   onResetScenarios,
   isSavingScenarios,
 }: FireParametriProps) {
-  const chartColors = useChartColors();
 
   const updateScenario = (key: ScenarioKey, field: keyof FIREScenarioParams, value: string) => {
     const numValue = parseFloat(value);
@@ -240,11 +239,11 @@ export function FireParametri({
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
             <Tile eyebrow="Scenari" aside="crescita e inflazione annue, %" reading={describeScenarioParams()} ariaLabel="Parametri degli scenari">
               <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {SCENARIO_META.map(({ key, label, slot, icon: Icon }) => (
+                {SCENARIO_META.map(({ key, label, icon: Icon }) => (
                   <div key={key} className="rounded-xl border border-border bg-muted p-3.5">
                     {/* A chart slot is not a text colour: the slot is the swatch, the label stays muted. */}
                     <p className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: chartColors[slot] }} aria-hidden="true" />
+                      <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
                       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                       {label}
                     </p>

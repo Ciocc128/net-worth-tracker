@@ -105,9 +105,9 @@ function FlowComposedChart({
           }
           wrapperStyle={{ fontSize: 12, color: 'var(--muted-foreground)' }}
         />
-        {/* The page's slots: income is chart-2, spending chart-1 — the same two the category tiles use. */}
-        <Bar dataKey="income" fill={colors[1] ?? 'var(--chart-2)'} radius={[3, 3, 0, 0]} animationDuration={600} animationEasing="ease-out" />
-        <Bar dataKey="expenses" fill={colors[0] ?? 'var(--chart-1)'} radius={[3, 3, 0, 0]} animationDuration={600} animationEasing="ease-out" />
+        {/* Money in / money out: the same two tokens the category tiles and Tracciamento's bars use. */}
+        <Bar dataKey="income" fill="var(--flow-in)" radius={[3, 3, 0, 0]} animationDuration={600} animationEasing="ease-out" />
+        <Bar dataKey="expenses" fill="var(--flow-out)" radius={[3, 3, 0, 0]} animationDuration={600} animationEasing="ease-out" />
         <Line
           type="monotone"
           dataKey="net"

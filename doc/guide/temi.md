@@ -57,4 +57,25 @@
   4.69:1 on `--background`), which flips `--primary-foreground` to white. **Darkening a light `--background` moves
   every text token that sits on it**: lifting the tiles (card/background 1.03 → 1.12:1) took `--muted-foreground` and
   `--destructive` down with it, because the verdict's prose and sign values sit on the ground, not on a card.
+- **Lime Frost light is a ROLE palette, not a re-pitched source** (owner's retouch, 2026-09-13/14, Agentation
+  annotations on the mirror account). The drivers: green owns the ground and the action (flat ground L 0.955 hue 133,
+  lime `--action` fill with a slate label, deep green `--primary` only as text/marks); cold owns data and selection
+  (net worth `--hero-series` ice 228, spending `--flow-out` ice 232, income `--flow-in` 138, lavender 295 for secondary
+  series, white `--segment-active`); the sign colours judge, a type never takes them (a spend, a sale, cash, a bear
+  scenario). The full vocabulary, the ten rules and the page-by-page audit live in the «Carta del tema Lime Frost»
+  artifact; the token families are indexed in the comment that opens the role tokens in `globals.css`.
+- **Role tokens default to what the component painted before** (`--flow-in: var(--chart-2)`, `--hero-series:
+  var(--chart-1)`, `--scenario-*`, `--trade-*`, `--toggle-on`, `--outline-surface`…), so only a theme that names one
+  changes. **A light block that writes a role token as a literal must take it back in its dark block**: `.dark` and
+  `[data-theme]` share specificity and the later rule wins, which is how the light hero blue once reached Lime Frost
+  dark. `--category-icon(-bg)` is the exception — undeclared in `:root` so `var(…, saved hue)` falls back; the dark
+  block resets it with `initial`.
+- **The served CSS is `#hex` / `lab()`, never `oklch()`** (Lightning CSS down-levels it), and `getComputedStyle` hands
+  that form back. Any JS that parses a theme colour must handle all three: `lib/utils/colorLightness.ts` does, for the
+  action colours; the underwater chart now passes `var(--drawdown)` instead of wrapping a read value in `oklch(…)`
+  (which painted it black in every theme). **`useChartColors` still parses only `oklch()`** — its light/dark clamp never
+  fires (open, next session).
+- **Charts slots mean asset classes.** A series that is not a class (net worth, income, spending, a scenario) takes its
+  role token, never a `--chart-N`; in Lime Frost light `--chart-5` (Liquidità) is a neutral ice grey. Still on slots:
+  the Analisi Sankey (hard-coded hex, planned with the 50/30/20 split) and a few FIRE Dettaglio lines.
 

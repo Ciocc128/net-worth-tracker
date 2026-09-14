@@ -20,6 +20,13 @@ interface AnalisiPeriodControlsProps {
   className?: string;
 }
 
+/**
+ * The month/year pickers wear the page's outline buttons («Vai a categoria…»): the outline fill
+ * and a hover that presses into the accent. A bare trigger is transparent, so on a tinted ground
+ * it read as part of the page rather than as a control.
+ */
+const PICKER_TRIGGER_CLASS = 'bg-outline-surface transition-colors hover:bg-accent hover:text-accent-foreground';
+
 const MODE_OPTIONS = [
   // «Da inizio anno» stops at today's month; «Anno corrente» is January → December and carries
   // what is only scheduled. Same words as the Cashflow picker, for the same two windows.
@@ -47,7 +54,7 @@ export function AnalisiPeriodControls({
 }: AnalisiPeriodControlsProps) {
   const monthSelect = (
     <Select value={selectedMonth?.toString() ?? '__all__'} onValueChange={(value) => onMonthChange(value === '__all__' ? null : parseInt(value, 10))} disabled={periodMode === 'year' && selectedYear === null}>
-      <SelectTrigger className="h-9 w-full sm:w-[150px]" aria-label="Mese">
+      <SelectTrigger className={cn('h-9 w-full sm:w-[150px]', PICKER_TRIGGER_CLASS)} aria-label="Mese">
         <SelectValue placeholder="Tutto l'anno" />
       </SelectTrigger>
       <SelectContent>
@@ -75,7 +82,7 @@ export function AnalisiPeriodControls({
           >
             {periodMode === 'year' && (
               <Select value={selectedYear?.toString() ?? pastYears[0]?.toString()} onValueChange={(value) => onYearChange(parseInt(value, 10))}>
-                <SelectTrigger className="h-9 w-[110px] font-mono tabular-nums" aria-label="Anno">
+                <SelectTrigger className={cn('h-9 w-[110px] font-mono tabular-nums', PICKER_TRIGGER_CLASS)} aria-label="Anno">
                   <SelectValue placeholder="Anno" />
                 </SelectTrigger>
                 <SelectContent>

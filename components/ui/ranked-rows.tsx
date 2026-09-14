@@ -49,7 +49,10 @@ export function RankedRows({ rows, color, remainder, labelClassName, onRowClick,
     <>
       {/* The caption yields before the label: a long «12 ago · Manutenzione straordinaria» must
           never push the category name out of its own column. */}
-      <span className={cn('flex min-w-0 shrink-0 items-baseline gap-1.5 text-[13px] text-foreground', labelWidth, active && 'font-semibold')}>
+      {/* `shrink`, not `shrink-0`: the label width is a ceiling. With four fixed columns (label,
+          40px bar floor, 64px amount, 34px share) a 3-column tile at 1440 is narrower than their
+          sum, and a rigid label pushed the share out of the tile («100%» past its edge). */}
+      <span className={cn('flex min-w-0 shrink items-baseline gap-1.5 text-[13px] text-foreground', labelWidth, active && 'font-semibold')}>
         <span className={cn('truncate', row.caption && 'max-w-[65%] shrink-0')}>{row.label}</span>
         {row.caption && <span className="min-w-0 truncate font-mono text-[11px] tabular-nums text-muted-foreground">{row.caption}</span>}
       </span>
@@ -98,7 +101,7 @@ export function RankedRows({ rows, color, remainder, labelClassName, onRowClick,
       })}
       {remainder && remainder.amount > 0 && (
         <li className="flex items-center gap-3 py-[9px]">
-          <span className={cn('shrink-0 truncate text-[13px] text-muted-foreground', labelWidth)}>
+          <span className={cn('min-w-0 shrink truncate text-[13px] text-muted-foreground', labelWidth)}>
             {remainder.label}
           </span>
           <div className="flex-1" />

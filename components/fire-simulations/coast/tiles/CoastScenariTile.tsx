@@ -6,15 +6,15 @@
  * the surplus) under it. The base row is set semibold: it is the scenario the verdict and the
  * Traguardo run on.
  *
- * The swatch takes the same chart slot the projection gives that series (bear → slot 5, base →
- * slot 1, bull → slot 2, through `useChartColors`), so a row and its line share a hue on every
+ * The swatch takes the same colour the projection gives that series (`SCENARIO_COLOR`, theme
+ * tokens defaulting to slots 5 / 1 / 2), so a row and its line share a hue on every
  * theme. The old page had the same numbers as three peer cards; inside a tile they are rows, so
  * the three Coast numbers read as one comparison.
  */
 
 import type { Narrative } from '@/lib/utils/narrative';
 import type { CoastScenarioRow } from '@/lib/utils/coastFireView';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
@@ -29,14 +29,11 @@ interface CoastScenariTileProps {
   className?: string;
 }
 
-/** The chart slot of each scenario — the same mapping `CoastFireProjectionChart` draws with. */
-const SCENARIO_SLOT: Record<CoastScenarioRow['key'], number> = { bear: 4, base: 0, bull: 1 };
 
 const formatRate = (value: number) => `${value.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`;
 const compact = (value: number) => cachedFormatCurrencyEUR(Math.round(value), true);
 
 export function CoastScenariTile({ reading, rows, footer, className }: CoastScenariTileProps) {
-  const chartColors = useChartColors();
 
   return (
     <Tile eyebrow="Scenari" aside="rendimento reale = crescita − inflazione" reading={reading} ariaLabel="Scenari Coast FIRE" className={className}>
@@ -46,7 +43,7 @@ export function CoastScenariTile({ reading, rows, footer, className }: CoastScen
           return (
             <li key={row.key} className="flex items-center justify-between gap-3 py-[9px]">
               <span className="flex min-w-0 items-center gap-2.5">
-                <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: chartColors[SCENARIO_SLOT[row.key]] }} aria-hidden="true" />
+                <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[row.key] }} aria-hidden="true" />
                 <span className="min-w-0">
                   <span className={cn('block text-[13px] text-foreground', isBase && 'font-semibold')}>{row.label}</span>
                   <span className="block font-mono text-[11px] tabular-nums text-muted-foreground/70">reale {formatRate(row.realReturnRate)}</span>

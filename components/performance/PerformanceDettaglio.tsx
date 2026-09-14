@@ -175,6 +175,7 @@ function RollingTile({
   primaryName,
   formatValue,
   colorIndex,
+  primaryColor,
   ariaLabel,
 }: {
   eyebrow: string;
@@ -186,6 +187,8 @@ function RollingTile({
   primaryName: string;
   formatValue: (value: number) => string;
   colorIndex: number;
+  /** A theme token that names this series' colour outright; wins over `colorIndex`. */
+  primaryColor?: string;
   ariaLabel: string;
 }) {
   const chartColors = useChartColors();
@@ -208,7 +211,7 @@ function RollingTile({
                 itemStyle={TOOLTIP_ITEM_STYLE}
               />
               <Legend wrapperStyle={LEGEND_STYLE} />
-              <Line type="monotone" dataKey={primaryKey} stroke={chartColors[colorIndex] ?? `var(--chart-${colorIndex + 1})`} strokeWidth={2} name={primaryName} dot={false} animationDuration={800} animationEasing="ease-out" />
+              <Line type="monotone" dataKey={primaryKey} stroke={primaryColor ?? chartColors[colorIndex] ?? `var(--chart-${colorIndex + 1})`} strokeWidth={2} name={primaryName} dot={false} animationDuration={800} animationEasing="ease-out" />
               <Line type="monotone" dataKey={averageKey} stroke={chartColors[1] ?? 'var(--chart-2)'} strokeWidth={1.5} name="Media mobile 3M" strokeDasharray="6 4" dot={false} animationDuration={800} animationEasing="ease-out" />
             </LineChart>
           </ResponsiveContainer>
@@ -393,6 +396,7 @@ export function PerformanceDettaglio({ metrics, periodAside, drawdown, rollingCa
               primaryName="Sharpe 12M"
               formatValue={(v) => formatNumber(v, 2).replace('-', '−')}
               colorIndex={2}
+              primaryColor="var(--sharpe-series)"
               ariaLabel="Sharpe rolling a 12 mesi con la sua media mobile a 3 mesi"
             />
           </div>

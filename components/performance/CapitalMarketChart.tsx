@@ -72,13 +72,13 @@ export function CapitalMarketChart({ data, minHeight = 150, className }: Capital
     <div className={cn('flex flex-col', className)}>
       <div className="relative flex-1" style={{ minHeight }} {...(hover.enabled ? hover.handlers : {})}>
         <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" role="img" aria-label={`Capitale immesso e patrimonio per mese. ${label}`}>
-          <path d={areaPath} fill="var(--chart-1)" fillOpacity={0.35} />
-          <path d={basePath} fill="none" stroke="var(--chart-1)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <path d={netWorthPath} fill="none" stroke="var(--chart-3)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          <path d={areaPath} fill="var(--capital-invested)" fillOpacity={0.35} />
+          <path d={basePath} fill="none" stroke="var(--capital-invested)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <path d={netWorthPath} fill="none" stroke="var(--capital-networth)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
           {hovered && hover.index !== null && (
             <>
               <line x1={sx(hover.index)} x2={sx(hover.index)} y1={0} y2={VIEW_H} stroke="var(--foreground)" strokeOpacity={0.25} vectorEffect="non-scaling-stroke" />
-              <circle cx={sx(hover.index)} cy={sy(hovered.netWorth)} r={3} fill="var(--chart-3)" stroke="var(--card)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+              <circle cx={sx(hover.index)} cy={sy(hovered.netWorth)} r={3} fill="var(--capital-networth)" stroke="var(--card)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             </>
           )}
         </svg>

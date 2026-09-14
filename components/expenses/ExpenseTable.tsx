@@ -62,6 +62,7 @@ import { it } from 'date-fns/locale';
 import { getExpenseDate } from '@/lib/utils/expenseHelpers';
 import { isScheduledRow } from '@/lib/utils/tracciamentoSummary';
 import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
+import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -503,10 +504,10 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
                       return (
                         <div
                           className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: meta?.color ? `${meta.color}20` : 'var(--muted)' }}
+                          style={{ backgroundColor: categoryIconBackground(meta?.color) }}
                         >
                           <Suspense fallback={null}>
-                            <CatIcon className="w-3 h-3" style={{ color: meta?.color || 'var(--muted-foreground)' }} aria-hidden="true" />
+                            <CatIcon className="w-3 h-3" style={{ color: categoryIconColor(meta?.color) }} aria-hidden="true" />
                           </Suspense>
                         </div>
                       );
@@ -515,7 +516,7 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
                       return (
                         <div
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: meta.color }}
+                          style={{ backgroundColor: categoryIconColor(meta.color) }}
                         />
                       );
                     }

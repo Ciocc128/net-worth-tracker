@@ -496,7 +496,7 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
                 {isActive && (
                   <motion.div
                     layoutId={`trade-type-pill-${layoutId}`}
-                    className="absolute inset-0 rounded-md bg-background shadow-sm"
+                    className="absolute inset-0 rounded-md bg-segment-active shadow-sm"
                     transition={
                       reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 35 }
                     }

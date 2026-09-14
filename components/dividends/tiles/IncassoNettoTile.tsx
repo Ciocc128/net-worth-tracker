@@ -130,7 +130,7 @@ export function IncassoNettoTile({
           <div className="mt-5 flex items-center justify-between gap-3">
             <NarrativeText segments={windowLabel} className={TILE_SUB_EYEBROW_CLASS} figureClassName="font-semibold" />
             <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-2)' }} aria-hidden="true" />
+              <span className="h-2 w-2 rounded-[2px]" style={{ background: 'var(--flow-in)' }} aria-hidden="true" />
               Netto incassato
             </span>
           </div>

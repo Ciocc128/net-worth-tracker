@@ -15,7 +15,7 @@
  */
 'use client';
 
-import { useRef } from 'react';
+import { useId, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -49,6 +49,11 @@ export function SegmentedPill<T extends string>({
   disabled,
 }: SegmentedPillProps<T>) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  // Framer's `layoutId` is page-global: two mounted pills sharing one (Analisi renders its period
+  // controls twice, one hidden per breakpoint) crossfade the indicator into the hidden copy and
+  // leave the visible one at opacity 0. Scoping it to this instance keeps the glide, drops the
+  // hand-off.
+  const instanceLayoutId = `${layoutId}-${useId()}`;
 
   const focusAndSelect = (index: number) => {
     if (disabled) return;
@@ -111,8 +116,8 @@ export function SegmentedPill<T extends string>({
           >
             {isSelected && (
               <motion.span
-                layoutId={layoutId}
-                className="absolute inset-0 rounded-full bg-background shadow-sm"
+                layoutId={instanceLayoutId}
+                className="absolute inset-0 rounded-full bg-segment-active shadow-sm"
                 transition={{ type: 'spring', stiffness: 400, damping: 35 }}
               />
             )}

@@ -39,7 +39,7 @@ export function SpeseMaggioriTile({ top, reading, onSelect, className }: SpeseMa
         <div className="mt-2 flex flex-1 flex-col">
           <RankedRows
             rows={rows}
-            color="var(--chart-1)"
+            color="var(--flow-out)"
             labelClassName="w-[46%] min-w-[120px]"
             ariaLabel="Spese maggiori del periodo"
             onRowClick={(row) => {

@@ -121,6 +121,9 @@ function DeleteButton({ row, onDelete, disabled }: DeleteButtonProps) {
         className={cn(
           GHOST_BUTTON_CLASS,
           'h-11 w-11 shrink-0 text-destructive hover:text-destructive desktop:h-7 desktop:w-7',
+          // Ten red bins down the table read as an alarm: from desktop the bin shows on the row
+          // under the pointer or on keyboard focus; a touch screen keeps it always visible.
+          !armed && 'desktop:opacity-0 desktop:group-hover:opacity-100 desktop:focus-visible:opacity-100',
           armed && 'w-auto border border-destructive px-3 text-[12px] desktop:w-auto desktop:px-2',
         )}
       >
@@ -189,7 +192,7 @@ export function VersamentiTile({ taxYear, reading, aside, footer, rows, showFund
               </thead>
               <tbody className="[&>tr:last-child>*]:border-b-0">
                 {visibleRows.map((row) => (
-                  <tr key={row.id}>
+                  <tr key={row.id} className="group">
                     <th scope="row" className={cn(CELL_CLASS, 'text-left font-mono font-normal tabular-nums text-foreground')}>
                       {formatDay(row.date)}
                     </th>

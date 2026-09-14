@@ -13,7 +13,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import { Expense } from '@/types/expenses';
 import { AsideToggle } from '@/components/cashflow/analisi/AsideToggle';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -51,10 +50,8 @@ const SAVINGS_TARGET = 20;
  */
 function SavingsRateLineChart({
   data,
-  colors,
 }: {
   data: Array<{ label: string; rate: number | null }>;
-  colors: string[];
 }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -111,7 +108,7 @@ function SavingsRateLineChart({
         <Line
           type="monotone"
           dataKey="rate"
-          stroke={colors[0] ?? '#6366f1'}
+          stroke="var(--flow-in)"
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 5, strokeWidth: 0 }}
@@ -166,7 +163,6 @@ export function SavingsRateTrendSection({
   historyStartYear,
   scopeYear,
 }: SavingsRateTrendSectionProps) {
-  const chartColors = useChartColors();
   const [range, setRange] = useState<TrendRange>('all');
   const isScoped = scopeYear != null;
 
@@ -274,7 +270,7 @@ export function SavingsRateTrendSection({
         {!hasEnoughData ? (
           <p className="py-6 text-center text-[13px] text-muted-foreground">Servono almeno 3 mesi di entrate per il trend</p>
         ) : (
-          <SavingsRateLineChart data={trendData} colors={chartColors} />
+          <SavingsRateLineChart data={trendData} />
         )}
       </div>
     </Tile>

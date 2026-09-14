@@ -50,6 +50,7 @@ import type { AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
 import { computeTopWeightShare, computeUnrealizedGain, hasCostBasis, isHeld } from '@/lib/utils/patrimonioSummary';
 import { describeInstruments } from '@/lib/utils/patrimonioNarrative';
 import { cn } from '@/lib/utils';
+import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -71,6 +72,8 @@ const DELTA_WINDOWS = [
 const HEAD_CLASS = cn(TILE_SUB_EYEBROW_CLASS, 'whitespace-nowrap px-1.5 py-2.5 text-right font-semibold');
 const CELL_CLASS = 'whitespace-nowrap px-1.5 py-2 text-right text-[13px] align-middle';
 const ICON_BUTTON_CLASS = 'h-8 w-8';
+/** A pressed toggle: the theme's toggle token, so a filled action colour is kept for real actions. */
+const TOGGLE_ON_CLASS = 'bg-toggle-on text-toggle-on-foreground hover:bg-toggle-on-hover';
 
 interface SortHeadProps {
   column: SortColumn;
@@ -263,7 +266,7 @@ export function StrumentiTile({
         key={asset.id}
         className={cn(
           'border-t border-border',
-          isManualPrice && 'bg-[color-mix(in_oklch,var(--chart-3)_6%,transparent)]',
+          isManualPrice && 'bg-[color-mix(in_oklch,var(--manual-row)_6%,transparent)]',
         )}
       >
         <th scope="row" className={cn(CELL_CLASS, 'max-w-[220px] text-left font-normal')}>
@@ -408,7 +411,12 @@ export function StrumentiTile({
     const isCollapsed = collapsedGroups.has(cls);
     const Chevron = isCollapsed ? ChevronRight : ChevronDown;
     return (
-      <tr key={`group-${cls}`} className="border-t border-border bg-muted/40">
+      <tr
+        key={`group-${cls}`}
+        className="border-t border-border"
+        // A group wears its class's colour, open or closed, a shade lighter than the chip (15%) it heads.
+        style={{ backgroundColor: `color-mix(in srgb, var(${getAssetClassCssVar(cls)}) 7%, transparent)` }}
+      >
         <td colSpan={columnCount} className="p-0">
           <button
             type="button"
@@ -444,7 +452,7 @@ export function StrumentiTile({
               type="button"
               variant={showDeltas ? 'default' : 'outline'}
               size="sm"
-              className="h-7 px-2.5 text-[11px]"
+              className={cn('h-7 px-2.5 text-[11px]', showDeltas && TOGGLE_ON_CLASS)}
               onClick={() => setShowDeltas((prev) => !prev)}
               aria-pressed={showDeltas}
             >
@@ -455,7 +463,7 @@ export function StrumentiTile({
               type="button"
               variant={groupByClass ? 'default' : 'outline'}
               size="sm"
-              className="h-7 px-2.5 text-[11px]"
+              className={cn('h-7 px-2.5 text-[11px]', groupByClass && TOGGLE_ON_CLASS)}
               onClick={() => {
                 setGroupByClass((prev) => !prev);
                 if (groupByClass) setCollapsedGroups(new Set());

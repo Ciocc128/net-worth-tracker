@@ -6,15 +6,15 @@
  * years — and a footer that says the model in words. The base row is set semibold: it is the
  * scenario the verdict and the Traguardo run on.
  *
- * The swatch takes the same chart slot the Scenari chart gives that series (bear → slot 5,
- * base → slot 1, bull → slot 2, through `useChartColors`), so a row and its line share a hue on
+ * The swatch takes the same colour the Scenari chart gives that series (`SCENARIO_COLOR`, theme
+ * tokens defaulting to slots 5 / 1 / 2), so a row and its line share a hue on
  * every theme. The old page had the same three numbers as KPI chips above the chart; inside a
  * tile they are rows, so the year and the parameters read as one line each.
  */
 
 import type { Narrative } from '@/lib/utils/narrative';
 import type { ScenarioRow } from '@/lib/utils/fireSummary';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
@@ -28,8 +28,6 @@ interface ScenariTileProps {
   className?: string;
 }
 
-/** The chart slot of each scenario — the same mapping `FIREProjectionChart` draws with. */
-const SCENARIO_SLOT: Record<ScenarioRow['key'], number> = { bear: 4, base: 0, bull: 1 };
 
 const formatRate = (value: number) => `${value.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`;
 
@@ -39,7 +37,6 @@ function distance(years: number | null, horizonYears: number): string {
 }
 
 export function ScenariTile({ reading, rows, horizonYears, footer, className }: ScenariTileProps) {
-  const chartColors = useChartColors();
 
   return (
     <Tile eyebrow="Scenari" aside="crescita · inflazione" reading={reading} ariaLabel="Scenari di mercato" className={className}>
@@ -49,7 +46,7 @@ export function ScenariTile({ reading, rows, horizonYears, footer, className }: 
           return (
             <li key={row.key} className="flex items-center justify-between gap-3 py-[9px]">
               <span className="flex min-w-0 items-center gap-2.5">
-                <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: chartColors[SCENARIO_SLOT[row.key]] }} aria-hidden="true" />
+                <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[row.key] }} aria-hidden="true" />
                 <span className="min-w-0">
                   <span className={cn('block text-[13px] text-foreground', isBase && 'font-semibold')}>{row.label}</span>
                   <span className="block font-mono text-[11px] tabular-nums text-muted-foreground/70">

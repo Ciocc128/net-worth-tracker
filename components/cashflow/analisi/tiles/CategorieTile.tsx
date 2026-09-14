@@ -58,7 +58,7 @@ export function CategorieTile({ eyebrow, kind, slices, total, reading, activeKey
         <div className="mt-2 flex flex-1 flex-col">
           <RankedRows
             rows={visible.map((slice) => ({ key: slice.key, label: slice.name, amount: slice.value, percentage: slice.percentage }))}
-            color={kind === 'income' ? 'var(--chart-2)' : 'var(--chart-1)'}
+            color={kind === 'income' ? 'var(--flow-in)' : 'var(--flow-out)'}
             labelClassName={labelClassName}
             ariaLabel={eyebrow}
             activeKey={activeKey}

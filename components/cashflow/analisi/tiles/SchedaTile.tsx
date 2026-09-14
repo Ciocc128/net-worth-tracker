@@ -108,7 +108,7 @@ export function SchedaTile({ focus, scope, reading, allExpenses, color, period, 
                     <div className="mt-1">
                       <RankedRows
                         rows={subcategoryRows.map((slice) => ({ key: slice.key, label: slice.name, amount: slice.value, percentage: slice.percentage }))}
-                        color={isIncome ? 'var(--chart-2)' : 'var(--chart-1)'}
+                        color={isIncome ? 'var(--flow-in)' : 'var(--flow-out)'}
                         labelClassName="w-[38%] min-w-[110px]"
                         ariaLabel={`Sottocategorie di ${focus.category.label}`}
                         onRowClick={(row) => {

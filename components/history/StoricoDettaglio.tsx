@@ -23,7 +23,6 @@ import { NarrativeText } from '@/components/ui/narrative-text';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatCurrency, formatCurrencyCompact, formatPercentage, type prepareMonthlyLaborMetricsData } from '@/lib/services/chartService';
 import { signTextClass } from '@/lib/utils/metricColors';
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -85,7 +84,6 @@ const signed = (value: number) => `${value >= 0 ? '+' : '−'}${cachedFormatCurr
 
 function YearlyVariationTile({ rows, currentYear }: { rows: YearlyVariationRow[]; currentYear: number }) {
   const [unit, setUnit] = useState<YoyUnit>('eur');
-  const chartColors = useChartColors();
   const prefersReducedMotion = useReducedMotion();
   const reading = useMemo(() => describeYearlyVariation(rows, currentYear), [rows, currentYear]);
   const format = (value: number) => (unit === 'pct' ? `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatPercentage(Math.abs(value), 1)}` : signed(value));
@@ -115,10 +113,10 @@ function YearlyVariationTile({ rows, currentYear }: { rows: YearlyVariationRow[]
                 itemStyle={TOOLTIP_ITEM_STYLE}
                 cursor={CURSOR_FILL}
               />
-              <Bar dataKey={unit === 'pct' ? 'variationPercentage' : 'variation'} name="Variazione" fill={chartColors[0] ?? 'var(--chart-1)'} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out">
+              <Bar dataKey={unit === 'pct' ? 'variationPercentage' : 'variation'} name="Variazione" fill="var(--hero-series)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out">
                 {rows.map((row) => (
                   // A running year is drawn softer: real, but not comparable with the closed ones.
-                  <Cell key={row.year} fill={row.variation >= 0 ? (chartColors[0] ?? 'var(--chart-1)') : 'var(--destructive)'} fillOpacity={Number(row.year) === currentYear ? 0.55 : 1} stroke={Number(row.year) === currentYear ? 'var(--foreground)' : undefined} />
+                  <Cell key={row.year} fill={row.variation >= 0 ? 'var(--hero-series)' : 'var(--destructive)'} fillOpacity={Number(row.year) === currentYear ? 0.55 : 1} stroke={Number(row.year) === currentYear ? 'var(--foreground)' : undefined} />
                 ))}
               </Bar>
             </BarChart>
@@ -136,7 +134,6 @@ function YearlyVariationTile({ rows, currentYear }: { rows: YearlyVariationRow[]
 
 function MonthlyDriversTile({ rows, years, startYear }: { rows: MonthlyDriverRow[]; years: number[]; startYear: number }) {
   const [year, setYear] = useState<'all' | number>('all');
-  const chartColors = useChartColors();
   const prefersReducedMotion = useReducedMotion();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const shown = useMemo(() => (year === 'all' ? rows : rows.filter((r) => r.year === year)), [rows, year]);
@@ -185,10 +182,10 @@ function MonthlyDriversTile({ rows, years, startYear }: { rows: MonthlyDriverRow
                 itemStyle={TOOLTIP_ITEM_STYLE}
                 cursor={CURSOR_FILL}
               />
-              <Bar dataKey="netSavings" name="Risparmio" fill={chartColors[1] ?? 'var(--chart-2)'} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
-              <Bar dataKey="investmentGrowth" name="Mercato" fill={chartColors[0] ?? 'var(--chart-1)'} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out">
+              <Bar dataKey="netSavings" name="Risparmio" fill="var(--flow-in)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+              <Bar dataKey="investmentGrowth" name="Mercato" fill="var(--hero-series)" isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out">
                 {data.map((row) => (
-                  <Cell key={`${row.year}-${row.month}`} fill={row.investmentGrowth >= 0 ? (chartColors[0] ?? 'var(--chart-1)') : 'var(--destructive)'} />
+                  <Cell key={`${row.year}-${row.month}`} fill={row.investmentGrowth >= 0 ? 'var(--hero-series)' : 'var(--destructive)'} />
                 ))}
               </Bar>
             </BarChart>
@@ -199,11 +196,11 @@ function MonthlyDriversTile({ rows, years, startYear }: { rows: MonthlyDriverRow
         <span>Stessa scomposizione del Driver, mese per mese, dal {startYear} (l&apos;anno da cui il cashflow è completo); un mese senza il cashflow conta tutto come mercato.</span>
         <span className="flex gap-3" aria-hidden="true">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-2)' }} />
+            <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--flow-in)' }} />
             Risparmio
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-1)' }} />
+            <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--hero-series)' }} />
             Mercato
           </span>
         </span>

@@ -55,7 +55,7 @@ export function ThemePicker() {
           className={cn(
             'flex size-6 items-center justify-center rounded transition-colors',
             activeTheme === value
-              ? 'bg-background text-foreground shadow-sm'
+              ? 'bg-segment-active text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >

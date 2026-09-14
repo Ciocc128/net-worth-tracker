@@ -3512,7 +3512,7 @@ export default function SettingsPage() {
                           onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
                           className={cn(
                             'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors',
-                            isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                            isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                           )}
                         >
                           <Icon className="h-4 w-4" aria-hidden="true" />

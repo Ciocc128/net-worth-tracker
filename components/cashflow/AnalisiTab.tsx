@@ -37,7 +37,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { MONTH_NAMES } from '@/lib/constants/months';
@@ -245,7 +244,6 @@ function resolvePeriodLabel(period: AnalisiPeriod): string {
 }
 
 export function AnalisiTab({ allExpenses, categories, loading, loadFailed, historyStartYear = 2024 }: AnalisiTabProps) {
-  const COLORS = useChartColors();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -700,7 +698,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
                 scope={focusScope}
                 reading={focusReading}
                 allExpenses={allExpenses}
-                color={focus.kind === 'income' ? COLORS[1] : COLORS[0]}
+                color={focus.kind === 'income' ? 'var(--flow-in)' : 'var(--flow-out)'}
                 period={focusPeriod}
                 periodLabel={periodLabel}
                 historyStartYear={historyStartYear}

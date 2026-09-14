@@ -9,7 +9,7 @@
  * the trailing figure encodes the share of the year's total, and the caption under each label
  * says whether that nature is IRPEF-deductible — the one fact of a nature the Anno fiscale tile
  * reads by, so the reader can tie the two tiles without a second table. The bar takes
- * `--chart-2`, money coming in (the Hall of Fame rule): a contribution is an inflow, never a
+ * `--flow-in`, money coming in (the Hall of Fame rule): a contribution is an inflow, never a
  * gain, so no row wears a sign token.
  *
  * Words and numbers arrive as props from `pensionSummary.ts` / `pensionNarrative.ts`: the tile
@@ -58,7 +58,7 @@ export function VersatoTile({ taxYear, reading, aside, footer, rows, className }
               amount: row.amount,
               percentage: row.percentage,
             }))}
-            color="var(--chart-2)"
+            color="var(--flow-in)"
             // The caption is a fixed pair («deducibile» / «non deducibile») and the primitive
             // truncates it before the label: at 132px «Volontario · deducibile» is a few pixels
             // over, so from desktop, where a 7-column tile has the room, the column widens.

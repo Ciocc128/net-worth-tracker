@@ -12,7 +12,7 @@
  * is in the reading, the caption and the Scenari tile. The chart is passed in as `chart` so this
  * tile knows nothing about Recharts: a shell with a reading, a number, a track and a footer.
  *
- * The track fills to the progress capped at 100%, in `--chart-1` (the base scenario's hue) and
+ * The track fills to the progress capped at 100%, in `--scenario-base` (the base scenario's hue) and
  * in the gain token once the target is reached: reaching Coast is a fact with a sign; being at
  * 76% is not, so the chip stays neutral.
  */
@@ -74,7 +74,7 @@ export function CoastTraguardoTile({ reading, target, caption, chart, footer, cl
         aria-valuemax={100}
         aria-valuenow={Math.round(fill)}
       >
-        <div className={cn('h-full rounded-full', target.reached ? 'bg-positive' : 'bg-[var(--chart-1)]')} style={{ width: `${fill}%` }} />
+        <div className={cn('h-full rounded-full', target.reached ? 'bg-positive' : 'bg-[var(--scenario-base)]')} style={{ width: `${fill}%` }} />
       </div>
 
       {/* The chart stretches with the tile's free height: the SVG's 100% height resolves

@@ -19,6 +19,7 @@
 import { CoastFIREProjectionPoint } from '@/lib/services/fireService';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 import {
   CartesianGrid,
@@ -111,9 +112,7 @@ export function CoastFireProjectionChart({
   pensionUnlockCalendarYear = null,
 }: CoastFireProjectionChartProps) {
   const chartColors = useChartColors();
-  const bearColor = chartColors[4] || 'var(--chart-5)';
-  const baseColor = chartColors[0] || 'var(--chart-1)';
-  const bullColor = chartColors[1] || 'var(--chart-2)';
+  const { bear: bearColor, base: baseColor, bull: bullColor } = SCENARIO_COLOR;
   const targetColor = chartColors[2] || 'var(--chart-3)';
 
   if (projectionData.length === 0) {

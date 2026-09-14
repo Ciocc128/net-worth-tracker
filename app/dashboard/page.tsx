@@ -245,7 +245,8 @@ export default function DashboardPage() {
         disabled={isDemo || creatingSnapshot || (overview?.flags.assetCount ?? 0) === 0}
         title={isDemo ? 'Non disponibile in modalità demo' : undefined}
         variant="outline"
-        className="h-9"
+        // Header actions sit on the ground, not in a tile: they take the ground's own colour.
+        className="h-9 bg-background"
         aria-label={creatingSnapshot ? 'Creazione snapshot in corso' : 'Crea snapshot'}
       >
         <Camera className="h-4 w-4" aria-hidden="true" />
@@ -419,7 +420,7 @@ export default function DashboardPage() {
                   eyebrow="Spese per categoria"
                   total={expenseStats.currentMonth.expenses}
                   categories={expenseStats.topExpenseCategories}
-                  color="var(--chart-1)"
+                  color="var(--flow-out)"
                   emptyCopy="Nessuna spesa registrata questo mese."
                 />
               </motion.div>
@@ -431,7 +432,7 @@ export default function DashboardPage() {
                   eyebrow="Entrate per categoria"
                   total={expenseStats.currentMonth.income}
                   categories={expenseStats.topIncomeCategories}
-                  color="var(--chart-2)"
+                  color="var(--flow-in)"
                   emptyCopy="Nessuna entrata registrata questo mese."
                 />
               </motion.div>

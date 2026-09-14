@@ -41,7 +41,7 @@ const HEAD_ROOM = 6;
  * One component serves both the hero's monthly bars and the Per anno tile's yearly ones — two
  * windows of the same quantity, and a second implementation would drift.
  *
- * Colour is `--chart-2`, the slot the rest of the app already uses for income. A window still
+ * Colour is `--flow-in`, the token the rest of the app uses for income (chart-2 unless a theme names it). A window still
  * running is drawn at reduced opacity and outlined: it is real data, but it is not yet
  * comparable with the closed ones the reading ranks.
  */
@@ -88,7 +88,7 @@ export function NetIncomeBars({
                   y={VIEW_H - height}
                   width={barWidth}
                   height={height}
-                  fill="var(--chart-2)"
+                  fill="var(--flow-in)"
                   fillOpacity={point.ongoing ? 0.55 : 1}
                   stroke={outlined ? 'var(--foreground)' : 'none'}
                   vectorEffect="non-scaling-stroke"

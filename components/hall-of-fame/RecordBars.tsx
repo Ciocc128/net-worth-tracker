@@ -29,7 +29,7 @@ const HEAD_ROOM = 6;
  * are clustered in the last year or scattered across the history is a different question, and
  * the One-Tile-One-Question Rule forbids the same rows twice.
  *
- * Colour is `--chart-1`, the slot the app already uses for net worth. A month still RUNNING is
+ * Colour is `--hero-series`, the token the app uses for net worth (chart-1 unless a theme names it). A month still RUNNING is
  * drawn at reduced fill AND outlined: it is real data, and it is not yet comparable with the
  * closed months it is ranked against.
  */
@@ -72,7 +72,7 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
                   y={VIEW_H - height}
                   width={barWidth}
                   height={height}
-                  fill="var(--chart-1)"
+                  fill="var(--hero-series)"
                   fillOpacity={point.isCurrent ? 0.55 : 1}
                   stroke={point.isCurrent ? 'var(--foreground)' : 'none'}
                   vectorEffect="non-scaling-stroke"

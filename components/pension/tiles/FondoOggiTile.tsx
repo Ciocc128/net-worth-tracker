@@ -132,7 +132,7 @@ export function FondoOggiTile({
               ratio — an in-flow SVG with height:100% in an auto-height parent grows to
               width × (viewBox height / width). preserveAspectRatio="none" makes the stretch safe. */}
           <div className="relative -mx-5 mt-3 min-h-[180px] flex-1 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
-            <NetWorthSparkline data={sparklineData} filled={true} color="var(--chart-1)" height={180} interactive />
+            <NetWorthSparkline data={sparklineData} filled={true} color="var(--hero-series)" height={180} interactive />
           </div>
           <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
             <span>{cachedFormatCurrencyEUR(series[0].value, true)}</span>

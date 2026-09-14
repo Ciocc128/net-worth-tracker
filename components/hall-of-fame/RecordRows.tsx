@@ -43,12 +43,12 @@ function readingOf(category: RecordCategory): { signedValue: boolean; signedPerc
 }
 
 /**
- * The bar takes the chart slot the app already uses for that quantity: `--chart-1` for net worth
- * and for spending, `--chart-2` for money coming in and money kept. Three tiles all painted with
+ * The bar takes the token the app already uses for that quantity: `--hero-series` for net worth
+ * and for spending, `--flow-in` for money coming in and money kept. Three tiles all painted with
  * the net-worth slot would say the three rankings measure the same thing.
  */
 function barColorOf(category: RecordCategory): string {
-  return category === 'income' || category === 'savings' ? 'var(--chart-2)' : 'var(--chart-1)';
+  return category === 'income' || category === 'savings' ? 'var(--flow-in)' : 'var(--hero-series)';
 }
 
 const MINUS = '−';

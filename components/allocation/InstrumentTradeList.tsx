@@ -20,6 +20,7 @@
  */
 'use client';
 
+import { useState } from 'react';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import type { AllocationAction } from '@/lib/utils/allocationUtils';
 import type { InstrumentTrade } from '@/lib/utils/leverageAwareAllocationUtils';
@@ -31,6 +32,13 @@ interface InstrumentTradeListProps {
   actionColors: Record<AllocationAction, string>;
   /** Accessible name of the list. */
   ariaLabel?: string;
+  /**
+   * Rows shown before «Mostra tutte». A long plan (a dozen ETFs) stretched the Piano tile and left
+   * the Bilanciamento tile beside it a tall white block. The collapsed view keeps the LARGEST moves
+   * by size — buys and sells alike, since the list sorts buys first and sells last and a plain
+   * head would hide the biggest sells — in the list's own order.
+   */
+  collapseAfter?: number;
 }
 
 const MINUS = '−';
@@ -39,12 +47,20 @@ function tradeLabel(trade: InstrumentTrade): string {
   return trade.displayTicker || trade.ticker;
 }
 
-export function InstrumentTradeList({ trades, actionColors: colors, ariaLabel }: InstrumentTradeListProps) {
+export function InstrumentTradeList({ trades, actionColors: colors, ariaLabel, collapseAfter }: InstrumentTradeListProps) {
+  const [expanded, setExpanded] = useState(false);
   if (trades.length === 0) return null;
 
+  const collapsible = collapseAfter !== undefined && trades.length > collapseAfter;
+  const kept = collapsible && !expanded
+    ? new Set([...trades].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, collapseAfter).map((t) => t.assetId))
+    : null;
+  const visible = kept ? trades.filter((t) => kept.has(t.assetId)) : trades;
+
   return (
+    <>
     <ul className="divide-y divide-border" aria-label={ariaLabel}>
-      {trades.map((trade) => {
+      {visible.map((trade) => {
         const isBuy = trade.amount >= 0;
         const action: AllocationAction = isBuy ? 'COMPRA' : 'VENDI';
         const label = tradeLabel(trade);
@@ -75,5 +91,16 @@ export function InstrumentTradeList({ trades, actionColors: colors, ariaLabel }:
         );
       })}
     </ul>
+    {collapsible && (
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className="mt-1 inline-flex min-h-11 items-center text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:min-h-[28px]"
+      >
+        {expanded ? `Mostra solo le ${collapseAfter} maggiori` : `Mostra tutte le ${trades.length} operazioni`}
+      </button>
+    )}
+    </>
   );
 }

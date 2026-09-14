@@ -79,7 +79,7 @@ function SavingsRateBars({ history, highlightKey }: { history: SavingsHistory; h
                   y={y}
                   width={barWidth}
                   height={height}
-                  fill={rate < 0 ? 'var(--destructive)' : 'var(--chart-2)'}
+                  fill={rate < 0 ? 'var(--destructive)' : 'var(--flow-in)'}
                   stroke={month.key === highlightKey ? 'var(--foreground)' : 'none'}
                   vectorEffect="non-scaling-stroke"
                 />

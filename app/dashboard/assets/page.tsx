@@ -300,7 +300,8 @@ export default function AssetsPage() {
       <Button
         type="button"
         variant="outline"
-        className="h-9"
+        // Header actions sit on the ground, not in a tile: they take the ground's own colour.
+        className="h-9 bg-background"
         onClick={handleUpdatePrices}
         disabled={isDemo || updatingPrices || instruments.length === 0}
         title={isDemo ? 'Non disponibile in modalità demo' : undefined}

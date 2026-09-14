@@ -62,7 +62,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, cl
               {isActive && (
                 <motion.div
                   layoutId={`${layoutId}-pill`}
-                  className="absolute inset-0 -z-10 rounded-[6px] bg-background shadow-sm"
+                  className="absolute inset-0 -z-10 rounded-[6px] bg-segment-active shadow-sm"
                   transition={SPRING}
                 />
               )}

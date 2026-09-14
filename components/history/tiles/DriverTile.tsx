@@ -66,8 +66,8 @@ function YearRow({ row, isRunning }: { row: DriverYear; isRunning: boolean }) {
           {isRunning && <span className="ml-1 font-mono text-[11px] tabular-nums text-muted-foreground">{describeRunningWindowShort(row)}</span>}
         </span>
         <div className="flex h-[3px] min-w-[40px] flex-1 overflow-hidden rounded-full bg-muted" role="presentation">
-          <div className="h-full" style={{ width: `${savingsWidth}%`, background: 'var(--chart-2)' }} />
-          <div className="h-full" style={{ width: `${marketWidth}%`, background: 'var(--chart-1)' }} />
+          <div className="h-full" style={{ width: `${savingsWidth}%`, background: 'var(--flow-in)' }} />
+          <div className="h-full" style={{ width: `${marketWidth}%`, background: 'var(--hero-series)' }} />
         </div>
         <span className={cn('shrink-0 text-right font-mono text-[13px] font-semibold tabular-nums', signTextClass(row.netWorthGrowth))}>
           {signed(row.netWorthGrowth)}
@@ -140,8 +140,8 @@ function DriverBars({ months, scrubIndex = null, className }: { months: MonthlyD
             return (
               <g key={`${m.year}-${m.month}`}>
                 <title>{`${caption(m)}: risparmio ${signed(m.netSavings)}, mercato ${signed(m.investmentGrowth)}`}</title>
-                {bar(m.netSavings, x0, 'var(--chart-2)', 'var(--chart-2)')}
-                {bar(m.investmentGrowth, x0 + barWidth + slot * BAR_GAP, 'var(--chart-1)', 'var(--destructive)')}
+                {bar(m.netSavings, x0, 'var(--flow-in)', 'var(--flow-in)')}
+                {bar(m.investmentGrowth, x0 + barWidth + slot * BAR_GAP, 'var(--hero-series)', 'var(--destructive)')}
                 {isLast && (
                   <rect x={x0 - 3} y={top - 3} width={barWidth * 2 + slot * BAR_GAP + 6} height={bottom - top + 6} fill="none" stroke="var(--foreground)" vectorEffect="non-scaling-stroke" />
                 )}
@@ -183,8 +183,8 @@ function Legend() {
   );
   return (
     <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground" aria-hidden="true">
-      {item('var(--chart-2)', 'Risparmio')}
-      {item('var(--chart-1)', 'Mercato')}
+      {item('var(--flow-in)', 'Risparmio')}
+      {item('var(--hero-series)', 'Mercato')}
       {item('var(--destructive)', 'Mercato in perdita')}
     </div>
   );

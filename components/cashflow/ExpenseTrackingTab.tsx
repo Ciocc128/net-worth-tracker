@@ -1017,7 +1017,7 @@ export function ExpenseTrackingTab({
             total={expenseRanking.total}
             categories={expenseRanking.rows}
             reading={describeCategoryShare(expenseRanking, 'expenses')}
-            color="var(--chart-1)"
+            color="var(--flow-out)"
             emptyCopy="Nessuna spesa registrata nel periodo."
             footer={analisiLink}
           />
@@ -1029,7 +1029,7 @@ export function ExpenseTrackingTab({
             total={incomeRanking.total}
             categories={incomeRanking.rows}
             reading={describeCategoryShare(incomeRanking, 'income')}
-            color="var(--chart-2)"
+            color="var(--flow-in)"
             emptyCopy="Nessuna entrata registrata nel periodo."
             labelClassName="w-[72px]"
             footer={analisiLink}

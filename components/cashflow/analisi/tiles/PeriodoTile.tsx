@@ -61,7 +61,7 @@ export function PeriodoTile({ eyebrow, aside, reading, totals, pacing, points, c
             <NarrativeText segments={chartLabel} className={TILE_SUB_EYEBROW_CLASS} figureClassName="font-semibold" />
             <div className="flex gap-3 font-mono text-[11px] tabular-nums text-muted-foreground" aria-hidden="true">
               <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-1)' }} />
+                <span className="h-2 w-2 rounded-[2px]" style={{ background: 'var(--flow-out)' }} />
                 {chartKind === 'month' ? currentYear : 'Spese'}
               </span>
               {hasBaseline && currentYear && (

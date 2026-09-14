@@ -279,8 +279,8 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
                 >
                   <defs>
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="var(--hero-series)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--hero-series)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -291,11 +291,11 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
                     type="monotone"
                     dataKey="totalNetWorth"
                     name="Patrimonio"
-                    stroke="var(--chart-1)"
+                    stroke="var(--hero-series)"
                     strokeWidth={2}
                     fill={`url(#${gradientId})`}
                     dot={renderNoteDot}
-                    activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--chart-1)' }}
+                    activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--hero-series)' }}
                     isAnimationActive={!prefersReducedMotion}
                     animationDuration={600}
                     animationEasing="ease-out"

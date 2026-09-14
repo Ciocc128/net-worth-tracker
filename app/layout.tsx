@@ -31,6 +31,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { MotionProvider } from "@/components/providers/MotionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ColorThemeProvider } from "@/contexts/ColorThemeContext";
+import { AgentationToolbar } from "@/components/providers/AgentationToolbar";
 
 // Load Geist fonts with CSS variables for Tailwind integration
 const geistSans = Geist({
@@ -100,6 +101,7 @@ export default function RootLayout({
             </AuthProvider>
           </MotionProvider>
         </ThemeProvider>
+        {process.env.NODE_ENV === "development" && <AgentationToolbar />}
       </body>
     </html>
   );

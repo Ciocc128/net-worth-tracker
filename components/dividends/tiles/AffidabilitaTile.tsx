@@ -72,7 +72,7 @@ export function AffidabilitaTile({ reliability, reading, months, footer, classNa
                   month.paid ? cachedFormatCurrencyEUR(month.net, true) : 'nessun incasso'
                 }`}
                 className="h-[22px] rounded-[3px]"
-                style={{ background: month.paid ? 'var(--chart-2)' : 'var(--muted)' }}
+                style={{ background: month.paid ? 'var(--flow-in)' : 'var(--muted)' }}
               />
             ))}
           </div>

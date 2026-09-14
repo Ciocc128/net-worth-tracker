@@ -11,10 +11,13 @@
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { OverlayPoint } from '@/lib/utils/monteCarloSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
-/** Chart slot per scenario — bear 4, base 0, bull 1 (the Calcolatore's `SCENARIO_META`). */
+/**
+ * Chart slot per scenario — bear 4, base 0, bull 1 (the Calcolatore's `SCENARIO_META`). The
+ * colours themselves now come from `SCENARIO_COLOR` (theme tokens that default to these slots).
+ */
 export const SCENARIO_SLOT = { bear: 4, base: 0, bull: 1 } as const;
 
 interface ScenarioOverlayChartProps {
@@ -35,9 +38,9 @@ function OverlayTooltip({ active, payload, label, colors }: OverlayTooltipProps)
   const row = payload[0]?.payload;
   if (!row) return null;
   const rows: [string, number, string][] = [
-    ['Orso', row.bearP50, colors?.bear ?? 'var(--chart-5)'],
-    ['Base', row.baseP50, colors?.base ?? 'var(--chart-1)'],
-    ['Toro', row.bullP50, colors?.bull ?? 'var(--chart-2)'],
+    ['Orso', row.bearP50, colors?.bear ?? SCENARIO_COLOR.bear],
+    ['Base', row.baseP50, colors?.base ?? SCENARIO_COLOR.base],
+    ['Toro', row.bullP50, colors?.bull ?? SCENARIO_COLOR.bull],
   ];
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
@@ -55,12 +58,7 @@ function OverlayTooltip({ active, payload, label, colors }: OverlayTooltipProps)
 }
 
 export function ScenarioOverlayChart({ series, height, ariaLabel }: ScenarioOverlayChartProps) {
-  const chartColors = useChartColors();
-  const colors = {
-    bear: chartColors[SCENARIO_SLOT.bear] || 'var(--chart-5)',
-    base: chartColors[SCENARIO_SLOT.base] || 'var(--chart-1)',
-    bull: chartColors[SCENARIO_SLOT.bull] || 'var(--chart-2)',
-  };
+  const colors = SCENARIO_COLOR;
   // Instantiated here so the colours are captured; Recharts adds active/payload/label by cloning.
   const tooltip = <OverlayTooltip colors={colors} />;
 

@@ -25,7 +25,7 @@ export interface SegmentedControlProps<T extends string = string> {
  * SegmentedControl — pill-style tab switcher.
  *
  * Renders a `role="tablist"` row of buttons with a shared muted background.
- * The active option gets an elevated `bg-background` pill; inactive options
+ * The active option gets an elevated `bg-segment-active` pill; inactive options
  * show as muted text. Suitable for 2–4 options with short labels.
  *
  * @example
@@ -59,7 +59,7 @@ export function SegmentedControl<T extends string = string>({
           className={cn(
             'flex-1 rounded-md py-1.5 text-sm transition-colors',
             value === opt.value
-              ? 'bg-background text-foreground shadow-sm'
+              ? 'bg-segment-active text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >

@@ -26,7 +26,7 @@ const yearOf = (point: SpendingPoint): string => point.key.slice(0, 4);
 
 /**
  * Spending per bucket as hand-written SVG bars (the In-tile Bars pattern): the period's
- * spending in `--chart-1`, the same month of the previous year beside it in
+ * spending in `--flow-out`, the same month of the previous year beside it in
  * `--muted-foreground` — a neutral, because a baseline is neither a gain nor a loss — and a
  * gap, never a zero, where that baseline is unknowable. The bucket still running is drawn at
  * half tone AND outlined: real data the reader must see, not comparable with the closed ones.
@@ -80,7 +80,7 @@ export function SpendingBarsChart({ points, kind, minHeight = 150, className }: 
                   y={VIEW_H - currentHeight}
                   width={barWidth}
                   height={currentHeight}
-                  fill="var(--chart-1)"
+                  fill="var(--flow-out)"
                   // A month that has not started holds only what is already in the calendar:
                   // drawn lighter still, and never outlined — it is not the month in progress.
                   fillOpacity={point.scheduled ? 0.3 : point.ongoing ? 0.55 : 1}

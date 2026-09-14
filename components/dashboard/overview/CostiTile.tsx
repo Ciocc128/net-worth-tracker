@@ -47,7 +47,7 @@ export function CostiTile({ metrics, flags, costDrivers, className }: CostiTileP
         )}
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}>Costo annuo</p>
-          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-warning-foreground">
+          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-cost-figure">
             {cachedFormatCurrencyEUR(annualTotal, true)}
           </p>
         </div>

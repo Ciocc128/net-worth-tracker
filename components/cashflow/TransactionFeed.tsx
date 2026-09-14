@@ -37,6 +37,7 @@ import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
 import type { Expense, ExpenseType } from '@/types/expenses';
 import { CompactExpenseRow, TYPE_DOT_CLASS } from '@/components/cashflow/CompactExpenseRow';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
+import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
 
 // ─── Italian type labels ───────────────────────────────────────────────────────
 
@@ -67,13 +68,13 @@ function TransactionDetailIcon({
   return (
     <div
       className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
-      style={{ backgroundColor: color ? `${color}20` : 'var(--muted)' }}
+      style={{ backgroundColor: categoryIconBackground(color) }}
     >
       {Icon ? (
         <Suspense fallback={dot}>
           <Icon
             className="h-4.5 w-4.5"
-            style={{ color: color || 'var(--muted-foreground)' }}
+            style={{ color: categoryIconColor(color) }}
             aria-hidden="true"
           />
         </Suspense>

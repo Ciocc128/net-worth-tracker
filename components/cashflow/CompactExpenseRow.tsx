@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import type { Expense, ExpenseType } from '@/types/expenses';
+import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
 
 // Tailwind dot-color classes keyed by expense type.
 // All entries use semantic token references to stay theme-aware across all 6 colour themes;
@@ -77,10 +78,10 @@ export function CompactExpenseRow({
           return (
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: categoryColor ? `${categoryColor}20` : 'var(--muted)' }}
+              style={{ backgroundColor: categoryIconBackground(categoryColor) }}
             >
               <Suspense fallback={<span className={cn('w-2 h-2 rounded-full', TYPE_DOT_CLASS[expense.type] ?? 'bg-muted-foreground')} />}>
-                <CatIcon className="w-3.5 h-3.5" style={{ color: categoryColor || 'var(--muted-foreground)' }} aria-hidden="true" />
+                <CatIcon className="w-3.5 h-3.5" style={{ color: categoryIconColor(categoryColor) }} aria-hidden="true" />
               </Suspense>
             </div>
           );
@@ -88,7 +89,7 @@ export function CompactExpenseRow({
         return (
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: categoryColor ? `${categoryColor}20` : 'var(--muted)' }}
+            style={{ backgroundColor: categoryIconBackground(categoryColor) }}
           >
             <span className={cn('w-2 h-2 rounded-full flex-shrink-0', TYPE_DOT_CLASS[expense.type] ?? 'bg-muted-foreground')} />
           </div>
