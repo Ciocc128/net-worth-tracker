@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { TrendingDown, TrendingUp, Trophy } from 'lucide-react';
 import type { DashboardOverviewSparklinePoint } from '@/types/dashboardOverview';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
@@ -51,8 +52,8 @@ interface PatrimonioTileProps {
    * top instruments, so the two pages never print the same line.
    */
   movers?: MarketDigestEntry[];
-  /** The muted count line under the digest; defaults to "N asset in portafoglio". */
-  countLine?: string;
+  /** The muted count line under the digest; defaults to "N asset in portafoglio". Patrimonio passes a link to its table. */
+  countLine?: ReactNode;
   /** Feeds that default line; ignored once `countLine` is given. */
   assetCount?: number;
   /** Appends "· snapshot del mese presente" to whichever count line is shown. */

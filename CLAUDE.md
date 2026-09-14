@@ -13,23 +13,26 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **167 files / 3710 tests** green + **46 Playwright E2E specs** (49 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-13, sesta sessione, su develop): **Critique Impeccable della Panoramica (23/40) e polish nella stessa
-  sessione, sul mirror del conto reale.** Cinque voci chiuse. (1) Il verdetto stampava una chiave del database («e
-  **pension** hanno fatto il grosso del lavoro»): `CLASS_SUBJECTS` ha «i fondi pensione» e una chiave ignota fa cadere
-  la clausola; la tessera Cashflow diceva «A agosto» (ora `atPreviousMonth`). (2) La causa nel titolo (scelta del
-  proprietario): `taxes-despite-market` — mercato in guadagno e tassa stimata ≥ metà del calo — dà «Settembre è in
-  calo per le tasse sulla vendita di VWCE, non per il mercato.», la vendita sale al secondo posto e lo split sparisce;
-  Patrimonio segue. (3) Le righe di Spese/Entrate per categoria aprono la Scheda su Analisi (`expenseType` nel payload,
-  versione 17), le due tessere hanno la lettura di Tracciamento e un footer verso Analisi, Composizione verso
-  Allocazione; niente «Dettaglio» in pagina (scelta del proprietario). (4) Palette light riportata sulle bande di tinta
-  della dark (Liquidità era a ΔE00 10,1 da Immobili, la curva dell'eroe nella tinta di `--destructive`): floor ΔE00 ≥ 14
-  in entrambi i modi come test che legge `globals.css`; `PRINT_CHART_HEX` ri-derivato, `PRINT_RANK_HEX` allo slot 7.
-  (5) `RankedRows` con etichetta al 42% della riga (basta «Stipendio Giu…»), terza riga 4·4·4, Costi senza buco, il
-  pill del periodo è `SegmentedPill` radio a 14px/44px con l'inattivo AA. Più: `mask-icon` smeraldo rimossa e waiver
-  del detector per le story. **Collaudo**: `tsc`, lint 0, Vitest intero sotto `TZ=Europe/Rome`, Playwright sul mirror a
-  1440/390 dark+light (overflow 0, console 0, API ≥400 zero, verdetto e deep link letti dal DOM, etichette non
-  troncate, spill 0). Snapshot `.impeccable/critique/2026-09-13T18-13-59Z__app-dashboard-page-tsx.md` chiuso.
+- `tsc` clean; **167 files / 3723 tests** green + **46 Playwright E2E specs** (49 green in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-14, settima sessione, su develop): **Critique Impeccable di Patrimonio (25/40) e chiusura di ogni voce
+  nella stessa sessione, sul mirror del conto reale.** (1) L’XIRR del Registro stampava «+4388,68% annualizzato» su una
+  posizione di 47 giorni: sotto `MIN_ANNUALIZABLE_DAYS` (180) il terzo vital è «Rendimento sul periodo · +66,92% · in 53
+  giorni, non annualizzato» (`ledgerSpanDays`, `describeLedgerReturnVital`). (2) Il form dello strumento rifiutava in
+  inglese e in silenzio: messaggi zod italiani, `onInvalid` porta nella riga di lettura «Mancano 2 campi: Ticker e Nome.»
+  in ordine di form e scrolla al primo campo (`describeFormRefusal`); occhiello «Passo 2 di 2 · ETF»; etichette in
+  minuscolo. (3) Ogni delete della pagina è `useArmedDelete` (scelta del proprietario, anche le righe): una live region per
+  tessera, «Premi di nuovo per eliminare {nome}», e la modale del conto dice la conseguenza mentre è armata — prima Escape
+  la chiudeva con la riga armata. (4) «Andamento» è una VISTA: le Δ prendono il posto di Quantità · Prezzo · PMC · TER,
+  la tabella non scorre più a 1440 (le Δ sono ordinabili, la colonna Azioni resta sticky come rete, le intestazioni
+  ordinabili sono bottoni, «AZIONI» è sr-only, i toggle sono ricordati). (5) La tabella dice ciò che lo storage non dice:
+  una riga a mano stampa «—» in Quantità/Prezzo/PMC e «valore a mano dal 12/08», `hasCostBasis` è falso per lei
+  (Academia stampava «+0,00 €»); un bond stampa «scade il 10/03/2032 · prossima cedola 10/12» (`resolveBondRowFacts`,
+  `describeBondRow`). Più: «Aggiungi conto» apre già sul conto (`initialType`), ordine DOM = ordine visivo, il conteggio
+  dell’eroe salta a `#strumenti`, `TILE_FOOTER_ACTION_CLASS` (32/44px sui footer), sparkline `role="img"` fuori dal tab
+  order, bottoni info a 32px, la nota del calcolatore legge il lordo come lordo, `<main>` nominato. **Collaudo**: `tsc`,
+  lint 0, Vitest intero sotto `TZ=Europe/Rome` (3723), Playwright sul mirror a 1440 dark/light e 390 coarse (49/50: l’unico
+  rosso è il CSP report-only dell’emulatore Auth) — overflow 0, API ≥400 zero, ogni voce letta dal DOM. Snapshot
+  `.impeccable/critique/2026-09-14T04-46-21Z__app-dashboard-assets-page-tsx.md` chiuso.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -44,7 +47,7 @@ One line per feature: what it is, then where it is described. *What the user see
 - **Demo mode**: auto-login dalla landing; `useDemoMode()` gates every mutation. doc/guide/account-condiviso-demo.md.
 - **Shell**: compact `PageHeader` (one variant) · `PageTabBar` · `PageContainer` (1920, its only width) + `TileGridSkeleton` · sidebar with eyebrow group labels · bottom pill + «Altro» drawer. DESIGN → §5 Compact Page Header / Tile Grid; AGENTS → *Navigation*.
 - **Panoramica**: a rule-generated verdict over a 12-column tile grid, one question per tile, on `GET /api/dashboard/overview`. README → *Portfolio Management*; doc/guide/panoramica.md; DESIGN → §5 Page Verdict / Tile / Tile Grid.
-- **Patrimonio**: the verdict's driver is an instrument; six tiles, Strumenti is the management table at the tile's cadence; a Δ is a unit-price variation; the Sottocategoria is optional; every G/P stands EUR against EUR, fees included (`costBasisEur.ts`). doc/guide/patrimonio.md.
+- **Patrimonio**: the verdict's driver is an instrument; six tiles, Strumenti is the management table at the tile's cadence («Andamento» is a VIEW: the Δ replace the price columns); a Δ is a unit-price variation; a hand-valued row has no PMC-based G/P; a bond row names maturity and next coupon; every G/P stands EUR against EUR, fees included (`costBasisEur.ts`). doc/guide/patrimonio.md.
 - **AssetDialog + Asset trade ledger (Registro operazioni)**: 2-step create; BUY/SELL/ADJUSTMENT with cash settlement, Admin-API writes, the asset doc rebuilt by full replay; a trade carries any past date, floored only by the asset's own baseline. README → *Portfolio Management*; AGENTS → *Two-Step Create Dialogs*; doc/guide/registro-operazioni.md.
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis; transfers are net-zero with atomic reconciliation; recurrence materialises real future rows; the Movimenti reading totals each type and its mobile bar repeats the period picker. README → *Cashflow*; doc/guide/cashflow-tracciamento.md; doc/guide/cashflow.md (segno, ricorrenze).
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, today's mark on every track, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md; DESIGN → Budget Track, Risk-vs-Fact.

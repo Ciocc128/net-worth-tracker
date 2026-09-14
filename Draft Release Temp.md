@@ -5,11 +5,20 @@
 
 ## ✨ New Features
 
+- Added the maturity and the next coupon under a bond’s name in the Strumenti table («scade il 10/03/2032 · prossima cedola 10/12»), on desktop and on a phone: a BTP no longer reads like a crypto row.
+- Added «Andamento» as a view of the Strumenti table: the three Δ windows take the place of Quantità, Prezzo, PMC and TER, are sortable, and the table no longer scrolls sideways at 1440; both toggles are remembered.
+
 - Added deep links from the Panoramica: a row of «Spese per categoria» or «Entrate per categoria» opens that category's Scheda on Analisi, the two tiles read the concentration («Il 29% va in Mutuo; le prime tre fanno il 63%») and close on «Tutte le categorie in Analisi», Composizione on «Il piano in Allocazione».
 
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 821 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
 ## 🐛 Bug Fixes
+
+- Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».
+- Fixed the asset form refusing a submit in English and in silence («Ticker is required»): the messages are Italian, the reading line says «Mancano 2 campi: Ticker e Nome.» and the first refused field scrolls into view.
+- Fixed the cash-account detail: Escape while «Elimina» was armed closed the modal with the row still armed; the delete is now a two-click confirm without a timer and, while armed, the reading says what the second press loses and that it is not reversible.
+- Fixed hand-valued rows in the Strumenti table (a property, a pension fund, a private-equity stake): they printed a quantity of 130.000 at 1,0000 € and a «+0,00 €» gain that measured nothing; they now print «—» there, «valore a mano dal 12/08» under the name, and no G/P.
+- Fixed the sale note of «Quanto costa vendere» in target mode, which re-read the gross value typed as a net proceed and added the tax on top.
 
 - Fixed the Panoramica's verdict printing a database key («e pension hanno fatto il grosso del lavoro»): the pension funds now read as «i fondi pensione», and the Cashflow tile says «Ad agosto» instead of «A agosto».
 - Fixed the light-mode chart palette: Liquidità and Immobili were two oranges a reader could not tell apart, Trend Following and Obbligazioni two teals, and the net-worth curve was drawn in the colour of a loss; every class now keeps the same hue in light and dark (Azioni blue, Obbligazioni green, Criptovalute amber, Immobili violet, Liquidità coral), in the emails and the PDF too.
@@ -23,6 +32,10 @@
 - Fixed the delete confirmation in the Versamenti ledger: the row now says what the delete undoes («eliminando, il conto verrà riaccreditato») while the button stays a compact «Conferma».
 
 ## 🔧 Improvements
+
+- Improved «Aggiungi conto» on Patrimonio: it opens on the account form instead of asking «Che cosa vuoi aggiungere?» with eight choices; the asset form keeps its step counter («Passo 2 di 2 · ETF») and its labels are lower-case Italian.
+- Improved Patrimonio’s two-click deletes on every row: no 3-second timer, Escape or a click elsewhere disarms, the arm is announced once per tile, and every row action names its instrument.
+- Improved Patrimonio’s accessibility: the sortable headers are buttons, the actions header is named for a screen reader only, the sparklines on a phone are images and not thirteen mute tab stops, the reading order matches the visual one, the count line links to the table, the footer links and info buttons are 32px on desktop and 44px on touch.
 
 - Improved the falling-month verdict: when the market gained and the tax withheld on a sale explains the drop, the headline says so — «Settembre è in calo per le tasse sulla vendita di VWCE, non per il mercato.» — and the sale comes right after the variation.
 - Improved the period control of the net-worth chart on the Panoramica: readable labels, thumb-sized targets on a phone, arrow-key navigation, and unselected periods that stay legible in light mode — the same control every other page uses.

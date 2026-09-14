@@ -387,6 +387,23 @@ export function buildXirrFlows(input: {
 }
 
 /**
+ * The shortest holding a money-weighted return may be ANNUALISED over, in days. The same floor
+ * Rendimenti applies to the portfolio (below six months the hero is the period return): a
+ * position opened 47 days ago compounded to a year reads «+4388%», a figure nobody can use.
+ */
+export const MIN_ANNUALIZABLE_DAYS = 180;
+
+/**
+ * How many days the ledger covers — the earliest real flow (a buy or a sell, the baseline
+ * included since it opens the position) to `now`. Null with no flow at all.
+ */
+export function ledgerSpanDays(transactions: AssetTransaction[], now: Date): number | null {
+  const times = transactions.filter((t) => t.type !== 'adjustment').map((t) => t.date.getTime());
+  if (times.length === 0) return null;
+  return (now.getTime() - Math.min(...times)) / MS_PER_DAY;
+}
+
+/**
  * Internal net-present-value of a flow series at annual rate `r`, discounting each flow by the
  * actual day count since the earliest flow: NPV(r) = Σ amount_i / (1 + r)^(days_i / 365).
  */

@@ -85,6 +85,9 @@ about a domain goes in that domain's guide, never here.
   the culpable node is the fix. Reference guard: `e2e/fire.mobile.spec.ts`.
 - **One scroll container per region**: a nested scrollable captures the wheel and content below becomes unreachable
   (desktop-only symptom). `overflow-x-hidden` on an ancestor also CLIPS a descendant's `overflow-x:auto`.
+- **A `sticky` offset is measured from the scroller's CONTENT edge, padding excluded** (2026-09-14, Strumenti's actions
+  column): `sticky right-5` meant to mirror a `-mx-5 px-5` wrapper shifted the column 20px over the last cell of a table
+  that did not scroll at all. `right-0`; and draw the edge rule only while `scrollWidth > clientWidth`, measured.
 
 ### shadcn Card and Dialog Surface
 - **`CardHeader` is `flex flex-col`**, so a `flex justify-between` row inside it makes a `flex-1` grandchild act
@@ -280,7 +283,7 @@ file used to carry.
 - "Does this asset have a market price?" is ONE rule in `assetPricing.ts` (`hasMarketPrice`/`requiresManualPricing`); a new hand-valued type goes in `MANUALLY_VALUED_TYPES` and nowhere else.
 - GBp (pence) ≠ GBP — normalize `price / 100` before any FX; never call Frankfurter from the browser; `quantity = 0` marks a sold asset.
 - A Borsa Italiana bond quote is `% of par`, always, and `lib/utils/bondPricing.ts` is the ONE conversion (`quote / 100 × nominal × coefficient`): the nominal defaults to **1 €** (quantity = nominal in euro), a BTP€i's quote is real and gets the latest coefficient the user entered. Never re-implement it in a component or the cron; never guard it on `nominal > 1` again (issue #340).
-- Patrimonio Δ columns are UNIT-PRICE variations, not P&L; `isHeld` (`quantity > 0`) gates every count/share/sum; the page owns every dialog for one dual invalidation.
+- Patrimonio Δ columns are UNIT-PRICE variations, not P&L; `isHeld` (`quantity > 0`) gates every count/share/sum; the page owns every dialog for one dual invalidation. «Andamento» is a VIEW (the Δ windows replace Quantità · Prezzo · PMC · TER); a hand-valued holding has no PMC-based G/P (`hasCostBasis`) and prints «—» there; a ledger's return is annualised only past `MIN_ANNUALIZABLE_DAYS` (180).
 - Every number not in the payload is born in `patrimonioSummary.ts`; the verdict's driver is an INSTRUMENT.
 - Every G/P, tax estimate, YOC and PMC cell stands EUR against EUR through `lib/utils/costBasisEur.ts` (`costBasisPerUnitEur` = the ledger's `averageCostEur`, fees included; the native PMC only for a EUR asset; `undefined` for a foreign asset without one — print nothing, never dollars against euros).
 - Il resto — `suggestIsLiquid`, the cash-account picker rule, the article helpers, the failed-overview branch, the `averageCostEur` backfill — in `doc/guide/patrimonio.md`.
@@ -849,7 +852,10 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   never during an animation); responsive DOM duplicates make `.first()` the HIDDEN mobile copy (`.filter({ visible:
   true })`); a collapsed CSS-grid region is still "visible" (scope through the toggle's `aria-controls` and measure
   height); a `fill()` right after `goto(…, { waitUntil: 'domcontentloaded' })` is wiped by hydration (`waitUntil:
-  'load'`, then `.inputValue()`).
+  'load'`, then `.inputValue()`); `addInitScript` runs on EVERY navigation, reloads included, so a `localStorage.removeItem`
+  placed there to start clean also wipes the persistence the spec is about to verify — guard it with a `sessionStorage`
+  flag (2026-09-14). **Renaming an `aria-label` breaks every spec that matched its old substring** («Modifica asset» →
+  «Modifica {name}», `assets.bond.spec.ts` on 2026-09-14): grep `e2e/` for the old name in the same commit.
 - **Locators — the controls are not buttons** (2026-08-28: read the failure's page snapshot before guessing a second
   selector): the Cashflow picker is a `combobox` named «Periodo selezionato: {label}», `SegmentedPill` options are
   `tab`, the instalment toggle sits behind the «Impostazioni avanzate» disclosure, the two-step create dialog capitalises
