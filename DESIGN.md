@@ -399,12 +399,14 @@ invisible — the reason is real, the hue is still wrong), and `components/Prote
 the auth spinner `border-gray-300 border-t-blue-600`. The third — an emerald Safari `mask-icon`
 (`#10B981`) in `app/layout.tsx` for a brand that has no brand colour — was removed on 2026-09-13:
 the tag is legacy (Safari reads the ordinary favicon since 2018) and the icon is multicolour, so it
-never worked as a monochrome mask either. Two sign-colour literals sit beside
-them: `components/expenses/ExpenseTable.tsx:528` colours income `text-emerald-600 dark:text-emerald-400`
-next to a `text-destructive` expense (**The Sign-Color Token Rule** broken on the Tabella view of
-Tracciamento), and `AssetSparkline.tsx:32` is listed above only because it is a fallback — the
-hexes it falls back to are the ones the emails retired. None is declared; a linter that flags them
-is right.
+never worked as a monochrome mask either. One sign-colour literal sits beside them:
+`AssetSparkline.tsx:32`, listed above only because it is a fallback — the hexes it falls back to
+are the ones the emails retired (the other, `ExpenseTable.tsx`'s `text-emerald-*` on an income
+amount, went to `text-positive` on 2026-09-14, when the table's type badges also joined the feed's
+dots and the hero's legend on ONE map, `lib/constants/expenseTypeColors.ts` — until then the
+table said `income → --chart-1`, `fixed → --chart-2` while the legend 400px above said the
+opposite, and the same green meant «Entrate» in one place and «Spese Fisse» in the other). None is
+declared; a linter that flags them is right.
 
 ## 3. Typography
 
@@ -555,17 +557,20 @@ the viewport and its separation is the scrim, not a shadow (`components/ui/drawe
 (`describeModalStatus`, `describeWriteError`, the `describe*Intent`/`describe*Reading` builders),
 never typed in a component; the destructive primary arms through `lib/hooks/useArmedDelete.ts`.
 
-**Coverage (counted 2026-09-06).** 29 surfaces are `ResponsiveModal` — the vocabulary above.
-The vocabulary is NOT yet total: besides `components/layout/LogoutDialog.tsx`, which stays an
-`AlertDialog` on purpose because it interrupts, eight files still mount the raw shadcn primitives —
-`app/dashboard/page.tsx` (a `Dialog`), `components/dividends/DividendiDettaglio.tsx` (a `Dialog`,
-its title at `text-base`), `components/expenses/ExpenseTable.tsx`,
-`components/cashflow/ExpenseTrackingTab.tsx` and `components/dividends/DividendTrackingTab.tsx`
-(`AlertDialog` confirms), `components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at
-`text-lg`), `components/cashflow/MobileFiltersDrawer.tsx` (a `Drawer`) and
-`components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit `DialogContent`'s own
-`sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of which is on the ramp
-above. Recorded as the remaining distance, not as a licence.
+**Coverage (counted 2026-09-06, recounted 2026-09-14).** 30 surfaces are `ResponsiveModal` — the
+vocabulary above; the thirtieth is `components/expenses/SeriesDeleteDialog.tsx`, the one question a
+delete asks on a row of an instalment plan or a recurring series («solo questa o tutte?»), shared by
+the Movimenti table and the tab, which each kept an `AlertDialog` for it until that day. A PLAIN row
+of the table no longer opens a modal at all: its delete arms in the row (`useArmedDelete`, the row
+prints the consequence). The vocabulary is NOT yet total: besides `components/layout/LogoutDialog.tsx`,
+which stays an `AlertDialog` on purpose because it interrupts, six files still mount the raw shadcn
+primitives — `app/dashboard/page.tsx` (a `Dialog`), `components/dividends/DividendiDettaglio.tsx` (a
+`Dialog`, its title at `text-base`), `components/dividends/DividendTrackingTab.tsx` (`AlertDialog`
+confirms), `components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at `text-lg`, the
+detail drawer's confirm a drawer NESTED in a drawer), `components/cashflow/MobileFiltersDrawer.tsx`
+(a `Drawer`) and `components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit
+`DialogContent`'s own `sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of
+which is on the ramp above. Recorded as the remaining distance, not as a licence.
 
 ### Compact Page Header
 

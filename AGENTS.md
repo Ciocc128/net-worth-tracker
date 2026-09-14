@@ -88,6 +88,11 @@ about a domain goes in that domain's guide, never here.
 - **A `sticky` offset is measured from the scroller's CONTENT edge, padding excluded** (2026-09-14, Strumenti's actions
   column): `sticky right-5` meant to mirror a `-mx-5 px-5` wrapper shifted the column 20px over the last cell of a table
   that did not scroll at all. `right-0`; and draw the edge rule only while `scrollWidth > clientWidth`, measured.
+- **An overflow INSIDE a tile never reaches `main`** (2026-09-14, «Entrate per categoria»): neither `Tile` nor a list
+  clips, so three percentages painted 37px past the tile's border measured 0 on `main`. Measure a list against its own
+  `section` (`e2e/cashflow.tracciamento.spec.ts`), and let a column yield under a container query, not a viewport one.
+- **`max-w` on a `td` does not bind an auto-layout table** (2026-09-14, the armed row of the Movimenti table): a long
+  sentence in the cell widened the column and the table ran 40px past the tile. Constrain the BLOCK inside the cell.
 
 ### shadcn Card and Dialog Surface
 - **`CardHeader` is `flex flex-col`**, so a `flex justify-between` row inside it makes a `flex-1` grandchild act
@@ -106,8 +111,13 @@ about a domain goes in that domain's guide, never here.
 - **Sign colors are tokens: `text-positive`/`text-destructive`**, chips `bg-positive/10`, resolved via
   `getMetricValueColor()`. Two gotchas: **drop `dark:` variants** (the token swaps itself) and the function returns
   neutral for the `currency` format by design — signed currency uses `signChipClass`/`signTextClass`. Legacy
-  `text-emerald-*` survives in `ExpenseTable`, the dividend dialogs/table and `budgetProgressStyle` (the Tracciamento
-  feed retired its own on 2026-08-22).
+  `text-emerald-*` survives in the dividend dialogs/table and `budgetProgressStyle` (the Tracciamento feed retired
+  its own on 2026-08-22, `ExpenseTable` on 2026-09-14).
+- **An expense type has ONE colour map** (`lib/constants/expenseTypeColors.ts`, 2026-09-14): the feed's dot, the
+  table's badge and the hero's legend read it. A row's `income` is the sign token `positive`, each outflow a chart
+  slot, `fixed` on the slot the flow series paints spending with; the SERIES (bars) take chart slots, never the sign
+  token. Three files kept their own map until then and the table's inverted the legend's (`--chart-2` was
+  «Entrate» above and «Spese Fisse» below, measured on the mirror).
 - **Sign tokens mean gain and loss, and nothing else.** A neutral delta — a class gaining share of a composition — must
   stay `text-muted-foreground`: colouring it asserts a verdict the surface has no target to justify.
 - **`--warning` is near-white in light mode**, so text on a `bg-warning` fill MUST be `text-warning-foreground`;
@@ -306,9 +316,9 @@ file used to carry.
 
 ### Cashflow › Tracciamento → `doc/guide/cashflow-tracciamento.md`
 - ONE period axis, two slices: `expenses` feeds the verdict and every tile; `filteredExpenses` feeds ONLY the Movimenti list. Never route a tile through `filteredExpenses`.
-- A period is its WHOLE calendar span; what has not happened is DECLARED (`scheduledSentence`, chip «In calendario», sign colour dropped). `isScheduledRow` = after today by Italian calendar DAY (`isItalyDayAfter`), shared with `budgetUtils` and `costCenterSummary`.
+- A period is its WHOLE calendar span; what has not happened is DECLARED (chip «In calendario», sign colour dropped). `isScheduledRow` = after today by Italian calendar DAY (`isItalyDayAfter`), shared with `budgetUtils` and `costCenterSummary`. **The verdict judges what has HAPPENED** (`settleTotals`, 2026-09-14): headline, tone and first sentence from the lived part («A settembre finora …»), then «Con … già in calendario da qui a fine mese, il mese chiude a +805 € (il 29%)» — both sides always named, an empty one as «nessuna entrata attesa». Analisi still closes with `scheduledSentence`.
 - «Da inizio anno» (`Period.kind = 'ytd'`) and «Anno corrente» (`'current'`, full-year delta since 2026-08-30) are different windows and must never be treated as one.
-- Every number from `tracciamentoSummary.ts`, every sentence from `cashflowNarrative.ts`. The previous period is honest or absent (a running year → the SAME months of the year before).
+- Every number from `tracciamentoSummary.ts`, every sentence from `cashflowNarrative.ts`. The previous period is honest or absent (a running year → the SAME months of the year before; **the month in progress → the SAME DAYS of the previous month**, `currentComparisonWindow`/`previousComparisonWindow`, named «sui primi 14 giorni di agosto» — the projection's reference stays last month WHOLE through `previousPeriod`).
 - Below `desktop:` the Movimenti tile's bar repeats the period picker beside the filters — a second HANDLE on the same `period`, never a second axis (its own accessible name, `min-w-0`; `e2e/cashflow.mobile.spec.ts`). The tile's reading totals each type of the rows it is handed (a search on a note is its own total).
 - «Intestatario» (`lib/utils/movementsOwnerFilter.ts`) is a list filter that exists only with Divisione on — «Tutti · In comune · {members}», «Senza intestatario» only when the period holds an orphaned row — and with the feature on an attributed row prints its owner as a chip (feed, table, drawer); `memberNames` null = feature off = no chip anywhere.
 - Il resto — the two windows anchored to today, the month-end projection, the feed, the mobile filters — in `doc/guide/cashflow-tracciamento.md`.
