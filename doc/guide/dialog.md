@@ -32,6 +32,17 @@
 - **A summary block inside a modal is `bg-muted`**, never `bg-card` — on this surface that is a card inside a card.
 - **The eyebrow's scope is the SINGULAR of one row's type.** `EXPENSE_TYPE_LABELS` is the plural of a category group
   («Spese Variabili»); the picker's own label is the one a modal about ONE row wants («Spesa variabile»).
+- **A refused submit lands in the reading line, in Italian, and scrolls to the field** (`describeFormRefusal` →
+  «Mancano 2 campi: Importo e Categoria.»; `handleSubmit(onSubmit, onInvalid)`, `aria-invalid` on the field,
+  `scrollIntoView` + focus on the first): `AssetDialog` since 2026-09-14 morning, `ExpenseDialog` since the afternoon.
+  A zod `z.number()` fed `NaN` by `valueAsNumber` says «Invalid input» unless the schema carries `{ error: '…' }` —
+  every number the expense form can leave empty now does. Step 2 keeps the counter in the eyebrow («Passo 2 di 2 ·
+  Spesa variabile»).
+- **A delete on a ROW of a table arms in the row; a delete that needs a CHOICE is a modal** (2026-09-14, the Movimenti
+  table): `useArmedDelete` on a plain row with the consequence printed in the row (`describeExpenseDeleteConsequence`)
+  and one live region per table; `SeriesDeleteDialog` («solo questa o tutte le 12?», `describeSeriesDeleteReading`,
+  `sm`, a `bg-muted` summary block for the row's facts) for a row of an instalment plan or a recurring series —
+  shared by the table and the feed's detail drawer, which each used to mount an `AlertDialog` for it.
 - **In light mode `--card` and `--background` are both `oklch(1 0 0)`**, so a test that proves a modal is «lifted» by
   comparing it with the page background passes only in dark mode. What separates it there is the border and the Float
   shadow; assert the modal's surface equals a TILE's instead.

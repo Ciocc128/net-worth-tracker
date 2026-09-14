@@ -387,6 +387,67 @@ export function describeExpenseIntent(type: 'variable' | 'fixed' | 'debt' | 'inc
   }
 }
 
+export interface ExpenseDeleteFacts {
+  type: 'variable' | 'fixed' | 'debt' | 'income' | 'transfer';
+  /** The row's amount, any sign. */
+  amount: number;
+  /** The row moved a cash account (`linkedCashAssetId`), so deleting it moves the account back. */
+  hasAccount: boolean;
+}
+
+/**
+ * What the second press of an armed row delete does to the ACCOUNTS — the sentence the row prints
+ * beside a compact «Conferma» (AGENTS.md → Accessibility: the button stays short, the row carries
+ * the consequence). Until 2026-09-14 the table's dialog asked «Sei sicuro di voler eliminare
+ * questa voce?» and said nothing about the balance it was about to move back.
+ */
+export function describeExpenseDeleteConsequence(facts: ExpenseDeleteFacts): string {
+  if (facts.type === 'transfer') {
+    return facts.hasAccount ? 'Eliminando, i due conti tornano come prima del trasferimento.' : 'Eliminando, il trasferimento sparisce dal registro.';
+  }
+  if (!facts.hasAccount) return 'Eliminando, la voce sparisce dal periodo e dai budget.';
+  const amount = cachedFormatCurrencyEUR(Math.abs(facts.amount));
+  return facts.type === 'income'
+    ? `Eliminando, il conto viene addebitato di ${amount}.`
+    : `Eliminando, il conto viene riaccreditato di ${amount}.`;
+}
+
+export interface SeriesDeleteFacts {
+  mode: 'installment' | 'recurring';
+  /** The row as the feed names it: the note, else the category. */
+  label: string;
+  amount: number;
+  installmentNumber?: number;
+  installmentTotal?: number;
+}
+
+/**
+ * The reading of the modal that asks «solo questa o tutta la serie?» — the one choice a row of an
+ * instalment plan or a recurring series adds to a delete. It names the row, the series and what
+ * happens to the account, because the two buttons under it differ by a whole series.
+ */
+export function describeSeriesDeleteReading(facts: SeriesDeleteFacts): Narrative {
+  const amount = { text: cachedFormatCurrencyEUR(Math.abs(facts.amount)), mono: true };
+  if (facts.mode === 'installment' && facts.installmentNumber && facts.installmentTotal) {
+    return [
+      { text: 'Rata ' },
+      { text: String(facts.installmentNumber), mono: true },
+      { text: ' di ' },
+      { text: String(facts.installmentTotal), mono: true },
+      { text: ` di ${facts.label}, ` },
+      amount,
+      { text: ': puoi togliere solo questa o tutte le ' },
+      { text: String(facts.installmentTotal), mono: true },
+      { text: '; il conto collegato torna come prima delle rate eliminate.' },
+    ];
+  }
+  return [
+    { text: `${facts.label}, ` },
+    amount,
+    { text: ', si ripete: puoi togliere solo questa occorrenza o tutta la serie; il conto collegato torna come prima delle voci eliminate.' },
+  ];
+}
+
 /** What the asset type decides — the three consequences the eight cards cannot show. */
 export const ASSET_TYPE_PICKER_READING: Narrative = [
   {

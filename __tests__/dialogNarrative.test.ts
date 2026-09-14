@@ -7,8 +7,10 @@ import {
   describeCategoryMoveReading,
   describeDividendDayReading,
   describeDummyDataReading,
+  describeExpenseDeleteConsequence,
   describeExpenseIntent,
   describeFormRefusal,
+  describeSeriesDeleteReading,
   describeLedgerReturnVital,
   describeModalStatus,
   describeMovementsReading,
@@ -461,5 +463,33 @@ describe('describeLedgerReturnVital — an XIRR only once the ledger spans six m
     expect(describeLedgerReturnVital({ xirr: null, totalReturnPct: 0.2, spanDays: 400, minAnnualizableDays: 180 })?.label).toBe('Rendimento sul periodo');
     expect(describeLedgerReturnVital({ xirr: null, totalReturnPct: null, spanDays: 400, minAnnualizableDays: 180 })).toBeNull();
     expect(describeLedgerReturnVital({ xirr: 0.1, totalReturnPct: 0.1, spanDays: null, minAnnualizableDays: 180 })).toBeNull();
+  });
+});
+
+describe('describeExpenseDeleteConsequence — the row says what the second press does to the account', () => {
+  it('names the balance that moves back, with the direction of the row', () => {
+    const flat = (text: string) => text.replace(/ /g, ' ');
+    expect(flat(describeExpenseDeleteConsequence({ type: 'variable', amount: -373.81, hasAccount: true }))).toBe('Eliminando, il conto viene riaccreditato di 373,81 €.');
+    expect(flat(describeExpenseDeleteConsequence({ type: 'income', amount: 2456, hasAccount: true }))).toBe('Eliminando, il conto viene addebitato di 2456,00 €.');
+  });
+
+  it('says what a transfer and an unlinked row lose instead', () => {
+    expect(describeExpenseDeleteConsequence({ type: 'transfer', amount: 500, hasAccount: true })).toBe('Eliminando, i due conti tornano come prima del trasferimento.');
+    expect(describeExpenseDeleteConsequence({ type: 'transfer', amount: 500, hasAccount: false })).toBe('Eliminando, il trasferimento sparisce dal registro.');
+    expect(describeExpenseDeleteConsequence({ type: 'fixed', amount: -40, hasAccount: false })).toBe('Eliminando, la voce sparisce dal periodo e dai budget.');
+  });
+});
+
+describe('describeSeriesDeleteReading — «solo questa o tutta la serie?»', () => {
+  it('names the instalment, its plan and what the account gets back', () => {
+    const text = plain(describeSeriesDeleteReading({ mode: 'installment', label: 'Figlie', amount: -373.81, installmentNumber: 3, installmentTotal: 12 }));
+    expect(text).toBe('Rata 3 di 12 di Figlie, 373,81 €: puoi togliere solo questa o tutte le 12; il conto collegato torna come prima delle rate eliminate.');
+  });
+
+  it('names a recurring occurrence and its series', () => {
+    const text = plain(describeSeriesDeleteReading({ mode: 'recurring', label: 'Palestra', amount: -40 }));
+    expect(text).toBe('Palestra, 40,00 €, si ripete: puoi togliere solo questa occorrenza o tutta la serie; il conto collegato torna come prima delle voci eliminate.');
+    // An instalment row without its position falls back to the series wording rather than printing «Rata undefined».
+    expect(plain(describeSeriesDeleteReading({ mode: 'installment', label: 'Divano', amount: -100 }))).toContain('Divano, 100,00 €, si ripete');
   });
 });

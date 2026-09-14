@@ -5,6 +5,10 @@
 
 ## ✨ New Features
 
+- Added a second sentence to the Cashflow verdict whenever the calendar reaches past today: the judgement is on what has happened («A settembre finora le spese superano le entrate di 355 €: entrate 302 €, spese 656 €»), then «Con 1297 € di spese e 2456 € di entrate già in calendario da qui a fine mese, il mese chiude a +805 € (il 29%)» — both sides always named, an empty one as «nessuna entrata attesa». On the 14th the page said «Settembre sta andando bene · 29%» on a salary dated the 15th.
+- Added the «solo questa o tutte?» modal for deleting a row of an instalment plan or a recurring series (from the table and from the feed), naming the row, the plan and what the account gets back; a plain row of the Tabella view now arms in place and prints «Eliminando, il conto viene riaccreditato di 373,81 €» beside «Conferma».
+- Added memory to the «Feed | Tabella» switch of Movimenti: the table stays the table across visits.
+
 - Added the maturity and the next coupon under a bond’s name in the Strumenti table («scade il 10/03/2032 · prossima cedola 10/12»), on desktop and on a phone: a BTP no longer reads like a crypto row.
 - Added «Andamento» as a view of the Strumenti table: the three Δ windows take the place of Quantità, Prezzo, PMC and TER, are sortable, and the table no longer scrolls sideways at 1440; both toggles are remembered.
 
@@ -13,6 +17,14 @@
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 821 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
 ## 🐛 Bug Fixes
+
+- Fixed the Cashflow delta of the month in progress, which compared fourteen days against the whole previous month («in calo del 59,8% su agosto»): it now compares the same days («sui primi 14 giorni di agosto», «vs 1–14 ago»); the month-end projection still reads last month whole.
+- Fixed the type colours of the Movimenti table, which painted income blue and fixed expenses green while the legend above said the opposite — the same green meant «Entrate» in one place and «Spese Fisse» in the other; dot, badge and legend now share one colour per type, and an income amount takes the gain colour.
+- Fixed «89% · 9% · 2%» painted outside the «Entrate per categoria» tile at 1440: the share column yields when the list is narrower than 250px.
+- Fixed the expense form refusing an empty submit with «Invalid input» in English and a silent reading line: every message is Italian, the reading says «Mancano 2 campi: Importo e Categoria.», the first field scrolls into view and takes the focus, and step 2 keeps «Passo 2 di 2 · Spesa variabile».
+- Fixed the transfer form: origin and destination accounts are now required and must differ, with the reason under each field; a transfer could be saved without accounts and moved no money.
+- Fixed the Movimenti table for a screen reader and for the eye: every header names its column and the sorted one says its direction, dates and amounts are in the mono face; «Tutte le categorie in Analisi» is a 32px target (44 on touch).
+- Fixed the tense of a future period («Nel 2043 hai speso») — a year of instalments is not gone yet.
 
 - Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».
 - Fixed the asset form refusing a submit in English and in silence («Ticker is required»): the messages are Italian, the reading line says «Mancano 2 campi: Ticker e Nome.» and the first refused field scrolls into view.
@@ -23,8 +35,6 @@
 - Fixed the Panoramica's verdict printing a database key («e pension hanno fatto il grosso del lavoro»): the pension funds now read as «i fondi pensione», and the Cashflow tile says «Ad agosto» instead of «A agosto».
 - Fixed the light-mode chart palette: Liquidità and Immobili were two oranges a reader could not tell apart, Trend Following and Obbligazioni two teals, and the net-worth curve was drawn in the colour of a loss; every class now keeps the same hue in light and dark (Azioni blue, Obbligazioni green, Criptovalute amber, Immobili violet, Liquidità coral), in the emails and the PDF too.
 - Fixed the truncated category names in the ranked lists of the Panoramica, Tracciamento, Analisi, Dividendi, Hall of Fame and Previdenza («Stipendio Giu…», «Entrate da inv…»): the name now takes the room it needs and the bar beside it takes the rest.
-
-- Fixed the transfer form: origin and destination accounts are now required and must differ, with the reason under each field; a transfer could be saved without accounts and moved no money.
 
 - Fixed «Scarica dividendi storici» for an instrument added to the app after its dividends: the download now says how many payments were left out because they precede the day you hold the instrument, and how to include them (record the purchase in the Registro operazioni with its real date). It used to say only «Nessun nuovo dividendo trovato».
 

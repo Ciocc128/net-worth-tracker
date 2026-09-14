@@ -35,7 +35,8 @@ import { describeRecurrence } from '@/lib/utils/recurrenceDates';
 import { isScheduledRow } from '@/lib/utils/tracciamentoSummary';
 import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
 import type { Expense, ExpenseType } from '@/types/expenses';
-import { CompactExpenseRow, TYPE_DOT_CLASS } from '@/components/cashflow/CompactExpenseRow';
+import { CompactExpenseRow } from '@/components/cashflow/CompactExpenseRow';
+import { EXPENSE_TYPE_DOT_CLASS as TYPE_DOT_CLASS } from '@/lib/constants/expenseTypeColors';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 
 // ─── Italian type labels ───────────────────────────────────────────────────────

@@ -188,7 +188,7 @@ The app **is** locally runnable; there is no fallback to declare.
   after — that logs in for real and waits on the page's `h1`, never on `networkidle` (Firestore keeps
   its sockets open). Say in the report that the evidence is Playwright's. And the tour still goes on
   the MIRROR (below), not on the fixture: the fixture proves the mechanism, the mirror shows what the
-  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce.
+  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce. **A restart of the Claude Code session kills its background tasks** (emulators and dev server alike, 2026-09-14) and an emulator killed that way exports nothing: before the tour, check the ports and re-seed the mirror.
 - **Throwaway fixtures** follow the existing seed pattern (`scripts/seedEmulator.ts`,
   `scripts/seedAnalisiE2E.mts`, `scripts/seedPensionE2E.mts`, `scripts/seedCoastFireE2E.mts`) or
   live as a throwaway `.mts` in the session scratchpad. `.mts`, never `.ts`: a `.ts` script is CJS

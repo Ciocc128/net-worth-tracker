@@ -22,6 +22,17 @@ export interface RankedRow {
 const LABEL_COLUMN_CLASS = 'w-[42%] min-w-[72px] shrink-0';
 const BAR_TRACK_CLASS = 'min-w-[40px] flex-1';
 
+/**
+ * The share column yields when the list is narrower than its floors add up to. The row's floors
+ * — label 72 + bar 40 + amount 64 + share 34 + three 12px gaps — are 246px; a `col-span-3` tile
+ * at 1440 gives the list 235px, and until 2026-09-14 the three percentages of «Entrate per
+ * categoria» were painted 37px outside the tile (neither the tile nor the list clips). The bar
+ * already encodes rank and the reading names the top share, so below 250px the figure is the
+ * one column that can go; the row's accessible name keeps it. A container query, not a
+ * viewport one: the same list sits in a 3-column tile, a 4-column tile and a phone column.
+ */
+const SHARE_COLUMN_CLASS = 'w-[34px] shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground @max-[250px]:hidden';
+
 interface RankedRowsProps {
   rows: RankedRow[];
   /** Bar colour, a theme chart slot (`var(--chart-1)`), never a literal hex. */
@@ -74,14 +85,14 @@ export function RankedRows({ rows, color, remainder, labelClassName, onRowClick,
       <span className="w-[64px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
         {cachedFormatCurrencyEUR(row.amount, true)}
       </span>
-      <span className="w-[34px] shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+      <span className={SHARE_COLUMN_CLASS}>
         {Math.round(row.percentage)}%
       </span>
     </>
   );
 
   return (
-    <ul className="flex flex-col divide-y divide-border" aria-label={ariaLabel}>
+    <ul className="@container flex flex-col divide-y divide-border" aria-label={ariaLabel}>
       {rows.map((row) => {
         const active = activeKey === row.key;
         return (
@@ -114,7 +125,7 @@ export function RankedRows({ rows, color, remainder, labelClassName, onRowClick,
           <span className="w-[64px] shrink-0 text-right font-mono text-[13px] tabular-nums text-muted-foreground">
             {cachedFormatCurrencyEUR(remainder.amount, true)}
           </span>
-          <span className="w-[34px] shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+          <span className={SHARE_COLUMN_CLASS}>
             {Math.round(remainder.percentage)}%
           </span>
         </li>
