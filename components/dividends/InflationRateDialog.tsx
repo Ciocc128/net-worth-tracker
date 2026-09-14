@@ -55,7 +55,7 @@ const MECHANISM_COPY = {
       'Il coefficiente FOI trasforma la cedola provvisoria nell’incasso definitivo: da qui in poi il pagamento smette di essere un minimo.',
     label: "Tasso d'inflazione FOI del periodo (%)",
     step: '0.01',
-    placeholder: 'es. 1.30',
+    placeholder: 'es. 1,30',
     help: (freqLabel: string) =>
       `Inflazione FOI riferita al periodo della cedola${freqLabel ? ` (${freqLabel})` : ''}, come comunicata dal MEF/Tesoro o dalla tua banca poco prima dello stacco. In deflazione inserisci 0 (il tasso fisso resta garantito).`,
     invalid: 'Inserisci un tasso valido',
@@ -67,7 +67,7 @@ const MECHANISM_COPY = {
       'Il coefficiente alla data di stacco trasforma la cedola provvisoria nell’incasso definitivo: finora era calcolata all’ultimo coefficiente noto.',
     label: 'Coefficiente di indicizzazione alla data di stacco',
     step: '0.00001',
-    placeholder: 'es. 1.23456',
+    placeholder: 'es. 1,23456',
     help: () =>
       'Il coefficiente HICP del BTP€i alla data di pagamento, dalla tabella giornaliera del MEF o dalla tua banca. Vale anche come ultimo coefficiente noto per il valore in euro della posizione.',
     invalid: 'Inserisci un coefficiente maggiore di zero',

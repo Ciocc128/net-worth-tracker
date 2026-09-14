@@ -58,12 +58,15 @@
 
 ## Per-page blind spots
 
-- **Blind spot** (looks like a bug, is not): no Playwright spec (the session's throwaway ones were deleted). Two
-  two-click deletes still auto-disarm on a 3 s timer BY DESIGN, because they live on rows and not in modals and the
-  owner kept them (`DividendTable`, `AssistantThreadList`); the ones that moved into the modal vocabulary lost
-  theirs, and on 2026-09-14 Patrimonio's three (`AssetRow`, `StrumentiTile`, `CashAccountDialog` — the last one a
-  MODAL whose armed state the page held on a timer, so Escape closed it with the row armed) went to `useArmedDelete`
-  by the owner's call (doc/guide/patrimonio.md). `describeWriteError` maps 11 Firestore codes and anything else takes the generic
+- **Blind spot** (looks like a bug, is not): no Playwright spec of its own (the session's throwaway ones were
+  deleted; the refusal vocabulary is pinned by `e2e/cashflow.budget.spec.ts` and `e2e/cashflow.dividendi.spec.ts`).
+  ONE two-click delete still auto-disarms on a 3 s timer BY DESIGN, because it lives on rows and not in a modal and
+  the owner kept it (`AssistantThreadList`); the ones that moved into the modal vocabulary lost theirs, on 2026-09-14
+  Patrimonio's three (`AssetRow`, `StrumentiTile`, `CashAccountDialog` — the last one a MODAL whose armed state the
+  page held on a timer, so Escape closed it with the row armed) went to `useArmedDelete` by the owner's call
+  (doc/guide/patrimonio.md), and `DividendTable` followed the same evening (its «Conferma» kept the accessible name
+  «Elimina» and no live region until then). `ResponsiveModal.returnFocusTo` names the control the focus goes back
+  to: Radix restores it to whatever was focused at open, which is `body` after a window event or a non-focusable row. `describeWriteError` maps 11 Firestore codes and anything else takes the generic
   sentence, so a NEW cause is invisible until it is added — and a server message survives only if the thrower marks it
   `userFacingError`, which today only `assetTransactionService` does. The status line is FORM-level: per-field zod
   errors keep their own line under the field, and the two can both be visible at once. `dialogClassName` still exists as

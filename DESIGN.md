@@ -557,20 +557,23 @@ the viewport and its separation is the scrim, not a shadow (`components/ui/drawe
 (`describeModalStatus`, `describeWriteError`, the `describe*Intent`/`describe*Reading` builders),
 never typed in a component; the destructive primary arms through `lib/hooks/useArmedDelete.ts`.
 
-**Coverage (counted 2026-09-06, recounted 2026-09-14).** 30 surfaces are `ResponsiveModal` — the
-vocabulary above; the thirtieth is `components/expenses/SeriesDeleteDialog.tsx`, the one question a
-delete asks on a row of an instalment plan or a recurring series («solo questa o tutte?»), shared by
-the Movimenti table and the tab, which each kept an `AlertDialog` for it until that day. A PLAIN row
-of the table no longer opens a modal at all: its delete arms in the row (`useArmedDelete`, the row
-prints the consequence). The vocabulary is NOT yet total: besides `components/layout/LogoutDialog.tsx`,
-which stays an `AlertDialog` on purpose because it interrupts, six files still mount the raw shadcn
-primitives — `app/dashboard/page.tsx` (a `Dialog`), `components/dividends/DividendiDettaglio.tsx` (a
-`Dialog`, its title at `text-base`), `components/dividends/DividendTrackingTab.tsx` (`AlertDialog`
-confirms), `components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at `text-lg`, the
-detail drawer's confirm a drawer NESTED in a drawer), `components/cashflow/MobileFiltersDrawer.tsx`
-(a `Drawer`) and `components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit
-`DialogContent`'s own `sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of
-which is on the ramp above. Recorded as the remaining distance, not as a licence.
+**Coverage (counted 2026-09-06, recounted 2026-09-14 evening).** 32 surfaces are `ResponsiveModal` —
+the vocabulary above. The thirtieth is `components/expenses/SeriesDeleteDialog.tsx`, the one question
+a delete asks on a row of an instalment plan or a recurring series («solo questa o tutte?»), shared by
+the Movimenti table and the tab, which each kept an `AlertDialog` for it until that day; the
+thirty-first and thirty-second are Dividendi's «Scarica dividendi storici» confirm (`sm`, its reading
+naming the instruments and the floor, then «Sto scaricando» for the whole run — the `AlertDialog` it
+replaced closed on the click) and the per-year DPS figures of one row below `desktop:` (`sm`, a
+drawer on a phone; it was a `Dialog max-w-xs` at 16px). A PLAIN row of the Movimenti table and a row
+of the Dividendi table no longer open a modal at all: the delete arms in the row (`useArmedDelete`,
+the row prints the consequence). The vocabulary is NOT yet total: besides
+`components/layout/LogoutDialog.tsx`, which stays an `AlertDialog` on purpose because it interrupts,
+four files still mount the raw shadcn primitives — `app/dashboard/page.tsx` (a `Dialog`),
+`components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at `text-lg`, the detail drawer's
+confirm a drawer NESTED in a drawer), `components/cashflow/MobileFiltersDrawer.tsx` (a `Drawer`) and
+`components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit `DialogContent`'s own
+`sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of which is on the ramp
+above. Recorded as the remaining distance, not as a licence.
 
 ### Compact Page Header
 
