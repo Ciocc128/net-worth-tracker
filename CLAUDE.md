@@ -13,21 +13,24 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **167 files / 3764 tests** green + **51 Playwright E2E specs** (57 tests green in one full run on 2026-09-14 evening, 2,3 min, incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-14, decima sessione, su develop): **Critique Impeccable di Cashflow › Dividendi (23/40) chiusa
-  nella stessa sessione, sul mirror del conto reale (6 dividendi: Eni e Saipem venduti, tre cedole BTP Valore).**
-  (1) **Due popolazioni, entrambe nominate**: verdetto e inventario leggono il REGISTRO (anche i venduti); Affidabilità
-  e Chi paga di più misurano il PORTAFOGLIO di oggi (`heldAssetIds`) e nominano ciò che i venduti hanno pagato («altri
-  186 € da 2 strumenti venduti», riga residua, piè) — «Concentrazione alta: SPM.MI» era un rischio su un titolo venduto.
-  (2) Il verdetto nomina finestra e popolazione del rendimento («l'unico strumento con costo medio rende l'1,3% lordo
-  negli ultimi 12 mesi»), «in linea» a scarto zero, «nell'unico mese», «10 mar 2032». (3) `DividendDialog` nel
-  vocabolario delle modali: status line, `describeFormRefusal`, submit mai `disabled`, picker con bond e venduti (la
-  cedola del BTP non era registrabile), ritenuta dall'aliquota dello STRUMENTO (mai il 26% cablato), «Cedola» su un bond.
-  (4) Tastiera: riga-bottone in tabella, `useArmedDelete` senza timer con conseguenza e live region,
-  `ResponsiveModal.returnFocusTo`, calendario con frecce, asse `SegmentedPill radio`. (5) Sotto 1440 «Attesa» in
-  parole: chip, due totali, «attesa» in cella. (6) Stato vuoto a UNA tessera; `statsError` detto. **Collaudo**: `tsc`,
-  lint 0, Vitest intero `TZ=Europe/Rome` (167 / 3764), Playwright `e2e/cashflow.dividendi{,.mobile}.spec.ts` 4/4 e
-  suite COMPLETA 57/57, giro Playwright sul mirror a 1440/390 (overflow 0, console 0) e giro del proprietario. Snapshot `2026-09-14T13-56-26Z__components-dividends-dividendtrackingtab-tsx` chiuso da polish.
+- `tsc` clean; **167 files / 3777 tests** green + **51 Playwright E2E specs** (58 tests green in one full run on 2026-09-14 evening, 2,6 min, incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-14, undicesima sessione, su develop): **Critique Impeccable di Analisi (26/40, 1 P0, 3 P1) chiusa
+  nella stessa sessione, sul mirror del conto reale (1497 movimenti, 29 categorie, un mutuo con dodici rate
+  materializzate).** (1) **La Scheda misura il ritmo sui mesi VISSUTI** (`livedTotal`/`livedMonths`), la proiezione prende
+  il calendario come PAVIMENTO del ritmo (mai somma), la Scheda porta il taglio della pagina (`throughMonth`) e la lettura
+  nomina la finestra del delta («nei primi 9 mesi 5032 €») (Mutuo stampava tre ritmi insieme); euro interi,
+  «primo anno registrato». (2) **Lo Storico chiude sull'anno corrente**: «Dal 2025 al 2026», orizzonte «a fine anno» — prima
+  «19 anni» e diciassette anni vuoti fino al 2043. (3) **Il mese in corso confronta gli STESSI GIORNI** (`throughDay`, «A settembre finora», «vs Settembre
+  2025 (1–14 set)»); una finestra vuota è DETTA (`describeMissingBaseline`); la Periodo su Anno corrente dice «su 2025
+  (3 mesi ancora in calendario)». (4) **Flusso**: altezza dalla colonna più larga, `align="start"`, etichette neutre,
+  `ariaLabel`, sottocategorie solo per le 6 categorie maggiori × 4 + «Altre N», foglie mantenute. (5) Fuoco restituito
+  all'apritore della Scheda (Escape chiude), ricerca con `returnFocusTo`, asse `SegmentedPill radio` a 44px in griglia
+  2×2 sotto `sm`, Fuori scala assente su un mese non iniziato, «· in calendario» nelle spese maggiori (la didascalia di
+  `RankedRows` va a capo), mesi in calendario senza `opacity-60`, tick mono col meno tipografico, 28px → 32px.
+  **Collaudo**: `tsc`, lint 0, Vitest intero `TZ=Europe/Rome` (167 / 3777), Playwright `e2e/analisi{,.mobile}.spec.ts`
+  15/15 e suite COMPLETA 58/58 (2,6 min), giro Playwright sul mirror a 1440/390 (overflow 0, console 0) e del proprietario. Snapshot `2026-09-14T17-48-33Z__app-dashboard-analisi-page-tsx`
+  chiuso da polish. Il sidecar `.impeccable/design.json` è più vecchio di DESIGN.md: `/impeccable document` in una
+  sessione dedicata.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -49,7 +52,7 @@ One line per feature: what it is, then where it is described. *What the user see
 - **Centri di Costo**: optional tab; «quanto sta costando il progetto?» with no axis — a project's cost is its whole cost. doc/guide/centri-di-costo.md; DESIGN → Whole-Cost Corollary.
 - **Cashflow › Divisione**: optional tab; «quanto è costato in comune, e quanto resta a ciascuno?» on Tracciamento's axis — one field (`personalMemberId`, absent = in comune), shares from the period's attributed salaries, a tile per person, and a section in the monthly email. doc/guide/cashflow-divisione.md.
 - **Expense CSV Import**: preview-first, one-tap undo by `importBatchId`. doc/guide/cashflow.md.
-- **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on the four-mode axis; a running year is compared full year against full year; the focused entity is a tile; the app's only Sankey. README → *Cashflow*; doc/guide/cashflow-analisi.md; doc/guide/cashflow.md (grouping, Sankey, drill-down).
+- **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on the four-mode axis; a running year is compared full year against full year, the running month on the SAME DAYS, the history closes on the current year; the focused entity is a tile whose pace is measured on the months lived; the app's only Sankey, sized to its widest column. README → *Cashflow*; doc/guide/cashflow-analisi.md; doc/guide/cashflow.md (grouping, Sankey, drill-down).
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced are never one figure; BTP Italia (FOI added) and BTP€i (coefficient multiplied) coupons, provisional until the period's datum is entered; a zero coupon generates nothing. README → *Dividends*; doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» on one axis, a configurable base (the pension funds enter it honestly: from the tracked month, their entry and every later contribution a FLOW on `CashFlowData.pensionFlow`), six benchmarks in EUR, and «Da dove viene il rendimento» — the market gain per instrument in euro, reconciled to the TWR numerator with the residual declared and its outsized months named. README → *Performance Analytics*; doc/guide/rendimenti.md.
 - **Storico**: «come sono arrivato qui?» with no axis — wealth growth (contributions included), ONE pace for the verdict and the next doubling, per-instrument price/quantity attribution. README → *Historical Analysis*; doc/guide/storico.md.
@@ -98,7 +101,7 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Divisione's shares follow the PERIOD's salaries** (owner's call): a thirteenth salary moves the percentage, and a month with no salary recorded has no shares at all — `resolveSplitBasis` says so by name instead of printing 100/0. It **shipped without an end-to-end run with the flag ON**: the pure layer, flag-off invariance, `tsc`, suite and build are proven; the `personalMemberId` writes and the rendering are not. doc/guide/cashflow-divisione.md.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
-- **Quattro superfici stanno ancora fuori dal vocabolario delle modali** (2026-09-06, ricontate 2026-09-14 sera): `app/dashboard/page.tsx`, `cashflow/{TransactionFeed,MobileFiltersDrawer}`, `assistant/AssistantSheets` montano `Dialog`/`Drawer`/`Sheet` grezzi (titolo 18/16px, quinta larghezza 512px); la conferma del drawer di dettaglio del feed è un drawer ANNIDATO in un drawer. `ExpenseTable`, `ExpenseTrackingTab` (`SeriesDeleteDialog` + delete armato in riga) e `dividends/{DividendiDettaglio,DividendTrackingTab}` (scarico e DPS per anno in `ResponsiveModal sm`, delete armato in riga) sono usciti il 2026-09-14. Elenco in DESIGN.md → §5 Modal, Coverage.
+- **Quattro superfici stanno ancora fuori dal vocabolario delle modali** (2026-09-06, ricontate 2026-09-14 sera): `app/dashboard/page.tsx`, `cashflow/{TransactionFeed,MobileFiltersDrawer}`, `assistant/AssistantSheets` montano `Dialog`/`Drawer`/`Sheet` grezzi (titolo 18/16px, quinta larghezza 512px); la conferma del drawer di dettaglio del feed è un drawer ANNIDATO in un drawer. Elenco in DESIGN.md → §5 Modal, Coverage.
 - **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
 - **The market digest's blind spots**: a position opened this month contributes 0 until next month; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt.
 - **Bonds saved before 2026-09-11 with the nominal empty or 1 keep a wrong PMC and opening trade** (the raw quote as
@@ -141,8 +144,8 @@ Entry points only: each `doc/guide/<tema>.md` opens with the full file list of i
 - **E2E**: `playwright.config.ts`, `e2e/*.ts`, `e2e/global-setup.ts`, fixtures `scripts/{seedEmulator.ts,seedPensionE2E,seedAnalisiE2E,seedCoastFireE2E}.mts`; scripts `test:e2e`/`e2e:seed*`/`dev:e2e`; the production mirror `scripts/mirrorProdAccount.mts` (`mirror:seed`/`mirror:remove`)
 
 ## Design Context
-The propagation is finished: twenty-three sections, the last on 2026-09-01; the per-section prompt file was retired on 2026-09-06, so a change to a page starts from its `doc/guide/<page>.md` and from DESIGN.md's named rules, not from a prompt.
+The propagation is finished (twenty-three sections, the last on 2026-09-01): a change to a page starts from its `doc/guide/<page>.md` and from DESIGN.md's named rules, not from a prompt.
 
 Authoritative aesthetic spec: **DESIGN.md** — hand-maintained, **never regenerate it**; its YAML frontmatter is the normative layer read by the impeccable detector, `.impeccable/design.json` only the extensions sidecar. Product truth lives in **PRODUCT.md**. This file carries no paraphrase: rules are cited by name (DESIGN → **The X Rule**) and enforced by `components/ui/{tile,page-verdict,responsive-modal}.tsx`, `statesNarrative.ts` and `printTokens.ts`.
 
-**Last updated**: 2026-09-13 (The Scrub Rule retired; The Page Scene and The Period-Transforms Rule stay). DESIGN.md documents the "Verdict over Tiles" shape, the shell and the twenty-three propagations, and was re-read against the finished code on 2026-09-06 (light chart palette, warning surface, dark sign values and every scale step in the frontmatter; zero-implementation patterns superseded; the DOM-side hex inventory declared); Rendimenti's grid gained the «Da dove viene il rendimento» tile on 2026-09-06 inside the same rules (Ranked Rows with Residual). Superseded patterns stay marked. History: `git log`.
+**Last updated**: 2026-09-14 (the Scheda's whole-euro aggregates, the Sankey's label neutrals in the hex inventory). DESIGN.md documents the "Verdict over Tiles" shape, the shell and the twenty-three propagations, re-read against the finished code on 2026-09-06; superseded patterns stay marked. History: `git log`.
