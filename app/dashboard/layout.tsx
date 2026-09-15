@@ -59,6 +59,7 @@ export default function DashboardLayout({
                 Page scene); the shell around it stays still. template.tsx carries the fallback
                 fade for browsers without view transitions. */}
             <main
+              aria-label="Contenuto della pagina"
               className="flex-1 overflow-y-auto bg-background p-4 desktop:p-5 max-desktop:portrait:[padding-bottom:calc(env(safe-area-inset-bottom,0px)+88px)] max-desktop:landscape:pb-6"
               style={{ viewTransitionName: 'page-main' }}
             >

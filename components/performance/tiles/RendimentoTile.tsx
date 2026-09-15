@@ -130,7 +130,7 @@ export function RendimentoTile({
             <p className={TILE_SUB_EYEBROW_CLASS}>Crescita di 100</p>
             <div className="flex gap-3 text-[11px] text-muted-foreground" aria-hidden="true">
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-1)' }} />
+                <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--hero-series)' }} />
                 Portafoglio
               </span>
               {series.benchmarkEnd !== null && (

@@ -36,6 +36,8 @@ import { TargetTick } from './TargetTick';
 
 interface AllocationRowProps {
   name: string;
+  /** CSS custom property of the row's asset class (`--chart-3`), for the tick's fill where the theme asks for it. */
+  classCssVar?: string;
   data: AllocationData;
   /** Resolved, legibility-clamped colour for this row's action (from `useActionColors()`, once per tile). */
   actionColor: string;
@@ -67,6 +69,7 @@ function formatGap(differenceValue: number): string {
 
 export function AllocationRow({
   name,
+  classCssVar,
   data,
   actionColor,
   depth = 0,
@@ -157,7 +160,10 @@ export function AllocationRow({
       </div>
 
       {!theoretical && !untargeted && (
-        <TargetTick className="mt-1" currentPercentage={data.currentPercentage} targetPercentage={data.targetPercentage} />
+        <TargetTick
+          className="mt-1"
+          color={classCssVar ? `var(--allocation-row-bar, var(${classCssVar}))` : undefined}
+          currentPercentage={data.currentPercentage} targetPercentage={data.targetPercentage} />
       )}
     </div>
   );

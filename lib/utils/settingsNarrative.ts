@@ -22,6 +22,7 @@ import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/pensionUnlock';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import type { ExpenseType } from '@/types/expenses';
+import type { CategoryClassificationCounts } from '@/lib/utils/spendingRoles';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
 
@@ -278,15 +279,21 @@ export interface CashflowSettingsInput {
   // toggle is on and nothing happens, so the reading has to say which input is missing
   // rather than promising a division the page cannot compute.
   familyMemberCount: number;
+  spendingRolesEnabled: boolean;
+  // From summarizeCategoryClassification — the roles live on the categories, so the reading can
+  // only be honest about the Sankey by saying how many of them carry one.
+  categoryClassification: CategoryClassificationCounts;
 }
 
-/** Cashflow — labor income categories, the history floor, cost centers, the household split. */
+/** Cashflow — labor income categories, the history floor, cost centers, the household split, 50/30/20. */
 export function describeCashflowSettings({
   laborCategoryNames,
   historyStartYear,
   costCentersEnabled,
   expenseSplitEnabled,
   familyMemberCount,
+  spendingRolesEnabled,
+  categoryClassification,
 }: CashflowSettingsInput): Narrative {
   const segments: Narrative = [];
   if (laborCategoryNames.length === 0) {
@@ -309,7 +316,32 @@ export function describeCashflowSettings({
     prose(costCentersEnabled ? '; Centri di Costo attivi' : '; Centri di Costo spenti')
   );
   segments.push(...describeSplitClause(expenseSplitEnabled, familyMemberCount));
+  if (spendingRolesEnabled) segments.push(...describeSpendingRolesSentence(categoryClassification));
   return segments;
+}
+
+/**
+ * The 50/30/20 sentence, only when the feature is on (off, the Switch beside it says enough).
+ *
+ * Names what is still unclassified, because those categories land in «Da classificare» on the
+ * Sankey rather than in any of the three roles.
+ */
+function describeSpendingRolesSentence({ spending, classified }: CategoryClassificationCounts): Narrative {
+  if (spending === 0) {
+    return [prose(' 50/30/20 attivo, ma non c’è ancora nessuna categoria di spesa da classificare.')];
+  }
+  if (classified === spending) {
+    if (spending === 1) return [prose(' 50/30/20: l’unica categoria di spesa ha un ruolo.')];
+    return [prose(' 50/30/20: tutte le '), figure(String(spending)), prose(' categorie di spesa hanno un ruolo.')];
+  }
+  const missing = spending - classified;
+  return [
+    prose(' 50/30/20: '),
+    figure(String(classified)),
+    prose(` categorie di spesa su ${spending} hanno un ruolo; `),
+    figure(String(missing)),
+    prose(missing === 1 ? ' finisce in «Da classificare».' : ' finiscono in «Da classificare».'),
+  ];
 }
 
 /**

@@ -43,12 +43,12 @@ function readingOf(category: RecordCategory): { signedValue: boolean; signedPerc
 }
 
 /**
- * The bar takes the chart slot the app already uses for that quantity: `--chart-1` for net worth
- * and for spending, `--chart-2` for money coming in and money kept. Three tiles all painted with
+ * The bar takes the token the app already uses for that quantity: `--hero-series` for net worth
+ * and for spending, `--flow-in` for money coming in and money kept. Three tiles all painted with
  * the net-worth slot would say the three rankings measure the same thing.
  */
 function barColorOf(category: RecordCategory): string {
-  return category === 'income' || category === 'savings' ? 'var(--chart-2)' : 'var(--chart-1)';
+  return category === 'income' || category === 'savings' ? 'var(--flow-in)' : 'var(--hero-series)';
 }
 
 const MINUS = '−';
@@ -77,7 +77,11 @@ export function RecordRows({
   const { signedValue, signedPercentage } = readingOf(category);
   const barColor = barColorOf(category);
   const maxValue = Math.max(...shown.map((row) => Math.abs(row.value)), 0);
-  const labelWidth = labelClassName ?? 'w-[72px]';
+  // A label is never cut (owner's call, 2026-09-15: «set … ORA» read as nothing): the column is ONE
+  // width for the whole list so the bars still start together, widened when a row carries «ora».
+  const hasCurrent = shown.some((row) => row.isCurrent);
+  // The caller's width is a floor for its vocabulary; «ora» widens past it, never under it.
+  const labelWidth = hasCurrent ? cn(labelClassName, 'w-[108px]') : cn('w-[72px]', labelClassName);
 
   return (
     <ul className="flex flex-col divide-y divide-border" aria-label={ariaLabel}>
@@ -88,7 +92,7 @@ export function RecordRows({
           </span>
 
           <span className={cn('flex shrink-0 items-center gap-1.5 text-[13px] text-foreground', labelWidth)}>
-            <span className="truncate">{row.label}</span>
+            <span className="whitespace-nowrap">{row.label}</span>
             {row.isCurrent && <span className={cn(TILE_SUB_EYEBROW_CLASS, 'shrink-0')}>ora</span>}
           </span>
 

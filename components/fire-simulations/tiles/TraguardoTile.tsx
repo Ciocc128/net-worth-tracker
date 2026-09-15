@@ -13,7 +13,7 @@
  * reading, a number, a track and a footer, like every other tile. The footer is the chart's
  * legend in words (Scenari) or the fan's one number (Ventaglio) — `describeTargetFooter`.
  *
- * The track fills to the progress capped at 100%, in `--chart-1` (the base scenario's hue) and in
+ * The track fills to the progress capped at 100%, in `--scenario-base` (the base scenario's hue) and in
  * the gain token once the target is reached: reaching FIRE is a fact with a sign; being at 68% is
  * not, so the chip stays neutral.
  */
@@ -86,7 +86,7 @@ export function TraguardoTile({ reading, target, caption, view, onViewChange, fa
         aria-valuemax={100}
         aria-valuenow={Math.round(fill)}
       >
-        <div className={cn('h-full rounded-full', target.reached ? 'bg-positive' : 'bg-[var(--chart-1)]')} style={{ width: `${fill}%` }} />
+        <div className={cn('h-full rounded-full', target.reached ? 'bg-positive' : 'bg-[var(--scenario-base)]')} style={{ width: `${fill}%` }} />
       </div>
 
       {/* The chart stretches with the tile's free height: the SVG's 100% height resolves

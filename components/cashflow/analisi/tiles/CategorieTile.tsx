@@ -6,7 +6,7 @@ import type { Narrative } from '@/lib/utils/narrative';
 import type { CategorySlice } from '@/lib/utils/cashflowComposition';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { Tile } from '@/components/ui/tile';
+import { Tile, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 import { RankedRows } from '@/components/ui/ranked-rows';
 
 /** Rows shown before «Mostra tutte» takes over — enough for the shape, not a whole taxonomy. */
@@ -58,7 +58,7 @@ export function CategorieTile({ eyebrow, kind, slices, total, reading, activeKey
         <div className="mt-2 flex flex-1 flex-col">
           <RankedRows
             rows={visible.map((slice) => ({ key: slice.key, label: slice.name, amount: slice.value, percentage: slice.percentage }))}
-            color={kind === 'income' ? 'var(--chart-2)' : 'var(--chart-1)'}
+            color={kind === 'income' ? 'var(--flow-in)' : 'var(--flow-out)'}
             labelClassName={labelClassName}
             ariaLabel={eyebrow}
             activeKey={activeKey}
@@ -79,7 +79,7 @@ export function CategorieTile({ eyebrow, kind, slices, total, reading, activeKey
                 type="button"
                 onClick={() => setShowAll((value) => !value)}
                 aria-expanded={expanded}
-                className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-foreground hover:text-muted-foreground desktop:min-h-0"
+                className={cn(TILE_FOOTER_ACTION_CLASS, 'shrink-0 gap-1 hover:text-muted-foreground')}
               >
                 {expanded ? 'Mostra meno' : `Mostra tutte (${slices.length})`}
                 <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} aria-hidden="true" />

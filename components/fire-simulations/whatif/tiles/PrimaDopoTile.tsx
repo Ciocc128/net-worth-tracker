@@ -44,11 +44,11 @@ export function PrimaDopoTile({ reading, aside, chart, targetsDiffer, footer, cl
           Piano di oggi
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-[2px] w-3.5 rounded-full bg-[var(--chart-1)]" />
+          <span className="h-[2px] w-3.5 rounded-full bg-[var(--scenario-base)]" />
           Dopo l&apos;evento
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3.5 border-t-[1.5px] border-dashed border-[var(--chart-1)]" />
+          <span className="w-3.5 border-t-[1.5px] border-dashed border-[var(--scenario-base)]" />
           {targetsDiffer ? 'Numero FIRE (oggi in grigio)' : 'Numero FIRE'}
         </span>
       </div>

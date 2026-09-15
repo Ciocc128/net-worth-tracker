@@ -258,7 +258,7 @@ export function ValoreStrumentoTile({
               <XAxis dataKey="key" tickFormatter={shortTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={32} />
               <YAxis tickFormatter={(value: number) => formatCurrencyCompact(value)} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={52} domain={[(dataMin: number) => Math.min(0, dataMin), 'auto']} />
               <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--foreground)', strokeOpacity: 0.25, strokeWidth: 1 }} />
-              <Line type="monotone" dataKey="total" name="Selezione" stroke="var(--chart-1)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--chart-1)' }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
+              <Line type="monotone" dataKey="total" name="Selezione" stroke="var(--hero-series)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--hero-series)' }} isAnimationActive={!prefersReducedMotion} animationDuration={600} animationEasing="ease-out" />
             </LineChart>
           </ResponsiveContainer>
         </div>

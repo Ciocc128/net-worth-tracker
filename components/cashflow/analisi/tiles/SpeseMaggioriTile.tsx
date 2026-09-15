@@ -39,7 +39,10 @@ export function SpeseMaggioriTile({ top, reading, onSelect, className }: SpeseMa
         <div className="mt-2 flex flex-1 flex-col">
           <RankedRows
             rows={rows}
-            color="var(--chart-1)"
+            color="var(--flow-out)"
+            // 46% is the most a 4-column tile can give the label beside the bar's 40px floor, the amount
+            // and the share; a long caption («30 set · Asilo nido · in calendario») wraps in RankedRows
+            // rather than truncating, so the column never needs to grow past it (2026-09-14).
             labelClassName="w-[46%] min-w-[120px]"
             ariaLabel="Spese maggiori del periodo"
             onRowClick={(row) => {

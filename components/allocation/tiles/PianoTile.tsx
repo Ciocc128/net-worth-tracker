@@ -37,6 +37,9 @@ import { ActionChip } from '@/components/allocation/ActionChip';
 import { InstrumentTradeList } from '@/components/allocation/InstrumentTradeList';
 import { PlanRow } from '@/components/allocation/PlanRow';
 
+/** Trades shown before «Mostra tutte»: past six the tile outgrew the Bilanciamento tile beside it. */
+const PLAN_ROWS_COLLAPSED = 6;
+
 interface PianoTileProps {
   mode: PlanMode;
   onModeChange: (mode: PlanMode) => void;
@@ -77,7 +80,7 @@ function MoveRow({ move, actionColors }: { move: RebalanceMove; actionColors: Re
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <ActionChip action={move.action} color={actionColors[move.action]} />
-          <span className="truncate text-[13px] font-medium text-foreground" title={move.label}>
+          <span className="line-clamp-2 break-words text-[13px] font-medium text-foreground" title={move.label}>
             {move.label}
           </span>
         </div>
@@ -105,7 +108,7 @@ function RebalanceBody({ view, actionColors }: { view: Extract<PlanView, { mode:
     if (view.trades.length === 0) return null;
     return (
       <div className="mt-3">
-        <InstrumentTradeList trades={view.trades} actionColors={actionColors} ariaLabel="Operazioni del ribilanciamento" />
+        <InstrumentTradeList trades={view.trades} actionColors={actionColors} ariaLabel="Operazioni del ribilanciamento" collapseAfter={PLAN_ROWS_COLLAPSED} />
         {/* The resulting leverage belongs to the trades: with none, it is the current one and the
             Bilanciamento tile already prints it. */}
         {view.resultingLeverageRatio !== null && (
@@ -176,7 +179,7 @@ function FlowBody({
       {view.trades ? (
         view.trades.length > 0 && (
           <div className="mt-3">
-            <InstrumentTradeList trades={view.trades} actionColors={actionColors} ariaLabel={listLabel} />
+            <InstrumentTradeList trades={view.trades} actionColors={actionColors} ariaLabel={listLabel} collapseAfter={PLAN_ROWS_COLLAPSED} />
           </div>
         )
       ) : (

@@ -28,6 +28,15 @@
   `updateExpense` re-derives the sign from the incoming type and nulls `transferCashAssetId` when it leaves transfer.
   **That control lives in EDIT mode only** — creation picks the type in step 1 (AGENTS.md § Two-Step Create Dialogs), so the
   reconciliation paths above are reachable exclusively from a saved row.
+- **A transfer IS its two accounts** (2026-09-13): `expenseSchema`'s last `superRefine` refuses a `transfer` without
+  origin and destination or with the same account twice, with the error under each Select (the `__none__` sentinel
+  counts as empty); the two labels carried an asterisk the schema did not honour, so a transfer saved without accounts
+  moved no money and said nothing. Without any cash account the dialog says so in place of the pickers.
+- **The first occurrence of a series moves the account WITH THE SIGN OF ITS TYPE** (2026-09-13): the recurring branch
+  of `firstSignedAmount` in `ExpenseDialog.onSubmit` was hard-coded negative — latent, not a bug: `canTypeRecur` keeps
+  incomes out of recurrence, so the branch never met a salary — and now shares the `income → +, else −` rule of the
+  instalment and single branches, so widening `RECURRING_EXPENSE_TYPES` cannot debit an income. Pinned by
+  `e2e/cashflow.accounts.spec.ts` (a recurring expense debits the account once, for its first row).
 - **The BATCH paths refuse to cross the transfer boundary** (`crossesTransferBoundary`): `updateExpensesType`,
   `moveExpensesToCategory`, `moveExpensesFromSubCategory` throw `TransferBoundaryError` when expenses exist, since each
   row would need its own destination account.
@@ -71,3 +80,25 @@
 - **The type belongs inside the category id** (`cat:{tipo}:{chiave}`), because without that prefix an income and an
   expense category of the same name close a cycle through Budget and `computeNodeDepths` throws `"circular link"`,
   blanking the chart. **Ids are opaque**: `index` is the only sanctioned way to ask what a node is.
+
+## Ruoli 50/30/20: Necessità · Desideri · Risparmi (`lib/utils/spendingRoles.ts`)
+- **Opt-in** (`settings.spendingRolesEnabled`, Impostazioni › Preferenze › Cashflow, the five write places) and meant
+  for Analisi's Sankey only: category icons stay neutral and there is no 50/30/20 tile. Session A (2026-09-15) shipped
+  the field, the dialog and the pure layer; session B the Flusso view, its reading and the role tokens
+  (doc/guide/cashflow-analisi.md, doc/guide/temi.md).
+- **The role lives on the category, never on the row**: `ExpenseCategory.spendingRole`, with an optional per-subcategory
+  override (`ExpenseSubCategory.spendingRole`, WiFi = need inside a want-classified Abbonamenti). Rows carry
+  `categoryId`, so a reclassification is retroactive on every period with no bulk update. **`resolveSpendingRole` is the
+  ONE resolution**: override → category → `null` («Da classificare»); a missing category and a non-spending one (income,
+  transfer — a role left behind by a type change) are `null` too.
+- **Risparmi is not a category total**: `summarizeSpendingRoles` gives savings = saving-classified rows + the period's
+  surplus. When spending exceeds income the surplus is 0 and the gap becomes `deficit`, drawn on the income side as
+  «Coperto dal patrimonio» — a Sankey has no negative width. Invariant, tested: `income + deficit = need + want +
+  unclassified + saving + surplus`. Amounts are absolute, the row's own type decides income vs spending, transfers skip.
+- **Clearing a role must delete the field**: «Da classificare» is the absence of `spendingRole`, and
+  `removeUndefinedDeep` would drop the key and keep the old role. `updateCategory` writes `deleteField()` when the key is
+  present with `undefined`; the key absent means "not edited". **The dialog writes the role only when it showed it**
+  (setting on), so a category saved with the setting off keeps its classification; a category moved to income or
+  transfer sheds its roles.
+- **The legacy «Fondo Pensione» expense category is empty** on the owner's account (mirror, 2026-09-15: zero rows on
+  both the variable and the income category; Previdenza's contributions are transfers) — no double count to clean.

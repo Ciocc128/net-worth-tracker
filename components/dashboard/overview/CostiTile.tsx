@@ -47,7 +47,9 @@ export function CostiTile({ metrics, flags, costDrivers, className }: CostiTileP
         )}
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}>Costo annuo</p>
-          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-warning-foreground">
+          {/* --cost-figure: ink by default, as upstream (a cost is a fact the reading already judges);
+              a theme may make it stand out without the red of a decision — Lime Frost amber. */}
+          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-cost-figure">
             {cachedFormatCurrencyEUR(annualTotal, true)}
           </p>
         </div>
@@ -65,8 +67,11 @@ export function CostiTile({ metrics, flags, costDrivers, className }: CostiTileP
         )}
       </p>
 
+      {/* Follows the figures (`mt-4`), not the tile's bottom (`mt-auto`): the drivers are part of
+          the answer, not a footer link, and pinned they left ~110px of nothing between the TER
+          line and «Pesano di più» whenever a taller tile shared the row (measured 2026-09-13). */}
       {drivers.length > 0 && (
-        <div className="mt-auto flex flex-col border-t border-border pt-3.5">
+        <div className="mt-4 flex flex-col border-t border-border pt-3.5">
           <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mb-0.5')}>Pesano di più</p>
           <div className="flex flex-col divide-y divide-border">
             {drivers.map((driver) => (

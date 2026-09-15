@@ -20,6 +20,9 @@
  *     form asks for the indexation coefficient at the trade date and the trade remembers it.
  *   - Baseline trades are locked to quantity/PMC/note edits; the type selector is
  *     disabled in edit mode (changing a trade's type is a delete+recreate, kept out of v1).
+ *   - The date has ONE floor, the asset's own baseline (a migrated asset), and the future as the
+ *     only ceiling: any past purchase is recorded with its real date (2026-09-13). A date in a
+ *     past month turns the settlement clause into a warning — the balance moves today, not then.
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
@@ -32,7 +35,6 @@ import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useAssets } from '@/lib/hooks/useAssets';
 import {
-  useAssetLedgerMeta,
   useAssetTransactions,
   useCreateAssetTransaction,
   useUpdateAssetTransaction,
@@ -48,10 +50,12 @@ import {
   type BondQuoteBasis,
 } from '@/lib/utils/bondPricing';
 import { latestIndexationCoefficient, resolveInflationIndexation } from '@/lib/utils/couponUtils';
+import { getItalyDateIso } from '@/lib/utils/dateHelpers';
 
 import { cachedFormatCurrencyEUR, formatCurrency } from '@/lib/utils/formatters';
 import {
   describeModalStatus,
+  describeSettlementTiming,
   describeTradeIntent,
   describeWriteError,
   type ModalStatus,
@@ -138,7 +142,6 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
   const isEdit = !!transaction;
   const isBaseline = transaction?.isBaseline === true;
 
-  const { data: ledgerMeta } = useAssetLedgerMeta(ownerId);
   const { data: allAssets = [] } = useAssets(ownerId);
   const { data: existingTransactions = [] } = useAssetTransactions(ownerId, asset.id, {
     enabled: open,
@@ -172,10 +175,14 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
   );
 
   const todayIso = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const baselineIso = useMemo(
-    () => (ledgerMeta ? ledgerMeta.baselineDate.toISOString().split('T')[0] : undefined),
-    [ledgerMeta]
+  // The only floor a trade date has is the asset's OWN opening position (a migrated asset; the
+  // replay refuses anything before it). An asset without a baseline accepts any past date, so a
+  // purchase made years before the ledger existed is recorded with its real date (2026-09-13).
+  const ownBaseline = useMemo(
+    () => existingTransactions.find((t) => t.isBaseline === true),
+    [existingTransactions]
   );
+  const minDateIso = ownBaseline ? getItalyDateIso(ownBaseline.date) : undefined;
 
   const {
     register,
@@ -199,6 +206,7 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
   });
 
   const type = useWatch({ control, name: 'type' });
+  const date = useWatch({ control, name: 'date' });
   const quantity = useWatch({ control, name: 'quantity' });
   const pricePerUnit = useWatch({ control, name: 'pricePerUnit' });
   const fees = useWatch({ control, name: 'fees' });
@@ -496,7 +504,7 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
                 {isActive && (
                   <motion.div
                     layoutId={`trade-type-pill-${layoutId}`}
-                    className="absolute inset-0 rounded-md bg-background shadow-sm"
+                    className="absolute inset-0 rounded-md bg-segment-active shadow-sm"
                     transition={
                       reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 35 }
                     }
@@ -521,14 +529,14 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
             <Input
               id="trade-date"
               type="date"
-              min={baselineIso}
+              min={minDateIso}
               max={todayIso}
               {...register('date')}
             />
-            {baselineIso && (
+            {ownBaseline && (
               <p className="text-xs text-muted-foreground">
-                Le operazioni partono dal {ledgerMeta ? formatItDate(ledgerMeta.baselineDate) : ''}{' '}
-                (inizio del registro).
+                Le operazioni di questo asset partono dalla posizione iniziale del{' '}
+                {formatItDate(ownBaseline.date)}.
               </p>
             )}
           </div>
@@ -647,7 +655,7 @@ export function TransactionDialog({ open, onClose, asset, transaction }: Transac
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Se selezionato, il saldo del conto viene aggiornato automaticamente.
+                {describeSettlementTiming(date ?? '', todayIso)}
               </p>
             </div>
           </>
@@ -724,11 +732,12 @@ function formatQty(value: number): string {
   return value.toLocaleString('it-IT', { maximumFractionDigits: 8 });
 }
 
-/** DD/MM/YYYY without pulling date-fns into this module. */
+/** DD/MM/YYYY of the Italian calendar day (a baseline is dated to start-of-day Italy), without pulling date-fns into this module. */
 function formatItDate(date: Date): string {
   return new Intl.DateTimeFormat('it-IT', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'Europe/Rome',
   }).format(date);
 }

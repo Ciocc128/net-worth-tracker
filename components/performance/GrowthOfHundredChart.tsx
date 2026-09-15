@@ -92,15 +92,15 @@ export function GrowthOfHundredChart({ series, benchmarkName, minHeight = 160, c
       <div className="relative flex-1" style={{ minHeight }} {...(hover.enabled ? hover.handlers : {})}>
         <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" role="img" aria-label={label}>
           <line x1={0} x2={VIEW_W} y1={sy(100)} y2={sy(100)} stroke="var(--foreground)" strokeOpacity={0.6} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-          <path d={areaPath} fill="var(--chart-1)" fillOpacity={0.16} />
+          <path d={areaPath} fill="var(--hero-series)" fillOpacity={0.16} />
           {benchmarkPaths.map((d, i) => (
             <path key={i} d={d} fill="none" stroke="var(--muted-foreground)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
           ))}
-          <path d={portfolioPath} fill="none" stroke="var(--chart-1)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          <path d={portfolioPath} fill="none" stroke="var(--hero-series)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
           {hovered && hover.index !== null && (
             <>
               <line x1={sx(hover.index)} x2={sx(hover.index)} y1={0} y2={VIEW_H} stroke="var(--foreground)" strokeOpacity={0.25} vectorEffect="non-scaling-stroke" />
-              <circle cx={sx(hover.index)} cy={sy(hovered.portfolio)} r={3} fill="var(--chart-1)" stroke="var(--card)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+              <circle cx={sx(hover.index)} cy={sy(hovered.portfolio)} r={3} fill="var(--hero-series)" stroke="var(--card)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             </>
           )}
         </svg>

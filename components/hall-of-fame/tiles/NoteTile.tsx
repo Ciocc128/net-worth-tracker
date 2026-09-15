@@ -64,7 +64,7 @@ export function NoteTile({ reading, summary, notes, onOpenNote, onAddNote, disab
                   <span className="flex min-w-0 flex-1 flex-col gap-1 desktop:flex-row desktop:items-baseline desktop:gap-3">
                     <span className="flex min-w-0 shrink-0 items-baseline gap-2 desktop:w-[240px]">
                       <span className="font-mono text-[13px] tabular-nums text-foreground">{row.label}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">
+                      <span className="break-words text-[11px] text-muted-foreground">
                         {row.sectionLabels.join(' · ')}
                       </span>
                     </span>

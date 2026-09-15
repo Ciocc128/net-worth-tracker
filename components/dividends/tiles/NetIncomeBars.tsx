@@ -2,7 +2,7 @@
 
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { ChartHoverTip, CURRENT_SLOT_LABEL_CLASS, CurrentSlotBand, useChartHover } from '@/components/ui/chart-hover';
 
 export interface NetIncomeBarPoint {
   key: string;
@@ -41,7 +41,7 @@ const HEAD_ROOM = 6;
  * One component serves both the hero's monthly bars and the Per anno tile's yearly ones — two
  * windows of the same quantity, and a second implementation would drift.
  *
- * Colour is `--chart-2`, the slot the rest of the app already uses for income. A window still
+ * Colour is `--flow-in`, the token the rest of the app uses for income (chart-2 unless a theme names it). A window still
  * running is drawn at reduced opacity and outlined: it is real data, but it is not yet
  * comparable with the closed ones the reading ranks.
  */
@@ -74,12 +74,12 @@ export function NetIncomeBars({
           aria-label={`${ariaLabel} ${label}.`}
         >
           <line x1={0} y1={VIEW_H - 0.5} x2={VIEW_W} y2={VIEW_H - 0.5} stroke="var(--border)" vectorEffect="non-scaling-stroke" />
+          <CurrentSlotBand index={points.findIndex((p) => p.key === highlightKey || p.ongoing === true)} slot={slot} height={VIEW_H} />
           {hover.index !== null && (
             <rect x={hover.index * slot} y={0} width={slot} height={VIEW_H} fill="var(--foreground)" opacity={0.06} />
           )}
           {points.map((point, i) => {
             const height = heightOf(point.value);
-            const outlined = point.key === highlightKey || point.ongoing === true;
             return (
               <g key={point.key}>
                 <title>{`${point.caption}: ${cachedFormatCurrencyEUR(point.value, true)}`}</title>
@@ -88,10 +88,8 @@ export function NetIncomeBars({
                   y={VIEW_H - height}
                   width={barWidth}
                   height={height}
-                  fill="var(--chart-2)"
+                  fill="var(--flow-in)"
                   fillOpacity={point.ongoing ? 0.55 : 1}
-                  stroke={outlined ? 'var(--foreground)' : 'none'}
-                  vectorEffect="non-scaling-stroke"
                 />
               </g>
             );
@@ -129,7 +127,7 @@ export function NetIncomeBars({
             key={point.key}
             className={cn(
               'text-center font-mono text-[10px] tabular-nums',
-              point.key === highlightKey || point.ongoing ? 'font-semibold text-foreground' : 'text-muted-foreground',
+              point.key === highlightKey || point.ongoing ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
             )}
           >
             {point.label}

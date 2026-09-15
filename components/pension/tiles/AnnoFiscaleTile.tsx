@@ -23,6 +23,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
+import { ASIDE_LINK_CLASS } from '@/components/pension/pensionStyles';
 
 export interface AnnoFiscaleTileProps {
   /** The axis year every figure is read on («Anno fiscale 2026»). */
@@ -58,7 +59,7 @@ function MemberBlock({ block, tax, named }: { block: PensionMemberBlock; tax: Pe
   return (
     <div>
       <p className={TILE_SUB_EYEBROW_CLASS}>{named ? `${name} · Risparmio IRPEF stimato` : 'Risparmio IRPEF stimato'}</p>
-      <p className={cn('mt-1.5 text-foreground', KPI_VALUE_CLASS)}>
+      <p className={cn('mt-1.5 text-estimate-figure', KPI_VALUE_CLASS)}>
         {tax.taxSaving !== null ? `~${cachedFormatCurrencyEUR(tax.taxSaving, true)}` : '—'}
       </p>
       {tax.ral === null && (
@@ -89,7 +90,7 @@ function MemberBlock({ block, tax, named }: { block: PensionMemberBlock; tax: Pe
           aria-valuemax={100}
           aria-label={`Dedotto ${deducted} su un tetto di ${ceiling}`}
         >
-          <div className="h-full rounded-full bg-foreground" style={{ width: `${share}%` }} />
+          <div className="h-full rounded-full bg-[var(--progress-fill)]" style={{ width: `${share}%` }} />
         </div>
       </div>
 
@@ -134,7 +135,7 @@ function UnassignedRow({ block }: { block: PensionMemberBlock }) {
     <div className={ROW_CLASS}>
       <Link
         href="/dashboard/assets"
-        className="inline-flex h-11 min-w-0 max-w-full items-center gap-1 rounded-md border border-border px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:h-7"
+        className={cn(ASIDE_LINK_CLASS, 'min-w-0 max-w-full text-muted-foreground')}
       >
         <span className="shrink-0">Collega</span>
         <span className="min-w-0 truncate">{block.fundNames.join(', ')}</span>
@@ -152,7 +153,9 @@ export function AnnoFiscaleTile({ taxYear, reading, aside, footer, blocks, class
   const named = blocks.length > 1;
 
   return (
-    <Tile eyebrow={`Anno fiscale ${taxYear}`} aside={aside} reading={reading} ariaLabel="Anno fiscale" className={className}>
+    // The accessible name carries the year the eyebrow shows: a name shorter than the visible
+    // label is what a screen reader hears while a sighted reader sees more (WCAG 2.5.3).
+    <Tile eyebrow={`Anno fiscale ${taxYear}`} aside={aside} reading={reading} ariaLabel={`Anno fiscale ${taxYear}`} className={className}>
       <div className="mt-3.5 flex flex-col gap-4">
         {blocks.map((block) => {
           if (block.kind === 'unassigned') return <UnassignedRow key={block.key} block={block} />;

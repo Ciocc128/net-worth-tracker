@@ -9,7 +9,7 @@
  * the trailing figure encodes the share of the year's total, and the caption under each label
  * says whether that nature is IRPEF-deductible — the one fact of a nature the Anno fiscale tile
  * reads by, so the reader can tie the two tiles without a second table. The bar takes
- * `--chart-2`, money coming in (the Hall of Fame rule): a contribution is an inflow, never a
+ * `--flow-in`, money coming in (the Hall of Fame rule): a contribution is an inflow, never a
  * gain, so no row wears a sign token.
  *
  * Words and numbers arrive as props from `pensionSummary.ts` / `pensionNarrative.ts`: the tile
@@ -40,12 +40,13 @@ export interface VersatoTileProps {
   className?: string;
 }
 
-/** Row list name — the same words as the tile's accessible name, so the list reads as the tile's body. */
+/** Row list name — the list reads as the tile's body. */
 const ROWS_ARIA_LABEL = 'Versato per natura';
 
 export function VersatoTile({ taxYear, reading, aside, footer, rows, className }: VersatoTileProps) {
   return (
-    <Tile eyebrow={`Versato nel ${taxYear}`} aside={aside} reading={reading} ariaLabel={ROWS_ARIA_LABEL} className={className}>
+    // The tile's name is its visible eyebrow, year included (WCAG 2.5.3: the name contains the label).
+    <Tile eyebrow={`Versato nel ${taxYear}`} aside={aside} reading={reading} ariaLabel={`Versato nel ${taxYear}`} className={className}>
       {/* Without a contribution in the year the reading already says so; an empty list would only
           add a border under the sentence. */}
       {rows.length > 0 && (
@@ -58,12 +59,12 @@ export function VersatoTile({ taxYear, reading, aside, footer, rows, className }
               amount: row.amount,
               percentage: row.percentage,
             }))}
-            color="var(--chart-2)"
+            color="var(--flow-in)"
             // The caption is a fixed pair («deducibile» / «non deducibile») and the primitive
             // truncates it before the label: at 132px «Volontario · deducibile» is a few pixels
             // over, so from desktop, where a 7-column tile has the room, the column widens.
             // Below it 132px is the most a 390px phone can give the row (the bar keeps 40px).
-            labelClassName="w-[132px] desktop:w-[168px]"
+            labelClassName="min-w-[132px] desktop:min-w-[168px]"
             ariaLabel={ROWS_ARIA_LABEL}
           />
         </div>

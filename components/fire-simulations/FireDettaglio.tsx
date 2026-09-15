@@ -175,8 +175,8 @@ export function FireDettaglio({ description, runwayData, runwaySummary, runwayRe
                         <YAxis width={56} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
                         <Tooltip formatter={fmtCurrency} contentStyle={TOOLTIP_CONTENT_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
                         <Legend wrapperStyle={LEGEND_STYLE} />
-                        <Line type="monotone" dataKey="income" stroke={chartColors[1]} strokeWidth={2} name="Entrate" dot={false} animationDuration={800} animationEasing="ease-out" />
-                        <Line type="monotone" dataKey="expenses" stroke={chartColors[4]} strokeWidth={2} name="Uscite" dot={false} animationDuration={800} animationEasing="ease-out" />
+                        <Line type="monotone" dataKey="income" stroke="var(--flow-in)" strokeWidth={2} name="Entrate" dot={false} animationDuration={800} animationEasing="ease-out" />
+                        <Line type="monotone" dataKey="expenses" stroke="var(--flow-out)" strokeWidth={2} name="Uscite" dot={false} animationDuration={800} animationEasing="ease-out" />
                         <Line type="monotone" dataKey="monthlyAllowance" stroke={chartColors[3]} strokeWidth={2} name="Reddito passivo" dot={false} animationDuration={800} animationEasing="ease-out" />
                       </LineChart>
                     </ResponsiveContainer>

@@ -15,7 +15,7 @@ import { useMemo } from 'react';
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { PercentilesData } from '@/types/assets';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
 interface MonteCarloFanChartProps {
@@ -74,8 +74,7 @@ function FanTooltip({ active, payload, label }: FanTooltipProps) {
 }
 
 export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel }: MonteCarloFanChartProps) {
-  const chartColors = useChartColors();
-  const fanColor = chartColors[0] || 'var(--chart-1)';
+  const fanColor = SCENARIO_COLOR.base;
 
   const rows = useMemo<FanRow[]>(
     () =>

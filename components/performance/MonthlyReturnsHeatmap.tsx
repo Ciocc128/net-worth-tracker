@@ -26,8 +26,8 @@ export function heatmapCellClass(value: number | null): string {
   if (value === null || value === 0) return 'bg-muted';
   const magnitude = Math.abs(value);
   const step = magnitude < 1 ? 30 : magnitude < 2.5 ? 55 : 85;
-  if (value < 0) return step === 30 ? 'bg-destructive/30' : step === 55 ? 'bg-destructive/55' : 'bg-destructive/85';
-  return step === 30 ? 'bg-positive/30' : step === 55 ? 'bg-positive/55' : 'bg-positive/85';
+  if (value < 0) return step === 30 ? 'bg-(--sign-chart-loss)/30' : step === 55 ? 'bg-(--sign-chart-loss)/55' : 'bg-(--sign-chart-loss)/85';
+  return step === 30 ? 'bg-(--sign-chart-gain)/30' : step === 55 ? 'bg-(--sign-chart-gain)/55' : 'bg-(--sign-chart-gain)/85';
 }
 
 /**
@@ -39,7 +39,7 @@ export function heatmapCellStyle(value: number | null): CSSProperties {
   if (value === null || value === 0) return { backgroundColor: 'var(--muted)' };
   const magnitude = Math.abs(value);
   const step = magnitude < 1 ? 30 : magnitude < 2.5 ? 55 : 85;
-  const token = value < 0 ? 'var(--destructive)' : 'var(--positive)';
+  const token = value < 0 ? 'var(--sign-chart-loss)' : 'var(--sign-chart-gain)';
   return { backgroundColor: `color-mix(in oklab, ${token} ${step}%, transparent)` };
 }
 

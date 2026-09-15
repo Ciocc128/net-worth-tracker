@@ -306,8 +306,7 @@ function ArmedNoteDelete({ disabled, onConfirm }: { disabled: boolean; onConfirm
       <Button
         ref={ref}
         type="button"
-        variant={armed ? 'destructive' : 'outline'}
-        className={cn(!armed && 'text-destructive hover:text-destructive')}
+        variant={armed ? 'destructive' : 'outlineDestructive'}
         onClick={onClick}
         onBlur={onBlur}
         disabled={disabled}

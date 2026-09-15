@@ -34,6 +34,7 @@ import type { AccumulationSimulationResult } from '@/lib/services/monteCarloServ
 import type { FanVerdict } from '@/lib/utils/fireSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
 interface FireFanChartProps {
@@ -149,7 +150,7 @@ export function FireFanChart({ result, startCalendarYear, verdict, height }: Fir
   const chartColors = useChartColors();
   // Fan + median share the primary series hue (the same one the Scenari view gives the base
   // scenario); the moving target keeps the amber the runway chart already uses for targets.
-  const fanColor = chartColors[0] || 'var(--chart-1)';
+  const fanColor = SCENARIO_COLOR.base;
   const targetColor = chartColors[2] || 'var(--chart-3)';
 
   const { rows, spaghettiKeys } = useMemo(() => {

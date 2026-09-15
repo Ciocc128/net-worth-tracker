@@ -5,18 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
-import type { Expense, ExpenseType } from '@/types/expenses';
-
-// Tailwind dot-color classes keyed by expense type.
-// All entries use semantic token references to stay theme-aware across all 6 colour themes;
-// income takes the sign token so it matches every other "gain" on the page.
-export const TYPE_DOT_CLASS: Record<ExpenseType, string> = {
-  income:   'bg-positive',
-  fixed:    'bg-[var(--chart-1)]',
-  variable: 'bg-[var(--chart-4)]',
-  debt:     'bg-[var(--chart-3)]',
-  transfer: 'bg-[var(--chart-5)]',
-};
+import type { Expense } from '@/types/expenses';
+import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
+import { EXPENSE_TYPE_DOT_CLASS as TYPE_DOT_CLASS } from '@/lib/constants/expenseTypeColors';
 
 export interface CompactExpenseRowProps {
   expense: Expense;
@@ -77,10 +68,10 @@ export function CompactExpenseRow({
           return (
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: categoryColor ? `${categoryColor}20` : 'var(--muted)' }}
+              style={{ backgroundColor: categoryIconBackground(categoryColor) }}
             >
               <Suspense fallback={<span className={cn('w-2 h-2 rounded-full', TYPE_DOT_CLASS[expense.type] ?? 'bg-muted-foreground')} />}>
-                <CatIcon className="w-3.5 h-3.5" style={{ color: categoryColor || 'var(--muted-foreground)' }} aria-hidden="true" />
+                <CatIcon className="w-3.5 h-3.5" style={{ color: categoryIconColor(categoryColor) }} aria-hidden="true" />
               </Suspense>
             </div>
           );
@@ -88,7 +79,7 @@ export function CompactExpenseRow({
         return (
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: categoryColor ? `${categoryColor}20` : 'var(--muted)' }}
+            style={{ backgroundColor: categoryIconBackground(categoryColor) }}
           >
             <span className={cn('w-2 h-2 rounded-full flex-shrink-0', TYPE_DOT_CLASS[expense.type] ?? 'bg-muted-foreground')} />
           </div>
@@ -98,7 +89,7 @@ export function CompactExpenseRow({
       {/* Title + badges + subtitle */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[14px] font-medium text-foreground truncate">{title}</span>
+          <span className="line-clamp-2 min-w-0 break-words text-[14px] font-medium text-foreground">{title}</span>
           {expense.isInstallment && expense.installmentNumber && expense.installmentTotal && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 font-mono tabular-nums">
               {expense.installmentNumber}/{expense.installmentTotal}
@@ -131,8 +122,8 @@ export function CompactExpenseRow({
           scheduled || isTransfer
             ? 'text-muted-foreground'
             : isIncome
-              ? 'text-positive'
-              : 'text-destructive',
+              ? 'text-income-figure'
+              : 'text-expense-figure',
         )}
       >
         {amountLabel}

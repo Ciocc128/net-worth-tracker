@@ -201,7 +201,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
               value={fromText}
               onChange={handleFromTextChange}
               placeholder="GG/MM/AAAA"
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <span className="pb-1.5 text-sm text-muted-foreground">–</span>
@@ -213,7 +213,7 @@ export function PeriodPicker({ value, onChange, availableYears = [], className, 
               value={toText}
               onChange={handleToTextChange}
               placeholder="GG/MM/AAAA"
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
@@ -345,7 +345,7 @@ function PresetButton({ label, active, onClick }: Readonly<{ label: string; acti
         'w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors',
         'hover:bg-accent hover:text-accent-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        active && 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground',
+        active && 'bg-toggle-on text-toggle-on-foreground hover:bg-toggle-on-hover hover:text-toggle-on-foreground',
       )}
     >
       {label}

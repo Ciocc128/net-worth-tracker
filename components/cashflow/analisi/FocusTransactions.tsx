@@ -28,7 +28,7 @@ interface FocusTransactionsProps {
  */
 export function FocusTransactions({ expenses, isIncome, periodLabel }: FocusTransactionsProps) {
   const [shown, setShown] = useState(PAGE_SIZE);
-  const amountClass = isIncome ? 'text-positive' : 'text-destructive';
+  const amountClass = isIncome ? 'text-income-figure' : 'text-expense-figure';
 
   if (expenses.length === 0) {
     return (

@@ -25,12 +25,14 @@ import { cn } from '@/lib/utils';
 import { formatPercentage } from '@/lib/services/chartService';
 
 interface TargetTickProps {
+  /** The fill's colour; the row's class colour, behind the theme's --allocation-row-bar. */
+  color?: string;
   currentPercentage: number;
   targetPercentage: number;
   className?: string;
 }
 
-export function TargetTick({ currentPercentage, targetPercentage, className }: TargetTickProps) {
+export function TargetTick({ color = 'var(--allocation-row-bar, var(--chart-1))', currentPercentage, targetPercentage, className }: TargetTickProps) {
   const reducedMotion = useReducedMotion();
 
   const scaleMax = Math.max(currentPercentage, targetPercentage, 1) * 1.12;
@@ -51,7 +53,7 @@ export function TargetTick({ currentPercentage, targetPercentage, className }: T
         <motion.div
           className="absolute inset-y-0 left-0 rounded-full"
           style={{
-            backgroundColor: 'var(--chart-1)',
+            backgroundColor: color,
             ...(reducedMotion ? { width: `${fillWidth}%` } : {}),
           }}
           initial={reducedMotion ? false : { width: 0 }}

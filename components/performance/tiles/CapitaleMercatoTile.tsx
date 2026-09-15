@@ -29,11 +29,11 @@ export function CapitaleMercatoTile({ aside, reading, data, pensionFlow, classNa
         <>
           <div className="mt-3 flex justify-end gap-3 text-[11px] text-muted-foreground" aria-hidden="true">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-1)' }} />
+              <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--capital-invested)' }} />
               Capitale immesso
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--chart-3)' }} />
+              <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: 'var(--capital-networth)' }} />
               Patrimonio
             </span>
           </div>

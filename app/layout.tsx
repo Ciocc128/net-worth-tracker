@@ -31,6 +31,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { MotionProvider } from "@/components/providers/MotionProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { ColorThemeProvider } from "@/contexts/ColorThemeContext";
+import { AgentationToolbar } from "@/components/providers/AgentationToolbar";
 
 // Load Geist fonts with CSS variables for Tailwind integration
 const geistSans = Geist({
@@ -67,9 +68,6 @@ export const metadata: Metadata = {
     apple: [
       { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    other: [
-      { rel: 'mask-icon', url: '/icon.svg', color: '#10B981' },
-    ],
   },
 };
 
@@ -100,6 +98,7 @@ export default function RootLayout({
             </AuthProvider>
           </MotionProvider>
         </ThemeProvider>
+        {process.env.NODE_ENV === "development" && <AgentationToolbar />}
       </body>
     </html>
   );

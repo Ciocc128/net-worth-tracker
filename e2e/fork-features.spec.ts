@@ -114,7 +114,8 @@ test.describe('Esposizione a cinque viste (solo fork)', () => {
  *  the same row is duplicated, hidden, in the mobile card list; scoping to `table tr` avoids it). */
 async function openVwceEditDialog(page: Page) {
   const row = page.locator('table tr', { hasText: 'Vanguard FTSE All-World' });
-  await row.getByRole('button', { name: 'Modifica asset' }).click();
+  // Upstream names the row's edit button after the instrument since v9.0.0 («Modifica asset» before).
+  await row.getByRole('button', { name: 'Modifica Vanguard FTSE All-World' }).click();
   const dialog = page.getByRole('dialog', { name: 'Vanguard FTSE All-World' });
   await expect(dialog).toBeVisible();
   return dialog;

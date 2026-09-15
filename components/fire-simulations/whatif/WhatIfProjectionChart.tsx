@@ -16,7 +16,7 @@
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { WhatIfComparisonPoint } from '@/lib/utils/whatIfSummary';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
 const BASELINE_STROKE = 'var(--muted-foreground)';
@@ -81,8 +81,7 @@ export function WhatIfProjectionChart({
   height = 400,
   pensionUnlockCalendarYear = null,
 }: WhatIfProjectionChartProps) {
-  const chartColors = useChartColors();
-  const afterColor = chartColors[0] || 'var(--chart-1)';
+  const afterColor = SCENARIO_COLOR.base;
 
   if (series.length === 0) {
     return <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">Nessun dato di proiezione disponibile.</div>;

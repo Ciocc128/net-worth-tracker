@@ -41,6 +41,7 @@ import {
 } from '@/lib/utils/allocationUtils';
 import type { AllocationResult, AssetAllocationTarget } from '@/types/assets';
 import { AllocationRow } from './AllocationRow';
+import { getAssetClassCssVar } from '@/lib/constants/colors';
 
 interface AllocationBreakdownProps {
   /** Banded, with `bySubCategory` ALREADY stripped of orphaned sub-targets (the page does it). */
@@ -106,6 +107,7 @@ export function AllocationBreakdown({ allocation, targets, className }: Allocati
           <div key={assetClass}>
             <AllocationRow
               name={ASSET_CLASS_LABELS[assetClass] ?? assetClass}
+              classCssVar={getAssetClassCssVar(assetClass)}
               data={data}
               actionColor={actionColors[data.action]}
               depth={0}
@@ -138,6 +140,7 @@ export function AllocationBreakdown({ allocation, targets, className }: Allocati
                         <div key={subCategory}>
                           <AllocationRow
                             name={subCategory}
+                            classCssVar={getAssetClassCssVar(assetClass)}
                             data={subData}
                             actionColor={actionColors[subData.action]}
                             depth={1}

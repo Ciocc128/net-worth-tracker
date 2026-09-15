@@ -61,7 +61,9 @@ const SCRUB_SETTLE_MS = 220;
 
 function Chip({ value, caption, children }: { value: number | null; caption: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    // The column is as wide as its pill: a long caption wraps under it (`w-0 min-w-full`) instead of
+    // widening the column and pushing the next pill away (owner, 2026-09-15).
+    <div className="flex w-fit min-w-0 flex-col gap-1.5">
       <span
         className={cn(
           'inline-flex w-fit max-w-full items-center gap-1.5 whitespace-nowrap rounded-[9px] px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tracking-[-0.01em] tabular-nums',
@@ -70,7 +72,7 @@ function Chip({ value, caption, children }: { value: number | null; caption: str
       >
         {children}
       </span>
-      <span className="text-[11px] text-muted-foreground">{caption}</span>
+      <span className="w-0 min-w-full text-[11px] leading-[1.35] text-muted-foreground">{caption}</span>
     </div>
   );
 }
@@ -279,8 +281,8 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
                 >
                   <defs>
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="var(--hero-series)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--hero-series)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -291,11 +293,11 @@ export function EvoluzioneTile({ aside, reading, growth, pace, points, noteCount
                     type="monotone"
                     dataKey="totalNetWorth"
                     name="Patrimonio"
-                    stroke="var(--chart-1)"
+                    stroke="var(--hero-series)"
                     strokeWidth={2}
                     fill={`url(#${gradientId})`}
                     dot={renderNoteDot}
-                    activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--chart-1)' }}
+                    activeDot={{ r: 4, strokeWidth: 1.5, stroke: 'var(--foreground)', fill: 'var(--hero-series)' }}
                     isAnimationActive={!prefersReducedMotion}
                     animationDuration={600}
                     animationEasing="ease-out"

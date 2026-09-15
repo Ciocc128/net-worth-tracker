@@ -49,7 +49,7 @@ function contrast(x: Oklch, y: Oklch): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const TEXT_ON_GROUND = ['primary', 'destructive', 'muted-foreground', 'foreground'] as const;
+const TEXT_ON_GROUND = ['primary', 'positive', 'destructive', 'muted-foreground', 'foreground'] as const;
 const CHART_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8].map((slot) => `chart-${slot}`);
 
 describe.each([
@@ -69,6 +69,19 @@ describe.each([
 
   it.each(CHART_SLOTS)('--%s clears the 3:1 chart floor on --card', (name) => {
     expect(contrast(tokens[name], tokens.card)).toBeGreaterThanOrEqual(3);
+  });
+
+  // Light fills its buttons with the lime itself (dark aliases --action to --primary, not parsed).
+  it.runIf(tokens.action !== undefined)('a filled button label clears 4.5:1 on its --action fill', () => {
+    expect(contrast(tokens['action-foreground'], tokens.action)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // COMPRA / VENDI / OK are printed as amounts in the Piano: text, so the text floor (light only —
+  // dark aliases them to the chart slots and is not parsed).
+  it.runIf(tokens['trade-buy'] !== undefined)('trade colours clear 4.5:1 on --card', () => {
+    for (const name of ['trade-buy', 'trade-sell', 'trade-ok']) {
+      expect(contrast(tokens[name], tokens.card)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('the tiles stand off the ground', () => {

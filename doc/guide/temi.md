@@ -31,6 +31,15 @@
   **derive the no-colour fallback from the document id** (FNV-1a), never from the row's rank, which repaints half the
   list on every period switch; **indices 0-7 are theme-aware** (`--chart-1..8` exist in every block since
   2026-08-30), 8-9 still pad from the static `CHART_COLORS`.
+- **The default theme's light slots hold the dark hue bands** (2026-09-13): `:root --chart-1..5` were re-pitched from
+  the shadcn preset (three oranges and two teals — Liquidità measured ΔE00 10.1 from Immobili on the real account's
+  Composizione bar, and the hero's rising curve wore the hue of `--destructive`) onto blue · green · amber · violet ·
+  coral with L and C set for white. **The floor is a test**, `__tests__/chartPaletteDistinctness.test.ts`: it reads
+  `globals.css` itself, ΔE00 ≥ 14 between any two slots of a mode, every slot inside the `useChartColors` luminance
+  guard, each slot ≤ 30° of hue from its twin in the other mode. Default theme only: the five named themes are not
+  measured (retro-arcade declares two identical slots, elegant-luxury three reds — CLAUDE.md → Known Issues). A slot
+  change re-derives `PRINT_CHART_HEX` (`__tests__/printTokens.test.ts` says the new hex); `PRINT_RANK_HEX` moved to
+  slot 7 the same day because slot 3 became crypto's amber.
 - **`--chart-6/7/8` carry a meaning across every theme** (2026-08-30): 6 = Materie Prime (gold/olive), 7 = Trend
   Following (teal/cyan), 8 = Carry (rose/magenta) — the hue band is held per theme across light AND dark so a slot does
   not change identity when the mode flips, and only L and C are re-pitched to the block's surface. Before this the tail
@@ -57,4 +66,51 @@
   4.69:1 on `--background`), which flips `--primary-foreground` to white. **Darkening a light `--background` moves
   every text token that sits on it**: lifting the tiles (card/background 1.03 → 1.12:1) took `--muted-foreground` and
   `--destructive` down with it, because the verdict's prose and sign values sit on the ground, not on a card.
+- **Lime Frost light is a ROLE palette, not a re-pitched source** (owner's retouch, 2026-09-13/14, Agentation
+  annotations on the mirror account). The drivers: green owns the ground and the action (flat ground L 0.955 hue 133,
+  lime `--action` fill with a slate label, deep green `--primary` only as text/marks); cold owns data and selection
+  (net worth `--hero-series` ice 228, spending `--flow-out` ice 232, income `--flow-in` 138, lavender 295 for secondary
+  series, white `--segment-active`); the sign colours judge, a type never takes them (a spend, a sale, cash, a bear
+  scenario). The full vocabulary, the ten rules and the page-by-page audit live in the «Carta del tema Lime Frost»
+  artifact; the token families are indexed in the comment that opens the role tokens in `globals.css`.
+- **Role tokens default to what the component painted before** (`--flow-in: var(--chart-2)`, `--hero-series:
+  var(--chart-1)`, `--scenario-*`, `--trade-*`, `--toggle-on`, `--outline-surface`…), so only a theme that names one
+  changes. **A light block that writes a role token as a literal must take it back in its dark block**: `.dark` and
+  `[data-theme]` share specificity and the later rule wins, which is how the light hero blue once reached Lime Frost
+  dark. `--category-icon(-bg)` is the exception — undeclared in `:root` so `var(…, saved hue)` falls back; the dark
+  block resets it with `initial`.
+- **The served CSS is `#hex` / `lab()`, never `oklch()`** (Lightning CSS down-levels it), and `getComputedStyle` hands
+  that form back. Any JS that parses a theme colour must handle all three: `lib/utils/colorLightness.ts` does, for the
+  action colours; the underwater chart now passes `var(--drawdown)` instead of wrapping a read value in `oklch(…)`
+  (which painted it black in every theme). **`useChartColors` reads L through `colorLightness`** since 2026-09-15, so
+  its too-light / too-dark fallback to `CHART_COLORS` now fires on the served forms too (before, it never did): a theme
+  whose served chart slot is above L 0.82 in light, or below 0.30 in dark, now paints the static slot instead.
+  **`colorToHex`** turns any served form into `#rrggbb` for Nivo, through `lib/hooks/useCssColorTokens.ts`.
+- **The 50/30/20 roles** (`--role-need · --role-want · --role-saving · --role-unclassified · --role-deficit`, Analisi's
+  Flusso): aliases in `:root` (`--flow-out`, `--chart-4`, `--flow-in`, `--muted-foreground`, `--destructive`), the
+  approved triad in Lime Frost light — need = `--flow-out` ice 232, want lavender 295, saving green-teal 175 (ΔE_ok
+  0.084 from `--flow-in`; 165 read as the income green), unclassified `--chart-5`, deficit the sign red — each ≥ 3:1
+  on the white tile, and taken back to the aliases in Lime Frost dark. Chosen from a swatch preview on the owner's
+  figures (2026-09-15).
+- **Charts slots mean asset classes.** A series that is not a class (net worth, income, spending, a scenario) takes its
+  role token, never a `--chart-N`; in Lime Frost light `--chart-5` (Liquidità) is a neutral ice grey. Still on slots:
+  the Analisi Sankey (hard-coded hex, planned with the 50/30/20 split) and a few FIRE Dettaglio lines.
 
+- **Lime Frost light, second pass on the mirror (2026-09-15, owner's annotations).** New tokens, each defaulting to the
+  look of every other theme and reset in Lime Frost dark:
+  `--milestone-far/near` (a doubling's track warms from pale ice to `--hero-series` as it closes in, `RaddoppiTile`);
+  `--estimate-figure` (an estimate, e.g. Previdenza's IRPEF saving) and `--cost-figure` (Panoramica's annual cost,
+  Sintesi's estimated tax) — ink by default, **amber in Lime Frost light**; `--allocation-row-bar` (`initial` in Lime
+  Frost light, so each Per classe row wears its class slot) and `--exposure-bar` (neutral ice);
+  `--sign-chart-gain/loss` (the savings bars, the returns heatmap, the Driver's losing market: the sign, lighter);
+  `--ghost-destructive-hover` (a ghost bin warms red under the pointer instead of the ice of harmless icons — the
+  `ghost` button variant matches `has-[svg.text-destructive]`); `--type-flow-*` (the Sankey's «Per tipo» view in the
+  role register, undeclared in `:root` so other themes keep the historical hex palette). The sign rule for income and
+  spending figures stays **Lime Frost only** (owner, 2026-09-15). `--progress-fill` now also fills Previdenza's
+  deduction track. Theme-independent in the same pass: the current month of every monthly bar chart is a faint
+  column plus a pill label (`CurrentSlotBand`, `CURRENT_SLOT_LABEL_CLASS` in `components/ui/chart-hover.tsx`), never
+  an outline; labels are never truncated (two-line clamp) on RankedRows, Hall of Fame records, the feed, Strumenti
+  and the Piano; the Sankey is thin in every desktop view, subcategories included.
+- **Turbopack trap**: an edit to `app/globals.css` made by a script (`sed -i`, a Python rewrite) was not picked up by
+  the dev server — not even after a restart — until the file was edited in place again; check a new token with
+  `getComputedStyle(document.documentElement).getPropertyValue('--x')` before trusting a screenshot.

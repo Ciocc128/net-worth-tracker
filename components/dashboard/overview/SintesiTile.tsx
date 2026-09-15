@@ -60,7 +60,7 @@ export function SintesiTile({ metrics, hasCostBasisTracking, className }: Sintes
           </p>
           <p className="text-[11px] text-muted-foreground">
             dopo{' '}
-            <span className="font-mono tabular-nums text-warning-foreground">
+            <span className="font-mono tabular-nums text-cost-figure">
               {cachedFormatCurrencyEUR(metrics.estimatedTaxes, true)}
             </span>{' '}
             di tasse stimate su{' '}

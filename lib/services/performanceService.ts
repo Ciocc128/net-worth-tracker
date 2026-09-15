@@ -49,16 +49,18 @@ const PERFORMANCE_CACHE_COLLECTION = 'performance-cache';
  * (`resolvePerformanceBase`, `CashFlowData.pensionFlow`); v7 = the flows follow the base — a
  * subset base measures what crosses its boundary from the ledger and the quantities
  * (`CashFlowData.portfolioFlow`), a non-positive starting value yields no return instead of a
- * flipped sign, a rolling CAGR that cannot be measured is null, the unread 36-month series is gone.
+ * flipped sign, a rolling CAGR that cannot be measured is null, the unread 36-month series is gone;
+ * v8 = an instrument the snapshots meet for the first time enters at its value even when the
+ * ledger covers it from an older trade date (`portfolioFlows.ts` § THE ENTRY MONTH).
  *
  * FORK NOTE (2026-09-12): upstream reached its own `'v7'` independently, for a different math —
  * the two only fail to collide today because the two sides append a different SHAPE to the key
  * (`-l{n}t{ts}` here for the ledger, `-pf…-mf…` upstream inside the base signature). If the two
- * shapes ever converged, a value computed by one side's v7 would be served as valid to the other's.
+ * shapes ever converged, a value computed by one side's version would be served as valid to the other's.
  * The `-fork` suffix makes this fork's key permanently distinct from upstream's, regardless of
- * shape, so a merge can never read a stale cache entry as fresh.
+ * shape, so a merge can never read a stale cache entry as fresh; an upstream bump is carried as `v{n}-fork`.
  */
-const CACHE_MATH_VERSION = 'v7-fork';
+const CACHE_MATH_VERSION = 'v8-fork';
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

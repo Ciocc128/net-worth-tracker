@@ -3,7 +3,7 @@
 import type { TimelinePoint } from '@/lib/utils/hallOfFameSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { ChartHoverTip, CURRENT_SLOT_LABEL_CLASS, CurrentSlotBand, useChartHover } from '@/components/ui/chart-hover';
 
 interface RecordBarsProps {
   points: TimelinePoint[];
@@ -29,7 +29,7 @@ const HEAD_ROOM = 6;
  * are clustered in the last year or scattered across the history is a different question, and
  * the One-Tile-One-Question Rule forbids the same rows twice.
  *
- * Colour is `--chart-1`, the slot the app already uses for net worth. A month still RUNNING is
+ * Colour is `--hero-series`, the token the app uses for net worth (chart-1 unless a theme names it). A month still RUNNING is
  * drawn at reduced fill AND outlined: it is real data, and it is not yet comparable with the
  * closed months it is ranked against.
  */
@@ -59,6 +59,7 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
           aria-label={`${ariaLabel} ${spoken}.`}
         >
           <line x1={0} y1={VIEW_H - 0.5} x2={VIEW_W} y2={VIEW_H - 0.5} stroke="var(--border)" vectorEffect="non-scaling-stroke" />
+          <CurrentSlotBand index={points.findIndex((p) => p.isCurrent)} slot={slot} height={VIEW_H} />
           {hover.index !== null && (
             <rect x={hover.index * slot} y={0} width={slot} height={VIEW_H} fill="var(--foreground)" opacity={0.06} />
           )}
@@ -72,10 +73,8 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
                   y={VIEW_H - height}
                   width={barWidth}
                   height={height}
-                  fill="var(--chart-1)"
+                  fill="var(--hero-series)"
                   fillOpacity={point.isCurrent ? 0.55 : 1}
-                  stroke={point.isCurrent ? 'var(--foreground)' : 'none'}
-                  vectorEffect="non-scaling-stroke"
                 />
               </g>
             );
@@ -96,7 +95,7 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
             key={point.key}
             className={cn(
               'text-center font-mono text-[10px] tabular-nums',
-              point.isCurrent ? 'font-semibold text-foreground' : 'text-muted-foreground',
+              point.isCurrent ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
             )}
           >
             {point.label}

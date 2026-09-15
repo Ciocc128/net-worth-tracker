@@ -19,6 +19,7 @@ import type { PeriodCashflowTotals, ScheduledSlice } from '@/lib/utils/tracciame
 import type { CategoryDeltaRow, ComparisonMonthScope, PacingSide, TotalsPacing } from '@/lib/utils/comparisonDeltas';
 import type { SpendingAnomaly } from '@/lib/utils/cashflowComposition';
 import type { ExpenseType } from '@/types/expenses';
+import type { SpendingRolesSummary } from '@/lib/utils/spendingRoles';
 import type { AnalisiPeriod, CategoryMover, FlowSummary, MonthRef, SpendingPoint, SpendingType, TopExpenses } from '@/lib/utils/analisiSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -97,17 +98,23 @@ export interface AnalisiSubject {
 
 export function describeAnalisiSubject(period: AnalisiPeriod, today: MonthRef, historyStartYear: number): AnalisiSubject {
   if (period.mode === 'history' || period.year === null) {
-    return { subject: `Dal ${historyStartYear}`, inPeriod: `dal ${historyStartYear}`, ongoing: true, comparisonOf: null, comparisonPlain: null, future: false };
+    // The history has two ends: the floor and the current year (calendar included) — «Dal
+    // 2025 al 2026», never a bare «Dal 2025» that a materialised plan would stretch to 2043.
+    const span = today.year > historyStartYear ? `dal ${historyStartYear} al ${today.year}` : `nel ${historyStartYear}`;
+    return { subject: capitalise(span), inPeriod: span, ongoing: true, comparisonOf: null, comparisonPlain: null, future: false };
   }
   if (period.month !== null) {
     const sameYear = period.year === today.year;
     const yearSuffix = sameYear ? '' : ` ${period.year}`;
-    const inPeriod = `${monthWithPrepositionA(period.month)}${yearSuffix}`;
+    const ongoing = sameYear && period.month === today.month;
+    // «A settembre finora» — the running month is judged on its lived days, and the subject
+    // says so, like «Nel 2026 finora» does for the year.
+    const inPeriod = `${monthWithPrepositionA(period.month)}${yearSuffix}${ongoing ? ' finora' : ''}`;
     const previous = `${monthInSentence(period.month)} ${period.year - 1}`;
     return {
       subject: capitalise(inPeriod),
       inPeriod,
-      ongoing: sameYear && period.month === today.month,
+      ongoing,
       comparisonOf: `di ${previous}`,
       comparisonPlain: previous,
       future: (sameYear && period.month > today.month) || period.year > today.year,
@@ -138,11 +145,35 @@ export function describeBaseline(scope: ComparisonMonthScope, comparisonYear: nu
       if (scope.upToMonth === 12) return String(comparisonYear);
       return `${MONTH_NAMES_SHORT[0].toLowerCase()}–${MONTH_NAMES_SHORT[scope.upToMonth - 1].toLowerCase()} ${comparisonYear}`;
     case 'singleMonth':
-      // The running month is compared with a COMPLETE month: the baseline says so.
+      // The running month is compared on the same days of the baseline month («primi 14
+      // giorni»); without a day to cut at, the baseline says the window is partial instead.
+      if (scope.inProgress && scope.throughDay !== undefined) return `${monthInSentence(scope.month)} ${comparisonYear} (primi ${scope.throughDay} giorni)`;
       return `${monthInSentence(scope.month)} ${comparisonYear}${scope.inProgress ? ' (mese in corso)' : ''}`;
     case 'fullYear':
       return String(comparisonYear);
   }
+}
+
+/**
+ * Why there is no comparison, when the baseline window exists but holds no row at all: the
+ * Periodo tile prints it where the pacing caption would stand, so a dropped delta is never a
+ * silent one. On the real account September 2025 was recorded in one batch from the 21st, so
+ * the first fourteen days of it are empty and the running month has nothing to pace against
+ * (2026-09-14). Null when a comparison exists.
+ */
+export function describeMissingBaseline(scope: ComparisonMonthScope, comparisonYear: number): string {
+  const where = (() => {
+    switch (scope.kind) {
+      case 'sameMonths':
+        return scope.upToMonth === 12 ? `nel ${comparisonYear}` : `in ${describeBaseline(scope, comparisonYear)}`;
+      case 'singleMonth':
+        if (scope.inProgress && scope.throughDay !== undefined) return `nei primi ${scope.throughDay} giorni di ${monthInSentence(scope.month)} ${comparisonYear}`;
+        return `${monthWithPrepositionA(scope.month)} ${comparisonYear}`;
+      case 'fullYear':
+        return `nel ${comparisonYear}`;
+    }
+  })();
+  return `Nessun movimento ${where}: nessun confronto.`;
 }
 
 /**
@@ -160,11 +191,11 @@ export function shareInWords(percentage: number): Narrative {
 
 /**
  * How far the scheduled figure reaches, in Analisi's own period vocabulary — the counterpart
- * of `describeScheduledHorizon` for the `Period` type. The history has no end to name, so its
- * clause is dropped rather than guessed.
+ * of `describeScheduledHorizon` for the `Period` type. The history closes on the current year
+ * (calendar included), so its horizon is the year's end like the running year's.
  */
 export function describeAnalisiScheduledHorizon(period: AnalisiPeriod, today: MonthRef): string | null {
-  if (period.mode === 'history' || period.year === null) return null;
+  if (period.mode === 'history' || period.year === null) return 'a fine anno';
   if (period.month !== null) {
     return period.year === today.year && period.month === today.month ? 'a fine mese' : `a fine ${monthInSentence(period.month)}`;
   }
@@ -308,7 +339,7 @@ export function buildAnalisiVerdict(input: AnalisiVerdictInput): PageVerdictMode
 
 /**
  * The aside of the Periodo tile: «12 mesi · 4 in calendario» for a year still running,
- * «12 mesi» for a closed one, «giorno 25 di 31», «dal 2024»; null for a closed month.
+ * «12 mesi» for a closed one, «giorno 25 di 31», «dal 2024 al 2026»; null for a closed month.
  */
 export function describePeriodScope(
   period: AnalisiPeriod,
@@ -316,7 +347,11 @@ export function describePeriodScope(
   calendar: { dayOfMonth: number; daysInMonth: number } | null,
   historyStartYear: number,
 ): Narrative | null {
-  if (period.mode === 'history' || period.year === null) return [prose('dal '), figure(String(historyStartYear))];
+  if (period.mode === 'history' || period.year === null) {
+    const span: Narrative = [prose('dal '), figure(String(historyStartYear))];
+    if (today.year > historyStartYear) span.push(prose(' al '), figure(String(today.year)));
+    return span;
+  }
   if (period.month !== null) {
     if (!calendar || period.year !== today.year || period.month !== today.month) return null;
     return [prose('giorno '), figure(String(calendar.dayOfMonth)), prose(' di '), figure(String(calendar.daysInMonth))];
@@ -440,6 +475,40 @@ export function describeFlow(flow: FlowSummary, savingsRate: number | null): Nar
   return narrative;
 }
 
+/**
+ * Flusso in its 50/30/20 view — the sentence over the roles flow.
+ *
+ * Shares are of everything that left the budget: income plus what the patrimony covered, the same
+ * total both sides of the Sankey carry, so they add to 100% (up to rounding) even in a deficit.
+ * A deficit is named first, because it is why Risparmi is missing; «Da classificare» is named
+ * whenever it is not zero, because those euros belong to no role yet.
+ */
+export function describeSpendingRolesFlow(summary: SpendingRolesSummary): Narrative | null {
+  if (summary.income <= 0 && summary.spending <= 0) return null;
+  const base = summary.income + summary.deficit;
+  const share = (value: number): NarrativeSegment => figure(formatPercentage((value / base) * 100, 0));
+
+  const parts: Narrative[] = [];
+  if (summary.byBucket.need.total > 0) parts.push([prose('necessità '), share(summary.byBucket.need.total)]);
+  if (summary.byBucket.want.total > 0) parts.push([prose('desideri '), share(summary.byBucket.want.total)]);
+  if (summary.savings > 0) parts.push([prose('risparmi '), share(summary.savings)]);
+  if (summary.byBucket.unclassified.total > 0) parts.push([prose('da classificare '), share(summary.byBucket.unclassified.total)]);
+
+  let lead: Narrative;
+  if (summary.income <= 0) {
+    lead = [prose('Nessuna entrata: '), figure(euro(summary.spending)), prose(' di spese tutti coperti dal patrimonio, ')];
+  } else if (summary.deficit > 0) {
+    lead = [
+      prose('Le spese superano le entrate di '),
+      figure(euro(summary.deficit)),
+      prose(', coperti dal patrimonio. Di quanto è uscito: '),
+    ];
+  } else {
+    lead = [prose('Delle entrate ('), figure(euro(summary.income)), prose('): ')];
+  }
+  return [...lead, ...joinClauses(parts, ', '), prose('. Il riferimento è 50/30/20.')];
+}
+
 export interface EntityFocusInput {
   label: string;
   /** The category, when the focus is a subcategory. */
@@ -451,8 +520,14 @@ export interface EntityFocusInput {
   shareOfPeriod: number | null;
   /** Share of the parent category in the period, 0-1; null at category level. */
   shareOfParent: number | null;
-  /** The newest year row's delta; null without a baseline. */
-  delta: { amount: number; percent: number | null; sameMonths: boolean; comparisonYear: number } | null;
+  /**
+   * The newest year row's delta; null without a baseline. A same-months delta carries the
+   * window it was measured on (`livedTotal` over `livedMonths`) whenever that is not the
+   * period total: a whole running year prints its calendar in the total, and the sentence
+   * must not hang a nine-month delta on a twelve-month figure (DESIGN.md → one sentence, one
+   * window).
+   */
+  delta: { amount: number; percent: number | null; sameMonths: boolean; comparisonYear: number; livedTotal?: number; livedMonths?: number } | null;
   /** The period's monthly average; null for a month or the history. */
   monthlyAverage: number | null;
   /** Whether the entity has any row at or after the floor. */
@@ -479,12 +554,16 @@ export function describeEntityFocus(input: EntityFocusInput): Narrative {
   if (shares.length > 0) narrative.push(prose(', '), ...joinClauses(shares, ' e '));
 
   if (input.delta) {
-    const { amount, percent, sameMonths, comparisonYear } = input.delta;
+    const { amount, percent, sameMonths, comparisonYear, livedTotal, livedMonths } = input.delta;
     const sign: 'positive' | 'negative' = isIncome ? (amount >= 0 ? 'positive' : 'negative') : spendingSign(amount);
     const against = sameMonths ? `sugli stessi mesi del ${comparisonYear}` : `sul ${comparisonYear}`;
-    if (percent === null) narrative.push(prose('; '), signed(signedEuro(amount), sign), prose(` ${against}, dove non c'era`));
-    else if (printedDelta(percent) === 0) narrative.push(prose(`; in linea con ${sameMonths ? `gli stessi mesi del ${comparisonYear}` : `il ${comparisonYear}`}`));
-    else narrative.push(prose('; '), signed(signedPercent(percent), sign), prose(` ${against}`));
+    // The delta's own window, named with its figure when the total above spans more months.
+    const ownWindow = sameMonths && livedTotal !== undefined && livedMonths !== undefined && Math.round(livedTotal) !== Math.round(input.periodTotal);
+    if (ownWindow) narrative.push(prose(`; nei primi ${livedMonths} mesi `), figure(euro(livedTotal)), prose(', '));
+    else narrative.push(prose('; '));
+    if (percent === null) narrative.push(signed(signedEuro(amount), sign), prose(` ${against}, dove non c'era`));
+    else if (printedDelta(percent) === 0) narrative.push(prose(`in linea con ${sameMonths ? `gli stessi mesi del ${comparisonYear}` : `il ${comparisonYear}`}`));
+    else narrative.push(signed(signedPercent(percent), sign), prose(` ${against}`));
   }
 
   if (input.monthlyAverage !== null && input.monthlyAverage > 0) {
@@ -542,7 +621,7 @@ export function describeComparison(input: ComparisonInput): Narrative | null {
       signed(signedPercent(expenses.deltaPercent), spendingSign(expenses.delta)),
       prose(')'),
     );
-    if (scope.kind === 'singleMonth' && scope.inProgress) narrative.push(prose(', a mese in corso'));
+    if (scope.kind === 'singleMonth' && scope.inProgress) narrative.push(prose(scope.throughDay !== undefined ? `, sui primi ${scope.throughDay} giorni` : ', a mese in corso'));
   }
 
   const grown = rows.filter((row) => row.delta > 0).sort((a, b) => b.delta - a.delta);

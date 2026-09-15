@@ -14,7 +14,8 @@ export function progressFillColor(ratio: number, inverted = false): string {
   if (inverted) return ratio >= 1 ? 'var(--positive)' : 'var(--muted-foreground)';
   if (ratio > 1) return 'var(--destructive)';
   if (ratio >= WARNING_THRESHOLD) return 'var(--warning-foreground)';
-  return 'var(--foreground)';
+  // The theme's progress token: `--foreground` unless a theme softens a full-strength bar.
+  return 'var(--progress-fill)';
 }
 
 /** Tailwind text-colour utility for the inline percentage, matching the fill. */

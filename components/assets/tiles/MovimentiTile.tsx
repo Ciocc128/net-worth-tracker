@@ -8,8 +8,9 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 import { describeMonthTrades, monthWithPrepositionA } from '@/lib/utils/patrimonioNarrative';
 import type { MonthTradesSummary } from '@/lib/utils/patrimonioSummary';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
-import { cn } from '@/lib/utils';
-import { Tile } from '@/components/ui/tile';
+import { useActionColors } from '@/lib/hooks/useActionColors';
+import { ActionChip } from '@/components/allocation/ActionChip';
+import { Tile, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 
 /** Rows shown by default; beyond these the footer expands to the whole month in place. */
 const MAX_ROWS = 5;
@@ -38,6 +39,7 @@ interface MovimentiTileProps {
 export function MovimentiTile({ summary, month, ledgerReady, loading = false, assetsById, onOpenMovements, className }: MovimentiTileProps) {
   // The month's trades, the latest five by default — the footer expands to all of them in place.
   const [showAll, setShowAll] = useState(false);
+  const actionColors = useActionColors();
   const rows = showAll ? summary.rows : summary.rows.slice(0, MAX_ROWS);
   const monthName = MONTH_NAMES[month - 1].toLowerCase();
 
@@ -81,14 +83,9 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
                 <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                   {asset ? getAssetDisplayTicker(asset) : <span className="text-muted-foreground">Strumento eliminato</span>}
                 </span>
-                <span
-                  className={cn(
-                    'shrink-0 rounded-[7px] px-[7px] py-[3px] text-[10px] font-semibold leading-none',
-                    isBuy ? 'bg-positive/10 text-positive' : 'bg-destructive/10 text-destructive',
-                  )}
-                >
-                  {isBuy ? 'Compra' : 'Vendi'}
-                </span>
+                {/* The same chip Allocazione gives a trade: an action, not a gain or a loss. */}
+                <ActionChip action={isBuy ? 'COMPRA' : 'VENDI'} color={isBuy ? actionColors.COMPRA : actionColors.VENDI} />
+
                 <span className="w-[84px] shrink-0 text-right font-mono text-[13px] tabular-nums text-foreground">
                   {cachedFormatCurrencyEUR(row.amountEur)}
                 </span>
@@ -115,7 +112,7 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
                 type="button"
                 onClick={() => setShowAll((v) => !v)}
                 aria-expanded={showAll}
-                className="text-foreground underline-offset-2 hover:underline"
+                className={TILE_FOOTER_ACTION_CLASS}
               >
                 {showAll ? `Mostra le ultime ${MAX_ROWS}` : 'Mostra tutte'}
               </button>

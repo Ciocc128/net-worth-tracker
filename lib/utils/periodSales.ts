@@ -123,6 +123,11 @@ export function summarizePeriodSales(
  * Why a period fell, in the order the three verdicts (Panoramica, Patrimonio, email) all use — ONE
  * decision so the three surfaces can never disagree on the cause.
  *
+ *   - `taxes-despite-market` the market gained and the estimated tax on the period's sales is at
+ *                            least half of the whole drop: the tax IS the story, and the headline
+ *                            names it (owner's call, 2026-09-13 — on the real account settembre
+ *                            fell by 4.156 € with the market at +153 € and 4.089 € of withholding,
+ *                            and «nonostante il mercato» stopped one step short of the cause)
  *   - `despite-market`     the market gained: the user's own flows explain the whole drop
  *   - `taxes-over-market`  the market lost, and the estimated tax on the period's sales lost more
  *   - `market-and-taxes`   the market lost more than the tax did, but both weighed
@@ -134,6 +139,7 @@ export function summarizePeriodSales(
  * own exact split and passes null).
  */
 export type DeclineCause =
+  | 'taxes-despite-market'
   | 'despite-market'
   | 'taxes-over-market'
   | 'market-and-taxes'
@@ -148,7 +154,16 @@ export function resolveDeclineCause(input: {
 }): DeclineCause {
   const { marketEffect, ownFlows, salesTax } = input;
   if (marketEffect === null) return 'unknown';
-  if (marketEffect >= 0) return 'despite-market';
+  if (marketEffect >= 0) {
+    // The whole drop is «Δ = market + own flows»; the tax explains it when it is at least half
+    // of it. A caller without the own-flows half (the email) cannot measure the drop and keeps
+    // the plain «despite-market» — never a guess from the tax alone.
+    const drop = ownFlows === null ? null : -(marketEffect + ownFlows);
+    if (drop !== null && drop > 0 && salesTax !== null && salesTax > 0 && salesTax >= drop / 2) {
+      return 'taxes-despite-market';
+    }
+    return 'despite-market';
+  }
   const marketLoss = Math.abs(marketEffect);
   if (salesTax !== null && salesTax > 0) {
     return salesTax >= marketLoss ? 'taxes-over-market' : 'market-and-taxes';

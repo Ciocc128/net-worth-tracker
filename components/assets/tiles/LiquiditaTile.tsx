@@ -4,7 +4,8 @@ import type { Asset } from '@/types/assets';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { describeCashAccounts } from '@/lib/utils/patrimonioNarrative';
 import type { CashAccountsSummary } from '@/lib/utils/patrimonioSummary';
-import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { cn } from '@/lib/utils';
+import { Tile, TILE_FOOTER_ACTION_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 
 interface LiquiditaTileProps {
   summary: CashAccountsSummary;
@@ -23,6 +24,9 @@ interface LiquiditaTileProps {
  * account's detail dialog (edit, delete) opens from here, as the old card grid did.
  */
 export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, className }: LiquiditaTileProps) {
+  // Thirteen accounts stretched the tile (and the chart beside it) to twice its row: the list
+  // holds five and a half rows, largest first, and scrolls inside the tile — the cut row is the
+  // cue that there is more.
   const { accounts } = summary;
 
   return (
@@ -42,7 +46,8 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
               {cachedFormatCurrencyEUR(summary.total)}
             </p>
           </div>
-          <div className="mt-2.5 flex flex-col divide-y divide-border">
+          {/* The -mx-2/px-2 pair keeps the rows' hover wash inside the scroll box, which clips on both axes. */}
+          <div className="mb-3.5 mt-2.5 flex max-h-[214px] flex-col divide-y divide-border overflow-y-auto overscroll-contain">
             {accounts.map((account) => {
               const asset = accountsById.get(account.id);
               return (
@@ -50,7 +55,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
                   key={account.id}
                   type="button"
                   onClick={() => asset && onSelect(asset)}
-                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-3 py-[9px] text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={`${account.name}, ${cachedFormatCurrencyEUR(account.balance)}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{account.name}</span>
@@ -73,7 +78,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
           onClick={onAdd}
           disabled={isDemo}
           title={isDemo ? 'Non disponibile in modalità demo' : undefined}
-          className="text-foreground underline-offset-2 hover:underline disabled:opacity-50"
+          className={cn(TILE_FOOTER_ACTION_CLASS, 'disabled:opacity-50')}
         >
           Aggiungi conto
         </button>

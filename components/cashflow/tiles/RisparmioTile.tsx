@@ -3,7 +3,7 @@
 import type { Narrative } from '@/lib/utils/narrative';
 import type { SavingsHistory } from '@/lib/utils/tracciamentoSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { ChartHoverTip, CURRENT_SLOT_LABEL_CLASS, CurrentSlotBand, useChartHover } from '@/components/ui/chart-hover';
 import { formatPercentage } from '@/lib/services/chartService';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
@@ -63,6 +63,7 @@ function SavingsRateBars({ history, highlightKey }: { history: SavingsHistory; h
           role="img"
           aria-label={`Tasso di risparmio per mese. ${label}`}
         >
+          <CurrentSlotBand index={history.months.findIndex((m) => m.key === highlightKey)} slot={slot} height={VIEW_H} />
           {hover.index !== null && (
             <rect x={hover.index * slot} y={0} width={slot} height={VIEW_H} fill="var(--foreground)" opacity={0.06} />
           )}
@@ -79,9 +80,7 @@ function SavingsRateBars({ history, highlightKey }: { history: SavingsHistory; h
                   y={y}
                   width={barWidth}
                   height={height}
-                  fill={rate < 0 ? 'var(--destructive)' : 'var(--chart-2)'}
-                  stroke={month.key === highlightKey ? 'var(--foreground)' : 'none'}
-                  vectorEffect="non-scaling-stroke"
+                  fill={rate < 0 ? 'var(--sign-chart-loss)' : 'var(--flow-in)'}
                 />
               </g>
             );
@@ -115,7 +114,7 @@ function SavingsRateBars({ history, highlightKey }: { history: SavingsHistory; h
         {history.months.map((month) => (
           <span
             key={month.key}
-            className={cn('text-center font-mono text-[10px] tabular-nums', month.key === highlightKey ? 'font-semibold text-foreground' : 'text-muted-foreground')}
+            className={cn('text-center font-mono text-[10px] tabular-nums', month.key === highlightKey ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
           >
             {month.label}
           </span>

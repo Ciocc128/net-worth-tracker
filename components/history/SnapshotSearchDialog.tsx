@@ -159,8 +159,7 @@ export function SnapshotSearchDialog({
           {selectedSnapshot?.note && (
             <Button
               type="button"
-              variant="outline"
-              className="text-destructive hover:text-destructive"
+              variant="outlineDestructive"
               onClick={handleDelete}
               disabled={saving || !selectedSnapshot}
             >

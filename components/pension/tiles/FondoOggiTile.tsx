@@ -20,7 +20,8 @@
  * simply shows no reading — the orchestrator says why elsewhere.
  */
 
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
+import { ASIDE_LINK_CLASS } from '@/components/pension/pensionStyles';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { PensionValuePoint } from '@/lib/utils/pensionReturn';
 import type { FondoOggiChip } from '@/lib/utils/pensionNarrative';
@@ -48,6 +49,11 @@ export interface FondoOggiTileProps {
   series: PensionValuePoint[];
   /** The sparkline's window, as the aside of «Andamento»: «nov 2025 → oggi · valore vivo». */
   seriesAside: string;
+  /**
+   * Opens «Aggiorna valore» from the footer, for the reader who scrolled past the header: the
+   * footer names how the value is kept, so the action to keep it sits beside those words.
+   */
+  onUpdateValue?: () => void;
   /** Passed through to the tile's `section`. */
   className?: string;
 }
@@ -91,6 +97,7 @@ export function FondoOggiTile({
   chips,
   series,
   seriesAside,
+  onUpdateValue,
   className,
 }: FondoOggiTileProps) {
   const hasSparkline = series.length >= 2;
@@ -132,7 +139,7 @@ export function FondoOggiTile({
               ratio — an in-flow SVG with height:100% in an auto-height parent grows to
               width × (viewBox height / width). preserveAspectRatio="none" makes the stretch safe. */}
           <div className="relative -mx-5 mt-3 min-h-[180px] flex-1 [&_svg]:absolute [&_svg]:inset-0 [&_svg]:h-full [&_svg]:w-full">
-            <NetWorthSparkline data={sparklineData} filled={true} color="var(--chart-1)" height={180} interactive />
+            <NetWorthSparkline data={sparklineData} filled={true} color="var(--hero-series)" height={180} interactive />
           </div>
           <div className="mt-1.5 flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
             <span>{cachedFormatCurrencyEUR(series[0].value, true)}</span>
@@ -145,11 +152,17 @@ export function FondoOggiTile({
           the free height and the footer follows it. */}
       <div
         className={cn(
-          'flex flex-col gap-1 border-t border-border pt-3.5 text-[11px] text-muted-foreground',
+          'flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border pt-3.5 text-[11px] text-muted-foreground',
           hasSparkline ? 'mt-3.5' : 'mt-auto pt-4',
         )}
       >
-        <p className="font-mono tabular-nums">{footer}</p>
+        <p className="min-w-0 font-mono tabular-nums">{footer}</p>
+        {onUpdateValue && (
+          <button type="button" onClick={onUpdateValue} className={cn(ASIDE_LINK_CLASS, 'shrink-0')}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Aggiorna valore
+          </button>
+        )}
       </div>
     </Tile>
   );

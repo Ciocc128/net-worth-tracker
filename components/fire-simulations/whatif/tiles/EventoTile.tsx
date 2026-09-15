@@ -201,7 +201,9 @@ export function EventoTile({ reading, event, eventType, onEventTypeChange, form,
               aria-pressed={active}
               className={cn(
                 'flex min-h-11 items-center gap-2 rounded-md border px-3 text-left text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:min-h-10',
-                active ? 'border-foreground bg-muted text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40',
+                active
+                  ? 'border-foreground bg-aside-toggle-on text-aside-toggle-on-foreground'
+                  : 'border-border bg-outline-surface text-muted-foreground hover:bg-accent hover:text-accent-foreground',
               )}
             >
               <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

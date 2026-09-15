@@ -30,6 +30,7 @@
 
 'use client';
 
+import { categoryRoleColor } from '@/lib/utils/categoryIconStyle';
 import React, { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -114,6 +115,7 @@ import {
   summarizeExpenseCategories,
   type ThemeMode,
 } from '@/lib/utils/settingsNarrative';
+import { summarizeCategoryClassification } from '@/lib/utils/spendingRoles';
 
 interface SubTarget {
   name: string;
@@ -389,6 +391,7 @@ export default function SettingsPage() {
   const [laborIncomeCategoryIds, setLaborIncomeCategoryIds] = useState<string[]>([]);
   const [costCentersEnabled, setCostCentersEnabled] = useState<boolean>(false);
   const [expenseSplitEnabled, setExpenseSplitEnabled] = useState<boolean>(false);
+  const [spendingRolesEnabled, setSpendingRolesEnabled] = useState<boolean>(false);
   const [performanceIncludesPensionFunds, setPerformanceIncludesPensionFunds] = useState<boolean>(false);
   const [performanceIncludesExcludedAssets, setPerformanceIncludesExcludedAssets] = useState<boolean>(false);
   const [performanceExcludesCash, setPerformanceExcludesCash] = useState<boolean>(false);
@@ -578,6 +581,7 @@ export default function SettingsPage() {
         setLaborIncomeCategoryIds(settingsData.laborIncomeCategoryIds ?? []);
         setCostCentersEnabled(settingsData.costCentersEnabled ?? false);
         setExpenseSplitEnabled(settingsData.expenseSplitEnabled ?? false);
+        setSpendingRolesEnabled(settingsData.spendingRolesEnabled ?? false);
         setPerformanceIncludesPensionFunds(settingsData.performanceIncludesPensionFunds ?? false);
         setPerformanceIncludesExcludedAssets(settingsData.performanceIncludesExcludedAssets ?? false);
         setPerformanceExcludesCash(settingsData.performanceExcludesCash ?? false);
@@ -719,6 +723,7 @@ export default function SettingsPage() {
           laborIncomeCategoryIds: [...(settingsData?.laborIncomeCategoryIds ?? [])].sort(),
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
           expenseSplitEnabled: settingsData?.expenseSplitEnabled ?? false,
+          spendingRolesEnabled: settingsData?.spendingRolesEnabled ?? false,
           performanceIncludesPensionFunds: settingsData?.performanceIncludesPensionFunds ?? false,
           performanceIncludesExcludedAssets: settingsData?.performanceIncludesExcludedAssets ?? false,
           performanceExcludesCash: settingsData?.performanceExcludesCash ?? false,
@@ -1315,6 +1320,7 @@ export default function SettingsPage() {
         laborIncomeCategoryIds,
         costCentersEnabled,
         expenseSplitEnabled,
+        spendingRolesEnabled,
         performanceIncludesPensionFunds,
         performanceIncludesExcludedAssets,
         performanceExcludesCash,
@@ -1614,6 +1620,7 @@ export default function SettingsPage() {
         laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         costCentersEnabled,
         expenseSplitEnabled,
+        spendingRolesEnabled,
         performanceIncludesPensionFunds,
         performanceIncludesExcludedAssets,
         performanceExcludesCash,
@@ -1718,6 +1725,7 @@ export default function SettingsPage() {
   const debitAccount = cashAssets.find((a) => a.id === defaultDebitCashAssetId);
   const creditAccount = cashAssets.find((a) => a.id === defaultCreditCashAssetId);
   const categoryCounts = summarizeExpenseCategories(expenseCategories);
+  const categoryClassification = summarizeCategoryClassification(expenseCategories);
   const dividendCategory = expenseCategories.find((cat) => cat.id === dividendIncomeCategoryId);
   const dividendSubCategory = dividendCategory?.subCategories.find((sub) => sub.id === dividendIncomeSubCategoryId);
   const inpsAgeShown = planParams.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
@@ -2150,6 +2158,8 @@ export default function SettingsPage() {
                     costCentersEnabled,
                     expenseSplitEnabled,
                     familyMemberCount: familyMembersForReading.length,
+                    spendingRolesEnabled,
+                    categoryClassification,
                   })}
                 >
                   <div className="mt-3">
@@ -2241,6 +2251,20 @@ export default function SettingsPage() {
                         id="expenseSplitEnabled"
                         checked={expenseSplitEnabled}
                         onCheckedChange={setExpenseSplitEnabled}
+                        className={cn('shrink-0', interactiveControlClass)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 py-3">
+                      <div className="min-w-0">
+                        <Label htmlFor="spendingRolesEnabled" className="text-[13px] font-medium">Necessità, desideri, risparmi</Label>
+                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                          Ogni categoria di spesa riceve un ruolo 50/30/20, che il flusso di Analisi può mostrare
+                        </p>
+                      </div>
+                      <Switch
+                        id="spendingRolesEnabled"
+                        checked={spendingRolesEnabled}
+                        onCheckedChange={setSpendingRolesEnabled}
                         className={cn('shrink-0', interactiveControlClass)}
                       />
                     </div>
@@ -3211,17 +3235,24 @@ export default function SettingsPage() {
                                   <div className="flex min-w-0 items-center gap-3">
                                     {(() => {
                                       const CatIcon = category.icon ? getLazyIcon(category.icon) : null;
+                                      // With the 50/30/20 roles on, the badge wears the role, not the saved hue.
+                                      const roleColor = categoryRoleColor(category, spendingRolesEnabled);
+                                      const glyph = roleColor ?? (category.color || 'var(--muted-foreground)');
+                                      const wash = roleColor
+                                        ? `color-mix(in oklch, ${roleColor} 14%, transparent)`
+                                        : category.color ? `${category.color}20` : 'var(--muted)';
+                                      const dot = roleColor ?? (category.color || 'var(--chart-1)');
                                       return (
                                         <div
                                           className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-                                          style={{ backgroundColor: category.color ? `${category.color}20` : 'var(--muted)' }}
+                                          style={{ backgroundColor: wash }}
                                         >
                                           {CatIcon ? (
-                                            <Suspense fallback={<div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: category.color || '#3b82f6' }} />}>
-                                              <CatIcon className="h-3.5 w-3.5" style={{ color: category.color || 'var(--muted-foreground)' }} aria-hidden="true" />
+                                            <Suspense fallback={<div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: dot }} />}>
+                                              <CatIcon className="h-3.5 w-3.5" style={{ color: glyph }} aria-hidden="true" />
                                             </Suspense>
                                           ) : (
-                                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color || '#3b82f6' }} />
+                                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: dot }} />
                                           )}
                                         </div>
                                       );
@@ -3512,7 +3543,7 @@ export default function SettingsPage() {
                           onClick={(e) => applyThemeWithTransition(value, e, setTheme)}
                           className={cn(
                             'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md text-[13px] font-medium transition-colors',
-                            isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                            isActive ? 'bg-segment-active text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                           )}
                         >
                           <Icon className="h-4 w-4" aria-hidden="true" />
@@ -3583,6 +3614,7 @@ export default function SettingsPage() {
         onClose={handleExpenseCategoryDialogClose}
         category={editingCategory}
         onSuccess={handleExpenseCategorySuccess}
+        spendingRolesEnabled={spendingRolesEnabled}
       />
 
       {/* Category Delete Confirmation Dialog */}

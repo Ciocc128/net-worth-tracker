@@ -10,7 +10,6 @@
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { prepareMonthlyLaborMetricsData } from '@/lib/services/chartService';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
 import { CHART_TICK_STYLE } from '@/components/cashflow/costCenterStyles';
 
 interface LaborMetricsChartProps {
@@ -24,7 +23,6 @@ const TOOLTIP_ITEM_STYLE = { color: 'var(--card-foreground)' } as const;
 const LEGEND_STYLE = { fontSize: 11, color: 'var(--muted-foreground)', paddingTop: 8 } as const;
 
 export default function LaborMetricsChart({ data, isMobile }: LaborMetricsChartProps) {
-  const chartColors = useChartColors();
   if (data.length === 0) return null;
   const first = data[0].period;
   const last = data[data.length - 1].period;
@@ -50,10 +48,10 @@ export default function LaborMetricsChart({ data, isMobile }: LaborMetricsChartP
             cursor={{ stroke: 'var(--foreground)', strokeOpacity: 0.25, strokeWidth: 1 }}
           />
           <Legend wrapperStyle={LEGEND_STYLE} iconType="square" iconSize={8} />
-          <Line type="monotone" dataKey="laborIncome" stroke={chartColors[0] ?? 'var(--chart-1)'} strokeWidth={2} name="Guadagnato da lavoro" dot={false} animationDuration={600} animationEasing="ease-out" />
-          <Line type="monotone" dataKey="savedFromWork" stroke={chartColors[1] ?? 'var(--chart-2)'} strokeWidth={2} name="Risparmiato da lavoro" dot={false} animationDuration={600} animationEasing="ease-out" />
+          <Line type="monotone" dataKey="laborIncome" stroke="var(--chart-1)" strokeWidth={2} name="Guadagnato da lavoro" dot={false} animationDuration={600} animationEasing="ease-out" />
+          <Line type="monotone" dataKey="savedFromWork" stroke="var(--flow-in)" strokeWidth={2} name="Risparmiato da lavoro" dot={false} animationDuration={600} animationEasing="ease-out" />
           {/* «Mercato», the same word as the row above it (the series is the month's gross market share). */}
-          <Line type="monotone" dataKey="investmentGrowth" stroke={chartColors[4] ?? 'var(--chart-5)'} strokeWidth={2} name="Mercato" dot={false} animationDuration={600} animationEasing="ease-out" />
+          <Line type="monotone" dataKey="investmentGrowth" stroke="var(--capital-networth)" strokeWidth={2} name="Mercato" dot={false} animationDuration={600} animationEasing="ease-out" />
         </LineChart>
       </ResponsiveContainer>
     </div>

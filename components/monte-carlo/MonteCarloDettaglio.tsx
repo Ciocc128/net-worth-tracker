@@ -16,11 +16,11 @@ import type { Narrative } from '@/lib/utils/narrative';
 import type { OverlayPoint, PercentileRow } from '@/lib/utils/monteCarloSummary';
 import { EXPLAINER } from '@/lib/utils/monteCarloNarrative';
 import { formatCurrencyCompact } from '@/lib/services/chartService';
-import { useChartColors } from '@/lib/hooks/useChartColors';
+import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
-import { ScenarioOverlayChart, SCENARIO_SLOT } from '@/components/monte-carlo/ScenarioOverlayChart';
+import { ScenarioOverlayChart } from '@/components/monte-carlo/ScenarioOverlayChart';
 
 interface MonteCarloDettaglioProps {
   /** `DETTAGLIO_DESCRIPTION`. */
@@ -41,7 +41,6 @@ const PERCENTILE_COLUMNS: { key: keyof Omit<PercentileRow, 'calendarYear'>; labe
 
 export function MonteCarloDettaglio({ description, traiettorieReading, overlay, percentiliReading, percentileRows }: MonteCarloDettaglioProps) {
   const [open, setOpen] = useState(false);
-  const chartColors = useChartColors();
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -65,7 +64,7 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
               <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3.5 text-[11px] text-muted-foreground">
                 {(['bear', 'base', 'bull'] as const).map((key) => (
                   <span key={key} className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: chartColors[SCENARIO_SLOT[key]] }} aria-hidden="true" />
+                    <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
                     {key === 'bear' ? 'Orso' : key === 'base' ? 'Base' : 'Toro'}
                   </span>
                 ))}

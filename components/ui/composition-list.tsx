@@ -73,7 +73,7 @@ export function CompositionList({
         const widthPct = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
         const rowContent = (
           <>
-            <span className="w-[30%] desktop:w-[22%] min-w-0 shrink-0 truncate text-sm font-medium text-foreground">
+            <span className="w-[34%] desktop:w-[22%] min-w-0 shrink-0 break-words text-sm font-medium leading-tight text-foreground">
               {item.name}
             </span>
             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
