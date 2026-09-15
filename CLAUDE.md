@@ -13,7 +13,17 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **173 files / 3836 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **175 files / 3864 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-15, fork): **50/30/20, sessione A — il ruolo sta sulla categoria, niente di visibile a flag spento.**
+  `spendingRolesEnabled` (i cinque punti di Impostazioni), `ExpenseCategory.spendingRole` + override per sottocategoria,
+  selettore nel dialog categorie, lettura Cashflow che conta le categorie ancora «Da classificare»; puro
+  `lib/utils/spendingRoles.ts` (Risparmi = righe `saving` + avanzo, deficit = «Coperto dal patrimonio», lati bilanciati
+  per test); «Da classificare» cancella il campo con `deleteField`. doc/guide/cashflow.md § Ruoli 50/30/20. Collaudo:
+  `tsc` 0, ESLint 0, 175 file / 3864 test, due guardie viste rosse; sonda Playwright usa e getta sugli emulatori 13/13
+  (flag spento = nessun selettore, reload dello switch, scrittura e cancellazione su Firestore, flag spento non tocca il
+  ruolo, 390 senza overflow), fixture ripristinata identica, sonda cancellata. Sul mirror: le due «Fondo Pensione»
+  legacy erano vuote; classificazione e riorganizzazione delle categorie del proprietario provate (marzo–agosto 56/44/0,
+  348 € coperti dal patrimonio). **Aperto**: sessione B (token dei tre ruoli, `useChartColors`, Sankey in Analisi).
 - Latest (2026-09-14, fork): **Lime Frost chiaro diventa una palette per ruoli, ritoccata dal proprietario con Agentation.**
   Toolbar `agentation` montata solo in sviluppo (`components/providers/AgentationToolbar.tsx`, server MCP su :4747). Sul
   mirror dell'account reale: terreno verde piatto (L 0.955, tinta 133), lime come riempimento d'azione (`--action`,

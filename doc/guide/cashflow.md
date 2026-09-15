@@ -71,3 +71,24 @@
 - **The type belongs inside the category id** (`cat:{tipo}:{chiave}`), because without that prefix an income and an
   expense category of the same name close a cycle through Budget and `computeNodeDepths` throws `"circular link"`,
   blanking the chart. **Ids are opaque**: `index` is the only sanctioned way to ask what a node is.
+
+## Ruoli 50/30/20: Necessità · Desideri · Risparmi (`lib/utils/spendingRoles.ts`)
+- **Opt-in** (`settings.spendingRolesEnabled`, Impostazioni › Preferenze › Cashflow, the five write places) and meant
+  for Analisi's Sankey only: category icons stay neutral and there is no 50/30/20 tile. Session A (2026-09-15) shipped
+  the field, the dialog and the pure layer; the Sankey wiring and the three role tokens are still to come.
+- **The role lives on the category, never on the row**: `ExpenseCategory.spendingRole`, with an optional per-subcategory
+  override (`ExpenseSubCategory.spendingRole`, WiFi = need inside a want-classified Abbonamenti). Rows carry
+  `categoryId`, so a reclassification is retroactive on every period with no bulk update. **`resolveSpendingRole` is the
+  ONE resolution**: override → category → `null` («Da classificare»); a missing category and a non-spending one (income,
+  transfer — a role left behind by a type change) are `null` too.
+- **Risparmi is not a category total**: `summarizeSpendingRoles` gives savings = saving-classified rows + the period's
+  surplus. When spending exceeds income the surplus is 0 and the gap becomes `deficit`, drawn on the income side as
+  «Coperto dal patrimonio» — a Sankey has no negative width. Invariant, tested: `income + deficit = need + want +
+  unclassified + saving + surplus`. Amounts are absolute, the row's own type decides income vs spending, transfers skip.
+- **Clearing a role must delete the field**: «Da classificare» is the absence of `spendingRole`, and
+  `removeUndefinedDeep` would drop the key and keep the old role. `updateCategory` writes `deleteField()` when the key is
+  present with `undefined`; the key absent means "not edited". **The dialog writes the role only when it showed it**
+  (setting on), so a category saved with the setting off keeps its classification; a category moved to income or
+  transfer sheds its roles.
+- **The legacy «Fondo Pensione» expense category is empty** on the owner's account (mirror, 2026-09-15: zero rows on
+  both the variable and the income category; Previdenza's contributions are transfers) — no double count to clean.

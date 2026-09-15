@@ -114,6 +114,7 @@ import {
   summarizeExpenseCategories,
   type ThemeMode,
 } from '@/lib/utils/settingsNarrative';
+import { summarizeCategoryClassification } from '@/lib/utils/spendingRoles';
 
 interface SubTarget {
   name: string;
@@ -389,6 +390,7 @@ export default function SettingsPage() {
   const [laborIncomeCategoryIds, setLaborIncomeCategoryIds] = useState<string[]>([]);
   const [costCentersEnabled, setCostCentersEnabled] = useState<boolean>(false);
   const [expenseSplitEnabled, setExpenseSplitEnabled] = useState<boolean>(false);
+  const [spendingRolesEnabled, setSpendingRolesEnabled] = useState<boolean>(false);
   const [performanceIncludesPensionFunds, setPerformanceIncludesPensionFunds] = useState<boolean>(false);
   const [performanceIncludesExcludedAssets, setPerformanceIncludesExcludedAssets] = useState<boolean>(false);
   const [performanceExcludesCash, setPerformanceExcludesCash] = useState<boolean>(false);
@@ -578,6 +580,7 @@ export default function SettingsPage() {
         setLaborIncomeCategoryIds(settingsData.laborIncomeCategoryIds ?? []);
         setCostCentersEnabled(settingsData.costCentersEnabled ?? false);
         setExpenseSplitEnabled(settingsData.expenseSplitEnabled ?? false);
+        setSpendingRolesEnabled(settingsData.spendingRolesEnabled ?? false);
         setPerformanceIncludesPensionFunds(settingsData.performanceIncludesPensionFunds ?? false);
         setPerformanceIncludesExcludedAssets(settingsData.performanceIncludesExcludedAssets ?? false);
         setPerformanceExcludesCash(settingsData.performanceExcludesCash ?? false);
@@ -719,6 +722,7 @@ export default function SettingsPage() {
           laborIncomeCategoryIds: [...(settingsData?.laborIncomeCategoryIds ?? [])].sort(),
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
           expenseSplitEnabled: settingsData?.expenseSplitEnabled ?? false,
+          spendingRolesEnabled: settingsData?.spendingRolesEnabled ?? false,
           performanceIncludesPensionFunds: settingsData?.performanceIncludesPensionFunds ?? false,
           performanceIncludesExcludedAssets: settingsData?.performanceIncludesExcludedAssets ?? false,
           performanceExcludesCash: settingsData?.performanceExcludesCash ?? false,
@@ -1315,6 +1319,7 @@ export default function SettingsPage() {
         laborIncomeCategoryIds,
         costCentersEnabled,
         expenseSplitEnabled,
+        spendingRolesEnabled,
         performanceIncludesPensionFunds,
         performanceIncludesExcludedAssets,
         performanceExcludesCash,
@@ -1614,6 +1619,7 @@ export default function SettingsPage() {
         laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         costCentersEnabled,
         expenseSplitEnabled,
+        spendingRolesEnabled,
         performanceIncludesPensionFunds,
         performanceIncludesExcludedAssets,
         performanceExcludesCash,
@@ -1718,6 +1724,7 @@ export default function SettingsPage() {
   const debitAccount = cashAssets.find((a) => a.id === defaultDebitCashAssetId);
   const creditAccount = cashAssets.find((a) => a.id === defaultCreditCashAssetId);
   const categoryCounts = summarizeExpenseCategories(expenseCategories);
+  const categoryClassification = summarizeCategoryClassification(expenseCategories);
   const dividendCategory = expenseCategories.find((cat) => cat.id === dividendIncomeCategoryId);
   const dividendSubCategory = dividendCategory?.subCategories.find((sub) => sub.id === dividendIncomeSubCategoryId);
   const inpsAgeShown = planParams.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
@@ -2150,6 +2157,8 @@ export default function SettingsPage() {
                     costCentersEnabled,
                     expenseSplitEnabled,
                     familyMemberCount: familyMembersForReading.length,
+                    spendingRolesEnabled,
+                    categoryClassification,
                   })}
                 >
                   <div className="mt-3">
@@ -2241,6 +2250,20 @@ export default function SettingsPage() {
                         id="expenseSplitEnabled"
                         checked={expenseSplitEnabled}
                         onCheckedChange={setExpenseSplitEnabled}
+                        className={cn('shrink-0', interactiveControlClass)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-4 py-3">
+                      <div className="min-w-0">
+                        <Label htmlFor="spendingRolesEnabled" className="text-[13px] font-medium">Necessità, desideri, risparmi</Label>
+                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                          Ogni categoria di spesa riceve un ruolo 50/30/20, che il flusso di Analisi può mostrare
+                        </p>
+                      </div>
+                      <Switch
+                        id="spendingRolesEnabled"
+                        checked={spendingRolesEnabled}
+                        onCheckedChange={setSpendingRolesEnabled}
                         className={cn('shrink-0', interactiveControlClass)}
                       />
                     </div>
@@ -3583,6 +3606,7 @@ export default function SettingsPage() {
         onClose={handleExpenseCategoryDialogClose}
         category={editingCategory}
         onSuccess={handleExpenseCategorySuccess}
+        spendingRolesEnabled={spendingRolesEnabled}
       />
 
       {/* Category Delete Confirmation Dialog */}
