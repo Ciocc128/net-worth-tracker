@@ -3,7 +3,7 @@
 import type { SpendingPoint } from '@/lib/utils/analisiSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { ChartHoverTip, CURRENT_SLOT_LABEL_CLASS, CurrentSlotBand, useChartHover } from '@/components/ui/chart-hover';
 import { SeriesDot } from '@/components/ui/series-dot';
 
 interface SpendingBarsChartProps {
@@ -62,6 +62,7 @@ export function SpendingBarsChart({ points, kind, minHeight = 150, className }: 
           aria-label={`Spese ${kind === 'month' ? 'per mese' : 'per anno'}. ${points.map(describe).join('; ')}`}
         >
           <line x1={0} y1={VIEW_H - 0.5} x2={VIEW_W} y2={VIEW_H - 0.5} stroke="var(--border)" vectorEffect="non-scaling-stroke" />
+          <CurrentSlotBand index={points.findIndex((p) => p.ongoing)} slot={slot} height={VIEW_H} />
           {hover.index !== null && (
             <rect x={hover.index * slot} y={0} width={slot} height={VIEW_H} fill="var(--foreground)" opacity={0.06} />
           )}
@@ -85,8 +86,6 @@ export function SpendingBarsChart({ points, kind, minHeight = 150, className }: 
                   // A month that has not started holds only what is already in the calendar:
                   // drawn lighter still, and never outlined — it is not the month in progress.
                   fillOpacity={point.scheduled ? 0.3 : point.ongoing ? 0.55 : 1}
-                  stroke={point.ongoing ? 'var(--foreground)' : 'none'}
-                  vectorEffect="non-scaling-stroke"
                 />
               </g>
             );
@@ -117,7 +116,7 @@ export function SpendingBarsChart({ points, kind, minHeight = 150, className }: 
             // A month still in the calendar is told by its bar (lighter, never outlined) and by the
             // svg's label; its month name keeps the full muted token — an opacity over it measured
             // 3,30:1 in dark and 2,30:1 in light on the real account (2026-09-14).
-            className={cn('truncate text-center font-mono text-[10px] tabular-nums', point.ongoing ? 'font-semibold text-foreground' : 'text-muted-foreground')}
+            className={cn('truncate text-center font-mono text-[10px] tabular-nums', point.ongoing ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
           >
             {point.label}
           </span>

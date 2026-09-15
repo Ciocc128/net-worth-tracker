@@ -199,8 +199,9 @@ export function AssetRow({
     <div
       className={cn(
         'flex flex-col',
-        // color-mix() tracks the active theme's --chart-3 — the "no market quote" tint of the table.
-        isManualPrice && '-mx-2 rounded-md bg-[color-mix(in_oklch,var(--chart-3)_6%,transparent)] px-2',
+        // The desktop table's «no market quote» tint, same token and same flat edge (--manual-row;
+        // a rounded amber box read as a different thing on the phone, owner 2026-09-15).
+        isManualPrice && '-mx-2 bg-[color-mix(in_oklch,var(--manual-row)_6%,transparent)] px-2',
       )}
     >
       <button
@@ -212,7 +213,7 @@ export function AssetRow({
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-[13px] font-medium text-foreground">{asset.name}</span>
+            <span className="line-clamp-2 break-words text-[13px] font-medium text-foreground">{asset.name}</span>
             {asset.quantity === 0 && (
               <span className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 Azzerato

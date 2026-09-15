@@ -57,7 +57,7 @@
 - **`summarizeSelection` runs on the union like `change`**: an instrument ticked in an earlier month and sold in full counts its whole previous value as a quantity loss (`departed`), so the panel agrees with the trend line under it.
 - **JSX text after an expression inside a flex chip loses its leading space** (`{pct} l'anno` rendered «19,4%l'anno»): an anonymous flex item's leading whitespace is collapsed. Build the string in one expression.
 - **`SnapshotSearchDialog` sets the note in the select handler**, not in an effect (react-hooks/set-state-in-effect); the page patches the note into local state after `updateSnapshotNote`, no refetch.
-- **No scrub, no confetti (2026-09-13).** For one day (4b0a2dd) the Evoluzione series drove every tile under the pointer (`resolveScrubView`, `storicoScrub.ts`); the owner removed it together with the milestone confetti of Raddoppi. The tiles read today, the Recharts tooltip is the whole hover reading, `ComposizioneTile` renders `series.breakdown` as plain rows, the Driver bars light only their own hover, and `EvoluzioneTile`'s head is `OverviewAnimatedCurrency` on the latest value. Do not bring either back on this page (DESIGN.md → The Scrub Rule, retired).
+- **The scrub is back in the fork (2026-09-15, owner), the confetti stays retired.** Upstream removed the scrub on 2026-09-13 (5e6e3c6); the fork restores it as of 4b0a2dd — `storicoScrub.ts` (`resolveScrubView`), `buildBreakdownForRow`, the Evoluzione head gliding onto the month under a fine pointer, Composizione re-ranking, the Driver slot lighting — solo fork. On the next upstream merge these four files will conflict again: keep the fork's side.
 
 ## Per-page blind spots
 

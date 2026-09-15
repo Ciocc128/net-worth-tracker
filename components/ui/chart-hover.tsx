@@ -59,3 +59,16 @@ export function ChartHoverTip({ x, label, children }: ChartHoverTipProps) {
     </div>
   );
 }
+
+/**
+ * The month a bar chart is about (the running month, the page's month): never an outline around
+ * its bars — a hairline box stretched by `preserveAspectRatio="none"` read as a frame, not as «now»
+ * (owner, 2026-09-15). A faint persistent column behind the slot, lighter than the hover's, and the
+ * month name in a small pill under the axis.
+ */
+export const CURRENT_SLOT_LABEL_CLASS = 'mx-auto w-fit rounded-full bg-muted px-1.5 font-semibold text-foreground';
+
+export function CurrentSlotBand({ index, slot, height }: { index: number; slot: number; height: number }) {
+  if (index < 0) return null;
+  return <rect x={index * slot} y={0} width={slot} height={height} fill="var(--foreground)" opacity={0.035} />;
+}

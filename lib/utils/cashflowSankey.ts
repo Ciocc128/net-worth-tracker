@@ -446,12 +446,35 @@ function splitTail<T extends { value: number }>(ranked: T[], limit: number | und
 const othersNodeId = (parent: OthersParent): string =>
   parent.kind === 'income' ? 'others:income' : parent.kind === 'role' ? `others:role:${parent.bucket}` : `others:type:${parent.expenseType}`;
 
+/**
+ * A theme's colours for the type view, resolved to hex. When given, every income source takes the
+ * income colour and a type's categories and subcategories take the type's own colour, flat — the
+ * same register as the 50/30/20 view — instead of the fixed semantic palette and its derived
+ * shades (which went near-black on a long branch). Absent: the historical palette, unchanged.
+ */
+export interface TypeFlowPalette {
+  income: string;
+  budget: string;
+  savings: string;
+  fixed: string;
+  variable: string;
+  debt: string;
+}
+
 interface BudgetFlowOptions {
   /** Emit the subcategory layer (5-layer view) instead of stopping at categories. */
   withSubcategories: boolean;
   isMobile: boolean;
   grouping?: FlowGrouping;
+  palette?: TypeFlowPalette;
 }
+
+const typeColorOf = (type: ExpenseType, palette?: TypeFlowPalette): string =>
+  palette && (type === 'fixed' || type === 'variable' || type === 'debt') ? palette[type] : TYPE_COLORS[type];
+
+/** Derived shades from the base colour, or the base colour itself for every child under a theme palette. */
+const childColors = (base: string, count: number, palette?: TypeFlowPalette): string[] =>
+  palette ? Array.from({ length: count }, () => base) : deriveSubcategoryColors(base, count);
 
 /**
  * Build the budget flow: Income categories → Budget → Expense types → Categories
@@ -460,7 +483,7 @@ interface BudgetFlowOptions {
  * @param expenses All rows for the period, income and expenses together.
  */
 function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): SankeyView {
-  const { withSubcategories, isMobile, grouping } = options;
+  const { withSubcategories, isMobile, grouping, palette } = options;
   const totals = aggregateFlow(expenses);
   const savings = totals.totalIncome - totals.totalExpenses;
 
@@ -520,7 +543,7 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
   incomeCategories.forEach((category, position) => {
     const nodeId = categoryNodeId('income', category.key);
     const label = labels.get(nodeId) ?? category.name;
-    builder.addNode(nodeId, label, COLORS[position % COLORS.length], {
+    builder.addNode(nodeId, label, palette?.income ?? COLORS[position % COLORS.length], {
       kind: 'category',
       expenseType: 'income',
       categoryKey: category.key,
@@ -530,12 +553,12 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
   });
   if (incomeSplit.tail) {
     const parent: OthersParent = { kind: 'income' };
-    builder.addNode(othersNodeId(parent), 'Altre entrate', COLORS[incomeCategories.length % COLORS.length], { kind: 'others', parent, count: incomeSplit.tail.count });
+    builder.addNode(othersNodeId(parent), 'Altre entrate', palette?.income ?? COLORS[incomeCategories.length % COLORS.length], { kind: 'others', parent, count: incomeSplit.tail.count });
     builder.addLink(othersNodeId(parent), BUDGET_NODE_ID, incomeSplit.tail.value);
   }
 
   // Layer 2: the Budget node itself
-  builder.addNode(BUDGET_NODE_ID, 'Budget', BUDGET_NODE_COLOR, { kind: 'budget' });
+  builder.addNode(BUDGET_NODE_ID, 'Budget', palette?.budget ?? BUDGET_NODE_COLOR, { kind: 'budget' });
 
   // Layer 3+: one branch per spending type
   for (const type of EXPENSE_FLOW_TYPES) {
@@ -543,11 +566,11 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
     if (typeTotal <= 0) continue;
 
     const typeId = typeNodeId(type);
-    builder.addNode(typeId, EXPENSE_TYPE_LABELS[type], TYPE_COLORS[type], { kind: 'expenseType', expenseType: type });
+    builder.addNode(typeId, EXPENSE_TYPE_LABELS[type], typeColorOf(type, palette), { kind: 'expenseType', expenseType: type });
     builder.addLink(BUDGET_NODE_ID, typeId, typeTotal);
 
     const categories = categoriesByType.get(type) ?? [];
-    const categoryColors = deriveSubcategoryColors(TYPE_COLORS[type], categories.length);
+    const categoryColors = childColors(typeColorOf(type, palette), categories.length, palette);
 
     categories.forEach((category, position) => {
       const categoryId = categoryNodeId(type, category.key);
@@ -571,7 +594,7 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
       const rankedSubCategories = rank(category.subCategories.values());
       const subCategories = rankedSubCategories.slice(0, MAX_SUBCATEGORIES);
       const rest = rankedSubCategories.slice(MAX_SUBCATEGORIES);
-      const subColors = deriveSubcategoryColors(categoryColor, subCategories.length + (rest.length > 0 ? 1 : 0));
+      const subColors = childColors(categoryColor, subCategories.length + (rest.length > 0 ? 1 : 0), palette);
 
       subCategories.forEach((subCategory, subPosition) => {
         const subId = subCategoryNodeId(type, category.key, subCategory.key);
@@ -604,7 +627,7 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
     const tail = splitByType.get(type)!.tail;
     if (tail) {
       const parent: OthersParent = { kind: 'type', expenseType: type };
-      builder.addNode(othersNodeId(parent), `Altre ${tail.count}`, TYPE_COLORS[type], { kind: 'others', parent, count: tail.count });
+      builder.addNode(othersNodeId(parent), `Altre ${tail.count}`, typeColorOf(type, palette), { kind: 'others', parent, count: tail.count });
       builder.addLink(typeId, othersNodeId(parent), tail.value);
     }
   }
@@ -612,7 +635,7 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
   // Savings is what the budget does not spend — absent when spending exceeds income,
   // because a negative flow has no width to draw.
   if (savings > 0) {
-    builder.addNode(SAVINGS_NODE_ID, 'Risparmi', SAVINGS_NODE_COLOR, { kind: 'savings' });
+    builder.addNode(SAVINGS_NODE_ID, 'Risparmi', palette?.savings ?? SAVINGS_NODE_COLOR, { kind: 'savings' });
     builder.addLink(BUDGET_NODE_ID, SAVINGS_NODE_ID, savings);
   }
 
@@ -623,8 +646,8 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
  * 4-layer budget flow: Income categories → Budget → Expense types → Categories + Savings. With
  * `grouping`, the smaller sources and each type's smaller categories become «Altre» nodes.
  */
-export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean, grouping?: FlowGrouping): SankeyView {
-  return buildBudgetFlow(expenses, { withSubcategories: false, isMobile, grouping });
+export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean, grouping?: FlowGrouping, palette?: TypeFlowPalette): SankeyView {
+  return buildBudgetFlow(expenses, { withSubcategories: false, isMobile, grouping, palette });
 }
 
 /**
@@ -632,8 +655,8 @@ export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean, grou
  * (MAX_SUBCATEGORY_CATEGORIES, MAX_SUBCATEGORIES + one «Altre N» node each); every other
  * category, and one whose rows carry no subcategory at all (hasRealBreakdown), stays a leaf.
  */
-export function buildBudgetFlowDataWithSubcategories(expenses: Expense[], isMobile: boolean): SankeyView {
-  return buildBudgetFlow(expenses, { withSubcategories: true, isMobile });
+export function buildBudgetFlowDataWithSubcategories(expenses: Expense[], isMobile: boolean, palette?: TypeFlowPalette): SankeyView {
+  return buildBudgetFlow(expenses, { withSubcategories: true, isMobile, palette });
 }
 
 /**
@@ -651,7 +674,9 @@ export function buildTypeDrillDownData(
   expenses: Expense[],
   expenseType: ExpenseType,
   typeColor: string,
-  isMobile: boolean
+  isMobile: boolean,
+  /** Under a theme palette the categories wear the type's colour flat, as in the full view. */
+  flat = false
 ): SankeyView {
   const bucket = new Map<string, CategoryTotal>();
   for (const expense of expenses) {
@@ -661,7 +686,7 @@ export function buildTypeDrillDownData(
   if (bucket.size === 0) return EMPTY_VIEW;
 
   const categories = rank(bucket.values(), isMobile ? MOBILE_MAX_DRILLDOWN_ITEMS : undefined);
-  const colors = deriveSubcategoryColors(typeColor, categories.length);
+  const colors = flat ? categories.map(() => typeColor) : deriveSubcategoryColors(typeColor, categories.length);
 
   const builder = new ViewBuilder();
   const typeId = typeNodeId(expenseType);

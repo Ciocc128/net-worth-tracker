@@ -19,6 +19,7 @@ import {
   TYPE_COLORS,
   type FlowGrouping,
   type SankeyNodeDescriptor,
+  type TypeFlowPalette,
   type SankeyView,
   type SpendingRolePalette,
 } from '@/lib/utils/cashflowSankey';
@@ -84,6 +85,18 @@ const ROLE_TOKENS: Record<keyof SpendingRolePalette, string> = {
   deficit: '--role-deficit',
 };
 
+// The type view's theme colours: undeclared in :root, so a theme without them (every one but
+// Lime Frost light) resolves the empty fallbacks and keeps the historical palette.
+const TYPE_TOKENS: Record<keyof TypeFlowPalette, string> = {
+  income: '--type-flow-income',
+  budget: '--type-flow-budget',
+  savings: '--type-flow-savings',
+  fixed: '--type-flow-fixed',
+  variable: '--type-flow-variable',
+  debt: '--type-flow-debt',
+};
+const TYPE_TOKEN_FALLBACKS: Record<keyof TypeFlowPalette, string> = { income: '', budget: '', savings: '', fixed: '', variable: '', debt: '' };
+
 /**
  * «Come scorrono i soldi?» — the app's one Sankey inside a tile: eyebrow, the reading over the
  * flow, the view's size and its toggles as the aside, then the plot. The tile owns the navigation
@@ -91,8 +104,8 @@ const ROLE_TOKENS: Record<keyof SpendingRolePalette, string> = {
  * on), the subcategory layer and the single type/role drill — and builds the view, so the words
  * above the plot describe exactly what is drawn.
  *
- * On desktop both views use the thin chart with grouped tails (owner's pick «B», 2026-09-15); only
- * the five-column subcategory layer keeps the classic one. On a phone the roles view is not a
+ * On desktop every view uses the thin chart (owner's pick «B», 2026-09-15, extended to the
+ * subcategory layer the same day). On a phone the roles view is not a
  * Sankey at all: the 50/30/20 bar and the categories as rows (SpendingRolesMobileFlow).
  */
 export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntityClick, className }: FlussoTileProps) {
@@ -100,6 +113,11 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
   const [showSubcategories, setShowSubcategories] = useState(false);
   const [preferredMode, setPreferredMode] = useState<FlowMode>('roles');
   const palette = useCssColorTokens(ROLE_TOKENS, DEFAULT_SPENDING_ROLE_PALETTE);
+  const typeTokens = useCssColorTokens(TYPE_TOKENS, TYPE_TOKEN_FALLBACKS);
+  const typePalette = useMemo<TypeFlowPalette | undefined>(
+    () => (Object.values(typeTokens).every(Boolean) ? typeTokens : undefined),
+    [typeTokens],
+  );
 
   // With the setting off there is only one view, whatever was chosen before.
   const mode: FlowMode = spendingRoles ? preferredMode : 'types';
@@ -107,7 +125,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
   const grouping = isMobile ? undefined : DESKTOP_GROUPING;
 
   const view = useMemo((): SankeyView => {
-    if (drill?.kind === 'type') return buildTypeDrillDownData(expenses, drill.expenseType, drill.color, isMobile);
+    if (drill?.kind === 'type') return buildTypeDrillDownData(expenses, drill.expenseType, drill.color, isMobile, typePalette !== undefined);
     if (spendingRoles && drill?.kind === 'role') {
       return buildSpendingRoleDrillDownData(expenses, spendingRoles.categories, drill.bucket, drill.color, isMobile);
     }
@@ -116,8 +134,10 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
         ? buildSpendingRolesFlowDataWithSubcategories(expenses, spendingRoles.categories, palette, isMobile)
         : buildSpendingRolesFlowData(expenses, spendingRoles.categories, palette, isMobile, grouping);
     }
-    return showSubcategories ? buildBudgetFlowDataWithSubcategories(expenses, isMobile) : buildBudgetFlowData(expenses, isMobile, grouping);
-  }, [expenses, drill, isMobile, showSubcategories, spendingRoles, mode, palette, grouping]);
+    return showSubcategories
+      ? buildBudgetFlowDataWithSubcategories(expenses, isMobile, typePalette)
+      : buildBudgetFlowData(expenses, isMobile, grouping, typePalette);
+  }, [expenses, drill, isMobile, showSubcategories, spendingRoles, mode, palette, grouping, typePalette]);
 
   const layer = showSubcategories ? 'subcategories' : 'categories';
   const viewKey = drill
@@ -153,7 +173,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
         // «Altre N» opens the branch it belongs to, where every category is drawn; the income tail has nowhere to go.
         if (drill) return;
         const { parent } = descriptor;
-        if (parent.kind === 'type') setDrill({ kind: 'type', expenseType: parent.expenseType, color: TYPE_COLORS[parent.expenseType] });
+        if (parent.kind === 'type') setDrill({ kind: 'type', expenseType: parent.expenseType, color: typePalette && parent.expenseType !== 'income' && parent.expenseType !== 'transfer' ? typePalette[parent.expenseType] : TYPE_COLORS[parent.expenseType] });
         if (parent.kind === 'role') setDrill({ kind: 'role', bucket: parent.bucket, color: roleColor(parent.bucket) });
         return;
       }
@@ -248,7 +268,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
               ariaLabel={chartLabel}
               onNodeClick={handleNodeClick}
               nodeSort={mode === 'roles' && !drill ? 'input' : 'auto'}
-              variant={showSubcategories && !drill ? 'classic' : 'thin'}
+              variant="thin"
             />
           </div>
         </>

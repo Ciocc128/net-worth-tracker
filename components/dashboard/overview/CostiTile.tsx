@@ -47,10 +47,9 @@ export function CostiTile({ metrics, flags, costDrivers, className }: CostiTileP
         )}
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className={TILE_SUB_EYEBROW_CLASS}>Costo annuo</p>
-          {/* Foreground, not amber: a cost is a fact, and the reading line already judges it
-              («lo 0,25% del patrimonio»). A figure painted «caution» on every account, forever,
-              says nothing (DESIGN.md → The Data Owns Color Rule). */}
-          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+          {/* --cost-figure: ink by default, as upstream (a cost is a fact the reading already judges);
+              a theme may make it stand out without the red of a decision — Lime Frost amber. */}
+          <p className="font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums text-cost-figure">
             {cachedFormatCurrencyEUR(annualTotal, true)}
           </p>
         </div>

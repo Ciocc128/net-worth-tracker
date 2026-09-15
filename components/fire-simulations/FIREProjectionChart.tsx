@@ -136,7 +136,7 @@ export function FIREProjectionChart({
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
         <YAxis
-          width={marginLeft <= 20 ? 70 : 100}
+          width={marginLeft <= 20 ? 80 : 100}
           tickFormatter={(value) => formatCurrencyCompact(Number(value))}
           tick={CHART_TICK_STYLE}
         />

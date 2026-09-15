@@ -72,8 +72,9 @@ export function RankedRows({ rows, color, remainder, labelClassName, onRowClick,
           instead of truncating, because «30 set · Asilo nido · in calendario» is the row's
           second fact (the day, the subcategory, the calendar) and a cut fact is no fact
           (2026-09-14; the accessible name always carried it whole). */}
-      <span className={cn('flex min-w-0 items-baseline gap-1.5 text-[13px] text-foreground', labelWidth, active && 'font-semibold')}>
-        <span className={cn('truncate', row.caption && 'max-w-[65%] shrink-0')}>{row.label}</span>
+      <span className={cn('flex min-w-0 items-baseline gap-1.5 text-[13px] text-foreground @max-[420px]:flex-col @max-[420px]:gap-0.5', labelWidth, active && 'font-semibold')}>
+        {/* A name is never cut (owner, 2026-09-15): two lines at most; in a phone's column the caption drops under it. */}
+        <span className={cn('line-clamp-2 break-words', row.caption && 'max-w-[65%] shrink-0 @max-[420px]:max-w-full')}>{row.label}</span>
         {row.caption && <span className="line-clamp-2 min-w-0 break-words font-mono text-[11px] leading-[1.35] tabular-nums text-muted-foreground">{row.caption}</span>}
       </span>
       <div className={cn('h-[3px] overflow-hidden rounded-full bg-muted', BAR_TRACK_CLASS)} role="presentation">

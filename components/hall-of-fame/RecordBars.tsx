@@ -3,7 +3,7 @@
 import type { TimelinePoint } from '@/lib/utils/hallOfFameSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { ChartHoverTip, CURRENT_SLOT_LABEL_CLASS, CurrentSlotBand, useChartHover } from '@/components/ui/chart-hover';
 
 interface RecordBarsProps {
   points: TimelinePoint[];
@@ -59,6 +59,7 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
           aria-label={`${ariaLabel} ${spoken}.`}
         >
           <line x1={0} y1={VIEW_H - 0.5} x2={VIEW_W} y2={VIEW_H - 0.5} stroke="var(--border)" vectorEffect="non-scaling-stroke" />
+          <CurrentSlotBand index={points.findIndex((p) => p.isCurrent)} slot={slot} height={VIEW_H} />
           {hover.index !== null && (
             <rect x={hover.index * slot} y={0} width={slot} height={VIEW_H} fill="var(--foreground)" opacity={0.06} />
           )}
@@ -74,8 +75,6 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
                   height={height}
                   fill="var(--hero-series)"
                   fillOpacity={point.isCurrent ? 0.55 : 1}
-                  stroke={point.isCurrent ? 'var(--foreground)' : 'none'}
-                  vectorEffect="non-scaling-stroke"
                 />
               </g>
             );
@@ -96,7 +95,7 @@ export function RecordBars({ points, ariaLabel, minHeight = 130, className }: Re
             key={point.key}
             className={cn(
               'text-center font-mono text-[10px] tabular-nums',
-              point.isCurrent ? 'font-semibold text-foreground' : 'text-muted-foreground',
+              point.isCurrent ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground',
             )}
           >
             {point.label}

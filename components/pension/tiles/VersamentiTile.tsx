@@ -158,7 +158,7 @@ function DeleteButton({ row, onDelete, disabled, announce, onArmedChange }: Dele
       aria-label={label}
       className={cn(
         GHOST_BUTTON_CLASS,
-        'h-11 w-11 shrink-0 whitespace-nowrap text-destructive hover:text-destructive desktop:h-8 desktop:w-8',
+        'h-11 w-11 shrink-0 whitespace-nowrap text-destructive hover:bg-ghost-destructive-hover hover:text-destructive desktop:h-8 desktop:w-8',
         // Ten red bins down the table read as an alarm: from desktop the bin shows on the row
         // under the pointer or on keyboard focus; a touch screen keeps it always visible.
         !armed && 'desktop:opacity-0 desktop:group-hover:opacity-100 desktop:focus-visible:opacity-100',

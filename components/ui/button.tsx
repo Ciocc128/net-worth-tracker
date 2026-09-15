@@ -21,8 +21,9 @@ const buttonVariants = cva(
           "border border-destructive-outline bg-destructive-surface text-destructive shadow-xs hover:bg-destructive-surface-hover hover:text-destructive dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        // A bin (an icon in text-destructive) keeps its red and hovers on the theme's destructive wash.
         ghost:
-          "hover:bg-ghost-hover hover:text-ghost-hover-foreground dark:hover:bg-accent/50",
+          "hover:bg-ghost-hover hover:text-ghost-hover-foreground hover:has-[svg.text-destructive]:bg-ghost-destructive-hover dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

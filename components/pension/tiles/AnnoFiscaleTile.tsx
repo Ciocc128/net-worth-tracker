@@ -59,7 +59,7 @@ function MemberBlock({ block, tax, named }: { block: PensionMemberBlock; tax: Pe
   return (
     <div>
       <p className={TILE_SUB_EYEBROW_CLASS}>{named ? `${name} · Risparmio IRPEF stimato` : 'Risparmio IRPEF stimato'}</p>
-      <p className={cn('mt-1.5 text-foreground', KPI_VALUE_CLASS)}>
+      <p className={cn('mt-1.5 text-estimate-figure', KPI_VALUE_CLASS)}>
         {tax.taxSaving !== null ? `~${cachedFormatCurrencyEUR(tax.taxSaving, true)}` : '—'}
       </p>
       {tax.ral === null && (
@@ -90,7 +90,7 @@ function MemberBlock({ block, tax, named }: { block: PensionMemberBlock; tax: Pe
           aria-valuemax={100}
           aria-label={`Dedotto ${deducted} su un tetto di ${ceiling}`}
         >
-          <div className="h-full rounded-full bg-foreground" style={{ width: `${share}%` }} />
+          <div className="h-full rounded-full bg-[var(--progress-fill)]" style={{ width: `${share}%` }} />
         </div>
       </div>
 

@@ -91,7 +91,14 @@ function InProgressRow({ milestone, latestValue }: { milestone: DoublingMileston
         aria-valuemax={100}
         aria-label={`Avanzamento verso ${cachedFormatCurrencyEUR(milestone.endValue, true)}`}
       >
-        <div className="h-full rounded-full bg-foreground" style={{ width: `${progress}%` }} />
+        {/* The track warms up toward the finish: far → a mix toward near at the current progress. */}
+        <div
+          className="h-full rounded-full"
+          style={{
+            width: `${progress}%`,
+            background: `linear-gradient(to right, var(--milestone-far), color-mix(in oklch, var(--milestone-near) ${progress}%, var(--milestone-far)))`,
+          }}
+        />
       </div>
       <div className="flex justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
         <span>{cachedFormatCurrencyEUR(milestone.startValue, true)}</span>

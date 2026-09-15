@@ -6,7 +6,9 @@ import { cn } from '@/lib/utils';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { SeriesDot } from '@/components/ui/series-dot';
 
-const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums';
+// 22px where the trio has room; in a phone's column the three five-digit figures touched, so the
+// size follows the trio's own width (container units) down to a 15px floor.
+const KPI_VALUE_CLASS = 'font-mono text-[clamp(15px,5.8cqw,22px)] font-bold leading-none tracking-[-0.03em] tabular-nums';
 
 /**
  * Colour of a period-over-period delta: a rise in income is good, a rise in spending is not —
@@ -64,7 +66,7 @@ interface CashflowKpiTrioProps {
 export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLabel, className }: CashflowKpiTrioProps) {
   const { income, expenses, net, savingsRate, coverageRatio } = totals;
   return (
-    <div className={cn('grid grid-cols-3 gap-3.5', className)}>
+    <div className={cn('@container grid grid-cols-3 gap-3.5', className)}>
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
         <p className={cn(KPI_VALUE_CLASS, income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>

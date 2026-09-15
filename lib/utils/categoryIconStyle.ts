@@ -1,3 +1,5 @@
+import type { ExpenseCategory } from '@/types/expenses';
+
 /**
  * Colours of a category's icon badge (Tracciamento's rows, a movement's detail, the table).
  *
@@ -15,4 +17,22 @@ export function categoryIconBackground(color?: string | null): string {
 
 export function categoryIconColor(color?: string | null): string {
   return `var(--category-icon, ${color || 'var(--muted-foreground)'})`;
+}
+
+/**
+ * The colour a category's badge wears in Impostazioni once the 50/30/20 roles are on: the role's
+ * token (income the income flow), never the hue the user saved — the saved hue is shown nowhere
+ * else in Lime Frost, so the settings list must not promise it (owner, 2026-09-15). A spending
+ * category without a role is «Da classificare». Null with the roles off: the saved colour stays.
+ */
+export function categoryRoleColor(
+  category: Pick<ExpenseCategory, 'type' | 'spendingRole'>,
+  rolesEnabled: boolean,
+): string | null {
+  if (!rolesEnabled) return null;
+  if (category.type === 'income') return 'var(--flow-in)';
+  if (category.spendingRole === 'need') return 'var(--role-need)';
+  if (category.spendingRole === 'want') return 'var(--role-want)';
+  if (category.spendingRole === 'saving') return 'var(--role-saving)';
+  return 'var(--role-unclassified)';
 }

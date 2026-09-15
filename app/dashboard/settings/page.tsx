@@ -30,6 +30,7 @@
 
 'use client';
 
+import { categoryRoleColor } from '@/lib/utils/categoryIconStyle';
 import React, { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -3234,17 +3235,24 @@ export default function SettingsPage() {
                                   <div className="flex min-w-0 items-center gap-3">
                                     {(() => {
                                       const CatIcon = category.icon ? getLazyIcon(category.icon) : null;
+                                      // With the 50/30/20 roles on, the badge wears the role, not the saved hue.
+                                      const roleColor = categoryRoleColor(category, spendingRolesEnabled);
+                                      const glyph = roleColor ?? (category.color || 'var(--muted-foreground)');
+                                      const wash = roleColor
+                                        ? `color-mix(in oklch, ${roleColor} 14%, transparent)`
+                                        : category.color ? `${category.color}20` : 'var(--muted)';
+                                      const dot = roleColor ?? (category.color || 'var(--chart-1)');
                                       return (
                                         <div
                                           className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-                                          style={{ backgroundColor: category.color ? `${category.color}20` : 'var(--muted)' }}
+                                          style={{ backgroundColor: wash }}
                                         >
                                           {CatIcon ? (
-                                            <Suspense fallback={<div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: category.color || 'var(--chart-1)' }} />}>
-                                              <CatIcon className="h-3.5 w-3.5" style={{ color: category.color || 'var(--muted-foreground)' }} aria-hidden="true" />
+                                            <Suspense fallback={<div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: dot }} />}>
+                                              <CatIcon className="h-3.5 w-3.5" style={{ color: glyph }} aria-hidden="true" />
                                             </Suspense>
                                           ) : (
-                                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color || 'var(--chart-1)' }} />
+                                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: dot }} />
                                           )}
                                         </div>
                                       );

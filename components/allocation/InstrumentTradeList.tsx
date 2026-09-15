@@ -75,7 +75,7 @@ export function InstrumentTradeList({ trades, actionColors: colors, ariaLabel, c
               </div>
               {/* Show the full name as a subtitle only when the primary label wasn't already it. */}
               {label !== trade.name && (
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={trade.name}>
+                <p className="mt-0.5 line-clamp-2 break-words text-[11px] text-muted-foreground" title={trade.name}>
                   {trade.name}
                 </p>
               )}

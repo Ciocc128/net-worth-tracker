@@ -96,3 +96,21 @@
   role token, never a `--chart-N`; in Lime Frost light `--chart-5` (Liquidità) is a neutral ice grey. Still on slots:
   the Analisi Sankey (hard-coded hex, planned with the 50/30/20 split) and a few FIRE Dettaglio lines.
 
+- **Lime Frost light, second pass on the mirror (2026-09-15, owner's annotations).** New tokens, each defaulting to the
+  look of every other theme and reset in Lime Frost dark:
+  `--milestone-far/near` (a doubling's track warms from pale ice to `--hero-series` as it closes in, `RaddoppiTile`);
+  `--estimate-figure` (an estimate, e.g. Previdenza's IRPEF saving) and `--cost-figure` (Panoramica's annual cost,
+  Sintesi's estimated tax) — ink by default, **amber in Lime Frost light**; `--allocation-row-bar` (`initial` in Lime
+  Frost light, so each Per classe row wears its class slot) and `--exposure-bar` (neutral ice);
+  `--sign-chart-gain/loss` (the savings bars, the returns heatmap, the Driver's losing market: the sign, lighter);
+  `--ghost-destructive-hover` (a ghost bin warms red under the pointer instead of the ice of harmless icons — the
+  `ghost` button variant matches `has-[svg.text-destructive]`); `--type-flow-*` (the Sankey's «Per tipo» view in the
+  role register, undeclared in `:root` so other themes keep the historical hex palette). The sign rule for income and
+  spending figures stays **Lime Frost only** (owner, 2026-09-15). `--progress-fill` now also fills Previdenza's
+  deduction track. Theme-independent in the same pass: the current month of every monthly bar chart is a faint
+  column plus a pill label (`CurrentSlotBand`, `CURRENT_SLOT_LABEL_CLASS` in `components/ui/chart-hover.tsx`), never
+  an outline; labels are never truncated (two-line clamp) on RankedRows, Hall of Fame records, the feed, Strumenti
+  and the Piano; the Sankey is thin in every desktop view, subcategories included.
+- **Turbopack trap**: an edit to `app/globals.css` made by a script (`sed -i`, a Python rewrite) was not picked up by
+  the dev server — not even after a restart — until the file was edited in place again; check a new token with
+  `getComputedStyle(document.documentElement).getPropertyValue('--x')` before trusting a screenshot.

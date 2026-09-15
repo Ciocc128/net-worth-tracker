@@ -46,8 +46,8 @@ export function PlanRow({ node, depth, color, direction }: PlanRowProps) {
 
   const nameClass =
     depth === 0
-      ? 'truncate text-[13px] font-medium text-foreground'
-      : 'truncate text-[12px] text-muted-foreground';
+      ? 'line-clamp-2 break-words text-[13px] font-medium text-foreground'
+      : 'line-clamp-2 break-words text-[12px] text-muted-foreground';
   const amountClass =
     depth === 0
       ? 'font-mono text-[13px] font-semibold tabular-nums'

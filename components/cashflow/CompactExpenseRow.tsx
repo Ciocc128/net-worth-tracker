@@ -89,7 +89,7 @@ export function CompactExpenseRow({
       {/* Title + badges + subtitle */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[14px] font-medium text-foreground truncate">{title}</span>
+          <span className="line-clamp-2 min-w-0 break-words text-[14px] font-medium text-foreground">{title}</span>
           {expense.isInstallment && expense.installmentNumber && expense.installmentTotal && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0 font-mono tabular-nums">
               {expense.installmentNumber}/{expense.installmentTotal}

@@ -3,7 +3,7 @@
 import type { SpendingHistoryMonth } from '@/lib/utils/budgetSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
-import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { ChartHoverTip, CURRENT_SLOT_LABEL_CLASS, CurrentSlotBand, useChartHover } from '@/components/ui/chart-hover';
 
 interface SpendingBarsChartProps {
   /** Each month carries the ceiling it reads against (its own when recorded, today's otherwise). */
@@ -49,6 +49,7 @@ export function SpendingBarsChart({ months, minHeight = 110, className }: Spendi
           aria-label={`Spese totali per mese${hasCeiling ? ' contro il tetto di ciascuno' : ''}. ${description}`}
         >
           <line x1={0} y1={VIEW_H - 0.5} x2={VIEW_W} y2={VIEW_H - 0.5} stroke="var(--border)" vectorEffect="non-scaling-stroke" />
+          <CurrentSlotBand index={months.findIndex((m) => m.ongoing)} slot={slot} height={VIEW_H} />
           {hover.index !== null && (
             <rect x={hover.index * slot} y={0} width={slot} height={VIEW_H} fill="var(--foreground)" opacity={0.06} />
           )}
@@ -65,8 +66,6 @@ export function SpendingBarsChart({ months, minHeight = 110, className }: Spendi
                   height={height}
                   fill="var(--flow-out)"
                   fillOpacity={month.ongoing ? 0.55 : 1}
-                  stroke={month.ongoing ? 'var(--foreground)' : 'none'}
-                  vectorEffect="non-scaling-stroke"
                 />
               </g>
             );
@@ -110,7 +109,7 @@ export function SpendingBarsChart({ months, minHeight = 110, className }: Spendi
         {months.map((month) => (
           <span
             key={month.key}
-            className={cn('text-center font-mono text-[10px] tabular-nums', month.ongoing ? 'font-semibold text-foreground' : 'text-muted-foreground')}
+            className={cn('text-center font-mono text-[10px] tabular-nums', month.ongoing ? CURRENT_SLOT_LABEL_CLASS : 'text-muted-foreground')}
           >
             {month.label}
           </span>

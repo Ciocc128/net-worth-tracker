@@ -77,7 +77,11 @@ export function RecordRows({
   const { signedValue, signedPercentage } = readingOf(category);
   const barColor = barColorOf(category);
   const maxValue = Math.max(...shown.map((row) => Math.abs(row.value)), 0);
-  const labelWidth = labelClassName ?? 'w-[72px]';
+  // A label is never cut (owner's call, 2026-09-15: «set … ORA» read as nothing): the column is ONE
+  // width for the whole list so the bars still start together, widened when a row carries «ora».
+  const hasCurrent = shown.some((row) => row.isCurrent);
+  // The caller's width is a floor for its vocabulary; «ora» widens past it, never under it.
+  const labelWidth = hasCurrent ? cn(labelClassName, 'w-[108px]') : cn('w-[72px]', labelClassName);
 
   return (
     <ul className="flex flex-col divide-y divide-border" aria-label={ariaLabel}>
@@ -88,7 +92,7 @@ export function RecordRows({
           </span>
 
           <span className={cn('flex shrink-0 items-center gap-1.5 text-[13px] text-foreground', labelWidth)}>
-            <span className="truncate">{row.label}</span>
+            <span className="whitespace-nowrap">{row.label}</span>
             {row.isCurrent && <span className={cn(TILE_SUB_EYEBROW_CLASS, 'shrink-0')}>ora</span>}
           </span>
 

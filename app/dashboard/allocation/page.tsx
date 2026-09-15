@@ -365,7 +365,8 @@ export default function AllocationPage() {
 
   // Below desktop the header action sits under the verdict as a 44px button.
   const mobileAction = (
-    <Link href="/dashboard/settings" className="desktop:hidden">
+    // `block`: an inline link let the button hang over the grid below with no gap (iPhone, 2026-09-15).
+    <Link href="/dashboard/settings" className="block desktop:hidden">
       <Button variant="outline" className="h-11 w-full gap-1.5">
         <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
         Modifica target

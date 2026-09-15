@@ -6,9 +6,10 @@
  * ticks, then each role's categories as ranked rows (the owner's call, 2026-09-15, after trying a
  * vertical flow beside it).
  *
- * The bar's shares are of INCOME — how the rule is quoted — so a deficit runs past the red 100%
- * line; the tile's reading above measures shares of what left. The role headers print amounts only,
- * so no second percentage on another base sits on the same screen.
+ * The bar's shares are on the SAME base as the tile's reading above — income plus what the wealth
+ * covered, i.e. what left — so the bar and the sentence print the same 58/42 (owner, 2026-09-15:
+ * the income base printed 60/44 under a 58/42 sentence). A deficit is the red «entrate» line inside
+ * the bar. The role headers print amounts only.
  *
  * Every number comes from the summary Analisi already computed (summarizeSpendingRoles).
  */
@@ -19,6 +20,7 @@ import type { SpendingBucket, SpendingRoleSlice, SpendingRolesSummary } from '@/
 import { SPENDING_BUCKET_LABELS, SPENDING_ROLE_FLOW_ORDER } from '@/lib/utils/cashflowSankey';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { RankedRows, type RankedRow } from '@/components/ui/ranked-rows';
+import { cn } from '@/lib/utils';
 
 const ROLE_COLOR: Record<SpendingBucket, string> = {
   need: 'var(--role-need)',
@@ -65,16 +67,16 @@ export function SpendingRolesMobileFlow({ summary, onEntityClick }: Props) {
   );
 }
 
-/** One bar of the period's income with the 50 and 80 ticks; a deficit runs past the red 100% line. */
+/** One bar of what left, with the 50 and 80 ticks; a deficit is marked by the red line where income ends. */
 function RuleBar({ summary, roles }: { summary: SpendingRolesSummary; roles: RoleBlock[] }) {
   const span = summary.income + summary.deficit;
   const width = (value: number) => `${(value / span) * 100}%`;
   const incomeEdge = (summary.income / span) * 100;
-  const ofIncome = (value: number) => (summary.income > 0 ? `${Math.round((value / summary.income) * 100)}%` : '—');
+  const ofSpan = (value: number) => (span > 0 ? `${Math.round((value / span) * 100)}%` : '—');
   return (
     <div>
       <div className="relative mt-6">
-        <div className="flex h-[30px] overflow-hidden rounded-lg" role="img" aria-label={roles.map((role) => `${SPENDING_BUCKET_LABELS[role.bucket]} ${ofIncome(role.total)} delle entrate`).join(', ')}>
+        <div className="flex h-[30px] overflow-hidden rounded-lg" role="img" aria-label={roles.map((role) => `${SPENDING_BUCKET_LABELS[role.bucket]} ${ofSpan(role.total)}`).join(', ')}>
           {roles.map((role) => (
             <div
               key={role.bucket}
@@ -82,24 +84,25 @@ function RuleBar({ summary, roles }: { summary: SpendingRolesSummary; roles: Rol
               style={{ width: width(role.total), background: ROLE_COLOR[role.bucket] }}
               aria-hidden="true"
             >
-              {ofIncome(role.total)}
+              {ofSpan(role.total)}
             </div>
           ))}
         </div>
         {[50, 80].map((tick) => (
-          <div key={tick} className="absolute -bottom-1.5 -top-5 border-l border-dashed border-foreground/50" style={{ left: `${(tick / 100) * incomeEdge}%` }} aria-hidden="true">
+          <div key={tick} className="absolute -bottom-1.5 -top-5 border-l border-dashed border-foreground/50" style={{ left: `${tick}%` }} aria-hidden="true">
             <span className="absolute left-1 top-0 font-mono text-[10.5px] text-muted-foreground">{tick}</span>
           </div>
         ))}
         {summary.deficit > 0 && (
           <div className="absolute -bottom-1.5 -top-5 border-l-[1.5px] border-dashed" style={{ left: `${incomeEdge}%`, borderColor: 'var(--role-deficit)' }} aria-hidden="true">
-            <span className="absolute right-1 top-0 font-mono text-[10.5px]" style={{ color: 'var(--role-deficit)' }}>100%</span>
+            {/* Under the bar: above it the label sat on the 80 tick whenever income ends near 80-100%. */}
+            <span className="absolute -bottom-4 right-1 font-mono text-[10.5px]" style={{ color: 'var(--role-deficit)' }}>entrate</span>
           </div>
         )}
       </div>
-      <p className="mt-2.5 text-[11px] text-muted-foreground">
-        Quote sulle entrate ({euro(summary.income)}); tacche a 50 e 80, il riferimento 50/30/20.
-        {summary.deficit > 0 && ` Oltre il 100%: ${euro(summary.deficit)} dal patrimonio.`}
+      <p className={cn('text-[11px] text-muted-foreground', summary.deficit > 0 ? 'mt-6' : 'mt-2.5')}>
+        Quote di quanto è uscito ({euro(span)}); tacche a 50 e 80, il riferimento 50/30/20.
+        {summary.deficit > 0 && ` Oltre la linea delle entrate: ${euro(summary.deficit)} dal patrimonio.`}
       </p>
     </div>
   );

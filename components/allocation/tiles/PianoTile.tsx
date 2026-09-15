@@ -80,7 +80,7 @@ function MoveRow({ move, actionColors }: { move: RebalanceMove; actionColors: Re
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <ActionChip action={move.action} color={actionColors[move.action]} />
-          <span className="truncate text-[13px] font-medium text-foreground" title={move.label}>
+          <span className="line-clamp-2 break-words text-[13px] font-medium text-foreground" title={move.label}>
             {move.label}
           </span>
         </div>

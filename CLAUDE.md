@@ -13,7 +13,16 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **176 files / 3985 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **177 files / 3992 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-15 sera, fork): **Lime Frost, secondo giro sul mirror (desktop + iPhone 15) con le annotazioni del
+  proprietario.** Scrub dello Storico ripristinato (contro upstream `5e6e3c6`), mese corrente come fascia + pillola in
+  tutti i grafici mensili, nessuna etichetta troncata, Sankey sottile anche con le sottocategorie e palette di tema per
+  «Per tipo», barra 50/30/20 su telefono sulla stessa base della lettura (58/42), badge delle categorie in Impostazioni
+  nel colore del ruolo; solo Lime Frost: costi e stime in ambra, barre senza nero, traguardo che si accende, Per classe
+  nei colori di classe, grafici di segno più chiari, cestino rosso al hover. Tutto in doc/guide/fork-scelte-ui.md.
+  Collaudo: `tsc` 0, ESLint 0, 177 file / 3992 test, build verde, Playwright 62/62 (fixture base riseminata dopo il
+  merge; `fork-features.spec.ts` segue il nuovo nome del bottone «Modifica {strumento}»), schermate sul mirror. Script
+  50/30/20 applicato in produzione dal proprietario (backup in `scratchpad/`).
 - Latest (2026-09-15, fork): **Terzo riallineamento a upstream (`v9.0.0`, 13 commit di critique Impeccable), sopra
   tema Lime Frost e 50/30/20 riuniti su `feat/ui-lime-frost-agentation`.** 21 conflitti, quasi tutti «struttura di
   upstream, colore del fork»: conferma di cancellazione di upstream con `outlineDestructive`; la mappa unica
@@ -179,6 +188,7 @@ One line per feature: what it is, then where it is described. *What the user see
 - **Dialog e form trasversali**: 30 modali su un vocabolario unico — occhiello · titolo 20px · riga di lettura (che è la status line del form) · corpo · footer, in `ResponsiveModal` a quattro larghezze; quattro superfici montano ancora `Dialog`/`Drawer`/`Sheet` grezzi (Known Issues). Un delete su una RIGA di tabella si arma nella riga (`useArmedDelete`); una scelta («solo questa o tutte?») è una modale (`SeriesDeleteDialog`). doc/guide/dialog.md; DESIGN → **The Modal-Is-A-Tile Rule**, §5 Modal.
 - **Email periodiche · Email budget**: quattro periodi su UN template — verdetto da regole (anche come preheader), commento AI secondo, poi le tessere; «Rispetto a un anno fa» sparisce sull'annuale. La budget arriva la domenica e non contiene nulla di settimanale: ogni tessera dichiara la propria finestra. doc/guide/email-pdf.md.
 - **PDF export**: sette sezioni alla cadenza della tessera, la copertina è il verdetto, il pavimento del Cashflow è detto; niente monospace né meno tipografico, dichiarati. doc/guide/email-pdf.md.
+- **Scelte UI del fork · Lime Frost**: dove il fork tiene il suo lato contro upstream (scrub dello Storico, mese corrente, niente troncamenti, Flusso 50/30/20 sottile) e le regole del tema Lime Frost chiaro, con i TODO aperti. doc/guide/fork-scelte-ui.md.
 - **Token fuori dal DOM · Multi-theme**: `lib/constants/printTokens.ts` è l'unica sede di un hex per email e PDF (DESIGN → **The Out-Of-DOM Token Rule**); temi in doc/guide/temi.md.
 
 ## Testing

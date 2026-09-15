@@ -41,6 +41,7 @@
   /* A ghost button's hover (row icons, close buttons); the accent unless a theme sets it apart. */
   --color-ghost-hover: var(--ghost-hover);
   --color-ghost-hover-foreground: var(--ghost-hover-foreground);
+  --color-ghost-destructive-hover: var(--ghost-destructive-hover);
   /* A filled button's colour: the primary unless a theme fills its buttons with a colour too
      light to be its text colour (Lime Frost light: lime fill, deep green text). */
   --color-action: var(--action);
@@ -56,6 +57,7 @@
   /* A cost or tax figure (Panoramica's Costi and Sintesi): the warning ink unless a theme keeps
      amber for real warnings only. */
   --color-cost-figure: var(--cost-figure);
+  --color-estimate-figure: var(--estimate-figure);
   /* An income or spending FIGURE (a KPI, a row amount, a hover value): the sign ink unless a theme
      keeps the sign for judgements only and ties the figure to its series with a dot instead. */
   --color-income-figure: var(--income-figure);
@@ -142,6 +144,8 @@
   --segment-active: var(--background);
   --ghost-hover: var(--accent);
   --ghost-hover-foreground: var(--accent-foreground);
+  /* A ghost icon button that deletes (its icon is text-destructive) hovers here instead. */
+  --ghost-destructive-hover: var(--ghost-hover);
   /* The wash behind a hand-priced row in Strumenti. */
   --manual-row: var(--chart-3);
   --action: var(--primary);
@@ -166,6 +170,19 @@
   --progress-fill: var(--foreground);
   /* A cost is a fact, not a caution: neutral in every theme (upstream's CostiTile, 2026-09-14). */
   --cost-figure: var(--foreground);
+  /* An estimate (a tax saving, a projection printed as a figure): ink by default. */
+  --estimate-figure: var(--foreground);
+  /* Allocazione's bars: --allocation-row-bar is the per-class row fill (a theme that sets it `initial`
+     falls back to each row's class colour); --exposure-bar the Esposizione rows. */
+  --allocation-row-bar: var(--chart-1);
+  --exposure-bar: var(--chart-1);
+  /* Sign CHARTS (a monthly savings bar, the returns heatmap): the sign colours by default; a theme can
+     soften their fill without touching the sign TEXT. */
+  --sign-chart-gain: var(--positive);
+  --sign-chart-loss: var(--destructive);
+  /* A milestone track fills from --milestone-far to a mix toward --milestone-near as it closes in. */
+  --milestone-far: var(--foreground);
+  --milestone-near: var(--foreground);
   --income-figure: var(--positive);
   --expense-figure: var(--destructive);
   --net-gain-figure: var(--foreground);
@@ -823,6 +840,8 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --segment-active: oklch(1.0000 0 0);
   --ghost-hover: oklch(0.9300 0.0250 228.0000);
   --ghost-hover-foreground: oklch(0.4800 0.0850 228.0000);
+  /* …but a bin warms to red under the pointer, never the ice of a harmless icon (owner, 2026-09-15). */
+  --ghost-destructive-hover: oklch(0.9500 0.0300 27.3000);
   --manual-row: oklch(0.6200 0.1000 228.0000);
   /* The lime itself, as a FILL with a slate label (12.9:1) — the dark block's gesture brought into
      the light; --primary stays the deep green that must read as text. "Frosted": lighter and a
@@ -852,8 +871,22 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --scenario-base: var(--hero-series);
   --scenario-bull: var(--flow-in);
   --progress-fill: oklch(0.5500 0.0400 257.0000);
-  /* Amber is kept for warnings and thresholds; a cost or an estimated tax is a fact, in slate. */
-  --cost-figure: var(--foreground);
+  /* A milestone lights up as it gets closer: pale ice far away, the net-worth ice blue at the finish
+     (owner's call, 2026-09-15 — «sempre più acceso man mano che ci si avvicina»). */
+  --milestone-far: oklch(0.8600 0.0300 228.0000);
+  --milestone-near: var(--hero-series);
+  /* R6: a class bar wears its class colour (initial → the row's fallback); a look-through list with no
+     class is the neutral ice of background data. */
+  --allocation-row-bar: initial;
+  --exposure-bar: oklch(0.7200 0.0250 235.0000);
+  /* Sign charts keep their judgement but lose the weight: the income green and a lighter red, both
+     ≥ 3:1 on white (owner's call, 2026-09-15). */
+  --sign-chart-gain: oklch(0.6450 0.1100 138.0000);
+  --sign-chart-loss: oklch(0.6200 0.1500 27.3000);
+  /* A cost stands out without the red of a decision, and an estimate reads as one: both amber
+     (owner's call, 2026-09-15, reversing the slate of 2026-09-14). */
+  --cost-figure: var(--warning-foreground);
+  --estimate-figure: var(--warning-foreground);
   /* Income and spending figures are facts, not judgements: foreground ink, tied to their series by a
      dot in --flow-in / --flow-out. The sign stays on deltas, residuals and budget overruns. */
   --income-figure: var(--foreground);
@@ -901,6 +934,15 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --role-need: var(--flow-out);
   --role-want: oklch(0.6450 0.1200 295.0000);
   --role-saving: oklch(0.6450 0.1100 175.0000);
+  /* The Sankey's type view in the same register (owner, 2026-09-15): income sources the income green,
+     fixed the spending ice, variable the frost lavender, debt a muted amber; categories flat in their
+     type's colour. Undeclared in :root, so the other themes keep the historical palette. */
+  --type-flow-income: var(--flow-in);
+  --type-flow-budget: var(--muted-foreground);
+  --type-flow-savings: var(--role-saving);
+  --type-flow-fixed: var(--flow-out);
+  --type-flow-variable: var(--role-want);
+  --type-flow-debt: oklch(0.6800 0.1000 75.0000);
   --role-unclassified: var(--chart-5);
   --role-deficit: var(--destructive);
   --sidebar: oklch(1.0000 0 0);
@@ -960,6 +1002,7 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --segment-active: var(--background);
   --ghost-hover: var(--accent);
   --ghost-hover-foreground: var(--accent-foreground);
+  --ghost-destructive-hover: var(--ghost-hover);
   --manual-row: var(--chart-3);
   --action: var(--primary);
   --action-foreground: var(--primary-foreground);
@@ -976,7 +1019,14 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --scenario-base: var(--chart-1);
   --scenario-bull: var(--chart-2);
   --progress-fill: var(--foreground);
+  --milestone-far: var(--foreground);
+  --milestone-near: var(--foreground);
+  --allocation-row-bar: var(--chart-1);
+  --exposure-bar: var(--chart-1);
+  --sign-chart-gain: var(--positive);
+  --sign-chart-loss: var(--destructive);
   --cost-figure: var(--foreground);
+  --estimate-figure: var(--foreground);
   --income-figure: var(--positive);
   --expense-figure: var(--destructive);
   --series-dot: none;
@@ -985,6 +1035,12 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   /* `initial` invalidates the variable, so categoryIconStyle falls back to the saved hue. */
   --category-icon: initial;
   --category-icon-bg: initial;
+  --type-flow-income: initial;
+  --type-flow-budget: initial;
+  --type-flow-savings: initial;
+  --type-flow-fixed: initial;
+  --type-flow-variable: initial;
+  --type-flow-debt: initial;
   --capital-networth: var(--chart-3);
   --capital-invested: var(--chart-1);
   --sharpe-series: var(--chart-3);
