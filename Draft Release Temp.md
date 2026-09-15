@@ -5,6 +5,9 @@
 
 ## ✨ New Features
 
+- Added «in calendario» to the Spese maggiori rows of Analisi that are dated ahead (a long caption such as «30 set · Asilo nido · in calendario» now wraps to a second line instead of being cut), and the Flusso tile says in words what a click does («un tipo di spesa apre il suo dettaglio; una categoria o una sottocategoria apre la scheda»), which used to live in a hover tooltip only.
+- Added a cut to the Flusso's subcategory view, named in its aside: only the six largest categories open into their four largest subcategories plus one «Altre N» node that still adds up; every other category stays in the chart as a leaf (the old view dropped a category without subcategories entirely).
+
 - Added a second sentence to the Cashflow verdict whenever the calendar reaches past today: the judgement is on what has happened («A settembre finora le spese superano le entrate di 355 €: entrate 302 €, spese 656 €»), then «Con 1297 € di spese e 2456 € di entrate già in calendario da qui a fine mese, il mese chiude a +805 € (il 29%)» — both sides always named, an empty one as «nessuna entrata attesa». On the 14th the page said «Settembre sta andando bene · 29%» on a salary dated the 15th.
 - Added the «solo questa o tutte?» modal for deleting a row of an instalment plan or a recurring series (from the table and from the feed), naming the row, the plan and what the account gets back; a plain row of the Tabella view now arms in place and prints «Eliminando, il conto viene riaccreditato di 373,81 €» beside «Conferma».
 - Added memory to the «Feed | Tabella» switch of Movimenti: the table stays the table across visits.
@@ -27,6 +30,14 @@
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 821 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
 ## 🐛 Bug Fixes
+
+- Fixed the Scheda of Analisi printing three paces for one category on the running year: a 559 € mortgage read «al ritmo di 746 € al mese» (twelve materialised instalments over nine months), «Media ultimi 12 mesi 559 €» and «Proiezione 2026 8946 €» above a total that already covered the year. The pace now divides the lived total by the months lived («Media mensile · sui primi 9 mesi»), the projection takes the calendar as a floor under the pace and disappears when it would only restate the total, «Da inizio anno» cuts the Scheda where it cuts the page, and the reading names the delta's own window when the total spans more («nei primi 9 mesi 5032 €, in linea con gli stessi mesi del 2025»).
+- Fixed Analisi's «Storico» running to 2043: a materialised instalment plan counted as «19 anni», drew seventeen empty years on the Confronto and the Dettaglio charts and summed its future rows into «Dal 2025 hai speso». The history now closes on the current year, calendar included («Dal 2025 al 2026»), with the scheduled clause reaching «a fine anno».
+- Fixed the verdict of the month in progress on Analisi, which compared fourteen days against the whole month a year earlier and printed «A settembre spendi meno di settembre 2025.» with a green dot at −58%: it now compares the same days on both sides («A settembre finora …, su settembre 2025 (primi 14 giorni)», caption «vs Settembre 2025 (1–14 set)»), the Confronto's bars and rows included; when those days hold nothing a year earlier, the Periodo tile says so («Nessun movimento nei primi 14 giorni di settembre 2025: nessun confronto.») instead of dropping the comparison in silence.
+- Fixed the Periodo reading on «Anno corrente» printing «Entrate in calo del 32,3% su 2025» in red with three salaries still to come: the comparison now says «su 2025 (3 mesi ancora in calendario)» where the figure is printed.
+- Fixed «Fuori scala» measuring a month that has not started («Nessuna categoria oltre la sua media» on December's empty calendar): the tile is absent for a month not started, like for a past year without a month. A bookmarked `?year=` below the history floor no longer draws that year's bars under KPIs at zero; it settles to the newest past year.
+- Fixed the Flusso on the real account: 29 categories in a fixed 500px overlapped 16 pairs of labels, and with subcategories 98 nodes were unreadable. The plot's height follows its widest column, the nodes align from the sources so a leaf category stays in its column, the labels are one neutral per mode instead of each node's colour brightened, and the chart carries the tile's reading as its accessible name (it had none).
+- Fixed the keyboard on Analisi: closing the Scheda («Chiudi», «Indietro», or Escape on the tile, which did nothing) returns the focus to the row or control that opened it instead of `body`; the search modal returns it to its trigger and names its listbox in Italian; the period axis is a radiogroup (it announced tabs with no panel); the month names of the months still in the calendar no longer sit under AA (3,30:1 dark / 2,30:1 light).
 
 - Fixed the Cashflow delta of the month in progress, which compared fourteen days against the whole previous month («in calo del 59,8% su agosto»): it now compares the same days («sui primi 14 giorni di agosto», «vs 1–14 ago»); the month-end projection still reads last month whole.
 - Fixed the type colours of the Movimenti table, which painted income blue and fixed expenses green while the legend above said the opposite — the same green meant «Entrate» in one place and «Spese Fisse» in the other; dot, badge and legend now share one colour per type, and an income amount takes the gain colour.
@@ -68,6 +79,8 @@
 
 ## 🔧 Improvements
 
+- Improved Analisi on a phone: the four-mode axis stands in two rows of 44px options instead of scrolling inside its pill (which clipped «Storico»); the month and year pickers, «Ripristina», «Vai a categoria», «Mostra tutte», the breadcrumb and the Confronto's year select are 44px on touch; the Scheda and the Confronto print whole euros like every other aggregate («6710 €», not «6709,68 €»), the oldest year row says «primo anno registrato» instead of «—», a new category in the Confronto no longer prints a dash under its badge, and the Recharts axes of the Scheda and the Dettaglio are mono with «150 €» and the typographic minus.
+
 - Improved «Aggiungi conto» on Patrimonio: it opens on the account form instead of asking «Che cosa vuoi aggiungere?» with eight choices; the asset form keeps its step counter («Passo 2 di 2 · ETF») and its labels are lower-case Italian.
 - Improved Patrimonio’s two-click deletes on every row: no 3-second timer, Escape or a click elsewhere disarms, the arm is announced once per tile, and every row action names its instrument.
 - Improved Patrimonio’s accessibility: the sortable headers are buttons, the actions header is named for a screen reader only, the sparklines on a phone are images and not thirteen mute tab stops, the reading order matches the visual one, the count line links to the table, the footer links and info buttons are 32px on desktop and 44px on touch.
@@ -91,6 +104,7 @@
 
 ## 📚 Documentation
 
+- The Analisi guide records the lived pace of the Scheda, the history's ceiling, the same-days rule of the running month, the absent tile of a month not started, the Flusso's height, alignment, caps and label neutrals, and the focus return; the Impeccable critique of Analisi (26/40) is tracked in `.impeccable/critique/` and closed by polish in the same session.
 - The Dividendi guide records the two populations (registry vs held portfolio), the form's rules, the armed row delete and the phone's chips; the Impeccable critique of Cashflow › Dividendi (23/40) is committed and closed.
 - The dialog guide records how a modal names the control the focus returns to, and that the last two-click delete still on a timer is the assistant's thread list.
 
