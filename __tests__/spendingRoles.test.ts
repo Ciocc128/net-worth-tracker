@@ -132,11 +132,11 @@ describe('summarizeSpendingRoles', () => {
     );
 
     expect(summary.byBucket.need.categories).toEqual([
-      { categoryKey: 'cat-casa', categoryName: 'Casa', value: 900 },
-      { categoryKey: 'cat-abbonamenti', categoryName: 'Abbonamenti', value: 30 },
+      { categoryKey: 'cat-casa', categoryName: 'Casa', expenseType: 'fixed', value: 900 },
+      { categoryKey: 'cat-abbonamenti', categoryName: 'Abbonamenti', expenseType: 'fixed', value: 30 },
     ]);
     expect(summary.byBucket.want.categories).toEqual([
-      { categoryKey: 'cat-abbonamenti', categoryName: 'Abbonamenti', value: 15 },
+      { categoryKey: 'cat-abbonamenti', categoryName: 'Abbonamenti', expenseType: 'fixed', value: 15 },
     ]);
   });
 
@@ -201,7 +201,22 @@ describe('summarizeSpendingRoles', () => {
       CATEGORIES
     );
     expect(summary.byBucket.unclassified.categories).toEqual([
-      { categoryKey: 'cat-deleted', categoryName: 'Vecchia', value: 40 },
+      { categoryKey: 'cat-deleted', categoryName: 'Vecchia', expenseType: 'variable', value: 40 },
+    ]);
+  });
+
+  it('lists income by category, largest first', () => {
+    const summary = summarizeSpendingRoles(
+      [
+        makeExpense({ type: 'income', amount: 200, categoryId: 'cat-regali', categoryName: 'Regali' }),
+        makeExpense({ type: 'income', amount: 1500, categoryId: 'cat-stipendio', categoryName: 'Stipendio' }),
+        makeExpense({ type: 'income', amount: 1500, categoryId: 'cat-stipendio', categoryName: 'Stipendio' }),
+      ],
+      CATEGORIES
+    );
+    expect(summary.incomeCategories).toEqual([
+      { categoryKey: 'cat-stipendio', categoryName: 'Stipendio', expenseType: 'income', value: 3000 },
+      { categoryKey: 'cat-regali', categoryName: 'Regali', expenseType: 'income', value: 200 },
     ]);
   });
 

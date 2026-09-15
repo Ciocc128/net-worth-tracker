@@ -4,17 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { useColorTheme } from '@/contexts/ColorThemeContext';
 import { CHART_COLORS } from '@/lib/constants/colors';
-
-/**
- * Extracts the L (lightness) channel from an oklch() string.
- * Returns null if the string is not a recognisable oklch value.
- * Example: "oklch(0.9200 0.0651 74.44)" → 0.92
- */
-function parseOklchL(value: string): number | null {
-  const match = value.match(/oklch\(\s*([\d.]+)/i);
-  if (!match) return null;
-  return parseFloat(match[1]);
-}
+import { colorLightness } from '@/lib/utils/colorLightness';
 
 /**
  * Returns a 10-color palette that respects the active color theme.
@@ -52,8 +42,9 @@ export function useChartColors(): string[] {
         // disappears against the page background (e.g. Caffeine chart-2/3 are
         // oklch(0.93) — nearly white — making them invisible in light mode).
         // Parse the L channel and fall back to the static palette if the color
-        // would lack contrast in the current mode.
-        const l = parseOklchL(color);
+        // would lack contrast in the current mode. The served CSS is down-levelled to #hex /
+        // lab(), so an oklch-only parse (what this used to be) never guarded anything.
+        const l = colorLightness(color);
         if (l !== null) {
           if (!isDark && l > 0.82) return CHART_COLORS[i]; // too light for light bg
           if (isDark && l < 0.30) return CHART_COLORS[i];  // too dark for dark bg

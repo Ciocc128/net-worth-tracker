@@ -38,7 +38,15 @@ import {
   ExpenseType,
   EXPENSE_TYPE_LABELS,
   NO_SUBCATEGORY_KEY,
+  SPENDING_ROLE_LABELS,
+  UNCLASSIFIED_SPENDING_LABEL,
 } from '@/types/expenses';
+import {
+  resolveSpendingRole,
+  summarizeSpendingRoles,
+  type SpendingBucket,
+  type SpendingRoleSource,
+} from '@/lib/utils/spendingRoles';
 import {
   getCategoryKey,
   getCategoryName,
@@ -111,6 +119,12 @@ export interface SankeyLink {
 export type SankeyNodeDescriptor =
   | { kind: 'budget' }
   | { kind: 'savings' }
+  /** A 50/30/20 role node (Necessità, Desideri, Risparmi, Da classificare). */
+  | { kind: 'spendingRole'; bucket: SpendingBucket }
+  /** «Coperto dal patrimonio»: what spending took beyond the period's income. */
+  | { kind: 'deficit' }
+  /** A grouped tail («Altre entrate», «Altre 3»): the smaller sources, or a role's / a type's smaller categories. */
+  | { kind: 'others'; parent: OthersParent; count: number }
   | { kind: 'expenseType'; expenseType: ExpenseType }
   | { kind: 'category'; expenseType: ExpenseType; categoryKey: string; categoryLabel: string }
   | {
@@ -123,6 +137,12 @@ export type SankeyNodeDescriptor =
       subCategoryKey: string;
       subCategoryLabel: string;
     };
+
+/** What an «Altre» node sums: the income tail, or the categories a role or a type did not draw. */
+export type OthersParent =
+  | { kind: 'income' }
+  | { kind: 'role'; bucket: SpendingBucket }
+  | { kind: 'type'; expenseType: ExpenseType };
 
 export interface SankeyView {
   nodes: SankeyNode[];
@@ -209,16 +229,19 @@ interface FlowTotals {
   totalExpenses: number;
 }
 
-function upsertCategory(bucket: Map<string, CategoryTotal>, expense: Expense, amount: number): CategoryTotal {
-  const key = getCategoryKey(expense);
-  const category = bucket.get(key) ?? { key, name: getCategoryName(expense), value: 0, subCategories: new Map() };
+/** Adds one row to a category total and to its subcategory. */
+function addToCategory(category: CategoryTotal, expense: Expense, amount: number): void {
   category.value += amount;
-
   const subKey = getSubCategoryKey(expense);
   const subCategory = category.subCategories.get(subKey) ?? { key: subKey, name: getSubCategoryLabel(expense), value: 0 };
   subCategory.value += amount;
   category.subCategories.set(subKey, subCategory);
+}
 
+function upsertCategory(bucket: Map<string, CategoryTotal>, expense: Expense, amount: number): CategoryTotal {
+  const key = getCategoryKey(expense);
+  const category = bucket.get(key) ?? { key, name: getCategoryName(expense), value: 0, subCategories: new Map() };
+  addToCategory(category, expense, amount);
   bucket.set(key, category);
   return category;
 }
@@ -324,10 +347,32 @@ function resolveCategoryLabels(
   return resolveDisplayLabels(groups);
 }
 
+/**
+ * How many sources, and categories per branch (a type, or a role), are drawn before the rest
+ * becomes one «Altre» node — the desktop thin view. A tail of ONE item is drawn as itself:
+ * «Altre 1» would say less than its name. The subcategory layer never groups: an «Altre» node has
+ * no breakdown to show under it.
+ */
+export interface FlowGrouping {
+  incomeSources: number;
+  categoriesPerBranch: number;
+}
+
+/** Splits a ranked list into what is drawn and the tail an «Altre» node sums (null when none). */
+function splitTail<T extends { value: number }>(ranked: T[], limit: number | undefined): { shown: T[]; tail: { count: number; value: number } | null } {
+  if (limit === undefined || ranked.length <= limit + 1) return { shown: ranked, tail: null };
+  const rest = ranked.slice(limit);
+  return { shown: ranked.slice(0, limit), tail: { count: rest.length, value: rest.reduce((sum, item) => sum + item.value, 0) } };
+}
+
+const othersNodeId = (parent: OthersParent): string =>
+  parent.kind === 'income' ? 'others:income' : parent.kind === 'role' ? `others:role:${parent.bucket}` : `others:type:${parent.expenseType}`;
+
 interface BudgetFlowOptions {
   /** Emit the subcategory layer (5-layer view) instead of stopping at categories. */
   withSubcategories: boolean;
   isMobile: boolean;
+  grouping?: FlowGrouping;
 }
 
 /**
@@ -337,25 +382,30 @@ interface BudgetFlowOptions {
  * @param expenses All rows for the period, income and expenses together.
  */
 function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): SankeyView {
-  const { withSubcategories, isMobile } = options;
+  const { withSubcategories, isMobile, grouping } = options;
   const totals = aggregateFlow(expenses);
   const savings = totals.totalIncome - totals.totalExpenses;
 
-  const incomeCategories = rank(
-    totals.incomeCategories.values(),
-    isMobile ? MOBILE_MAX_INCOME_CATEGORIES : undefined
+  const incomeSplit = splitTail(
+    rank(totals.incomeCategories.values(), isMobile ? MOBILE_MAX_INCOME_CATEGORIES : undefined),
+    grouping?.incomeSources
   );
+  const incomeCategories = incomeSplit.shown;
 
   // Rank and slice per type BEFORE labelling, so the labels describe what is on screen:
   // a name that collides only with a category the mobile cut removed is not ambiguous.
-  const categoriesByType = new Map<ExpenseType, CategoryTotal[]>(
+  const categoryLimit = withSubcategories ? undefined : grouping?.categoriesPerBranch;
+  const splitByType = new Map(
     EXPENSE_FLOW_TYPES.map((type) => [
       type,
-      rank(
-        (totals.categoriesByType.get(type) ?? new Map()).values(),
-        isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : undefined
+      splitTail(
+        rank((totals.categoriesByType.get(type) ?? new Map<string, CategoryTotal>()).values(), isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : undefined),
+        categoryLimit
       ),
     ])
+  );
+  const categoriesByType = new Map<ExpenseType, CategoryTotal[]>(
+    EXPENSE_FLOW_TYPES.map((type) => [type, splitByType.get(type)!.shown])
   );
 
   const labels = resolveCategoryLabels([
@@ -387,6 +437,11 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
     });
     builder.addLink(nodeId, BUDGET_NODE_ID, category.value);
   });
+  if (incomeSplit.tail) {
+    const parent: OthersParent = { kind: 'income' };
+    builder.addNode(othersNodeId(parent), 'Altre entrate', COLORS[incomeCategories.length % COLORS.length], { kind: 'others', parent, count: incomeSplit.tail.count });
+    builder.addLink(othersNodeId(parent), BUDGET_NODE_ID, incomeSplit.tail.value);
+  }
 
   // Layer 2: the Budget node itself
   builder.addNode(BUDGET_NODE_ID, 'Budget', BUDGET_NODE_COLOR, { kind: 'budget' });
@@ -438,6 +493,13 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
         builder.addLink(categoryId, subId, subCategory.value);
       });
     });
+
+    const tail = splitByType.get(type)!.tail;
+    if (tail) {
+      const parent: OthersParent = { kind: 'type', expenseType: type };
+      builder.addNode(othersNodeId(parent), `Altre ${tail.count}`, TYPE_COLORS[type], { kind: 'others', parent, count: tail.count });
+      builder.addLink(typeId, othersNodeId(parent), tail.value);
+    }
   }
 
   // Savings is what the budget does not spend — absent when spending exceeds income,
@@ -451,10 +513,11 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
 }
 
 /**
- * 4-layer budget flow: Income categories → Budget → Expense types → Categories + Savings.
+ * 4-layer budget flow: Income categories → Budget → Expense types → Categories + Savings. With
+ * `grouping`, the smaller sources and each type's smaller categories become «Altre» nodes.
  */
-export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean): SankeyView {
-  return buildBudgetFlow(expenses, { withSubcategories: false, isMobile });
+export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean, grouping?: FlowGrouping): SankeyView {
+  return buildBudgetFlow(expenses, { withSubcategories: false, isMobile, grouping });
 }
 
 /**
@@ -512,4 +575,268 @@ export function buildTypeDrillDownData(
   return builder.build();
 }
 
+// ── 50/30/20 view ────────────────────────────────────────────────────────────
+//
+// Income categories (+ «Coperto dal patrimonio») → Budget → roles → categories (→ subcategories).
+// The role of a row comes from resolveSpendingRole and the node TOTALS from summarizeSpendingRoles —
+// the same functions the tile's reading uses — so the flow and the sentence above it cannot drift.
+// Risparmi carries the saving-classified categories plus the surplus, which has no child: a Sankey
+// node's value is max(in, out), so the surplus simply ends there.
 
+/** Resolved hex colours (Nivo cannot take oklch/lab) — see useCssColorTokens. */
+export interface SpendingRolePalette {
+  income: string;
+  budget: string;
+  need: string;
+  want: string;
+  saving: string;
+  unclassified: string;
+  deficit: string;
+}
+
+/** Painted before the theme tokens are read, and whenever one is unreadable. */
+export const DEFAULT_SPENDING_ROLE_PALETTE: SpendingRolePalette = {
+  income: '#10b981',
+  budget: '#64748b',
+  need: '#3b82f6',
+  want: '#8b5cf6',
+  saving: '#14b8a6',
+  unclassified: '#94a3b8',
+  deficit: '#ef4444',
+};
+
+/** Reading order of the role nodes: the two spending roles, what is left unclassified, then savings. */
+export const SPENDING_ROLE_FLOW_ORDER: SpendingBucket[] = ['need', 'want', 'unclassified', 'saving'];
+
+export const SPENDING_BUCKET_LABELS: Record<SpendingBucket, string> = {
+  ...SPENDING_ROLE_LABELS,
+  unclassified: UNCLASSIFIED_SPENDING_LABEL,
+};
+
+export const DEFICIT_NODE_LABEL = 'Coperto dal patrimonio';
+
+const DEFICIT_NODE_ID = 'deficit';
+const roleNodeId = (bucket: SpendingBucket): string => `role:${bucket}`;
+// The bucket is part of the category id: one category split by a subcategory override is two
+// nodes (Abbonamenti under Necessità AND under Desideri), and one id would merge them.
+const roleCategoryNodeId = (bucket: SpendingBucket, expenseType: ExpenseType, categoryKey: string): string =>
+  `rcat:${bucket}:${expenseType}:${categoryKey}`;
+const roleSubCategoryNodeId = (bucket: SpendingBucket, expenseType: ExpenseType, categoryKey: string, subKey: string): string =>
+  `rsub:${bucket}:${expenseType}:${categoryKey}:${subKey}`;
+
+interface RoleCategoryTotal extends CategoryTotal {
+  expenseType: ExpenseType;
+}
+
+/** Spending rows grouped bucket → (type, category) → subcategory, by the ONE role resolution. */
+function aggregateByRole(
+  expenses: Expense[],
+  categories: SpendingRoleSource[]
+): Map<SpendingBucket, Map<string, RoleCategoryTotal>> {
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const byBucket = new Map<SpendingBucket, Map<string, RoleCategoryTotal>>(
+    SPENDING_ROLE_FLOW_ORDER.map((bucket) => [bucket, new Map()])
+  );
+  for (const expense of expenses) {
+    if (!EXPENSE_FLOW_TYPES.includes(expense.type)) continue;
+    const bucket: SpendingBucket = resolveSpendingRole(categoriesById.get(expense.categoryId), expense.subCategoryId) ?? 'unclassified';
+    const perCategory = byBucket.get(bucket)!;
+    const key = getCategoryKey(expense);
+    // Keyed by type too: a row carries its own type, and one category can back two mid-cascade.
+    const id = `${expense.type}:${key}`;
+    const category = perCategory.get(id) ?? { key, name: getCategoryName(expense), value: 0, subCategories: new Map(), expenseType: expense.type };
+    addToCategory(category, expense, Math.abs(expense.amount));
+    perCategory.set(id, category);
+  }
+  return byBucket;
+}
+
+interface SpendingRolesFlowOptions {
+  withSubcategories: boolean;
+  isMobile: boolean;
+  grouping?: FlowGrouping;
+}
+
+function buildSpendingRolesFlow(
+  expenses: Expense[],
+  categories: SpendingRoleSource[],
+  palette: SpendingRolePalette,
+  options: SpendingRolesFlowOptions
+): SankeyView {
+  const { withSubcategories, isMobile, grouping } = options;
+  const summary = summarizeSpendingRoles(expenses, categories);
+  if (summary.income <= 0 && summary.spending <= 0) return EMPTY_VIEW;
+
+  const incomeTotals = aggregateFlow(expenses).incomeCategories;
+  const incomeSplit = splitTail(
+    rank(incomeTotals.values(), isMobile ? MOBILE_MAX_INCOME_CATEGORIES : undefined),
+    grouping?.incomeSources
+  );
+  const incomeCategories = incomeSplit.shown;
+  const byRole = aggregateByRole(expenses, categories);
+  // The subcategory layer never groups: an «Altre» node has no breakdown to show under it.
+  const categoryLimit = withSubcategories ? undefined : grouping?.categoriesPerBranch;
+  const splitByRole = new Map(
+    SPENDING_ROLE_FLOW_ORDER.map((bucket) => [
+      bucket,
+      splitTail(rank(byRole.get(bucket)!.values(), isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : undefined), categoryLimit),
+    ])
+  );
+  const rankedByRole = new Map<SpendingBucket, RoleCategoryTotal[]>(
+    SPENDING_ROLE_FLOW_ORDER.map((bucket) => [bucket, splitByRole.get(bucket)!.shown])
+  );
+
+  const labels = resolveDisplayLabels([
+    ...incomeCategories.map((category) => ({
+      key: categoryNodeId('income', category.key),
+      name: category.name,
+      qualifier: EXPENSE_TYPE_LABELS.income,
+    })),
+    ...SPENDING_ROLE_FLOW_ORDER.flatMap((bucket) =>
+      (rankedByRole.get(bucket) ?? []).map((category) => ({
+        key: roleCategoryNodeId(bucket, category.expenseType, category.key),
+        name: category.name,
+        qualifier: SPENDING_BUCKET_LABELS[bucket],
+      }))
+    ),
+  ]);
+
+  const colorOf: Record<SpendingBucket, string> = {
+    need: palette.need,
+    want: palette.want,
+    saving: palette.saving,
+    unclassified: palette.unclassified,
+  };
+  const builder = new ViewBuilder();
+
+  // Layer 1: income categories, and the part of spending the income did not cover
+  incomeCategories.forEach((category) => {
+    const nodeId = categoryNodeId('income', category.key);
+    const label = labels.get(nodeId) ?? category.name;
+    builder.addNode(nodeId, label, palette.income, { kind: 'category', expenseType: 'income', categoryKey: category.key, categoryLabel: label });
+    builder.addLink(nodeId, BUDGET_NODE_ID, category.value);
+  });
+  if (incomeSplit.tail) {
+    const parent: OthersParent = { kind: 'income' };
+    const id = othersNodeId(parent);
+    builder.addNode(id, 'Altre entrate', palette.income, { kind: 'others', parent, count: incomeSplit.tail.count });
+    builder.addLink(id, BUDGET_NODE_ID, incomeSplit.tail.value);
+  }
+  if (summary.deficit > 0) {
+    builder.addNode(DEFICIT_NODE_ID, DEFICIT_NODE_LABEL, palette.deficit, { kind: 'deficit' });
+    builder.addLink(DEFICIT_NODE_ID, BUDGET_NODE_ID, summary.deficit);
+  }
+
+  // Layer 2
+  builder.addNode(BUDGET_NODE_ID, 'Budget', palette.budget, { kind: 'budget' });
+
+  // Layer 3+: one branch per role
+  for (const bucket of SPENDING_ROLE_FLOW_ORDER) {
+    const total = bucket === 'saving' ? summary.savings : summary.byBucket[bucket].total;
+    if (total <= 0) continue;
+    const roleId = roleNodeId(bucket);
+    const color = colorOf[bucket];
+    builder.addNode(roleId, SPENDING_BUCKET_LABELS[bucket], color, { kind: 'spendingRole', bucket });
+    builder.addLink(BUDGET_NODE_ID, roleId, total);
+
+    for (const category of rankedByRole.get(bucket) ?? []) {
+      if (withSubcategories && !hasRealBreakdown(category)) continue;
+      const categoryId = roleCategoryNodeId(bucket, category.expenseType, category.key);
+      const categoryLabel = labels.get(categoryId) ?? category.name;
+      builder.addNode(categoryId, categoryLabel, color, {
+        kind: 'category',
+        expenseType: category.expenseType,
+        categoryKey: category.key,
+        categoryLabel,
+      });
+      builder.addLink(roleId, categoryId, category.value);
+
+      if (!withSubcategories) continue;
+      for (const subCategory of rank(category.subCategories.values(), isMobile ? MOBILE_MAX_SUBCATEGORIES : undefined)) {
+        const subId = roleSubCategoryNodeId(bucket, category.expenseType, category.key, subCategory.key);
+        builder.addNode(subId, subCategory.name, color, {
+          kind: 'subCategory',
+          expenseType: category.expenseType,
+          categoryKey: category.key,
+          categoryLabel,
+          subCategoryKey: subCategory.key,
+          subCategoryLabel: subCategory.name,
+        });
+        builder.addLink(categoryId, subId, subCategory.value);
+      }
+    }
+
+    const tail = splitByRole.get(bucket)!.tail;
+    if (tail) {
+      const parent: OthersParent = { kind: 'role', bucket };
+      const id = othersNodeId(parent);
+      builder.addNode(id, `Altre ${tail.count}`, color, { kind: 'others', parent, count: tail.count });
+      builder.addLink(roleId, id, tail.value);
+    }
+  }
+
+  return builder.build();
+}
+
+/**
+ * 50/30/20 flow: income (+ «Coperto dal patrimonio») → Budget → roles → categories. With
+ * `grouping`, the smaller sources and each role's smaller categories become «Altre» nodes.
+ */
+export function buildSpendingRolesFlowData(
+  expenses: Expense[],
+  categories: SpendingRoleSource[],
+  palette: SpendingRolePalette,
+  isMobile: boolean,
+  grouping?: FlowGrouping
+): SankeyView {
+  return buildSpendingRolesFlow(expenses, categories, palette, { withSubcategories: false, isMobile, grouping });
+}
+
+/** The same flow with a subcategory layer; categories without a real breakdown drop, as in the type view. */
+export function buildSpendingRolesFlowDataWithSubcategories(
+  expenses: Expense[],
+  categories: SpendingRoleSource[],
+  palette: SpendingRolePalette,
+  isMobile: boolean
+): SankeyView {
+  return buildSpendingRolesFlow(expenses, categories, palette, { withSubcategories: true, isMobile });
+}
+
+/**
+ * Role drill-down: one role → its categories, the counterpart of buildTypeDrillDownData.
+ * Risparmi's surplus has no category, so a savings role with no saving rows is an empty view.
+ */
+export function buildSpendingRoleDrillDownData(
+  expenses: Expense[],
+  categories: SpendingRoleSource[],
+  bucket: SpendingBucket,
+  color: string,
+  isMobile: boolean
+): SankeyView {
+  const ranked = rank(aggregateByRole(expenses, categories).get(bucket)!.values(), isMobile ? MOBILE_MAX_DRILLDOWN_ITEMS : undefined);
+  if (ranked.length === 0) return EMPTY_VIEW;
+
+  // Inside one role the only possible collision is the same name under two types.
+  const labels = resolveDisplayLabels(
+    ranked.map((category) => ({
+      key: roleCategoryNodeId(bucket, category.expenseType, category.key),
+      name: category.name,
+      qualifier: EXPENSE_TYPE_LABELS[category.expenseType],
+    }))
+  );
+  const builder = new ViewBuilder();
+  const roleId = roleNodeId(bucket);
+  builder.addNode(roleId, SPENDING_BUCKET_LABELS[bucket], color, { kind: 'spendingRole', bucket });
+  ranked.forEach((category) => {
+    const categoryId = roleCategoryNodeId(bucket, category.expenseType, category.key);
+    const categoryLabel = labels.get(categoryId) ?? category.name;
+    builder.addNode(categoryId, categoryLabel, color, {
+      kind: 'category',
+      expenseType: category.expenseType,
+      categoryKey: category.key,
+      categoryLabel,
+    });
+    builder.addLink(roleId, categoryId, category.value);
+  });
+  return builder.build();
+}

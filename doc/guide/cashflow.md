@@ -75,7 +75,8 @@
 ## Ruoli 50/30/20: Necessità · Desideri · Risparmi (`lib/utils/spendingRoles.ts`)
 - **Opt-in** (`settings.spendingRolesEnabled`, Impostazioni › Preferenze › Cashflow, the five write places) and meant
   for Analisi's Sankey only: category icons stay neutral and there is no 50/30/20 tile. Session A (2026-09-15) shipped
-  the field, the dialog and the pure layer; the Sankey wiring and the three role tokens are still to come.
+  the field, the dialog and the pure layer; session B the Flusso view, its reading and the role tokens
+  (doc/guide/cashflow-analisi.md, doc/guide/temi.md).
 - **The role lives on the category, never on the row**: `ExpenseCategory.spendingRole`, with an optional per-subcategory
   override (`ExpenseSubCategory.spendingRole`, WiFi = need inside a want-classified Abbonamenti). Rows carry
   `categoryId`, so a reclassification is retroactive on every period with no bulk update. **`resolveSpendingRole` is the

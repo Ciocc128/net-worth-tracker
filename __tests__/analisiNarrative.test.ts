@@ -23,6 +23,7 @@ import type { PeriodCashflowTotals, ScheduledSlice } from '@/lib/utils/tracciame
 import type { CategoryDeltaRow, TotalsPacing } from '@/lib/utils/comparisonDeltas';
 import type { SpendingAnomaly } from '@/lib/utils/cashflowComposition';
 import type { AnalisiPeriod, FlowSummary, SpendingPoint, TopExpenses } from '@/lib/utils/analisiSummary';
+import type { SpendingRolesSummary } from '@/lib/utils/spendingRoles';
 import {
   buildAnalisiVerdict,
   describeAnalisiSubject,
@@ -34,6 +35,7 @@ import {
   describeEntityFocus,
   describeFlow,
   describePeriodScope,
+  describeSpendingRolesFlow,
   describeSpendingChart,
   describeSpendingChartFooter,
   describeTopExpenses,
@@ -384,6 +386,56 @@ describe('describeFlow', () => {
   it('should describe spending without income, and return null with nothing', () => {
     expect(plain(describeFlow({ ...FLOW, incomeTotal: 0, incomeSources: 0 }, null))).toBe('Nessuna entrata: 31.200 € di spese in 10 categorie. Fisse 58%, variabili 37%, debiti 5%.');
     expect(describeFlow({ incomeTotal: 0, incomeSources: 0, expensesTotal: 0, categoryCount: 0, typeShares: [] }, null)).toBeNull();
+  });
+});
+
+describe('describeSpendingRolesFlow', () => {
+  const summary = (overrides: {
+    income: number;
+    need?: number;
+    want?: number;
+    saving?: number;
+    unclassified?: number;
+  }): SpendingRolesSummary => {
+    const bucket = (total = 0) => ({ total, categories: [] });
+    const spending = (overrides.need ?? 0) + (overrides.want ?? 0) + (overrides.saving ?? 0) + (overrides.unclassified ?? 0);
+    const surplus = Math.max(0, overrides.income - spending);
+    return {
+      income: overrides.income,
+      incomeCategories: [],
+      spending,
+      byBucket: { need: bucket(overrides.need), want: bucket(overrides.want), saving: bucket(overrides.saving), unclassified: bucket(overrides.unclassified) },
+      surplus,
+      deficit: Math.max(0, spending - overrides.income),
+      savings: (overrides.saving ?? 0) + surplus,
+    };
+  };
+
+  it('reads the three roles as shares of the income when something is left', () => {
+    // The owner's closed salary months without the two trips and the iPhone (2026-03 → 2026-08).
+    expect(plain(describeSpendingRolesFlow(summary({ income: 14103, need: 8081, want: 3026 })))).toBe(
+      'Delle entrate (14.103 €): necessità 57%, desideri 21%, risparmi 21%. Il riferimento è 50/30/20.'
+    );
+  });
+
+  it('names the deficit first and reads the shares of what left, with no risparmi', () => {
+    // The same months as recorded: 348 € covered by the patrimony.
+    expect(plain(describeSpendingRolesFlow(summary({ income: 14102, need: 8080, want: 6370 })))).toBe(
+      'Le spese superano le entrate di 348 €, coperti dal patrimonio. Di quanto è uscito: necessità 56%, desideri 44%. Il riferimento è 50/30/20.'
+    );
+  });
+
+  it('names what is still unclassified', () => {
+    expect(plain(describeSpendingRolesFlow(summary({ income: 2000, need: 1000, unclassified: 500 })))).toBe(
+      'Delle entrate (2000 €): necessità 50%, risparmi 25%, da classificare 25%. Il riferimento è 50/30/20.'
+    );
+  });
+
+  it('reads spending without income, and returns null with nothing', () => {
+    expect(plain(describeSpendingRolesFlow(summary({ income: 0, want: 300 })))).toBe(
+      'Nessuna entrata: 300 € di spese tutti coperti dal patrimonio, desideri 100%. Il riferimento è 50/30/20.'
+    );
+    expect(describeSpendingRolesFlow(summary({ income: 0 }))).toBeNull();
   });
 });
 

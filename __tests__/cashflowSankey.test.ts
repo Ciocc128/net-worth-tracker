@@ -3,9 +3,15 @@ import {
   buildBudgetFlowData,
   buildBudgetFlowDataWithSubcategories,
   buildTypeDrillDownData,
+  buildSpendingRoleDrillDownData,
+  buildSpendingRolesFlowData,
+  buildSpendingRolesFlowDataWithSubcategories,
+  DEFAULT_SPENDING_ROLE_PALETTE,
+  DEFICIT_NODE_LABEL,
   TYPE_COLORS,
   type SankeyView,
 } from '@/lib/utils/cashflowSankey';
+import type { SpendingRoleSource } from '@/lib/utils/spendingRoles';
 // Row-selection vocabulary from its home module — the cashflowSankey re-export
 // fell with the internal category drill (2026-08-14). Its tests stay in this file
 // for the shared same-named-categories fixtures; production consumers are now
@@ -568,5 +574,238 @@ describe('selectExpensesForDrillDown', () => {
 
     // Assert
     expect(selected.map((e) => e.id)).toEqual(['fixed-1', 'fixed-3']);
+  });
+});
+
+describe('buildBudgetFlowData — with grouping (the desktop thin view)', () => {
+  const rows = [
+    makeExpense({ type: 'income', amount: 5000, categoryId: 'i1', categoryName: 'Stipendio' }),
+    makeExpense({ type: 'income', amount: 300, categoryId: 'i2', categoryName: 'Subaffitto' }),
+    makeExpense({ type: 'income', amount: 20, categoryId: 'i3', categoryName: 'Cashback' }),
+    ...[400, 300, 200, 100].map((amount, i) =>
+      makeExpense({ type: 'variable', amount: -amount, categoryId: `v${i}`, categoryName: `Variabile ${i}` })
+    ),
+    makeExpense({ type: 'fixed', amount: -900, categoryId: 'f1', categoryName: 'Casa' }),
+  ];
+
+  it('sums each type’s smaller categories into «Altre N», routed to that type, and keeps the budget balanced', () => {
+    const view = buildBudgetFlowData(rows, false, { incomeSources: 1, categoriesPerBranch: 2 });
+    assertLinksResolve(view);
+    assertAcyclic(view);
+
+    const others = idOf(view, 'Altre 2');
+    expect(view.index.get(others)).toEqual({ kind: 'others', parent: { kind: 'type', expenseType: 'variable' }, count: 2 });
+    expect(outgoingFrom(view, idOf(view, VARIABLE)).map(([, value]) => value)).toEqual([400, 300, 300]);
+    expect(view.index.get(idOf(view, 'Altre entrate'))).toEqual({ kind: 'others', parent: { kind: 'income' }, count: 2 });
+    // One category under Spese Fisse: nothing to group.
+    expect(outgoingFrom(view, idOf(view, FIXED))).toHaveLength(1);
+  });
+
+  it('leaves the ungrouped view exactly as before', () => {
+    expect(buildBudgetFlowData(rows, false).nodes.some((node) => node.label.startsWith('Altre'))).toBe(false);
+  });
+});
+
+// ── 50/30/20 view ────────────────────────────────────────────────────────────
+
+describe('buildSpendingRolesFlowData', () => {
+  const PALETTE = { ...DEFAULT_SPENDING_ROLE_PALETTE, need: '#111111', want: '#222222', saving: '#333333', deficit: '#444444' };
+
+  const CATEGORIES: SpendingRoleSource[] = [
+    { id: 'cat-casa', type: 'fixed', spendingRole: 'need', subCategories: [{ id: 'sub-affitto', name: 'Affitto' }, { id: 'sub-utenze', name: 'Utenze' }] },
+    {
+      id: 'cat-abbonamenti',
+      type: 'fixed',
+      spendingRole: 'want',
+      subCategories: [{ id: 'sub-wifi', name: 'WiFi', spendingRole: 'need' }, { id: 'sub-streaming', name: 'Streaming' }],
+    },
+    { id: 'cat-regali-spesa', type: 'variable', spendingRole: 'want', subCategories: [] },
+    { id: 'cat-pac', type: 'variable', spendingRole: 'saving', subCategories: [] },
+    { id: 'cat-altro', type: 'variable', subCategories: [] },
+    { id: 'cat-stipendio', type: 'income', subCategories: [] },
+    { id: 'cat-regali-entrata', type: 'income', subCategories: [] },
+  ];
+
+  const stipendio = (amount: number) => makeExpense({ type: 'income', amount, categoryId: 'cat-stipendio', categoryName: 'Stipendio' });
+  const casa = (amount: number, subCategoryId = 'sub-affitto', subCategoryName = 'Affitto') =>
+    makeExpense({ type: 'fixed', amount: -amount, categoryId: 'cat-casa', categoryName: 'Casa', subCategoryId, subCategoryName });
+  const wifi = makeExpense({ type: 'fixed', amount: -30, categoryId: 'cat-abbonamenti', categoryName: 'Abbonamenti', subCategoryId: 'sub-wifi', subCategoryName: 'WiFi' });
+  const streaming = makeExpense({ type: 'fixed', amount: -15, categoryId: 'cat-abbonamenti', categoryName: 'Abbonamenti', subCategoryId: 'sub-streaming', subCategoryName: 'Streaming' });
+
+  /** Money into Budget equals money out of it — the balance summarizeSpendingRoles guarantees. */
+  function assertBudgetBalanced(view: SankeyData): void {
+    const budgetId = view.nodes.find((node) => view.index.get(node.id)?.kind === 'budget')!.id;
+    const into = view.links.filter((link) => link.target === budgetId).reduce((sum, link) => sum + link.value, 0);
+    const out = view.links.filter((link) => link.source === budgetId).reduce((sum, link) => sum + link.value, 0);
+    expect(into).toBeCloseTo(out, 6);
+  }
+
+  const labelOf = (view: SankeyData, id: string) => view.nodes.find((node) => node.id === id)!.label;
+
+  it('routes spending by role and ends the surplus in Risparmi', () => {
+    const view = buildSpendingRolesFlowData(
+      [stipendio(3000), casa(900), wifi, streaming, makeExpense({ type: 'variable', amount: -200, categoryId: 'cat-pac', categoryName: 'PAC' })],
+      CATEGORIES,
+      PALETTE,
+      false
+    );
+    assertLinksResolve(view);
+    assertAcyclic(view);
+    assertBudgetBalanced(view);
+
+    const out = Object.fromEntries(outgoingFrom(view, idOf(view, 'Budget')).map(([target, value]) => [labelOf(view, target), value]));
+    // Risparmi = the PAC row (200) + the surplus (3000 − 1145 = 1855).
+    expect(out).toEqual({ Necessità: 930, Desideri: 15, Risparmi: 2055 });
+    expect(view.nodes.some((node) => node.label === DEFICIT_NODE_LABEL)).toBe(false);
+  });
+
+  it('draws an overspent period as «Coperto dal patrimonio» on the income side, with no Risparmi', () => {
+    const view = buildSpendingRolesFlowData([stipendio(1000), casa(1200)], CATEGORIES, PALETTE, false);
+    assertLinksResolve(view);
+    assertAcyclic(view);
+    assertBudgetBalanced(view);
+
+    const deficit = idOf(view, DEFICIT_NODE_LABEL);
+    expect(outgoingFrom(view, deficit)).toEqual([[idOf(view, 'Budget'), 200]]);
+    expect(view.index.get(deficit)).toEqual({ kind: 'deficit' });
+    expect(view.nodes.find((node) => node.id === deficit)!.nodeColor).toBe('#444444');
+    expect(view.nodes.some((node) => node.label === 'Risparmi')).toBe(false);
+  });
+
+  it('keeps a category split by an override as one node per role, labels qualified by the role', () => {
+    const view = buildSpendingRolesFlowData([stipendio(3000), wifi, streaming], CATEGORIES, PALETTE, false);
+    assertLinksResolve(view);
+
+    const need = idOf(view, 'Abbonamenti (Necessità)');
+    const want = idOf(view, 'Abbonamenti (Desideri)');
+    expect(need).not.toBe(want);
+    expect(outgoingFrom(view, idOf(view, 'Necessità'))).toEqual([[need, 30]]);
+    expect(outgoingFrom(view, idOf(view, 'Desideri'))).toEqual([[want, 15]]);
+  });
+
+  it('does not close a cycle when an income and a spending category share a name', () => {
+    const view = buildSpendingRolesFlowData(
+      [
+        makeExpense({ type: 'income', amount: 500, categoryId: 'cat-regali-entrata', categoryName: 'Regali' }),
+        makeExpense({ type: 'variable', amount: -80, categoryId: 'cat-regali-spesa', categoryName: 'Regali' }),
+      ],
+      CATEGORIES,
+      PALETTE,
+      false
+    );
+    assertLinksResolve(view);
+    assertAcyclic(view);
+    expect(view.nodes.map((node) => node.label)).toEqual(expect.arrayContaining(['Regali (Entrate)', 'Regali (Desideri)']));
+  });
+
+  it('gives unclassified spending its own node', () => {
+    const view = buildSpendingRolesFlowData(
+      [stipendio(500), makeExpense({ type: 'variable', amount: -40, categoryId: 'cat-altro', categoryName: 'Altro' })],
+      CATEGORIES,
+      PALETTE,
+      false
+    );
+    const node = idOf(view, 'Da classificare');
+    expect(view.index.get(node)).toEqual({ kind: 'spendingRole', bucket: 'unclassified' });
+    expect(outgoingFrom(view, node)).toEqual([[idOf(view, 'Altro'), 40]]);
+  });
+
+  it('colours a branch with its role, and a category node routes clicks by type and key', () => {
+    const view = buildSpendingRolesFlowData([stipendio(3000), casa(900)], CATEGORIES, PALETTE, false);
+    const casaId = idOf(view, 'Casa');
+    expect(view.nodes.find((node) => node.id === casaId)!.nodeColor).toBe('#111111');
+    expect(view.index.get(casaId)).toEqual({ kind: 'category', expenseType: 'fixed', categoryKey: 'cat-casa', categoryLabel: 'Casa' });
+  });
+
+  it('adds a subcategory layer under each role category', () => {
+    const view = buildSpendingRolesFlowDataWithSubcategories(
+      [stipendio(3000), casa(900), casa(100, 'sub-utenze', 'Utenze')],
+      CATEGORIES,
+      PALETTE,
+      false
+    );
+    assertLinksResolve(view);
+    assertAcyclic(view);
+    assertBudgetBalanced(view);
+    expect(outgoingFrom(view, idOf(view, 'Casa')).map(([, value]) => value).sort((a, b) => a - b)).toEqual([100, 900]);
+  });
+
+  it('returns an empty view for a period with nothing in it', () => {
+    expect(buildSpendingRolesFlowData([], CATEGORIES, PALETTE, false).nodes).toEqual([]);
+  });
+
+  describe('with grouping', () => {
+    const rows = [
+      stipendio(5000),
+      makeExpense({ type: 'income', amount: 300, categoryId: 'i2', categoryName: 'Subaffitto' }),
+      makeExpense({ type: 'income', amount: 20, categoryId: 'i3', categoryName: 'Cashback' }),
+      makeExpense({ type: 'income', amount: 5, categoryId: 'i4', categoryName: 'Interessi' }),
+      casa(900),
+      ...['A', 'B', 'C', 'D'].map((name, i) =>
+        makeExpense({ type: 'variable', amount: -(100 - i * 10), categoryId: `cat-altro-${name}`, categoryName: `Altro ${name}` })
+      ),
+    ];
+
+    it('sums the smaller sources and a role’s smaller categories into «Altre» nodes, keeping the balance', () => {
+      const view = buildSpendingRolesFlowData(rows, CATEGORIES, PALETTE, false, { incomeSources: 2, categoriesPerBranch: 2 });
+      assertLinksResolve(view);
+      assertAcyclic(view);
+      assertBudgetBalanced(view);
+
+      const incomeOthers = idOf(view, 'Altre entrate');
+      expect(view.index.get(incomeOthers)).toEqual({ kind: 'others', parent: { kind: 'income' }, count: 2 });
+      expect(outgoingFrom(view, incomeOthers)).toEqual([[idOf(view, 'Budget'), 25]]);
+
+      // Da classificare holds four categories (100, 90, 80, 70): two drawn, «Altre 2» = 150.
+      const unclassified = idOf(view, 'Da classificare');
+      const targets = outgoingFrom(view, unclassified).map(([target, value]) => [labelOf(view, target), value]);
+      expect(targets).toEqual([['Altro A', 100], ['Altro B', 90], ['Altre 2', 150]]);
+      expect(view.index.get(idOf(view, 'Altre 2'))).toEqual({ kind: 'others', parent: { kind: 'role', bucket: 'unclassified' }, count: 2 });
+    });
+
+    it('draws a tail of one as itself, never «Altre 1»', () => {
+      const view = buildSpendingRolesFlowData(rows, CATEGORIES, PALETTE, false, { incomeSources: 3, categoriesPerBranch: 3 });
+      expect(view.nodes.map((node) => node.label)).not.toContain('Altre entrate');
+      expect(view.nodes.map((node) => node.label)).not.toContain('Altre 1');
+      expect(view.nodes.map((node) => node.label)).toEqual(expect.arrayContaining(['Interessi', 'Altro D']));
+    });
+
+    it('never groups the subcategory layer', () => {
+      const view = buildSpendingRolesFlowDataWithSubcategories(rows, CATEGORIES, PALETTE, false);
+      expect(view.nodes.some((node) => node.label.startsWith('Altre'))).toBe(false);
+    });
+  });
+});
+
+describe('buildSpendingRoleDrillDownData', () => {
+  const CATEGORIES: SpendingRoleSource[] = [
+    { id: 'cat-out', type: 'variable', spendingRole: 'want', subCategories: [] },
+    { id: 'cat-viaggi', type: 'variable', spendingRole: 'want', subCategories: [] },
+  ];
+
+  it('lists one role’s categories, largest first', () => {
+    const view = buildSpendingRoleDrillDownData(
+      [
+        makeExpense({ type: 'variable', amount: -50, categoryId: 'cat-out', categoryName: 'Out' }),
+        makeExpense({ type: 'variable', amount: -400, categoryId: 'cat-viaggi', categoryName: 'Viaggi' }),
+      ],
+      CATEGORIES,
+      'want',
+      '#222222',
+      false
+    );
+    assertLinksResolve(view);
+    expect(outgoingFrom(view, idOf(view, 'Desideri')).map(([, value]) => value)).toEqual([400, 50]);
+  });
+
+  it('is empty for Risparmi made only of surplus', () => {
+    const view = buildSpendingRoleDrillDownData(
+      [makeExpense({ type: 'income', amount: 1000, categoryId: 'x', categoryName: 'Stipendio' })],
+      CATEGORIES,
+      'saving',
+      '#333333',
+      false
+    );
+    expect(view.nodes).toEqual([]);
   });
 });

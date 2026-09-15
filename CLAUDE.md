@@ -13,7 +13,21 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **175 files / 3864 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **175 files / 3889 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-15, fork): **50/30/20, sessione B — il Flusso di Analisi per ruolo, e un Sankey più leggero.**
+  Con `spendingRolesEnabled` la tessera Flusso ha «Per ruolo» (predefinito) e «Per tipo», pulsanti gemelli di
+  «Sottocategorie». Per ruolo: Entrate (+ «Coperto dal patrimonio» in rosso) → Budget → Necessità / Desideri / Da
+  classificare / Risparmi → categorie (`buildSpendingRolesFlowData`, dettaglio per ruolo), lettura
+  `describeSpendingRolesFlow` sugli stessi totali. Terna scelta da un'anteprima sui dati del proprietario: token
+  `--role-*` (alias in `:root`, ghiaccio 232 / lavanda 295 / verde-acqua 175 nel Lime Frost chiaro), risolti in hex per
+  Nivo da `colorToHex` + `useCssColorTokens`; `useChartColors` ora legge anche `#hex`/`lab()` (chiuso il difetto aperto).
+  Dopo un confronto fra cinque forme: su desktop il grafico **sottile** in entrambe le viste (nodi a filo, etichette
+  importo · quota, coda «Altre N» che apre il ramo; il livello sottocategorie resta classico); su telefono la vista per
+  ruolo è la **barra 50/30/20** con le righe per ruolo (`SpendingRolesMobileFlow`), preferita a un flusso verticale
+  provato accanto. Collaudo: `tsc` 0, ESLint 0, 175 file / 3889 test; sonda Playwright usa e getta sul mirror 31/31
+  (colori letti dal grafico, «Altre N», dettagli, barra e righe a 390, flag spento), cancellata. Script di produzione
+  per classificazione e riorganizzazione delle categorie provato sul mirror (rilancio a vuoto, ripristino), **non
+  eseguito in produzione**.
 - Latest (2026-09-15, fork): **50/30/20, sessione A — il ruolo sta sulla categoria, niente di visibile a flag spento.**
   `spendingRolesEnabled` (i cinque punti di Impostazioni), `ExpenseCategory.spendingRole` + override per sottocategoria,
   selettore nel dialog categorie, lettura Cashflow che conta le categorie ancora «Da classificare»; puro
@@ -23,7 +37,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   (flag spento = nessun selettore, reload dello switch, scrittura e cancellazione su Firestore, flag spento non tocca il
   ruolo, 390 senza overflow), fixture ripristinata identica, sonda cancellata. Sul mirror: le due «Fondo Pensione»
   legacy erano vuote; classificazione e riorganizzazione delle categorie del proprietario provate (marzo–agosto 56/44/0,
-  348 € coperti dal patrimonio). **Aperto**: sessione B (token dei tre ruoli, `useChartColors`, Sankey in Analisi).
+  348 € coperti dal patrimonio). **Chiusa dalla sessione B**, qui sopra.
 - Latest (2026-09-14, fork): **Lime Frost chiaro diventa una palette per ruoli, ritoccata dal proprietario con Agentation.**
   Toolbar `agentation` montata solo in sviluppo (`components/providers/AgentationToolbar.tsx`, server MCP su :4747). Sul
   mirror dell'account reale: terreno verde piatto (L 0.955, tinta 133), lime come riempimento d'azione (`--action`,

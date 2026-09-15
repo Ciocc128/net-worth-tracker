@@ -73,8 +73,16 @@
 - **The served CSS is `#hex` / `lab()`, never `oklch()`** (Lightning CSS down-levels it), and `getComputedStyle` hands
   that form back. Any JS that parses a theme colour must handle all three: `lib/utils/colorLightness.ts` does, for the
   action colours; the underwater chart now passes `var(--drawdown)` instead of wrapping a read value in `oklch(…)`
-  (which painted it black in every theme). **`useChartColors` still parses only `oklch()`** — its light/dark clamp never
-  fires (open, next session).
+  (which painted it black in every theme). **`useChartColors` reads L through `colorLightness`** since 2026-09-15, so
+  its too-light / too-dark fallback to `CHART_COLORS` now fires on the served forms too (before, it never did): a theme
+  whose served chart slot is above L 0.82 in light, or below 0.30 in dark, now paints the static slot instead.
+  **`colorToHex`** turns any served form into `#rrggbb` for Nivo, through `lib/hooks/useCssColorTokens.ts`.
+- **The 50/30/20 roles** (`--role-need · --role-want · --role-saving · --role-unclassified · --role-deficit`, Analisi's
+  Flusso): aliases in `:root` (`--flow-out`, `--chart-4`, `--flow-in`, `--muted-foreground`, `--destructive`), the
+  approved triad in Lime Frost light — need = `--flow-out` ice 232, want lavender 295, saving green-teal 175 (ΔE_ok
+  0.084 from `--flow-in`; 165 read as the income green), unclassified `--chart-5`, deficit the sign red — each ≥ 3:1
+  on the white tile, and taken back to the aliases in Lime Frost dark. Chosen from a swatch preview on the owner's
+  figures (2026-09-15).
 - **Charts slots mean asset classes.** A series that is not a class (net worth, income, spending, a scenario) takes its
   role token, never a `--chart-N`; in Lime Frost light `--chart-5` (Liquidità) is a neutral ice grey. Still on slots:
   the Analisi Sankey (hard-coded hex, planned with the 50/30/20 split) and a few FIRE Dettaglio lines.

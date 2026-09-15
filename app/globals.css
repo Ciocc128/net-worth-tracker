@@ -111,7 +111,8 @@
                       --destructive-outline · --progress-fill
        · Interaction  --action(-foreground, -hover) · --toggle-on(-foreground, -hover) ·
                       --aside-toggle-on(-foreground) · --ghost-hover(-foreground)
-       · Flows        --flow-in · --flow-out · --cost-figure · --trade-buy · --trade-sell · --trade-ok
+       · Flows        --flow-in · --flow-out · --cost-figure · --trade-buy · --trade-sell · --trade-ok ·
+                      --role-need · --role-want · --role-saving · --role-unclassified · --role-deficit
        · Series       --hero-series · --capital-networth · --capital-invested · --sharpe-series ·
                       --drawdown · --scenario-bear/-base/-bull · --manual-row
      Plus --category-icon(-bg), undeclared on purpose (lib/utils/categoryIconStyle.ts). A theme
@@ -120,6 +121,14 @@
      slots they used before, so a theme that does not set them renders exactly as it did. */
   --flow-in: var(--chart-2);
   --flow-out: var(--chart-1);
+  /* Analisi's 50/30/20 flow (settings.spendingRolesEnabled): Necessità, Desideri, Risparmi, «Da
+     classificare», «Coperto dal patrimonio». Resolved to hex by useCssColorTokens for Nivo. Aliases
+     of existing slots unless a theme names its own; the deficit is a judgement, so the sign red. */
+  --role-need: var(--flow-out);
+  --role-want: var(--chart-4);
+  --role-saving: var(--flow-in);
+  --role-unclassified: var(--muted-foreground);
+  --role-deficit: var(--destructive);
   --outline-surface: var(--background);
   /* The hero's net-worth series (Panoramica, Patrimonio). A chart slot unless a theme names its own. */
   --hero-series: var(--chart-1);
@@ -856,6 +865,16 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
      not red: spending is not an error (owner's call, 2026-09-14). */
   --flow-in: oklch(0.6450 0.1400 138.0000);
   --flow-out: oklch(0.6450 0.1200 232.0000);
+  /* The 50/30/20 triad in the same L family as the flows (owner's call, 2026-09-15, from a swatch
+     preview): Necessità the spending ice blue, Desideri the theme's frost lavender, Risparmi a
+     green-teal at 175 — ΔE_ok 0.084 from --flow-in (165 read as the income green, 0.064) and 0.110
+     from Necessità. Each ≥ 3:1 on the white tile (3.22 / 3.43 / 3.12). «Da classificare» takes
+     Liquidità's neutral ice grey, the deficit the sign red. */
+  --role-need: var(--flow-out);
+  --role-want: oklch(0.6450 0.1200 295.0000);
+  --role-saving: oklch(0.6450 0.1100 175.0000);
+  --role-unclassified: var(--chart-5);
+  --role-deficit: var(--destructive);
   --sidebar: oklch(1.0000 0 0);
   --sidebar-foreground: oklch(0.2077 0.0398 265.7549);
   --sidebar-primary: oklch(0.5250 0.1490 133.0000);
@@ -902,6 +921,11 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-8: oklch(0.6900 0.1800 345.0000);
   --flow-in: var(--chart-2);
   --flow-out: var(--chart-1);
+  --role-need: var(--flow-out);
+  --role-want: var(--chart-4);
+  --role-saving: var(--flow-in);
+  --role-unclassified: var(--muted-foreground);
+  --role-deficit: var(--destructive);
   /* Every token the light block names outright would cascade in here (same specificity, earlier
      rule loses): dark takes each back to its default alias. */
   --hero-series: var(--chart-1);

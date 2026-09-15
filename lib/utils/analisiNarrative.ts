@@ -19,6 +19,7 @@ import type { PeriodCashflowTotals, ScheduledSlice } from '@/lib/utils/tracciame
 import type { CategoryDeltaRow, ComparisonMonthScope, PacingSide, TotalsPacing } from '@/lib/utils/comparisonDeltas';
 import type { SpendingAnomaly } from '@/lib/utils/cashflowComposition';
 import type { ExpenseType } from '@/types/expenses';
+import type { SpendingRolesSummary } from '@/lib/utils/spendingRoles';
 import type { AnalisiPeriod, CategoryMover, FlowSummary, MonthRef, SpendingPoint, SpendingType, TopExpenses } from '@/lib/utils/analisiSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
@@ -438,6 +439,40 @@ export function describeFlow(flow: FlowSummary, savingsRate: number | null): Nar
   }
   narrative.push(prose('.'), ...typeClause());
   return narrative;
+}
+
+/**
+ * Flusso in its 50/30/20 view — the sentence over the roles flow.
+ *
+ * Shares are of everything that left the budget: income plus what the patrimony covered, the same
+ * total both sides of the Sankey carry, so they add to 100% (up to rounding) even in a deficit.
+ * A deficit is named first, because it is why Risparmi is missing; «Da classificare» is named
+ * whenever it is not zero, because those euros belong to no role yet.
+ */
+export function describeSpendingRolesFlow(summary: SpendingRolesSummary): Narrative | null {
+  if (summary.income <= 0 && summary.spending <= 0) return null;
+  const base = summary.income + summary.deficit;
+  const share = (value: number): NarrativeSegment => figure(formatPercentage((value / base) * 100, 0));
+
+  const parts: Narrative[] = [];
+  if (summary.byBucket.need.total > 0) parts.push([prose('necessità '), share(summary.byBucket.need.total)]);
+  if (summary.byBucket.want.total > 0) parts.push([prose('desideri '), share(summary.byBucket.want.total)]);
+  if (summary.savings > 0) parts.push([prose('risparmi '), share(summary.savings)]);
+  if (summary.byBucket.unclassified.total > 0) parts.push([prose('da classificare '), share(summary.byBucket.unclassified.total)]);
+
+  let lead: Narrative;
+  if (summary.income <= 0) {
+    lead = [prose('Nessuna entrata: '), figure(euro(summary.spending)), prose(' di spese tutti coperti dal patrimonio, ')];
+  } else if (summary.deficit > 0) {
+    lead = [
+      prose('Le spese superano le entrate di '),
+      figure(euro(summary.deficit)),
+      prose(', coperti dal patrimonio. Di quanto è uscito: '),
+    ];
+  } else {
+    lead = [prose('Delle entrate ('), figure(euro(summary.income)), prose('): ')];
+  }
+  return [...lead, ...joinClauses(parts, ', '), prose('. Il riferimento è 50/30/20.')];
 }
 
 export interface EntityFocusInput {

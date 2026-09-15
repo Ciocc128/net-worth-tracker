@@ -65,6 +65,8 @@ export interface SpendingRoleSlice {
   /** `getCategoryKey` of the rows — the same identity the Sankey and the dossier use. */
   categoryKey: string;
   categoryName: string;
+  /** The rows' own type: with the key, what a click hands to Analisi's entity focus. */
+  expenseType: ExpenseType;
   value: number;
 }
 
@@ -76,6 +78,8 @@ export interface SpendingBucketTotal {
 
 export interface SpendingRolesSummary {
   income: number;
+  /** Income by category, largest first — the sources a flow starts from. */
+  incomeCategories: SpendingRoleSlice[];
   /** Every spending row, whatever its role. */
   spending: number;
   byBucket: Record<SpendingBucket, SpendingBucketTotal>;
@@ -96,8 +100,16 @@ export function summarizeSpendingRoles(
   const slices = new Map<SpendingBucket, Map<string, SpendingRoleSlice>>(
     SPENDING_BUCKETS.map((bucket) => [bucket, new Map()])
   );
+  const incomeSlices = new Map<string, SpendingRoleSlice>();
   let income = 0;
   let spending = 0;
+
+  const addTo = (bucket: Map<string, SpendingRoleSlice>, expense: Expense, amount: number) => {
+    const key = getCategoryKey(expense);
+    const slice = bucket.get(key) ?? { categoryKey: key, categoryName: getCategoryName(expense), expenseType: expense.type, value: 0 };
+    slice.value += amount;
+    bucket.set(key, slice);
+  };
 
   for (const expense of expenses) {
     if (expense.type === 'transfer') continue;
@@ -105,17 +117,14 @@ export function summarizeSpendingRoles(
 
     if (expense.type === 'income') {
       income += amount;
+      addTo(incomeSlices, expense, amount);
       continue;
     }
     if (!isSpendingType(expense.type)) continue;
 
     spending += amount;
     const role = resolveSpendingRole(categoriesById.get(expense.categoryId), expense.subCategoryId);
-    const bucket = slices.get(role ?? 'unclassified')!;
-    const key = getCategoryKey(expense);
-    const slice = bucket.get(key) ?? { categoryKey: key, categoryName: getCategoryName(expense), value: 0 };
-    slice.value += amount;
-    bucket.set(key, slice);
+    addTo(slices.get(role ?? 'unclassified')!, expense, amount);
   }
 
   const byBucket = Object.fromEntries(
@@ -130,6 +139,7 @@ export function summarizeSpendingRoles(
 
   return {
     income,
+    incomeCategories: Array.from(incomeSlices.values()).sort((a, b) => b.value - a.value),
     spending,
     byBucket,
     surplus,

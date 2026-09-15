@@ -61,6 +61,27 @@
 - **`CashflowSankeyChart` is a plot, `FlussoTile` is the navigation**: the tile owns the subcategory toggle
   (`aria-pressed`) and the single type drill, builds the `SankeyView` with the pure builders and passes it down;
   node clicks come back as DESCRIPTORS (`view.index`), never parsed from the id. Colours stay hex (react-spring).
+- **Flusso's chart on desktop is the THIN one, in both views** (owner's pick «B» from a five-form comparison,
+  2026-09-15): `CashflowSankeyChart variant="thin"` — 4-px nodes, pale gradient ribbons that arrive in the target's
+  colour, a two-line label (name, then whole-euro amount · share) drawn by a custom Nivo layer. Shares are of what
+  flows THROUGH Budget (max(in, out)), so Budget reads 100% even when spending exceeds income. The builders take a
+  `FlowGrouping` (3 sources, 4 categories a branch): the rest becomes «Altre entrate» / «Altre N» (a tail of one is
+  drawn as itself), and «Altre N» opens its type or role (`OthersParent`). The five-column subcategory layer keeps the
+  classic chart and never groups — two-line labels do not fit.
+- **Flusso has two views once `spendingRolesEnabled` is on — «Per ruolo» (the default) and «Per tipo»**, two twin
+  `aria-pressed` toggles in the «Sottocategorie» button's own style (one always pressed), hidden inside a drill. The roles view is Entrate (+ «Coperto dal patrimonio») → Budget →
+  Necessità / Desideri / Da classificare / Risparmi → categorie (`buildSpendingRolesFlowData`, subcategory layer too).
+  **On a phone the roles view is not a Sankey** (a four-column Sankey gets ~80 px a column at 390): `SpendingRolesMobileFlow`
+  draws the 50/30/20 bar — shares of INCOME with ticks at 50 and 80 and a red 100% line a deficit runs past — then
+  each role's categories as `RankedRows` (5 + «Mostra tutte»; a row opens the Scheda). The owner chose it over a
+  vertical flow after trying both. The reading above still measures shares of what left, so the role headers print
+  amounts only: no second percentage on another base on the same screen. The phone's type view stays the classic
+  reduced Sankey;
+  a role node drills to its categories like a type node (`buildSpendingRoleDrillDownData`); the reading is
+  `describeSpendingRolesFlow` over the same `summarizeSpendingRoles` the builder takes its totals from. Its nodes keep
+  the builder's order (`nodeSort="input"`), or a role's categories interleave with the other's by value; the Tipi view
+  keeps d3's own order. Colours are theme tokens resolved to hex (doc/guide/temi.md); the rules of the roles themselves
+  are in doc/guide/cashflow.md § Ruoli 50/30/20.
 - **`RankedRows` is a real `<ul>`, and a clickable row is a real `<button>` inside its `<li>`** — named
   «{label} · {caption}, {amount}, {share}%» (the caption is the day and the subcategory of a single expense) with
   `aria-current` on the focused one. Never `role="listitem"` on the button (the `CompositionList` habit): the explicit
