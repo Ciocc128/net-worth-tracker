@@ -68,10 +68,13 @@ export function RankedRows({ rows, color, remainder, labelClassName, onRowClick,
   const rowContent = (row: RankedRow, active: boolean) => (
     <>
       {/* The caption yields before the label: a long «12 ago · Manutenzione straordinaria» must
-          never push the category name out of its own column. */}
+          never push the category name out of its own column — and it WRAPS to a second line
+          instead of truncating, because «30 set · Asilo nido · in calendario» is the row's
+          second fact (the day, the subcategory, the calendar) and a cut fact is no fact
+          (2026-09-14; the accessible name always carried it whole). */}
       <span className={cn('flex min-w-0 items-baseline gap-1.5 text-[13px] text-foreground', labelWidth, active && 'font-semibold')}>
         <span className={cn('truncate', row.caption && 'max-w-[65%] shrink-0')}>{row.label}</span>
-        {row.caption && <span className="min-w-0 truncate font-mono text-[11px] tabular-nums text-muted-foreground">{row.caption}</span>}
+        {row.caption && <span className="line-clamp-2 min-w-0 break-words font-mono text-[11px] leading-[1.35] tabular-nums text-muted-foreground">{row.caption}</span>}
       </span>
       <div className={cn('h-[3px] overflow-hidden rounded-full bg-muted', BAR_TRACK_CLASS)} role="presentation">
         <div
