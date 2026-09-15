@@ -68,9 +68,6 @@ export const metadata: Metadata = {
     apple: [
       { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    other: [
-      { rel: 'mask-icon', url: '/icon.svg', color: '#10B981' },
-    ],
   },
 };
 

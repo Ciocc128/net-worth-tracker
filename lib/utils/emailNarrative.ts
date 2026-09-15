@@ -288,7 +288,7 @@ function resolveHeadline(input: PeriodEmailVerdictInput): { headline: string; to
     salesTax: input.sales?.estimatedTax ?? null,
   });
   return {
-    headline: `${subject} è in calo${declineHeadlineTail(cause)}`,
+    headline: `${subject} è in calo${declineHeadlineTail(cause, input.sales)}`,
     tone: cause === 'despite-market' ? 'warning' : 'negative',
   };
 }

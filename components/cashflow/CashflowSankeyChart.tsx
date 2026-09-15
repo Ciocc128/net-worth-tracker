@@ -19,7 +19,7 @@ import { useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { ResponsiveSankey, type CustomSankeyLayerProps } from '@nivo/sankey';
-import type { SankeyLink, SankeyNode, SankeyNodeDescriptor, SankeyView } from '@/lib/utils/cashflowSankey';
+import { LABEL_TEXT_COLORS, type SankeyLink, type SankeyNode, type SankeyNodeDescriptor, type SankeyView } from '@/lib/utils/cashflowSankey';
 import { formatCurrencyForSankey, formatPercentage } from '@/lib/services/chartService';
 import { chartReveal, fadeVariants } from '@/lib/utils/motionVariants';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
@@ -30,8 +30,12 @@ interface CashflowSankeyChartProps {
   viewKey: string;
   /** Compact layout: labels inside, thinner nodes, no gradients. */
   isMobile: boolean;
+  /** The plot's height, from the view's widest column (`resolveSankeyHeight`) — never a fixed 500. */
+  height: number;
   /** Inside a type's own view a type node is a no-op — the tooltip must not promise a drill. */
   drilled: boolean;
+  /** The svg's accessible name: what is drawn, in the tile's words. */
+  ariaLabel: string;
   onNodeClick: (descriptor: SankeyNodeDescriptor, color: string) => void;
   /**
    * 'input' keeps the builder's node order inside each column (the 50/30/20 view: a role's
@@ -76,7 +80,10 @@ function thinLabelsLayer(totalAmount: number) {
   };
 }
 
-export function CashflowSankeyChart({ view, viewKey, isMobile, drilled, onNodeClick, nodeSort = 'auto', variant = 'classic' }: CashflowSankeyChartProps) {
+/** The thin chart's floor: two-line labels need more pitch than the classic chart's one line. */
+const THIN_MIN_HEIGHT = 520;
+
+export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, ariaLabel, onNodeClick, nodeSort = 'auto', variant = 'classic' }: CashflowSankeyChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const prefersReducedMotion = useReducedMotion();
@@ -102,10 +109,11 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, drilled, onNodeCl
     return Math.max(sum((link) => link.target === budgetId), sum((link) => link.source === budgetId));
   }, [view, totalAmount]);
   const thinLabels = useMemo(() => thinLabelsLayer(labelBase), [labelBase]);
+  const plotHeight = thin ? Math.max(THIN_MIN_HEIGHT, height) : height;
 
+  // The spacing is the floor under an 11px label: with 10px two tiny nodes' labels touched.
   const chartConfig = thin
     ? {
-        height: 520,
         margin: { top: 24, right: 170, bottom: 24, left: 170 },
         nodeThickness: 4,
         nodeSpacing: 26,
@@ -118,20 +126,18 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, drilled, onNodeCl
       }
     : isMobile
     ? {
-        height: 400,
         margin: { top: 20, right: 60, bottom: 20, left: 60 },
         nodeThickness: 15,
-        nodeSpacing: 8,
+        nodeSpacing: 10,
         nodeBorderWidth: 1,
         enableLinkGradient: false,
         labelPosition: 'inside' as const,
         labelOffset: 0,
       }
     : {
-        height: 500,
         margin: { top: 40, right: 160, bottom: 40, left: 160 },
         nodeThickness: 20,
-        nodeSpacing: 10,
+        nodeSpacing: 14,
         nodeBorderWidth: 2,
         enableLinkGradient: true,
         labelPosition: 'outside' as const,
@@ -150,13 +156,18 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, drilled, onNodeCl
         initial="hidden"
         animate="visible"
         exit="exit"
-        style={{ height: chartConfig.height }}
+        style={{ height: plotHeight }}
       >
         <ResponsiveSankey
           data={chartData}
           margin={chartConfig.margin}
-          align="justify"
+          // `start`: a node sits at its depth from the sources, so a category without a
+          // subcategory layer stays in the categories' column and the savings node beside
+          // the types — `justify` pushed every leaf to the last column, 54 nodes deep.
+          align="start"
           sort={nodeSort}
+          role="img"
+          ariaLabel={ariaLabel}
           colors={{ datum: 'nodeColor' }}
           valueFormat={(value) => formatCurrencyForSankey(value)}
           animate={!prefersReducedMotion}
@@ -181,7 +192,8 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, drilled, onNodeCl
           labelPosition={chartConfig.labelPosition}
           labelPadding={chartConfig.labelOffset}
           labelOrientation="horizontal"
-          labelTextColor={isDark ? { from: 'color', modifiers: [['brighter', 1.5]] } : { from: 'color', modifiers: [['darker', 2]] }}
+          // One neutral per mode (see LABEL_TEXT_COLORS): a label is read, not coloured.
+          labelTextColor={isDark ? LABEL_TEXT_COLORS.dark : LABEL_TEXT_COLORS.light}
           // Links reach this callback too; only node data carries an id.
           onClick={(data) => {
             if (!('id' in data)) return;
@@ -215,7 +227,9 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, drilled, onNodeCl
                 {!drilled && (kind === 'expenseType' || kind === 'spendingRole') && (
                   <>
                     <br />
-                    <span className="text-xs italic text-muted-foreground">Click per dettagli</span>
+                    <span className="text-xs italic text-muted-foreground">
+                      {kind === 'spendingRole' ? 'Click per il dettaglio per ruolo' : 'Click per il dettaglio per tipologia'}
+                    </span>
                   </>
                 )}
               </div>

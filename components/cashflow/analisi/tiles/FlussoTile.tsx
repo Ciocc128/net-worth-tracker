@@ -11,7 +11,10 @@ import {
   buildSpendingRolesFlowData,
   buildSpendingRolesFlowDataWithSubcategories,
   buildTypeDrillDownData,
+  countSankeyLayers,
   DEFAULT_SPENDING_ROLE_PALETTE,
+  MAX_SUBCATEGORY_CATEGORIES,
+  resolveSankeyHeight,
   SPENDING_BUCKET_LABELS,
   TYPE_COLORS,
   type FlowGrouping,
@@ -21,6 +24,7 @@ import {
 } from '@/lib/utils/cashflowSankey';
 import type { SpendingBucket, SpendingRoleSource, SpendingRolesSummary } from '@/lib/utils/spendingRoles';
 import { useCssColorTokens } from '@/lib/hooks/useCssColorTokens';
+import { narrativeToText } from '@/lib/utils/narrative';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
@@ -59,7 +63,7 @@ const FLOW_MODE_OPTIONS: ReadonlyArray<{ value: FlowMode; label: string }> = [
 ];
 
 const TOGGLE_CLASS =
-  'h-11 rounded-md border border-border px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40 desktop:h-7 desktop:px-2.5';
+  'h-11 rounded-md border border-border px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40 desktop:h-8 desktop:px-2.5';
 
 /** Desktop's thin chart draws the three largest sources and four categories a branch; the rest is «Altre». */
 const DESKTOP_GROUPING: FlowGrouping = { incomeSources: 3, categoriesPerBranch: 4 };
@@ -121,8 +125,13 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
     : `${mode === 'roles' ? 'roles' : 'budget'}-${layer}`;
   const modeLabel = drill
     ? drill.kind === 'type' ? 'Dettaglio per tipologia' : 'Dettaglio per ruolo'
-    : showSubcategories ? 'Con sottocategorie' : 'Vista compatta';
+    : showSubcategories ? `Con sottocategorie · prime ${MAX_SUBCATEGORY_CATEGORIES} categorie` : 'Vista compatta';
   const drillLabel = drill ? (drill.kind === 'type' ? EXPENSE_TYPE_LABELS[drill.expenseType] : SPENDING_BUCKET_LABELS[drill.bucket]) : null;
+  const shownReading = mode === 'roles' && spendingRoles && !drill ? spendingRoles.reading : reading;
+  // The plot grows with its widest column, so every label keeps its own line (see resolveSankeyHeight).
+  const height = resolveSankeyHeight(countSankeyLayers(view), isMobile);
+  // The chart is an image to a screen reader: its name is the tile's reading and its size.
+  const chartLabel = `Flusso del periodo, ${modeLabel.toLowerCase()}: ${view.nodes.length} nodi e ${view.links.length} flussi.${shownReading ? ` ${narrativeToText(shownReading)}` : ''}`;
 
   const roleColor = (bucket: SpendingBucket) =>
     ({ need: palette.need, want: palette.want, saving: palette.saving, unclassified: palette.unclassified })[bucket];
@@ -200,7 +209,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
           )}
         </div>
       }
-      reading={mode === 'roles' && spendingRoles && !drill ? spendingRoles.reading : reading}
+      reading={shownReading}
       className={className}
     >
       {drill && (
@@ -208,7 +217,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
           <button
             type="button"
             onClick={() => setDrill(null)}
-            className="inline-flex h-11 items-center gap-1 rounded-md border border-border px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground desktop:h-7 desktop:border-0 desktop:px-2"
+            className="inline-flex h-11 items-center gap-1 rounded-md border border-border px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground desktop:h-8 desktop:border-0 desktop:px-2"
           >
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Indietro
@@ -234,7 +243,9 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
               view={view}
               viewKey={viewKey}
               isMobile={isMobile}
+              height={height}
               drilled={drill !== null}
+              ariaLabel={chartLabel}
               onNodeClick={handleNodeClick}
               nodeSort={mode === 'roles' && !drill ? 'input' : 'auto'}
               variant={showSubcategories && !drill ? 'classic' : 'thin'}
@@ -242,6 +253,16 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
           </div>
         </>
       )}
+      {/* What a click does, in words — it used to live in a hover tooltip only, invisible to touch. */}
+      <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
+        {mobileRoles
+          ? 'Una categoria apre la sua scheda.'
+          : drill
+            ? 'Una categoria apre la sua scheda; «Indietro» torna al flusso intero.'
+            : mode === 'roles'
+              ? 'Un ruolo o un gruppo «Altre» apre il suo dettaglio; una categoria o una sottocategoria apre la scheda.'
+              : 'Un tipo di spesa apre il suo dettaglio; una categoria o una sottocategoria apre la scheda.'}
+      </p>
     </Tile>
   );
 }

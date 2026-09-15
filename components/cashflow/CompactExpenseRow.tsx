@@ -5,19 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
-import type { Expense, ExpenseType } from '@/types/expenses';
+import type { Expense } from '@/types/expenses';
 import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
-
-// Tailwind dot-color classes keyed by expense type.
-// All entries use semantic token references to stay theme-aware across all 6 colour themes;
-// income takes the sign token so it matches every other "gain" on the page.
-export const TYPE_DOT_CLASS: Record<ExpenseType, string> = {
-  income:   'bg-positive',
-  fixed:    'bg-[var(--chart-1)]',
-  variable: 'bg-[var(--chart-4)]',
-  debt:     'bg-[var(--chart-3)]',
-  transfer: 'bg-[var(--chart-5)]',
-};
+import { EXPENSE_TYPE_DOT_CLASS as TYPE_DOT_CLASS } from '@/lib/constants/expenseTypeColors';
 
 export interface CompactExpenseRowProps {
   expense: Expense;

@@ -9,8 +9,8 @@ import { describeMonthTrades, monthWithPrepositionA } from '@/lib/utils/patrimon
 import type { MonthTradesSummary } from '@/lib/utils/patrimonioSummary';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { useActionColors } from '@/lib/hooks/useActionColors';
-import { Tile } from '@/components/ui/tile';
 import { ActionChip } from '@/components/allocation/ActionChip';
+import { Tile, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 
 /** Rows shown by default; beyond these the footer expands to the whole month in place. */
 const MAX_ROWS = 5;
@@ -112,7 +112,7 @@ export function MovimentiTile({ summary, month, ledgerReady, loading = false, as
                 type="button"
                 onClick={() => setShowAll((v) => !v)}
                 aria-expanded={showAll}
-                className="text-foreground underline-offset-2 hover:underline"
+                className={TILE_FOOTER_ACTION_CLASS}
               >
                 {showAll ? `Mostra le ultime ${MAX_ROWS}` : 'Mostra tutte'}
               </button>

@@ -5,6 +5,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
 import { SeriesDot } from '@/components/ui/series-dot';
+import { CASHFLOW_SERIES_COLOR } from '@/lib/constants/expenseTypeColors';
 
 interface FlowBarsChartProps {
   flows: MonthFlow[];
@@ -70,8 +71,8 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, className 
             return (
               <g key={flow.key}>
                 <title>{`${flow.label}: entrate ${cachedFormatCurrencyEUR(flow.income, true)}, spese ${cachedFormatCurrencyEUR(flow.expenses, true)}${flow.scheduled ? ' (in calendario)' : ''}`}</title>
-                <rect x={x} y={VIEW_H - incomeHeight} width={barWidth} height={incomeHeight} fill="var(--flow-in)" fillOpacity={opacity} stroke={stroke} vectorEffect="non-scaling-stroke" />
-                <rect x={x + barWidth + gap} y={VIEW_H - expensesHeight} width={barWidth} height={expensesHeight} fill="var(--flow-out)" fillOpacity={opacity} stroke={stroke} vectorEffect="non-scaling-stroke" />
+                <rect x={x} y={VIEW_H - incomeHeight} width={barWidth} height={incomeHeight} fill={CASHFLOW_SERIES_COLOR.income} fillOpacity={opacity} stroke={stroke} vectorEffect="non-scaling-stroke" />
+                <rect x={x + barWidth + gap} y={VIEW_H - expensesHeight} width={barWidth} height={expensesHeight} fill={CASHFLOW_SERIES_COLOR.expenses} fillOpacity={opacity} stroke={stroke} vectorEffect="non-scaling-stroke" />
               </g>
             );
           })}

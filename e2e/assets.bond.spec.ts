@@ -89,7 +89,7 @@ test('a BTP€i and a zero-coupon bond write what the pure layer promises', asyn
   try {
     // ── 1. Edit the BTP€i: mechanism + coefficient shown; save → provisional coupon at 1,25 ──
     await openPatrimonio(page);
-    await page.getByRole('row').filter({ hasText: 'Ornitorinco' }).getByRole('button', { name: 'Modifica asset' }).click();
+    await page.getByRole('row').filter({ hasText: 'Ornitorinco' }).getByRole('button', { name: /^Modifica / }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('combobox', { name: "Indicizzazione all'inflazione" })).toContainText('BTP€i');
     await expect(dialog.locator('#bondIndexationCoefficient')).toHaveValue('1.25');
@@ -104,7 +104,7 @@ test('a BTP€i and a zero-coupon bond write what the pure layer promises', asyn
     expect(coupon.notes).toContain("all'ultimo coefficiente noto 1,25");
 
     // ── 2. A trade on the BTP€i: coefficient asked, quote × coefficient stored ──
-    await page.getByRole('row').filter({ hasText: 'Ornitorinco' }).getByRole('button', { name: 'Registra operazione' }).click();
+    await page.getByRole('row').filter({ hasText: 'Ornitorinco' }).getByRole('button', { name: /^Registra operazione su / }).click();
     await expect(dialog.locator('#trade-indexation-coefficient')).toHaveValue('1.25');
     await dialog.locator('#trade-quantity').fill('1000');
     await dialog.locator('#trade-price').fill('97');
@@ -142,7 +142,7 @@ test('a BTP€i and a zero-coupon bond write what the pure layer promises', asyn
     // «Di oggi» is the latest coefficient at or before today: the 1,27 belongs to the November
     // coupon date, so the asset form (and the cron, same rule) still read 1,25 (owner's tour, 2026-09-11).
     await openPatrimonio(page);
-    await page.getByRole('row').filter({ hasText: 'Ornitorinco' }).getByRole('button', { name: 'Modifica asset' }).click();
+    await page.getByRole('row').filter({ hasText: 'Ornitorinco' }).getByRole('button', { name: /^Modifica / }).click();
     await expect(dialog.locator('#bondIndexationCoefficient')).toHaveValue('1.25');
     // Switching the mechanism away and back keeps the coefficient (it used to be cleared).
     const mechanism = dialog.getByRole('combobox', { name: "Indicizzazione all'inflazione" });
@@ -165,7 +165,7 @@ test('a BTP€i and a zero-coupon bond write what the pure layer promises', asyn
     await dialog.locator('#quantity').fill('2000');
     await dialog.locator('#averageCost').fill('96');
     await expect(dialog.getByText(/≈ .*per unità/)).toContainText('0,96');
-    await dialog.getByRole('switch', { name: 'Dettagli Cedole' }).check();
+    await dialog.getByRole('switch', { name: 'Dettagli cedole' }).check();
     await expect(dialog.locator('#bondCouponRate')).toBeVisible();
     await dialog.locator('#bondCouponRate').fill('0');
     await dialog.getByText('Seleziona periodicità').click();

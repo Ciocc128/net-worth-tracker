@@ -20,10 +20,12 @@ vi.mock('firebase/firestore', () => ({
 
 import {
   buildPatrimonioVerdict,
+  describeBondRow,
   describeCashAccounts,
   describeInstrumentReturns,
   describeInstruments,
   describeLastPriceUpdate,
+  describeManualValuation,
   describeMonthTrades,
   formatHoldingCounts,
   pluralArticleFor,
@@ -253,5 +255,32 @@ describe('tile readings', () => {
     // A quote older than the calendar year names its year, or a stale ticker reads as three weeks ago.
     expect(describeLastPriceUpdate(new Date(Date.UTC(2025, 8, 14, 16, 0)), now)).toBe('prezzi aggiornati il 14/09/2025 alle 18:00');
     expect(describeLastPriceUpdate(null, now)).toBeNull();
+  });
+});
+
+describe('describeBondRow / describeManualValuation — the sub-line under a row', () => {
+  const now = new Date(Date.UTC(2026, 8, 14, 10, 0)); // 14/09/2026 12:00 in Rome
+
+  it('names the maturity and the next coupon, the year only when it is not the current one', () => {
+    expect(describeBondRow({ maturityDate: new Date(Date.UTC(2032, 2, 4, 11)), hasCoupons: true }, new Date(Date.UTC(2026, 8, 4, 11)), now)).toBe(
+      'scade il 04/03/2032 · prossima cedola 04/09',
+    );
+    expect(describeBondRow({ maturityDate: new Date(Date.UTC(2027, 0, 15, 11)), hasCoupons: true }, new Date(Date.UTC(2027, 0, 15, 11)), now)).toBe(
+      'scade il 15/01/2027 · prossima cedola 15/01/2027',
+    );
+  });
+
+  it('drops the coupon clause for a zero coupon, a matured bond or an unknown next date', () => {
+    expect(describeBondRow({ maturityDate: new Date(Date.UTC(2027, 0, 15, 11)), hasCoupons: false }, null, now)).toBe('scade il 15/01/2027');
+    expect(describeBondRow({ maturityDate: new Date(Date.UTC(2027, 0, 15, 11)), hasCoupons: true }, null, now)).toBe('scade il 15/01/2027');
+    expect(describeBondRow({ maturityDate: new Date(Date.UTC(2027, 0, 15, 11)), hasCoupons: true }, new Date(Date.UTC(2027, 6, 15, 11)), now)).toBe('scade il 15/01/2027');
+    expect(describeBondRow({ maturityDate: new Date('x'), hasCoupons: true }, null, now)).toBeNull();
+  });
+
+  it('dates a hand-typed value, and says nothing without a date', () => {
+    expect(describeManualValuation(new Date(Date.UTC(2026, 7, 12, 11)), now)).toBe('valore a mano dal 12/08');
+    expect(describeManualValuation(new Date(Date.UTC(2025, 11, 30, 11)), now)).toBe('valore a mano dal 30/12/2025');
+    expect(describeManualValuation(null, now)).toBeNull();
+    expect(describeManualValuation(new Date('x'), now)).toBeNull();
   });
 });

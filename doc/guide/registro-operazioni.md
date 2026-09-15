@@ -24,6 +24,20 @@
 - **Replay ordering is deterministic and internal** (date → baseline < buy < sell < adjustment → `createdAt` → `id`), and
   this same replay IS the pre-write validation: invalid histories throw `LedgerValidationError` with an Italian
   `userMessage` forwarded verbatim in a 422.
+- **A trade date has ONE floor, the asset's own baseline, and the future as its only ceiling** (2026-09-13). Until then
+  `assetTransactionsMeta.baselineDate` — the day the account opened the ledger — floored EVERY trade date in both
+  dialogs and in `assertDateWithinBounds`, and on a new account that day is the first visit to Patrimonio, so «today»
+  was the floor and no past purchase was recordable (a user's report: ENI shares bought in 2024 and 2025). Now the
+  server checks only `assertDateNotInFuture`; a migrated asset keeps its baseline as the floor through the replay's
+  `BASELINE_NOT_FIRST`, whose message names the day («Su questo asset le operazioni partono dalla posizione iniziale
+  del 01/01/2024»), and `TransactionDialog` sets the input's `min` from the asset's OWN baseline (`existingTransactions`),
+  never from the meta. The consequences are declared, not hidden: the Rendimenti flows read an instrument's first
+  appearance as its entry (doc/guide/rendimenti.md § THE ENTRY MONTH); a settlement account is debited TODAY whatever
+  the date, so with a date in a past month both dialogs replace the promise with a warning
+  (`describeSettlementTiming`, `lib/utils/dialogNarrative.ts`); `holdingStartDate` moves back to the real purchase, so
+  the registry's dividends after it count for YOC; realized P&L lands in the sale's fiscal year; the snapshots stay
+  frozen photos (Storico does not rewrite history). Recording history BEFORE a migrated asset's baseline is not
+  supported: the baseline is the frozen opening position, and the owner chose not to add a replacement story.
 - **The per-asset XIRR is date-exact and SEPARATE from `performanceService.calculateIRR`** — keep both; it returns a
   FRACTION, and `null` renders as "–", never 0. **`replayTransactions` replays ONE asset**, so `aggregateRealizedByYear`
   (same engine, consumed by `summarizeRealizedGains` → `PlusvalenzeTile.tsx`) must group by `assetId` FIRST: realized P&L is PMC-dependent

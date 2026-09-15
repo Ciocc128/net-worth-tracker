@@ -56,26 +56,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { X, Search, Download, Plus, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 import { ExpenseDialog } from '@/components/expenses/ExpenseDialog';
 import { ExpenseTable } from '@/components/expenses/ExpenseTable';
+import { SeriesDeleteDialog, resolveSeriesDeleteMode, type SeriesDeleteRequest } from '@/components/expenses/SeriesDeleteDialog';
 import { TransactionFeed } from '@/components/cashflow/TransactionFeed';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { MobileFiltersDrawer } from '@/components/cashflow/MobileFiltersDrawer';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { TILE_CELL_CLASS, TILE_FOOTER_ACTION_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
@@ -101,6 +92,7 @@ import {
   computePeriodDelta,
   currentComparisonWindow,
   filterExpensesByPeriod,
+  previousComparisonWindow,
   previousPeriod,
   rankCategories,
   resolveAnchorMonth,
@@ -223,10 +215,29 @@ function applyListFilters(expenses: Expense[], filters: ListFilters): Expense[] 
   return filtered;
 }
 
+/** Where the desktop list view is remembered; read once at mount, written on every switch. */
+const LIST_VIEW_STORAGE_KEY = 'cashflow.movimenti.vista';
+
+function readStoredListView(): 'feed' | 'table' {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(LIST_VIEW_STORAGE_KEY) === 'table' ? 'table' : 'feed';
+  } catch {
+    return 'feed';
+  }
+}
+
+function writeStoredListView(view: 'feed' | 'table'): void {
+  try {
+    window.localStorage.setItem(LIST_VIEW_STORAGE_KEY, view);
+  } catch {
+    // A blocked storage loses only the memory of the switch, never the switch.
+  }
+}
+
 /**
  * CHECKLIST: When adding new ExpenseType values:
  * 1. Update EXPENSE_TYPE_LABELS in types/expenses.ts
- * 2. Add color mapping in CompactExpenseRow.tsx dot-color classes (TYPE_DOT_CLASS)
+ * 2. Add the dot, badge (and series, if it is a flow) colour in lib/constants/expenseTypeColors.ts
  * 3. Update the ORDER arrays in this file
  * 4. Add type validation in ExpenseDialog schema
  */
@@ -259,15 +270,17 @@ export function ExpenseTrackingTab({
   // Unified period filter (replaces separate selectedYear + selectedMonth)
   const [period, setPeriod] = useState<Period>(() => currentMonthPeriod());
 
-  // AlertDialog for bulk delete (installments / recurring)
-  const [bulkDeleteDialog, setBulkDeleteDialog] = useState<{
-    open: boolean;
-    expense: Expense | null;
-    mode: 'installment' | 'recurring' | null;
-  }>({ open: false, expense: null, mode: null });
+  // The one question a series adds to a delete from the feed: «solo questa o tutte?»
+  const [seriesRequest, setSeriesRequest] = useState<SeriesDeleteRequest | null>(null);
 
   // Desktop list view: the day-grouped feed (default, shared with mobile) or the dense table.
-  const [desktopListView, setDesktopListView] = useState<'feed' | 'table'>('feed');
+  // Remembered (localStorage), like Patrimonio's toggles: a reader who works in the table
+  // should not re-pick it on every visit (it reset to «Feed» until 2026-09-14).
+  const [desktopListView, setDesktopListView] = useState<'feed' | 'table'>(() => readStoredListView());
+  const changeListView = (view: 'feed' | 'table') => {
+    setDesktopListView(view);
+    writeStoredListView(view);
+  };
 
   // The feed's visible window, stored WITH the filters it belongs to: when the filters change
   // the key no longer matches and the window falls back to the first page, with no effect
@@ -443,22 +456,17 @@ export function ExpenseTrackingTab({
 
   /**
    * Delete a transaction from the feed's detail drawer. The drawer already showed an
-   * explicit destructive confirmation, so a simple expense is deleted immediately. For
-   * installments/recurring, open the AlertDialog so the user can choose single vs. the
-   * whole series.
+   * explicit destructive confirmation, so a simple expense is deleted immediately. A row of an
+   * instalment plan or a recurring series opens `SeriesDeleteDialog` — the one question the
+   * series adds, «solo questa o tutte?» (the same modal the table uses).
    */
   const handleDeleteExpense = useCallback(
     (expense: Expense) => {
-      const isComplex =
-        (expense.isInstallment && expense.installmentParentId) ||
-        (expense.isRecurring && expense.recurringParentId);
-
-      if (isComplex) {
-        const mode = expense.isInstallment ? 'installment' : 'recurring';
-        setBulkDeleteDialog({ open: true, expense, mode });
+      const mode = resolveSeriesDeleteMode(expense);
+      if (mode) {
+        setSeriesRequest({ expense, mode });
         return;
       }
-
       void deleteSingleExpense(expense);
     },
     [deleteSingleExpense],
@@ -668,17 +676,20 @@ export function ExpenseTrackingTab({
   }, [allExpenses, period, now]);
 
   // The delta compares like with like. `totals` spans the whole period — for a year still
-  // running that includes months the previous year cannot match — so the percentages are
-  // computed on the shared window instead (`describeComparisonPhrase` names it: «su gen–ago
-  // 2025»). Only the delta is scoped; every figure the tiles print stays the period's own.
-  const comparableTotals = useMemo(() => {
-    const window = currentComparisonWindow(period, now);
-    return window ? summarizePeriodCashflow(filterExpensesByPeriod(allExpenses, window)) : totals;
-  }, [allExpenses, period, now, totals]);
-  const delta = useMemo(
-    () => (previousTotals ? computePeriodDelta(comparableTotals, previousTotals) : null),
-    [comparableTotals, previousTotals],
-  );
+  // running that includes months the previous year cannot match, for the month in progress the
+  // days not yet lived — so the percentages are computed on the two comparable windows instead
+  // (`describeComparisonPhrase` names them: «su gen–ago 2025», «sui primi 14 giorni di agosto»).
+  // Only the delta is scoped; every figure the tiles print stays the period's own, and the
+  // projection's reference above stays LAST MONTH WHOLE.
+  const delta = useMemo(() => {
+    const current = currentComparisonWindow(period, now);
+    const previous = previousComparisonWindow(period, now);
+    if (!current || !previous) return null;
+    return computePeriodDelta(
+      summarizePeriodCashflow(filterExpensesByPeriod(allExpenses, current)),
+      summarizePeriodCashflow(filterExpensesByPeriod(allExpenses, previous)),
+    );
+  }, [allExpenses, period, now]);
 
   const verdict = useMemo(() => buildCashflowVerdict({ period, now, totals, delta, scheduled }), [period, now, totals, delta, scheduled]);
   const comparisonPhrase = describeComparisonPhrase(period, now);
@@ -759,9 +770,11 @@ export function ExpenseTrackingTab({
     />
   );
 
-  // The full breakdown lives on Analisi: the tiles carry the top five and the residual.
+  // The full breakdown lives on Analisi: the tiles carry the top five and the residual. The
+  // words stay 11px, the target does not (`TILE_FOOTER_ACTION_CLASS`: 32px on a pointer, 44 on
+  // touch — it measured 147×17 until 2026-09-14).
   const analisiLink = (
-    <Link href="/dashboard/analisi" className="inline-flex items-center gap-1 hover:text-foreground">
+    <Link href="/dashboard/analisi" className={cn(TILE_FOOTER_ACTION_CLASS, 'gap-1 text-muted-foreground hover:text-foreground')}>
       Tutte le categorie in Analisi
       <ArrowRight className="h-3 w-3" aria-hidden="true" />
     </Link>
@@ -942,7 +955,7 @@ export function ExpenseTrackingTab({
             { value: 'table', label: 'Tabella' },
           ]}
           value={desktopListView}
-          onChange={setDesktopListView}
+          onChange={changeListView}
           aria-label="Vista elenco movimenti"
           className="w-[150px]"
         />
@@ -1031,7 +1044,7 @@ export function ExpenseTrackingTab({
             reading={describeCategoryShare(incomeRanking, 'income')}
             color="var(--flow-in)"
             emptyCopy="Nessuna entrata registrata nel periodo."
-            labelClassName="w-[72px]"
+            labelClassName="min-w-[72px]"
             footer={analisiLink}
           />
         </div>
@@ -1085,55 +1098,23 @@ export function ExpenseTrackingTab({
         onSuccess={handleSuccess}
       />
 
-      {/* Bulk delete AlertDialog — for installments and recurring expenses */}
-      <AlertDialog
-        open={bulkDeleteDialog.open}
-        onOpenChange={(open) => {
-          if (!open) setBulkDeleteDialog({ open: false, expense: null, mode: null });
+      {/* «Solo questa o tutte?» — for a row of an instalment plan or a recurring series deleted from the feed */}
+      <SeriesDeleteDialog
+        request={seriesRequest}
+        onClose={() => setSeriesRequest(null)}
+        onDeleteOne={(expense) => {
+          setSeriesRequest(null);
+          void deleteSingleExpense(expense);
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {bulkDeleteDialog.mode === 'installment' ? 'Elimina rata' : 'Elimina voce ricorrente'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {bulkDeleteDialog.mode === 'installment' && bulkDeleteDialog.expense
-                ? `Questa è la rata ${bulkDeleteDialog.expense.installmentNumber}/${bulkDeleteDialog.expense.installmentTotal}. Vuoi eliminare solo questa rata o tutte le ${bulkDeleteDialog.expense.installmentTotal} rate?`
-                : 'Questa è una voce ricorrente. Vuoi eliminare solo questa voce o tutte le occorrenze correlate?'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (bulkDeleteDialog.expense) void deleteSingleExpense(bulkDeleteDialog.expense);
-                setBulkDeleteDialog({ open: false, expense: null, mode: null });
-              }}
-            >
-              Solo questa
-            </Button>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                const exp = bulkDeleteDialog.expense;
-                if (!exp) return;
-                if (bulkDeleteDialog.mode === 'installment' && exp.installmentParentId) {
-                  void deleteAllInstallmentExpenses(exp.installmentParentId);
-                } else if (bulkDeleteDialog.mode === 'recurring' && exp.recurringParentId) {
-                  void deleteAllRecurringExpenses(exp.recurringParentId);
-                }
-                setBulkDeleteDialog({ open: false, expense: null, mode: null });
-              }}
-            >
-              {bulkDeleteDialog.mode === 'installment'
-                ? `Tutte le ${bulkDeleteDialog.expense?.installmentTotal ?? ''} rate`
-                : 'Tutte le ricorrenti'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onDeleteAll={(expense) => {
+          setSeriesRequest(null);
+          if (expense.isInstallment && expense.installmentParentId) {
+            void deleteAllInstallmentExpenses(expense.installmentParentId);
+          } else if (expense.isRecurring && expense.recurringParentId) {
+            void deleteAllRecurringExpenses(expense.recurringParentId);
+          }
+        }}
+      />
     </div>
   );
 }
