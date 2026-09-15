@@ -4,6 +4,7 @@ import type { MonthFlow } from '@/lib/utils/tracciamentoSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { SeriesDot } from '@/components/ui/series-dot';
 
 interface FlowBarsChartProps {
   flows: MonthFlow[];
@@ -78,12 +79,14 @@ export function FlowBarsChart({ flows, highlightKey, minHeight = 150, className 
         {hovered && hover.index !== null && (
           <ChartHoverTip x={(hover.index + 0.5) / flows.length} label={`${hovered.label} ${hovered.year}${hovered.scheduled ? ' · in calendario' : ''}`}>
             <span className="font-mono tabular-nums">
+              <SeriesDot color="var(--flow-in)" />
               <span className="text-muted-foreground">Entrate </span>
-              <span className="text-positive">{cachedFormatCurrencyEUR(hovered.income, true)}</span>
+              <span className="text-income-figure">{cachedFormatCurrencyEUR(hovered.income, true)}</span>
             </span>
             <span className="font-mono tabular-nums">
+              <SeriesDot color="var(--flow-out)" />
               <span className="text-muted-foreground">Spese </span>
-              <span className="text-destructive">{cachedFormatCurrencyEUR(hovered.expenses, true)}</span>
+              <span className="text-expense-figure">{cachedFormatCurrencyEUR(hovered.expenses, true)}</span>
             </span>
           </ChartHoverTip>
         )}

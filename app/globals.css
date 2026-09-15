@@ -56,6 +56,13 @@
   /* A cost or tax figure (Panoramica's Costi and Sintesi): the warning ink unless a theme keeps
      amber for real warnings only. */
   --color-cost-figure: var(--cost-figure);
+  /* An income or spending FIGURE (a KPI, a row amount, a hover value): the sign ink unless a theme
+     keeps the sign for judgements only and ties the figure to its series with a dot instead. */
+  --color-income-figure: var(--income-figure);
+  --color-expense-figure: var(--expense-figure);
+  /* The period's savings (a residual, so a judgement): neutral unless a theme signs it. */
+  --color-net-gain-figure: var(--net-gain-figure);
+  --color-net-loss-figure: var(--net-loss-figure);
   /* The `outlineDestructive` button («Elimina» before it is armed). */
   --color-destructive-surface: var(--destructive-surface);
   --color-destructive-surface-hover: var(--destructive-surface-hover);
@@ -158,6 +165,12 @@
   /* A spending budget's progress fill below its warning threshold. */
   --progress-fill: var(--foreground);
   --cost-figure: var(--warning-foreground);
+  --income-figure: var(--positive);
+  --expense-figure: var(--destructive);
+  --net-gain-figure: var(--foreground);
+  --net-loss-figure: var(--foreground);
+  /* The series dot beside a figure (components/ui/series-dot.tsx): hidden unless a theme turns it on. */
+  --series-dot: none;
   /* An outline «Elimina»: the outline button's own fill, hover and border unless a theme neutralises it. */
   --destructive-surface: var(--outline-surface);
   --destructive-surface-hover: var(--accent);
@@ -835,6 +848,15 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --progress-fill: oklch(0.5500 0.0400 257.0000);
   /* Amber is kept for warnings and thresholds; a cost or an estimated tax is a fact, in slate. */
   --cost-figure: var(--foreground);
+  /* Income and spending figures are facts, not judgements: foreground ink, tied to their series by a
+     dot in --flow-in / --flow-out. The sign stays on deltas, residuals and budget overruns. */
+  --income-figure: var(--foreground);
+  --expense-figure: var(--foreground);
+  --series-dot: inline-block;
+  /* …while the savings, which IS a judgement, takes the sign: the income hue's text step when kept,
+     red when the period spends more than it earns. */
+  --net-gain-figure: var(--positive);
+  --net-loss-figure: var(--destructive);
   /* Category icon badges in the theme's neutrals instead of each category's saved hue (see
      lib/utils/categoryIconStyle.ts: undeclared in :root, so every other theme keeps the hue). */
   --category-icon: var(--muted-foreground);
@@ -949,6 +971,11 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --scenario-bull: var(--chart-2);
   --progress-fill: var(--foreground);
   --cost-figure: var(--warning-foreground);
+  --income-figure: var(--positive);
+  --expense-figure: var(--destructive);
+  --series-dot: none;
+  --net-gain-figure: var(--foreground);
+  --net-loss-figure: var(--foreground);
   /* `initial` invalidates the variable, so categoryIconStyle falls back to the saved hue. */
   --category-icon: initial;
   --category-icon-bg: initial;

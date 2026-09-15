@@ -4,6 +4,7 @@ import type { SpendingPoint } from '@/lib/utils/analisiSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { ChartHoverTip, useChartHover } from '@/components/ui/chart-hover';
+import { SeriesDot } from '@/components/ui/series-dot';
 
 interface SpendingBarsChartProps {
   points: SpendingPoint[];
@@ -94,8 +95,9 @@ export function SpendingBarsChart({ points, kind, minHeight = 150, className }: 
         {hovered && hover.index !== null && (
           <ChartHoverTip x={(hover.index + 0.5) / points.length} label={kind === 'month' ? `${hovered.label} ${yearOf(hovered)}` : hovered.label}>
             <span className="font-mono tabular-nums">
+              <SeriesDot color="var(--flow-out)" />
               <span className="text-muted-foreground">{kind === 'month' ? `${yearOf(hovered)} ` : 'Spese '}</span>
-              <span className="text-destructive">{cachedFormatCurrencyEUR(hovered.value, true)}</span>
+              <span className="text-expense-figure">{cachedFormatCurrencyEUR(hovered.value, true)}</span>
               {hovered.ongoing && <span className="text-muted-foreground"> in corso</span>}
               {hovered.scheduled && <span className="text-muted-foreground"> in calendario</span>}
             </span>

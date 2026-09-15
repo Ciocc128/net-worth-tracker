@@ -198,10 +198,10 @@ function TransactionDetailDrawer({
               scheduled
                 ? 'text-muted-foreground'
                 : isIncome
-                  ? 'text-positive'
+                  ? 'text-income-figure'
                   : isTransfer
                     ? 'text-foreground'
-                    : 'text-destructive',
+                    : 'text-expense-figure',
             )}
           >
             {amountLabel}

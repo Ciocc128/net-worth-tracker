@@ -4,6 +4,7 @@ import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { printedDelta } from '@/lib/utils/cashflowNarrative';
 import { cn } from '@/lib/utils';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { SeriesDot } from '@/components/ui/series-dot';
 
 const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[-0.03em] tabular-nums';
 
@@ -14,6 +15,16 @@ const KPI_VALUE_CLASS = 'font-mono text-[22px] font-bold leading-none tracking-[
 export function deltaClass(delta: number, positiveGood: boolean): string {
   if (delta === 0) return 'text-muted-foreground';
   return (delta > 0) === positiveGood ? 'text-positive' : 'text-destructive';
+}
+
+/**
+ * Colour of the period's savings and its rate — one sign for both: neutral by default, signed where
+ * a theme names the net-figure tokens. The coverage ratio beside them stays muted, a secondary unit.
+ */
+export function netFigureClass(net: number): string {
+  if (net > 0) return 'text-net-gain-figure';
+  if (net < 0) return 'text-net-loss-figure';
+  return 'text-foreground';
 }
 
 function DeltaLine({ delta, positiveGood, previousLabel }: { delta: number | null; positiveGood: boolean; previousLabel: string | null }) {
@@ -55,28 +66,28 @@ export function CashflowKpiTrio({ totals, incomeDelta, expensesDelta, previousLa
   return (
     <div className={cn('grid grid-cols-3 gap-3.5', className)}>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <p className={TILE_SUB_EYEBROW_CLASS}>Entrate</p>
-        <p className={cn(KPI_VALUE_CLASS, income > 0 ? 'text-positive' : 'text-muted-foreground')}>
+        <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-in)" />Entrate</p>
+        <p className={cn(KPI_VALUE_CLASS, income > 0 ? 'text-income-figure' : 'text-muted-foreground')}>
           {cachedFormatCurrencyEUR(income, true)}
         </p>
         <DeltaLine delta={incomeDelta} positiveGood={true} previousLabel={previousLabel} />
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <p className={TILE_SUB_EYEBROW_CLASS}>Spese</p>
-        <p className={cn(KPI_VALUE_CLASS, expenses > 0 ? 'text-destructive' : 'text-muted-foreground')}>
+        <p className={TILE_SUB_EYEBROW_CLASS}><SeriesDot color="var(--flow-out)" />Spese</p>
+        <p className={cn(KPI_VALUE_CLASS, expenses > 0 ? 'text-expense-figure' : 'text-muted-foreground')}>
           {cachedFormatCurrencyEUR(expenses, true)}
         </p>
         <DeltaLine delta={expensesDelta} positiveGood={false} previousLabel={previousLabel} />
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
         <p className={TILE_SUB_EYEBROW_CLASS}>Risparmio</p>
-        <p className={cn(KPI_VALUE_CLASS, 'text-foreground')}>
+        <p className={cn(KPI_VALUE_CLASS, netFigureClass(net))}>
           {net < 0 ? '−' : ''}
           {cachedFormatCurrencyEUR(Math.abs(net), true)}
         </p>
         <p className="text-[11px] text-muted-foreground">
           {savingsRate !== null ? (
-            <span className="font-mono tabular-nums text-foreground">{formatPercentage(savingsRate, 1)}</span>
+            <span className={cn('font-mono tabular-nums', netFigureClass(net))}>{formatPercentage(savingsRate, 1)}</span>
           ) : (
             <span>—</span>
           )}

@@ -1,14 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import type { Asset } from '@/types/assets';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { describeCashAccounts } from '@/lib/utils/patrimonioNarrative';
 import type { CashAccountsSummary } from '@/lib/utils/patrimonioSummary';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
-
-/** Accounts shown before «Mostra tutti», as the Piano keeps six trades. */
-const MAX_ACCOUNTS = 6;
 
 interface LiquiditaTileProps {
   summary: CashAccountsSummary;
@@ -27,12 +23,10 @@ interface LiquiditaTileProps {
  * account's detail dialog (edit, delete) opens from here, as the old card grid did.
  */
 export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, className }: LiquiditaTileProps) {
+  // Thirteen accounts stretched the tile (and the chart beside it) to twice its row: the list
+  // holds five and a half rows, largest first, and scrolls inside the tile — the cut row is the
+  // cue that there is more.
   const { accounts } = summary;
-  // Thirteen accounts stretched the tile to twice its row; the largest six (the summary lists
-  // them by balance) stay, the rest open in place.
-  const [showAll, setShowAll] = useState(false);
-  const collapsible = accounts.length > MAX_ACCOUNTS;
-  const visibleAccounts = collapsible && !showAll ? accounts.slice(0, MAX_ACCOUNTS) : accounts;
 
   return (
     <Tile
@@ -51,8 +45,9 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
               {cachedFormatCurrencyEUR(summary.total)}
             </p>
           </div>
-          <div className="mt-2.5 flex flex-col divide-y divide-border">
-            {visibleAccounts.map((account) => {
+          {/* The -mx-2/px-2 pair keeps the rows' hover wash inside the scroll box, which clips on both axes. */}
+          <div className="-mx-2 mb-3.5 mt-2.5 flex max-h-[214px] flex-col divide-y divide-border overflow-y-auto overscroll-contain px-2">
+            {accounts.map((account) => {
               const asset = accountsById.get(account.id);
               return (
                 <button
@@ -73,16 +68,6 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
               );
             })}
           </div>
-          {collapsible && (
-            <button
-              type="button"
-              onClick={() => setShowAll((prev) => !prev)}
-              aria-expanded={showAll}
-              className="mt-1 self-start text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {showAll ? `Mostra solo i ${MAX_ACCOUNTS} maggiori` : `Mostra tutti i ${accounts.length} conti`}
-            </button>
-          )}
         </>
       )}
       <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">

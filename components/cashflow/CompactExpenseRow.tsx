@@ -132,8 +132,8 @@ export function CompactExpenseRow({
           scheduled || isTransfer
             ? 'text-muted-foreground'
             : isIncome
-              ? 'text-positive'
-              : 'text-destructive',
+              ? 'text-income-figure'
+              : 'text-expense-figure',
         )}
       >
         {amountLabel}
