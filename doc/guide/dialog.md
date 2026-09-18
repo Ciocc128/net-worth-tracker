@@ -66,15 +66,18 @@
   out on its content instead of unmounting on an empty shell.
 - **`triggerOrigin` is resolved AT THE CLICK, from the trigger alone** (`resolveCenteredModalOrigin`,
   `lib/utils/modalOrigin.ts`, 2026-09-18): a centred dialog's centre is (50vw, 50vh) whatever its size, so a point
-  of the viewport in the dialog's own box is `calc(50% + Xpx - 50vw)` — no `contentRef`, no measuring the dialog,
-  and the origin is on the panel from its FIRST frame. Setting it later is not a jump but a GLIDE: `DialogContent`
+  of the viewport in the dialog's own box is `calc(50% + Xpx - 50vw)` — nothing to measure (the `contentRef` prop that
+  existed for it is gone), and the origin is on the panel from its FIRST frame. Setting it later is not a jump but a GLIDE: `DialogContent`
   carries `duration-200` with `transition-property` at its default `all`, so a changed `transform-origin` is
-  tweened across the zoom and the panel scales around a moving pivot. Keep the origin through the close (the exit
-  animates too); take the rect from `event.currentTarget`, since a header action is mounted twice and a ref lands on
-  either copy. **Only Panoramica is on it**: Hall of Fame and Dividendi still set the origin in a
-  `requestAnimationFrame` after mount (the same glide), Rendimenti and Impostazioni resolve it at the click but as
-  the trigger's VIEWPORT percentage applied to the dialog's BOX (no glide, wrong point) — three recipes, one helper
-  waiting for them.
+  tweened across the zoom and the panel scales around a moving pivot. **Never clear it on close**: the exit animates
+  too, and `setOrigin(undefined)` in `onOpenChange` makes it glide back (12 values, measured) — every opener sets a
+  fresh origin, so nothing stale survives. Take the rect from `event.currentTarget`, since a header action is mounted
+  twice and a ref lands on either copy. **All five pages are on it** (Panoramica, Hall of Fame, Dividendi, Rendimenti,
+  Impostazioni): until that day Hall of Fame and Dividendi set the origin in a `requestAnimationFrame` after mount
+  (the glide) and Rendimenti and Impostazioni used the trigger's VIEWPORT percentage on the dialog's BOX (no glide, a
+  pivot 253px from the button). Pinned by `e2e/modal.origin.spec.ts` and `e2e/panoramica.snapshot.spec.ts`, open AND
+  close; read the geometry on an OPEN settled frame — a closing panel at scale 0.95 is displaced by 0.05 × its
+  distance from the pivot, which reads as an 18px error that is not one.
 - **In light mode `--card` and `--background` are both `oklch(1 0 0)`**, so a test that proves a modal is «lifted» by
   comparing it with the page background passes only in dark mode. What separates it there is the border and the Float
   shadow; assert the modal's surface equals a TILE's instead.

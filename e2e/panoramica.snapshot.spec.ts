@@ -7,7 +7,9 @@
  * AFTER mounting — which the dialog's `duration-200` (with `transition-property` left at `all`)
  * turned into a pivot GLIDING from the centre to the button across the whole zoom. This pins
  * the fix: the button does not change size under a press, and the confirm wears ONE origin,
- * the trigger's, from its first frame to its last.
+ * the trigger's, from its first frame to its last — the CLOSE included, because clearing the
+ * origin on close makes the exit glide the other way (`e2e/modal.origin.spec.ts` pins the same
+ * on a page that used to resolve the wrong point).
  *
  * Writes nothing: the «a snapshot already exists» flag is forced on the overview RESPONSE, so
  * the spec does not depend on which month the base fixture was seeded in (without the flag the
@@ -39,7 +41,7 @@ test('«Crea snapshot» does not squish, and its confirm grows from ONE origin �
         width: Math.round(pressed.getBoundingClientRect().width * 100) / 100,
         origin: dialog ? getComputedStyle(dialog).transformOrigin : null,
       });
-      if (performance.now() - start < 1200) requestAnimationFrame(tick);
+      if (performance.now() - start < 2600) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   });
@@ -52,22 +54,23 @@ test('«Crea snapshot» does not squish, and its confirm grows from ONE origin �
 
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: /^Sovrascrivi lo snapshot di \p{Ll}+$/u })).toBeVisible();
-  await page.waitForTimeout(1200);
+  // Read the geometry while the panel is open and settled, then close INSIDE the sampling window.
+  await page.waitForTimeout(900);
+  const dialogBox = (await dialog.boundingBox())!;
+  await dialog.getByRole('button', { name: 'Annulla' }).click();
+  await expect(dialog).toBeHidden();
   const frames = await page.evaluate(() => (window as unknown as { __frames: { width: number; origin: string | null }[] }).__frames);
 
   // ONE origin over the dialog's whole life, and not the default centre of its own box.
   const origins = [...new Set(frames.map((frame) => frame.origin).filter((origin): origin is string => origin !== null))];
   expect(origins, origins.join(' | ')).toHaveLength(1);
   const [originX, originY] = origins[0].split(' ').map(parseFloat);
-  const dialogBox = (await dialog.boundingBox())!;
   expect(Math.abs(dialogBox.x + originX - (box.x + box.width / 2))).toBeLessThan(2);
   expect(Math.abs(dialogBox.y + originY - (box.y + box.height / 2))).toBeLessThan(2);
 
   // The button never changed size under the press.
   expect([...new Set(frames.map((frame) => frame.width))]).toHaveLength(1);
 
-  // «Annulla» gives the focus back to the copy that was pressed.
-  await dialog.getByRole('button', { name: 'Annulla' }).click();
-  await expect(dialog).toBeHidden();
+  // «Annulla» gave the focus back to the copy that was pressed.
   await expect(button).toBeFocused();
 });

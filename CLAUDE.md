@@ -13,7 +13,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **169 files / 3829 tests** green + **54 Playwright E2E specs** (72 tests green in one full run on 2026-09-18, 2,6 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **169 files / 3829 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
 - Latest (2026-09-18): **`/impeccable polish` — il vocabolario delle modali è TOTALE** (40 mount di `ResponsiveModal`;
   grezzo resta solo `LogoutDialog`, di proposito). Quattro decisioni del proprietario: **Feed › dettaglio** — la conferma
   ANNIDATA diventa un delete che si ARMA nel footer, la lettura stampa la conseguenza, una riga di serie va dritta a
@@ -22,8 +22,10 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   attivi: restano 27 movimenti su 112.»); **Panoramica** — «Sovrascrivi lo snapshot di settembre». **Dal giro sul
   mirror**: la «strana animazione» di «Crea snapshot» erano due — l'unico `whileTap` dell'app su una molla per REGIONI
   e un `transform-origin` assegnato dopo il mount, che `duration-200` faceva SCORRERE: bottone semplice, origine AL
-  CLICK (`lib/utils/modalOrigin.ts`). **Collaudo**: `tsc`, lint 0, detector 0, evidenza Playwright a 1440 · 1024 · 390
-  su Firestore, tre asserzioni nuove VISTE ROSSE (`cashflow.tracciamento`, `cashflow.mobile`, `panoramica.snapshot`).
+  CLICK (`lib/utils/modalOrigin.ts`), poi estesa alle altre quattro pagine che avevano una ricetta propria (Hall of
+  Fame, Dividendi, Rendimenti, Impostazioni) e mai azzerata in chiusura. **Collaudo**: `tsc`, lint 0, detector 0, evidenza Playwright a 1440 · 1024 · 390
+  su Firestore, quattro asserzioni nuove VISTE ROSSE (`cashflow.tracciamento`, `cashflow.mobile`, `panoramica.snapshot`,
+  `modal.origin`).
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -96,7 +98,6 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Divisione's shares follow the PERIOD's salaries** (owner's call): a thirteenth salary moves the percentage, and a month with no salary recorded has no shares at all — `resolveSplitBasis` says so by name instead of printing 100/0. It **shipped without an end-to-end run with the flag ON**: the pure layer, flag-off invariance, `tsc`, suite and build are proven; the `personalMemberId` writes and the rendering are not. doc/guide/cashflow-divisione.md.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
-- **Tre ricette per il `triggerOrigin` di una modale, una sola giusta** (2026-09-18): Panoramica lo risolve al click (`resolveCenteredModalOrigin`); Hall of Fame e Dividendi lo assegnano dopo il mount, quindi l'origine SCORRE durante lo zoom; Rendimenti e Impostazioni al click ma con la percentuale del VIEWPORT sul BOX della finestra (punto sbagliato). doc/guide/dialog.md.
 - **Sotto i 769px nessuna modale prende il fuoco quando si apre** (2026-09-18): `vaul` nasce con `autoFocus = false`, il fuoco resta sull'opener e dopo un passaggio tra due drawer finisce su `body`. Non cambiato: `autoFocus` su un telefono apre la tastiera su ogni form — una decisione per 40 mount. doc/guide/dialog.md.
 - **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
 - **The market digest's blind spots**: a position opened this month contributes 0 until next month; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt.
