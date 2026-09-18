@@ -57,6 +57,9 @@ about a domain goes in that domain's guide, never here.
 ### Firebase Dates and Timezone
 - `toDate()` to convert; `getItalyMonth()`/`getItalyYear()`/`getItalyMonthYear()` for domain grouping, never
   `Date.getMonth()`/`getFullYear()`. Server "today" window (cron): `getItalyDayBoundsUtc()`.
+- **A reader typed `Expense[]` may still hand out raw Timestamps** (2026-09-18: `getExpensesForCostCenter` did, and
+  only `getAllExpenses` converted). A page that reads dates through `toDate()` never notices; a row passed on to a
+  component fed by the OTHER reader does (`ExpenseDialog` threw «Invalid time value»). Convert in the service.
 - Inclusive month upper bound: `endOfMonthBound(year, month)` — the 1st at midnight drops the whole closing month.
   `<input type="date">` defaults take `getItalyDateIso()`, since `toISOString()` proposes yesterday from 22:00.
 

@@ -23,6 +23,7 @@ import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/
 import type { CostCenterCategorySlice, CostCenterSubCategorySlice } from '@/types/costCenters';
 import type { CenterBudgetSummary, CenterMonthStack, CenterSummary, CostCentersSummary } from '@/lib/utils/costCenterSummary';
 import type { ModalStatusCopy } from '@/lib/utils/dialogNarrative';
+import type { LinkCandidate, LinkSelectionSummary } from '@/lib/utils/costCenterLinking';
 import type { CostCenterBudgetPeriod } from '@/types/costCenters';
 import { DORMANT_THRESHOLD_DAYS } from '@/lib/utils/costCenterUtils';
 import { cachedFormatCurrencyEUR, formatDate } from '@/lib/utils/formatters';
@@ -724,4 +725,74 @@ export function describeColorClash(usedBy: readonly string[]): string | null {
  */
 export function describeCeilingHint(period: CostCenterBudgetPeriod): string {
   return `Con un tetto ${period === 'monthly' ? 'mensile' : 'annuale'} il centro dice quando lo hai superato, o quando lo supereranno le spese già in calendario. Non arriva nessuna notifica: si legge qui.`;
+}
+
+// ─── Linking many expenses at once («Collega spese…») ─────────────────────────
+
+const spese = (n: number) => pluralize(n, 'spesa', 'spese');
+
+/**
+ * The reading of the link window — its status line while idle. It counts what the confirm
+ * will write and, above all, names what it takes AWAY: an expense has one center, so linking
+ * a row of another center moves it, and that is said before the button is pressed.
+ */
+export function describeLinkSelection(summary: LinkSelectionSummary, centerName: string): Narrative {
+  if (summary.rowCount === 0) return [prose(`Nessuna spesa selezionata: spunta quelle che appartengono a ${centerName}.`)];
+  const out: Narrative = [count(summary.rowCount), prose(` ${spese(summary.rowCount)}, `), figure(euro(summary.total))];
+  if (summary.moves.length > 0) {
+    const moved = summary.moves.reduce((total, move) => total + move.count, 0);
+    const from = joinNames(summary.moves.map((move) => move.centerName));
+    out.push(prose(DOT), count(moved), prose(` ${pluralize(moved, 'passa', 'passano')} da ${from} a ${centerName}`));
+  }
+  out.push(prose('.'));
+  return out;
+}
+
+export function describeLinkDialogCopy(summary: LinkSelectionSummary, centerName: string): ModalStatusCopy {
+  return { idle: describeLinkSelection(summary, centerName), submitting: 'Collegamento in corso…' };
+}
+
+/** «serie di 12 · 4 in calendario», «12 rate · 4 in calendario» — a tick on it links them all. */
+export function describeLinkSeries(series: NonNullable<LinkCandidate['series']>): string {
+  const head = series.kind === 'installment' ? `${series.count} ${pluralize(series.count, 'rata', 'rate')}` : `serie di ${series.count}`;
+  return series.scheduledCount > 0 ? `${head}${DOT}${series.scheduledCount} in calendario` : head;
+}
+
+/** «di Vacanze» — the chip of a row that belongs to another center. */
+export function describeLinkLeaves(leaves: LinkCandidate['leaves']): string {
+  return `di ${joinNames(leaves.map((leave) => leave.centerName))}`;
+}
+
+/**
+ * Why the list is empty — three different facts, never one «nessun risultato»: nothing to
+ * link at all, everything already has a center (and the switch that shows them), or the
+ * filters hide what there is.
+ */
+export function describeLinkEmpty(state: { anyCandidate: boolean; anyHiddenByOtherCenters: boolean; filtered: boolean }): string {
+  if (!state.anyCandidate) return 'Nessuna uscita da collegare: quelle registrate sono già tutte in questo centro.';
+  if (state.filtered) return 'Nessuna uscita corrisponde ai filtri.';
+  if (state.anyHiddenByOtherCenters) return 'Tutte le altre uscite hanno già un centro: «Mostra anche quelle di altri centri» le elenca, per spostarle qui.';
+  return 'Nessuna uscita da collegare.';
+}
+
+export function describeLinkOutcome(rowCount: number, centerName: string): string {
+  return `${rowCount} ${pluralize(rowCount, 'spesa collegata', 'spese collegate')} a ${centerName}`;
+}
+
+export function describeUnlinkOutcome(rowCount: number, centerName: string): string {
+  return `${rowCount} ${pluralize(rowCount, 'spesa scollegata', 'spese scollegate')} da ${centerName}`;
+}
+
+/** After «Annulla»: every row is back where it was, its previous center included. */
+export function describeLinkUndone(rowCount: number): string {
+  return rowCount === 1 ? 'Annullato: la spesa è tornata com\'era.' : `Annullato: ${rowCount} spese sono tornate com\'erano.`;
+}
+
+/** Printed IN the row while «Scollega» is armed: what the second press does, and what it does not. */
+export const UNLINK_CONSEQUENCE = 'Scollegando, la spesa resta in Cashflow ed esce dal centro.';
+
+/** The «solo questa o tutta la serie?» window of a row that belongs to a series. */
+export function describeUnlinkSeriesReading(kind: 'recurring' | 'installment', seriesCount: number, centerName: string): string {
+  const what = kind === 'installment' ? `un piano di ${seriesCount} rate` : `una serie di ${seriesCount} occorrenze`;
+  return `Questa spesa fa parte di ${what} collegate a ${centerName}. Scollegarle le lascia in Cashflow: escono solo dal centro.`;
 }

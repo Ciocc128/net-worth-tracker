@@ -23,20 +23,29 @@
  * that opens it sits below the fold, and the detail used to mount 530px down its own length
  * with the title, the verdict and the actions out of sight (measured 2026-09-18).
  *
+ * A center is filled AND corrected from here (2026-09-18): «Collega spese…» links many
+ * expenses in one confirm (cost-centers/LinkExpensesDialog), a row of Movimenti opens its
+ * expense in the form Tracciamento uses, and «Scollega» takes it out of the center in place
+ * — a row of a series through «solo questa o tutta?». Every write is a two-sided plan
+ * (lib/utils/costCenterLinking.ts), so the outcome toast carries a real «Annulla».
+ *
  * The subcategory exclusions are session-only and stored WITH the center they were made
  * for (a stale key falls back to none, no effect, no extra render), like the movements'
  * visible window.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Archive, ArchiveRestore, Link2, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { queryKeys } from '@/lib/query/queryKeys';
 import type { CostCenter } from '@/types/costCenters';
 import type { Expense } from '@/types/expenses';
-import { getExpensesForCostCenter } from '@/lib/services/costCenterService';
+import { assignExpensesToCostCenter, getExpensesForCostCenter } from '@/lib/services/costCenterService';
+import { buildUnlinkPlan, seriesKeyOf, seriesRowsOf, type LinkPlan } from '@/lib/utils/costCenterLinking';
+import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { buildCategoryComposition, buildSubCategoryComposition } from '@/lib/utils/costCenterUtils';
 import { buildCenterMonthStack, summarizeCenter } from '@/lib/utils/costCenterSummary';
 import {
@@ -55,6 +64,9 @@ import {
   describeMonthKpi,
   describeMovimenti,
   describeMovimentiAside,
+  describeLinkOutcome,
+  describeLinkUndone,
+  describeUnlinkOutcome,
   describeSottocategorie,
   describeSottocategorieAside,
   describeYearKpi,
@@ -76,6 +88,9 @@ import { CategorieTile } from './cost-centers/tiles/CategorieTile';
 import { CicloTile } from './cost-centers/tiles/CicloTile';
 import { SottocategorieTile } from './cost-centers/tiles/SottocategorieTile';
 import { MovimentiTile, MOVEMENTS_PAGE_SIZE } from './cost-centers/tiles/MovimentiTile';
+import { LinkExpensesDialog } from './cost-centers/LinkExpensesDialog';
+import { UnlinkSeriesDialog, type UnlinkSeriesRequest } from './cost-centers/UnlinkSeriesDialog';
+import { ExpenseDialog } from '@/components/expenses/ExpenseDialog';
 
 /** Stable identity for the empty case: a `= []` default would defeat every memo below. */
 const EMPTY_EXPENSES: Expense[] = [];
@@ -117,6 +132,7 @@ export function CostCenterDetail({
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const chartColors = useChartColors();
+  const queryClient = useQueryClient();
 
   // Shares the ['cost-centers', userId] prefix invalidated by ExpenseDialog, so the detail
   // stays in sync with expense mutations elsewhere. placeholderData, NOT initialData: the
@@ -157,6 +173,67 @@ export function CostCenterDetail({
     : wasArmed
       ? 'Eliminazione annullata.'
       : '';
+
+  // --- Linking, unlinking, opening an expense ---
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [unlinkSeries, setUnlinkSeries] = useState<UnlinkSeriesRequest | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const linkButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // A link changes which rows belong to which center — every center's figures — and the
+  // `costCenterName` Tracciamento prints on the row; no amount moves, so nothing else is stale.
+  const refreshAfterLinkChange = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.costCenters.all(ownerId ?? '') }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(ownerId ?? '') }),
+    ]);
+
+  /** Writes a plan and offers its undo in the outcome toast: «Annulla» is the plan's other side, not a guess. */
+  const applyPlan = async (plan: LinkPlan, outcome: string) => {
+    try {
+      await assignExpensesToCostCenter(plan.writes);
+    } finally {
+      // Also on failure: past one batch a run can stop half-way, and the lists must show what IS.
+      await refreshAfterLinkChange();
+    }
+    toast.success(outcome, {
+      action: {
+        label: 'Annulla',
+        onClick: async () => {
+          try {
+            await assignExpensesToCostCenter(plan.undo);
+            toast.success(describeLinkUndone(plan.undo.length));
+          } catch (error) {
+            console.error('Error undoing a cost center link change:', error);
+            toast.error(`L'annullamento non è riuscito. ${describeWriteError(error)}`);
+          } finally {
+            await refreshAfterLinkChange();
+          }
+        },
+      },
+    });
+  };
+
+  const handleLink = (plan: LinkPlan) => applyPlan(plan, describeLinkOutcome(plan.writes.length, costCenter.name));
+
+  const handleUnlink = async (rows: Expense[]) => {
+    setUnlinking(true);
+    try {
+      await applyPlan(buildUnlinkPlan(rows), describeUnlinkOutcome(rows.length, costCenter.name));
+      setUnlinkSeries(null);
+    } catch (error) {
+      console.error('Error unlinking expenses from cost center:', error);
+      toast.error(`${rows.length === 1 ? 'La spesa non è stata scollegata' : 'Le spese non sono state scollegate'}. ${describeWriteError(error)}`);
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
+  const askUnlinkSeries = (expense: Expense) => {
+    const series = seriesKeyOf(expense);
+    if (series) setUnlinkSeries({ expense, kind: series.kind, seriesRows: seriesRowsOf(expense, allExpenses) });
+  };
 
   // --- Session-only lenses, stored with the center they belong to ---
   const [exclusion, setExclusion] = useState<{ id: string; keys: ReadonlySet<string> } | null>(null);
@@ -215,7 +292,20 @@ export function CostCenterDetail({
               the eye already is (it used to open at the far left of the row, 11px muted) and
               its line is reserved from `desktop:`, so arming no longer pushes the grid down. */}
           <div className="flex shrink-0 flex-col gap-1.5 desktop:items-end">
-            <div className="flex gap-2 [&>button]:h-11 [&>button]:flex-1 desktop:[&>button]:h-8 desktop:[&>button]:flex-none">
+            <div className="flex flex-wrap gap-2 [&>button]:h-11 [&>button]:flex-1 desktop:flex-nowrap desktop:[&>button]:h-8 desktop:[&>button]:flex-none">
+              {/* On a phone it takes a row of its own above the three: four labels do not fit 390px. */}
+              <Button
+                ref={linkButtonRef}
+                variant="outline"
+                size="sm"
+                className="basis-full desktop:basis-auto"
+                onClick={() => setLinkOpen(true)}
+                disabled={isDemo || isArchived}
+                aria-label={isDemo ? 'Collega spese — non disponibile in modalità demo' : isArchived ? 'Collega spese — il centro è archiviato' : 'Collega spese'}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Collega spese…
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -326,10 +416,20 @@ export function CostCenterDetail({
               reading={describeMovimenti(summary)}
               visibleCount={visibleCount}
               onShowMore={() => setListWindow({ id: costCenter.id, count: visibleCount + MOVEMENTS_PAGE_SIZE })}
+              onOpen={setEditingExpense}
+              onUnlink={(expense) => handleUnlink([expense])}
+              onUnlinkSeries={askUnlinkSeries}
+              disabled={isDemo}
             />
           </div>
         </div>
       )}
+
+      <LinkExpensesDialog open={linkOpen} onClose={() => setLinkOpen(false)} costCenter={costCenter} onLink={handleLink} returnFocusTo={linkButtonRef} />
+      <UnlinkSeriesDialog request={unlinkSeries} centerName={costCenter.name} onClose={() => setUnlinkSeries(null)} onUnlink={handleUnlink} busy={unlinking} />
+      {/* The form Tracciamento uses, with its own save, reconciliation and invalidations
+          (it already refreshes the centers); unlinking from inside it works too. */}
+      <ExpenseDialog open={editingExpense !== null} expense={editingExpense} onClose={() => setEditingExpense(null)} onSuccess={refreshAfterLinkChange} />
     </div>
   );
 }

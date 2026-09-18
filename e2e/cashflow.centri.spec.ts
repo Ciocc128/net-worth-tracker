@@ -158,3 +158,135 @@ test.describe('Centri di Costo — desktop', () => {
     expect(await savedCenterNames()).toEqual(['Fenicottero', 'Ornitorinco']);
   });
 });
+
+/**
+ * «Collega spese…», «Scollega» and opening an expense from the detail (2026-09-18).
+ *
+ * Every outcome is read from the emulator: a link writes `costCenterId` AND the denormalised
+ * `costCenterName`, «Annulla» puts each row back exactly as it was, and a refused confirm
+ * writes nothing. Each test restores what it changed THROUGH THE APP (the toast's «Annulla»),
+ * and the fixture `set`s every row whole, so a run that died half-way is healed by the next.
+ */
+interface CenterFields {
+  costCenterId: string | null;
+  costCenterName: string | null;
+}
+
+async function centerOf(expenseId: string): Promise<CenterFields> {
+  const res = await fetch(`${FIRESTORE}/expenses/${expenseId}`, { headers: { Authorization: 'Bearer owner' } });
+  const doc = (await res.json()) as { fields: Record<string, { stringValue?: string }> };
+  return { costCenterId: doc.fields.costCenterId?.stringValue ?? null, costCenterName: doc.fields.costCenterName?.stringValue ?? null };
+}
+
+const FREE_ROWS = ['e2e-cc-free-1', 'e2e-cc-free-2', 'e2e-cc-free-3'];
+const PLAN_ROWS = ['e2e-cc-plan-1', 'e2e-cc-plan-2', 'e2e-cc-plan-3'];
+const SERIES_ROWS = ['e2e-cc-serie-1', 'e2e-cc-serie-2', 'e2e-cc-serie-3'];
+const NONE: CenterFields = { costCenterId: null, costCenterName: null };
+const ORNITORINCO: CenterFields = { costCenterId: 'e2e-cc-ornitorinco', costCenterName: 'Ornitorinco' };
+
+/** The toast's own «Annulla»: a closing modal keeps its «Annulla» in the DOM for a moment, so the name alone is two buttons. */
+const undoButton = (page: Page) => page.locator('[data-sonner-toast]').getByRole('button', { name: 'Annulla', exact: true });
+
+async function openDetail(page: Page, centerId: string, name: string) {
+  await page.goto(`/dashboard/cashflow?tab=cost-centers&center=${centerId}`);
+  await expect(page.getByRole('region', { name: `Verdetto su ${name}` })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('region', { name: 'Movimenti collegati' })).toBeVisible();
+}
+
+test.describe('Centri di Costo — collegare e scollegare', () => {
+  test.setTimeout(120_000);
+
+  test('links plain rows and a whole instalment plan in one confirm, says what it would move, and «Annulla» restores every row', async ({ page }) => {
+    for (const id of [...FREE_ROWS, ...PLAN_ROWS]) expect(await centerOf(id)).toEqual(NONE);
+
+    await openDetail(page, 'e2e-cc-ornitorinco', 'Ornitorinco');
+    await page.getByRole('button', { name: 'Collega spese', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Collega spese a Ornitorinco' })).toBeVisible();
+    const reading = dialog.getByRole('status');
+    await expect(reading).toContainText('Nessuna spesa selezionata');
+
+    // The submit is enabled on an empty selection, and pressing it says what is missing.
+    await dialog.getByRole('button', { name: 'Collega', exact: true }).click();
+    await expect(reading).toContainText('spunta almeno una riga');
+
+    // The decoy narrows the list to the three free rows; «Seleziona le 3 elencate» ticks them.
+    await dialog.getByRole('searchbox').fill('casuario');
+    await expect(dialog.getByRole('checkbox')).toHaveCount(4); // three plain rows + the plan, as ONE row
+    await dialog.getByRole('searchbox').fill('Casuario 2');
+    await expect(dialog.getByRole('checkbox')).toHaveCount(1);
+    await dialog.getByRole('searchbox').fill('casuario');
+    await dialog.getByRole('button', { name: /^Seleziona le 4 elencate$/ }).click();
+    // 11 + 12 + 13 + three instalments of 20: six ROWS behind four ticks.
+    await expect(reading).toHaveText(/^6 spese, 96[\s  ]*€\.$/);
+    await expect(dialog.getByText(/^3 rate/)).toBeVisible();
+
+    // A row of another center is hidden until asked for, and the reading names the move BEFORE the confirm.
+    await dialog.getByRole('searchbox').fill('');
+    await expect(dialog.getByText('di Fenicottero')).toHaveCount(0);
+    await dialog.getByRole('switch', { name: 'Mostra anche quelle di altri centri' }).click();
+    const foreign = dialog.getByRole('listitem').filter({ hasText: 'di Fenicottero' }).first();
+    await foreign.getByRole('checkbox').click();
+    await expect(reading).toContainText(/passa da Fenicottero a Ornitorinco/);
+    await foreign.getByRole('checkbox').click();
+    await expect(reading).toHaveText(/^6 spese, 96[\s  ]*€\.$/);
+
+    await dialog.getByRole('button', { name: 'Collega 6', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    const toastEl = page.getByText('6 spese collegate a Ornitorinco');
+    await expect(toastEl).toBeVisible();
+    for (const id of [...FREE_ROWS, ...PLAN_ROWS]) expect(await centerOf(id)).toEqual(ORNITORINCO);
+    // Fenicottero's row was only ticked and unticked: it never moved.
+    expect((await centerOf('e2e-cc-exp-booked')).costCenterId).toBe('e2e-cc-fenicottero');
+    await expect(page.getByRole('region', { name: 'Movimenti collegati' })).toContainText('33 voci');
+
+    await undoButton(page).click();
+    await expect(page.getByText(/^Annullato: 6 spese/)).toBeVisible();
+    for (const id of [...FREE_ROWS, ...PLAN_ROWS]) expect(await centerOf(id)).toEqual(NONE);
+    await expect(page.getByRole('region', { name: 'Movimenti collegati' })).toContainText('27 voci');
+  });
+
+  test('a row of a series asks «solo questa o tutta la serie?», unlinks all three, and «Annulla» links them back', async ({ page }) => {
+    await openDetail(page, 'e2e-cc-ornitorinco', 'Ornitorinco');
+    const movimenti = page.getByRole('region', { name: 'Movimenti collegati' });
+    // The three series rows sort among 27 same-day rows: page through until one is on screen.
+    const unlinkSeries = movimenti.getByRole('button', { name: /^Scollega / }).filter({ visible: true });
+    await expect(unlinkSeries.first()).toBeVisible();
+    const seriesRow = movimenti.getByRole('row').filter({ hasText: 'Serie Ornitorinco' }).first();
+    if ((await seriesRow.count()) === 0) await movimenti.getByRole('button', { name: /^Mostra altre/ }).click();
+    await seriesRow.getByRole('button', { name: /^Scollega / }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Scollega una voce o la serie' })).toBeVisible();
+    await expect(dialog.getByRole('status')).toContainText('una serie di 3 occorrenze collegate a Ornitorinco');
+    await dialog.getByRole('button', { name: 'Tutta la serie (3)', exact: true }).click();
+    await expect(page.getByText('3 spese scollegate da Ornitorinco')).toBeVisible();
+    for (const id of SERIES_ROWS) expect(await centerOf(id)).toEqual(NONE);
+
+    await undoButton(page).click();
+    await expect(page.getByText(/^Annullato: 3 spese/)).toBeVisible();
+    for (const id of SERIES_ROWS) expect(await centerOf(id)).toEqual(ORNITORINCO);
+  });
+
+  test('a plain row arms in place with its consequence in the row, Escape unlinks nothing, and its category opens the expense form', async ({ page }) => {
+    await openDetail(page, 'e2e-cc-fenicottero', 'Fenicottero');
+    const movimenti = page.getByRole('region', { name: 'Movimenti collegati' });
+    const year = new Date().getFullYear();
+    const unlink = movimenti.getByRole('button', { name: `Scollega Progetti del 15/01/${year}`, exact: true }).filter({ visible: true });
+    await unlink.click();
+    const armed = movimenti.getByRole('button', { name: `Conferma: scollega Progetti del 15/01/${year}`, exact: true }).filter({ visible: true });
+    await expect(armed).toHaveText('Conferma');
+    await expect(armed).toHaveAttribute('aria-pressed', 'true');
+    await expect(movimenti).toContainText('Scollegando, la spesa resta in Cashflow ed esce dal centro.');
+    await page.keyboard.press('Escape');
+    await expect(unlink).toBeVisible();
+    expect((await centerOf('e2e-cc-exp-booked')).costCenterId).toBe('e2e-cc-fenicottero');
+
+    await movimenti.getByRole('button', { name: `Apri Progetti del 15/01/${year}`, exact: true }).filter({ visible: true }).click();
+    const form = page.getByRole('dialog');
+    await expect(form.getByRole('heading', { name: 'Modifica spesa', exact: true })).toBeVisible();
+    // The center's reader used to hand raw Firestore Timestamps to a form that formats a Date:
+    // it threw «Invalid time value» on this very field (found by this test, 2026-09-18).
+    await expect(form.locator('input[type="date"]')).toHaveValue(`${year}-01-15`);
+  });
+});

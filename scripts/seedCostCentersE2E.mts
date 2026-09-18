@@ -19,6 +19,13 @@
  * - Ornitorinco: 27 rows of 10 € on January 15th of the PREVIOUS year — always more than 90
  *   days ago, so always dormant; and more than one page of Movimenti (25), so «Mostra altre»
  *   is on screen for the mobile spec's 44px check. With two rows that check could not fail.
+ *   Three of the 27 are one RECURRING series («Serie Ornitorinco»): «Scollega» on one of them
+ *   must ask «solo questa o tutta la serie?».
+ * - Linked to NO center, for «Collega spese…»: three plain rows whose note is the decoy
+ *   «Casuario» (11, 12 and 13 €) and an instalment plan of three («Piano Casuario», 20 € each:
+ *   March 10th, then December 30th and 31st — two of them still in the calendar on any
+ *   ordinary day). A spec that links them puts them back THROUGH THE APP («Annulla»); this
+ *   seed `set`s every row whole, so a run that died half-way is healed by the next one.
  * Fenicottero wears `chart-1` and Ornitorinco `chart-2`: a new center must open on `chart-3`.
  *
  * The names are decoy words: they appear nowhere else in any fixture, so a locator that
@@ -63,13 +70,37 @@ const CENTERS = [
 const EXPENSES = [
   { id: 'e2e-cc-exp-booked', costCenterId: 'e2e-cc-fenicottero', date: new Date(CURRENT_YEAR, 0, 15), amount: -800 },
   { id: 'e2e-cc-exp-instalment', costCenterId: 'e2e-cc-fenicottero', date: new Date(CURRENT_YEAR, 11, 31), amount: -300, isInstallment: true },
-  ...Array.from({ length: 27 }, (_, i) => ({
+  ...Array.from({ length: 24 }, (_, i) => ({
     id: `e2e-cc-exp-old-${String(i + 1).padStart(2, '0')}`,
     costCenterId: 'e2e-cc-ornitorinco',
     date: new Date(CURRENT_YEAR - 1, 0, 15),
     amount: -10,
   })),
+  ...Array.from({ length: 3 }, (_, i) => ({
+    id: `e2e-cc-serie-${i + 1}`,
+    costCenterId: 'e2e-cc-ornitorinco',
+    date: new Date(CURRENT_YEAR - 1, 0, 15),
+    amount: -10,
+    notes: 'Serie Ornitorinco',
+    isRecurring: true,
+    recurringParentId: 'e2e-cc-serie',
+  })),
+  ...[11, 12, 13].map((amount, i) => ({ id: `e2e-cc-free-${i + 1}`, costCenterId: null, date: new Date(CURRENT_YEAR, 1, 10), amount: -amount, notes: `Casuario ${i + 1}` })),
+  ...[new Date(CURRENT_YEAR, 2, 10), new Date(CURRENT_YEAR, 11, 30), new Date(CURRENT_YEAR, 11, 31)].map((date, i) => ({
+    id: `e2e-cc-plan-${i + 1}`,
+    costCenterId: null,
+    date,
+    amount: -20,
+    notes: 'Piano Casuario',
+    isInstallment: true,
+    installmentParentId: 'e2e-cc-plan',
+    installmentNumber: i + 1,
+    installmentTotal: 3,
+  })),
 ];
+
+/** The denormalised name every linked row carries beside the id. */
+const CENTER_NAME: Record<string, string> = { 'e2e-cc-fenicottero': 'Fenicottero', 'e2e-cc-ornitorinco': 'Ornitorinco' };
 
 async function seedAccount(): Promise<void> {
   try {
@@ -86,6 +117,14 @@ async function removeLeftovers(): Promise<void> {
   const strays = snap.docs.filter((doc) => !known.has(doc.id));
   await Promise.all(strays.map((doc) => doc.ref.delete()));
   if (strays.length > 0) console.info(`  ✓ removed ${strays.length} center(s) left by an earlier run`);
+
+  // Same for the account's expenses: a row an earlier version of this fixture wrote, or one a
+  // spec created, would change Ornitorinco's 27 and every count the specs read.
+  const wanted = new Set(EXPENSES.map((expense) => expense.id));
+  const rows = await db.collection('expenses').where('userId', '==', UID).get();
+  const strayRows = rows.docs.filter((doc) => !wanted.has(doc.id));
+  await Promise.all(strayRows.map((doc) => doc.ref.delete()));
+  if (strayRows.length > 0) console.info(`  ✓ removed ${strayRows.length} expense(s) left by an earlier run`);
 }
 
 async function seedData(): Promise<void> {
@@ -102,6 +141,7 @@ async function seedData(): Promise<void> {
         categoryName: CATEGORY.name,
         currency: 'EUR',
         ...expense,
+        costCenterName: expense.costCenterId ? CENTER_NAME[expense.costCenterId] : null,
         createdAt: now,
         updatedAt: now,
       })

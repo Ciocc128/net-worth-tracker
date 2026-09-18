@@ -1,6 +1,6 @@
 # Centri di Costo
 
-> **Quando aprire questa guida** — quando tocchi `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx`, `components/cashflow/cost-centers/*`, `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors}.ts` o `lib/services/costCenterService.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file: `CLAUDE.md` → *Key Files* → la voce «Centri di Costo». Spec: `e2e/cashflow.centri{,.mobile}.spec.ts` sull'account `test-user-centri` (`scripts/seedCostCentersE2E.mts`).
+> **Quando aprire questa guida** — quando tocchi `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx`, `components/cashflow/cost-centers/*`, `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors,costCenterLinking}.ts` o `lib/services/costCenterService.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file: `CLAUDE.md` → *Key Files* → la voce «Centri di Costo». Spec: `e2e/cashflow.centri{,.mobile}.spec.ts` sull'account `test-user-centri` (`scripts/seedCostCentersE2E.mts`).
 
 ## Centri di Costo (`CostCentersTab`, `CostCenterDetail`, `components/cashflow/cost-centers/*`, `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors}.ts`)
 - **NO period axis, by decision (2026-08-23).** A project's cost is its whole cost: every figure is lifetime («in
@@ -59,6 +59,31 @@
   NEW center's idle reading teaches the feature's entry point — the expense form's «Centro di Costo» field under
   «Impostazioni avanzate» (`LINK_FIELD`, said once in the narrative and reused by the empty verdicts and the
   empty Centri tile). The ceiling's hint promises NO notification: nothing sends one.
+- **A center is filled AND corrected from its detail** (2026-09-18). «Collega spese…» (`LinkExpensesDialog`, `lg`)
+  links many expenses in ONE confirm; a row of «Movimenti collegati» opens its expense in `ExpenseDialog` (the form
+  Tracciamento uses, with its own reconciliation and invalidations) and «Scollega» takes it out of the center in
+  place (`useArmedDelete`, the consequence in the row, ONE live region for the tile); a row of a series asks «solo
+  questa o tutta la serie?» (`UnlinkSeriesDialog` — a choice is a modal, doc/guide/dialog.md). The pure half is
+  `lib/utils/costCenterLinking.ts`, and it owns four rules:
+  - **A candidate is what the center will SHOW once linked**: spending by `type` (never an income, never a transfer)
+    AND `amount < 0`, because the tab and the detail keep `amount < 0`. A refund is spending by type with a positive
+    amount: offered, it would be linked and then appear nowhere on the page.
+  - **A series is ONE candidate** (`series:<parentId>`, every occurrence not yet on the target, the ones to come
+    included — «3 rate · 2 in calendario»). A center reads its future from the calendar: linking only the rows
+    already paid would leave «con il calendario chiude a …» blind to the rest of the plan.
+  - **An expense has ONE center, so linking a row of another center MOVES it**: those rows are hidden until
+    «Mostra anche quelle di altri centri», carry «di {centro}», and the reading — which is the status line —
+    says «3 passano da Vacanze a Dacia Jogger» BEFORE the confirm. The summary runs over ALL the candidates, not
+    the filtered ones: a tick survives a change of filter, and the confirm must never write more than it announced.
+  - **Every write is a two-sided plan** (`buildLinkPlan` / `buildUnlinkPlan` → `writes` + `undo`, each row exactly
+    as it was, its previous center included), so the outcome toast's «Annulla» is a second write, not a guess.
+  The service is `assignExpensesToCostCenter`: BOTH fields always (`costCenterName` is denormalised on the row — an
+  id without its name prints a blank chip in Tracciamento), chunks of 400 committed IN ORDER, and the caller
+  refetches in a `finally` (past one batch a run can stop half-way). Only `costCenters.all` and `expenses.all` are
+  invalidated: no amount moves, so no balance, snapshot or overview is stale.
+- **`getExpensesForCostCenter` returns `Date`s** (2026-09-18): it used to hand out raw Firestore Timestamps, which the
+  page never noticed (every date goes through `toDate()`) and `ExpenseDialog` does — opened from a center's row it
+  threw «Invalid time value» on its date field. Pinned by `e2e/cashflow.centri.spec.ts` (the date input's value).
 - **The list's readings do not repeat each other**: the verdict says who weighs what, Centri how concentrated
   the list is, and Totale reads TIME (`describeTotale(summary, stack, now)`: since when, this year's share, the
   tallest of the twelve bars — «Settembre, ancora in corso, è già il mese più caro degli ultimi 12»). «Anno
@@ -97,4 +122,4 @@
 
 ## Per-page blind spots
 
-- **Centri di Costo**: **habitual spending typed by hand (fuel) is not foreseen** — a window's end is booked + calendar, by decision; two centers saved with the same colour before 2026-09-18 stay the same colour until one is edited (no backfill); «Per categoria» is not rendered for a center with one category (it would repeat the hero) and Ciclo di vita takes its columns; the expense form lists an archived center only on the expense already linked to it; the list's «Media 12 mesi» and the detail's «Al mese» are two magnitudes on purpose (trailing year / 12 vs whole cost / months since the first expense); an annual ceiling has no crossing day (`crossedOn` is monthly only); «Al mese» divides by the calendar months since the first expense (an idle project reads as a lower monthly cost, by design); «in totale» counts rows dated up to today (a future row is «in calendario»); the subcategory lens and the movements window (25 + «Mostra altre») are per-center, session-only state.
+- **Centri di Costo**: **habitual spending typed by hand (fuel) is not foreseen** — a window's end is booked + calendar, by decision; two centers saved with the same colour before 2026-09-18 stay the same colour until one is edited (no backfill); «Per categoria» is not rendered for a center with one category (it would repeat the hero) and Ciclo di vita takes its columns; the expense form lists an archived center only on the expense already linked to it; «Collega spese…» is disabled on an archived center and offers no refund (a positive amount — see above) and no income; its list is the account's WHOLE expense history read once per open (`useExpenses`, ~1500 rows on the real account, 50 shown at a time); «Annulla» lives as long as its toast; the list's «Media 12 mesi» and the detail's «Al mese» are two magnitudes on purpose (trailing year / 12 vs whole cost / months since the first expense); an annual ceiling has no crossing day (`crossedOn` is monthly only); «Al mese» divides by the calendar months since the first expense (an idle project reads as a lower monthly cost, by design); «in totale» counts rows dated up to today (a future row is «in calendario»); the subcategory lens and the movements window (25 + «Mostra altre») are per-center, session-only state.

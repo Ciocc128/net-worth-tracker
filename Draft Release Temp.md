@@ -5,6 +5,8 @@
 
 ## ✨ New Features
 
+- Added «Collega spese…» to a cost center: search your expenses, filter them by category and year, tick the ones that belong and link them all in one confirm — a recurring series or an instalment plan is a single row that links every occurrence («3 rate · 2 in calendario»). An expense of another center is shown only if you ask, and the window says what would move before you confirm («3 passano da Vacanze a Dacia Jogger»); the outcome carries «Annulla», which puts every expense back as it was.
+- Added two actions to each row of a center's «Movimenti collegati»: its category opens the expense in its form, and «Scollega» takes it out of the center in place («Scollegando, la spesa resta in Cashflow ed esce dal centro»). A row of a series asks «solo questa o tutta la serie?».
 - Added an address to every open cost center on Cashflow › Centri di Costo: a reload keeps it, the browser's Back returns to the list instead of leaving Cashflow, and the link can be sent to a co-owner. On a phone the detail now opens at its top instead of half-way down.
 - Added «in uso da …» to a cost center's colour picker: a colour another active center wears is marked and named, and choosing it says what it costs («nei grafici i due centri non si distinguono»). A new center opens on the first free colour instead of always the first one.
 - Added the way in to Centri di Costo where a first visit needs it: the empty page, a center without expenses and the «Nuovo centro» window all say that an expense is linked from its own form — field «Centro di Costo», under «Impostazioni avanzate».
@@ -120,7 +122,7 @@
 
 ## 📚 Documentation
 
-- The Centri di Costo guide records that a center has no pace, the risk and the fact standing on the calendar, the center held in the address, the free-colour default and the form's status line; the Impeccable critique of Cashflow › Centri di Costo (22/40) is committed and closed by polish, and the page has its first browser tests.
+- The Centri di Costo guide records that a center has no pace, the risk and the fact standing on the calendar, the center held in the address, the free-colour default, the form's status line and the rules of «Collega spese…» (what is a candidate, a series as one row, the move named before the confirm, the write planned together with its undo); the Impeccable critique of Cashflow › Centri di Costo (22/40) is committed and closed by polish, and the page has its first browser tests.
 
 - The Analisi guide records the lived pace of the Scheda, the history's ceiling, the same-days rule of the running month, the absent tile of a month not started, the Flusso's height, alignment, caps and label neutrals, and the focus return; the Impeccable critique of Analisi (26/40) is tracked in `.impeccable/critique/` and closed by polish in the same session.
 - The Dividendi guide records the two populations (registry vs held portfolio), the form's rules, the armed row delete and the phone's chips; the Impeccable critique of Cashflow › Dividendi (23/40) is committed and closed.

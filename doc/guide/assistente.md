@@ -149,3 +149,4 @@
 ## Per-page blind spots
 
 - **Assistente**: no Playwright spec (the throwaway specs were deleted); the Cashflow tile is absent for a period without cashflow rows; the savings rate is `netCashFlow / (income + dividends)`; «Patrimonio oggi» prints the GROSS total (the verdict's figure), the old card printed the net; the Conversazione count includes the user's messages; starter rows prefill the composer, follow-up rows submit; the thread sheet keeps its 3 s auto-disarm delete (on request) while the memory rows use `useArmedDelete`; a companion taller than the viewport is reachable only at the end of the scroll (sticky, by design); the «goal reached» tile and the sheet's row are two surfaces of ONE suggestion.
+- **The Assistant's cashflow figures changed on 2026-07-29**; saved threads are prose and are not regenerated (moved here from CLAUDE.md → Known Issues on 2026-09-18: it is this page's blind spot, not a cross-cutting one).

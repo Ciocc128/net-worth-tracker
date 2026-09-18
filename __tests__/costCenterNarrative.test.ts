@@ -50,6 +50,15 @@ import {
   describeDormienti,
   describeIdle,
   describeLastYearCaption,
+  describeLinkEmpty,
+  describeLinkLeaves,
+  describeLinkOutcome,
+  describeLinkSelection,
+  describeLinkSeries,
+  describeLinkUndone,
+  describeUnlinkOutcome,
+  describeUnlinkSeriesReading,
+  UNLINK_CONSEQUENCE,
   describeMonthKpi,
   describeMovimenti,
   describeMovimentiAside,
@@ -501,5 +510,46 @@ describe('the create/edit form', () => {
     expect(describeCeilingHint('monthly')).toContain('tetto mensile');
     expect(describeCeilingHint('annual')).toContain('tetto annuale');
     expect(describeCeilingHint('annual')).not.toMatch(/ricever|avviso/);
+  });
+});
+
+// ─── Linking many expenses at once ────────────────────────────────────────────
+
+describe('«Collega spese…»', () => {
+  it('counts what the confirm writes and names what it MOVES, before the button is pressed', () => {
+    expect(plain(describeLinkSelection({ rowCount: 0, total: 0, moves: [] }, 'Dacia Jogger'))).toBe(
+      'Nessuna spesa selezionata: spunta quelle che appartengono a Dacia Jogger.',
+    );
+    expect(plain(describeLinkSelection({ rowCount: 1, total: 70, moves: [] }, 'Dacia Jogger'))).toBe('1 spesa, 70 €.');
+    expect(plain(describeLinkSelection({ rowCount: 12, total: 1840, moves: [{ centerId: 'v', centerName: 'Vacanze', count: 3 }] }, 'Dacia Jogger'))).toBe(
+      '12 spese, 1840 € · 3 passano da Vacanze a Dacia Jogger.',
+    );
+    const two = { rowCount: 5, total: 200, moves: [{ centerId: 'v', centerName: 'Vacanze', count: 1 }, { centerId: 'c', centerName: 'Casa', count: 1 }] };
+    expect(plain(describeLinkSelection(two, 'Dacia Jogger'))).toBe('5 spese, 200 € · 2 passano da Vacanze e Casa a Dacia Jogger.');
+    expect(plain(describeLinkSelection({ rowCount: 2, total: 50, moves: [{ centerId: 'v', centerName: 'Vacanze', count: 1 }] }, 'Dacia Jogger'))).toContain('1 passa da Vacanze');
+  });
+
+  it('captions a series as one row that links every occurrence', () => {
+    expect(describeLinkSeries({ kind: 'installment', count: 12, scheduledCount: 4 })).toBe('12 rate · 4 in calendario');
+    expect(describeLinkSeries({ kind: 'installment', count: 1, scheduledCount: 0 })).toBe('1 rata');
+    expect(describeLinkSeries({ kind: 'recurring', count: 24, scheduledCount: 0 })).toBe('serie di 24');
+    expect(describeLinkLeaves([{ centerId: 'v', centerName: 'Vacanze', count: 2 }])).toBe('di Vacanze');
+  });
+
+  it('tells three kinds of empty list apart', () => {
+    expect(describeLinkEmpty({ anyCandidate: false, anyHiddenByOtherCenters: false, filtered: false })).toContain('già tutte in questo centro');
+    expect(describeLinkEmpty({ anyCandidate: true, anyHiddenByOtherCenters: true, filtered: true })).toBe('Nessuna uscita corrisponde ai filtri.');
+    expect(describeLinkEmpty({ anyCandidate: true, anyHiddenByOtherCenters: true, filtered: false })).toContain('«Mostra anche quelle di altri centri»');
+  });
+
+  it('words the outcomes, the undo and the unlink', () => {
+    expect(describeLinkOutcome(12, 'Dacia Jogger')).toBe('12 spese collegate a Dacia Jogger');
+    expect(describeLinkOutcome(1, 'Dacia Jogger')).toBe('1 spesa collegata a Dacia Jogger');
+    expect(describeUnlinkOutcome(3, 'Ornitorinco')).toBe('3 spese scollegate da Ornitorinco');
+    expect(plain(describeLinkUndone(1))).toBe('Annullato: la spesa è tornata com’era.');
+    expect(plain(describeLinkUndone(6))).toBe('Annullato: 6 spese sono tornate com’erano.');
+    expect(UNLINK_CONSEQUENCE).toBe('Scollegando, la spesa resta in Cashflow ed esce dal centro.');
+    expect(describeUnlinkSeriesReading('installment', 12, 'Dacia Jogger')).toContain('un piano di 12 rate collegate a Dacia Jogger');
+    expect(describeUnlinkSeriesReading('recurring', 3, 'Ornitorinco')).toContain('una serie di 3 occorrenze');
   });
 });
