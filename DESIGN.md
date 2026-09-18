@@ -559,7 +559,7 @@ the viewport and its separation is the scrim, not a shadow (`components/ui/drawe
 (`describeModalStatus`, `describeWriteError`, the `describe*Intent`/`describe*Reading` builders),
 never typed in a component; the destructive primary arms through `lib/hooks/useArmedDelete.ts`.
 
-**Coverage (counted 2026-09-06, recounted 2026-09-14 evening).** 32 surfaces are `ResponsiveModal` —
+**Coverage (counted 2026-09-06, recounted 2026-09-14 evening; closed 2026-09-18).** 32 surfaces were `ResponsiveModal` on 2026-09-14 —
 the vocabulary above. The thirtieth is `components/expenses/SeriesDeleteDialog.tsx`, the one question
 a delete asks on a row of an instalment plan or a recurring series («solo questa o tutte?»), shared by
 the Movimenti table and the tab, which each kept an `AlertDialog` for it until that day; the
@@ -568,14 +568,24 @@ naming the instruments and the floor, then «Sto scaricando» for the whole run 
 replaced closed on the click) and the per-year DPS figures of one row below `desktop:` (`sm`, a
 drawer on a phone; it was a `Dialog max-w-xs` at 16px). A PLAIN row of the Movimenti table and a row
 of the Dividendi table no longer open a modal at all: the delete arms in the row (`useArmedDelete`,
-the row prints the consequence). The vocabulary is NOT yet total: besides
-`components/layout/LogoutDialog.tsx`, which stays an `AlertDialog` on purpose because it interrupts,
-four files still mount the raw shadcn primitives — `app/dashboard/page.tsx` (a `Dialog`),
-`components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at `text-lg`, the detail drawer's
-confirm a drawer NESTED in a drawer), `components/cashflow/MobileFiltersDrawer.tsx` (a `Drawer`) and
-`components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit `DialogContent`'s own
-`sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of which is on the ramp
-above. Recorded as the remaining distance, not as a licence.
+the row prints the consequence). **The vocabulary is total since 2026-09-18**: the four files that
+still mounted the raw shadcn primitives — `DialogContent`'s own `sm:max-w-lg` (512px, a fifth width)
+and `DialogTitle`'s 18px, neither on the ramp above — are `ResponsiveModal` now. The Panoramica's
+snapshot confirm (`sm`, its title the ACT and the month: «Sovrascrivi lo snapshot di settembre», NOT
+armed because the daily cron rewrites the running month anyway). The feed's detail
+(`components/cashflow/TransactionFeed.tsx`, `sm`): it was three `Drawer`s with the confirm NESTED in
+the detail, and it now arms in its footer while the reading gives way to the consequence in
+`text-destructive` and says «Eliminazione annullata» when let go; a row of a series never arms — its
+one confirmation is `SeriesDeleteDialog`, where it used to confirm twice. The Movimenti filters
+(`MobileFiltersDrawer.tsx`, `sm`): the reading counts what is left («2 filtri attivi: restano 27
+movimenti su 112.»), the primary names it («Mostra 27 movimenti», never «0 movimenti»), «Ripristina»
+is the footer's secondary, and its five field names are form labels where they were a second
+eyebrow. And the assistant's Conversazioni (`md`) and Memoria (`lg`) in
+`components/assistant/AssistantModals.tsx`, two right-side `Sheet`s with a 14px title until then:
+no footer (a list to pick from asks for no decision), the memory's tiles as `bg-muted` sub-tiles,
+and the thread delete off its 3-second timer onto `useArmedDelete`. 40 mounts in 39 files
+(`grep '<ResponsiveModal'`); the one raw primitive left is `components/layout/LogoutDialog.tsx`,
+an `AlertDialog` on purpose because it interrupts.
 
 ### Compact Page Header
 
@@ -633,7 +643,7 @@ Below `desktop:` the same rows are a flat `divide-y` list of expandable rows (`A
 
 ### Feed inside a Tile (Movimenti)
 
-The transaction feed of Tracciamento stays the inventory it is — day groups, flat rows, the detail drawer with its drawer-confirm delete, the dense `ExpenseTable` behind a «Feed | Tabella» switch — but it lives inside a tile and takes its cadence: eyebrow (`Movimenti`), the count as the aside («47 voci», or «12 di 47 voci» while the toolbar narrows the list), a reading line that counts the rows by type and names the largest («47 movimenti: 40 spese, 5 entrate e 2 trasferimenti; la voce più grande è Stipendio (4200 €)»), then the toolbar (search, categories, subcategory, account, sort on the left; the view switch and «Esporta CSV» on the right, `ml-auto`) and the rows. The feed keeps `surface="flat"` on every width — a card per day inside a tile would be a card inside a card — and the toolbar is `hidden desktop:block`: below that width the `[periodo · Filtri · ordina]` bar of `MobileFiltersDrawer` renders inside the tile (`mobileToolbar`, `desktop:hidden`) — next to the list it narrows — and its period picker is the SAME `period` the picker under the verdict drives (a second handle, its own accessible name «Periodo dei movimenti», `min-w-0` so the picker yields before the buttons when a phone runs out of room; `e2e/cashflow.mobile.spec.ts` pins the fit at 390 and 360). **The toolbar narrows only this tile**: the verdict and the other tiles read the period slice, never the filtered list, because a savings rate computed over one category is not a savings rate.
+The transaction feed of Tracciamento stays the inventory it is — day groups, flat rows, the detail as a `sm` modal whose delete arms in its footer, the dense `ExpenseTable` behind a «Feed | Tabella» switch — but it lives inside a tile and takes its cadence: eyebrow (`Movimenti`), the count as the aside («47 voci», or «12 di 47 voci» while the toolbar narrows the list), a reading line that counts the rows by type and names the largest («47 movimenti: 40 spese, 5 entrate e 2 trasferimenti; la voce più grande è Stipendio (4200 €)»), then the toolbar (search, categories, subcategory, account, sort on the left; the view switch and «Esporta CSV» on the right, `ml-auto`) and the rows. The feed keeps `surface="flat"` on every width — a card per day inside a tile would be a card inside a card — and the toolbar is `hidden desktop:block`: below that width the `[periodo · Filtri · ordina]` bar of `MobileFiltersDrawer` renders inside the tile (`mobileToolbar`, `desktop:hidden`) — next to the list it narrows — and its period picker is the SAME `period` the picker under the verdict drives (a second handle, its own accessible name «Periodo dei movimenti», `min-w-0` so the picker yields before the buttons when a phone runs out of room; `e2e/cashflow.mobile.spec.ts` pins the fit at 390 and 360). **The toolbar narrows only this tile**: the verdict and the other tiles read the period slice, never the filtered list, because a savings rate computed over one category is not a savings rate.
 
 ### In-tile Bars (hand-written SVG)
 
@@ -699,8 +709,12 @@ its question has none: a project's cost is its whole cost, so Centri di Costo dr
 Mese|Anno|12 mesi|Sempre picker and reads everything «in totale». The rule then inverts — every
 figure is lifetime unless it says otherwise, and the ones that use a window carry it in their own
 words: «quest'anno», «anno scorso», «ultimi 12 mesi», «Tetto mensile · agosto» with today's mark,
-«Fine mese» and «Fine anno» «al ritmo attuale». A delta against "the previous period" has no honest
-predecessor without an axis, so it is gone rather than faked.
+«Questo mese» and «Quest'anno» with the calendar in their caption («con il calendario chiude a
+1100 €»). A delta against "the previous period" has no honest predecessor without an axis, so it
+is gone rather than faked. **A center has no pace** (2026-09-18): until then the two cells were
+«Fine mese» / «Fine anno» «al ritmo attuale», and a 1650 € repair on the 17th read «~2942 € a fine
+mese». A project spends in blocks, and its recurring series are already real future rows, so a
+window's end is what is booked plus what is in the calendar — a sum, printed without «~».
 
 **The Risk-vs-Fact Rule.** A projected overrun and a crossed threshold are two different things
 and never sit in the same tile. «Categorie a rischio» lists the monthly budgets whose month-end
@@ -708,7 +722,11 @@ projection exceeds their amount — money not yet spent, named as a projection (
 ritmo attuale») — and a budget ALREADY over is not there: it is a fact, and facts belong to
 «Avvisi» («Superato», with the threshold it crossed). The alert evaluator still fires a
 forecast-only alert for the email, but the tile filters it out (`thresholdCrossed`), so no row
-appears twice. Corollary on the projection itself: it is the app's ONE rule (the pace on what is
+appears twice. On Centri di Costo the same two names stand on the CALENDAR, not on a pace
+(2026-09-18): a ceiling crossed by what is booked is the fact, one still holding that the rows
+already dated ahead carry past it is the risk («supererà il tetto», «con le spese già in
+calendario») — and the risk outranks dormancy in a center's verdict, or the list and the detail
+answer differently about one center. Corollary on the projection itself: it is the app's ONE rule (the pace on what is
 booked to date plus the rows already in the calendar — Tracciamento's and the Panoramica's), and a
 FIXED or debt category never follows the pace: rent paid on the 1st, extrapolated by the day, would
 read «at risk» all month. First applied on Budget, 2026-08-23.
@@ -927,7 +945,7 @@ A tab switcher for mutually exclusive views within a section. Replaces `<Select>
 
 **Structure:** `role="tablist"` container with `bg-muted rounded-lg p-1 w-fit mx-auto`, each option is a `role="tab"` `motion.button` with `layout="size"`. Active pill is a `motion.div` with `layoutId` and `bg-background shadow-sm` that slides between options.
 
-**Spring:** `stiffness: 400, damping: 35` — snappy without overshooting. Same constant on both `motion.button` `transition` and `motion.div` `transition`, and on every other spring in the app but one: the bottom pill's «add expense» button enters at `400 / 28` (`components/layout/BottomNavigation.tsx:41`), a touch of overshoot on the one element that pops in from nothing rather than sliding between two states.
+**Spring:** `stiffness: 400, damping: 35` — snappy without overshooting. Same constant on both `motion.button` `transition` and `motion.div` `transition`, and on every control that slides between two states. Four springs are NOT `400 / 35`, each for a reason (counted in the code on 2026-09-18 — until then this paragraph said «all but one»): the bottom pill's «add expense» button enters at `400 / 28` (`components/layout/BottomNavigation.tsx:41`), a touch of overshoot on the one element that pops in from nothing; `springLayoutTransition` is `280 / 30`, mass 0.9 (`lib/utils/motionVariants.ts`), softer because it moves whole REGIONS when a conditional section appears — the `layout="position"` wrappers of Panoramica and Patrimonio; `metricSettleTransition` is `320 / 34`, mass 0.8 (same file), a figure that must land without a bounce — today only the Dividendi calendar; and the savings-rate badge enters at `300 / 20` (`components/ui/SavingsRateBadge.tsx:112`), inline and collapsed to duration 0 under reduced motion. A fifth value needs the same kind of sentence here.
 
 #### Variant A — Icon tabs (section navigation)
 

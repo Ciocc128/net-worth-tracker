@@ -11,7 +11,6 @@
  * - Delete button: 2-click inline confirmation without a timer (`useArmedDelete`)
  */
 
-import type { CSSProperties, RefObject } from 'react';
 import { useState, useMemo, useRef } from 'react';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
@@ -48,8 +47,8 @@ interface HallOfFameNoteDialogProps {
     month?: number;
   }) => Promise<void>;
   onDelete?: (noteId: string) => Promise<void>;
-  dialogRef?: RefObject<HTMLDivElement | null>;
-  style?: CSSProperties;
+  /** Where the window grows from — `resolveCenteredModalOrigin` of the control that opened it. */
+  triggerOrigin?: string;
 }
 
 export function HallOfFameNoteDialog({
@@ -59,8 +58,7 @@ export function HallOfFameNoteDialog({
   availableYears,
   onSave,
   onDelete,
-  dialogRef,
-  style,
+  triggerOrigin,
 }: HallOfFameNoteDialogProps) {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
@@ -168,8 +166,7 @@ export function HallOfFameNoteDialog({
           : `La nota comparirà su ${selectedSections.size === 1 ? 'una classifica' : `${selectedSections.size} classifiche`} di questo periodo.`
       }
       width="lg"
-      contentRef={dialogRef}
-      triggerOrigin={style?.transformOrigin as string | undefined}
+      triggerOrigin={triggerOrigin}
       footer={
         <>
           {editNote && onDelete && (

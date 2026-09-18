@@ -38,6 +38,8 @@ import {
   RecurrenceFrequency,
 } from '@/types/expenses';
 import { CostCenter } from '@/types/costCenters';
+import { resolveCostCenterColor } from '@/lib/utils/costCenterColors';
+import { useChartColors } from '@/lib/hooks/useChartColors';
 import { getCostCenters } from '@/lib/services/costCenterService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Asset, FamilyMember } from '@/types/assets';
@@ -451,6 +453,10 @@ function ExpenseFormBody({
   setAdvancedOpen,
 }: Readonly<FormBodyProps>) {
   const { register, control, handleSubmit, setValue, getValues, formState: { errors } } = form;
+  const chartColors = useChartColors();
+  // An archived center is closed: it takes no new expense. The one this expense is ALREADY
+  // linked to stays listed, or opening an old row would show «Nessun centro» and unlink it on save.
+  const linkableCostCenters = costCenters.filter((center) => !center.archivedAt || center.id === selectedCostCenterId);
   const recurringFrequency = selectedRecurringFrequency ?? DEFAULT_RECURRENCE_FREQUENCY;
   return (
     <form id="expense-form" onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5">
@@ -806,7 +812,7 @@ function ExpenseFormBody({
         <CollapsibleContent className="space-y-5 pt-4">
 
           {/* ---- Centro di costo (feature-gated) ---- */}
-          {costCentersEnabled && costCenters.length > 0 && (
+          {costCentersEnabled && linkableCostCenters.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="costCenter">Centro di Costo</Label>
               <Select value={selectedCostCenterId} onValueChange={setSelectedCostCenterId}>
@@ -815,16 +821,18 @@ function ExpenseFormBody({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessun centro di costo</SelectItem>
-                  {costCenters.map((center) => (
+                  {linkableCostCenters.map((center) => (
                     <SelectItem key={center.id} value={center.id}>
                       <span className="flex items-center gap-2">
-                        {center.color && (
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: center.color }}
-                          />
-                        )}
+                        {/* The stored colour is a SLOT («chart-1»), not a CSS colour: painted as it
+                            is, the dot was invisible. Same resolver, same swatch as the Centri tile. */}
+                        <span
+                          className="inline-block h-2 w-2 shrink-0 rounded-[2px]"
+                          style={{ background: resolveCostCenterColor(center.color, center.id, chartColors) }}
+                          aria-hidden="true"
+                        />
                         {center.name}
+                        {center.archivedAt && <span className="text-muted-foreground">· archiviato</span>}
                       </span>
                     </SelectItem>
                   ))}

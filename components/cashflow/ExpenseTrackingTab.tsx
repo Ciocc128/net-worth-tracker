@@ -455,10 +455,11 @@ export function ExpenseTrackingTab({
   );
 
   /**
-   * Delete a transaction from the feed's detail drawer. The drawer already showed an
-   * explicit destructive confirmation, so a simple expense is deleted immediately. A row of an
-   * instalment plan or a recurring series opens `SeriesDeleteDialog` — the one question the
-   * series adds, «solo questa o tutte?» (the same modal the table uses).
+   * Delete a transaction from the feed's detail. A plain row reaches here on the SECOND press
+   * of the detail's armed «Elimina» (the reading printed the consequence in between), so it is
+   * deleted immediately. A row of an instalment plan or a recurring series reaches here on the
+   * first press, unarmed, and opens `SeriesDeleteDialog` — the one question the series adds,
+   * «solo questa o tutte?» (the same modal the table uses) — which is its confirmation.
    */
   const handleDeleteExpense = useCallback(
     (expense: Expense) => {
@@ -805,6 +806,8 @@ export function ExpenseTrackingTab({
       selectedOwnerId={effectiveOwnerId}
       onOwnerChange={setSelectedOwnerId}
       activeFilterCount={mobileActiveFilterCount}
+      shownCount={filteredExpenses.length}
+      totalCount={expenses.length}
       onReset={handleResetFilters}
       mobileSortKey={mobileSortKey}
       onSortChange={(v) => setMobileSortKey(v as typeof mobileSortKey)}

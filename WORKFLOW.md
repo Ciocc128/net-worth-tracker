@@ -154,6 +154,7 @@ The app **is** locally runnable; there is no fallback to declare.
   | --- | --- | --- |
   | `test@example.com` | `test-user-1` | The base seed: assets, expenses, snapshots — the account most tours use |
   | `analisi@example.com` | `test-user-analisi` | Everything dated to January, so year-to-date windows contain it whatever month it is |
+  | `centri@example.com` | `test-user-centri` | Centri di Costo ON: «Fenicottero» (annual ceiling the calendar will cross) and «Ornitorinco» (dormant, 27 movements) — `npm run e2e:seed:centri` |
   | `degraded@example.com` | `test-user-degraded` | The states in which a return is *not* a measure — empty/degraded readings |
 
 - **So the screen is not empty**: `npm run emulators:seed` for the base account, plus the fixture the
@@ -188,7 +189,11 @@ The app **is** locally runnable; there is no fallback to declare.
   after — that logs in for real and waits on the page's `h1`, never on `networkidle` (Firestore keeps
   its sockets open). Say in the report that the evidence is Playwright's. And the tour still goes on
   the MIRROR (below), not on the fixture: the fixture proves the mechanism, the mirror shows what the
-  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce. **A restart of the Claude Code session kills its background tasks** (emulators and dev server alike, 2026-09-14) and an emulator killed that way exports nothing: before the tour, check the ports and re-seed the mirror. **And the session's memory watchdog kills them too** (2026-09-14 evening, three times in a row on the 8 GB Mac right after a full Playwright run, with 37–67% of memory free): for the owner's tour, the emulators and the dev server are started from the OWNER's terminals, which the watchdog does not touch; the agent only re-seeds the mirror and reports the URLs.
+  owner will see — on 2026-09-13 the mirror surfaced a stale-value reading the fixture cannot produce. **Read the
+  in-page detector's count before quoting it** (2026-09-18, Centri di Costo: 71 and 110 findings, the CLI on the same
+  files 0): every Cashflow tab stays mounted and hidden (`forceMount`), so ~36 hits per scan were Tracciamento's; the
+  9–11px «undersized text» is the enumerated ramp; the shell, the sidebar and the overlay's own yellow (`dark-glow
+  #ffba00` on a second injection) are in there too. Count what belongs to the surface, say the rest is not its. **A restart of the Claude Code session kills its background tasks** (emulators and dev server alike, 2026-09-14) and an emulator killed that way exports nothing: before the tour, check the ports and re-seed the mirror. **And the session's memory watchdog kills them too** (2026-09-14 evening, three times in a row on the 8 GB Mac right after a full Playwright run, with 37–67% of memory free): for the owner's tour, the emulators and the dev server are started from the OWNER's terminals, which the watchdog does not touch; the agent only re-seeds the mirror and reports the URLs.
 - **Throwaway fixtures** follow the existing seed pattern (`scripts/seedEmulator.ts`,
   `scripts/seedAnalisiE2E.mts`, `scripts/seedPensionE2E.mts`, `scripts/seedCoastFireE2E.mts`) or
   live as a throwaway `.mts` in the session scratchpad. `.mts`, never `.ts`: a `.ts` script is CJS
@@ -235,7 +240,9 @@ The app **is** locally runnable; there is no fallback to declare.
   `polish`, never by fixing the code** (2026-09-13): `critique-storage latest` judges it current from the
   fingerprint of the ONE target file (`page.tsx`, a 32-line wrapper), so corrections made in the
   components leave it open — the polish pass verifies each Priority Issue against the code and runs
-  `critique-storage close`, which stamps `closed: true` in the tracked file. **A snapshot's `target_path` and
+  `critique-storage close`, which stamps `closed: true` in the tracked file. Once the target file has changed,
+  `critique-storage latest` exits 2 with NO output (a JSON parser on its pipe dies on an empty stdin, 2026-09-18): keep
+  the snapshot's path from the `write` step and hand it to `close` directly. **A snapshot's `target_path` and
   `target_fingerprint` are those of the machine that wrote it** (2026-09-14): `latest` accepts only the local
   absolute path and the local bytes (a Windows checkout is CRLF under `* text=auto`, so its fingerprint never
   matches a Mac's), while `trend` and `signals` match by slug. The four snapshots written on Windows were

@@ -130,6 +130,16 @@
   once.
 - **The sparkline's stroke is the SIGN of the window** (`NetWorthSparkline`: positive/destructive), not a chart slot: a
   window that ends lower than it started draws red in both modes, by design.
-- **«Crea snapshot» is 36px tall and its confirm is a raw `Dialog`** (one of the eight surfaces outside the modal
-  vocabulary, CLAUDE.md → Known Issues); the inline footer links («Analisi», «Patrimonio») are text links inside a
+- **«Crea snapshot» is 36px tall**; its overwrite confirm is a `ResponsiveModal` `sm` since 2026-09-18
+  (`describeSnapshotOverwrite`: the title names the act and the month, the reading says the month's note survives —
+  a fact of `SNAPSHOT_USER_AUTHORED_FIELDS`, so the sentence goes if that list empties); the primary is NOT armed,
+  because the daily cron rewrites the running month anyway. **The button is a plain `Button` and the confirm grows
+  from ONE origin** (2026-09-18, what the owner had long called «una strana animazione», measured frame by frame): it
+  sat in the app's only `whileTap` wrapper (scale 0.97) on `springLayoutTransition` — the soft spring for REGIONS,
+  ~300 ms down and ~500 ms back, so a normal click was still breathing while the confirm opened — and the confirm
+  got its `transform-origin` one frame after mounting, which the dialog's `duration-200` turned into a pivot gliding
+  from the centre to the button (14 values in 200 ms). The origin is now resolved AT THE CLICK
+  (`resolveCenteredModalOrigin`, `lib/utils/modalOrigin.ts`) from `event.currentTarget` — never a ref on the button,
+  which the header mounts twice — and kept through the close. Pinned by `e2e/panoramica.snapshot.spec.ts`, which
+  forces the «already exists» flag on the overview RESPONSE and never presses «Sovrascrivi». The inline footer links («Analisi», «Patrimonio») are text links inside a
   sentence, 15px tall — the house idiom, not a target.
