@@ -6,8 +6,10 @@
  * `ClassDriftChart` draws the trajectory (D11: solid where measured, dashed where projected);
  * under it, one row per installment — month, total, the class drift after that rata (grey while
  * only projected), a status chip — that expands into its lines on a tap, with the SAME simplified
- * actions the tile itself offers (S4 has no ledger matching yet — see accumulationNarrative.ts's
- * file header): mark a line executed by hand, skip it, or undo a manual mark.
+ * actions S4 gave the tile (mark a line executed by hand, skip it, undo a manual mark): this modal
+ * keeps its own plan-calendar-only view, never ledger matching (`accumulationPlanMatching.ts` §9),
+ * which lives on the tile itself. `initialExpandedIndex` (S5) lets the tile's «Rivedi» action on a
+ * `lostLink` line open the modal already expanded on the rata that needs a look.
  */
 import { useMemo, useState } from 'react';
 import type { Asset, AssetAllocationTarget } from '@/types/assets';
@@ -37,7 +39,6 @@ import {
   describeMeasuredOn,
   formatSignedPp,
   monthLabelLong,
-  type AccumuloLineChipStatus,
 } from '@/lib/utils/accumulationNarrative';
 
 interface AccumulationCalendarDialogProps {
@@ -48,21 +49,27 @@ interface AccumulationCalendarDialogProps {
   allAssets: Asset[];
   targets: AssetAllocationTarget;
   band: RebalanceBand;
+  /** Open already expanded on this installment (the tile's «Rivedi» action on a `lostLink` line). */
+  initialExpandedIndex?: number;
 }
 
-/** S4's own derived state (no ledger matching yet): a still-`planned` line before the current month. */
-function chipStatusOf(line: InstallmentLine, installmentIndex: number, currentIndex: number): AccumuloLineChipStatus {
-  if (line.status !== 'planned') return line.status;
-  return installmentIndex < currentIndex ? 'late' : 'planned';
+/** This modal's own simplified status (no ledger matching — see the file header); shares its
+ *  labels with the tile's richer `LineUiState` (`todo` for a still-open, on-time line). */
+type CalendarLineStatus = 'todo' | 'executed' | 'skipped' | 'late';
+
+function chipStatusOf(line: InstallmentLine, installmentIndex: number, currentIndex: number): CalendarLineStatus {
+  if (line.status === 'executed') return 'executed';
+  if (line.status === 'skipped') return 'skipped';
+  return installmentIndex < currentIndex ? 'late' : 'todo';
 }
 
 function installmentTotalEur(installment: Installment): number {
   return installment.lines.reduce((sum, line) => sum + (line.status === 'executed' ? (line.executedAmountEur ?? line.plannedAmountEur) : line.plannedAmountEur), 0);
 }
 
-export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAssets, targets, band }: AccumulationCalendarDialogProps) {
+export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAssets, targets, band, initialExpandedIndex }: AccumulationCalendarDialogProps) {
   const isDemo = useDemoMode();
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(initialExpandedIndex ?? null);
   const [manualLine, setManualLine] = useState<{ index: number; positionId: string; qty: string; amount: string } | null>(null);
   const setLineMutation = useSetInstallmentLine(ownerId);
 
@@ -147,7 +154,7 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
                     {cachedFormatCurrencyEUR(installmentTotalEur(installment))}
                   </span>
                   <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {allClosed ? ACCUMULO_LINE_STATUS_LABEL.executed : ACCUMULO_LINE_STATUS_LABEL.planned}
+                    {allClosed ? ACCUMULO_LINE_STATUS_LABEL.executed : ACCUMULO_LINE_STATUS_LABEL.todo}
                   </span>
                 </button>
 
@@ -179,7 +186,7 @@ export function AccumulationCalendarDialog({ open, onClose, plan, ownerId, allAs
                               </span>
                             </span>
                             <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
-                            {!isDemo && (status === 'planned' || status === 'late') && (
+                            {!isDemo && (status === 'todo' || status === 'late') && (
                               <span className="flex shrink-0 gap-1.5">
                                 <Button
                                   variant="outline"

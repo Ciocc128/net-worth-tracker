@@ -8,13 +8,15 @@
  * Rule — an Italian `Intl`, never `toFixed`); a signed figure always carries the typographic
  * minus «−», never the ASCII hyphen.
  *
- * Session S4 deliberately renders installment/disposal lines on their raw `InstallmentLineStatus`
- * (`planned`/`executed`/`skipped`) with no ledger matching: `matchPlanExecutions` (§9) and its
- * richer `toConfirm`/`late`/`lostLink` states land in S5. A `planned` line whose installment is
- * BEFORE the current month reads as «In ritardo» here — the only extra state S4 needs, derived
- * from the plan's own calendar rather than from the ledger.
+ * Session S5 adds the ledger-matching states (`LineUiState`, from `accumulationPlanMatching.ts`
+ * §9): a still-`planned` line is `toConfirm` once a ledger trade matches it, `late` once its
+ * installment is before the current month with no match, or plain `todo` otherwise; an `executed`
+ * line whose linked trade was deleted from the ledger reads `lostLink`. `todo` and `skipped` carry
+ * no action in the tile — only `toConfirm`/`executed`/`late`/`lostLink` do (doc/pac-ate.md §10.2
+ * punto 4).
  */
 import type { MonthKey } from '@/types/accumulationPlan';
+import type { LineUiState } from './accumulationPlanMatching';
 import type { Narrative } from './narrative';
 import { cachedFormatCurrencyEUR, formatDate, formatNumberIt, formatPercentageIt } from './formatters';
 
@@ -163,21 +165,26 @@ export const ACCUMULO_DONE_BOX_EXECUTED = 'Eseguite';
 export const ACCUMULO_DONE_BOX_RESIDUAL = 'Liquidità residua';
 export const ACCUMULO_DONE_BOX_DRIFT = 'Scostamento medio';
 
-/** A line's status as the tile shows it. `late` is S4's own derived state — see the file header. */
-export type AccumuloLineChipStatus = 'planned' | 'executed' | 'skipped' | 'late';
-
-export const ACCUMULO_LINE_STATUS_LABEL: Record<AccumuloLineChipStatus, string> = {
-  planned: 'Da eseguire',
+/** A line's status as the tile shows it — the matching engine's `LineUiState` (§9). */
+export const ACCUMULO_LINE_STATUS_LABEL: Record<LineUiState, string> = {
+  todo: 'Da eseguire',
+  toConfirm: 'Da confermare',
   executed: 'Eseguita',
-  skipped: 'Saltata',
   late: 'In ritardo',
+  skipped: 'Saltata',
+  lostLink: 'Collegamento perso',
 };
 
 export const ACCUMULO_ACTION_MARK_EXECUTED = 'Segna eseguita';
 export const ACCUMULO_ACTION_SKIP = 'Salta';
 export const ACCUMULO_ACTION_UNDO_EXECUTED = 'Segna da rifare';
+export const ACCUMULO_ACTION_CONFIRM = 'Conferma';
+export const ACCUMULO_ACTION_IGNORE_MATCH = 'Ignora';
+export const ACCUMULO_ACTION_UNLINK = 'Scollega';
+export const ACCUMULO_ACTION_REVIEW = 'Rivedi';
 export const ACCUMULO_MANUAL_QUANTITY_LABEL = 'Quantità';
 export const ACCUMULO_MANUAL_AMOUNT_LABEL = 'Importo (€)';
+export const ACCUMULO_DISPOSALS_SECTION_TITLE = 'Vendite fuori piano';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Tile readings

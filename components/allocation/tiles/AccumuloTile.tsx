@@ -9,13 +9,20 @@
  * local check on the plan's own status; every figure comes from `accumulationPlanUtils.ts`, every
  * word from `accumulationNarrative.ts`.
  *
- * S4 renders a line on its raw `InstallmentLineStatus` (no ledger matching — `accumulationNarrative.ts`'s
- * file header explains why): a still-`planned` line before the current month reads «In ritardo»,
- * and the only actions offered are the manual ones (mark executed by hand, skip, undo).
+ * S5 wires the ledger matching engine in (`accumulationPlanMatching.ts` §9): a `planned` line's
+ * state is the richer `LineUiState` (`todo`/`toConfirm`/`late`) instead of S4's own two-state
+ * derivation, with the actions §10.2 punto 4 lists per state — `toConfirm` → Conferma · Ignora
+ * (Ignora is a session-local dismiss only, never a write: nothing in the plan schema records a
+ * declined match, so a reload proposes it again), `executed` (ledger-linked) → Scollega, `late` →
+ * the S4 manual actions unchanged, `lostLink` → Rivedi (opens the Calendario already on that
+ * rata). `todo`/`skipped` carry no action, on purpose: the tile nudges towards recording the trade
+ * in the Registro rather than pre-empting it by hand. The same vocabulary now also covers the
+ * disposals («Vendite fuori piano») the S4 tile never rendered — without it a plan with a disposal
+ * could never reach `done` (`isPlanDone` requires `disposalsClosed`, and nothing wrote it).
  */
 import { useMemo, useRef, useState } from 'react';
 import type { Asset, AssetAllocationTarget } from '@/types/assets';
-import type { AccumulationPlan, InstallmentLine } from '@/types/accumulationPlan';
+import type { AccumulationPlan } from '@/types/accumulationPlan';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import {
@@ -29,16 +36,20 @@ import {
   unitPriceEur,
   type PlanDeps,
 } from '@/lib/utils/accumulationPlanUtils';
+import { matchPlanExecutions, type LineMatch, type LineUiState } from '@/lib/utils/accumulationPlanMatching';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
+import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import {
   selectOpenPlan,
   useAccumulationPlans,
   useActivatePlan,
   useClosePlan,
   useDeleteDraftPlan,
+  useSetDisposal,
   useSetInstallmentLine,
 } from '@/lib/hooks/useAccumulationPlan';
+import { useAssetTransactions } from '@/lib/hooks/useAssetTransactions';
 import { validateDraftAgainstAssets } from '@/lib/utils/accumulationPlanSchema';
 import { toast } from 'sonner';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
@@ -62,17 +73,22 @@ import {
   ACCUMULO_ACTION_CANCEL,
   ACCUMULO_ACTION_CLOSE,
   ACCUMULO_ACTION_CLOSE_VERB,
+  ACCUMULO_ACTION_CONFIRM,
   ACCUMULO_ACTION_CREATE_PLAN,
   ACCUMULO_ACTION_DELETE_DRAFT,
   ACCUMULO_ACTION_DELETE_DRAFT_VERB,
   ACCUMULO_ACTION_EDIT,
+  ACCUMULO_ACTION_IGNORE_MATCH,
   ACCUMULO_ACTION_MARK_EXECUTED,
   ACCUMULO_ACTION_RECALIBRATE,
+  ACCUMULO_ACTION_REVIEW,
   ACCUMULO_ACTION_SAVE,
   ACCUMULO_ACTION_SKIP,
   ACCUMULO_ACTION_STOP,
   ACCUMULO_ACTION_STOP_VERB,
   ACCUMULO_ACTION_UNDO_EXECUTED,
+  ACCUMULO_ACTION_UNLINK,
+  ACCUMULO_DISPOSALS_SECTION_TITLE,
   ACCUMULO_DONE_BOX_DRIFT,
   ACCUMULO_DONE_BOX_EXECUTED,
   ACCUMULO_DONE_BOX_RESIDUAL,
@@ -94,7 +110,6 @@ import {
   describeMonthsBarCaption,
   describeReserveWarning,
   monthLabelLong,
-  type AccumuloLineChipStatus,
 } from '@/lib/utils/accumulationNarrative';
 
 interface AccumuloTileProps {
@@ -107,9 +122,11 @@ interface AccumuloTileProps {
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
 
-function chipStatusOf(line: InstallmentLine, installmentIndex: number, currentIndex: number): AccumuloLineChipStatus {
-  if (line.status !== 'planned') return line.status;
-  return installmentIndex < currentIndex ? 'late' : 'planned';
+/** A dismissed `toConfirm` match falls back to what its raw state would be without a match — the
+ *  dismissal is never written (see the file header), so it only affects THIS render. */
+function effectiveLineState(rawState: LineUiState, key: string, ignored: Set<string>, isLate: boolean): LineUiState {
+  if (rawState === 'toConfirm' && ignored.has(key)) return isLate ? 'late' : 'todo';
+  return rawState;
 }
 
 /** Every installment fully closed, `late` lines included — the plan has nothing left to do. */
@@ -127,8 +144,11 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
 
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarFocusIndex, setCalendarFocusIndex] = useState<number | undefined>(undefined);
   const [recalibrateIndex, setRecalibrateIndex] = useState<number | null>(null);
   const [manualLine, setManualLine] = useState<{ installmentIndex: number; positionId: string; qty: string; amount: string } | null>(null);
+  const [manualDisposal, setManualDisposal] = useState<{ assetId: string; amount: string } | null>(null);
+  const [ignoredMatches, setIgnoredMatches] = useState<Set<string>>(new Set());
 
   const deleteDraftRef = useRef<HTMLButtonElement>(null);
   const stopRef = useRef<HTMLButtonElement>(null);
@@ -137,6 +157,8 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
   const closeMutation = useClosePlan(ownerId);
   const activateMutation = useActivatePlan(ownerId);
   const setLineMutation = useSetInstallmentLine(ownerId);
+  const setDisposalMutation = useSetDisposal(ownerId);
+  const transactionsQuery = useAssetTransactions(ownerId, undefined, { enabled: !!plan && plan.status === 'active' });
 
   const deleteDraftArmed = useArmedDelete(deleteDraftRef, () => {
     if (plan) void deleteDraftMutation.mutateAsync(plan.id);
@@ -176,6 +198,63 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
       measurementInput,
     });
     setManualLine(null);
+  };
+
+  /** §9's «Conferma»: link the proposed ledger trades and close the line. */
+  const confirmMatch = async (installmentIndex: number, positionId: string, match: LineMatch) => {
+    if (!measurementInput) return;
+    await setLineMutation.mutateAsync({
+      planId: plan!.id,
+      index: installmentIndex,
+      positionId,
+      patch: { status: 'executed', transactionIds: match.transactionIds, executedQuantity: match.quantity, executedAmountEur: match.amountEur },
+      measurementInput,
+    });
+  };
+
+  /** §10.2 punto 4's «Scollega»: undo a ledger-linked confirmation, clearing its transaction ids. */
+  const unlinkLine = async (installmentIndex: number, positionId: string) => {
+    if (!measurementInput) return;
+    await setLineMutation.mutateAsync({
+      planId: plan!.id,
+      index: installmentIndex,
+      positionId,
+      patch: { status: 'planned', transactionIds: undefined, executedQuantity: undefined, executedAmountEur: undefined },
+      measurementInput,
+    });
+  };
+
+  const confirmDisposalMatch = async (assetId: string, match: LineMatch) => {
+    await setDisposalMutation.mutateAsync({
+      planId: plan!.id,
+      assetId,
+      patch: { status: 'executed', transactionIds: match.transactionIds, executedAmountEur: match.amountEur },
+    });
+  };
+
+  const unlinkDisposal = async (assetId: string) => {
+    await setDisposalMutation.mutateAsync({
+      planId: plan!.id,
+      assetId,
+      patch: { status: 'planned', transactionIds: undefined, executedAmountEur: undefined },
+    });
+  };
+
+  const setDisposalStatus = async (assetId: string, status: 'skipped' | 'planned') => {
+    await setDisposalMutation.mutateAsync({ planId: plan!.id, assetId, patch: { status } });
+  };
+
+  const saveManualDisposal = async () => {
+    if (!manualDisposal) return;
+    const executedAmountEur = Number(manualDisposal.amount);
+    if (!Number.isFinite(executedAmountEur)) return;
+    await setDisposalMutation.mutateAsync({ planId: plan!.id, assetId: manualDisposal.assetId, patch: { status: 'executed', executedAmountEur } });
+    setManualDisposal(null);
+  };
+
+  const openCalendarOn = (installmentIndex: number) => {
+    setCalendarFocusIndex(installmentIndex);
+    setCalendarOpen(true);
   };
 
   if (surfaceState === 'loading') {
@@ -324,7 +403,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
             <DraftBox label={ACCUMULO_DONE_BOX_DRIFT} value={formatNumberIt(avgAbsDrift, 1) + ' pp'} />
           </div>
           <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3.5">
-            <Button variant="outline" className="h-8 text-[12px]" onClick={() => setCalendarOpen(true)}>
+            <Button variant="outline" className="h-8 text-[12px]" onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
             </Button>
             <Button
@@ -339,7 +418,16 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
           </div>
         </Tile>
         {calendarOpen && targets && (
-          <AccumulationCalendarDialog open={calendarOpen} onClose={() => setCalendarOpen(false)} plan={plan} ownerId={ownerId} allAssets={allAssets} targets={targets} band={band} />
+          <AccumulationCalendarDialog
+            open={calendarOpen}
+            onClose={() => { setCalendarOpen(false); setCalendarFocusIndex(undefined); }}
+            plan={plan}
+            ownerId={ownerId}
+            allAssets={allAssets}
+            targets={targets}
+            band={band}
+            initialExpandedIndex={calendarFocusIndex}
+          />
         )}
       </>
     );
@@ -351,6 +439,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
     .filter((installment) => installment.index < currentIndex)
     .flatMap((installment) => installment.lines.filter((line) => line.status === 'planned').map((line) => ({ installment, line })));
   const currentLines = currentInstallment ? currentInstallment.lines.filter((line) => line.plannedQuantity > 0 || line.status !== 'planned') : [];
+  const matchResult = matchPlanExecutions(plan, transactionsQuery.data ?? [], new Date());
 
   const executedCount = currentInstallment ? currentInstallment.lines.filter((line) => line.status === 'executed').length : 0;
   const todoCount = lateLines.length + (currentInstallment ? currentInstallment.lines.filter((line) => line.status === 'planned').length : 0);
@@ -443,20 +532,38 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
         <ul className="mt-3 divide-y divide-border">
           {[...lateLines.map(({ installment, line }) => ({ installmentIndex: installment.index, line })), ...currentLines.map((line) => ({ installmentIndex: currentIndex, line }))].map(
             ({ installmentIndex, line }) => {
-              const status = chipStatusOf(line, installmentIndex, currentIndex);
+              const key = `${installmentIndex}:${line.positionId}`;
+              const isLateRow = installmentIndex < currentIndex;
+              const status = effectiveLineState(matchResult.lineStates[key] ?? 'todo', key, ignoredMatches, isLateRow);
+              const match = matchResult.matches.find((m) => m.kind === 'installment' && m.index === installmentIndex && m.positionId === line.positionId);
               const isManual = manualLine?.installmentIndex === installmentIndex && manualLine.positionId === line.positionId;
               const asset = assetsById.get(line.assetId);
               return (
-                <li key={`${installmentIndex}:${line.positionId}`} className="py-2">
+                <li key={key} className="py-2">
                   <div className="flex items-center justify-between gap-3">
                     <span className="min-w-0 flex-1 text-[13px] text-foreground">
                       {plan.positions.find((p) => p.id === line.positionId)?.label ?? asset?.name ?? line.positionId}
+                      {asset && <span className="ml-1 text-[11px] text-muted-foreground">· {getAssetDisplayTicker(asset)}</span>}
                       <span className="ml-2 font-mono text-[11px] tabular-nums text-muted-foreground">
                         {formatNumberIt(line.plannedQuantity, 0)} · {cachedFormatCurrencyEUR(line.plannedAmountEur)}
                       </span>
                     </span>
                     <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
-                    {!isDemo && (status === 'planned' || status === 'late') && (
+                    {!isDemo && status === 'toConfirm' && match && (
+                      <span className="flex shrink-0 gap-1.5">
+                        <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
+                          {ACCUMULO_ACTION_CONFIRM}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setIgnoredMatches((prev) => new Set(prev).add(key))}
+                        >
+                          {ACCUMULO_ACTION_IGNORE_MATCH}
+                        </Button>
+                      </span>
+                    )}
+                    {!isDemo && status === 'late' && (
                       <span className="flex shrink-0 gap-1.5">
                         <Button
                           variant="outline"
@@ -477,9 +584,19 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
                         </Button>
                       </span>
                     )}
+                    {!isDemo && status === 'executed' && !!line.transactionIds?.length && (
+                      <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void unlinkLine(installmentIndex, line.positionId)}>
+                        {ACCUMULO_ACTION_UNLINK}
+                      </Button>
+                    )}
                     {!isDemo && status === 'executed' && !line.transactionIds?.length && (
                       <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void setStatus(installmentIndex, line.positionId, 'planned')}>
                         {ACCUMULO_ACTION_UNDO_EXECUTED}
+                      </Button>
+                    )}
+                    {!isDemo && status === 'lostLink' && (
+                      <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => openCalendarOn(installmentIndex)}>
+                        {ACCUMULO_ACTION_REVIEW}
                       </Button>
                     )}
                   </div>
@@ -507,6 +624,100 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
           )}
         </ul>
 
+        {/* Disposals — held instruments left out of the plan, sold at month 1 (D5, §9's disposal matching). */}
+        {plan.disposals.length > 0 && (
+          <div className="mt-3">
+            <p className={TILE_SUB_EYEBROW_CLASS}>{ACCUMULO_DISPOSALS_SECTION_TITLE}</p>
+            <ul className="mt-1.5 divide-y divide-border">
+              {plan.disposals.map((disposal) => {
+                const key = `disposal:${disposal.assetId}`;
+                const isLateRow = currentIndex > 1;
+                const status = effectiveLineState(matchResult.lineStates[key] ?? 'todo', key, ignoredMatches, isLateRow);
+                const match = matchResult.matches.find((m) => m.kind === 'disposal' && m.assetId === disposal.assetId);
+                const isManual = manualDisposal?.assetId === disposal.assetId;
+                const asset = assetsById.get(disposal.assetId);
+                return (
+                  <li key={key} className="py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 flex-1 text-[13px] text-foreground">
+                        {asset?.name ?? disposal.assetId}
+                        {asset && <span className="ml-1 text-[11px] text-muted-foreground">· {getAssetDisplayTicker(asset)}</span>}
+                        <span className="ml-2 font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {cachedFormatCurrencyEUR(disposal.executedAmountEur ?? disposal.estimatedProceedsEur)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
+                      {!isDemo && status === 'toConfirm' && match && (
+                        <span className="flex shrink-0 gap-1.5">
+                          <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
+                            {ACCUMULO_ACTION_CONFIRM}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setIgnoredMatches((prev) => new Set(prev).add(key))}
+                          >
+                            {ACCUMULO_ACTION_IGNORE_MATCH}
+                          </Button>
+                        </span>
+                      )}
+                      {!isDemo && status === 'late' && (
+                        <span className="flex shrink-0 gap-1.5">
+                          <Button
+                            variant="outline"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setManualDisposal({ assetId: disposal.assetId, amount: disposal.estimatedProceedsEur.toFixed(2) })}
+                          >
+                            {ACCUMULO_ACTION_MARK_EXECUTED}
+                          </Button>
+                          <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void setDisposalStatus(disposal.assetId, 'skipped')}>
+                            {ACCUMULO_ACTION_SKIP}
+                          </Button>
+                        </span>
+                      )}
+                      {!isDemo && status === 'executed' && !!disposal.transactionIds?.length && (
+                        <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void unlinkDisposal(disposal.assetId)}>
+                          {ACCUMULO_ACTION_UNLINK}
+                        </Button>
+                      )}
+                      {!isDemo && status === 'executed' && !disposal.transactionIds?.length && (
+                        <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void setDisposalStatus(disposal.assetId, 'planned')}>
+                          {ACCUMULO_ACTION_UNDO_EXECUTED}
+                        </Button>
+                      )}
+                      {/* lostLink: no Calendario surface for disposals — the only recovery is unlinking. */}
+                      {!isDemo && status === 'lostLink' && (
+                        <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void unlinkDisposal(disposal.assetId)}>
+                          {ACCUMULO_ACTION_UNLINK}
+                        </Button>
+                      )}
+                    </div>
+                    {isManual && (
+                      <div className="mt-1.5 flex items-end gap-2 rounded-lg bg-muted p-2.5">
+                        <label className="flex-1 text-[11px] text-muted-foreground">
+                          {ACCUMULO_MANUAL_AMOUNT_LABEL}
+                          <Input
+                            type="number"
+                            value={manualDisposal.amount}
+                            onChange={(event) => setManualDisposal({ ...manualDisposal, amount: event.target.value })}
+                            className="mt-1 h-8 font-mono"
+                          />
+                        </label>
+                        <Button variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setManualDisposal(null)}>
+                          {ACCUMULO_ACTION_CANCEL}
+                        </Button>
+                        <Button className="h-8 px-2 text-[11px]" onClick={() => void saveManualDisposal()}>
+                          {ACCUMULO_ACTION_SAVE}
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         {/* Class strip (D11). */}
         {classStrip.length > 0 && (
           <ul className="mt-3 space-y-1">
@@ -525,7 +736,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
             <Button variant="outline" className="h-8 text-[12px]" disabled={!currentInstallment} onClick={() => setRecalibrateIndex(currentIndex)}>
               {ACCUMULO_ACTION_RECALIBRATE}
             </Button>
-            <Button variant="outline" className="h-8 text-[12px]" onClick={() => setCalendarOpen(true)}>
+            <Button variant="outline" className="h-8 text-[12px]" onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
             </Button>
             <Button
@@ -543,7 +754,16 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
       </Tile>
 
       {calendarOpen && targets && (
-        <AccumulationCalendarDialog open={calendarOpen} onClose={() => setCalendarOpen(false)} plan={plan} ownerId={ownerId} allAssets={allAssets} targets={targets} band={band} />
+        <AccumulationCalendarDialog
+          open={calendarOpen}
+          onClose={() => { setCalendarOpen(false); setCalendarFocusIndex(undefined); }}
+          plan={plan}
+          ownerId={ownerId}
+          allAssets={allAssets}
+          targets={targets}
+          band={band}
+          initialExpandedIndex={calendarFocusIndex}
+        />
       )}
       {recalibrateIndex !== null && (
         <AccumulationRecalibrateDialog
