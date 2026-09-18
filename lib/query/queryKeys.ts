@@ -78,6 +78,11 @@ export const queryKeys = {
       ['pension-contributions', userId, assetId] as const,
   },
 
+  // Accumulation plans (PAC) — one document per plan, filtered by userId only (no composite index).
+  accumulationPlans: {
+    all: (userId: string) => ['accumulation-plans', userId] as const,
+  },
+
   // Cost centers (list + per-center spend stats derived from expenses).
   // Both keys share the ['cost-centers', userId] prefix so invalidating `all`
   // also refreshes any open detail view via prefix match.
