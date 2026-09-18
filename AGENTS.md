@@ -57,6 +57,9 @@ about a domain goes in that domain's guide, never here.
 ### Firebase Dates and Timezone
 - `toDate()` to convert; `getItalyMonth()`/`getItalyYear()`/`getItalyMonthYear()` for domain grouping, never
   `Date.getMonth()`/`getFullYear()`. Server "today" window (cron): `getItalyDayBoundsUtc()`.
+- **A reader typed `Expense[]` may still hand out raw Timestamps** (2026-09-18: `getExpensesForCostCenter` did, and
+  only `getAllExpenses` converted). A page that reads dates through `toDate()` never notices; a row passed on to a
+  component fed by the OTHER reader does (`ExpenseDialog` threw «Invalid time value»). Convert in the service.
 - Inclusive month upper bound: `endOfMonthBound(year, month)` — the 1st at midnight drops the whole closing month.
   `<input type="date">` defaults take `getItalyDateIso()`, since `toISOString()` proposes yesterday from 22:00.
 
@@ -129,7 +132,8 @@ about a domain goes in that domain's guide, never here.
   standalone amber text is a different case (a caution reading uses `text-warning-foreground`, the verdict's dot too).
 - **A chart slot is not a text colour** — `--chart-1..8` target ~3:1 against a plot area (`text-[var(--chart-3)]`
   measured 1.02:1 on one theme). The 2026-08-30 tail was audited to the same floor across all twelve blocks (worst case
-  3.38:1), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
+  3.38:1 — but on 2026-09-18 `--chart-3` light measured 2,74:1 and `--chart-1` dark 2,62:1 ON A CARD: re-measure before
+  leaning on that floor, CLAUDE.md → Known Issues), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
   are exempt.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
   items uses `hover:text-sidebar-foreground`. **Inline `style` blocks Tailwind hover variants**, so migrate to classes
@@ -345,7 +349,8 @@ file used to carry.
 ### Centri di Costo → `doc/guide/centri-di-costo.md`
 - NO period axis, by decision (2026-08-23): a project's cost is its whole cost; every figure is lifetime («in totale») unless the tile names its window. The old `Mese|Anno|12 mesi|Sempre` picker and its helpers are gone.
 - `summarizeCenter` splits rows at today: booked ones are the cost, scheduled ones get an «in calendario» chip, feed every projection and a ceiling's `spent`, and are NEVER summed into the total; a backdated row moves the total AND the crossing day.
-- The projection is `projectWindowEndWithScheduled` (`spendingProjection.ts`); a dormant/archived center (`lifecycle !== 'active'`) gets NO projection. A monthly ceiling reuses Budget's `summarizeCeiling`.
+- A CENTER HAS NO PACE (2026-09-18): a window's end is booked + calendar (`ytd + yearScheduled`), never `projectWindowEndWithScheduled` — a recurring series is already real future rows (a pace counted it twice) and a project spends in blocks. Risk vs fact stand on the calendar: `exceeded` = `spentToDate > amount`, `atRisk` = under on what is booked, past it with the scheduled rows; the detail ranks the risk ABOVE dormancy. Budget keeps its pace — do not unify. A monthly ceiling still reads the month through Budget's `summarizeCeiling`, but re-derives `exceeded`.
+- The open center lives in the URL (`?tab=cost-centers&center=<id>`, pushed; the detail lands at `main` top with the focus on the back link, the list refocuses the opener by `data-center-row`). A new center opens on `firstFreeColorKey` (never the `chart-1` every center used to be born on); existing documents are never re-coloured.
 - Every number from `costCenterSummary.ts`, every sentence from `costCenterNarrative.ts`. Any count next to a destructive action comes from the same query the mutation runs.
 - Il resto — the risk-vs-fact ranking, `CenterStackBars`, session-only lenses — in `doc/guide/centri-di-costo.md`.
 
@@ -760,7 +765,7 @@ file used to carry.
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` |
 | Cashflow › Budget | `budgetUtils`, `budgetSummary`, `budgetNarrative` (+ `patrimonioNarrative` for the articles, `weeklyBudgetEmailService`, `monthlyEmailService`) |
-| Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` |
+| Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` · **Browser** `e2e/cashflow.centri{,.mobile}.spec.ts` (own account, `npm run e2e:seed:centri`) |
 | Cashflow › Divisione | `expenseSplitSummary`, `expenseSplitNarrative` (+ `cashflowNarrative` for the scheduled clause, `settingsRoundTrip` for the flag) |
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Impostazioni | **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` |
@@ -877,6 +882,10 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   placed there to start clean also wipes the persistence the spec is about to verify — guard it with a `sessionStorage`
   flag (2026-09-14). **Renaming an `aria-label` breaks every spec that matched its old substring** («Modifica asset» →
   «Modifica {name}», `assets.bond.spec.ts` on 2026-09-14): grep `e2e/` for the old name in the same commit.
+- **After Escape a vaul drawer is still in the DOM for ~1,5 s, and `main` sits under an `aria-hidden` ancestor all
+  that time** (2026-09-18, at 390): `getByRole(…)` on anything in the page counts 0, so a step that comes right after
+  closing a `ResponsiveModal` on a phone reads as «the button is not there» — a capture script skipped the armed-delete
+  screenshot that way. Wait for `getByRole('dialog')` to be hidden (or for the control itself), never a fixed 400 ms.
 - **Locators — the controls are not buttons** (2026-08-28: read the failure's page snapshot before guessing a second
   selector): the Cashflow picker is a `combobox` named «Periodo selezionato: {label}», `SegmentedPill` options are
   `tab`, the instalment toggle sits behind the «Impostazioni avanzate» disclosure, the two-step create dialog capitalises
@@ -911,7 +920,7 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   `playwright.<name>.config.ts` with its own setup project and a narrow `testMatch`, run with `--config=`, delete it
   before the full suite (2026-08-28). The FILENAME chooses the account: `*.spec.ts` → `desktop`, `*.mobile.spec.ts` →
   `mobile`, `*.degraded.spec.ts` → degraded, and only a name containing `analisi.spec.ts` reaches the Analisi fixture
-  (`desktop` carries `testIgnore: /analisi\./`) — a name after what it verifies is not collected, or collected against
+  (`desktop` carries `testIgnore: /analisi\./`), only one containing `centri.spec.ts` the Centri di Costo one — a name after what it verifies is not collected, or collected against
   the WRONG fixture. It asserts on Firestore, plants a decoy word absent from the seed, and removes its fixture BY THE
   APP, not by `curl -X DELETE` (2026-08-31: deleting a trade through the ledger's button re-ran the replay a REST delete
   skips), looping the deletion because an earlier failed run may have left its own.
