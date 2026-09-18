@@ -47,7 +47,16 @@ import {
   validateSpecificAssets,
 } from '@/lib/services/assetAllocationService';
 import { resolveAutoEquityBondsSplit } from '@/lib/utils/equityBondsAutoTargets';
-import { AssetAllocationTarget, AssetClass, SubCategoryTarget as SubCategoryTargetType, FamilyMember } from '@/types/assets';
+import {
+  AssetAllocationTarget,
+  AssetClass,
+  SubCategoryTarget as SubCategoryTargetType,
+  FamilyMember,
+  IdealAllocationSettings,
+} from '@/types/assets';
+import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
+import { resolveAllocationRole, ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
+import { IdealAllocationTile } from '@/components/settings/IdealAllocationTile';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { Button } from '@/components/ui/button';
@@ -259,6 +268,43 @@ function familyMembersSnapshotValue(members: FamilyMember[]) {
     }));
 }
 
+// Normalized, order-independent snapshot of IdealAllocationSettings for the Allocazione tab's
+// dirty-state comparison (doc/guide/impostazioni.md § Settings — the FIVE places: the dirty
+// snapshot follows the TAB that edits the field, not the tab that would consume it).
+function idealAllocationSnapshotValue(settings: IdealAllocationSettings) {
+  return {
+    enabled: settings.enabled,
+    classPriority: settings.classPriority,
+    leveragePriority: settings.leveragePriority,
+    factorObjectives: [...settings.factorObjectives]
+      .sort((a, b) => a.assetClass.localeCompare(b.assetClass))
+      .map((f) => ({ assetClass: f.assetClass, priority: f.priority })),
+    geography: settings.geography
+      ? {
+          enabled: settings.geography.enabled,
+          referenceIndexId: settings.geography.referenceIndexId,
+          priority: settings.geography.priority,
+        }
+      : null,
+    instrumentLimits: [...settings.instrumentLimits]
+      .sort((a, b) => a.assetId.localeCompare(b.assetId))
+      .map((limit) => ({
+        assetId: limit.assetId,
+        minPct: limit.minPct ?? null,
+        maxPct: limit.maxPct ?? null,
+      })),
+    groupLimits: [...settings.groupLimits]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((group) => ({
+        id: group.id,
+        label: group.label,
+        assetIds: [...group.assetIds].sort(),
+        maxPct: roundToTwoDecimals(group.maxPct),
+        priority: group.priority,
+      })),
+  };
+}
+
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
 const SETTINGS_TABS: TabDef[] = [
   { value: 'allocazione', label: 'Allocazione', icon: PieChart },
@@ -449,6 +495,11 @@ export default function SettingsPage() {
   const [defaultDebitCashAssetId, setDefaultDebitCashAssetId] = useState<string>('__none__');
   const [defaultCreditCashAssetId, setDefaultCreditCashAssetId] = useState<string>('__none__');
 
+  // Allocazione ideale (doc/weight-optimizer-ate.md §7) — the PAC weight optimizer's objectives.
+  // optimizerTradableAssets feeds the tile's instrument/group limit pickers.
+  const [idealAllocation, setIdealAllocation] = useState<IdealAllocationSettings>(DEFAULT_IDEAL_ALLOCATION);
+  const [optimizerTradableAssets, setOptimizerTradableAssets] = useState<Asset[]>([]);
+
   // Dividend settings state
   const [dividendIncomeCategoryId, setDividendIncomeCategoryId] = useState<string>('');
   const [dividendIncomeSubCategoryId, setDividendIncomeSubCategoryId] = useState<string>('');
@@ -586,6 +637,7 @@ export default function SettingsPage() {
         setPerformanceIncludesExcludedAssets(settingsData.performanceIncludesExcludedAssets ?? false);
         setPerformanceExcludesCash(settingsData.performanceExcludesCash ?? false);
         setPensionReturnStartMonth(settingsData.pensionReturnStartMonth ?? '');
+        setIdealAllocation(settingsData.idealAllocation ?? DEFAULT_IDEAL_ALLOCATION);
         setMonthlyEmailEnabled(settingsData.monthlyEmailEnabled ?? false);
         setQuarterlyEmailEnabled(settingsData.quarterlyEmailEnabled ?? false);
         setSemiAnnualEmailEnabled(settingsData.semiAnnualEmailEnabled ?? false);
@@ -697,6 +749,7 @@ export default function SettingsPage() {
               })),
             })),
           })),
+          idealAllocation: idealAllocationSnapshotValue(settingsData?.idealAllocation ?? DEFAULT_IDEAL_ALLOCATION),
         })
       );
 
@@ -778,12 +831,15 @@ export default function SettingsPage() {
       loadTargets();
       loadExpenseCategories();
     }, 0);
-    getAllAssets(ownerId).then((assets) =>
+    getAllAssets(ownerId).then((assets) => {
       // Default debit/credit account picker: an actual conto, not just a "cash-class" asset —
       // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
       // (convenzione stretta, doc/guide/patrimonio.md § Asset Pricing, FX and Assets).
-      setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'))
-    );
+      setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'));
+      // Allocazione ideale's instrument/group limits: only tradable assets can carry a weight
+      // (doc/weight-optimizer-ate.md §7.3).
+      setOptimizerTradableAssets(assets.filter((a) => resolveAllocationRole(a) === 'tradable'));
+    });
     return () => clearTimeout(timer);
   }, [user, ownerId, loadTargets, loadExpenseCategories]);
 
@@ -1245,6 +1301,28 @@ export default function SettingsPage() {
       }
     }
 
+    // Validate Allocazione ideale (doc/weight-optimizer-ate.md §7.3): min ≤ max, 0..100, and at
+    // most one instrument limit per asset — the UI already prevents the last one by construction.
+    for (const limit of idealAllocation.instrumentLimits) {
+      const outOfRange = [limit.minPct, limit.maxPct].some(
+        (pct) => pct !== undefined && (pct < 0 || pct > 100)
+      );
+      if (outOfRange) {
+        toast.error('I limiti per strumento devono essere tra 0 e 100%.');
+        return;
+      }
+      if (limit.minPct !== undefined && limit.maxPct !== undefined && limit.minPct > limit.maxPct) {
+        toast.error('In un limite per strumento il minimo non può superare il massimo.');
+        return;
+      }
+    }
+    for (const group of idealAllocation.groupLimits) {
+      if (group.maxPct < 0 || group.maxPct > 100) {
+        toast.error(`Il tetto del gruppo "${group.label || 'senza etichetta'}" deve essere tra 0 e 100%.`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
 
@@ -1334,6 +1412,7 @@ export default function SettingsPage() {
         weeklyBudgetEmailEnabled,
         monthlyEmailRecipients,
         familyMembers: parseFamilyMemberDrafts(familyMemberDrafts),
+        idealAllocation,
       });
       toast.success('Impostazioni salvate con successo');
       setAllocationBaselineKey(allocationSnapshotKey);
@@ -1603,6 +1682,7 @@ export default function SettingsPage() {
             })),
           })),
         })),
+        idealAllocation: idealAllocationSnapshotValue(idealAllocation),
       });
 
   const generalSnapshotKey = JSON.stringify({
@@ -1703,6 +1783,21 @@ export default function SettingsPage() {
   // when the user has actually set leverage (> 1); the app never stores a manual leverage input.
   const derivedTargetLeverage = total > 0 ? total / 100 : 1;
   const hasTargetLeverage = derivedTargetLeverage > 1.005;
+
+  // Allocazione ideale (doc/weight-optimizer-ate.md §7.3): classes eligible for a factor
+  // objective are the ones with sub-category targets actually configured, and the tradable-asset
+  // picker feeds both the instrument and the group limits.
+  const idealAllocationFactorClasses = assetClasses
+    .filter(
+      (assetClass) =>
+        assetClassStates[assetClass]?.subCategoryEnabled &&
+        (assetClassStates[assetClass]?.subTargets.length ?? 0) > 0
+    )
+    .map((assetClass) => ({ assetClass, label: ASSET_CLASS_LABELS[assetClass] ?? assetClass }));
+  const idealAllocationTradableAssets = optimizerTradableAssets.map((asset) => ({
+    id: asset.id,
+    label: asset.name,
+  }));
 
   // ── Reading-line inputs (numbers from the existing pure utils, words from settingsNarrative) ──
   const formulaSplit =
@@ -3104,6 +3199,18 @@ export default function SettingsPage() {
                   liquidità come importo fisso esce dal budget percentuale: le altre classi si applicano al resto.
                 </div>
               </Tile>
+            </div>
+
+            {/* Allocazione ideale — the weight optimizer's objectives for the PAC's Target step */}
+            <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-12')}>
+              <IdealAllocationTile
+                value={idealAllocation}
+                onChange={setIdealAllocation}
+                targetLeverageRatio={derivedTargetLeverage}
+                factorClassOptions={idealAllocationFactorClasses}
+                tradableAssets={idealAllocationTradableAssets}
+                disabled={isDemo}
+              />
             </div>
 
             {/* Note tecniche — collapsed by default, below the grid */}

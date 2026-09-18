@@ -23,6 +23,7 @@ import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/p
 import { MONTH_NAMES } from '@/lib/constants/months';
 import type { ExpenseType } from '@/types/expenses';
 import type { CategoryClassificationCounts } from '@/lib/utils/spendingRoles';
+import type { ObjectivePriority } from '@/types/assets';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
 
@@ -529,6 +530,74 @@ export function describeClassTargets({ classCount, withSubcategories, isValid }:
     segments.push(prose('; il totale è sotto il '), figure('100%'), prose(' e il salvataggio è bloccato.'));
   }
   return segments;
+}
+
+const OBJECTIVE_PRIORITY_LABELS: Record<ObjectivePriority, string> = {
+  essential: 'essenziale',
+  high: 'alta',
+  medium: 'media',
+  low: 'bassa',
+};
+
+export interface IdealAllocationFactorInput {
+  /** Italian asset-class label (ASSET_CLASS_LABELS), already resolved by the caller. */
+  classLabel: string;
+  priority: ObjectivePriority;
+}
+
+export interface IdealAllocationInput {
+  enabled: boolean;
+  classPriority: ObjectivePriority;
+  leveragePriority: ObjectivePriority | 'off';
+  /** deriveTargetLeverageRatio(targets), the leva target the leverage objective aims at. */
+  targetLeverageRatio: number;
+  factorObjectives: IdealAllocationFactorInput[];
+  geography: { referenceIndexLabel: string; priority: ObjectivePriority } | null;
+}
+
+/**
+ * Allocazione ideale — which objectives the weight optimizer (doc/weight-optimizer-ate.md) can
+ * propose PAC weights from, and their priority. Spenta: the PAC's Target step stays manual.
+ */
+export function describeIdealAllocation({
+  enabled,
+  classPriority,
+  leveragePriority,
+  targetLeverageRatio,
+  factorObjectives,
+  geography,
+}: IdealAllocationInput): Narrative {
+  if (!enabled) {
+    return [prose('Spenta: nel PAC i pesi si inseriscono solo a mano.')];
+  }
+
+  const objectiveTexts: string[] = [`classi (${OBJECTIVE_PRIORITY_LABELS[classPriority]})`];
+
+  if (leveragePriority !== 'off') {
+    objectiveTexts.push(
+      `leva ${numTrim(targetLeverageRatio)}× (${OBJECTIVE_PRIORITY_LABELS[leveragePriority]})`
+    );
+  }
+
+  if (factorObjectives.length > 0) {
+    const factorText = factorObjectives
+      .map((f) => `${f.classLabel} (${OBJECTIVE_PRIORITY_LABELS[f.priority]})`)
+      .join(', ');
+    objectiveTexts.push(`fattori di ${factorText}`);
+  }
+
+  if (geography) {
+    objectiveTexts.push(
+      `geografia come ${geography.referenceIndexLabel} (${OBJECTIVE_PRIORITY_LABELS[geography.priority]})`
+    );
+  }
+
+  const count = objectiveTexts.length;
+  return [
+    prose(
+      `Il PAC può proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
+    ),
+  ];
 }
 
 // ─── Spese ────────────────────────────────────────────────────────────────────

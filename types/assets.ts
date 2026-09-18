@@ -329,6 +329,10 @@ export interface FamilyMember {
 }
 
 export interface AssetAllocationSettings {
+  // The owner's ideal-allocation objectives (Impostazioni → Allocazione → "Allocazione ideale"),
+  // read by the weight optimizer (lib/utils/weightOptimizer.ts) to propose market weights for the
+  // PAC's Target step. See doc/weight-optimizer-ate.md §7.
+  idealAllocation?: IdealAllocationSettings;
   userAge?: number;
   riskFreeRate?: number;
   withdrawalRate?: number; // Safe withdrawal rate for FIRE calculations (e.g., 4.0 for 4%)
