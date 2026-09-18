@@ -9,22 +9,21 @@
  * dense `ExpenseTable` available behind a "Vista tabella" toggle, but this feed is the
  * default on both.
  *
- * Tapping a row opens a detail drawer with edit/delete (a single, consistent delete model
- * across desktop and mobile). When `grouped` is true, rows are bucketed by day with
- * Oggi / Ieri / "EEE d MMM" headers; otherwise they render as one flat list.
+ * Tapping a row opens its detail — a `ResponsiveModal` `sm`, so a bottom sheet on a phone and a
+ * centred dialog above, in the app's one modal vocabulary (doc/guide/dialog.md) — with edit and
+ * delete. The delete ARMS in the footer and the reading prints what the second press does to
+ * the account; a row of an instalment plan or a recurring series does not arm, because its
+ * delete is a choice and the choice is `SeriesDeleteDialog`, opened by the parent. When
+ * `grouped` is true, rows are bucketed by day with Oggi / Ieri / "EEE d MMM" headers;
+ * otherwise they render as one flat list.
  */
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useRef, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Pencil, Trash2 } from 'lucide-react';
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerTitle,
-} from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
+import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -32,6 +31,9 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
 import { getExpenseDate } from '@/lib/utils/expenseHelpers';
 import { describeRecurrence } from '@/lib/utils/recurrenceDates';
+import { describeMovementDetailReading } from '@/lib/utils/dialogNarrative';
+import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
+import { resolveSeriesDeleteMode } from '@/components/expenses/SeriesDeleteDialog';
 import { isScheduledRow } from '@/lib/utils/tracciamentoSummary';
 import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
 import type { Expense, ExpenseType } from '@/types/expenses';
@@ -85,12 +87,13 @@ function TransactionDetailIcon({
   );
 }
 
-// ─── Transaction Detail Drawer ─────────────────────────────────────────────────
+// ─── Transaction detail ────────────────────────────────────────────────────────
 
-interface TransactionDetailDrawerProps {
-  expense: Expense | null;
+interface TransactionDetailModalProps {
+  expense: Expense;
+  open: boolean;
   now: Date;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
   isDemo: boolean;
@@ -98,49 +101,51 @@ interface TransactionDetailDrawerProps {
   memberNames: Map<string, string> | null;
 }
 
-function TransactionDetailDrawer({
+function TransactionDetailModal({
   expense,
+  open,
   now,
-  onOpenChange,
+  onClose,
   onEdit,
   onDelete,
   isDemo,
   categoryMetaMap,
   memberNames,
-}: Readonly<TransactionDetailDrawerProps>) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+}: Readonly<TransactionDetailModalProps>) {
+  const deleteRef = useRef<HTMLButtonElement | null>(null);
+  const { armed, onClick: onArmedClick, onBlur } = useArmedDelete(deleteRef, () => onDelete(expense));
 
-  if (!expense)
-    return (
-      <Drawer open={false} onOpenChange={onOpenChange}>
-        <DrawerContent />
-      </Drawer>
-    );
+  // «Disarmed» is a phase of ONE opening: settled during render (never in an effect), and
+  // forgotten on close so the same row reopened starts from its idle reading.
+  const [wasArmed, setWasArmed] = useState(false);
+  if (armed && !wasArmed) setWasArmed(true);
+  if (!open && wasArmed) setWasArmed(false);
 
   const isIncome = expense.type === 'income';
   const isTransfer = expense.type === 'transfer';
+  const isSeries = resolveSeriesDeleteMode(expense) !== null;
   const scheduled = isScheduledRow(expense, now);
   const date = getExpenseDate(expense.date);
   const catMeta = categoryMetaMap.get(expense.categoryId);
+  const rowName = expense.notes?.trim() || expense.categoryName;
 
   const amountLabel = `${isIncome ? '+' : ''}${cachedFormatCurrencyEUR(Math.abs(expense.amount))}`;
 
+  // No «Note» row: the title IS the note, and the modal prints it whole (the raw drawer
+  // truncated its title, which is the only reason the row used to repeat it).
   const details: { label: string; value: string }[] = [
     { label: 'Data', value: format(date, 'd MMMM yyyy', { locale: it }) },
-    { label: 'Tipo', value: EXPENSE_TYPE_LABELS[expense.type] },
     { label: 'Categoria', value: expense.categoryName },
   ];
 
-  // The one line that says why this row is in the list and not in the totals above it.
+  // The one line that says why this row is in the list and not in the totals above it. It
+  // repeats the reading on purpose: the reading gives way to the consequence while armed.
   if (scheduled) {
     details.push({ label: 'Stato', value: 'In calendario — non ancora avvenuta' });
   }
 
   if (expense.subCategoryName) {
     details.push({ label: 'Sottocategoria', value: expense.subCategoryName });
-  }
-  if (expense.notes?.trim()) {
-    details.push({ label: 'Note', value: expense.notes.trim() });
   }
   if (expense.costCenterName) {
     details.push({ label: 'Centro di costo', value: expense.costCenterName });
@@ -173,123 +178,97 @@ function TransactionDetailDrawer({
   }
 
   return (
-    <Drawer open onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]">
-        {/* Header: icon + title + amount */}
-        <div className="px-6 pt-6 pb-4">
-          <div className="flex items-start gap-3">
-            <TransactionDetailIcon
-              iconName={catMeta?.icon}
-              color={catMeta?.color}
-              type={expense.type}
-            />
-            <div className="min-w-0 flex-1">
-              <DrawerTitle className="text-foreground truncate text-lg font-semibold">
-                {expense.notes?.trim() || expense.categoryName}
-              </DrawerTitle>
-              <DrawerDescription className="text-muted-foreground mt-0.5 text-sm">
-                {format(date, 'd MMM yyyy', { locale: it })}
-              </DrawerDescription>
-            </div>
-          </div>
-          <p
-            className={cn(
-              'mt-4 font-mono text-2xl font-bold tabular-nums',
-              scheduled
-                ? 'text-muted-foreground'
-                : isIncome
-                  ? 'text-positive'
-                  : isTransfer
-                    ? 'text-foreground'
-                    : 'text-destructive',
-            )}
-          >
-            {amountLabel}
-          </p>
-        </div>
-
-        {/* Details list */}
-        <div className="px-6 pb-4">
-          <div className="bg-muted/40 divide-border/40 divide-y rounded-xl">
-            {details.map(({ label, value }) => (
-              <div key={label} className="flex items-start justify-between gap-4 px-4 py-3">
-                <span className="text-muted-foreground flex-shrink-0 text-sm">{label}</span>
-                <span className="text-foreground min-w-0 text-right text-sm font-medium break-words">
-                  {label === 'Link' ? (
-                    <a
-                      href={value}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary break-all underline underline-offset-2"
-                    >
-                      {value.length > 40 ? `${value.slice(0, 40)}...` : value}
-                    </a>
-                  ) : (
-                    value
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-3 px-6 pb-8">
+    <ResponsiveModal
+      open={open}
+      onClose={onClose}
+      width="sm"
+      // The scope after the dot is the SINGULAR of the row's type (doc/guide/dialog.md).
+      eyebrow={`Movimenti · ${EXPENSE_TYPE_LABELS[expense.type]}`}
+      title={rowName}
+      reading={describeMovementDetailReading({
+        date,
+        scheduled,
+        phase: armed ? 'armed' : wasArmed ? 'disarmed' : 'idle',
+        deletion: { type: expense.type, amount: expense.amount, hasAccount: !!expense.linkedCashAssetId },
+      })}
+      footer={
+        <>
           <Button
-            variant="outline"
-            className="h-11 flex-1"
+            ref={deleteRef}
+            type="button"
+            variant={armed ? 'destructive' : 'outline'}
+            className={cn(!armed && 'text-destructive hover:text-destructive')}
+            onClick={isSeries ? () => onDelete(expense) : onArmedClick}
+            onBlur={isSeries ? undefined : onBlur}
+            disabled={isDemo}
+            aria-pressed={isSeries ? undefined : armed}
+            aria-label={
+              isDemo
+                ? 'Elimina — non disponibile in modalità demo'
+                : isSeries
+                  ? `Elimina ${rowName} o la sua serie`
+                  : armed
+                    ? `Premi di nuovo per eliminare ${rowName}`
+                    : `Elimina ${rowName}`
+            }
+          >
+            {!armed && <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />}
+            {/* The ellipsis is the convention for «this opens a question»: a series row never arms. */}
+            {armed ? 'Premi di nuovo per eliminare' : isSeries ? 'Elimina…' : 'Elimina'}
+          </Button>
+          <Button
+            type="button"
             onClick={() => onEdit(expense)}
             disabled={isDemo}
-            aria-label={isDemo ? 'Modifica — non disponibile in modalità demo' : 'Modifica voce'}
+            aria-label={isDemo ? 'Modifica — non disponibile in modalità demo' : `Modifica ${rowName}`}
           >
-            <Pencil className="mr-2 h-4 w-4" />
+            <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
             Modifica
           </Button>
-          <Button
-            variant="outline"
-            className="h-11 flex-1"
-            onClick={() => setConfirmDelete(true)}
-            disabled={isDemo}
-            aria-label={isDemo ? 'Elimina — non disponibile in modalità demo' : 'Elimina voce'}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Elimina
-          </Button>
-        </div>
-      </DrawerContent>
+        </>
+      }
+    >
+      <div className="flex items-center gap-3">
+        <TransactionDetailIcon iconName={catMeta?.icon} color={catMeta?.color} type={expense.type} />
+        <p
+          className={cn(
+            'min-w-0 font-mono text-[22px] font-bold leading-none tabular-nums',
+            scheduled
+              ? 'text-muted-foreground'
+              : isIncome
+                ? 'text-positive'
+                : isTransfer
+                  ? 'text-foreground'
+                  : 'text-destructive',
+          )}
+        >
+          {amountLabel}
+        </p>
+      </div>
 
-      {/* Delete confirmation sub-drawer */}
-      <Drawer open={confirmDelete} onOpenChange={setConfirmDelete} nested>
-        <DrawerContent>
-          <div className="px-6 pt-6 pb-8 text-center">
-            <div className="bg-destructive/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-              <Trash2 className="text-destructive h-5 w-5" />
-            </div>
-            <DrawerTitle className="text-lg font-semibold">Eliminare questa voce?</DrawerTitle>
-            <DrawerDescription className="text-muted-foreground mt-1 text-sm">
-              {expense.notes?.trim() || expense.categoryName} &middot;{' '}
-              {cachedFormatCurrencyEUR(Math.abs(expense.amount))}
-            </DrawerDescription>
-            <div className="mt-6 flex gap-3">
-              <Button variant="outline" className="h-11 flex-1" onClick={() => setConfirmDelete(false)}>
-                Annulla
-              </Button>
-              <Button
-                variant="destructive"
-                className="h-11 flex-1"
-                onClick={() => {
-                  setConfirmDelete(false);
-                  onDelete(expense);
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Elimina
-              </Button>
-            </div>
+      {/* The row's facts as a summary block — `bg-muted`, never a card inside the modal. */}
+      <dl className="mt-4 divide-y divide-border rounded-lg bg-muted px-4 text-[13px]">
+        {details.map(({ label, value }) => (
+          <div key={label} className="flex items-start justify-between gap-4 py-2.5">
+            <dt className="shrink-0 text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 text-right font-medium break-words text-foreground">
+              {label === 'Link' ? (
+                <a
+                  href={value}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all text-primary underline underline-offset-2"
+                >
+                  {value.length > 40 ? `${value.slice(0, 40)}...` : value}
+                </a>
+              ) : (
+                value
+              )}
+            </dd>
           </div>
-        </DrawerContent>
-      </Drawer>
-    </Drawer>
+        ))}
+      </dl>
+    </ResponsiveModal>
   );
 }
 
@@ -352,7 +331,10 @@ export function TransactionFeed({
   surface = 'card',
   className,
 }: Readonly<TransactionFeedProps>) {
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  // The row stays with its detail after a close, so the modal animates out on its content
+  // instead of unmounting on an empty shell.
+  const [detail, setDetail] = useState<{ expense: Expense; open: boolean } | null>(null);
+  const closeDetail = () => setDetail((current) => (current ? { ...current, open: false } : current));
 
   // Slice the visible window.
   const sliced = useMemo(() => transactions.slice(0, showCount), [transactions, showCount]);
@@ -425,7 +407,7 @@ export function TransactionFeed({
                 <div key={expense.id} className="px-2">
                   <CompactExpenseRow
                     expense={expense}
-                    onSelect={setSelectedExpense}
+                    onSelect={(selected) => setDetail({ expense: selected, open: true })}
                     categoryIcon={catMeta?.icon}
                     categoryColor={catMeta?.color}
                     scheduled={isScheduledRow(expense, now)}
@@ -450,25 +432,28 @@ export function TransactionFeed({
         </div>
       )}
 
-      {/* Detail drawer — single, consistent edit/delete model for desktop and mobile. */}
-      <TransactionDetailDrawer
-        expense={selectedExpense}
-        now={now}
-        onOpenChange={(open) => {
-          if (!open) setSelectedExpense(null);
-        }}
-        onEdit={(expense) => {
-          setSelectedExpense(null);
-          onEdit(expense);
-        }}
-        onDelete={(expense) => {
-          setSelectedExpense(null);
-          onDelete(expense);
-        }}
-        isDemo={isDemo}
-        categoryMetaMap={categoryMetaMap}
-        memberNames={memberNames}
-      />
+      {/* Detail — one edit/delete model for desktop and mobile. Keyed by row, so the armed
+          state of one movement can never be read on the next one opened. */}
+      {detail && (
+        <TransactionDetailModal
+          key={detail.expense.id}
+          expense={detail.expense}
+          open={detail.open}
+          now={now}
+          onClose={closeDetail}
+          onEdit={(expense) => {
+            closeDetail();
+            onEdit(expense);
+          }}
+          onDelete={(expense) => {
+            closeDetail();
+            onDelete(expense);
+          }}
+          isDemo={isDemo}
+          categoryMetaMap={categoryMetaMap}
+          memberNames={memberNames}
+        />
+      )}
     </div>
   );
 }

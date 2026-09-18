@@ -485,6 +485,24 @@ export function describeConversation(input: {
   return narrative;
 }
 
+/**
+ * The reading of the Conversazioni modal: how many threads are saved and what pressing one does.
+ * While the list is still loading the count is unknown, so the sentence claims none.
+ */
+export function describeThreadsReading(input: { count: number; loading: boolean }): Narrative {
+  if (input.loading) return [prose('Sto leggendo le conversazioni salvate.')];
+  if (input.count === 0) return [prose('Nessuna conversazione salvata: il primo messaggio ne apre una.')];
+  if (input.count === 1) return [figure('1'), prose(' conversazione salvata: premila per riprenderla da dove era rimasta.')];
+  return [figure(String(input.count)), prose(' conversazioni salvate: premine una per riprenderla da dove era rimasta.')];
+}
+
+/**
+ * What the second press of an armed thread delete loses — printed in the row beside a compact
+ * «Conferma». The messages go with the thread (`deleteAssistantThread` empties the subcollection
+ * first); the memory does not, because a fact the assistant learned lives in its own document.
+ */
+export const THREAD_DELETE_CONSEQUENCE = 'Eliminando, la conversazione e i suoi messaggi spariscono; la memoria resta.';
+
 /** «6 conversazioni · 3 obiettivi e 3 fatti in memoria» — the compact header's description. */
 export function describeAssistantHeader(counts: { threads: number; goals: number; facts: number }): string {
   const { threads, goals, facts } = counts;
