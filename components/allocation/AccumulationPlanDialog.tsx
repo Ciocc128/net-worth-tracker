@@ -110,13 +110,13 @@ const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
 const MAX_CALENDAR_ROWS = 8;
 const TRAJECTORY_SAMPLE_INDICES = [0, 1, 3, 6, 9];
 
-function emptyDraft(startMonth: string): AccumulationPlanDraft {
+function emptyDraft(startMonth: string, positions: PlanPosition[] = []): AccumulationPlanDraft {
   return {
     name: 'Piano di accumulo',
     startMonth,
     months: 12,
     liquidity: { sourceCashAssetIds: [], reserveEur: 0, monthlyInflowEur: 0 },
-    positions: [],
+    positions,
     disposals: [],
   };
 }
@@ -130,6 +130,25 @@ function draftFromPlan(plan: AccumulationPlan): AccumulationPlanDraft {
     positions: plan.positions,
     disposals: plan.disposals,
   };
+}
+
+/**
+ * Step 2 starts on ONE singleton position per tradable, valued holding — every euro the page
+ * knows about needs a bucket the moment the editor opens (D5/D7), never only once the reader
+ * has thought to add one. The target starts at 0, not at the holding's current share: a
+ * pre-filled 100% for a single-asset portfolio would hide the very total-≠-100 gate step 2
+ * exists to enforce.
+ */
+function seedPositionsFromAssets(allAssets: Asset[]): PlanPosition[] {
+  return allAssets
+    .filter((asset) => resolveAllocationRole(asset) === 'tradable' && calculateAssetValue(asset) > 0)
+    .map((asset) => ({
+      id: crypto.randomUUID(),
+      label: asset.name,
+      targetPercentage: 0,
+      memberAssetIds: [asset.id],
+      buyAssetId: asset.id,
+    }));
 }
 
 export function AccumulationPlanDialog({
@@ -157,7 +176,7 @@ export function AccumulationPlanDialog({
   if (!openSubject || openSubject.open !== open || openSubject.plan !== plan) {
     setOpenSubject({ open, plan });
     if (open) {
-      setDraft(plan ? draftFromPlan(plan) : emptyDraft(addMonths(toMonthKey(new Date()), 1)));
+      setDraft(plan ? draftFromPlan(plan) : emptyDraft(addMonths(toMonthKey(new Date()), 1), seedPositionsFromAssets(allAssets)));
       setStep(plan ? 2 : 1);
       setStatus({ phase: 'idle' });
       setSelectedForGroup(new Set());
