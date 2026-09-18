@@ -271,6 +271,32 @@ export interface AssetAllocationTarget {
   };
 }
 
+// Weight optimizer (lib/utils/weightOptimizer.ts) — four fixed priority levels an objective can
+// carry, from "never trade it away" to "nice to have". Also used by `IdealAllocationSettings`'s
+// per-objective priorities (class, leverage, factor, geography, group cap).
+export type ObjectivePriority = 'essential' | 'high' | 'medium' | 'low';
+
+// The owner's ideal-allocation objectives (Impostazioni → Allocazione → "Allocazione ideale"),
+// read by the weight optimizer to propose market weights for the PAC's Target step. Classes and
+// sub-category targets are NOT duplicated here — they are read from the existing `targets`
+// (AssetAllocationTarget); this settings block only carries priorities, geography and the
+// per-instrument/per-group caps.
+export interface IdealAllocationSettings {
+  enabled: boolean;
+  classPriority: ObjectivePriority;
+  leveragePriority: ObjectivePriority | 'off';
+  factorObjectives: Array<{ assetClass: AssetClass; priority: ObjectivePriority }>;
+  geography: { enabled: boolean; referenceIndexId: string; priority: ObjectivePriority } | null;
+  instrumentLimits: Array<{ assetId: string; minPct?: number; maxPct?: number }>;
+  groupLimits: Array<{
+    id: string;
+    label: string;
+    assetIds: string[];
+    maxPct: number;
+    priority: ObjectivePriority;
+  }>;
+}
+
 export interface CoastFirePensionInput {
   id: string;
   label: string;
