@@ -136,7 +136,7 @@ export function MovimentiTile({ expenses, now, aside, reading, visibleCount, onS
 
       {hidden > 0 && (
         <div className="mt-3">
-          <Button variant="outline" size="sm" className="h-9 w-full desktop:w-auto" onClick={onShowMore}>
+          <Button variant="outline" size="sm" className="h-11 w-full desktop:h-8 desktop:w-auto" onClick={onShowMore}>
             Mostra altre <span className="font-mono tabular-nums">{Math.min(hidden, MOVEMENTS_PAGE_SIZE)}</span>
           </Button>
         </div>

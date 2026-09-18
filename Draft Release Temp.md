@@ -5,6 +5,11 @@
 
 ## ✨ New Features
 
+- Added an address to every open cost center on Cashflow › Centri di Costo: a reload keeps it, the browser's Back returns to the list instead of leaving Cashflow, and the link can be sent to a co-owner. On a phone the detail now opens at its top instead of half-way down.
+- Added «in uso da …» to a cost center's colour picker: a colour another active center wears is marked and named, and choosing it says what it costs («nei grafici i due centri non si distinguono»). A new center opens on the first free colour instead of always the first one.
+- Added the way in to Centri di Costo where a first visit needs it: the empty page, a center without expenses and the «Nuovo centro» window all say that an expense is linked from its own form — field «Centro di Costo», under «Impostazioni avanzate».
+- Added the record month to the Totale tile of Centri di Costo («Settembre, ancora in corso, è già il mese più caro degli ultimi 12»), with this year's share of the whole cost.
+
 - Added «in calendario» to the Spese maggiori rows of Analisi that are dated ahead (a long caption such as «30 set · Asilo nido · in calendario» now wraps to a second line instead of being cut), and the Flusso tile says in words what a click does («un tipo di spesa apre il suo dettaglio; una categoria o una sottocategoria apre la scheda»), which used to live in a hover tooltip only.
 - Added a cut to the Flusso's subcategory view, named in its aside: only the six largest categories open into their four largest subcategories plus one «Altre N» node that still adds up; every other category stays in the chart as a leaf (the old view dropped a category without subcategories entirely).
 
@@ -30,6 +35,13 @@
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 821 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
 ## 🐛 Bug Fixes
+
+- Fixed the month-end and year-end figures of a cost center, which extrapolated a daily pace: one 1650 € repair on the 17th read «~2942 € a fine mese», and a recurring charge already in the calendar was counted twice. A center now reads what is spent and what the calendar still adds («con il calendario chiude a 1100 €»); Budget keeps its pace.
+- Fixed a cost center's ceiling called «a rischio» on a pace alone: the risk is now the expenses already dated ahead carrying it past («supererà il tetto del 2026», «Lo superi il 28 con le spese già in calendario»), and a ceiling crossed by what is spent is the fact. The list and the detail no longer disagree about an idle center with an instalment to come.
+- Fixed two cost centers sharing one colour by construction: every new center was created on the first colour, so two cars were one blue in the list, the legend and two adjacent bands of the bars. Centers already saved keep their colour until edited.
+- Fixed the cost-center dot in the expense form, which was painted with an invalid colour and never showed; archived centers no longer appear there, except on the expense already linked to one.
+- Fixed «Anno scorso · 2025, intero» on a cost-center history that began in September 2025: it now reads «2025, da settembre», so four months are not compared with a whole year.
+- Fixed the focus falling to the top of the document when a cost center was opened, closed or its window dismissed, and the subcategory rows announcing «premuto» on the ones taken out of the total.
 
 - Fixed the Scheda of Analisi printing three paces for one category on the running year: a 559 € mortgage read «al ritmo di 746 € al mese» (twelve materialised instalments over nine months), «Media ultimi 12 mesi 559 €» and «Proiezione 2026 8946 €» above a total that already covered the year. The pace now divides the lived total by the months lived («Media mensile · sui primi 9 mesi»), the projection takes the calendar as a floor under the pace and disappears when it would only restate the total, «Da inizio anno» cuts the Scheda where it cuts the page, and the reading names the delta's own window when the total spans more («nei primi 9 mesi 5032 €, in linea con gli stessi mesi del 2025»).
 - Fixed Analisi's «Storico» running to 2043: a materialised instalment plan counted as «19 anni», drew seventeen empty years on the Confronto and the Dettaglio charts and summed its future rows into «Dal 2025 hai speso». The history now closes on the current year, calendar included («Dal 2025 al 2026»), with the scheduled clause reaching «a fine anno».
@@ -79,6 +91,10 @@
 
 ## 🔧 Improvements
 
+- Improved the delete of a cost center: «Conferma» with the consequence printed right under it («41 spese restano in Cashflow e perdono solo il collegamento») and the page no longer jumping. A failed delete or archive says what did not happen and why, in Italian.
+- Improved the «Nuovo centro» window: the button stays enabled and a missing name or an invalid ceiling is said in the reading line, with the focus on the field, and a failed save keeps what was typed. The ceiling no longer promises a notification that nothing sends.
+- Improved the readings of Centri di Costo, which repeated one total three times above the fold: the list's average is «Media 12 mesi», «Per categoria» is not shown for a center with one category, and a center born this year no longer says «quest'anno …, il 100%». «Mostra altre» is a full 44px target on a phone.
+
 - Improved Analisi on a phone: the four-mode axis stands in two rows of 44px options instead of scrolling inside its pill (which clipped «Storico»); the month and year pickers, «Ripristina», «Vai a categoria», «Mostra tutte», the breadcrumb and the Confronto's year select are 44px on touch; the Scheda and the Confronto print whole euros like every other aggregate («6710 €», not «6709,68 €»), the oldest year row says «primo anno registrato» instead of «—», a new category in the Confronto no longer prints a dash under its badge, and the Recharts axes of the Scheda and the Dettaglio are mono with «150 €» and the typographic minus.
 
 - Improved «Aggiungi conto» on Patrimonio: it opens on the account form instead of asking «Che cosa vuoi aggiungere?» with eight choices; the asset form keeps its step counter («Passo 2 di 2 · ETF») and its labels are lower-case Italian.
@@ -103,6 +119,8 @@
 - Improved Impostazioni: a category without a colour of its own now takes the theme's first chart colour instead of a fixed blue, so it follows the selected theme like everything else.
 
 ## 📚 Documentation
+
+- The Centri di Costo guide records that a center has no pace, the risk and the fact standing on the calendar, the center held in the address, the free-colour default and the form's status line; the Impeccable critique of Cashflow › Centri di Costo (22/40) is committed and closed by polish, and the page has its first browser tests.
 
 - The Analisi guide records the lived pace of the Scheda, the history's ceiling, the same-days rule of the running month, the absent tile of a month not started, the Flusso's height, alignment, caps and label neutrals, and the focus return; the Impeccable critique of Analisi (26/40) is tracked in `.impeccable/critique/` and closed by polish in the same session.
 - The Dividendi guide records the two populations (registry vs held portfolio), the form's rules, the armed row delete and the phone's chips; the Impeccable critique of Cashflow › Dividendi (23/40) is committed and closed.

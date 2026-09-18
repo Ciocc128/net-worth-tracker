@@ -699,8 +699,12 @@ its question has none: a project's cost is its whole cost, so Centri di Costo dr
 Mese|Anno|12 mesi|Sempre picker and reads everything «in totale». The rule then inverts — every
 figure is lifetime unless it says otherwise, and the ones that use a window carry it in their own
 words: «quest'anno», «anno scorso», «ultimi 12 mesi», «Tetto mensile · agosto» with today's mark,
-«Fine mese» and «Fine anno» «al ritmo attuale». A delta against "the previous period" has no honest
-predecessor without an axis, so it is gone rather than faked.
+«Questo mese» and «Quest'anno» with the calendar in their caption («con il calendario chiude a
+1100 €»). A delta against "the previous period" has no honest predecessor without an axis, so it
+is gone rather than faked. **A center has no pace** (2026-09-18): until then the two cells were
+«Fine mese» / «Fine anno» «al ritmo attuale», and a 1650 € repair on the 17th read «~2942 € a fine
+mese». A project spends in blocks, and its recurring series are already real future rows, so a
+window's end is what is booked plus what is in the calendar — a sum, printed without «~».
 
 **The Risk-vs-Fact Rule.** A projected overrun and a crossed threshold are two different things
 and never sit in the same tile. «Categorie a rischio» lists the monthly budgets whose month-end
@@ -708,7 +712,11 @@ projection exceeds their amount — money not yet spent, named as a projection (
 ritmo attuale») — and a budget ALREADY over is not there: it is a fact, and facts belong to
 «Avvisi» («Superato», with the threshold it crossed). The alert evaluator still fires a
 forecast-only alert for the email, but the tile filters it out (`thresholdCrossed`), so no row
-appears twice. Corollary on the projection itself: it is the app's ONE rule (the pace on what is
+appears twice. On Centri di Costo the same two names stand on the CALENDAR, not on a pace
+(2026-09-18): a ceiling crossed by what is booked is the fact, one still holding that the rows
+already dated ahead carry past it is the risk («supererà il tetto», «con le spese già in
+calendario») — and the risk outranks dormancy in a center's verdict, or the list and the detail
+answer differently about one center. Corollary on the projection itself: it is the app's ONE rule (the pace on what is
 booked to date plus the rows already in the calendar — Tracciamento's and the Panoramica's), and a
 FIXED or debt category never follows the pace: rent paid on the 1st, extrapolated by the day, would
 read «at risk» all month. First applied on Budget, 2026-08-23.
@@ -927,7 +935,7 @@ A tab switcher for mutually exclusive views within a section. Replaces `<Select>
 
 **Structure:** `role="tablist"` container with `bg-muted rounded-lg p-1 w-fit mx-auto`, each option is a `role="tab"` `motion.button` with `layout="size"`. Active pill is a `motion.div` with `layoutId` and `bg-background shadow-sm` that slides between options.
 
-**Spring:** `stiffness: 400, damping: 35` — snappy without overshooting. Same constant on both `motion.button` `transition` and `motion.div` `transition`, and on every other spring in the app but one: the bottom pill's «add expense» button enters at `400 / 28` (`components/layout/BottomNavigation.tsx:41`), a touch of overshoot on the one element that pops in from nothing rather than sliding between two states.
+**Spring:** `stiffness: 400, damping: 35` — snappy without overshooting. Same constant on both `motion.button` `transition` and `motion.div` `transition`, and on every control that slides between two states. Four springs are NOT `400 / 35`, each for a reason (counted in the code on 2026-09-18 — until then this paragraph said «all but one»): the bottom pill's «add expense» button enters at `400 / 28` (`components/layout/BottomNavigation.tsx:41`), a touch of overshoot on the one element that pops in from nothing; `springLayoutTransition` is `280 / 30`, mass 0.9 (`lib/utils/motionVariants.ts`), softer because it moves whole REGIONS when a conditional section appears — the `layout="position"` wrappers of Panoramica and Patrimonio; `metricSettleTransition` is `320 / 34`, mass 0.8 (same file), a figure that must land without a bounce — today only the Dividendi calendar; and the savings-rate badge enters at `300 / 20` (`components/ui/SavingsRateBadge.tsx:112`), inline and collapsed to duration 0 under reduced motion. A fifth value needs the same kind of sentence here.
 
 #### Variant A — Icon tabs (section navigation)
 
