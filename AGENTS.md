@@ -475,7 +475,7 @@ file used to carry.
   survives only if the thrower marks it `userFacingError`.
 - Two-click confirms live in `lib/hooks/useArmedDelete.ts`: no timer, ever; Escape while armed means DISARM, enforced
   through `hasArmedConfirm()` in `ResponsiveModal`'s `onEscapeKeyDown`. The two form rules stay here: § Dialog Form Reset, § Two-Step Create Dialogs.
-- Il resto — the status-line a11y traps, the `bg-muted` summary block, the singular eyebrow, the light-mode «lifted» test trap, the blind spots — in `doc/guide/dialog.md`.
+- Il resto — the status-line a11y traps, the `bg-muted` summary block, the singular eyebrow, a detail whose armed delete speaks through its READING, `triggerOrigin` resolved at the click (`lib/utils/modalOrigin.ts`), no focus on open below 769px, the blind spots — in `doc/guide/dialog.md`.
 
 ### Settings — the FIVE places → `doc/guide/impostazioni.md`
 - A new setting must land in all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
@@ -637,6 +637,9 @@ file used to carry.
   size on `sidebarMenuButtonVariants` (`size-11!`, `p-3.5!`, `justify-center`) are what make every collapsed target
   44×44; `SidebarGroup`/`SidebarHeader`/`SidebarFooter` drop to `p-1.5` in icon mode for the same reason. A custom
   button in the rail (the collapse toggle) needs its own `group-data-[state=collapsed]:size-11`.
+- **`PageHeader` mounts its `actions` TWICE** (desktop row, phone navbar): a `ref` on an action lands on whichever
+  copy mounted last and `querySelector` finds the HIDDEN one first (width 0, 2026-09-18). Take the pressed node from
+  `event.currentTarget` (`app/dashboard/page.tsx`, «Crea snapshot»); measure the copy with `offsetWidth > 0`.
 - **`PageContainer`** is the 1920px root of a tile page (its only width since 2026-09-06); the loading state must use the same width or
   the page jumps when data lands (the Panoramica's skeleton was 1600 while the page was 1920). The loading state of a
   tile page is `TileGridSkeleton` with the page's own `cells` — never a per-page skeleton component.
@@ -655,6 +658,8 @@ file used to carry.
   so split the help copy (`hidden desktop:block` / `desktop:hidden`) and label each card's axes explicitly.
 - **Prefer rendering large local subtrees as pure render helpers or top-level components** — a nested JSX definition
   inside a page component means a simple row selection remounts the whole table. `cn` is NOT auto-imported in pages.
+- **A radius on the element that carries a `divide-y` hairline bends the ends of the rule** (2026-09-18,
+  `AssistantThreadList`): the `li` stays square, the hover/selected wash goes on an inner box.
 - **A row's caption WRAPS, it is never truncated, and the label column never grows to make room for it** (2026-09-14,
   `RankedRows`): «30 set · Asilo nido · in calendario» is the row's second fact, and a cut fact is no fact. The column
   cannot grow — at 4 grid columns 46% is the most it can take beside the bar's 40px floor, the amount and the share
@@ -886,6 +891,14 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   that time** (2026-09-18, at 390): `getByRole(…)` on anything in the page counts 0, so a step that comes right after
   closing a `ResponsiveModal` on a phone reads as «the button is not there» — a capture script skipped the armed-delete
   screenshot that way. Wait for `getByRole('dialog')` to be hidden (or for the control itself), never a fixed 400 ms.
+- **`npx playwright test … | grep … | head -N` hides the verdict** (2026-09-18): `global-setup` prints ~14 «✓ …» seed
+  lines that fill `head` first — filter on `"\[(desktop|mobile)\]|[0-9]+ (passed|failed)"`. **A falsification must fail
+  on the assertion it is about**: break ONE behaviour at a time, or an earlier assertion goes red and proves nothing.
+  **Shoot the SETTLED frame**: right after `dialog.waitFor()` a vaul drawer is half-way up (~500 ms) and a button is
+  mid colour-transition — ~800 ms before a capture, never before an assertion.
+- **A spec that needs a server-computed FLAG forces it on the RESPONSE** (2026-09-18, `e2e/panoramica.snapshot.spec.ts`:
+  `page.route` + `route.fetch()` + `route.fulfill({ response, json })`): planted data goes stale at the month's turn,
+  and without the flag the click under test WRITES a snapshot.
 - **Locators — the controls are not buttons** (2026-08-28: read the failure's page snapshot before guessing a second
   selector): the Cashflow picker is a `combobox` named «Periodo selezionato: {label}», `SegmentedPill` options are
   `tab`, the instalment toggle sits behind the «Impostazioni avanzate» disclosure, the two-step create dialog capitalises

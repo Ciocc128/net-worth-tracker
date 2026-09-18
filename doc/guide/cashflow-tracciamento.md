@@ -116,7 +116,12 @@
   spending without income negative, no movement neutral.
 - *Risparmio* (€) and *Rapporto* (`income/expenses`, printed «1,67×» through `formatNumber`) encode the same
   relationship in different units and are kept together **on purpose** — do not "deduplicate".
-- **Feed delete = drawer-confirm, not 2-click**, and `deleteSingleExpense` MUST branch on `type === 'transfer'` to call
+- **Feed delete = the detail's ARMED footer** (2026-09-18; it was a confirm drawer nested in the detail drawer): the
+  detail is a `ResponsiveModal` `sm`, «Elimina» arms through `useArmedDelete` and the reading prints
+  `describeExpenseDeleteConsequence` until the second press or a disarm (`describeMovementDetailReading`); a row of a
+  series skips the arming and reaches `SeriesDeleteDialog` on its first press. The «Tipo» and «Note» rows left the
+  detail: the eyebrow carries the type («Movimenti · Spesa variabile») and the title IS the note, printed whole.
+  `deleteSingleExpense` MUST branch on `type === 'transfer'` to call
   `reconcileTransferDelete` (both legs), like `ExpenseTable` does. The feed keeps `surface="flat"` on every width (a
   card per day inside the Movimenti tile would be a card inside a card); `ExpenseTable` is desktop-only, so with the
   «Tabella» view selected the tile renders the table `hidden desktop:block` and the feed `desktop:hidden`. **The
@@ -143,8 +148,11 @@
   shape (`category`, `categoryKey`, `amount`, `percentage`) so `rankCategories` feeds the same component, and the
   residual row appears only when categories were cut.
 - **Below `desktop:` the period stays under the verdict and the filters move INTO the Movimenti tile**
-  (`MobileFiltersDrawer` in the tile's `mobileToolbar` slot): the drawer narrows that list, and four tiles away from
-  it the badge read as unrelated. **Since 2026-09-07 the drawer's bar repeats the period picker** beside «Filtri» and
+  (`MobileFiltersDrawer` in the tile's `mobileToolbar` slot — the name is older than the surface: since 2026-09-18
+  it opens a `ResponsiveModal` `sm`, a sheet on a phone and a dialog on the tablet widths the bar also serves): it
+  narrows that list, and four tiles away from it the badge read as unrelated. Its reading and its primary COUNT
+  (`describeMovementsFilterReading`/`describeMovementsFilterAction` on `filteredExpenses.length` and
+  `expenses.length`, the two lists the tile draws — never a third count). **Since 2026-09-07 the drawer's bar repeats the period picker** beside «Filtri» and
   the sort (PR #332): a search («caffè») is read over a window, and with the only picker four tiles up, changing the
   window meant scrolling away from the answer. It is a second handle on the SAME `period` state — never a second
   axis — with its own accessible name («Periodo dei movimenti») and `min-w-0` over the trigger's `min-w-[190px]`,
@@ -178,4 +186,4 @@
 
 ## Per-page blind spots
 
-- **Tracciamento**: the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip). The hero's KPIs print the PERIOD's totals (calendar included) beside a delta measured on the lived window («↓ 70,1% vs 1–14 ago» under a whole-month 1953 €) — the verdict's second sentence is what reconciles the two, by design. The feed's detail drawer and its nested confirm are still raw `Drawer`s (DESIGN.md → §5 Modal, Coverage); the Movimenti reading still sums scheduled spending and income into one figure («7 in calendario (3753 €)»). The `describePeriodCashflow` reading and `expenseEntityStats` keep their own windows (AGENTS → the two conventions).
+- **Tracciamento**: the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip). The hero's KPIs print the PERIOD's totals (calendar included) beside a delta measured on the lived window («↓ 70,1% vs 1–14 ago» under a whole-month 1953 €) — the verdict's second sentence is what reconciles the two, by design. The Movimenti reading still sums scheduled spending and income into one figure («7 in calendario (3753 €)»). The `describePeriodCashflow` reading and `expenseEntityStats` keep their own windows (AGENTS → the two conventions).

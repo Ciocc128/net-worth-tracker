@@ -56,6 +56,7 @@ import { queryKeys } from '@/lib/query/queryKeys';
 // The Admin-SDK dividendService is server-only: a client page reads the registry through this one.
 import { getDividendReceipts } from '@/lib/services/dividendReceiptsService';
 import { resolveHasBaseline, resolvePerformanceBase, type PerformanceBaseResolution } from '@/lib/utils/performanceBase';
+import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import { attributePeriodReturn, sumDividendsByAsset, type DividendReceipt } from '@/lib/utils/performanceAttribution';
 import type { PerformanceData, PerformanceMetrics, TimePeriod } from '@/types/performance';
 import type { Asset, MonthlySnapshot } from '@/types/assets';
@@ -271,6 +272,9 @@ export default function PerformancePage() {
   const [pensionContributions, setPensionContributions] = useState<PensionContribution[]>([]);
   const [dividends, setDividends] = useState<DividendReceipt[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Where each window grows from: the header button, resolved at the click
+  // (lib/utils/modalOrigin.ts). Never cleared on close — the exit animates too, and an origin
+  // that changes mid-animation is tweened by the dialog's own `duration-200`, not swapped.
   const [customDialogOrigin, setCustomDialogOrigin] = useState<string | undefined>(undefined);
   const [aiDialogOrigin, setAiDialogOrigin] = useState<string | undefined>(undefined);
   const hasLoadedOnceRef = useRef(false);
@@ -312,13 +316,6 @@ export default function PerformancePage() {
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [b0.data, b1.data, b2.data, b3.data, b4.data, b5.data, fxRates, isFxLoading]);
-
-  const calculateDialogOrigin = (element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
-    const x = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
-    const y = ((rect.top + rect.height / 2) / window.innerHeight) * 100;
-    return `${x.toFixed(2)}% ${y.toFixed(2)}%`;
-  };
 
   const handlePeriodChange = (nextPeriod: TimePeriod) => {
     if (nextPeriod === selectedPeriod) return;
@@ -577,11 +574,11 @@ export default function PerformancePage() {
       aiDisabled={isDemo || !metrics || metrics.hasInsufficientData}
       isRefreshing={isRefreshing}
       onCustom={(event) => {
-        setCustomDialogOrigin(calculateDialogOrigin(event.currentTarget));
+        setCustomDialogOrigin(resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect()));
         setShowCustomDateDialog(true);
       }}
       onAI={(event) => {
-        setAiDialogOrigin(calculateDialogOrigin(event.currentTarget));
+        setAiDialogOrigin(resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect()));
         setShowAIAnalysisDialog(true);
       }}
       onRefresh={loadPerformanceData}
@@ -666,10 +663,7 @@ export default function PerformancePage() {
         )}
         <CustomDateRangeDialog
           open={showCustomDateDialog}
-          onOpenChange={(open) => {
-            setShowCustomDateDialog(open);
-            if (!open) setCustomDialogOrigin(undefined);
-          }}
+          onOpenChange={setShowCustomDateDialog}
           onConfirm={handleCustomDateRange}
           triggerOrigin={customDialogOrigin}
         />
@@ -849,10 +843,7 @@ export default function PerformancePage() {
       {/* ── Dialogs ─────────────────────────────────────────────────────────────── */}
       <CustomDateRangeDialog
         open={showCustomDateDialog}
-        onOpenChange={(open) => {
-          setShowCustomDateDialog(open);
-          if (!open) setCustomDialogOrigin(undefined);
-        }}
+        onOpenChange={setShowCustomDateDialog}
         onConfirm={handleCustomDateRange}
         triggerOrigin={customDialogOrigin}
       />
@@ -860,10 +851,7 @@ export default function PerformancePage() {
       {user && ownerId && (
         <AIAnalysisDialog
           open={showAIAnalysisDialog}
-          onOpenChange={(open) => {
-            setShowAIAnalysisDialog(open);
-            if (!open) setAiDialogOrigin(undefined);
-          }}
+          onOpenChange={setShowAIAnalysisDialog}
           metrics={metrics}
           // The modal's title IS this verdict: one sentence judging these numbers, never a
           // second phrasing of it inside the dialog (DESIGN.md → The Verdict-First Rule).

@@ -16,8 +16,9 @@
 - Added a cut to the Flusso's subcategory view, named in its aside: only the six largest categories open into their four largest subcategories plus one «Altre N» node that still adds up; every other category stays in the chart as a leaf (the old view dropped a category without subcategories entirely).
 
 - Added a second sentence to the Cashflow verdict whenever the calendar reaches past today: the judgement is on what has happened («A settembre finora le spese superano le entrate di 355 €: entrate 302 €, spese 656 €»), then «Con 1297 € di spese e 2456 € di entrate già in calendario da qui a fine mese, il mese chiude a +805 € (il 29%)» — both sides always named, an empty one as «nessuna entrata attesa». On the 14th the page said «Settembre sta andando bene · 29%» on a salary dated the 15th.
-- Added the «solo questa o tutte?» modal for deleting a row of an instalment plan or a recurring series (from the table and from the feed), naming the row, the plan and what the account gets back; a plain row of the Tabella view now arms in place and prints «Eliminando, il conto viene riaccreditato di 373,81 €» beside «Conferma».
+- Added the «solo questa o tutte?» modal for deleting a row of an instalment plan or a recurring series (from the table and from a movement's detail), naming the row, the plan and what the account gets back. A plain row now arms in place and says what the second press does («Eliminando, il conto viene riaccreditato di 373,81 €») — beside «Conferma» in the Tabella view, in the first line of a movement's detail on the feed — and pressing elsewhere or Esc lets go.
 - Added memory to the «Feed | Tabella» switch of Movimenti: the table stays the table across visits.
+- Added a count to the Movimenti filters on a phone or a tablet: the window says how many movements are left («2 filtri attivi: restano 27 movimenti su 112.») and its button names them («Mostra 27 movimenti»), so you no longer close it to find out. «Ripristina» sits beside it.
 
 - Added «in calendario» as its own figure on Cashflow › Budget: the verdict names what is spent and what is still dated after today («hai speso 656 € e hai altri 1297 € già in calendario (1953 € su 3000 €, il 65% del tetto)»), the hero prints the spent amount with «+ 1297 € in calendario» beside it, and the bar carries two fills — spent, then scheduled in a lighter shade.
 - Added the calendar to every Avvisi row: «soglia 50% · anno al 70%» under a crossed threshold, painted amber only when the share is ahead of its own window, «da gennaio» on an annual budget already over, and «soglie di quota» in the aside.
@@ -60,6 +61,7 @@
 - Fixed the transfer form: origin and destination accounts are now required and must differ, with the reason under each field; a transfer could be saved without accounts and moved no money.
 - Fixed the Movimenti table for a screen reader and for the eye: every header names its column and the sorted one says its direction, dates and amounts are in the mono face; «Tutte le categorie in Analisi» is a 32px target (44 on touch).
 - Fixed the tense of a future period («Nel 2043 hai speso») — a year of instalments is not gone yet.
+- Fixed deleting a row of a recurring series or an instalment plan from its detail on the feed, which asked twice — first «Eliminare questa voce?» in a second sheet, then «solo questa o tutta la serie?». The second question is the confirmation; the first is gone.
 
 - Fixed the Budget verdict and hero calling «usato/speso» what was still in the calendar: with a mortgage due on the 27th the page said «hai usato il 65% del tetto … 18 punti avanti rispetto al calendario» on the 14th, for 656 € actually spent; the reading now compares only the spent share («il 22% del tetto al 47% del mese: 25 punti indietro … con le spese in calendario sei al 65%»).
 - Fixed the Budget thresholds counting rows dated after today and ignoring the calendar: «Budget complessivo 65% · soglia 50%» in amber for a ceiling at 22%, and «Tecnologia 54% · soglia 50%» in amber with the year at 70%; a threshold is now a fact of what is spent, and a row behind its calendar is a number, not a warning.
@@ -77,6 +79,7 @@
 - Fixed «Scarica dividendi storici» for an instrument added to the app after its dividends: the download now says how many payments were left out because they precede the day you hold the instrument, and how to include them (record the purchase in the Registro operazioni with its real date). It used to say only «Nessun nuovo dividendo trovato».
 
 - Fixed the reading line of every modal, which was rendered smaller and greyer than designed and never turned red on a refused submit («Mancano 2 campi: …» was grey since the modals were unified): a refusal is now in the alert colour at the reading's size, on every form.
+- Fixed the windows that open from a button drifting sideways as they opened and again as they closed — a note on Hall of Fame, a dividend's record, the custom period and the AI analysis on Rendimenti, a category's move or delete in Impostazioni. Each now grows from the button that opened it and shrinks back to it, in a straight line.
 
 - Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».
 - Fixed the asset form refusing a submit in English and in silence («Ticker is required»): the messages are Italian, the reading line says «Mancano 2 campi: Ticker e Nome.» and the first refused field scrolls into view.
@@ -84,6 +87,7 @@
 - Fixed hand-valued rows in the Strumenti table (a property, a pension fund, a private-equity stake): they printed a quantity of 130.000 at 1,0000 € and a «+0,00 €» gain that measured nothing; they now print «—» there, «valore a mano dal 12/08» under the name, and no G/P.
 - Fixed the sale note of «Quanto costa vendere» in target mode, which re-read the gross value typed as a net proceed and added the tax on top.
 
+- Fixed the odd animation of «Crea snapshot» on the Panoramica: the button no longer shrinks and slowly swells back under a click, and the confirmation no longer drifts diagonally as it opens — it grows from the button, in a straight line.
 - Fixed the Panoramica's verdict printing a database key («e pension hanno fatto il grosso del lavoro»): the pension funds now read as «i fondi pensione», and the Cashflow tile says «Ad agosto» instead of «A agosto».
 - Fixed the light-mode chart palette: Liquidità and Immobili were two oranges a reader could not tell apart, Trend Following and Obbligazioni two teals, and the net-worth curve was drawn in the colour of a loss; every class now keeps the same hue in light and dark (Azioni blue, Obbligazioni green, Criptovalute amber, Immobili violet, Liquidità coral), in the emails and the PDF too.
 - Fixed the truncated category names in the ranked lists of the Panoramica, Tracciamento, Analisi, Dividendi, Hall of Fame and Previdenza («Stipendio Giu…», «Entrate da inv…»): the name now takes the room it needs and the bar beside it takes the rest.
@@ -91,13 +95,19 @@
 - Fixed the fiscal year of a contribution: it is now chosen around the payment date (the year before, the year, the year after) instead of typed freely, so a typo can no longer file a contribution into a year the page never shows; a January payment for the previous year reads «Competenza 2025, pagato nel 2026».
 - Fixed the delete confirmation in the Versamenti ledger: the row now says what the delete undoes («eliminando, il conto verrà riaccreditato») while the button stays a compact «Conferma».
 
+- Fixed the delete of a saved conversation in the Assistente, which disarmed itself after three seconds: it now waits for you, says what goes («Eliminando, la conversazione e i suoi messaggi spariscono; la memoria resta.») and lets go on Esc without closing the window.
+
 ## 🔧 Improvements
+
+- Improved the last four windows that did not look like the others — the snapshot overwrite on the Panoramica, a movement's detail, the Movimenti filters, the Assistente's Conversazioni and Memoria: same heading, same size, a first line that says where you are, a sheet from the bottom on a phone and a centred window above. Conversazioni and Memoria no longer slide in from the right.
 
 - Improved the delete of a cost center: «Conferma» with the consequence printed right under it («41 spese restano in Cashflow e perdono solo il collegamento») and the page no longer jumping. A failed delete or archive says what did not happen and why, in Italian.
 - Improved the «Nuovo centro» window: the button stays enabled and a missing name or an invalid ceiling is said in the reading line, with the focus on the field, and a failed save keeps what was typed. The ceiling no longer promises a notification that nothing sends.
 - Improved the readings of Centri di Costo, which repeated one total three times above the fold: the list's average is «Media 12 mesi», «Per categoria» is not shown for a center with one category, and a center born this year no longer says «quest'anno …, il 100%». «Mostra altre» is a full 44px target on a phone.
 
 - Improved Analisi on a phone: the four-mode axis stands in two rows of 44px options instead of scrolling inside its pill (which clipped «Storico»); the month and year pickers, «Ripristina», «Vai a categoria», «Mostra tutte», the breadcrumb and the Confronto's year select are 44px on touch; the Scheda and the Confronto print whole euros like every other aggregate («6710 €», not «6709,68 €»), the oldest year row says «primo anno registrato» instead of «—», a new category in the Confronto no longer prints a dash under its badge, and the Recharts axes of the Scheda and the Dettaglio are mono with «150 €» and the typographic minus.
+
+- Improved a movement's detail on Cashflow: the type moved above the title («Movimenti · Spesa variabile») and the note is printed whole as the title, so neither is repeated in the list under the amount.
 
 - Improved «Aggiungi conto» on Patrimonio: it opens on the account form instead of asking «Che cosa vuoi aggiungere?» with eight choices; the asset form keeps its step counter («Passo 2 di 2 · ETF») and its labels are lower-case Italian.
 - Improved Patrimonio’s two-click deletes on every row: no 3-second timer, Escape or a click elsewhere disarms, the arm is announced once per tile, and every row action names its instrument.
@@ -106,6 +116,7 @@
 - Improved the Dividendi form:, the record dialog, the scrape confirm and the per-year DPS dialog are in the modal vocabulary (one title size, the reading line as the status line, muted summary blocks, figures in the mono face); «Acconto» and «Saldo» replace «Interim» and «Finale»; the type filter offers only the types the period holds; the CSV export takes a different icon from the Borsa Italiana download.
 - Improved the touch targets to 44px on touch across the Dividendi tab: the period axis, the view switch, the two filters, the calendar arrows, the form's fields; «Scarica storico» beside «Esporta CSV» on a phone, where both were hidden.
 
+- Improved the snapshot overwrite on the Panoramica: the title says what the button does («Sovrascrivi lo snapshot di settembre») and the window says that the month's note is kept.
 - Improved the falling-month verdict: when the market gained and the tax withheld on a sale explains the drop, the headline says so — «Settembre è in calo per le tasse sulla vendita di VWCE, non per il mercato.» — and the sale comes right after the variation.
 - Improved the period control of the net-worth chart on the Panoramica: readable labels, thumb-sized targets on a phone, arrow-key navigation, and unselected periods that stay legible in light mode — the same control every other page uses.
 - Improved the Panoramica's third row (three equal tiles) and the Costi tile, whose «Pesano di più» now follows the figures instead of leaving a gap; «Costo annuo» is no longer amber on every account.
@@ -126,6 +137,6 @@
 
 - The Analisi guide records the lived pace of the Scheda, the history's ceiling, the same-days rule of the running month, the absent tile of a month not started, the Flusso's height, alignment, caps and label neutrals, and the focus return; the Impeccable critique of Analisi (26/40) is tracked in `.impeccable/critique/` and closed by polish in the same session.
 - The Dividendi guide records the two populations (registry vs held portfolio), the form's rules, the armed row delete and the phone's chips; the Impeccable critique of Cashflow › Dividendi (23/40) is committed and closed.
-- The dialog guide records how a modal names the control the focus returns to, and that the last two-click delete still on a timer is the assistant's thread list.
+- The dialog guide records how a modal names the control the focus returns to, that every window of the app now shares one shape (only the logout confirm stays an interrupting alert) and no two-click delete runs on a timer any more, and how a window grows from the button that opened it. It also records what was measured and left alone: below 769px no window takes the keyboard focus when it opens.
 
 - Previdenza's guide records what was deliberately left as is and why: the snapshots query stays whole, the skeleton waits for every query, and a contribution can be deleted but not edited.

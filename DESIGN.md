@@ -559,7 +559,7 @@ the viewport and its separation is the scrim, not a shadow (`components/ui/drawe
 (`describeModalStatus`, `describeWriteError`, the `describe*Intent`/`describe*Reading` builders),
 never typed in a component; the destructive primary arms through `lib/hooks/useArmedDelete.ts`.
 
-**Coverage (counted 2026-09-06, recounted 2026-09-14 evening).** 32 surfaces are `ResponsiveModal` —
+**Coverage (counted 2026-09-06, recounted 2026-09-14 evening; closed 2026-09-18).** 32 surfaces were `ResponsiveModal` on 2026-09-14 —
 the vocabulary above. The thirtieth is `components/expenses/SeriesDeleteDialog.tsx`, the one question
 a delete asks on a row of an instalment plan or a recurring series («solo questa o tutte?»), shared by
 the Movimenti table and the tab, which each kept an `AlertDialog` for it until that day; the
@@ -568,14 +568,24 @@ naming the instruments and the floor, then «Sto scaricando» for the whole run 
 replaced closed on the click) and the per-year DPS figures of one row below `desktop:` (`sm`, a
 drawer on a phone; it was a `Dialog max-w-xs` at 16px). A PLAIN row of the Movimenti table and a row
 of the Dividendi table no longer open a modal at all: the delete arms in the row (`useArmedDelete`,
-the row prints the consequence). The vocabulary is NOT yet total: besides
-`components/layout/LogoutDialog.tsx`, which stays an `AlertDialog` on purpose because it interrupts,
-four files still mount the raw shadcn primitives — `app/dashboard/page.tsx` (a `Dialog`),
-`components/cashflow/TransactionFeed.tsx` (three `Drawer`s, titles at `text-lg`, the detail drawer's
-confirm a drawer NESTED in a drawer), `components/cashflow/MobileFiltersDrawer.tsx` (a `Drawer`) and
-`components/assistant/AssistantSheets.tsx` (two `Sheet`s). Those inherit `DialogContent`'s own
-`sm:max-w-lg` (512px, a fifth width) and `DialogTitle`'s 18px, neither of which is on the ramp
-above. Recorded as the remaining distance, not as a licence.
+the row prints the consequence). **The vocabulary is total since 2026-09-18**: the four files that
+still mounted the raw shadcn primitives — `DialogContent`'s own `sm:max-w-lg` (512px, a fifth width)
+and `DialogTitle`'s 18px, neither on the ramp above — are `ResponsiveModal` now. The Panoramica's
+snapshot confirm (`sm`, its title the ACT and the month: «Sovrascrivi lo snapshot di settembre», NOT
+armed because the daily cron rewrites the running month anyway). The feed's detail
+(`components/cashflow/TransactionFeed.tsx`, `sm`): it was three `Drawer`s with the confirm NESTED in
+the detail, and it now arms in its footer while the reading gives way to the consequence in
+`text-destructive` and says «Eliminazione annullata» when let go; a row of a series never arms — its
+one confirmation is `SeriesDeleteDialog`, where it used to confirm twice. The Movimenti filters
+(`MobileFiltersDrawer.tsx`, `sm`): the reading counts what is left («2 filtri attivi: restano 27
+movimenti su 112.»), the primary names it («Mostra 27 movimenti», never «0 movimenti»), «Ripristina»
+is the footer's secondary, and its five field names are form labels where they were a second
+eyebrow. And the assistant's Conversazioni (`md`) and Memoria (`lg`) in
+`components/assistant/AssistantModals.tsx`, two right-side `Sheet`s with a 14px title until then:
+no footer (a list to pick from asks for no decision), the memory's tiles as `bg-muted` sub-tiles,
+and the thread delete off its 3-second timer onto `useArmedDelete`. 40 mounts in 39 files
+(`grep '<ResponsiveModal'`); the one raw primitive left is `components/layout/LogoutDialog.tsx`,
+an `AlertDialog` on purpose because it interrupts.
 
 ### Compact Page Header
 
@@ -633,7 +643,7 @@ Below `desktop:` the same rows are a flat `divide-y` list of expandable rows (`A
 
 ### Feed inside a Tile (Movimenti)
 
-The transaction feed of Tracciamento stays the inventory it is — day groups, flat rows, the detail drawer with its drawer-confirm delete, the dense `ExpenseTable` behind a «Feed | Tabella» switch — but it lives inside a tile and takes its cadence: eyebrow (`Movimenti`), the count as the aside («47 voci», or «12 di 47 voci» while the toolbar narrows the list), a reading line that counts the rows by type and names the largest («47 movimenti: 40 spese, 5 entrate e 2 trasferimenti; la voce più grande è Stipendio (4200 €)»), then the toolbar (search, categories, subcategory, account, sort on the left; the view switch and «Esporta CSV» on the right, `ml-auto`) and the rows. The feed keeps `surface="flat"` on every width — a card per day inside a tile would be a card inside a card — and the toolbar is `hidden desktop:block`: below that width the `[periodo · Filtri · ordina]` bar of `MobileFiltersDrawer` renders inside the tile (`mobileToolbar`, `desktop:hidden`) — next to the list it narrows — and its period picker is the SAME `period` the picker under the verdict drives (a second handle, its own accessible name «Periodo dei movimenti», `min-w-0` so the picker yields before the buttons when a phone runs out of room; `e2e/cashflow.mobile.spec.ts` pins the fit at 390 and 360). **The toolbar narrows only this tile**: the verdict and the other tiles read the period slice, never the filtered list, because a savings rate computed over one category is not a savings rate.
+The transaction feed of Tracciamento stays the inventory it is — day groups, flat rows, the detail as a `sm` modal whose delete arms in its footer, the dense `ExpenseTable` behind a «Feed | Tabella» switch — but it lives inside a tile and takes its cadence: eyebrow (`Movimenti`), the count as the aside («47 voci», or «12 di 47 voci» while the toolbar narrows the list), a reading line that counts the rows by type and names the largest («47 movimenti: 40 spese, 5 entrate e 2 trasferimenti; la voce più grande è Stipendio (4200 €)»), then the toolbar (search, categories, subcategory, account, sort on the left; the view switch and «Esporta CSV» on the right, `ml-auto`) and the rows. The feed keeps `surface="flat"` on every width — a card per day inside a tile would be a card inside a card — and the toolbar is `hidden desktop:block`: below that width the `[periodo · Filtri · ordina]` bar of `MobileFiltersDrawer` renders inside the tile (`mobileToolbar`, `desktop:hidden`) — next to the list it narrows — and its period picker is the SAME `period` the picker under the verdict drives (a second handle, its own accessible name «Periodo dei movimenti», `min-w-0` so the picker yields before the buttons when a phone runs out of room; `e2e/cashflow.mobile.spec.ts` pins the fit at 390 and 360). **The toolbar narrows only this tile**: the verdict and the other tiles read the period slice, never the filtered list, because a savings rate computed over one category is not a savings rate.
 
 ### In-tile Bars (hand-written SVG)
 

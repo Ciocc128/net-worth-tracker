@@ -38,6 +38,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
+import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import {
   getSettings,
   setSettings,
@@ -485,13 +486,6 @@ export default function SettingsPage() {
 
   const interactiveControlClass =
     'motion-safe:transition-[border-color,box-shadow,background-color,color] motion-safe:duration-150 motion-reduce:transition-none';
-
-  const calculateDialogOrigin = (element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
-    const x = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
-    const y = ((rect.top + rect.height / 2) / window.innerHeight) * 100;
-    return `${x.toFixed(2)}% ${y.toFixed(2)}%`;
-  };
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabId);
@@ -3242,7 +3236,7 @@ export default function SettingsPage() {
                                         handleMoveExpenseCategory(
                                           category.id,
                                           category.name,
-                                          calculateDialogOrigin(event.currentTarget)
+                                          resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect())
                                         )
                                       }
                                     >
@@ -3270,7 +3264,7 @@ export default function SettingsPage() {
                                           handleDeleteExpenseCategory(
                                             category.id,
                                             category.name,
-                                            calculateDialogOrigin(event.currentTarget)
+                                            resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect())
                                           );
                                         }
                                       }}
