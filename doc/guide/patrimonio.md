@@ -112,6 +112,15 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   ledgerReady })`) and filters the Italian calendar month in memory: a month query would need a `(userId, date)`
   composite index that does not exist. Baselines and adjustments are not trades; a buy's amount is gross + fees,
   a sell's gross − fees (the engine's `computeInvestedCapital` definition).
+- **A cash account may be NEGATIVE — a credit card** (2026-09-19): an account in the red until the monthly transfer
+  from the bank brings it back to zero. `AssetDialog`'s schema refuses a negative quantity for every type but `cash`
+  (it used to refuse it for all, so the card could not even be renamed while in the red); the Panoramica's cash split
+  (`dashboardOverviewService`, `cashNetWorth`) counts it (a `quantity > 0` filter moved its debt into «investimenti
+  liquidi»). The allocation's `buildHoldings` still drops a non-positive holding: a card belongs OUT of the allocation
+  (`allocationRole: 'excluded'`, the form's hint says so), or the cash class would count a debt the per-instrument
+  list does not show. On the Liquidità tile the row shares are of the money HELD (the positive balances) and an account
+  in the red reads «debito» (`summarizeCashAccounts`, `shareOfCash: null`): shares of a total that nets the card out
+  read «138%» and «−57%» on the real account. The KPI «Sui conti» stays net of it.
 - **Peso is measured over the GROSS total** (cash accounts included), like the Classi and Liquidità shares —
   before the redesign the table measured it over the instruments only.
 - **Below `desktop:` the rows are `AssetRow`, flat and expandable** (CSS `grid-rows-[0fr] → [1fr]` with `inert`

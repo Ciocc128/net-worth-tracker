@@ -451,6 +451,40 @@ export function describeSeriesDeleteReading(facts: SeriesDeleteFacts): Narrative
   ];
 }
 
+export interface LinkSeriesFacts {
+  mode: 'installment' | 'recurring';
+  /** Occurrences still to come that can take the account (`selectLinkableOccurrences`). */
+  futureCount: number;
+  /** The earliest of them; null when there is none. */
+  firstDate: Date | null;
+  /** Occurrences already happened: left as they are. */
+  pastCount: number;
+  /** The account chosen so far, by name; null before a choice. */
+  accountName: string | null;
+}
+
+/**
+ * «Le 3 rate future, dal 28 settembre 2026, scaleranno Conto BNL ciascuna alla sua data; le 9 già
+ * avvenute restano come sono.» — what «Collega la serie» will do, before the confirm. The past is
+ * named because it is the part that does NOT change: its effect is in today's balance.
+ */
+export function describeLinkSeriesReading(facts: LinkSeriesFacts): Narrative {
+  const noun = facts.mode === 'installment' ? { one: 'rata', many: 'rate' } : { one: 'voce', many: 'voci' };
+  const past: Narrative =
+    facts.pastCount === 0
+      ? [{ text: '.' }]
+      : [{ text: facts.pastCount === 1 ? '; quella già avvenuta resta com’è.' : '; le ' }, ...(facts.pastCount === 1 ? [] : [{ text: String(facts.pastCount), mono: true }, { text: ' già avvenute restano come sono.' }])];
+  if (facts.futureCount === 0 || !facts.firstDate) {
+    return [{ text: `Nessuna ${noun.one} futura da collegare: quelle ancora da venire hanno già un conto che si muove alla loro data, o la serie è finita.` }];
+  }
+  const account: Narrative = facts.accountName ? [{ text: facts.accountName }] : [{ text: 'il conto che scegli' }];
+  const day = { text: format(facts.firstDate, 'd MMMM yyyy', { locale: it }), mono: true };
+  if (facts.futureCount === 1) {
+    return [{ text: `L’unica ${noun.one} futura, il ` }, day, { text: ', scalerà ' }, ...account, { text: ' in quel giorno' }, ...past];
+  }
+  return [{ text: 'Le ' }, { text: String(facts.futureCount), mono: true }, { text: ` ${noun.many} future, dal ` }, day, { text: ', scaleranno ' }, ...account, { text: ' ciascuna alla sua data' }, ...past];
+}
+
 /** What the asset type decides — the three consequences the eight cards cannot show. */
 /** Where the detail's armed «Elimina» is: never pressed, pressed once, or pressed and let go. */
 export type MovementDeletePhase = 'idle' | 'armed' | 'disarmed';

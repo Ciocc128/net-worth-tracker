@@ -36,6 +36,7 @@ import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firest
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { needsSignFlip, crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
 import { buildRecurrenceDates, resolveRecurrenceFrequency } from '@/lib/utils/recurrenceDates';
+import { appliedBalanceEffectsOf, movesAnAccount, selectLinkableOccurrences, settlesLater, type BalanceEffect, type SettlementRow } from '@/lib/utils/cashSettlement';
 import {
   Expense,
   ExpenseFormData,
@@ -146,18 +147,69 @@ export async function createExpense(
   categoryName: string,
   subCategoryName?: string
 ): Promise<string | string[]> {
+  const created = await writeExpenseRows(userId, expenseData, categoryName, subCategoryName);
+  return created.isSeries ? created.ids : created.ids[0];
+}
+
+/**
+ * Create an expense of any shape whose linked account(s) move ON THE ROWS' OWN DATES
+ * (lib/utils/cashSettlement.ts): every occurrence of a series carries the account, a row dated
+ * after today is written `balancePending` and settled by the server on the day. Returns the
+ * created ids and the effects of the rows ALREADY happened — applied by the caller in one
+ * transaction, so a series saved with three past rows moves the account by those three.
+ *
+ * `createExpense` keeps the older contract (series linked on the first row only, nothing
+ * pending) for the callers that move the balance themselves — a voluntary pension
+ * contribution's transfer, recorded and settled by `pensionContributionService`.
+ */
+export async function createExpenseSettledOnDate(
+  userId: string,
+  expenseData: ExpenseFormData,
+  categoryName: string,
+  subCategoryName: string | undefined,
+  now: Date
+): Promise<{ ids: string[]; appliedEffects: BalanceEffect[] }> {
+  const created = await writeExpenseRows(userId, expenseData, categoryName, subCategoryName, now);
+  return { ids: created.ids, appliedEffects: created.rows.flatMap(appliedBalanceEffectsOf) };
+}
+
+/** A written row, as far as its accounts are concerned. */
+type WrittenRow = SettlementRow & { date: Date };
+
+interface WrittenRows {
+  ids: string[];
+  rows: WrittenRow[];
+  isSeries: boolean;
+}
+
+/**
+ * The settlement fields of one row: with `settleNow` a row that moves an account and is dated
+ * after today is written `balancePending: true`; without it (the legacy contract) nothing.
+ */
+function settlementFieldsOf(row: WrittenRow, settleNow: Date | undefined): { balancePending?: true } {
+  if (!settleNow || !movesAnAccount(row)) return {};
+  return settlesLater(row.date, settleNow) ? { balancePending: true } : {};
+}
+
+async function writeExpenseRows(
+  userId: string,
+  expenseData: ExpenseFormData,
+  categoryName: string,
+  subCategoryName: string | undefined,
+  settleNow?: Date
+): Promise<WrittenRows> {
   try {
     const now = new Date();
 
     // Priority 1: Check installment first (BNPL payments with varying amounts)
     // Installments have priority over recurring since they're more specific
     if (expenseData.isInstallment && expenseData.installmentCount && expenseData.installmentCount > 1) {
-      return await createInstallmentExpenses(userId, expenseData, categoryName, subCategoryName);
+      return await createInstallmentExpenses(userId, expenseData, categoryName, subCategoryName, settleNow);
     }
 
     // Priority 2: Recurring expenses (a fixed amount repeating monthly or yearly)
     if (expenseData.isRecurring && expenseData.recurringCount && expenseData.recurringCount > 0) {
-      return await createRecurringExpenses(userId, expenseData, categoryName, subCategoryName);
+      return await createRecurringExpenses(userId, expenseData, categoryName, subCategoryName, settleNow);
     }
 
     // Priority 3: Create single expense
@@ -170,6 +222,14 @@ export async function createExpense(
       amount = -amount;
     }
 
+    const row: WrittenRow = {
+      type: expenseData.type,
+      amount,
+      date: expenseData.date,
+      linkedCashAssetId: expenseData.linkedCashAssetId,
+      transferCashAssetId: expenseData.transferCashAssetId,
+    };
+    const settlement = settlementFieldsOf(row, settleNow);
     const cleanedData = removeUndefinedFields({
       userId,
       type: expenseData.type,
@@ -185,6 +245,7 @@ export async function createExpense(
       isRecurring: false,
       linkedCashAssetId: expenseData.linkedCashAssetId,
       transferCashAssetId: expenseData.transferCashAssetId,
+      ...settlement,
       costCenterId: expenseData.costCenterId,
       costCenterName: expenseData.costCenterName,
       personalMemberId: expenseData.personalMemberId,
@@ -195,7 +256,7 @@ export async function createExpense(
     const docRef = await addDoc(expensesRef, cleanedData);
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
 
-    return docRef.id;
+    return { ids: [docRef.id], rows: [{ ...row, ...settlement }], isSeries: false };
   } catch (error) {
     console.error('Error creating expense:', error);
     throw new Error('Failed to create expense');
@@ -213,18 +274,23 @@ export async function createExpense(
  * `MAX_RECURRENCE_OCCURRENCES` (see recurrenceDates.ts): a `writeBatch` takes at most 500
  * operations, and `deleteRecurringExpenses` has the same ceiling on the way out.
  *
- * @returns The ids of every created occurrence, in chronological order.
+ * With `settleNow` every occurrence carries the linked account and moves it on its own date
+ * (lib/utils/cashSettlement.ts); without it only the first one does, at save (legacy contract).
+ *
+ * @returns The ids of every created occurrence, in chronological order, and the rows written.
  */
 async function createRecurringExpenses(
   userId: string,
   expenseData: ExpenseFormData,
   categoryName: string,
-  subCategoryName?: string
-): Promise<string[]> {
+  subCategoryName: string | undefined,
+  settleNow?: Date
+): Promise<WrittenRows> {
   try {
     const batch = writeBatch(db);
     const expensesRef = collection(db, EXPENSES_COLLECTION);
     const createdIds: string[] = [];
+    const rows: WrittenRow[] = [];
     const now = new Date();
 
     // Create parent expense ID for reference
@@ -246,6 +312,9 @@ async function createRecurringExpenses(
 
     dates.forEach((expenseDate, index) => {
       const docRef = doc(expensesRef);
+      const linkedCashAssetId = settleNow || index === 0 ? expenseData.linkedCashAssetId : undefined;
+      const row: WrittenRow = { type: expenseData.type, amount, date: expenseDate, linkedCashAssetId };
+      const settlement = settlementFieldsOf(row, settleNow);
       const cleanedData = removeUndefinedFields({
         userId,
         type: expenseData.type,
@@ -262,13 +331,12 @@ async function createRecurringExpenses(
         recurringFrequency,
         recurringDay,
         recurringParentId: parentId,
-        // Only store on the first entry — balance update applies to current payment only,
-        // not to future-dated recurring instances.
-        linkedCashAssetId: index === 0 ? expenseData.linkedCashAssetId : undefined,
+        linkedCashAssetId,
+        ...settlement,
         costCenterId: expenseData.costCenterId,
         costCenterName: expenseData.costCenterName,
-        // Every occurrence of a series belongs to the same person: unlike linkedCashAssetId,
-        // which settles only the payment made today, ownership is a property of the expense.
+        // Every occurrence of a series belongs to the same person: ownership is a property
+        // of the expense, like the account each occurrence settles on its own date.
         personalMemberId: expenseData.personalMemberId,
         createdAt: now,
         updatedAt: now,
@@ -276,12 +344,13 @@ async function createRecurringExpenses(
 
       batch.set(docRef, cleanedData);
       createdIds.push(docRef.id);
+      rows.push({ ...row, ...settlement });
     });
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
 
-    return createdIds;
+    return { ids: createdIds, rows, isSeries: true };
   } catch (error) {
     console.error('Error creating recurring expenses:', error);
     throw new Error('Failed to create recurring expenses');
@@ -303,18 +372,23 @@ async function createRecurringExpenses(
  * @param expenseData - Form data with installment configuration
  * @param categoryName - Category name for display
  * @param subCategoryName - Optional subcategory name
- * @returns Array of created expense IDs
+ * With `settleNow` every instalment carries the linked account and moves it on its own date
+ * (lib/utils/cashSettlement.ts); without it only the first one does, at save (legacy contract).
+ *
+ * @returns The created ids and the rows written
  */
 async function createInstallmentExpenses(
   userId: string,
   expenseData: ExpenseFormData,
   categoryName: string,
-  subCategoryName?: string
-): Promise<string[]> {
+  subCategoryName: string | undefined,
+  settleNow?: Date
+): Promise<WrittenRows> {
   try {
     const batch = writeBatch(db);
     const expensesRef = collection(db, EXPENSES_COLLECTION);
     const createdIds: string[] = [];
+    const rows: WrittenRow[] = [];
     const now = new Date();
 
     // Generate unique parent ID for linking all installments together
@@ -359,6 +433,9 @@ async function createInstallmentExpenses(
       installmentDate.setMonth(installmentDate.getMonth() + i);
 
       const docRef = doc(expensesRef);
+      const linkedCashAssetId = settleNow || i === 0 ? expenseData.linkedCashAssetId : undefined;
+      const row: WrittenRow = { type: expenseData.type, amount: installmentAmounts[i], date: installmentDate, linkedCashAssetId };
+      const settlement = settlementFieldsOf(row, settleNow);
       const cleanedData = removeUndefinedFields({
         userId,
         type: expenseData.type,
@@ -381,13 +458,12 @@ async function createInstallmentExpenses(
         installmentTotal: installmentCount,
         installmentTotalAmount: totalAmount,
 
-        // Only store on the first installment — balance update applies to the immediate
-        // payment only, not to future-dated installments.
-        linkedCashAssetId: i === 0 ? expenseData.linkedCashAssetId : undefined,
+        linkedCashAssetId,
+        ...settlement,
         costCenterId: expenseData.costCenterId,
         costCenterName: expenseData.costCenterName,
-        // Every occurrence of a series belongs to the same person: unlike linkedCashAssetId,
-        // which settles only the payment made today, ownership is a property of the expense.
+        // Every occurrence of a series belongs to the same person: ownership is a property
+        // of the expense, like the account each occurrence settles on its own date.
         personalMemberId: expenseData.personalMemberId,
 
         createdAt: now,
@@ -396,13 +472,14 @@ async function createInstallmentExpenses(
 
       batch.set(docRef, cleanedData);
       createdIds.push(docRef.id);
+      rows.push({ ...row, ...settlement });
     }
 
     await batch.commit();
     await invalidateDashboardOverviewSummary(userId, 'expense_created');
 
     console.log(`Created ${installmentCount} installment expenses with parent ID: ${parentId}`);
-    return createdIds;
+    return { ids: createdIds, rows, isSeries: true };
   } catch (error) {
     console.error('Error creating installment expenses:', error);
     throw new Error('Failed to create installment expenses');
@@ -1122,4 +1199,33 @@ export async function getExpensesByInstallmentParentId(
     console.error('Error fetching installment series expenses:', error);
     throw new Error('Failed to fetch installment series expenses');
   }
+}
+
+/**
+ * The rows of the series a row belongs to (an instalment plan or a recurring series), or just
+ * the row itself when it belongs to none.
+ */
+export async function getSeriesOf(userId: string, expense: Expense): Promise<Expense[]> {
+  if (expense.isInstallment && expense.installmentParentId) return getExpensesByInstallmentParentId(userId, expense.installmentParentId);
+  if (expense.isRecurring && expense.recurringParentId) return getExpensesByRecurringParentId(userId, expense.recurringParentId);
+  return [expense];
+}
+
+/**
+ * «Collega la serie»: link the occurrences of `expense`'s series that are still to come (and have
+ * not moved an account) to `cashAssetId`, each waiting for its own date — the server settles it on
+ * the day (lib/server/cashSettlement.ts). Occurrences already happened are left as they are
+ * (`selectLinkableOccurrences`). One batch: a series is capped under 500 rows. Returns how many
+ * occurrences were linked.
+ */
+export async function linkSeriesToCashAccount(userId: string, expense: Expense, cashAssetId: string, now: Date): Promise<number> {
+  const linkable = selectLinkableOccurrences(await getSeriesOf(userId, expense), now);
+  if (linkable.length === 0) return 0;
+  const batch = writeBatch(db);
+  for (const row of linkable) {
+    batch.update(doc(db, EXPENSES_COLLECTION, row.id), { linkedCashAssetId: cashAssetId, balancePending: true, updatedAt: new Date() });
+  }
+  await batch.commit();
+  await invalidateDashboardOverviewSummary(userId, 'expense_updated');
+  return linkable.length;
 }
