@@ -2,6 +2,12 @@
 
 > **When to open this guide** — whoever touches `app/globals.css` (the twelve theme blocks: `:root` + `.dark` and the five named themes, each as `[data-theme="name"]` + `.dark[data-theme="name"]`), `contexts/ColorThemeContext.tsx`, `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`, `lib/utils/costCenterColors.ts`, `lib/constants/colors.ts`, `components/layout/ThemePicker.tsx` or the `COLOR_THEME_SWATCHES` in `app/dashboard/settings/page.tsx`. The palette itself is in `DESIGN.md` → §2 (Colors: The Zero-Chroma Foundation). `AGENTS.md` keeps the stub with the essentials plus the repo-wide token rules (`AGENTS.md § Layout and Color Tokens`, `AGENTS.md § Recharts`); here is the full rule.
 
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Temi**: `app/globals.css` (twelve theme blocks), `contexts/ColorThemeContext.tsx`, `lib/hooks/{useChartColors,useActionColors}.ts`, `lib/utils/costCenterColors.ts` — doc/guide/temi.md
+
 ## Color Theme System
 - **Parallel theming**: next-themes owns `.dark`, the custom system owns `data-theme` — fully independent. CSS:
   `[data-theme="name"]` for light, `.dark[data-theme="name"]` for dark; `ColorThemeContext` lives inside `AuthProvider`.
@@ -37,7 +43,7 @@
   coral with L and C set for white. **The floor is a test**, `__tests__/chartPaletteDistinctness.test.ts`: it reads
   `globals.css` itself, ΔE00 ≥ 14 between any two slots of a mode, every slot inside the `useChartColors` luminance
   guard, each slot ≤ 30° of hue from its twin in the other mode. Default theme only: the five named themes are not
-  measured (retro-arcade declares two identical slots, elegant-luxury three reds — CLAUDE.md → Known Issues). A slot
+  measured (retro-arcade declares two identical slots, elegant-luxury three reds — § Per-page blind spots below). A slot
   change re-derives `PRINT_CHART_HEX` (`__tests__/printTokens.test.ts` says the new hex); `PRINT_RANK_HEX` moved to
   slot 7 the same day because slot 3 became crypto's amber.
 - **`--chart-6/7/8` carry a meaning across every theme** (2026-08-30): 6 = Materie Prime (gold/olive), 7 = Trend
@@ -54,3 +60,12 @@
   each theme's own literal oklch values ON PURPOSE — they preview a palette that is NOT active, which no CSS token can
   express — and the accessible name is the POSITION («Colore 3 di 6: Midnight Bloom»), never the hue.
 
+## Per-page blind spots
+
+- **The five named themes' chart slots are not measured for distinctness** (2026-09-13): `__tests__/chartPaletteDistinctness.test.ts` holds the default theme to ΔE00 ≥ 14 between any two slots in both modes, but retro-arcade declares `--chart-2` and `--chart-4` IDENTICAL, elegant-luxury paints slots 1-3 in three reds, and solar-dusk's 2/4/5 are near-greys — a composition bar on those themes is not readable by colour. Fixing them means re-pitching five palettes by hand; not done. doc/guide/temi.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **Two DEFAULT-theme chart slots and the row focus ring sit under 3:1 as non-text signals** (measured 2026-09-18 on a
+  card, re-derived by hand): `--chart-3` light `#da8b00` on white 2,74:1, `--chart-1` dark `#1447e6` on `#171717` 2,62:1,
+  `ring-ring` `#a1a1a1` on white 2,58:1 — against AGENTS.md's «worst case 3.38:1». Theme tokens: a `doc/guide/temi.md` session. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **Chart slots 8-9 are still not theme-aware** (`useChartColors()` pads the last two from the static `CHART_COLORS`): slot 8 is Storico's synthetic «Previdenza» band and 9 is unused by the class palette, so nothing user-facing collides. Slots 0-7 are theme-aware since 2026-08-30. doc/guide/temi.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **Sign-colour CHIPS sit below AA, structurally** (`bg-positive/10 text-positive` washes the background with the text's hue: 15 of 24 combinations at 3.34–4.40:1; deliberately not fixed). `MonthlyReturnsHeatmap` fills its cells with the sign tokens at 30/55/85% (the figure is never printed in the cell, so the AA text floor does not apply). (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

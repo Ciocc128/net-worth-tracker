@@ -1,6 +1,12 @@
 # Storico
 
-> **Quando aprire questa guida** — chi tocca `app/dashboard/history/page.tsx`, `components/history/*`, `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition}.ts`, `lib/services/{chartService,snapshotService}.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: `CLAUDE.md` → *Key Files* → *Storico / snapshots*.
+> **Quando aprire questa guida** — chi tocca `app/dashboard/history/page.tsx`, `components/history/*`, `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition}.ts`, `lib/services/{chartService,snapshotService}.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Storico / snapshots**: `app/dashboard/history/page.tsx`, `components/history/*` (+ `tiles/*`), pure `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition,snapshotUserFields}.ts` (`preserveUserAuthoredSnapshotFields` = i campi che nessuna pipeline ricalcola, portati attraverso la sostituzione; `summarizeLaborMetrics` + `laborWindowsOf` = il recap Lavoro sulle finestre del Driver), `lib/services/{chartService,snapshotService}.ts`, `components/CreateManualSnapshotModal.tsx` over `lib/utils/manualSnapshotAmounts.ts`; collection `monthly-snapshots`
 
 ## History and Snapshot Baselines
 
@@ -26,7 +32,7 @@
   survived, which is why the bug read as «dopo qualche giorno». **A new `MonthlySnapshot` field that no pipeline
   derives goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron eats it too.**
 - **TWR neutralises a cash flow only when the net-worth drop and the flow land in the SAME monthly snapshot** — the fix
-  is data entry, never re-bucketing cash flows or excluding cash (CLAUDE.md → Known Issues has the mirror case).
+  is data entry, never re-bucketing cash flows or excluding cash (doc/guide/rendimenti.md § Per-page blind spots has the mirror case).
 - **Two CAGR formulas, intentionally different**: Storico's verdict = `(endNW/startNW)^(12/months) − 1` (wealth growth, said «versamenti inclusi»),
   Rendimenti = `(endNW/(startNW+netCashFlow))^(1/years) − 1` (investment return).
 - **A form that CROSS-VALIDATES a sum against a declared total must offer a field for EVERY member of the union.**

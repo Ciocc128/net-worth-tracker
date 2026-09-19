@@ -4,9 +4,15 @@
 > (stato, handler, la griglia; `applyListFilters` a livello di modulo) e
 > `components/cashflow/tiles/*`, o le pure `lib/utils/{tracciamentoSummary,cashflowNarrative}.ts`.
 > In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file:
-> `CLAUDE.md` → *Key Files* → la voce *Cashflow › Tracciamento*. Le regole comuni a tutte le
+> § *Files*, sotto. Le regole comuni a tutte le
 > tab Cashflow (segno, ricorrenze, import, raggruppamento, drill-down, Sankey) vivono in
 > `doc/guide/cashflow.md`.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Cashflow**: `app/dashboard/cashflow/page.tsx`; Tracciamento `components/cashflow/ExpenseTrackingTab.tsx` + `components/cashflow/{TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx` + `components/expenses/ExpenseTable.tsx` (the «Tabella» view: armed row delete, `SeriesDeleteDialog`), pure `lib/utils/{tracciamentoSummary,cashflowNarrative,movementsOwnerFilter}.ts` (`settleTotals` = the lived part the verdict judges; `currentComparisonWindow`/`previousComparisonWindow` = the two comparable windows, same days of the previous month for the month in progress; the «Intestatario» filter and the owner chip), `lib/constants/expenseTypeColors.ts` (the ONE type→colour map: dot, badge, flow series), specs `e2e/cashflow.{tracciamento,mobile,owner,accounts}.spec.ts`
 
 ## Cashflow › Tracciamento (`components/cashflow/ExpenseTrackingTab.tsx`, `components/cashflow/tiles/*`)
 - **ONE period axis, two slices.** `expenses` = `filterExpensesByPeriod(allExpenses, period)` feeds the verdict and

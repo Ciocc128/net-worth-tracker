@@ -22,7 +22,7 @@ import { useChartColors } from '@/lib/hooks/useChartColors';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { ASSET_CLASS_CHART_INDEX } from '@/lib/utils/allocationUtils';
 import { filterSparklineByPeriod } from '@/lib/utils/sparklinePeriod';
-import { buildOverviewVerdict, rankingFromOverview } from '@/lib/utils/overviewNarrative';
+import { buildOverviewVerdict, rankingFromOverview, resolveLivedCashflow } from '@/lib/utils/overviewNarrative';
 import { describeCategoryShare } from '@/lib/utils/cashflowNarrative';
 import { describeSnapshotOverwrite } from '@/lib/utils/dialogNarrative';
 import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
@@ -173,13 +173,16 @@ export default function DashboardPage() {
 
   const verdict = useMemo(() => {
     if (!overview) return null;
+    // The verdict judges the cashflow already happened; the Cashflow tile keeps the whole month.
+    const cashflow = resolveLivedCashflow(overview.expenseStats);
     return buildOverviewVerdict({
       month: today.month,
       totalValue,
       monthlyVariation: overview.variations.monthly,
       yearlyVariation: overview.variations.yearly,
       isNewATH: overview.ath?.isNewATH ?? false,
-      savingsRate,
+      savingsRate: cashflow ? cashflow.savingsRate : savingsRate,
+      cashflow,
       marketEffect: overview.marketEffect ?? null,
       topMover: overview.topMovers?.[0] ?? null,
       sales: overview.monthSales ?? null,

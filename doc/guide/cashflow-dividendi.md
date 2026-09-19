@@ -3,8 +3,13 @@
 > **Quando aprire questa guida** — chi tocca `components/dividends/*` (la tab, le tessere, la
 > tabella, il calendario), le pure `lib/utils/{dividendAnalytics,dividendiNarrative,couponUtils}.ts`,
 > lo scheduler `lib/services/couponScheduling.ts` o il cron cedole. In `AGENTS.md` resta lo stub
-> con l'essenziale; qui c'è la regola completa. Moduli e file: `CLAUDE.md` → *Key Files* → le voci
-> *Cashflow › Dividendi* e *Dividendi (registro e cedole)*.
+> con l'essenziale; qui c'è la regola completa. Moduli e file: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative,dividendEligibility}.ts` (`resolveDividendFloor` = the ONE floor under a scraped dividend), `lib/hooks/useDividendStats.ts` → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `types/dividend.ts`
 
 ## Cashflow › Dividendi (`components/dividends/DividendTrackingTab.tsx`, `components/dividends/tiles/*`)
 - **RECEIVED AND ANNOUNCED ARE NEVER ONE FIGURE.** A dividend whose `paymentDate` is in the future is
@@ -177,3 +182,4 @@
 ## Per-page blind spots
 
 - **Dividendi**: the payments table dropped *Tax/Netto/Costo per azione*; the calendar day opens the day dialog instead of filtering; under «Mese» no month arrows, under «Anno» they stop at January/December; the list toolbar is rendered twice (desktop and phone, one hidden). The yield never follows the period (TTM on the current holding); the DPS running-year column is a partial sum; no `averageCost` → the tile becomes an explanation. Since 2026-09-14: Chi paga di più ranks only the HELD payers while its aside's total is the whole period's (the «venduti» row closes the gap); the verdict's «da 3 strumenti» counts sold payers too, on purpose; an edit form opens with the picker focused and its list open (Radix focuses the first field); a phone has no delete for a payment; the Dividendi axis options are `radio`, not `tab`, in a spec.
+- **YOC/Current Yield** exclude sold assets and are scoped to the current holding via `holdingStartDate`; a sell+rebuy inside one month counts the prior holding's dividends against the new cost basis (an overstated YOC, never a regression). (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

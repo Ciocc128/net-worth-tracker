@@ -244,9 +244,8 @@ export interface BalanceSummary {
  * because 6 and 7 are spoken for below and re-using one puts two different things in the same hue
  * on the same chart.
  *
- * KNOWN LIMIT: `useChartColors()` resolves only indices 0-4 from the active theme and pads 5-9
- * from the static `CHART_COLORS`, which can repeat a theme hue — slots 1 and 6 measure ΔE ≈ 8
- * apart on the default theme. CLAUDE.md → Known Issues.
+ * KNOWN LIMIT: `useChartColors()` resolves indices 0-7 from the active theme (since 2026-08-30) and
+ * pads 8-9 from the static `CHART_COLORS` — doc/guide/temi.md § Per-page blind spots.
  */
 export const ASSET_CLASS_CHART_INDEX: Record<string, number> = {
   equity: 0,

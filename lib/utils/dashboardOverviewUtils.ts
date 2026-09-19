@@ -22,6 +22,7 @@ import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
 import { valueEffectMonth } from '@/lib/utils/pensionReturn';
 import type { PensionContribution } from '@/types/pension';
+import type { AssetTransaction } from '@/types/assetTransactions';
 
 /**
  * What the digest needs to read a pension fund's growth as return: the contributions that moved
@@ -37,6 +38,54 @@ export interface PensionMarketInput {
 const monthKeyOf = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`;
 
 /**
+ * The market effect of an instrument traded since the previous snapshot, from the ledger:
+ *
+ *   Δvalue − net money put in − quantity the ledger does not explain × today's unit value
+ *
+ * where «money put in» is Σ buys (quantity × priceEur + fees) − Σ sells (quantity × priceEur −
+ * fees). For a held quote this is the old `q_prev × Δu`; for a bought one `q × (u_now − p) − fees`;
+ * for a sold one `q × (p − u_prev) − fees`. A quantity change no BUY/SELL explains — a migration
+ * baseline, an adjustment, a hand-edited quantity — moves no money the ledger knows, so it is
+ * valued at today's price and kept OUT of the market (it lands in «altre variazioni»).
+ *
+ * `monthTrades` must already be scoped to the window after the previous snapshot's month.
+ * Returns null when the instrument has no BUY/SELL in it (the caller keeps `q_prev × Δu`), and
+ * for a position closed with an unexplained remainder (no price left to value it at).
+ */
+function tradeAwarePriceEffect(
+  previous: { quantity: number; totalValue: number } | undefined,
+  current: { quantity: number; totalValue: number } | undefined,
+  monthTrades: AssetTransaction[]
+): number | null {
+  const trades = monthTrades.filter((t) => (t.type === 'buy' && !t.isBaseline) || t.type === 'sell');
+  if (trades.length === 0) return null;
+
+  let moneyIn = 0;
+  let tradedQuantity = 0;
+  for (const trade of trades) {
+    const fees = trade.fees ?? 0;
+    if (trade.type === 'buy') {
+      moneyIn += trade.quantity * trade.priceEur + fees;
+      tradedQuantity += trade.quantity;
+    } else {
+      moneyIn -= trade.quantity * trade.priceEur - fees;
+      tradedQuantity -= trade.quantity;
+    }
+  }
+
+  const previousQuantity = previous?.quantity ?? 0;
+  const currentQuantity = current?.quantity ?? 0;
+  const unexplainedQuantity = currentQuantity - previousQuantity - tradedQuantity;
+  const currentUnit = current && current.quantity > 0 ? current.totalValue / current.quantity : null;
+  // Float noise from quantities like 0.1 + 0.2 is not a quantity the ledger failed to explain.
+  const hasUnexplained = Math.abs(unexplainedQuantity) > 1e-9;
+  if (hasUnexplained && currentUnit === null) return null;
+
+  const valueChange = (current?.totalValue ?? 0) - (previous?.totalValue ?? 0);
+  return valueChange - moneyIn - (hasUnexplained ? unexplainedQuantity * currentUnit! : 0);
+}
+
+/**
  * Per-asset market (price) effect since the previous snapshot, keyed by assetId.
  *
  * WHY price effect and not value delta: the digest under the hero is meant to say what the
@@ -47,7 +96,11 @@ const monthKeyOf = (year: number, month: number) => `${year}-${String(month).pad
  * price/quantity attribution Storico → Valore per Strumento uses, applied one asset at a
  * time: priceEffect = q_prev × (u_curr − u_prev) on the quantity held at the START of the
  * period, where u is the effective EUR unit value. Consequences worth knowing:
- *   - a position opened this month has no prior price and contributes 0;
+ *   - an instrument TRADED since the previous snapshot is measured from the ledger instead
+ *     (`tradeAwarePriceEffect`): the price move of the quotes bought or sold in the month, from
+ *     the trade price to today, is market too — a position opened this month used to contribute
+ *     0, and on the real account settembre 2026 that parked +538 € in «tuoi movimenti», which the
+ *     owner read as income − expenses (2026-09-19);
  *   - cash (unit value 1) and any hand-valued asset kept at price 1 can never show a market
  *     effect — their growth lands in the quantity effect by construction. PENSION FUNDS are the
  *     exception, handled separately: their value lives in `quantity` at price 1 and moves for two
@@ -67,7 +120,8 @@ const monthKeyOf = (year: number, month: number) => `${year}-${String(month).pad
 function computePriceEffectsByAsset(
   assets: Asset[],
   previousSnapshot: MonthlySnapshot | null,
-  pension?: PensionMarketInput
+  pension?: PensionMarketInput,
+  monthTrades: AssetTransaction[] = []
 ): Map<string, number> | null {
   const rawPreviousByAsset = previousSnapshot?.byAsset ?? [];
   if (rawPreviousByAsset.length === 0 || !previousSnapshot) return null;
@@ -98,6 +152,25 @@ function computePriceEffectsByAsset(
   for (const current of currentByAsset) {
     const { priceEffect } = attributeSelectedChange(previousByAsset, currentByAsset, new Set([current.assetId]));
     effects.set(current.assetId, priceEffect);
+  }
+
+  // Instruments traded in the month read their market from the ledger — including a position
+  // closed in the month, which is no longer in `currentByAsset`. Pension funds and hand-valued
+  // property have no BUY/SELL (their value is typed), so they keep their own rules.
+  const tradesByAsset = new Map<string, AssetTransaction[]>();
+  for (const trade of monthTrades) {
+    const list = tradesByAsset.get(trade.assetId) ?? [];
+    list.push(trade);
+    tradesByAsset.set(trade.assetId, list);
+  }
+  const previousRowById = new Map(previousByAsset.map((row) => [row.assetId, row]));
+  const currentRowById = new Map(currentByAsset.map((row) => [row.assetId, row]));
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  for (const [assetId, trades] of tradesByAsset) {
+    const asset = assetsById.get(assetId);
+    if (!asset || asset.type === 'pensionFund' || realEstateIds.has(assetId)) continue;
+    const effect = tradeAwarePriceEffect(previousRowById.get(assetId), currentRowById.get(assetId), trades);
+    if (effect !== null) effects.set(assetId, effect);
   }
 
   // Pension funds: the fund's own return, net of what was paid in since the previous snapshot.
@@ -133,10 +206,11 @@ export function computeTopMovers(
   assets: Asset[],
   previousSnapshot: MonthlySnapshot | null,
   totalValue: number,
-  pension?: PensionMarketInput
+  pension?: PensionMarketInput,
+  monthTrades: AssetTransaction[] = []
 ): DashboardOverviewMover[] {
   if (totalValue <= 0) return [];
-  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension);
+  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension, monthTrades);
   if (!effects) return [];
 
   const byClass = new Map<string, number>();
@@ -183,10 +257,11 @@ export function computeTopInstrumentMovers(
   assets: Asset[],
   previousSnapshot: MonthlySnapshot | null,
   totalValue: number,
-  pension?: PensionMarketInput
+  pension?: PensionMarketInput,
+  monthTrades: AssetTransaction[] = []
 ): DashboardOverviewInstrumentMover[] {
   if (totalValue <= 0) return [];
-  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension);
+  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension, monthTrades);
   if (!effects) return [];
 
   const movers: DashboardOverviewInstrumentMover[] = [];
@@ -210,9 +285,10 @@ export function computeTopInstrumentMovers(
 export function computeMarketEffect(
   assets: Asset[],
   previousSnapshot: MonthlySnapshot | null,
-  pension?: PensionMarketInput
+  pension?: PensionMarketInput,
+  monthTrades: AssetTransaction[] = []
 ): number | null {
-  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension);
+  const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension, monthTrades);
   if (!effects) return null;
   let total = 0;
   for (const effect of effects.values()) total += effect;

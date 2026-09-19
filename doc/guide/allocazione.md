@@ -3,8 +3,14 @@
 > **Quando aprire questa guida** — chi tocca `app/dashboard/allocation/page.tsx`, `components/allocation/*` o i moduli puri
 > `lib/utils/{allocazioneSummary,allocazioneNarrative,allocationUtils,leverageAwareAllocationUtils,assetExposureUtils,equityBondsAutoTargets}.ts`,
 > `lib/services/assetAllocationService.ts`, `lib/server/portfolioExposureService.ts`. In `AGENTS.md` resta lo stub con
-> l'essenziale; qui c'è la regola completa. Moduli e file: `CLAUDE.md` → *Key Files* → *Allocazione / exposure*. Nessuna
+> l'essenziale; qui c'è la regola completa. Moduli e file: § *Files*, sotto. Nessuna
 > spec Playwright copre la pagina (lo dice *Per-page blind spots*).
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Allocazione / exposure**: `app/dashboard/allocation/page.tsx`, `components/allocation/*` (+ `tiles/*`), pure `lib/utils/{allocazioneSummary,allocazioneNarrative}.ts` over `lib/utils/{allocationUtils,leverageAwareAllocationUtils,assetExposureUtils}.ts` (`allocationUtils` owns `ASSET_CLASS_SEQUENCE`, `ASSET_CLASS_LABELS`, `ASSET_CLASS_CHART_INDEX`), `lib/services/assetAllocationService.ts`, `lib/server/portfolioExposureService.ts`; `exposure-cache/{userId}`
 
 ## Auto-Calculated Targets (`lib/utils/equityBondsAutoTargets.ts`)
 - **The Bull's formula prescribes an EQUITY share and says nothing about the other classes, so they are funded out of
@@ -70,7 +76,7 @@
 - **The balance score is band-INDEPENDENT — do not "fix" it to read the action.** With Σtarget > 100 the drifts do not
   cancel, so it decomposes: `leverageGapPp = Σd`, `misallocationPct = (Σ|d| − |Σd|)/2`, `score = 100 − misallocation −
   |gap|`. Only the verdict, plan and chips react to the band; a class held WITHOUT a target entry never enters
-  `byAssetClass` (CLAUDE.md → Known Issues).
+  `byAssetClass` (§ Per-page blind spots).
 - **Leverage**: `expandAssetExposure` must NOT special-case `pensionFund`. The class residual is solved against the
   post-trade **MARKET** base — `classCoeff[c][i] = exposurePerEuro[c][i]` (no `instrumentLeverage` term), `classConst[c]
   = currentNotional[c] − tf[c]·marketAfterTrade` — because scaling by the *notional* total re-multiplies by the current

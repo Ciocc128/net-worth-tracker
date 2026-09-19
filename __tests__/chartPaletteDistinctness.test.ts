@@ -13,7 +13,7 @@
  *     dark, or the slot silently falls back to the static palette (doc/guide/temi.md).
  *
  * Scope: the default theme only. The five named themes are not measured here — retro-arcade
- * declares two identical slots and elegant-luxury three reds (CLAUDE.md → Known Issues).
+ * declares two identical slots and elegant-luxury three reds (doc/guide/temi.md § Per-page blind spots).
  */
 
 import { readFileSync } from 'node:fs';

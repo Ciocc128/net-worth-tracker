@@ -21,7 +21,7 @@ import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
 import { resolveDeclineCause, resolveTaxedGrowth, type PeriodSalesSummary } from '@/lib/utils/periodSales';
 import {
   declineHeadlineTail,
-  describeOwnFlowsSplit,
+  describeMonthSplit,
   describePurchases,
   describeSales,
   taxedGrowthHeadline,
@@ -29,7 +29,7 @@ import {
 
 import type { Narrative, NarrativeSegment, VerdictTone } from '@/lib/utils/narrative';
 import type { CategoryRanking } from '@/lib/utils/tracciamentoSummary';
-import type { DashboardOverviewCategoryAmount } from '@/types/dashboardOverview';
+import type { DashboardOverviewCategoryAmount, DashboardOverviewExpenseStats } from '@/types/dashboardOverview';
 
 // The segment shape and its plain-text rendering live in `narrative.ts` so every page's
 // narrative module shares them; re-exported here for the Panoramica's existing importers.
@@ -43,8 +43,18 @@ export interface OverviewVerdictInput {
   monthlyVariation: { value: number; percentage: number } | null;
   yearlyVariation: { value: number; percentage: number } | null;
   isNewATH: boolean;
-  /** Current-month savings rate in percent; null when there is no income to measure against. */
+  /**
+   * Current-month savings rate in percent; null when there is no income to measure against. The
+   * Panoramica passes the rate of what has ALREADY happened (`resolveLivedCashflow`), the base of
+   * «risparmiati» and of Tracciamento's verdict.
+   */
   savingsRate: number | null;
+  /**
+   * The month's cashflow already happened and the part still in the calendar; null or absent when
+   * not known (no expense stats, or a payload older than source version 19). With it the savings
+   * clause says «finora» and names the calendar, and the month's split names the savings.
+   */
+  cashflow?: LivedCashflow | null;
   /** Portfolio-wide market effect this month; null when not attributable. */
   marketEffect: number | null;
   /** The asset class whose market price moved the most; null when none. */
@@ -54,6 +64,38 @@ export interface OverviewVerdictInput {
    * nothing was sold, absent on a payload computed before the field existed.
    */
   sales?: PeriodSalesSummary | null;
+}
+
+/** The month's cashflow up to today, and what the calendar still holds after it. */
+export interface LivedCashflow {
+  /** Income − expenses dated up to today. */
+  savings: number;
+  /** `savings` over the income received so far, in percent; null with no income yet. */
+  savingsRate: number | null;
+  scheduledExpenses: number;
+  scheduledIncome: number;
+}
+
+/**
+ * The payload's month totals minus their scheduled slice — the same subtraction Tracciamento's
+ * `settleTotals` makes, so the Panoramica's «Hai messo da parte il 45% delle entrate finora» and
+ * Tracciamento's verdict judge the same days (the old rate included rows dated after today: 17%
+ * on the real account's 19 settembre 2026 against 45% already saved). Null when the payload
+ * predates `incomeScheduled` (source version 19): a rate on half a subtraction would be wrong.
+ */
+export function resolveLivedCashflow(stats: DashboardOverviewExpenseStats | null | undefined): LivedCashflow | null {
+  const current = stats?.currentMonth;
+  if (!current || current.incomeScheduled === undefined) return null;
+  const scheduledExpenses = current.expensesScheduled ?? 0;
+  const scheduledIncome = current.incomeScheduled;
+  const income = current.income - scheduledIncome;
+  const savings = income - (current.expenses - scheduledExpenses);
+  return {
+    savings,
+    savingsRate: income > 0 ? (savings / income) * 100 : null,
+    scheduledExpenses,
+    scheduledIncome,
+  };
 }
 
 export interface OverviewVerdict {
@@ -207,6 +249,23 @@ function resolveHeadline(input: OverviewVerdictInput): ResolvedHeadline {
 }
 
 /**
+ * « (altri 1297 € di spese in calendario)» after a savings rate that counts only what has
+ * happened — the calendar is named, never folded into the rate. Empty when nothing is scheduled.
+ */
+function describeCalendarAside(cashflow: LivedCashflow | null | undefined): Narrative {
+  if (!cashflow) return [];
+  const expenses = cashflow.scheduledExpenses >= 1 ? cashflow.scheduledExpenses : 0;
+  const income = cashflow.scheduledIncome >= 1 ? cashflow.scheduledIncome : 0;
+  const euro = (value: number) => figure(cachedFormatCurrencyEUR(value, true));
+  if (expenses && income) {
+    return [prose(' (in calendario altri '), euro(expenses), prose(' di spese e '), euro(income), prose(' di entrate)')];
+  }
+  if (expenses) return [prose(' (altri '), euro(expenses), prose(' di spese in calendario)')];
+  if (income) return [prose(' (altri '), euro(income), prose(' di entrate in calendario)')];
+  return [];
+}
+
+/**
  * «sul mercato hanno spinto soprattutto le criptovalute (+726 €)». The top mover explains the
  * MARKET half, not the month: «hanno fatto il grosso del lavoro» read as the month's cause, and on
  * the real account's settembre 2026 the +726 € it credited was six times the month's +124 €.
@@ -257,7 +316,11 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
   // the savings rate, which is the pleasantry.
   const split =
     input.monthlyVariation && input.marketEffect !== null
-      ? { delta: input.monthlyVariation.value, marketEffect: input.marketEffect }
+      ? {
+          delta: input.monthlyVariation.value,
+          marketEffect: input.marketEffect,
+          savings: input.cashflow?.savings ?? null,
+        }
       : undefined;
   const saleCarriesSplit = split !== undefined && (input.sales?.estimatedTax ?? 0) > 0;
   const saleClause: Narrative = [];
@@ -273,7 +336,8 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
     sentence.push(
       prose(' Hai messo da parte il '),
       figure(`${Math.round(input.savingsRate)}%`),
-      prose(' delle entrate'),
+      prose(input.cashflow ? ' delle entrate finora' : ' delle entrate'),
+      ...describeCalendarAside(input.cashflow),
     );
   }
 
@@ -294,7 +358,7 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
   // a month that fell by 4.900 € with the market at −1.100 € must not read as a market month.
   if (!taxIsTheStory) {
     if (split && !saleCarriesSplit) {
-      sentence.push(prose(' '), ...describeOwnFlowsSplit(split.delta, split.marketEffect));
+      sentence.push(prose(' '), ...describeMonthSplit(split));
     }
     sentence.push(...saleClause);
   }
