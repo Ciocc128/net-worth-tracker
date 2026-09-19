@@ -83,6 +83,23 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   schema usava `asset.quantity <= 0`, un predicato diverso — un asset con quantità tracciata ma
   senza prezzo mai recuperato era preteso dal validatore e offerto da nessuna riga: vicolo cieco,
   «Avanti» permanentemente disabilitato.
+- **Il toggle «Nel piano / Da vendere» del passo 2 sta ORA nella colonna che lo promette** (trovato
+  dal proprietario in un giro guidato, chiuso 2026-09-19): la cella della colonna renderizzava solo
+  il testo `ACCUMULO_STEP2_TOGGLE_IN_PLAN`, senza `onClick` — il controllo vero viveva in un
+  paragrafo separato SOTTO la tabella, in caratteri piccoli, per le sole righe non raggruppate: da
+  UI sembrava semplicemente che non ci fosse modo di marcare uno strumento come «Da vendere».
+  `AccumulationPlanDialog.tsx`: la cella del toggle per una riga NON raggruppata (`!grouped`) è ora
+  un bottone che chiama `moveAssetToDisposal(asset)`; per un membro di un gruppo proxy resta testo
+  semplice (non si vende un solo membro senza prima «Separare», invariato). Il paragrafo duplicato è
+  stato rimosso.
+- **La striscia classi (D11) ora stampa il peso vero, non solo il suo scostamento** (decisione del
+  proprietario, 2026-09-20): la riga primaria (prominente, mono) è "Azioni 105,4% · target 102,0%"
+  — i valori assoluti — mentre lo scostamento in pp ("+3,4 pp oggi → +1,3 pp a fine piano") scende
+  a riga secondaria, più piccola e sempre muted. Prima era il contrario: l'UNICA cifra stampata
+  era il delta, il peso reale della classe non compariva mai nel tile. `describeClassStripItem`
+  ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece del vecchio `{ text, note?,
+  outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per il calcolo di `furthestDrift` (prima
+  lo estraeva spezzando la stringa `text` — fragile). doc/pac-ate.md §10.2 punto 5.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 

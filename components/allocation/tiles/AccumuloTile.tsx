@@ -497,6 +497,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
         }
         return describeClassStripItem({
           label: ASSET_CLASS_LABELS[assetClass] ?? assetClass,
+          currentPct: data.currentPct,
           targetPct: data.targetPct,
           currentDriftPp: data.driftPp,
           finalDriftPp,
@@ -509,7 +510,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
   const furthestDrift = classStrip.length > 0
     ? classStrip.reduce((worst, item, i) => {
         const driftAbs = Math.abs(Object.values(currentPoint!.byClass)[i]?.driftPp ?? 0);
-        return driftAbs > worst.abs ? { abs: driftAbs, label: item.text.split(' · ')[0], deltaPp: Object.values(currentPoint!.byClass)[i]?.driftPp ?? 0 } : worst;
+        return driftAbs > worst.abs ? { abs: driftAbs, label: item.label, deltaPp: Object.values(currentPoint!.byClass)[i]?.driftPp ?? 0 } : worst;
       }, { abs: -1, label: '', deltaPp: 0 })
     : null;
 
@@ -751,12 +752,17 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
           </div>
         )}
 
-        {/* Class strip (D11). */}
+        {/* Class strip (D11): the absolute weight vs target leads (mono, prominent), the drift
+            that tells the same story in pp trails smaller and muted (owner's call, 2026-09-20 —
+            was the reverse: drift led, the absolute values were never printed at all). */}
         {classStrip.length > 0 && (
           <ul className="mt-3 space-y-1">
             {classStrip.map((item, i) => (
-              <li key={i} className={`font-mono text-[11px] tabular-nums ${item.outOfBandNow ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                {item.text}
+              <li key={i} className="text-[11px]">
+                <span className={`font-mono tabular-nums ${item.outOfBandNow ? 'text-warning-foreground' : 'text-foreground'}`}>
+                  {item.primary}
+                </span>
+                <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{item.secondary}</span>
                 {item.note && <span className="ml-1.5 text-muted-foreground">({item.note})</span>}
               </li>
             ))}

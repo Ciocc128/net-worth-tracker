@@ -365,6 +365,9 @@ export function describeAccumulationReadFailure(): string {
 
 export interface ClassStripItemInput {
   label: string;
+  /** The class's actual weight today — the absolute figure the strip now leads with (owner's
+   *  call, 2026-09-20: absolute values primary, the drift a secondary, smaller line). */
+  currentPct: number;
   targetPct: number;
   currentDriftPp: number;
   finalDriftPp: number;
@@ -374,17 +377,21 @@ export interface ClassStripItemInput {
 }
 
 export interface ClassStripItem {
-  /** «Azioni · target 102% — +3,4 pp → +1,3 pp» */
-  text: string;
+  label: string;
+  /** «Azioni 98,6% · target 95,0%» — the absolute values, meant to read prominently. */
+  primary: string;
+  /** «+3,4 pp oggi → +1,3 pp a fine piano» — the same story as a relative delta, meant smaller. */
+  secondary: string;
   /** «rientra in banda a giugno», only when `outOfBandNow` and a re-entry month is known. */
   note?: string;
   outOfBandNow: boolean;
 }
 
 export function describeClassStripItem(input: ClassStripItemInput): ClassStripItem {
-  const text = `${input.label} · target ${formatPercentageIt(input.targetPct, 0)} — ${formatSignedPp(input.currentDriftPp)} → ${formatSignedPp(input.finalDriftPp)}`;
+  const primary = `${input.label} ${formatPercentageIt(input.currentPct, 1)} · target ${formatPercentageIt(input.targetPct, 1)}`;
+  const secondary = `${formatSignedPp(input.currentDriftPp)} oggi → ${formatSignedPp(input.finalDriftPp)} a fine piano`;
   const note = input.outOfBandNow && input.reentersAt ? `rientra in banda a ${input.reentersAt}` : undefined;
-  return { text, note, outOfBandNow: input.outOfBandNow };
+  return { label: input.label, primary, secondary, note, outOfBandNow: input.outOfBandNow };
 }
 
 export interface AccumulationOutcomeFooterInput {
