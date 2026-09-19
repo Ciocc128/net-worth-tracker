@@ -14,18 +14,18 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **169 files / 3846 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-19, su develop): **il verdetto di un mese che le tasse hanno tenuto in pari nomina le tasse.** Sul
-  conto reale settembre 2026 chiudeva a +124 € (+0,04%) con 4089 € stimati sulla vendita di VWCE e il titolo diceva
-  «Settembre sta andando bene». (1) `resolveTaxedGrowth` (`periodSales.ts`): su un mese NON in calo, tasse ≥ Δ
-  → «Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.» (sotto lo 0,5%) o «cresce, ma …
-  più di metà della crescita», tono warning, sulle tre superfici (su Patrimonio batte il massimo storico). (2) Una
-  vendita tassata chiude su «senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti)»
-  e sostituisce «Di quel movimento», che mescolava risparmio e tasse. (3) `monthSales.purchases` (source version 18):
-  «Nello stesso mese hai comprato 6 strumenti per 34.304 €», baseline escluse. (4) Il driver è del MERCATO: «sul
-  mercato hanno spinto soprattutto le criptovalute (+726 €)» (Panoramica e Patrimonio). **Collaudo**: `tsc`, lint 0,
-  Vitest intero sotto `TZ=Europe/Rome` (3846 dopo il rebase su develop), falsificazione della soglia e del filtro baseline (rosso solo dopo aver
-  messo una baseline DENTRO il mese nella fixture), Playwright sul mirror a 1440 dark e 390 light (overflow 0), giro del
-  proprietario ok; l'email è verificata sulle parole, non renderizzata.
+- Latest (2026-09-19, on develop): **a month the tax kept flat names the tax.** On the real account settembre 2026
+  closed at +124 € (+0,04%) with 4089 € estimated on a VWCE sale, and the headline read «Settembre sta andando bene».
+  (1) `resolveTaxedGrowth` (`periodSales.ts`): on a month that did NOT fall, tax ≥ Δ → «Settembre è in pari: le tasse
+  sulla vendita di VWCE si sono prese la crescita.» (below 0,5%) or «cresce, ma … più di metà della crescita», warning
+  tone, on all three surfaces (on Patrimonio it outranks the record high). (2) A taxed sale closes on «senza, il mese
+  avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti)» and replaces «Di quel movimento», which
+  mixed savings with the tax. (3) `monthSales.purchases` (source version 18): «Nello stesso mese hai comprato 6
+  strumenti per 34.304 €», baselines excluded. (4) The driver is the MARKET's: «sul mercato hanno spinto soprattutto
+  le criptovalute (+726 €)» (Panoramica and Patrimonio). **Verification**: `tsc`, lint 0, full Vitest under
+  `TZ=Europe/Rome` (3846 after the rebase on develop), the threshold and the baseline filter falsified (red only once
+  the fixture had a baseline INSIDE the month), Playwright on the mirror at 1440 dark and 390 light (overflow 0), the
+  owner's tour OK; the email is verified on its words, not rendered.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.

@@ -121,7 +121,7 @@
   bottom: pinned, it left ~110px of nothing whenever a taller tile shared the row.
 - **The light chart palette holds the dark hue bands** — doc/guide/temi.md § the default theme's light slots.
 
-## Il mese che le tasse tengono in pari (2026-09-19)
+## A month the tax kept flat (2026-09-19)
 
 - **A month that did NOT fall can still be the tax's story** (owner's call): `resolveTaxedGrowth` in
   `lib/utils/periodSales.ts` — tax ≥ Δ (the tax took at least half of the gross growth Δ + tax) → `flat` below
