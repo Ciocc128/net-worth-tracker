@@ -1,6 +1,12 @@
 # Centri di Costo
 
-> **Quando aprire questa guida** — quando tocchi `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx`, `components/cashflow/cost-centers/*`, `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors,costCenterLinking}.ts` o `lib/services/costCenterService.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file: `CLAUDE.md` → *Key Files* → la voce «Centri di Costo». Spec: `e2e/cashflow.centri{,.mobile}.spec.ts` sull'account `test-user-centri` (`scripts/seedCostCentersE2E.mts`).
+> **Quando aprire questa guida** — quando tocchi `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx`, `components/cashflow/cost-centers/*`, `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors,costCenterLinking}.ts` o `lib/services/costCenterService.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file: § *Files*, sotto. Spec: `e2e/cashflow.centri{,.mobile}.spec.ts` sull'account `test-user-centri` (`scripts/seedCostCentersE2E.mts`).
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Centri di Costo**: Centri di Costo `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx` + `cost-centers/*`, pure `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors,costCenterLinking}.ts` (`firstFreeColorKey`/`mapColorSlotUsage` = who wears which slot; `buildLinkCandidates`/`buildLinkPlan` = bulk link with its undo, UI `cost-centers/{LinkExpensesDialog,UnlinkSeriesDialog}.tsx`), `costCenterStyles.ts` (`CHART_TICK_STYLE`), specs `e2e/cashflow.centri{,.mobile}.spec.ts` on `npm run e2e:seed:centri`
 
 ## Centri di Costo (`CostCentersTab`, `CostCenterDetail`, `components/cashflow/cost-centers/*`, `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils,costCenterColors}.ts`)
 - **NO period axis, by decision (2026-08-23).** A project's cost is its whole cost: every figure is lifetime («in

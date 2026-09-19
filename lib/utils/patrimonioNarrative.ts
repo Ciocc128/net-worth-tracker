@@ -23,7 +23,7 @@ import { getItalyDate } from '@/lib/utils/dateHelpers';
 import { resolveDeclineCause, resolveTaxedGrowth, type PeriodSalesSummary } from '@/lib/utils/periodSales';
 import {
   declineHeadlineTail,
-  describeOwnFlowsSplit,
+  describeMonthSplit,
   describePurchases,
   describeSales,
   taxedGrowthHeadline,
@@ -49,6 +49,11 @@ export interface PatrimonioVerdictInput {
    * nothing was sold, absent on a payload computed before the field existed.
    */
   sales?: PeriodSalesSummary | null;
+  /**
+   * Income − expenses already happened this month (the Panoramica's `resolveLivedCashflow`); null
+   * or absent when not known — the split then names no part «risparmiati».
+   */
+  savings?: number | null;
 }
 
 export type PatrimonioVerdict = PageVerdictModel;
@@ -257,15 +262,15 @@ export function buildPatrimonioVerdict(input: PatrimonioVerdictInput): Patrimoni
   sentence.push(prose('.'));
 
   // The market-vs-flows split and the sale behind it, the same words the Panoramica prints. A
-  // taxed sale carries the split itself, in three parts (market · own flows · tax), so the
-  // two-part split is printed only when there is no tax to take out of «tuoi movimenti».
+  // taxed sale carries the split itself, with the month without the tax, so the
+  // plain split is printed only when there is no tax to take out.
   const split =
     input.monthlyVariation && input.marketEffect !== null
-      ? { delta: input.monthlyVariation.value, marketEffect: input.marketEffect }
+      ? { delta: input.monthlyVariation.value, marketEffect: input.marketEffect, savings: input.savings ?? null }
       : undefined;
   const saleCarriesSplit = split !== undefined && (input.sales?.estimatedTax ?? 0) > 0;
   if (split && !saleCarriesSplit) {
-    sentence.push(prose(' '), ...describeOwnFlowsSplit(split.delta, split.marketEffect));
+    sentence.push(prose(' '), ...describeMonthSplit(split));
   }
   if (input.sales) {
     sentence.push(prose(' '), ...describeSales(input.sales, split));

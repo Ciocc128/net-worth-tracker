@@ -1,6 +1,12 @@
 # Previdenza (Fondo Pensione)
 
-> **Quando aprire questa guida** — chi tocca `app/dashboard/pension/page.tsx`, `components/pension/*`, `types/pension.ts`, `lib/utils/pension*.ts`, `lib/services/pensionContributionService.ts`. Esercizio emulatore `scripts/seedPensionE2E.mts`; specs `e2e/pension*.spec.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: `CLAUDE.md` → *Key Files* → *Previdenza*.
+> **Quando aprire questa guida** — chi tocca `app/dashboard/pension/page.tsx`, `components/pension/*`, `types/pension.ts`, `lib/utils/pension*.ts`, `lib/services/pensionContributionService.ts`. Esercizio emulatore `scripts/seedPensionE2E.mts`; specs `e2e/pension*.spec.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Previdenza**: `types/pension.ts`, pure `lib/utils/{pensionSummary,pensionNarrative}.ts` over `lib/utils/{pensionDeduction,pensionContributions,pensionReturn,pensionFire,pensionFamilyMembers}.ts` (`indexPensionSnapshots` = the snapshots reduced ONCE to the funds; `isPensionValueStale` = the ONE age of a hand-kept value), `lib/services/pensionContributionService.ts` (`assertFundValueLivesInQuantity`, `updatePensionFundValue`), `app/dashboard/pension/page.tsx`, `components/pension/*` (`PensionValueDialog`, `pensionStyles.ts`); the two modals' words in `lib/utils/dialogNarrative.ts`; collection `pensionContributions`
 
 ## Fondo Pensione
 

@@ -103,7 +103,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
     expect(plain(buildPatrimonioVerdict(AUGUST).sentence)).toBe(
       'Il portafoglio vale 412.425,85 €: +3214,20 € (+0,79%) su luglio, 16 strumenti e 3 conti; ' +
         'sul mercato ha spinto soprattutto Vanguard FTSE All-World (+2140 €). ' +
-        'Di quel movimento, +2000 € viene dal mercato e +1214 € dai tuoi movimenti.',
+        'Di quel movimento: +2000 € dal mercato e +1214 € tra risparmio e altre variazioni.',
     );
   });
 
@@ -125,7 +125,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
     expect(verdict.headline).toBe('Il portafoglio è in calo: il mercato ha pesato, le tasse sulle vendite di più.');
     expect(plain(verdict.sentence)).toContain(
       'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
-        'senza, il mese avrebbe fatto −849 € (−1079 € dal mercato, +230 € dai tuoi movimenti).',
+        'senza, il mese avrebbe fatto −849 € (−1079 € dal mercato e +230 € tra risparmio e altre variazioni).',
     );
     expect(plain(verdict.sentence)).not.toContain('Di quel movimento');
   });
@@ -137,7 +137,8 @@ describe('buildPatrimonioVerdict — sentence', () => {
       month: 9,
       isNewATH: true,
       monthlyVariation: { value: 124.32, percentage: 0.04 },
-      marketEffect: 1480.59,
+      marketEffect: 2018.47,
+      savings: 2094.62,
       topMover: { id: 'wbit', name: 'WBIT', delta: 534.67 },
       sales: {
         proceeds: 39052.45,
@@ -151,7 +152,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
     expect(verdict.headline).toBe('Il portafoglio è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.');
     expect(verdict.tone).toBe('warning');
     expect(plain(verdict.sentence)).toContain(
-      'senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti). ' +
+      'senza, il mese avrebbe fatto +4213 € (+2018 € dal mercato, +2095 € risparmiati, +100 € di altre variazioni). ' +
         'Nello stesso mese hai comprato 6 strumenti per 34.305 €.',
     );
   });
@@ -165,7 +166,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
     }).sentence;
     expect(plain(sentence)).toBe(
       'Il portafoglio vale 412.425,85 €: −2100,00 € (−0,50%) su luglio, 16 strumenti e 3 conti; sul mercato ha pesato soprattutto Bitcoin (−1800 €). ' +
-        'Di quel movimento, −1500 € viene dal mercato e −600 € dai tuoi movimenti.',
+        'Di quel movimento: −1500 € dal mercato e −600 € tra risparmio e altre variazioni.',
     );
   });
 

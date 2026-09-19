@@ -118,7 +118,8 @@
 - Improved the touch targets to 44px on touch across the Dividendi tab: the period axis, the view switch, the two filters, the calendar arrows, the form's fields; «Scarica storico» beside «Esporta CSV» on a phone, where both were hidden.
 
 - Improved the snapshot overwrite on the Panoramica: the title says what the button does («Sovrascrivi lo snapshot di settembre») and the window says that the month's note is kept.
-- Improved the verdict of a month with a taxed sale, on the Panoramica, Patrimonio and in the periodic email: whenever the tax explains the month the headline names it — «Settembre è in calo per le tasse sulla vendita di VWCE, non per il mercato.» or «Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.» instead of «Settembre sta andando bene» at +0,04%. The sale then says what the month would have made without the tax («senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti)»).
+- Improved the verdict of a month with a taxed sale, on the Panoramica, Patrimonio and in the periodic email: whenever the tax explains the month the headline names it — «Settembre è in calo per le tasse sulla vendita di VWCE, non per il mercato.» or «Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.» instead of «Settembre sta andando bene» at +0,04%. The sale then says what the month would have made without the tax («senza, il mese avrebbe fatto +4213 € (+2018 € dal mercato, +2081 € risparmiati, +114 € di altre variazioni)»).
+- Improved how the Panoramica and Patrimonio split the month: the quotes bought or sold during the month count as market from their trade price (a position opened this month no longer adds 0 to the «Mercato» line), and what is not market reads «risparmiati» — income minus expenses already happened — plus «di altre variazioni», instead of one «dai tuoi movimenti». The verdict's savings rate is the part already happened, with the calendar named beside it: «Hai messo da parte il 45% delle entrate finora (altri 1297 € di spese in calendario)».
 - Improved the period control of the net-worth chart on the Panoramica: readable labels, thumb-sized targets on a phone, arrow-key navigation, and unselected periods that stay legible in light mode — the same control every other page uses.
 - Improved the Panoramica's third row (three equal tiles) and the Costi tile, whose «Pesano di più» now follows the figures instead of leaving a gap; «Costo annuo» is no longer amber on every account.
 
@@ -133,6 +134,8 @@
 - Improved Impostazioni: a category without a colour of its own now takes the theme's first chart colour instead of a fixed blue, so it follows the selected theme like everything else.
 
 ## 📚 Documentation
+
+- The project index is short again: each area's files and its known blind spots now open and close that area's guide, and the index keeps one line per page with the question it answers.
 
 - The Centri di Costo guide records that a center has no pace, the risk and the fact standing on the calendar, the center held in the address, the free-colour default, the form's status line and the rules of «Collega spese…» (what is a candidate, a series as one row, the move named before the confirm, the write planned together with its undo); the Impeccable critique of Cashflow › Centri di Costo (22/40) is committed and closed by polish, and the page has its first browser tests.
 

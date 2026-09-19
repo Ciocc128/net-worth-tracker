@@ -133,13 +133,13 @@ about a domain goes in that domain's guide, never here.
 - **A chart slot is not a text colour** — `--chart-1..8` target ~3:1 against a plot area (`text-[var(--chart-3)]`
   measured 1.02:1 on one theme). The 2026-08-30 tail was audited to the same floor across all twelve blocks (worst case
   3.38:1 — but on 2026-09-18 `--chart-3` light measured 2,74:1 and `--chart-1` dark 2,62:1 ON A CARD: re-measure before
-  leaning on that floor, CLAUDE.md → Known Issues), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
+  leaning on that floor, doc/guide/temi.md § Per-page blind spots), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
   are exempt.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
   items uses `hover:text-sidebar-foreground`. **Inline `style` blocks Tailwind hover variants**, so migrate to classes
   before adding `hover:`/`focus:`.
 - **CSS custom properties never reach emails or the PDF** (both render outside the DOM) — the sign hexes there are
-  permanently out of sync (CLAUDE.md → Known Issues).
+  permanently out of sync (doc/guide/email-pdf.md § Per-page blind spots).
 
 ---
 
@@ -294,7 +294,7 @@ file used to carry.
 ### Panoramica → `doc/guide/panoramica.md`
 - Overview data flows through `GET /api/dashboard/overview` + `useDashboardOverview()` only — no page-level fan-out, no full-history expense queries; `dashboardOverviewSummaries/{userId}` is server-owned and every overview-relevant mutation invalidates it. Both endpoints owner-scoped.
 - `topMovers`/`marketEffect` are MARKET return (`q_prev × (u_curr − u_prev)`), never the user's flows; `[]` when the previous snapshot has no `byAsset`, `null` when not attributable (≠ measured 0). Pension funds are their own "Previdenza" line; real estate is measured gross of debt.
-- Every sentence from `overviewNarrative.ts` — a falling month blames the market only when `marketEffect < 0`, and never the market ALONE when the estimated tax on the month's sales (`monthSales`, from the ledger) or the own flows weighed more: `resolveDeclineCause` (`lib/utils/periodSales.ts`) is the ONE decision for Panoramica, Patrimonio and the email, `salesNarrative.ts` the shared words («pagato circa …», never «pagherai»). When the market gained and the tax is at least half of the drop, the HEADLINE names it (`taxes-despite-market`: «per le tasse sulla vendita di VWCE, non per il mercato», 2026-09-13). A month that did NOT fall but whose tax took at least half the growth (tax ≥ Δ) names the tax too — `resolveTaxedGrowth` + `taxedGrowthHeadline` («Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.», 2026-09-19), and a taxed sale carries the split itself («senza, il mese avrebbe fatto …»), replacing `describeOwnFlowsSplit`. The driver is the MARKET's mover («sul mercato hanno spinto soprattutto …»). Every subject the driver clause can name is in `CLASS_SUBJECTS`, `PENSION_BAND_KEY` included; an unknown key drops the clause, never prints itself.
+- Every sentence from `overviewNarrative.ts` — a falling month blames the market only when `marketEffect < 0`, and never the market ALONE when the estimated tax on the month's sales (`monthSales`, from the ledger) or the own flows weighed more: `resolveDeclineCause` (`lib/utils/periodSales.ts`) is the ONE decision for Panoramica, Patrimonio and the email, `salesNarrative.ts` the shared words («pagato circa …», never «pagherai»). When the market gained and the tax is at least half of the drop, the HEADLINE names it (`taxes-despite-market`: «per le tasse sulla vendita di VWCE, non per il mercato», 2026-09-13). A month that did NOT fall but whose tax took at least half the growth (tax ≥ Δ) names the tax too — `resolveTaxedGrowth` + `taxedGrowthHeadline` («Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.», 2026-09-19), and a taxed sale carries the split itself («senza, il mese avrebbe fatto …»), replacing `describeOwnFlowsSplit`. The driver is the MARKET's mover («sul mercato hanno spinto soprattutto …»); the market counts the month's traded quotes from the ledger (trade price → today) and the split reads «dal mercato · risparmiati · di altre variazioni» on the savings already happened (`resolveLivedCashflow`, 2026-09-19). Every subject the driver clause can name is in `CLASS_SUBJECTS`, `PENSION_BAND_KEY` included; an unknown key drops the clause, never prints itself.
 - A category row deep-links to its Scheda on Analisi (`?focusType&focusCat`, `expenseType` in the payload since source version 17); the Panoramica links to the page that owns the depth and has no «Dettaglio» of its own.
 - Il resto — the hero step-down, the tile grid, the superseded-pattern rule, the Italian-copy test trap — in `doc/guide/panoramica.md`.
 
@@ -858,7 +858,9 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   2026-09-13) still answers 200 and writes a full export into a directory of THAT name in the repo root, which `git
   status` then shows as untracked: delete it. **Stopping a background task (`TaskStop`) kills only the npm wrapper**
   (2026-09-19): `next dev`, the `firebase` CLI and the Firestore `java` stay LISTENING on 3000/4000/4400/8080/9099 —
-  read `netstat -ano`, confirm each PID's command line is this repo's, then `Stop-Process -Id … -Force`.
+  read `netstat -ano`, confirm each PID's command line is this repo's, then `Stop-Process -Id … -Force`. **A port 3000
+  held by another app sends `next dev` to 3001 on its own** (2026-09-19: a foreign app answered `/login` with a redirect
+  to `/it/login`, and the probe waited for a form that never came): read the «Local:» line of the dev log first.
 
 ### Browser-Driven E2E (Playwright)
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,

@@ -41,5 +41,8 @@ export const DASHBOARD_OVERVIEW_SUMMARY_COLLECTION = 'dashboardOverviewSummaries
 // row of the Panoramica's category tiles can open its Scheda on Analisi (?focusType&focusCat).
 // Bumped from 17→18: monthSales.purchases (the month's buys from the ledger), so a sale reads as a
 // rebalancing when the proceeds were put back to work («Nello stesso mese hai comprato …»).
-export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 18;
+// Bumped from 18→19: marketEffect / topMovers / topInstrumentMovers read the month's traded quotes
+// from the ledger (trade price → today), and expenseStats.currentMonth.incomeScheduled lets the
+// verdict judge the savings already made.
+export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 19;
 export const DASHBOARD_OVERVIEW_SUMMARY_TTL_MS = 5 * 60 * 1000;

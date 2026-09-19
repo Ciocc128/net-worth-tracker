@@ -1,6 +1,12 @@
 # Cashflow › Divisione
 
-> **Quando aprire questa guida** — chi tocca `components/cashflow/ExpenseSplitTab.tsx`, `lib/utils/{expenseSplitSummary,expenseSplitNarrative}.ts` o la sezione email in `lib/server/monthlyEmailService.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file: `CLAUDE.md` → *Key Files* → la voce di quest'area.
+> **Quando aprire questa guida** — chi tocca `components/cashflow/ExpenseSplitTab.tsx`, `lib/utils/{expenseSplitSummary,expenseSplitNarrative}.ts` o la sezione email in `lib/server/monthlyEmailService.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. Moduli e file: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Cashflow › Divisione**: Divisione `components/cashflow/ExpenseSplitTab.tsx`, pure `lib/utils/{expenseSplitSummary,expenseSplitNarrative}.ts` (`resolveSplitBasis`, `allocateByShare`)
 
 ## Cashflow › Divisione (`components/cashflow/ExpenseSplitTab.tsx`, `lib/utils/{expenseSplitSummary,expenseSplitNarrative}.ts`)
 - **Opt-in, like Centri di Costo** (`expenseSplitEnabled`), on **Tracciamento's period axis** — a division is a fact of a
@@ -54,3 +60,4 @@
 ## Per-page blind spots
 
 - **Divisione**: no Playwright spec, and **the feature has never been exercised end-to-end with the flag ON** (the 2026-08-31 collaudo stopped after phase A by the owner's decision) — the pure layer, the flag-off invariance and the build are proven, the writes of `personalMemberId` and the rendering are not; the shares follow the PERIOD's salaries, so a thirteenth month moves them and a month without one recorded has no shares at all (said by name); income attributed to a person outside `laborIncomeCategoryIds` is in neither the pool nor the residual; a running year's pool carries scheduled rows (declared, like Tracciamento); a member deleted after the fact leaves rows in «Senza intestatario»; there is no bulk attribution, so history stays «all in comune» until edited row by row; the per-person tile spans 6 columns at two people and 4 at three or more; Tracciamento's «Intestatario» filter and the owner chips exist only with the flag on, and the filter's «Senza intestatario» option appears only when the PERIOD holds an orphaned row.
+- **Divisione's shares follow the PERIOD's salaries** (owner's call): a thirteenth salary moves the percentage, and a month with no salary recorded has no shares at all — `resolveSplitBasis` says so by name instead of printing 100/0. It **shipped without an end-to-end run with the flag ON**: the pure layer, flag-off invariance, `tsc`, suite and build are proven; the `personalMemberId` writes and the rendering are not. doc/guide/cashflow-divisione.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

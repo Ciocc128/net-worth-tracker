@@ -73,19 +73,44 @@ export function taxedGrowthHeadline(
 }
 
 /**
- * «Di quel movimento, −1079 € viene dal mercato e −3859 € dai tuoi movimenti.» — the month's
- * change split into the price effect and everything else the user did (deposits, spending,
- * sales, taxes). Stated whenever both halves exist; the split is exact by construction.
+ * A month's change and the halves it is read against: the market (the price effect, the
+ * month's traded quotes included) and the savings ALREADY made (income − expenses dated up to
+ * today; null when the cashflow is not known, and then no part claims to be savings).
  */
-export function describeOwnFlowsSplit(delta: number, marketEffect: number): Narrative {
-  const ownFlows = delta - marketEffect;
-  return [
-    prose('Di quel movimento, '),
-    signedCompactEuro(marketEffect),
-    prose(' viene dal mercato e '),
-    signedCompactEuro(ownFlows),
-    prose(' dai tuoi movimenti.'),
-  ];
+export interface MonthSplit {
+  delta: number;
+  marketEffect: number;
+  savings: number | null;
+}
+
+/** Below this, «altre variazioni» is rounding, not a part worth a figure. */
+const OTHER_CHANGES_FLOOR = 1;
+
+/**
+ * «+2018 € dal mercato, +2095 € risparmiati, +100 € di altre variazioni» — `total` split into the
+ * market, the savings and the exact residual (interest, balances corrected by hand, hand-valued
+ * holdings, expenses not recorded). The residual has its own NAME because «dai tuoi movimenti»,
+ * the one bucket it used to share with the savings, was read as income − expenses (owner,
+ * 2026-09-19); it is dropped under 1 €. Without the savings the second part says what it holds.
+ */
+function monthSplitParts(total: number, marketEffect: number, savings: number | null): Narrative {
+  const market: Narrative = [signedCompactEuro(marketEffect), prose(' dal mercato')];
+  const rest = total - marketEffect;
+  if (savings === null) {
+    return [...market, prose(' e '), signedCompactEuro(rest), prose(' tra risparmio e altre variazioni')];
+  }
+  const saved: Narrative = [signedCompactEuro(savings), prose(savings >= 0 ? ' risparmiati' : ' spesi oltre le entrate')];
+  const other = rest - savings;
+  if (Math.abs(other) < OTHER_CHANGES_FLOOR) return [...market, prose(' e '), ...saved];
+  return [...market, prose(', '), ...saved, prose(', '), signedCompactEuro(other), prose(' di altre variazioni')];
+}
+
+/**
+ * «Di quel movimento: +3980 € dal mercato, +1180 € risparmiati, −1040 € di altre variazioni.» —
+ * the month's change in the words the taxed sale's counterfactual uses. Exact by construction.
+ */
+export function describeMonthSplit(split: MonthSplit): Narrative {
+  return [prose('Di quel movimento: '), ...monthSplitParts(split.delta, split.marketEffect, split.savings), prose('.')];
 }
 
 /** «Vanguard FTSE All-World» for one instrument, «3 strumenti» for more. */
@@ -94,25 +119,19 @@ function salesSubject(sales: PeriodSalesSummary): NarrativeSegment[] {
   return [figure(String(sales.instruments.length)), prose(' strumenti')];
 }
 
-/** The month's change and its market half, for the counterfactual that closes a taxed sale. */
-export interface SalesSplit {
-  delta: number;
-  marketEffect: number;
-}
-
 /**
  * «Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato
  * circa 4089 € di tasse.» The tax is the broker's withholding, already gone at the sale (regime
  * amministrato), so the verb is «pagato», not «pagherai»; «circa» because it is estimated from the
  * instrument's rate. A loss carries no tax; a missing rate says so instead of printing zero.
  *
- * With `split` and a tax, the sentence closes on the month WITHOUT it, in three exact parts —
- * «: senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti).» —
- * and replaces `describeOwnFlowsSplit`, whose «dai tuoi movimenti» mixed the savings with the
- * tax (−1356 € on the real account's settembre 2026, a figure nobody could read). The own flows
- * are the residual `Δ − market + tax`, so the parts sum to Δ + tax by construction.
+ * With `split` and a tax, the sentence closes on the month WITHOUT it — «: senza, il mese avrebbe
+ * fatto +4213 € (+2018 € dal mercato, +2095 € risparmiati, +100 € di altre variazioni).» — and
+ * replaces `describeMonthSplit`, whose parts would mix the tax back in (−1356 € «dai tuoi
+ * movimenti» on the real account's settembre 2026, a figure nobody could read). The parts sum to
+ * Δ + tax by construction.
  */
-export function describeSales(sales: PeriodSalesSummary, split?: SalesSplit): Narrative {
+export function describeSales(sales: PeriodSalesSummary, split?: MonthSplit): Narrative {
   const narrative: Narrative = [
     prose('Hai venduto '),
     ...salesSubject(sales),
@@ -149,10 +168,8 @@ export function describeSales(sales: PeriodSalesSummary, split?: SalesSplit): Na
     prose(': senza, il mese avrebbe fatto '),
     signedCompactEuro(withoutTax),
     prose(' ('),
-    signedCompactEuro(split.marketEffect),
-    prose(' dal mercato, '),
-    signedCompactEuro(withoutTax - split.marketEffect),
-    prose(' dai tuoi movimenti).'),
+    ...monthSplitParts(withoutTax, split.marketEffect, split.savings),
+    prose(').'),
   );
   return narrative;
 }

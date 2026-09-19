@@ -84,7 +84,7 @@ export function offTargetGaps(gaps: ClassGap[]): ClassGap[] {
 
 /**
  * The classes the account HOLDS but the targets do not name: they never enter `byAssetClass`, so
- * the score's Σdrift reads them as a negative «leverage gap» (CLAUDE.md → Known Issues). The page
+ * the score's Σdrift reads them as a negative «leverage gap» (doc/guide/allocazione.md). The page
  * names them instead of calling a house «esposizione sotto il target di leva».
  */
 export function untargetedClassLabels(

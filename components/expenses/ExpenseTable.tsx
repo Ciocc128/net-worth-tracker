@@ -11,7 +11,7 @@
  *   «Conferma»); a row of an instalment plan or a recurring series opens `SeriesDeleteDialog`,
  *   the one question a series adds («solo questa o tutte?»). Until 2026-09-14 every delete went
  *   through a raw `AlertDialog` that asked «Sei sicuro?» and named neither the row nor the balance
- *   it moved back (one of the eight surfaces outside the modal vocabulary, CLAUDE.md → Known Issues).
+ *   it moved back (one of the eight surfaces then outside the modal vocabulary — DESIGN.md → §5 Modal, Coverage).
  * - Every figure is mono (the Mono Mandate): dates and amounts share one tabular column each.
  *
  * Pagination behaviour: page 1 again when the list changes (add/delete/filter) or the sort or
