@@ -1,6 +1,12 @@
 # Panoramica
 
-> **Quando aprire questa guida** — chi tocca `app/dashboard/page.tsx`, `app/api/dashboard/overview/route.ts`, `lib/services/dashboardOverviewService.ts`, `lib/hooks/useDashboardOverview.ts`, `components/dashboard/overview/*`, `lib/utils/{overviewNarrative,dashboardOverviewUtils}.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: `CLAUDE.md` → *Key Files* → *Overview*.
+> **Quando aprire questa guida** — chi tocca `app/dashboard/page.tsx`, `app/api/dashboard/overview/route.ts`, `lib/services/dashboardOverviewService.ts`, `lib/hooks/useDashboardOverview.ts`, `components/dashboard/overview/*`, `lib/utils/{overviewNarrative,dashboardOverviewUtils}.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Overview**: `app/dashboard/page.tsx`, `app/api/dashboard/overview/route.ts`, `lib/services/dashboardOverviewService.ts`, `lib/hooks/useDashboardOverview.ts`, `components/dashboard/overview/*` (`PatrimonioTile` exports `resolveHeroValueClass`), pure `lib/utils/{overviewNarrative,dashboardOverviewUtils,sparklinePeriod,savingsRateBadge}.ts`; `lib/utils/periodSales.ts` (`summarizePeriodSales` = the month's sells from the ledger with the estimated tax, `resolveDeclineCause` = the ONE cause of a falling month for Panoramica, Patrimonio and the email) + `lib/utils/salesNarrative.ts` (the shared words)
 
 ## Panoramica and Dashboard Data Isolation
 
@@ -194,3 +200,5 @@
   which the header mounts twice — and kept through the close. Pinned by `e2e/panoramica.snapshot.spec.ts`, which
   forces the «already exists» flag on the overview RESPONSE and never presses «Sovrascrivi». The inline footer links («Analisi», «Patrimonio») are text links inside a
   sentence, 15px tall — the house idiom, not a target.
+- **The market digest's blind spots**: a quantity no BUY/SELL explains (a baseline written in the month, an adjustment, a hand edit) and a failed ledger read keep a traded quote out of the market; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt; the email's «mercato» is a residual that also holds the page's «altre variazioni». (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **The sales clause is an ESTIMATE from the ledger** (2026-09-11): the tax is `plusvalenza × taxRate` per instrument — no compensation of prior losses, no rate → «non stimate» (never zero); a sale recorded outside the ledger (a hand-edited quantity) is invisible; the AI email prompt still prints the old `Δ − risparmio` residual; and a tax the owner ALSO records as a cashflow expense is counted twice in the email's split. On the real account the estimate landed 3,64 € under the broker's withholding (4.088,86 € vs 4.092,50 €). (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

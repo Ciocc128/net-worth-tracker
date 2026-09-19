@@ -6,8 +6,13 @@
 > `lib/utils/{expenseGrouping,expenseTypeTransition,recurrenceDates,expenseImport,cashflowSankey}.ts`,
 > `lib/services/expenseImportService.ts`, `handleEntitySelect` in `AnalisiTab.tsx` o i loro
 > consumatori. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa.
-> Moduli e file: `CLAUDE.md` → *Key Files* → le voci *Analisi*, *Cashflow / cost centers* e
-> *Shared utils*.
+> Moduli e file: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Cashflow services**: services `lib/services/{budgetService,costCenterService,cashBalanceReconciliation,expenseImportService}.ts`, `lib/utils/expenseImport.ts`
 
 ## Expense Grouping: key by id, label by name (`lib/utils/expenseGrouping.ts`)
 - **Category names are NOT unique and never will be** — the product deliberately allows "Casa" as both a *Spese Fisse*
@@ -80,3 +85,7 @@
 - **The type belongs inside the category id** (`cat:{tipo}:{chiave}`), because without that prefix an income and an
   expense category of the same name close a cycle through Budget and `computeNodeDepths` throws `"circular link"`,
   blanking the chart. **Ids are opaque**: `index` is the only sanctioned way to ask what a node is.
+
+## Per-page blind spots
+
+- **A running year is the WHOLE calendar year on Tracciamento and Analisi**, so its figures include what is only scheduled; each verdict declares it with amount and horizon, each such row is chipped «In calendario» and drops its sign colour. **«Da inizio anno» (YTD) is the other window** (`Period.kind = 'ytd'`, Analisi's fourth `PeriodMode`): it runs to the END of today's month, not to today, so it carries scheduled rows too. **On «Anno corrente» the delta compares twelve months against twelve** (`resolveComparisonScope` → `fullYear`), biased downward as the year runs; YTD keeps `sameMonths`, and Tracciamento's verdict and a category's Scheda still say «stessi mesi». Not extended to Panoramica, Storico, Budget or Centri di Costo. DESIGN → *The Scheduled-Is-Not-Spent Rule*. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

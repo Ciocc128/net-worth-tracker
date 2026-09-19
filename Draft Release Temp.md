@@ -135,6 +135,8 @@
 
 ## 📚 Documentation
 
+- The project index is short again: each area's files and its known blind spots now open and close that area's guide, and the index keeps one line per page with the question it answers.
+
 - The Centri di Costo guide records that a center has no pace, the risk and the fact standing on the calendar, the center held in the address, the free-colour default, the form's status line and the rules of «Collega spese…» (what is a candidate, a series as one row, the move named before the confirm, the write planned together with its undo); the Impeccable critique of Cashflow › Centri di Costo (22/40) is committed and closed by polish, and the page has its first browser tests.
 
 - The Analisi guide records the lived pace of the Scheda, the history's ceiling, the same-days rule of the running month, the absent tile of a month not started, the Flusso's height, alignment, caps and label neutrals, and the focus return; the Impeccable critique of Analisi (26/40) is tracked in `.impeccable/critique/` and closed by polish in the same session.

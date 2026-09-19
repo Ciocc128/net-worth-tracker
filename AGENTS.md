@@ -133,13 +133,13 @@ about a domain goes in that domain's guide, never here.
 - **A chart slot is not a text colour** — `--chart-1..8` target ~3:1 against a plot area (`text-[var(--chart-3)]`
   measured 1.02:1 on one theme). The 2026-08-30 tail was audited to the same floor across all twelve blocks (worst case
   3.38:1 — but on 2026-09-18 `--chart-3` light measured 2,74:1 and `--chart-1` dark 2,62:1 ON A CARD: re-measure before
-  leaning on that floor, CLAUDE.md → Known Issues), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
+  leaning on that floor, doc/guide/temi.md § Per-page blind spots), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
   are exempt.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
   items uses `hover:text-sidebar-foreground`. **Inline `style` blocks Tailwind hover variants**, so migrate to classes
   before adding `hover:`/`focus:`.
 - **CSS custom properties never reach emails or the PDF** (both render outside the DOM) — the sign hexes there are
-  permanently out of sync (CLAUDE.md → Known Issues).
+  permanently out of sync (doc/guide/email-pdf.md § Per-page blind spots).
 
 ---
 

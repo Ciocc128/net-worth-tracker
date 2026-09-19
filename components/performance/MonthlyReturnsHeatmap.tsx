@@ -19,7 +19,7 @@ const MONTH_LETTERS = ['G', 'F', 'M', 'A', 'M', 'G', 'L', 'A', 'S', 'O', 'N', 'D
 /**
  * The cell's fill: the sign token at three intensities, so the heatmap follows the theme like every
  * other gain and loss on the page (raw `bg-red-*`/`bg-green-*` stayed literal on Cyberpunk, where the
- * negative colour is orange — CLAUDE.md → Known Issues, closed 2026-08-25). A month out of the
+ * negative colour is orange — closed 2026-08-25). A month out of the
  * period, or exactly flat, is the muted surface: neither a gain nor a loss.
  */
 export function heatmapCellClass(value: number | null): string {
