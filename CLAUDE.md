@@ -13,7 +13,29 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **177 files / 3992 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **182 files / 4091 tests** green (4089 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-19, fork): **PR #4 (Accumulo/PAC) blocking review fixes: the trajectory's target
+  tracked the WRONG base, and the projection never spent the cash.** `projectClassTrajectory`
+  (rilievo 1): a measured point's target now scales to THAT point's own `marketBaseEur`
+  (`resolveTargetPct`, reading raw config from `targets` — never a target resolved once at the
+  function's start), and a projected point reads its target straight off its own `compare()` call
+  instead of the frozen baseline — `compareAllocations` scales EVERY class's target when cash uses
+  a fixed amount, not just cash's. `buildProjectedAssets` (rilievo 2): the plan's own cash now
+  moves in the projection — spent on not-yet-executed installments, replenished by the estimated
+  monthly inflow (month by month) and by not-yet-executed disposals' proceeds, pro-rata over
+  `sourceCashAssetIds`' LIVE balances, `allocationRole` untouched (owner's decisions, doc/pac-ate.md
+  §5.9). `AccumuloTile.tsx` (rilievo 3): `matchPlanExecutions`/`projectClassTrajectory` moved into
+  `useMemo` (were re-running on every render, N=60 → 61 `compareAllocations` calls and asset-list
+  clones per keystroke in the manual-entry form), `today` stabilized to day granularity. Rilievo 10:
+  the weak "does not distort the other classes" test (asserted only at index 0, where baseline and
+  point trivially coincide) rewritten to check a non-cash class at index > 0 against the PR's own
+  reference numbers (idx2: target 83,333 · drift 0,000, was 80,000 · +3,333pp fuori banda). Rilievo
+  4: `recalibrateInstallment`'s `N − index + 1` (doc/pac-ate.md §5.7 said `N − index`) ratified into
+  the ATE, code unchanged (owner's call — the open installment counts among the months remaining).
+  Collaudo: `tsc` 0, ESLint 0, 182 file / 4091 test (5 new/rewritten assertions proven red against
+  the pre-fix code, then green again), `npm run build` compiles (stops at page-data collection for
+  the missing `NEXT_PUBLIC_FIREBASE_*` vars, expected in this environment). doc/guide/accumulo.md
+  § Limiti noti.
 - Latest (2026-09-15 sera, fork): **Lime Frost, secondo giro sul mirror (desktop + iPhone 15) con le annotazioni del
   proprietario.** Scrub dello Storico ripristinato (contro upstream `5e6e3c6`), mese corrente come fascia + pillola in
   tutti i grafici mensili, nessuna etichetta troncata, Sankey sottile anche con le sottocategorie e palette di tema per

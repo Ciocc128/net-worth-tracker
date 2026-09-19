@@ -37,6 +37,7 @@ import {
   type PlanDeps,
 } from '@/lib/utils/accumulationPlanUtils';
 import { matchPlanExecutions, type LineMatch, type LineUiState } from '@/lib/utils/accumulationPlanMatching';
+import { getItalyDateIso } from '@/lib/utils/dateHelpers';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
@@ -174,6 +175,40 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
   const sourceCashEur = useMemo(
     () => allAssets.filter((asset) => asset.assetClass === 'cash').reduce((sum, asset) => sum + calculateAssetValue(asset), 0),
     [allAssets],
+  );
+
+  // Stabilized to day granularity (never `new Date()` inline in the two expensive memos below): a
+  // fresh Date every render defeated their memoization even on a keystroke in the manual form (PR
+  // #4 review, rilievo 3) — `todayIso` only changes once a day, so `today`'s identity does too.
+  const todayIso = getItalyDateIso(new Date());
+  const today = useMemo(() => new Date(`${todayIso}T12:00:00`), [todayIso]);
+
+  // Rules of Hooks: computed unconditionally, ahead of the loading/failed/none/draft early returns
+  // below, even though only the active (non-done) branch renders them.
+  const currentIndex = useMemo(() => (plan ? monthIndexOf(plan, toMonthKey(today)) : 0), [plan, today]);
+
+  const matchResult = useMemo(
+    () => (plan ? matchPlanExecutions(plan, transactionsQuery.data ?? [], today) : { matches: [], lineStates: {} }),
+    // `today` deliberately not a dependency: matching only needs day-level freshness when the plan
+    // or the ledger change (doc/pac-ate.md §5.9).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plan, transactionsQuery.data],
+  );
+
+  const trajectory = useMemo(
+    () =>
+      plan && targets
+        ? projectClassTrajectory({
+            plan,
+            allAssets,
+            installments: plan.installments,
+            targets,
+            band,
+            compare: compareAllocations,
+            currentIndex,
+          })
+        : [],
+    [plan, allAssets, targets, band, currentIndex],
   );
 
   const surfaceState = resolveSurfaceState({ loading: plansQuery.isLoading || (!!plan && !targets), failed: plansQuery.isError });
@@ -374,7 +409,6 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
   }
 
   // ── active / done ────────────────────────────────────────────────────────
-  const currentIndex = monthIndexOf(plan, toMonthKey(new Date()));
   const done = isPlanDone(plan, currentIndex);
   const states = resolvePositionStates(plan.positions, assetsById, DEPS);
   const outcome = projectPlanOutcome(states, plan.installments, plan.residualEur ?? 0, assetsById, plan.positions, DEPS);
@@ -439,7 +473,6 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
     .filter((installment) => installment.index < currentIndex)
     .flatMap((installment) => installment.lines.filter((line) => line.status === 'planned').map((line) => ({ installment, line })));
   const currentLines = currentInstallment ? currentInstallment.lines.filter((line) => line.plannedQuantity > 0 || line.status !== 'planned') : [];
-  const matchResult = matchPlanExecutions(plan, transactionsQuery.data ?? [], new Date());
 
   const executedCount = currentInstallment ? currentInstallment.lines.filter((line) => line.status === 'executed').length : 0;
   const todoCount = lateLines.length + (currentInstallment ? currentInstallment.lines.filter((line) => line.status === 'planned').length : 0);
@@ -447,9 +480,6 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
     ? currentInstallment.lines.reduce((sum, line) => sum + (line.status === 'executed' ? (line.executedAmountEur ?? line.plannedAmountEur) : line.plannedAmountEur), 0)
     : 0;
 
-  const trajectory = targets
-    ? projectClassTrajectory({ plan, allAssets, installments: plan.installments, targets, band, compare: compareAllocations, currentIndex })
-    : [];
   const clampedIndex = Math.min(currentIndex, plan.months);
   const currentPoint = trajectory.find((p) => p.index === clampedIndex);
   const finalPoint = trajectory[trajectory.length - 1];

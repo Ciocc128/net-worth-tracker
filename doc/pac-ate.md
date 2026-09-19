@@ -376,7 +376,7 @@ export interface RecalibrationResult {
   lines: RecalibrationLine[];
   plannedTotalEur: number;
   suggestedTotalEur: number;
-  liquidity: UsableLiquidity;  // computed with monthsRemaining = N − index
+  liquidity: UsableLiquidity;  // computed with monthsRemaining = N − index + 1 (the open installment counts)
 }
 
 export function recalibrateInstallment(
@@ -387,8 +387,9 @@ export function recalibrateInstallment(
 ): RecalibrationResult;
 ```
 
-- `liq = computeUsableLiquidity(plan.liquidity, assetsById, plan.disposals, N − index, deps)`;
-  qui `sourceCashEur` è il valore **reale** di oggi dei conti.
+- `liq = computeUsableLiquidity(plan.liquidity, assetsById, plan.disposals, N − index + 1, deps)`
+  (corretto 2026-09-19 — vedi la nota sotto: questa specifica scriveva `N − index`, il codice ha
+  sempre usato `N − index + 1`); qui `sourceCashEur` è il valore **reale** di oggi dei conti.
 - `states = resolvePositionStates(plan.positions, assetsById, deps)` con valori reali.
 - `totals = computeTotalPurchases(states, liq.L)`.
 - Per ogni posizione: `budget = totals[p] / (N − index + 1)`; `suggestedQuantity = floor(budget / price + 1e-9)`.
@@ -396,6 +397,13 @@ export function recalibrateInstallment(
   incassati` allora riduci proporzionalmente (scala i budget per il rapporto e ricalcola i floor).
   Questo realizza "entrate non arrivate → rata ridotta, riserva intatta".
 - La funzione **non** modifica il piano; `applyRecalibration` del service scrive le righe accettate.
+
+**Nota (PR #4, rilievo 4, decisione del proprietario 2026-09-19)**: questa specifica scriveva
+`monthsRemaining = N − index`, ma `recalibrateInstallment` ha sempre diviso per `N − index + 1`
+(coerente da riga 317 a riga 331 del codice) — la rata APERTA (`index`) conta tra i mesi restanti,
+perché si sta ricalibrando ORA, con quella rata ancora da eseguire. Il proprietario ha scelto di
+allineare questa specifica al codice piuttosto che il contrario: il comportamento a runtime non
+cambia.
 
 ### 5.8 `projectPlanOutcome`
 
@@ -461,22 +469,47 @@ export function projectClassTrajectory(input: {
 }): ClassTrajectoryPoint[];
 ```
 
-Algoritmo:
+Algoritmo (revisione 2026-09-19, dopo il collaudo della PR #4 — i due punti seguenti erano un
+rilievo bloccante, chiuso in questa stessa sessione):
 
 - **Punti misurati** (`index < currentIndex` con `measurement`, più `baseline.measurement` per
   l'indice 0 di un piano attivo): da `measurement.classNotionalEur` e `marketBaseEur` si ricava
-  `currentPct = notional / marketBase × 100`. Il target effettivo per classe si ottiene chiamando
-  **una volta** `compare(allAssets, targets)` e leggendo `byAssetClass[c].targetPercentage`
-  (per `cash` con `useFixedAmount` ricalcola `fixedAmount / marketBase × 100`, come fa
-  `compareAllocations`). `driftPp = currentPct − targetPct`.
-- **Punto corrente e punti proiettati** (`index ≥ currentIndex`): clona gli asset
-  (`{ ...asset }`), aggiungi per ogni riga non eseguita dei mesi fino a index la `plannedQuantity`
-  alla `quantity` del `buyAssetId`; le righe già eseguite sono già nelle quantità reali. Dal mese 1
-  in poi le vendite non eseguite portano la `quantity` dell'asset a 0. Chiama
-  `compare(clones, targets)` e leggi `byAssetClass`.
+  `currentPct = notional / marketBase × 100`. Il target effettivo per classe si ricalcola con
+  `resolveTargetPct(assetClass, targets, marketBaseEur)` **usando la base di mercato DI QUEL
+  PUNTO** — mai una base risolta una volta sola all'inizio della funzione: `compareAllocations`
+  scala il target di OGNI classe (non solo cash) quando il target cash è a importo fisso
+  (`assetAllocationService.ts`, `toLegacyAllocationResult`, righe ~838-864 — il target grezzo di
+  ogni classe non-cash è moltiplicato per `(marketBase − fixedAmount) / marketBase`), quindi un
+  punto con una base di mercato diversa da quella con cui il target fu risolto la prima volta
+  legge un target sbagliato. `resolveTargetPct` legge la % grezza direttamente da `targets`, mai
+  da un `compare()` precedente, e applica la stessa formula: per `cash` con `useFixedAmount`,
+  `fixedAmount / marketBaseEur × 100`; per ogni altra classe, la % grezza scalata per
+  `(marketBaseEur − fixedAmount) / marketBaseEur` (1 se cash non è a importo fisso).
+  `driftPp = currentPct − targetPct`.
+- **Punto corrente e punti proiettati** (`index ≥ currentIndex`): `buildProjectedAssets` clona gli
+  asset (`{ ...asset }`), aggiunge per ogni riga non eseguita dei mesi fino a index la
+  `plannedQuantity` alla `quantity` del `buyAssetId` (le righe già eseguite sono già nelle
+  quantità reali), e dal mese 1 in poi azzera la `quantity` degli asset delle vendite non
+  eseguite. **La cassa del piano si muove di conseguenza**, invece di restare ferma mentre il lato
+  acquisti fa crescere la base di mercato dal nulla: `cassa(m) = cassa₀ − Σ acquisti pianificati
+  (righe non eseguite) fino a m + E × m + Σ ricavi delle vendite non eseguite (dal mese 1)`,
+  ripartita pro quota sui saldi LIVE di `plan.liquidity.sourceCashAssetIds` (mai sui ruoli
+  `allocationRole` dell'utente, che restano intoccati: un conto sorgente `excluded` viene comunque
+  scartato dalla base di mercato di `compare()`, quindi spostarne il saldo proiettato è un no-op
+  per la traiettoria — verificato). Poi chiama `compare(clones, targets)` e legge
+  `byAssetClass[c].targetPercentage` DIRETTAMENTE dal risultato di QUESTA chiamata (mai da un
+  target risolto altrove): il punto proiettato e la sua base di mercato nascono dalla stessa
+  chiamata a `compare()`, quindi non possono più disallinearsi.
 - `outOfBand` usa `bandForTarget(band, targetPct)` di `./allocationUtils` (già esportata). Nessuna
   modifica a `allocationUtils.ts`.
 - Invariante testata: con `currentIndex = 0` il punto 0 coincide con `compare(allAssets, targets)`.
+- **Tre decisioni sul modello di cassa** (owner, PR #4, rilievo 2 — non riaprire):
+  1. I ruoli `allocationRole` dell'utente non si toccano mai; la proiezione muove solo il saldo,
+     mai la classificazione tradable/excluded/frozen di un conto.
+  2. L'entrata mensile stimata `E` entra nella proiezione mese per mese (`E × m`), non tutta in
+     blocco all'ultimo mese.
+  3. Il prelievo (o il deposito) quando i conti sorgente sono più di uno è **pro quota sui saldi
+     LIVE** di quel punto, mai un ordine fisso o un unico conto "principale".
 
 ### 5.10 `buildClassMeasurement`
 

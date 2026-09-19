@@ -59,6 +59,19 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   non un'importazione condivisa.
 - **`calculateAssetValue`/`unitPriceEur` sono iniettati** via `PlanDeps`, come fa `buildHoldings` per il
   resto della pagina — mai importati direttamente nel motore puro.
+- **Il target di un punto della traiettoria viene da QUEL punto, mai dalla baseline** (PR #4,
+  rilievo 1, chiuso 2026-09-19): un punto misurato risolve il target con `resolveTargetPct`
+  passandogli la SUA `marketBaseEur`, un punto proiettato lo legge direttamente dal risultato del
+  `compare()` di quel punto — mai un target risolto una volta sola all'inizio della funzione.
+  Motivo: con un target cash a importo fisso, `compareAllocations` scala il target di OGNI classe
+  (non solo cash) sulla base di mercato corrente; congelare il target alla base della baseline lo
+  sbagliava non appena la base cambiava (acquisti, entrate stimate, vendite). doc/pac-ate.md §5.9.
+- **La proiezione muove anche la cassa del piano** (PR #4, rilievo 2, chiuso 2026-09-19):
+  `buildProjectedAssets` non si limita più ad aggiungere le quote pianificate all'asset
+  d'acquisto — sottrae anche gli acquisti non eseguiti dai conti sorgente, aggiunge l'entrata
+  mensile stimata mese per mese e i ricavi delle vendite non eseguite, pro quota sui saldi live di
+  `sourceCashAssetIds`. Prima, la cassa restava ferma mentre il lato acquisti faceva crescere la
+  base di mercato dal nulla. doc/pac-ate.md §5.9.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 
@@ -129,3 +142,11 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
   dall'anteprima Vercel (WORKFLOW.md §2 adattato, doc/pac-ate.md §13).
 - **`recalibrateInstallment` non scrive**: propone soltanto; `applyRecalibration` (chiamata dal dialog)
   sostituisce le righe ancora `planned` della rata, quelle già `executed` restano intatte.
+- **Il modello di cassa del piano è indipendente dal target cash di Impostazioni**:
+  `plan.liquidity.reserveEur` (mai toccata, D4) e il target `cash` a importo fisso di Impostazioni
+  (quello che `compareAllocations` scala nella traiettoria di D11) sono due numeri distinti che
+  l'app non concilia — un piano può spendere la cassa fino alla SUA riserva anche quando
+  l'Allocazione vuole tenerne di più da parte per il target. La traiettoria lo mostra semplicemente
+  come una classe cash sotto target (drift negativo) a fine piano, mai come un conflitto esplicito
+  fra i due numeri: non è un bug della proiezione (§5.9 la calcola correttamente contro il saldo
+  REALE che risulterebbe), è che i due concetti non si parlano.

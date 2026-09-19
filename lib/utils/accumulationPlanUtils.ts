@@ -492,18 +492,33 @@ export interface ClassTrajectoryPoint {
   }>>;
 }
 
-/** Effective target %, recomputed per-point for a fixed-amount cash target (its %-equivalent
- *  depends on THAT point's own market base); every other class reuses the baseline once resolved. */
+/**
+ * Effective target % for a MEASURED point (no live `compare()` call to read it from — see
+ * `classPointFromEntries` below for the projected branch, which reads the target straight off its
+ * own `compare()` result instead). Mirrors `compareAllocations`' own fixed-cash-amount scaling
+ * (`assetAllocationService.ts` `toLegacyAllocationResult`, lines ~838-864): with a fixed-amount
+ * cash target, the reserved € is carved out of the market base BEFORE every other class's target
+ * applies, so a non-cash class's effective target is its raw config % scaled by
+ * `(marketBaseEur − fixedAmount) / marketBaseEur` — not just cash. Every percentage here is scaled
+ * to THIS point's own `marketBaseEur`, never the baseline's (PR #4 review, rilievo 1): the raw
+ * config in `targets` never changes point to point, but the scaling factor does whenever the
+ * market base does.
+ */
 function resolveTargetPct(
   assetClass: AssetClass,
-  baselineTargetPctByClass: Partial<Record<AssetClass, number>>,
   targets: AssetAllocationTarget,
   marketBaseEur: number
 ): number {
-  if (assetClass === 'cash' && targets.cash?.useFixedAmount) {
-    return marketBaseEur > 0 ? ((targets.cash.fixedAmount ?? 0) / marketBaseEur) * 100 : 0;
+  if (marketBaseEur <= 0) return 0;
+  const rawTargetPercentage = targets[assetClass]?.targetPercentage ?? 0;
+  const useCashFixedAmount = targets.cash?.useFixedAmount ?? false;
+  if (assetClass === 'cash' && useCashFixedAmount) {
+    return ((targets.cash?.fixedAmount ?? 0) / marketBaseEur) * 100;
   }
-  return baselineTargetPctByClass[assetClass] ?? 0;
+  if (!useCashFixedAmount) return rawTargetPercentage;
+  const fixedAmount = targets.cash?.fixedAmount ?? 0;
+  const targetBase = Math.max(0, marketBaseEur - fixedAmount);
+  return rawTargetPercentage * (targetBase / marketBaseEur);
 }
 
 function classPointFromEntries(
@@ -513,16 +528,14 @@ function classPointFromEntries(
   measuredAt: Date | undefined,
   entries: Array<[string, number]>,
   currentPctOf: (notionalOrValue: number) => number,
-  targets: AssetAllocationTarget,
-  baselineTargetPctByClass: Partial<Record<AssetClass, number>>,
-  marketBaseEur: number,
+  targetPctOf: (assetClass: AssetClass) => number,
   band: RebalanceBand
 ): ClassTrajectoryPoint {
   const byClass: ClassTrajectoryPoint['byClass'] = {};
   for (const [key, value] of entries) {
     const assetClass = key as AssetClass;
     const currentPct = currentPctOf(value);
-    const targetPct = resolveTargetPct(assetClass, baselineTargetPctByClass, targets, marketBaseEur);
+    const targetPct = targetPctOf(assetClass);
     const driftPp = currentPct - targetPct;
     byClass[assetClass] = {
       currentPct,
@@ -534,30 +547,67 @@ function classPointFromEntries(
   return { index, month, source, measuredAt, byClass };
 }
 
-/** Clone `allAssets`, projecting the effect of the plan through calendar month `index`. */
+/**
+ * Clone `allAssets`, projecting the effect of the plan through calendar month `index`: not-yet-
+ * executed buys/disposals move quantities as before, and — since PR #4's review, rilievo 2 — the
+ * plan's own cash moves too, instead of sitting untouched while the buy side grows the market base
+ * out of nowhere. `cassa(m) = cassa₀ − Σ acquisti pianificati fino a m + E × m + Σ ricavi delle
+ * vendite non eseguite (dal mese 1)` (doc/pac-ate.md §5.9), split pro-rata over the LIVE balances of
+ * `liquidity.sourceCashAssetIds` — never over the user's `allocationRole`: an `excluded` source
+ * account is dropped by `compare()`'s market base regardless of its projected balance, so moving it
+ * here changes nothing about the trajectory (verified). An `executed` line/disposal is skipped on
+ * both the quantity and the cash side, same as before: its real ledger trade already moved both the
+ * position and the cash account it settled from.
+ */
 function buildProjectedAssets(
   allAssets: Asset[],
   installments: Installment[],
   disposals: PlanDisposal[],
+  liquidity: PlanLiquidity,
   index: number
 ): Asset[] {
   const clonesById = new Map<string, Asset>();
   for (const asset of allAssets) clonesById.set(asset.id, { ...asset });
 
+  let spentEur = 0;
   for (const installment of installments) {
     if (installment.index > index) continue;
     for (const line of installment.lines) {
       if (line.status === 'executed') continue;
       const clone = clonesById.get(line.assetId);
       if (clone) clone.quantity = clone.quantity + line.plannedQuantity;
+      spentEur += line.plannedAmountEur;
     }
   }
 
+  let disposalProceedsEur = 0;
   if (index >= 1) {
     for (const disposal of disposals) {
       if (disposal.status === 'executed') continue;
       const clone = clonesById.get(disposal.assetId);
       if (clone) clone.quantity = 0;
+      disposalProceedsEur += disposal.estimatedProceedsEur;
+    }
+  }
+
+  const inflowEur = liquidity.monthlyInflowEur * index;
+  const cashDeltaEur = inflowEur + disposalProceedsEur - spentEur;
+
+  if (cashDeltaEur !== 0) {
+    const sourceCashClones = liquidity.sourceCashAssetIds
+      .map((id) => clonesById.get(id))
+      .filter((asset): asset is Asset => !!asset);
+    const totalSourceCashEur = sourceCashClones.reduce(
+      (sum, asset) => sum + asset.quantity * unitPriceEur(asset),
+      0
+    );
+    for (const clone of sourceCashClones) {
+      const currentValueEur = clone.quantity * unitPriceEur(clone);
+      // Weight by the live balance when there is one to weight by; an even split only when every
+      // source account happens to be at zero (never silently dropping the delta).
+      const share = totalSourceCashEur > 0 ? currentValueEur / totalSourceCashEur : 1 / sourceCashClones.length;
+      const price = unitPriceEur(clone);
+      if (price > 0) clone.quantity = clone.quantity + (cashDeltaEur * share) / price;
     }
   }
 
@@ -574,12 +624,6 @@ export function projectClassTrajectory(input: {
   currentIndex: number;                         // 0 for a draft; the open installment for active
 }): ClassTrajectoryPoint[] {
   const { plan, allAssets, installments, targets, band, compare, currentIndex } = input;
-
-  const baselineResult = compare(allAssets, targets);
-  const baselineTargetPctByClass: Partial<Record<AssetClass, number>> = {};
-  for (const [assetClass, data] of Object.entries(baselineResult.byAssetClass)) {
-    baselineTargetPctByClass[assetClass as AssetClass] = data.targetPercentage;
-  }
 
   const points: ClassTrajectoryPoint[] = [];
 
@@ -598,9 +642,7 @@ export function projectClassTrajectory(input: {
             measurement.measuredAt,
             Object.entries(measurement.classNotionalEur) as Array<[string, number]>,
             (notional) => (measurement.marketBaseEur > 0 ? (notional / measurement.marketBaseEur) * 100 : 0),
-            targets,
-            baselineTargetPctByClass,
-            measurement.marketBaseEur,
+            (assetClass) => resolveTargetPct(assetClass, targets, measurement.marketBaseEur),
             band
           )
         );
@@ -608,7 +650,7 @@ export function projectClassTrajectory(input: {
       }
     }
 
-    const projectedAssets = buildProjectedAssets(allAssets, installments, plan.disposals, index);
+    const projectedAssets = buildProjectedAssets(allAssets, installments, plan.disposals, plan.liquidity, index);
     const allocation = compare(projectedAssets, targets);
     points.push(
       classPointFromEntries(
@@ -618,9 +660,7 @@ export function projectClassTrajectory(input: {
         undefined,
         Object.entries(allocation.byAssetClass).map(([k, d]) => [k, d.currentPercentage]),
         (pct) => pct,
-        targets,
-        baselineTargetPctByClass,
-        allocation.marketValue,
+        (assetClass) => allocation.byAssetClass[assetClass]?.targetPercentage ?? 0,
         band
       )
     );
