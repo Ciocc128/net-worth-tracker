@@ -59,8 +59,8 @@
   ungrouped** (`4120,18 €`, not `4.120,18 €`). `__tests__/overviewNarrative.test.ts` flattens the nbsp through a
   `plain()` helper and writes expectations the way the screen prints them — do not "fix" the formatter.
 - **`topMovers` / `marketEffect` are MARKET return, never the user's flows.** `computeTopMovers` sums the per-asset
-  price effect `q_prev × (u_curr − u_prev)` from `attributeSelectedChange` (the same split Storico uses) and
-  returns `[]` when the previous snapshot has no `byAsset` — a class-value delta cannot tell a purchase from a
+  price effect `q_prev × (u_curr − u_prev)` from `attributeSelectedChange` (the same split Storico uses) — or, for an
+  instrument TRADED in the month, the ledger reading of § *The market counts the month's trades* — and returns `[]` when the previous snapshot has no `byAsset` — a class-value delta cannot tell a purchase from a
   price move, and a digest that calls a cash-for-crypto swap "Liquidità −14.110" is describing trades, not returns.
   `marketEffect` is `null` when not attributable, distinct from a measured `0`. Every class with an effect ≥ 1 € is
   listed, largest first (no top-N cut). **Pension funds are their own "Previdenza" line** (`PENSION_BAND_KEY`, like
@@ -68,8 +68,8 @@
   **`Δvalue − contributions registered since the previous snapshot`** (attributed by `valueEffectMonth`, exported from `pensionReturn.ts` for exactly this), from
   `pensionReturnStartMonth` (or the first recorded contribution) onwards and 0 before — the service reads
   `pensionContributions` only for a holder of a fund, by literal collection name because
-  `pensionContributionService` top-level-imports the client SDK. Known blind spots: a position opened this month
-  contributes 0; cash and other price-1 assets never show a market effect. **Real estate is measured gross of debt** (`quantity × byAsset.price`, never the net `totalValue`) — on the net value a mortgage
+  `pensionContributionService` top-level-imports the client SDK. Known blind spot: cash and other price-1 assets never
+  show a market effect. **Real estate is measured gross of debt** (`quantity × byAsset.price`, never the net `totalValue`) — on the net value a mortgage
   instalment read as "Immobili +1.036" on the real account with the house worth exactly the same.
 - **An in-flow `<svg>` with `height: 100%` inside an auto-height flex box resolves its height from its own
   viewBox ratio** (width × H/W — hundreds of pixels), which is what made the hero sparkline explode the grid row.
@@ -129,11 +129,10 @@
   vendita di VWCE si sono prese la crescita.» / «… cresce, ma … più di metà della crescita.» Tone `warning`. It needs only
   Δ and the tax, so the email reaches it too; on Patrimonio it outranks the «massimo storico» headline. The sale then
   leads the sentence (`taxIsTheStory`), exactly like `taxes-despite-market`.
-- **A taxed sale carries the split itself**: `describeSales(sales, { delta, marketEffect })` closes on «: senza, il mese
-  avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti).» — own flows are the residual `Δ − market +
-  tax`, so the parts add up by construction — and `describeOwnFlowsSplit` is printed only when there is no tax to take
-  out (its «−1356 € dai tuoi movimenti» mixed the savings with the withholding). The email keeps its own three-part split
-  and calls `describeSales` without the counterfactual.
+- **A taxed sale carries the split itself**: `describeSales(sales, split)` closes on «: senza, il mese avrebbe fatto
+  +4213 € (…)», the parts of § *The market counts the month's trades* summing to Δ + tax, and `describeMonthSplit` is
+  printed only when there is no tax to take out. The email keeps its own three-part split and calls `describeSales`
+  without the counterfactual.
 - **`monthSales.purchases`** (source version 18): every BUY of the month on any instrument, fees included, migration
   baselines excluded, `null` when none — «Nello stesso mese hai comprato 6 strumenti per 34.304 €» (`describePurchases`).
   A fact beside the sale, never «con la vendita hai comprato»: the ledger cannot tell which money paid.
@@ -141,10 +140,39 @@
   (Patrimonio: «sul mercato ha spinto soprattutto WBIT»). «Hanno fatto il grosso del lavoro» read as the month's cause
   and credited +726 € to a month of +124 €.
 
+## The market counts the month's trades (2026-09-19)
+
+- **An instrument with a BUY/SELL after the previous snapshot's month reads its market from the ledger**
+  (`tradeAwarePriceEffect` in `lib/utils/dashboardOverviewUtils.ts`, fed `monthTrades` by the service's
+  `tradesAfterSnapshot`, source version 19): `Δvalue − net money in − unexplained quantity × today's unit value`, with
+  money in = Σ buys (q × priceEur + fees) − Σ sells (q × priceEur − fees). A held quote gives the old `q_prev × Δu`, a
+  bought one `q × (u_now − p) − fees`, a sold one `q × (p − u_prev) − fees`, and a position closed in the month is
+  still measured. Why: `q_prev × Δu` gave 0 to the quotes bought in the month, and on the real account settembre 2026
+  parked +537,88 € in «dai tuoi movimenti», which the owner read as income − expenses. Pinned by
+  `__tests__/dashboardOverviewUtils.test.ts` → *the month's trades, read from the ledger*.
+- **A quantity no BUY/SELL explains stays OUT of the market**: a migration baseline written in the month, an adjustment,
+  a quantity typed by hand move no money the ledger knows, so they are valued at today's price and land in «altre
+  variazioni». Pension funds and hand-valued property keep their own rules. A failed ledger read leaves the digest on
+  `q_prev × Δu` (a warn in the log, the sales clause gone).
+- **The month's split is market · savings · the rest**: `describeMonthSplit` / `monthSplitParts` in
+  `lib/utils/salesNarrative.ts` — «Di quel movimento: +3980 € dal mercato, +1180 € risparmiati, −1040 € di altre
+  variazioni.», the same three parts inside the taxed sale's counterfactual. «Risparmiati» is income − expenses ALREADY
+  happened (negative: «spesi oltre le entrate»); «altre variazioni» is the exact residual (interest, balances corrected
+  by hand, hand-valued holdings, expenses not recorded), dropped under 1 €. Without the cashflow the second part says
+  what it holds: «tra risparmio e altre variazioni». Patrimonio takes the same `savings` from the same payload.
+- **The verdict's savings rate is what has already happened** (owner's call): `resolveLivedCashflow` in
+  `overviewNarrative.ts` subtracts `expensesScheduled` and the new `incomeScheduled` — Tracciamento's `settleTotals` —
+  and names the calendar beside it: «Hai messo da parte il 45% delle entrate finora (altri 1297 € di spese in
+  calendario)». The old rate counted rows dated after today (17% against 45% already saved, the same day). A payload
+  without `incomeScheduled` gets no lived reading (`null`), never half a subtraction.
+
 ## Per-page blind spots
 
-- **«Hai messo da parte il 17%» counts the month's scheduled rows too** (`expenseStats.currentMonth`), while
-  Tracciamento's verdict judges only what has happened (`settleTotals`): on the same day the two can differ. Not aligned.
+- **The Cashflow tile keeps the WHOLE month** («Messo da parte il 17%», calendar included) beside the verdict's «45%
+  finora»: the tile shows the month's three figures and its projection, the verdict judges the days lived. Seen by the
+  owner on the mirror (2026-09-19) and left as is.
+- **The email's «mercato» is still a residual** (`Δ − risparmio + tasse`): it holds the month's traded quotes, as the
+  page now does, but also the page's «altre variazioni».
 
 - **The sale clause moves before the savings clause only when the headline names the tax**; on every other falling month
   the sentence keeps its order (variation · savings and driver · split · sale).

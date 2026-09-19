@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   declineHeadlineTail,
-  describeOwnFlowsSplit,
+  describeMonthSplit,
   describePurchases,
   describeSales,
   taxedGrowthHeadline,
@@ -74,18 +74,26 @@ describe('describeSales', () => {
   });
 });
 
-describe('describeOwnFlowsSplit', () => {
-  it('should split the change into the market and the own flows, exactly', () => {
-    // September 2026 on the real account: −4.937,74 € with the market at −1.078,73 €.
-    expect(plain(describeOwnFlowsSplit(-4937.74, -1078.73))).toBe(
-      'Di quel movimento, −1079 € viene dal mercato e −3859 € dai tuoi movimenti.',
+describe('describeMonthSplit', () => {
+  it('should split the change into the market, the savings and the other changes, exactly', () => {
+    // 4120,18 = 3980 + 1180 − 1039,82: «tuoi movimenti» was read as income − expenses, so the savings
+    // are named and what is left has its own name (owner, 2026-09-19).
+    expect(plain(describeMonthSplit({ delta: 4120.18, marketEffect: 3980, savings: 1180 }))).toBe(
+      'Di quel movimento: +3980 € dal mercato, +1180 € risparmiati, −1040 € di altre variazioni.',
     );
   });
 
-  it('should colour each half by its own sign', () => {
-    const segments = describeOwnFlowsSplit(4120.18, 3980);
+  it('should say what the second part holds when the savings are not known', () => {
+    expect(plain(describeMonthSplit({ delta: -4937.74, marketEffect: -1078.73, savings: null }))).toBe(
+      'Di quel movimento: −1079 € dal mercato e −3859 € tra risparmio e altre variazioni.',
+    );
+  });
+
+  it('should colour each part by its own sign', () => {
+    const segments = describeMonthSplit({ delta: 4120.18, marketEffect: 3980, savings: 1180 });
     expect(segments.find((segment) => text(segment) === '+3980 €')).toMatchObject({ mono: true, sign: 'positive' });
-    expect(segments.find((segment) => text(segment) === '+140 €')).toMatchObject({ mono: true, sign: 'positive' });
+    expect(segments.find((segment) => text(segment) === '+1180 €')).toMatchObject({ mono: true, sign: 'positive' });
+    expect(segments.find((segment) => text(segment) === '−1040 €')).toMatchObject({ mono: true, sign: 'negative' });
   });
 });
 
@@ -113,21 +121,22 @@ describe('declineHeadlineTail', () => {
 });
 
 describe('describeSales — the month without the tax', () => {
-  it('should close on the counterfactual in three parts that add up to Δ + tax', () => {
-    // The real account, settembre 2026: Δ +124,32 €, market +1480,59 €, tax 4088,86 €.
-    const segments = describeSales(SEPTEMBER_SALE, { delta: 124.32, marketEffect: 1480.59 });
+  it('should close on the counterfactual in parts that add up to Δ + tax', () => {
+    // The real account, settembre 2026: Δ +124,32 €, market +2018,47 € (the month's traded quotes
+    // included), 2094,62 € saved so far, tax 4088,86 € — +100,09 € left for the other changes.
+    const segments = describeSales(SEPTEMBER_SALE, { delta: 124.32, marketEffect: 2018.47, savings: 2094.62 });
     expect(plain(segments)).toBe(
       'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
-        'senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti).',
+        'senza, il mese avrebbe fatto +4213 € (+2018 € dal mercato, +2095 € risparmiati, +100 € di altre variazioni).',
     );
-    expect(segments.find((s) => text(s) === '+2733 €')).toMatchObject({ mono: true, sign: 'positive' });
+    expect(segments.find((s) => text(s) === '+2095 €')).toMatchObject({ mono: true, sign: 'positive' });
   });
 
   it('should not add a counterfactual when there is no tax to take out', () => {
     const loss = { ...SEPTEMBER_SALE, realizedGain: -200, estimatedTax: 0 };
-    expect(plain(describeSales(loss, { delta: 124.32, marketEffect: 1480.59 }))).not.toContain('senza,');
+    expect(plain(describeSales(loss, { delta: 124.32, marketEffect: 1480.59, savings: null }))).not.toContain('senza,');
     const noRate = { ...SEPTEMBER_SALE, estimatedTax: null };
-    expect(plain(describeSales(noRate, { delta: 124.32, marketEffect: 1480.59 }))).not.toContain('senza,');
+    expect(plain(describeSales(noRate, { delta: 124.32, marketEffect: 1480.59, savings: null }))).not.toContain('senza,');
   });
 });
 

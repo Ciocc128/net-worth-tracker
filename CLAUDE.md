@@ -13,19 +13,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **169 files / 3846 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-19, on develop): **a month the tax kept flat names the tax.** On the real account settembre 2026
-  closed at +124 € (+0,04%) with 4089 € estimated on a VWCE sale, and the headline read «Settembre sta andando bene».
-  (1) `resolveTaxedGrowth` (`periodSales.ts`): on a month that did NOT fall, tax ≥ Δ → «Settembre è in pari: le tasse
-  sulla vendita di VWCE si sono prese la crescita.» (below 0,5%) or «cresce, ma … più di metà della crescita», warning
-  tone, on all three surfaces (on Patrimonio it outranks the record high). (2) A taxed sale closes on «senza, il mese
-  avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti)» and replaces «Di quel movimento», which
-  mixed savings with the tax. (3) `monthSales.purchases` (source version 18): «Nello stesso mese hai comprato 6
-  strumenti per 34.304 €», baselines excluded. (4) The driver is the MARKET's: «sul mercato hanno spinto soprattutto
-  le criptovalute (+726 €)» (Panoramica and Patrimonio). **Verification**: `tsc`, lint 0, full Vitest under
-  `TZ=Europe/Rome` (3846 after the rebase on develop), the threshold and the baseline filter falsified (red only once
-  the fixture had a baseline INSIDE the month), Playwright on the mirror at 1440 dark and 390 light (overflow 0), the
-  owner's tour OK; the email is verified on its words, not rendered.
+- `tsc` clean; **169 files / 3857 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-19, second session): **the market counts the month's traded quotes; the split reads «dal mercato ·
+  risparmiati · di altre variazioni».** «+2733 € dai tuoi movimenti» was read as income − expenses (it held +538 € of
+  quotes bought in the month). `tradeAwarePriceEffect`: Δvalue − net money in − unexplained quantity × today's price
+  (source version 19); `describeMonthSplit` everywhere; the verdict's savings rate is the lived one
+  (`resolveLivedCashflow`, «il 45% delle entrate finora»). **Verification**: `tsc`, lint 0, Vitest 3857 under
+  `TZ=Europe/Rome`, two falsifications red, the mirror's market +2018,47 € equal to a read-only script to the cent,
+  Playwright 1440/390, owner's tour OK.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -100,7 +95,7 @@ Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa I
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 - **Sotto i 769px nessuna modale prende il fuoco quando si apre** (2026-09-18): `vaul` nasce con `autoFocus = false`, il fuoco resta sull'opener e dopo un passaggio tra due drawer finisce su `body`. Non cambiato: `autoFocus` su un telefono apre la tastiera su ogni form — una decisione per 40 mount. doc/guide/dialog.md.
 - **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
-- **The market digest's blind spots**: a position opened this month contributes 0 until next month; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt.
+- **The market digest's blind spots**: a quantity no BUY/SELL explains (a baseline written in the month, an adjustment, a hand edit) and a failed ledger read keep a traded quote out of the market; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt; the email's «mercato» is a residual that also holds the page's «altre variazioni».
 - **Bonds saved before 2026-09-11 with the nominal empty or 1 keep a wrong PMC and opening trade** (the raw quote as
   euro: 99 for 0,99); the current price heals at the next cron, the PMC does not — corrected by the user from the
   Registro, no backfill by the owner's decision. **A BTP€i is only as current as its coefficient**: Borsa Italiana does

@@ -64,6 +64,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
+import { resolveLivedCashflow } from '@/lib/utils/overviewNarrative';
 import { describeWriteError } from '@/lib/utils/dialogNarrative';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -236,6 +237,7 @@ export default function AssetsPage() {
       marketEffect: overview.marketEffect ?? null,
       topMover: overview.topInstrumentMovers?.[0] ?? null,
       sales: overview.monthSales ?? null,
+      savings: resolveLivedCashflow(overview.expenseStats)?.savings ?? null,
     });
   }, [overview, today.month, totalValue, heldInstruments.length, cashAccounts.length]);
 
