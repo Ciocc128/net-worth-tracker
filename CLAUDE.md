@@ -14,6 +14,16 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **182 files / 4095 tests** green (4093 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20, fork): **PR #4 (Accumulo/PAC), la striscia classi ora stampa il peso vero,
+  non solo il suo scostamento.** Su richiesta del proprietario: la riga primaria (prominente, mono)
+  è ora «Azioni 105,4% · target 102,0%» — i valori ASSOLUTI — mentre lo scostamento in pp («+3,4 pp
+  oggi → +1,3 pp a fine piano») scende a riga secondaria, più piccola e muted. Prima il delta era
+  l'unica cifra stampata, il peso reale non compariva mai nel tile. `describeClassStripItem`
+  (`accumulationNarrative.ts`) ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece
+  del vecchio `{ text, note?, outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per
+  `furthestDrift` invece di spezzare la vecchia stringa `text`. Collaudo: `tsc` 0, ESLint 0, 182
+  file / 4095 test (3 test riscritti), `npm run build` compila (stesso punto d'arresto atteso).
+  doc/pac-ate.md §10.2 punto 5, doc/guide/accumulo.md.
 - Latest (2026-09-19 notte, fork): **PR #4 (Accumulo/PAC), il toggle «Nel piano / Da vendere» del
   passo 2 non era cliccabile.** Trovato dal proprietario in un giro guidato: la colonna promette un
   toggle ma la cella renderizzava solo testo statico — il vero controllo viveva in un paragrafo

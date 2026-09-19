@@ -772,9 +772,14 @@ Contenuto `active`:
    chip di stato, azioni. Per le righe `late` dei mesi precedenti mostrale sopra quelle del mese.
    Azioni per stato: toConfirm → Conferma · Ignora; executed → Scollega; late → Segna eseguita a mano · Salta;
    lostLink → Rivedi (apre il Calendario sulla rata).
-5. Striscia classi (D11): per ogni classe con target, "Azioni · target 102% — +3,4 pp → +1,3 pp",
-   in colore warning se fuori banda oggi, e "rientra in banda a giugno" se applicabile.
-   Dati da `projectClassTrajectory` (punto corrente e punto N).
+5. Striscia classi (D11): per ogni classe con target, due righe. Primaria (prominente, mono, in
+   colore warning se fuori banda oggi): "Azioni 105,4% · target 102,0%" — i valori ASSOLUTI, non
+   il delta (decisione del proprietario, 2026-09-20: prima la riga era invertita, il delta era
+   l'unica cifra stampata e il peso vero non compariva mai). Secondaria (più piccola, sempre
+   muted): "+3,4 pp oggi → +1,3 pp a fine piano" — lo stesso scostamento in pp, in secondo piano.
+   "rientra in banda a giugno" come nota finale se applicabile. Dati da `projectClassTrajectory`
+   (punto corrente e punto N); `describeClassStripItem` produce `{ label, primary, secondary,
+   note?, outOfBandNow }`.
 6. Footer: "A fine piano: scostamento massimo +0,8 pp su CL2 · liquidità residua 214 €" + azioni
    Ricalibra rata · Calendario · Interrompi (Interrompi usa `useArmedDelete`, doppio clic, niente timer).
 

@@ -92,6 +92,14 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   un bottone che chiama `moveAssetToDisposal(asset)`; per un membro di un gruppo proxy resta testo
   semplice (non si vende un solo membro senza prima «Separare», invariato). Il paragrafo duplicato è
   stato rimosso.
+- **La striscia classi (D11) ora stampa il peso vero, non solo il suo scostamento** (decisione del
+  proprietario, 2026-09-20): la riga primaria (prominente, mono) è "Azioni 105,4% · target 102,0%"
+  — i valori assoluti — mentre lo scostamento in pp ("+3,4 pp oggi → +1,3 pp a fine piano") scende
+  a riga secondaria, più piccola e sempre muted. Prima era il contrario: l'UNICA cifra stampata
+  era il delta, il peso reale della classe non compariva mai nel tile. `describeClassStripItem`
+  ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece del vecchio `{ text, note?,
+  outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per il calcolo di `furthestDrift` (prima
+  lo estraeva spezzando la stringa `text` — fragile). doc/pac-ate.md §10.2 punto 5.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 
