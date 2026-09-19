@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveDeclineCause, summarizePeriodSales } from '@/lib/utils/periodSales';
+import { resolveDeclineCause, resolveTaxedGrowth, summarizePeriodSales } from '@/lib/utils/periodSales';
 import type { Asset } from '@/types/assets';
 import type { AssetTransaction, AssetTransactionType } from '@/types/assetTransactions';
 
@@ -193,5 +193,53 @@ describe('resolveDeclineCause', () => {
 
   it('should know nothing without a market effect', () => {
     expect(resolveDeclineCause({ marketEffect: null, ownFlows: null, salesTax: 4088.86 })).toBe('unknown');
+  });
+});
+
+describe('summarizePeriodSales — purchases', () => {
+  it('should add up every buy of the period on any instrument, fees included, baselines excluded', () => {
+    const ledger = [
+      ...VWCE_LEDGER, // its buy is the migration baseline: not a purchase
+      tx('btp', 'buy', new Date(2026, 8, 2, 12), 10, 981.6, undefined, true), // a baseline written in September: still not a purchase
+      tx('wbit', 'buy', new Date(2026, 8, 1, 12), 123, 16.23),
+      tx('ceth', 'buy', new Date(2026, 8, 1, 12), 23, 64.795, 9.5),
+      tx('xeon', 'buy', new Date(2026, 8, 1, 12), 93, 150.0519),
+      tx('xeon', 'buy', new Date(2026, 8, 7, 12), 22, 150.1239),
+      tx('xeon', 'buy', new Date(2026, 7, 28, 12), 5, 150), // August — out of range
+      tx('ceth', 'adjustment', new Date(2026, 8, 1, 12), 67, 65.7882), // moves no money
+    ];
+    const summary = summarizePeriodSales([VWCE], ledger, SEPTEMBER)!;
+
+    // 1996,29 + (1490,285 + 9,5) + 13954,8267 + 3302,7258
+    expect(summary.purchases?.amount).toBeCloseTo(20753.6275, 4);
+    expect(summary.purchases?.instrumentCount).toBe(3);
+  });
+
+  it('should say null, not zero, when nothing was bought beside the sale', () => {
+    expect(summarizePeriodSales([VWCE], VWCE_LEDGER, SEPTEMBER)!.purchases).toBeNull();
+  });
+});
+
+describe('resolveTaxedGrowth', () => {
+  it('should call a month flat when the tax took the growth and less than half a percent is left', () => {
+    // The real account, settembre 2026: +124,32 € (+0,04%) with 4088,86 € of estimated tax.
+    expect(resolveTaxedGrowth({ delta: 124.32, deltaPct: 0.04, salesTax: 4088.86 })).toBe('flat');
+  });
+
+  it('should call it eroded when the tax took at least half but the growth is still visible', () => {
+    expect(resolveTaxedGrowth({ delta: 3000, deltaPct: 1.02, salesTax: 4088.86 })).toBe('eroded');
+    // Exactly half of the gross growth (tax = Δ) still counts; a hair under does not.
+    expect(resolveTaxedGrowth({ delta: 4000, deltaPct: 1.3, salesTax: 4000 })).toBe('eroded');
+    expect(resolveTaxedGrowth({ delta: 4000, deltaPct: 1.3, salesTax: 3999 })).toBeNull();
+  });
+
+  it('should say nothing on a falling month, without a taxed sale, or with an unknown tax', () => {
+    expect(resolveTaxedGrowth({ delta: -10, deltaPct: -0.01, salesTax: 4088.86 })).toBeNull();
+    expect(resolveTaxedGrowth({ delta: 124.32, deltaPct: 0.04, salesTax: 0 })).toBeNull();
+    expect(resolveTaxedGrowth({ delta: 124.32, deltaPct: 0.04, salesTax: null })).toBeNull();
+  });
+
+  it('should treat a month at exactly zero as flat when a tax explains it', () => {
+    expect(resolveTaxedGrowth({ delta: 0, deltaPct: 0, salesTax: 500 })).toBe('flat');
   });
 });
