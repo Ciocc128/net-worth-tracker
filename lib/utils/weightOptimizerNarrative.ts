@@ -10,10 +10,13 @@
  */
 import type { AssetClass } from '@/types/assets';
 import type { GeoArea } from '@/lib/constants/geoAreas';
-import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerWarning } from './weightOptimizer';
+import type { ConflictReport, ObjectiveReport, OptimizerMode, OptimizerWarning, SecondLevelGap } from './weightOptimizer';
 import { ASSET_CLASS_LABELS } from './allocationUtils';
 import { GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
 import { formatNumberIt, formatPercentageIt } from './formatters';
+import { formatSignedCurrency } from './accumulationNarrative';
+
+const SECOND_LEVEL_GAP_NAME_LIMIT = 5;
 
 // ---------------------------------------------------------------------------
 // Objective labels
@@ -139,6 +142,44 @@ export function describeOptimizerWarning(warning: OptimizerWarning, labelOf: (ke
 }
 
 // ---------------------------------------------------------------------------
+// Second-level gaps (G5) — preventive warning, IdealAllocationTile and OptimizerPanel
+// ---------------------------------------------------------------------------
+
+/** «VWCE, IWDA, EIMI e altri 2» — unique names in order of first appearance, capped at 5. */
+function joinTruncatedNames(names: string[]): string {
+  const unique = Array.from(new Set(names));
+  if (unique.length <= SECOND_LEVEL_GAP_NAME_LIMIT) return unique.join(', ');
+  const shown = unique.slice(0, SECOND_LEVEL_GAP_NAME_LIMIT);
+  const rest = unique.length - SECOND_LEVEL_GAP_NAME_LIMIT;
+  return `${shown.join(', ')} e altri ${rest}`;
+}
+
+/** One sentence per (class, reason) group — «3 strumenti nella classe Azioni senza sottocategoria:
+ *  VWCE, IWDA, EIMI.» / «…con una sottocategoria non configurata: …» — never blocks the calculation. */
+export function describeSecondLevelGaps(gaps: SecondLevelGap[]): string[] {
+  const groups = new Map<string, { assetClass: AssetClass; reason: 'missing' | 'unknown'; names: string[] }>();
+  for (const gap of gaps) {
+    const key = `${gap.assetClass}:${gap.reason}`;
+    const group = groups.get(key) ?? { assetClass: gap.assetClass, reason: gap.reason, names: [] };
+    group.names.push(gap.assetName);
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values()).map((group) => {
+    const uniqueCount = new Set(group.names).size;
+    const classLabel = ASSET_CLASS_LABELS[group.assetClass] ?? group.assetClass;
+    const subject = uniqueCount === 1 ? '1 strumento' : `${uniqueCount} strumenti`;
+    const clause = group.reason === 'missing' ? 'senza sottocategoria' : 'con una sottocategoria non configurata';
+    return `${subject} nella classe ${classLabel} ${clause}: ${joinTruncatedNames(group.names)}.`;
+  });
+}
+
+/** §3.5 — shown wherever a class carries an enabled `specificAssets` target: instrument-level
+ *  targets are never a soft objective, they are what the optimizer computes. */
+export const OPTIMIZER_SPECIFIC_ASSETS_NOTE =
+  `I target sui singoli strumenti non entrano nel calcolo: sono ciò che l'ottimizzatore propone.`;
+
+// ---------------------------------------------------------------------------
 // Modes
 // ---------------------------------------------------------------------------
 
@@ -212,4 +253,28 @@ export function describeOptimizerSnapshot(
   });
   const base = `Pesi proposti dall'ottimizzatore il ${day}/${month} (${modeLabel})`;
   return edited ? `${base}, poi modificati a mano.` : `${base}.`;
+}
+
+// ---------------------------------------------------------------------------
+// §4 — the standalone tool, Allocazione's `ComposizioneIdealeTile` + `IdealCompositionDialog`
+// ---------------------------------------------------------------------------
+
+export const IDEAL_COMPOSITION_TILE_EYEBROW = 'Composizione ideale';
+export const IDEAL_COMPOSITION_TILE_OFF_READING =
+  "Imposta l'allocazione ideale in Impostazioni → Allocazione per vedere com'è fatto il tuo portafoglio ideale, strumento per strumento.";
+export const IDEAL_COMPOSITION_TITLE = 'Composizione ideale';
+export const IDEAL_COMPOSITION_AMOUNT_LABEL = 'Importo da investire (€)';
+export const IDEAL_COMPOSITION_REACHABLE_DISABLED_REASON =
+  'Inserisci un importo da investire per vedere cosa è raggiungibile senza vendere.';
+export const IDEAL_COMPOSITION_COL_INSTRUMENT = 'Strumento';
+export const IDEAL_COMPOSITION_COL_CURRENT = 'Peso attuale';
+export const IDEAL_COMPOSITION_COL_IDEAL = 'Peso ideale';
+export const IDEAL_COMPOSITION_COL_DIFF = 'Differenza';
+export const IDEAL_COMPOSITION_ACTION_CREATE_PAC = 'Crea un PAC con questi pesi';
+export const IDEAL_COMPOSITION_PLAN_ALREADY_OPEN =
+  'Hai già un piano aperto: modificalo dal tile Accumulo.';
+
+/** «+1.240,00 €» — the weight's € distance at B, mono (The Comma Rule: never `toFixed`). */
+export function formatOptimizerWeightDiffEur(currentPct: number, proposedPct: number, baseEur: number): string {
+  return formatSignedCurrency(((proposedPct - currentPct) / 100) * baseEur);
 }

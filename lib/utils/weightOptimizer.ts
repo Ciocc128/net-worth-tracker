@@ -23,7 +23,7 @@ import type {
 } from '@/types/assets';
 import type { InstrumentProfile } from '@/types/exposure';
 import { GEO_AREAS, countryToArea, type GeoArea } from '@/lib/constants/geoAreas';
-import { NO_SUBCATEGORY_LABEL } from './allocationUtils';
+import { NO_SUBCATEGORY_LABEL, resolveAllocationRole } from './allocationUtils';
 import { exposurePerEuro } from './accumulationPlanUtils';
 import { dot, projectOntoBudgetBox } from './boxProjection';
 import { describeObjectiveLabel } from './weightOptimizerNarrative';
@@ -216,13 +216,13 @@ function factorPerEuroOf(asset: Asset): Partial<Record<AssetClass, Record<string
   const result: Partial<Record<AssetClass, Record<string, number>>> = {};
 
   if (!asset.composition || asset.composition.length === 0) {
-    const sub = asset.subCategory ?? NO_SUBCATEGORY_LABEL;
+    const sub = asset.subCategory?.trim() || NO_SUBCATEGORY_LABEL;
     result[asset.assetClass] = { [sub]: leverage };
     return result;
   }
 
   for (const component of asset.composition) {
-    const sub = component.subCategory ?? NO_SUBCATEGORY_LABEL;
+    const sub = component.subCategory?.trim() || NO_SUBCATEGORY_LABEL;
     const contribution = (component.percentage / 100) * leverage;
     const bucket = result[component.assetClass] ?? {};
     bucket[sub] = (bucket[sub] ?? 0) + contribution;
@@ -389,6 +389,78 @@ export function buildOptimizerCandidates(input: {
   }
 
   return { candidates, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// §5.4b — second-level gaps (G5): instruments the optimizer's factor objectives cannot place,
+// shown as a preventive warning (Impostazioni's IdealAllocationTile, OptimizerPanel before
+// "Calcola") — never blocks the calculation, it just says which euros the sub-category rows will
+// silently attribute to "Senza sottocategoria" or drop as `factor_unmapped`.
+// ---------------------------------------------------------------------------
+
+export interface SecondLevelGap {
+  assetId: string;
+  assetName: string;
+  assetClass: AssetClass;
+  /** Set only for a gap found on one component of a composite asset. */
+  componentIndex?: number;
+  /** 'missing' = no sub-category at all; 'unknown' = a sub-category the class's `subCategoryConfig` does not list. */
+  reason: 'missing' | 'unknown';
+}
+
+/** Same normalisation as `factorPerEuroOf`/`calculateCurrentAllocationSnapshot`: trim, empty → `NO_SUBCATEGORY_LABEL`. */
+function normalizeSubCategory(sub: string | undefined): string {
+  return sub?.trim() || NO_SUBCATEGORY_LABEL;
+}
+
+/**
+ * §3.5/G2 — true when at least one of the given classes carries an enabled third-level
+ * (`specificAssets`) target. Those targets are never a soft objective here: they are what the
+ * optimizer computes, so the caller shows a declarative note instead of feeding them into `J(w)`.
+ */
+export function hasSpecificAssetTargets(targets: AssetAllocationTarget, assetClasses: AssetClass[]): boolean {
+  return assetClasses.some((assetClass) => {
+    const subTargets = targets[assetClass]?.subTargets;
+    if (!subTargets) return false;
+    return Object.values(subTargets).some(
+      (value) => typeof value !== 'number' && (value.specificAssetsEnabled ?? (value.specificAssets?.length ?? 0) > 0)
+    );
+  });
+}
+
+export function findSecondLevelGaps(
+  assets: Asset[],
+  targets: AssetAllocationTarget,
+  assetClasses: AssetClass[],
+  valueOf: (a: Asset) => number
+): SecondLevelGap[] {
+  const scopedClasses = new Set(assetClasses);
+  const gaps: SecondLevelGap[] = [];
+
+  for (const asset of assets) {
+    const role = resolveAllocationRole(asset);
+    if (role !== 'tradable' && role !== 'frozen') continue;
+    if (valueOf(asset) <= 0) continue;
+
+    const checkSub = (assetClass: AssetClass, sub: string | undefined, componentIndex?: number) => {
+      if (!scopedClasses.has(assetClass)) return;
+      const categories = targets[assetClass]?.subCategoryConfig?.categories ?? [];
+      const normalized = normalizeSubCategory(sub);
+      if (normalized === NO_SUBCATEGORY_LABEL) {
+        gaps.push({ assetId: asset.id, assetName: asset.name, assetClass, componentIndex, reason: 'missing' });
+      } else if (!categories.includes(normalized)) {
+        gaps.push({ assetId: asset.id, assetName: asset.name, assetClass, componentIndex, reason: 'unknown' });
+      }
+    };
+
+    if (asset.composition && asset.composition.length > 0) {
+      asset.composition.forEach((component, index) => checkSub(component.assetClass, component.subCategory, index));
+    } else {
+      checkSub(asset.assetClass, asset.subCategory);
+    }
+  }
+
+  return gaps;
 }
 
 // ---------------------------------------------------------------------------
@@ -939,5 +1011,92 @@ export function optimizeWeights(input: OptimizerInput, solverOptions?: SolverOpt
     warnings,
     iterations: result.iterations,
     converged: result.converged,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// §4.3 — shared candidate + solve pipeline (extracted from OptimizerPanel's own `result` useMemo,
+// so the PAC's Ottimizzato view and Allocazione's standalone `IdealCompositionDialog` never
+// duplicate the "build candidates, then optimize" wiring). The geography reference
+// (`referenceAreas`/`referenceEstimatedShare`) is still the CALLER's concern — it depends only on
+// `settings.geography`, not on the candidates, and both callers already memoise it once per render
+// via `useOptimizerGeographyReference` (`lib/hooks/useOptimizerGeographyReference.ts`).
+// ---------------------------------------------------------------------------
+
+export function runOptimizer(input: {
+  positions: Array<{ key: string; label: string; memberAssetIds: string[]; buyAssetId: string }>;
+  assetsById: Map<string, Asset>;
+  profilesByTicker: Map<string, InstrumentProfile>;
+  referenceCountries: Array<{ key: string; weight: number }> | null;
+  settings: IdealAllocationSettings;
+  mode: OptimizerMode;
+  baseEur: number;
+  valueOf: (a: Asset) => number;
+  targets: AssetAllocationTarget;
+  referenceAreas: Record<GeoArea, number> | null;
+  referenceEstimatedShare: number;
+  targetLeverageRatio: number;
+  /** §4.2 — a frozen candidate is fixed to its current share (lowerPct = upperPct); applied to the
+   *  freshly-built candidates, before `optimizeWeights` runs. `OptimizerPanel` never passes it: a
+   *  PAC position already resolves this through `resolveCandidateBounds`'s own `fixedValueEur` term. */
+  fixBounds?: (candidate: OptimizerCandidate) => Partial<Pick<OptimizerCandidate, 'lowerPct' | 'upperPct'>>;
+}): OptimizerResult {
+  const { candidates } = buildOptimizerCandidates({
+    positions: input.positions,
+    assetsById: input.assetsById,
+    profilesByTicker: input.profilesByTicker,
+    referenceCountries: input.referenceCountries,
+    settings: input.settings,
+    mode: input.mode,
+    baseEur: input.baseEur,
+    valueOf: input.valueOf,
+  });
+  const finalCandidates = input.fixBounds ? candidates.map((c) => ({ ...c, ...input.fixBounds!(c) })) : candidates;
+
+  return optimizeWeights({
+    candidates: finalCandidates,
+    baseEur: input.baseEur,
+    targets: input.targets,
+    settings: input.settings,
+    referenceAreas: input.referenceAreas,
+    referenceEstimatedShare: input.referenceEstimatedShare,
+    mode: input.mode,
+    targetLeverageRatio: input.targetLeverageRatio,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// §4.2 — Allocazione's standalone tool (`IdealCompositionDialog`): one candidate per instrument,
+// never a proxy group. A `frozen` asset is fixed to its current share (`fixBounds`, §4.2's own
+// rule — distinct from the PAC's `resolveCandidateBounds`, which has no such case: every PAC
+// position is either freely tradable or a proxy group's fixed member, never a lone frozen row).
+// ---------------------------------------------------------------------------
+
+export interface StandaloneCandidates {
+  positions: Array<{ key: string; label: string; memberAssetIds: string[]; buyAssetId: string }>;
+  fixBounds: (candidate: OptimizerCandidate) => Partial<Pick<OptimizerCandidate, 'lowerPct' | 'upperPct'>>;
+}
+
+export function buildStandaloneCandidates(
+  assets: Asset[],
+  baseEur: number,
+  valueOf: (a: Asset) => number
+): StandaloneCandidates {
+  const scoped = assets.filter((a) => {
+    const role = resolveAllocationRole(a);
+    return (role === 'tradable' || role === 'frozen') && valueOf(a) > 0;
+  });
+  const frozenValueById = new Map(
+    scoped.filter((a) => resolveAllocationRole(a) === 'frozen').map((a) => [a.id, valueOf(a)])
+  );
+
+  return {
+    positions: scoped.map((a) => ({ key: a.id, label: a.name, memberAssetIds: [a.id], buyAssetId: a.id })),
+    fixBounds: (candidate) => {
+      const frozenValue = frozenValueById.get(candidate.buyAssetId);
+      if (frozenValue === undefined || baseEur <= 0) return {};
+      const pct = (frozenValue / baseEur) * 100;
+      return { lowerPct: pct, upperPct: pct };
+    },
   };
 }

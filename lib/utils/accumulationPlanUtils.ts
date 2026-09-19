@@ -760,3 +760,24 @@ export function buildDraftPreview(input: {
 // Re-exported so a caller of this module never needs to import unitPriceEur from costBasisEur
 // separately for a `PlanDeps.priceOf` implementation.
 export { unitPriceEur };
+
+// ---------------------------------------------------------------------------
+// §4.4 — the weight optimizer's standalone tool (doc/weight-optimizer-ate.md §4, Allocazione's
+// `IdealCompositionDialog`): converts its proposed weights into freshly-seeded PAC positions,
+// the same shape `seedPositionsFromAssets` builds in `AccumulationPlanDialog.tsx` — one position
+// per single instrument, target = the proposed weight. `generateId` is injected (never
+// `crypto.randomUUID()` called inline) so the conversion stays deterministic under test.
+// ---------------------------------------------------------------------------
+
+export function weightsToSeedPositions(
+  weights: Array<{ key: string; label: string; proposedPct: number }>,
+  generateId: () => string = () => crypto.randomUUID()
+): PlanPosition[] {
+  return weights.map((w) => ({
+    id: generateId(),
+    label: w.label,
+    targetPercentage: w.proposedPct,
+    memberAssetIds: [w.key],
+    buyAssetId: w.key,
+  }));
+}

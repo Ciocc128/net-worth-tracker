@@ -11,53 +11,41 @@
  */
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
+import type { Asset, AssetAllocationTarget, AssetClass, IdealAllocationSettings } from '@/types/assets';
 import type { AccumulationPlanDraft, OptimizerSnapshot } from '@/types/accumulationPlan';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
-import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import {
-  areasFromCountries,
-  buildOptimizerCandidates,
-  optimizeWeights,
+  findSecondLevelGaps,
+  hasSpecificAssetTargets,
+  runOptimizer,
   type OptimizerMode,
   type OptimizerResult,
 } from '@/lib/utils/weightOptimizer';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolvePositionStates, unitPriceEur, type PlanDeps } from '@/lib/utils/accumulationPlanUtils';
 import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
+import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
 import { describeIdealAllocation } from '@/lib/utils/settingsNarrative';
-import { formatPercentageIt } from '@/lib/utils/formatters';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
-import { ACCUMULO_ACTION_CANCEL } from '@/lib/utils/accumulationNarrative';
 import {
-  describeConflict,
-  describeObjectiveRow,
   describeOptimizerMode,
-  describeOptimizerWarning,
-  OPTIMIZER_ACTION_APPLY,
+  describeSecondLevelGaps,
   OPTIMIZER_ACTION_CALCULATE,
   OPTIMIZER_ACTION_MODIFY_IN_SETTINGS,
-  OPTIMIZER_COL_CURRENT,
-  OPTIMIZER_COL_INSTRUMENT,
-  OPTIMIZER_COL_PROPOSED,
-  OPTIMIZER_CONFLICTS_TITLE,
   OPTIMIZER_DISABLED_READING,
-  OPTIMIZER_IDEAL_BELOW_HELD_CONFIRM,
   OPTIMIZER_LOADING_PROFILES,
   OPTIMIZER_MODE_ARIA_LABEL,
   OPTIMIZER_MODE_LABELS,
   OPTIMIZER_OBJECTIVES_TITLE,
   OPTIMIZER_PROFILES_FAILURE_CONSEQUENCE,
   OPTIMIZER_PROFILES_FAILURE_SUBJECT,
-  OPTIMIZER_REPORT_TITLE,
-  OPTIMIZER_STATUS_INFEASIBLE_BOUNDS,
-  OPTIMIZER_STATUS_NO_CANDIDATES,
-  OPTIMIZER_WARNINGS_TITLE,
+  OPTIMIZER_SPECIFIC_ASSETS_NOTE,
 } from '@/lib/utils/weightOptimizerNarrative';
 import { SegmentedPill } from '@/components/ui/segmented-pill';
 import { Button } from '@/components/ui/button';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { ErrorNotice } from '@/components/ui/error-notice';
+import { OptimizerReport } from '@/components/allocation/OptimizerReport';
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
 const MODE_OPTIONS = [
@@ -103,20 +91,13 @@ export function OptimizerPanel({
     return states.reduce((sum, s) => sum + s.currentValueEur, 0) + liquidityL;
   }, [draft.positions, assetsById, liquidityL]);
 
-  const geographyProfile =
-    idealAllocation?.geography ? INDEX_PROFILES[idealAllocation.geography.referenceIndexId] : undefined;
-  const referenceCountries = geographyProfile?.countries?.map((c) => ({ key: c.code, weight: c.weight })) ?? null;
-
-  const referenceAreas = useMemo(() => {
-    if (!idealAllocation?.geography?.enabled || !referenceCountries) return { areas: null, estimatedShare: 0 };
-    const { areas, estimatedShare } = areasFromCountries(referenceCountries, geographyProfile?.otherAreaSplit, null);
-    return { areas, estimatedShare };
-  }, [idealAllocation?.geography?.enabled, referenceCountries, geographyProfile?.otherAreaSplit]);
+  const { geographyProfile, referenceCountries, referenceAreas, referenceEstimatedShare } =
+    useOptimizerGeographyReference(idealAllocation);
 
   const result: OptimizerResult | null = useMemo(() => {
     if (!idealAllocation?.enabled || !profilesQuery.data) return null;
     const profilesByTicker = new Map(Object.entries(profilesQuery.data.profiles));
-    const { candidates } = buildOptimizerCandidates({
+    return runOptimizer({
       positions: draft.positions.map((p) => ({
         key: p.id,
         label: p.label,
@@ -130,15 +111,9 @@ export function OptimizerPanel({
       mode,
       baseEur,
       valueOf: calculateAssetValue,
-    });
-    return optimizeWeights({
-      candidates,
-      baseEur,
       targets,
-      settings: idealAllocation,
-      referenceAreas: referenceAreas.areas,
-      referenceEstimatedShare: referenceAreas.estimatedShare,
-      mode,
+      referenceAreas,
+      referenceEstimatedShare,
       targetLeverageRatio,
     });
   }, [
@@ -151,6 +126,7 @@ export function OptimizerPanel({
     baseEur,
     targets,
     referenceAreas,
+    referenceEstimatedShare,
     targetLeverageRatio,
   ]);
 
@@ -183,6 +159,18 @@ export function OptimizerPanel({
   };
 
   const labelOf = (key: string): string => draft.positions.find((p) => p.id === key)?.label ?? key;
+
+  // §3.3/G5 — preventive, shown before Calcola, never blocks it.
+  const secondLevelGapLines = describeSecondLevelGaps(
+    findSecondLevelGaps(
+      allAssets,
+      targets,
+      idealAllocation.factorObjectives.map((f) => f.assetClass),
+      calculateAssetValue
+    )
+  );
+  // §3.5/G2 — declarative: specificAssets is never a soft objective here.
+  const showSpecificAssetsNote = hasSpecificAssetTargets(targets, Object.keys(targets) as AssetClass[]);
 
   const belowHeld = (r: OptimizerResult): boolean =>
     mode === 'ideal' && r.weights.some((w) => w.proposedPct < w.currentPct - BELOW_HELD_EPSILON);
@@ -230,6 +218,18 @@ export function OptimizerPanel({
         <p className="mt-1.5 text-[11px] text-muted-foreground">{describeOptimizerMode(mode)}</p>
       </div>
 
+      {showSpecificAssetsNote && <p className="text-[11px] text-muted-foreground">{OPTIMIZER_SPECIFIC_ASSETS_NOTE}</p>}
+
+      {secondLevelGapLines.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {secondLevelGapLines.map((line) => (
+            <p key={line} className="text-[11px] text-warning-foreground">
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
+
       {!calcRequested && (
         <Button className="h-8 text-[12px]" onClick={() => setCalcRequested(true)} disabled={memberAssetIds.length === 0}>
           {OPTIMIZER_ACTION_CALCULATE}
@@ -251,90 +251,14 @@ export function OptimizerPanel({
       )}
 
       {calcRequested && result && (
-        <>
-          {result.status === 'no_candidates' && <p className="text-[12px] text-muted-foreground">{OPTIMIZER_STATUS_NO_CANDIDATES}</p>}
-          {result.status === 'infeasible_bounds' && <p className="text-[12px] text-destructive">{OPTIMIZER_STATUS_INFEASIBLE_BOUNDS}</p>}
-
-          {result.status === 'ok' && (
-            <>
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {OPTIMIZER_COL_INSTRUMENT}
-                    </th>
-                    <th scope="col" className="py-1.5 pr-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {OPTIMIZER_COL_CURRENT}
-                    </th>
-                    <th scope="col" className="py-1.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {OPTIMIZER_COL_PROPOSED}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.weights.map((w) => (
-                    <tr key={w.key} className="border-b border-border last:border-0">
-                      <th scope="row" className="py-1.5 pr-2 text-left font-normal text-foreground">{w.label}</th>
-                      <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(w.currentPct, 1)}</td>
-                      <td className="py-1.5 text-right font-mono tabular-nums text-foreground">{formatPercentageIt(w.proposedPct, 1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {result.objectives.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_REPORT_TITLE}</p>
-                  <ul className="space-y-1 font-mono text-[12px] tabular-nums text-muted-foreground">
-                    {result.objectives.map((objective) => (
-                      <li key={objective.id}>{describeObjectiveRow(objective)}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.conflicts.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_CONFLICTS_TITLE}</p>
-                  <ul className="space-y-1 text-[12px] text-muted-foreground">
-                    {result.conflicts.map((conflict) => (
-                      <li key={conflict.removedObjectiveId}>{describeConflict(conflict, result.objectives)}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.warnings.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{OPTIMIZER_WARNINGS_TITLE}</p>
-                  <ul className="space-y-1 text-[12px] text-warning-foreground">
-                    {result.warnings.map((warning, i) => (
-                      <li key={i}>{describeOptimizerWarning(warning, labelOf)}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {pendingIdealConfirm ? (
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-[12px] text-foreground">{OPTIMIZER_IDEAL_BELOW_HELD_CONFIRM}</p>
-                  <div className="mt-2 flex gap-2">
-                    <Button variant="outline" className="h-8 text-[12px]" onClick={() => setPendingIdealConfirm(false)}>
-                      {ACCUMULO_ACTION_CANCEL}
-                    </Button>
-                    <Button className="h-8 text-[12px]" onClick={() => applyResult(result)}>
-                      {OPTIMIZER_ACTION_APPLY}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button className="h-8 text-[12px]" onClick={handleApplyClick}>
-                  {OPTIMIZER_ACTION_APPLY}
-                </Button>
-              )}
-            </>
-          )}
-        </>
+        <OptimizerReport
+          result={result}
+          labelOf={labelOf}
+          pendingIdealConfirm={pendingIdealConfirm}
+          onApplyClick={handleApplyClick}
+          onConfirmApply={() => applyResult(result)}
+          onCancelConfirm={() => setPendingIdealConfirm(false)}
+        />
       )}
     </div>
   );

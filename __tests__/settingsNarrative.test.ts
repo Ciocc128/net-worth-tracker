@@ -689,7 +689,7 @@ describe('describeIdealAllocation', () => {
         })
       )
     ).toBe(
-      'Il PAC può proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), fattori di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
+      'Il PAC può proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), secondo livello di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
     );
   });
 });

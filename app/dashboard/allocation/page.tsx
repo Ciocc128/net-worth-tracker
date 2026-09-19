@@ -105,6 +105,7 @@ import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { BilanciamentoTile } from '@/components/allocation/tiles/BilanciamentoTile';
 import { PianoTile } from '@/components/allocation/tiles/PianoTile';
 import { AccumuloTile } from '@/components/allocation/tiles/AccumuloTile';
+import { ComposizioneIdealeTile } from '@/components/allocation/tiles/ComposizioneIdealeTile';
 import { PerClasseTile } from '@/components/allocation/tiles/PerClasseTile';
 import { EsposizioneTile } from '@/components/allocation/tiles/EsposizioneTile';
 import { PrevidenzaTile } from '@/components/allocation/tiles/PrevidenzaTile';
@@ -115,6 +116,7 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 5, lines: 10 },
   { span: 7, lines: 8 },
   { span: 12, lines: 6 },
+  { span: 12, lines: 3 },
   { span: 6, lines: 7 },
   { span: 6, lines: 7 },
   { span: 12, lines: 4 },
@@ -488,7 +490,21 @@ export default function AllocationPage() {
           </div>
         )}
 
-        <div className={cn(TILE_CELL_CLASS, 'order-4 desktop:order-none desktop:col-span-6')}>
+        {ownerId && (
+          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+            <ComposizioneIdealeTile
+              ownerId={ownerId}
+              allAssets={allAssets}
+              targets={targets}
+              band={band}
+              targetLeverageRatio={targetLeverageRatio}
+              idealAllocation={idealAllocation}
+              onAssetsChanged={() => void loadData()}
+            />
+          </div>
+        )}
+
+        <div className={cn(TILE_CELL_CLASS, 'order-5 desktop:order-none desktop:col-span-6')}>
           <PerClasseTile
             reading={describeClasses(gaps, band)}
             aside="corrente · target · gap"
@@ -498,12 +514,12 @@ export default function AllocationPage() {
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-5 desktop:order-none desktop:col-span-6')}>
+        <div className={cn(TILE_CELL_CLASS, 'order-6 desktop:order-none desktop:col-span-6')}>
           {user && ownerId && <EsposizioneTile userId={ownerId} />}
         </div>
 
         {pension && (
-          <div className={cn(TILE_CELL_CLASS, 'order-6 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-7 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
             <PrevidenzaTile
               reading={describePension(pension)}
               aside={describePensionAside({ fundNames: pensionFundNames, fundValue: pension.fundValue, allFrozen: pension.allFrozen })}

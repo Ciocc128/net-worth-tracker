@@ -1,21 +1,48 @@
 # Allocazione › Ottimizzatore dei pesi
 
-> **Quando aprire questa guida** — chi tocca `lib/utils/{weightOptimizer,weightOptimizerNarrative,boxProjection}.ts`,
-> `lib/constants/geoAreas.ts`, `lib/server/exposure/profileResolver.ts` (le parti su `otherAreaSplit`
-> e `includeZeroQuantity`), `app/api/portfolio/instrument-profiles/route.ts`,
-> `lib/hooks/useInstrumentProfiles.ts`, `components/settings/IdealAllocationTile.tsx` o
-> `components/allocation/OptimizerPanel.tsx`. La specifica chiusa è `doc/weight-optimizer-ate.md`
-> (§1 le decisioni funzionali O1–O9); questa guida ne è la traduzione operativa e i limiti trovati
-> scrivendo il codice. Prerequisito: la feature PAC (`doc/pac-ate.md`, `doc/guide/accumulo.md`).
+> **Quando aprire questa guida** — chi tocca `lib/utils/{weightOptimizer,weightOptimizerNarrative,boxProjection,
+> accumulationPlanUtils}.ts`, `lib/constants/geoAreas.ts`, `lib/server/exposure/profileResolver.ts`
+> (le parti su `otherAreaSplit` e `includeZeroQuantity`), `app/api/portfolio/instrument-profiles/route.ts`,
+> `lib/hooks/{useInstrumentProfiles,useOptimizerGeographyReference}.ts`,
+> `components/settings/IdealAllocationTile.tsx`, `components/allocation/{OptimizerPanel,OptimizerReport,
+> IdealCompositionDialog}.tsx` o `components/allocation/tiles/ComposizioneIdealeTile.tsx`. La specifica
+> chiusa è `doc/weight-optimizer-ate.md` (§1 le decisioni funzionali O1–O9); questa guida ne è la
+> traduzione operativa e i limiti trovati scrivendo il codice. Prerequisito: la feature PAC
+> (`doc/pac-ate.md`, `doc/guide/accumulo.md`).
 
 ## Cosa fa
 
 Il motore (`optimizeWeights`, `lib/utils/weightOptimizer.ts`) propone i **pesi di mercato** degli
-strumenti candidati di una bozza PAC a partire dagli obiettivi di "Allocazione ideale"
-(Impostazioni → Allocazione): classi, leva, fattori (sotto-categorie), geografia dell'azionario in
-tre macro-aree, limiti per strumento e per gruppo. I pesi riempiono il passo Target del PAC
-(`OptimizerPanel`) e restano modificabili a mano — l'ottimizzatore non scrive mai da solo, propone
-soltanto (stessa filosofia del matching col ledger, doc/guide/accumulo.md § Abbinamento).
+strumenti candidati a partire dagli obiettivi di "Allocazione ideale" (Impostazioni → Allocazione):
+classi, leva, **secondo livello** (le sottocategorie di una classe — significato libero, deciso
+dall'utente: fattori per l'azionario, durata per l'obbligazionario, altro per un'altra classe; il
+motore non lo interpreta, legge solo i pesi che l'utente ha assegnato), geografia dell'azionario in
+tre macro-aree, limiti per strumento e per gruppo. **Il terzo livello (`specificAssets`, i target sui
+singoli strumenti) non è mai un input del motore**: è esattamente ciò che il motore calcola, e ogni
+punto d'ingresso lo dichiara (`OPTIMIZER_SPECIFIC_ASSETS_NOTE`) invece di farlo sparire nel calcolo.
+In codice, `factorObjectives`/`kind: 'factor'`/gli id `factor:…` restano il nome del campo persistito
+(dati già salvati in produzione) — "factor" lì significa "secondo livello", non "fattore" in senso
+stretto.
+
+**Due punti d'ingresso, un solo motore**: il passo Target del PAC (`OptimizerPanel`, i candidati sono
+le posizioni della bozza) e lo strumento a sé di Allocazione (`ComposizioneIdealeTile` →
+`IdealCompositionDialog`, i candidati sono gli asset tradable del portafoglio, uno per strumento, un
+`frozen` fissato al suo peso attuale) — entrambi passano da `runOptimizer` (`weightOptimizer.ts`,
+candidati + `optimizeWeights` in una chiamata) e condividono la stessa presentazione del rapporto
+(`OptimizerObjectivesReport`, `components/allocation/OptimizerReport.tsx`); solo la tabella dei pesi e
+l'azione finale sono proprie di ciascuno — il PAC scrive `targetPercentage` sulle sue posizioni
+("Usa questi pesi"), lo strumento a sé propone di aprire un PAC nuovo già seminato con quei pesi
+("Crea un PAC con questi pesi", `weightsToSeedPositions` in `accumulationPlanUtils.ts`) o mostra il
+motivo per cui non può («Hai già un piano aperto»). I pesi restano modificabili a mano ovunque —
+l'ottimizzatore non scrive mai da solo, propone soltanto (stessa filosofia del matching col ledger,
+doc/guide/accumulo.md § Abbinamento).
+
+**Un avviso preventivo, non un blocco**: `findSecondLevelGaps` (stessa normalizzazione di
+`calculateCurrentAllocationSnapshot`, `sub?.trim() || NO_SUBCATEGORY_LABEL`) elenca gli strumenti
+tradable/frozen di valore positivo senza una sottocategoria riconosciuta dalla classe, mostrato sia
+in Impostazioni sotto la riga "Secondo livello" sia in entrambi i pannelli prima di "Calcola" — non
+impedisce mai il calcolo, dice solo quali euro finiranno in "Senza sottocategoria" o generanno
+`factor_unmapped`.
 
 ## La formulazione
 
@@ -105,5 +132,10 @@ bozza — non ha una cache propria: il resolver ha già la cache di 30 giorni pe
   che scende sotto 2 punti solo dopo il quarto giro resta com'è.
 - **Nessun profilo curato ha ancora un `otherAreaSplit`** (vedi sopra) — finché resta così, "Altri
   paesi" passa sempre dalla stima o dal ripiego, mai dal passo curato.
-- **Perimetro v1: solo il PAC** (O9) — nessuna integrazione in Versa, Ribilancia, Preleva della
-  pagina Allocazione.
+- **Perimetro (O9): mai Versa, Ribilancia, Preleva** — l'ottimizzatore alimenta solo il passo Target
+  del PAC e, da G4, lo strumento a sé `ComposizioneIdealeTile`/`IdealCompositionDialog`; nessuno dei
+  due tocca il Piano (Versa/Ribilancia/Preleva) della pagina Allocazione, e nessuno scrive mai da
+  solo — lo strumento a sé propone di aprire un PAC nuovo, mai un `AllocationRow`/trade diretto.
+- **Lo strumento a sé non raggruppa mai**: un candidato è sempre un singolo strumento
+  (`buildStandaloneCandidates`), mai un gruppo proxy — quello resta un gesto del PAC (D6,
+  doc/guide/accumulo.md), che si fa nell'editor, non in questo modale di sola lettura.
