@@ -102,7 +102,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
   it('should state value, monthly change, the counts and the instrument that drove the month', () => {
     expect(plain(buildPatrimonioVerdict(AUGUST).sentence)).toBe(
       'Il portafoglio vale 412.425,85 €: +3214,20 € (+0,79%) su luglio, 16 strumenti e 3 conti; ' +
-        'Vanguard FTSE All-World ha fatto il grosso (+2140 €). ' +
+        'sul mercato ha spinto soprattutto Vanguard FTSE All-World (+2140 €). ' +
         'Di quel movimento, +2000 € viene dal mercato e +1214 € dai tuoi movimenti.',
     );
   });
@@ -124,7 +124,35 @@ describe('buildPatrimonioVerdict — sentence', () => {
     });
     expect(verdict.headline).toBe('Il portafoglio è in calo: il mercato ha pesato, le tasse sulle vendite di più.');
     expect(plain(verdict.sentence)).toContain(
-      'Di quel movimento, −1079 € viene dal mercato e −3859 € dai tuoi movimenti. Hai venduto Vanguard FTSE All-World per 39.052 €',
+      'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
+        'senza, il mese avrebbe fatto −849 € (−1079 € dal mercato, +230 € dai tuoi movimenti).',
+    );
+    expect(plain(verdict.sentence)).not.toContain('Di quel movimento');
+  });
+
+  it('should name the tax before the record when the tax took the growth', () => {
+    // The real account, settembre 2026: a new high at +0,04% with 4.089 € withheld on VWCE.
+    const verdict = buildPatrimonioVerdict({
+      ...AUGUST,
+      month: 9,
+      isNewATH: true,
+      monthlyVariation: { value: 124.32, percentage: 0.04 },
+      marketEffect: 1480.59,
+      topMover: { id: 'wbit', name: 'WBIT', delta: 534.67 },
+      sales: {
+        proceeds: 39052.45,
+        realizedGain: 15726.38,
+        estimatedTax: 4088.86,
+        instruments: [{ id: 'vwce', name: 'VWCE', proceeds: 39052.45, realizedGain: 15726.38, estimatedTax: 4088.86 }],
+        brokenLedgers: 0,
+        purchases: { amount: 34305.1, instrumentCount: 6 },
+      },
+    });
+    expect(verdict.headline).toBe('Il portafoglio è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.');
+    expect(verdict.tone).toBe('warning');
+    expect(plain(verdict.sentence)).toContain(
+      'senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti). ' +
+        'Nello stesso mese hai comprato 6 strumenti per 34.305 €.',
     );
   });
 
@@ -136,7 +164,7 @@ describe('buildPatrimonioVerdict — sentence', () => {
       topMover: { id: 'btc', name: 'Bitcoin', delta: -1800 },
     }).sentence;
     expect(plain(sentence)).toBe(
-      'Il portafoglio vale 412.425,85 €: −2100,00 € (−0,50%) su luglio, 16 strumenti e 3 conti; Bitcoin ha pesato (−1800 €). ' +
+      'Il portafoglio vale 412.425,85 €: −2100,00 € (−0,50%) su luglio, 16 strumenti e 3 conti; sul mercato ha pesato soprattutto Bitcoin (−1800 €). ' +
         'Di quel movimento, −1500 € viene dal mercato e −600 € dai tuoi movimenti.',
     );
   });

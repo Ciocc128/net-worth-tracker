@@ -304,7 +304,7 @@ describe('buildNoContextVerdict', () => {
 
     expect(verdict.headline).toBe('Agosto sta andando bene.');
     expect(plain(verdict.sentence)).toBe(
-      'Il patrimonio vale 312.450,00 €: +3210,00 € (+1,04%) su luglio, +4,85% da inizio anno. Hai messo da parte il 31% delle entrate e le azioni hanno fatto il grosso del lavoro (+2890 €). ' +
+      'Il patrimonio vale 312.450,00 €: +3210,00 € (+1,04%) su luglio, +4,85% da inizio anno. Hai messo da parte il 31% delle entrate; sul mercato hanno spinto soprattutto le azioni (+2890 €). ' +
         'Di quel movimento, +2890 € viene dal mercato e +320 € dai tuoi movimenti.',
     );
   });

@@ -121,7 +121,30 @@
   bottom: pinned, it left ~110px of nothing whenever a taller tile shared the row.
 - **The light chart palette holds the dark hue bands** — doc/guide/temi.md § the default theme's light slots.
 
+## A month the tax kept flat (2026-09-19)
+
+- **A month that did NOT fall can still be the tax's story** (owner's call): `resolveTaxedGrowth` in
+  `lib/utils/periodSales.ts` — tax ≥ Δ (the tax took at least half of the gross growth Δ + tax) → `flat` below
+  `FLAT_PERIOD_PCT` (0,5%) or `eroded` above, and `taxedGrowthHeadline` prints «Settembre è in pari: le tasse sulla
+  vendita di VWCE si sono prese la crescita.» / «… cresce, ma … più di metà della crescita.» Tone `warning`. It needs only
+  Δ and the tax, so the email reaches it too; on Patrimonio it outranks the «massimo storico» headline. The sale then
+  leads the sentence (`taxIsTheStory`), exactly like `taxes-despite-market`.
+- **A taxed sale carries the split itself**: `describeSales(sales, { delta, marketEffect })` closes on «: senza, il mese
+  avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti).» — own flows are the residual `Δ − market +
+  tax`, so the parts add up by construction — and `describeOwnFlowsSplit` is printed only when there is no tax to take
+  out (its «−1356 € dai tuoi movimenti» mixed the savings with the withholding). The email keeps its own three-part split
+  and calls `describeSales` without the counterfactual.
+- **`monthSales.purchases`** (source version 18): every BUY of the month on any instrument, fees included, migration
+  baselines excluded, `null` when none — «Nello stesso mese hai comprato 6 strumenti per 34.304 €» (`describePurchases`).
+  A fact beside the sale, never «con la vendita hai comprato»: the ledger cannot tell which money paid.
+- **The driver clause names the MARKET's mover**: «sul mercato hanno spinto soprattutto le criptovalute (+726 €)»
+  (Patrimonio: «sul mercato ha spinto soprattutto WBIT»). «Hanno fatto il grosso del lavoro» read as the month's cause
+  and credited +726 € to a month of +124 €.
+
 ## Per-page blind spots
+
+- **«Hai messo da parte il 17%» counts the month's scheduled rows too** (`expenseStats.currentMonth`), while
+  Tracciamento's verdict judges only what has happened (`settleTotals`): on the same day the two can differ. Not aligned.
 
 - **The sale clause moves before the savings clause only when the headline names the tax**; on every other falling month
   the sentence keeps its order (variation · savings and driver · split · sale).
