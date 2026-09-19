@@ -14,6 +14,20 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **182 files / 4095 tests** green (4093 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20 sera, fork, PR #5): **La tabella «Classi mese per mese» del passo 3
+  dell'editor Accumulo segue la stessa regola assoluto-poi-delta appena stabilita per la striscia
+  classi del tile.** Prima ogni cella portava solo lo scostamento in pp, e la tabella non aveva
+  nemmeno un'intestazione che dicesse quale colonna fosse quale classe. Ora ogni cella ha due
+  righe (peso assoluto primario, warning se fuori banda · pp secondario, muted) e un'intestazione
+  per classe (`ASSET_CLASS_LABELS`, **colorata col colore della classe** — `ASSET_CLASS_CHART_INDEX`
+  → `useChartColors()`/`CHART_COLORS`, lo stesso della barra di esposizione appena sopra e di
+  `ClassDriftChart`, così una colonna si riconosce per colore oltre che per posizione — richiesto
+  dal proprietario subito dopo il primo giro; stesso stile `text-[9px] uppercase` della tabella
+  Calendario appena sopra, scroll orizzontale nel proprio contenitore). `AccumulationPlanDialog.tsx`:
+  `classKeys` letto una volta da `preview.trajectory[0]?.byClass` guida sia l'intestazione sia
+  l'ordine delle colonne. Collaudo: `tsc` 0, ESLint 0, 182 file / 4095 test (nessuna regressione —
+  nessun test dedicato per questo componente), `npm run build` compila (stesso punto d'arresto
+  atteso). doc/pac-ate.md §10.3, doc/guide/accumulo.md.
 - Latest (2026-09-20, fork): **PR #4 (Accumulo/PAC), la striscia classi ora stampa il peso vero,
   non solo il suo scostamento.** Su richiesta del proprietario: la riga primaria (prominente, mono)
   è ora «Azioni 105,4% · target 102,0%» — i valori ASSOLUTI — mentre lo scostamento in pp («+3,4 pp
