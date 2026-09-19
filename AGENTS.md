@@ -397,6 +397,11 @@ file used to carry.
 - The subcategory is OPTIONAL, so every euro lands in a bucket (`NO_SUBCATEGORY_LABEL`); the orphaned target (`findOrphanedTargets`/`stripOrphanedSubTargets`) is the trap. `ASSET_CLASS_SEQUENCE` is the ONE enumeration of the union — a hand-listed class drops its EUROS, not just its label.
 - Il resto — the Bull's formula, the leverage engine, the five label maps, the verdict-over-tiles rules — in `doc/guide/allocazione.md`.
 
+### Allocazione — Accumulo (PAC) → `doc/guide/accumulo.md`
+- A standalone tile (`AccumuloTile.tsx`), never inside `PlanMode`/`buildPlanView`/the page's verdict — its own `accumulationPlans` document, at most one `draft`/`active` per account.
+- The pure engine (`accumulationPlanUtils.ts`) and the matching engine (`accumulationPlanMatching.ts`) inject every live dependency (`PlanDeps`, `AllocationCompare`) — never import `@/lib/services/*`/`@/lib/firebase/*`. The band and the targets are the PAGE's own state/effective targets, never a second copy.
+- Il resto — the 12 decisions, the ledger-matching states and their tile actions, the Firestore rule's manual deploy — in `doc/guide/accumulo.md`.
+
 ### Previdenza · Fondo Pensione → `doc/guide/previdenza.md`
 - `pensionFund` is an `AssetType`, never an `AssetClass`, never a ledger type; value is statement-driven, held in `quantity` at price 1 (`assertFundValueLivesInQuantity`). The statement overwrite is «Aggiorna valore» ON the page (`updatePensionFundValue`, 2026-09-13): the asset only, never a contribution; the hero's footer judges a value left in a closed month («valore fermo dal …») — ONE rule, `isPensionValueStale` in `pensionSummary.ts`, read by the footer AND the modal's reading; never re-derive it in a component.
 - The snapshots are reduced ONCE per page (`indexPensionSnapshots` → `PensionSummaryInput.snapshotIndex`, memoized on the snapshots alone); «Il fondo oggi» reads an off-axis input, so the year pill never recomputes it. Deliberately not bounded: the `monthly-snapshots` query (shared cache) and the four-query skeleton (the verdict needs the snapshots) — doc/guide/previdenza.md says why.
