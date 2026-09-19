@@ -44,6 +44,20 @@ export interface PeriodSalesSummary {
   instruments: PeriodSaleInstrument[];
   /** Ledgers that failed to replay (an over-sell, a trade before its baseline) — counted, not fatal. */
   brokenLedgers: number;
+  /**
+   * Every purchase recorded in the same period, on ANY instrument (fees included, migration
+   * baselines excluded); `null` when there was none. A FACT beside the sale, never a claim that
+   * the proceeds funded it — a purchase paid from a salary looks the same in the ledger. Absent on
+   * a payload computed before the field existed (overview source version 18).
+   */
+  purchases?: PeriodPurchases | null;
+}
+
+export interface PeriodPurchases {
+  /** Σ quantity × priceEur + fees, EUR. */
+  amount: number;
+  /** Distinct instruments bought. */
+  instrumentCount: number;
 }
 
 export interface DateRange {
@@ -109,6 +123,15 @@ export function summarizePeriodSales(
   if (instruments.length === 0) return null;
   instruments.sort((a, b) => b.proceeds - a.proceeds);
 
+  const bought = transactions.filter((t) => t.type === 'buy' && !t.isBaseline && inRange(t.date));
+  const purchases: PeriodPurchases | null =
+    bought.length === 0
+      ? null
+      : {
+          amount: bought.reduce((sum, t) => sum + t.quantity * t.priceEur + (t.fees ?? 0), 0),
+          instrumentCount: new Set(bought.map((t) => t.assetId)).size,
+        };
+
   const taxUnknown = instruments.some((row) => row.estimatedTax === null);
   return {
     proceeds: instruments.reduce((sum, row) => sum + row.proceeds, 0),
@@ -116,6 +139,7 @@ export function summarizePeriodSales(
     estimatedTax: taxUnknown ? null : instruments.reduce((sum, row) => sum + (row.estimatedTax ?? 0), 0),
     instruments,
     brokenLedgers,
+    purchases,
   };
 }
 
@@ -170,4 +194,37 @@ export function resolveDeclineCause(input: {
   }
   if (ownFlows !== null && ownFlows < 0 && Math.abs(ownFlows) > marketLoss) return 'flows-over-market';
   return 'market';
+}
+
+/**
+ * Below this monthly change (in percent of the total) a period is «in pari» rather than «cresce».
+ */
+export const FLAT_PERIOD_PCT = 0.5;
+
+/**
+ * A period that did NOT fall, but only because the tax on its sales took the growth: the
+ * counterpart of `taxes-despite-market` for the other sign. On the real account settembre 2026
+ * closed at +124 € (+0,04%) with 4.089 € of estimated withholding on a VWCE sale, and the headline
+ * read «Settembre sta andando bene» (owner's call, 2026-09-19).
+ *
+ *   - `flat`    the tax took at least half of the gross growth (Δ + tax) and what is left is
+ *               below `FLAT_PERIOD_PCT` — «è in pari: le tasse … si sono prese la crescita»
+ *   - `eroded`  the tax took at least half of the gross growth, and the period still grew
+ *               visibly — «cresce, ma le tasse … si sono prese più di metà della crescita»
+ *   - `null`    a falling period (`resolveDeclineCause` owns it), no taxed sale, or a tax that
+ *               took less than half
+ *
+ * «At least half of Δ + tax» is simply «tax ≥ Δ». Needs only the delta and the tax, so the three
+ * verdicts — the email included, which has no own-flows half — reach it alike.
+ */
+export type TaxedGrowth = 'flat' | 'eroded';
+
+export function resolveTaxedGrowth(input: {
+  delta: number;
+  deltaPct: number;
+  salesTax: number | null;
+}): TaxedGrowth | null {
+  const { delta, deltaPct, salesTax } = input;
+  if (delta < 0 || salesTax === null || salesTax <= 0 || salesTax < delta) return null;
+  return Math.abs(deltaPct) < FLAT_PERIOD_PCT ? 'flat' : 'eroded';
 }

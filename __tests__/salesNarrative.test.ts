@@ -9,7 +9,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { declineHeadlineTail, describeOwnFlowsSplit, describeSales } from '@/lib/utils/salesNarrative';
+import {
+  declineHeadlineTail,
+  describeOwnFlowsSplit,
+  describePurchases,
+  describeSales,
+  taxedGrowthHeadline,
+} from '@/lib/utils/salesNarrative';
 import type { PeriodSalesSummary } from '@/lib/utils/periodSales';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 
@@ -103,5 +109,49 @@ describe('declineHeadlineTail', () => {
     };
     expect(declineHeadlineTail('taxes-despite-market', twoSales)).toBe(' per le tasse sulle vendite, non per il mercato.');
     expect(declineHeadlineTail('taxes-despite-market')).toBe(' per le tasse sulle vendite, non per il mercato.');
+  });
+});
+
+describe('describeSales — the month without the tax', () => {
+  it('should close on the counterfactual in three parts that add up to Δ + tax', () => {
+    // The real account, settembre 2026: Δ +124,32 €, market +1480,59 €, tax 4088,86 €.
+    const segments = describeSales(SEPTEMBER_SALE, { delta: 124.32, marketEffect: 1480.59 });
+    expect(plain(segments)).toBe(
+      'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse: ' +
+        'senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti).',
+    );
+    expect(segments.find((s) => text(s) === '+2733 €')).toMatchObject({ mono: true, sign: 'positive' });
+  });
+
+  it('should not add a counterfactual when there is no tax to take out', () => {
+    const loss = { ...SEPTEMBER_SALE, realizedGain: -200, estimatedTax: 0 };
+    expect(plain(describeSales(loss, { delta: 124.32, marketEffect: 1480.59 }))).not.toContain('senza,');
+    const noRate = { ...SEPTEMBER_SALE, estimatedTax: null };
+    expect(plain(describeSales(noRate, { delta: 124.32, marketEffect: 1480.59 }))).not.toContain('senza,');
+  });
+});
+
+describe('describePurchases', () => {
+  it('should state what was bought beside the sale, as a fact', () => {
+    const withBuys = { ...SEPTEMBER_SALE, purchases: { amount: 34305.1, instrumentCount: 6 } };
+    expect(plain(describePurchases(withBuys))).toBe('Nello stesso mese hai comprato 6 strumenti per 34.305 €.');
+    const one = { ...SEPTEMBER_SALE, purchases: { amount: 1996.29, instrumentCount: 1 } };
+    expect(plain(describePurchases(one, 'anno'))).toBe('Nello stesso anno hai comprato 1 strumento per 1996 €.');
+  });
+
+  it('should say nothing without purchases, or on a payload that predates them', () => {
+    expect(describePurchases({ ...SEPTEMBER_SALE, purchases: null })).toEqual([]);
+    expect(describePurchases(SEPTEMBER_SALE)).toEqual([]);
+  });
+});
+
+describe('taxedGrowthHeadline', () => {
+  it('should name the instrument when one was sold, and the verb the caller speaks with', () => {
+    expect(taxedGrowthHeadline('Settembre', 'flat', SEPTEMBER_SALE)).toBe(
+      'Settembre è in pari: le tasse sulla vendita di Vanguard FTSE All-World si sono prese la crescita.',
+    );
+    expect(taxedGrowthHeadline('Il 2026', 'eroded', null, 'è cresciuto')).toBe(
+      'Il 2026 è cresciuto, ma le tasse sulle vendite si sono prese più di metà della crescita.',
+    );
   });
 });

@@ -34,6 +34,7 @@
 - Added «Andamento» as a view of the Strumenti table: the three Δ windows take the place of Quantità, Prezzo, PMC and TER, are sortable, and the table no longer scrolls sideways at 1440; both toggles are remembered.
 
 - Added deep links from the Panoramica: a row of «Spese per categoria» or «Entrate per categoria» opens that category's Scheda on Analisi, the two tiles read the concentration («Il 29% va in Mutuo; le prime tre fanno il 63%») and close on «Tutte le categorie in Analisi», Composizione on «Il piano in Allocazione».
+- Added what was bought beside a sale to the verdicts of the Panoramica, Patrimonio and the periodic email («Nello stesso mese hai comprato 6 strumenti per 34.304 €»), so a reinvested sale no longer reads as money gone.
 
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 821 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
@@ -88,7 +89,7 @@
 - Fixed the sale note of «Quanto costa vendere» in target mode, which re-read the gross value typed as a net proceed and added the tax on top.
 
 - Fixed the odd animation of «Crea snapshot» on the Panoramica: the button no longer shrinks and slowly swells back under a click, and the confirmation no longer drifts diagonally as it opens — it grows from the button, in a straight line.
-- Fixed the Panoramica's verdict printing a database key («e pension hanno fatto il grosso del lavoro»): the pension funds now read as «i fondi pensione», and the Cashflow tile says «Ad agosto» instead of «A agosto».
+- Fixed the Panoramica's verdict naming the month's driver: it printed a database key («e pension hanno fatto il grosso del lavoro») and credited one class with more than the whole month, and now names the market's mover («sul mercato hanno spinto soprattutto i fondi pensione (+256 €)»), on Patrimonio too. The Cashflow tile says «Ad agosto» instead of «A agosto».
 - Fixed the light-mode chart palette: Liquidità and Immobili were two oranges a reader could not tell apart, Trend Following and Obbligazioni two teals, and the net-worth curve was drawn in the colour of a loss; every class now keeps the same hue in light and dark (Azioni blue, Obbligazioni green, Criptovalute amber, Immobili violet, Liquidità coral), in the emails and the PDF too.
 - Fixed the truncated category names in the ranked lists of the Panoramica, Tracciamento, Analisi, Dividendi, Hall of Fame and Previdenza («Stipendio Giu…», «Entrate da inv…»): the name now takes the room it needs and the bar beside it takes the rest.
 
@@ -117,7 +118,7 @@
 - Improved the touch targets to 44px on touch across the Dividendi tab: the period axis, the view switch, the two filters, the calendar arrows, the form's fields; «Scarica storico» beside «Esporta CSV» on a phone, where both were hidden.
 
 - Improved the snapshot overwrite on the Panoramica: the title says what the button does («Sovrascrivi lo snapshot di settembre») and the window says that the month's note is kept.
-- Improved the falling-month verdict: when the market gained and the tax withheld on a sale explains the drop, the headline says so — «Settembre è in calo per le tasse sulla vendita di VWCE, non per il mercato.» — and the sale comes right after the variation.
+- Improved the verdict of a month with a taxed sale, on the Panoramica, Patrimonio and in the periodic email: whenever the tax explains the month the headline names it — «Settembre è in calo per le tasse sulla vendita di VWCE, non per il mercato.» or «Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.» instead of «Settembre sta andando bene» at +0,04%. The sale then says what the month would have made without the tax («senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti)»).
 - Improved the period control of the net-worth chart on the Panoramica: readable labels, thumb-sized targets on a phone, arrow-key navigation, and unselected periods that stay legible in light mode — the same control every other page uses.
 - Improved the Panoramica's third row (three equal tiles) and the Costi tile, whose «Pesano di più» now follows the figures instead of leaving a gap; «Costo annuo» is no longer amber on every account.
 

@@ -18,8 +18,14 @@ import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { atThePercent } from '@/lib/utils/patrimonioNarrative';
 import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
-import { resolveDeclineCause, type DeclineCause, type PeriodSalesSummary } from '@/lib/utils/periodSales';
-import { declineHeadlineTail, describeOwnFlowsSplit, describeSales } from '@/lib/utils/salesNarrative';
+import { resolveDeclineCause, resolveTaxedGrowth, type PeriodSalesSummary } from '@/lib/utils/periodSales';
+import {
+  declineHeadlineTail,
+  describeOwnFlowsSplit,
+  describePurchases,
+  describeSales,
+  taxedGrowthHeadline,
+} from '@/lib/utils/salesNarrative';
 
 import type { Narrative, NarrativeSegment, VerdictTone } from '@/lib/utils/narrative';
 import type { CategoryRanking } from '@/lib/utils/tracciamentoSummary';
@@ -155,22 +161,32 @@ function capitalise(text: string): string {
 interface ResolvedHeadline {
   headline: string;
   tone: VerdictTone;
-  /** The cause of a falling month; null when the month did not fall. */
-  declineCause: DeclineCause | null;
+  /** The headline names the tax on a sale as the month's story, so the sale leads the sentence. */
+  taxIsTheStory: boolean;
 }
 
 function resolveHeadline(input: OverviewVerdictInput): ResolvedHeadline {
   const month = MONTH_NAMES[input.month - 1];
 
   if (!input.monthlyVariation) {
-    return { headline: `Il tuo patrimonio ${withPrepositionA(month.toLowerCase())}.`, tone: 'neutral', declineCause: null };
+    return { headline: `Il tuo patrimonio ${withPrepositionA(month.toLowerCase())}.`, tone: 'neutral', taxIsTheStory: false };
   }
 
   if (input.monthlyVariation.value >= 0) {
-    if (input.savingsRate !== null && input.savingsRate < 0) {
-      return { headline: `${month} cresce, ma le spese superano le entrate.`, tone: 'warning', declineCause: null };
+    // Grown only on paper: the tax on a sale took at least half of the growth, and «sta andando
+    // bene» over +0,04% hid the month's one real event (`resolveTaxedGrowth`).
+    const taxedGrowth = resolveTaxedGrowth({
+      delta: input.monthlyVariation.value,
+      deltaPct: input.monthlyVariation.percentage,
+      salesTax: input.sales?.estimatedTax ?? null,
+    });
+    if (taxedGrowth) {
+      return { headline: taxedGrowthHeadline(month, taxedGrowth, input.sales), tone: 'warning', taxIsTheStory: true };
     }
-    return { headline: `${month} sta andando bene.`, tone: 'positive', declineCause: null };
+    if (input.savingsRate !== null && input.savingsRate < 0) {
+      return { headline: `${month} cresce, ma le spese superano le entrate.`, tone: 'warning', taxIsTheStory: false };
+    }
+    return { headline: `${month} sta andando bene.`, tone: 'positive', taxIsTheStory: false };
   }
 
   // A falling month: name the market only when the market actually lost money, and never the
@@ -186,19 +202,26 @@ function resolveHeadline(input: OverviewVerdictInput): ResolvedHeadline {
     headline: `${month} è in calo${declineHeadlineTail(cause, input.sales)}`,
     // The market did not lose: a tax withheld on a gain is worth attention, not alarm.
     tone: cause === 'despite-market' || cause === 'taxes-despite-market' ? 'warning' : 'negative',
-    declineCause: cause,
+    taxIsTheStory: cause === 'taxes-despite-market',
   };
 }
 
-/** Null when the class has no subject in the map — the clause is dropped, never guessed. */
+/**
+ * «sul mercato hanno spinto soprattutto le criptovalute (+726 €)». The top mover explains the
+ * MARKET half, not the month: «hanno fatto il grosso del lavoro» read as the month's cause, and on
+ * the real account's settembre 2026 the +726 € it credited was six times the month's +124 €.
+ * Null when the class has no subject in the map — the clause is dropped, never guessed.
+ */
 function buildDriverClause(topMover: { assetClass: string; delta: number }, leading: boolean): Narrative | null {
   const resolved = classSubject(topMover.assetClass);
   if (!resolved) return null;
   const { subject, plural } = resolved;
-  const verb = plural ? 'hanno' : 'ha';
-  const action = topMover.delta >= 0 ? 'fatto il grosso del lavoro' : 'pesato';
-  const opening = leading ? capitalise(subject) : subject;
-  return [prose(`${opening} ${verb} ${action} (`), signedCurrency(topMover.delta, true), prose(')')];
+  const verb = `${plural ? 'hanno' : 'ha'} ${topMover.delta >= 0 ? 'spinto' : 'pesato'}`;
+  return [
+    prose(`${leading ? 'Sul' : 'sul'} mercato ${verb} soprattutto ${subject} (`),
+    signedCurrency(topMover.delta, true),
+    prose(')'),
+  ];
 }
 
 /**
@@ -207,7 +230,7 @@ function buildDriverClause(topMover: { assetClass: string; delta: number }, lead
  * monthly clause; no income → no savings clause; nothing attributable → no market driver.
  */
 export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdict {
-  const { headline, tone, declineCause } = resolveHeadline(input);
+  const { headline, tone, taxIsTheStory } = resolveHeadline(input);
   const sentence: Narrative = [prose('Il patrimonio vale '), figure(cachedFormatCurrencyEUR(input.totalValue))];
 
   if (input.monthlyVariation) {
@@ -227,13 +250,23 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
   }
   sentence.push(prose('.'));
 
-  // When the headline blames the tax on a sale, the sale is the month's story and comes right
-  // after the variation — before the savings rate, which is the pleasantry — and the
-  // market-vs-flows split is redundant (the headline already said the market did not lose).
-  const taxIsTheStory = declineCause === 'taxes-despite-market';
-  if (taxIsTheStory && input.sales) {
-    sentence.push(prose(' '), ...describeSales(input.sales));
+  // A taxed sale closes on the month without the tax, in three exact parts, which replaces the
+  // two-part market-vs-flows split (its «tuoi movimenti» mixed the savings with the tax); the
+  // purchases beside it say whether the proceeds left or were rebalanced. When the headline
+  // blames the tax, the sale is the month's story and comes right after the variation — before
+  // the savings rate, which is the pleasantry.
+  const split =
+    input.monthlyVariation && input.marketEffect !== null
+      ? { delta: input.monthlyVariation.value, marketEffect: input.marketEffect }
+      : undefined;
+  const saleCarriesSplit = split !== undefined && (input.sales?.estimatedTax ?? 0) > 0;
+  const saleClause: Narrative = [];
+  if (input.sales) {
+    saleClause.push(prose(' '), ...describeSales(input.sales, split));
+    const purchases = describePurchases(input.sales);
+    if (purchases.length > 0) saleClause.push(prose(' '), ...purchases);
   }
+  if (taxIsTheStory) sentence.push(...saleClause);
 
   const hasSavingsClause = input.savingsRate !== null;
   if (input.savingsRate !== null) {
@@ -249,7 +282,7 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
   const driverClause =
     input.topMover && input.marketEffect !== null ? buildDriverClause(input.topMover, !hasSavingsClause) : null;
   if (driverClause) {
-    sentence.push(prose(hasSavingsClause ? ' e ' : ' '));
+    sentence.push(prose(hasSavingsClause ? '; ' : ' '));
     sentence.push(...driverClause);
   }
 
@@ -259,11 +292,11 @@ export function buildOverviewVerdict(input: OverviewVerdictInput): OverviewVerdi
 
   // The split between the market and everything the user did, then the sale that explains it:
   // a month that fell by 4.900 € with the market at −1.100 € must not read as a market month.
-  if (!taxIsTheStory && input.monthlyVariation && input.marketEffect !== null) {
-    sentence.push(prose(' '), ...describeOwnFlowsSplit(input.monthlyVariation.value, input.marketEffect));
-  }
-  if (!taxIsTheStory && input.sales) {
-    sentence.push(prose(' '), ...describeSales(input.sales));
+  if (!taxIsTheStory) {
+    if (split && !saleCarriesSplit) {
+      sentence.push(prose(' '), ...describeOwnFlowsSplit(split.delta, split.marketEffect));
+    }
+    sentence.push(...saleClause);
   }
 
   return { headline, tone, sentence };

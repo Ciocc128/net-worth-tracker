@@ -13,19 +13,19 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **169 files / 3829 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-18): **`/impeccable polish` — il vocabolario delle modali è TOTALE** (40 mount di `ResponsiveModal`;
-  grezzo resta solo `LogoutDialog`, di proposito). Quattro decisioni del proprietario: **Feed › dettaglio** — la conferma
-  ANNIDATA diventa un delete che si ARMA nel footer, la lettura stampa la conseguenza, una riga di serie va dritta a
-  `SeriesDeleteDialog` (confermava due volte); **Assistente** — Conversazioni e Memoria da `Sheet` a modali
-  (`AssistantModals.tsx`), via l'ULTIMO timer di 3 s; **Filtri dei movimenti** — lettura e primario CONTANO («2 filtri
-  attivi: restano 27 movimenti su 112.»); **Panoramica** — «Sovrascrivi lo snapshot di settembre». **Dal giro sul
-  mirror**: la «strana animazione» di «Crea snapshot» erano due — l'unico `whileTap` dell'app su una molla per REGIONI
-  e un `transform-origin` assegnato dopo il mount, che `duration-200` faceva SCORRERE: bottone semplice, origine AL
-  CLICK (`lib/utils/modalOrigin.ts`), poi estesa alle altre quattro pagine che avevano una ricetta propria (Hall of
-  Fame, Dividendi, Rendimenti, Impostazioni) e mai azzerata in chiusura. **Collaudo**: `tsc`, lint 0, detector 0, evidenza Playwright a 1440 · 1024 · 390
-  su Firestore, quattro asserzioni nuove VISTE ROSSE (`cashflow.tracciamento`, `cashflow.mobile`, `panoramica.snapshot`,
-  `modal.origin`).
+- `tsc` clean; **169 files / 3846 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-19, su develop): **il verdetto di un mese che le tasse hanno tenuto in pari nomina le tasse.** Sul
+  conto reale settembre 2026 chiudeva a +124 € (+0,04%) con 4089 € stimati sulla vendita di VWCE e il titolo diceva
+  «Settembre sta andando bene». (1) `resolveTaxedGrowth` (`periodSales.ts`): su un mese NON in calo, tasse ≥ Δ
+  → «Settembre è in pari: le tasse sulla vendita di VWCE si sono prese la crescita.» (sotto lo 0,5%) o «cresce, ma …
+  più di metà della crescita», tono warning, sulle tre superfici (su Patrimonio batte il massimo storico). (2) Una
+  vendita tassata chiude su «senza, il mese avrebbe fatto +4213 € (+1481 € dal mercato, +2733 € dai tuoi movimenti)»
+  e sostituisce «Di quel movimento», che mescolava risparmio e tasse. (3) `monthSales.purchases` (source version 18):
+  «Nello stesso mese hai comprato 6 strumenti per 34.304 €», baseline escluse. (4) Il driver è del MERCATO: «sul
+  mercato hanno spinto soprattutto le criptovalute (+726 €)» (Panoramica e Patrimonio). **Collaudo**: `tsc`, lint 0,
+  Vitest intero sotto `TZ=Europe/Rome` (3846 dopo il rebase su develop), falsificazione della soglia e del filtro baseline (rosso solo dopo aver
+  messo una baseline DENTRO il mese nella fixture), Playwright sul mirror a 1440 dark e 390 light (overflow 0), giro del
+  proprietario ok; l'email è verificata sulle parole, non renderizzata.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
