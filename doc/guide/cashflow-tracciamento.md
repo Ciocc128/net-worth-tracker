@@ -122,6 +122,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   spending without income negative, no movement neutral.
 - *Risparmio* (€) and *Rapporto* (`income/expenses`, printed «1,67×» through `formatNumber`) encode the same
   relationship in different units and are kept together **on purpose** — do not "deduplicate".
+- **The detail names the account a row moves, and when** (2026-09-19): «Conto · Fenicottero · si muove il 22 settembre»
+  while the row waits for its date (`balancePending`), «Conti · origine → destinazione» for a transfer; the armed delete
+  says the account is credited back only when the row has APPLIED its effect (`appliedBalanceEffectsOf`). A series row
+  adds «Collega la serie a un conto…» under the facts (`LinkSeriesDialog`, owned by `ExpenseTrackingTab`), hidden in demo.
 - **Feed delete = the detail's ARMED footer** (2026-09-18; it was a confirm drawer nested in the detail drawer): the
   detail is a `ResponsiveModal` `sm`, «Elimina» arms through `useArmedDelete` and the reading prints
   `describeExpenseDeleteConsequence` until the second press or a disarm (`describeMovementDetailReading`); a row of a

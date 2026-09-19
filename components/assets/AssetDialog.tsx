@@ -349,7 +349,9 @@ const assetSchema = z.object({
   assetClass: z.enum(['equity', 'bonds', 'crypto', 'realestate', 'cash', 'commodity', 'trendFollowing', 'carry']),
   subCategory: z.string().optional(),
   currency: z.string().min(1, 'Serve la valuta'),
-  quantity: z.number().min(0, 'La quantità non può essere negativa'),
+  // A cash account may go below zero (a credit card is an account in the red until it is debited);
+  // every other type is refused in the superRefine below.
+  quantity: z.number(),
   manualPrice: z.number().positive('Il prezzo deve essere maggiore di zero').optional().or(z.nan()),
   averageCost: z.number().positive('Il prezzo di carico deve essere maggiore di zero').optional().or(z.nan()),
   taxRate: z.number().min(0, "L'aliquota non può essere negativa").max(100, "L'aliquota non può superare il 100%").optional().or(z.nan()),
@@ -402,6 +404,9 @@ const assetSchema = z.object({
   const tickerRequired = data.type !== 'cash' && data.type !== 'realestate' && data.type !== 'pensionFund';
   if (tickerRequired && (!data.ticker || data.ticker.trim().length === 0)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Serve il ticker', path: ['ticker'] });
+  }
+  if (data.type !== 'cash' && data.quantity < 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'La quantità non può essere negativa', path: ['quantity'] });
   }
 });
 
@@ -1657,6 +1662,11 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
               />
               {errors.quantity && (
                 <p className="text-sm text-destructive">{errors.quantity.message}</p>
+              )}
+              {selectedType === 'cash' && (
+                <p className="text-xs text-muted-foreground">
+                  Può essere negativo: una carta di credito è un conto in rosso fino all&apos;addebito. Per non contarla come liquidità da investire, escludila dall&apos;allocazione.
+                </p>
               )}
               {/* Show hint only in edit mode — in create mode there's no previous quantity to compare.
                   Quantity changes represent capital flowing in/out of the portfolio. */}

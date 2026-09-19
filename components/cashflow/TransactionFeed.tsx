@@ -13,7 +13,9 @@
  * centred dialog above, in the app's one modal vocabulary (doc/guide/dialog.md) — with edit and
  * delete. The delete ARMS in the footer and the reading prints what the second press does to
  * the account; a row of an instalment plan or a recurring series does not arm, because its
- * delete is a choice and the choice is `SeriesDeleteDialog`, opened by the parent. When
+ * delete is a choice and the choice is `SeriesDeleteDialog`, opened by the parent. The detail
+ * names the account a row moves and WHEN (on its own date, lib/utils/cashSettlement.ts), and a
+ * series row offers «Collega la serie…» (`LinkSeriesDialog`, also the parent's). When
  * `grouped` is true, rows are bucketed by day with Oggi / Ieri / "EEE d MMM" headers;
  * otherwise they render as one flat list.
  */
@@ -21,7 +23,7 @@
 import { Suspense, useMemo, useRef, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Link2, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -36,6 +38,7 @@ import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { resolveSeriesDeleteMode } from '@/components/expenses/SeriesDeleteDialog';
 import { isScheduledRow } from '@/lib/utils/tracciamentoSummary';
 import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
+import { appliedBalanceEffectsOf } from '@/lib/utils/cashSettlement';
 import type { Expense, ExpenseType } from '@/types/expenses';
 import { CompactExpenseRow } from '@/components/cashflow/CompactExpenseRow';
 import { EXPENSE_TYPE_DOT_CLASS as TYPE_DOT_CLASS } from '@/lib/constants/expenseTypeColors';
@@ -96,9 +99,26 @@ interface TransactionDetailModalProps {
   onClose: () => void;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
+  /** «Collega la serie…» on a series row; absent = the action is not offered. */
+  onLinkSeries?: (expense: Expense) => void;
   isDemo: boolean;
   categoryMetaMap: Map<string, { icon?: string; color?: string }>;
   memberNames: Map<string, string> | null;
+  /** Cash account names by id, for the «Conto» row; absent = the row is not printed. */
+  accountNames?: Map<string, string>;
+}
+
+/**
+ * «Conto BNL», «Conto BNL · si muove il 28 settembre», «Conto BNL → Carta» — which account(s) the
+ * row moves and, while it waits for its date, when. A deleted account reads «conto eliminato».
+ */
+function describeAccounts(expense: Expense, names: Map<string, string>): string | null {
+  const name = (id?: string) => (id ? (names.get(id) ?? 'conto eliminato') : null);
+  const origin = name(expense.linkedCashAssetId);
+  const destination = expense.type === 'transfer' ? name(expense.transferCashAssetId) : null;
+  const accounts = origin && destination ? `${origin} → ${destination}` : (origin ?? destination);
+  if (!accounts) return null;
+  return expense.balancePending ? `${accounts} · si muove il ${format(getExpenseDate(expense.date), 'd MMMM', { locale: it })}` : accounts;
 }
 
 function TransactionDetailModal({
@@ -108,9 +128,11 @@ function TransactionDetailModal({
   onClose,
   onEdit,
   onDelete,
+  onLinkSeries,
   isDemo,
   categoryMetaMap,
   memberNames,
+  accountNames,
 }: Readonly<TransactionDetailModalProps>) {
   const deleteRef = useRef<HTMLButtonElement | null>(null);
   const { armed, onClick: onArmedClick, onBlur } = useArmedDelete(deleteRef, () => onDelete(expense));
@@ -146,6 +168,10 @@ function TransactionDetailModal({
 
   if (expense.subCategoryName) {
     details.push({ label: 'Sottocategoria', value: expense.subCategoryName });
+  }
+  const accounts = accountNames ? describeAccounts(expense, accountNames) : null;
+  if (accounts) {
+    details.push({ label: expense.type === 'transfer' ? 'Conti' : 'Conto', value: accounts });
   }
   if (expense.costCenterName) {
     details.push({ label: 'Centro di costo', value: expense.costCenterName });
@@ -189,7 +215,8 @@ function TransactionDetailModal({
         date,
         scheduled,
         phase: armed ? 'armed' : wasArmed ? 'disarmed' : 'idle',
-        deletion: { type: expense.type, amount: expense.amount, hasAccount: !!expense.linkedCashAssetId },
+        // A row still waiting for its date has moved nothing, so its delete gives nothing back.
+        deletion: { type: expense.type, amount: expense.amount, hasAccount: appliedBalanceEffectsOf(expense).length > 0 },
       })}
       footer={
         <>
@@ -268,6 +295,12 @@ function TransactionDetailModal({
           </div>
         ))}
       </dl>
+      {isSeries && onLinkSeries && !isDemo && (
+        <Button type="button" variant="outline" size="sm" className="mt-3 h-11 w-full desktop:h-8" onClick={() => onLinkSeries(expense)}>
+          <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+          {expense.isInstallment ? 'Collega il piano a un conto…' : 'Collega la serie a un conto…'}
+        </Button>
+      )}
     </ResponsiveModal>
   );
 }
@@ -290,6 +323,10 @@ export interface TransactionFeedProps {
   grouped: boolean;
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
+  /** «Collega la serie…» from a series row's detail; absent = not offered. */
+  onLinkSeries?: (expense: Expense) => void;
+  /** Cash account names by id, for the detail's «Conto» row. */
+  accountNames?: Map<string, string>;
   isDemo: boolean;
   hasActiveFilters: boolean;
   /** Map of categoryId → { icon?, color? } for row icon badges. */
@@ -323,6 +360,8 @@ export function TransactionFeed({
   grouped,
   onEdit,
   onDelete,
+  onLinkSeries,
+  accountNames,
   isDemo,
   hasActiveFilters,
   categoryMetaMap,
@@ -449,9 +488,18 @@ export function TransactionFeed({
             closeDetail();
             onDelete(expense);
           }}
+          onLinkSeries={
+            onLinkSeries
+              ? (expense) => {
+                  closeDetail();
+                  onLinkSeries(expense);
+                }
+              : undefined
+          }
           isDemo={isDemo}
           categoryMetaMap={categoryMetaMap}
           memberNames={memberNames}
+          accountNames={accountNames}
         />
       )}
     </div>

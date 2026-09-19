@@ -99,11 +99,16 @@ export interface Expense {
   installmentNumber?: number; // Current installment number (1, 2, 3...)
   installmentTotal?: number; // Total number of installments in series
   installmentTotalAmount?: number; // Total amount of the purchase (for analytics)
-  // Optional link to a cash-class asset whose balance is updated when this expense is saved.
-  // Only stored on single expenses or the first entry of a recurring/installment series.
+  // Optional link to a cash-class asset whose balance this row moves ON ITS DATE
+  // (lib/utils/cashSettlement.ts). Since 2026-09-19 every occurrence of a series carries it;
+  // older series carry it on their first entry only (the one that moved the account at save).
   linkedCashAssetId?: string;
   // Destination cash asset for transfer-type expenses. Origin is `linkedCashAssetId`.
   transferCashAssetId?: string;
+  // True while a linked row waits for its date: it has NOT moved its account(s) yet, and the
+  // server settles it on the day (lib/server/cashSettlement.ts). Absent = applied — every row
+  // written before the rule moved its account at save, so none is ever applied twice.
+  balancePending?: boolean;
   // Optional cost center assignment for grouping expenses by object/project (e.g. "Automobile Dacia").
   // costCenterName is denormalized for query performance — same pattern as categoryName.
   // WARNING: If a cost center is renamed, bulk-update all linked expenses via costCenterService.renameCostCenter.
@@ -215,8 +220,9 @@ export interface ExpenseFormData {
   installmentTotalAmount?: number; // Total amount to divide (auto mode only)
   installmentAmounts?: number[]; // Individual amounts for each installment (manual mode)
   installmentStartDate?: Date; // Date of first installment
-  linkedCashAssetId?: string; // ID of cash asset whose balance is updated on save
+  linkedCashAssetId?: string; // ID of cash asset whose balance the row moves on its date
   transferCashAssetId?: string; // Destination cash asset for transfers (origin = linkedCashAssetId)
+  balancePending?: boolean; // Written by the edit path: the row's new date is still to come (see Expense)
   costCenterId?: string;    // Optional cost center assignment
   costCenterName?: string;  // Denormalized name, must be kept in sync via costCenterService
   personalMemberId?: string; // FamilyMember this row belongs to; absent = in comune (see Expense)
