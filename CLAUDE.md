@@ -13,7 +13,97 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **177 files / 3992 tests** green + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **187 files / 4156 tests** green (4154 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20 notte, fork): **Ottimizzatore dei pesi (O1-O4, doc/weight-optimizer-ate.md), revisione pre-PR: allineato a `main` e corretto il rilievo I1 sulla convergenza.** Il branch `feat/opt-pac`
+  era partito da un punto di `main` precedente alle correzioni PAC delle PR #4/#5/#6 (`fd58a49`,
+  `871a67c`, `b656b84`, `421ef46`, `bf60dc7`): mergiato `main` dentro, un solo conflitto testuale
+  (due bullet aggiunti in coda alla stessa sezione di `doc/guide/accumulo.md`, tenuti entrambi),
+  `AccumuloTile.tsx`/`AccumulationPlanDialog.tsx` auto-mergiati senza conflitti. **Rilievo I1**
+  (revisione PR, `MAX_ITERATIONS_DEFAULT` in `lib/utils/weightOptimizer.ts`): lo scenario "leva +
+  geografia" di §10 — la combinazione di punta della feature — impiegava 3112 iterazioni per
+  convergere e sforava il vecchio limite di 3000 a ogni esecuzione, con l'avviso `not_converged`
+  mostrato di routine anche quando i pesi arrotondati a 3000 iterazioni coincidevano già con quelli
+  convergenti. Alzato a 8000 (decisione del proprietario): costo trascurabile, sotto i 100 ms anche
+  al limite con 40 candidati (misurato). doc/weight-optimizer-ate.md §6.3, doc/guide/ottimizzatore.md.
+  Collaudo: `tsc` 0, ESLint 0, 187 file / 4156 test (4154 + 2 skipped, nessuna regressione dal merge
+  né dal fix), `npm run build` compila (stesso punto d'arresto atteso, `NEXT_PUBLIC_FIREBASE_*`).
+  **Resta aperto il rilievo Bloccante B1** (non corretto in questa sessione): il "raggiunto" di un
+  tetto di gruppo NON violato stampa sempre il valore del tetto stesso invece del peso reale del
+  gruppo (`achievedValue` derivato dal `gapPp` già clampato dalla cerniera anziché dal valore grezzo)
+  — va chiuso prima di aprire la PR.
+- Latest (2026-09-20 sera, fork, PR #5): **La tabella «Classi mese per mese» del passo 3
+  dell'editor Accumulo segue la stessa regola assoluto-poi-delta appena stabilita per la striscia
+  classi del tile.** Prima ogni cella portava solo lo scostamento in pp, e la tabella non aveva
+  nemmeno un'intestazione che dicesse quale colonna fosse quale classe. Ora ogni cella ha due
+  righe (peso assoluto primario, warning se fuori banda · pp secondario, muted) e un'intestazione
+  per classe (`ASSET_CLASS_LABELS`, **colorata col colore della classe** — `ASSET_CLASS_CHART_INDEX`
+  → `useChartColors()`/`CHART_COLORS`, lo stesso della barra di esposizione appena sopra e di
+  `ClassDriftChart`, così una colonna si riconosce per colore oltre che per posizione — richiesto
+  dal proprietario subito dopo il primo giro; stesso stile `text-[9px] uppercase` della tabella
+  Calendario appena sopra, scroll orizzontale nel proprio contenitore). `AccumulationPlanDialog.tsx`:
+  `classKeys` letto una volta da `preview.trajectory[0]?.byClass` guida sia l'intestazione sia
+  l'ordine delle colonne. Collaudo: `tsc` 0, ESLint 0, 182 file / 4095 test (nessuna regressione —
+  nessun test dedicato per questo componente), `npm run build` compila (stesso punto d'arresto
+  atteso). doc/pac-ate.md §10.3, doc/guide/accumulo.md.
+- Latest (2026-09-20, fork): **PR #4 (Accumulo/PAC), la striscia classi ora stampa il peso vero,
+  non solo il suo scostamento.** Su richiesta del proprietario: la riga primaria (prominente, mono)
+  è ora «Azioni 105,4% · target 102,0%» — i valori ASSOLUTI — mentre lo scostamento in pp («+3,4 pp
+  oggi → +1,3 pp a fine piano») scende a riga secondaria, più piccola e muted. Prima il delta era
+  l'unica cifra stampata, il peso reale non compariva mai nel tile. `describeClassStripItem`
+  (`accumulationNarrative.ts`) ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece
+  del vecchio `{ text, note?, outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per
+  `furthestDrift` invece di spezzare la vecchia stringa `text`. Collaudo: `tsc` 0, ESLint 0, 182
+  file / 4095 test (3 test riscritti), `npm run build` compila (stesso punto d'arresto atteso).
+  doc/pac-ate.md §10.2 punto 5, doc/guide/accumulo.md.
+- Latest (2026-09-19 notte, fork): **PR #4 (Accumulo/PAC), il toggle «Nel piano / Da vendere» del
+  passo 2 non era cliccabile.** Trovato dal proprietario in un giro guidato: la colonna promette un
+  toggle ma la cella renderizzava solo testo statico — il vero controllo viveva in un paragrafo
+  separato sotto la tabella, minuscolo e visibile solo per le righe non raggruppate, quindi da UI
+  sembrava che non ci fosse modo di marcare uno strumento come «Da vendere». `AccumulationPlanDialog.tsx`:
+  la cella del toggle di una riga NON raggruppata è ora un bottone (`moveAssetToDisposal`); un
+  membro di un gruppo proxy resta testo (invariato — non si vende un membro senza prima «Separare»);
+  rimosso il paragrafo duplicato e l'helper `positionOfAsset` diventato inutilizzato. Collaudo: `tsc`
+  0, ESLint 0, 182 file / 4095 test (nessuna regressione — nessuna suite copre questo componente,
+  nessun test dedicato: verificato a mano il flusso via lettura del diff), `npm run build` compila
+  (stesso punto d'arresto atteso). doc/guide/accumulo.md.
+- Latest (2026-09-19 sera, fork): **PR #4 (Accumulo/PAC), rilievi importanti 5-6-7.** Rilievo 5:
+  `matchPlanExecutions` gained a `transactionsLoading` parameter (default `false`, every existing
+  caller untouched) — while `useAssetTransactions` is still in flight, `transactions` reads as
+  `[]` exactly like a genuinely empty ledger, so every already-`executed` line/disposal used to
+  misread as `lostLink` for one frame; the tile passes `transactionsQuery.isLoading`. Rilievo 6:
+  `AccumulationPlanDialog.tsx`'s seeder and `candidateAssets`, plus `accumulationPlanSchema.ts`'s
+  `unassigned_tradable`, now all exclude `assetClass === 'cash'` — `resolveAllocationRole` reads
+  `tradable` for a current account by default, so without the exclusion it landed in step 2 as a
+  0%-weight row, and if it was also a step 1 source its value double-counted into B. Rilievo 7:
+  `unassigned_tradable` now shares the SAME value predicate as the seeder/candidates
+  (`quantity * unitPriceEur(asset) > 0`, Firebase-free, instead of the old `quantity <= 0`) — an
+  asset with a tracked quantity but no fetched price (the FX-on-a-cold-instance Known Issue) used
+  to be demanded by the validator and offered by no row, a dead end with «Avanti» stuck disabled
+  forever. Collaudo: `tsc` 0, ESLint 0, 182 file / 4095 test (4 new/rewritten assertions proven red
+  against the pre-fix code, then green again), `npm run build` compiles (same expected Firebase
+  env-var stop). doc/pac-ate.md §6/§9/§10.3, doc/guide/accumulo.md.
+- Latest (2026-09-19, fork): **PR #4 (Accumulo/PAC) blocking review fixes: the trajectory's target
+  tracked the WRONG base, and the projection never spent the cash.** `projectClassTrajectory`
+  (rilievo 1): a measured point's target now scales to THAT point's own `marketBaseEur`
+  (`resolveTargetPct`, reading raw config from `targets` — never a target resolved once at the
+  function's start), and a projected point reads its target straight off its own `compare()` call
+  instead of the frozen baseline — `compareAllocations` scales EVERY class's target when cash uses
+  a fixed amount, not just cash's. `buildProjectedAssets` (rilievo 2): the plan's own cash now
+  moves in the projection — spent on not-yet-executed installments, replenished by the estimated
+  monthly inflow (month by month) and by not-yet-executed disposals' proceeds, pro-rata over
+  `sourceCashAssetIds`' LIVE balances, `allocationRole` untouched (owner's decisions, doc/pac-ate.md
+  §5.9). `AccumuloTile.tsx` (rilievo 3): `matchPlanExecutions`/`projectClassTrajectory` moved into
+  `useMemo` (were re-running on every render, N=60 → 61 `compareAllocations` calls and asset-list
+  clones per keystroke in the manual-entry form), `today` stabilized to day granularity. Rilievo 10:
+  the weak "does not distort the other classes" test (asserted only at index 0, where baseline and
+  point trivially coincide) rewritten to check a non-cash class at index > 0 against the PR's own
+  reference numbers (idx2: target 83,333 · drift 0,000, was 80,000 · +3,333pp fuori banda). Rilievo
+  4: `recalibrateInstallment`'s `N − index + 1` (doc/pac-ate.md §5.7 said `N − index`) ratified into
+  the ATE, code unchanged (owner's call — the open installment counts among the months remaining).
+  Collaudo: `tsc` 0, ESLint 0, 182 file / 4091 test (5 new/rewritten assertions proven red against
+  the pre-fix code, then green again), `npm run build` compiles (stops at page-data collection for
+  the missing `NEXT_PUBLIC_FIREBASE_*` vars, expected in this environment). doc/guide/accumulo.md
+  § Limiti noti.
 - Latest (2026-09-15 sera, fork): **Lime Frost, secondo giro sul mirror (desktop + iPhone 15) con le annotazioni del
   proprietario.** Scrub dello Storico ripristinato (contro upstream `5e6e3c6`), mese corrente come fascia + pillola in
   tutti i grafici mensili, nessuna etichetta troncata, Sankey sottile anche con le sottocategorie e palette di tema per

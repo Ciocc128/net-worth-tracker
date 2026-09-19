@@ -376,7 +376,7 @@ export interface RecalibrationResult {
   lines: RecalibrationLine[];
   plannedTotalEur: number;
   suggestedTotalEur: number;
-  liquidity: UsableLiquidity;  // computed with monthsRemaining = N − index
+  liquidity: UsableLiquidity;  // computed with monthsRemaining = N − index + 1 (the open installment counts)
 }
 
 export function recalibrateInstallment(
@@ -387,8 +387,9 @@ export function recalibrateInstallment(
 ): RecalibrationResult;
 ```
 
-- `liq = computeUsableLiquidity(plan.liquidity, assetsById, plan.disposals, N − index, deps)`;
-  qui `sourceCashEur` è il valore **reale** di oggi dei conti.
+- `liq = computeUsableLiquidity(plan.liquidity, assetsById, plan.disposals, N − index + 1, deps)`
+  (corretto 2026-09-19 — vedi la nota sotto: questa specifica scriveva `N − index`, il codice ha
+  sempre usato `N − index + 1`); qui `sourceCashEur` è il valore **reale** di oggi dei conti.
 - `states = resolvePositionStates(plan.positions, assetsById, deps)` con valori reali.
 - `totals = computeTotalPurchases(states, liq.L)`.
 - Per ogni posizione: `budget = totals[p] / (N − index + 1)`; `suggestedQuantity = floor(budget / price + 1e-9)`.
@@ -396,6 +397,13 @@ export function recalibrateInstallment(
   incassati` allora riduci proporzionalmente (scala i budget per il rapporto e ricalcola i floor).
   Questo realizza "entrate non arrivate → rata ridotta, riserva intatta".
 - La funzione **non** modifica il piano; `applyRecalibration` del service scrive le righe accettate.
+
+**Nota (PR #4, rilievo 4, decisione del proprietario 2026-09-19)**: questa specifica scriveva
+`monthsRemaining = N − index`, ma `recalibrateInstallment` ha sempre diviso per `N − index + 1`
+(coerente da riga 317 a riga 331 del codice) — la rata APERTA (`index`) conta tra i mesi restanti,
+perché si sta ricalibrando ORA, con quella rata ancora da eseguire. Il proprietario ha scelto di
+allineare questa specifica al codice piuttosto che il contrario: il comportamento a runtime non
+cambia.
 
 ### 5.8 `projectPlanOutcome`
 
@@ -461,22 +469,47 @@ export function projectClassTrajectory(input: {
 }): ClassTrajectoryPoint[];
 ```
 
-Algoritmo:
+Algoritmo (revisione 2026-09-19, dopo il collaudo della PR #4 — i due punti seguenti erano un
+rilievo bloccante, chiuso in questa stessa sessione):
 
 - **Punti misurati** (`index < currentIndex` con `measurement`, più `baseline.measurement` per
   l'indice 0 di un piano attivo): da `measurement.classNotionalEur` e `marketBaseEur` si ricava
-  `currentPct = notional / marketBase × 100`. Il target effettivo per classe si ottiene chiamando
-  **una volta** `compare(allAssets, targets)` e leggendo `byAssetClass[c].targetPercentage`
-  (per `cash` con `useFixedAmount` ricalcola `fixedAmount / marketBase × 100`, come fa
-  `compareAllocations`). `driftPp = currentPct − targetPct`.
-- **Punto corrente e punti proiettati** (`index ≥ currentIndex`): clona gli asset
-  (`{ ...asset }`), aggiungi per ogni riga non eseguita dei mesi fino a index la `plannedQuantity`
-  alla `quantity` del `buyAssetId`; le righe già eseguite sono già nelle quantità reali. Dal mese 1
-  in poi le vendite non eseguite portano la `quantity` dell'asset a 0. Chiama
-  `compare(clones, targets)` e leggi `byAssetClass`.
+  `currentPct = notional / marketBase × 100`. Il target effettivo per classe si ricalcola con
+  `resolveTargetPct(assetClass, targets, marketBaseEur)` **usando la base di mercato DI QUEL
+  PUNTO** — mai una base risolta una volta sola all'inizio della funzione: `compareAllocations`
+  scala il target di OGNI classe (non solo cash) quando il target cash è a importo fisso
+  (`assetAllocationService.ts`, `toLegacyAllocationResult`, righe ~838-864 — il target grezzo di
+  ogni classe non-cash è moltiplicato per `(marketBase − fixedAmount) / marketBase`), quindi un
+  punto con una base di mercato diversa da quella con cui il target fu risolto la prima volta
+  legge un target sbagliato. `resolveTargetPct` legge la % grezza direttamente da `targets`, mai
+  da un `compare()` precedente, e applica la stessa formula: per `cash` con `useFixedAmount`,
+  `fixedAmount / marketBaseEur × 100`; per ogni altra classe, la % grezza scalata per
+  `(marketBaseEur − fixedAmount) / marketBaseEur` (1 se cash non è a importo fisso).
+  `driftPp = currentPct − targetPct`.
+- **Punto corrente e punti proiettati** (`index ≥ currentIndex`): `buildProjectedAssets` clona gli
+  asset (`{ ...asset }`), aggiunge per ogni riga non eseguita dei mesi fino a index la
+  `plannedQuantity` alla `quantity` del `buyAssetId` (le righe già eseguite sono già nelle
+  quantità reali), e dal mese 1 in poi azzera la `quantity` degli asset delle vendite non
+  eseguite. **La cassa del piano si muove di conseguenza**, invece di restare ferma mentre il lato
+  acquisti fa crescere la base di mercato dal nulla: `cassa(m) = cassa₀ − Σ acquisti pianificati
+  (righe non eseguite) fino a m + E × m + Σ ricavi delle vendite non eseguite (dal mese 1)`,
+  ripartita pro quota sui saldi LIVE di `plan.liquidity.sourceCashAssetIds` (mai sui ruoli
+  `allocationRole` dell'utente, che restano intoccati: un conto sorgente `excluded` viene comunque
+  scartato dalla base di mercato di `compare()`, quindi spostarne il saldo proiettato è un no-op
+  per la traiettoria — verificato). Poi chiama `compare(clones, targets)` e legge
+  `byAssetClass[c].targetPercentage` DIRETTAMENTE dal risultato di QUESTA chiamata (mai da un
+  target risolto altrove): il punto proiettato e la sua base di mercato nascono dalla stessa
+  chiamata a `compare()`, quindi non possono più disallinearsi.
 - `outOfBand` usa `bandForTarget(band, targetPct)` di `./allocationUtils` (già esportata). Nessuna
   modifica a `allocationUtils.ts`.
 - Invariante testata: con `currentIndex = 0` il punto 0 coincide con `compare(allAssets, targets)`.
+- **Tre decisioni sul modello di cassa** (owner, PR #4, rilievo 2 — non riaprire):
+  1. I ruoli `allocationRole` dell'utente non si toccano mai; la proiezione muove solo il saldo,
+     mai la classificazione tradable/excluded/frozen di un conto.
+  2. L'entrata mensile stimata `E` entra nella proiezione mese per mese (`E × m`), non tutta in
+     blocco all'ultimo mese.
+  3. Il prelievo (o il deposito) quando i conti sorgente sono più di uno è **pro quota sui saldi
+     LIVE** di quel punto, mai un ordine fisso o un unico conto "principale".
 
 ### 5.10 `buildClassMeasurement`
 
@@ -527,12 +560,25 @@ Codici e regole:
 | `buy_not_member` | `buyAssetId ∉ memberAssetIds` |
 | `position_not_tradable` | un membro o una vendita non ha `resolveAllocationRole === 'tradable'` |
 | `source_not_cash` | un conto sorgente non ha `assetClass === 'cash'` |
-| `unassigned_tradable` | un asset tradable con valore > 0 non è né in una posizione né in una vendita |
+| `unassigned_tradable` | un asset **non cash** e tradable con valore > 0 non è né in una posizione né in una vendita |
 | `months_range` | `months` non intero o fuori 1..60 |
 | `negative_amount` | `reserveEur` o `monthlyInflowEur` < 0 |
 | `no_positions` | nessuna posizione |
 
 `message` in italiano, prodotto da `accumulationNarrative.ts` (non scrivere stringhe nello schema).
+
+**Due correzioni (PR #4 review, rilievi 6-7, chiuse 2026-09-19)**:
+- `unassigned_tradable` esenta sempre un asset con `assetClass === 'cash'`: `resolveAllocationRole`
+  legge `tradable` per un conto corrente per default, e senza l'esenzione il validatore lo
+  **pretendeva** classificato benché `AccumulationPlanDialog.tsx` (seeder del passo 2 e
+  `candidateAssets`) non lo offra mai come riga — lo stesso `assetClass !== 'cash'` vale sui tre
+  lati (seeder, candidati, validatore).
+- Il predicato di valore è **lo stesso su tutti e tre i lati**: `calculateAssetValue(asset) > 0`
+  nel seeder/candidati (import Firebase, ok in un componente), `quantity * unitPriceEur(asset) > 0`
+  nello schema (questo modulo resta Firebase-free — vedi §5.0). Prima usava `asset.quantity <= 0`,
+  un predicato DIVERSO da quello degli altri due lati: un asset con quantità tracciata ma prezzo
+  mai recuperato (Known Issue FX su istanza fredda) era preteso dal validatore e non offerto da
+  nessuna riga — vicolo cieco, «Avanti» permanentemente disabilitato.
 
 ---
 
@@ -650,7 +696,8 @@ export type LineUiState = 'todo' | 'toConfirm' | 'executed' | 'late' | 'skipped'
 export function matchPlanExecutions(
   plan: AccumulationPlan,
   transactions: AssetTransaction[],   // from useAssetTransactions(ownerId)
-  today: Date
+  today: Date,
+  transactionsLoading?: boolean       // default false — see rule 5's caveat below
 ): {
   matches: LineMatch[];
   lineStates: Record<string, LineUiState>; // key `${index}:${positionId}` or `disposal:${assetId}`
@@ -665,9 +712,14 @@ Regole:
 2. Candidati vendita: `type === 'sell'`, stesso `assetId`, `date ≥ activatedAt`.
 3. Un id già presente in `transactionIds` di qualunque riga del piano non è più candidato.
 4. Più candidati per la stessa riga si sommano in un solo `LineMatch`.
-5. Stati: `executed` se `status === 'executed'` e tutti i `transactionIds` esistono; `lostLink` se
-   `executed` con almeno un id inesistente; `skipped` se `skipped`; `toConfirm` se `planned` con
-   match; `late` se `planned`, senza match, e mese < mese corrente; altrimenti `todo`.
+5. Stati: `executed` se `status === 'executed'` **e** (`transactionsLoading` **oppure** tutti i
+   `transactionIds` esistono); `lostLink` se `executed`, `!transactionsLoading` e almeno un id
+   inesistente; `skipped` se `skipped`; `toConfirm` se `planned` con match; `late` se `planned`,
+   senza match, e mese < mese corrente; altrimenti `todo`. **Correzione (PR #4 review, rilievo 5,
+   chiusa 2026-09-19)**: finché `useAssetTransactions` è in volo, `transactions` arriva `[]` —
+   indistinguibile da un ledger genuinamente vuoto — e OGNI riga `executed` con `transactionIds`
+   leggeva `lostLink` per un frame, con il bottone «Rivedi» a caso. Il chiamante (`AccumuloTile.tsx`)
+   passa `transactionsQuery.isLoading`.
 
 ---
 
@@ -720,9 +772,14 @@ Contenuto `active`:
    chip di stato, azioni. Per le righe `late` dei mesi precedenti mostrale sopra quelle del mese.
    Azioni per stato: toConfirm → Conferma · Ignora; executed → Scollega; late → Segna eseguita a mano · Salta;
    lostLink → Rivedi (apre il Calendario sulla rata).
-5. Striscia classi (D11): per ogni classe con target, "Azioni · target 102% — +3,4 pp → +1,3 pp",
-   in colore warning se fuori banda oggi, e "rientra in banda a giugno" se applicabile.
-   Dati da `projectClassTrajectory` (punto corrente e punto N).
+5. Striscia classi (D11): per ogni classe con target, due righe. Primaria (prominente, mono, in
+   colore warning se fuori banda oggi): "Azioni 105,4% · target 102,0%" — i valori ASSOLUTI, non
+   il delta (decisione del proprietario, 2026-09-20: prima la riga era invertita, il delta era
+   l'unica cifra stampata e il peso vero non compariva mai). Secondaria (più piccola, sempre
+   muted): "+3,4 pp oggi → +1,3 pp a fine piano" — lo stesso scostamento in pp, in secondo piano.
+   "rientra in banda a giugno" come nota finale se applicabile. Dati da `projectClassTrajectory`
+   (punto corrente e punto N); `describeClassStripItem` produce `{ label, primary, secondary,
+   note?, outOfBandNow }`.
 6. Footer: "A fine piano: scostamento massimo +0,8 pp su CL2 · liquidità residua 214 €" + azioni
    Ricalibra rata · Calendario · Interrompi (Interrompi usa `useArmedDelete`, doppio clic, niente timer).
 
@@ -746,7 +803,11 @@ per passo, footer con Indietro/Avanti/Salva bozza/Attiva. Ogni "Avanti" salva la
   + Vendite fuori piano (dal passo 2), + Entrate stimate (E × N), Rata mensile (L₀/N + E).
 
 **Passo 2 — Target.** Titolo "Dove deve arrivare il portafoglio".
-- Una riga per ogni asset `tradable` con valore > 0, più gli asset creati a 0 quote in questa sessione.
+- Una riga per ogni asset `tradable` con valore > 0, **mai un conto `cash`** (PR #4 review, rilievo
+  6, chiuso 2026-09-19: `resolveAllocationRole` legge `tradable` per un conto corrente per
+  default, quindi senza l'esclusione un conto sorgente del passo 1 finiva anche fra le righe del
+  passo 2 a peso 0% — e, se scelto come sorgente, il suo valore entrava due volte in B: una in
+  `currentValueEur`, una in L), più gli asset creati a 0 quote in questa sessione.
   Colonne: strumento, peso oggi (% sul totale delle righe), interruttore "Nel piano / Da vendere",
   campo target %.
 - "Raggruppa come proxy": selezione multipla di righe → una posizione; chiede lo strumento d'acquisto
@@ -763,8 +824,15 @@ per passo, footer con Indietro/Avanti/Salva bozza/Attiva. Ogni "Avanti" salva la
   colonna Totale €. Mesi intermedi comprimibili se N > 8 (mostra i primi 5, "…", l'ultimo).
 - Pesi a fine piano: barra 3px per posizione con marcatore del target, finale %, target %, scarto pp.
 - Esposizione implicita per classe (barra segmentata con colori `ASSET_CLASS_CHART_INDEX`) e leva.
-- Classi mese per mese: `ClassDriftChart` + tabella ai mesi 0, 1, 3, 6, 9, N (pp colorati warning se
-  fuori banda).
+- Classi mese per mese: `ClassDriftChart` + tabella ai mesi 0, 1, 3, 6, 9, N, intestazioni per
+  classe (`ASSET_CLASS_LABELS`, colorate col colore di classe di `ASSET_CLASS_CHART_INDEX` —
+  stesso `useChartColors()`/`CHART_COLORS` della barra di esposizione appena sopra e delle
+  etichette di `ClassDriftChart`, così una colonna si legge a colpo d'occhio contro il grafico;
+  scroll orizzontale nel proprio contenitore come la tabella Calendario sopra). Ogni cella porta
+  due righe (decisione del proprietario, 2026-09-20 — prima solo la pp, mai il peso vero, e
+  nessuna intestazione): il peso assoluto della classe in quel punto (`currentPct`, primario, in
+  colore warning se fuori banda) sopra lo scostamento in pp (`driftPp`, secondario, sempre muted)
+  — lo stesso ordine assoluto-poi-delta della striscia classi del tile attivo (§10.2 punto 5).
 - Avviso se L < Σ deficit, se ci sono posizioni `unpriced`, o se una posizione è sopra target.
 - Primari: Salva bozza · Attiva piano. "Attiva" chiama `activatePlan` e chiude.
 

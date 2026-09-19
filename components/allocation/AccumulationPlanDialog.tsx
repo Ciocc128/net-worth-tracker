@@ -152,10 +152,15 @@ function draftFromPlan(plan: AccumulationPlan): AccumulationPlanDraft {
  * has thought to add one. The target starts at 0, not at the holding's current share: a
  * pre-filled 100% for a single-asset portfolio would hide the very total-≠-100 gate step 2
  * exists to enforce.
+ *
+ * A cash account is never a candidate here (PR #4 review, rilievo 6): `resolveAllocationRole`
+ * reads `tradable` for it by default, so a current account used to seed nothing else would land
+ * in step 2 as a 0%-weight row — and, once picked as a step 1 source too, its value would enter B
+ * twice (once as `currentValueEur`, once as `L`).
  */
 function seedPositionsFromAssets(allAssets: Asset[]): PlanPosition[] {
   return allAssets
-    .filter((asset) => resolveAllocationRole(asset) === 'tradable' && calculateAssetValue(asset) > 0)
+    .filter((asset) => asset.assetClass !== 'cash' && resolveAllocationRole(asset) === 'tradable' && calculateAssetValue(asset) > 0)
     .map((asset) => ({
       id: crypto.randomUUID(),
       label: asset.name,
@@ -214,9 +219,11 @@ export function AccumulationPlanDialog({
     return ids;
   }, [draft.positions, draft.disposals]);
 
+  // Same rilievo 6 exclusion as the seeder above: a cash account never appears as a step 2 row.
   const candidateAssets = useMemo(
     () =>
       allAssets.filter((asset) => {
+        if (asset.assetClass === 'cash') return false;
         if (resolveAllocationRole(asset) !== 'tradable') return false;
         return calculateAssetValue(asset) > 0 || classifiedAssetIds.has(asset.id);
       }),
@@ -242,9 +249,6 @@ export function AccumulationPlanDialog({
   const firstIssue = issues[0]?.message ?? null;
 
   // ── Step 2 helpers — one row per candidate asset ──────────────────────────
-
-  const positionOfAsset = (assetId: string): PlanPosition | undefined =>
-    draft.positions.find((position) => position.memberAssetIds.includes(assetId));
 
   const updatePositions = (positions: PlanPosition[]) => setDraft((prev) => ({ ...prev, positions }));
   const updateDisposals = (disposals: PlanDisposal[]) => setDraft((prev) => ({ ...prev, disposals }));
@@ -359,6 +363,16 @@ export function AccumulationPlanDialog({
     () => (step === 3 ? buildDraftPreview({ draft, allAssets, targets, band, compare: compareAllocations, deps: DEPS }) : null),
     [step, draft, allAssets, targets, band],
   );
+  // The trajectory's own class set (stable across points — all come from the same `targets`),
+  // read once for the "Classi mese per mese" table's header and column order below.
+  const classKeys = useMemo(() => Object.keys(preview?.trajectory[0]?.byClass ?? {}), [preview]);
+  // Same class → color mapping as the exposure bar above and `ClassDriftChart`'s own line/label
+  // colors — the table's header leans on it instead of (or as well as) the text label, so a
+  // column reads at a glance against the chart right above it.
+  const classColor = (assetClass: string) => {
+    const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
+    return chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
+  };
 
   return (
     <>
@@ -602,7 +616,21 @@ export function AccumulationPlanDialog({
                               )}
                             </th>
                             <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(weightPct, 1)}</td>
-                            <td className="py-1.5 pr-2 text-center text-muted-foreground">{ACCUMULO_STEP2_TOGGLE_IN_PLAN}</td>
+                            <td className="py-1.5 pr-2 text-center">
+                              {grouped ? (
+                                // A grouped member never sells alone — "Separa" (above, on the head
+                                // row) comes first; this cell only reports the state.
+                                <span className="text-muted-foreground">{ACCUMULO_STEP2_TOGGLE_IN_PLAN}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="text-[12px] text-muted-foreground underline-offset-2 hover:underline"
+                                  onClick={() => moveAssetToDisposal(asset)}
+                                >
+                                  {ACCUMULO_STEP2_TOGGLE_IN_PLAN}
+                                </button>
+                              )}
+                            </td>
                             <td className="py-1.5 text-right">
                               {isHead ? (
                                 <Input
@@ -646,30 +674,6 @@ export function AccumulationPlanDialog({
               </table>
             )}
 
-            {/* «Nel piano» rows still lack their sell toggle in the table above by design (a
-                grouped member never sells alone); the plain toggle click lives here instead. */}
-            {candidateAssets.filter((asset) => {
-              const position = positionOfAsset(asset.id);
-              return position && position.memberAssetIds.length === 1;
-            }).length > 0 && (
-              <p className="text-[11px] text-muted-foreground">
-                {candidateAssets
-                  .filter((asset) => {
-                    const position = positionOfAsset(asset.id);
-                    return position && position.memberAssetIds.length === 1;
-                  })
-                  .map((asset) => (
-                    <button
-                      key={asset.id}
-                      type="button"
-                      className="mr-3 underline-offset-2 hover:underline"
-                      onClick={() => moveAssetToDisposal(asset)}
-                    >
-                      {asset.name} → {ACCUMULO_STEP2_TOGGLE_SELL}
-                    </button>
-                  ))}
-              </p>
-            )}
 
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" className="h-8 text-[12px]" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>
@@ -842,24 +846,52 @@ export function AccumulationPlanDialog({
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
               <ClassDriftChart points={preview.trajectory} band={band} height={160} />
-              <table className="mt-2 w-full text-[11px]">
-                <tbody>
-                  {TRAJECTORY_SAMPLE_INDICES.concat(draft.months).filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx).map((index) => {
-                    const point = preview.trajectory.find((p) => p.index === index);
-                    if (!point) return null;
-                    return (
-                      <tr key={index} className="border-b border-border last:border-0">
-                        <th scope="row" className="py-1 pr-2 text-left font-normal text-muted-foreground">{trajectoryPointLabel(point.month)}</th>
-                        {Object.entries(point.byClass).map(([assetClass, data]) => (
-                          <td key={assetClass} className={`py-1 pr-2 text-right font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                            {formatSignedPp(data.driftPp)}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {/* Peso assoluto per classe (primario) sopra lo scostamento in pp (secondario, muted) —
+                  stesso ordine dell'assoluto-poi-delta della striscia classi del tile attivo
+                  (decisione del proprietario, 2026-09-20). Intestazioni come la tabella Calendario
+                  sopra: prima non c'era modo di sapere quale colonna fosse quale classe. */}
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
+                      {classKeys.map((assetClass) => (
+                        <th
+                          key={assetClass}
+                          scope="col"
+                          className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
+                          style={{ color: classColor(assetClass) }}
+                        >
+                          {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {TRAJECTORY_SAMPLE_INDICES.concat(draft.months).filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx).map((index) => {
+                      const point = preview.trajectory.find((p) => p.index === index);
+                      if (!point) return null;
+                      return (
+                        <tr key={index} className="border-b border-border last:border-0">
+                          <th scope="row" className="py-1 pr-2 text-left font-normal text-muted-foreground">{trajectoryPointLabel(point.month)}</th>
+                          {classKeys.map((assetClass) => {
+                            const data = point.byClass[assetClass as keyof typeof point.byClass];
+                            if (!data) return <td key={assetClass} className="py-1 pl-2 text-right text-muted-foreground">—</td>;
+                            return (
+                              <td key={assetClass} className="py-1 pl-2 text-right">
+                                <div className={`font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-foreground'}`}>
+                                  {formatPercentageIt(data.currentPct, 1)}
+                                </div>
+                                <div className="font-mono text-[10px] tabular-nums text-muted-foreground">{formatSignedPp(data.driftPp)}</div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

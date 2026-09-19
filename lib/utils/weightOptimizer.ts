@@ -101,7 +101,7 @@ export interface OptimizerResult {
   converged: boolean;
 }
 
-/** Injectable only from tests (§10), to force `not_converged` without waiting out 3000 iterations. */
+/** Injectable only from tests (§10), to force `not_converged` without waiting out 8000 iterations. */
 export interface SolverOptions {
   maxIterations?: number;
 }
@@ -397,7 +397,14 @@ export function buildOptimizerCandidates(input: {
 
 const LAMBDA: Record<ObjectivePriority, number> = { essential: 1000, high: 100, medium: 10, low: 1 };
 const EPSILON = 0.01;
-const MAX_ITERATIONS_DEFAULT = 3000;
+/**
+ * Raised from the ATE's original 3000 (owner's call, PR review, 2026-09-19): the leva+geografia
+ * fixture of §10 — the flagship combination of objectives — needed 3112 iterations to converge and
+ * was hitting the old cap on every run (`not_converged` warned routinely on realistic input, even
+ * though the rounded weights at iteration 3000 already matched the converged ones). n ≤ 40
+ * candidates keeps even 20000 iterations under 100ms, so the extra headroom is free.
+ */
+const MAX_ITERATIONS_DEFAULT = 8000;
 
 interface ObjectiveRow {
   id: string;

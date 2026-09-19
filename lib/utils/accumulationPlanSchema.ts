@@ -10,7 +10,24 @@ import { z } from 'zod';
 import type { Asset } from '@/types/assets';
 import type { AccumulationPlanDraft } from '@/types/accumulationPlan';
 import { resolveAllocationRole } from './allocationUtils';
+import { unitPriceEur } from './costBasisEur';
 import { describeDraftIssue, type DraftIssueCode } from './accumulationNarrative';
+
+/**
+ * The SAME value predicate `AccumulationPlanDialog.tsx`'s seeder and step 2 candidates use
+ * (`calculateAssetValue(asset) > 0`), restated here Firebase-free: `calculateAssetValue` lives in
+ * `lib/services/assetService.ts`, which imports `@/lib/firebase/config`, and this module never
+ * does (see the file header) — `unitPriceEur` is the same Firebase-free primitive
+ * `accumulationPlanUtils.ts` re-exports for the same reason. Before PR #4's rilievo 7 this check
+ * read `asset.quantity <= 0` instead, a DIFFERENT predicate from the seeder/candidates'
+ * `calculateAssetValue(asset) > 0` (ATE §6: «valore > 0», not «quantità > 0») — an asset held with
+ * quantity > 0 but a price not yet fetched (the FX-on-a-cold-instance Known Issue) was demanded by
+ * the validator and offered by no row: `unassigned_tradable` could never clear, «Avanti» stayed
+ * disabled forever.
+ */
+function hasPositiveValue(asset: Asset): boolean {
+  return asset.quantity * unitPriceEur(asset) > 0;
+}
 
 export interface DraftIssue {
   code: DraftIssueCode;
@@ -155,11 +172,14 @@ export function validateDraftAgainstAssets(
     }
   }
 
+  // Rilievo 6: a cash account is never demanded here — the seeder and step 2 candidates
+  // (`AccumulationPlanDialog.tsx`) never offer one as a row to classify in the first place.
   const assignedAssetIds = new Set(seenIn.keys());
   for (const asset of assetsById.values()) {
     if (assignedAssetIds.has(asset.id)) continue;
+    if (asset.assetClass === 'cash') continue;
     if (resolveAllocationRole(asset) !== 'tradable') continue;
-    if (asset.quantity <= 0) continue;
+    if (!hasPositiveValue(asset)) continue;
     issues.push({
       code: 'unassigned_tradable',
       message: describeDraftIssue({ code: 'unassigned_tradable', label: asset.name }),

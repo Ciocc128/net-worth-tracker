@@ -59,6 +59,61 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   non un'importazione condivisa.
 - **`calculateAssetValue`/`unitPriceEur` sono iniettati** via `PlanDeps`, come fa `buildHoldings` per il
   resto della pagina — mai importati direttamente nel motore puro.
+- **Il target di un punto della traiettoria viene da QUEL punto, mai dalla baseline** (PR #4,
+  rilievo 1, chiuso 2026-09-19): un punto misurato risolve il target con `resolveTargetPct`
+  passandogli la SUA `marketBaseEur`, un punto proiettato lo legge direttamente dal risultato del
+  `compare()` di quel punto — mai un target risolto una volta sola all'inizio della funzione.
+  Motivo: con un target cash a importo fisso, `compareAllocations` scala il target di OGNI classe
+  (non solo cash) sulla base di mercato corrente; congelare il target alla base della baseline lo
+  sbagliava non appena la base cambiava (acquisti, entrate stimate, vendite). doc/pac-ate.md §5.9.
+- **La proiezione muove anche la cassa del piano** (PR #4, rilievo 2, chiuso 2026-09-19):
+  `buildProjectedAssets` non si limita più ad aggiungere le quote pianificate all'asset
+  d'acquisto — sottrae anche gli acquisti non eseguiti dai conti sorgente, aggiunge l'entrata
+  mensile stimata mese per mese e i ricavi delle vendite non eseguite, pro quota sui saldi live di
+  `sourceCashAssetIds`. Prima, la cassa restava ferma mentre il lato acquisti faceva crescere la
+  base di mercato dal nulla. doc/pac-ate.md §5.9.
+- **Un conto `cash` non è mai una posizione del passo 2** (PR #4, rilievo 6, chiuso 2026-09-19):
+  `resolveAllocationRole` legge `tradable` per un conto corrente per default, quindi senza
+  l'esclusione `assetClass !== 'cash'` — nel seeder e nei candidati di `AccumulationPlanDialog.tsx`,
+  e nel `unassigned_tradable` di `accumulationPlanSchema.ts` — un conto corrente finiva fra le righe
+  a peso 0%, e se scelto anche come sorgente del passo 1 il suo valore entrava due volte in B.
+- **`unassigned_tradable` segue lo STESSO predicato di valore del seeder/candidati** (PR #4, rilievo
+  7, chiuso 2026-09-19): `calculateAssetValue(asset) > 0` nel componente (import Firebase, lecito
+  lì), `asset.quantity * unitPriceEur(asset) > 0` nello schema (Firebase-free, §5.0). Prima lo
+  schema usava `asset.quantity <= 0`, un predicato diverso — un asset con quantità tracciata ma
+  senza prezzo mai recuperato era preteso dal validatore e offerto da nessuna riga: vicolo cieco,
+  «Avanti» permanentemente disabilitato.
+- **Il toggle «Nel piano / Da vendere» del passo 2 sta ORA nella colonna che lo promette** (trovato
+  dal proprietario in un giro guidato, chiuso 2026-09-19): la cella della colonna renderizzava solo
+  il testo `ACCUMULO_STEP2_TOGGLE_IN_PLAN`, senza `onClick` — il controllo vero viveva in un
+  paragrafo separato SOTTO la tabella, in caratteri piccoli, per le sole righe non raggruppate: da
+  UI sembrava semplicemente che non ci fosse modo di marcare uno strumento come «Da vendere».
+  `AccumulationPlanDialog.tsx`: la cella del toggle per una riga NON raggruppata (`!grouped`) è ora
+  un bottone che chiama `moveAssetToDisposal(asset)`; per un membro di un gruppo proxy resta testo
+  semplice (non si vende un solo membro senza prima «Separare», invariato). Il paragrafo duplicato è
+  stato rimosso.
+- **La striscia classi (D11) ora stampa il peso vero, non solo il suo scostamento** (decisione del
+  proprietario, 2026-09-20): la riga primaria (prominente, mono) è "Azioni 105,4% · target 102,0%"
+  — i valori assoluti — mentre lo scostamento in pp ("+3,4 pp oggi → +1,3 pp a fine piano") scende
+  a riga secondaria, più piccola e sempre muted. Prima era il contrario: l'UNICA cifra stampata
+  era il delta, il peso reale della classe non compariva mai nel tile. `describeClassStripItem`
+  ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece del vecchio `{ text, note?,
+  outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per il calcolo di `furthestDrift` (prima
+  lo estraeva spezzando la stringa `text` — fragile). doc/pac-ate.md §10.2 punto 5.
+- **La tabella «Classi mese per mese» del passo 3 (anteprima) segue la stessa regola** (decisione
+  del proprietario, 2026-09-20): prima ogni cella portava solo lo scostamento in pp, senza
+  nemmeno un'intestazione che dicesse quale colonna fosse quale classe. Ora ogni cella ha due
+  righe — il peso assoluto (`currentPct`, primario, warning se fuori banda) sopra la pp
+  (`driftPp`, secondario, muted) — e la tabella ha un'intestazione per classe
+  (`ASSET_CLASS_LABELS`), nello stesso stile della tabella Calendario appena sopra
+  (`text-[9px] uppercase`, scroll orizzontale nel proprio contenitore). `classKeys` (i nomi delle
+  classi, stabili lungo tutta la traiettoria perché derivano tutti dagli stessi `targets`) si
+  legge UNA volta da `preview.trajectory[0]?.byClass` e guida sia l'intestazione sia l'ordine
+  delle colonne di ogni riga. **L'intestazione è colorata col colore della classe** (richiesto dal
+  proprietario subito dopo): `classColor(assetClass)` legge lo stesso `ASSET_CLASS_CHART_INDEX` →
+  `useChartColors()`/`CHART_COLORS` già usato dalla barra di esposizione appena sopra e da
+  `ClassDriftChart`, così una colonna si riconosce per colore contro il grafico, non solo per
+  posizione. doc/pac-ate.md §10.3.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 
@@ -83,6 +138,12 @@ disposal) resta quella che l'utente ha confermato finché non arriva un'azione d
   `planned` senza match E prima del mese corrente è `late`; altrimenti `todo`. Per una disposal, «mese
   corrente» è sempre il mese 1 del piano (D5): `late` significa «il piano è oltre il primo mese e la
   vendita non risulta ancora».
+- **Il quarto parametro `transactionsLoading`** (PR #4 review, rilievo 5, chiuso 2026-09-19): finché
+  `useAssetTransactions` è in volo, `transactions` arriva `[]` — indistinguibile da un ledger
+  genuinamente vuoto — e senza questo parametro OGNI riga già `executed` con `transactionIds`
+  leggeva `lostLink` per un frame (il bottone «Rivedi» lampeggiava a caso). Il chiamante passa
+  `transactionsQuery.isLoading`; di default è `false`, quindi ogni altro chiamante (i test) resta
+  invariato.
 
 **Il tile (§10.2 punto 4)** usa questi stati per decidere le azioni, non il proprio `InstallmentLineStatus`
 grezzo:
@@ -161,3 +222,11 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
 - **L'Ottimizzato tocca solo i pesi**: non aggiunge, rimuove o raggruppa posizioni — quello resta un
   gesto Manuale. Un cambio di struttura fatto DOPO "Usa questi pesi" (un nuovo asset, un
   raggruppamento) non invalida lo snapshot: resta la fotografia di quando è stato calcolato.
+- **Il modello di cassa del piano è indipendente dal target cash di Impostazioni**:
+  `plan.liquidity.reserveEur` (mai toccata, D4) e il target `cash` a importo fisso di Impostazioni
+  (quello che `compareAllocations` scala nella traiettoria di D11) sono due numeri distinti che
+  l'app non concilia — un piano può spendere la cassa fino alla SUA riserva anche quando
+  l'Allocazione vuole tenerne di più da parte per il target. La traiettoria lo mostra semplicemente
+  come una classe cash sotto target (drift negativo) a fine piano, mai come un conflitto esplicito
+  fra i due numeri: non è un bug della proiezione (§5.9 la calcola correttamente contro il saldo
+  REALE che risulterebbe), è che i due concetti non si parlano.

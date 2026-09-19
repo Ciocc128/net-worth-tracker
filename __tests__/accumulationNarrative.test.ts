@@ -204,23 +204,27 @@ describe('describeAccumulationReadFailure', () => {
 });
 
 describe('describeClassStripItem', () => {
-  it('formats the drift-then-drift line and the re-entry note only when out of band', () => {
+  it('leads with the absolute values (current vs target), the drift trails as a secondary line (owner’s call, 2026-09-20)', () => {
     const item = describeClassStripItem({
       label: 'Azioni',
+      currentPct: 105.4,
       targetPct: 102,
       currentDriftPp: 3.4,
       finalDriftPp: 1.3,
       outOfBandNow: true,
       reentersAt: 'giu 2027',
     });
-    expect(item.text).toBe('Azioni · target 102% — +3,4 pp → +1,3 pp');
+    expect(item.primary).toBe(`Azioni ${formatPercentageIt(105.4, 1)} · target ${formatPercentageIt(102, 1)}`);
+    expect(item.secondary).toBe('+3,4 pp oggi → +1,3 pp a fine piano');
     expect(item.note).toBe('rientra in banda a giu 2027');
     expect(item.outOfBandNow).toBe(true);
+    expect(item.label).toBe('Azioni');
   });
 
   it('carries no note when already in band', () => {
     const item = describeClassStripItem({
       label: 'Obbligazioni',
+      currentPct: 29.6,
       targetPct: 30,
       currentDriftPp: -0.4,
       finalDriftPp: 0,
@@ -229,15 +233,17 @@ describe('describeClassStripItem', () => {
     expect(item.note).toBeUndefined();
   });
 
-  it('rounds the target share to a whole percent, per the ATE example (no decimals there)', () => {
+  it('formats both absolute values to one decimal, never a whole percent', () => {
     const item = describeClassStripItem({
       label: 'X',
+      currentPct: 58.25,
       targetPct: 55.5,
-      currentDriftPp: 0,
+      currentDriftPp: 2.75,
       finalDriftPp: 0,
       outOfBandNow: false,
     });
-    expect(item.text).toContain(`target ${formatPercentageIt(55.5, 0)}`);
+    expect(item.primary).toContain(formatPercentageIt(58.25, 1));
+    expect(item.primary).toContain(`target ${formatPercentageIt(55.5, 1)}`);
   });
 });
 
@@ -387,7 +393,10 @@ describe('Comma Rule — every currency and percentage figure is Italian, never 
           furthestDrift: { label: 'X', deltaPp: 1.23 },
         }),
       ),
-      describeClassStripItem({ label: 'Azioni', targetPct: 55.5, currentDriftPp: 1.23, finalDriftPp: -0.45, outOfBandNow: false }).text,
+      (() => {
+        const item = describeClassStripItem({ label: 'Azioni', currentPct: 58.25, targetPct: 55.5, currentDriftPp: 1.23, finalDriftPp: -0.45, outOfBandNow: false });
+        return `${item.primary} ${item.secondary}`;
+      })(),
       describeWeightsTotal(96.5),
       formatSignedPp(1.23),
     ];
@@ -397,9 +406,11 @@ describe('Comma Rule — every currency and percentage figure is Italian, never 
   });
 
   it('formats a percentage figure with comma decimals via formatPercentageIt, never toFixed', () => {
-    const item = describeClassStripItem({ label: 'X', targetPct: 55.5, currentDriftPp: 0, finalDriftPp: 0, outOfBandNow: false });
-    expect(item.text).toContain(formatPercentageIt(55.5, 0));
-    expect(item.text).not.toContain('55.5%');
+    const item = describeClassStripItem({ label: 'X', currentPct: 58.25, targetPct: 55.5, currentDriftPp: 0, finalDriftPp: 0, outOfBandNow: false });
+    expect(item.primary).toContain(formatPercentageIt(58.25, 1));
+    expect(item.primary).toContain(formatPercentageIt(55.5, 1));
+    expect(item.primary).not.toContain('58.25%');
+    expect(item.primary).not.toContain('55.5%');
   });
 
   it('formats a currency figure through cachedFormatCurrencyEUR, never a hand-rolled dot decimal', () => {

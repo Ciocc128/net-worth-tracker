@@ -35,8 +35,11 @@ perché i due motori la condividono byte per byte. Il termine di regolarizzazion
 unico (senza, più configurazioni di pesi darebbero lo stesso `J`); il riferimento `wRef` è il peso di
 mercato corrente dei candidati (uniforme se il totale è zero).
 
-Il solver è una discesa del gradiente proiettata con backtracking (fino a 3000 iterazioni,
-`not_converged` se non converge), seguita da due passaggi puramente meccanici: l'euristica del 2%
+Il solver è una discesa del gradiente proiettata con backtracking (fino a 8000 iterazioni,
+`not_converged` se non converge — alzato da 3000 dopo la revisione della PR: lo scenario leva +
+geografia di punta impiegava 3112 iterazioni e sforava il vecchio limite a ogni esecuzione, con
+l'avviso mostrato di routine anche a pesi già convergenti; il costo resta sotto i 100 ms anche al
+limite, n ≤ 40 candidati), seguita da due passaggi puramente meccanici: l'euristica del 2%
 (§6.4 — un peso sotto 2 punti con limite inferiore 0 viene azzerato, a meno che azzerarlo renda
 impossibile coprire il 100%) e l'arrotondamento a 0,5 punti col metodo dei resti maggiori (§6.5).
 Determinismo garantito: stesso input → stesso output bit per bit, nessun ordinamento instabile.

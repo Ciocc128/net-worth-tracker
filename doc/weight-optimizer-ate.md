@@ -338,7 +338,7 @@ Stessa famiglia del motore a leva, con backtracking:
 ```
 x = projectOntoBudgetBox(wRef, lo, hi, 1)
 fx = J(x); eta = 1
-for iter in 0..MAX_ITER-1 (MAX_ITER = 3000):
+for iter in 0..MAX_ITER-1 (MAX_ITER = 8000):
   g = ∇J(x)                      // analytic: Σ 2 λ_k r_k a_k (hinge: only when active) + 2 ε 100² (x − wRef)
   if ‖g‖ < 1e-10: converged; break
   step = eta * 1.5
@@ -349,6 +349,13 @@ for iter in 0..MAX_ITER-1 (MAX_ITER = 3000):
   if no accept: converged; break
   if |fx_prev − fx| < 1e-12 · max(1, |fx|) for 25 consecutive iters: converged; break
 ```
+
+**Nota (revisione PR, rilievo I1, decisione del proprietario 2026-09-19)**: questa specifica fissava
+`MAX_ITER = 3000`. Lo scenario "leva + geografia" di §10 — la combinazione di punta della feature —
+impiega 3112 iterazioni per convergere e sforava il vecchio limite a ogni esecuzione, con l'avviso
+`not_converged` mostrato di routine anche se i pesi arrotondati a 3000 iterazioni coincidevano già
+con quelli convergenti. Il proprietario ha scelto di alzare il limite a 8000 (n ≤ 40 candidati:
+anche 20000 iterazioni restano sotto i 100 ms, misurato) piuttosto che accettare l'avviso spurio.
 
 Se si esce per `MAX_ITER` → `converged: false` e avviso `not_converged`. Tutto in `number[]`, niente
 allocazioni per iterazione oltre ai vettori necessari (n ≤ 40).
