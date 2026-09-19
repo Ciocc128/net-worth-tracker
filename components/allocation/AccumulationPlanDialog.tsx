@@ -232,9 +232,6 @@ export function AccumulationPlanDialog({
 
   // ── Step 2 helpers — one row per candidate asset ──────────────────────────
 
-  const positionOfAsset = (assetId: string): PlanPosition | undefined =>
-    draft.positions.find((position) => position.memberAssetIds.includes(assetId));
-
   const updatePositions = (positions: PlanPosition[]) => setDraft((prev) => ({ ...prev, positions }));
   const updateDisposals = (disposals: PlanDisposal[]) => setDraft((prev) => ({ ...prev, disposals }));
 
@@ -556,7 +553,21 @@ export function AccumulationPlanDialog({
                               )}
                             </th>
                             <td className="py-1.5 pr-2 text-right font-mono tabular-nums text-muted-foreground">{formatPercentageIt(weightPct, 1)}</td>
-                            <td className="py-1.5 pr-2 text-center text-muted-foreground">{ACCUMULO_STEP2_TOGGLE_IN_PLAN}</td>
+                            <td className="py-1.5 pr-2 text-center">
+                              {grouped ? (
+                                // A grouped member never sells alone — "Separa" (above, on the head
+                                // row) comes first; this cell only reports the state.
+                                <span className="text-muted-foreground">{ACCUMULO_STEP2_TOGGLE_IN_PLAN}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="text-[12px] text-muted-foreground underline-offset-2 hover:underline"
+                                  onClick={() => moveAssetToDisposal(asset)}
+                                >
+                                  {ACCUMULO_STEP2_TOGGLE_IN_PLAN}
+                                </button>
+                              )}
+                            </td>
                             <td className="py-1.5 text-right">
                               {isHead ? (
                                 <Input
@@ -600,30 +611,6 @@ export function AccumulationPlanDialog({
               </table>
             )}
 
-            {/* «Nel piano» rows still lack their sell toggle in the table above by design (a
-                grouped member never sells alone); the plain toggle click lives here instead. */}
-            {candidateAssets.filter((asset) => {
-              const position = positionOfAsset(asset.id);
-              return position && position.memberAssetIds.length === 1;
-            }).length > 0 && (
-              <p className="text-[11px] text-muted-foreground">
-                {candidateAssets
-                  .filter((asset) => {
-                    const position = positionOfAsset(asset.id);
-                    return position && position.memberAssetIds.length === 1;
-                  })
-                  .map((asset) => (
-                    <button
-                      key={asset.id}
-                      type="button"
-                      className="mr-3 underline-offset-2 hover:underline"
-                      onClick={() => moveAssetToDisposal(asset)}
-                    >
-                      {asset.name} → {ACCUMULO_STEP2_TOGGLE_SELL}
-                    </button>
-                  ))}
-              </p>
-            )}
 
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" className="h-8 text-[12px]" disabled={selectedForGroup.size < 2} onClick={() => setGroupingBuyAssetId(selectedForGroup.values().next().value ?? null)}>

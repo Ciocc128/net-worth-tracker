@@ -83,6 +83,15 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   schema usava `asset.quantity <= 0`, un predicato diverso — un asset con quantità tracciata ma
   senza prezzo mai recuperato era preteso dal validatore e offerto da nessuna riga: vicolo cieco,
   «Avanti» permanentemente disabilitato.
+- **Il toggle «Nel piano / Da vendere» del passo 2 sta ORA nella colonna che lo promette** (trovato
+  dal proprietario in un giro guidato, chiuso 2026-09-19): la cella della colonna renderizzava solo
+  il testo `ACCUMULO_STEP2_TOGGLE_IN_PLAN`, senza `onClick` — il controllo vero viveva in un
+  paragrafo separato SOTTO la tabella, in caratteri piccoli, per le sole righe non raggruppate: da
+  UI sembrava semplicemente che non ci fosse modo di marcare uno strumento come «Da vendere».
+  `AccumulationPlanDialog.tsx`: la cella del toggle per una riga NON raggruppata (`!grouped`) è ora
+  un bottone che chiama `moveAssetToDisposal(asset)`; per un membro di un gruppo proxy resta testo
+  semplice (non si vende un solo membro senza prima «Separare», invariato). Il paragrafo duplicato è
+  stato rimosso.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 

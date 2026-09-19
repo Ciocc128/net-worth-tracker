@@ -14,6 +14,17 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **182 files / 4095 tests** green (4093 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-19 notte, fork): **PR #4 (Accumulo/PAC), il toggle «Nel piano / Da vendere» del
+  passo 2 non era cliccabile.** Trovato dal proprietario in un giro guidato: la colonna promette un
+  toggle ma la cella renderizzava solo testo statico — il vero controllo viveva in un paragrafo
+  separato sotto la tabella, minuscolo e visibile solo per le righe non raggruppate, quindi da UI
+  sembrava che non ci fosse modo di marcare uno strumento come «Da vendere». `AccumulationPlanDialog.tsx`:
+  la cella del toggle di una riga NON raggruppata è ora un bottone (`moveAssetToDisposal`); un
+  membro di un gruppo proxy resta testo (invariato — non si vende un membro senza prima «Separare»);
+  rimosso il paragrafo duplicato e l'helper `positionOfAsset` diventato inutilizzato. Collaudo: `tsc`
+  0, ESLint 0, 182 file / 4095 test (nessuna regressione — nessuna suite copre questo componente,
+  nessun test dedicato: verificato a mano il flusso via lettura del diff), `npm run build` compila
+  (stesso punto d'arresto atteso). doc/guide/accumulo.md.
 - Latest (2026-09-19 sera, fork): **PR #4 (Accumulo/PAC), rilievi importanti 5-6-7.** Rilievo 5:
   `matchPlanExecutions` gained a `transactionsLoading` parameter (default `false`, every existing
   caller untouched) — while `useAssetTransactions` is still in flight, `transactions` reads as
