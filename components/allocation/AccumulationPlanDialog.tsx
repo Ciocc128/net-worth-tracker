@@ -15,7 +15,7 @@
  * before the write is even attempted (§6, §10.3: "uno alla volta, il primo").
  */
 import { useMemo, useState } from 'react';
-import type { Asset, AssetAllocationTarget } from '@/types/assets';
+import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { AccumulationPlan, AccumulationPlanDraft, PlanDisposal, PlanPosition } from '@/types/accumulationPlan';
 import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
@@ -41,6 +41,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { ClassDriftChart } from '@/components/allocation/ClassDriftChart';
+import { OptimizerPanel } from '@/components/allocation/OptimizerPanel';
+import { SegmentedPill } from '@/components/ui/segmented-pill';
+import {
+  describeOptimizerSnapshot,
+  OPTIMIZER_STEP2_ARIA_LABEL,
+  OPTIMIZER_STEP2_MANUAL,
+  OPTIMIZER_STEP2_OPTIMIZED,
+} from '@/lib/utils/weightOptimizerNarrative';
 import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { describeModalStatus, describeWriteError, type ModalStatus } from '@/lib/utils/dialogNarrative';
 import {
@@ -101,6 +109,11 @@ interface AccumulationPlanDialogProps {
   allAssets: Asset[];
   targets: AssetAllocationTarget;
   band: RebalanceBand;
+  /** deriveTargetLeverageRatio(targets) — the leva target the optimizer's leverage objective aims at. */
+  targetLeverageRatio: number;
+  /** The owner's "Allocazione ideale" objectives (Impostazioni → Allocazione), or `null` when not
+   *  yet loaded — the Ottimizzato view of step 2 reads it, never a second copy. */
+  idealAllocation: IdealAllocationSettings | null;
   /** A «+ Nuovo asset» create landed: the page must reload `allAssets`. */
   onAssetsChanged: () => void;
   onSaved: (planId: string) => void;
@@ -129,6 +142,7 @@ function draftFromPlan(plan: AccumulationPlan): AccumulationPlanDraft {
     liquidity: plan.liquidity,
     positions: plan.positions,
     disposals: plan.disposals,
+    optimizerSnapshot: plan.optimizerSnapshot,
   };
 }
 
@@ -164,6 +178,8 @@ export function AccumulationPlanDialog({
   allAssets,
   targets,
   band,
+  targetLeverageRatio,
+  idealAllocation,
   onAssetsChanged,
   onSaved,
 }: AccumulationPlanDialogProps) {
@@ -175,6 +191,7 @@ export function AccumulationPlanDialog({
   const [selectedForGroup, setSelectedForGroup] = useState<Set<string>>(new Set());
   const [groupingBuyAssetId, setGroupingBuyAssetId] = useState<string | null>(null);
   const [newAssetDialogOpen, setNewAssetDialogOpen] = useState(false);
+  const [step2Mode, setStep2Mode] = useState<'manual' | 'optimizer'>('manual');
 
   // Reset on every (open, plan) change, settled during render — AGENTS.md § Dialog Form Reset.
   const [openSubject, setOpenSubject] = useState<{ open: boolean; plan: AccumulationPlan | null } | null>(null);
@@ -186,6 +203,7 @@ export function AccumulationPlanDialog({
       setStatus({ phase: 'idle' });
       setSelectedForGroup(new Set());
       setGroupingBuyAssetId(null);
+      setStep2Mode('manual');
     }
   }
 
@@ -512,6 +530,41 @@ export function AccumulationPlanDialog({
 
         {step === 2 && (
           <div className="space-y-4">
+            <SegmentedPill
+              options={[
+                { value: 'manual', label: OPTIMIZER_STEP2_MANUAL },
+                { value: 'optimizer', label: OPTIMIZER_STEP2_OPTIMIZED },
+              ]}
+              value={step2Mode}
+              onChange={setStep2Mode}
+              layoutId="accumulo-step2-mode"
+              ariaLabel={OPTIMIZER_STEP2_ARIA_LABEL}
+              semantics="radio"
+            />
+
+            {step2Mode === 'optimizer' ? (
+              <OptimizerPanel
+                ownerId={ownerId}
+                draft={draft}
+                allAssets={allAssets}
+                targets={targets}
+                targetLeverageRatio={targetLeverageRatio}
+                idealAllocation={idealAllocation}
+                liquidityL={liquidity?.L ?? 0}
+                onApply={(weightsByPositionKey, snapshot) => {
+                  setDraft((prev) => ({
+                    ...prev,
+                    positions: prev.positions.map((position) => ({
+                      ...position,
+                      targetPercentage: weightsByPositionKey[position.id] ?? position.targetPercentage,
+                    })),
+                    optimizerSnapshot: snapshot,
+                  }));
+                  setStep2Mode('manual');
+                }}
+              />
+            ) : (
+              <>
             {candidateAssets.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">{ACCUMULO_STEP2_NO_TRADABLE_ASSETS}</p>
             ) : (
@@ -656,6 +709,8 @@ export function AccumulationPlanDialog({
                 </Button>
               </div>
             )}
+              </>
+            )}
 
             <div className="flex items-center justify-between border-t border-border pt-2.5 text-[13px]">
               <span className="font-medium text-foreground">{ACCUMULO_STEP2_TOTAL_LABEL}</span>
@@ -690,6 +745,12 @@ export function AccumulationPlanDialog({
                 {describeUnpricedWarning(
                   preview.unpricedPositionIds.map((id) => draft.positions.find((p) => p.id === id)?.label ?? id),
                 )}
+              </p>
+            )}
+
+            {draft.optimizerSnapshot && (
+              <p className="text-[11px] text-muted-foreground">
+                {describeOptimizerSnapshot(draft.optimizerSnapshot, draft.positions)}
               </p>
             )}
 

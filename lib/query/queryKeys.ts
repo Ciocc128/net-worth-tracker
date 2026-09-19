@@ -61,6 +61,13 @@ export const queryKeys = {
     exposure: (userId: string) => ['portfolio', 'exposure', userId] as const,
   },
 
+  // Instrument profiles for a specific asset set (weight optimizer's PAC candidates) — ids sorted
+  // here so two calls with the same set in a different order share the same cache entry.
+  instrumentProfiles: {
+    byAssets: (ownerId: string, assetIds: string[]) =>
+      ['instrument-profiles', ownerId, ...[...assetIds].sort()] as const,
+  },
+
   // Asset trade ledger (Registro operazioni asset).
   // `all` is a prefix of `byAsset` so invalidating `all` refreshes any open movements list
   // (the costCenters prefix-invalidation precedent).

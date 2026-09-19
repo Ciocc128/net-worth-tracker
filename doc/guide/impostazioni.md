@@ -41,6 +41,16 @@
   type, `getSettings`, both `setSettings` branches, the page's state/load/two snapshots/save/Switch, the reading's
   `excludesCash` clause in `describePerformanceBase`, the fixture; its consumer is `resolvePerformanceBaseOptions`
   (Rendimenti + PDF), which reads it with the same `?? false` default as the two toggles beside it.
+- **Second worked example, a whole nested object rather than a flag** (2026-09-18): `idealAllocation`
+  (`IdealAllocationSettings`, doc/weight-optimizer-ate.md §7) — type on `AssetAllocationTarget`'s sibling
+  `AssetAllocationSettings`, `getSettings`'s `idealAllocation: data.idealAllocation`, the `targets` branch's
+  `serializeIdealAllocation`/`delete docData.idealAllocation`, the merge branch's `'idealAllocation' in settings` guard
+  with `deleteField()`, the page's state/load/save/dirty-snapshot in the Allocazione tab, `IdealAllocationTile.tsx`'s
+  own controls, `describeIdealAllocation` for the reading, the `STORED_SETTINGS` fixture. **A SIXTH consumer outside
+  Impostazioni reads it without going through `getSettings` at all**: `AccumuloTile`/`AccumulationPlanDialog`/
+  `OptimizerPanel` (the PAC's Ottimizzato view) receive it as a prop from `app/dashboard/allocation/page.tsx`'s own
+  `getSettings` call — a second independent load, same shape as the dashboard-overview/email sixth-and-seventh places
+  above, because the Allocazione page already loads `settings` for `targets` and would otherwise fetch it twice.
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`. **The bug this
   prevents is invisible until a hard refresh**: the write succeeds, the toast says «salvate», the form still shows the

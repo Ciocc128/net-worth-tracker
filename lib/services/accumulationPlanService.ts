@@ -48,6 +48,7 @@ import type {
   Installment,
   InstallmentLine,
   InstallmentLineStatus,
+  OptimizerSnapshot,
   PlanBaseline,
   PlanDisposal,
   PlanLiquidity,
@@ -81,6 +82,17 @@ function toInstallment(data: Record<string, unknown>): Installment {
   };
 }
 
+function toOptimizerSnapshot(data: Record<string, unknown> | undefined): OptimizerSnapshot | undefined {
+  if (!data) return undefined;
+  return {
+    computedAt: toDate(data.computedAt as never),
+    mode: data.mode as OptimizerSnapshot['mode'],
+    settingsUsed: data.settingsUsed as OptimizerSnapshot['settingsUsed'],
+    weights: (data.weights ?? []) as OptimizerSnapshot['weights'],
+    objectives: (data.objectives ?? []) as OptimizerSnapshot['objectives'],
+  };
+}
+
 function toPlanBaseline(data: Record<string, unknown> | undefined): PlanBaseline | undefined {
   if (!data) return undefined;
   return {
@@ -106,6 +118,7 @@ function docToAccumulationPlan(id: string, data: Record<string, unknown>): Accum
     baseline: toPlanBaseline(data.baseline as Record<string, unknown> | undefined),
     installments: ((data.installments ?? []) as Record<string, unknown>[]).map(toInstallment),
     residualEur: data.residualEur as number | undefined,
+    optimizerSnapshot: toOptimizerSnapshot(data.optimizerSnapshot as Record<string, unknown> | undefined),
     createdAt: toDate(data.createdAt as never),
     updatedAt: toDate(data.updatedAt as never),
     activatedAt: data.activatedAt ? toDate(data.activatedAt as never) : undefined,
@@ -152,6 +165,7 @@ export async function createDraftPlan(ownerId: string, draft: AccumulationPlanDr
     liquidity: draft.liquidity,
     positions: draft.positions,
     disposals: draft.disposals,
+    optimizerSnapshot: draft.optimizerSnapshot,
     installments: [] as Installment[],
     createdAt: now,
     updatedAt: now,
@@ -180,6 +194,7 @@ export async function updateDraftPlan(planId: string, draft: AccumulationPlanDra
         liquidity: draft.liquidity,
         positions: draft.positions,
         disposals: draft.disposals,
+        optimizerSnapshot: draft.optimizerSnapshot,
         updatedAt: new Date(),
       })
     );

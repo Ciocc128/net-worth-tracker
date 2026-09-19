@@ -48,8 +48,13 @@
  *     `asOf` + `sourceUrl` are mandatory the moment weights are non-empty.
  *  4. `npm run exposure:report` after any change — it prints the coverage table this file's header
  *     describes, so a regression is visible in one command.
+ *  5. A factsheet that breaks its 'OTHER' country slice down by region → `otherAreaSplit` on that
+ *     `INDEX_PROFILES` entry (weight optimizer only, `doc/weight-optimizer-ate.md` §5.3); leave it
+ *     absent when the factsheet doesn't say — the optimizer estimates from the reference index
+ *     instead, it never guesses at a curated level.
  */
 import type { AssetClass } from '@/types/assets';
+import type { GeoArea } from './geoAreas';
 
 export type CuratedExposureKind = 'commodity' | 'trendFollowing' | 'carry';
 
@@ -190,6 +195,10 @@ export interface CuratedIndexProfile {
   /** Empty until a human supplies the factsheet — see this file's header for which ones. */
   countries?: Array<{ code: string; label: string; weight: number }>;
   currencies?: Array<{ code: string; weight: number }>;
+  /** Share of the `countries` 'OTHER' slice per area, from the same factsheet. Sums to 1 ± 0.005.
+   *  Used by the weight optimizer's `areasFromCountries` (`lib/utils/weightOptimizer.ts` §5.3) —
+   *  absent unless a factsheet actually breaks the residual down by region. */
+  otherAreaSplit?: Partial<Record<GeoArea, number>>;
   asOf?: string;
   sourceUrl?: string;
 }

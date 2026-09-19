@@ -7,6 +7,7 @@
  * `allocationRole` portfolio, not the whole patrimonio).
  */
 import type { AssetClass } from './assets';
+import type { GeoArea } from '@/lib/constants/geoAreas';
 
 export type ExposureDimension = 'holdings' | 'sectors' | 'geography' | 'currency' | 'issuers';
 
@@ -30,6 +31,8 @@ export interface ExposureLegProfile {
   holdings?: ExposureLegSlice[]; // only meaningful on an equity leg
   sectors?: ExposureLegSlice[]; // only meaningful on an equity leg
   countries?: ExposureLegSlice[]; // meaningful on both legs (a bond sleeve has a country mix too)
+  /** Share of this profile's 'OTHER' slice per area, from a factsheet. Sums to 1 ± 0.005. */
+  otherAreaSplit?: Partial<Record<GeoArea, number>>;
 }
 
 /**

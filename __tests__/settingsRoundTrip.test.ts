@@ -34,7 +34,19 @@ const DELETE_SENTINEL = { __deleteField: true };
 
 import { getDoc, setDoc } from 'firebase/firestore';
 import { getSettings, setSettings } from '@/lib/services/assetAllocationService';
-import type { AssetAllocationSettings, AssetAllocationTarget } from '@/types/assets';
+import type { AssetAllocationSettings, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
+
+/** Allocazione ideale (doc/weight-optimizer-ate.md §7) — every field diverges from
+ *  DEFAULT_IDEAL_ALLOCATION so a field lost on either write chain or the read mapping shows. */
+const STORED_IDEAL_ALLOCATION: IdealAllocationSettings = {
+  enabled: true,
+  classPriority: 'high',
+  leveragePriority: 'medium',
+  factorObjectives: [{ assetClass: 'equity', priority: 'low' }],
+  geography: { enabled: true, referenceIndexId: 'ftse-all-world', priority: 'medium' },
+  instrumentLimits: [{ assetId: 'asset-1', minPct: 5, maxPct: 40 }],
+  groupLimits: [{ id: 'group-1', label: 'Leva', assetIds: ['asset-1', 'asset-2'], maxPct: 20, priority: 'high' }],
+};
 
 /** Ogni valore è scelto per essere DIVERSO dal default, così un campo perso si vede. */
 const STORED_SETTINGS = {
@@ -52,6 +64,7 @@ const STORED_SETTINGS = {
   familyMembers: [{ id: 'm1', name: 'Giuseppe' }],
   expenseSplitEnabled: true,
   spendingRolesEnabled: true,
+  idealAllocation: STORED_IDEAL_ALLOCATION,
 };
 
 const TARGETS = { equity: { targetPercentage: 100 } } as unknown as AssetAllocationTarget;
@@ -103,6 +116,12 @@ describe('getSettings — lettura', () => {
     expect(settings?.pensionRitaLongUnemployment).toBe(true);
   });
 
+  it('returns idealAllocation instead of dropping it', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
+  });
+
   it('returns null when the user has no settings document yet', async () => {
     vi.mocked(getDoc).mockResolvedValue({ exists: () => false } as never);
 
@@ -141,6 +160,15 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     });
   });
 
+  it('writes idealAllocation', async () => {
+    await setSettings('user-1', {
+      targets: TARGETS,
+      idealAllocation: STORED_IDEAL_ALLOCATION,
+    } as AssetAllocationSettings);
+
+    expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
+  });
+
   it('drops the start month from the payload when it is cleared', async () => {
     // Questo ramo riscrive il documento partendo da quello esistente: togliere la chiave la rimuove.
     vi.mocked(getDoc).mockResolvedValue({
@@ -170,11 +198,12 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
   // Età, risk-free e le due categorie dividendi si possono SVUOTARE dalla UI. Senza la guardia
   // `'x' in settings` questo ramo le riportava indietro: parte da `...existingData` e con
   // `!== undefined` un campo svuotato non sovrascriveva nulla (bug corretto il 2026-08-29).
-  it.each([
+  it.each<[string, unknown]>([
     ['userAge', 34],
     ['riskFreeRate', 3.5],
     ['dividendIncomeCategoryId', 'cat-1'],
     ['dividendIncomeSubCategoryId', 'sub-1'],
+    ['idealAllocation', STORED_IDEAL_ALLOCATION],
   ])('drops %s from the payload when it is cleared', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,
@@ -189,11 +218,12 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     expect(writtenPayload()).not.toHaveProperty(field);
   });
 
-  it.each([
+  it.each<[string, unknown]>([
     ['userAge', 34],
     ['riskFreeRate', 3.5],
     ['dividendIncomeCategoryId', 'cat-1'],
     ['dividendIncomeSubCategoryId', 'sub-1'],
+    ['idealAllocation', STORED_IDEAL_ALLOCATION],
   ])('leaves an untouched %s alone when the key is absent from the update', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,
@@ -262,6 +292,17 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     expect(writtenPayload().spendingRolesEnabled).toBe(true);
   });
 
+  it('writes idealAllocation through both chains', async () => {
+    await setSettings('user-1', { idealAllocation: STORED_IDEAL_ALLOCATION } as AssetAllocationSettings);
+    expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
+
+    await setSettings('user-1', {
+      targets: TARGETS,
+      idealAllocation: STORED_IDEAL_ALLOCATION,
+    } as AssetAllocationSettings);
+    expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
+  });
+
   it('does not touch the start month when the key is absent from the update', async () => {
     await setSettings('user-1', { costCentersEnabled: true } as AssetAllocationSettings);
 
@@ -270,7 +311,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
 
   // Lo stesso per gli altri quattro campi svuotabili: qui si scrive con merge, quindi omettere
   // la chiave lascerebbe il valore vecchio — serve un deleteField() esplicito (2026-08-29).
-  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId'])(
+  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation'])(
     'uses deleteField to clear %s, since omitting the key would keep it',
     async (field) => {
       await setSettings('user-1', { [field]: undefined } as unknown as AssetAllocationSettings);
@@ -279,7 +320,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     }
   );
 
-  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId'])(
+  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation'])(
     'does not touch %s when the key is absent from the update',
     async (field) => {
       await setSettings('user-1', { costCentersEnabled: true } as AssetAllocationSettings);

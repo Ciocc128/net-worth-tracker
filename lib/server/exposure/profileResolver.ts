@@ -183,6 +183,11 @@ async function resolveOneInstrument(asset: Asset): Promise<InstrumentProfile> {
       if (sectors && sectors.length > 0) legProfile.sectors = sectors;
     }
     if (countries && countries.length > 0) legProfile.countries = countries;
+    // Only when the countries actually came from the curated index (never from a stock's own
+    // Yahoo country) — the optimizer's areasFromCountries reads this for the leg's 'OTHER' slice.
+    if (indexCountries && indexCountries.length > 0 && indexProfile?.otherAreaSplit) {
+      legProfile.otherAreaSplit = indexProfile.otherAreaSplit;
+    }
 
     if (Object.keys(legProfile).length > 0) legs[legClass] = legProfile;
   }
@@ -294,10 +299,18 @@ async function resolveWithCache(asset: Asset): Promise<InstrumentProfile> {
  * (the same base `exposureEngine.ts` uses) — `excluded` assets and duplicate tickers never reach
  * Yahoo. Every instrument resolves in parallel; a single instrument's Yahoo failure never blocks
  * another's, and each goes through its own 30-day cache independently.
+ *
+ * `includeZeroQuantity` keeps a tradable/frozen asset at `quantity === 0` in scope — the weight
+ * optimizer's PAC candidates (`doc/weight-optimizer-ate.md` §8.1) need a profile for an instrument
+ * the plan may still BUY even though the account holds none today. Every existing caller omits it
+ * and keeps today's behaviour (a zero-quantity asset excluded).
  */
-export async function resolveInstrumentProfiles(assets: Asset[]): Promise<Map<string, InstrumentProfile>> {
+export async function resolveInstrumentProfiles(
+  assets: Asset[],
+  options: { includeZeroQuantity?: boolean } = {}
+): Promise<Map<string, InstrumentProfile>> {
   const baseAssets = assets.filter((a) => {
-    if (a.quantity <= 0) return false;
+    if (a.quantity <= 0 && !options.includeZeroQuantity) return false;
     const role = resolveAllocationRole(a);
     return role === 'tradable' || role === 'frozen';
   });

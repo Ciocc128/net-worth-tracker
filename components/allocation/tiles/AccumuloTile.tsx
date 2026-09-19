@@ -21,7 +21,7 @@
  * could never reach `done` (`isPlanDone` requires `disposalsClosed`, and nothing wrote it).
  */
 import { useMemo, useRef, useState } from 'react';
-import type { Asset, AssetAllocationTarget } from '@/types/assets';
+import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { AccumulationPlan } from '@/types/accumulationPlan';
 import type { RebalanceBand } from '@/lib/utils/allocationUtils';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
@@ -118,6 +118,10 @@ interface AccumuloTileProps {
   allAssets: Asset[];
   targets: AssetAllocationTarget | null;
   band: RebalanceBand;
+  /** deriveTargetLeverageRatio(targets) — threaded to the editor's Ottimizzato view. */
+  targetLeverageRatio: number;
+  /** The owner's "Allocazione ideale" objectives, or `null` when not yet loaded. */
+  idealAllocation: IdealAllocationSettings | null;
   onAssetsChanged: () => void;
 }
 
@@ -138,7 +142,7 @@ function isPlanDone(plan: AccumulationPlan, currentIndex: number): boolean {
   return linesClosed && disposalsClosed;
 }
 
-export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChanged }: AccumuloTileProps) {
+export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverageRatio, idealAllocation, onAssetsChanged }: AccumuloTileProps) {
   const isDemo = useDemoMode();
   const plansQuery = useAccumulationPlans(ownerId);
   const plan = selectOpenPlan(plansQuery.data);
@@ -334,6 +338,8 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
             allAssets={allAssets}
             targets={targets}
             band={band}
+            targetLeverageRatio={targetLeverageRatio}
+            idealAllocation={idealAllocation}
             onAssetsChanged={onAssetsChanged}
             onSaved={() => setPlanDialogOpen(false)}
           />
@@ -403,6 +409,8 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
             allAssets={allAssets}
             targets={targets}
             band={band}
+            targetLeverageRatio={targetLeverageRatio}
+            idealAllocation={idealAllocation}
             onAssetsChanged={onAssetsChanged}
             onSaved={() => setPlanDialogOpen(false)}
           />

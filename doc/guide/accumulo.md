@@ -170,6 +170,35 @@ piano non avrebbe mai potuto chiudersi. Stessa vocabolario di stati, `setDisposa
 `setInstallmentLine`; il form manuale ha solo l'importo (una disposal non ha una quantità pianificata,
 solo un ricavo stimato).
 
+## Passo 2 — Manuale / Ottimizzato (doc/weight-optimizer-ate.md §9)
+
+Un `SegmentedPill` sopra la tabella dei pesi (`Manuale` di default). **Ottimizzato SOSTITUISCE
+l'intero corpo del passo** — tabella, righe di vendita e i controlli di raggruppamento inclusi —
+con `OptimizerPanel`; tornando su Manuale il corpo riappare identico, coi valori correnti della
+bozza (nessuno stato perso: il selettore cambia solo COSA si vede, mai il `draft`). La riga
+"Totale" e la sua nota restano visibili in entrambe le viste, perché contano sempre sul
+`draft.positions` corrente qualunque sia stata la via per arrivarci.
+
+`OptimizerPanel` (`components/allocation/OptimizerPanel.tsx`) è spento con una sola riga e un link
+a Impostazioni quando `idealAllocation` non è attiva; acceso, mostra il riepilogo degli obiettivi
+(la STESSA `describeIdealAllocation` del tile di Impostazioni — un solo posto dove si legge un
+`IdealAllocationSettings`), il selettore Raggiungibile/Ideale, e — dopo **Calcola** — la tabella dei
+pesi proposti più il rapporto per obiettivo, i conflitti e gli avvisi (`lib/utils/{weightOptimizer,
+weightOptimizerNarrative}.ts`, doc/guide/ottimizzatore.md). I candidati sono le posizioni della
+bozza (le righe "Da vendere" non esistono in `draft.positions`, quindi sono escluse per
+costruzione, non da un filtro esplicito); la base B somma i loro valori correnti (`resolvePosition
+States`) più la liquidità L del passo 1. "Usa questi pesi" scrive `targetPercentage` di ogni
+posizione e torna su Manuale; in modalità Ideale con un peso proposto sotto il posseduto, chiede
+prima una conferma INLINE (mai una modale annidata: DESIGN.md → The Modal-Is-A-Tile Rule) — il PAC
+non vende, quindi quella posizione riceve zero acquisti fino al prossimo passo.
+
+**Lo snapshot** (`AccumulationPlan.optimizerSnapshot` / `AccumulationPlanDraft.optimizerSnapshot`)
+si scrive SOLO da "Usa questi pesi" — mai da un salvataggio della bozza in sé — e resta anche se
+l'utente poi ritocca un peso a mano: documenta da dove si è partiti, non lo stato attuale. Il passo
+3 lo mostra come una riga quando presente (`describeOptimizerSnapshot`, confronta i pesi dello
+snapshot con `draft.positions` corrente e aggiunge «, poi modificati a mano» solo se differiscono
+di oltre 0,01 punti).
+
 ## Deploy della regola Firestore
 
 `firestore.rules` porta il blocco `accumulationPlans` da S2 (`match /accumulationPlans/{planId}`,
@@ -190,6 +219,9 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
   dall'anteprima Vercel (WORKFLOW.md §2 adattato, doc/pac-ate.md §13).
 - **`recalibrateInstallment` non scrive**: propone soltanto; `applyRecalibration` (chiamata dal dialog)
   sostituisce le righe ancora `planned` della rata, quelle già `executed` restano intatte.
+- **L'Ottimizzato tocca solo i pesi**: non aggiunge, rimuove o raggruppa posizioni — quello resta un
+  gesto Manuale. Un cambio di struttura fatto DOPO "Usa questi pesi" (un nuovo asset, un
+  raggruppamento) non invalida lo snapshot: resta la fotografia di quando è stato calcolato.
 - **Il modello di cassa del piano è indipendente dal target cash di Impostazioni**:
   `plan.liquidity.reserveEur` (mai toccata, D4) e il target `cash` a importo fisso di Impostazioni
   (quello che `compareAllocations` scala nella traiettoria di D11) sono due numeri distinti che

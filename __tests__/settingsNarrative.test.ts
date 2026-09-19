@@ -36,6 +36,7 @@ import {
   describeEmails,
   describeFamily,
   describeFireToggles,
+  describeIdealAllocation,
   describeImport,
   describePerformanceBase,
   describePlanParameters,
@@ -640,6 +641,55 @@ describe('describeClassTargets', () => {
   it('reads the invalid total as blocking', () => {
     expect(plain(describeClassTargets({ classCount: 8, withSubcategories: 0, isValid: false }))).toBe(
       '8 classi, nessuna con sotto-categorie; il totale è sotto il 100% e il salvataggio è bloccato.'
+    );
+  });
+});
+
+describe('describeIdealAllocation', () => {
+  it('states the off state without touching the PAC', () => {
+    expect(
+      plain(
+        describeIdealAllocation({
+          enabled: false,
+          classPriority: 'essential',
+          leveragePriority: 'high',
+          targetLeverageRatio: 1,
+          factorObjectives: [],
+          geography: null,
+        })
+      )
+    ).toBe('Spenta: nel PAC i pesi si inseriscono solo a mano.');
+  });
+
+  it('names the only active objective when just the classes are on', () => {
+    expect(
+      plain(
+        describeIdealAllocation({
+          enabled: true,
+          classPriority: 'essential',
+          leveragePriority: 'off',
+          targetLeverageRatio: 1,
+          factorObjectives: [],
+          geography: null,
+        })
+      )
+    ).toBe('Il PAC può proporre i pesi da 1 obiettivo: classi (essenziale).');
+  });
+
+  it('lists all four objectives with their priorities', () => {
+    expect(
+      plain(
+        describeIdealAllocation({
+          enabled: true,
+          classPriority: 'essential',
+          leveragePriority: 'high',
+          targetLeverageRatio: 1.23,
+          factorObjectives: [{ classLabel: 'Azioni (Equity)', priority: 'high' }],
+          geography: { referenceIndexLabel: 'FTSE All-World', priority: 'medium' },
+        })
+      )
+    ).toBe(
+      'Il PAC può proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), fattori di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
     );
   });
 });
