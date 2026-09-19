@@ -138,10 +138,15 @@ function draftFromPlan(plan: AccumulationPlan): AccumulationPlanDraft {
  * has thought to add one. The target starts at 0, not at the holding's current share: a
  * pre-filled 100% for a single-asset portfolio would hide the very total-≠-100 gate step 2
  * exists to enforce.
+ *
+ * A cash account is never a candidate here (PR #4 review, rilievo 6): `resolveAllocationRole`
+ * reads `tradable` for it by default, so a current account used to seed nothing else would land
+ * in step 2 as a 0%-weight row — and, once picked as a step 1 source too, its value would enter B
+ * twice (once as `currentValueEur`, once as `L`).
  */
 function seedPositionsFromAssets(allAssets: Asset[]): PlanPosition[] {
   return allAssets
-    .filter((asset) => resolveAllocationRole(asset) === 'tradable' && calculateAssetValue(asset) > 0)
+    .filter((asset) => asset.assetClass !== 'cash' && resolveAllocationRole(asset) === 'tradable' && calculateAssetValue(asset) > 0)
     .map((asset) => ({
       id: crypto.randomUUID(),
       label: asset.name,
@@ -196,9 +201,11 @@ export function AccumulationPlanDialog({
     return ids;
   }, [draft.positions, draft.disposals]);
 
+  // Same rilievo 6 exclusion as the seeder above: a cash account never appears as a step 2 row.
   const candidateAssets = useMemo(
     () =>
       allAssets.filter((asset) => {
+        if (asset.assetClass === 'cash') return false;
         if (resolveAllocationRole(asset) !== 'tradable') return false;
         return calculateAssetValue(asset) > 0 || classifiedAssetIds.has(asset.id);
       }),

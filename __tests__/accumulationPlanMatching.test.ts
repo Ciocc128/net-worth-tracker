@@ -176,6 +176,34 @@ describe('matchPlanExecutions — installment lines', () => {
     expect(lineStates['1:p1']).toBe('lostLink');
   });
 
+  it('the SAME line reads as executed, not lostLink, while the ledger query is still loading (PR #4 review, rilievo 5)', () => {
+    const plan = makePlan({
+      installments: [
+        makeInstallment({
+          lines: [
+            {
+              positionId: 'p1',
+              assetId: 'vwce',
+              plannedQuantity: 5,
+              priceEurAtPlan: 100,
+              plannedAmountEur: 500,
+              status: 'executed',
+              transactionIds: ['tx-not-arrived-yet'],
+              executedQuantity: 5,
+              executedAmountEur: 500,
+            },
+          ],
+        }),
+      ],
+    });
+    // `transactions` reads as `[]` the same way whether the ledger is genuinely empty or the
+    // query is still in flight — the 4th argument is the only thing telling the two apart.
+    const stillLoading = matchPlanExecutions(plan, [], TODAY_IN_OCTOBER, true);
+    expect(stillLoading.lineStates['1:p1']).toBe('executed');
+    const genuinelyEmpty = matchPlanExecutions(plan, [], TODAY_IN_OCTOBER, false);
+    expect(genuinelyEmpty.lineStates['1:p1']).toBe('lostLink');
+  });
+
   it('a planned line before the current month with no match reads as late', () => {
     // startMonth 2026-10, installment 1 is October; "today" is now December → October is behind.
     const plan = makePlan();
@@ -273,5 +301,12 @@ describe('matchPlanExecutions — disposals', () => {
 
     const { lineStates: withoutLedger } = matchPlanExecutions(planWithLedger, [], TODAY_IN_OCTOBER);
     expect(withoutLedger['disposal:eimi']).toBe('lostLink');
+  });
+
+  it('the same executed disposal reads as executed while the ledger query is loading (rilievo 5)', () => {
+    const executed: PlanDisposal = { ...disposal, status: 'executed', transactionIds: ['tx-sell'], executedAmountEur: 1000 };
+    const planWithLedger = makePlan({ disposals: [executed] });
+    const { lineStates } = matchPlanExecutions(planWithLedger, [], TODAY_IN_OCTOBER, true);
+    expect(lineStates['disposal:eimi']).toBe('executed');
   });
 });

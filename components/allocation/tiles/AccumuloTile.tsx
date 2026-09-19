@@ -188,11 +188,14 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, onAssetsChange
   const currentIndex = useMemo(() => (plan ? monthIndexOf(plan, toMonthKey(today)) : 0), [plan, today]);
 
   const matchResult = useMemo(
-    () => (plan ? matchPlanExecutions(plan, transactionsQuery.data ?? [], today) : { matches: [], lineStates: {} }),
+    () =>
+      plan
+        ? matchPlanExecutions(plan, transactionsQuery.data ?? [], today, transactionsQuery.isLoading)
+        : { matches: [], lineStates: {} },
     // `today` deliberately not a dependency: matching only needs day-level freshness when the plan
     // or the ledger change (doc/pac-ate.md §5.9).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [plan, transactionsQuery.data],
+    [plan, transactionsQuery.data, transactionsQuery.isLoading],
   );
 
   const trajectory = useMemo(

@@ -72,7 +72,12 @@ function sumMatch(
 export function matchPlanExecutions(
   plan: AccumulationPlan,
   transactions: AssetTransaction[],
-  today: Date
+  today: Date,
+  // While the ledger query is still in flight, `transactions` reads as `[]` like "genuinely no
+  // trades" — without this flag every already-`executed` line/disposal misreads as `lostLink` for
+  // one frame (PR #4 review, rilievo 5). Defaults to false: every existing caller (the tests, and
+  // a caller that already has its data) is unaffected.
+  transactionsLoading = false
 ): { matches: LineMatch[]; lineStates: Record<string, LineUiState> } {
   const existingIds = new Set(transactions.map((t) => t.id));
   const sourceCashIds = new Set(plan.liquidity.sourceCashAssetIds);
@@ -92,7 +97,7 @@ export function matchPlanExecutions(
       }
       if (line.status === 'executed') {
         const ids = line.transactionIds ?? [];
-        lineStates[key] = ids.every((id) => existingIds.has(id)) ? 'executed' : 'lostLink';
+        lineStates[key] = transactionsLoading || ids.every((id) => existingIds.has(id)) ? 'executed' : 'lostLink';
         continue;
       }
 
@@ -138,7 +143,7 @@ export function matchPlanExecutions(
     }
     if (disposal.status === 'executed') {
       const ids = disposal.transactionIds ?? [];
-      lineStates[key] = ids.every((id) => existingIds.has(id)) ? 'executed' : 'lostLink';
+      lineStates[key] = transactionsLoading || ids.every((id) => existingIds.has(id)) ? 'executed' : 'lostLink';
       continue;
     }
 

@@ -72,6 +72,17 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   mensile stimata mese per mese e i ricavi delle vendite non eseguite, pro quota sui saldi live di
   `sourceCashAssetIds`. Prima, la cassa restava ferma mentre il lato acquisti faceva crescere la
   base di mercato dal nulla. doc/pac-ate.md §5.9.
+- **Un conto `cash` non è mai una posizione del passo 2** (PR #4, rilievo 6, chiuso 2026-09-19):
+  `resolveAllocationRole` legge `tradable` per un conto corrente per default, quindi senza
+  l'esclusione `assetClass !== 'cash'` — nel seeder e nei candidati di `AccumulationPlanDialog.tsx`,
+  e nel `unassigned_tradable` di `accumulationPlanSchema.ts` — un conto corrente finiva fra le righe
+  a peso 0%, e se scelto anche come sorgente del passo 1 il suo valore entrava due volte in B.
+- **`unassigned_tradable` segue lo STESSO predicato di valore del seeder/candidati** (PR #4, rilievo
+  7, chiuso 2026-09-19): `calculateAssetValue(asset) > 0` nel componente (import Firebase, lecito
+  lì), `asset.quantity * unitPriceEur(asset) > 0` nello schema (Firebase-free, §5.0). Prima lo
+  schema usava `asset.quantity <= 0`, un predicato diverso — un asset con quantità tracciata ma
+  senza prezzo mai recuperato era preteso dal validatore e offerto da nessuna riga: vicolo cieco,
+  «Avanti» permanentemente disabilitato.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 
@@ -96,6 +107,12 @@ disposal) resta quella che l'utente ha confermato finché non arriva un'azione d
   `planned` senza match E prima del mese corrente è `late`; altrimenti `todo`. Per una disposal, «mese
   corrente» è sempre il mese 1 del piano (D5): `late` significa «il piano è oltre il primo mese e la
   vendita non risulta ancora».
+- **Il quarto parametro `transactionsLoading`** (PR #4 review, rilievo 5, chiuso 2026-09-19): finché
+  `useAssetTransactions` è in volo, `transactions` arriva `[]` — indistinguibile da un ledger
+  genuinamente vuoto — e senza questo parametro OGNI riga già `executed` con `transactionIds`
+  leggeva `lostLink` per un frame (il bottone «Rivedi» lampeggiava a caso). Il chiamante passa
+  `transactionsQuery.isLoading`; di default è `false`, quindi ogni altro chiamante (i test) resta
+  invariato.
 
 **Il tile (§10.2 punto 4)** usa questi stati per decidere le azioni, non il proprio `InstallmentLineStatus`
 grezzo:

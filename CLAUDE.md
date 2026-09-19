@@ -13,7 +13,23 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **182 files / 4091 tests** green (4089 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **182 files / 4095 tests** green (4093 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-19 sera, fork): **PR #4 (Accumulo/PAC), rilievi importanti 5-6-7.** Rilievo 5:
+  `matchPlanExecutions` gained a `transactionsLoading` parameter (default `false`, every existing
+  caller untouched) — while `useAssetTransactions` is still in flight, `transactions` reads as
+  `[]` exactly like a genuinely empty ledger, so every already-`executed` line/disposal used to
+  misread as `lostLink` for one frame; the tile passes `transactionsQuery.isLoading`. Rilievo 6:
+  `AccumulationPlanDialog.tsx`'s seeder and `candidateAssets`, plus `accumulationPlanSchema.ts`'s
+  `unassigned_tradable`, now all exclude `assetClass === 'cash'` — `resolveAllocationRole` reads
+  `tradable` for a current account by default, so without the exclusion it landed in step 2 as a
+  0%-weight row, and if it was also a step 1 source its value double-counted into B. Rilievo 7:
+  `unassigned_tradable` now shares the SAME value predicate as the seeder/candidates
+  (`quantity * unitPriceEur(asset) > 0`, Firebase-free, instead of the old `quantity <= 0`) — an
+  asset with a tracked quantity but no fetched price (the FX-on-a-cold-instance Known Issue) used
+  to be demanded by the validator and offered by no row, a dead end with «Avanti» stuck disabled
+  forever. Collaudo: `tsc` 0, ESLint 0, 182 file / 4095 test (4 new/rewritten assertions proven red
+  against the pre-fix code, then green again), `npm run build` compiles (same expected Firebase
+  env-var stop). doc/pac-ate.md §6/§9/§10.3, doc/guide/accumulo.md.
 - Latest (2026-09-19, fork): **PR #4 (Accumulo/PAC) blocking review fixes: the trajectory's target
   tracked the WRONG base, and the projection never spent the cash.** `projectClassTrajectory`
   (rilievo 1): a measured point's target now scales to THAT point's own `marketBaseEur`

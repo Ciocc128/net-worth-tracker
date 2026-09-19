@@ -101,6 +101,25 @@ describe('validateDraftAgainstAssets — one case per code', () => {
     expect(issues.some((i) => i.code === 'unassigned_tradable' && i.assetId === 'vwce')).toBe(true);
   });
 
+  it('unassigned_tradable exempts cash accounts (PR #4 review, rilievo 6)', () => {
+    // resolveAllocationRole reads 'tradable' for cash by default — without the exemption a
+    // current account the reader never meant to classify would block step 2 from ever closing.
+    const cash = makeAsset({ id: 'cash1', name: 'Conto corrente', assetClass: 'cash', quantity: 1, currentPrice: 5000 });
+    const draft = baseDraft();
+    const issues = validateDraftAgainstAssets(draft, byId(cash));
+    expect(issues.some((i) => i.code === 'unassigned_tradable')).toBe(false);
+  });
+
+  it('unassigned_tradable follows VALUE, not quantity (PR #4 review, rilievo 7)', () => {
+    // A held instrument whose price was never fetched (quantity > 0, currentPrice 0): the ATE §6
+    // predicate is «valore > 0», the same one the seeder/candidates in AccumulationPlanDialog use
+    // — a quantity-only check would demand it be classified while offering it no row to do so in.
+    const unpriced = makeAsset({ id: 'unpriced1', name: 'ETF senza prezzo', quantity: 10, currentPrice: 0 });
+    const draft = baseDraft();
+    const issues = validateDraftAgainstAssets(draft, byId(unpriced));
+    expect(issues.some((i) => i.code === 'unassigned_tradable')).toBe(false);
+  });
+
   it('duplicate_asset', () => {
     const vwce = makeAsset({ id: 'vwce', name: 'VWCE' });
     const draft = baseDraft({

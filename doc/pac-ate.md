@@ -560,12 +560,25 @@ Codici e regole:
 | `buy_not_member` | `buyAssetId ∉ memberAssetIds` |
 | `position_not_tradable` | un membro o una vendita non ha `resolveAllocationRole === 'tradable'` |
 | `source_not_cash` | un conto sorgente non ha `assetClass === 'cash'` |
-| `unassigned_tradable` | un asset tradable con valore > 0 non è né in una posizione né in una vendita |
+| `unassigned_tradable` | un asset **non cash** e tradable con valore > 0 non è né in una posizione né in una vendita |
 | `months_range` | `months` non intero o fuori 1..60 |
 | `negative_amount` | `reserveEur` o `monthlyInflowEur` < 0 |
 | `no_positions` | nessuna posizione |
 
 `message` in italiano, prodotto da `accumulationNarrative.ts` (non scrivere stringhe nello schema).
+
+**Due correzioni (PR #4 review, rilievi 6-7, chiuse 2026-09-19)**:
+- `unassigned_tradable` esenta sempre un asset con `assetClass === 'cash'`: `resolveAllocationRole`
+  legge `tradable` per un conto corrente per default, e senza l'esenzione il validatore lo
+  **pretendeva** classificato benché `AccumulationPlanDialog.tsx` (seeder del passo 2 e
+  `candidateAssets`) non lo offra mai come riga — lo stesso `assetClass !== 'cash'` vale sui tre
+  lati (seeder, candidati, validatore).
+- Il predicato di valore è **lo stesso su tutti e tre i lati**: `calculateAssetValue(asset) > 0`
+  nel seeder/candidati (import Firebase, ok in un componente), `quantity * unitPriceEur(asset) > 0`
+  nello schema (questo modulo resta Firebase-free — vedi §5.0). Prima usava `asset.quantity <= 0`,
+  un predicato DIVERSO da quello degli altri due lati: un asset con quantità tracciata ma prezzo
+  mai recuperato (Known Issue FX su istanza fredda) era preteso dal validatore e non offerto da
+  nessuna riga — vicolo cieco, «Avanti» permanentemente disabilitato.
 
 ---
 
@@ -683,7 +696,8 @@ export type LineUiState = 'todo' | 'toConfirm' | 'executed' | 'late' | 'skipped'
 export function matchPlanExecutions(
   plan: AccumulationPlan,
   transactions: AssetTransaction[],   // from useAssetTransactions(ownerId)
-  today: Date
+  today: Date,
+  transactionsLoading?: boolean       // default false — see rule 5's caveat below
 ): {
   matches: LineMatch[];
   lineStates: Record<string, LineUiState>; // key `${index}:${positionId}` or `disposal:${assetId}`
@@ -698,9 +712,14 @@ Regole:
 2. Candidati vendita: `type === 'sell'`, stesso `assetId`, `date ≥ activatedAt`.
 3. Un id già presente in `transactionIds` di qualunque riga del piano non è più candidato.
 4. Più candidati per la stessa riga si sommano in un solo `LineMatch`.
-5. Stati: `executed` se `status === 'executed'` e tutti i `transactionIds` esistono; `lostLink` se
-   `executed` con almeno un id inesistente; `skipped` se `skipped`; `toConfirm` se `planned` con
-   match; `late` se `planned`, senza match, e mese < mese corrente; altrimenti `todo`.
+5. Stati: `executed` se `status === 'executed'` **e** (`transactionsLoading` **oppure** tutti i
+   `transactionIds` esistono); `lostLink` se `executed`, `!transactionsLoading` e almeno un id
+   inesistente; `skipped` se `skipped`; `toConfirm` se `planned` con match; `late` se `planned`,
+   senza match, e mese < mese corrente; altrimenti `todo`. **Correzione (PR #4 review, rilievo 5,
+   chiusa 2026-09-19)**: finché `useAssetTransactions` è in volo, `transactions` arriva `[]` —
+   indistinguibile da un ledger genuinamente vuoto — e OGNI riga `executed` con `transactionIds`
+   leggeva `lostLink` per un frame, con il bottone «Rivedi» a caso. Il chiamante (`AccumuloTile.tsx`)
+   passa `transactionsQuery.isLoading`.
 
 ---
 
@@ -779,7 +798,11 @@ per passo, footer con Indietro/Avanti/Salva bozza/Attiva. Ogni "Avanti" salva la
   + Vendite fuori piano (dal passo 2), + Entrate stimate (E × N), Rata mensile (L₀/N + E).
 
 **Passo 2 — Target.** Titolo "Dove deve arrivare il portafoglio".
-- Una riga per ogni asset `tradable` con valore > 0, più gli asset creati a 0 quote in questa sessione.
+- Una riga per ogni asset `tradable` con valore > 0, **mai un conto `cash`** (PR #4 review, rilievo
+  6, chiuso 2026-09-19: `resolveAllocationRole` legge `tradable` per un conto corrente per
+  default, quindi senza l'esclusione un conto sorgente del passo 1 finiva anche fra le righe del
+  passo 2 a peso 0% — e, se scelto come sorgente, il suo valore entrava due volte in B: una in
+  `currentValueEur`, una in L), più gli asset creati a 0 quote in questa sessione.
   Colonne: strumento, peso oggi (% sul totale delle righe), interruttore "Nel piano / Da vendere",
   campo target %.
 - "Raggruppa come proxy": selezione multipla di righe → una posizione; chiede lo strumento d'acquisto
