@@ -238,8 +238,8 @@ interface AreaResolution {
 }
 
 /** §5.4's `areaPerEuro` rule for one asset, reused for the buy asset and (for the proxy-mismatch
- *  check) for its fixed members. `otherAreaSplit` is left undefined until O3 wires the curated
- *  field through `profileResolver.ts` (doc/weight-optimizer-ate.md §5.3, O3). */
+ *  check) for its fixed members. `otherAreaSplit` comes from the curated `INDEX_PROFILES` entry
+ *  `profileResolver.ts` propagated onto the equity leg (`doc/weight-optimizer-ate.md` §5.3). */
 function resolveAreaPerEuro(
   asset: Asset,
   exposure: Partial<Record<AssetClass, number>>,
@@ -249,14 +249,15 @@ function resolveAreaPerEuro(
   const equityPerEuro = exposure.equity ?? 0;
   if (equityPerEuro === 0) return { areaPerEuro: null, areaEstimatedPerEuro: 0, uncovered: false };
 
-  const countries = profilesByTicker.get(asset.ticker)?.legs?.equity?.countries;
+  const equityLeg = profilesByTicker.get(asset.ticker)?.legs?.equity;
+  const countries = equityLeg?.countries;
   if (!countries || countries.length === 0) {
     return { areaPerEuro: null, areaEstimatedPerEuro: 0, uncovered: true };
   }
 
   const { areas, estimatedShare } = areasFromCountries(
     countries.map((c) => ({ key: c.key, weight: c.weight })),
-    undefined,
+    equityLeg?.otherAreaSplit,
     referenceCountries
   );
 

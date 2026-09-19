@@ -82,11 +82,9 @@ export function IdealAllocationTile({
   const geographyProfile = value.geography ? INDEX_PROFILES[value.geography.referenceIndexId] : undefined;
   const geographyPreview =
     geographyProfile?.countries && geographyProfile.countries.length > 0
-      ? // otherAreaSplit lands on CuratedIndexProfile in O3 (doc/weight-optimizer-ate.md §5.3);
-        // until then every reference index resolves its OTHER slice like any uncurated profile.
-        areasFromCountries(
+      ? areasFromCountries(
           geographyProfile.countries.map((c) => ({ key: c.code, weight: c.weight })),
-          undefined,
+          geographyProfile.otherAreaSplit,
           null
         ).areas
       : null;

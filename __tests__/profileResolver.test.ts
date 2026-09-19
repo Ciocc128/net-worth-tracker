@@ -197,6 +197,28 @@ describe('resolveInstrumentProfiles — scope and dedup', () => {
   });
 });
 
+describe('resolveInstrumentProfiles — includeZeroQuantity (O3, §8.1)', () => {
+  it('excludes a zero-quantity tradable asset by default, includes it with the option', async () => {
+    fetchYahooFundData.mockResolvedValue({ holdings: undefined, sectors: undefined, issuerFamily: 'X' });
+    const asset = makeAsset({ ticker: 'EXUS.MI', quantity: 0, currentPrice: 40 });
+
+    const withoutOption = await resolveInstrumentProfiles([asset]);
+    expect(withoutOption.has('EXUS.MI')).toBe(false);
+    expect(fetchYahooFundData).not.toHaveBeenCalled();
+
+    const withOption = await resolveInstrumentProfiles([asset], { includeZeroQuantity: true });
+    expect(withOption.has('EXUS.MI')).toBe(true);
+    expect(fetchYahooFundData).toHaveBeenCalledTimes(1);
+  });
+
+  it('still excludes an `excluded`-role asset at zero quantity even with the option', async () => {
+    const asset = makeAsset({ ticker: 'EXUS.MI', quantity: 0, allocationRole: 'excluded', currentPrice: 40 });
+    const profiles = await resolveInstrumentProfiles([asset], { includeZeroQuantity: true });
+    expect(profiles.has('EXUS.MI')).toBe(false);
+    expect(fetchYahooFundData).not.toHaveBeenCalled();
+  });
+});
+
 describe('resolveInstrumentProfiles — the 30-day instrument-profile cache', () => {
   it('a fresh cache entry serves without calling Yahoo again', async () => {
     fetchYahooFundData.mockResolvedValue({ holdings: undefined, sectors: undefined, issuerFamily: 'X' });
