@@ -13,7 +13,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **170 files / 3869 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **171 files / 3870 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
 - Latest (2026-09-19, third session): **Storico's Driver measures the market instead of guessing it.** «Mercato −557 €»
   in settembre 2026 was the broker's withheld tax on a VWCE sale (4089 € estimated, 4092,50 € on the statement) plus
   1297 € of instalments in calendar, read as «Δ − risparmio». `lib/utils/growthDrivers.ts`: risparmio (rows already
@@ -22,7 +22,13 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   same parts; «altre variazioni» is said in a sentence only above max(100 €, 5%) (`isMaterialOtherChange`, Panoramica
   too). **Verification**: `tsc`, lint 0, Vitest 3869 under `TZ=Europe/Rome` and without, three falsifications red, the
   mirror's settembre split equal to an independent read-only script (2086 € market), Playwright 1440/390 on the mirror
-  (Driver reading word for word, `main` overflow 0, Lavoro's rows summing to the 80.323 € growth).
+  (Driver reading word for word, `main` overflow 0, Lavoro's rows summing to the 80.323 € growth). **Then a linked row
+  moves its account on its own date** (`lib/utils/cashSettlement.ts` + `lib/server/cashSettlement.ts`, settled in the
+  snapshot route): every occurrence of a series carries the account, a row dated ahead is `balancePending`, edits and
+  deletes move only what was applied; «Collega la serie a un conto» links an older series' future rows; a cash account
+  may go negative (a credit card, «debito» on the Liquidità tile). **Verification**: Vitest 3870 in both timezones, lint 0, an emulator exercise 12/12
+  (series, future transfer, settlement twice = idempotent, legacy link, series delete), `e2e/cashflow.accounts.spec.ts`
+  green and red when broken, Playwright 1440/390 on the link dialog with Firestore read back.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -40,7 +46,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
 - **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
 - **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement, the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
-- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
+- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
 - **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.

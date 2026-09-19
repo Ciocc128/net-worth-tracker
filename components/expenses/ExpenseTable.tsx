@@ -32,8 +32,7 @@ import {
   getExpensesByRecurringParentId,
   getExpensesByInstallmentParentId,
 } from '@/lib/services/expenseService';
-import { updateCashAssetBalance } from '@/lib/services/assetService';
-import { reconcileTransferDelete } from '@/lib/services/cashBalanceReconciliation';
+import { reverseAppliedBalances } from '@/lib/services/cashBalanceReconciliation';
 import { queryKeys } from '@/lib/query/queryKeys';
 import {
   Table,
@@ -295,18 +294,9 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
   const deleteSingleExpense = async (expense: Expense) => {
     try {
       setDeletingId(expense.id);
-      // Reverse the balance effect before deleting. A transfer moved TWO accounts, so both
-      // sides are reconciled; an origin-only reversal would leave the destination wrong.
-      if (expense.type === 'transfer') {
-        await reconcileTransferDelete({
-          originId: expense.linkedCashAssetId,
-          destId: expense.transferCashAssetId,
-          amount: Math.abs(expense.amount),
-        });
-      } else if (expense.linkedCashAssetId) {
-        await updateCashAssetBalance(expense.linkedCashAssetId, -expense.amount);
-      }
-      if (user && ownerId && (expense.linkedCashAssetId || expense.transferCashAssetId)) {
+      // Give back what the row has applied — both accounts of a transfer — before deleting it;
+      // a row still waiting for its date moved nothing (lib/utils/cashSettlement.ts).
+      if ((await reverseAppliedBalances([expense])) && user && ownerId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
       await deleteExpense(expense.id);
@@ -326,14 +316,10 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
     if (!ownerId) return;
     try {
       setDeletingId(recurringParentId);
-      // Reverse balance effects before bulk-deleting (only the first entry stores linkedCashAssetId)
+      // Give back what the occurrences already happened have applied, in one transaction; the
+      // ones still waiting for their date moved nothing.
       const seriesExpenses = await getExpensesByRecurringParentId(ownerId, recurringParentId);
-      for (const exp of seriesExpenses) {
-        if (exp.linkedCashAssetId) {
-          await updateCashAssetBalance(exp.linkedCashAssetId, -exp.amount);
-        }
-      }
-      if (user && ownerId && seriesExpenses.some(e => e.linkedCashAssetId)) {
+      if ((await reverseAppliedBalances(seriesExpenses)) && user && ownerId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
       await deleteRecurringExpenses(ownerId, recurringParentId);
@@ -353,14 +339,10 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
     if (!ownerId) return;
     try {
       setDeletingId(installmentParentId);
-      // Reverse balance effects before bulk-deleting (only the first installment stores linkedCashAssetId)
+      // Give back what the instalments already due have applied, in one transaction; the ones
+      // still waiting for their date moved nothing.
       const seriesExpenses = await getExpensesByInstallmentParentId(ownerId, installmentParentId);
-      for (const exp of seriesExpenses) {
-        if (exp.linkedCashAssetId) {
-          await updateCashAssetBalance(exp.linkedCashAssetId, -exp.amount);
-        }
-      }
-      if (user && ownerId && seriesExpenses.some(e => e.linkedCashAssetId)) {
+      if ((await reverseAppliedBalances(seriesExpenses)) && user && ownerId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
       await deleteInstallmentExpenses(ownerId, installmentParentId);

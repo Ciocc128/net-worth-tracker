@@ -14,6 +14,7 @@ import {
   describeExpenseIntent,
   describeFormRefusal,
   describeSeriesDeleteReading,
+  describeLinkSeriesReading,
   describeLedgerReturnVital,
   describeModalStatus,
   describeMovementDetailReading,
@@ -596,5 +597,28 @@ describe('describeSnapshotOverwrite — the title names the act and the month', 
     const { title, reading } = describeSnapshotOverwrite({ month: 9, year: 2026 });
     expect(title).toBe('Sovrascrivi lo snapshot di settembre');
     expect(plain(reading)).toBe('Settembre 2026 ha già uno snapshot: sovrascriverlo lo sostituisce con i valori di oggi. La nota del mese resta.');
+  });
+});
+
+describe('describeLinkSeriesReading — «Collega la serie a un conto»', () => {
+  const first = new Date(2026, 8, 28, 12);
+
+  it('should say how many occurrences will move the account, from when, and that the past stays', () => {
+    expect(plain(describeLinkSeriesReading({ mode: 'recurring', futureCount: 3, firstDate: first, pastCount: 9, accountName: 'Conto BNL' }))).toBe(
+      'Le 3 voci future, dal 28 settembre 2026, scaleranno Conto BNL ciascuna alla sua data; le 9 già avvenute restano come sono.',
+    );
+    expect(plain(describeLinkSeriesReading({ mode: 'installment', futureCount: 3, firstDate: first, pastCount: 0, accountName: null }))).toBe(
+      'Le 3 rate future, dal 28 settembre 2026, scaleranno il conto che scegli ciascuna alla sua data.',
+    );
+  });
+
+  it('should speak of the one occurrence left in the singular', () => {
+    expect(plain(describeLinkSeriesReading({ mode: 'installment', futureCount: 1, firstDate: first, pastCount: 1, accountName: 'Carta' }))).toBe(
+      'L’unica rata futura, il 28 settembre 2026, scalerà Carta in quel giorno; quella già avvenuta resta com’è.',
+    );
+  });
+
+  it('should say there is nothing to link when no occurrence is left to come', () => {
+    expect(plain(describeLinkSeriesReading({ mode: 'recurring', futureCount: 0, firstDate: null, pastCount: 12, accountName: 'Conto BNL' }))).toContain('Nessuna voce futura da collegare');
   });
 });

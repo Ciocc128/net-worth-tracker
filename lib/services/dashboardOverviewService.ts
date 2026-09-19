@@ -364,9 +364,11 @@ function buildLiveOverviewPayload(
   const liquidEstimatedTaxes = calculateLiquidEstimatedTaxes(assets);
 
   // Cash sub-breakdown: pure cash accounts vs investable liquid assets.
-  // This splits liquidNetWorth into two sub-buckets shown on the Liquid card.
+  // This splits liquidNetWorth into two sub-buckets shown on the Liquid card. No `quantity > 0`
+  // filter: a credit card is a cash account in the red, and dropping it here moved its debt into
+  // «investimenti liquidi» (a sold asset at 0 adds nothing either way).
   const cashNetWorth = assets
-    .filter(a => a.quantity > 0 && a.assetClass === 'cash')
+    .filter(a => a.assetClass === 'cash')
     .reduce((sum, a) => sum + calculateAssetValue(a), 0);
   const liquidInvestmentsNetWorth = liquidNetWorth - cashNetWorth;
   const annualStampDuty = (settings?.stampDutyEnabled && settings?.stampDutyRate)
