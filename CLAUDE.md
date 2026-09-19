@@ -13,8 +13,8 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **187 files / 4156 tests** green (4154 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-20 notte, fork): **Ottimizzatore dei pesi (O1-O4, doc/weight-optimizer-ate.md), revisione pre-PR: allineato a `main` e corretto il rilievo I1 sulla convergenza.** Il branch `feat/opt-pac`
+- `tsc` clean; **187 files / 4157 tests** green (4155 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20 notte, fork): **Ottimizzatore dei pesi (O1-O4, doc/weight-optimizer-ate.md), revisione pre-PR: allineato a `main`, corretti i rilievi I1 (convergenza) e B1 (report del tetto di gruppo).** Il branch `feat/opt-pac`
   era partito da un punto di `main` precedente alle correzioni PAC delle PR #4/#5/#6 (`fd58a49`,
   `871a67c`, `b656b84`, `421ef46`, `bf60dc7`): mergiato `main` dentro, un solo conflitto testuale
   (due bullet aggiunti in coda alla stessa sezione di `doc/guide/accumulo.md`, tenuti entrambi),
@@ -24,13 +24,17 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   convergere e sforava il vecchio limite di 3000 a ogni esecuzione, con l'avviso `not_converged`
   mostrato di routine anche quando i pesi arrotondati a 3000 iterazioni coincidevano già con quelli
   convergenti. Alzato a 8000 (decisione del proprietario): costo trascurabile, sotto i 100 ms anche
-  al limite con 40 candidati (misurato). doc/weight-optimizer-ate.md §6.3, doc/guide/ottimizzatore.md.
-  Collaudo: `tsc` 0, ESLint 0, 187 file / 4156 test (4154 + 2 skipped, nessuna regressione dal merge
-  né dal fix), `npm run build` compila (stesso punto d'arresto atteso, `NEXT_PUBLIC_FIREBASE_*`).
-  **Resta aperto il rilievo Bloccante B1** (non corretto in questa sessione): il "raggiunto" di un
-  tetto di gruppo NON violato stampa sempre il valore del tetto stesso invece del peso reale del
-  gruppo (`achievedValue` derivato dal `gapPp` già clampato dalla cerniera anziché dal valore grezzo)
-  — va chiuso prima di aprire la PR.
+  al limite con 40 candidati (misurato). **Rilievo B1** (revisione PR, `optimizeWeights`): il
+  "raggiunto" di un tetto di gruppo NON violato stampava sempre il valore del tetto stesso invece
+  del peso reale del gruppo — `achievedValue = target + gapPp`, ma `gapPp` per una riga a cerniera
+  è già clampato a 0 quando il tetto non è superato (90,0% → 90,0% mostrato per un gruppo che in
+  realtà pesava 67%, persistito anche in `optimizerSnapshot.objectives`). Nuova `evaluateRowRaw`
+  (il valore GREZZO non clampato) usata solo per `achievedValue`; `evaluateRow`/`gapPp` restano
+  quelli clampati per la penalità (§6.1/6.3) e per «di quanto sfora» (§6.7, conflitti). Due
+  asserzioni nuove/riscritte in `weightOptimizer.test.ts` (una provata rossa contro il codice
+  pre-fix, poi verde). doc/weight-optimizer-ate.md §6.3, §6.7, doc/guide/ottimizzatore.md.
+  Collaudo: `tsc` 0, ESLint 0, 187 file / 4157 test (4155 + 2 skipped, nessuna regressione),
+  `npm run build` compila (stesso punto d'arresto atteso, `NEXT_PUBLIC_FIREBASE_*`).
 - Latest (2026-09-20 sera, fork, PR #5): **La tabella «Classi mese per mese» del passo 3
   dell'editor Accumulo segue la stessa regola assoluto-poi-delta appena stabilita per la striscia
   classi del tile.** Prima ogni cella portava solo lo scostamento in pp, e la tabella non aveva

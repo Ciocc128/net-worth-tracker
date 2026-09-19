@@ -398,7 +398,13 @@ Il rapporto (§6.7) si calcola sui pesi **arrotondati**. Un peso arrotondato pu�
 ### 6.7 Rapporto e conflitti
 
 - `objectives`: per ogni riga attiva, target, raggiunto, gap in pp sui pesi arrotondati; per la
-  geografia `coveragePct = Σ_{coperti} E_i[equity] x_i / Σ_i E_i[equity] x_i × 100`.
+  geografia `coveragePct = Σ_{coperti} E_i[equity] x_i / Σ_i E_i[equity] x_i × 100`. **Il
+  "raggiunto" di una riga a cerniera (tetto di gruppo) è il valore GREZZO non clampato** (es. il
+  vero peso attuale del gruppo), mai `target + gap`: `gap` per una cerniera è già clampato a 0
+  quando il tetto non è superato, quindi `target + gap` stampa sempre e solo il tetto stesso anche
+  quando il gruppo pesa molto meno (rilievo B1, revisione PR, corretto 2026-09-19 —
+  `evaluateRowRaw` in `weightOptimizer.ts`, distinta da `evaluateRow` che resta quella usata per
+  la penalità e per `gap`).
 - `conflicts`: per ogni obiettivo morbido con `|gap| > 0,25 pp`, risolvi di nuovo **senza** quello
   (stessi limiti, stessa regolarizzazione, senza arrotondamento) e misura quanto migliorano gli altri
   obiettivi con `|gap| > 0,25`. Tieni solo i miglioramenti ≥ 0,25 pp. Ordina per somma dei

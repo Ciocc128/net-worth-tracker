@@ -544,6 +544,33 @@ describe('optimizeWeights — group cap (hinge)', () => {
     expect(Math.abs(group!.gapPp)).toBeLessThan(0.25);
   });
 
+  it('achievedValue is the group\'s REAL weight when the cap is not binding, not the cap itself (rilievo B1)', () => {
+    // Same fixture as the test above: x1+x2 naturally settle well under the 90% cap (proven red
+    // against the pre-fix code, which read `targetValue + gapPp` — 0 for an inactive hinge — so
+    // achievedValue always printed 90.0 regardless of the group's actual weight).
+    const candidates = [
+      candidate({ key: 'x1', exposurePerEuro: { equity: 1 } }),
+      candidate({ key: 'x2', exposurePerEuro: { equity: 1 } }),
+      candidate({ key: 'y', exposurePerEuro: { equity: 1 } }),
+    ];
+    const result = optimizeWeights(
+      makeInput({
+        candidates,
+        targets,
+        settings: makeSettings({
+          classPriority: 'essential',
+          leveragePriority: 'off',
+          groupLimits: [{ id: 'g1', label: 'Rischio', assetIds: ['x1', 'x2'], maxPct: 90, priority: 'high' }],
+        }),
+      })
+    );
+    const group = result.objectives.find((o) => o.id === 'group:g1');
+    const actualGroupWeight = pctOf(result, 'x1') + pctOf(result, 'x2');
+    expect(actualGroupWeight).toBeLessThan(80); // well under the 90% cap
+    expect(group!.achievedValue).toBeCloseTo(actualGroupWeight, 1);
+    expect(group!.achievedValue).not.toBeCloseTo(90, 1);
+  });
+
   it('activates (gapPp > 0) when the class target forces the group above the cap with no alternative', () => {
     const candidates = [
       candidate({ key: 'x1', exposurePerEuro: { equity: 1 } }),
@@ -563,6 +590,10 @@ describe('optimizeWeights — group cap (hinge)', () => {
     const group = result.objectives.find((o) => o.id === 'group:g1');
     expect(group).toBeDefined();
     expect(group!.gapPp).toBeGreaterThan(0.25);
+    // When the cap IS binding, achievedValue already matched the real (over-cap) weight before
+    // the B1 fix too — pinned here for symmetry with the inactive case above.
+    const actualGroupWeight = pctOf(result, 'x1') + pctOf(result, 'x2');
+    expect(group!.achievedValue).toBeCloseTo(actualGroupWeight, 1);
   });
 });
 

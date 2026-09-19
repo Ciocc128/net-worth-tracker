@@ -605,6 +605,18 @@ function evaluateRow(row: ObjectiveRow, x: number[]): number {
   return row.hinge ? Math.max(0, raw) : raw;
 }
 
+/**
+ * The row's un-hinged value — for a group cap this is the ACTUAL current metric (e.g. the
+ * group's real weight sum minus its cap), never clamped to 0 when the cap isn't binding.
+ * `evaluateRow`'s hinge clamp is right for the penalty (§6.1/6.3) and for `gapPp` ("how much
+ * over the cap", §6.7), but using it for `achievedValue` made a group under its cap always
+ * report as sitting exactly AT the cap (fix, review rilievo B1, 2026-09-19: `targetValue +
+ * gapPp` was `targetValue + 0` whenever the group was compliant, hiding its real weight).
+ */
+function evaluateRowRaw(row: ObjectiveRow, x: number[]): number {
+  return dot(row.coeffs, x) - row.constant;
+}
+
 // ---------------------------------------------------------------------------
 // §6.2 — regularisation reference
 // ---------------------------------------------------------------------------
@@ -896,7 +908,8 @@ export function optimizeWeights(input: OptimizerInput, solverOptions?: SolverOpt
   const objectives: ObjectiveReport[] = rows.map((row) => {
     const gapPp = evaluateRow(row, xRounded);
     finalGaps.set(row.id, gapPp);
-    const achievedValue = row.unit === 'x' ? row.targetValue + gapPp / 100 : row.targetValue + gapPp;
+    const rawValue = evaluateRowRaw(row, xRounded);
+    const achievedValue = row.unit === 'x' ? row.targetValue + rawValue / 100 : row.targetValue + rawValue;
     return {
       id: row.id,
       kind: row.kind,
