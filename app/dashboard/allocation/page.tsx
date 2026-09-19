@@ -53,7 +53,7 @@ import {
 } from '@/lib/services/assetAllocationService';
 import { getGoalData, deriveTargetAllocationFromGoals } from '@/lib/services/goalService';
 import type { LeveragePlanInputs } from '@/lib/utils/leverageAwareAllocationUtils';
-import type { Asset, AllocationResult, AssetAllocationTarget } from '@/types/assets';
+import type { Asset, AllocationResult, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import {
   applyRebalanceBand,
   summarizeBalance,
@@ -151,6 +151,9 @@ export default function AllocationPage() {
   const [band, setBand] = useState<RebalanceBand>(DEFAULT_REBALANCE_BAND);
   const [planMode, setPlanMode] = useState<PlanMode>('rebalance');
   const [amountInput, setAmountInput] = useState(DEFAULT_PLAN_AMOUNT_INPUT);
+  // The owner's "Allocazione ideale" objectives (Impostazioni → Allocazione) — the PAC editor's
+  // Ottimizzato view reads it; `null` before the first load, same as `targets`.
+  const [idealAllocation, setIdealAllocation] = useState<IdealAllocationSettings | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user || !ownerId) return;
@@ -188,6 +191,7 @@ export default function AllocationPage() {
 
       setTargets(effectiveTargets);
       setUsingGoalTargets(fromGoals);
+      setIdealAllocation(settings?.idealAllocation ?? null);
       setAllocation(compareAllocations(inAllocation, effectiveTargets));
       setHoldings(buildHoldings(inAllocation, calculateAssetValue));
       setTradableAssets(tradable);
@@ -477,6 +481,8 @@ export default function AllocationPage() {
               allAssets={allAssets}
               targets={targets}
               band={band}
+              targetLeverageRatio={targetLeverageRatio}
+              idealAllocation={idealAllocation}
               onAssetsChanged={() => void loadData()}
             />
           </div>

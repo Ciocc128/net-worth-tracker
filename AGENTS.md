@@ -400,6 +400,7 @@ file used to carry.
 ### Allocazione — Accumulo (PAC) → `doc/guide/accumulo.md`
 - A standalone tile (`AccumuloTile.tsx`), never inside `PlanMode`/`buildPlanView`/the page's verdict — its own `accumulationPlans` document, at most one `draft`/`active` per account.
 - The pure engine (`accumulationPlanUtils.ts`) and the matching engine (`accumulationPlanMatching.ts`) inject every live dependency (`PlanDeps`, `AllocationCompare`) — never import `@/lib/services/*`/`@/lib/firebase/*`. The band and the targets are the PAGE's own state/effective targets, never a second copy.
+- **Step 2's Ottimizzato view** (`OptimizerPanel.tsx`, `doc/weight-optimizer-ate.md` §9) proposes weights from Impostazioni → Allocazione's `idealAllocation` objectives — it only ever touches `targetPercentage`, never a position's structure; `optimizerSnapshot` on the plan documents where a weight started, kept even after a hand edit. Weight optimizer internals → `doc/guide/ottimizzatore.md`.
 - Il resto — the 12 decisions, the ledger-matching states and their tile actions, the Firestore rule's manual deploy — in `doc/guide/accumulo.md`.
 
 ### Previdenza · Fondo Pensione → `doc/guide/previdenza.md`

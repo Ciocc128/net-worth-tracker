@@ -10,9 +10,9 @@
  * constraints — the budget (Σw = 1) and each candidate's `[lowerPct, upperPct]` box — apply only
  * inside the projection, never as a penalty term.
  *
- * `ObjectiveReport.label` is produced by a small local helper for now (`labelForRow` below) —
- * O4 (`doc/weight-optimizer-ate.md` §9.3) moves/extends this into `weightOptimizerNarrative.ts`;
- * kept here only so this module compiles and reports on its own before that module exists.
+ * `ObjectiveReport.label` is built by `describeObjectiveLabel` (`weightOptimizerNarrative.ts`,
+ * O4 §9.3) — the one place that turns a row's (kind, class, sub-category, area, group) into the
+ * Italian text the panel and the report both read.
  */
 import type {
   Asset,
@@ -22,10 +22,11 @@ import type {
   ObjectivePriority,
 } from '@/types/assets';
 import type { InstrumentProfile } from '@/types/exposure';
-import { GEO_AREAS, GEO_AREA_LABELS, countryToArea, type GeoArea } from '@/lib/constants/geoAreas';
-import { ASSET_CLASS_LABELS, NO_SUBCATEGORY_LABEL } from './allocationUtils';
+import { GEO_AREAS, countryToArea, type GeoArea } from '@/lib/constants/geoAreas';
+import { NO_SUBCATEGORY_LABEL } from './allocationUtils';
 import { exposurePerEuro } from './accumulationPlanUtils';
 import { dot, projectOntoBudgetBox } from './boxProjection';
+import { describeObjectiveLabel } from './weightOptimizerNarrative';
 
 // ---------------------------------------------------------------------------
 // §5.1 — input types
@@ -421,21 +422,6 @@ function classLeverageOf(candidate: OptimizerCandidate): number {
   return Object.values(candidate.exposurePerEuro).reduce((sum: number, v) => sum + (v ?? 0), 0);
 }
 
-function labelForRow(kind: ObjectiveRow['kind'], assetClass?: AssetClass, sub?: string, area?: GeoArea, groupLabel?: string): string {
-  switch (kind) {
-    case 'class':
-      return `Classe ${ASSET_CLASS_LABELS[assetClass as string] ?? assetClass}`;
-    case 'leverage':
-      return 'Leva';
-    case 'factor':
-      return `${sub} (${ASSET_CLASS_LABELS[assetClass as string] ?? assetClass})`;
-    case 'geo':
-      return `${GEO_AREA_LABELS[area as GeoArea]} nell'azionario`;
-    case 'group':
-      return `Gruppo ${groupLabel}`;
-  }
-}
-
 function buildClassRows(candidates: OptimizerCandidate[], targets: AssetAllocationTarget, priority: ObjectivePriority, baseEur: number): ObjectiveRow[] {
   const rows: ObjectiveRow[] = [];
   for (const [assetClassKey, targetData] of Object.entries(targets)) {
@@ -447,7 +433,7 @@ function buildClassRows(candidates: OptimizerCandidate[], targets: AssetAllocati
     rows.push({
       id: `class:${assetClass}`,
       kind: 'class',
-      label: labelForRow('class', assetClass),
+      label: describeObjectiveLabel('class', assetClass),
       priority,
       coeffs: candidates.map((c) => 100 * (c.exposurePerEuro[assetClass] ?? 0)),
       constant: 100 * tc,
@@ -464,7 +450,7 @@ function buildLeverageRow(candidates: OptimizerCandidate[], priority: ObjectiveP
   return {
     id: 'leverage',
     kind: 'leverage',
-    label: labelForRow('leverage'),
+    label: describeObjectiveLabel('leverage'),
     priority,
     coeffs: candidates.map((c) => 100 * classLeverageOf(c)),
     constant: 100 * targetLeverageRatio,
@@ -518,7 +504,7 @@ function buildFactorRows(
       rows.push({
         id: `factor:${assetClass}:${sub}`,
         kind: 'factor',
-        label: labelForRow('factor', assetClass, sub),
+        label: describeObjectiveLabel('factor', assetClass, sub),
         priority,
         coeffs: candidates.map((c) => {
           const f = c.factorPerEuro[assetClass]?.[sub] ?? 0;
@@ -555,7 +541,7 @@ function buildGeoRows(
     return {
       id: `geo:${area}`,
       kind: 'geo' as const,
-      label: labelForRow('geo', undefined, undefined, area),
+      label: describeObjectiveLabel('geo', undefined, undefined, area),
       priority,
       coeffs: candidates.map((c) => {
         if (!c.areaPerEuro) return 0;
@@ -577,7 +563,7 @@ function buildGroupRows(candidates: OptimizerCandidate[], groupLimits: IdealAllo
     return {
       id: `group:${group.id}`,
       kind: 'group',
-      label: labelForRow('group', undefined, undefined, undefined, group.label),
+      label: describeObjectiveLabel('group', undefined, undefined, undefined, group.label),
       priority: group.priority,
       coeffs: candidates.map((c) => (memberSet.has(c.buyAssetId) ? 100 : 0)),
       constant: group.maxPct,
