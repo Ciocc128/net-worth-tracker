@@ -345,6 +345,16 @@ export function AccumulationPlanDialog({
     () => (step === 3 ? buildDraftPreview({ draft, allAssets, targets, band, compare: compareAllocations, deps: DEPS }) : null),
     [step, draft, allAssets, targets, band],
   );
+  // The trajectory's own class set (stable across points — all come from the same `targets`),
+  // read once for the "Classi mese per mese" table's header and column order below.
+  const classKeys = useMemo(() => Object.keys(preview?.trajectory[0]?.byClass ?? {}), [preview]);
+  // Same class → color mapping as the exposure bar above and `ClassDriftChart`'s own line/label
+  // colors — the table's header leans on it instead of (or as well as) the text label, so a
+  // column reads at a glance against the chart right above it.
+  const classColor = (assetClass: string) => {
+    const idx = ASSET_CLASS_CHART_INDEX[assetClass] ?? 0;
+    return chartColors[idx] ?? CHART_COLORS[idx] ?? CHART_COLORS[0];
+  };
 
   return (
     <>
@@ -775,24 +785,52 @@ export function AccumulationPlanDialog({
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_SECTION_CLASSES}</p>
               <ClassDriftChart points={preview.trajectory} band={band} height={160} />
-              <table className="mt-2 w-full text-[11px]">
-                <tbody>
-                  {TRAJECTORY_SAMPLE_INDICES.concat(draft.months).filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx).map((index) => {
-                    const point = preview.trajectory.find((p) => p.index === index);
-                    if (!point) return null;
-                    return (
-                      <tr key={index} className="border-b border-border last:border-0">
-                        <th scope="row" className="py-1 pr-2 text-left font-normal text-muted-foreground">{trajectoryPointLabel(point.month)}</th>
-                        {Object.entries(point.byClass).map(([assetClass, data]) => (
-                          <td key={assetClass} className={`py-1 pr-2 text-right font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
-                            {formatSignedPp(data.driftPp)}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {/* Peso assoluto per classe (primario) sopra lo scostamento in pp (secondario, muted) —
+                  stesso ordine dell'assoluto-poi-delta della striscia classi del tile attivo
+                  (decisione del proprietario, 2026-09-20). Intestazioni come la tabella Calendario
+                  sopra: prima non c'era modo di sapere quale colonna fosse quale classe. */}
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th scope="col" className="py-1.5 pr-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{ACCUMULO_STEP3_COL_MONTH}</th>
+                      {classKeys.map((assetClass) => (
+                        <th
+                          key={assetClass}
+                          scope="col"
+                          className="py-1.5 pl-2 text-right text-[9px] font-semibold uppercase tracking-[0.08em]"
+                          style={{ color: classColor(assetClass) }}
+                        >
+                          {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {TRAJECTORY_SAMPLE_INDICES.concat(draft.months).filter((i, idx, arr) => i <= draft.months && arr.indexOf(i) === idx).map((index) => {
+                      const point = preview.trajectory.find((p) => p.index === index);
+                      if (!point) return null;
+                      return (
+                        <tr key={index} className="border-b border-border last:border-0">
+                          <th scope="row" className="py-1 pr-2 text-left font-normal text-muted-foreground">{trajectoryPointLabel(point.month)}</th>
+                          {classKeys.map((assetClass) => {
+                            const data = point.byClass[assetClass as keyof typeof point.byClass];
+                            if (!data) return <td key={assetClass} className="py-1 pl-2 text-right text-muted-foreground">—</td>;
+                            return (
+                              <td key={assetClass} className="py-1 pl-2 text-right">
+                                <div className={`font-mono tabular-nums ${data.outOfBand ? 'text-warning-foreground' : 'text-foreground'}`}>
+                                  {formatPercentageIt(data.currentPct, 1)}
+                                </div>
+                                <div className="font-mono text-[10px] tabular-nums text-muted-foreground">{formatSignedPp(data.driftPp)}</div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

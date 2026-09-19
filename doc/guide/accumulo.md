@@ -100,6 +100,20 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece del vecchio `{ text, note?,
   outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per il calcolo di `furthestDrift` (prima
   lo estraeva spezzando la stringa `text` — fragile). doc/pac-ate.md §10.2 punto 5.
+- **La tabella «Classi mese per mese» del passo 3 (anteprima) segue la stessa regola** (decisione
+  del proprietario, 2026-09-20): prima ogni cella portava solo lo scostamento in pp, senza
+  nemmeno un'intestazione che dicesse quale colonna fosse quale classe. Ora ogni cella ha due
+  righe — il peso assoluto (`currentPct`, primario, warning se fuori banda) sopra la pp
+  (`driftPp`, secondario, muted) — e la tabella ha un'intestazione per classe
+  (`ASSET_CLASS_LABELS`), nello stesso stile della tabella Calendario appena sopra
+  (`text-[9px] uppercase`, scroll orizzontale nel proprio contenitore). `classKeys` (i nomi delle
+  classi, stabili lungo tutta la traiettoria perché derivano tutti dagli stessi `targets`) si
+  legge UNA volta da `preview.trajectory[0]?.byClass` e guida sia l'intestazione sia l'ordine
+  delle colonne di ogni riga. **L'intestazione è colorata col colore della classe** (richiesto dal
+  proprietario subito dopo): `classColor(assetClass)` legge lo stesso `ASSET_CLASS_CHART_INDEX` →
+  `useChartColors()`/`CHART_COLORS` già usato dalla barra di esposizione appena sopra e da
+  `ClassDriftChart`, così una colonna si riconosce per colore contro il grafico, non solo per
+  posizione. doc/pac-ate.md §10.3.
 
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 

@@ -824,8 +824,15 @@ per passo, footer con Indietro/Avanti/Salva bozza/Attiva. Ogni "Avanti" salva la
   colonna Totale €. Mesi intermedi comprimibili se N > 8 (mostra i primi 5, "…", l'ultimo).
 - Pesi a fine piano: barra 3px per posizione con marcatore del target, finale %, target %, scarto pp.
 - Esposizione implicita per classe (barra segmentata con colori `ASSET_CLASS_CHART_INDEX`) e leva.
-- Classi mese per mese: `ClassDriftChart` + tabella ai mesi 0, 1, 3, 6, 9, N (pp colorati warning se
-  fuori banda).
+- Classi mese per mese: `ClassDriftChart` + tabella ai mesi 0, 1, 3, 6, 9, N, intestazioni per
+  classe (`ASSET_CLASS_LABELS`, colorate col colore di classe di `ASSET_CLASS_CHART_INDEX` —
+  stesso `useChartColors()`/`CHART_COLORS` della barra di esposizione appena sopra e delle
+  etichette di `ClassDriftChart`, così una colonna si legge a colpo d'occhio contro il grafico;
+  scroll orizzontale nel proprio contenitore come la tabella Calendario sopra). Ogni cella porta
+  due righe (decisione del proprietario, 2026-09-20 — prima solo la pp, mai il peso vero, e
+  nessuna intestazione): il peso assoluto della classe in quel punto (`currentPct`, primario, in
+  colore warning se fuori banda) sopra lo scostamento in pp (`driftPp`, secondario, sempre muted)
+  — lo stesso ordine assoluto-poi-delta della striscia classi del tile attivo (§10.2 punto 5).
 - Avviso se L < Σ deficit, se ci sono posizioni `unpriced`, o se una posizione è sopra target.
 - Primari: Salva bozza · Attiva piano. "Attiva" chiama `activatePlan` e chiude.
 
