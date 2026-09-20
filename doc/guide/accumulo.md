@@ -199,6 +199,13 @@ l'utente poi ritocca un peso a mano: documenta da dove si è partiti, non lo sta
 snapshot con `draft.positions` corrente e aggiunge «, poi modificati a mano» solo se differiscono
 di oltre 0,01 punti).
 
+**Una bozza può nascere già seminata dallo strumento a sé di Allocazione** (§4,
+doc/guide/ottimizzatore.md, `ComposizioneIdealeTile` → `IdealCompositionDialog`, "Crea un PAC con
+questi pesi"): `AccumulationPlanDialog` accetta una prop opzionale `seedDraft` (`{ positions,
+optimizerSnapshot }`), usata SOLO quando si apre su una bozza NUOVA (`plan === null`) — al posto di
+`seedPositionsFromAssets(allAssets)` — e mai quando si modifica un piano esistente. Senza la prop il
+comportamento è identico a prima: nessun chiamante diverso da `ComposizioneIdealeTile` la passa.
+
 ## Deploy della regola Firestore
 
 `firestore.rules` porta il blocco `accumulationPlans` da S2 (`match /accumulationPlans/{planId}`,

@@ -15,6 +15,7 @@ import {
   toMonthKey,
   addMonths,
   monthIndexOf,
+  weightsToSeedPositions,
   type PlanDeps,
 } from '@/lib/utils/accumulationPlanUtils';
 import type { AccumulationPlan, PlanPosition, PlanLiquidity, PlanDisposal } from '@/types/accumulationPlan';
@@ -354,5 +355,29 @@ describe('projectPlanOutcome', () => {
     expect(outcome.maxDriftPositionId).not.toBeNull();
     // NTSG (leverage 1.5) and CL2 (leverage 2) both expose more notional than market → leverage > 1.
     expect(outcome.leverageRatio).toBeGreaterThan(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §4.4 — weightsToSeedPositions (the optimizer's proposed weights → a fresh PAC draft's positions)
+// ---------------------------------------------------------------------------
+
+describe('weightsToSeedPositions', () => {
+  it('converts each proposed weight into a single-instrument position with an injected id', () => {
+    let n = 0;
+    const generateId = () => `id-${++n}`;
+    const weights = [
+      { key: 'a1', label: 'VWCE', proposedPct: 60 },
+      { key: 'a2', label: 'AGGH', proposedPct: 40 },
+    ];
+    expect(weightsToSeedPositions(weights, generateId)).toEqual([
+      { id: 'id-1', label: 'VWCE', targetPercentage: 60, memberAssetIds: ['a1'], buyAssetId: 'a1' },
+      { id: 'id-2', label: 'AGGH', targetPercentage: 40, memberAssetIds: ['a2'], buyAssetId: 'a2' },
+    ]);
+  });
+
+  it('defaults to crypto.randomUUID when no generator is injected', () => {
+    const positions = weightsToSeedPositions([{ key: 'a1', label: 'VWCE', proposedPct: 100 }]);
+    expect(positions[0].id).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

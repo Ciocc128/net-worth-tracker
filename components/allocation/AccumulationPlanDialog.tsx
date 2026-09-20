@@ -16,7 +16,13 @@
  */
 import { useMemo, useState } from 'react';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
-import type { AccumulationPlan, AccumulationPlanDraft, PlanDisposal, PlanPosition } from '@/types/accumulationPlan';
+import type {
+  AccumulationPlan,
+  AccumulationPlanDraft,
+  OptimizerSnapshot,
+  PlanDisposal,
+  PlanPosition,
+} from '@/types/accumulationPlan';
 import { ASSET_CLASS_CHART_INDEX, ASSET_CLASS_LABELS, resolveAllocationRole, type RebalanceBand } from '@/lib/utils/allocationUtils';
 import {
   addMonths,
@@ -117,13 +123,22 @@ interface AccumulationPlanDialogProps {
   /** A «+ Nuovo asset» create landed: the page must reload `allAssets`. */
   onAssetsChanged: () => void;
   onSaved: (planId: string) => void;
+  /** §4.2 — seeds a BRAND-NEW draft (`plan === null`) from `IdealCompositionDialog`'s proposed
+   *  weights, in place of `seedPositionsFromAssets`. Ignored whenever `plan` is set (editing an
+   *  existing draft/active plan never re-seeds it) — without this prop the dialog behaves exactly
+   *  as before. */
+  seedDraft?: { positions: PlanPosition[]; optimizerSnapshot?: OptimizerSnapshot };
 }
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
 const MAX_CALENDAR_ROWS = 8;
 const TRAJECTORY_SAMPLE_INDICES = [0, 1, 3, 6, 9];
 
-function emptyDraft(startMonth: string, positions: PlanPosition[] = []): AccumulationPlanDraft {
+function emptyDraft(
+  startMonth: string,
+  positions: PlanPosition[] = [],
+  optimizerSnapshot?: OptimizerSnapshot
+): AccumulationPlanDraft {
   return {
     name: 'Piano di accumulo',
     startMonth,
@@ -131,6 +146,7 @@ function emptyDraft(startMonth: string, positions: PlanPosition[] = []): Accumul
     liquidity: { sourceCashAssetIds: [], reserveEur: 0, monthlyInflowEur: 0 },
     positions,
     disposals: [],
+    optimizerSnapshot,
   };
 }
 
@@ -182,6 +198,7 @@ export function AccumulationPlanDialog({
   idealAllocation,
   onAssetsChanged,
   onSaved,
+  seedDraft,
 }: AccumulationPlanDialogProps) {
   const isDemo = useDemoMode();
   const chartColors = useChartColors();
@@ -198,7 +215,15 @@ export function AccumulationPlanDialog({
   if (!openSubject || openSubject.open !== open || openSubject.plan !== plan) {
     setOpenSubject({ open, plan });
     if (open) {
-      setDraft(plan ? draftFromPlan(plan) : emptyDraft(addMonths(toMonthKey(new Date()), 1), seedPositionsFromAssets(allAssets)));
+      setDraft(
+        plan
+          ? draftFromPlan(plan)
+          : emptyDraft(
+              addMonths(toMonthKey(new Date()), 1),
+              seedDraft?.positions ?? seedPositionsFromAssets(allAssets),
+              seedDraft?.optimizerSnapshot
+            )
+      );
       setStep(plan ? 2 : 1);
       setStatus({ phase: 'idle' });
       setSelectedForGroup(new Set());

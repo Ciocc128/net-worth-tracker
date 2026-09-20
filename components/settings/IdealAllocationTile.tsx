@@ -19,8 +19,9 @@ import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-selec
 import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
-import { describeIdealAllocation } from '@/lib/utils/settingsNarrative';
-import { areasFromCountries } from '@/lib/utils/weightOptimizer';
+import { describeIdealAllocation, describeSecondLevelSetupHint } from '@/lib/utils/settingsNarrative';
+import { areasFromCountries, type SecondLevelGap } from '@/lib/utils/weightOptimizer';
+import { describeSecondLevelGaps } from '@/lib/utils/weightOptimizerNarrative';
 import { GEO_AREAS, GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/types/assets';
@@ -61,8 +62,12 @@ interface IdealAllocationTileProps {
   onChange: (next: IdealAllocationSettings) => void;
   /** deriveTargetLeverageRatio(targets) — read-only, shown next to the Leva priority select. */
   targetLeverageRatio: number;
-  /** Classes with sub-category targets enabled — the only ones a factor objective can target. */
+  /** Classes with sub-category targets enabled — the only ones a second-level objective can target. */
   factorClassOptions: FactorClassOption[];
+  /** Classes with target > 0 but sub-categories still OFF (§3.2's guided hint). */
+  secondLevelReadyClasses: FactorClassOption[];
+  /** §3.3/G5 — instruments a second-level objective cannot place today (preventive, never blocks Salva). */
+  secondLevelGaps: SecondLevelGap[];
   tradableAssets: TradableAssetOption[];
   disabled?: boolean;
 }
@@ -75,6 +80,8 @@ export function IdealAllocationTile({
   onChange,
   targetLeverageRatio,
   factorClassOptions,
+  secondLevelReadyClasses,
+  secondLevelGaps,
   tradableAssets,
   disabled = false,
 }: IdealAllocationTileProps) {
@@ -247,9 +254,13 @@ export function IdealAllocationTile({
             </Select>
           </div>
 
-          {/* Fattori */}
+          {/* Secondo livello (sottocategorie) */}
           <div className="py-3">
-            <p className={rowLabelClass}>Fattori</p>
+            <p className={rowLabelClass}>Secondo livello (sottocategorie)</p>
+            <p className={rowHintClass}>
+              Il significato lo scegli tu per ogni classe: per l&apos;azionario, per esempio, i fattori (mercato,
+              momentum, small cap value).
+            </p>
             {factorClassOptions.length === 0 ? (
               <p className={rowHintClass}>Nessuna classe con sotto-categorie abilitate qui sopra.</p>
             ) : (
@@ -263,7 +274,7 @@ export function IdealAllocationTile({
                           checked={priority !== undefined}
                           onCheckedChange={(state) => toggleFactorObjective(opt.assetClass, state === true)}
                           disabled={disabled}
-                          aria-label={`Fattori — ${opt.label}`}
+                          aria-label={`Secondo livello — ${opt.label}`}
                         />
                         {opt.label}
                       </label>
@@ -273,7 +284,7 @@ export function IdealAllocationTile({
                           onValueChange={(p: ObjectivePriority) => setFactorObjectivePriority(opt.assetClass, p)}
                           disabled={disabled}
                         >
-                          <SelectTrigger className="w-40" aria-label={`Priorità fattori — ${opt.label}`}>
+                          <SelectTrigger className="w-40" aria-label={`Priorità secondo livello — ${opt.label}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -288,6 +299,20 @@ export function IdealAllocationTile({
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {secondLevelReadyClasses.length > 0 && (
+              <p className={cn(rowHintClass, 'mt-2')}>
+                {describeSecondLevelSetupHint(secondLevelReadyClasses.map((c) => c.label))}
+              </p>
+            )}
+            {secondLevelGaps.length > 0 && (
+              <div className="mt-2 flex flex-col gap-1">
+                {describeSecondLevelGaps(secondLevelGaps).map((line) => (
+                  <p key={line} className={cn(rowHintClass, 'text-warning-foreground')}>
+                    {line}
+                  </p>
+                ))}
               </div>
             )}
           </div>

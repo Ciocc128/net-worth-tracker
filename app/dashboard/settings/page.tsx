@@ -54,7 +54,7 @@ import {
   FamilyMember,
   IdealAllocationSettings,
 } from '@/types/assets';
-import { DEFAULT_IDEAL_ALLOCATION } from '@/lib/utils/weightOptimizer';
+import { DEFAULT_IDEAL_ALLOCATION, findSecondLevelGaps } from '@/lib/utils/weightOptimizer';
 import { resolveAllocationRole, ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { IdealAllocationTile } from '@/components/settings/IdealAllocationTile';
 import { useQueryClient } from '@tanstack/react-query';
@@ -82,7 +82,7 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { Asset } from '@/types/assets';
-import { getAllAssets } from '@/lib/services/assetService';
+import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
 import { getAllCategories, deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
 import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory, TransferBoundaryError } from '@/lib/services/expenseService';
 import { CategoryManagementDialog } from '@/components/expenses/CategoryManagementDialog';
@@ -499,6 +499,10 @@ export default function SettingsPage() {
   // optimizerTradableAssets feeds the tile's instrument/group limit pickers.
   const [idealAllocation, setIdealAllocation] = useState<IdealAllocationSettings>(DEFAULT_IDEAL_ALLOCATION);
   const [optimizerTradableAssets, setOptimizerTradableAssets] = useState<Asset[]>([]);
+  // Tradable + frozen, the same scope findSecondLevelGaps (§3.3) checks — frozen wealth is genuinely
+  // invested so it belongs in the "missing sub-category" warning too, unlike the instrument/group
+  // limit pickers above (which only make sense on something the plan can actually buy).
+  const [optimizerScopedAssets, setOptimizerScopedAssets] = useState<Asset[]>([]);
 
   // Dividend settings state
   const [dividendIncomeCategoryId, setDividendIncomeCategoryId] = useState<string>('');
@@ -839,6 +843,9 @@ export default function SettingsPage() {
       // Allocazione ideale's instrument/group limits: only tradable assets can carry a weight
       // (doc/weight-optimizer-ate.md §7.3).
       setOptimizerTradableAssets(assets.filter((a) => resolveAllocationRole(a) === 'tradable'));
+      setOptimizerScopedAssets(
+        assets.filter((a) => resolveAllocationRole(a) === 'tradable' || resolveAllocationRole(a) === 'frozen')
+      );
     });
     return () => clearTimeout(timer);
   }, [user, ownerId, loadTargets, loadExpenseCategories]);
@@ -1784,7 +1791,7 @@ export default function SettingsPage() {
   const derivedTargetLeverage = total > 0 ? total / 100 : 1;
   const hasTargetLeverage = derivedTargetLeverage > 1.005;
 
-  // Allocazione ideale (doc/weight-optimizer-ate.md §7.3): classes eligible for a factor
+  // Allocazione ideale (doc/weight-optimizer-ate.md §7.3): classes eligible for a second-level
   // objective are the ones with sub-category targets actually configured, and the tradable-asset
   // picker feeds both the instrument and the group limits.
   const idealAllocationFactorClasses = assetClasses
@@ -1794,6 +1801,34 @@ export default function SettingsPage() {
         (assetClassStates[assetClass]?.subTargets.length ?? 0) > 0
     )
     .map((assetClass) => ({ assetClass, label: ASSET_CLASS_LABELS[assetClass] ?? assetClass }));
+  // §3.2 — classes with a target > 0 whose sub-categories are still off: the guided hint under
+  // the "Secondo livello" row (a second-level objective cannot exist there yet).
+  const secondLevelReadyClasses = assetClasses
+    .filter(
+      (assetClass) =>
+        (assetClassStates[assetClass]?.targetPercentage ?? 0) > 0 && !assetClassStates[assetClass]?.subCategoryEnabled
+    )
+    .map((assetClass) => ({ assetClass, label: ASSET_CLASS_LABELS[assetClass] ?? assetClass }));
+  // §3.3/G5 — instruments (tradable/frozen, value > 0) the second-level objective cannot place
+  // today, scoped to the classes that already have sub-categories enabled.
+  const idealAllocationTargetsForGaps: AssetAllocationTarget = Object.fromEntries(
+    idealAllocationFactorClasses.map(({ assetClass }) => [
+      assetClass,
+      {
+        targetPercentage: assetClassStates[assetClass]?.targetPercentage ?? 0,
+        subCategoryConfig: {
+          enabled: assetClassStates[assetClass]?.subCategoryEnabled ?? false,
+          categories: assetClassStates[assetClass]?.categories ?? [],
+        },
+      },
+    ])
+  );
+  const secondLevelGaps = findSecondLevelGaps(
+    optimizerScopedAssets,
+    idealAllocationTargetsForGaps,
+    idealAllocationFactorClasses.map((c) => c.assetClass),
+    calculateAssetValue
+  );
   const idealAllocationTradableAssets = optimizerTradableAssets.map((asset) => ({
     id: asset.id,
     label: asset.name,
@@ -3208,6 +3243,8 @@ export default function SettingsPage() {
                 onChange={setIdealAllocation}
                 targetLeverageRatio={derivedTargetLeverage}
                 factorClassOptions={idealAllocationFactorClasses}
+                secondLevelReadyClasses={secondLevelReadyClasses}
+                secondLevelGaps={secondLevelGaps}
                 tradableAssets={idealAllocationTradableAssets}
                 disabled={isDemo}
               />

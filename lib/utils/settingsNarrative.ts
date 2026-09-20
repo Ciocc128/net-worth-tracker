@@ -583,7 +583,7 @@ export function describeIdealAllocation({
     const factorText = factorObjectives
       .map((f) => `${f.classLabel} (${OBJECTIVE_PRIORITY_LABELS[f.priority]})`)
       .join(', ');
-    objectiveTexts.push(`fattori di ${factorText}`);
+    objectiveTexts.push(`secondo livello di ${factorText}`);
   }
 
   if (geography) {
@@ -598,6 +598,20 @@ export function describeIdealAllocation({
       `Il PAC può proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
     ),
   ];
+}
+
+/**
+ * §3.2 — a class with a target > 0 but sub-categories still OFF cannot carry a second-level
+ * objective yet; this guided hint (under the tile's "Secondo livello" row) says what to turn on,
+ * one sentence per class, so the reader is not left guessing why the checkbox never appears.
+ */
+export function describeSecondLevelSetupHint(classLabels: string[]): string | null {
+  if (classLabels.length === 0) return null;
+  return (
+    `Per usare un secondo livello su ${classLabels.join(', ')}, attiva le sue sottocategorie nei ` +
+    `target qui sopra e assegna a ogni strumento la sua (Patrimonio → Modifica; nei compositi, ogni ` +
+    `componente ha la sua).`
+  );
 }
 
 // ─── Spese ────────────────────────────────────────────────────────────────────

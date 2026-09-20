@@ -10,6 +10,9 @@ import type { GeoArea } from '@/lib/constants/geoAreas';
 import {
   areasFromCountries,
   buildOptimizerCandidates,
+  buildStandaloneCandidates,
+  findSecondLevelGaps,
+  hasSpecificAssetTargets,
   optimizeWeights,
   DEFAULT_IDEAL_ALLOCATION,
   type OptimizerCandidate,
@@ -678,5 +681,146 @@ describe('optimizeWeights — not_converged', () => {
     );
     expect(result.converged).toBe(false);
     expect(result.warnings).toContainEqual({ code: 'not_converged' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §3.3/G5 — findSecondLevelGaps
+// ---------------------------------------------------------------------------
+
+const valueOf = (a: Asset): number => a.quantity * a.currentPrice;
+
+const EQUITY_TARGETS: AssetAllocationTarget = {
+  equity: {
+    targetPercentage: 100,
+    subCategoryConfig: { enabled: true, categories: ['Momentum'] },
+  },
+};
+
+describe('findSecondLevelGaps', () => {
+  it('flags an asset with no sub-category as missing', () => {
+    const asset = makeAsset({ assetClass: 'equity', subCategory: undefined });
+    const gaps = findSecondLevelGaps([asset], EQUITY_TARGETS, ['equity'], valueOf);
+    expect(gaps).toEqual([{ assetId: asset.id, assetName: asset.name, assetClass: 'equity', reason: 'missing' }]);
+  });
+
+  it('flags a sub-category absent from the class categories as unknown', () => {
+    const asset = makeAsset({ assetClass: 'equity', subCategory: 'Value' });
+    const gaps = findSecondLevelGaps([asset], EQUITY_TARGETS, ['equity'], valueOf);
+    expect(gaps).toEqual([{ assetId: asset.id, assetName: asset.name, assetClass: 'equity', reason: 'unknown' }]);
+  });
+
+  it('evaluates every component of a composite asset', () => {
+    const asset = makeAsset({
+      assetClass: 'equity',
+      composition: [
+        { assetClass: 'equity', percentage: 50 },
+        { assetClass: 'equity', subCategory: 'Momentum', percentage: 50 },
+      ],
+    });
+    const gaps = findSecondLevelGaps([asset], EQUITY_TARGETS, ['equity'], valueOf);
+    expect(gaps).toEqual([
+      { assetId: asset.id, assetName: asset.name, assetClass: 'equity', componentIndex: 0, reason: 'missing' },
+    ]);
+  });
+
+  it('ignores an excluded asset', () => {
+    const asset = makeAsset({ assetClass: 'equity', subCategory: undefined, allocationRole: 'excluded' });
+    expect(findSecondLevelGaps([asset], EQUITY_TARGETS, ['equity'], valueOf)).toEqual([]);
+  });
+
+  it('ignores an asset with value 0', () => {
+    const asset = makeAsset({ assetClass: 'equity', subCategory: undefined, quantity: 0 });
+    expect(findSecondLevelGaps([asset], EQUITY_TARGETS, ['equity'], valueOf)).toEqual([]);
+  });
+
+  it('ignores a class not passed in scope', () => {
+    const asset = makeAsset({ assetClass: 'bonds', subCategory: undefined });
+    expect(findSecondLevelGaps([asset], EQUITY_TARGETS, ['equity'], valueOf)).toEqual([]);
+  });
+
+  it('normalizes a padded sub-category before matching and before falling back to missing', () => {
+    const matched = makeAsset({ assetClass: 'equity', subCategory: '  Momentum  ' });
+    expect(findSecondLevelGaps([matched], EQUITY_TARGETS, ['equity'], valueOf)).toEqual([]);
+
+    const blank = makeAsset({ assetClass: 'equity', subCategory: '   ' });
+    expect(findSecondLevelGaps([blank], EQUITY_TARGETS, ['equity'], valueOf)).toEqual([
+      { assetId: blank.id, assetName: blank.name, assetClass: 'equity', reason: 'missing' },
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §3.5/G2 — hasSpecificAssetTargets
+// ---------------------------------------------------------------------------
+
+describe('hasSpecificAssetTargets', () => {
+  it('is false when no sub-target carries specificAssets', () => {
+    const targets: AssetAllocationTarget = {
+      equity: { targetPercentage: 100, subTargets: { Momentum: 100 } },
+    };
+    expect(hasSpecificAssetTargets(targets, ['equity'])).toBe(false);
+  });
+
+  it('is true when a sub-target has specificAssetsEnabled', () => {
+    const targets: AssetAllocationTarget = {
+      equity: {
+        targetPercentage: 100,
+        subTargets: { Momentum: { targetPercentage: 100, specificAssetsEnabled: true, specificAssets: [] } },
+      },
+    };
+    expect(hasSpecificAssetTargets(targets, ['equity'])).toBe(true);
+  });
+
+  it('ignores a class outside the scope', () => {
+    const targets: AssetAllocationTarget = {
+      equity: {
+        targetPercentage: 100,
+        subTargets: { Momentum: { targetPercentage: 100, specificAssetsEnabled: true, specificAssets: [] } },
+      },
+    };
+    expect(hasSpecificAssetTargets(targets, ['bonds'])).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §4.2/§4.4 — buildStandaloneCandidates (IdealCompositionDialog's own candidate prep)
+// ---------------------------------------------------------------------------
+
+describe('buildStandaloneCandidates', () => {
+  it('one position per tradable asset, no bounds override', () => {
+    const a1 = makeAsset({ quantity: 10, currentPrice: 100 });
+    const a2 = makeAsset({ quantity: 5, currentPrice: 100 });
+    const { positions, fixBounds } = buildStandaloneCandidates([a1, a2], 1500, valueOf);
+    expect(positions).toEqual([
+      { key: a1.id, label: a1.name, memberAssetIds: [a1.id], buyAssetId: a1.id },
+      { key: a2.id, label: a2.name, memberAssetIds: [a2.id], buyAssetId: a2.id },
+    ]);
+    expect(fixBounds(candidate({ key: a1.id, buyAssetId: a1.id }))).toEqual({});
+  });
+
+  it('fixes a frozen asset to its current share of B', () => {
+    const frozen = makeAsset({ quantity: 10, currentPrice: 100, allocationRole: 'frozen' });
+    const { positions, fixBounds } = buildStandaloneCandidates([frozen], 2000, valueOf);
+    expect(positions).toHaveLength(1);
+    expect(fixBounds(candidate({ key: frozen.id, buyAssetId: frozen.id }))).toEqual({ lowerPct: 50, upperPct: 50 });
+  });
+
+  it('leaves an excluded asset out entirely', () => {
+    const excluded = makeAsset({ quantity: 10, currentPrice: 100, allocationRole: 'excluded' });
+    const { positions } = buildStandaloneCandidates([excluded], 1000, valueOf);
+    expect(positions).toEqual([]);
+  });
+
+  it('leaves a zero-value asset out', () => {
+    const zero = makeAsset({ quantity: 0, currentPrice: 100 });
+    const { positions } = buildStandaloneCandidates([zero], 1000, valueOf);
+    expect(positions).toEqual([]);
+  });
+
+  it('does not fix bounds when B is not > 0 (no investable amount yet)', () => {
+    const frozen = makeAsset({ quantity: 10, currentPrice: 100, allocationRole: 'frozen' });
+    const { fixBounds } = buildStandaloneCandidates([frozen], 0, valueOf);
+    expect(fixBounds(candidate({ key: frozen.id, buyAssetId: frozen.id }))).toEqual({});
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ConflictReport, ObjectiveReport, OptimizerWarning } from '@/lib/utils/weightOptimizer';
+import type { ConflictReport, ObjectiveReport, OptimizerWarning, SecondLevelGap } from '@/lib/utils/weightOptimizer';
 import {
   describeConflict,
   describeObjectiveLabel,
@@ -7,6 +7,7 @@ import {
   describeOptimizerMode,
   describeOptimizerSnapshot,
   describeOptimizerWarning,
+  describeSecondLevelGaps,
   formatObjectiveAchieved,
   formatObjectiveGap,
   formatObjectiveTarget,
@@ -167,5 +168,35 @@ describe('describeOptimizerSnapshot', () => {
     expect(describeOptimizerSnapshot(snapshot, positions)).toBe(
       "Pesi proposti dall'ottimizzatore il 18/09 (Raggiungibile col PAC)."
     );
+  });
+});
+
+describe('describeSecondLevelGaps', () => {
+  function gap(overrides: Partial<SecondLevelGap> & { assetId: string; assetName: string }): SecondLevelGap {
+    return { assetClass: 'equity', reason: 'missing', ...overrides };
+  }
+
+  it('returns nothing for an empty list', () => {
+    expect(describeSecondLevelGaps([])).toEqual([]);
+  });
+
+  it('names the class, the count and the instruments, capped at 5 with the rest counted', () => {
+    const gaps = ['VWCE', 'IWDA', 'EIMI', 'XDEM', 'AVWS', 'CL2'].map((name, i) =>
+      gap({ assetId: `a${i}`, assetName: name })
+    );
+    expect(describeSecondLevelGaps(gaps)).toEqual([
+      '6 strumenti nella classe Azioni senza sottocategoria: VWCE, IWDA, EIMI, XDEM, AVWS e altri 1.',
+    ]);
+  });
+
+  it('keeps missing and unknown as separate sentences', () => {
+    const gaps = [
+      gap({ assetId: 'a1', assetName: 'VWCE', reason: 'missing' }),
+      gap({ assetId: 'a2', assetName: 'IWDA', reason: 'unknown' }),
+    ];
+    const lines = describeSecondLevelGaps(gaps);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe('1 strumento nella classe Azioni senza sottocategoria: VWCE.');
+    expect(lines[1]).toBe('1 strumento nella classe Azioni con una sottocategoria non configurata: IWDA.');
   });
 });
