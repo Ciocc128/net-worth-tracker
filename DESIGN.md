@@ -505,7 +505,8 @@ The unit of every redesigned page: `Tile` in `components/ui/tile.tsx` (the Panor
 ```tsx
 <section className="flex min-w-0 flex-col rounded-2xl border border-border bg-card p-5 shadow-sm">
   <div className="flex items-baseline justify-between gap-3">
-    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{eyebrow}</p>
+    {/* an <h3> under the verdict's <h2>: the class carries every metric */}
+    <h3 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{eyebrow}</h3>
     <div className="shrink-0 text-[10px] text-muted-foreground">{aside}</div>
   </div>
   <NarrativeText segments={reading} className="mt-2 text-[13px] leading-[1.45] text-foreground" />
@@ -519,6 +520,8 @@ The unit of every redesigned page: `Tile` in `components/ui/tile.tsx` (the Panor
 - `p-5` (20px) and `gap-3` (12px) between tiles — tighter than the 22/16 of the previous bento; tiles are many and small.
 - The dominant tile (net worth) spans two rows and lets its chart stretch (`relative flex-1 min-h-[180px]` with the SVG `absolute inset-0`); numbers and chips keep their size.
 - No tile repeats another tile's rows (The One-Tile-One-Question Rule).
+- The eyebrow is a heading (`<h3>`, 2026-09-20): a screen reader walks a long page by its headings, and a page of nine tiles listed two.
+- The footer is ONE line. A method that needs more goes behind «Come si calcola» (`components/ui/tile-method-note.tsx`: a popover at a 40–50 character measure, its trigger named after the tile's subject). Storico's footnotes ran to nine lines at 95–130 characters: help that is always on stops being read, and reads as defensiveness.
 
 ### Tile Grid (12-Column Bento)
 
@@ -634,6 +637,8 @@ The footer line of the net-worth tile: `Mercato:` followed by every asset class 
 ### Ranked Rows with Residual
 
 `components/dashboard/overview/RankedRows.tsx` — the CompositionList idea inside a tile: label · 3px bar (width = rank, the largest row fills the track) · mono amount · share. When the rows are a subset of a stated total, the list closes with a muted residual row (`Altre categorie`, no bar) so the shares visibly sum to 100% (The Narrative Honesty Rule). Bar colour is a chart slot (`var(--chart-1)` expenses, `var(--chart-2)` income), never a hex. A RECORD ranking is a different component (`components/hall-of-fame/RecordRows.tsx`): it carries a position, its value can be negative and its percentage is a variation rather than a slice, so it is not folded into this one — see **The Ranking-Is-Not-An-Axis Rule**.
+
+**The ledger form** (Storico's Driver and «Lavoro e investimenti», 2026-09-20): when the rows are the PARTS of an identity — signed, some of them negative — there is no bar and no share, only label · signed mono amount, closed by a bold row for the total they add up to. A flow (savings, a mortgage repaid, a contribution) is signed and uncoloured, a gain or a loss follows its sign, a tax is always a loss. The printed rows add up to the printed total to the euro: every row is rounded to the printed unit and the remainder row («Altre variazioni») carries the drift, because a reader who adds the rows by hand is exactly the reader this form is for. Six signed figures in one sentence is the pattern this replaces.
 
 ### Table inside a Tile (Strumenti)
 
@@ -1248,6 +1253,8 @@ already been dropped from `GoalBasedInvestingTab` in an earlier session in favor
 list, and the file was removed rather than polished once this was discovered).
 
 ### Chart Legend Swatch
+
+**A chart's legend is `components/ui/series-legend.tsx`** (2026-09-20), never Recharts' `<Legend>`: that one prints each label in its series colour — a chart slot as 11px text measured 3,64 · 4,02 · 2,62:1 — and names its icons in English. The words stay in the neutral ink, one entry per SERIES: a bar drawn in the loss token under the baseline is the same series in another state, so its entry carries two swatches («Mercato (rosso se in perdita)») rather than being a fourth entry.
 
 The color swatch used in composition bar / chart legend rows. At 8×8px, shape matters: a fully round circle reads as a "dot indicator" (inline traffic-light semantics); a slightly rounded square reads as a "color key."
 

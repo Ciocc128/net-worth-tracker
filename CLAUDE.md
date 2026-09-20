@@ -7,28 +7,37 @@
 ## Project Overview
 Next.js app for Italian investors: net worth, assets, cashflow, dividends, performance metrics and long-term planning on Firebase.
 
-**This file is the INDEX**: "what it is + where it lives", nothing more — keep it well under 20.000 characters; it is injected into every turn. Repo-wide conventions and gotchas live in **AGENTS.md**; the per-area rules and traps in **`doc/guide/<tema>.md`** (one file per page/tab/subsystem — the feature index below points to each, and AGENTS.md § 3 carries a stub apiece); the aesthetic spec in **DESIGN.md**; env/emulators/Playwright in **SETUP.md**; users and positioning in **PRODUCT.md**. Session rules and the guided-verification protocol in **[WORKFLOW.md](WORKFLOW.md)** (see the note at the top).
+**This file is the INDEX**: "what it is + where it lives", nothing more — keep it well under 20.000 characters; it is injected into every turn. Repo-wide conventions and gotchas live in **AGENTS.md**; the per-area rules and traps in **`doc/guide/<tema>.md`** (one file per page/tab/subsystem — the feature index below points to each, and AGENTS.md § 3 carries a stub apiece; the test harness is `doc/guide/e2e-emulatori.md`, its two stubs in AGENTS.md § 5); the aesthetic spec in **DESIGN.md**; env/emulators/Playwright in **SETUP.md**; users and positioning in **PRODUCT.md**. Session rules and the guided-verification protocol in **[WORKFLOW.md](WORKFLOW.md)** (see the note at the top).
 
 > **Language**: this file and AGENTS.md are in English. Italian is reserved for user-facing UI text. Page and feature names stay Italian, because they are the labels the product shows: Panoramica, Patrimonio, Cashflow, Analisi, Rendimenti, Allocazione, Storico, Previdenza, Impostazioni.
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **171 files / 3870 tests** green + **55 Playwright E2E specs** (73 tests green in one full run on 2026-09-18, 2,7 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-19, third session): **Storico's Driver measures the market instead of guessing it.** «Mercato −557 €»
-  in settembre 2026 was the broker's withheld tax on a VWCE sale (4089 € estimated, 4092,50 € on the statement) plus
-  1297 € of instalments in calendar, read as «Δ − risparmio». `lib/utils/growthDrivers.ts`: risparmio (rows already
-  happened) · mercato per instrument (`marketEffect.ts`, moved out of `dashboardOverviewUtils` — Panoramica and Storico
-  now print the same +2086 €) · tasse · mutuo rimborsato · fondo pensione · altre; «Lavoro e investimenti» takes the
-  same parts; «altre variazioni» is said in a sentence only above max(100 €, 5%) (`isMaterialOtherChange`, Panoramica
-  too). **Verification**: `tsc`, lint 0, Vitest 3869 under `TZ=Europe/Rome` and without, three falsifications red, the
-  mirror's settembre split equal to an independent read-only script (2086 € market), Playwright 1440/390 on the mirror
-  (Driver reading word for word, `main` overflow 0, Lavoro's rows summing to the 80.323 € growth). **Then a linked row
-  moves its account on its own date** (`lib/utils/cashSettlement.ts` + `lib/server/cashSettlement.ts`, settled in the
-  snapshot route): every occurrence of a series carries the account, a row dated ahead is `balancePending`, edits and
-  deletes move only what was applied; «Collega la serie a un conto» links an older series' future rows; a cash account
-  may go negative (a credit card, «debito» on the Liquidità tile). **Verification**: Vitest 3870 in both timezones, lint 0, an emulator exercise 12/12
-  (series, future transfer, settlement twice = idempotent, legacy link, series delete), `e2e/cashflow.accounts.spec.ts`
-  green and red when broken, Playwright 1440/390 on the link dialog with Firestore read back.
+- `tsc` clean; **171 files / 3903 tests** green + **25 Playwright spec files** (79 tests, green in one full run on 2026-09-20, 2,8 min, incl. 4 auth setups; after the stylesheet change a run on a COLD build dir had `modal.origin` red once and green alone — a first compile, not a regression; the «55 specs» this line carried until then matched neither the files nor the tests). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20): **`/impeccable critique` of Storico (27/40, 2 P1 · 3 P2) and all five closed in the session.**
+  The Driver's six parts are a LEDGER behind each year — rows that add up to the euro to the growth they close on
+  (`buildDriverLedger`, `reconcileRemainder`), the reading two clauses plus the rest netted; «Valore per strumento»
+  owns the tile's width until something is ticked and folds two columns by container query (813px in 671 before),
+  a Δ moved by quantities is a flow and loses its sign colour (`isFlowDominated`: the page's largest red figure was a
+  sale), four heads sort; «Mercato» is one colour on the page and the legend is `SeriesLegend` (3,64 · 4,02 · 2,62:1
+  as Recharts' coloured text); the row checkboxes are ONE Tab stop (`useRovingFocus`), the dashboard has a skip link,
+  a tile's eyebrow is an `<h3>`; footers are one line with `TileMethodNote`; desktop is two columns (Raddoppi at its
+  natural height); «Elimina nota» arms itself and a failed note save speaks from the modal's reading.
+  **Verification**: `tsc`, lint 0, detector 0, Vitest 3878 in both timezones, `e2e/history{,.mobile}.spec.ts` (7
+  tests) each seen RED on its own assertion (six falsifications, one behaviour at a time), full Playwright 79/79,
+  Playwright evidence at 1440 light/dark and 390 on the mirror: ledger 31.918 = Σ rows, table 671/671 with a
+  selection, `main` overflow 0, «Dettaglio» at 38 Tabs from the top (was ~55) and 24 from the skip link.
+  **Then, from the owner's tour on solar-dusk: the named themes' chart slots.** Obbligazioni and Immobili were the
+  same grey (ΔE00 0.0); four palettes re-pitched by search (every pair ≥ 17, ≥ 3:1 on the card), cyberpunk's light
+  slots brought inside the luminance guard, `--chart-9` added to the twelve blocks for Storico's «Previdenza» band (the
+  static indigo sat 3.8 from midnight-bloom's Azioni, 10.3 from the default's), and the distinctness test extended
+  from the default theme to all twelve blocks × nine slots — 10 red on the old stylesheet, 30 green on the new. Vitest
+  3903 in both timezones; rendered on the mirror on five themes, light and dark. doc/guide/temi.md.
+  **Then AGENTS.md slimmed, 1015 → 866 lines and 17.073 → 13.429 words, nothing lost**: the Playwright and emulator
+  harness moved whole to `doc/guide/e2e-emulatori.md` (two stubs keep their section names), sixteen regrown stubs
+  brought back to «what to know before opening the guide» with every dropped claim checked against its guide (nine
+  sentences moved in), five core bullets compressed to rule + date + where it is pinned. Checked by script against a
+  frozen copy: 18/18 dates and 1297/1297 backticked identifiers still in core ∪ guides, 183 citations resolving.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -39,7 +48,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Key Features (Active)
 One line per area: the question it answers, then where it is described. *What the user sees* → README.md; *repo-wide rules* → AGENTS.md; *an area's rules, files and blind spots* → `doc/guide/<tema>.md`; *the aesthetic* → DESIGN.md.
 
-- **Shell**: compact `PageHeader` · `PageTabBar` · `PageContainer` (1920) + `TileGridSkeleton` · sidebar · bottom pill + «Altro» drawer. DESIGN → §5; AGENTS → *Navigation*.
+- **Shell**: skip link · compact `PageHeader` · `PageTabBar` · `PageContainer` (1920) + `TileGridSkeleton` · sidebar · bottom pill + «Altro» drawer; a tile's eyebrow is an `<h3>`. DESIGN → §5; AGENTS → *Navigation*.
 - **Shared account · Demo mode**: a second user as full co-owner (viewer `user.uid` ≠ owner `ownerId`); the demo auto-logs in from the landing and `useDemoMode()` gates every mutation. doc/guide/account-condiviso-demo.md.
 - **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.
 - **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
@@ -53,7 +62,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution. doc/guide/rendimenti.md.
-- **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest. doc/guide/storico.md.
+- **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest, as a ledger that adds up to the euro behind each year. doc/guide/storico.md.
 - **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?». doc/guide/allocazione.md.
 - **Previdenza**: «il fondo sta lavorando?» per contributor, the value typed from the statement ON the page. doc/guide/previdenza.md.
 - **FIRE**: Calcolatore, Coast FIRE, What If, Monte Carlo and Obiettivi, one verdict each. doc/guide/fire.md (+ fire-coast, fire-what-if, fire-monte-carlo, fire-obiettivi).
@@ -63,13 +72,13 @@ One line per area: the question it answers, then where it is described. *What th
 - **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
 - **Dialogs and forms**: 40 modals on one vocabulary in `ResponsiveModal`; row deletes arm in the row. doc/guide/dialog.md; DESIGN → The Modal-Is-A-Tile Rule.
 - **Periodic emails · budget email · PDF export**: rule-generated verdict first, AI comment second; every hex from `printTokens.ts`. doc/guide/email-pdf.md; DESIGN → The Out-Of-DOM Token Rule.
-- **Themes**: twelve theme blocks, chart slots through `useChartColors`. doc/guide/temi.md.
+- **Themes**: twelve theme blocks × nine chart slots through `useChartColors`, every block held to the distinctness floor by `__tests__/chartPaletteDistinctness.test.ts`. doc/guide/temi.md.
 
 ## Testing
 - Vitest: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. New tests in `__tests__/`; prefer pure functions over Firestore-coupled code.
 - **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch: run `npm install` first (AGENTS → *Commands*).
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
-- **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: AGENTS.md → *Browser-Driven E2E*.
+- **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations
 Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa Italiana scraping (Italian bonds, dividends) · Frankfurter (FX) · FRED (`FRED_API_KEY`, series ECBDFR) · Anthropic (`claude-sonnet-5` analysis + assistant, `claude-haiku-4-5` extraction).
@@ -85,7 +94,7 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 ## Key Files
 Cross-cutting entry points only: each area's files open its guide (`doc/guide/<tema>.md` § Files), every pure module has
 `__tests__/{module}.test.ts`, every page its `e2e/{page}*.spec.ts` where one exists.
-- **Shell**: `app/dashboard/layout.tsx` (`<main>` = `page-main`), `app/dashboard/template.tsx`, `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,SceneLink,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,LogoutDialog}.tsx`, `lib/utils/viewTransition.ts` (the ONE `startViewTransition`, `data-vt` scoping) + `lib/hooks/useSceneNavigation.ts` (the page scene), `lib/utils/themeTransition.ts`, `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`), `lib/constants/navigation.ts` (the ONE source of the nav arrays); tile primitives `components/ui/{tile,narrative-text,ranked-rows,tile-grid-skeleton,page-verdict}.tsx`, `lib/utils/narrative.ts` (`Narrative`, `VerdictTone`, `PageVerdictModel`)
+- **Shell**: `app/dashboard/layout.tsx` (`<main>` = `page-main`), `app/dashboard/template.tsx`, `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,SceneLink,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,LogoutDialog}.tsx`, `lib/utils/viewTransition.ts` (the ONE `startViewTransition`, `data-vt` scoping) + `lib/hooks/useSceneNavigation.ts` (the page scene), `lib/utils/themeTransition.ts`, `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`), `lib/constants/navigation.ts` (the ONE source of the nav arrays); tile primitives `components/ui/{tile,tile-method-note,series-legend,narrative-text,ranked-rows,tile-grid-skeleton,page-verdict}.tsx`, `lib/hooks/useRovingFocus.ts` (a list as ONE Tab stop), `lib/utils/narrative.ts` (`Narrative`, `VerdictTone`, `PageVerdictModel`)
 - **Shared primitives / utils** (each the single source of its rule): `components/ui/{composition-list,composition-bar,segmented-pill,drill-breadcrumb,chart-hover}.tsx`; `lib/utils/formatters.ts` · `metricColors.ts` (`getMetricValueColor`) · `assetPricing.ts` (`requiresManualPricing`) · `assetLiquidity.ts` · `expenseTypeTransition.ts` · `firestoreData.ts` (`removeUndefinedDeep`) · `dateHelpers.ts` (`endOfMonthBound`, `getItalyDateIso`, `isItalyDayAfter`) · `spendingProjection.ts` (the ONE month-end projection) · `recurrenceDates.ts` (the ONE source on recurrence)
 - **E2E**: `playwright.config.ts`, `e2e/*.ts`, `e2e/global-setup.ts`, fixtures `scripts/{seedEmulator.ts,seedPensionE2E,seedAnalisiE2E,seedCoastFireE2E,seedCostCentersE2E}.mts`; scripts `test:e2e`/`e2e:seed*`/`dev:e2e`; the production mirror `scripts/mirrorProdAccount.mts` (`mirror:seed`/`mirror:remove`)
 

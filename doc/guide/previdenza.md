@@ -162,7 +162,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   as the next step, and `describeFondoOggiFooter` judges the value's age («valore fermo dal 12 ago 2026»,
   `valueIsStale` = last update in a closed month) instead of printing a neutral date. **That age is ONE rule**,
   `isPensionValueStale(resolveLastFundUpdate(funds), now)` in `pensionSummary.ts`, read by the hero's footer AND by the
-  modal's reading («da un mese chiuso») — the modal re-derived it by hand until the polish pass of 2026-09-13. «Anno fiscale» in the
+  modal's reading («da un mese chiuso») — the modal re-derived it by hand until the polish pass of 2026-09-13. Never
+  re-derive it in a component. «Anno fiscale» in the
   contribution form is a Select derived from the date (year −1 · year · year +1, the ±1 rule of the service now named
   beside the field by a `superRefine`); every error is wired to its field (`aria-invalid`, `aria-describedby`,
   `role="alert"`); the dialog's words are `PENSION_CONTRIBUTION_COPY` / `describePensionValueCopy` in
@@ -179,7 +180,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   fund, which can predate the first contribution, and `queryKeys.snapshots.all` is the cache Storico and Rendimenti
   share (a second key would be a second fetch); and painting the tax tiles before the snapshots resolve — the
   verdict's market clause needs them, and a page that shows tiles under a verdict it cannot yet say is worse than the
-  skeleton. Both are recorded here so the next audit does not re-propose them as bugs.
+  skeleton. Both are recorded here so the next audit does not re-propose them as bugs. In short — deliberately not
+  bounded: the `monthly-snapshots` query (shared cache) and the four-query skeleton (the verdict needs the snapshots).
 
 ## Per-page blind spots
 

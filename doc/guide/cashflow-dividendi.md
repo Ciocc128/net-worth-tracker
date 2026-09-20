@@ -144,6 +144,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   toasts `describeFilteredDividends` — how many were dropped and, when a floor was the creation date, the recovery
   (record the purchase in the Registro operazioni with its real date and scrape again). Until then the button said
   «Nessun nuovo dividendo trovato» for every stock added to the app after its dividends, which read as «none exist».
+- **The floor's two sources, by field name** (moved here from the `AGENTS.md` stub on 2026-09-20): a scraped dividend
+  has ONE floor (`lib/utils/dividendEligibility.ts`: `holdingStartDate` from the ledger, else `createdAt`), shared by
+  `/api/dividends/scrape` and cron Phase 1 — and never silent: the route returns `filtered`/`floorDate`/`floorSource`
+  and the tab toasts `describeFilteredDividends` with the recovery (2026-09-13).
 - **Received metrics filter on `paymentDate`, not `exDate`**; use `setHours(23,59,59,999)` for the upper bound, or a
   `…T00:00:00Z` dividend reads as future.
 - **Two inflation mechanisms, ONE field** (`BondDetails.inflationIndexation`, read only through

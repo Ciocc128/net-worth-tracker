@@ -21,7 +21,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   the RAW snapshots with no pension flow, printing a different TWR and ROI under the same title; its scope line now
   carries `describeMeasurementBase`). It returns the projected snapshots, `excludedAssetIds`, `pensionEntryMonth`, the
   `pensionFlows` and the `portfolioFlows`; `buildCacheKey` fingerprints all of them (a contribution recorded today, or a
-  trade in the ledger, rewrites the flows while every snapshot stays byte-identical).
+  trade in the ledger, rewrites the flows while every snapshot stays byte-identical). The base is resolved ONCE by
+  `resolvePerformanceBase` for its THREE call sites (service, page, PDF); `buildCacheKey` fingerprints its options,
+  entry month and both flow channels.
 - **The flows follow the base** (2026-09-07, issue/PR #319 reimplemented on the base): a base is two halves, WHICH
   capital and WHICH flows, and the cashflow's savings are the capital that entered the NET WORTH — wrong the moment the
   base is a subset, since a purchase paid from an account outside it is capital coming in and the cashflow skips
@@ -159,7 +161,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   Dettaglio's adds the figures and the three usual causes; at most three months are listed and the rest counted, never
   cut silently. It is a guard, not a diagnosis: the monthly figure is price effects only (the registry's dividends are
   netted at period level), so a large dividend credited to an account in the base trips it as honestly as a
-  hand-corrected balance. A month that starts from a zero base has no share and is never flagged.
+  hand-corrected balance. A month that starts from a zero base has no share and is never flagged. A month whose
+  unattributed part exceeds `RESIDUAL_ALERT_SHARE` (2%) of its starting base is NAMED in the reading
+  (`residualMonths`) — where to look, never what happened.
 
 ## Per-page blind spots
 

@@ -5,6 +5,8 @@
 
 ## ✨ New Features
 
+- Added «Vai al contenuto principale» as the first Tab stop of every dashboard page, and a heading to every tile, so a screen reader can walk a page tile by tile.
+
 - Added «Collega spese…» to a cost center: search your expenses, filter them by category and year, tick the ones that belong and link them all in one confirm — a recurring series or an instalment plan is a single row that links every occurrence («3 rate · 2 in calendario»). An expense of another center is shown only if you ask, and the window says what would move before you confirm («3 passano da Vacanze a Dacia Jogger»); the outcome carries «Annulla», which puts every expense back as it was.
 - Added two actions to each row of a center's «Movimenti collegati»: its category opens the expense in its form, and «Scollega» takes it out of the center in place («Scollegando, la spesa resta in Cashflow ed esce dal centro»). A row of a series asks «solo questa o tutta la serie?».
 - Added an address to every open cost center on Cashflow › Centri di Costo: a reload keeps it, the browser's Back returns to the list instead of leaving Cashflow, and the link can be sent to a co-owner. On a phone the detail now opens at its top instead of half-way down.
@@ -37,6 +39,10 @@
 
 - Added deep links from the Panoramica: a row of «Spese per categoria» or «Entrate per categoria» opens that category's Scheda on Analisi, the two tiles read the concentration («Il 29% va in Mutuo; le prime tre fanno il 63%») and close on «Tutte le categorie in Analisi», Composizione on «Il piano in Allocazione».
 - Added what was bought beside a sale to the verdicts of the Panoramica, Patrimonio and the periodic email («Nello stesso mese hai comprato 6 strumenti per 34.304 €»), so a reinvested sale no longer reads as money gone.
+
+- Added a ledger to Storico's «Driver della crescita»: behind each year the parts of the growth are rows that add up, to the euro, to the growth they close on («Risparmio +5364 € · Mercato +21.916 € · Tasse sulle vendite −4091 € · … · Crescita del patrimonio +31.918 €»), and «Dal 2025» sums every year as one more row. The sentence above names the two engines, the heavier first, and nets the rest into one figure («Il resto, voce per voce qui sotto, vale +4638 €»).
+- Added sorting to Storico's «Valore per strumento» — by value, by the change on the previous month, by its price part or its quantity part — and a selection panel that stays in sight while you tick further down the list.
+- Added «Come si calcola» to the tiles of Storico: each footer is one line, and the method opens on request.
 
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 821 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
@@ -96,7 +102,16 @@
 - Fixed the light-mode chart palette: Liquidità and Immobili were two oranges a reader could not tell apart, Trend Following and Obbligazioni two teals, and the net-worth curve was drawn in the colour of a loss; every class now keeps the same hue in light and dark (Azioni blue, Obbligazioni green, Criptovalute amber, Immobili violet, Liquidità coral), in the emails and the PDF too.
 - Fixed the truncated category names in the ranked lists of the Panoramica, Tracciamento, Analisi, Dividendi, Hall of Fame and Previdenza («Stipendio Giu…», «Entrate da inv…»): the name now takes the room it needs and the bar beside it takes the rest.
 
-- Fixed Storico's «Driver della crescita» blaming the market for the tax withheld on a sale and for instalments still in calendar: September 2026 read «mercato −557 €» in a month the portfolio gained about 2086 €. The market is now measured instrument by instrument (the Panoramica's figure), the savings stop at today, and the rest is named in the year rows, the hover and the reading («Il resto: −4091 € di tasse stimate sulle vendite, +4655 € di mutuo rimborsato …») — «Lavoro e investimenti» shows the same parts.
+- Fixed the chart colours of four colour themes, where two asset classes could be one colour: on Solar Dusk (light) Obbligazioni and Immobili were the identical grey, Elegant Luxury painted three classes in three reds, Retro Arcade and Midnight Bloom had Immobili and Liquidità too close to tell apart. Every theme now keeps its classes apart in light and dark on every page that colours by class, by cost center or by category, and Cyberpunk's light mode no longer falls back to a generic palette for three of its colours.
+
+- Fixed Storico's «Driver della crescita» blaming the market for the tax withheld on a sale and for instalments still in calendar: September 2026 read «mercato −557 €» in a month the portfolio gained about 2086 €. The market is now measured instrument by instrument (the Panoramica's figure), the savings stop at today, and the tax, the mortgage repaid, the pension contributions and the other changes are rows of their own in each year's ledger, in the hover and in «Lavoro e investimenti».
+- Fixed Storico's «Valore per strumento» hiding «di cui prezzo» and «di cui quantità» — the two columns the tile's sentence is about — past the edge of its table on a desktop, with no hint that it scrolled. The table now has the whole tile until you tick an instrument, and folds Quantità and Quota under their neighbours when the selection opens beside it.
+- Fixed a sale reading as a loss on Storico: a change moved mostly by quantities (a sale, a purchase, a deposit) no longer takes the red or the green, while its price part keeps its colour — a 38.596 € VWCE sale was the largest red figure on the page in a month its price had gained 348 €. In «Lavoro e investimenti» the savings, the other income, the mortgage repaid and the pension contributions are flows too, and lost their green.
+- Fixed «Mercato» having two colours on Storico — blue in the Driver, another colour in the «Lavoro e investimenti» chart, where blue was the labour income — and that chart's legend, whose coloured words were hard to read and named its icons in English to a screen reader.
+- Fixed the rows of «Lavoro e investimenti» adding up to a euro more than the growth they close on (76.886 € against 76.885 €): the rounding now lands in «Altre variazioni», which is the remainder by definition.
+- Fixed the «Previdenza» band of Storico's Composizione wearing one fixed indigo on every theme, nearly the colour of Azioni on Midnight Bloom and close to it on the default theme: it now has its own colour per theme.
+- Fixed «Elimina nota» on Storico deleting on a single press with no way back: the first press arms it, the second deletes, Esc or a press elsewhere lets go. A note that fails to save says why in the window instead of «Errore nel salvataggio».
+- Fixed the keyboard path through Storico: the instruments of «Valore per strumento» are one Tab stop the arrows move through, instead of one stop per row between you and «Dettaglio». That button now tells a screen reader what it opens, as it does on screen.
 
 - Fixed the fiscal year of a contribution: it is now chosen around the payment date (the year before, the year, the year after) instead of typed freely, so a typo can no longer file a contribution into a year the page never shows; a January payment for the previous year reads «Competenza 2025, pagato nel 2026».
 - Fixed the delete confirmation in the Versamenti ledger: the row now says what the delete undoes («eliminando, il conto verrà riaccreditato») while the button stays a compact «Conferma».
@@ -104,6 +119,8 @@
 - Fixed the delete of a saved conversation in the Assistente, which disarmed itself after three seconds: it now waits for you, says what goes («Eliminando, la conversazione e i suoi messaggi spariscono; la memoria resta.») and lets go on Esc without closing the window.
 
 ## 🔧 Improvements
+
+- Improved the small switches in a tile's corner on every page («Geometrico | Traguardi», «Asset class | Liquidità», «€ | %»…): they are 32px tall on a desktop, from 28.
 
 - Improved the last four windows that did not look like the others — the snapshot overwrite on the Panoramica, a movement's detail, the Movimenti filters, the Assistente's Conversazioni and Memoria: same heading, same size, a first line that says where you are, a sheet from the bottom on a phone and a centred window above. Conversazioni and Memoria no longer slide in from the right.
 
@@ -128,6 +145,9 @@
 - Improved the period control of the net-worth chart on the Panoramica: readable labels, thumb-sized targets on a phone, arrow-key navigation, and unselected periods that stay legible in light mode — the same control every other page uses.
 - Improved the Panoramica's third row (three equal tiles) and the Costi tile, whose «Pesano di più» now follows the figures instead of leaving a gap; «Costo annuo» is no longer amber on every account.
 
+- Improved Storico's layout on a desktop: Raddoppi takes the height it needs instead of stretching over an empty gap, the Driver takes the rest of the column, and the current value on the doubling track stands where the fill ends. On a phone the chips wrap in one row, the exports and «Snapshot passato» follow the content instead of standing under the verdict, and «Seleziona tutti» and the link to Allocazione are full 44px targets.
+- Improved the window «Aggiungi uno snapshot passato»: the month is a list of names instead of a number from 1 to 12, and its labels lost their Title Case. With no snapshot yet, Storico says how the first one arrives in plain words («ne viene salvato uno da solo ogni sera»).
+
 - Improved the Rendimento tile on Previdenza: each row's caption («retribuzione, non rendimento», «mercato + datore») sits on its own line under the label, so «Contributo datoriale» no longer breaks mid-word into three lines on desktop.
 - Improved «Il fondo oggi»: its footer judges the age of the hand-kept value — «valore fermo dal 12 ago 2026» when the last update belongs to a closed month — instead of printing a neutral date.
 - Improved the contribution flow: after a contribution the confirmation names the next step («Quando arriva l'estratto conto, aggiorna il valore del fondo: lo include già») with an «Aggiorna valore» action, so the order that prevents a double count is taught where it matters.
@@ -147,5 +167,9 @@
 - The Analisi guide records the lived pace of the Scheda, the history's ceiling, the same-days rule of the running month, the absent tile of a month not started, the Flusso's height, alignment, caps and label neutrals, and the focus return; the Impeccable critique of Analisi (26/40) is tracked in `.impeccable/critique/` and closed by polish in the same session.
 - The Dividendi guide records the two populations (registry vs held portfolio), the form's rules, the armed row delete and the phone's chips; the Impeccable critique of Cashflow › Dividendi (23/40) is committed and closed.
 - The dialog guide records how a modal names the control the focus returns to, that every window of the app now shares one shape (only the logout confirm stays an interrupting alert) and no two-click delete runs on a timer any more, and how a window grows from the button that opened it. It also records what was measured and left alone: below 769px no window takes the keyboard focus when it opens.
+
+- The contributor guide is shorter again (about a fifth fewer words) with nothing dropped: the rules for browser tests and emulator exercises now have a guide of their own, and each area's entry in the core file is back to the few things to know before opening that area's guide.
+- The Storico guide records the ledger that adds up to the euro, the change that is a flow, the table that folds by its own width, the one Tab stop of a list and the two-column desktop grid; the Impeccable critique of Storico (27/40) is committed and closed in the same session, and the page has its first browser tests.
+- The themes guide records that every theme, not the default alone, is now held to the same distance between its chart colours, how the four palettes were re-pitched, and what is still not asserted: the contrast of a colour against its card.
 
 - Previdenza's guide records what was deliberately left as is and why: the snapshots query stays whole, the skeleton waits for every query, and a contribution can be deleted but not edited.
