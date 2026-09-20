@@ -193,7 +193,7 @@ The app **is** locally runnable; there is no fallback to declare.
   in-page detector's count before quoting it** (2026-09-18, Centri di Costo: 71 and 110 findings, the CLI on the same
   files 0): every Cashflow tab stays mounted and hidden (`forceMount`), so ~36 hits per scan were Tracciamento's; the
   9–11px «undersized text» is the enumerated ramp; the shell, the sidebar and the overlay's own yellow (`dark-glow
-  #ffba00` on a second injection) are in there too. Count what belongs to the surface, say the rest is not its. **A restart of the Claude Code session kills its background tasks** (emulators and dev server alike, 2026-09-14) and an emulator killed that way exports nothing: before the tour, check the ports and re-seed the mirror. **And the session's memory watchdog kills them too** (2026-09-14 evening, three times in a row on the 8 GB Mac right after a full Playwright run, with 37–67% of memory free): for the owner's tour, the emulators and the dev server are started from the OWNER's terminals, which the watchdog does not touch; the agent only re-seeds the mirror and reports the URLs. On 2026-09-20 the owner asked the agent to start them anyway, and both survived the session —
+  #ffba00` on a second injection) are in there too. Count what belongs to the surface, say the rest is not its. **A probe never opens a control that SPENDS** (2026-09-20): «Analizza con AI» starts its analysis on open, and an evidence pass told to «open and press Escape» made five real Anthropic calls. Read what a control does before scripting a click on it; on Rendimenti that dialog is opened once, to check the abort, or not at all. **A restart of the Claude Code session kills its background tasks** (emulators and dev server alike, 2026-09-14) and an emulator killed that way exports nothing: before the tour, check the ports and re-seed the mirror. **And the session's memory watchdog kills them too** (2026-09-14 evening, three times in a row on the 8 GB Mac right after a full Playwright run, with 37–67% of memory free): for the owner's tour, the emulators and the dev server are started from the OWNER's terminals, which the watchdog does not touch; the agent only re-seeds the mirror and reports the URLs. On 2026-09-20 the owner asked the agent to start them anyway, and both survived the session —
   ~4 hours, two full Playwright runs, three restarts of the dev server: the watchdog is not a certainty. The rule stays (the
   owner's terminals are the safe default); when the owner asks, start them, say they hang on the session, and check the
   ports before every hand-over.
@@ -247,7 +247,9 @@ The app **is** locally runnable; there is no fallback to declare.
   `critique-storage latest` exits 2 with NO output (a JSON parser on its pipe dies on an empty stdin, 2026-09-18): keep
   the snapshot's FILE NAME from the `write` step and hand it to `close` directly — the bare name
   (`2026-09-20T09-25-18Z__app-dashboard-history-page-tsx.md`): the absolute path `write` prints, and the
-  repo-relative one, both exit 2 with no output (2026-09-20). **A snapshot's `target_path` and
+  repo-relative one, both exit 2 with no output (2026-09-20). **`close` itself can answer exit 2 and still stamp the file**
+  (2026-09-20, Rendimenti: the target had changed, so `latest` had already closed the backlog): read `closed: true` in the
+  snapshot, not the exit code. **A snapshot's `target_path` and
   `target_fingerprint` are those of the machine that wrote it** (2026-09-14): `latest` accepts only the local
   absolute path and the local bytes (a Windows checkout is CRLF under `* text=auto`, so its fingerprint never
   matches a Mac's), while `trend` and `signals` match by slug. The four snapshots written on Windows were

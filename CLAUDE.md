@@ -13,31 +13,22 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **171 files / 3903 tests** green + **25 Playwright spec files** (79 tests, green in one full run on 2026-09-20, 2,8 min, incl. 4 auth setups; after the stylesheet change a run on a COLD build dir had `modal.origin` red once and green alone — a first compile, not a regression; the «55 specs» this line carried until then matched neither the files nor the tests). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-20): **`/impeccable critique` of Storico (27/40, 2 P1 · 3 P2) and all five closed in the session.**
-  The Driver's six parts are a LEDGER behind each year — rows that add up to the euro to the growth they close on
-  (`buildDriverLedger`, `reconcileRemainder`), the reading two clauses plus the rest netted; «Valore per strumento»
-  owns the tile's width until something is ticked and folds two columns by container query (813px in 671 before),
-  a Δ moved by quantities is a flow and loses its sign colour (`isFlowDominated`: the page's largest red figure was a
-  sale), four heads sort; «Mercato» is one colour on the page and the legend is `SeriesLegend` (3,64 · 4,02 · 2,62:1
-  as Recharts' coloured text); the row checkboxes are ONE Tab stop (`useRovingFocus`), the dashboard has a skip link,
-  a tile's eyebrow is an `<h3>`; footers are one line with `TileMethodNote`; desktop is two columns (Raddoppi at its
-  natural height); «Elimina nota» arms itself and a failed note save speaks from the modal's reading.
-  **Verification**: `tsc`, lint 0, detector 0, Vitest 3878 in both timezones, `e2e/history{,.mobile}.spec.ts` (7
-  tests) each seen RED on its own assertion (six falsifications, one behaviour at a time), full Playwright 79/79,
-  Playwright evidence at 1440 light/dark and 390 on the mirror: ledger 31.918 = Σ rows, table 671/671 with a
-  selection, `main` overflow 0, «Dettaglio» at 38 Tabs from the top (was ~55) and 24 from the skip link.
-  **Then, from the owner's tour on solar-dusk: the named themes' chart slots.** Obbligazioni and Immobili were the
-  same grey (ΔE00 0.0); four palettes re-pitched by search (every pair ≥ 17, ≥ 3:1 on the card), cyberpunk's light
-  slots brought inside the luminance guard, `--chart-9` added to the twelve blocks for Storico's «Previdenza» band (the
-  static indigo sat 3.8 from midnight-bloom's Azioni, 10.3 from the default's), and the distinctness test extended
-  from the default theme to all twelve blocks × nine slots — 10 red on the old stylesheet, 30 green on the new. Vitest
-  3903 in both timezones; rendered on the mirror on five themes, light and dark. doc/guide/temi.md.
-  **Then AGENTS.md slimmed, 1015 → 866 lines and 17.073 → 13.429 words, nothing lost**: the Playwright and emulator
-  harness moved whole to `doc/guide/e2e-emulatori.md` (two stubs keep their section names), sixteen regrown stubs
-  brought back to «what to know before opening the guide» with every dropped claim checked against its guide (nine
-  sentences moved in), five core bullets compressed to rule + date + where it is pinned. Checked by script against a
-  frozen copy: 18/18 dates and 1297/1297 backticked identifiers still in core ∪ guides, 183 citations resolving.
+- `tsc` clean; **171 files / 3907 tests** green + **25 Playwright spec files** (80 tests, green in one full run on 2026-09-20, 2,8 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20): **`/impeccable critique` of Rendimenti (24/40, 2 P1 · 3 P2) and all five closed in the session.**
+  Contributi gives ONE answer — the capital the formulas neutralise, by channel (`summarizeCapitalEntered`), ledger and
+  cashflow «per confronto» — and `computeInvestedCapital` no longer reads a migration baseline as a purchase («Hai investito
+  134.988 €» on 49.089 € of real buys); below a YEAR the hero is the period's return, the annualised rate its companion chip
+  (`resolveCompanionReturnChip`) and the gap against the model one function for verdict and chip; the period pill is a
+  radiogroup that stays in the Tab order under a custom range, the heatmap is read by keyboard and tap on a line under the
+  grid and its legend prints the real thresholds, both header dialogs return focus to their opener, «Analizza con AI» aborts
+  on close (client and server); eight footers are one line behind «Come si calcola», the Dettaglio's legends are
+  `SeriesLegend`, «Portafoglio» is `--chart-1` in both charts, the growth plot has a scale and fills from 100; desktop is one
+  row of three tall tiles over two columns at natural height (2298 → 1788px at 1440, no tile stretched).
+  **Verification**: `tsc`, lint 0, detector 0, Vitest 3907 under `TZ=Europe/Rome` (seven falsifications seen red, one
+  behaviour at a time: four in Vitest, three in the browser), `e2e/performance.degraded.spec.ts` 3 tests, full Playwright
+  80/80, Playwright evidence on the mirror at 1440 and 390: `main` overflow 0 in five periods and with the Dettaglio open, 0
+  truncated names, 0 Recharts legends, the AI POST ending in 1,3 s on Escape with no `Stream error`. doc/guide/rendimenti.md,
+  doc/guide/dialog.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -61,7 +52,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.
 - **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons. doc/guide/cashflow-dividendi.md.
-- **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution. doc/guide/rendimenti.md.
+- **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
 - **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest, as a ledger that adds up to the euro behind each year. doc/guide/storico.md.
 - **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?». doc/guide/allocazione.md.
 - **Previdenza**: «il fondo sta lavorando?» per contributor, the value typed from the statement ON the page. doc/guide/previdenza.md.
@@ -89,6 +80,8 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 - **Two Sonnet generations coexist** (`lib/constants/aiModels.ts`): the Rendimenti analysis runs on `claude-sonnet-4-6`, the assistant and the emails on `claude-sonnet-5`. Aligning them changes cost and output, so it is a product decision still to take; until then the four constants stay distinct and each modal reads its OWN route's.
 - **Two deliberate dependency pins keep advisories open.** `firebase-admin` at `^13.6.0` (@14 pulls pure-ESM `jose@6` → `ERR_REQUIRE_ESM` on Vercel; 8 moderate `uuid` advisories stay) and `next` at `~16.2.12` (16.3.0 breaks Vercel at `onBuildComplete`; 2 HIGH libvips advisories via `sharp`, low exposure). **Unpin next and re-run `npm audit fix` once Vercel digests 16.3.x.**
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
+- **Three Vitest cases fail under `TZ=UTC`** (`budgetUtils` › crossing day, `pensionSummary` › value age, `tracciamentoSummary` › `isScheduledRow`), on a clean `develop` too (checked in a worktree, 2026-09-20): they read «today» by Italian calendar day against fixtures built in the process timezone. The suite's two timezones are the machine's and `Europe/Rome`; a CI in UTC would see them red.
+- **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two are fixed; the others take the opener when they are next touched.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 
 ## Key Files
