@@ -85,7 +85,9 @@ about a domain goes in that domain's guide, never here.
   main.getBoundingClientRect().left + main.clientWidth`. `rect.right` is viewport-relative and at 1440 `main` starts
   256px in, so comparing against `clientWidth` alone flags every full-width child as an overflow (the mobile guard
   got away with it only because `main` sits at x=0 there). A total in pixels forces the measurement to be redone;
-  the culpable node is the fix. Reference guard: `e2e/fire.mobile.spec.ts`.
+  the culpable node is the fix. Reference guard: `e2e/fire.mobile.spec.ts`. **Exclude `.sr-only` descendants from the
+  walk** (2026-09-20): a visually hidden TABLE is clipped to 1px, but its cells keep their geometric rectangles — 69
+  «offenders» on Storico with `main.scrollWidth === clientWidth` (`e2e/history.mobile.spec.ts`).
 - **One scroll container per region**: a nested scrollable captures the wheel and content below becomes unreachable
   (desktop-only symptom). `overflow-x-hidden` on an ancestor also CLIPS a descendant's `overflow-x:auto`.
 - **A `sticky` offset is measured from the scroller's CONTENT edge, padding excluded** (2026-09-14, Strumenti's actions
@@ -377,7 +379,8 @@ file used to carry.
 - Both snapshot writers REPLACE the document, so a new `MonthlySnapshot` field the pipeline does not recompute goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the daily cron erases it (§ *Firestore Writes*).
 - Two CAGR formulas, intentionally different: Storico's verdict = `(endNW/startNW)^(12/months)−1` (wealth growth, «versamenti inclusi»); Rendimenti = investment return. ONE pace for the page (`summarizeGrowthPace`, trailing 12 months, linear); do not compound it.
 - The Driver is floored at `cashflowHistoryStartYear` and is SIX parts (`lib/utils/growthDrivers.ts`, 2026-09-19): risparmio (rows already happened) + mercato MEASURED per instrument (`marketEffect.ts`, the Panoramica's rule) − tasse on the sales + mutuo (debt fallen) + fondo pensione + altre — never «Δ − risparmio», which charged the market with the broker's withheld tax. «Lavoro e investimenti» measures the Driver's own windows (`laborWindowsOf(driverYears)`) AND takes its parts (`summarizeLaborMetrics(…, drivers)`), so the page never prints two «mercato».
-- Il resto — `buildMonthAssetBreakdown`, the manual-snapshot cross-validation, the Recharts-in-a-flex-tile technique — in `doc/guide/storico.md`.
+- The six parts are shown as a LEDGER that adds up in sight (`buildDriverLedger`, 2026-09-20), never as a sentence of eight figures: the reading names the two engines (heavier first, no share) and nets the rest into one flow; the printed rows close on the printed total TO THE EURO (`reconcileRemainder`: «altre variazioni» is the remainder by construction — `LaborTile` closes the same way). A flow is signed and uncoloured, the market and the total follow their sign, the tax is always a loss — on the Driver, on Lavoro and on a Δ moved mostly by quantities (`isFlowDominated`).
+- Il resto — `buildMonthAssetBreakdown`, the manual-snapshot cross-validation, the Recharts-in-a-flex-tile technique, the table that folds by container query, the two-column desktop grid — in `doc/guide/storico.md`.
 
 ### Hall of Fame — a verdict over tiles → `doc/guide/hall-of-fame.md`
 - The page has NO axis and re-derives nothing: `hall-of-fame/{userId}` holds the rankings; "today" is a PARAMETER, never `new Date()` inside the module.
@@ -510,7 +513,12 @@ file used to carry.
   not the token the browser RETURNS**: Turbopack transpiles `oklch()` to `lab(…)`, so never assert `/^oklch\(/` and know
   the luminance fallback is inert there (2026-08-30).
 - **A user-chosen identity colour is a SLOT, not a hex** (`'chart-1'..'chart-8'`, `resolveCostCenterColor`): migrate
-  without a backfill, derive the no-colour fallback from the document id; indices 0-7 theme-aware, 8-9 static.
+  without a backfill, derive the no-colour fallback from the document id; indices 0-8 theme-aware (`--chart-9` is
+  Storico's «Previdenza» band), 9 static.
+- **Every theme block is held to the distinctness floor** (`__tests__/chartPaletteDistinctness.test.ts`, all twelve
+  since 2026-09-20): nine slots, ΔE00 ≥ 14 between any two, inside the luminance guard, a slot's hue held across the
+  two modes (a neutral exempt). A new theme or a moved slot runs it first — solar-dusk shipped two classes as the
+  same grey for months.
 - Il resto — il filtro di luminanza oklch, `useActionColors`, i sign token contati per tema, il significato fisso di `--chart-6/7/8`, `getAssetClassCssVar`, la checklist «Adding a theme» — in `doc/guide/temi.md`.
 
 ---
@@ -592,6 +600,7 @@ file used to carry.
 - **`<Legend content=>` needs a module-level component** — an inline arrow makes a new ref every render and the legend
   flickers on unrelated state. `Legend` reads `<Bar fill>`, not `<Cell>`: always set `fill` on the `<Bar>`.
   **`formatter`'s first param is `ValueType | undefined`** — never type it `number`.
+- **The legend is `SeriesLegend`, never Recharts' `<Legend>`** (`components/ui/series-legend.tsx`, 2026-09-20): `<Legend>` prints each label in its series colour — a chart slot as 11px TEXT measured 3,64 · 4,02 · 2,62:1 — and names its icons in English («… legend icon»). One entry per SERIES: a bar that turns red under the baseline is one entry with two swatches, not a fourth series. **One word, one colour per page**: a series named «Mercato» takes the slot «Mercato» has everywhere else on that page, whatever its position in the chart (`LaborMetricsChart` gave it `--chart-5` beside a Driver that paints it `--chart-1`); a reference series that is not a part of the total takes the neutral ink, dashed.
 - **Accessibility goes on the chart, not a wrapper**: Recharts 3.x already puts `tabIndex=0` + `role="application"` on its
   `<svg>`, so pass `role="img"` + `aria-label` + `accessibilityLayer={false}` to the chart itself — and `role="img"` also
   hides the `<Legend>`, so the label must carry the colour→name mapping.
@@ -660,6 +669,7 @@ file used to carry.
   inside a page component means a simple row selection remounts the whole table. `cn` is NOT auto-imported in pages.
 - **A radius on the element that carries a `divide-y` hairline bends the ends of the rule** (2026-09-18,
   `AssistantThreadList`): the `li` stays square, the hover/selected wash goes on an inner box.
+- **A tile's footer is ONE line; the method goes behind «Come si calcola»** (`components/ui/tile-method-note.tsx`, 2026-09-20): help printed on every tile at all times stops being read, and an 11px footnote at full tile width runs to 95–130 characters a line (the detector's `line-length`). The line that stays says what the figures ARE; name the trigger after its subject — a page carries several. **A list that must add up adds up ON SCREEN**: round every row to the printed unit and give the drift to the row that is a remainder by definition, or the reader who checks it finds a euro missing.
 - **A row's caption WRAPS, it is never truncated, and the label column never grows to make room for it** (2026-09-14,
   `RankedRows`): «30 set · Asilo nido · in calendario» is the row's second fact, and a cut fact is no fact. The column
   cannot grow — at 4 grid columns 46% is the most it can take beside the bar's 40px floor, the amount and the share
@@ -706,7 +716,8 @@ file used to carry.
   cell, `text-destructive`): a sentence inside the button wraps in a 90px action column (owner's tour, 2026-09-13,
   `VersamentiTile`). **One live region per list, not per row** — a `role="status"` per `DeleteButton` made a
   keyboard reader hear «Eliminazione annullata» on every Tab away from an armed button.
-- **`desktop:h-7` is 28px — never for a target.** The `h-11 → desktop:h-8` idiom (44 → 32, the dense-list floor
+- **A list of same-kind controls is ONE Tab stop** (`lib/hooks/useRovingFocus.ts`, 2026-09-20): 24 row checkboxes put «Dettaglio» ~55 Tabs from the top of Storico. Spread `containerProps` on the wrapper and `itemProps(i)` on each control (arrows, Home/End; the hook finds its items through `data-roving-item` and hands out no ref), and say it once in an `sr-only` hint the table is `aria-describedby`. **The dashboard's first Tab stop is «Vai al contenuto principale»** (`app/dashboard/layout.tsx` → `#page-main`, `tabIndex={-1}` on `<main>`), and **a tile's eyebrow is an `<h3>`** under the verdict's `<h2>` (`components/ui/tile.tsx`): a page of nine tiles listed two headings. A spec that starts a keyboard walk presses Tab right after the load — a click on `body` moves the sequential-focus start past the skip link.
+- **`desktop:h-7` is 28px — never for a target.** `AsideToggle` is `desktop:h-8` since 2026-09-20. The `h-11 → desktop:h-8` idiom (44 → 32, the dense-list floor
   above) is the one to copy; four Previdenza sites shipped 28px until 2026-09-13, and a 1440px tablet in landscape
   reads the desktop layout by touch (CLAUDE.md → Known Issues).
 - **Form error text needs the sign token too**: `text-red-500` fails AA in both modes on a dialog surface AND diverges
@@ -765,7 +776,7 @@ file used to carry.
 | --- | --- |
 | Overview / materialized summary | `apiAuthRoutes`, `dashboardOverviewService`, `dashboardOverviewUtils` · **Verdetto e letture** `overviewNarrative` · **Badge** `savingsRateBadge` |
 | Rendimenti | `performanceService` (+ `performanceBase`, `drawdownSeries`, `cashFlowMap`) · **Attribuzione** `performanceAttribution`, `snapshotAssetBreakdown` · **Verdetto e letture** `performanceNarrative`, `performanceSummaryTiles`, `performanceSummary` (+ `patrimonioNarrative` for the articles) · **Browser** `e2e/performance.degraded.spec.ts` |
-| Storico | `storicoSummary`, `storicoNarrative`, `snapshotAssetBreakdown`, `chartService`, `historyComposition` · **FIRE/Goals** `fireService`, `monteCarloService`, `monteCarloSummary`, `monteCarloNarrative`, `goalService`, `goalMath`, `goalProposal`, `coastFireView`, `whatIfService`, `whatIfSummary`, `whatIfNarrative` |
+| Storico | `storicoSummary`, `storicoNarrative`, `snapshotAssetBreakdown`, `chartService`, `historyComposition`, `growthDrivers` · **Browser** `e2e/history{,.mobile}.spec.ts` · **FIRE/Goals** `fireService`, `monteCarloService`, `monteCarloSummary`, `monteCarloNarrative`, `goalService`, `goalMath`, `goalProposal`, `coastFireView`, `whatIfService`, `whatIfSummary`, `whatIfNarrative` |
 | Assistant | `assistantRoutes`, `assistantWebSearchPolicy`, `assistantMonthContextService` · **Verdetto e letture** `assistantNarrative` (+ `overviewNarrative` for the no-context verdict) · **Obiettivi** `assistantGoalEvaluation`, `assistantGoalEvaluationService`, `assistantMemoryExtraction`, `assistantMemoryStore` · **Goal-Based** `goalMath`, `goalProposal`, `apiAuthRoutes` |
 | Dividendi / cron | `dividendUseCase`, `dividendProcessor` · **Email** `monthlyEmailService` |
 | Asset / bond | `assetDialogHelpers`, `couponUtils` |
