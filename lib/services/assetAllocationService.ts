@@ -90,6 +90,7 @@ export async function getSettings(
       pensionRitaLongUnemployment: data.pensionRitaLongUnemployment,
       dividendIncomeCategoryId: data.dividendIncomeCategoryId,
       dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
+      dividendCashAssetId: data.dividendCashAssetId,
       fireProjectionScenarios: data.fireProjectionScenarios,
       monteCarloScenarios: data.monteCarloScenarios,
       goalBasedInvestingEnabled: data.goalBasedInvestingEnabled,
@@ -223,6 +224,13 @@ export async function setSettings(
           docData.dividendIncomeSubCategoryId = settings.dividendIncomeSubCategoryId;
         } else {
           delete docData.dividendIncomeSubCategoryId;
+        }
+      }
+      if ('dividendCashAssetId' in settings) {
+        if (settings.dividendCashAssetId !== undefined) {
+          docData.dividendCashAssetId = settings.dividendCashAssetId;
+        } else {
+          delete docData.dividendCashAssetId;
         }
       }
       if (settings.fireProjectionScenarios !== undefined) {
@@ -394,6 +402,10 @@ export async function setSettings(
       if ('dividendIncomeSubCategoryId' in settings) {
         docData.dividendIncomeSubCategoryId =
           settings.dividendIncomeSubCategoryId !== undefined ? settings.dividendIncomeSubCategoryId : deleteField();
+      }
+      if ('dividendCashAssetId' in settings) {
+        docData.dividendCashAssetId =
+          settings.dividendCashAssetId !== undefined ? settings.dividendCashAssetId : deleteField();
       }
       if (settings.fireProjectionScenarios !== undefined) {
         docData.fireProjectionScenarios = settings.fireProjectionScenarios;

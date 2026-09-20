@@ -186,6 +186,9 @@ export interface Asset {
   // independent of it.
   leverageRatio?: number;
   isin?: string; // ISIN code for dividend scraping (optional)
+  // The cash account this instrument's dividends and coupons credit (lib/utils/dividendAccount.ts).
+  // Absent → the default in Impostazioni › Dividendi; neither → the income row moves no account.
+  dividendCashAssetId?: string;
   bondDetails?: BondDetails; // Optional bond-specific details for coupon scheduling
   pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (type 'pensionFund'); see types/pension.ts
   // Start of the CURRENT continuous holding, stamped on (re)purchase — createAsset on ISIN reuse,
@@ -222,6 +225,9 @@ export interface AssetFormData {
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole.
   leverageRatio?: number; // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage.
   isin?: string; // ISIN code for dividend scraping (optional)
+  // The cash account this instrument's dividends and coupons credit (lib/utils/dividendAccount.ts).
+  // Absent → the default in Impostazioni › Dividendi; neither → the income row moves no account.
+  dividendCashAssetId?: string;
   bondDetails?: BondDetails; // Optional bond-specific details for coupon scheduling
   pensionFundDetails?: PensionFundDetails; // Optional fondo pensione details (type 'pensionFund'); see types/pension.ts
 }
@@ -314,6 +320,10 @@ export interface AssetAllocationSettings {
   includePrimaryResidenceInFIRE?: boolean; // If true, include primary residences in FIRE calculations; if false, exclude them (FIRE standard)
   dividendIncomeCategoryId?: string; // Category ID for automatic dividend income entries
   dividendIncomeSubCategoryId?: string; // Subcategory ID for automatic dividend income entries
+  // Default cash account credited by dividends and coupons; an instrument's own
+  // `Asset.dividendCashAssetId` wins over it (lib/utils/dividendAccount.ts). Read server-side
+  // straight from the settings doc by `dividendIncomeService`.
+  dividendCashAssetId?: string;
   fireProjectionScenarios?: FIREProjectionScenarios; // Custom scenario parameters for FIRE projections (Bear/Base/Bull)
   monteCarloScenarios?: MonteCarloScenarios; // Custom scenario parameters for Monte Carlo simulations (Bear/Base/Bull)
   goalBasedInvestingEnabled?: boolean; // Toggle to enable goal-based investing feature (mental allocation of portfolio to financial goals)

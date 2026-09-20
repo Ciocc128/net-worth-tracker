@@ -170,8 +170,9 @@ export function describeSales(sales: PeriodSalesSummary, split?: MonthSplit): Na
     narrative.push(prose(`; senza un'aliquota ${where} le tasse non sono stimate.`));
     return narrative;
   }
+  // «circa» belongs to an estimate; a tax typed from the statement is a fact.
   narrative.push(
-    prose(' e pagato circa '),
+    prose(sales.taxIsWithheld ? ' e pagato ' : ' e pagato circa '),
     figure(cachedFormatCurrencyEUR(sales.estimatedTax, true)),
     prose(' di tasse'),
   );

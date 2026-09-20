@@ -17,6 +17,15 @@
   hovering at fixed fractions of their width, so figures behind a disclosure or inside a tooltip are captured too.
 
 ## Emulator Exercise Scripts
+- **On Windows, start `next dev` from PowerShell through the npm script** (2026-09-20): launched from Git Bash as
+  `npx cross-env … next dev -p 3200` the server answered every `[param]` route with Next's own 404 page while static
+  routes worked — `PUT /api/dividends/<id>` read as «not found» for ten checks — and the same code started from
+  PowerShell resolved them (the cause was not isolated). The tell is an HTML 404 where the handler would answer 401 without a token. A second
+  server beside another project's :3000 takes its port from the environment (`$env:PORT = '3200'; npm run
+  dev:emulator`): PowerShell 5.1 eats the `--` of `npm run … -- -p 3200`.
+- **An exercise can drive the ROUTES** (`scripts/*.tmp.mts`): an ID token from the Auth emulator's
+  `accounts:signInWithPassword`, the mutations over HTTP, fixtures and read-backs with the Admin SDK — the way to
+  exercise a `server-only` module, which a script cannot import.
 A collection whose value is in the *wiring* gets one: the unit suites mock Firestore away, so only an exercise covers
 the rules permitting the writes, real `Timestamp` values surviving `removeUndefinedDeep` and the real atomic transaction.
 - **A throwaway is an `.mts` FILE run from INSIDE the repo** (`scripts/*.tmp.mts`, untracked, deleted in phase F): a
@@ -79,6 +88,11 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   to `/it/login`, and the probe waited for a form that never came): read the «Local:» line of the dev log first.
 
 ## Browser-Driven E2E (Playwright)
+- **A red spec you did not touch: read the fixture in the emulator before the code** (2026-09-20). `.emulator-data`
+  persists across sessions, so the base seed DRIFTS: `seed-btp` had lost its `taxRate` a week earlier and the two
+  Dividendi specs proposed the 26% fallback instead of the instrument's 12,5% — it read as a regression of the
+  session's change. `curl` the document (`Bearer owner`), and `npm run emulators:seed` restores the base account
+  without touching the other fixtures.
 - **What belongs here**: only what needs a real layout — the `desktop:` switch at 1440px, a collapsible, a state flash,
   computed font sizes, bounding boxes, overflow; the arithmetic stays with Vitest. **Two limits**: a race between
   concurrent queries is not reproducible locally (the Firestore Web SDK multiplexes every target onto ONE webchannel),

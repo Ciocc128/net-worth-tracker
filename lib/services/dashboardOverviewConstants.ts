@@ -44,5 +44,9 @@ export const DASHBOARD_OVERVIEW_SUMMARY_COLLECTION = 'dashboardOverviewSummaries
 // Bumped from 18→19: marketEffect / topMovers / topInstrumentMovers read the month's traded quotes
 // from the ledger (trade price → today), and expenseStats.currentMonth.incomeScheduled lets the
 // verdict judge the savings already made.
-export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 19;
+// Bumped from 19→20: monthSales.estimatedTax is the tax WITHHELD where a sell carries it
+// (`withheldTaxEur`, `taxIsWithheld`), and the estimate stands on the gain the broker taxes —
+// the price difference, no commission on either side (`taxableGainEur`, lib/utils/saleTax.ts):
+// a stored settembre would keep 4089 €.
+export const DASHBOARD_OVERVIEW_SOURCE_VERSION = 20;
 export const DASHBOARD_OVERVIEW_SUMMARY_TTL_MS = 5 * 60 * 1000;

@@ -64,6 +64,7 @@ import {
 } from '@/lib/utils/bondPricing';
 import { buildBondDetailsFromForm, NO_INFLATION_INDEXATION } from '@/lib/utils/bondDetailsForm';
 import { latestIndexationCoefficient, resolveInflationIndexation } from '@/lib/utils/couponUtils';
+import { NO_DIVIDEND_ACCOUNT, dividendAccountFromForm, paysDividends } from '@/lib/utils/dividendAccount';
 import { scheduleNextCoupon, scheduleFinalPremium } from '@/lib/services/couponScheduling';
 import { getTargets, addSubCategory, getSettings } from '@/lib/services/assetAllocationService';
 import type { Settings } from '@/types/settings';
@@ -213,6 +214,7 @@ function buildAssetFormDataFromValues(
     displayTicker: data.displayTicker && data.displayTicker.trim() !== '' ? data.displayTicker.trim() : undefined,
     name: data.name,
     isin: data.isin && data.isin.trim() !== '' ? data.isin.trim().toUpperCase() : undefined,
+    dividendCashAssetId: dividendAccountFromForm(data.type, data.dividendCashAssetId),
     type: data.type,
     assetClass: data.assetClass,
     subCategory: data.subCategory || undefined,
@@ -372,6 +374,8 @@ const assetSchema = z.object({
   // the first buy). Ignored for non-ledger types and in edit mode.
   openingDate: z.string().optional(),
   openingCashAssetId: z.string().optional(),
+  // The cash account this instrument's dividends/coupons credit ('__none__' = the settings default).
+  dividendCashAssetId: z.string().optional(),
   // Bond coupon details (optional, only shown for type=bond + assetClass=bonds)
   bondCouponRate: z.number().min(0).max(100).optional().or(z.nan()),
   bondCouponFrequency: z.enum(['monthly', 'quarterly', 'semiannual', 'annual']).optional(),
@@ -572,6 +576,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       isPrimaryResidence: false,
       allocationRole: 'tradable',
       openingCashAssetId: '__none__',
+      dividendCashAssetId: NO_DIVIDEND_ACCOUNT,
     },
   });
 
@@ -600,6 +605,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
   const watchAllocationRole = useWatch({ control, name: 'allocationRole' });
   const watchStampDutyExempt = useWatch({ control, name: 'stampDutyExempt' });
   const watchOpeningCashAssetId = useWatch({ control, name: 'openingCashAssetId' });
+  const watchDividendCashAssetId = useWatch({ control, name: 'dividendCashAssetId' });
   const watchOpeningDate = useWatch({ control, name: 'openingDate' });
   const watchPensionFamilyMemberId = useWatch({ control, name: 'pensionFamilyMemberId' });
 
@@ -850,6 +856,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         isPrimaryResidence: asset.isPrimaryResidence || false,
         allocationRole: resolveAllocationRole(asset),
         isin: asset.isin || undefined,
+        dividendCashAssetId: asset.dividendCashAssetId || NO_DIVIDEND_ACCOUNT,
         openingDate: todayIso,
         openingCashAssetId: '__none__',
         pensionProvider: asset.pensionFundDetails?.provider || undefined,
@@ -901,6 +908,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         allocationRole: 'tradable',
         openingDate: todayIso,
         openingCashAssetId: '__none__',
+        dividendCashAssetId: NO_DIVIDEND_ACCOUNT,
         bondCouponRate: undefined,
         bondCouponFrequency: undefined,
         bondIssueDate: undefined,
@@ -1495,6 +1503,36 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
               Necessario per dividendi automatici (azioni/ETF) e aggiornamento prezzi obbligazioni MOT
             </p>
           </div>
+          )}
+
+          {/* Where this instrument's dividends and coupons are credited — two brokers, two accounts.
+              Only for the types that pay; the rule is lib/utils/dividendAccount.ts. */}
+          {paysDividends(selectedType) && ledgerCashAssets.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="dividendCashAssetId">
+                Conto di accredito {selectedType === 'bond' ? 'cedole' : 'dividendi'}{' '}
+                <span className="font-normal text-muted-foreground">(opzionale)</span>
+              </Label>
+              <Select
+                value={watchDividendCashAssetId ?? NO_DIVIDEND_ACCOUNT}
+                onValueChange={(value) => setValue('dividendCashAssetId', value)}
+              >
+                <SelectTrigger id="dividendCashAssetId" aria-label="Conto di accredito dei pagamenti">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_DIVIDEND_ACCOUNT}>Predefinito (Impostazioni › Dividendi)</SelectItem>
+                  {ledgerCashAssets.map((cash) => (
+                    <SelectItem key={cash.id} value={cash.id}>
+                      {cash.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Accreditato dal giorno del pagamento in poi: i pagamenti passati non muovono il conto.
+              </p>
+            </div>
           )}
 
           {/* Type + AssetClass selects — edit mode only; in create mode these are set in step 1 */}

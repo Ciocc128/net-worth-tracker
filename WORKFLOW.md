@@ -234,7 +234,10 @@ The app **is** locally runnable; there is no fallback to declare.
   before the PR. **The draft ACCUMULATES until a release is tagged**: a session PREPENDS its entries to the
   existing sections and never rewrites the file from scratch — on 2026-09-11 a session replaced 534 lines with 5
   and 308 commits of draft had to be recovered from git two days later. It is emptied only when the owner cuts
-  the tag, and `git log -1 --format=%ad <last tag>` says whether that has happened.
+  the tag, and `git log -1 --format=%ad <last tag>` says whether that has happened. **The draft carries no private
+  data** (owner, 2026-09-20): it becomes public release notes, so an example sentence takes round invented figures and
+  generic names («Conto corrente», «un ETF») — never an amount, an instrument, a bank or a family detail of the real
+  account, which the mirror makes easy to paste. That day 33 entries had to be rewritten.
 - **Impeccable critiques are committed** (since 2026-09-12): `.impeccable/critique/*.md` is tracked,
   so the snapshot `polish` reads as its backlog is the same on every machine. A critique is
   committed in the session that produces it; one that describes a surface since rebuilt is
