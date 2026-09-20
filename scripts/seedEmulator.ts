@@ -134,8 +134,9 @@ async function seedAssets(): Promise<void> {
       // delete + recreate, because monthly snapshots are keyed by assetId.
       //
       // It is deliberately a LEDGER type, so the Fase B migration gives it a baseline BUY. That
-      // orphan baseline is the whole point of the fixture: it survives the conversion, and
-      // `computeInvestedCapital` still sums it (it does not filter by asset type).
+      // orphan baseline is the whole point of the fixture: it survives the conversion. It is an
+      // opening position, not a purchase — `computeInvestedCapital` skips every baseline since
+      // 2026-09-20, whatever the asset type.
       id: 'seed-pension-legacy',
       data: {
         ...assetBase(),

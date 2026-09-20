@@ -496,7 +496,7 @@ describe('computeAssetTotalReturn — per-asset total return', () => {
 
 describe('computeInvestedCapital — net capital in a window', () => {
   // Case 23
-  it('counts inclusive window edges and the baseline, and nets sells out', () => {
+  it('counts inclusive window edges, nets sells out, and never reads an opening position as a purchase', () => {
     const transactions = [
       tx({ type: 'buy', date: day(0), quantity: 10, pricePerUnit: 20, isBaseline: true }),
       tx({ type: 'buy', date: day(10), quantity: 5, pricePerUnit: 30, fees: 4 }),
@@ -511,11 +511,12 @@ describe('computeInvestedCapital — net capital in a window', () => {
     expect(windowed.divestedEur).toBeCloseTo(118, 6); // 3·40 − 2
     expect(windowed.netInvestedEur).toBeCloseTo(36, 6);
 
-    // Full window: the baseline counts as a buy.
+    // Full window: the baseline is INSIDE it and still moves no money (2026-09-20 — a migration run
+    // inside a year-to-date made Rendimenti print the opening positions as «Hai investito»).
     const full = computeInvestedCapital(transactions, day(0), day(50));
-    expect(full.investedEur).toBeCloseTo(454, 6); // 200 baseline + 154 + 100
+    expect(full.investedEur).toBeCloseTo(254, 6); // 154 + 100, the 200 of the baseline left out
     expect(full.divestedEur).toBeCloseTo(118, 6);
-    expect(full.netInvestedEur).toBeCloseTo(336, 6);
+    expect(full.netInvestedEur).toBeCloseTo(136, 6);
   });
 });
 

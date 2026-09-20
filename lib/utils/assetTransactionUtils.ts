@@ -556,8 +556,11 @@ export function computeAssetTotalReturn(
  *   divestedEur = Σ sell (quantity·priceEur − fees)
  *   netInvestedEur = investedEur − divestedEur
  *
- * Baselines COUNT as buys: for a window starting before migration day, the baseline correctly
- * represents "capital in play". Adjustments never move money and are ignored.
+ * Baselines and adjustments move no money and are ignored. Until 2026-09-20 a baseline counted
+ * as a buy («capital in play»), and the one surface that reads this function printed it as money
+ * spent: a migration run in July put 174.106 € of opening positions inside a year-to-date window
+ * and Rendimenti said «Hai investito 134.988 € dal registro» on an account that had bought
+ * 49.089 € and sold 53.436 €. The boundary flows (lib/utils/portfolioFlows.ts) never counted it.
  */
 export function computeInvestedCapital(
   transactions: AssetTransaction[],
@@ -573,6 +576,8 @@ export function computeInvestedCapital(
     const ms = t.date.getTime();
     if (ms < startMs || ms > endMs) continue;
     if (t.type === 'buy') {
+      // A migration baseline is an opening position, not a purchase.
+      if (t.isBaseline) continue;
       investedEur += t.quantity * t.priceEur + (t.fees ?? 0);
     } else if (t.type === 'sell') {
       divestedEur += t.quantity * t.priceEur - (t.fees ?? 0);

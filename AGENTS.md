@@ -386,7 +386,7 @@ file used to carry.
 - **The flows follow the base** (2026-09-07): with anything out of it, the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows (`lib/utils/portfolioFlows.ts`); the ledger speaks for an instrument only once the base has SEEN it (2026-09-13).
 - The first snapshot of a period is the starting valuation, never a measured month; the page must NEVER re-derive the window from `new Date()` (`metrics.nominalPeriodStart`).
 - No silent filters inside a metric (`null` with a reason); the attribution (`performanceAttribution.ts`) is EURO and reconciled to the TWR numerator.
-- Il resto — `buildCacheKey`, the flow channels and the entry month, `performanceExcludesCash`, the hero below 6 months and `resolvePeriodReturnChip`, the residual guard (`RESIDUAL_ALERT_SHARE`), EUR benchmarks, drawdown, IRR signs, the verdict-over-tiles rules, the heatmap — in `doc/guide/rendimenti.md`.
+- Il resto — `buildCacheKey`, the flow channels and the entry month, `performanceExcludesCash`, the hero below a YEAR and `resolveCompanionReturnChip`, Contributi's ONE answer (`summarizeCapitalEntered`; a migration baseline is never a purchase), the heatmap read by keyboard and tap, the residual guard (`RESIDUAL_ALERT_SHARE`), EUR benchmarks, drawdown, IRR signs, the verdict-over-tiles rules, the heatmap — in `doc/guide/rendimenti.md`.
 
 ### Allocazione → `doc/guide/allocazione.md`
 - `Asset.allocationRole` is ONE field, THREE values: `tradable` (default), `frozen` (in the denominator, never in the plans), `excluded` (out of the page entirely). No role is ever inferred at read time.
@@ -462,6 +462,8 @@ file used to carry.
   `alert`); `describeWriteError` (`lib/utils/dialogNarrative.ts`) is the ONE translation of a failed write.
 - Two-click confirms live in `lib/hooks/useArmedDelete.ts`: no timer, ever; Escape while armed means DISARM
   (`hasArmedConfirm()`). The two form rules stay here: § Dialog Form Reset, § Two-Step Create Dialogs.
+- A controlled modal with no Radix `Trigger` drops focus on `body` when it closes unless the caller passes
+  `returnFocusTo`, taken from `event.currentTarget` at the click (2026-09-20, pinned by `e2e/performance.degraded.spec.ts`).
 - Il resto — the footer order, the status-line a11y traps, `userFacingError`, the `bg-muted` block, the singular
   eyebrow, the armed detail's READING, `triggerOrigin` at the click, no focus below 769px — in `doc/guide/dialog.md`.
 
@@ -645,6 +647,7 @@ file used to carry.
 - **A radius on the element that carries a `divide-y` hairline bends the ends of the rule** (2026-09-18,
   `AssistantThreadList`): the `li` stays square, the hover/selected wash goes on an inner box.
 - **A tile's footer is ONE line; the method goes behind «Come si calcola»** (`components/ui/tile-method-note.tsx`, 2026-09-20): help printed on every tile at all times stops being read, and an 11px footnote at full tile width runs to 95–130 characters a line (the detector's `line-length`). The line that stays says what the figures ARE; name the trigger after its subject — a page carries several. **A list that must add up adds up ON SCREEN**: round every row to the printed unit and give the drift to the row that is a remainder by definition, or the reader who checks it finds a euro missing.
+- **A tile stretched beside a taller neighbour is cured in the GRID, never in the tile** (2026-09-20, Rendimenti): moving eight method footers behind «Come si calcola» made the voids BIGGER (Benchmark ~170 → ~215px, Plusvalenze ~280 → ~380px). Tiles share a row only with tiles of their own height; below that row use two columns at natural height — wrappers `contents` below `desktop:`, `desktop:flex desktop:flex-col` from it — and let the ONE element that can be any height (a chart, `desktop:flex-1`) take the slack. Keep the DOM in the desktop order so Tab follows the eye; the phone re-orders with `order-*` (Storico and Rendimenti are the worked examples).
 - **A row's caption WRAPS, it is never truncated, and the label column never grows to make room for it** (2026-09-14,
   `RankedRows`): «30 set · Asilo nido · in calendario» is the row's second fact, and a cut fact is no fact. The column
   cannot grow — at 4 grid columns 46% is the most it can take beside the bar's 40px floor, the amount and the share

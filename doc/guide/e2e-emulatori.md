@@ -65,7 +65,9 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   recomputes with the current math. The account is a standard; the data is removed at the end of the session
   (`MIRROR_UID=… npm run mirror:remove` clears one seeded under another id).
 - **Stopping the emulators: export FIRST, then kill.** `--export-on-exit` runs only on a SIGINT delivered to the
-  `firebase` CLI process itself: on macOS `kill -INT <cli pid>` does it (2026-09-06); on Windows, where only the wrapper
+  `firebase` CLI process itself: on macOS `kill -INT <cli pid>` does it (2026-09-06) — but not reliably on emulators started as
+  a background task of the agent's session (2026-09-20: 80 s with no export and the ports still held; the hub's export below
+  answered 200 and moved the mtime, then a plain kill); on Windows, where only the wrapper
   can be killed, POST `http://127.0.0.1:4400/_admin/export` with `{"path": "<abs>/.emulator-data"}` (forward slashes —
   a backslashed path 400s; `/emulators/export` 404s), then terminate. **Verify the directory's mtime moved**: a 200 with
   an unchanged mtime is the failure that looks like success — and a path that lost its slashes (`C:UsersGiuseppe…`,
