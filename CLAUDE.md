@@ -13,22 +13,25 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **171 files / 3907 tests** green + **25 Playwright spec files** (80 tests, green in one full run on 2026-09-20, 2,8 min, incl. 4 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-20): **`/impeccable critique` of Rendimenti (24/40, 2 P1 · 3 P2) and all five closed in the session.**
-  Contributi gives ONE answer — the capital the formulas neutralise, by channel (`summarizeCapitalEntered`), ledger and
-  cashflow «per confronto» — and `computeInvestedCapital` no longer reads a migration baseline as a purchase («Hai investito
-  134.988 €» on 49.089 € of real buys); below a YEAR the hero is the period's return, the annualised rate its companion chip
-  (`resolveCompanionReturnChip`) and the gap against the model one function for verdict and chip; the period pill is a
-  radiogroup that stays in the Tab order under a custom range, the heatmap is read by keyboard and tap on a line under the
-  grid and its legend prints the real thresholds, both header dialogs return focus to their opener, «Analizza con AI» aborts
-  on close (client and server); eight footers are one line behind «Come si calcola», the Dettaglio's legends are
-  `SeriesLegend`, «Portafoglio» is `--chart-1` in both charts, the growth plot has a scale and fills from 100; desktop is one
-  row of three tall tiles over two columns at natural height (2298 → 1788px at 1440, no tile stretched).
-  **Verification**: `tsc`, lint 0, detector 0, Vitest 3907 under `TZ=Europe/Rome` (seven falsifications seen red, one
-  behaviour at a time: four in Vitest, three in the browser), `e2e/performance.degraded.spec.ts` 3 tests, full Playwright
-  80/80, Playwright evidence on the mirror at 1440 and 390: `main` overflow 0 in five periods and with the Dettaglio open, 0
-  truncated names, 0 Recharts legends, the AI POST ending in 1,3 s on Escape with no `Stream error`. doc/guide/rendimenti.md,
-  doc/guide/dialog.md.
+- `tsc` clean; **174 files / 3965 tests** green + **26 Playwright spec files** (81 tests, incl. 4 auth setups; last all-green full run 2026-09-20 at 80, 2,8 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-20, second session): **money that reaches an account is the money the bank moved.** A dividend or a
+  coupon credits a cash account — the instrument's own (`Asset.dividendCashAssetId`, asked by the asset form of the
+  types that pay), else the default in Impostazioni › Dividendi — ONLY when the payment is not an arrear
+  (`lib/utils/dividendAccount.ts`; row, balance and `expenseId` in one transaction, edits move the difference, deletes
+  give it back). A SELL credits proceeds − fees − the tax the broker withheld (`withheldTaxEur`, «Tasse trattenute»
+  prefilled with the estimate and following it until typed, `lib/utils/saleTax.ts`); where stored it replaces the
+  estimate in `periodSales` and the sale sentence drops «circa»; the estimate itself stands on the gain the broker
+  taxes — the price difference, no commission on either side (`taxableGainEur`; settembre: 4.092,50 € to the cent, and a
+  purchase with fees carried at its bare price, both from the owner's Directa statements); realized P&L and XIRR stay gross. Every settlement and
+  every dividend row moves CENTS (`lib/utils/cents.ts`). Found on the way: the dividend PUT route read settings and
+  category with the CLIENT SDK and swallowed the refusal, so an edited dividend never reached its income row
+  (`resolveDividendIncomeCategory`, Admin).
+  **Verification**: `tsc`, lint 0, Vitest 3965 under `TZ=Europe/Rome` and without (sixteen falsifications seen red, one
+  behaviour at a time: thirteen in Vitest, three in the browser), an emulator exercise over the HTTP routes 25/25 (it is what found the PUT bug: 23/25 before the
+  fix), `e2e/assets.sale-tax.spec.ts` green and red three times when broken, Playwright evidence on the mirror at 1440
+  and 390 36/36 (dialog overflow 0, Firestore read back). Full Playwright 78/81 in one loaded run: the two Dividendi
+  specs were the emulator's seed BTP having lost its `taxRate` on 2026-09-13 (green after `emulators:seed`),
+  `modal.origin` a frame-sampling test that passes alone twice. doc/guide/{registro-operazioni,cashflow-dividendi,e2e-emulatori}.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -45,13 +48,13 @@ One line per area: the question it answers, then where it is described. *What th
 - **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
 - **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
-- **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement, the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
+- **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
 - **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.
 - **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
-- **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons. doc/guide/cashflow-dividendi.md.
+- **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
 - **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest, as a ledger that adds up to the euro behind each year. doc/guide/storico.md.
 - **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?». doc/guide/allocazione.md.

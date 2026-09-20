@@ -440,9 +440,9 @@ describe('dashboardOverviewService', () => {
     expect(result.variations.monthly?.percentage).toBeCloseTo(5.2631578947, 6);
     // 10 × 200 − 5 fees = 1.995 € of proceeds against a 150 € PMC: 495 € realized, 26% of it estimated.
     expect(result.monthSales).toMatchObject({ proceeds: 1995, realizedGain: 495, brokenLedgers: 0 });
-    expect(result.monthSales?.estimatedTax).toBeCloseTo(128.7, 6);
+    expect(result.monthSales?.estimatedTax).toBeCloseTo(130, 6); // 26% of 495 + the 5 € of sale fees
     expect(result.monthSales?.instruments).toEqual([
-      { id: 'etf-1', name: 'VWCE', proceeds: 1995, realizedGain: 495, estimatedTax: expect.closeTo(128.7, 6) },
+      { id: 'etf-1', name: 'VWCE', proceeds: 1995, realizedGain: 495, estimatedTax: expect.closeTo(130, 6), taxIsWithheld: false },
     ]);
     expect(overviewSummaryDocSetMock).toHaveBeenCalledTimes(1);
   });

@@ -11,11 +11,17 @@
  * ESTIMATED (gain × the instrument's `taxRate`) and named. It stays an estimate: no loss
  * compensation (minusvalenze pregresse), no per-instrument tax regime beyond `taxRate`.
  *
+ * Since 2026-09-20 a sell can carry the tax the broker REALLY withheld (`withheldTaxEur`, typed in
+ * the sale form over the prefilled estimate): where it is there it replaces the estimate, sell by
+ * sell, and `taxIsWithheld` says when the whole figure is a fact, so the words can drop «circa».
+ * The field keeps its name (`estimatedTax`) because stored overview payloads carry it.
+ *
  * SDK-free (it is read by the email Lambda): the ledger replay comes from `assetTransactionUtils`.
  */
 
 import { replayTransactionsWithEffects, LedgerValidationError } from '@/lib/utils/assetTransactionUtils';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { estimateSaleTax } from '@/lib/utils/saleTax';
 import type { Asset } from '@/types/assets';
 import type { AssetTransaction } from '@/types/assetTransactions';
 
@@ -28,18 +34,29 @@ export interface PeriodSaleInstrument {
   /** Realized P&L of the period's sells, net of fees, EUR (negative = loss). */
   realizedGain: number;
   /**
-   * `max(realizedGain, 0) × taxRate / 100`; `null` when the asset carries no `taxRate`, so a
-   * missing input is never printed as «0 € di tasse».
+   * The tax withheld on the sells that carry one, plus `max(taxable gain, 0) × taxRate / 100` over
+   * the sells that do not — the taxable gain carries no commission (`taxableGainEur`); `null` when a sell needs the estimate and the asset carries no `taxRate`,
+   * so a missing input is never printed as «0 € di tasse».
    */
   estimatedTax: number | null;
+  /**
+   * True when every sell of the instrument in the period carries its withheld tax. Optional like
+   * the summary's: a stored overview payload predates it, and absent reads as an estimate.
+   */
+  taxIsWithheld?: boolean;
 }
 
 export interface PeriodSalesSummary {
   /** Net of fees, EUR, over every instrument sold in the period. */
   proceeds: number;
   realizedGain: number;
-  /** Sum of the instruments' estimates; `null` when ANY sold instrument has no `taxRate`. */
+  /** Sum of the instruments' taxes; `null` when ANY sold instrument's is unknown. */
   estimatedTax: number | null;
+  /**
+   * True when the whole figure is what the broker withheld, with no estimated part. Absent on a
+   * payload computed before the field existed — read as an estimate.
+   */
+  taxIsWithheld?: boolean;
   /** Largest proceeds first. */
   instruments: PeriodSaleInstrument[];
   /** Ledgers that failed to replay (an over-sell, a trade before its baseline) — counted, not fatal. */
@@ -63,12 +80,6 @@ export interface PeriodPurchases {
 export interface DateRange {
   start: Date;
   end: Date;
-}
-
-/** Realized loss → no tax; missing rate → unknown, never zero. */
-function estimateTax(realizedGain: number, taxRate: number | undefined): number | null {
-  if (taxRate === undefined || taxRate === null) return null;
-  return realizedGain > 0 ? (realizedGain * taxRate) / 100 : 0;
 }
 
 /**
@@ -99,9 +110,11 @@ export function summarizePeriodSales(
     if (sold.length === 0) continue;
 
     let effectsById: Map<string, number>;
+    let taxableById: Map<string, number>;
     try {
       const { effects } = replayTransactionsWithEffects(ledger);
       effectsById = new Map(effects.map((effect) => [effect.transactionId, effect.realizedPnlEur ?? 0]));
+      taxableById = new Map(effects.map((effect) => [effect.transactionId, effect.taxableGainEur ?? 0]));
     } catch (error) {
       if (!(error instanceof LedgerValidationError)) throw error;
       brokenLedgers += 1;
@@ -111,12 +124,22 @@ export function summarizePeriodSales(
     const asset = assetsById.get(assetId);
     const proceeds = sold.reduce((sum, t) => sum + t.quantity * t.priceEur - (t.fees ?? 0), 0);
     const realizedGain = sold.reduce((sum, t) => sum + (effectsById.get(t.id) ?? 0), 0);
+    // The withheld tax is a fact and wins sell by sell; the estimate covers only the gain of the
+    // sells that carry none (netted among themselves, as before: a loss offsets a gain).
+    const withTax = sold.filter((t) => t.withheldTaxEur !== undefined);
+    const withheld = withTax.reduce((sum, t) => sum + (t.withheldTaxEur ?? 0), 0);
+    const taxIsWithheld = withTax.length === sold.length;
+    const gainToEstimate = sold
+      .filter((t) => t.withheldTaxEur === undefined)
+      .reduce((sum, t) => sum + (taxableById.get(t.id) ?? 0), 0);
+    const estimated = taxIsWithheld ? 0 : estimateSaleTax(gainToEstimate, asset?.taxRate);
     instruments.push({
       id: assetId,
       name: asset ? getAssetDisplayTicker(asset) : assetId,
       proceeds,
       realizedGain,
-      estimatedTax: estimateTax(realizedGain, asset?.taxRate),
+      estimatedTax: estimated === null ? null : withheld + estimated,
+      taxIsWithheld,
     });
   }
 
@@ -137,6 +160,7 @@ export function summarizePeriodSales(
     proceeds: instruments.reduce((sum, row) => sum + row.proceeds, 0),
     realizedGain: instruments.reduce((sum, row) => sum + row.realizedGain, 0),
     estimatedTax: taxUnknown ? null : instruments.reduce((sum, row) => sum + (row.estimatedTax ?? 0), 0),
+    taxIsWithheld: instruments.every((row) => row.taxIsWithheld === true),
     instruments,
     brokenLedgers,
     purchases,

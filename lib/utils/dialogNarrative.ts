@@ -666,7 +666,7 @@ export function describeTradeIntent(intent: TradeIntent): Narrative {
       return [
         {
           text: settlement
-            ? 'Una vendita chiude una plusvalenza sul PMC e accredita il conto di regolamento.'
+            ? 'Una vendita chiude una plusvalenza sul PMC e accredita il conto di regolamento, al netto di commissioni e tasse trattenute.'
             : 'Una vendita chiude una plusvalenza sul PMC. Senza conto di regolamento nessun saldo si muove.',
         },
       ];
@@ -703,6 +703,30 @@ export function describeSettlementTiming(tradeDateIso: string, todayIso: string)
   return isPastMonth
     ? "Il saldo del conto si muove oggi, non alla data dell'operazione: se lo riflette già, lascia «Nessuno»."
     : 'Se selezionato, il saldo del conto viene aggiornato automaticamente.';
+}
+
+/**
+ * The clause under «Tasse trattenute» in the sale form (lib/utils/saleTax.ts).
+ *
+ * A new sale is prefilled with the estimate and says so, or says why it is empty. An edit never
+ * prefills; on a sale that credited its account GROSS (recorded before the field existed) the
+ * clause is a warning, for the same reason as `describeSettlementTiming`: the account moves
+ * today, and a balance already aligned to the bank would lose the tax twice.
+ */
+export function describeWithheldTaxField(state: {
+  isEdit: boolean;
+  isLegacySettledSell: boolean;
+  hasEstimate: boolean;
+  /** The owner has typed in the field: what it holds is no longer the estimate. */
+  isTyped: boolean;
+}): string {
+  if (state.isLegacySettledSell) {
+    return 'Questa vendita ha accreditato il conto al lordo: indicando le tasse, oggi il conto scende di quella cifra. Se il saldo le riflette già, lascia vuoto.';
+  }
+  if (state.isEdit || state.isTyped) return 'La cifra trattenuta dal broker: riduce l’accredito sul conto di regolamento.';
+  return state.hasEstimate
+    ? 'Stima dall’aliquota dello strumento: correggila con la cifra dell’estratto del broker.'
+    : 'Senza un’aliquota sullo strumento non c’è stima: indica la cifra dell’estratto, o lascia vuoto.';
 }
 
 export interface CategoryDeletionFacts {

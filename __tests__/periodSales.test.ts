@@ -4,7 +4,8 @@
  *
  * The main fixture is the owner's real September 2026: four sells of Vanguard FTSE All-World
  * (233 units at ~167,5 € against a 100,1119 € PMC) on which the broker withheld 4.092,50 € — the
- * snapshot note says so — while the estimate from the 26% rate lands at 4.088,86 €.
+ * snapshot note says so — and the estimate lands on it to the cent once the 26% is applied to the
+ * gain GROSS of the sells' 14 € of fees, as the broker does (on the net gain it said 4.088,86 €).
  */
 
 import { describe, expect, it } from 'vitest';
@@ -76,8 +77,9 @@ describe('summarizePeriodSales', () => {
     expect(summary.instruments).toHaveLength(1);
     expect(summary.proceeds).toBeCloseTo(39052.45, 2);
     expect(summary.realizedGain).toBeCloseTo(15726.38, 2);
-    // 26% of the realized gain; the broker withheld 4.092,50 — the estimate is 3,64 € short.
-    expect(summary.estimatedTax).toBeCloseTo(4088.86, 2);
+    // 26% of the TAXABLE gain (15.726,38 + 14 € of sale fees): the 4.092,50 € on the statement.
+    // The realized gain above stays net of fees — only the tax base is gross of them.
+    expect(summary.estimatedTax).toBeCloseTo(4092.5, 2);
     expect(summary.instruments[0]).toMatchObject({ id: 'vwce', name: 'Vanguard FTSE All-World' });
     expect(summary.brokenLedgers).toBe(0);
   });
@@ -94,6 +96,54 @@ describe('summarizePeriodSales', () => {
     expect(summary.proceeds).toBe(1600);
     expect(summary.realizedGain).toBe(600);
     expect(summary.estimatedTax).toBeCloseTo(156, 6);
+  });
+
+  it('should read the tax the broker withheld in place of the estimate, and say the figure is a fact', () => {
+    // The statement's 4.092,50 € typed sell by sell (its split across the four sells is invented).
+    const withheld = [1580.2, 35.1, 1540.3, 936.9];
+    let index = 0;
+    const ledger = VWCE_LEDGER.map((t) => (t.type === 'sell' ? { ...t, withheldTaxEur: withheld[index++] } : t));
+    const summary = summarizePeriodSales([VWCE], ledger, SEPTEMBER)!;
+
+    expect(summary.estimatedTax).toBeCloseTo(4092.5, 6);
+    expect(summary.taxIsWithheld).toBe(true);
+    expect(summary.instruments[0].taxIsWithheld).toBe(true);
+    // Realized P&L stays gross of the tax.
+    expect(summary.realizedGain).toBeCloseTo(15726.38, 2);
+  });
+
+  it('should tax a sale on the price difference alone, while the realized gain stays net of every fee', () => {
+    const ledger = [
+      tx('a', 'buy', new Date(2026, 6, 22, 12), 100, 100, 10), // 10 € of purchase fees: 0,10 € a unit
+      tx('a', 'sell', new Date(2026, 8, 3, 12), 10, 150, 20),
+    ];
+    const summary = summarizePeriodSales([asset('a', 'A', 26)], ledger, SEPTEMBER)!;
+
+    expect(summary.realizedGain).toBeCloseTo(479, 9); // 1500 − 20 − 10 × 100,10
+    expect(summary.estimatedTax).toBeCloseTo(130, 9); // 26% × 10 × (150 − 100)
+  });
+
+  it('should estimate only the sells that carry no withheld tax, and call the mix an estimate', () => {
+    const ledger = [
+      tx('a', 'buy', new Date(2026, 6, 22, 12), 100, 100, undefined, true),
+      { ...tx('a', 'sell', new Date(2026, 8, 3, 12), 10, 160), withheldTaxEur: 150 }, // gain 600, statement 150
+      tx('a', 'sell', new Date(2026, 8, 9, 12), 10, 200), // gain 1000 → 260 estimated
+    ];
+    const summary = summarizePeriodSales([asset('a', 'A', 26)], ledger, SEPTEMBER)!;
+
+    expect(summary.estimatedTax).toBeCloseTo(410, 6);
+    expect(summary.taxIsWithheld).toBe(false);
+  });
+
+  it('should know the tax of an instrument with no rate once every sell carries its own, 0 included', () => {
+    const ledger = [
+      tx('a', 'buy', new Date(2026, 6, 22, 12), 100, 100, undefined, true),
+      { ...tx('a', 'sell', new Date(2026, 8, 3, 12), 10, 160), withheldTaxEur: 0 }, // offset by past losses
+    ];
+    const summary = summarizePeriodSales([asset('a', 'A', undefined)], ledger, SEPTEMBER)!;
+
+    expect(summary.estimatedTax).toBe(0);
+    expect(summary.taxIsWithheld).toBe(true);
   });
 
   it('should return null when nothing was sold in the range', () => {
@@ -123,7 +173,7 @@ describe('summarizePeriodSales', () => {
 
     expect(summary.instruments.map((row) => row.id)).toEqual(['vwce', 'b']);
     expect(summary.instruments[1].estimatedTax).toBeNull();
-    expect(summary.instruments[0].estimatedTax).toBeCloseTo(4088.86, 2);
+    expect(summary.instruments[0].estimatedTax).toBeCloseTo(4092.5, 2);
     expect(summary.estimatedTax).toBeNull();
     expect(summary.realizedGain).toBeCloseTo(15726.38 + 100, 2);
   });
