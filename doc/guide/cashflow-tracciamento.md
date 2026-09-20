@@ -173,6 +173,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   counts a non-current month as a filter. The landscape «Aggiungi» button lives beside the period
   (`max-desktop:portrait:hidden`): in portrait the bottom-nav FAB (`cashflow:add-expense`) is the only add
   affordance, in landscape the FAB is gone.
+- **The Movimenti tile's reading totals each type of the rows it is handed** (a search on a note is its own total).
+  (Moved here from the `AGENTS.md` stub on 2026-09-20.)
 - **«Intestatario» is a list filter that exists only with Divisione on** (2026-09-11,
   `lib/utils/movementsOwnerFilter.ts`): the page hands the tab `splitEnabled` and `familyMembers`, and the Select —
   desktop toolbar and the phone drawer alike — offers «Tutti · In comune · {members}», plus «Senza intestatario» only
@@ -196,4 +198,4 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **Tracciamento**: the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip). The hero's KPIs print the PERIOD's totals (calendar included) beside a delta measured on the lived window («↓ 70,1% vs 1–14 ago» under a whole-month 1953 €) — the verdict's second sentence is what reconciles the two, by design. The Movimenti reading still sums scheduled spending and income into one figure («7 in calendario (3753 €)»). The `describePeriodCashflow` reading and `expenseEntityStats` keep their own windows (AGENTS → the two conventions).
+- **Tracciamento**: the period slice uses `periodToRange` (browser local time) while the month buckets use the Italian calendar; the phone bar's controls are 36px; `TransactionFeed`/`CompactExpenseRow` carry two pre-existing `react-hooks` errors; a custom range has no previous period; the month-end projection exists only in the current month; `components/dashboard/overview/NarrativeText.tsx` is an unused re-export (knip). The hero's KPIs print the PERIOD's totals (calendar included) beside a delta measured on the lived window («↓ 70,1% vs 1–14 ago» under a whole-month 1953 €) — the verdict's second sentence is what reconciles the two, by design. The Movimenti reading still sums scheduled spending and income into one figure («7 in calendario (3753 €)»). The `describePeriodCashflow` reading and `expenseEntityStats` keep their own windows (§ *Two conventions now coexist on purpose*, above in this guide — the citation pointed at an `AGENTS.md` section that left it with the 2026-09-06 scorporo).

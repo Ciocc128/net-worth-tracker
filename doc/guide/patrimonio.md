@@ -31,7 +31,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   already assumed a 1 € unit. `isBondQuotedInPercent` (bond + bonds + ISIN) decides WHETHER a price is a quote;
   `toBorsaItalianaQuote` is the inverse the edit forms use. The four callers — `AssetDialog` (fetched, manual and
   purchase price), `TransactionDialog`, `priceUpdater` (both scraper and Yahoo fallback) — import it; none re-implements
-  it. **No migration for documents saved wrong before the fix** (owner's call): the current price self-heals at the next
+  it. **Never re-implement it in a component or the cron; never guard it on `nominal > 1` again (issue #340).** **No migration for documents saved wrong before the fix** (owner's call): the current price self-heals at the next
   cron, the PMC and the opening trade are corrected by the user from the Registro (the form shows 9900 for a 99 stored
   as euro; typing 99 saves 0,99).
 - **A BTP€i's quote is REAL** (`inflationIndexation: 'euro'`, issue #341): the euro value carries the HICP indexation

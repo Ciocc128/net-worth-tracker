@@ -200,7 +200,7 @@ The app **is** locally runnable; there is no fallback to declare.
 - **Throwaway fixtures** follow the existing seed pattern (`scripts/seedEmulator.ts`,
   `scripts/seedAnalisiE2E.mts`, `scripts/seedPensionE2E.mts`, `scripts/seedCoastFireE2E.mts`) or
   live as a throwaway `.mts` in the session scratchpad. `.mts`, never `.ts`: a `.ts` script is CJS
-  under tsx and has no top-level await (AGENTS.md → *Emulator Exercise Scripts*).
+  under tsx and has no top-level await (doc/guide/e2e-emulatori.md § Emulator Exercise Scripts).
 - **The authenticated browser already exists.** The Playwright projects park an authenticated
   `storageState` per fixture account (`e2e/.auth/{user,analisi,degraded}.json`, minted by the three
   `auth*.setup.ts` projects), so a script does not have to reproduce the login:
@@ -213,7 +213,7 @@ The app **is** locally runnable; there is no fallback to declare.
   without that header the call is silently filtered to an empty result, which looks exactly like
   "there are no documents" — or from the API route's own response, or from the emulator UI on
   `http://127.0.0.1:4000`. Arithmetic belongs to Vitest; the browser is for what only a browser
-  knows (AGENTS.md → *Browser-Driven E2E*).
+  knows (doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright)).
 - **Prove the check can fail.** Break the thing under test on purpose once and watch the assertion
   go red. A green check that has never been seen red is indistinguishable from one asserting
   nothing. **When it stays green, the sentence that motivated the test was wrong, not the test**

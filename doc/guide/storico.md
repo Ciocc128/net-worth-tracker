@@ -30,7 +30,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `app/api/portfolio/snapshot/route.ts` and `.../snapshot/manual/route.ts`. Until 2026-09-07 neither did, and since the
   cron runs DAILY on the CURRENT month a note typed there was erased the same evening — a note on a PAST month
   survived, which is why the bug read as «dopo qualche giorno». **A new `MonthlySnapshot` field that no pipeline
-  derives goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron eats it too.**
+  derives goes in `SNAPSHOT_USER_AUTHORED_FIELDS` or the cron eats it too.** Both snapshot writers REPLACE the
+  document, so a new `MonthlySnapshot` field the pipeline does not recompute goes in `SNAPSHOT_USER_AUTHORED_FIELDS`
+  or the daily cron erases it (AGENTS.md § *Firestore Writes*).
 - **TWR neutralises a cash flow only when the net-worth drop and the flow land in the SAME monthly snapshot** — the fix
   is data entry, never re-bucketing cash flows or excluding cash (doc/guide/rendimenti.md § Per-page blind spots has the mirror case).
 - **Two CAGR formulas, intentionally different**: Storico's verdict = `(endNW/startNW)^(12/months) − 1` (wealth growth, said «versamenti inclusi»),

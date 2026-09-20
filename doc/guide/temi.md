@@ -35,8 +35,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **A user-chosen identity colour is a SLOT, not a hex** (`'chart-1'..'chart-8'`, resolved by `resolveCostCenterColor`).
   Three rules: **migrate without a backfill** (`LEGACY_HEX_SLOTS` maps each old hex to the slot at the same position);
   **derive the no-colour fallback from the document id** (FNV-1a), never from the row's rank, which repaints half the
-  list on every period switch; **indices 0-7 are theme-aware** (`--chart-1..8` exist in all twelve blocks since
-  2026-08-30), 8-9 still pad from the static `CHART_COLORS`.
+  list on every period switch; **indices 0-7 are theme-aware** since 2026-08-30 (`--chart-1..8` in all twelve blocks),
+  index 8 (`--chart-9`) since 2026-09-20, only 9 pads from the static `CHART_COLORS`.
 - **The default theme's light slots hold the dark hue bands** (2026-09-13): `:root --chart-1..5` were re-pitched from
   the shadcn preset (three oranges and two teals — Liquidità measured ΔE00 10.1 from Immobili on the real account's
   Composizione bar, and the hero's rising curve wore the hue of `--destructive`) onto blue · green · amber · violet ·
@@ -65,7 +65,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   that class. A user-chosen identity colour still ranges over `chart-1..8` — slot 9 is not offered to cost centers.
 - **A brand-new custom property reads `''` on a running dev server** (seen again 2026-09-20 with `--chart-9`): the
   hook fell back to the static colour and the fix looked like it had done nothing. Stop the server, delete `.next/dev`
-  (`.next-e2e` for the suite) and restart before doubting the stylesheet (AGENTS.md → *Emulator Exercise Scripts*).
+  (`.next-e2e` for the suite) and restart before doubting the stylesheet (doc/guide/e2e-emulatori.md § Emulator Exercise Scripts).
 - **`--chart-6/7/8` carry a meaning across every theme** (2026-08-30): 6 = Materie Prime (gold/olive), 7 = Trend
   Following (teal/cyan), 8 = Carry (rose/magenta) — the hue band is held per theme across light AND dark so a slot does
   not change identity when the mode flips, and only L and C are re-pitched to the block's surface. Before this the tail
@@ -79,6 +79,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `COLOR_THEME_SWATCHES` (module level in `settings/page.tsx`), the swatch grid columns, `tsc`. The swatch previews carry
   each theme's own literal oklch values ON PURPOSE — they preview a palette that is NOT active, which no CSS token can
   express — and the accessible name is the POSITION («Colore 3 di 6: Midnight Bloom»), never the hue.
+  **A new theme or a moved slot runs `__tests__/chartPaletteDistinctness.test.ts` first** — solar-dusk shipped two
+  classes as the same grey for months.
 
 ## Per-page blind spots
 

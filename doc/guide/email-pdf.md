@@ -113,6 +113,22 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   raise one and the other has to follow. Web search is offered only when `includeMacroContext` allows it, like the
   assistant's structured analyses.
 
+## Verifying a surface with no DOM
+
+Moved here whole from `AGENTS.md` → *Commands* on 2026-09-20; the bullet «Verifying it means rendering it» above is the
+PDF half seen from inside the section, this is the recipe for both surfaces.
+
+- **A surface with no DOM is verified by RENDERING it** — `tsc` and Vitest see neither a dropped glyph nor an off-token
+  colour. PDF: `renderToFile` from `@react-pdf/renderer` under Vitest, inflate the content streams with `zlib`, collect
+  every `scn` operand (no colour outside `printTokens`), read the hex text runs (silently dropped characters). Emails:
+  open the rendered HTML in Chromium (`chromium.launch()`, `file://`) at 390 / 600 / 1440 and assert
+  `documentElement.scrollWidth === clientWidth`. Both are throwaway scripts run from INSIDE the repo (or `playwright`
+  and the `@/` alias do not resolve); neither check lives in the suite. **A render with hand-built data proves the
+  WORDS, not the data path** (2026-09-07: the Rendimenti section rendered 10/10 with typed-in metrics while the real
+  export still ran the base without the ledger — 26,05% against the page's 27,08%): run `fetchPDFData` itself through
+  the client SDK on the emulators, with `globalThis.fetch` prefixing the tour server's origin to the relative `/api/…`
+  routes the services call, and compare with the page's payload.
+
 ## Per-page blind spots
 
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

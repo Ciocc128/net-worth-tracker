@@ -168,6 +168,7 @@
 - The Dividendi guide records the two populations (registry vs held portfolio), the form's rules, the armed row delete and the phone's chips; the Impeccable critique of Cashflow › Dividendi (23/40) is committed and closed.
 - The dialog guide records how a modal names the control the focus returns to, that every window of the app now shares one shape (only the logout confirm stays an interrupting alert) and no two-click delete runs on a timer any more, and how a window grows from the button that opened it. It also records what was measured and left alone: below 769px no window takes the keyboard focus when it opens.
 
+- The contributor guide is shorter again (about a fifth fewer words) with nothing dropped: the rules for browser tests and emulator exercises now have a guide of their own, and each area's entry in the core file is back to the few things to know before opening that area's guide.
 - The Storico guide records the ledger that adds up to the euro, the change that is a flow, the table that folds by its own width, the one Tab stop of a list and the two-column desktop grid; the Impeccable critique of Storico (27/40) is committed and closed in the same session, and the page has its first browser tests.
 - The themes guide records that every theme, not the default alone, is now held to the same distance between its chart colours, how the four palettes were re-pitched, and what is still not asserted: the contrast of a colour against its card.
 

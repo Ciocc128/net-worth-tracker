@@ -138,7 +138,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **A taxed sale carries the split itself**: `describeSales(sales, split)` closes on «: senza, il mese avrebbe fatto
   +4213 € (…)», the parts of § *The market counts the month's trades* summing to Δ + tax, and `describeMonthSplit` is
   printed only when there is no tax to take out. The email keeps its own three-part split and calls `describeSales`
-  without the counterfactual.
+  without the counterfactual. A taxed sale carries the split itself («senza, il mese avrebbe fatto …»), replacing
+  `describeOwnFlowsSplit` (the two-part split of 2026-09-11 above, no longer in the code).
 - **`monthSales.purchases`** (source version 18): every BUY of the month on any instrument, fees included, migration
   baselines excluded, `null` when none — «Nello stesso mese hai comprato 6 strumenti per 34.304 €» (`describePurchases`).
   A fact beside the sale, never «con la vendita hai comprato»: the ledger cannot tell which money paid.
@@ -169,6 +170,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   +150 € was card spending not yet debited (a credit card leaves the account the month after its rows), a debt balance
   corrected by hand and 3,64 € between the estimated and the withheld tax — so the two named parts may not add up to
   the total by a few euro. Without the cashflow the second part says what it holds: «tra risparmio e altre variazioni». Patrimonio takes the same `savings` from the same payload.
+  The split reads «dal mercato · risparmiati · di altre variazioni» on the savings already happened, the last only
+  when material (`isMaterialOtherChange`: max(100 €, 5% of the change) — below it is card-debit timing, not a cause;
+  shared with Storico).
 - **The verdict's savings rate is what has already happened** (owner's call): `resolveLivedCashflow` in
   `overviewNarrative.ts` subtracts `expensesScheduled` and the new `incomeScheduled` — Tracciamento's `settleTotals` —
   and names the calendar beside it: «Hai messo da parte il 45% delle entrate finora (altri 1297 € di spese in
