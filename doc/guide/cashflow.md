@@ -6,8 +6,13 @@
 > `lib/utils/{expenseGrouping,expenseTypeTransition,recurrenceDates,expenseImport,cashflowSankey}.ts`,
 > `lib/services/expenseImportService.ts`, `handleEntitySelect` in `AnalisiTab.tsx` o i loro
 > consumatori. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa.
-> Moduli e file: `CLAUDE.md` → *Key Files* → le voci *Analisi*, *Cashflow / cost centers* e
-> *Shared utils*.
+> Moduli e file: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Cashflow services**: services `lib/services/{budgetService,costCenterService,cashBalanceReconciliation,expenseImportService}.ts`, `lib/utils/expenseImport.ts`; the settlement rule `lib/utils/cashSettlement.ts` (pure) + `lib/server/cashSettlement.ts` (the server half, run by `/api/portfolio/snapshot`), «Collega la serie» in `components/expenses/LinkSeriesDialog.tsx`
 
 ## Expense Grouping: key by id, label by name (`lib/utils/expenseGrouping.ts`)
 - **Category names are NOT unique and never will be** — the product deliberately allows "Casa" as both a *Spese Fisse*
@@ -23,8 +28,8 @@
 - Income positive, expenses negative, net savings = `sum(income) + sum(expenses)`; crossing the boundary flips the sign.
 - **Classification is ALWAYS by `type`, never by the sign of `amount`** (`transfer` skipped, `income` income, everything
   else spending via `Math.abs`) — by sign, a refund counts as income. Fixtures must carry an explicit `type`.
-- **`ExpenseDialog` type change is shape-aware across all five types**: `reconcileTransferEdit`, `reconcileSingleEdit`
-  and the two cross-shape edits, which reverse the OLD shape and apply the new one in one delta-map transaction.
+- **`ExpenseDialog` type change is shape-aware across all five types**: `editBalanceEffects` (lib/utils/cashSettlement.ts)
+  gives back the OLD shape's applied effect and applies the new one, both legs of a transfer included, in one transaction.
   `updateExpense` re-derives the sign from the incoming type and nulls `transferCashAssetId` when it leaves transfer.
   **That control lives in EDIT mode only** — creation picks the type in step 1 (AGENTS.md § Two-Step Create Dialogs), so the
   reconciliation paths above are reachable exclusively from a saved row.
@@ -32,11 +37,33 @@
   origin and destination or with the same account twice, with the error under each Select (the `__none__` sentinel
   counts as empty); the two labels carried an asterisk the schema did not honour, so a transfer saved without accounts
   moved no money and said nothing. Without any cash account the dialog says so in place of the pickers.
-- **The first occurrence of a series moves the account WITH THE SIGN OF ITS TYPE** (2026-09-13): the recurring branch
-  of `firstSignedAmount` in `ExpenseDialog.onSubmit` was hard-coded negative — latent, not a bug: `canTypeRecur` keeps
-  incomes out of recurrence, so the branch never met a salary — and now shares the `income → +, else −` rule of the
-  instalment and single branches, so widening `RECURRING_EXPENSE_TYPES` cannot debit an income. Pinned by
-  `e2e/cashflow.accounts.spec.ts` (a recurring expense debits the account once, for its first row).
+- **A linked row moves its account ON ITS OWN DATE** (2026-09-19, `lib/utils/cashSettlement.ts`). Until then a series
+  moved its account ONCE, for its first row, the day it was saved, and the other occurrences never — a mortgage entered
+  in January for the whole year left the account eleven instalments too high by December — and a single row dated in
+  the future moved the account the day it was typed. Now: the expense form creates through `createExpenseSettledOnDate`,
+  which puts the account on EVERY occurrence and writes the ones dated after today (Italian day, `settlesLater`)
+  `balancePending: true`; the rows already happened (a series started in the past included) move the account at save,
+  in ONE transaction (`applyBalanceEffects`), with the sign of their type. `settleDueBalances`
+  (`lib/server/cashSettlement.ts`) settles the rest on their day and deletes the flag; it runs at the top of
+  `/api/portfolio/snapshot`, so the daily cron and «Crea snapshot» photograph the balances AFTER the day's instalments,
+  whichever of the two `0 18 * * *` crons runs first. Idempotent: each row is re-read in the transaction and settled only
+  while still pending. **The flag's ABSENCE means applied**, so every row written before the rule (it moved its account at
+  save) needs no migration and is never applied twice. An edit is ONE set of effects (`editBalanceEffects`: the old row's
+  APPLIED effect given back, the new one applied unless its new date is still to come) — it replaced the four
+  `reconcile*Edit` functions; every delete, a single row or a whole series, gives back only what was applied
+  (`reverseAppliedBalances`). `createExpense` keeps the old contract (first row only, nothing pending) for the caller
+  that settles its own transfer — a voluntary pension contribution. Pinned by `__tests__/cashSettlement.test.ts`,
+  `__tests__/cashBalanceReconciliation.test.ts` and `e2e/cashflow.accounts.spec.ts` (every row linked, today's debited
+  at save, the next one waiting).
+- **The rule in one breath** (the stub's wording, moved here from `AGENTS.md` on 2026-09-20): every occurrence carries
+  `linkedCashAssetId` and moves the account ON ITS OWN DATE (`lib/utils/cashSettlement.ts`, 2026-09-19): a row after
+  today is `balancePending` until `settleDueBalances` runs in `/api/portfolio/snapshot`; a flag ABSENT means applied
+  (older rows moved at save); edits and deletes move only what was applied. A `transfer` IS its two accounts: the schema
+  refuses one without origin and destination, or with the same account twice (`e2e/cashflow.accounts.spec.ts`).
+- **«Collega la serie a un conto»** (`LinkSeriesDialog`, from a series row's detail on the feed): a series written before
+  the rule carries its account on the first row only; `linkSeriesToCashAccount` puts the chosen account on the
+  occurrences still to come that have not moved one (`selectLinkableOccurrences`) and leaves them pending. The past is
+  never touched — its effect is in today's balance — and an occurrence linked AND applied is never re-pointed.
 - **The BATCH paths refuse to cross the transfer boundary** (`crossesTransferBoundary`): `updateExpensesType`,
   `moveExpensesToCategory`, `moveExpensesFromSubCategory` throw `TransferBoundaryError` when expenses exist, since each
   row would need its own destination account.
@@ -48,8 +75,9 @@
   real future-dated rows sharing a `recurringParentId`, which is why Cashflow, Analisi, Budget and the assistant know
   nothing about recurrence — and why the form states how many rows it is about to write, and over which span.
 - **`canTypeRecur` is the single source on which types may recur** (`fixed`/`variable`/`debt`). `income` is a product
-  decision; **`transfer` is structural** — each occurrence moves TWO accounts while the series reconciles balances only
-  on its FIRST entry, so a recurring transfer needs a two-legged reconciliation that does not exist. Widening the set
+  decision; **`transfer` is structural** — the settlement would handle its two legs per occurrence
+  (`balanceEffectsOf`), but the form, the series writers and `createRecurringExpenses`' negative sign were never widened
+  to it; a monthly card payment is one transfer a month, typed on the day. Widening the set
   also breaks `createRecurringExpenses`' unconditional `-Math.abs(amount)`.
 - **Both ceilings in `MAX_RECURRENCE_OCCURRENCES` (360 monthly / 40 yearly) exist to stay under 500**: the series is
   created in ONE `writeBatch` and `deleteRecurringExpenses` removes it in one too. Raising either past 500 means
@@ -102,3 +130,8 @@
   transfer sheds its roles.
 - **The legacy «Fondo Pensione» expense category is empty** on the owner's account (mirror, 2026-09-15: zero rows on
   both the variable and the income category; Previdenza's contributions are transfers) — no double count to clean.
+
+## Per-page blind spots
+
+- **A row that comes due moves its account in the evening, not at midnight** (2026-09-19): the settlement runs with the snapshot at 18:00 UTC (20:00 in Italy), so until then Patrimonio shows the balance without the day's instalment while Tracciamento already counts it as happened. A row entered TODAY with a past or today's date moves the account at save — including a series started in the past: if the balance typed from the bank already reflects those rows, leave the account empty or they are debited twice. A credit card is a cash account allowed below zero (doc/guide/patrimonio.md); its monthly payment is one transfer typed on the day, since a transfer cannot recur.
+- **A running year is the WHOLE calendar year on Tracciamento and Analisi**, so its figures include what is only scheduled; each verdict declares it with amount and horizon, each such row is chipped «In calendario» and drops its sign colour. **«Da inizio anno» (YTD) is the other window** (`Period.kind = 'ytd'`, Analisi's fourth `PeriodMode`): it runs to the END of today's month, not to today, so it carries scheduled rows too. **On «Anno corrente» the delta compares twelve months against twelve** (`resolveComparisonScope` → `fullYear`), biased downward as the year runs; YTD keeps `sameMonths`, and Tracciamento's verdict and a category's Scheda still say «stessi mesi». Not extended to Panoramica, Storico, Budget or Centri di Costo. DESIGN → *The Scheduled-Is-Not-Spent Rule*. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

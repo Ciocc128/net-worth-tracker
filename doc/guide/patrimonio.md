@@ -1,6 +1,12 @@
 # Patrimonio
 
-> **Quando aprire questa guida** — chi tocca `app/dashboard/assets/page.tsx`, `components/assets/*`, `lib/utils/{patrimonioSummary,patrimonioNarrative,assetPerformanceDeltas,assetPricing,assetLiquidity}.ts`. Include le regole di valutazione degli asset (prezzo di mercato, FX, GBp). In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: `CLAUDE.md` → *Key Files* → *Patrimonio* e *Shared utils*.
+> **Quando aprire questa guida** — chi tocca `app/dashboard/assets/page.tsx`, `components/assets/*`, `lib/utils/{patrimonioSummary,patrimonioNarrative,assetPerformanceDeltas,assetPricing,assetLiquidity}.ts`. Include le regole di valutazione degli asset (prezzo di mercato, FX, GBp). In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Patrimonio**: `app/dashboard/assets/page.tsx` (owns every dialog), `components/assets/*` (+ `PatrimonioTile`/`ComposizioneTile` reused from the overview), pure `lib/utils/{patrimonioNarrative,patrimonioSummary,assetPerformanceDeltas,costBasisEur}.ts` (`costBasisPerUnitEur`/`unitPriceEur` = EUR against EUR, fees included), `lib/utils/bondPricing.ts` (`resolveBondPrice` = the ONE Borsa Italiana quote → euro per unit, nominal 1 € by default, BTP€i coefficient; `toBorsaItalianaQuote` the inverse; shared with `lib/helpers/priceUpdater.ts`), `lib/utils/bondDetailsForm.ts` (`buildBondDetailsFromForm`, a rate of 0 is a zero coupon); `lib/services/assetService.ts`, `types/assets.ts`; spec `e2e/assets.bond.spec.ts`
 
 ## Asset Pricing, FX and Assets
 
@@ -25,7 +31,7 @@
   already assumed a 1 € unit. `isBondQuotedInPercent` (bond + bonds + ISIN) decides WHETHER a price is a quote;
   `toBorsaItalianaQuote` is the inverse the edit forms use. The four callers — `AssetDialog` (fetched, manual and
   purchase price), `TransactionDialog`, `priceUpdater` (both scraper and Yahoo fallback) — import it; none re-implements
-  it. **No migration for documents saved wrong before the fix** (owner's call): the current price self-heals at the next
+  it. **Never re-implement it in a component or the cron; never guard it on `nominal > 1` again (issue #340).** **No migration for documents saved wrong before the fix** (owner's call): the current price self-heals at the next
   cron, the PMC and the opening trade are corrected by the user from the Registro (the form shows 9900 for a 99 stored
   as euro; typing 99 saves 0,99).
 - **A BTP€i's quote is REAL** (`inflationIndexation: 'euro'`, issue #341): the euro value carries the HICP indexation
@@ -106,6 +112,15 @@
   ledgerReady })`) and filters the Italian calendar month in memory: a month query would need a `(userId, date)`
   composite index that does not exist. Baselines and adjustments are not trades; a buy's amount is gross + fees,
   a sell's gross − fees (the engine's `computeInvestedCapital` definition).
+- **A cash account may be NEGATIVE — a credit card** (2026-09-19): an account in the red until the monthly transfer
+  from the bank brings it back to zero. `AssetDialog`'s schema refuses a negative quantity for every type but `cash`
+  (it used to refuse it for all, so the card could not even be renamed while in the red); the Panoramica's cash split
+  (`dashboardOverviewService`, `cashNetWorth`) counts it (a `quantity > 0` filter moved its debt into «investimenti
+  liquidi»). The allocation's `buildHoldings` still drops a non-positive holding: a card belongs OUT of the allocation
+  (`allocationRole: 'excluded'`, the form's hint says so), or the cash class would count a debt the per-instrument
+  list does not show. On the Liquidità tile the row shares are of the money HELD (the positive balances) and an account
+  in the red reads «debito» (`summarizeCashAccounts`, `shareOfCash: null`): shares of a total that nets the card out
+  read «138%» and «−57%» on the real account. The KPI «Sui conti» stays net of it.
 - **Peso is measured over the GROSS total** (cash accounts included), like the Classi and Liquidità shares —
   before the redesign the table measured it over the instruments only.
 - **Below `desktop:` the rows are `AssetRow`, flat and expandable** (CSS `grid-rows-[0fr] → [1fr]` with `inert`
@@ -176,3 +191,13 @@
 ## Per-page blind spots
 
 - **Patrimonio**: Δ columns are empty for pension funds and cash accounts by design; the Rendimento tile ranks only within the overview's `topAssets` (15 largest); «Movimenti del mese» reads the whole ledger and filters in memory; **«Andamento» hides Quantità/Prezzo/PMC/TER while it is on** (a view, not a bug — the footer says so); a hand-valued row shows «—» for quantity, price and PMC and has no G/P (its PMC is its price); `text-muted-foreground` on the tile surface measures 4,48:1 in light on the owner's named theme (0,02 under AA; the default theme passes — a theme issue, doc/guide/temi.md, not touched); **a foreign-currency position has no G/P, no YOC and no PMC in euro until its ledger has projected `averageCostEur`** (the backfill runs on the first visit to Patrimonio; before it, the Panoramica's «Asset principali» and the PDF print no return for it — never the old dollar-against-euro figure); a EUR position measured against the native PMC before the backfill reads a G/P higher by its purchase fees; `AssetDialog.tsx` carries 7 pre-existing `react-hooks` errors. **Two accepted side effects of the optional Sottocategoria** (2026-08-30; neither is new — without the asterisk they are only less signalled): a cash account without the «conti correnti» subcategory loses the 5.000 € stamp-duty threshold (`calculateStampDuty`, a rule Impostazioni already states), and changing Tipo or Classe does not clear `subCategory`, so an out-of-class value can survive invisibly — Radix shows the placeholder because the value is not among the items.
+- **FX** depends on Frankfurter with a 24h in-memory cache (no fallback on a cold instance). Pre-migration non-EUR assets without `currentPriceEur` show the native price as EUR until the first update; one with `autoUpdatePrice: false` never self-heals until re-saved. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+- **Bonds saved before 2026-09-11 with the nominal empty or 1 keep a wrong PMC and opening trade** (the raw quote as
+  euro: 99 for 0,99); the current price heals at the next cron, the PMC does not — corrected by the user from the
+  Registro, no backfill by the owner's decision. **A BTP€i is only as current as its coefficient**: Borsa Italiana does
+  not publish it, so the value lags the last coefficient entered (~6 months between coupons unless refreshed from the
+  form), a coupon is provisional until the payment-date coefficient is typed, the PMC entered in the asset form uses
+  TODAY's coefficient (the Registro's trade carries the right one), and redemption at maturity (nominal × coefficient)
+  is not an event for any bond. **`createAsset` re-links a new asset onto an existing one with the same ISIN whenever
+  that ISIN already has dividends** (ISIN continuity, by design): creating a second bond with an already-held ISIN
+  merges it into the first. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

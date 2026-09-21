@@ -14,11 +14,17 @@ import {
   describeExpenseIntent,
   describeFormRefusal,
   describeSeriesDeleteReading,
+  describeLinkSeriesReading,
   describeLedgerReturnVital,
   describeModalStatus,
+  describeMovementDetailReading,
+  describeMovementsFilterAction,
+  describeMovementsFilterReading,
   describeMovementsReading,
   describePensionValueCopy,
   describeSettlementTiming,
+  describeWithheldTaxField,
+  describeSnapshotOverwrite,
   describeTradeIntent,
   describeWriteError,
   pluralize,
@@ -390,6 +396,30 @@ describe('describeTradeIntent', () => {
   });
 });
 
+describe('describeWithheldTaxField', () => {
+  it('should say the prefill is an estimate to correct from the statement', () => {
+    expect(describeWithheldTaxField({ isEdit: false, isLegacySettledSell: false, hasEstimate: true, isTyped: false })).toContain('Stima');
+  });
+
+  it('should stop calling the figure an estimate once the owner has typed it', () => {
+    expect(describeWithheldTaxField({ isEdit: false, isLegacySettledSell: false, hasEstimate: true, isTyped: true })).not.toContain('Stima');
+  });
+
+  it('should say why a new sale has no prefill', () => {
+    expect(describeWithheldTaxField({ isEdit: false, isLegacySettledSell: false, hasEstimate: false, isTyped: false })).toContain('non c’è stima');
+  });
+
+  it('should warn that a tax typed on a sale already credited gross lowers the account today', () => {
+    const warning = describeWithheldTaxField({ isEdit: true, isLegacySettledSell: true, hasEstimate: true, isTyped: false });
+    expect(warning).toContain('oggi il conto scende');
+    expect(warning).toContain('lascia vuoto');
+  });
+
+  it('should not warn on an edit of a sale that already stores its tax', () => {
+    expect(describeWithheldTaxField({ isEdit: true, isLegacySettledSell: false, hasEstimate: true, isTyped: false })).not.toContain('oggi');
+  });
+});
+
 describe('describeSettlementTiming', () => {
   it('promises the automatic update for a trade dated in the current month', () => {
     expect(describeSettlementTiming('2026-09-02', '2026-09-13')).toBe(
@@ -533,5 +563,87 @@ describe('describeSeriesDeleteReading — «solo questa o tutta la serie?»', ()
     expect(text).toBe('Palestra, 40,00 €, si ripete: puoi togliere solo questa occorrenza o tutta la serie; il conto collegato torna come prima delle voci eliminate.');
     // An instalment row without its position falls back to the series wording rather than printing «Rata undefined».
     expect(plain(describeSeriesDeleteReading({ mode: 'installment', label: 'Divano', amount: -100 }))).toContain('Divano, 100,00 €, si ripete');
+  });
+});
+
+describe('describeMovementDetailReading — the reading of the detail is where its delete speaks', () => {
+  // Noon, like every date fixture here: twelve hours clear of any timezone edge.
+  const date = new Date(2026, 8, 14, 12);
+  const deletion = { type: 'variable' as const, amount: -373.81, hasAccount: true };
+
+  it('names the day while idle, and says a scheduled row has not happened yet', () => {
+    const idle = describeMovementDetailReading({ date, scheduled: false, phase: 'idle', deletion });
+    expect(plain(idle.narrative)).toBe('Movimento del 14 settembre 2026.');
+    expect(idle.tone).toBe('neutral');
+    const scheduled = describeMovementDetailReading({ date, scheduled: true, phase: 'idle', deletion });
+    expect(plain(scheduled.narrative)).toBe('In calendario per il 14 settembre 2026: non è ancora avvenuto.');
+  });
+
+  it('gives way to the consequence, in the negative tone, while the delete is armed', () => {
+    const armed = describeMovementDetailReading({ date, scheduled: false, phase: 'armed', deletion });
+    expect(plain(armed.narrative)).toBe('Eliminando, il conto viene riaccreditato di 373,81 €.');
+    expect(armed.tone).toBe('negative');
+  });
+
+  it('says the delete was let go instead of silently returning to the date', () => {
+    const disarmed = describeMovementDetailReading({ date, scheduled: false, phase: 'disarmed', deletion });
+    expect(plain(disarmed.narrative)).toBe('Eliminazione annullata. Movimento del 14 settembre 2026.');
+    expect(disarmed.tone).toBe('neutral');
+  });
+});
+
+describe('describeMovementsFilterReading — the filters count what is left of the period', () => {
+  it('says the list is whole when no filter is set', () => {
+    expect(plain(describeMovementsFilterReading({ activeFilters: 0, shown: 112, total: 112 }))).toBe('Nessun filtro attivo: la lista mostra tutti i 112 movimenti del periodo.');
+    expect(plain(describeMovementsFilterReading({ activeFilters: 0, shown: 1, total: 1 }))).toBe('Nessun filtro attivo: la lista mostra l’unico movimento del periodo.');
+  });
+
+  it('counts the rows that pass, agreeing in number on both sides', () => {
+    expect(plain(describeMovementsFilterReading({ activeFilters: 2, shown: 27, total: 112 }))).toBe('2 filtri attivi: restano 27 movimenti su 112.');
+    expect(plain(describeMovementsFilterReading({ activeFilters: 1, shown: 1, total: 12 }))).toBe('1 filtro attivo: resta 1 movimento su 12.');
+  });
+
+  it('names an empty result and an empty period as what they are', () => {
+    expect(plain(describeMovementsFilterReading({ activeFilters: 2, shown: 0, total: 112 }))).toBe('2 filtri attivi: nessun movimento su 112 li passa.');
+    expect(plain(describeMovementsFilterReading({ activeFilters: 1, shown: 0, total: 112 }))).toBe('1 filtro attivo: nessun movimento su 112 lo passa.');
+    // A filter set over an empty period still has nothing to narrow: the period wins.
+    expect(plain(describeMovementsFilterReading({ activeFilters: 1, shown: 0, total: 0 }))).toBe('Nessun movimento nel periodo: non c’è nulla da filtrare.');
+  });
+
+  it('labels the primary with the count it shows, never «0 movimenti»', () => {
+    expect(describeMovementsFilterAction(27)).toBe('Mostra 27 movimenti');
+    expect(describeMovementsFilterAction(1)).toBe('Mostra 1 movimento');
+    expect(describeMovementsFilterAction(0)).toBe('Torna alla lista');
+  });
+});
+
+describe('describeSnapshotOverwrite — the title names the act and the month', () => {
+  it('lowercases the month in the title and keeps it capitalised at the head of the reading', () => {
+    const { title, reading } = describeSnapshotOverwrite({ month: 9, year: 2026 });
+    expect(title).toBe('Sovrascrivi lo snapshot di settembre');
+    expect(plain(reading)).toBe('Settembre 2026 ha già uno snapshot: sovrascriverlo lo sostituisce con i valori di oggi. La nota del mese resta.');
+  });
+});
+
+describe('describeLinkSeriesReading — «Collega la serie a un conto»', () => {
+  const first = new Date(2026, 8, 28, 12);
+
+  it('should say how many occurrences will move the account, from when, and that the past stays', () => {
+    expect(plain(describeLinkSeriesReading({ mode: 'recurring', futureCount: 3, firstDate: first, pastCount: 9, accountName: 'Conto BNL' }))).toBe(
+      'Le 3 voci future, dal 28 settembre 2026, scaleranno Conto BNL ciascuna alla sua data; le 9 già avvenute restano come sono.',
+    );
+    expect(plain(describeLinkSeriesReading({ mode: 'installment', futureCount: 3, firstDate: first, pastCount: 0, accountName: null }))).toBe(
+      'Le 3 rate future, dal 28 settembre 2026, scaleranno il conto che scegli ciascuna alla sua data.',
+    );
+  });
+
+  it('should speak of the one occurrence left in the singular', () => {
+    expect(plain(describeLinkSeriesReading({ mode: 'installment', futureCount: 1, firstDate: first, pastCount: 1, accountName: 'Carta' }))).toBe(
+      'L’unica rata futura, il 28 settembre 2026, scalerà Carta in quel giorno; quella già avvenuta resta com’è.',
+    );
+  });
+
+  it('should say there is nothing to link when no occurrence is left to come', () => {
+    expect(plain(describeLinkSeriesReading({ mode: 'recurring', futureCount: 0, firstDate: null, pastCount: 12, accountName: 'Conto BNL' }))).toContain('Nessuna voce futura da collegare');
   });
 });

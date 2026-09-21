@@ -39,6 +39,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { authenticatedFetch } from '@/lib/utils/authFetch';
+import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import {
   getSettings,
   setSettings,
@@ -507,6 +508,8 @@ export default function SettingsPage() {
   // Dividend settings state
   const [dividendIncomeCategoryId, setDividendIncomeCategoryId] = useState<string>('');
   const [dividendIncomeSubCategoryId, setDividendIncomeSubCategoryId] = useState<string>('');
+  // Default account credited by dividends and coupons ('__none__' = none, like the expense defaults).
+  const [dividendCashAssetId, setDividendCashAssetId] = useState<string>('__none__');
   const [syncingDividends, setSyncingDividends] = useState(false);
 
   // 2-click disarm for zero-expense category deletion (avoids window.confirm)
@@ -553,13 +556,6 @@ export default function SettingsPage() {
 
   const interactiveControlClass =
     'motion-safe:transition-[border-color,box-shadow,background-color,color] motion-safe:duration-150 motion-reduce:transition-none';
-
-  const calculateDialogOrigin = (element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
-    const x = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
-    const y = ((rect.top + rect.height / 2) / window.innerHeight) * 100;
-    return `${x.toFixed(2)}% ${y.toFixed(2)}%`;
-  };
 
   const handleTabChange = (value: string) => {
     setActiveTab(value as SettingsTabId);
@@ -651,6 +647,7 @@ export default function SettingsPage() {
         // Load dividend settings
         setDividendIncomeCategoryId(settingsData.dividendIncomeCategoryId || '');
         setDividendIncomeSubCategoryId(settingsData.dividendIncomeSubCategoryId || '');
+        setDividendCashAssetId(settingsData.dividendCashAssetId || '__none__');
         // Load family members (fondo pensione per-taxpayer RAL/eligibility)
         setFamilyMemberDrafts(toFamilyMemberDrafts(settingsData.familyMembers));
         // Read-only declarations for the state+link tiles (owned by the FIRE pages / Assistant)
@@ -800,6 +797,7 @@ export default function SettingsPage() {
           dividendIncomeCategoryId: settingsData?.dividendIncomeCategoryId || '',
           dividendIncomeSubCategoryId:
             settingsData?.dividendIncomeSubCategoryId || '',
+          dividendCashAssetId: settingsData?.dividendCashAssetId || '__none__',
         })
       );
     } catch (error) {
@@ -1396,6 +1394,7 @@ export default function SettingsPage() {
         targets,
         dividendIncomeCategoryId: dividendIncomeCategoryId || undefined,
         dividendIncomeSubCategoryId: dividendIncomeSubCategoryId || undefined,
+        dividendCashAssetId: dividendCashAssetId !== '__none__' ? dividendCashAssetId : undefined,
         defaultDebitCashAssetId: defaultDebitCashAssetId !== '__none__' ? defaultDebitCashAssetId : undefined,
         defaultCreditCashAssetId: defaultCreditCashAssetId !== '__none__' ? defaultCreditCashAssetId : undefined,
         stampDutyEnabled,
@@ -1724,6 +1723,7 @@ export default function SettingsPage() {
   const dividendSnapshotKey = JSON.stringify({
         dividendIncomeCategoryId: dividendIncomeCategoryId || '',
         dividendIncomeSubCategoryId: dividendIncomeSubCategoryId || '',
+        dividendCashAssetId,
       });
 
   const hasUnsavedAllocationChanges =
@@ -3427,7 +3427,7 @@ export default function SettingsPage() {
                                         handleMoveExpenseCategory(
                                           category.id,
                                           category.name,
-                                          calculateDialogOrigin(event.currentTarget)
+                                          resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect())
                                         )
                                       }
                                     >
@@ -3455,7 +3455,7 @@ export default function SettingsPage() {
                                           handleDeleteExpenseCategory(
                                             category.id,
                                             category.name,
-                                            calculateDialogOrigin(event.currentTarget)
+                                            resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect())
                                           );
                                         }
                                       }}
@@ -3503,6 +3503,7 @@ export default function SettingsPage() {
                   reading={describeDividendCategory({
                     categoryName: dividendCategory?.name,
                     subCategoryName: dividendSubCategory?.name,
+                    accountName: cashAssets.find((a) => a.id === dividendCashAssetId)?.name,
                   })}
                 >
                   <div className="mt-1 flex flex-col divide-y divide-border">
@@ -3581,6 +3582,27 @@ export default function SettingsPage() {
                           </Button>
                         )}
                       </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium">Conto di accredito</p>
+                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                          Predefinito: uno strumento può averne uno suo
+                        </p>
+                      </div>
+                      <Select value={dividendCashAssetId} onValueChange={setDividendCashAssetId}>
+                        <SelectTrigger className={cn('w-56', interactiveControlClass)} aria-label="Conto di accredito dei dividendi">
+                          <SelectValue placeholder="Nessun conto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nessun conto</SelectItem>
+                          {cashAssets.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.name} ({a.currency})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 

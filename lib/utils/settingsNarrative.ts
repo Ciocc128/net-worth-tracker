@@ -750,15 +750,21 @@ export function describeImport(input: ImportReadingInput): Narrative {
 export interface DividendCategoryInput {
   categoryName?: string;
   subCategoryName?: string;
+  /** The default account a payment credits; an instrument's own account wins over it. */
+  accountName?: string;
 }
 
 /** Entrate da dividendi — where a received dividend lands in the cashflow. */
-export function describeDividendCategory({ categoryName, subCategoryName }: DividendCategoryInput): Narrative {
+export function describeDividendCategory({ categoryName, subCategoryName, accountName }: DividendCategoryInput): Narrative {
   if (!categoryName) {
     return [prose('Senza una categoria, gli incassi non diventano entrate nel cashflow.')];
   }
   const target = subCategoryName ? `${categoryName} › ${subCategoryName}` : categoryName;
-  return [prose(`Ogni incasso registrato diventa un'entrata in ${target}, senza doppioni.`)];
+  const landing = `Ogni incasso registrato diventa un'entrata in ${target}, senza doppioni`;
+  // The account clause is dropped without an account (Narrative Honesty Rule): an instrument may
+  // still carry its own, so «nessun conto si muove» would be a claim this tile cannot make.
+  if (!accountName) return [prose(`${landing}.`)];
+  return [prose(`${landing}; dal giorno del pagamento accredita ${accountName}, salvo un conto scelto sullo strumento.`)];
 }
 
 /** BTP Italia — the FOI is announced per coupon, from the Dividendi calendar. */

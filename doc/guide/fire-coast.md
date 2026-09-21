@@ -1,6 +1,6 @@
 # FIRE › Coast FIRE
 
-> **When to open this guide** — you are touching `components/fire-simulations/CoastFireTab.tsx`, `components/fire-simulations/coast/*` (`tiles/*`, `CoastIpotesi`, `CoastDettaglio`, `CoastFireProjectionChart`), `lib/utils/coastFireView.ts` or `lib/hooks/useCoastFireSettingsDraft.ts`. The page-wide rules — the pension unlock, `respectPensionLockInFire`, the bridge model, the config-first collapse, the Ventaglio engine, `deriveMonteCarloAllocation`, the goal math — live in `doc/guide/fire.md § FIRE, What If and Goals` and are not repeated here. In `AGENTS.md` only the stub with the essentials remains (§ FIRE, What If and Goals); modules and files: `CLAUDE.md` → *Key Files* → the **Coast FIRE** entry. Fixture and specs: `scripts/seedCoastFireE2E.mts`, `e2e/coast*.spec.ts` (`coast.mobile.spec.ts` measures `main`'s overflow).
+> **When to open this guide** — you are touching `components/fire-simulations/CoastFireTab.tsx`, `components/fire-simulations/coast/*` (`tiles/*`, `CoastIpotesi`, `CoastDettaglio`, `CoastFireProjectionChart`), `lib/utils/coastFireView.ts` or `lib/hooks/useCoastFireSettingsDraft.ts`. The page-wide rules — the pension unlock, `respectPensionLockInFire`, the bridge model, the config-first collapse, the Ventaglio engine, `deriveMonteCarloAllocation`, the goal math — live in `doc/guide/fire.md § FIRE, What If and Goals` and are not repeated here. In `AGENTS.md` only the stub with the essentials remains (§ FIRE, What If and Goals); modules and files: `doc/guide/fire.md` § *Files*. Fixture and specs: `scripts/seedCoastFireE2E.mts`, `e2e/coast*.spec.ts` (`coast.mobile.spec.ts` measures `main`'s overflow).
 
 ## FIRE › Coast FIRE — a verdict over tiles (`components/fire-simulations/CoastFireTab.tsx`, `components/fire-simulations/coast/*`, `lib/utils/coastFireView.ts`)
 
@@ -43,7 +43,7 @@
   «Scenari Coast FIRE»), the verdict by «Verdetto sul Coast FIRE», the disclosures by their VISIBLE text (`/^Ipotesi/`,
   `/^Dettaglio/` — the Ipotesi trigger carries the basis line, so it can be asserted closed), the hero as
   `p:has-text("numero Coast FIRE") + span`, the scenario list by `role=list` «Numero Coast FIRE per scenario». The
-  fixture fixes expenses but not the clock: structure and format only (AGENTS.md § Browser-Driven E2E).
+  fixture fixes expenses but not the clock: structure and format only (doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright)).
 
 ## Per-page blind spots
 

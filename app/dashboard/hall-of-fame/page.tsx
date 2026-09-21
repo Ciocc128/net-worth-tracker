@@ -24,8 +24,8 @@
  * from the stored rankings in `hallOfFameSummary.ts`. No component computes a figure.
  */
 
-import type { CSSProperties, RefObject } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -83,46 +83,6 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 /** How many positions the two five-row tiles show; the rest live in the Dettaglio. */
 const BOARD_PREVIEW_SIZE = 5;
 
-type TriggerRect = { left: number; top: number; width: number; height: number } | null;
-
-function captureTriggerRect(element: HTMLElement | null): TriggerRect {
-  if (!element) return null;
-  const rect = element.getBoundingClientRect();
-  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-}
-
-/**
- * Grows a dialog out of the control that opened it: the transform origin is the trigger's
- * centre, expressed in the dialog's own coordinates.
- */
-function buildDialogStyle(
-  open: boolean,
-  triggerRect: TriggerRect,
-  dialogRef: RefObject<HTMLDivElement | null>,
-  setStyle: (style: CSSProperties | undefined) => void,
-) {
-  if (!open || !triggerRect) {
-    setStyle(undefined);
-    return () => undefined;
-  }
-
-  const frameId = requestAnimationFrame(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) {
-      setStyle(undefined);
-      return;
-    }
-    const dialogRect = dialog.getBoundingClientRect();
-    setStyle({
-      transformOrigin: `${triggerRect.left + triggerRect.width / 2 - dialogRect.left}px ${
-        triggerRect.top + triggerRect.height / 2 - dialogRect.top
-      }px`,
-    });
-  });
-
-  return () => cancelAnimationFrame(frameId);
-}
-
 /** Every year a ranking mentions, newest first — the years a note can be filed under. */
 function collectAvailableYears(data: HallOfFameData): number[] {
   const rankings = [
@@ -157,12 +117,11 @@ export default function HallOfFamePage() {
   const [viewingNote, setViewingNote] = useState<HallOfFameNote | null>(null);
   const [noteEditOpen, setNoteEditOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<HallOfFameNote | null>(null);
-  const [triggerRect, setTriggerRect] = useState<TriggerRect>(null);
-  const [noteViewStyle, setNoteViewStyle] = useState<CSSProperties>();
-  const [noteEditStyle, setNoteEditStyle] = useState<CSSProperties>();
-
-  const noteViewRef = useRef<HTMLDivElement | null>(null);
-  const noteEditRef = useRef<HTMLDivElement | null>(null);
+  // Where a note's window grows from: the control that opened it, resolved at the click
+  // (lib/utils/modalOrigin.ts) and shared by the two windows — «Modifica» hands the view over
+  // to the form, which keeps growing from the same record. Never cleared on close: the exit
+  // animates too, and an origin that changes mid-animation is tweened, not swapped.
+  const [noteOrigin, setNoteOrigin] = useState<string | undefined>(undefined);
 
   const loadData = async () => {
     if (!user || !ownerId) return;
@@ -188,15 +147,6 @@ export default function HallOfFamePage() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, ownerId]);
-
-  useEffect(
-    () => buildDialogStyle(noteViewOpen, triggerRect, noteViewRef, setNoteViewStyle),
-    [noteViewOpen, triggerRect],
-  );
-  useEffect(
-    () => buildDialogStyle(noteEditOpen, triggerRect, noteEditRef, setNoteEditStyle),
-    [noteEditOpen, triggerRect],
-  );
 
   // ─── The numbers (pure layer) ───────────────────────────────────────────────
   const today = useMemo(() => getItalyMonthYear(), []);
@@ -276,13 +226,13 @@ export default function HallOfFamePage() {
   };
 
   const handleNoteClick = (note: HallOfFameNote, trigger: HTMLElement | null) => {
-    setTriggerRect(captureTriggerRect(trigger));
+    setNoteOrigin(trigger ? resolveCenteredModalOrigin(trigger.getBoundingClientRect()) : undefined);
     setViewingNote(note);
     setNoteViewOpen(true);
   };
 
   const handleAddNote = (trigger: HTMLElement | null) => {
-    setTriggerRect(captureTriggerRect(trigger));
+    setNoteOrigin(trigger ? resolveCenteredModalOrigin(trigger.getBoundingClientRect()) : undefined);
     setEditingNote(null);
     setNoteEditOpen(true);
   };
@@ -350,7 +300,6 @@ export default function HallOfFamePage() {
         open={noteViewOpen}
         onOpenChange={(open) => {
           setNoteViewOpen(open);
-          if (!open) setNoteViewStyle(undefined);
         }}
         note={viewingNote}
         onEditClick={() => {
@@ -358,25 +307,20 @@ export default function HallOfFamePage() {
           setNoteViewOpen(false);
           setNoteEditOpen(true);
         }}
-        dialogRef={noteViewRef}
-        style={noteViewStyle}
+        triggerOrigin={noteOrigin}
       />
       {data && (
         <HallOfFameNoteDialog
           open={noteEditOpen}
           onOpenChange={(open) => {
             setNoteEditOpen(open);
-            if (!open) {
-              setNoteEditStyle(undefined);
-              setEditingNote(null);
-            }
+            if (!open) setEditingNote(null);
           }}
           editNote={editingNote}
           availableYears={collectAvailableYears(data)}
           onSave={handleNoteSave}
           onDelete={handleNoteDelete}
-          dialogRef={noteEditRef}
-          style={noteEditStyle}
+          triggerOrigin={noteOrigin}
         />
       )}
     </>

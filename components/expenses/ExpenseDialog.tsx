@@ -38,19 +38,15 @@ import {
   RecurrenceFrequency,
 } from '@/types/expenses';
 import { CostCenter } from '@/types/costCenters';
+import { resolveCostCenterColor } from '@/lib/utils/costCenterColors';
+import { useChartColors } from '@/lib/hooks/useChartColors';
 import { getCostCenters } from '@/lib/services/costCenterService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Asset, FamilyMember } from '@/types/assets';
-import { createExpense, updateExpense } from '@/lib/services/expenseService';
+import { createExpenseSettledOnDate, updateExpense } from '@/lib/services/expenseService';
 import { getAllAssets } from '@/lib/services/assetService';
-import {
-  reconcileTransferEdit,
-  reconcileTransferCreate,
-  reconcileSingleEdit,
-  reconcileSingleCreate,
-  reconcileTransferToSingleEdit,
-  reconcileSingleToTransferEdit,
-} from '@/lib/services/cashBalanceReconciliation';
+import { applyBalanceEffects } from '@/lib/services/cashBalanceReconciliation';
+import { editBalanceEffects } from '@/lib/utils/cashSettlement';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { getAllCategories, ensureTransferCategory } from '@/lib/services/expenseCategoryService';
 import { resolveEquivalentCategory } from '@/lib/utils/expenseCategoryMatching';
@@ -451,6 +447,10 @@ function ExpenseFormBody({
   setAdvancedOpen,
 }: Readonly<FormBodyProps>) {
   const { register, control, handleSubmit, setValue, getValues, formState: { errors } } = form;
+  const chartColors = useChartColors();
+  // An archived center is closed: it takes no new expense. The one this expense is ALREADY
+  // linked to stays listed, or opening an old row would show «Nessun centro» and unlink it on save.
+  const linkableCostCenters = costCenters.filter((center) => !center.archivedAt || center.id === selectedCostCenterId);
   const recurringFrequency = selectedRecurringFrequency ?? DEFAULT_RECURRENCE_FREQUENCY;
   return (
     <form id="expense-form" onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5">
@@ -696,7 +696,7 @@ function ExpenseFormBody({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Il saldo di entrambi i conti viene aggiornato automaticamente.
+            I due saldi si muovono alla data del trasferimento: subito se è oggi o passata, quel giorno se è futura.
           </p>
         </div>
       ) : selectedType === 'transfer' ? (
@@ -727,7 +727,7 @@ function ExpenseFormBody({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Il saldo viene aggiornato automaticamente al salvataggio.
+            Il saldo si muove alla data della voce: subito se è oggi o passata, quel giorno se è futura; in una serie, ogni voce alla sua data.
           </p>
         </div>
       ) : null}
@@ -806,7 +806,7 @@ function ExpenseFormBody({
         <CollapsibleContent className="space-y-5 pt-4">
 
           {/* ---- Centro di costo (feature-gated) ---- */}
-          {costCentersEnabled && costCenters.length > 0 && (
+          {costCentersEnabled && linkableCostCenters.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="costCenter">Centro di Costo</Label>
               <Select value={selectedCostCenterId} onValueChange={setSelectedCostCenterId}>
@@ -815,16 +815,18 @@ function ExpenseFormBody({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Nessun centro di costo</SelectItem>
-                  {costCenters.map((center) => (
+                  {linkableCostCenters.map((center) => (
                     <SelectItem key={center.id} value={center.id}>
                       <span className="flex items-center gap-2">
-                        {center.color && (
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: center.color }}
-                          />
-                        )}
+                        {/* The stored colour is a SLOT («chart-1»), not a CSS colour: painted as it
+                            is, the dot was invisible. Same resolver, same swatch as the Centri tile. */}
+                        <span
+                          className="inline-block h-2 w-2 shrink-0 rounded-[2px]"
+                          style={{ background: resolveCostCenterColor(center.color, center.id, chartColors) }}
+                          aria-hidden="true"
+                        />
                         {center.name}
+                        {center.archivedAt && <span className="text-muted-foreground">· archiviato</span>}
                       </span>
                     </SelectItem>
                   ))}
@@ -1683,7 +1685,25 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
         personalMemberId: resolvedPersonalMemberId,
       };
 
+      // One «now» for the whole save: whether a row moves its account today or on its date
+      // (lib/utils/cashSettlement.ts) must not change between the write and the balances.
+      const now = new Date();
+
       if (expense) {
+        // Editing always has an amount: the instalment toggle is creation-only, so the field is
+        // never hidden here. A transfer is stored positive, every other row by the sign of its type.
+        const editedAmount = Math.abs(data.amount ?? 0);
+        const settlement = editBalanceEffects(
+          expense,
+          {
+            type: data.type,
+            amount: data.type === 'income' || data.type === 'transfer' ? editedAmount : -editedAmount,
+            date: data.date,
+            linkedCashAssetId,
+            transferCashAssetId: data.type === 'transfer' ? transferCashAssetId : undefined,
+          },
+          now,
+        );
         const updatesWithLink = {
           ...expenseData,
           linkedCashAssetId: linkedCashAssetId ?? null,
@@ -1704,6 +1724,9 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           // Form-only, and `updateExpense` spreads whatever it is handed: the number of
           // occurrences describes a creation, not a row, and must never reach the document.
           recurringCount: undefined,
+          // The row's new date decides: still to come → it waits (the server settles it on the
+          // day), today or past → it has moved its account(s) with the effects below.
+          balancePending: settlement.pending,
         };
         await updateExpense(
           expense.id,
@@ -1712,53 +1735,11 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
           subCategoryName
         );
 
-        let assetUpdated = false;
-
-        // Reconcile cash balances BEFORE confirming success — a failed transaction
-        // must not show a success toast while balances are left inconsistent.
-        // The branch is chosen from BOTH the old and the new type: a transfer touches
-        // two accounts, so crossing that boundary needs the cross-shape reconcilers.
-        const wasTransfer = expense.type === 'transfer';
-        const isTransfer = data.type === 'transfer';
-        // Editing always has an amount: the instalment toggle is creation-only, so the
-        // field is never hidden here.
-        const editedAmount = data.amount ?? 0;
-        const newSignedAmount =
-          data.type === 'income' ? Math.abs(editedAmount) : -Math.abs(editedAmount);
-
-        if (wasTransfer && isTransfer) {
-          assetUpdated = await reconcileTransferEdit({
-            oldOriginId: expense.linkedCashAssetId,
-            oldDestId: expense.transferCashAssetId,
-            newOriginId: linkedCashAssetId,
-            newDestId: transferCashAssetId,
-            oldAmount: Math.abs(expense.amount),
-            newAmount: Math.abs(editedAmount),
-          });
-        } else if (wasTransfer) {
-          assetUpdated = await reconcileTransferToSingleEdit({
-            oldOriginId: expense.linkedCashAssetId,
-            oldDestId: expense.transferCashAssetId,
-            oldAmount: Math.abs(expense.amount),
-            newLinkedAssetId: linkedCashAssetId,
-            newSignedAmount,
-          });
-        } else if (isTransfer) {
-          assetUpdated = await reconcileSingleToTransferEdit({
-            oldLinkedAssetId: expense.linkedCashAssetId,
-            oldSignedAmount: expense.amount,
-            newOriginId: linkedCashAssetId,
-            newDestId: transferCashAssetId,
-            newAmount: Math.abs(editedAmount),
-          });
-        } else {
-          assetUpdated = await reconcileSingleEdit({
-            oldLinkedAssetId: expense.linkedCashAssetId,
-            newLinkedAssetId: linkedCashAssetId,
-            oldSignedAmount: expense.amount,
-            newSignedAmount,
-          });
-        }
+        // Reconcile cash balances BEFORE confirming success — a failed transaction must not show
+        // a success toast while balances are left inconsistent. One set of effects covers every
+        // edit: the old row's APPLIED effect given back, the new one applied unless it waits for
+        // its date — amount, account, type across the transfer boundary and date alike.
+        const assetUpdated = await applyBalanceEffects(settlement.effects);
 
         if (assetUpdated) {
           queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
@@ -1767,67 +1748,24 @@ export function ExpenseDialog({ open, onClose, expense, onSuccess }: Readonly<Ex
 
         toast.success(data.type === 'transfer' ? 'Trasferimento aggiornato con successo' : 'Spesa aggiornata con successo');
       } else {
-        const result = await createExpense(
+        // Every row of the shape carries its account; the rows already happened move it now
+        // (in one transaction, BEFORE the success toast), the ones to come on their own date.
+        const { ids: result, appliedEffects } = await createExpenseSettledOnDate(
           ownerId,
           expenseData,
           category.name,
-          subCategoryName
+          subCategoryName,
+          now
         );
-
-        if (data.type === 'transfer') {
-          // Reconcile balances BEFORE confirming success (see edit branch).
-          const transferUpdated = await reconcileTransferCreate({
-            originId: linkedCashAssetId,
-            destId: transferCashAssetId,
-            amount: Math.abs(expenseData.amount),
-          });
-          if (transferUpdated) {
-            queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(ownerId) });
-          }
-          toast.success('Trasferimento creato con successo');
-        } else if (linkedCashAssetId) {
-          let firstSignedAmount: number;
-          if (
-            expenseData.isInstallment &&
-            expenseData.installmentCount &&
-            expenseData.installmentCount > 1
-          ) {
-            let firstAmt: number;
-            if (expenseData.installmentMode === 'auto') {
-              firstAmt =
-                Math.floor(
-                  (expenseData.installmentTotalAmount! / expenseData.installmentCount) * 100
-                ) / 100;
-            } else {
-              firstAmt = expenseData.installmentAmounts![0];
-            }
-            firstSignedAmount =
-              data.type === 'income' ? Math.abs(firstAmt) : -Math.abs(firstAmt);
-          } else if (
-            expenseData.isRecurring &&
-            expenseData.recurringCount &&
-            expenseData.recurringCount > 0
-          ) {
-            // The first occurrence is the only one that moves the account, with the SIGN of its
-            // type — the same rule as the two branches beside it. It was hard-coded negative until
-            // 2026-09-13: harmless only because `canTypeRecur` keeps incomes out of recurrence, a
-            // guard this branch must not rely on.
-            firstSignedAmount =
-              data.type === 'income' ? Math.abs(expenseData.amount) : -Math.abs(expenseData.amount);
-          } else {
-            firstSignedAmount =
-              data.type === 'income' ? Math.abs(expenseData.amount) : -Math.abs(expenseData.amount);
-          }
-
-          await reconcileSingleCreate({ linkedAssetId: linkedCashAssetId, signedAmount: firstSignedAmount });
+        if (await applyBalanceEffects(appliedEffects)) {
           queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.overview(ownerId) });
         }
 
-        // Non-transfer success toast — after balances are reconciled.
-        if (data.type !== 'transfer') {
-          if (Array.isArray(result)) {
+        if (data.type === 'transfer') {
+          toast.success('Trasferimento creato con successo');
+        } else {
+          if (expenseData.isInstallment || expenseData.isRecurring) {
             if (expenseData.isInstallment) {
               const total =
                 expenseData.installmentMode === 'auto'

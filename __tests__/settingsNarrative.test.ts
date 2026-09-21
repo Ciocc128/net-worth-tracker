@@ -797,6 +797,12 @@ describe('describeDividendCategory', () => {
     );
   });
 
+  it('names the default account and says an instrument can override it', () => {
+    expect(plain(describeDividendCategory({ categoryName: 'Dividendi', accountName: 'Directa' }))).toBe(
+      "Ogni incasso registrato diventa un'entrata in Dividendi, senza doppioni; dal giorno del pagamento accredita Directa, salvo un conto scelto sullo strumento."
+    );
+  });
+
   it('states the consequence of no category', () => {
     expect(plain(describeDividendCategory({}))).toBe(
       'Senza una categoria, gli incassi non diventano entrate nel cashflow.'

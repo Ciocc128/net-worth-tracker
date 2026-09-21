@@ -1,6 +1,12 @@
 # Hall of Fame
 
-> **Quando aprire questa guida** — chi tocca `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*`, `lib/utils/{hallOfFameSummary,hallOfFameNarrative,hallOfFameRecords}.ts`, `lib/constants/hallOfFame.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: `CLAUDE.md` → *Key Files* → *Hall of Fame*.
+> **Quando aprire questa guida** — chi tocca `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*`, `lib/utils/{hallOfFameSummary,hallOfFameNarrative,hallOfFameRecords}.ts`, `lib/constants/hallOfFame.ts`. In `AGENTS.md` resta lo stub con l'essenziale; qui c'è la regola completa. File: § *Files*, sotto.
+
+## Files
+
+Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
+
+- **Hall of Fame**: `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*` (+ `tiles/*`), pure `lib/utils/{hallOfFameSummary,hallOfFameNarrative}.ts` over `lib/utils/hallOfFameRecords.ts` (the ONE definition of record and ranking, shared with the email), `lib/constants/hallOfFame.ts`, `lib/services/hallOfFameService{,.server}.ts`, `app/api/hall-of-fame/recalculate/route.ts`; collection `hall-of-fame/{userId}`
 
 ## Hall of Fame — a verdict over tiles (`app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*`, `lib/utils/{hallOfFameSummary,hallOfFameNarrative}.ts`)
 
@@ -10,7 +16,7 @@
 - **One document per OWNER, not per viewer**: the page reads `hall-of-fame/{ownerId}` (`useActiveAccount()`, never `user.uid`), so a co-owner of a shared account reads the SAME document and the owner's recalculation covers them both. Only that person's own separate account is a second document.
 - **`updateHallOfFame` reads the notes back before its full `set`**: a ranking update must never cost the user a note. Both writers do it; anything that touches that path keeps the read-back.
 - **Two rankings and a stats block are OPTIONAL on the document** (`bestMonthsBySavings`, `bestYearsBySavings`, `stats`): they arrived on 2026-08-25, so a document written before that has none. `getBoard` returns **null** for a ranking the document does not carry — distinct from an empty board, which means "nothing ever qualified" — and the tile says the record arrives with the next update instead of printing a zero (The Narrative Honesty Rule). Do not "fix" it with `?? []`.
-- **A savings record needs income** (`rankBySavings`): without the `totalIncome > 0` guard the winner is systematically the month with the least DATA — an untracked month saves as much as one that earned nothing and outranks every real month. The tile's footer states the guard. Known blind spot: a month with income and zero expenses recorded reads as a 100% rate (CLAUDE.md → Known Issues).
+- **A savings record needs income** (`rankBySavings`): without the `totalIncome > 0` guard the winner is systematically the month with the least DATA — an untracked month saves as much as one that earned nothing and outranks every real month. The tile's footer states the guard. Known blind spot: a month with income and zero expenses recorded reads as a 100% rate.
 - **`stats` cannot be recovered from the rankings** — the document keeps only the top slices, so the average monthly income that «il 62,1% sopra la tua media mensile» divides by is stored, not derived. Same for the month/year counts the compact header prints.
 - **The verdict names the BEST month, the tile's footer the WORST** — never the same figure twice (the rule Storico settled). When the running month IS the record the headline says so (`Agosto 2026 è il tuo mese migliore.`) and the sentence drops its own «al 3° posto» clause. A podium place gets a word (`il secondo anno migliore`), a place past the third gets its number (`al 4° posto tra gli anni`): «il settimo anno migliore» reads as praise it is not.
 - **The chart dates, the podium ranks** (`buildRecordTimeline`): the twelve record months are drawn in CHRONOLOGICAL order, because «when did the records happen?» is a different question from «which are they» and the One-Tile-One-Question Rule forbids the same rows twice. Beyond the limit the SMALLEST records are dropped, never the oldest — cutting by date would silently make it a recent-months chart.
