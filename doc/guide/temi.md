@@ -88,6 +88,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Two DEFAULT-theme chart slots and the row focus ring sit under 3:1 as non-text signals** (measured 2026-09-18 on a
   card, re-derived by hand): `--chart-3` light `#da8b00` on white 2,74:1, `--chart-1` dark `#1447e6` on `#171717` 2,62:1,
   `ring-ring` `#a1a1a1` on white 2,58:1 — against AGENTS.md's «worst case 3.38:1». Theme tokens: a `doc/guide/temi.md` session. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
+  **Where a slot is printed as TEXT the floor is 4,5:1 and it is now enforced**: `useActionColors` clamps
+  COMPRA/VENDI/OK into a measured lightness band before they reach a chip label, a plan amount or a gap column
+  (`lib/utils/actionColor.ts`, all twelve blocks held by `__tests__/actionColorContrast.test.ts`, 2026-09-21). The
+  entry above is about a slot used as a NON-text signal, which is a different floor and is still open.
 - **Index 9 of `useChartColors()` is still the static lime** (`CHART_COLORS[9]`): no surface uses it. Indices 0-7 are theme-aware since 2026-08-30, index 8 (`--chart-9`, Previdenza) since 2026-09-20.
 - **Sign-colour CHIPS sit below AA, structurally** (`bg-positive/10 text-positive` washes the background with the text's hue: 15 of 24 combinations at 3.34–4.40:1; deliberately not fixed). `MonthlyReturnsHeatmap` fills its cells with the sign tokens at 30/55/85% (the figure is never printed in the cell, so the AA text floor does not apply). (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
 - **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

@@ -18,10 +18,15 @@ export const ROVING_ITEM_ATTRIBUTE = 'data-roving-item';
  *
  * @param count How many items are rendered; the active index is clamped to it, so a list that
  *   shrinks (a month with fewer instruments) never leaves the group without a Tab stop.
+ * @param orientation Which arrows move inside the group. A list of rows reads vertically; a row of
+ *   toggle buttons reads horizontally, and the APG maps each to its own axis. `'both'` is for a
+ *   group whose items wrap onto several lines, where either axis is a reasonable guess.
  */
-export function useRovingFocus(count: number) {
+export function useRovingFocus(count: number, orientation: 'vertical' | 'horizontal' | 'both' = 'vertical') {
   const [active, setActive] = useState(0);
   const current = count === 0 ? 0 : Math.min(active, count - 1);
+  const forward = orientation === 'horizontal' ? ['ArrowRight'] : orientation === 'vertical' ? ['ArrowDown'] : ['ArrowRight', 'ArrowDown'];
+  const backward = orientation === 'horizontal' ? ['ArrowLeft'] : orientation === 'vertical' ? ['ArrowUp'] : ['ArrowLeft', 'ArrowUp'];
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
@@ -30,8 +35,8 @@ export function useRovingFocus(count: number) {
     const index = items.indexOf(target);
     if (index === -1) return;
     const next =
-      event.key === 'ArrowDown' ? Math.min(index + 1, items.length - 1)
-      : event.key === 'ArrowUp' ? Math.max(index - 1, 0)
+      forward.includes(event.key) ? Math.min(index + 1, items.length - 1)
+      : backward.includes(event.key) ? Math.max(index - 1, 0)
       : event.key === 'Home' ? 0
       : event.key === 'End' ? items.length - 1
       : null;

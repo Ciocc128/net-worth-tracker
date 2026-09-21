@@ -97,6 +97,13 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   computed font sizes, bounding boxes, overflow; the arithmetic stays with Vitest. **Two limits**: a race between
   concurrent queries is not reproducible locally (the Firestore Web SDK multiplexes every target onto ONE webchannel),
   and an error branch is not reachable by cutting the network (the SDK treats an unreachable backend as offline).
+- **A fixture that cannot put the property on screen makes the spec assert nothing** (2026-09-21): Allocazione's base
+  seed had class targets but no SUB-targets, so no class row was expandable and the plans had no level under the
+  class — the spec could not reach the row's own figures, the sub-category base or the rebalance's descent. Extending
+  the SHARED seed (`scripts/seedEmulator.ts`) is the right fix and its blast radius is the whole suite, so it is
+  followed by a full `npm run test:e2e`, never by the one spec that needed it. Check first what else writes to the
+  document: the other fixtures `merge` into `assetAllocationTargets` for `familyMembers` and the flags, and none of
+  them reads the `targets` map.
 - **`workers: 1`, non-negotiable** (the specs share emulator accounts). **Give the suite its OWN fixture**, tuned so the
   thing under test is on screen at all (Analisi dates every expense to January so its figures are exact in any month;
   Coast picks the RITA long-unemployment variant because the ordinary unlock falls past the projection) and say so in

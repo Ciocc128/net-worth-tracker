@@ -137,6 +137,18 @@ that domain's guide, never here.
   3.38:1 — but on 2026-09-18 `--chart-3` light measured 2,74:1 and `--chart-1` dark 2,62:1 ON A CARD: re-measure before
   leaning on that floor, doc/guide/temi.md § Per-page blind spots), so the range is 1..8 and not 1..5. The semantic amber is `--warning-foreground`; only `ExpenseTable`'s chips
   are exempt.
+- **A computed custom property comes back as `lab()`, never as the `oklch()` you authored**:
+  `getComputedStyle(root).getPropertyValue('--chart-3')` answers `lab(64.8793% 25.0679 78.4211)`.
+  `useChartColors` knows this (never assert `/^oklch\(/`); `useActionColors` did not, and its
+  legibility clamp matched `/oklch\(/` — so it returned its input on every render and was DEAD
+  CODE from the day it was written (2026-09-21, measured in the browser: the page shipped raw chart
+  slots as 10-18px text at 2,39-4,02:1 while the docstring promised AA). **Anything that READS a
+  colour token parses `lab()` too** — `lib/utils/actionColor.ts` is the worked example, and its
+  test feeds it the browser's own serialisation.
+- **A chart slot used as TEXT is held to 4,5:1, not to the ~3:1 it was pitched for.**
+  `__tests__/actionColorContrast.test.ts` measures COMPRA/VENDI/OK across all twelve theme blocks,
+  on `--card` and on the chip's own `color-mix` fill — which is the HARDER surface, because a fill
+  mixed from the text's own hue always pulls the background towards the text.
 - **Sidebar tokens**: `--sidebar-accent` is a background, `--sidebar-accent-foreground` text ON it; hover on inactive
   items uses `hover:text-sidebar-foreground`. **Inline `style` blocks Tailwind hover variants**, so migrate to classes
   before adding `hover:`/`focus:`.
@@ -393,7 +405,11 @@ file used to carry.
 - THE RULE: partition upstream of `compareAllocations`, never downstream (filtering the output breaks `targetValue = target% × totalValue` and the Σ(current − target) = 0 invariant). Do NOT push the filter into `calculateCurrentAllocation` (it also serves `/api/portfolio/snapshot`).
 - "Versa" and "Preleva" are ONE tree with the sign flipped; THE ASYMMETRY is the design (buy what you do not own, never sell it). The balance score is band-INDEPENDENT.
 - The subcategory is OPTIONAL, so every euro lands in a bucket (`NO_SUBCATEGORY_LABEL`); the orphaned target (`findOrphanedTargets`/`stripOrphanedSubTargets`) is the trap. `ASSET_CLASS_SEQUENCE` is the ONE enumeration of the union — a hand-listed class drops its EUROS, not just its label.
-- Il resto — the Bull's formula, the leverage engine, the five label maps, the verdict-over-tiles rules — in `doc/guide/allocazione.md`.
+- Ribilancia descends to the INSTRUMENT through the flow plans' own splits (`RebalanceDescent`, 2026-09-21) — a sell through the withdrawal nodes, a buy through the contribution ones, Σchildren === the class amount; never a second algorithm. A plan that sells prices the withholding (`estimatePlanSaleTax`), `null` WITH a reason when a leg has no EUR basis or rate.
+- «Prelevare 1000 €» means 1000 € IN HAND: the withdrawal sells the GROSS that leaves the request after the withholding (`solveWithdrawalGross`), a FIXED POINT and never a division by (1 − rate) — the tax follows which instruments the plan drains, and those follow the amount.
+- A DORMANT class (`isDormantClass`: neither value nor target) keeps its row, loses its verdict and leaves every count — the page reads `activeClassGaps`, never the raw `summarizeClassGaps`.
+- A level that repeats the one above it is dropped (`collapseRepeatedLevels`), and which row is an INSTRUMENT is the node's own `isInstrument`, never its depth — a lifted ETF at depth 1 read «→ 100,0%» otherwise.
+- Il resto — the Bull's formula, the leverage engine, the five label maps, the action colours' measured lightness band and the `lab()` trap that made the old clamp dead code, the verdict-over-tiles rules — in `doc/guide/allocazione.md`.
 
 ### Previdenza · Fondo Pensione → `doc/guide/previdenza.md`
 - `pensionFund` is an `AssetType`, never an `AssetClass`, never a ledger type; its value is statement-driven, held in `quantity` at price 1 (`assertFundValueLivesInQuantity`).
@@ -661,7 +677,12 @@ file used to carry.
   `size="icon"` defaults to 36px). **Actions hidden with `opacity-0` are unreachable on keyboard AND invisible on
   touch** — gate them behind `[@media(pointer:fine)]:` variants.
 - **A non-interactive element with `onClick` needs `role="button"`, `tabIndex={0}`, `aria-label`, an Enter/Space
-  `onKeyDown` and a focus ring — better still, use a native `<button>`.**
+  `onKeyDown` and a focus ring — better still, use a native `<button>`.** **But an `aria-label` on a
+  `role="button"` REPLACES its contents**: the row of Allocazione's Per classe carried «Espandi Azioni» and a screen
+  reader therefore heard eight class names and not one percentage, on the tile that IS that page's data table
+  (2026-09-21). When the element's own text is the information, it must BE the accessible name — the
+  expand/collapse wording moves onto the chevron as `sr-only` text. An `aria-label` is for a control whose content
+  says nothing (an icon), never for one whose content is the point.
 - **Tabs**: `role="tab"` + `aria-selected` inside a `role="tablist"` with an `aria-label`; for a real tab/panel
   relationship also wire `id` + `aria-controls`. **A `SegmentedPill` that picks a VALUE the whole page reads (an axis
   year, a period) is `semantics="radio"`** — a tablist with no tabpanel is a promise the DOM cannot keep; `tabs` only
@@ -765,7 +786,7 @@ file used to carry.
 | Cashflow › Dividendi | `dividendAnalytics`, `dividendiNarrative` (+ `patrimonioNarrative` for the articles) |
 | Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
 | Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
-| Allocazione | `allocationUtils` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx`, `saleTax`, `cents`, `periodSales` · **Browser** `e2e/assets.sale-tax.spec.ts` |
+| Allocazione | `allocationUtils`, `allocazioneSummary`, `allocazioneNarrative` · **Tinte d'azione** `actionColorContrast` (dodici blocchi tema) · **Browser** `e2e/allocation.spec.ts` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx`, `saleTax`, `cents`, `periodSales` · **Browser** `e2e/assets.sale-tax.spec.ts` |
 | Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio · **Verdetto e letture** `pensionSummary`, `pensionNarrative` |
 
 Touching `types/assets.ts`'s `AssetType` also means `assetDialogHelpers` + `allocationUtils` + the three ledger suites;
@@ -836,7 +857,13 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
   intermediate links "live"** (the orphan still imports them) and **a function that always returns `[]` keeps its
   downstream pipeline "live"**: trace inward, verify each link, delete the chain in ONE commit.
 - **A green check that has never been seen red asserts nothing** — including the check's own arithmetic (a magnitude
-  filter meant for axis ticks also drops a legitimate reading). Break the thing under test once. **The fixture can make
+  filter meant for axis ticks also drops a legitimate reading). Break the thing under test once.
+  **And when a falsification stays GREEN, find which line actually holds the property and say so in the test**
+  (2026-09-21, three cases in one session): a sell that descends on the uncapped gap reconciles anyway because
+  `splitFromSurplus` re-caps at the capacity; a plan's `Math.max(0, gainFraction)` is inert because `estimateSaleTax`
+  already floors a loss; removing `itemProps` from `AsideToggle` does not add Tab stops because the explicit
+  `tabIndex` beside it holds them. Naming the load-bearing line is the point: otherwise the next reader deletes it as
+  dead code and the test stays green through the regression. **The fixture can make
   a branch unreachable**: `allocateByShare`'s rounding correction cannot fire on two shares, so a two-person fixture
   stayed green with the branch disabled — when falsification does NOT turn a test red, the test is the bug. **And a test
   can PIN the defect**: `summarizeLaborMetrics` counted the baseline's own month and had no right edge, and both
