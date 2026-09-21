@@ -247,6 +247,12 @@ export async function updateAsset(
       cleanedUpdates.subCategory = deleteField();
     }
 
+    // dividendCashAssetId is user-clearable («Predefinito» in AssetDialog). The `in` guard keeps a
+    // partial caller — a price refresh — from wiping an account it never sent.
+    if ('dividendCashAssetId' in updates && updates.dividendCashAssetId === undefined) {
+      cleanedUpdates.dividendCashAssetId = deleteField();
+    }
+
     // Rebuy on the same doc: quantity goes from 0 (sold but kept) back to > 0. Stamp the new
     // holding start so YOC ignores the previous holding's dividends (mirrors the ISIN-reuse path
     // in createAsset). Adding to an existing position (DCA, previous quantity > 0) is NOT a restart.
@@ -314,6 +320,11 @@ export async function updateAssetMetadata(
     // those are exactly the classes that carry subcategories. Same `in` guard as updateAsset.
     if ('subCategory' in updates && updates.subCategory === undefined) {
       cleanedUpdates.subCategory = deleteField();
+    }
+    // dividendCashAssetId is user-clearable («Predefinito» in AssetDialog). The `in` guard keeps a
+    // partial caller — a price refresh — from wiping an account it never sent.
+    if ('dividendCashAssetId' in updates && updates.dividendCashAssetId === undefined) {
+      cleanedUpdates.dividendCashAssetId = deleteField();
     }
 
     await updateDoc(assetRef, cleanedUpdates);

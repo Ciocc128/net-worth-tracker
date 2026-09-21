@@ -1,6 +1,5 @@
 'use client';
 
-import type { CSSProperties, RefObject } from 'react';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { Button } from '@/components/ui/button';
@@ -13,8 +12,8 @@ interface HallOfFameNoteViewDialogProps {
   onOpenChange: (open: boolean) => void;
   note: HallOfFameNote | null;
   onEditClick: () => void; // Triggers transition to edit mode
-  dialogRef?: RefObject<HTMLDivElement | null>;
-  style?: CSSProperties;
+  /** Where the window grows from — `resolveCenteredModalOrigin` of the control that opened it. */
+  triggerOrigin?: string;
 }
 
 export function HallOfFameNoteViewDialog({
@@ -22,8 +21,7 @@ export function HallOfFameNoteViewDialog({
   onOpenChange,
   note,
   onEditClick,
-  dialogRef,
-  style,
+  triggerOrigin,
 }: HallOfFameNoteViewDialogProps) {
   if (!note) return null;
 
@@ -46,8 +44,7 @@ export function HallOfFameNoteViewDialog({
           : `Appesa a ${note.sections.length} classifiche di questo periodo.`
       }
       width="md"
-      contentRef={dialogRef}
-      triggerOrigin={style?.transformOrigin as string | undefined}
+      triggerOrigin={triggerOrigin}
       footer={
         <>
           <Button type="button" variant="outline" onClick={onEditClick}>

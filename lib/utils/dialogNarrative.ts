@@ -17,6 +17,9 @@
  * surface could read it (AGENTS.md → Italian Localization).
  */
 
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
+import { MONTH_NAMES } from '@/lib/constants/months';
 import type { Narrative } from './narrative';
 import { cachedFormatCurrencyEUR, formatDate } from './formatters';
 
@@ -448,7 +451,143 @@ export function describeSeriesDeleteReading(facts: SeriesDeleteFacts): Narrative
   ];
 }
 
+export interface LinkSeriesFacts {
+  mode: 'installment' | 'recurring';
+  /** Occurrences still to come that can take the account (`selectLinkableOccurrences`). */
+  futureCount: number;
+  /** The earliest of them; null when there is none. */
+  firstDate: Date | null;
+  /** Occurrences already happened: left as they are. */
+  pastCount: number;
+  /** The account chosen so far, by name; null before a choice. */
+  accountName: string | null;
+}
+
+/**
+ * «Le 3 rate future, dal 28 settembre 2026, scaleranno Conto BNL ciascuna alla sua data; le 9 già
+ * avvenute restano come sono.» — what «Collega la serie» will do, before the confirm. The past is
+ * named because it is the part that does NOT change: its effect is in today's balance.
+ */
+export function describeLinkSeriesReading(facts: LinkSeriesFacts): Narrative {
+  const noun = facts.mode === 'installment' ? { one: 'rata', many: 'rate' } : { one: 'voce', many: 'voci' };
+  const past: Narrative =
+    facts.pastCount === 0
+      ? [{ text: '.' }]
+      : [{ text: facts.pastCount === 1 ? '; quella già avvenuta resta com’è.' : '; le ' }, ...(facts.pastCount === 1 ? [] : [{ text: String(facts.pastCount), mono: true }, { text: ' già avvenute restano come sono.' }])];
+  if (facts.futureCount === 0 || !facts.firstDate) {
+    return [{ text: `Nessuna ${noun.one} futura da collegare: quelle ancora da venire hanno già un conto che si muove alla loro data, o la serie è finita.` }];
+  }
+  const account: Narrative = facts.accountName ? [{ text: facts.accountName }] : [{ text: 'il conto che scegli' }];
+  const day = { text: format(facts.firstDate, 'd MMMM yyyy', { locale: it }), mono: true };
+  if (facts.futureCount === 1) {
+    return [{ text: `L’unica ${noun.one} futura, il ` }, day, { text: ', scalerà ' }, ...account, { text: ' in quel giorno' }, ...past];
+  }
+  return [{ text: 'Le ' }, { text: String(facts.futureCount), mono: true }, { text: ` ${noun.many} future, dal ` }, day, { text: ', scaleranno ' }, ...account, { text: ' ciascuna alla sua data' }, ...past];
+}
+
 /** What the asset type decides — the three consequences the eight cards cannot show. */
+/** Where the detail's armed «Elimina» is: never pressed, pressed once, or pressed and let go. */
+export type MovementDeletePhase = 'idle' | 'armed' | 'disarmed';
+
+export interface MovementDetailFacts {
+  date: Date;
+  /** After today by the Italian calendar (`isScheduledRow`): in the list, not yet happened. */
+  scheduled: boolean;
+  phase: MovementDeletePhase;
+  /** What the second press does to the accounts — read only while armed. */
+  deletion: ExpenseDeleteFacts;
+}
+
+/**
+ * The reading of a movement's detail, which is also where its delete speaks.
+ *
+ * The detail used to open a second drawer to ASK («Eliminare questa voce?»); it now arms in its
+ * footer, and an armed button is only honest if the consequence is on screen — so the reading
+ * swaps to `describeExpenseDeleteConsequence` in the negative tone, the same sentence the armed
+ * row of the Movimenti table prints. Letting go says so in words: the reading is the modal's one
+ * live region, and a region that silently returns to its idle text announces the date again,
+ * not that nothing was deleted (AGENTS.md → Accessibility).
+ */
+export function describeMovementDetailReading(facts: MovementDetailFacts): ModalReading {
+  if (facts.phase === 'armed') return negative(describeExpenseDeleteConsequence(facts.deletion));
+
+  const day = { text: format(facts.date, 'd MMMM yyyy', { locale: it }), mono: true };
+  const idle: Narrative = facts.scheduled
+    ? [{ text: 'In calendario per il ' }, day, { text: ': non è ancora avvenuto.' }]
+    : [{ text: 'Movimento del ' }, day, { text: '.' }];
+
+  return {
+    narrative: facts.phase === 'disarmed' ? [{ text: 'Eliminazione annullata. ' }, ...idle] : idle,
+    tone: 'neutral',
+  };
+}
+
+export interface MovementsFilterCounts {
+  /** The filters the modal holds that are set: search, categories, subcategory, account, owner. */
+  activeFilters: number;
+  /** The rows of the period that pass them — the list the feed draws. */
+  shown: number;
+  /** The rows of the period, before any list filter. */
+  total: number;
+}
+
+/**
+ * The reading of the Movimenti filters: how many rows of the period are left, counted from the
+ * same two lists the tile draws — a filter panel that says «Mostra risultati» makes the reader
+ * close it to learn whether there are any.
+ */
+export function describeMovementsFilterReading(counts: MovementsFilterCounts): Narrative {
+  const { activeFilters, shown, total } = counts;
+  if (total === 0) return [{ text: 'Nessun movimento nel periodo: non c’è nulla da filtrare.' }];
+
+  if (activeFilters === 0) {
+    return total === 1
+      ? [{ text: 'Nessun filtro attivo: la lista mostra l’unico movimento del periodo.' }]
+      : [{ text: 'Nessun filtro attivo: la lista mostra tutti i ' }, { text: String(total), mono: true }, { text: ' movimenti del periodo.' }];
+  }
+
+  const filters: Narrative = [
+    { text: String(activeFilters), mono: true },
+    { text: activeFilters === 1 ? ' filtro attivo: ' : ' filtri attivi: ' },
+  ];
+  if (shown === 0) {
+    return [...filters, { text: 'nessun movimento su ' }, { text: String(total), mono: true }, { text: activeFilters === 1 ? ' lo passa.' : ' li passa.' }];
+  }
+  return [
+    ...filters,
+    { text: shown === 1 ? 'resta ' : 'restano ' },
+    { text: String(shown), mono: true },
+    { text: shown === 1 ? ' movimento su ' : ' movimenti su ' },
+    { text: String(total), mono: true },
+    { text: '.' },
+  ];
+}
+
+/** The filters' primary names what closing it shows; an empty list is not «0 movimenti». */
+export function describeMovementsFilterAction(shown: number): string {
+  return shown === 0 ? 'Torna alla lista' : `Mostra ${pluralize(shown, 'movimento', 'movimenti')}`;
+}
+
+/**
+ * The confirm that a month already photographed asks before «Crea snapshot» replaces it.
+ *
+ * The title names the ACT and the month, never the surface («Snapshot già esistente» said what
+ * the app had found, not what the button would do). The note clause is a fact of the write path:
+ * both snapshot writers replace the document and carry `SNAPSHOT_USER_AUTHORED_FIELDS` across
+ * it (`lib/utils/snapshotUserFields.ts`) — if that list ever empties, this sentence goes too.
+ */
+export function describeSnapshotOverwrite(period: { month: number; year: number }): { title: string; reading: Narrative } {
+  const monthName = MONTH_NAMES[period.month - 1];
+  return {
+    title: `Sovrascrivi lo snapshot di ${monthName.toLowerCase()}`,
+    reading: [
+      { text: `${monthName} ` },
+      { text: String(period.year), mono: true },
+      { text: ' ha già uno snapshot: sovrascriverlo lo sostituisce con i valori di oggi. La nota del mese resta.' },
+    ],
+  };
+}
+
 export const ASSET_TYPE_PICKER_READING: Narrative = [
   {
     text: 'Il tipo decide quali campi servono, come lo strumento viene prezzato e in quale classe entra in Allocazione.',
@@ -527,7 +666,7 @@ export function describeTradeIntent(intent: TradeIntent): Narrative {
       return [
         {
           text: settlement
-            ? 'Una vendita chiude una plusvalenza sul PMC e accredita il conto di regolamento.'
+            ? 'Una vendita chiude una plusvalenza sul PMC e accredita il conto di regolamento, al netto di commissioni e tasse trattenute.'
             : 'Una vendita chiude una plusvalenza sul PMC. Senza conto di regolamento nessun saldo si muove.',
         },
       ];
@@ -564,6 +703,30 @@ export function describeSettlementTiming(tradeDateIso: string, todayIso: string)
   return isPastMonth
     ? "Il saldo del conto si muove oggi, non alla data dell'operazione: se lo riflette già, lascia «Nessuno»."
     : 'Se selezionato, il saldo del conto viene aggiornato automaticamente.';
+}
+
+/**
+ * The clause under «Tasse trattenute» in the sale form (lib/utils/saleTax.ts).
+ *
+ * A new sale is prefilled with the estimate and says so, or says why it is empty. An edit never
+ * prefills; on a sale that credited its account GROSS (recorded before the field existed) the
+ * clause is a warning, for the same reason as `describeSettlementTiming`: the account moves
+ * today, and a balance already aligned to the bank would lose the tax twice.
+ */
+export function describeWithheldTaxField(state: {
+  isEdit: boolean;
+  isLegacySettledSell: boolean;
+  hasEstimate: boolean;
+  /** The owner has typed in the field: what it holds is no longer the estimate. */
+  isTyped: boolean;
+}): string {
+  if (state.isLegacySettledSell) {
+    return 'Questa vendita ha accreditato il conto al lordo: indicando le tasse, oggi il conto scende di quella cifra. Se il saldo le riflette già, lascia vuoto.';
+  }
+  if (state.isEdit || state.isTyped) return 'La cifra trattenuta dal broker: riduce l’accredito sul conto di regolamento.';
+  return state.hasEstimate
+    ? 'Stima dall’aliquota dello strumento: correggila con la cifra dell’estratto del broker.'
+    : 'Senza un’aliquota sullo strumento non c’è stima: indica la cifra dell’estratto, o lascia vuoto.';
 }
 
 export interface CategoryDeletionFacts {

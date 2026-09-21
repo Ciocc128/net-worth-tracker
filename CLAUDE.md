@@ -7,243 +7,44 @@
 ## Project Overview
 Next.js app for Italian investors: net worth, assets, cashflow, dividends, performance metrics and long-term planning on Firebase.
 
-**This file is the INDEX**: "what it is + where it lives", nothing more — keep it well under 20.000 characters; it is injected into every turn. Repo-wide conventions and gotchas live in **AGENTS.md**; the per-area rules and traps in **`doc/guide/<tema>.md`** (one file per page/tab/subsystem — the feature index below points to each, and AGENTS.md § 3 carries a stub apiece); the aesthetic spec in **DESIGN.md**; env/emulators/Playwright in **SETUP.md**; users and positioning in **PRODUCT.md**. Session rules and the guided-verification protocol in **[WORKFLOW.md](WORKFLOW.md)** (see the note at the top).
+**This file is the INDEX**: "what it is + where it lives", nothing more — keep it well under 20.000 characters; it is injected into every turn. Repo-wide conventions and gotchas live in **AGENTS.md**; the per-area rules and traps in **`doc/guide/<tema>.md`** (one file per page/tab/subsystem — the feature index below points to each, and AGENTS.md § 3 carries a stub apiece; the test harness is `doc/guide/e2e-emulatori.md`, its two stubs in AGENTS.md § 5); the aesthetic spec in **DESIGN.md**; env/emulators/Playwright in **SETUP.md**; users and positioning in **PRODUCT.md**. Session rules and the guided-verification protocol in **[WORKFLOW.md](WORKFLOW.md)** (see the note at the top).
 
 > **Language**: this file and AGENTS.md are in English. Italian is reserved for user-facing UI text. Page and feature names stay Italian, because they are the labels the product shows: Panoramica, Patrimonio, Cashflow, Analisi, Rendimenti, Allocazione, Storico, Previdenza, Impostazioni.
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **187 files / 4157 tests** green (4155 + 2 skipped) + **47 Playwright E2E specs** (50 in one run incl. 3 auth setups). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-20 notte, fork): **Ottimizzatore dei pesi (O1-O4, doc/weight-optimizer-ate.md), revisione pre-PR: allineato a `main`, corretti i rilievi I1 (convergenza) e B1 (report del tetto di gruppo).** Il branch `feat/opt-pac`
-  era partito da un punto di `main` precedente alle correzioni PAC delle PR #4/#5/#6 (`fd58a49`,
-  `871a67c`, `b656b84`, `421ef46`, `bf60dc7`): mergiato `main` dentro, un solo conflitto testuale
-  (due bullet aggiunti in coda alla stessa sezione di `doc/guide/accumulo.md`, tenuti entrambi),
-  `AccumuloTile.tsx`/`AccumulationPlanDialog.tsx` auto-mergiati senza conflitti. **Rilievo I1**
-  (revisione PR, `MAX_ITERATIONS_DEFAULT` in `lib/utils/weightOptimizer.ts`): lo scenario "leva +
-  geografia" di §10 — la combinazione di punta della feature — impiegava 3112 iterazioni per
-  convergere e sforava il vecchio limite di 3000 a ogni esecuzione, con l'avviso `not_converged`
-  mostrato di routine anche quando i pesi arrotondati a 3000 iterazioni coincidevano già con quelli
-  convergenti. Alzato a 8000 (decisione del proprietario): costo trascurabile, sotto i 100 ms anche
-  al limite con 40 candidati (misurato). **Rilievo B1** (revisione PR, `optimizeWeights`): il
-  "raggiunto" di un tetto di gruppo NON violato stampava sempre il valore del tetto stesso invece
-  del peso reale del gruppo — `achievedValue = target + gapPp`, ma `gapPp` per una riga a cerniera
-  è già clampato a 0 quando il tetto non è superato (90,0% → 90,0% mostrato per un gruppo che in
-  realtà pesava 67%, persistito anche in `optimizerSnapshot.objectives`). Nuova `evaluateRowRaw`
-  (il valore GREZZO non clampato) usata solo per `achievedValue`; `evaluateRow`/`gapPp` restano
-  quelli clampati per la penalità (§6.1/6.3) e per «di quanto sfora» (§6.7, conflitti). Due
-  asserzioni nuove/riscritte in `weightOptimizer.test.ts` (una provata rossa contro il codice
-  pre-fix, poi verde). doc/weight-optimizer-ate.md §6.3, §6.7, doc/guide/ottimizzatore.md.
-  Collaudo: `tsc` 0, ESLint 0, 187 file / 4157 test (4155 + 2 skipped, nessuna regressione),
-  `npm run build` compila (stesso punto d'arresto atteso, `NEXT_PUBLIC_FIREBASE_*`).
-- Latest (2026-09-20 sera, fork, PR #5): **La tabella «Classi mese per mese» del passo 3
-  dell'editor Accumulo segue la stessa regola assoluto-poi-delta appena stabilita per la striscia
-  classi del tile.** Prima ogni cella portava solo lo scostamento in pp, e la tabella non aveva
-  nemmeno un'intestazione che dicesse quale colonna fosse quale classe. Ora ogni cella ha due
-  righe (peso assoluto primario, warning se fuori banda · pp secondario, muted) e un'intestazione
-  per classe (`ASSET_CLASS_LABELS`, **colorata col colore della classe** — `ASSET_CLASS_CHART_INDEX`
-  → `useChartColors()`/`CHART_COLORS`, lo stesso della barra di esposizione appena sopra e di
-  `ClassDriftChart`, così una colonna si riconosce per colore oltre che per posizione — richiesto
-  dal proprietario subito dopo il primo giro; stesso stile `text-[9px] uppercase` della tabella
-  Calendario appena sopra, scroll orizzontale nel proprio contenitore). `AccumulationPlanDialog.tsx`:
-  `classKeys` letto una volta da `preview.trajectory[0]?.byClass` guida sia l'intestazione sia
-  l'ordine delle colonne. Collaudo: `tsc` 0, ESLint 0, 182 file / 4095 test (nessuna regressione —
-  nessun test dedicato per questo componente), `npm run build` compila (stesso punto d'arresto
-  atteso). doc/pac-ate.md §10.3, doc/guide/accumulo.md.
-- Latest (2026-09-20, fork): **PR #4 (Accumulo/PAC), la striscia classi ora stampa il peso vero,
-  non solo il suo scostamento.** Su richiesta del proprietario: la riga primaria (prominente, mono)
-  è ora «Azioni 105,4% · target 102,0%» — i valori ASSOLUTI — mentre lo scostamento in pp («+3,4 pp
-  oggi → +1,3 pp a fine piano») scende a riga secondaria, più piccola e muted. Prima il delta era
-  l'unica cifra stampata, il peso reale non compariva mai nel tile. `describeClassStripItem`
-  (`accumulationNarrative.ts`) ritorna `{ label, primary, secondary, note?, outOfBandNow }` invece
-  del vecchio `{ text, note?, outOfBandNow }`; `AccumuloTile.tsx` legge `item.label` per
-  `furthestDrift` invece di spezzare la vecchia stringa `text`. Collaudo: `tsc` 0, ESLint 0, 182
-  file / 4095 test (3 test riscritti), `npm run build` compila (stesso punto d'arresto atteso).
-  doc/pac-ate.md §10.2 punto 5, doc/guide/accumulo.md.
-- Latest (2026-09-19 notte, fork): **PR #4 (Accumulo/PAC), il toggle «Nel piano / Da vendere» del
-  passo 2 non era cliccabile.** Trovato dal proprietario in un giro guidato: la colonna promette un
-  toggle ma la cella renderizzava solo testo statico — il vero controllo viveva in un paragrafo
-  separato sotto la tabella, minuscolo e visibile solo per le righe non raggruppate, quindi da UI
-  sembrava che non ci fosse modo di marcare uno strumento come «Da vendere». `AccumulationPlanDialog.tsx`:
-  la cella del toggle di una riga NON raggruppata è ora un bottone (`moveAssetToDisposal`); un
-  membro di un gruppo proxy resta testo (invariato — non si vende un membro senza prima «Separare»);
-  rimosso il paragrafo duplicato e l'helper `positionOfAsset` diventato inutilizzato. Collaudo: `tsc`
-  0, ESLint 0, 182 file / 4095 test (nessuna regressione — nessuna suite copre questo componente,
-  nessun test dedicato: verificato a mano il flusso via lettura del diff), `npm run build` compila
-  (stesso punto d'arresto atteso). doc/guide/accumulo.md.
-- Latest (2026-09-19 sera, fork): **PR #4 (Accumulo/PAC), rilievi importanti 5-6-7.** Rilievo 5:
-  `matchPlanExecutions` gained a `transactionsLoading` parameter (default `false`, every existing
-  caller untouched) — while `useAssetTransactions` is still in flight, `transactions` reads as
-  `[]` exactly like a genuinely empty ledger, so every already-`executed` line/disposal used to
-  misread as `lostLink` for one frame; the tile passes `transactionsQuery.isLoading`. Rilievo 6:
-  `AccumulationPlanDialog.tsx`'s seeder and `candidateAssets`, plus `accumulationPlanSchema.ts`'s
-  `unassigned_tradable`, now all exclude `assetClass === 'cash'` — `resolveAllocationRole` reads
-  `tradable` for a current account by default, so without the exclusion it landed in step 2 as a
-  0%-weight row, and if it was also a step 1 source its value double-counted into B. Rilievo 7:
-  `unassigned_tradable` now shares the SAME value predicate as the seeder/candidates
-  (`quantity * unitPriceEur(asset) > 0`, Firebase-free, instead of the old `quantity <= 0`) — an
-  asset with a tracked quantity but no fetched price (the FX-on-a-cold-instance Known Issue) used
-  to be demanded by the validator and offered by no row, a dead end with «Avanti» stuck disabled
-  forever. Collaudo: `tsc` 0, ESLint 0, 182 file / 4095 test (4 new/rewritten assertions proven red
-  against the pre-fix code, then green again), `npm run build` compiles (same expected Firebase
-  env-var stop). doc/pac-ate.md §6/§9/§10.3, doc/guide/accumulo.md.
-- Latest (2026-09-19, fork): **PR #4 (Accumulo/PAC) blocking review fixes: the trajectory's target
-  tracked the WRONG base, and the projection never spent the cash.** `projectClassTrajectory`
-  (rilievo 1): a measured point's target now scales to THAT point's own `marketBaseEur`
-  (`resolveTargetPct`, reading raw config from `targets` — never a target resolved once at the
-  function's start), and a projected point reads its target straight off its own `compare()` call
-  instead of the frozen baseline — `compareAllocations` scales EVERY class's target when cash uses
-  a fixed amount, not just cash's. `buildProjectedAssets` (rilievo 2): the plan's own cash now
-  moves in the projection — spent on not-yet-executed installments, replenished by the estimated
-  monthly inflow (month by month) and by not-yet-executed disposals' proceeds, pro-rata over
-  `sourceCashAssetIds`' LIVE balances, `allocationRole` untouched (owner's decisions, doc/pac-ate.md
-  §5.9). `AccumuloTile.tsx` (rilievo 3): `matchPlanExecutions`/`projectClassTrajectory` moved into
-  `useMemo` (were re-running on every render, N=60 → 61 `compareAllocations` calls and asset-list
-  clones per keystroke in the manual-entry form), `today` stabilized to day granularity. Rilievo 10:
-  the weak "does not distort the other classes" test (asserted only at index 0, where baseline and
-  point trivially coincide) rewritten to check a non-cash class at index > 0 against the PR's own
-  reference numbers (idx2: target 83,333 · drift 0,000, was 80,000 · +3,333pp fuori banda). Rilievo
-  4: `recalibrateInstallment`'s `N − index + 1` (doc/pac-ate.md §5.7 said `N − index`) ratified into
-  the ATE, code unchanged (owner's call — the open installment counts among the months remaining).
-  Collaudo: `tsc` 0, ESLint 0, 182 file / 4091 test (5 new/rewritten assertions proven red against
-  the pre-fix code, then green again), `npm run build` compiles (stops at page-data collection for
-  the missing `NEXT_PUBLIC_FIREBASE_*` vars, expected in this environment). doc/guide/accumulo.md
-  § Limiti noti.
-- Latest (2026-09-15 sera, fork): **Lime Frost, secondo giro sul mirror (desktop + iPhone 15) con le annotazioni del
-  proprietario.** Scrub dello Storico ripristinato (contro upstream `5e6e3c6`), mese corrente come fascia + pillola in
-  tutti i grafici mensili, nessuna etichetta troncata, Sankey sottile anche con le sottocategorie e palette di tema per
-  «Per tipo», barra 50/30/20 su telefono sulla stessa base della lettura (58/42), badge delle categorie in Impostazioni
-  nel colore del ruolo; solo Lime Frost: costi e stime in ambra, barre senza nero, traguardo che si accende, Per classe
-  nei colori di classe, grafici di segno più chiari, cestino rosso al hover. Tutto in doc/guide/fork-scelte-ui.md.
-  Collaudo: `tsc` 0, ESLint 0, 177 file / 3992 test, build verde, Playwright 62/62 (fixture base riseminata dopo il
-  merge; `fork-features.spec.ts` segue il nuovo nome del bottone «Modifica {strumento}»), schermate sul mirror. Script
-  50/30/20 applicato in produzione dal proprietario (backup in `scratchpad/`).
-- Latest (2026-09-15, fork): **Terzo riallineamento a upstream (`v9.0.0`, 13 commit di critique Impeccable), sopra
-  tema Lime Frost e 50/30/20 riuniti su `feat/ui-lime-frost-agentation`.** 21 conflitti, quasi tutti «struttura di
-  upstream, colore del fork»: conferma di cancellazione di upstream con `outlineDestructive`; la mappa unica
-  `lib/constants/expenseTypeColors.ts` legge `--flow-in`/`--flow-out` (default = gli slot di upstream); `RankedRows`
-  e larghezze di upstream; cestini della Previdenza al passaggio del mouse mantenuti; `CACHE_MATH_VERSION` = `'v8-fork'`.
-  **Decisioni del proprietario**: (1) il Flusso per ruolo con sottocategorie segue la regola di upstream (solo le 6
-  categorie maggiori si aprono in 4 sottocategorie + «Altre N», le altre restano foglie — prima sparivano); (2) il tipo
-  «Entrata» (puntino e badge) prende `--flow-in` e non il verde del segno, l'importo in Tabella
-  `--income-figure`/`--expense-figure`; (3) `--cost-figure` neutro in ogni tema. Il grafico sottile prende da upstream
-  altezza dalla colonna più piena (min 520), `align="start"`, `ariaLabel` e la frase sui clic. Collaudo: `tsc` 0,
-  ESLint 0, 176 file / 3985 test, sonda sul mirror del Flusso (ruolo/tipo, compatto/sottocategorie, zero errori).
-- Latest (2026-09-15, fork): **50/30/20, sessione B — il Flusso di Analisi per ruolo, e un Sankey più leggero.**
-  Con `spendingRolesEnabled` la tessera Flusso ha «Per ruolo» (predefinito) e «Per tipo», pulsanti gemelli di
-  «Sottocategorie». Per ruolo: Entrate (+ «Coperto dal patrimonio» in rosso) → Budget → Necessità / Desideri / Da
-  classificare / Risparmi → categorie (`buildSpendingRolesFlowData`, dettaglio per ruolo), lettura
-  `describeSpendingRolesFlow` sugli stessi totali. Terna scelta da un'anteprima sui dati del proprietario: token
-  `--role-*` (alias in `:root`, ghiaccio 232 / lavanda 295 / verde-acqua 175 nel Lime Frost chiaro), risolti in hex per
-  Nivo da `colorToHex` + `useCssColorTokens`; `useChartColors` ora legge anche `#hex`/`lab()` (chiuso il difetto aperto).
-  Dopo un confronto fra cinque forme: su desktop il grafico **sottile** in entrambe le viste (nodi a filo, etichette
-  importo · quota, coda «Altre N» che apre il ramo; il livello sottocategorie resta classico); su telefono la vista per
-  ruolo è la **barra 50/30/20** con le righe per ruolo (`SpendingRolesMobileFlow`), preferita a un flusso verticale
-  provato accanto. Collaudo: `tsc` 0, ESLint 0, 175 file / 3889 test; sonda Playwright usa e getta sul mirror 31/31
-  (colori letti dal grafico, «Altre N», dettagli, barra e righe a 390, flag spento), cancellata. Script di produzione
-  per classificazione e riorganizzazione delle categorie provato sul mirror (rilancio a vuoto, ripristino), **non
-  eseguito in produzione**.
-- Latest (2026-09-15, fork): **50/30/20, sessione A — il ruolo sta sulla categoria, niente di visibile a flag spento.**
-  `spendingRolesEnabled` (i cinque punti di Impostazioni), `ExpenseCategory.spendingRole` + override per sottocategoria,
-  selettore nel dialog categorie, lettura Cashflow che conta le categorie ancora «Da classificare»; puro
-  `lib/utils/spendingRoles.ts` (Risparmi = righe `saving` + avanzo, deficit = «Coperto dal patrimonio», lati bilanciati
-  per test); «Da classificare» cancella il campo con `deleteField`. doc/guide/cashflow.md § Ruoli 50/30/20. Collaudo:
-  `tsc` 0, ESLint 0, 175 file / 3864 test, due guardie viste rosse; sonda Playwright usa e getta sugli emulatori 13/13
-  (flag spento = nessun selettore, reload dello switch, scrittura e cancellazione su Firestore, flag spento non tocca il
-  ruolo, 390 senza overflow), fixture ripristinata identica, sonda cancellata. Sul mirror: le due «Fondo Pensione»
-  legacy erano vuote; classificazione e riorganizzazione delle categorie del proprietario provate (marzo–agosto 56/44/0,
-  348 € coperti dal patrimonio). **Chiusa dalla sessione B**, qui sopra.
-- Latest (2026-09-14, undicesima sessione, su develop): **Critique Impeccable di Analisi (26/40, 1 P0, 3 P1) chiusa
-  nella stessa sessione, sul mirror del conto reale (1497 movimenti, 29 categorie, un mutuo con dodici rate
-  materializzate).** (1) **La Scheda misura il ritmo sui mesi VISSUTI** (`livedTotal`/`livedMonths`), la proiezione prende
-  il calendario come PAVIMENTO del ritmo (mai somma), la Scheda porta il taglio della pagina (`throughMonth`) e la lettura
-  nomina la finestra del delta («nei primi 9 mesi 5032 €») (Mutuo stampava tre ritmi insieme); euro interi,
-  «primo anno registrato». (2) **Lo Storico chiude sull'anno corrente**: «Dal 2025 al 2026», orizzonte «a fine anno» — prima
-  «19 anni» e diciassette anni vuoti fino al 2043. (3) **Il mese in corso confronta gli STESSI GIORNI** (`throughDay`, «A settembre finora», «vs Settembre
-  2025 (1–14 set)»); una finestra vuota è DETTA (`describeMissingBaseline`); la Periodo su Anno corrente dice «su 2025
-  (3 mesi ancora in calendario)». (4) **Flusso**: altezza dalla colonna più larga, `align="start"`, etichette neutre,
-  `ariaLabel`, sottocategorie solo per le 6 categorie maggiori × 4 + «Altre N», foglie mantenute. (5) Fuoco restituito
-  all'apritore della Scheda (Escape chiude), ricerca con `returnFocusTo`, asse `SegmentedPill radio` a 44px in griglia
-  2×2 sotto `sm`, Fuori scala assente su un mese non iniziato, «· in calendario» nelle spese maggiori (la didascalia di
-  `RankedRows` va a capo), mesi in calendario senza `opacity-60`, tick mono col meno tipografico, 28px → 32px.
-  **Collaudo**: `tsc`, lint 0, Vitest intero `TZ=Europe/Rome` (167 / 3777), Playwright `e2e/analisi{,.mobile}.spec.ts`
-  15/15 e suite COMPLETA 58/58 (2,6 min), giro Playwright sul mirror a 1440/390 (overflow 0, console 0) e del proprietario. Snapshot `2026-09-14T17-48-33Z__app-dashboard-analisi-page-tsx`
-  chiuso da polish. Il sidecar `.impeccable/design.json` è più vecchio di DESIGN.md: `/impeccable document` in una
-  sessione dedicata.
-- Latest (2026-09-14, fork): **Lime Frost chiaro diventa una palette per ruoli, ritoccata dal proprietario con Agentation.**
-  Toolbar `agentation` montata solo in sviluppo (`components/providers/AgentationToolbar.tsx`, server MCP su :4747). Sul
-  mirror dell'account reale: terreno verde piatto (L 0.955, tinta 133), lime come riempimento d'azione (`--action`,
-  etichetta ardesia) e verde scuro solo come testo; freddo per dati e selezione (patrimonio `--hero-series` ghiaccio 228,
-  spese `--flow-out` 232, entrate `--flow-in` 138, lavanda per Sharpe/VENDI/Orso, opzione scelta bianca, hover ghiaccio
-  sulle icone); segno solo per i giudizi. Circa 30 token di ruolo in quattro famiglie, ognuno col default del colore di
-  prima (gli altri temi non si muovono; il blocco scuro riprende ogni letterale); grafici di patrimonio, entrate e
-  scenari spostati dai `--chart-N` ai token (`lib/constants/scenarioColors.ts`); variante `outlineDestructive`; icone
-  categoria neutre via `lib/utils/categoryIconStyle.ts`. **Tre bug trovati per strada**: la pillola dei `SegmentedPill`
-  sparisce con due istanze montate (layoutId globale di Framer → ora per istanza); il drawdown di Rendimenti era nero in
-  ogni tema e la correzione dei colori d'azione non scattava mai, perché il CSS servito è `#hex`/`lab()` e non `oklch()`
-  (`lib/utils/colorLightness.ts`, testato; `useChartColors` ha lo stesso difetto, aperto); il «100%» usciva dalla
-  riga categorie a 3 colonne (`RankedRows`). Funzionali: Piano di Allocazione e Liquidità a 6 righe con «Mostra tutte»,
-  cestini della Previdenza al passaggio del mouse, gruppi di Strumenti nel colore della classe. Regole e verifica pagina
-  per pagina nell'artifact «Carta del tema Lime Frost»; doc/guide/temi.md. Collaudo: `tsc` 0, ESLint 0, 173 file / 3836
-  test, schermate di tutte le pagine in chiaro e di tre in scuro sul mirror, zero errori in pagina. **Non eseguiti:
-  build e Playwright** (dev server attivo sulla stessa cartella `.next`). **Aperto per la prossima sessione**: Cashflow
-  (cifre delle spese), `useChartColors`, Sankey con la divisione 50/30/20 opzionale, poi il ribaltamento sul tema scuro.
-- Latest (2026-09-12, fork): **Secondo riallineamento a upstream (PR #342–#345), un solo conflitto e solo di testo.**
-  Merge di `upstream/main` (`dea85f5`, 4 commit) sopra `9b064f5` (spec permanente `e2e/fork-features.spec.ts` per le
-  funzioni solo-fork, `CACHE_MATH_VERSION` = `'v7-fork'`, distinta da upstream qualunque forma abbia la chiave — chiude il vecchio Known
-  Issue sulla collisione; upstream non tocca la matematica dei Rendimenti, nessun bump). Conflitto unico `CLAUDE.md` (Latest + Key Files, ripristinate le righe solo-fork).
-  `lib/server/assetTransactionUseCase.ts` si auto-mergia in hunk disgiunti — `indexationCoefficient` dei BTP€i di
-  upstream accanto alla guardia sulla prima operazione, riletta e intatta; `.gitignore` idem. I branch `pr/*` del
-  contributor restano non mergiati: le PR sono chiuse e riassorbite da #338.
-- Latest (2026-09-12): **Tre gesti «overdrive» (Impeccable), uno per superficie, e le critique entrano nel repo.**
-  (1) **Storico legge il mese sotto il mouse** (DESIGN → The Scrub Rule): con un pointer fine la serie di Evoluzione è
-  l'asse dei mesi della pagina — il mese sotto il puntatore sale alla pagina, `resolveScrubView`
-  (`lib/utils/storicoScrub.ts`, puro, testato) decide in UN punto cosa mostra ogni tessera, e ognuna riceve la sua
-  fetta: il valore in testa scivola sulla cifra del mese (`useCountUp({ fromPrevious })`, riga di didascalia a
-  altezza fissa: «settembre 2024 · sul mese prima +1165 €»), Composizione elenca la ripartizione di QUEL mese
-  (`buildBreakdownForRow` estratta da `buildSeries`, la STESSA funzione dell'ultimo mese; righe che si riordinano
-  sulla molla 400/35; `ReferenceLine` sul grafico), Valore per strumento salta al mese SOLO se lo snapshot ha
-  `byAsset` (la Select rispecchia, la scelta dell'utente sopravvive), le barre del Driver si accendono. Esc o uscita
-  dal grafico = oggi; le parole non cambiano mai, il tooltip porta solo la nota mentre la testa segue; pointer
-  grosso = nessuno scrub. (2) **Rendimenti: il periodo si trasforma** (DESIGN → The Period-Transforms Rule): via la
-  `key={periodRenderKey}` che rimontava la griglia (e `renderKey`/`revealKey` fino all'underwater); il TWR scivola
-  dalla cifra vecchia, «Crescita di 100» e «Capitale e mercato» si deformano indice per indice
-  (`lib/utils/seriesMorph.ts` puro e testato — la serie a schermo RICAMPIONATA sulla lunghezza nuova, poi ogni indice
-  in ease-out-quart 420 ms, un `null` resta un buco — sotto `lib/hooks/useMorphingSeries.ts`; l'hover legge i dati
-  atterrati, mai il frame), la heatmap sfuma cella per cella (`heatmapCellStyle`, `color-mix` inline) e le righe
-  degli anni entrano/escono in dissolvenza, Attribuzione riordina e fa scorrere le barre. Solo «Aggiorna» attenua
-  la griglia. (3) **Navigazione: una scena** (DESIGN → The Page Scene): i link della shell sono `SceneLink`
-  (`components/layout/SceneLink.tsx`), `useSceneNavigation` avvolge `router.push` in una view transition nativa
-  la cui update si risolve al cambio di `usePathname()` (guardia 700 ms); `lib/utils/viewTransition.ts` è l'UNICO
-  ingresso a `document.startViewTransition` e marca `<html data-vt="theme|page">`, così le regole
-  `::view-transition-*` di `globals.css` sono scopate (la clip circolare del tema era globale). Tre regioni nominate:
-  `page-main` (il `<main>` del layout), `page-header`, `page-verdict` (condiviso con lo skeleton); `template.tsx` si
-  ritira quando la scena è in volo. React 19.2 stabile non esporta `ViewTransition`: Firefox e reduced-motion
-  restano sul fade. **Collaudo**: 166 file / 3682 test sotto `TZ=Europe/Rome`, `tsc`, lint 0; tour Playwright
-  usa-e-getta sugli emulatori (fixture di 24 snapshot 2024-25 con il decoy «Fenicottero Capital», perché il seed base
-  ha un solo anno e YTD = Storico disegnano lo stesso percorso): 20 asserzioni verdi sul DOM (didascalia, footer di
-  Composizione, Select, Esc, uscita, `data-vt` durante e dopo la scena, 8-9 frame intermedi del path SVG, fill
-  `color-mix`, nessun overflow a 390, zero errori in console). **Critique di Impeccable ora tracciate**
-  (`.gitignore`, WORKFLOW.md § Where things are recorded; le 11 pre-«Verdict over Tiles» cancellate).
-- Latest (2026-09-12, fork): **Settimo tema, Lime Frost** (da 21st.dev, di Serafim): due blocchi in `globals.css`
-  convertiti in oklch con le deviazioni misurate (rosso e quattro slot grafici chiari ripitchati per le soglie 4,5:1 e
-  3:1), swatch «Colore 7 di 7», griglia a 4 colonne. Dopo il giro guidato, su richiesta del proprietario, in CHIARO il
-  lime è scurito (testo 1,34 → 5,25:1, primario con testo bianco) e lo sfondo scende a L 0,96 per staccare le tessere,
-  con grigio e rosso ritoccati per restare ≥ 4,5:1 sul nuovo sfondo; lo scuro resta quello originale (doc/guide/temi.md). Collaudo: `tsc` 0, `settingsNarrative` 64/64, spec Playwright usa e getta sugli emulatori
-  (selezione, `data-theme`, token serviti in chiaro/scuro, niente overflow a 390) più screenshot di Panoramica e
-  Impostazioni in entrambe le modalità; spec cancellata.
-- Latest (2026-09-07, fork): **Il fork si riallinea a upstream, e l'allineamento è misurato sui dati veri.**
-  Merge di `upstream/main` (18 commit, `6ce750f` incluso). Nelle quattro aree del triage vince upstream senza
-  eccezioni; sopravvive solo ciò che upstream non ha (Esposizione a cinque viste, ETF a leva + Trend/Carry, import CSV,
-  alias dei ticker, la **guardia sulla prima operazione**). **Due trappole silenziose del merge**: `git checkout
-  --theirs` prende il file INTERO, quindi cancella anche ciò che stava fuori dai conflitti (la guardia, ripristinata);
-  e `patrimonioSummary.ts` si auto-mergia in un file che non compila — import di `costBasisPerUnitEur` PIÙ la
-  definizione locale. Git non segnala nulla, `tsc` sì: dopo un merge i file auto-mergiati si rileggono.
-  **A/B sull'account reale** (`npm run mirror:seed`, stesse letture prima e dopo): Rendimenti non muove una cifra su
-  cinque periodi e dodici rolling — upstream e la PR #319 danno lo stesso numero; la Panoramica smette di contraddire
-  la tabella Patrimonio (223,48 € = +240,57 € di cambio su una posizione USD −15,85 € di commissioni); «Risparmiato da
-  lavoro» da −9.651,52 € a −1.220,74 € (8.430,78 € di spese future non più contate); Movimenti sposta «di cui N in
-  calendario» prima dei due punti; Previdenza e coerenza registro/asset identiche. `tsc` 0, 164 file / 3706 test,
-  ESLint 0, Playwright 44/44, build verde, giro guidato a cinque punti confermato.
+- `tsc` clean; **195 files / 4496 tests** green (+ 2 skipped) + **28 Playwright spec files** (91 tests, incl. 4 auth setups; last all-green full run 2026-09-21, fork after the fourth upstream merge, 3,0 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-21, fork): **Quarto riallineamento a upstream (#364–#378) sopra `origin/main`** (Lime Frost, PAC,
+  ottimizzatore). Upstream vince nel merito; il fork tiene i suoi lati dichiarati in doc/guide/fork-scelte-ui.md (scrub
+  dello Storico sopra il nuovo Driver a registro, banda del mese corrente invece del contorno, token di ruolo al posto
+  degli slot `--chart-N` nei grafici di Storico e Rendimenti, `--trade-*` letti dal clamp di upstream che ora accetta
+  anche `#hex`). Collaudo: `tsc` 0, ESLint 0, Vitest 195 file / 4496 test (anche sotto `TZ=Europe/Rome`),
+  build verde, Playwright 91/91, giro guidato in cinque fasi sullo specchio confermato dal proprietario il 2026-09-22.
+  Trovato nel giro: il Piano su un portafoglio con leva non ha il ridisegno di upstream (niente ritenuta), anche in
+  upstream — TODO in fork-scelte-ui.md. Il resto della storia del fork: `git log`.
+- Latest upstream (2026-09-21): **Allocazione — impeccable critique (27/40) chiusa.** A rebalance now names the INSTRUMENTS it
+  would trade, through the very splits Versa and Preleva already use (`RebalanceDescent`; Σgambe === la mossa di
+  classe), and every plan that sells prices the withholding on the realized fraction of the gain
+  (`estimatePlanSaleTax` over `estimateSaleTax`) — `null` WITH a reason when a leg has no EUR cost basis or rate, never
+  a flattering zero. A class with neither value nor target keeps its row and loses its verdict (`isDormantClass`): the
+  page said «Immobili in linea» at 0 € while the Previdenza tile, on the same screen, printed 60.000 € of it, and
+  counted it in «4 classi su 8» where the honest figure is 4 su 6. The verdict says «all'85%». Found on the way, and
+  bigger than the critique saw: **`useActionColors`'s legibility clamp had never run** — it matched `/oklch\(/` and
+  the browser answers `lab(…)`, so COMPRA/VENDI/OK shipped as raw chart slots at 2,39–4,02:1 as TEXT
+  (`lib/utils/actionColor.ts`, `ACTION_LIGHT_MAX_L`/`ACTION_DARK_MIN_L`/`ACTION_CHIP_FILL_PCT`, measured on all twelve
+  theme blocks). Keyboard: ONE Tab stop per list (`useRovingFocus` on `AsideToggle` and `RankedRows`, shared), the row
+  no longer hiding its own figures behind an `aria-label`, the band announcing its reclassification.
+  Closed on the owner's tour: a level that repeats the one above it is dropped (`collapseRepeatedLevels`; an
+  instrument is `isInstrument`, never a depth) and the grid's two columns stand at natural height — the void beside
+  the Piano fell from 684 to ~90px and the page from 2359 to 2112. And «prelevare 1000 €» now means 1000 € IN HAND:
+  the plan sells the gross that survives the withholding (`solveWithdrawalGross`, a fixed point — the tax follows
+  which instruments are drained, so a division by (1 − rate) is the wrong shape and is pinned red by a test).
+  **Verification**: `tsc`, lint 0, Vitest 4085 with and without `TZ=Europe/Rome`, Playwright **87/87** (the page's
+  FIRST spec, `e2e/allocation.spec.ts` — it was the last verdict page with none), eleven falsifications seen red one
+  behaviour at a time (two stayed green and are recorded as such: the sell's re-cap is guaranteed by
+  `splitFromSurplus`, the loss floor by `estimateSaleTax`), and the before/after measured in the browser on the
+  production mirror at 1440 and 390 in both modes — thirteen contrast failures → zero, «Dettaglio» 41 Tab → 23,
+  overflow 0 everywhere, console clean. doc/guide/allocazione.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -252,118 +53,88 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - Convention: extract logic into pure, tested `lib/utils`/`lib/services` functions; keep Firestore-coupled code thin.
 
 ## Key Features (Active)
-One line per feature: what it is, then where it is described. *What the user sees* → README.md; *repo-wide rules* → AGENTS.md; *the rules and traps of one area* → `doc/guide/<tema>.md`; *the aesthetic* → DESIGN.md.
+One line per area: the question it answers, then where it is described. *What the user sees* → README.md; *repo-wide rules* → AGENTS.md; *an area's rules, files and blind spots* → `doc/guide/<tema>.md`; *the aesthetic* → DESIGN.md.
 
-- **Shared account**: a second user as full co-owner; **viewer** (`user.uid`) ≠ **owner** (`ownerId`, `useActiveAccount()`), grants in `account-access/{ownerUid}`, enforced in `firestore.rules` + `assertCanAccessAccount`. doc/guide/account-condiviso-demo.md.
-- **Landing pubblica**: la Panoramica per chi non ha dati — le tessere vere dell'app su un profilo inventato e dichiarato, più tre tessere che dicono cosa calcolano. doc/guide/landing.md; DESIGN → *The Sample-Data Rule*.
-- **Demo mode**: auto-login dalla landing; `useDemoMode()` gates every mutation. doc/guide/account-condiviso-demo.md.
-- **Shell**: compact `PageHeader` (one variant) · `PageTabBar` · `PageContainer` (1920, its only width) + `TileGridSkeleton` · sidebar with eyebrow group labels · bottom pill + «Altro» drawer. DESIGN → §5 Compact Page Header / Tile Grid; AGENTS → *Navigation*.
-- **Panoramica**: a rule-generated verdict over a 12-column tile grid, one question per tile, on `GET /api/dashboard/overview`. README → *Portfolio Management*; doc/guide/panoramica.md; DESIGN → §5 Page Verdict / Tile / Tile Grid.
-- **Patrimonio**: the verdict's driver is an instrument; six tiles, Strumenti is the management table at the tile's cadence («Andamento» is a VIEW: the Δ replace the price columns); a Δ is a unit-price variation; a hand-valued row has no PMC-based G/P; a bond row names maturity and next coupon; every G/P stands EUR against EUR, fees included (`costBasisEur.ts`). doc/guide/patrimonio.md.
-- **AssetDialog + Asset trade ledger (Registro operazioni)**: 2-step create; BUY/SELL/ADJUSTMENT with cash settlement, Admin-API writes, the asset doc rebuilt by full replay; a trade carries any past date, floored only by the asset's own baseline. README → *Portfolio Management*; AGENTS → *Two-Step Create Dialogs*; doc/guide/registro-operazioni.md.
-- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis; transfers are net-zero with atomic reconciliation; recurrence materialises real future rows; the Movimenti reading totals each type and its mobile bar repeats the period picker. README → *Cashflow*; doc/guide/cashflow-tracciamento.md; doc/guide/cashflow.md (segno, ricorrenze).
-- **Cashflow › Budget**: «sto rispettando il budget?», no axis, today's mark on every track, «speso» = booked only (the calendar its own clause and fill), thresholds on booked spend against their own calendar, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md; DESIGN → Budget Track, Risk-vs-Fact.
-- **Centri di Costo**: optional tab; «quanto sta costando il progetto?» with no axis — a project's cost is its whole cost. doc/guide/centri-di-costo.md; DESIGN → Whole-Cost Corollary.
-- **Cashflow › Divisione**: optional tab; «quanto è costato in comune, e quanto resta a ciascuno?» on Tracciamento's axis — one field (`personalMemberId`, absent = in comune), shares from the period's attributed salaries, a tile per person, and a section in the monthly email. doc/guide/cashflow-divisione.md.
-- **Expense CSV Import**: preview-first, one-tap undo by `importBatchId`. doc/guide/cashflow.md.
-- **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on the four-mode axis; a running year is compared full year against full year, the running month on the SAME DAYS, the history closes on the current year; the focused entity is a tile whose pace is measured on the months lived; the app's only Sankey, sized to its widest column. README → *Cashflow*; doc/guide/cashflow-analisi.md; doc/guide/cashflow.md (grouping, Sankey, drill-down).
-- **Dividendi**: «quanto rendono i miei flussi?»; received and announced are never one figure; BTP Italia (FOI added) and BTP€i (coefficient multiplied) coupons, provisional until the period's datum is entered; a zero coupon generates nothing. README → *Dividends*; doc/guide/cashflow-dividendi.md.
-- **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» on one axis, a configurable base (the pension funds enter it honestly: from the tracked month, their entry and every later contribution a FLOW on `CashFlowData.pensionFlow`), six benchmarks in EUR, and «Da dove viene il rendimento» — the market gain per instrument in euro, reconciled to the TWR numerator with the residual declared and its outsized months named. README → *Performance Analytics*; doc/guide/rendimenti.md.
-- **Storico**: «come sono arrivato qui?» with no axis — wealth growth (contributions included), ONE pace for the verdict and the next doubling, per-instrument price/quantity attribution. README → *Historical Analysis*; doc/guide/storico.md.
-- **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?» with no axis — six tiles + Dettaglio; `allocationRole` partitioned BEFORE `compareAllocations`; an unclassified holding is a row without a target; leverage as notional exposure; **Esposizione a cinque viste** (Titoli · Settori · Geografia · Valuta · Emittenti) su tabelle curate a cascata con Yahoo Finance — solo fork. **Accumulo (PAC)**: un tile a sé, un piano per strumento con calendario a quote intere, l'abbinamento col ledger che propone e mai scrive da solo — doc/guide/accumulo.md. **Ottimizzatore dei pesi (solo fork)**: dagli obiettivi di "Allocazione ideale" (Impostazioni → Allocazione) propone i pesi di mercato — un motore QP convesso, il **secondo livello** delle sottocategorie a significato libero per classe (mai "fattori" come unico nome), geografia dell'azionario a tre aree MSCI, modalità Raggiungibile/Ideale, mai scrive da solo — con **due punti d'ingresso**: il passo Target del PAC (`OptimizerPanel`) e il tile a sé **Composizione ideale** (`ComposizioneIdealeTile` → `IdealCompositionDialog`, un candidato per strumento, "Crea un PAC con questi pesi" apre una bozza nuova già seminata) — doc/guide/ottimizzatore.md. doc/guide/allocazione.md.
-- **Previdenza**: «il fondo sta lavorando?» as a verdict per contributor (three causes, three numbers) over five tiles + «Dettaglio», the fiscal year beside the verdict; a price-1, frozen asset whose value is overwritten from the statement ON the page («Aggiorna valore», not a contribution) and judged when it belongs to a closed month; a return too high OR contradictory for its contributions is not a measure. README → *Portfolio Management*; doc/guide/previdenza.md.
-- **FIRE › Calcolatore + Coast FIRE + What If + Monte Carlo**: four verdicts over tiles — «quando?», «posso smettere di versare?» (one `coastFireView.ts`), What If (tone from the delta in years), Monte Carlo (ONE run for three scenarios). Plus the pension bridge model. README → *FIRE Planning*; doc/guide/fire.md (pagina e Calcolatore), fire-coast.md, fire-what-if.md, fire-monte-carlo.md.
-- **Goal-Based Investing (FIRE › Obiettivi)**: «sono in rotta?» over five tiles + «Dettaglio»; the Assistant proposes, only the user writes; SDK-free math in `goalMath.ts`. doc/guide/fire-obiettivi.md.
-- **Assistente AI**: «su quali numeri ragiona l'assistente?» — the verdict IS the context, on the period axis; the conversation as a tile beside a sticky companion (Patrimonio · Cashflow · Cosa sa di te); SSE streaming, five modes, gated web search, proactive memory, goals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
-- **Hall of Fame**: «quali sono stati i mesi e gli anni migliori?» senza asse — un record è una posizione; la classifica completa vive nel Dettaglio. README → *Other*; doc/guide/hall-of-fame.md.
-- **Impostazioni**: sei tab, nessun verdetto (è un form) ma la cadenza delle tessere; un solo Salva per pagina, e due tessere che dichiarano senza scrivere. doc/guide/impostazioni.md; il fan-out di scrittura in doc/guide/impostazioni.md § Settings — the FIVE places.
-- **Accesso e Registrazione**: due pagine pubbliche, una colonna da 420 con UNA tessera; il verdetto è generato dallo stato (accesso · aperta · su invito · chiusa), la lettura è la status line del form, gli errori sono parole italiane e mai la stringa di Firebase. doc/guide/accesso-registrazione.md; DESIGN → The Status-Is-The-Reading Rule.
-- **Stati**: caricamento · nulla di registrato · zero misurato · lettura fallita — quattro forme distinte alla cadenza della tessera, su 20 superfici. doc/guide/stati.md; DESIGN → **The Absence-Has-Three-Names Rule**.
-- **Dialog e form trasversali**: 30 modali su un vocabolario unico — occhiello · titolo 20px · riga di lettura (che è la status line del form) · corpo · footer, in `ResponsiveModal` a quattro larghezze; quattro superfici montano ancora `Dialog`/`Drawer`/`Sheet` grezzi (Known Issues). Un delete su una RIGA di tabella si arma nella riga (`useArmedDelete`); una scelta («solo questa o tutte?») è una modale (`SeriesDeleteDialog`). doc/guide/dialog.md; DESIGN → **The Modal-Is-A-Tile Rule**, §5 Modal.
-- **Email periodiche · Email budget**: quattro periodi su UN template — verdetto da regole (anche come preheader), commento AI secondo, poi le tessere; «Rispetto a un anno fa» sparisce sull'annuale. La budget arriva la domenica e non contiene nulla di settimanale: ogni tessera dichiara la propria finestra. doc/guide/email-pdf.md.
-- **PDF export**: sette sezioni alla cadenza della tessera, la copertina è il verdetto, il pavimento del Cashflow è detto; niente monospace né meno tipografico, dichiarati. doc/guide/email-pdf.md.
-- **Scelte UI del fork · Lime Frost**: dove il fork tiene il suo lato contro upstream (scrub dello Storico, mese corrente, niente troncamenti, Flusso 50/30/20 sottile) e le regole del tema Lime Frost chiaro, con i TODO aperti. doc/guide/fork-scelte-ui.md.
-- **Token fuori dal DOM · Multi-theme**: `lib/constants/printTokens.ts` è l'unica sede di un hex per email e PDF (DESIGN → **The Out-Of-DOM Token Rule**); temi in doc/guide/temi.md.
+- **Shell**: skip link · compact `PageHeader` · `PageTabBar` · `PageContainer` (1920) + `TileGridSkeleton` · sidebar · bottom pill + «Altro» drawer; a tile's eyebrow is an `<h3>`. DESIGN → §5; AGENTS → *Navigation*.
+- **Shared account · Demo mode**: a second user as full co-owner (viewer `user.uid` ≠ owner `ownerId`); the demo auto-logs in from the landing and `useDemoMode()` gates every mutation. doc/guide/account-condiviso-demo.md.
+- **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.
+- **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
+- **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
+- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
+- **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
+- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
+- **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
+- **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
+- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.
+- **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
+- **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
+- **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
+- **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest, as a ledger that adds up to the euro behind each year. doc/guide/storico.md.
+- **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?» — i tre piani nominano gli STRUMENTI da scambiare e prezzano la ritenuta; «prelevare X» significa X in mano. doc/guide/allocazione.md.
+- **Previdenza**: «il fondo sta lavorando?» per contributor, the value typed from the statement ON the page. doc/guide/previdenza.md.
+- **FIRE**: Calcolatore, Coast FIRE, What If, Monte Carlo and Obiettivi, one verdict each. doc/guide/fire.md (+ fire-coast, fire-what-if, fire-monte-carlo, fire-obiettivi).
+- **Assistente AI**: the verdict IS the context; SSE streaming, memory, goal proposals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
+- **Hall of Fame**: «quali sono stati i mesi e gli anni migliori?», no axis. doc/guide/hall-of-fame.md.
+- **Impostazioni**: six tabs, no verdict, one Save per page; the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
+- **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
+- **Dialogs and forms**: 40 modals on one vocabulary in `ResponsiveModal`; row deletes arm in the row. doc/guide/dialog.md; DESIGN → The Modal-Is-A-Tile Rule.
+- **Periodic emails · budget email · PDF export**: rule-generated verdict first, AI comment second; every hex from `printTokens.ts`. doc/guide/email-pdf.md; DESIGN → The Out-Of-DOM Token Rule.
+- **Solo fork** (dove il fork tiene il suo lato contro upstream: doc/guide/fork-scelte-ui.md): **Esposizione a cinque
+  viste** (Titoli · Settori · Geografia · Valuta · Emittenti) su tabelle curate a cascata con Yahoo Finance, e ETF a leva
+  come esposizione nozionale — doc/guide/allocazione.md; **Accumulo (PAC)**, un piano per strumento che propone e mai
+  scrive da solo — doc/guide/accumulo.md; **Ottimizzatore dei pesi** dagli obiettivi di «Allocazione ideale» (QP
+  convesso, secondo livello delle sottocategorie, due ingressi: il passo Target del PAC e il tile **Composizione
+  ideale**) — doc/guide/ottimizzatore.md; **import CSV** delle spese; **alias dei ticker** (`getAssetDisplayTicker`);
+  la **guardia sulla prima operazione** del registro; il tema **Lime Frost** (una palette di ruoli) e i **ruoli
+  50/30/20** nel Flusso di Analisi — doc/guide/temi.md, doc/guide/cashflow.md.
+- **Themes**: fourteen theme blocks (twelve + Lime Frost light/dark, solo fork) × nine chart slots through `useChartColors`, every block held to the distinctness floor by `__tests__/chartPaletteDistinctness.test.ts`. doc/guide/temi.md.
 
 ## Testing
 - Vitest: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. New tests in `__tests__/`; prefer pure functions over Firestore-coupled code.
 - **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch: run `npm install` first (AGENTS → *Commands*).
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
-- **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: AGENTS.md → *Browser-Driven E2E*.
+- **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations
 Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa Italiana scraping (Italian bonds, dividends) · Frankfurter (FX) · FRED (`FRED_API_KEY`, series ECBDFR) · Anthropic (`claude-sonnet-5` analysis + assistant, `claude-haiku-4-5` extraction).
 
 ## Known Issues (Active)
-- **La guardia sulla prima operazione ha un rimedio irraggiungibile** (`lib/server/assetTransactionUseCase.ts`, solo fork). Il 409 dice «aggiungi prima un'operazione di apertura, es. un adeguamento», ma anche un adjustment è `op: 'set'` con `existing.length === 0`, quindi la stessa guardia lo blocca: dalla UI non c'è modo di seguire il consiglio. Sull'account reale la cosa ha un nome — **Berkshire Hathaway** (0,05 quote, zero operazioni) non è registrabile a registro; gli altri 10 casi sono 8 conti liquidi e il fondo pensione, che a registro non ci vanno comunque. Due rimedi: esentare l'adjustment, oppure creare l'apertura `isBaseline` (che in upstream non muove denaro nei `portfolioFlows`) — la seconda è anche la PR difendibile da riproporre a upstream.
-- **`npm run lint` legge cartelle che git ignora**: le sue segnalazioni vengono quasi tutte da `.claude/worktrees/` (checkout completi del progetto) e da `scratchpad/`. Il lint vero è `npx eslint app components lib types e2e scripts __tests__`, che è a zero. La configurazione ESLint non esclude quelle cartelle.
-- **Il backfill di `averageCostEur` non riparte** su un account che l'ha già eseguito con la versione del fork: `averageCostEurBackfilledAt` è lo stesso segnale di «fatto» sui due lati. Innocuo — la formula (`costBasisEur / quantity`, commissioni incluse) è identica byte per byte — ma il percorso di scrittura di upstream su quegli account non viene mai esercitato.
-- **FX** depends on Frankfurter with a 24h in-memory cache (no fallback on a cold instance). Pre-migration non-EUR assets without `currentPriceEur` show the native price as EUR until the first update; one with `autoUpdatePrice: false` never self-heals until re-saved.
-- **Demo account** requires manual Firebase setup — README.md → Known Issues + the three `NEXT_PUBLIC_DEMO_*` vars.
-- **Due generazioni di Sonnet convivono** (`lib/constants/aiModels.ts`): l'analisi di Rendimenti gira su `claude-sonnet-4-6`, l'assistente e le email su `claude-sonnet-5`. Allinearli cambia costo e output, quindi è una decisione di prodotto ancora da prendere; finché non lo è, le costanti restano quattro e distinte e ogni modale legge quella della SUA route.
+Only what crosses areas; an area's blind spots — the behaviours that look like bugs and are not — close its `doc/guide/<tema>.md` (§ Per-page blind spots). The demo account's manual setup is in README.md → Known Issues, the shared account's prerequisites in SETUP.md → Step 5b.
+
+- **Two Sonnet generations coexist** (`lib/constants/aiModels.ts`): the Rendimenti analysis runs on `claude-sonnet-4-6`, the assistant and the emails on `claude-sonnet-5`. Aligning them changes cost and output, so it is a product decision still to take; until then the four constants stay distinct and each modal reads its OWN route's.
 - **Two deliberate dependency pins keep advisories open.** `firebase-admin` at `^13.6.0` (@14 pulls pure-ESM `jose@6` → `ERR_REQUIRE_ESM` on Vercel; 8 moderate `uuid` advisories stay) and `next` at `~16.2.12` (16.3.0 breaks Vercel at `onBuildComplete`; 2 HIGH libvips advisories via `sharp`, low exposure). **Unpin next and re-run `npm audit fix` once Vercel digests 16.3.x.**
-- **Shared account setup** prerequisites (whitelist, guest registers first, rules deployed): SETUP.md → Step 5b.
-- **YOC/Current Yield** exclude sold assets and are scoped to the current holding via `holdingStartDate`; a sell+rebuy inside one month counts the prior holding's dividends against the new cost basis (an overstated YOC, never a regression).
-- **Rendimenti before `byAsset`: correct denominator, wrong numerator** (2023-01 → 2025-10 on the real account): the basis step is removed, but the excluded assets' variation stays inside the measured return. Not reconstructible — and those months cannot be attributed to an instrument either: «Da dove viene il rendimento» names the months it covers.
-- **«Non attribuito» in Rendimenti is a measurement, not a bug**: cash interest, balances corrected by hand, expenses paid from untracked accounts and dividends recorded in only one of cashflow/registry all move the total without moving an instrument's unit value (−2.326 € on a 16.836 € YTD gain on the real account). Per-instrument dividends come from the `dividends` registry, the gain from the cashflow: a dividend present in one place only lands there. With the pension toggle ON, a period straddling the entry month carries the funds' whole value as a flow in that month, and a late-credited statement reads as a temporary market loss on this page too.
-- **TWR monthly-bucket artifact (by design)**: an expense is neutralised only when the net-worth drop and the cash flow land in the same month; recording a purchase both as an expense and as an asset produces a phantom gain. Record balances in the month they belong to. **Since 2026-09-07, on any account with something out of the base (the default), the months with `byAsset` on both snapshots neutralise the MEASURED boundary flows instead of the cashflow's savings** (`portfolioFlows`): a deposit on an account inside the base counts even without an income row, interest credited on it reads as a deposit, a split or an in-kind transfer as a purchase, a trade left out of the ledger vanishes for a covered instrument; the months before `byAsset` still use the cashflow, and the Contributi tile says how many were measured. **Since 2026-09-13 the ledger speaks for an instrument only once the base has SEEN it**: an instrument the snapshots meet for the first time enters at its value, whatever its trade date (a backdated purchase is history, not that month's return). doc/guide/rendimenti.md.
-- **The Assistant's cashflow figures changed on 2026-07-29**; saved threads are prose and are not regenerated.
-- **The five named themes' chart slots are not measured for distinctness** (2026-09-13): `__tests__/chartPaletteDistinctness.test.ts` holds the default theme to ΔE00 ≥ 14 between any two slots in both modes, but retro-arcade declares `--chart-2` and `--chart-4` IDENTICAL, elegant-luxury paints slots 1-3 in three reds, and solar-dusk's 2/4/5 are near-greys — a composition bar on those themes is not readable by colour. Fixing them means re-pitching five palettes by hand; not done. doc/guide/temi.md.
-- **Chart slots 8-9 are still not theme-aware** (`useChartColors()` pads the last two from the static `CHART_COLORS`): slot 8 is Storico's synthetic «Previdenza» band and 9 is unused by the class palette, so nothing user-facing collides. Slots 0-7 are theme-aware since 2026-08-30. doc/guide/temi.md.
-- **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md.
-- **Sign-colour CHIPS sit below AA, structurally** (`bg-positive/10 text-positive` washes the background with the text's hue: 15 of 24 combinations at 3.34–4.40:1; deliberately not fixed). `MonthlyReturnsHeatmap` fills its cells with the sign tokens at 30/55/85% (the figure is never printed in the cell, so the AA text floor does not apply).
-- **A confirmed goal proposal can be confirmed again after a reload** (accepted for v1): reopening the thread re-parses the fenced block and a second press creates a SECOND goal.
-- **A running year is the WHOLE calendar year on Tracciamento and Analisi**, so its figures include what is only scheduled; each verdict declares it with amount and horizon, each such row is chipped «In calendario» and drops its sign colour. **«Da inizio anno» (YTD) is the other window** (`Period.kind = 'ytd'`, Analisi's fourth `PeriodMode`): it runs to the END of today's month, not to today, so it carries scheduled rows too. **On «Anno corrente» the delta compares twelve months against twelve** (`resolveComparisonScope` → `fullYear`), biased downward as the year runs; YTD keeps `sameMonths`, and Tracciamento's verdict and a category's Scheda still say «stessi mesi». Not extended to Panoramica, Storico, Budget or Centri di Costo. DESIGN → *The Scheduled-Is-Not-Spent Rule*.
-- **Le 5 spec del Calcolatore FIRE falliscono se la suite E2E gira prima del 5 del mese**: `seedEmulator.ts` data le spese al giorno 5 del mese corrente e `getAnnualCashflowData` interroga «inizio anno → adesso», quindi la finestra è vuota. Artefatto della fixture, non una regressione.
-- **Il ramo `isError` copre 20 superfici, non ogni query**: cablate quelle da cui dipende il verdetto o l'inventario, non le secondarie (prezzi, benchmark, FX) — una di quelle che fallisce degrada ancora in silenzio.
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
-- **Divisione's shares follow the PERIOD's salaries** (owner's call): a thirteenth salary moves the percentage, and a month with no salary recorded has no shares at all — `resolveSplitBasis` says so by name instead of printing 100/0. It **shipped without an end-to-end run with the flag ON**: the pure layer, flag-off invariance, `tsc`, suite and build are proven; the `personalMemberId` writes and the rendering are not. doc/guide/cashflow-divisione.md.
+- **Three Vitest cases fail under `TZ=UTC`** (`budgetUtils` › crossing day, `pensionSummary` › value age, `tracciamentoSummary` › `isScheduledRow`), on a clean `develop` too (checked in a worktree, 2026-09-20): they read «today» by Italian calendar day against fixtures built in the process timezone. The suite's two timezones are the machine's and `Europe/Rome`; a CI in UTC would see them red.
+- **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two are fixed; the others take the opener when they are next touched.
+- **`--muted-foreground` measures 4,46:1 on `--background` in the default LIGHT theme** (measured in the browser,
+  2026-09-21, on the compact `PageHeader`'s description) — just under the AA floor of 4,5:1, on every page that uses
+  the shell, not on one. It is a theme-token change with a twelve-block blast radius, so it belongs to a
+  `doc/guide/temi.md` session, not to a page's.
+- **Solo fork — la guardia sulla prima operazione ha un rimedio irraggiungibile** (`lib/server/assetTransactionUseCase.ts`):
+  il 409 consiglia un'operazione di apertura, ma anche un adjustment è `op: 'set'` con `existing.length === 0` e la
+  stessa guardia lo blocca. Sull'account reale: **Berkshire Hathaway** (0,05 quote, zero operazioni). Rimedio
+  difendibile anche per upstream: creare l'apertura `isBaseline`, che non muove denaro nei `portfolioFlows`.
+- **Solo fork — `npm run lint` legge cartelle che git ignora** (`.claude/worktrees/`, `scratchpad/`): il lint vero è
+  `npx eslint app components lib types e2e scripts __tests__`.
+- **Solo fork — `CACHE_MATH_VERSION` è `'v{n}-fork'`** (`lib/services/performanceService.ts`): distinta da upstream qualunque
+  forma abbia la chiave; un bump di upstream si porta come `v{n}-fork`. Il backfill di `averageCostEur` non riparte su
+  un account che l'ha già eseguito con la versione del fork (stessa formula, innocuo).
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
-- **Quattro superfici stanno ancora fuori dal vocabolario delle modali** (2026-09-06, ricontate 2026-09-14 sera): `app/dashboard/page.tsx`, `cashflow/{TransactionFeed,MobileFiltersDrawer}`, `assistant/AssistantSheets` montano `Dialog`/`Drawer`/`Sheet` grezzi (titolo 18/16px, quinta larghezza 512px); la conferma del drawer di dettaglio del feed è un drawer ANNIDATO in un drawer. Elenco in DESIGN.md → §5 Modal, Coverage.
-- **Due tinte del chrome violano la Zero-Chroma Rule** (`switch.tsx` ON blu in dark, `ProtectedRoute` spinner; la mask-icon smeraldo è stata rimossa il 2026-09-13; il `text-emerald-*` di `ExpenseTable` è passato a `text-positive` il 2026-09-14); gli altri ~100 hex DOM-side sono eccezioni dichiarate in DESIGN.md → The DOM-side hex inventory.
-- **The market digest's blind spots**: a position opened this month contributes 0 until next month; a pension fund counts only from `pensionReturnStartMonth`; hand-valued assets other than funds and real estate never show a market effect; real estate is gross of debt.
-- **Bonds saved before 2026-09-11 with the nominal empty or 1 keep a wrong PMC and opening trade** (the raw quote as
-  euro: 99 for 0,99); the current price heals at the next cron, the PMC does not — corrected by the user from the
-  Registro, no backfill by the owner's decision. **A BTP€i is only as current as its coefficient**: Borsa Italiana does
-  not publish it, so the value lags the last coefficient entered (~6 months between coupons unless refreshed from the
-  form), a coupon is provisional until the payment-date coefficient is typed, the PMC entered in the asset form uses
-  TODAY's coefficient (the Registro's trade carries the right one), and redemption at maturity (nominal × coefficient)
-  is not an event for any bond. **`createAsset` re-links a new asset onto an existing one with the same ISIN whenever
-  that ISIN already has dividends** (ISIN continuity, by design): creating a second bond with an already-held ISIN
-  merges it into the first.
-- **The sales clause is an ESTIMATE from the ledger** (2026-09-11): the tax is `plusvalenza × taxRate` per instrument — no compensation of prior losses, no rate → «non stimate» (never zero); a sale recorded outside the ledger (a hand-edited quantity) is invisible; the AI email prompt still prints the old `Δ − risparmio` residual; and a tax the owner ALSO records as a cashflow expense is counted twice in the email's split. On the real account the estimate landed 3,64 € under the broker's withholding (4.088,86 € vs 4.092,50 €).
 
 ## Key Files
-Entry points only: each `doc/guide/<tema>.md` opens with the full file list of its area, and every pure module has
+Cross-cutting entry points only: each area's files open its guide (`doc/guide/<tema>.md` § Files), every pure module has
 `__tests__/{module}.test.ts`, every page its `e2e/{page}*.spec.ts` where one exists.
-- **Shell**: `app/dashboard/layout.tsx` (`<main>` = `page-main`), `app/dashboard/template.tsx`, `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,SceneLink,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,LogoutDialog}.tsx`, `lib/utils/viewTransition.ts` (the ONE `startViewTransition`, `data-vt` scoping) + `lib/hooks/useSceneNavigation.ts` (the page scene), `lib/utils/themeTransition.ts`, `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`), `lib/constants/navigation.ts` (the ONE source of the nav arrays); tile primitives `components/ui/{tile,narrative-text,ranked-rows,tile-grid-skeleton,page-verdict}.tsx`, `lib/utils/narrative.ts` (`Narrative`, `VerdictTone`, `PageVerdictModel`)
+- **Shell**: `app/dashboard/layout.tsx` (`<main>` = `page-main`), `app/dashboard/template.tsx`, `components/layout/{Sidebar,BottomNavigation,SecondaryMenuDrawer,SceneLink,PageHeader,PageTabBar,PageTabs,PageContainer,ThemePicker,LogoutDialog}.tsx`, `lib/utils/viewTransition.ts` (the ONE `startViewTransition`, `data-vt` scoping) + `lib/hooks/useSceneNavigation.ts` (the page scene), `lib/utils/themeTransition.ts`, `components/ui/sidebar.tsx` (`SIDEBAR_WIDTH_ICON`), `lib/constants/navigation.ts` (the ONE source of the nav arrays); tile primitives `components/ui/{tile,tile-method-note,series-legend,narrative-text,ranked-rows,tile-grid-skeleton,page-verdict}.tsx`, `lib/hooks/useRovingFocus.ts` (a list as ONE Tab stop), `lib/utils/narrative.ts` (`Narrative`, `VerdictTone`, `PageVerdictModel`)
 - **Shared primitives / utils** (each the single source of its rule): `components/ui/{composition-list,composition-bar,segmented-pill,drill-breadcrumb,chart-hover}.tsx`; `lib/utils/formatters.ts` · `metricColors.ts` (`getMetricValueColor`) · `assetPricing.ts` (`requiresManualPricing`) · `assetLiquidity.ts` · `expenseTypeTransition.ts` · `firestoreData.ts` (`removeUndefinedDeep`) · `dateHelpers.ts` (`endOfMonthBound`, `getItalyDateIso`, `isItalyDayAfter`) · `spendingProjection.ts` (the ONE month-end projection) · `recurrenceDates.ts` (the ONE source on recurrence)
-- **Stati**: `lib/utils/statesNarrative.ts` (`resolveSurfaceState` = the one wait/failure decision), `components/ui/{skeleton,empty-state,error-notice}.tsx`, `components/ui/sonner.tsx` — doc/guide/stati.md
-- **Dialog e form trasversali**: `components/ui/{responsive-modal,modal-status-line}.tsx` (`ModalWidth` sm/md/lg/xl), `lib/utils/dialogNarrative.ts` (`describeFormRefusal`, `describeExpenseDeleteConsequence`, `describeSeriesDeleteReading`), `lib/hooks/useArmedDelete.ts`, `components/expenses/SeriesDeleteDialog.tsx` (`resolveSeriesDeleteMode` = the ONE rule for «solo questa o tutte?»), `lib/constants/aiModels.ts`; `components/layout/LogoutDialog.tsx` stays an `AlertDialog` — doc/guide/dialog.md
-- **Shared account · Demo**: `contexts/ActiveAccountContext.tsx`, `lib/services/accountAccessService.ts`, `app/api/account/members/route.ts`, `lib/server/apiAuth.ts`, `firestore.rules`, `lib/hooks/useDemoMode.ts`; collection `account-access/{ownerUid}` — doc/guide/account-condiviso-demo.md
-- **Temi**: `app/globals.css` (fourteen theme blocks), `contexts/ColorThemeContext.tsx`, `lib/hooks/{useChartColors,useActionColors}.ts`, `lib/utils/costCenterColors.ts` — doc/guide/temi.md
-- **Overview**: `app/dashboard/page.tsx`, `app/api/dashboard/overview/route.ts`, `lib/services/dashboardOverviewService.ts`, `lib/hooks/useDashboardOverview.ts`, `components/dashboard/overview/*` (`PatrimonioTile` exports `resolveHeroValueClass`), pure `lib/utils/{overviewNarrative,dashboardOverviewUtils,sparklinePeriod,savingsRateBadge}.ts`; `lib/utils/periodSales.ts` (`summarizePeriodSales` = the month's sells from the ledger with the estimated tax, `resolveDeclineCause` = the ONE cause of a falling month for Panoramica, Patrimonio and the email) + `lib/utils/salesNarrative.ts` (the shared words)
-- **Patrimonio**: `app/dashboard/assets/page.tsx` (owns every dialog), `components/assets/*` (+ `PatrimonioTile`/`ComposizioneTile` reused from the overview), pure `lib/utils/{patrimonioNarrative,patrimonioSummary,assetPerformanceDeltas,costBasisEur,assetDisplay,assetDisplayClass}.ts` (`getAssetDisplayTicker` = l'alias del ticker, solo fork) (`costBasisPerUnitEur`/`unitPriceEur` = EUR against EUR, fees included), `lib/utils/bondPricing.ts` (`resolveBondPrice` = the ONE Borsa Italiana quote → euro per unit, nominal 1 € by default, BTP€i coefficient; `toBorsaItalianaQuote` the inverse; shared with `lib/helpers/priceUpdater.ts`), `lib/utils/bondDetailsForm.ts` (`buildBondDetailsFromForm`, a rate of 0 is a zero coupon); `lib/services/assetService.ts`, `types/assets.ts`; spec `e2e/assets.bond.spec.ts`
-- **Asset trade ledger**: engine `lib/utils/assetTransactionUtils.ts` + `types/assetTransactions.ts`; server `lib/server/{assetTransactionUseCase,tradeFxService}.ts` (+ `backfillAverageCostEur`) + `app/api/asset-transactions/*` (incl. `backfill-average-cost-eur`); client `lib/services/assetTransactionService.ts`, UI `components/assets/{TransactionDialog,AssetMovementsDialog}.tsx`; collections `assetTransactions`/`assetTransactionsMeta`. **Solo fork**: `commitTradeMutation` rifiuta con 409 la PRIMA operazione su un asset che porta già una quantità tracciata (il replay parte da zero e la sovrascriverebbe)
-- **Rendimenti**: `app/dashboard/performance/page.tsx`, `components/performance/*` (+ `tiles/*`, `AttribuzioneTile`; the hand-written plots glide through `lib/hooks/useMorphingSeries.ts` over pure `lib/utils/seriesMorph.ts`), pure `lib/utils/{performanceNarrative,performanceSummary,performanceBase,portfolioFlows,performanceAttribution,drawdownSeries,cashFlowMap,benchmarkPeriodReturn}.ts` (`resolvePerformanceBase` = the ONE base for service, page and PDF; `externalFlowOf`/`mergePensionFlows`/`mergePortfolioFlows` = the two flow channels; `buildPortfolioBoundaryFlows` = the measured boundary; `resolvePeriodReturnChip`/`deannualizeReturn`; `attributePeriodReturn` + `RESIDUAL_ALERT_SHARE` = the residual guard), `lib/services/performanceService.ts` (`CACHE_MATH_VERSION`); cache `performance-cache/{userId}`; spec `e2e/performance.degraded.spec.ts` on `npm run e2e:seed -- performance`. Yields: `lib/utils/yieldOnCost.ts` (`computeDividendYieldMetrics`, also behind `app/api/dividends/stats/route.ts`)
-- **Allocazione / exposure**: `app/dashboard/allocation/page.tsx`, `components/allocation/*` (+ `tiles/*`), pure `lib/utils/{allocazioneSummary,allocazioneNarrative}.ts` over `lib/utils/{allocationUtils,leverageAwareAllocationUtils,assetExposureUtils}.ts` (`allocationUtils` owns `ASSET_CLASS_SEQUENCE`, `ASSET_CLASS_LABELS`, `ASSET_CLASS_CHART_INDEX`), `lib/services/assetAllocationService.ts`; **Esposizione (solo fork)**: `lib/utils/exposureEngine.ts` (`computeExposure`, la formula delle cinque viste), `components/allocation/tiles/EsposizioneTile.tsx`, `lib/hooks/usePortfolioExposure.ts`, `lib/server/portfolioExposureService.ts` + `lib/server/exposure/{profileResolver,yahooSource,issuerResolver}.ts` (la cascata curati↔Yahoo) + `lib/constants/instrumentProfiles.ts` (manutenuto con `npm run exposure:report`/`exposure:refresh`); cache `exposure-cache/{userId}` (24h) + `instrument-profile-cache/{ticker}` (30d); **Accumulo (PAC, solo fork)**: `types/accumulationPlan.ts`, pure `lib/utils/accumulationPlan{Utils,Schema,Matching}.ts` + `lib/utils/accumulationNarrative.ts`, `lib/services/accumulationPlanService.ts`, `lib/hooks/useAccumulationPlan.ts`, `components/allocation/tiles/AccumuloTile.tsx`, `components/allocation/{AccumulationPlanDialog,AccumulationCalendarDialog,AccumulationRecalibrateDialog,ClassDriftChart}.tsx`; collection `accumulationPlans/{planId}` — doc/guide/accumulo.md; **Ottimizzatore dei pesi (solo fork)**: `lib/constants/geoAreas.ts`, `lib/utils/{boxProjection,weightOptimizer,weightOptimizerNarrative}.ts` (`optimizeWeights` = il motore QP, `runOptimizer` = candidati + `optimizeWeights` in una chiamata, `findSecondLevelGaps` = l'avviso preventivo, `describeObjectiveLabel` = l'unica sede delle etichette), `lib/hooks/useOptimizerGeographyReference.ts`, `app/api/portfolio/instrument-profiles/route.ts` + `lib/hooks/useInstrumentProfiles.ts` (profili anche a quantità 0), `components/settings/IdealAllocationTile.tsx` (gli obiettivi in Impostazioni), `components/allocation/{OptimizerPanel,OptimizerReport}.tsx` (il passo 2 Ottimizzato del PAC; `OptimizerObjectivesReport` è il rapporto condiviso col secondo punto d'ingresso), `components/allocation/tiles/ComposizioneIdealeTile.tsx` + `components/allocation/IdealCompositionDialog.tsx` (lo strumento a sé, G4: un candidato per strumento, `weightsToSeedPositions` in `accumulationPlanUtils.ts` per "Crea un PAC con questi pesi") — doc/guide/ottimizzatore.md
-- **Previdenza**: `types/pension.ts`, pure `lib/utils/{pensionSummary,pensionNarrative}.ts` over `lib/utils/{pensionDeduction,pensionContributions,pensionReturn,pensionFire,pensionFamilyMembers}.ts` (`indexPensionSnapshots` = the snapshots reduced ONCE to the funds; `isPensionValueStale` = the ONE age of a hand-kept value), `lib/services/pensionContributionService.ts` (`assertFundValueLivesInQuantity`, `updatePensionFundValue`), `app/dashboard/pension/page.tsx`, `components/pension/*` (`PensionValueDialog`, `pensionStyles.ts`); the two modals' words in `lib/utils/dialogNarrative.ts`; collection `pensionContributions`
-- **Cashflow**: `app/dashboard/cashflow/page.tsx`; Tracciamento `components/cashflow/ExpenseTrackingTab.tsx` + `components/cashflow/{TransactionFeed,CompactExpenseRow,MobileFiltersDrawer}.tsx` + `components/expenses/ExpenseTable.tsx` (the «Tabella» view: armed row delete, `SeriesDeleteDialog`), pure `lib/utils/{tracciamentoSummary,cashflowNarrative,movementsOwnerFilter}.ts` (`settleTotals` = the lived part the verdict judges; `currentComparisonWindow`/`previousComparisonWindow` = the two comparable windows, same days of the previous month for the month in progress; the «Intestatario» filter and the owner chip), `lib/constants/expenseTypeColors.ts` (the ONE type→colour map: dot, badge, flow series), specs `e2e/cashflow.{tracciamento,mobile,owner,accounts}.spec.ts`; Budget `components/cashflow/BudgetTab.tsx` + `components/cashflow/budget/*` (`BudgetTrack`, `BudgetDeleteButton`, `BudgetItemDialog`), pure `lib/utils/{budgetSummary,budgetNarrative,budgetUtils,budgetHistory}.ts`, specs `e2e/cashflow.budget{,.mobile}.spec.ts`, `lib/hooks/{useBudgetConfig,useBudgetHistory}.ts`, `lib/server/budgetHistoryService.ts` (cron phase 8), collections `budgets/{userId}`, `budgetHistory/{userId}/months/{YYYY-MM}`; Divisione `components/cashflow/ExpenseSplitTab.tsx`, pure `lib/utils/{expenseSplitSummary,expenseSplitNarrative}.ts` (`resolveSplitBasis`, `allocateByShare`); Centri di Costo `components/cashflow/{CostCentersTab,CostCenterDetail,CostCenterDialog}.tsx` + `cost-centers/*`, pure `lib/utils/{costCenterSummary,costCenterNarrative,costCenterUtils}.ts`, `costCenterStyles.ts` (`CHART_TICK_STYLE`); services `lib/services/{budgetService,costCenterService,cashBalanceReconciliation,expenseImportService}.ts`, `lib/utils/expenseImport.ts`
-- **Analisi**: `components/cashflow/AnalisiTab.tsx` (`handleEntitySelect`) + `components/cashflow/analisi/*`, `components/cashflow/{EntityDossier,EntitySearch,ConfrontoAnnualeSection,CashflowSankeyChart,SavingsRateTrendSection,AndamentoStoricoSection}.tsx`; pure `lib/utils/{analisiSummary,analisiNarrative,expenseGrouping,cashflowSankey,cashflowComposition,expenseCategoryMatching,comparisonDeltas,expenseEntityStats,entitySearch}.ts`
-- **Dividendi**: `components/dividends/DividendTrackingTab.tsx` + `tiles/*` + `DividendiDettaglio.tsx`, pure `lib/utils/{dividendAnalytics,dividendiNarrative,dividendEligibility}.ts` (`resolveDividendFloor` = the ONE floor under a scraped dividend), `lib/hooks/useDividendStats.ts` → `app/api/dividends/stats/route.ts`; registry and coupons `components/dividends/{DividendTable,DividendCalendar,DividendDialog,DividendDetailsDialog,DividendRecordDetailsDialog,InflationRateDialog,ProvisionalCouponBanner}.tsx`, `lib/utils/couponUtils.ts` (`resolveCoupon` for both mechanisms, `resolveInflationIndexation`, `hasCouponPayments`, the coefficient lookups), `lib/services/couponScheduling.ts`, `types/dividend.ts`
-- **Storico / snapshots**: `app/dashboard/history/page.tsx`, `components/history/*` (+ `tiles/*`), pure `lib/utils/{storicoSummary,storicoNarrative,snapshotAssetBreakdown,historyComposition,snapshotUserFields}.ts` (`preserveUserAuthoredSnapshotFields` = i campi che nessuna pipeline ricalcola, portati attraverso la sostituzione; `summarizeLaborMetrics` + `laborWindowsOf` = il recap Lavoro sulle finestre del Driver), `lib/services/{chartService,snapshotService}.ts`, `components/CreateManualSnapshotModal.tsx` over `lib/utils/manualSnapshotAmounts.ts`; collection `monthly-snapshots`
-- **Hall of Fame**: `app/dashboard/hall-of-fame/page.tsx`, `components/hall-of-fame/*` (+ `tiles/*`), pure `lib/utils/{hallOfFameSummary,hallOfFameNarrative}.ts` over `lib/utils/hallOfFameRecords.ts` (the ONE definition of record and ranking, shared with the email), `lib/constants/hallOfFame.ts`, `lib/services/hallOfFameService{,.server}.ts`, `app/api/hall-of-fame/recalculate/route.ts`; collection `hall-of-fame/{userId}`
-- **Benchmark**: `lib/constants/benchmarks.ts`, `app/api/benchmarks/*`, `lib/server/ecbRatesService.ts`; caches `benchmark-cache/*`, `fx-rate-cache/usd-eur`, `ecb-rate-cache/deposit-rate`
-- **FIRE**: Calcolatore `components/fire-simulations/FireCalculatorTab.tsx` + `tiles/*` + `{FireParametri,FireDettaglio,FIREProjectionChart,FireFanChart,SettledValue}.tsx`, pure `lib/utils/{fireSummary,fireNarrative}.ts`; shared `lib/services/{fireService,whatIfService,monteCarloService,goalService}.ts`, `lib/utils/{pensionUnlock,monteCarloParams,goalTrajectory,goalMath}.ts` (`pensionUnlock` = the single unlock resolution, `deriveMonteCarloAllocation`, `serializeGoalForFirestore` = the persistence allowlist); Coast `CoastFireTab.tsx` + `coast/*`, pure `lib/utils/coastFireView.ts`, `lib/hooks/useCoastFireSettingsDraft.ts`; What If `WhatIfAnalysisTab.tsx` + `whatif/*`, pure `lib/utils/{whatIfSummary,whatIfNarrative}.ts`, `types/whatIf.ts`; Monte Carlo `MonteCarloTab.tsx` + `components/monte-carlo/*` (`SCENARIO_SLOT`), pure `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`; Obiettivi `GoalBasedInvestingTab.tsx` + `components/goals/*`, pure `lib/utils/{goalsSummary,goalsNarrative}.ts`; specs `e2e/fire*.spec.ts`, `e2e/coast*.spec.ts`, fixture `scripts/seedCoastFireE2E.mts`
-- **Assistant**: `app/dashboard/assistant/page.tsx`, `components/assistant/AssistantPageClient.tsx` + `tiles/*`, pure `lib/utils/{assistantNarrative,assistantPeriodOptions}.ts`; `app/api/ai/assistant/*`, `lib/server/assistant/*` (`goalEvaluation.ts` pure, `goalEvaluationService.ts` I/O, `memoryExtraction.ts`, `store.ts` → `mergeMemoryItem`), `lib/hooks/useAssistantStreaming.ts`, `lib/services/assistantMonthContextService.ts` over `lib/utils/expenseBreakdown.ts` (`buildCashflowBreakdown`); goals `lib/server/goalData.ts`, `lib/utils/goalProposal.ts` (ONE zod schema), `app/api/goals/route.ts`, `components/assistant/GoalProposalCard.tsx`
-- **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`), `components/settings/{ExpenseImportSection,AccountSharingSection}.tsx`, pure `lib/utils/{settingsNarrative,equityBondsAutoTargets}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places)
-- **Landing · Accesso e Registrazione**: `app/page.tsx`, `components/landing/LandingPromiseTile.tsx`, pure `lib/utils/{landingNarrative,landingSampleData}.ts`; `app/{login,register}/page.tsx`, `components/auth/*`, pure `lib/utils/authNarrative.ts`, `lib/server/registrationPolicy.ts` + `app/api/auth/check-registration/route.ts`, `contexts/AuthContext.tsx`, `components/ProtectedRoute.tsx`
-- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
-- **E2E**: `playwright.config.ts`, `e2e/*.ts`, `e2e/global-setup.ts`, fixtures `scripts/{seedEmulator.ts,seedPensionE2E,seedAnalisiE2E,seedCoastFireE2E}.mts`; scripts `test:e2e`/`e2e:seed*`/`dev:e2e`; the production mirror `scripts/mirrorProdAccount.mts` (`mirror:seed`/`mirror:remove`)
+- **Solo fork**: Esposizione `lib/utils/exposureEngine.ts` (`computeExposure`), `lib/server/portfolioExposureService.ts` +
+  `lib/server/exposure/{profileResolver,yahooSource,issuerResolver}.ts`, `lib/constants/instrumentProfiles.ts`
+  (`npm run exposure:report`/`exposure:refresh`); Accumulo `lib/utils/accumulationPlan{Utils,Schema,Matching}.ts`,
+  `components/allocation/tiles/AccumuloTile.tsx`; Ottimizzatore `lib/utils/{boxProjection,weightOptimizer,weightOptimizerNarrative}.ts`,
+  `components/allocation/tiles/ComposizioneIdealeTile.tsx`; temi `lib/utils/{colorLightness,actionColor}.ts` (i colori
+  serviti sono `#hex`/`lab()`), il blocco Lime Frost in `app/globals.css`; Storico `lib/utils/storicoScrub.ts`
+  (`resolveScrubView`); 50/30/20 `lib/utils/spendingRoles.ts`.
+- **E2E**: `playwright.config.ts`, `e2e/*.ts`, `e2e/global-setup.ts`, fixtures `scripts/{seedEmulator.ts,seedPensionE2E,seedAnalisiE2E,seedCoastFireE2E,seedCostCentersE2E}.mts`; scripts `test:e2e`/`e2e:seed*`/`dev:e2e`; the production mirror `scripts/mirrorProdAccount.mts` (`mirror:seed`/`mirror:remove`)
+
 
 ## Design Context
-The propagation is finished (twenty-three sections, the last on 2026-09-01): a change to a page starts from its `doc/guide/<page>.md` and from DESIGN.md's named rules, not from a prompt.
-
-Authoritative aesthetic spec: **DESIGN.md** — hand-maintained, **never regenerate it**; its YAML frontmatter is the normative layer read by the impeccable detector, `.impeccable/design.json` only the extensions sidecar. Product truth lives in **PRODUCT.md**. This file carries no paraphrase: rules are cited by name (DESIGN → **The X Rule**) and enforced by `components/ui/{tile,page-verdict,responsive-modal}.tsx`, `statesNarrative.ts` and `printTokens.ts`.
-
-**Last updated**: 2026-09-14 (the Scheda's whole-euro aggregates, the Sankey's label neutrals in the hex inventory). DESIGN.md documents the "Verdict over Tiles" shape, the shell and the twenty-three propagations, re-read against the finished code on 2026-09-06; superseded patterns stay marked. History: `git log`.
+Authoritative aesthetic spec: **DESIGN.md** — hand-maintained, **never regenerate it**; its YAML frontmatter is the normative layer read by the impeccable detector, `.impeccable/design.json` only the extensions sidecar (its narrative is DESIGN.md verbatim — script-check before rewriting it; its `extensions.motion` is read from the CODE). Product truth: **PRODUCT.md**. Rules are cited by name (DESIGN → **The X Rule**) and enforced by `components/ui/{tile,page-verdict,responsive-modal}.tsx`, `statesNarrative.ts` and `printTokens.ts`. A change to a page starts from its `doc/guide/<page>.md` and DESIGN.md's named rules. History: `git log`.
