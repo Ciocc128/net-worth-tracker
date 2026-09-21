@@ -5,6 +5,10 @@
 
 ## ✨ New Features
 
+- Added the instruments to Ribilancia on Allocazione: the plan no longer stops at «vendi 5000 € di azioni», it names the sub-sleeves and the ETFs you would actually trade, exactly as Versa and Preleva already did, and every leg adds back up to its class. The mode the page opens on is now one you can carry to a broker.
+- Added the meaning everyone reads into «Preleva» on Allocazione: asking for 1000 € now means 1000 € in hand, so the plan sells what survives the tax — «Per prelevare 1000 € netti vendi 1087 €… la ritenuta stimata è 87 €» — instead of selling 1000 € and telling you afterwards that 913 € arrived. When the gross would not fit what you can trade, it says the figure will fall short rather than promising it.
+- Added the withholding to Ribilancia too, which sells without being asked for an amount: its reading closes on what reaches you («incassi 3700 € netti, dopo circa 1300 € di ritenuta»), estimated on the capital gain of the slice being sold, and the footer now explains the method instead of admitting the tax was ignored. Where an instrument has no cost basis or no rate the figure is dropped rather than guessed.
+
 - Added «Vai al contenuto principale» as the first Tab stop of every dashboard page, and a heading to every tile, so a screen reader can walk a page tile by tile.
 
 - Added «Collega spese…» to a cost center: search your expenses, filter them by category and year, tick the ones that belong and link them all in one confirm — a recurring series or an instalment plan is a single row that links every occurrence («3 rate · 2 in calendario»). An expense of another center is shown only if you ask, and the window says what would move before you confirm («3 passano da Vacanze a Dacia Jogger»); the outcome carries «Annulla», which puts every expense back as it was.
@@ -52,6 +56,14 @@
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 500 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
 ## 🐛 Bug Fixes
+
+- Fixed COMPRA, VENDI and OK being unreadable in light mode on Allocazione: the three colours come from the theme's chart palette, which is pitched for a chart area and not for text, and the guard meant to correct them had never run — it looked for a colour format the browser never returns. The chip labels, the plan's amounts and the gap column now clear the contrast floor in every one of the twelve colour themes, in both light and dark.
+- Fixed «Allineato al 85%», which is not Italian: the verdict now writes «all'85%», and so for every score whose name starts with a vowel (1, 8, 11 and 80 to 89 — thirteen of the hundred-and-one it can print).
+- Fixed Allocazione calling a class «in linea» when it holds nothing and targets nothing: an asset class excluded from the allocation used to take a green OK chip at 0 € while another tile on the same page printed its real value. Such a class now says where its money is («esclusa dall'allocazione · 60.000 €»), closes the list, and no longer inflates the «N classi su M» count — which read 4 of 8 where the honest figure is 4 of 6.
+- Fixed the same column of Per classe carrying two different bases without saying so: a sub-category's «corrente» is a share of its class, not of the portfolio, so a sleeve at 100% under a class at 55% read as «the whole portfolio is this sleeve». Opening a class now declares it, and the footer says the sub-categories compensate inside the class.
+- Fixed the Esposizione reading ignoring the list it sits above: on «Settori» and «Emittenti» it kept describing the heaviest holding. It now opens on the view you are in and keeps the other two facts; its aside also names the base of the percentage column.
+- Fixed a screen reader hearing no figures in Per classe: the row's accessible name replaced its own contents, so a keyboard reader heard eight class names and not one percentage. The tile is the page's data table, and it now reads as one.
+- Fixed «Modifica target» being two Tab stops for one action, and invalid markup, at both widths.
 
 - Fixed the month-end and year-end figures of a cost center, which extrapolated a daily pace: one large repair mid-month was projected to almost twice its amount by month end, and a recurring charge already in the calendar was counted twice. A center now reads what is spent and what the calendar still adds («con il calendario chiude a 1000 €»); Budget keeps its pace.
 - Fixed a cost center's ceiling called «a rischio» on a pace alone: the risk is now the expenses already dated ahead carrying it past («supererà il tetto del 2026», «Lo superi il 28 con le spese già in calendario»), and a ceiling crossed by what is spent is the fact. The list and the detail no longer disagree about an idle center with an instalment to come.
@@ -135,6 +147,13 @@
 
 ## 🔧 Improvements
 
+- Improved the keyboard on Allocazione, and with it every page that uses the same controls: a row of small switches in a tile's corner, and a ranked list of clickable rows, are now ONE stop of the Tab key each, with the arrows moving inside. Reaching the bottom of the page takes about half the presses it did.
+- Improved the band's silence on Allocazione: changing the rebalance threshold rewrote the verdict, the plan and every chip with nothing announced. It now states the new classification for a screen reader.
+- Improved the last two controls of Allocazione still smaller than the rest of the app — the exposure's «Aggiorna» and «Riprova» — and gave the custom threshold a visible label instead of a bare number box beside a stray «pp».
+- Improved the order on a phone: «Modifica target» sat above every tile on Allocazione, so «change your plan» came before «read your plan». It now closes the page.
+- Improved the shape of Allocazione now that the plan names instruments: Per classe rises beside Bilanciamento into one column of natural height, the plan keeps the other, and the exposure takes the full width below. The large empty space that had opened beside the plan is gone.
+- Improved the plan's rows by dropping the ones that repeat themselves: a sleeve that receives the whole of its class's move and holds a single instrument printed the same figure twice under two names. The instrument survives, a sleeve that really splits keeps its level, and the plan is a third shorter.
+
 - Improved the small switches in a tile's corner on every page («Geometrico | Traguardi», «Asset class | Liquidità», «€ | %»…): they are 32px tall on a desktop, from 28.
 
 - Improved the last four windows that did not look like the others — the snapshot overwrite on the Panoramica, a movement's detail, the Movimenti filters, the Assistente's Conversazioni and Memoria: same heading, same size, a first line that says where you are, a sheet from the bottom on a phone and a centred window above. Conversazioni and Memoria no longer slide in from the right.
@@ -180,6 +199,9 @@
 - Improved Impostazioni: a category without a colour of its own now takes the theme's first chart colour instead of a fixed blue, so it follows the selected theme like everything else.
 
 ## 📚 Documentation
+
+- The Allocazione guide records the dormant class, the two bases of the Per classe column, the rebalance's descent to the instruments, the withdrawal that solves for the amount you want in hand, and the lightness band the action colours are clamped into with the reason the old guard never ran; the Impeccable critique of Allocazione (27/40) is committed and closed by polish, and the page has its first browser tests — it was the last page with a verdict and no spec at all.
+- The contributor guide records two rules that hold everywhere: a colour token read back from the browser arrives in a format nobody wrote, so anything that parses one must expect it; and a chart colour printed as text is held to the text contrast floor, not the chart one. It also records that naming a button overrides the figures inside it, which is how a table of numbers became silent to a screen reader.
 
 - The project index is short again: each area's files and its known blind spots now open and close that area's guide, and the index keeps one line per page with the question it answers.
 

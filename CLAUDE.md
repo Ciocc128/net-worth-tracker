@@ -13,25 +13,30 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **174 files / 3965 tests** green + **26 Playwright spec files** (81 tests, incl. 4 auth setups; last all-green full run 2026-09-20 at 80, 2,8 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-20, second session): **money that reaches an account is the money the bank moved.** A dividend or a
-  coupon credits a cash account — the instrument's own (`Asset.dividendCashAssetId`, asked by the asset form of the
-  types that pay), else the default in Impostazioni › Dividendi — ONLY when the payment is not an arrear
-  (`lib/utils/dividendAccount.ts`; row, balance and `expenseId` in one transaction, edits move the difference, deletes
-  give it back). A SELL credits proceeds − fees − the tax the broker withheld (`withheldTaxEur`, «Tasse trattenute»
-  prefilled with the estimate and following it until typed, `lib/utils/saleTax.ts`); where stored it replaces the
-  estimate in `periodSales` and the sale sentence drops «circa»; the estimate itself stands on the gain the broker
-  taxes — the price difference, no commission on either side (`taxableGainEur`; settembre: 4.092,50 € to the cent, and a
-  purchase with fees carried at its bare price, both from the owner's Directa statements); realized P&L and XIRR stay gross. Every settlement and
-  every dividend row moves CENTS (`lib/utils/cents.ts`). Found on the way: the dividend PUT route read settings and
-  category with the CLIENT SDK and swallowed the refusal, so an edited dividend never reached its income row
-  (`resolveDividendIncomeCategory`, Admin).
-  **Verification**: `tsc`, lint 0, Vitest 3965 under `TZ=Europe/Rome` and without (sixteen falsifications seen red, one
-  behaviour at a time: thirteen in Vitest, three in the browser), an emulator exercise over the HTTP routes 25/25 (it is what found the PUT bug: 23/25 before the
-  fix), `e2e/assets.sale-tax.spec.ts` green and red three times when broken, Playwright evidence on the mirror at 1440
-  and 390 36/36 (dialog overflow 0, Firestore read back). Full Playwright 78/81 in one loaded run: the two Dividendi
-  specs were the emulator's seed BTP having lost its `taxRate` on 2026-09-13 (green after `emulators:seed`),
-  `modal.origin` a frame-sampling test that passes alone twice. doc/guide/{registro-operazioni,cashflow-dividendi,e2e-emulatori}.md.
+- `tsc` clean; **176 files / 4098 tests** green + **27 Playwright spec files** (87 tests, incl. 4 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-21): **Allocazione — impeccable critique (27/40) chiusa.** A rebalance now names the INSTRUMENTS it
+  would trade, through the very splits Versa and Preleva already use (`RebalanceDescent`; Σgambe === la mossa di
+  classe), and every plan that sells prices the withholding on the realized fraction of the gain
+  (`estimatePlanSaleTax` over `estimateSaleTax`) — `null` WITH a reason when a leg has no EUR cost basis or rate, never
+  a flattering zero. A class with neither value nor target keeps its row and loses its verdict (`isDormantClass`): the
+  page said «Immobili in linea» at 0 € while the Previdenza tile, on the same screen, printed 60.000 € of it, and
+  counted it in «4 classi su 8» where the honest figure is 4 su 6. The verdict says «all'85%». Found on the way, and
+  bigger than the critique saw: **`useActionColors`'s legibility clamp had never run** — it matched `/oklch\(/` and
+  the browser answers `lab(…)`, so COMPRA/VENDI/OK shipped as raw chart slots at 2,39–4,02:1 as TEXT
+  (`lib/utils/actionColor.ts`, `ACTION_LIGHT_MAX_L`/`ACTION_DARK_MIN_L`/`ACTION_CHIP_FILL_PCT`, measured on all twelve
+  theme blocks). Keyboard: ONE Tab stop per list (`useRovingFocus` on `AsideToggle` and `RankedRows`, shared), the row
+  no longer hiding its own figures behind an `aria-label`, the band announcing its reclassification.
+  Closed on the owner's tour: a level that repeats the one above it is dropped (`collapseRepeatedLevels`; an
+  instrument is `isInstrument`, never a depth) and the grid's two columns stand at natural height — the void beside
+  the Piano fell from 684 to ~90px and the page from 2359 to 2112. And «prelevare 1000 €» now means 1000 € IN HAND:
+  the plan sells the gross that survives the withholding (`solveWithdrawalGross`, a fixed point — the tax follows
+  which instruments are drained, so a division by (1 − rate) is the wrong shape and is pinned red by a test).
+  **Verification**: `tsc`, lint 0, Vitest 4085 with and without `TZ=Europe/Rome`, Playwright **87/87** (the page's
+  FIRST spec, `e2e/allocation.spec.ts` — it was the last verdict page with none), eleven falsifications seen red one
+  behaviour at a time (two stayed green and are recorded as such: the sell's re-cap is guaranteed by
+  `splitFromSurplus`, the loss floor by `estimateSaleTax`), and the before/after measured in the browser on the
+  production mirror at 1440 and 390 in both modes — thirteen contrast failures → zero, «Dettaglio» 41 Tab → 23,
+  overflow 0 everywhere, console clean. doc/guide/allocazione.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -57,7 +62,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
 - **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest, as a ledger that adds up to the euro behind each year. doc/guide/storico.md.
-- **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?». doc/guide/allocazione.md.
+- **Allocazione**: «sono allineato al piano, e cosa faccio con i prossimi soldi?» — i tre piani nominano gli STRUMENTI da scambiare e prezzano la ritenuta; «prelevare X» significa X in mano. doc/guide/allocazione.md.
 - **Previdenza**: «il fondo sta lavorando?» per contributor, the value typed from the statement ON the page. doc/guide/previdenza.md.
 - **FIRE**: Calcolatore, Coast FIRE, What If, Monte Carlo and Obiettivi, one verdict each. doc/guide/fire.md (+ fire-coast, fire-what-if, fire-monte-carlo, fire-obiettivi).
 - **Assistente AI**: the verdict IS the context; SSE streaming, memory, goal proposals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
@@ -85,6 +90,10 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Three Vitest cases fail under `TZ=UTC`** (`budgetUtils` › crossing day, `pensionSummary` › value age, `tracciamentoSummary` › `isScheduledRow`), on a clean `develop` too (checked in a worktree, 2026-09-20): they read «today» by Italian calendar day against fixtures built in the process timezone. The suite's two timezones are the machine's and `Europe/Rome`; a CI in UTC would see them red.
 - **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two are fixed; the others take the opener when they are next touched.
+- **`--muted-foreground` measures 4,46:1 on `--background` in the default LIGHT theme** (measured in the browser,
+  2026-09-21, on the compact `PageHeader`'s description) — just under the AA floor of 4,5:1, on every page that uses
+  the shell, not on one. It is a theme-token change with a twelve-block blast radius, so it belongs to a
+  `doc/guide/temi.md` session, not to a page's.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 
 ## Key Files
