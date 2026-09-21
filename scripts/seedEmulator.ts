@@ -78,6 +78,9 @@ async function seedAssets(): Promise<void> {
         averageCost: 95,
         currentPrice: 110,
         isin: 'IE00BK5BQT80',
+        // Classified so Allocazione has a class that OPENS: without a sub-category no class row is
+        // expandable, and `e2e/allocation.spec.ts` cannot reach the two levels below it.
+        subCategory: 'World',
       },
     },
     {
@@ -93,6 +96,7 @@ async function seedAssets(): Promise<void> {
         averageCost: 150,
         currentPrice: 190,
         currentPriceEur: 175,
+        subCategory: 'Single Stock',
       },
     },
     {
@@ -193,7 +197,11 @@ async function seedSettings(): Promise<void> {
     userId: TEST_UID,
     laborIncomeCategoryIds: ['seed-cat-income'],
     targets: {
-      equity: { targetPercentage: 60 },
+      // Sub-targets on equity ONLY: Allocazione's plans descend class → sub-category → instrument,
+      // and a fixture with no sub-target can only ever prove the class level (the reason the page
+      // had no browser spec at all until 2026-09-21). The two sleeves match `seed-vwce` and
+      // `seed-aapl`; bonds and crypto stay flat on purpose, so both shapes are covered.
+      equity: { targetPercentage: 60, subTargets: { World: { targetPercentage: 80 }, 'Single Stock': { targetPercentage: 20 } } },
       bonds: { targetPercentage: 30 },
       crypto: { targetPercentage: 10 },
     },
