@@ -23,6 +23,7 @@ import {
   describeMovementsReading,
   describePensionValueCopy,
   describeSettlementTiming,
+  describeWithheldTaxField,
   describeSnapshotOverwrite,
   describeTradeIntent,
   describeWriteError,
@@ -392,6 +393,30 @@ describe('describeTradeIntent', () => {
     expect(plain(describeTradeIntent({ ...base, type: 'sell', isDemo: true }))).toBe(
       'In modalità demo il registro operazioni è di sola lettura.',
     );
+  });
+});
+
+describe('describeWithheldTaxField', () => {
+  it('should say the prefill is an estimate to correct from the statement', () => {
+    expect(describeWithheldTaxField({ isEdit: false, isLegacySettledSell: false, hasEstimate: true, isTyped: false })).toContain('Stima');
+  });
+
+  it('should stop calling the figure an estimate once the owner has typed it', () => {
+    expect(describeWithheldTaxField({ isEdit: false, isLegacySettledSell: false, hasEstimate: true, isTyped: true })).not.toContain('Stima');
+  });
+
+  it('should say why a new sale has no prefill', () => {
+    expect(describeWithheldTaxField({ isEdit: false, isLegacySettledSell: false, hasEstimate: false, isTyped: false })).toContain('non c’è stima');
+  });
+
+  it('should warn that a tax typed on a sale already credited gross lowers the account today', () => {
+    const warning = describeWithheldTaxField({ isEdit: true, isLegacySettledSell: true, hasEstimate: true, isTyped: false });
+    expect(warning).toContain('oggi il conto scende');
+    expect(warning).toContain('lascia vuoto');
+  });
+
+  it('should not warn on an edit of a sale that already stores its tax', () => {
+    expect(describeWithheldTaxField({ isEdit: true, isLegacySettledSell: false, hasEstimate: true, isTyped: false })).not.toContain('oggi');
   });
 });
 

@@ -104,10 +104,14 @@ export interface ResponsiveModalProps {
   /** Escape hatch for a width the four steps genuinely cannot express. */
   dialogClassName?: string;
   /**
-   * Where the focus goes when the modal closes. Radix restores it to the element that was
-   * focused when the modal opened, which is `body` whenever the opener was a window event, a
-   * table row that is not focusable or a button Safari never focused on tap — measured on all
-   * four Dividendi modals on 2026-09-14. A caller that knows its trigger names it here.
+   * Where the focus goes when the modal closes. Without it the focus lands on `body` —
+   * measured on all four Dividendi modals on 2026-09-14 and on both Rendimenti dialogs on
+   * 2026-09-20, opener still connected and focused at open. The cause is Radix's own: a MODAL
+   * `Dialog.Content` answers `onCloseAutoFocus` with `preventDefault()` + `triggerRef.focus()`,
+   * which cancels the focus scope's restore-to-previous and, in a controlled dialog with no
+   * `Dialog.Trigger`, focuses nothing (react-dialog 1.1.15; vaul wraps the same content). So
+   * every modal opened from state needs its opener named here. A caller that knows its trigger
+   * passes it — a ref the page writes at the click works where Safari never focused the button.
    */
   returnFocusTo?: React.RefObject<HTMLElement | null>;
 }

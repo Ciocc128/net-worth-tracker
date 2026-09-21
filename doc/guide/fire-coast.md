@@ -43,7 +43,7 @@
   «Scenari Coast FIRE»), the verdict by «Verdetto sul Coast FIRE», the disclosures by their VISIBLE text (`/^Ipotesi/`,
   `/^Dettaglio/` — the Ipotesi trigger carries the basis line, so it can be asserted closed), the hero as
   `p:has-text("numero Coast FIRE") + span`, the scenario list by `role=list` «Numero Coast FIRE per scenario». The
-  fixture fixes expenses but not the clock: structure and format only (AGENTS.md § Browser-Driven E2E).
+  fixture fixes expenses but not the clock: structure and format only (doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright)).
 
 ## Per-page blind spots
 

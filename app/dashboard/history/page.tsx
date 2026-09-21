@@ -96,10 +96,10 @@ import { StoricoDettaglio } from '@/components/history/StoricoDettaglio';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 8, rows: 2, lines: 12 },
-  { span: 4, rows: 2, lines: 9 },
-  { span: 8, lines: 9 },
+  { span: 8, lines: 12 },
   { span: 4, lines: 7 },
+  { span: 8, lines: 9 },
+  { span: 4, lines: 12 },
   { span: 12, lines: 6 },
 ];
 
@@ -153,9 +153,9 @@ export default function HistoryPage() {
       setTransactions(transactionsData);
       setPensionContributions(contributionsData);
     } catch (error) {
+      // The `ErrorNotice` below is the failure's one voice: a toast beside it said the same thing twice.
       setLoadFailed(true);
       console.error('Error loading history data:', error);
-      toast.error('Errore nel caricamento dello storico');
     } finally {
       setLoading(false);
     }
@@ -415,52 +415,55 @@ export default function HistoryPage() {
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sullo storico" />
       </div>
 
-      {/* Below desktop the three actions sit under the verdict as 44px buttons. */}
-      <div className="grid grid-cols-2 gap-2 desktop:hidden">{headerActions(true)}</div>
-
       {/* Tablet (768-1439): Evoluzione full, Raddoppi beside Driver, then Composizione and Valore full — the
-          two 4-column tiles are the only ones narrow enough to share a row there. */}
+          two 4-column tiles are the only ones narrow enough to share a row there.
+          Desktop: two COLUMNS, not two rows. Raddoppi keeps its natural height and the Driver takes the rest
+          of the right column (its ledger and bars want it); on the left the Evoluzione chart is the element
+          that stretches. Below desktop the two wrappers are `contents`, so the four tiles are direct items of
+          the grid and their `order` still applies. */}
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-8 desktop:row-span-2')}>
-          <EvoluzioneTile
-            aside={describeEvolutionAside(growth)}
-            reading={describeEvolution({ ath, moves })}
-            growth={growth}
-            pace={pace}
-            points={evolutionPoints}
-            noteCount={notes.length}
-            onAddNote={() => !isDemo && setNoteDialogOpen(true)}
-            disabled={isDemo}
-          />
+        <div className="contents desktop:col-span-8 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3">
+          <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:flex-1')}>
+            <EvoluzioneTile
+              aside={describeEvolutionAside(growth)}
+              reading={describeEvolution({ ath, moves })}
+              growth={growth}
+              pace={pace}
+              points={evolutionPoints}
+              noteCount={notes.length}
+              onAddNote={() => !isDemo && setNoteDialogOpen(true)}
+              disabled={isDemo}
+            />
+          </div>
+          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:order-4 tablet:col-span-2 desktop:order-none')}>
+            <ComposizioneTile assetClassHistory={assetClassHistory} liquidityHistory={netWorthHistory} hasPensionFunds={pensionAssets.length > 0} />
+          </div>
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-4 desktop:row-span-2')}>
-          <RaddoppiTile
-            reading={describeDoublings({ summary: doublingSummary, mode: doublingMode, projection })}
-            summary={doublingSummary}
-            mode={doublingMode}
-            onModeChange={setDoublingMode}
-            projection={projection}
-            pace={pace}
-            latestValue={growth.latest.value}
-          />
-        </div>
-
-        <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:order-4 tablet:col-span-2 desktop:order-none desktop:col-span-8')}>
-          <ComposizioneTile assetClassHistory={assetClassHistory} liquidityHistory={netWorthHistory} hasPensionFunds={pensionAssets.length > 0} />
-        </div>
-
-        <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 desktop:order-none desktop:col-span-4')}>
-          <DriverTile
-            reading={describeDrivers(featuredDriverYear)}
-            years={driverYears}
-            featured={featuredDriverYear}
-            total={driverTotal}
-            startYear={startYear}
-            measuredSince={driverMeasuredSince}
-            months={trailingDriverMonths}
-            windowMonths={DRIVER_TRAILING_MONTHS}
-          />
+        <div className="contents desktop:col-span-4 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3">
+          <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none')}>
+            <RaddoppiTile
+              reading={describeDoublings({ summary: doublingSummary, mode: doublingMode, projection })}
+              summary={doublingSummary}
+              mode={doublingMode}
+              onModeChange={setDoublingMode}
+              projection={projection}
+              pace={pace}
+              latestValue={growth.latest.value}
+            />
+          </div>
+          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 desktop:order-none desktop:flex-1')}>
+            <DriverTile
+              reading={describeDrivers(featuredDriverYear)}
+              years={driverYears}
+              featured={featuredDriverYear}
+              total={driverTotal}
+              startYear={startYear}
+              measuredSince={driverMeasuredSince}
+              months={trailingDriverMonths}
+              windowMonths={DRIVER_TRAILING_MONTHS}
+            />
+          </div>
         </div>
 
         <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
@@ -492,6 +495,11 @@ export default function HistoryPage() {
         onAddNote={() => !isDemo && setNoteDialogOpen(true)}
         disabled={isDemo}
       />
+
+      {/* Below desktop the three actions are 44px buttons AFTER the content: exports and a past snapshot
+          are yearly gestures, and under the verdict they stood between the thumb and the first figure
+          (the navbar keeps the «+»). */}
+      <div className="grid grid-cols-2 gap-2 desktop:hidden">{headerActions(true)}</div>
 
       {dialogs}
     </PageContainer>

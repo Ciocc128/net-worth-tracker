@@ -55,6 +55,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   that settles its own transfer — a voluntary pension contribution. Pinned by `__tests__/cashSettlement.test.ts`,
   `__tests__/cashBalanceReconciliation.test.ts` and `e2e/cashflow.accounts.spec.ts` (every row linked, today's debited
   at save, the next one waiting).
+- **The rule in one breath** (the stub's wording, moved here from `AGENTS.md` on 2026-09-20): every occurrence carries
+  `linkedCashAssetId` and moves the account ON ITS OWN DATE (`lib/utils/cashSettlement.ts`, 2026-09-19): a row after
+  today is `balancePending` until `settleDueBalances` runs in `/api/portfolio/snapshot`; a flag ABSENT means applied
+  (older rows moved at save); edits and deletes move only what was applied. A `transfer` IS its two accounts: the schema
+  refuses one without origin and destination, or with the same account twice (`e2e/cashflow.accounts.spec.ts`).
 - **«Collega la serie a un conto»** (`LinkSeriesDialog`, from a series row's detail on the feed): a series written before
   the rule carries its account on the first row only; `linkSeriesToCashAccount` puts the chosen account on the
   occurrences still to come that have not moved one (`selectLinkableOccurrences`) and leaves them pending. The past is

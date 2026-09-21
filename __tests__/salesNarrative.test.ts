@@ -40,6 +40,13 @@ describe('describeSales', () => {
     );
   });
 
+  it('should drop «circa» when the whole tax is what the broker withheld', () => {
+    const withheld: PeriodSalesSummary = { ...SEPTEMBER_SALE, estimatedTax: 4092.5, taxIsWithheld: true };
+    expect(plain(describeSales(withheld))).toBe(
+      'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato 4093 € di tasse.',
+    );
+  });
+
   it('should count the instruments when more than one was sold', () => {
     const two: PeriodSalesSummary = {
       ...SEPTEMBER_SALE,

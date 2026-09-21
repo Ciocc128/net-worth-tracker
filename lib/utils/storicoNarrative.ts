@@ -23,7 +23,7 @@ import { articleForPercent, atThePercent, monthWithPrepositionA } from '@/lib/ut
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { DoublingMode, DoublingTimeSummary } from '@/types/assets';
 import type { CompositionCut, CompositionSeries } from '@/lib/utils/historyComposition';
-import { resolveDriverShares, runningSinceMonth, type AllTimeHigh, type DoublingProjection, type DriverYear, type GrowthPace, type GrowthSummary, type LaborMetrics, type MonthlyMoves, type OtherIncomeCategory, type PeriodMonth } from '@/lib/utils/storicoSummary';
+import { runningSinceMonth, type AllTimeHigh, type DoublingProjection, type DriverYear, type GrowthPace, type GrowthSummary, type LaborMetrics, type MonthlyMoves, type OtherIncomeCategory, type PeriodMonth } from '@/lib/utils/storicoSummary';
 import type { MonthAssetBreakdown } from '@/lib/utils/snapshotAssetBreakdown';
 import type { GrowthDrivers, MonthlyGrowthDrivers } from '@/lib/utils/growthDrivers';
 import { isMaterialOtherChange } from '@/lib/utils/salesNarrative';
@@ -179,7 +179,7 @@ export function buildStoricoVerdict(input: StoricoVerdictInput): PageVerdictMode
     return {
       headline,
       tone,
-      sentence: [prose('Ogni snapshot è la fotografia di fine mese del patrimonio: il cron ne salva uno al giorno, oppure creane uno dalla Panoramica o aggiungi un mese passato da qui.')],
+      sentence: [prose('Ogni snapshot è la fotografia di fine mese del patrimonio: se hai almeno uno strumento ne viene salvato uno da solo ogni sera, oppure creane uno dalla Panoramica o aggiungi un mese passato da qui.')],
     };
   }
   if (growth.snapshotCount === 1) {
@@ -363,12 +363,14 @@ export function describeComposition(series: CompositionSeries, cut: CompositionC
 // ─── Driver ───────────────────────────────────────────────────────────────────
 
 /**
- * «Nel 2025 il patrimonio è cresciuto di 44.966 € (+18,2%): 23.678 € dal risparmio (53%) e
- * 21.288 € dal mercato (47%).» A running year names its window — «Da gennaio ad agosto 2026»
- * — because its savings are counted on the same months as its growth. A negative half is said
- * in words («mentre il mercato ha tolto», «hai speso … più di quanto hai incassato»), never as
- * a share of a mixed-sign total. The shares are of the two ENGINES; what else moved the growth
- * follows in euro (`describeDriverRest`).
+ * «Nel 2025 il patrimonio è cresciuto di 44.966 € (+18,2%): 23.678 € dal risparmio e 21.288 €
+ * dal mercato.» — the growth, then the two ENGINES with the heavier one first. A running year
+ * names its window — «Da gennaio ad agosto 2026» — because its savings are counted on the same
+ * months as its growth. A negative half is said in words («mentre il mercato ha tolto», «hai
+ * speso … più di quanto hai incassato»). The sentence carries no share: a percentage of the two
+ * engines has no referent once four more parts follow, and the tile's split bar draws it. What
+ * else moved the growth closes the sentence as ONE figure (`describeDriverRest`); the parts are
+ * the tile's ledger (`buildDriverLedger`), where they add up in sight.
  */
 export function describeDrivers(input: { row: DriverYear; isRunning: boolean } | null): Narrative | null {
   if (!input) return null;
@@ -381,12 +383,12 @@ export function describeDrivers(input: { row: DriverYear; isRunning: boolean } |
 
   const savingsPositive = row.netSavings >= 0;
   const marketPositive = row.market >= 0;
-  const shares = resolveDriverShares(row);
   let tail: Narrative;
   if (savingsPositive && marketPositive) {
-    tail = shares
-      ? [amount(row.netSavings), prose(' dal risparmio ('), figure(`${shares.savings}%`), prose(') e '), amount(row.market), prose(' dal mercato ('), figure(`${shares.market}%`), prose(')')]
-      : [amount(row.netSavings), prose(' dal risparmio e '), amount(row.market), prose(' dal mercato')];
+    const savings: Narrative = [amount(row.netSavings), prose(' dal risparmio')];
+    const market: Narrative = [amount(row.market), prose(' dal mercato')];
+    const [first, second] = row.market > row.netSavings ? [market, savings] : [savings, market];
+    tail = [...first, prose(' e '), ...second];
   } else if (savingsPositive) {
     tail = [amount(row.netSavings), prose(' dal risparmio, mentre il mercato ha tolto '), amount(row.market)];
   } else if (marketPositive) {
@@ -398,24 +400,80 @@ export function describeDrivers(input: { row: DriverYear; isRunning: boolean } |
 }
 
 /**
- * « Il resto: −4091 € di tasse stimate sulle vendite, +4655 € di mutuo rimborsato e +7454 € di
- * altre variazioni.» — every other part of the growth, in euro, so the sentence adds up. The tax
- * is a loss (signed and coloured); the mortgage, the contributions and the other changes are
- * FLOWS (signed, uncoloured). A part printed as zero is dropped, and «altre variazioni» is said
- * only when material (`isMaterialOtherChange`: mostly timing — a card debited next month).
+ * What moved the growth besides the two engines, as ONE clause, so the sentence adds up without
+ * listing four signed figures (it carried eight until 2026-09-20; the parts are the ledger's):
+ * - a single part is named: « Il resto: −4091 € di tasse stimate sulle vendite.» — the tax a loss
+ *   (signed and coloured), a mortgage, a contribution or the other changes a FLOW (uncoloured);
+ * - several parts are netted: « Il resto, voce per voce qui sotto, vale +4638 €.» — a flow, since
+ *   it mixes a loss with flows.
+ * A part printed as zero does not count, and «altre variazioni» alone is said only when material
+ * (`isMaterialOtherChange`: mostly timing — a card debited next month).
  */
 export function describeDriverRest(row: Omit<GrowthDrivers, 'isMarketMeasured'>): Narrative {
-  const parts: Narrative[] = [];
-  const add = (segment: NarrativeSegment, label: string) => {
-    if (!isPrintedZero(segment.text)) parts.push([segment, prose(` ${label}`)]);
-  };
-  add(signedCurrency(-row.taxes), 'di tasse stimate sulle vendite');
-  add(signedFlow(row.debtRepaid), 'di mutuo rimborsato');
-  add(signedFlow(row.pensionContributions), 'di versamenti al fondo pensione');
-  if (isMaterialOtherChange(row.other, row.netWorthGrowth)) add(signedFlow(row.other), 'di altre variazioni');
+  const parts: Array<{ segment: NarrativeSegment; label: string; isOther: boolean }> = [
+    { segment: signedCurrency(-row.taxes), label: 'di tasse stimate sulle vendite', isOther: false },
+    { segment: signedFlow(row.debtRepaid), label: 'di mutuo rimborsato', isOther: false },
+    { segment: signedFlow(row.pensionContributions), label: 'di versamenti al fondo pensione', isOther: false },
+    { segment: signedFlow(row.other), label: 'di altre variazioni', isOther: true },
+  ].filter((part) => !isPrintedZero(part.segment.text));
   if (parts.length === 0) return [];
-  const list = parts.length === 1 ? parts[0] : [...joinClauses(parts.slice(0, -1), ', '), prose(' e '), ...parts[parts.length - 1]];
-  return [prose(' Il resto: '), ...list, prose('.')];
+  if (parts.length === 1) {
+    const [only] = parts;
+    if (only.isOther && !isMaterialOtherChange(row.other, row.netWorthGrowth)) return [];
+    return [prose(' Il resto: '), only.segment, prose(` ${only.label}.`)];
+  }
+  const net = signedFlow(-row.taxes + row.debtRepaid + row.pensionContributions + row.other);
+  if (isPrintedZero(net.text)) return [prose(' Il resto, voce per voce qui sotto, si compensa.')];
+  return [prose(' Il resto, voce per voce qui sotto, vale '), net, prose('.')];
+}
+
+/**
+ * The remainder row of a list that must add up ON SCREEN: the printed total minus the printed
+ * parts, in whole euros. Rounding each figure on its own drifts by a euro or two; the remainder
+ * («altre variazioni») is a residual by definition, so the drift is its to carry.
+ */
+export function reconcileRemainder(total: number, parts: number[]): number {
+  return Math.round(total) - parts.reduce((sum, part) => sum + Math.round(part), 0);
+}
+
+/** How a ledger row is printed: a `flow` signed and uncoloured, the `market` and the `total` coloured by their sign, a `loss` always in the loss token. */
+export type DriverLedgerKind = 'flow' | 'market' | 'loss' | 'total';
+
+export interface DriverLedgerRow {
+  key: 'savings' | 'market' | 'taxes' | 'debtRepaid' | 'pensionContributions' | 'other' | 'total';
+  label: string;
+  value: number;
+  kind: DriverLedgerKind;
+}
+
+/**
+ * The Driver's identity as rows that add up in sight — `Δ = risparmio + mercato − tasse + mutuo +
+ * fondo pensione + altre` — closed by the growth they sum to (DESIGN.md → Ranked Rows with
+ * Residual). The two engines are always printed, a zero included: a year with no market is a
+ * fact. Every other part printed as zero has no row. The labels are «Lavoro e investimenti»'s,
+ * so the page names each part once.
+ *
+ * The values are WHOLE EUROS and the printed rows add up to the printed total, to the euro: a
+ * reader who adds them by hand is the reader this list is for, and six figures rounded one by one
+ * drift by a euro (44.967 against 44.966 on the real 2025). The drift goes where it belongs by
+ * definition — «altre variazioni» IS the remainder — so that row is the growth minus the rows above.
+ */
+export function buildDriverLedger(row: Omit<GrowthDrivers, 'isMarketMeasured'>): DriverLedgerRow[] {
+  const total = Math.round(row.netWorthGrowth);
+  const measured: DriverLedgerRow[] = [
+    { key: 'savings', label: 'Risparmio', value: Math.round(row.netSavings), kind: 'flow' },
+    { key: 'market', label: 'Mercato', value: Math.round(row.market), kind: 'market' },
+    { key: 'taxes', label: 'Tasse sulle vendite', value: -Math.round(row.taxes), kind: 'loss' },
+    { key: 'debtRepaid', label: 'Mutuo rimborsato', value: Math.round(row.debtRepaid), kind: 'flow' },
+    { key: 'pensionContributions', label: 'Versamenti al fondo pensione', value: Math.round(row.pensionContributions), kind: 'flow' },
+  ];
+  const remainder = reconcileRemainder(total, measured.map((part) => part.value));
+  const isEngine = (part: DriverLedgerRow) => part.key === 'savings' || part.key === 'market';
+  return [
+    ...measured.filter((part) => isEngine(part) || part.value !== 0),
+    ...(remainder !== 0 ? [{ key: 'other', label: 'Altre variazioni', value: remainder, kind: 'flow' } satisfies DriverLedgerRow] : []),
+    { key: 'total', label: 'Crescita del patrimonio', value: total, kind: 'total' },
+  ];
 }
 
 /**

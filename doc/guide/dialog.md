@@ -112,4 +112,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   errors keep their own line under the field, and the two can both be visible at once. `dialogClassName` still exists as
   a width escape hatch and has no user — reach for a `width` name. `PDFExportDialog`'s «Genera PDF» moved from the body
   into the footer, so a spec that located it inside the scrollable area needs updating.
+- **A controlled modal with no Radix `Trigger` hands focus to `body` on close** (2026-09-20, Rendimenti's two header dialogs,
+  measured 2/2): `@radix-ui/react-dialog`'s modal content handles `onCloseAutoFocus` with `preventDefault()` +
+  `triggerRef.current?.focus()`, and with no Trigger that ref is null — the FocusScope's own restore is cancelled and nothing
+  replaces it. `returnFocusTo` is the cure, fed from `event.currentTarget` at the click (a `PageHeader` action is mounted
+  twice; only `currentTarget` is the copy that was pressed). Every modal opened from a plain button without it has the same
+  defect: pass the opener when you touch one. Pinned by `e2e/performance.degraded.spec.ts`.
 - **Sotto i 769px nessuna modale prende il fuoco quando si apre** (2026-09-18): `vaul` nasce con `autoFocus = false`, il fuoco resta sull'opener e dopo un passaggio tra due drawer finisce su `body`. Non cambiato: `autoFocus` su un telefono apre la tastiera su ogni form — una decisione per 40 mount. doc/guide/dialog.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
