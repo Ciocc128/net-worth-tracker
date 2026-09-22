@@ -77,4 +77,10 @@ export default async function globalSetup(): Promise<void> {
   if (centriSeed.status !== 0) {
     throw new Error('The Centri di Costo E2E fixture failed to seed — see the output above.');
   }
+
+  // Divisione, same shape again: opt-in tab, own account, seeded before its session is parked.
+  const splitSeed = spawnSync('npm', ['run', 'e2e:seed:split'], { stdio: 'inherit', shell: true });
+  if (splitSeed.status !== 0) {
+    throw new Error('The Divisione E2E fixture failed to seed — see the output above.');
+  }
 }

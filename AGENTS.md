@@ -65,6 +65,8 @@ that domain's guide, never here.
 
 ### Tailwind Breakpoints and Responsive Layout
 - `desktop:` = 1440px, never `lg:`. Dialog-internal layouts use `sm:`; portrait wrappers `max-desktop:portrait:pb-20`.
+  **`min-width` is inclusive**, so `h-11 desktop:h-9` measures 36px at exactly 1440 — the width the Playwright
+  desktop projects run at (2026-09-21).
 - **NEVER mix arbitrary `min-[px]:` with named breakpoints on the same property** — named ones compile to rem and v4
   emits them last, so `sm:grid-cols-2 min-[960px]:grid-cols-3` renders 2 columns at every width ≥ 640px. Between
   `tablet:`(768) and `desktop:`(1440) use a container query (`@container` + `@[640px]:`, all px).
@@ -364,10 +366,11 @@ file used to carry.
 
 ### Cashflow › Divisione → `doc/guide/cashflow-divisione.md`
 - Opt-in, on Tracciamento's period axis. ONE field carries the feature: `Expense.personalMemberId`; absent (or `null`) MEANS «in comune» (so no migration). Members are Previdenza's `FamilyMember`s, never a second list. NOT denormalized to a name.
-- The share is NEVER invented: `resolveSplitBasis` returns `unavailable` (with `missingNames`) below two people, with no labor category, or when one person has no salary in the period; every split figure is then `null`.
+- The share is NEVER invented: `resolveSplitBasis` returns `unavailable` (with `missingNames`) below two people, with no labor category, or when one person has no salary in the period; every split figure is then `null`. Labor income nobody owns is DECLARED (`unattributedSalary`), never dropped.
+- A residual is of money that has MOVED: the page prints and colours `remainingBooked`, and where the calendar takes it is a separate clause (2026-09-21). `remaining` is the whole period's.
 - The base is the PERIOD's attributed labor income (owner's decision, 2026-08-31) — the most faithful and most volatile reading; do not «stabilise» it silently.
 - `allocateByShare` charges the rounding residual to the LARGEST share and re-rounds — untestable on two shares (they cancel), test on three. Writing it is a FOUR-place fan-out; the readers outside the tab are Tracciamento's «Intestatario» filter and the owner chip (`movementsOwnerFilter.ts`, same contract).
-- Il resto — the deleted-member bucket, the dialog control, `effectiveTab` — in `doc/guide/cashflow-divisione.md`.
+- Il resto — the deleted-member bucket, the dialog control, `effectiveTab`, the one-cell people row, the verdict-explains/tile-instructs split, «Attribuisci spese» — in `doc/guide/cashflow-divisione.md`.
 
 ### Cashflow › Dividendi · Dividends and Coupons → `doc/guide/cashflow-dividendi.md`
 - RECEIVED AND ANNOUNCED ARE NEVER ONE FIGURE — counted, totalled and coloured apart on every surface; `summarizePayments` returns two halves and no sum.
@@ -623,6 +626,13 @@ file used to carry.
 - A sticky `<thead>` needs a fully opaque token, never an alpha background.
 
 ### Navigation
+- **A `PageTabs` panel names ITSELF** (2026-09-21): `PageTabBar` renders plain buttons, not Radix
+  `TabsTrigger`s, so every `TabsContent` was born with an `aria-labelledby` naming a trigger id that
+  does not exist and had an EMPTY accessible name. A panel takes `id={pageTabPanelId(layoutId,
+  value)}`, an `aria-label`, and `aria-labelledby={undefined}` to drop Radix's own; the tabs take
+  `aria-controls` through `renderedPanels`, which a page with lazily mounted panels must pass — an
+  `aria-controls` naming a panel that was never opened is the same dangling reference from the other
+  end. Pinned by `e2e/cashflow.split.spec.ts`.
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
   import from it, never redeclare inline. **A route link in the shell is a `SceneLink`** (`components/layout/SceneLink.tsx`,
   a `next/link` whose plain left click runs the page scene — prefetch, modifier clicks, `target` and the caller's own
@@ -778,7 +788,7 @@ file used to carry.
 | Asset / bond | `assetDialogHelpers`, `couponUtils` |
 | Cashflow › Budget | `budgetUtils`, `budgetSummary`, `budgetNarrative` (+ `patrimonioNarrative` for the articles, `weeklyBudgetEmailService`, `monthlyEmailService`) |
 | Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` · **Browser** `e2e/cashflow.centri{,.mobile}.spec.ts` (own account, `npm run e2e:seed:centri`) |
-| Cashflow › Divisione | `expenseSplitSummary`, `expenseSplitNarrative` (+ `cashflowNarrative` for the scheduled clause, `settingsRoundTrip` for the flag) |
+| Cashflow › Divisione | `expenseSplitSummary`, `expenseSplitNarrative` (+ `cashflowNarrative` for the scheduled clause, `settingsRoundTrip` for the flag) · **Browser** `e2e/cashflow.split{,.mobile}.spec.ts` (own account, `npm run e2e:seed:split`) |
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Impostazioni | **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` |
 | Accesso / Registrazione | **Verdetti, letture ed errori** `authNarrative` · **Policy** `registrationPolicy` (i due devono restare d'accordo sulla precedenza whitelist/flag) |
@@ -827,7 +837,8 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
 - **`workers: 1`, non-negotiable**, and **each suite its OWN fixture** (an `npm run e2e:seed:*` script plus one
   `spawnSync` in `e2e/global-setup.ts`). Re-seeding an account mid-suite logs it out: creation once, data-only per test.
 - **The FILENAME chooses the account**: `*.spec.ts` → `desktop`, `*.mobile.spec.ts` → `mobile`, `*.degraded.spec.ts` →
-  degraded, only `analisi.spec.ts` / `centri.spec.ts` reach those fixtures. A throwaway spec gets its own
+  degraded, only `analisi.spec.ts` / `centri.spec.ts` / `split.spec.ts` reach those fixtures — and each of those three is
+  ALSO excluded from `desktop`/`mobile` by `testIgnore`, or it would run a second time on the base account. A throwaway spec gets its own
   `playwright.<name>.config.ts` and is deleted before the full suite (2026-08-28).
 - **`localhost`, never `127.0.0.1`** (the page never hydrates and the login submits natively), and `storageState`
   captures the Firebase session only with `{ path, indexedDB: true }`.
@@ -863,7 +874,11 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
   `splitFromSurplus` re-caps at the capacity; a plan's `Math.max(0, gainFraction)` is inert because `estimateSaleTax`
   already floors a loss; removing `itemProps` from `AsideToggle` does not add Tab stops because the explicit
   `tabIndex` beside it holds them. Naming the load-bearing line is the point: otherwise the next reader deletes it as
-  dead code and the test stays green through the regression. **The fixture can make
+  dead code and the test stays green through the regression. **And the ASSERTION can be
+  the inert one** (2026-09-21, the monthly email's split tile): `expect(html).toContain('1400')` passes whatever the
+  amount cell says, because the caption two lines below prints the same figure — the test only went red once it read
+  the `<td align="right">` cells. When a falsification stays green, suspect the assertion's ANCHOR before the code.
+  **The fixture can make
   a branch unreachable**: `allocateByShare`'s rounding correction cannot fire on two shares, so a two-person fixture
   stayed green with the branch disabled — when falsification does NOT turn a test red, the test is the bug. **And a test
   can PIN the defect**: `summarizeLaborMetrics` counted the baseline's own month and had no right edge, and both

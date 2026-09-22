@@ -31,6 +31,10 @@
 - Added the calendar to every Avvisi row: «soglia 50% · anno al 70%» under a crossed threshold, painted amber only when the share is ahead of its own window, «da gennaio» on an annual budget already over, and «soglie di quota» in the aside.
 - Added «Conferma» in words to every budget row's delete, the consequence printed in the row («Eliminando, il budget di Cibo sparisce; le spese restano.») and an announcement for screen readers; the pencil steps aside while the row is armed.
 
+- Added the calendar to every figure on Cashflow › Divisione: a person's tile now prints what is left of their salary today and says underneath where the month takes it («Con le spese ancora in calendario mancano 100 €»), and the verdict closes the same way. A bill due at the end of the month no longer counts as money already gone — before this, someone could be told their salary had run out over a bill still sitting in their account.
+- Added the missing declaration to the shares on Divisione: a salary left «in comune», or one belonging to somebody no longer in Famiglia, is now named out loud («Altri 1000 € di reddito da lavoro non sono intestati a nessuno e non entrano nelle quote») instead of leaving the percentages to be computed on part of the month without saying so.
+- Added «Attribuisci spese» to Divisione, the one thing the tab could not do from itself: it opens Tracciamento with the «Intestatario» filter already on «In comune», so the rows the page counts are one click from the form that decides who they belong to.
+
 - Added the held portfolio as the subject of Affidabilità and Chi paga di più on Cashflow › Dividendi: the rows rank only the instruments still held, what a sold one paid is named in its own clause («altri 100 € da 2 strumenti venduti»), a residual row and the footer («restano fuori: non sono reddito su cui contare»); the verdict and the inventory keep reading the whole registry.
 - Added «Attesa» in words to an announced payment on a phone — the chip in the row, «Incassate / Annunciate» totals under the list, «attesa» and a warning hairline on the calendar's day — where the colour of the number was the only difference.
 - Added the instrument's own tax rate to the dividend form's withholding proposal (12,5% on a BTP), «Cedola» as the default type of a bond's payment, and every equity or bond — held or sold — to its picker; the form refuses in its reading line in Italian and marks the first missing field.
@@ -96,6 +100,10 @@
 - Fixed the Budget touch targets under 44px on a phone (the threshold chips, the ceiling input, the switch's row, the drawer's radios, select and amount, the empty state's button) and the progress bars announcing an exceeded budget as «100» to a screen reader (now «150%, oltre di 500 €»).
 - Fixed «Salvato» staying in the Per categoria aside forever, the «fissa» rule repeated in three footers (now once, with its cause: the category's type), and the small animations of the tab that ignored the reduced-motion setting.
 
+- Fixed the layout of Cashflow › Divisione above 1440px: the two people the page exists to compare sat on different rows, at different heights, with a large empty rectangle beside the lower one. They now stand side by side, same size, and the empty corner is gone.
+- Fixed the repeated sentence on Divisione: when a salary is missing, the page verdict explains why the shares are absent and the «Quota» tile now says what to do about it («Registra lo stipendio di … in Tracciamento e intestaglielo») instead of reprinting the same words a few centimetres below.
+- Fixed the month with nothing in it on Divisione: the page said the shares could not be calculated and, underneath, that there was nothing to divide — two explanations of one empty screen. It now says only the second, and stops printing a 0 € where nothing was measured at all.
+
 - Fixed editing a dividend of a sold instrument, which opened the form with the Asset field blank and refused the save with «Asset non trovato»; and registering a BTP coupon by hand, which the picker did not allow at all.
 - Fixed the 26% withholding the dividend form typed on every coupon (1,69 € proposed on a 6,50 € BTP coupon instead of 0,81 €).
 - Fixed the verdict's «rendono l'1,3% lordo sul costo», a figure measured on one held instrument over twelve months and printed after «da 3 strumenti» identically in all four periods: it now names the window and the instruments it covers; «rendi l'1,3%, contro l'1,3%» reads «in linea con il valore di mercato».
@@ -107,6 +115,9 @@
 - Fixed an edited dividend never reaching its income in the Cashflow: the amount stayed the one first recorded. The income now follows the dividend, and so does the account it credited.
 
 - Fixed the reading line of every modal, which was rendered smaller and greyer than designed and never turned red on a refused submit («Mancano 2 campi: …» was grey since the modals were unified): a refusal is now in the alert colour at the reading's size, on every form.
+- Fixed the «Spese in comune» section of the periodic email, where the figure per person was printed in plain black whatever it said: somebody who came up short looked exactly like somebody who did not. It now carries the same green or red as the page, on what has actually been spent, and says underneath where the calendar takes it.
+- Fixed the period selector on every page that uses it: on a phone it was 36 pixels tall and the month arrows inside it were 28, both under the size a thumb needs; they are now 44.
+- Fixed the accessible name of every tabbed page — Cashflow, Impostazioni, FIRE e Simulazioni: a screen reader landing on a section heard nothing, because each panel was named after a control that does not exist in the page.
 - Fixed the windows that open from a button drifting sideways as they opened and again as they closed — a note on Hall of Fame, a dividend's record, the custom period and the AI analysis on Rendimenti, a category's move or delete in Impostazioni. Each now grows from the button that opened it and shrinks back to it, in a straight line.
 
 - Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».

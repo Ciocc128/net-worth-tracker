@@ -85,7 +85,7 @@ import { DeleteDummyDataDialog } from '@/components/DeleteDummyDataDialog';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
-import type { TabDef } from '@/components/layout/PageTabBar';
+import { pageTabPanelId, type TabDef } from '@/components/layout/PageTabBar';
 import { Tile, TILE_CELL_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -1764,7 +1764,15 @@ export default function SettingsPage() {
         {/* Tab: Preferenze (lazy) — every group is a tile: eyebrow = the group, reading = ONE
             rule-generated state line (settingsNarrative), controls below. */}
         {mountedTabs.has('generale') && (
-          <TabsContent value="generale" className="mt-4">
+          <TabsContent
+          value="generale"
+          id={pageTabPanelId('settings-tab-pill', 'generale')}
+          aria-label="Preferenze"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
               {/* Profilo — età e risk-free (moved here from Allocazione; the formula still lives there) */}
@@ -2558,7 +2566,15 @@ export default function SettingsPage() {
 
         {/* Tab: Allocazione (default, always mounted) — the total as a tile, the formula's state,
             the editable target list at the tile's cadence. */}
-        <TabsContent value="allocazione" className="mt-4">
+        <TabsContent
+          value="allocazione"
+          id={pageTabPanelId('settings-tab-pill', 'allocazione')}
+          aria-label="Allocazione"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
           <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
             {/* Allocazione target — the plan's one number */}
@@ -3104,7 +3120,15 @@ export default function SettingsPage() {
 
         {/* Tab: Spese (lazy) — default accounts, the CSV import, the category inventory */}
         {mountedTabs.has('spese') && (
-          <TabsContent value="spese" className="mt-4">
+          <TabsContent
+          value="spese"
+          id={pageTabPanelId('settings-tab-pill', 'spese')}
+          aria-label="Spese"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
               {/* Conti di default (moved here from Preferenze: they act in the expense dialog) */}
@@ -3308,7 +3332,15 @@ export default function SettingsPage() {
 
         {/* Tab: Dividendi (lazy) — the landing category (saved by the page's Save) + the BTP Italia FOI declaration */}
         {mountedTabs.has('dividendi') && (
-          <TabsContent value="dividendi" className="mt-4">
+          <TabsContent
+          value="dividendi"
+          id={pageTabPanelId('settings-tab-pill', 'dividendi')}
+          aria-label="Dividendi"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
               {/* Entrate da dividendi */}
@@ -3475,7 +3507,15 @@ export default function SettingsPage() {
 
         {/* Tab: Condivisione account — the sharing section renders its own tile; beside it, how it works */}
         {mountedTabs.has('condivisione') && (
-          <TabsContent value="condivisione" className="mt-4">
+          <TabsContent
+          value="condivisione"
+          id={pageTabPanelId('settings-tab-pill', 'condivisione')}
+          aria-label="Condivisione"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-7')}>
                 <AccountSharingSection disabled={isDemo} />
@@ -3507,7 +3547,15 @@ export default function SettingsPage() {
 
         {/* Tab: Aspetto — light/dark/system beside the six color themes */}
         {mountedTabs.has('aspetto') && (
-          <TabsContent value="aspetto" className="mt-4">
+          <TabsContent
+          value="aspetto"
+          id={pageTabPanelId('settings-tab-pill', 'aspetto')}
+          aria-label="Aspetto"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
               {/* Modalità — next-themes, per device, with the circle view transition */}
