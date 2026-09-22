@@ -13,30 +13,26 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **176 files / 4098 tests** green + **27 Playwright spec files** (87 tests, incl. 4 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-21): **Allocazione — impeccable critique (27/40) chiusa.** A rebalance now names the INSTRUMENTS it
-  would trade, through the very splits Versa and Preleva already use (`RebalanceDescent`; Σgambe === la mossa di
-  classe), and every plan that sells prices the withholding on the realized fraction of the gain
-  (`estimatePlanSaleTax` over `estimateSaleTax`) — `null` WITH a reason when a leg has no EUR cost basis or rate, never
-  a flattering zero. A class with neither value nor target keeps its row and loses its verdict (`isDormantClass`): the
-  page said «Immobili in linea» at 0 € while the Previdenza tile, on the same screen, printed 60.000 € of it, and
-  counted it in «4 classi su 8» where the honest figure is 4 su 6. The verdict says «all'85%». Found on the way, and
-  bigger than the critique saw: **`useActionColors`'s legibility clamp had never run** — it matched `/oklch\(/` and
-  the browser answers `lab(…)`, so COMPRA/VENDI/OK shipped as raw chart slots at 2,39–4,02:1 as TEXT
-  (`lib/utils/actionColor.ts`, `ACTION_LIGHT_MAX_L`/`ACTION_DARK_MIN_L`/`ACTION_CHIP_FILL_PCT`, measured on all twelve
-  theme blocks). Keyboard: ONE Tab stop per list (`useRovingFocus` on `AsideToggle` and `RankedRows`, shared), the row
-  no longer hiding its own figures behind an `aria-label`, the band announcing its reclassification.
-  Closed on the owner's tour: a level that repeats the one above it is dropped (`collapseRepeatedLevels`; an
-  instrument is `isInstrument`, never a depth) and the grid's two columns stand at natural height — the void beside
-  the Piano fell from 684 to ~90px and the page from 2359 to 2112. And «prelevare 1000 €» now means 1000 € IN HAND:
-  the plan sells the gross that survives the withholding (`solveWithdrawalGross`, a fixed point — the tax follows
-  which instruments are drained, so a division by (1 − rate) is the wrong shape and is pinned red by a test).
-  **Verification**: `tsc`, lint 0, Vitest 4085 with and without `TZ=Europe/Rome`, Playwright **87/87** (the page's
-  FIRST spec, `e2e/allocation.spec.ts` — it was the last verdict page with none), eleven falsifications seen red one
-  behaviour at a time (two stayed green and are recorded as such: the sell's re-cap is guaranteed by
-  `splitFromSurplus`, the loss floor by `estimateSaleTax`), and the before/after measured in the browser on the
-  production mirror at 1440 and 390 in both modes — thirteen contrast failures → zero, «Dettaglio» 41 Tab → 23,
-  overflow 0 everywhere, console clean. doc/guide/allocazione.md.
+- `tsc` clean; **175 files / 4126 tests** green + **30 Playwright spec files** (98 tests, incl. 5 auth setups; last full run 2026-09-22, 3,5 min: 97 green and the known-intermittent `modal.origin` red, green alone right after). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-22): **FIRE › Calcolatore — impeccable critique (27/40) chiusa.** La pagina si contraddiceva nel
+  momento più importante: sotto «Sei già FIRE.» la tessera Scenari stampava «2027 · tra 1 anno» tre volte e il
+  ventaglio «entro il 2027: 100%», perché ENTRAMBE le camminate (`calculateFIREProjection`, `runAccumulationSimulation`)
+  testavano il traguardo solo dall'anno 1. **L'anno 0 è un anno**: 0 è una parola («oggi · già raggiunto», il footer
+  del ventaglio «FIRE già raggiunto oggi…», nessun marker sul grafico); What If lo aveva già rattoppato a valle. **Le
+  tre legende erano `<Legend>` di Recharts** (3,11 e 3,77:1) e l'aria-label prometteva «Orso (rosso)» su un tema che lo
+  dipinge verde: ora `SeriesLegend`, target in inchiostro neutro tratteggiato, nomi senza tinte, un marker per anno
+  distinto («FIRE Base · Toro» invece di tre etichette sovrapposte). **Lo stato vuoto perdeva la griglia**: ora le
+  quattro tessere restano con la loro domanda e il Traguardo porta l'UNICA azione (`describeEmptyTiles`); Reddito
+  passivo risponde davvero quando mancano solo le spese. **La griglia**: Base di calcolo finiva 190 px sopra il suo
+  footer; la forma scelta al menu (Base 3 | Reddito 4) spostava il vuoto in Reddito (173 px, misurato) — Base prende
+  la prima riga da sola, larga 7 col vincolo accanto alle righe (`@container`), Reddito 4 e Scenari 3 la seconda (vuoto
+  residuo 40 px). Didascalie `/70` (2,60:1) a inchiostro pieno; `850k €` al posto di `€850k` su ogni asse dell'app;
+  tooltip senza centesimi; `aria-invalid` sui campi Parametri; chip «del numero FIRE» e `aria-valuetext`; il confetti
+  (l'ultimo dell'app, cinque hex fuori tema) è andato con `canvas-confetti`. **Verifica**: `tsc`, lint 0, Vitest 4126
+  nei due fusi, Playwright 97/98 in suite (il rosso è `modal.origin`, l'intermittente noto, verde da solo subito dopo),
+  `e2e/fire.degraded.spec.ts` nuova e vista rossa senza il link; quattro test Vitest visti rossi col motore vecchio.
+  Evidenza in browser da Playwright (estensione non connessa): overflow 0 a 1440 e 390, zero `.recharts-legend-wrapper`.
+  doc/guide/fire.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -57,7 +53,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
-- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.
+- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
 - **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
@@ -94,6 +90,12 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   2026-09-21, on the compact `PageHeader`'s description) — just under the AA floor of 4,5:1, on every page that uses
   the shell, not on one. It is a theme-token change with a twelve-block blast radius, so it belongs to a
   `doc/guide/temi.md` session, not to a page's.
+- **`e2e/modal.origin.spec.ts` is intermittent in a FULL run** (2026-09-21): it failed twice in a row and then passed
+  twice with the same code — once with `components/ui/period-picker.tsx` reverted and once with it restored, so that
+  change is not the cause (and it failed once more in the full run of 2026-09-22, green alone right after). When it fails, Rendimenti's «Periodo personalizzato» button has moved **23,4px** between the
+  `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
+  height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
+  so not yet fixed — re-read this before trusting a single red run of it.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 
 ## Key Files

@@ -178,6 +178,16 @@ function makeAccumulationParams(
 }
 
 describe('runAccumulationSimulation — Ventaglio engine', () => {
+  it('is FIRE at year 0 in every path when the portfolio already clears today\'s target', () => {
+    // 2M against a 750k target: the deterministic walk says year 0, and so must every path —
+    // otherwise the fan's verdict reads «probabilità entro il 2027: 100%» under «Sei già FIRE.».
+    const result = runAccumulationSimulation(makeAccumulationParams({ initialPortfolio: 2_000_000, years: 5 }));
+    for (const fireYear of result.fireYears) expect(fireYear).toBe(0);
+    expect(result.percentiles[0].fireProbability).toBe(100);
+    // Reached paths save nothing: year 1 is pure market growth.
+    expect(Math.round(result.paths[0][1].value)).toBe(Math.round(2_000_000 * 1.07));
+  });
+
   it('at zero volatility every path collapses onto the deterministic base projection', () => {
     // Same rates as the engine fixture: base scenario 7% growth / 2.5% inflation.
     const projection = calculateFIREProjection(

@@ -73,6 +73,40 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   (persisted on change) and the Parametri form (a preview until «Salva») — and computes nothing: numbers come from
   `fireSummary.ts` over the engines the tab already ran (`calculateFIREProjection`, `calculateFIREMetrics` +
   `calculateFireBridgeNumber`, `resolvePensionLockState`, `runAccumulationSimulation`), words from `fireNarrative.ts`.
+- **Year 0 is a year** (2026-09-22): both walks test the target BEFORE stepping — `calculateFIREProjection` on the
+  starting values (the bridge requirement before the unlock, the standard one after), `runAccumulationSimulation` on
+  every path's starting portfolio — so a target already cleared today is `yearsToFIRE = 0`, never «tra 1 anno». Until
+  then the Scenari tile printed «2027 · tra 1 anno» three times and the fan «entro il 2027: 100%» under a verdict
+  that said «Sei già FIRE.». Downstream, 0 is a WORD: `ScenariTile` prints «oggi · già raggiunto», `describeScenarios`
+  «Nel base il FIRE è già raggiunto; l'orso lo sposta al 2029, il toro concorda», `FanVerdict.atStart` turns the
+  footer into «FIRE già raggiunto oggi, quindi in tutti i N percorsi…», and `FIREProjectionChart` draws no marker for
+  it (the plot starts at year 1). `summarizeTimeline` reads no row for year 0 (`yearlyData[-1]` is the last row, not
+  today). What If's `resolveYearsToFIRE` already patched this downstream; the engine now agrees with it.
+- **The grid is Traguardo 5×2 | Base di calcolo 7, then Reddito passivo 4 | Scenari 3** (2026-09-22): Base took two
+  rows at 3 columns and ended 190 px above its own footer, measured; at 3 columns beside Reddito the void moved into
+  Reddito (173 px, measured the same day) — a tile shares a row only with tiles of its own height (AGENTS.md →
+  Hierarchy). Base is the tallest, so it takes the first row alone, and its lock block sits BESIDE its rows through a
+  container query (`@[560px]`: the same tile is a full card on a phone); Reddito and Scenari are within 30 px of each
+  other and share the second row. The Traguardo's chart is the one element that can be any height and takes the
+  slack. The tablet (768–1439) puts Base full width and Reddito beside Scenari; the phone order is unchanged
+  (Traguardo → Scenari → Reddito → Base, `order-*`). The FOUR cells are module constants (`TRAGUARDO_CELL` …) shared
+  by the data and the empty branches, so the two can never drift.
+- **«Nothing recorded» keeps the four tiles** (2026-09-22, `describeEmptyTiles`): every tile keeps its eyebrow and
+  says why it cannot answer, and ONLY the Traguardo offers the action — «Aggiungi il primo asset» → Patrimonio
+  without a positive net worth, «Registra le spese nel Cashflow» → Cashflow without expenses. With a net worth and no
+  expenses the Reddito passivo tile still ANSWERS (the allowance is the SWR of the net worth, `passiveIncome` is
+  non-null there), so it renders its figures; Base di calcolo does not, because «Spese annue 0 €» would be the second
+  name of an absence. Until then this state dropped the whole grid and linked nowhere. Pinned by
+  `e2e/fire.degraded.spec.ts` (the degraded account has no cashflow rows, whichever pension scenario it holds).
+- **The three charts' legends are `SeriesLegend`, their targets neutral ink dashed, their accessible names hue-free**
+  (2026-09-22): bear/base/bull are chart SLOTS (4 / 0 / 1, `SCENARIO_SLOT`), and on a themed palette the bear is not
+  red — the aria-label used to say «Orso (rosso)» while the fixture painted it green. Recharts' `<Legend>` measured
+  3,11:1 and 3,77:1 on the tile. The FIRE-year markers of the Scenari chart are ONE per distinct year
+  (`buildFireYearMarkers`, «FIRE Base · Toro»): three labels on one x overlapped and clipped. Whole euros in every
+  projection tooltip; the axis ticks read `850k €`, since `formatCurrencyCompact` puts the euro after the figure.
+- **No confetti** (2026-09-22): the one-shot burst inherited from the old FireReachedBanner is gone with its five
+  hexes and with `shouldReduceMotion` (`celebrationUtils` keeps only the once-per-milestone record for the savings
+  badge). A reached target is the verdict's sentence — the product reports, it does not cheer.
 - **ONE expense figure for the number, the verdict and the chart**: `getAnnualCashflowData` (the last full year, else
   the running year annualized — the Base di calcolo aside says which). `getFIREData`'s own `metrics.annualExpenses`
   reads the last full year ONLY and is not used for the number: on an account with no last-year rows it is 0, and the
@@ -106,7 +140,16 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `respectPensionLockInFire` from the local state, because the cached `settings` it spreads can lag a lock save.
 - **A chart slot is not a text colour, here either**: the scenario labels of Parametri (and the Scenari rows) are
   muted text beside an 8px swatch in the slot. **No sign token on a projected figure.** The year-by-year table was
-  dropped on request (2026-08-25): the Scenari chart and tile already carry what it listed.
+  dropped on request (2026-08-25): the Scenari chart and tile already carry what it listed. **A caption is a fact, so
+  it takes the full muted ink** (2026-09-22): `text-muted-foreground/70` measured 2,60:1 in light on the thirteen
+  captions that carry the window and the rule («124 € al mese», «fondo pensione bloccato escluso»). The muted token
+  itself measures 4,38:1 on the tile in the default light theme — a `doc/guide/temi.md` debt, not this page's.
+- **The Parametri form says an out-of-range value AT the field** (`aria-invalid` + `aria-describedby` on the SWR and
+  the INPS age, the help line turning into the bound in `text-destructive`), and the toast on «Salva» repeats it in
+  the product's term (SWR, never «Withdrawal Rate»). The Parametri trigger names the scenarios' growth in words
+  («crescita orso 4%, base 7%, toro 10%»): «4/3,5 · 7/2,5» was a code. The Traguardo's chip reads «del numero FIRE»
+  once the target is reached («verso FI» is a direction), and the progressbar's `aria-valuetext` says the true share
+  where `aria-valuenow` is capped at 100.
 - Playwright locates the tiles by `role=region` + `aria-label` («Traguardo FIRE», «Base di calcolo del FIRE», «Reddito
   passivo sostenibile», «Scenari di mercato»), the verdict by «Verdetto sul FIRE», the view switch by `role=group`
   «Vista della proiezione» (`aria-pressed` buttons), the switch by its `aria-label`, the two disclosure triggers by
@@ -116,6 +159,6 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause; the Ventaglio runs only while open, its probability lives in the Traguardo footer; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit.
+- **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause, the Scenari rows say «oggi · già raggiunto» and the Scenari chart draws no FIRE marker for it; the Ventaglio runs only while open, its probability lives in the Traguardo footer; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit; the bridge number can stay put while the SWR moves (the pension floor binds) — the caption's «senza il vincolo sarebbe» is the figure that moves; the parameter inputs are native `type=number` and print `3.5` with a dot, a limit of the control the it-IT figures around it do not share.
 - The blind spots of the other four tabs live at the end of their own guides: `doc/guide/fire-coast.md`, `doc/guide/fire-what-if.md`, `doc/guide/fire-monte-carlo.md`, `doc/guide/fire-obiettivi.md`.
 - **Le 5 spec del Calcolatore FIRE falliscono se la suite E2E gira prima del 5 del mese**: `seedEmulator.ts` data le spese al giorno 5 del mese corrente e `getAnnualCashflowData` interroga «inizio anno → adesso», quindi la finestra è vuota. Artefatto della fixture, non una regressione. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

@@ -47,6 +47,12 @@ export const ANALISI_STORAGE_STATE = 'e2e/.auth/analisi.json';
  * opt-in and a linked expense is an ordinary expense, so its data lives on an account of its own.
  */
 export const CENTRI_STORAGE_STATE = 'e2e/.auth/centri.json';
+/**
+ * Session of the Divisione fixture account (scripts/seedSplitE2E.mts). Its own account for the
+ * same reason as Centri di Costo: the tab is opt-in, and a row carrying `personalMemberId` is an
+ * ordinary row that would move every figure the other Cashflow specs assert.
+ */
+export const SPLIT_STORAGE_STATE = 'e2e/.auth/split.json';
 
 export default defineConfig({
   testDir: './e2e',
@@ -69,19 +75,38 @@ export default defineConfig({
     { name: 'setup-degraded', testMatch: /auth\.degraded\.setup\.ts/ },
     { name: 'setup-analisi', testMatch: /auth\.analisi\.setup\.ts/ },
     { name: 'setup-centri', testMatch: /auth\.centri\.setup\.ts/ },
+    { name: 'setup-split', testMatch: /auth\.split\.setup\.ts/ },
     {
       name: 'desktop',
       // 1440px is the project's `desktop:` breakpoint — the width where the layout switches.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: STORAGE_STATE },
       dependencies: ['setup'],
       // analisi.* runs in its own projects on the dedicated fixture account.
-      testIgnore: [/\.(mobile|degraded)\.spec\.ts/, /analisi\./, /centri\./],
+      testIgnore: [/\.(mobile|degraded)\.spec\.ts/, /analisi\./, /centri\./, /split\./],
     },
     {
       name: 'centri',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: CENTRI_STORAGE_STATE },
       dependencies: ['setup-centri'],
       testMatch: /centri\.spec\.ts/,
+    },
+    {
+      name: 'split',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: SPLIT_STORAGE_STATE },
+      dependencies: ['setup-split'],
+      testMatch: /split\.spec\.ts/,
+    },
+    {
+      name: 'split-mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+        storageState: SPLIT_STORAGE_STATE,
+      },
+      dependencies: ['setup-split'],
+      testMatch: /split\.mobile\.spec\.ts/,
     },
     {
       name: 'centri-mobile',
@@ -144,7 +169,7 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /\.mobile\.spec\.ts/,
-      testIgnore: [/analisi\./, /centri\./],
+      testIgnore: [/analisi\./, /centri\./, /split\./],
     },
   ],
 

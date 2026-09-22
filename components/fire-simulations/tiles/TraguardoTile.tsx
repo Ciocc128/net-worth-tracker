@@ -23,6 +23,7 @@ import type { Narrative } from '@/lib/utils/narrative';
 import type { FireTarget } from '@/lib/utils/fireSummary';
 import type { ProjectionView } from '@/lib/utils/fireNarrative';
 import { cn } from '@/lib/utils';
+import { formatPercentage } from '@/lib/services/chartService';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
 import { AsideToggle } from '@/components/ui/aside-toggle';
@@ -72,9 +73,11 @@ export function TraguardoTile({ reading, target, caption, view, onViewChange, fa
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {/* The chip is a flex box, and a flex item strips its leading whitespace: the words carry
             their own gap instead of a space that would never paint. */}
+        {/* «verso FI» is a direction; past the target it is «del numero FIRE» — a reader at 252%
+            has nothing left to go towards (2026-09-22). */}
         <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[9px] bg-muted px-[11px] py-[6px] font-mono text-[12px] font-semibold leading-none tabular-nums text-foreground">
           <SettledPercentageValue value={target.progressPct} />
-          <span>verso FI</span>
+          <span>{target.reached ? 'del numero FIRE' : 'verso FI'}</span>
         </span>
         <NarrativeText segments={caption} className="min-w-0 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
       </div>
@@ -85,6 +88,8 @@ export function TraguardoTile({ reading, target, caption, view, onViewChange, fa
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(fill)}
+        // The bar caps at 100; the text says the true share, so 252% is not announced as 100.
+        aria-valuetext={`${formatPercentage(target.progressPct, 1)} del numero FIRE`}
       >
         <div className={cn('h-full rounded-full', target.reached ? 'bg-positive' : 'bg-[var(--chart-1)]')} style={{ width: `${fill}%` }} />
       </div>
