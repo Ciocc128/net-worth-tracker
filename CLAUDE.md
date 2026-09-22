@@ -13,30 +13,31 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **176 files / 4098 tests** green + **27 Playwright spec files** (87 tests, incl. 4 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-21): **Allocazione — impeccable critique (27/40) chiusa.** A rebalance now names the INSTRUMENTS it
-  would trade, through the very splits Versa and Preleva already use (`RebalanceDescent`; Σgambe === la mossa di
-  classe), and every plan that sells prices the withholding on the realized fraction of the gain
-  (`estimatePlanSaleTax` over `estimateSaleTax`) — `null` WITH a reason when a leg has no EUR cost basis or rate, never
-  a flattering zero. A class with neither value nor target keeps its row and loses its verdict (`isDormantClass`): the
-  page said «Immobili in linea» at 0 € while the Previdenza tile, on the same screen, printed 60.000 € of it, and
-  counted it in «4 classi su 8» where the honest figure is 4 su 6. The verdict says «all'85%». Found on the way, and
-  bigger than the critique saw: **`useActionColors`'s legibility clamp had never run** — it matched `/oklch\(/` and
-  the browser answers `lab(…)`, so COMPRA/VENDI/OK shipped as raw chart slots at 2,39–4,02:1 as TEXT
-  (`lib/utils/actionColor.ts`, `ACTION_LIGHT_MAX_L`/`ACTION_DARK_MIN_L`/`ACTION_CHIP_FILL_PCT`, measured on all twelve
-  theme blocks). Keyboard: ONE Tab stop per list (`useRovingFocus` on `AsideToggle` and `RankedRows`, shared), the row
-  no longer hiding its own figures behind an `aria-label`, the band announcing its reclassification.
-  Closed on the owner's tour: a level that repeats the one above it is dropped (`collapseRepeatedLevels`; an
-  instrument is `isInstrument`, never a depth) and the grid's two columns stand at natural height — the void beside
-  the Piano fell from 684 to ~90px and the page from 2359 to 2112. And «prelevare 1000 €» now means 1000 € IN HAND:
-  the plan sells the gross that survives the withholding (`solveWithdrawalGross`, a fixed point — the tax follows
-  which instruments are drained, so a division by (1 − rate) is the wrong shape and is pinned red by a test).
-  **Verification**: `tsc`, lint 0, Vitest 4085 with and without `TZ=Europe/Rome`, Playwright **87/87** (the page's
-  FIRST spec, `e2e/allocation.spec.ts` — it was the last verdict page with none), eleven falsifications seen red one
-  behaviour at a time (two stayed green and are recorded as such: the sell's re-cap is guaranteed by
-  `splitFromSurplus`, the loss floor by `estimateSaleTax`), and the before/after measured in the browser on the
-  production mirror at 1440 and 390 in both modes — thirteen contrast failures → zero, «Dettaglio» 41 Tab → 23,
-  overflow 0 everywhere, console clean. doc/guide/allocazione.md.
+- `tsc` clean; **175 files / 4117 tests** green + **29 Playwright spec files** (97 tests, incl. 5 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-21): **Divisione — impeccable critique (20/40) chiusa, e la superficie vista funzionare per la
+  prima volta.** La feature non era mai stata eseguita end-to-end col flag acceso: ora lo è, e il rifiuto delle quote
+  tiene. **Un residuo è di denaro che si è MOSSO** (`MemberBalance.remainingBooked`): la tessera stampa e colora quello,
+  il verdetto dice «mancano» solo di quello, e dove lo porta il calendario è una clausola a parte — prima una bolletta
+  non ancora pagata veniva addebitata come se fosse uscita dal conto, e un disavanzo poteva essere fatto INTERAMENTE di
+  soldi ancora in banca, stampato in rosso sotto «lo stipendio di X non basta». **Il reddito da lavoro non intestato è
+  dichiarato** (`unattributedSalary`): 60/40 calcolato su 4000 € di 5000 € veniva stampato con la sicurezza di uno
+  calcolato su tutti. **Il verdetto SPIEGA, la tessera Quota ISTRUISCE** (`describeBasisRemedy`): erano le stesse 18
+  parole a 180px di distanza, e il ramo che una famiglia incontra davvero (`missing-salary`) non nominava nessuna
+  destinazione. **Il periodo vuoto** non è più un periodo le cui quote sono fallite (titolo e frase concordano; niente
+  `0 €` da 40px al posto di `EmptyState`). **La griglia chiude**: le due persone stanno in UNA cella `col-span-7`
+  (5 + 7 = 12), erano due da 6 — 5 + 6 = 11, la seconda persona andava a capo e lasciava 578×181 px di vuoto accanto a
+  sé, misurati. E la tab ha un verbo, «Attribuisci spese», che porta su Tracciamento col filtro «Intestatario» già
+  posato. Trovato strada facendo e più largo della critique: **ogni pannello di `PageTabs` nasceva senza nome
+  accessibile** — Radix lo intitola al PROPRIO trigger e i trigger qui sono bottoni normali, quindi
+  `aria-labelledby` puntava a un id inesistente su Cashflow, Impostazioni e FIRE.
+  E l'email mensile legge gli STESSI due moduli: il suo importo ora è il contabilizzato come sulla pagina, o la riga
+  avrebbe contraddetto la propria didascalia due righe sotto.
+  **Verifica**: `tsc`, lint 0, Vitest 4117 con e senza `TZ=Europe/Rome`, Playwright **97/97** (i primi spec della
+  pagina, `e2e/cashflow.split{,.mobile}.spec.ts` — era l'ultima tab Cashflow senza), undici falsificazioni viste rosse
+  una alla volta (cinque sul livello puro, quattro nel browser, due sull'email) — **una era rimasta verde e il test era
+  il difetto**: `toContain('1400')` sull'HTML dell'email passa comunque, perché la didascalia stampa la stessa cifra due
+  righe sotto; ora la verifica legge le CELLE degli importi. Prima/dopo misurato a 1440 e 390: vuoto 578×181 → 0,
+  picker 36 → 44px sul telefono, overflow 0, console pulita. doc/guide/cashflow-divisione.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -57,7 +58,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
-- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.
+- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
 - **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
@@ -94,6 +95,12 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   2026-09-21, on the compact `PageHeader`'s description) — just under the AA floor of 4,5:1, on every page that uses
   the shell, not on one. It is a theme-token change with a twelve-block blast radius, so it belongs to a
   `doc/guide/temi.md` session, not to a page's.
+- **`e2e/modal.origin.spec.ts` is intermittent in a FULL run** (2026-09-21): it failed twice in a row and then passed
+  twice with the same code — once with `components/ui/period-picker.tsx` reverted and once with it restored, so that
+  change is not the cause. When it fails, Rendimenti's «Periodo personalizzato» button has moved **23,4px** between the
+  `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
+  height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
+  so not yet fixed — re-read this before trusting a single red run of it.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 
 ## Key Files

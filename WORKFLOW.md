@@ -156,6 +156,7 @@ The app **is** locally runnable; there is no fallback to declare.
   | `analisi@example.com` | `test-user-analisi` | Everything dated to January, so year-to-date windows contain it whatever month it is |
   | `centri@example.com` | `test-user-centri` | Centri di Costo ON: «Fenicottero» (annual ceiling the calendar will cross) and «Ornitorinco» (dormant, 27 movements) — `npm run e2e:seed:centri` |
   | `degraded@example.com` | `test-user-degraded` | The states in which a return is *not* a measure — empty/degraded readings |
+  | `split@example.com` | `test-user-split` | Cashflow › Divisione ON: Ghiandaia and Tarsio at 60/40, with one row dated 31 December that stays «in calendario» all year — `npm run e2e:seed:split` |
 
 - **So the screen is not empty**: `npm run emulators:seed` for the base account, plus the fixture the
   page needs — `npm run e2e:seed` (Previdenza), `npm run e2e:seed:analisi` (Analisi),
@@ -250,7 +251,9 @@ The app **is** locally runnable; there is no fallback to declare.
   `critique-storage latest` exits 2 with NO output (a JSON parser on its pipe dies on an empty stdin, 2026-09-18): keep
   the snapshot's FILE NAME from the `write` step and hand it to `close` directly — the bare name
   (`2026-09-20T09-25-18Z__app-dashboard-history-page-tsx.md`): the absolute path `write` prints, and the
-  repo-relative one, both exit 2 with no output (2026-09-20). **`close` itself can answer exit 2 and still stamp the file**
+  repo-relative one, both exit 2 with no output (2026-09-20). **`close` takes TWO arguments**, the resolved target AND
+  that file name (`close <target> <snapshot-file>`); with the file alone it prints its usage and exits 1 (2026-09-21).
+  **`close` itself can answer exit 2 and still stamp the file**
   (2026-09-20, Rendimenti: the target had changed, so `latest` had already closed the backlog): read `closed: true` in the
   snapshot, not the exit code. **A snapshot's `target_path` and
   `target_fingerprint` are those of the machine that wrote it** (2026-09-14): `latest` accepts only the local

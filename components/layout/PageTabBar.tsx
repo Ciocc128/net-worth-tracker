@@ -12,6 +12,20 @@ export type TabDef = {
 
 const SPRING = { type: 'spring', stiffness: 400, damping: 35 } as const;
 
+/**
+ * The id of the panel a tab controls — the ONE place the convention lives.
+ *
+ * WARNING: a page that renders a `<TabsContent value="x">` under `PageTabs` must give it
+ * `id={pageTabPanelId(layoutId, 'x')}`, an `aria-label` and `aria-labelledby={undefined}`.
+ * Radix generates its own pair (`radix-…-trigger-x` / `…-content-x`) on the assumption that the
+ * triggers are ITS triggers, and here they are not: these are plain buttons, so every panel
+ * carried an `aria-labelledby` naming an element that does not exist (measured 2026-09-21). The
+ * panel is named by `aria-label` rather than by pointing back at a tab, because the two bars
+ * below render the same tabs twice and one of them is always `display:none` — a name taken from
+ * a hidden element is no name at all.
+ */
+export const pageTabPanelId = (layoutId: string, value: string) => `${layoutId}-panel-${value}`;
+
 interface PageTabBarProps {
   tabs: TabDef[];
   value: string;
@@ -19,6 +33,14 @@ interface PageTabBarProps {
   layoutId: string;
   /** Accessible name of the tablist — what the tabs switch between ("Sezioni di Cashflow"). */
   ariaLabel?: string;
+  /**
+   * The tab values whose panel is actually in the DOM. A page that mounts its panels lazily
+   * passes its own set; omitting it means every panel is rendered.
+   *
+   * `aria-controls` may only name an element that exists, and a tab whose panel has never been
+   * opened has none — pointing at it would trade one dangling reference for another.
+   */
+  renderedPanels?: ReadonlySet<string>;
   className?: string;
 }
 
@@ -29,7 +51,9 @@ interface PageTabBarProps {
  * tab keeps the section, so no title is printed twice. Every tab carries `aria-label`
  * unconditionally: the icon-only pill had no accessible name below 1440px.
  */
-export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, className }: PageTabBarProps) {
+export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, renderedPanels, className }: PageTabBarProps) {
+  const panelId = (tabValue: string) =>
+    !renderedPanels || renderedPanels.has(tabValue) ? pageTabPanelId(layoutId, tabValue) : undefined;
   return (
     <>
       {/* Mobile / tablet (< 1440px): Segmented Pill — active tab shows label, inactive shows icon only */}
@@ -49,6 +73,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, cl
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-controls={panelId(tv)}
               aria-label={label}
               onClick={() => onValueChange(tv)}
               transition={SPRING}
@@ -88,6 +113,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, cl
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-controls={panelId(tv)}
               aria-label={label}
               onClick={() => onValueChange(tv)}
               className={cn(
