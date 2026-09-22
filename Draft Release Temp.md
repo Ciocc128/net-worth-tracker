@@ -5,6 +5,9 @@
 
 ## ✨ New Features
 
+- Added the four tiles to the FIRE Calcolatore's empty state: without expenses in the Cashflow (or without an asset with a positive value) the page used to show its verdict and nothing else. Each tile now keeps its question and says why it cannot answer, and the Traguardo carries the one way out («Registra le spese nel Cashflow», or «Aggiungi il primo asset»). With assets and no expenses, Reddito passivo still prints what the portfolio would yield today.
+- Added «già raggiunto» to the FIRE Calcolatore: the Scenari tile, the Ventaglio's footer and the Scenari chart now know that a target already cleared today is cleared today.
+
 - Added the instruments to Ribilancia on Allocazione: the plan no longer stops at «vendi 5000 € di azioni», it names the sub-sleeves and the ETFs you would actually trade, exactly as Versa and Preleva already did, and every leg adds back up to its class. The mode the page opens on is now one you can carry to a broker.
 - Added the meaning everyone reads into «Preleva» on Allocazione: asking for 1000 € now means 1000 € in hand, so the plan sells what survives the tax — «Per prelevare 1000 € netti vendi 1087 €… la ritenuta stimata è 87 €» — instead of selling 1000 € and telling you afterwards that 913 € arrived. When the gross would not fit what you can trade, it says the figure will fall short rather than promising it.
 - Added the withholding to Ribilancia too, which sells without being asked for an amount: its reading closes on what reaches you («incassi 3700 € netti, dopo circa 1300 € di ritenuta»), estimated on the capital gain of the slice being sold, and the footer now explains the method instead of admitting the tax was ignored. Where an instrument has no cost basis or no rate the figure is dropped rather than guessed.
@@ -60,6 +63,13 @@
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 500 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
 ## 🐛 Bug Fixes
+
+- Fixed the FIRE Calcolatore contradicting itself once you are FIRE: the verdict said «Sei già FIRE.» while the Scenari tile printed «2027 · tra 1 anno» three times and the Ventaglio «Probabilità di FIRE entro il 2027: 100%». The projection only ever tested the target from next year; it now tests today first, in every scenario and in every simulated path, so «già raggiunto» replaces «tra 1 anno» wherever it applies (What If already read it this way).
+- Fixed the Scenari chart's description for screen readers naming colours the theme does not paint («Orso (rosso), Toro (verde)» on a palette where the bear is green): the three scenarios are now named without a hue, on every chart of the tab.
+- Fixed three legends on the FIRE Calcolatore printing their labels in the series' own colour, at 3,1:1 and 3,8:1 against the tile: the Scenari chart, the runway and the cashflow history now use the app's neutral legend, and the target lines are drawn in the neutral ink, dashed, like every other reference line.
+- Fixed the captions of the FIRE tiles («124 € al mese», «fondo pensione bloccato escluso», the scenarios' rates) measuring 2,6:1 in light mode: they were printed at 70% opacity, as if they were decoration.
+- Fixed «FIRE Orso», «FIRE Base» and «FIRE Toro» stacking on top of each other on the Scenari chart when two scenarios reach the target in the same year: the year now carries one line and one label («FIRE Base · Toro»), placed inside the plot where the top edge no longer clips it.
+- Fixed «Anni di spesa coperti» wrapping under its own figure on the Reddito passivo tile: the liquid/illiquid split is the row's caption now.
 
 - Fixed COMPRA, VENDI and OK being unreadable in light mode on Allocazione: the three colours come from the theme's chart palette, which is pitched for a chart area and not for text, and the guard meant to correct them had never run — it looked for a colour format the browser never returns. The chip labels, the plan's amounts and the gap column now clear the contrast floor in every one of the twelve colour themes, in both light and dark.
 - Fixed «Allineato al 85%», which is not Italian: the verdict now writes «all'85%», and so for every score whose name starts with a vowel (1, 8, 11 and 80 to 89 — thirteen of the hundred-and-one it can print).
@@ -158,6 +168,12 @@
 
 ## 🔧 Improvements
 
+- Improved the shape of the FIRE Calcolatore: Base di calcolo stretched to the height of the Traguardo beside it and ended with 190 px of nothing above its footer. It now takes the first row alone, wide enough to set its four rows beside the pension-lock switch, and Reddito passivo and Scenari — two tiles of the same height — share the second row; the projection chart takes whatever height is left.
+- Improved the axis of every chart that abbreviates: the ticks read «850k €» and «1,5 Mln €», with the euro after the figure as everywhere else in the app, instead of «€850k»; the FIRE projection's tooltip drops its cents.
+- Improved the Parametri form of the FIRE Calcolatore: an SWR or an INPS age out of range is said at the field while you type («Serve un valore sopra 0 e fino a 100»), not only by a toast after «Salva», and the toast speaks the product's term (SWR). The trigger names the scenarios in words («crescita orso 4%, base 7%, toro 10%») instead of «4/3,5 · 7/2,5 · 10/1,5»; every control is 44 px tall on a phone.
+- Improved the Traguardo once the target is passed: the chip reads «252,4% del numero FIRE» instead of «verso FI», and a screen reader hears the true share where the bar is capped at 100.
+- Removed the confetti of «Sei già FIRE»: the verdict already says it, with the passive income against the expenses, and the burst was the last one in the app (Storico's went earlier), painted in colours no theme owns.
+
 - Improved the keyboard on Allocazione, and with it every page that uses the same controls: a row of small switches in a tile's corner, and a ranked list of clickable rows, are now ONE stop of the Tab key each, with the arrows moving inside. Reaching the bottom of the page takes about half the presses it did.
 - Improved the band's silence on Allocazione: changing the rebalance threshold rewrote the verdict, the plan and every chip with nothing announced. It now states the new classification for a screen reader.
 - Improved the last two controls of Allocazione still smaller than the rest of the app — the exposure's «Aggiorna» and «Riprova» — and gave the custom threshold a visible label instead of a bare number box beside a stray «pp».
@@ -210,6 +226,8 @@
 - Improved Impostazioni: a category without a colour of its own now takes the theme's first chart colour instead of a fixed blue, so it follows the selected theme like everything else.
 
 ## 📚 Documentation
+
+- The FIRE guide records that year 0 is a year in both walks, the new grid, the empty state's one action, the neutral legends and target lines, and that the bridge number can stay put while the SWR moves.
 
 - The Allocazione guide records the dormant class, the two bases of the Per classe column, the rebalance's descent to the instruments, the withdrawal that solves for the amount you want in hand, and the lightness band the action colours are clamped into with the reason the old guard never ran; the Impeccable critique of Allocazione (27/40) is committed and closed by polish, and the page has its first browser tests — it was the last page with a verdict and no spec at all.
 - The contributor guide records two rules that hold everywhere: a colour token read back from the browser arrives in a format nobody wrote, so anything that parses one must expect it; and a chart colour printed as text is held to the text contrast floor, not the chart one. It also records that naming a button overrides the figures inside it, which is how a table of numbers became silent to a screen reader.

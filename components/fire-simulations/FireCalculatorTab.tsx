@@ -8,9 +8,16 @@
  * FIRE number, the pace and — in both moneys — the passive income the plan lands on, over a
  * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- *   Desktop (12 col): Traguardo(5, 2 rows) | Base di calcolo(3, 2 rows) | Reddito passivo(4)
- *                                                                        | Scenari(4)
+ *   Desktop (12 col): Traguardo(5, 2 rows) | Base di calcolo(7: rows beside the lock)
+ *                                           | Reddito passivo(4) | Scenari(3)
  *   Mobile (1 col):   Traguardo → Scenari → Reddito passivo → Base di calcolo
+ *
+ * A tile shares a row only with tiles of its own height (AGENTS.md → Hierarchy). Base di calcolo
+ * took two rows until 2026-09-22 and ended 190px above its own footer (measured); putting it at
+ * 3 columns beside Reddito passivo moved the void into Reddito (173px, measured the same day).
+ * Base is the tallest tile, so it takes the first row ALONE, wide enough to set its rows beside
+ * its lock block; Reddito passivo and Scenari are within 30px of each other and share the second.
+ * The Traguardo's chart is the one element that can be any height, and it takes the slack.
  *
  * Below the grid, two disclosures: «Parametri» (the SWR, the residence rule, the RITA details and
  * the scenarios' parameters — config-first: open only while no SWR is saved, reopening on an
@@ -31,8 +38,10 @@
  *
  * No component computes a figure or writes a sentence: numbers come from
  * lib/utils/fireSummary.ts (over fireService / pensionUnlock / monteCarloService), words from
- * lib/utils/fireNarrative.ts. The one-shot confetti of the absorbed FireReachedBanner keeps the
- * SAME localStorage key, so nobody who already saw it gets a second burst.
+ * lib/utils/fireNarrative.ts. A reached target is a sentence («Sei già FIRE.», with the
+ * allowance against the expenses), not a burst: the one-shot confetti inherited from the old
+ * FireReachedBanner went on 2026-09-22 — the product reports, it does not cheer (DESIGN.md →
+ * Celebration Badge), and its five hexes were the tab's only colours outside the theme.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -63,7 +72,6 @@ import {
 } from '@/lib/services/fireService';
 import { getDefaultMarketParameters, runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
-import { hasCelebrated, markCelebrated, shouldReduceMotion } from '@/lib/utils/celebrationUtils';
 import {
   formatAllocationLabel,
   resolveFanVerdict,
@@ -73,12 +81,14 @@ import {
   summarizeTarget,
   summarizeTimeline,
 } from '@/lib/utils/fireSummary';
+import Link from 'next/link';
 import {
   buildFireVerdict,
   describeBase,
   describeBaseAside,
   describeBaseFooter,
   describeDettaglio,
+  describeEmptyTiles,
   describeLock,
   describeParametri,
   describePassiveIncome,
@@ -96,7 +106,8 @@ import type { Settings } from '@/types/settings';
 import type { FIREProjectionScenarios } from '@/types/assets';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
+import { EmptyState } from '@/components/ui/empty-state';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
@@ -123,10 +134,21 @@ type FanSimulationInputs = Omit<AccumulationSimulationParams, 'years'>;
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 5, rows: 2, lines: 12 },
-  { span: 3, rows: 2, lines: 9 },
+  { span: 7, lines: 5 },
   { span: 4, lines: 5 },
-  { span: 4, lines: 4 },
+  { span: 3, lines: 4 },
 ];
+
+/** The four cells of the grid: one class per tile, shared by the data and the empty branches. */
+const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
+const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
+const BASE_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-4');
+const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-3');
+
+/** The one action of the empty state: a link the size of a touch target, in the tile's own ink. */
+const EMPTY_ACTION_CLASS =
+  'inline-flex min-h-8 items-center text-[13px] text-foreground underline underline-offset-2 hover:decoration-2 [@media(pointer:coarse)]:min-h-11';
 
 function roundRunwayYears(value: number): number {
   return Math.round(value * 10) / 10;
@@ -529,7 +551,7 @@ export function FireCalculatorTab() {
   const handleSaveSettings = () => {
     const newWR = parseFloat(form.withdrawalRate);
     if (Number.isNaN(newWR) || newWR <= 0 || newWR > 100) {
-      toast.error('Inserisci un Withdrawal Rate valido tra 0 e 100');
+      toast.error('Inserisci un SWR valido, sopra 0 e fino a 100');
       return;
     }
     const newInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
@@ -544,21 +566,6 @@ export function FireCalculatorTab() {
       pensionRitaLongUnemployment: ritaLongUnemployment,
     });
   };
-
-  // One-shot confetti, inherited from the absorbed FireReachedBanner: SAME localStorage key
-  // (`celebrated_fire_reached_{ownerId}` via celebrationUtils), so nobody who already saw it
-  // gets a second burst. Guarded on the SAVED withdrawal rate, never on a preview.
-  const savedFireNumber = withdrawalRate > 0 ? projectionAnnualExpenses / (withdrawalRate / 100) : 0;
-  const fireReachedSaved = savedFireNumber > 0 && currentNetWorth >= savedFireNumber;
-  useEffect(() => {
-    if (!fireReachedSaved || !ownerId) return;
-    const confettiKey = `fire_reached_${ownerId}`;
-    if (hasCelebrated(confettiKey) || shouldReduceMotion()) return;
-    import('canvas-confetti').then(({ default: confetti }) => {
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.3 }, colors: ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#f59e0b'] });
-      markCelebrated(confettiKey);
-    });
-  }, [fireReachedSaved, ownerId]);
 
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
@@ -634,12 +641,48 @@ export function FireCalculatorTab() {
     />
   );
 
-  // ─── Empty states: the verdict says why, the settings stay reachable ─────────
+  // ─── Nothing recorded: the grid stays, every tile keeps its question ──────────
+  // The Absence-Has-Three-Names Rule: the eyebrow must stay visible precisely when the tile
+  // cannot answer, and the ONE action belongs to the tile that owns the missing thing (the
+  // Traguardo). Reddito passivo still answers when a net worth exists and only the expenses are
+  // missing — the allowance is the SWR of the net worth, and needs no expenses.
   if (!displayedFireMetrics || !target || !base || !passiveIncome) {
+    const empty = describeEmptyTiles(currentNetWorth > 0 ? 'no-expenses' : 'no-net-worth');
+    const action = (
+      <Link href={empty.action.href} className={EMPTY_ACTION_CLASS}>
+        {empty.action.label}
+      </Link>
+    );
     return (
       <div className="space-y-4">
         <div className="pt-1">
           <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
+        </div>
+        <div className={GRID_CLASS}>
+          <div className={TRAGUARDO_CELL}>
+            <Tile eyebrow="Traguardo" ariaLabel="Traguardo FIRE">
+              <EmptyState className="mt-2" message={empty.traguardo} action={action} />
+            </Tile>
+          </div>
+          <div className={BASE_CELL}>
+            <Tile eyebrow="Base di calcolo" ariaLabel="Base di calcolo del FIRE">
+              <EmptyState className="mt-2" message={empty.base} />
+            </Tile>
+          </div>
+          <div className={REDDITO_CELL}>
+            {empty.passiveIncome === null && passiveIncome ? (
+              <RedditoPassivoTile reading={describePassiveIncome(passiveIncome)} income={passiveIncome} />
+            ) : (
+              <Tile eyebrow="Reddito passivo" ariaLabel="Reddito passivo sostenibile">
+                <EmptyState className="mt-2" message={empty.passiveIncome ?? empty.traguardo} />
+              </Tile>
+            )}
+          </div>
+          <div className={SCENARI_CELL}>
+            <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato">
+              <EmptyState className="mt-2" message={empty.scenarios} />
+            </Tile>
+          </div>
         </div>
         {parametri}
         {dettaglio}
@@ -674,9 +717,9 @@ export function FireCalculatorTab() {
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
       </div>
 
-      {/* Tablet (768-1439): Traguardo full, Scenari beside Reddito passivo, Base di calcolo full. */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
+      {/* Tablet (768-1439): Traguardo full, Base di calcolo full, Reddito passivo beside Scenari. */}
+      <div className={GRID_CLASS}>
+        <div className={TRAGUARDO_CELL}>
           <TraguardoTile
             reading={describeTarget(target)}
             target={target}
@@ -701,7 +744,7 @@ export function FireCalculatorTab() {
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-3 desktop:row-span-2')}>
+        <div className={BASE_CELL}>
           <BaseDiCalcoloTile
             reading={describeBase(base)}
             aside={describeBaseAside(base)}
@@ -715,15 +758,19 @@ export function FireCalculatorTab() {
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-4')}>
+        <div className={REDDITO_CELL}>
           <RedditoPassivoTile reading={describePassiveIncome(passiveIncome)} income={passiveIncome} />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-4')}>
+        <div className={SCENARI_CELL}>
           {projection ? (
             <ScenariTile reading={describeScenarios(scenarioRows)} rows={scenarioRows} horizonYears={PROJECTION_HORIZON_YEARS} footer={describeScenariosFooter()} />
           ) : (
-            <div className="hidden desktop:block" aria-hidden="true" />
+            // A projection needs expenses and a positive net worth, which the branch above already
+            // guarantees; this is the belt to those braces, and it says so instead of an empty cell.
+            <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato">
+              <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').scenarios} />
+            </Tile>
           )}
         </div>
       </div>

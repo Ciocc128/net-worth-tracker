@@ -467,20 +467,45 @@ describe('calculateFIREProjection', () => {
   })
 
   it('should stop adding savings after FIRE is reached', () => {
-    // High NW + modest savings → FIRE reached quickly
+    // 600k against a 750k target with 50k a year: the bull reaches FIRE within a few years, NOT
+    // at year 0 — the identity below needs a FIRE year with a row before it.
+    const result = calculateFIREProjection(600000, 30000, 50000, 4, scenarios, 50)
+
+    expect(result.bullYearsToFIRE).not.toBeNull()
+    expect(result.bullYearsToFIRE).toBeGreaterThan(0)
+    const fireYear = result.bullYearsToFIRE as number
+    expect(fireYear).toBeLessThan(result.yearlyData.length)
+    const yearAtFIRE = result.yearlyData[fireYear - 1]
+    const yearAfterFIRE = result.yearlyData[fireYear]
+
+    // After FIRE, portfolio grows only by market return (no savings added)
+    // Growth should be roughly bullGrowthRate%, not bullGrowthRate% + savings
+    const growthAfterFIRE = yearAfterFIRE.bullNetWorth / yearAtFIRE.bullNetWorth - 1
+    const expectedGrowth = scenarios.bull.growthRate / 100
+
+    expect(growthAfterFIRE).toBeCloseTo(expectedGrowth, 1)
+  })
+
+  it('reports year 0 when the starting portfolio already clears the target, and saves nothing after', () => {
+    // 2M against a 750k target: FIRE today in every scenario, never «in one year» (the Scenari
+    // tile printed «tra 1 anno» under «Sei già FIRE.» until 2026-09-22).
     const result = calculateFIREProjection(2000000, 30000, 50000, 4, scenarios, 50)
+    expect(result.bearYearsToFIRE).toBe(0)
+    expect(result.baseYearsToFIRE).toBe(0)
+    expect(result.bullYearsToFIRE).toBe(0)
+    // A reached scenario receives no savings: year 1 is pure market growth.
+    expect(result.yearlyData[0].baseNetWorth).toBeCloseTo(2000000 * (1 + scenarios.base.growthRate / 100), -2)
+    // The walk still stops five years after the last reached scenario.
+    expect(result.yearlyData.length).toBe(5)
+  })
 
-    if (result.bullYearsToFIRE !== null && result.bullYearsToFIRE < result.yearlyData.length - 1) {
-      const yearAtFIRE = result.yearlyData[result.bullYearsToFIRE - 1]
-      const yearAfterFIRE = result.yearlyData[result.bullYearsToFIRE]
-
-      // After FIRE, portfolio grows only by market return (no savings added)
-      // Growth should be roughly bullGrowthRate%, not bullGrowthRate% + savings
-      const growthAfterFIRE = yearAfterFIRE.bullNetWorth / yearAtFIRE.bullNetWorth - 1
-      const expectedGrowth = scenarios.bull.growthRate / 100
-
-      expect(growthAfterFIRE).toBeCloseTo(expectedGrowth, 1)
-    }
+  it('tests year 0 on the bridge requirement when the pension bridge is on', () => {
+    // Free assets 300k, 30k expenses, fund 600k unlocking in 10 years: the bridge number is far
+    // below the 750k standard one, so the base is FIRE today on the bridge — and NOT without it.
+    const bridged = calculateFIREProjection(300000, 30000, 0, 4, scenarios, 20, { valueToday: 600000, yearsToUnlock: 10 })
+    const unbridged = calculateFIREProjection(300000, 30000, 0, 4, scenarios, 20)
+    expect(bridged.baseYearsToFIRE).toBe(0)
+    expect(unbridged.baseYearsToFIRE).not.toBe(0)
   })
 
   it('should stop early when all scenarios reached FIRE + 5 years', () => {
@@ -803,7 +828,11 @@ describe('calculateFIREProjection — pension bridge', () => {
 
     expect(unbridged.yearlyData[0].baseFireReached).toBe(false)
     expect(bridged.yearlyData[0].baseFireReached).toBe(true)
-    expect(bridged.baseYearsToFIRE).toBe(1)
+    // 950k already covers two years of expenses plus the post-unlock remainder TODAY, so the
+    // bridge says year 0 (it said 1 until the walk tested year 0, 2026-09-22); the standard
+    // check is not met at the start.
+    expect(bridged.baseYearsToFIRE).toBe(0)
+    expect(unbridged.baseYearsToFIRE).not.toBe(0)
   })
 
   it('uses the standard requirement (on the merged portfolio) from the unlock year onward', () => {

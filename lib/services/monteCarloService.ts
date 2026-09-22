@@ -349,7 +349,9 @@ export function runAccumulationSimulation(
   for (let sim = 0; sim < params.numberOfSimulations; sim++) {
     let portfolio = params.initialPortfolio + startingInflow;
     const path: { year: number; value: number }[] = [{ year: 0, value: portfolio }];
-    let fireYear: number | null = null;
+    // Year 0 is tested like every other year (mirrors calculateFIREProjection): a portfolio
+    // already past today's target is FIRE at year 0 in every path, and saves nothing from year 1.
+    let fireYear: number | null = wrDecimal > 0 && portfolio >= fireTargets[0] ? 0 : null;
 
     for (let year = 1; year <= params.years; year++) {
       for (const inflow of inflows) {

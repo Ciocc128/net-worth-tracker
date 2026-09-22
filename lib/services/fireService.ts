@@ -1440,6 +1440,8 @@ export function calculateCoastFIREProjection(
  *
  * All 3 scenarios' FIRE Numbers are tracked and displayed in chart/table.
  * Savings stop for a scenario once it reaches FIRE (retirement = no more income).
+ * `*YearsToFIRE` is 0 when the starting portfolio already clears the target: the walk tests
+ * year 0 before stepping, so «reached today» never reads as «in one year».
  *
  * `pensionBridge`: the locked pension fund is a SEPARATE compartment that compounds at
  * each scenario's growth rate and merges into the portfolio at the unlock year (a visible step
@@ -1505,6 +1507,22 @@ export function calculateFIREProjection(
     });
     return netWorth >= bridgeFireNumber;
   };
+
+  // Year 0 is a year too: a portfolio already past its target today is FIRE NOW, not «in one
+  // year». Until 2026-09-22 the walk tested the condition only from year 1, so the Scenari tile
+  // printed «tra 1 anno» three times under a verdict that said «Sei già FIRE.». The test is the
+  // same one the loop runs (the bridge requirement before the unlock, the standard one after),
+  // on the starting values; a scenario reached here receives no savings from year 1 on, like any
+  // other reached scenario.
+  const startFireNumber = wrDecimal > 0 ? annualExpenses / wrDecimal : 0;
+  const useBridgeCheckAtStart = bridgeActive && unlockYear > 0 && wrDecimal > 0;
+  const reachedAtStart = (compartmentValue: number, scenario: { growthRate: number; inflationRate: number }): boolean =>
+    useBridgeCheckAtStart
+      ? isBridgeFireReached(initialNetWorth, annualExpenses, compartmentValue, 0, scenario)
+      : wrDecimal > 0 && initialNetWorth >= startFireNumber;
+  if (reachedAtStart(bearPension, scenarios.bear)) bearYearsToFIRE = 0;
+  if (reachedAtStart(basePension, scenarios.base)) baseYearsToFIRE = 0;
+  if (reachedAtStart(bullPension, scenarios.bull)) bullYearsToFIRE = 0;
 
   for (let year = 1; year <= maxYears; year++) {
     bearNW *= (1 + scenarios.bear.growthRate / 100);

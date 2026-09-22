@@ -23,6 +23,7 @@ import {
   describeBaseAside,
   describeBaseFooter,
   describeDettaglio,
+  describeEmptyTiles,
   describeImpostazioni,
   describeLock,
   describeParametri,
@@ -213,7 +214,7 @@ describe('describeTarget', () => {
 });
 
 describe('describeTargetFooter', () => {
-  const fan: FanVerdict = { calendarYear: 2032, probabilityPct: 71, onHorizon: false };
+  const fan: FanVerdict = { calendarYear: 2032, probabilityPct: 71, onHorizon: false, atStart: false };
 
   it('explains the dashed line in the Scenari view, and the step only when the plot reaches the unlock year', () => {
     expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).toBe(
@@ -222,6 +223,12 @@ describe('describeTargetFooter', () => {
     expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2055 }))).toContain(' Il gradino nel 2050 è il fondo pensione che rientra.');
     // The walk stopped in 2046: the 2050 step is not on the plot, so the footer does not name it.
     expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).not.toContain('gradino');
+  });
+
+  it('says the target is cleared today in every path, instead of a 100% «entro il 2026»', () => {
+    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { calendarYear: 2026, probabilityPct: 100, onHorizon: false, atStart: true }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni', lastProjectedYear: 2031 }))).toBe(
+      'FIRE già raggiunto oggi, quindi in tutti i 1000 percorsi con l\'allocazione attuale (100% azioni): il ventaglio mostra come il patrimonio può evolvere da qui.',
+    );
   });
 
   it('states the probability in the Ventaglio view, with the allocation and the inflow model', () => {
@@ -291,9 +298,38 @@ describe('describePassiveIncome', () => {
   });
 });
 
+describe('describeEmptyTiles', () => {
+  it('keeps every tile\'s question and gives the Traguardo the one action, by what is missing', () => {
+    const noAssets = describeEmptyTiles('no-net-worth');
+    expect(noAssets.action).toEqual({ label: 'Aggiungi il primo asset', href: '/dashboard/assets' });
+    expect(noAssets.passiveIncome).not.toBeNull();
+    const noExpenses = describeEmptyTiles('no-expenses');
+    expect(noExpenses.action).toEqual({ label: 'Registra le spese nel Cashflow', href: '/dashboard/cashflow' });
+    // A net worth exists: the Reddito passivo tile answers with its own figures.
+    expect(noExpenses.passiveIncome).toBeNull();
+    expect(noExpenses.traguardo).toContain('spese annue ÷ SWR');
+  });
+});
+
 describe('describeScenarios', () => {
   it('reads the three years around the base', () => {
     expect(plain(describeScenarios(scenarios()))).toBe('Nel base il FIRE arriva nel 2032; l\'orso lo sposta al 2036, il toro lo anticipa al 2030.');
+  });
+
+  it('says «già raggiunto» for a scenario at year 0, never «tra 1 anno» or a calendar year', () => {
+    const today = { yearsToFire: 0, calendarYear: 2026 };
+    expect(plain(describeScenarios(scenarios({ bear: today, base: today, bull: today })))).toBe(
+      'Il FIRE è già raggiunto in tutti e tre gli scenari: il patrimonio supera il numero FIRE di oggi.',
+    );
+    // The base is FIRE today on the bridge, the bear's higher inflation is not.
+    expect(plain(describeScenarios(scenarios({ base: today, bull: today, bear: { yearsToFire: 3, calendarYear: 2029 } })))).toBe(
+      'Nel base il FIRE è già raggiunto; l\'orso lo sposta al 2029, il toro concorda.',
+    );
+    expect(plain(describeScenarios(scenarios({ base: today, bear: { yearsToFire: null, calendarYear: null }, bull: today })))).toBe(
+      'Nel base il FIRE è già raggiunto; l\'orso non ci arriva entro 50 anni, il toro concorda.',
+    );
+    // Only the bull is there today.
+    expect(plain(describeScenarios(scenarios({ bull: today })))).toBe('Nel base il FIRE arriva nel 2032; l\'orso lo sposta al 2036, il toro lo dà per raggiunto oggi.');
   });
 
   it('handles a scenario beyond the horizon and one that does not move the year', () => {
@@ -313,10 +349,10 @@ describe('describeScenarios', () => {
 describe('the disclosures', () => {
   it('describe Parametri with the saved settings and the three scenarios', () => {
     expect(describeParametri({ swr: 4, includesResidence: false, lockActive: true, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 5, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 9, inflationRate: 2 } } })).toBe(
-      'SWR 4% · casa di abitazione esclusa · fondo pensione bloccato (INPS 67, RITA a 62) · scenari 5/3,5 · 7/2,5 · 9/2',
+      'SWR 4% · casa di abitazione esclusa · fondo pensione bloccato (INPS 67, RITA a 62) · crescita orso 5%, base 7%, toro 9%',
     );
     expect(describeParametri({ swr: 3.5, includesResidence: true, lockActive: false, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 4, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 10, inflationRate: 1.5 } } })).toBe(
-      'SWR 3,5% · casa di abitazione inclusa · fondo pensione non vincolato · scenari 4/3,5 · 7/2,5 · 10/1,5',
+      'SWR 3,5% · casa di abitazione inclusa · fondo pensione non vincolato · crescita orso 4%, base 7%, toro 10%',
     );
   });
 

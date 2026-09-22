@@ -69,8 +69,9 @@ test('the Scenari | Ventaglio toggle swaps the projection chart inside the Tragu
   await expect(fanChart).toBeVisible({ timeout: 15_000 });
   await expect(scenariChart).toHaveCount(0);
 
-  // The tile's footer states the cumulative FIRE probability.
-  await expect(page.getByRole('region', { name: 'Traguardo FIRE' }).getByText(/Probabilità di FIRE entro il/)).toBeVisible();
+  // The tile's footer states the cumulative FIRE probability — or, on an account already past
+  // its target (the base fixture is, depending on the run month), that every path starts there.
+  await expect(page.getByRole('region', { name: 'Traguardo FIRE' }).getByText(/Probabilità di FIRE entro il|FIRE già raggiunto oggi/)).toBeVisible();
 
   // And back.
   await toggle.getByRole('button', { name: 'Scenari' }).click();
