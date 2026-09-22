@@ -1480,6 +1480,22 @@ describe('buildExpenseSplitTile', () => {
     expect(html).toContain('Con le spese ancora in calendario');
   });
 
+  /**
+   * Seen in a render on 2026-09-22: the amounts came out in the plain foreground whatever the sign,
+   * because the row's `trailingSign` colours the optional THIRD column and this list has none. A
+   * person who came up short printed the same ink as one who did not.
+   */
+  it('colours the amount by the sign of the booked residual', () => {
+    const short = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', -400, -200)]));
+    expect(short).toContain(PRINT_COLORS.negative);
+    expect(short).toContain(PRINT_COLORS.positive);
+
+    // And a row that is short only on the CALENDAR keeps the positive ink: the colour follows what
+    // has happened, exactly as the tile on the page does.
+    const calendarOnly = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', -100, 100)]));
+    expect(calendarOnly).not.toContain(PRINT_COLORS.negative);
+  });
+
   it('adds no calendar sentence when nothing is scheduled', () => {
     const html = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', 100, 100)]));
     expect(html).not.toContain('Con le spese ancora in calendario');

@@ -115,6 +115,7 @@
 - Fixed an edited dividend never reaching its income in the Cashflow: the amount stayed the one first recorded. The income now follows the dividend, and so does the account it credited.
 
 - Fixed the reading line of every modal, which was rendered smaller and greyer than designed and never turned red on a refused submit («Mancano 2 campi: …» was grey since the modals were unified): a refusal is now in the alert colour at the reading's size, on every form.
+- Fixed the «Spese in comune» section of the periodic email, where the figure per person was printed in plain black whatever it said: somebody who came up short looked exactly like somebody who did not. It now carries the same green or red as the page, on what has actually been spent, and says underneath where the calendar takes it.
 - Fixed the period selector on every page that uses it: on a phone it was 36 pixels tall and the month arrows inside it were 28, both under the size a thumb needs; they are now 44.
 - Fixed the accessible name of every tabbed page — Cashflow, Impostazioni, FIRE e Simulazioni: a screen reader landing on a section heard nothing, because each panel was named after a control that does not exist in the page.
 - Fixed the windows that open from a button drifting sideways as they opened and again as they closed — a note on Hall of Fame, a dividend's record, the custom period and the AI analysis on Rendimenti, a category's move or delete in Impostazioni. Each now grows from the button that opened it and shrinks back to it, in a straight line.

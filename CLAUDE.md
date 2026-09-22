@@ -13,7 +13,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **175 files / 4117 tests** green + **29 Playwright spec files** (97 tests, incl. 5 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **175 files / 4118 tests** green + **29 Playwright spec files** (97 tests, incl. 5 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
 - Latest (2026-09-21): **Divisione — impeccable critique (20/40) chiusa, e la superficie vista funzionare per la
   prima volta.** La feature non era mai stata eseguita end-to-end col flag acceso: ora lo è, e il rifiuto delle quote
   tiene. **Un residuo è di denaro che si è MOSSO** (`MemberBalance.remainingBooked`): la tessera stampa e colora quello,
@@ -31,10 +31,13 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   accessibile** — Radix lo intitola al PROPRIO trigger e i trigger qui sono bottoni normali, quindi
   `aria-labelledby` puntava a un id inesistente su Cashflow, Impostazioni e FIRE.
   E l'email mensile legge gli STESSI due moduli: il suo importo ora è il contabilizzato come sulla pagina, o la riga
-  avrebbe contraddetto la propria didascalia due righe sotto.
-  **Verifica**: `tsc`, lint 0, Vitest 4117 con e senza `TZ=Europe/Rome`, Playwright **97/97** (i primi spec della
-  pagina, `e2e/cashflow.split{,.mobile}.spec.ts` — era l'ultima tab Cashflow senza), undici falsificazioni viste rosse
-  una alla volta (cinque sul livello puro, quattro nel browser, due sull'email) — **una era rimasta verde e il test era
+  avrebbe contraddetto la propria didascalia due righe sotto. **Renderizzata davvero** (2026-09-22, la ricetta di
+  doc/guide/email-pdf.md sul percorso dati vero): e il rendering ha trovato quello che nessun test vedeva — l'importo
+  di una riga classificata non prendeva MAI il colore del segno, perché `trailingSign` dipinge la terza colonna e
+  questa lista non ne ha; chi era in rosso usciva nero come chi non lo era. Ora c'è `amountSign`.
+  **Verifica**: `tsc`, lint 0, Vitest 4118 con e senza `TZ=Europe/Rome`, Playwright **97/97** (i primi spec della
+  pagina, `e2e/cashflow.split{,.mobile}.spec.ts` — era l'ultima tab Cashflow senza), tredici falsificazioni viste rosse
+  una alla volta (cinque sul livello puro, quattro nel browser, quattro sull'email) — **una era rimasta verde e il test era
   il difetto**: `toContain('1400')` sull'HTML dell'email passa comunque, perché la didascalia stampa la stessa cifra due
   righe sotto; ora la verifica legge le CELLE degli importi. Prima/dopo misurato a 1440 e 390: vuoto 578×181 → 0,
   picker 36 → 44px sul telefono, overflow 0, console pulita. doc/guide/cashflow-divisione.md.

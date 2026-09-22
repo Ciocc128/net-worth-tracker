@@ -1575,7 +1575,11 @@ export function buildExpenseSplitTile(data: MonthlyEmailData): string {
         label: balance.member.name,
         caption,
         amount: signedEur(balance.remainingBooked as number),
-        trailingSign: ((balance.remainingBooked as number) >= 0 ? 'positive' : 'negative') as 'positive' | 'negative',
+        // On the SIGN of the booked figure, like the tile on the page. `trailingSign` alone never
+        // painted anything here: it colours the optional third column, which this list has no use
+        // for, so a person who came up short printed the same ink as one who did not (seen in a
+        // render, 2026-09-22).
+        amountSign: ((balance.remainingBooked as number) >= 0 ? 'positive' : 'negative') as 'positive' | 'negative',
       };
     });
   if (rows.length === 0) return '';
