@@ -383,8 +383,6 @@ reason a CSS variable cannot serve, and nowhere else:
   `AndamentoStoricoSection.tsx`) and `AssetSparkline.tsx` (`#16a34a` / `#dc2626` — the retired
   out-of-DOM sign hexes, surviving as a pre-hydration fallback): read once, before the theme's
   slots have resolved.
-- `canvas-confetti` in `FireCalculatorTab.tsx`: a canvas cannot read a CSS variable, said in-file
-  (Storico's `RaddoppiTile` gave up its burst on 2026-09-13).
 - `lib/utils/costCenterColors.ts` — `LEGACY_HEX_SLOTS`, the legacy hex → slot migration map for
   documents that still hold a hex; and `components/expenses/CategoryManagementDialog.tsx`, whose
   hexes are the user's own category colours (a user-chosen colour is an identity, not a slot — see

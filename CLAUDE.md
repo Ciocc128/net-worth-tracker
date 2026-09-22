@@ -13,34 +13,26 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **175 files / 4118 tests** green + **29 Playwright spec files** (97 tests, incl. 5 auth setups; last all-green full run 2026-09-21, 3,2 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-21): **Divisione — impeccable critique (20/40) chiusa, e la superficie vista funzionare per la
-  prima volta.** La feature non era mai stata eseguita end-to-end col flag acceso: ora lo è, e il rifiuto delle quote
-  tiene. **Un residuo è di denaro che si è MOSSO** (`MemberBalance.remainingBooked`): la tessera stampa e colora quello,
-  il verdetto dice «mancano» solo di quello, e dove lo porta il calendario è una clausola a parte — prima una bolletta
-  non ancora pagata veniva addebitata come se fosse uscita dal conto, e un disavanzo poteva essere fatto INTERAMENTE di
-  soldi ancora in banca, stampato in rosso sotto «lo stipendio di X non basta». **Il reddito da lavoro non intestato è
-  dichiarato** (`unattributedSalary`): 60/40 calcolato su 4000 € di 5000 € veniva stampato con la sicurezza di uno
-  calcolato su tutti. **Il verdetto SPIEGA, la tessera Quota ISTRUISCE** (`describeBasisRemedy`): erano le stesse 18
-  parole a 180px di distanza, e il ramo che una famiglia incontra davvero (`missing-salary`) non nominava nessuna
-  destinazione. **Il periodo vuoto** non è più un periodo le cui quote sono fallite (titolo e frase concordano; niente
-  `0 €` da 40px al posto di `EmptyState`). **La griglia chiude**: le due persone stanno in UNA cella `col-span-7`
-  (5 + 7 = 12), erano due da 6 — 5 + 6 = 11, la seconda persona andava a capo e lasciava 578×181 px di vuoto accanto a
-  sé, misurati. E la tab ha un verbo, «Attribuisci spese», che porta su Tracciamento col filtro «Intestatario» già
-  posato. Trovato strada facendo e più largo della critique: **ogni pannello di `PageTabs` nasceva senza nome
-  accessibile** — Radix lo intitola al PROPRIO trigger e i trigger qui sono bottoni normali, quindi
-  `aria-labelledby` puntava a un id inesistente su Cashflow, Impostazioni e FIRE.
-  E l'email mensile legge gli STESSI due moduli: il suo importo ora è il contabilizzato come sulla pagina, o la riga
-  avrebbe contraddetto la propria didascalia due righe sotto. **Renderizzata davvero** (2026-09-22, la ricetta di
-  doc/guide/email-pdf.md sul percorso dati vero): e il rendering ha trovato quello che nessun test vedeva — l'importo
-  di una riga classificata non prendeva MAI il colore del segno, perché `trailingSign` dipinge la terza colonna e
-  questa lista non ne ha; chi era in rosso usciva nero come chi non lo era. Ora c'è `amountSign`.
-  **Verifica**: `tsc`, lint 0, Vitest 4118 con e senza `TZ=Europe/Rome`, Playwright **97/97** (i primi spec della
-  pagina, `e2e/cashflow.split{,.mobile}.spec.ts` — era l'ultima tab Cashflow senza), tredici falsificazioni viste rosse
-  una alla volta (cinque sul livello puro, quattro nel browser, quattro sull'email) — **una era rimasta verde e il test era
-  il difetto**: `toContain('1400')` sull'HTML dell'email passa comunque, perché la didascalia stampa la stessa cifra due
-  righe sotto; ora la verifica legge le CELLE degli importi. Prima/dopo misurato a 1440 e 390: vuoto 578×181 → 0,
-  picker 36 → 44px sul telefono, overflow 0, console pulita. doc/guide/cashflow-divisione.md.
+- `tsc` clean; **175 files / 4126 tests** green + **30 Playwright spec files** (98 tests, incl. 5 auth setups; last full run 2026-09-22, 3,5 min: 97 green and the known-intermittent `modal.origin` red, green alone right after). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-22): **FIRE › Calcolatore — impeccable critique (27/40) chiusa.** La pagina si contraddiceva nel
+  momento più importante: sotto «Sei già FIRE.» la tessera Scenari stampava «2027 · tra 1 anno» tre volte e il
+  ventaglio «entro il 2027: 100%», perché ENTRAMBE le camminate (`calculateFIREProjection`, `runAccumulationSimulation`)
+  testavano il traguardo solo dall'anno 1. **L'anno 0 è un anno**: 0 è una parola («oggi · già raggiunto», il footer
+  del ventaglio «FIRE già raggiunto oggi…», nessun marker sul grafico); What If lo aveva già rattoppato a valle. **Le
+  tre legende erano `<Legend>` di Recharts** (3,11 e 3,77:1) e l'aria-label prometteva «Orso (rosso)» su un tema che lo
+  dipinge verde: ora `SeriesLegend`, target in inchiostro neutro tratteggiato, nomi senza tinte, un marker per anno
+  distinto («FIRE Base · Toro» invece di tre etichette sovrapposte). **Lo stato vuoto perdeva la griglia**: ora le
+  quattro tessere restano con la loro domanda e il Traguardo porta l'UNICA azione (`describeEmptyTiles`); Reddito
+  passivo risponde davvero quando mancano solo le spese. **La griglia**: Base di calcolo finiva 190 px sopra il suo
+  footer; la forma scelta al menu (Base 3 | Reddito 4) spostava il vuoto in Reddito (173 px, misurato) — Base prende
+  la prima riga da sola, larga 7 col vincolo accanto alle righe (`@container`), Reddito 4 e Scenari 3 la seconda (vuoto
+  residuo 40 px). Didascalie `/70` (2,60:1) a inchiostro pieno; `850k €` al posto di `€850k` su ogni asse dell'app;
+  tooltip senza centesimi; `aria-invalid` sui campi Parametri; chip «del numero FIRE» e `aria-valuetext`; il confetti
+  (l'ultimo dell'app, cinque hex fuori tema) è andato con `canvas-confetti`. **Verifica**: `tsc`, lint 0, Vitest 4126
+  nei due fusi, Playwright 97/98 in suite (il rosso è `modal.origin`, l'intermittente noto, verde da solo subito dopo),
+  `e2e/fire.degraded.spec.ts` nuova e vista rossa senza il link; quattro test Vitest visti rossi col motore vecchio.
+  Evidenza in browser da Playwright (estensione non connessa): overflow 0 a 1440 e 390, zero `.recharts-legend-wrapper`.
+  doc/guide/fire.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -100,7 +92,7 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   `doc/guide/temi.md` session, not to a page's.
 - **`e2e/modal.origin.spec.ts` is intermittent in a FULL run** (2026-09-21): it failed twice in a row and then passed
   twice with the same code — once with `components/ui/period-picker.tsx` reverted and once with it restored, so that
-  change is not the cause. When it fails, Rendimenti's «Periodo personalizzato» button has moved **23,4px** between the
+  change is not the cause (and it failed once more in the full run of 2026-09-22, green alone right after). When it fails, Rendimenti's «Periodo personalizzato» button has moved **23,4px** between the
   `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
   height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
   so not yet fixed — re-read this before trusting a single red run of it.

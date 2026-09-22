@@ -40,7 +40,8 @@ function rate(value: number): NarrativeSegment {
   return figure(formatRate(value));
 }
 
-function formatRate(value: number): string {
+/** «4%», «3,5%» — the ONE rate formatter of the FIRE tab; the tiles import it (Rule of Three). */
+export function formatRate(value: number): string {
   return `${value.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`;
 }
 
@@ -218,6 +219,44 @@ export function buildFireVerdict(input: FireVerdictInput): PageVerdictModel {
   };
 }
 
+// ─── Nothing recorded: the four tiles keep their question ─────────────────────
+
+export type FireEmptyKind = 'no-net-worth' | 'no-expenses';
+
+export interface FireEmptyTiles {
+  traguardo: string;
+  base: string;
+  /** Null when the Reddito passivo tile can still answer (a net worth exists, only the expenses are missing). */
+  passiveIncome: string | null;
+  scenarios: string;
+  /** The ONE action of the page, owned by the Traguardo: the surface that owns the missing thing. */
+  action: { label: string; href: string };
+}
+
+/**
+ * The «nothing recorded» readings (DESIGN.md → The Absence-Has-Three-Names Rule): every tile
+ * keeps its eyebrow and says why it cannot answer, and only the Traguardo offers the action —
+ * until 2026-09-22 this state dropped the whole grid and linked nowhere.
+ */
+export function describeEmptyTiles(kind: FireEmptyKind): FireEmptyTiles {
+  if (kind === 'no-net-worth') {
+    return {
+      traguardo: 'Il numero FIRE si misura contro il patrimonio: senza asset con un valore positivo non c\'è un traguardo da misurare.',
+      base: 'La base è patrimonio, spese e SWR: manca il patrimonio.',
+      passiveIncome: 'Il reddito passivo è il SWR del patrimonio: senza patrimonio non c\'è un prelievo da stimare.',
+      scenarios: 'Gli scenari proiettano il patrimonio anno per anno: senza patrimonio non c\'è nulla da proiettare.',
+      action: { label: 'Aggiungi il primo asset', href: '/dashboard/assets' },
+    };
+  }
+  return {
+    traguardo: 'Il numero FIRE è spese annue ÷ SWR: senza spese registrate nel Cashflow non c\'è un traguardo.',
+    base: 'Il patrimonio c\'è; mancano le spese dell\'ultimo anno, che danno il numero FIRE e il ritmo.',
+    passiveIncome: null,
+    scenarios: 'Gli scenari partono dalle spese: senza spese non c\'è un numero FIRE da raggiungere.',
+    action: { label: 'Registra le spese nel Cashflow', href: '/dashboard/cashflow' },
+  };
+}
+
 // ─── Traguardo ────────────────────────────────────────────────────────────────
 
 /** «Sei al 68,3% del numero FIRE: 412.500 € su 604.000 €, ne mancano 191.500 €.» */
@@ -295,6 +334,14 @@ export function describeTargetFooter(input: TargetFooterInput): Narrative | null
   if (!input.fan) return null;
   const inflows: Narrative =
     input.lock.active && input.lock.lockedValue > 0 ? [prose(" Il fondo pensione entra all'anno di sblocco al valore di oggi.")] : [];
+  // Every path starts from the same portfolio, so a target already cleared today is cleared in
+  // all of them: «probabilità entro il 2026: 100%» would be true and say nothing.
+  if (input.fan.atStart) {
+    return [
+      prose(`FIRE già raggiunto oggi, quindi in tutti i ${integer(input.simulationCount)} percorsi con l'allocazione attuale (${input.allocationLabel}): il ventaglio mostra come il patrimonio può evolvere da qui.`),
+      ...inflows,
+    ];
+  }
   return [
     prose('Probabilità di FIRE entro il '),
     year(input.fan.calendarYear),
@@ -385,7 +432,11 @@ export function describePassiveIncome(income: PassiveIncome): Narrative {
 
 const HORIZON_YEARS = 50;
 
-/** «Nel base il FIRE arriva nel 2032; l'orso lo sposta al 2036, il toro lo anticipa al 2030.» */
+/**
+ * «Nel base il FIRE arriva nel 2032; l'orso lo sposta al 2036, il toro lo anticipa al 2030.»
+ * A scenario at year 0 is «già raggiunto»: the walk tests today before stepping, and a reader
+ * who is FIRE must never be told «tra 1 anno» under a verdict that says «Sei già FIRE.».
+ */
 export function describeScenarios(rows: ScenarioRow[]): Narrative {
   const bear = rows.find((row) => row.key === 'bear');
   const base = rows.find((row) => row.key === 'base');
@@ -394,6 +445,19 @@ export function describeScenarios(rows: ScenarioRow[]): Narrative {
 
   if (base.calendarYear === null && bear.calendarYear === null && bull.calendarYear === null) {
     return [prose(`In nessuno scenario il FIRE arriva entro ${HORIZON_YEARS} anni.`)];
+  }
+
+  if (bear.yearsToFire === 0 && base.yearsToFire === 0 && bull.yearsToFire === 0) {
+    return [prose('Il FIRE è già raggiunto in tutti e tre gli scenari: il patrimonio supera il numero FIRE di oggi.')];
+  }
+
+  if (base.yearsToFire === 0) {
+    const later = (row: ScenarioRow, subject: string): Narrative => {
+      if (row.yearsToFire === 0) return [prose(`${subject} concorda`)];
+      if (row.calendarYear === null) return [prose(`${subject} non ci arriva entro ${HORIZON_YEARS} anni`)];
+      return [prose(`${subject} lo sposta al `), year(row.calendarYear)];
+    };
+    return [prose('Nel base il FIRE è già raggiunto; '), ...later(bear, "l'orso"), prose(', '), ...later(bull, 'il toro'), prose('.')];
   }
 
   if (base.calendarYear === null) {
@@ -408,6 +472,7 @@ export function describeScenarios(rows: ScenarioRow[]): Narrative {
   const baseYear = base.calendarYear;
   const relative = (row: ScenarioRow, subject: string): Narrative => {
     if (row.calendarYear === null) return [prose(`${subject} non ci arriva entro ${HORIZON_YEARS} anni`)];
+    if (row.yearsToFire === 0) return [prose(`${subject} lo dà per raggiunto oggi`)];
     if (row.calendarYear === baseYear) return [prose(`${subject} lo lascia al `), year(row.calendarYear)];
     const moves = row.calendarYear < baseYear ? 'anticipa' : 'sposta';
     return [prose(`${subject} lo ${moves} al `), year(row.calendarYear)];
@@ -443,18 +508,17 @@ export interface ParametriDescriptionInput {
   scenarios: FIREProjectionScenarios;
 }
 
-function scenarioPair(params: { growthRate: number; inflationRate: number }): string {
-  const one = (value: number) => value.toLocaleString('it-IT', { maximumFractionDigits: 2 });
-  return `${one(params.growthRate)}/${one(params.inflationRate)}`;
-}
-
-/** The Parametri disclosure's description: every saved setting, in one line. */
+/**
+ * The Parametri disclosure's description: every saved setting, in one line. The scenarios name
+ * their growth in words («crescita orso 4%, base 7%, toro 10%»): «4/3,5 · 7/2,5» was a code the
+ * reader had to open the panel to decode, and the inflation it carried has its own field there.
+ */
 export function describeParametri(input: ParametriDescriptionInput): string {
   return [
     `SWR ${formatRate(input.swr)}`,
     `casa di abitazione ${input.includesResidence ? 'inclusa' : 'esclusa'}`,
     input.lockActive ? `fondo pensione bloccato (INPS ${input.inpsRetirementAge}, RITA a ${input.ritaUnlockAge})` : 'fondo pensione non vincolato',
-    `scenari ${scenarioPair(input.scenarios.bear)} · ${scenarioPair(input.scenarios.base)} · ${scenarioPair(input.scenarios.bull)}`,
+    `crescita orso ${formatRate(input.scenarios.bear.growthRate)}, base ${formatRate(input.scenarios.base.growthRate)}, toro ${formatRate(input.scenarios.bull.growthRate)}`,
   ].join(' · ');
 }
 

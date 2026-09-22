@@ -81,8 +81,9 @@ export function summarizeTimeline(
   horizonYears = 50,
 ): FireTimeline {
   const years = projection.baseYearsToFIRE;
-  // `yearlyData[years − 1]` is the FIRE year's row: the walk pushes one row per year, from 1.
-  const fireYearRow = years !== null ? projection.yearlyData[years - 1] : undefined;
+  // `yearlyData[years − 1]` is the FIRE year's row: the walk pushes one row per year, from 1. A
+  // target reached today (years 0) has no row, and its expenses at FIRE are today's.
+  const fireYearRow = years !== null && years > 0 ? projection.yearlyData[years - 1] : undefined;
   return {
     yearsToFire: years,
     calendarYear: years !== null ? currentYear + years : null,
@@ -231,6 +232,8 @@ export interface FanVerdict {
   probabilityPct: number;
   /** True when the year is the simulation's horizon rather than the deterministic FIRE year. */
   onHorizon: boolean;
+  /** True when the deterministic walk is FIRE at year 0: every path starts past the target. */
+  atStart: boolean;
 }
 
 /**
@@ -250,6 +253,7 @@ export function resolveFanVerdict(
     calendarYear: startCalendarYear + index,
     probabilityPct: Math.round(result.percentiles[index]?.fireProbability ?? 0),
     onHorizon,
+    atStart: deterministicBaseYears === 0,
   };
 }
 
