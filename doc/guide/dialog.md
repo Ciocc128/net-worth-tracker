@@ -99,7 +99,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   it lands on `body` because the opener has unmounted. A dialog above 768 focuses itself as Radix does. Not
   changed: `autoFocus` on a phone opens the keyboard on every form's first field, which is why vaul ships it off —
   it is a decision for all 40 mounts at once, not a polish.
-  NO two-click delete auto-disarms on a timer any more: the last one (`AssistantThreadList`, kept BY DESIGN while
+  NO two-click confirm auto-disarms on a timer any more — that was not true until 2026-09-22, when Impostazioni's two
+  (the category delete and the dividend sync, 3 s each) went to `useArmedDelete` with its revoke of an access. Before
+  them the last one (`AssistantThreadList`, kept BY DESIGN while
   it lived on the rows of a side sheet) went to `useArmedDelete` on 2026-09-18, the day the sheet became a modal —
   inside a modal that timer was also a trap, Escape closing it with the row armed. The others lost theirs on 2026-09-14:
   Patrimonio's three (`AssetRow`, `StrumentiTile`, `CashAccountDialog` — the last one a MODAL whose armed state the

@@ -13,26 +13,22 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **175 files / 4126 tests** green + **30 Playwright spec files** (98 tests, incl. 5 auth setups; last full run 2026-09-22, 3,5 min: 97 green and the known-intermittent `modal.origin` red, green alone right after). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-22): **FIRE › Calcolatore — impeccable critique (27/40) chiusa.** La pagina si contraddiceva nel
-  momento più importante: sotto «Sei già FIRE.» la tessera Scenari stampava «2027 · tra 1 anno» tre volte e il
-  ventaglio «entro il 2027: 100%», perché ENTRAMBE le camminate (`calculateFIREProjection`, `runAccumulationSimulation`)
-  testavano il traguardo solo dall'anno 1. **L'anno 0 è un anno**: 0 è una parola («oggi · già raggiunto», il footer
-  del ventaglio «FIRE già raggiunto oggi…», nessun marker sul grafico); What If lo aveva già rattoppato a valle. **Le
-  tre legende erano `<Legend>` di Recharts** (3,11 e 3,77:1) e l'aria-label prometteva «Orso (rosso)» su un tema che lo
-  dipinge verde: ora `SeriesLegend`, target in inchiostro neutro tratteggiato, nomi senza tinte, un marker per anno
-  distinto («FIRE Base · Toro» invece di tre etichette sovrapposte). **Lo stato vuoto perdeva la griglia**: ora le
-  quattro tessere restano con la loro domanda e il Traguardo porta l'UNICA azione (`describeEmptyTiles`); Reddito
-  passivo risponde davvero quando mancano solo le spese. **La griglia**: Base di calcolo finiva 190 px sopra il suo
-  footer; la forma scelta al menu (Base 3 | Reddito 4) spostava il vuoto in Reddito (173 px, misurato) — Base prende
-  la prima riga da sola, larga 7 col vincolo accanto alle righe (`@container`), Reddito 4 e Scenari 3 la seconda (vuoto
-  residuo 40 px). Didascalie `/70` (2,60:1) a inchiostro pieno; `850k €` al posto di `€850k` su ogni asse dell'app;
-  tooltip senza centesimi; `aria-invalid` sui campi Parametri; chip «del numero FIRE» e `aria-valuetext`; il confetti
-  (l'ultimo dell'app, cinque hex fuori tema) è andato con `canvas-confetti`. **Verifica**: `tsc`, lint 0, Vitest 4126
-  nei due fusi, Playwright 97/98 in suite (il rosso è `modal.origin`, l'intermittente noto, verde da solo subito dopo),
-  `e2e/fire.degraded.spec.ts` nuova e vista rossa senza il link; quattro test Vitest visti rossi col motore vecchio.
-  Evidenza in browser da Playwright (estensione non connessa): overflow 0 a 1440 e 390, zero `.recharts-legend-wrapper`.
-  doc/guide/fire.md.
+- `tsc` clean; **176 files / 4141 tests** green + **32 Playwright spec files** (107 tests, incl. 5 auth setups; last full run 2026-09-22, 3,5 min: 107 green, `modal.origin` included). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-22): **Impostazioni — impeccable critique (23/40, la prima della pagina) chiusa.** Una lettura
+  fallita diventava «niente»: la tessera Condivisione diceva «Nessun accesso condiviso» su una lista mai letta,
+  categorie e conti (questi senza `catch`) dicevano «creane una»; ora `ErrorNotice` con «Riprova» su Condivisione,
+  Categorie, Conti di default, Entrate da dividendi. **Un solo «Salva» per sei tab, quindi lo stato è PER TAB**: un
+  punto sul tab (`TabDef.unsaved`), una barra sticky in fondo che li nomina con «Annulla modifiche» (rilettura, non
+  copia) e `beforeunload`. **Lo `sticky` del `PageHeader` mobile non ha MAI funzionato, su nessuna pagina** (stava su
+  un figlio alto quanto il suo contenitore): ora è il contenitore, opaco. Età e risk-free nella tessera Auto-calcolo
+  (lo switch era bloccato da un campo di un altro tab); le regole dei target in `allocationTargetValidation.ts`, che
+  dicono DOVE falliscono: la somma sulla riga della classe anche chiusa, «Salva» apre il gruppo e mette il fuoco sul
+  campo; `validateSpecificAssets` (messaggi INGLESI in un toast) eliminato. Tre conferme a due tocchi su
+  `useArmedDelete` (due avevano un timer di 3 s), la revoca di un accesso ora conferma. **Verifica**: `tsc`, lint 0,
+  Vitest 4141 nei due fusi, Playwright 107/107; `e2e/settings{,.mobile}.spec.ts` nuove, nessun test scrive (confronto
+  dell'`updateTime` del documento), ogni guardia vista rossa rompendo una cosa alla volta (7 su 7). Evidenza in
+  browser da Playwright (estensione non connessa); sonda sul mirror (nessun tab «non salvato» al caricamento, nessuna
+  lettura fallita, overflow 0 a 1440 e 390) e giro dell'owner sul mirror: ok (2026-09-23). doc/guide/impostazioni.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -63,7 +59,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **FIRE**: Calcolatore, Coast FIRE, What If, Monte Carlo and Obiettivi, one verdict each. doc/guide/fire.md (+ fire-coast, fire-what-if, fire-monte-carlo, fire-obiettivi).
 - **Assistente AI**: the verdict IS the context; SSE streaming, memory, goal proposals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
 - **Hall of Fame**: «quali sono stati i mesi e gli anni migliori?», no axis. doc/guide/hall-of-fame.md.
-- **Impostazioni**: six tabs, no verdict, one Save per page; the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
+- **Impostazioni**: six tabs, no verdict, one Save per page with the save state per tab (a dot, a bottom bar, «Annulla modifiche»); the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
 - **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
 - **Dialogs and forms**: 40 modals on one vocabulary in `ResponsiveModal`; row deletes arm in the row. doc/guide/dialog.md; DESIGN → The Modal-Is-A-Tile Rule.
 - **Periodic emails · budget email · PDF export**: rule-generated verdict first, AI comment second; every hex from `printTokens.ts`. doc/guide/email-pdf.md; DESIGN → The Out-Of-DOM Token Rule.
@@ -97,6 +93,9 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
   so not yet fixed — re-read this before trusting a single red run of it.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
+- **Two shared primitives stay below 44px on touch, on every page**: the `PageTabBar` pill below 1440 (inactive tabs
+  38×32, icon only) and the `Switch` (36×20; its row's `Label` is clickable, the thumb alone is not). Measured on
+  Impostazioni, 2026-09-22; left alone there because enlarging either changes every page at once.
 
 ## Key Files
 Cross-cutting entry points only: each area's files open its guide (`doc/guide/<tema>.md` § Files), every pure module has
