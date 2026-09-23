@@ -125,7 +125,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Every FIRE tab reads and writes with `ownerId`, never `user.uid`** (fixed 2026-08-25 on all four tabs: Calcolatore,
   Coast, What If, Monte Carlo — Obiettivi already did). The React Query keys were namespaced by `ownerId` while the
   functions took `user!.uid`, so a guest on a shared account saw their OWN (empty) FIRE data and saved settings on
-  their own doc. `enabled: !!user && !!ownerId` gates every query; `ownerId!` is safe past that gate.
+  their own doc. `enabled: !!user && !!ownerId` gates every query; `ownerId!` is safe past that gate. **The Coast
+  form's hook was the one WRITE that sweep missed** (`useCoastFireSettingsDraft`, until 2026-09-23): it took both ids
+  and wrote under the viewer's — a hook that takes a `userId` beside an `ownerId` is the tell; it now takes `ownerId`
+  alone (doc/guide/fire-coast.md).
 - **`PageContainer` (1920px) on every FIRE tab** (Obiettivi joined on 2026-08-26, the last of the five; the `width` prop went on 2026-09-06). Every
   propagated tab loads as `TileGridSkeleton` with its own cells (`FireCalculatorSkeleton`, `GoalsSkeleton`,
   `WhatIfAnalysisSkeleton` and `MonteCarloSkeleton` are gone).

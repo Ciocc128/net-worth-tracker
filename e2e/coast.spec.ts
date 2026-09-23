@@ -38,14 +38,29 @@ test('the verdict answers the question and the Traguardo carries a formatted sho
   await expect(verdict).toContainText('arriveresti a 60 anni');
   // The bridge model is on in the fixture: the lock sentence closes the verdict.
   await expect(verdict).toContainText('restano bloccati fino al');
+  // «Non ancora» has a «quando» (2026-09-23): the base seed records income, so the Calcolatore's
+  // savings are positive and the pace clause names its basis and a year (or the target age).
+  await expect(verdict).toContainText(/Al ritmo attuale, (\d{1,3}(\.\d{3})+|\d{1,4})[\s ]*€ l'anno di risparmio, (lo raggiungi nel \d{4}, a \d{2} anni|non lo raggiungi prima dei 60 anni)\./);
+  // The state pensions are the Afflussi tile's, not the verdict's.
+  await expect(verdict).not.toContainText('coprono insieme');
 
   const traguardo = page.getByRole('region', { name: 'Traguardo Coast FIRE' });
   await expect(traguardo).toBeVisible();
   // The hero is the amount right under its sub-eyebrow — the shortfall, or the surplus.
   const hero = traguardo.locator('p:has-text("numero Coast FIRE") + span').first();
   await expect(hero).toHaveText(EURO_COMPACT);
-  await expect(traguardo.getByRole('progressbar', { name: 'Progresso verso il numero Coast FIRE' })).toBeVisible();
-  await expect(traguardo.locator('[role="img"][aria-label*="proiezione Coast FIRE"]')).toBeVisible({ timeout: 15_000 });
+  const progressbar = traguardo.getByRole('progressbar', { name: 'Progresso verso il numero Coast FIRE' });
+  await expect(progressbar).toBeVisible();
+  // The bar caps at 100; the text says the true share, in the it-IT comma.
+  await expect(progressbar).toHaveAttribute('aria-valuetext', /^\d{1,3},\d% del numero Coast FIRE$/);
+  const chart = traguardo.locator('[role="img"][aria-label*="proiezione Coast FIRE"]');
+  await expect(chart).toBeVisible({ timeout: 15_000 });
+  // The accessible name names no hue: on a themed palette the bear is not red (2026-09-23).
+  await expect(chart).not.toHaveAttribute('aria-label', /rosso|verde/);
+  // The legend is the app's (`SeriesLegend`, neutral ink), with the dotted pace series in it.
+  await expect(traguardo.getByText('Capitale richiesto al target', { exact: true })).toBeVisible();
+  await expect(traguardo.getByText('Base con il risparmio attuale', { exact: true })).toBeVisible();
+  await expect(traguardo.locator('.recharts-legend-wrapper')).toHaveCount(0);
 });
 
 test('the Afflussi tile lists both state pensions and the fund unlock, in calendar order', async ({ page }) => {
@@ -150,6 +165,8 @@ test('the projection tooltip names the pension-fund step at the unlock year', as
     const text = (await tooltip.textContent()) ?? '';
     if (text.includes(`Anno ${unlockYear}`)) {
       expect(text).toContain('Sblocco del fondo pensione');
+      // Whole euros on a thirty-year projection: no cents anywhere in the tooltip (2026-09-23).
+      expect(text).not.toMatch(/,\d\d[\s ]*€/);
       noteFound = true;
     }
   }

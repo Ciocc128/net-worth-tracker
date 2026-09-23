@@ -13,22 +13,28 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **176 files / 4141 tests** green + **32 Playwright spec files** (107 tests, incl. 5 auth setups; last full run 2026-09-22, 3,5 min: 107 green, `modal.origin` included). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-22): **Impostazioni — impeccable critique (23/40, la prima della pagina) chiusa.** Una lettura
-  fallita diventava «niente»: la tessera Condivisione diceva «Nessun accesso condiviso» su una lista mai letta,
-  categorie e conti (questi senza `catch`) dicevano «creane una»; ora `ErrorNotice` con «Riprova» su Condivisione,
-  Categorie, Conti di default, Entrate da dividendi. **Un solo «Salva» per sei tab, quindi lo stato è PER TAB**: un
-  punto sul tab (`TabDef.unsaved`), una barra sticky in fondo che li nomina con «Annulla modifiche» (rilettura, non
-  copia) e `beforeunload`. **Lo `sticky` del `PageHeader` mobile non ha MAI funzionato, su nessuna pagina** (stava su
-  un figlio alto quanto il suo contenitore): ora è il contenitore, opaco. Età e risk-free nella tessera Auto-calcolo
-  (lo switch era bloccato da un campo di un altro tab); le regole dei target in `allocationTargetValidation.ts`, che
-  dicono DOVE falliscono: la somma sulla riga della classe anche chiusa, «Salva» apre il gruppo e mette il fuoco sul
-  campo; `validateSpecificAssets` (messaggi INGLESI in un toast) eliminato. Tre conferme a due tocchi su
-  `useArmedDelete` (due avevano un timer di 3 s), la revoca di un accesso ora conferma. **Verifica**: `tsc`, lint 0,
-  Vitest 4141 nei due fusi, Playwright 107/107; `e2e/settings{,.mobile}.spec.ts` nuove, nessun test scrive (confronto
-  dell'`updateTime` del documento), ogni guardia vista rossa rompendo una cosa alla volta (7 su 7). Evidenza in
-  browser da Playwright (estensione non connessa); sonda sul mirror (nessun tab «non salvato» al caricamento, nessuna
-  lettura fallita, overflow 0 a 1440 e 390) e giro dell'owner sul mirror: ok (2026-09-23). doc/guide/impostazioni.md.
+- `tsc` clean; **176 files / 4147 tests** green + **33 Playwright spec files** (108 tests, incl. 5 auth setups; last full run 2026-09-23, 3,5 min: 108 green, `modal.origin` included). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-23): **FIRE › Coast FIRE — impeccable critique (27/40, la prima del tab) chiusa.** **P0: il «Salva
+  ipotesi» di un co-owner scriveva sul SUO documento** (`useCoastFireSettingsDraft` prendeva `userId` come bersaglio e
+  `ownerId` come chiave di cache: copia delle impostazioni dell'owner sul doc del viewer, rilettura di quello dell'owner
+  intatto, toast di successo) — l'unica scrittura FIRE sfuggita al giro del 25/08; ora l'hook prende `ownerId` e basta.
+  **«Non ancora» ha un «quando»** (`resolveCoastPace`): il risparmio del Calcolatore (stessa query key) sommato alla
+  serie base, il primo anno in cui supera il numero Coast di QUELL'anno, poi «coasta» e atterra sul target per
+  costruzione — nel verdetto («Al ritmo attuale, X l'anno di risparmio, lo raggiungi nel 2031, a 40 anni» / «non lo
+  raggiungi prima dei 60 anni»), come serie punteggiata e marcatore sul grafico, nel footer; senza risparmio la clausola
+  è assente. Le pensioni restano SOLO negli Afflussi (annue). Grafico allineato al Calcolatore (`SeriesLegend`, nome
+  senza tinte, euro interi, target neutro, `aria-valuetext`); lo stato vuoto tiene le tre tessere con UNA azione (link a
+  Patrimonio o bottone che apre le Ipotesi sul campo mancante); `SettledValue` atterra sul primo valore
+  (`landFirstValue` in `useCountUp`, vale anche per il Calcolatore); didascalie `/70` (2,60:1) a inchiostro pieno,
+  metodi dietro «Come si calcola»; Ipotesi a due colonne ad altezza naturale (vuoti 127 e 251 px → ≤ 1), controlli
+  44 px sul tocco, `aria-invalid` sulle età. **Verifica**: `tsc`, lint 0, Vitest 4147 nei due fusi (6 test nuovi,
+  falsificati uno alla volta — uno è rimasto verde e l'asserzione inerte è stata sostituita), Playwright
+  108/108 (`e2e/coast.degraded.spec.ts` nuova, entrambe le spec viste rosse); sonda Playwright sul dev server
+  (overflow 0, contrasto solo il 4,38 del token trasversale, target piccoli solo lo Switch); il P0 provato sugli
+  emulatori con un grant e una seconda identità (doc dell'owner cambiato, doc del viewer assente; rosso con `user.uid`).
+  Estensione Chrome non connessa: evidenza di Playwright. Giro dell'owner sul mirror (verdetto con il ritmo e
+  l'anno, punteggiata e marcatore, Ipotesi a due colonne, «Come si calcola», telefono): ok (2026-09-23).
+  doc/guide/fire-coast.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
