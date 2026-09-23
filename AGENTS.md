@@ -546,7 +546,9 @@ file used to carry.
   `PageHeader`, `page-main` on the layout's `<main>`; a `forceMount` tab panel is `display: none` and does not count.
   Do not name the tile grid — several pages render more than one.
 - `useCountUp` always with `once: true`, called **before** any conditional early return and unconditionally for both
-  branches of a mode switch; it has **no `enabled` option**, so gate the display in JSX. **`layout="position"`, not bare
+  branches of a mode switch; it has **no `enabled` option**, so gate the display in JSX. **A `fromPrevious` count-up
+  passes `landFirstValue`** (2026-09-23): a figure that settles between previews has no previous value on mount, and a
+  count from zero there paints «0 €» under a track or a chip already at its share — two readings of one figure. **`layout="position"`, not bare
   `layout`, when a Framer parent wraps a Radix `CollapsibleContent`** — bare `layout` stretches the trigger text.
 - **Collapsible technique, by content shape:** nested rows expanding into sub-rows → pure CSS `grid-rows-[0fr] →
   grid-rows-[1fr]` with an `overflow-hidden` child and `inert` on the closed wrapper (Framer + `height:'auto'` left

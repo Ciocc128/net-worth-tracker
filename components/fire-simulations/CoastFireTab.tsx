@@ -5,9 +5,10 @@
  *
  * The tab answers «posso smettere di versare?» before it shows a number: a rule-generated
  * verdict (`buildCoastVerdict` in lib/utils/coastFireView.ts) names the gap to the Coast number
- * of today, what the free capital becomes at the target age against what is required, the state
- * pensions' share of the expenses and — with the bridge model on — the locked fund, over a
- * 12-column grid of tiles that each answer one question with a reading line above their figures.
+ * of today, what the free capital becomes at the target age against what is required, the year
+ * the CURRENT savings pace gets there (2026-09-23: «non ancora» had no «quando») and — with the
+ * bridge model on — the locked fund, over a 12-column grid of tiles that each answer one
+ * question with a reading line above their figures.
  *
  *   Desktop (12 col): Traguardo(5, 2 rows) | Afflussi(7)
  *                                          | Scenari(7)
@@ -21,23 +22,31 @@
  * The page has NO period axis — a Coast plan is read today — and no control of its own: the
  * pension-lock switch is the Calcolatore's (Base di calcolo) and governs the WHOLE FIRE page.
  *
- * This file is the ORCHESTRATOR: the three queries, the projection, and the summaries the tiles
+ * This file is the ORCHESTRATOR: the four queries, the projection, and the summaries the tiles
  * read. The form lives in `useCoastFireSettingsDraft`, the numbers and the words in
  * `lib/utils/coastFireView.ts`, the math in `fireService` — where it already was, unchanged.
  * The tab computes nothing: a figure that cannot be pointed at inside a `CoastFIREScenarioMetrics`
- * (or the lock state) does not belong here.
+ * (or the lock state, or the savings pace built on the projection's own series) does not belong
+ * here.
  *
  * The state-pension inputs are intentionally scoped to Coast FIRE only: they affect the
  * retirement-phase portfolio need, not the classic FIRE tab.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { useCoastFireSettingsDraft } from '@/lib/hooks/useCoastFireSettingsDraft';
-import { calculateCoastFIREProjection, getAnnualExpenses, getDefaultScenarios, type PensionCapitalInflowToday } from '@/lib/services/fireService';
+import {
+  calculateCoastFIREProjection,
+  getAnnualCashflowData,
+  getAnnualExpenses,
+  getDefaultScenarios,
+  type PensionCapitalInflowToday,
+} from '@/lib/services/fireService';
 import { calculateAssetValue, calculateFIRENetWorth, calculateLiquidFIRENetWorth, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
@@ -49,8 +58,11 @@ import {
   buildCoastInflowEvents,
   buildCoastVerdict,
   COAST_INFLOWS_FOOTER,
+  COAST_INFLOWS_METHOD,
   COAST_SCENARIOS_FOOTER,
+  COAST_SCENARIOS_METHOD,
   describeCoastDettaglio,
+  describeCoastEmptyTiles,
   describeCoastInflows,
   describeCoastScenarios,
   describeCoastTarget,
@@ -62,7 +74,9 @@ import {
   describeTargetAndSteadyState,
   getPensionConfigurationState,
   resolveCoastBridgeYears,
+  resolveCoastEmptyKind,
   resolveCoastIncompleteReason,
+  resolveCoastPace,
   sortPensionBreakdown,
   summarizeCoastPensions,
   summarizeCoastScenarios,
@@ -72,7 +86,8 @@ import type { Settings } from '@/types/settings';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
-import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
+import { EmptyState } from '@/components/ui/empty-state';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
@@ -89,6 +104,20 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 7, lines: 5 },
   { span: 7, lines: 4 },
 ];
+
+/** The three cells of the grid: one class per tile, shared by the data and the empty branches. */
+const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
+/* Tablet (768-1439): every tile full width, in the phone's order. */
+const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
+const AFFLUSSI_CELL = cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+
+/** The one action of the empty state: a link (or a button) the size of a touch target, in the tile's own ink. */
+const EMPTY_ACTION_CLASS =
+  'inline-flex min-h-8 items-center text-[13px] text-foreground underline underline-offset-2 hover:decoration-2 [@media(pointer:coarse)]:min-h-11';
+
+/** How long the Collapsible takes to mount its content before a field inside it can take focus. */
+const IPOTESI_OPEN_FOCUS_DELAY_MS = 60;
 
 export function CoastFireTab() {
   const { user } = useAuth();
@@ -118,7 +147,17 @@ export function CoastFireTab() {
     staleTime: 300000,
   });
 
-  const draft = useCoastFireSettingsDraft({ settings, isLoadingSettings, userId: user?.uid, ownerId });
+  // The Calcolatore's savings — the SAME query key, so the two tabs read one figure — is the
+  // pace the verdict names. It rejects on a failed read (never a zeroed payload), so the
+  // failure reaches the notice below like the other three.
+  const { data: cashflowData, isLoading: isLoadingCashflow, isError: cashflowError } = useQuery({
+    queryKey: ['annualCashflowData', ownerId],
+    queryFn: () => getAnnualCashflowData(ownerId!),
+    enabled: !!user && !!ownerId,
+    staleTime: 300000,
+  });
+
+  const draft = useCoastFireSettingsDraft({ settings, isLoadingSettings, ownerId });
 
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
@@ -190,11 +229,16 @@ export function CoastFireTab() {
         : null,
     [baseScenario, currentNetWorth, liquidNetWorth, currentAge, resolvedRetirementAge, isBridge],
   );
+  const annualSavings = cashflowData?.annualSavings;
+  const pace = useMemo(
+    () => (coastProjection && baseScenario && target ? resolveCoastPace(coastProjection.projectionData, annualSavings, baseScenario.realReturnRate, target.reached) : null),
+    [coastProjection, baseScenario, target, annualSavings],
+  );
   const pensions = useMemo(
     () => (baseScenario ? summarizeCoastPensions(baseScenario, currentYear) : { count: 0, entries: [], annualNetReal: 0, monthlyNetReal: 0, annualNetRealAtRetirement: 0 }),
     [baseScenario, currentYear],
   );
-  const scenarioRows = useMemo(() => (coastProjection ? summarizeCoastScenarios(coastProjection.scenarios, currentNetWorth) : []), [coastProjection, currentNetWorth]);
+  const scenarioRows = useMemo(() => (coastProjection ? summarizeCoastScenarios(coastProjection.scenarios, scenarios, currentNetWorth) : []), [coastProjection, scenarios, currentNetWorth]);
   const bridgeYears = baseScenario ? resolveCoastBridgeYears(baseScenario, resolvedRetirementAge) : 0;
   const sortedPensionBreakdown = useMemo(() => (baseScenario ? sortPensionBreakdown(baseScenario.pensionBreakdown) : []), [baseScenario]);
   const inflowEvents = useMemo(
@@ -202,10 +246,11 @@ export function CoastFireTab() {
     [sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge],
   );
   const pensionConfigurationState = getPensionConfigurationState(previewPensions, draft.pensionIssues);
+  const emptyKind = resolveCoastEmptyKind(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
   const incompleteReason = resolveCoastIncompleteReason(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
-  const verdict = useMemo(() => buildCoastVerdict({ target, incompleteReason, pensions, lock }), [target, incompleteReason, pensions, lock]);
+  const verdict = useMemo(() => buildCoastVerdict({ target, incompleteReason, pace, lock }), [target, incompleteReason, pace, lock]);
   const ipotesiDescription = describeIpotesi({
     currentAge,
     retirementAge,
@@ -249,22 +294,29 @@ export function CoastFireTab() {
     return () => clearTimeout(timer);
   }, [hasUnsavedChanges, pensionConfigurationState]);
 
+  /** The empty state's action on a field of the Ipotesi: open the disclosure, then focus the field it names. */
+  const openIpotesiAt = (fieldId: string) => {
+    setIpotesiOpen(true);
+    window.setTimeout(() => document.getElementById(fieldId)?.focus(), IPOTESI_OPEN_FOCUS_DELAY_MS);
+  };
+
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  if (resolveSurfaceState({ loading: isLoadingSettings || isLoadingAssets || isLoadingAnnualExpenses, failed: settingsError || assetsError || expensesError }) === 'failed') {
+  const isLoading = isLoadingSettings || isLoadingAssets || isLoadingAnnualExpenses || isLoadingCashflow;
+  if (resolveSurfaceState({ loading: isLoading, failed: settingsError || assetsError || expensesError || cashflowError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
         notice={describeReadFailure({
-          consequence: 'Patrimonio, ipotesi e spese annue non sono stati letti: senza di essi non si sa se puoi smettere di versare.',
+          consequence: 'Patrimonio, ipotesi, spese annue e risparmio non sono stati letti: senza di essi non si sa se puoi smettere di versare.',
           untouched: 'Le ipotesi salvate non sono state toccate.',
         })}
       />
     );
   }
 
-  if (isLoadingSettings || isLoadingAssets || isLoadingAnnualExpenses) {
+  if (isLoading) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
@@ -284,12 +336,45 @@ export function CoastFireTab() {
     />
   );
 
-  // ─── Empty state: the verdict says what is missing, the Ipotesi stay reachable ─
+  // ─── Nothing recorded: the grid stays, every tile keeps its question ──────────
+  // The Absence-Has-Three-Names Rule: the eyebrow must stay visible precisely when the tile
+  // cannot answer, and the ONE action belongs to the tile that owns the missing thing (the
+  // Traguardo) — a page for the patrimonio, the Ipotesi field for what the form owns. Until
+  // 2026-09-23 this state dropped the three tiles and linked nowhere.
   if (!coastProjection || !baseScenario || !target) {
+    const empty = describeCoastEmptyTiles(emptyKind ?? 'no-net-worth');
+    const emptyAction = empty.action;
+    const action =
+      'href' in emptyAction ? (
+        <Link href={emptyAction.href} className={EMPTY_ACTION_CLASS}>
+          {emptyAction.label}
+        </Link>
+      ) : (
+        <button type="button" onClick={() => openIpotesiAt(emptyAction.fieldId)} className={EMPTY_ACTION_CLASS}>
+          {emptyAction.label}
+        </button>
+      );
     return (
       <div className="space-y-4">
         <div className="pt-1">
           <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
+        </div>
+        <div className={GRID_CLASS}>
+          <div className={TRAGUARDO_CELL}>
+            <Tile eyebrow="Traguardo" ariaLabel="Traguardo Coast FIRE">
+              <EmptyState className="mt-2" message={empty.traguardo} action={action} />
+            </Tile>
+          </div>
+          <div className={AFFLUSSI_CELL}>
+            <Tile eyebrow="Afflussi" ariaLabel="Afflussi già considerati">
+              <EmptyState className="mt-2" message={empty.afflussi} />
+            </Tile>
+          </div>
+          <div className={SCENARI_CELL}>
+            <Tile eyebrow="Scenari" ariaLabel="Scenari Coast FIRE">
+              <EmptyState className="mt-2" message={empty.scenari} />
+            </Tile>
+          </div>
         </div>
         {ipotesi}
       </div>
@@ -304,9 +389,8 @@ export function CoastFireTab() {
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
       </div>
 
-      {/* Tablet (768-1439): every tile full width, in the phone's order. */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
+      <div className={GRID_CLASS}>
+        <div className={TRAGUARDO_CELL}>
           <CoastTraguardoTile
             reading={describeCoastTarget(target)}
             target={target}
@@ -317,6 +401,7 @@ export function CoastFireTab() {
                 height="100%"
                 marginLeft={0}
                 pensionUnlockCalendarYear={lock.unlockCalendarYear}
+                pace={pace}
               />
             }
             footer={describeCoastTargetFooter({
@@ -325,16 +410,22 @@ export function CoastFireTab() {
               lastTargetOnPlot: lastPoint?.fireNumberTarget ?? baseScenario.retirementCapitalRequired,
               lock,
               lastProjectedYear: lastPoint?.calendarYear ?? currentYear,
+              pace,
             })}
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
-          <AfflussiTile reading={describeCoastInflows(inflowEvents, pensions, resolvedRetirementAge)} events={inflowEvents} footer={COAST_INFLOWS_FOOTER} />
+        <div className={AFFLUSSI_CELL}>
+          <AfflussiTile
+            reading={describeCoastInflows(inflowEvents, pensions, resolvedRetirementAge)}
+            events={inflowEvents}
+            footer={COAST_INFLOWS_FOOTER}
+            method={COAST_INFLOWS_METHOD}
+          />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7')}>
-          <CoastScenariTile reading={describeCoastScenarios(scenarioRows)} rows={scenarioRows} footer={COAST_SCENARIOS_FOOTER} />
+        <div className={SCENARI_CELL}>
+          <CoastScenariTile reading={describeCoastScenarios(scenarioRows)} rows={scenarioRows} footer={COAST_SCENARIOS_FOOTER} method={COAST_SCENARIOS_METHOD} />
         </div>
       </div>
 
