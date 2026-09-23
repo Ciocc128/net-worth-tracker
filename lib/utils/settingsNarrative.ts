@@ -22,6 +22,9 @@ import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/pensionUnlock';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import type { ExpenseType } from '@/types/expenses';
+import type { AssetClass } from '@/types/assets';
+import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
+import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
 
@@ -55,44 +58,19 @@ function monthYearInSentence(isoMonth: string): string {
   return `${MONTH_NAMES[month - 1].toLowerCase()} ${year}`;
 }
 
+// ─── The page's save state ────────────────────────────────────────────────────
+
+/**
+ * The line of the unsaved-changes bar: WHICH tabs hold edits «Salva» has not written, in the
+ * tabs' own labels and in the order the tab bar shows them. `null` when nothing is pending — the
+ * bar leaves the page instead of saying «tutto salvato», which the absence already says.
+ */
+export function describeUnsavedChanges(tabLabels: string[]): string | null {
+  if (tabLabels.length === 0) return null;
+  return `Modifiche non salvate in ${joinNames(tabLabels)}`;
+}
+
 // ─── Preferenze ───────────────────────────────────────────────────────────────
-
-export interface ProfileInput {
-  userAge?: number;
-  riskFreeRate?: number;
-}
-
-/** Profilo — age and risk-free rate, with what they feed downstream. */
-export function describeProfile({ userAge, riskFreeRate }: ProfileInput): Narrative {
-  if (userAge !== undefined && riskFreeRate !== undefined) {
-    return [
-      prose('Hai '),
-      figure(String(userAge)),
-      prose(' anni e un risk-free al '),
-      figure(pctTrim(riskFreeRate)),
-      prose(": guidano l'auto-calcolo dei target e le metriche di rischio di Rendimenti."),
-    ];
-  }
-  if (userAge !== undefined) {
-    return [
-      prose('Hai '),
-      figure(String(userAge)),
-      prose(" anni; senza il risk-free rate l'auto-calcolo dei target non parte."),
-    ];
-  }
-  if (riskFreeRate !== undefined) {
-    return [
-      prose('Risk-free al '),
-      figure(pctTrim(riskFreeRate)),
-      prose("; senza l'età l'auto-calcolo dei target non parte."),
-    ];
-  }
-  return [
-    prose(
-      "Età e risk-free rate non sono impostati: servono all'auto-calcolo dei target e alle metriche di rischio di Rendimenti."
-    ),
-  ];
-}
 
 export interface PerformanceBaseInput {
   includesPensionFunds: boolean;
@@ -278,6 +256,12 @@ export interface CashflowSettingsInput {
   // toggle is on and nothing happens, so the reading has to say which input is missing
   // rather than promising a division the page cannot compute.
   familyMemberCount: number;
+  /**
+   * The expense categories were NOT read (a failed fetch): an empty `laborCategoryNames` then
+   * means «unknown», not «none», and the labor clause says so instead of claiming no category
+   * counts (DESIGN.md → The Absence-Has-Three-Names Rule).
+   */
+  categoriesUnread?: boolean;
 }
 
 /** Cashflow — labor income categories, the history floor, cost centers, the household split. */
@@ -287,9 +271,12 @@ export function describeCashflowSettings({
   costCentersEnabled,
   expenseSplitEnabled,
   familyMemberCount,
+  categoriesUnread = false,
 }: CashflowSettingsInput): Narrative {
   const segments: Narrative = [];
-  if (laborCategoryNames.length === 0) {
+  if (categoriesUnread) {
+    segments.push(prose('Le categorie non sono state lette: il reddito da lavoro scelto non si può mostrare'));
+  } else if (laborCategoryNames.length === 0) {
     segments.push(prose('Nessuna categoria conta come reddito da lavoro'));
   } else if (laborCategoryNames.length === 1) {
     segments.push(prose(`${laborCategoryNames[0]} conta come reddito da lavoro`));
@@ -474,28 +461,98 @@ export function describeAutoCalc(input: AutoCalcInput): Narrative {
       prose('.'),
     ];
   }
-  return [prose('Spento: i target sono manuali; per usare la formula servono età e risk-free rate nel Profilo.')];
+  // The age and the rate are typed in THIS tile (2026-09-22: they used to live in Preferenze ›
+  // Profilo, and the switch was disabled by a field on another tab), so the reading names the
+  // missing one instead of sending the reader elsewhere.
+  const missing =
+    input.userAge === undefined && input.riskFreeRate === undefined
+      ? "l'età e il risk-free rate"
+      : input.userAge === undefined
+        ? "l'età"
+        : 'il risk-free rate';
+  if (input.enabled) {
+    return [prose(`Attivo, ma manca ${missing}, qui sotto: finché non c'è, i target restano quelli scritti a mano.`)];
+  }
+  return [prose(`Spento: i target sono manuali; per usare la formula manca ${missing}, qui sotto.`)];
+}
+
+const classLabel = (assetClass: AssetClass): string => ASSET_CLASS_LABELS[assetClass] ?? assetClass;
+
+/**
+ * The first rule the target tree breaks (`findTargetProblem`), as the sentence the reader acts
+ * on: WHICH group, and what it adds up to — never «dati non validi». The same words go in the
+ * Target per classe reading and in the toast «Salva» raises, so the two cannot disagree.
+ */
+export function describeTargetProblem(problem: TargetProblem): Narrative {
+  switch (problem.kind) {
+    case 'total-below-100':
+      return [
+        prose('Le classi sommano '),
+        figure(pctTrim(problem.total)),
+        prose(': mancano '),
+        figure(numTrim(100 - problem.total)),
+        prose(' punti al '),
+        figure('100%'),
+        prose('.'),
+      ];
+    case 'sub-total':
+      return [
+        prose(`Le sottocategorie di ${classLabel(problem.assetClass)} sommano `),
+        figure(pctTrim(problem.total)),
+        prose(' invece del '),
+        figure('100%'),
+        prose('.'),
+      ];
+    case 'sub-name-duplicate':
+      return [prose(`Due sottocategorie di ${classLabel(problem.assetClass)} si chiamano «${problem.name}»: i nomi devono essere diversi.`)];
+    case 'specific-empty':
+      return [
+        prose(
+          `«${problem.subName}» (${classLabel(problem.assetClass)}) traccia asset specifici ma non ne ha nessuno: aggiungine uno o spegni il tracciamento.`
+        ),
+      ];
+    case 'specific-name-missing':
+      return [prose(`Un asset specifico di «${problem.subName}» (${classLabel(problem.assetClass)}) non ha nome.`)];
+    case 'specific-out-of-range':
+      return [
+        prose(`Un asset specifico di «${problem.subName}» (${classLabel(problem.assetClass)}) è fuori dall'intervallo `),
+        figure('0–100%'),
+        prose('.'),
+      ];
+    case 'specific-name-duplicate':
+      return [
+        prose(`Due asset specifici di «${problem.subName}» (${classLabel(problem.assetClass)}) si chiamano «${problem.name}».`),
+      ];
+    case 'specific-total':
+      return [
+        prose(`Gli asset specifici di «${problem.subName}» (${classLabel(problem.assetClass)}) sommano `),
+        figure(pctTrim(problem.total)),
+        prose(' invece del '),
+        figure('100%'),
+        prose('.'),
+      ];
+  }
 }
 
 export interface ClassTargetsInput {
   classCount: number;
   withSubcategories: number;
-  isValid: boolean;
+  /** The first broken rule of the tree, or null — it replaces the inventory line while it lasts. */
+  problem: TargetProblem | null;
 }
 
-/** Target per classe — the inventory line over the editable list. */
-export function describeClassTargets({ classCount, withSubcategories, isValid }: ClassTargetsInput): Narrative {
+/** Target per classe — the inventory line over the editable list, or the one thing blocking «Salva». */
+export function describeClassTargets({ classCount, withSubcategories, problem }: ClassTargetsInput): Narrative {
+  if (problem) {
+    return [...describeTargetProblem(problem), prose(' «Salva» ti porta lì e non scrive nulla finché non è corretto.')];
+  }
   const segments: Narrative = [figure(String(classCount)), prose(' classi, ')];
   if (withSubcategories === 0) {
-    segments.push(prose('nessuna con sotto-categorie'));
+    segments.push(prose('nessuna con sottocategorie'));
   } else {
-    segments.push(figure(String(withSubcategories)), prose(' con sotto-categorie'));
+    segments.push(figure(String(withSubcategories)), prose(' con sottocategorie'));
   }
-  if (isValid) {
-    segments.push(prose('; un totale sopra il '), figure('100%'), prose(' è la leva target.'));
-  } else {
-    segments.push(prose('; il totale è sotto il '), figure('100%'), prose(' e il salvataggio è bloccato.'));
-  }
+  segments.push(prose('; un totale sopra il '), figure('100%'), prose(' è la leva target.'));
   return segments;
 }
 
@@ -520,7 +577,7 @@ export function describeDefaultAccounts({ debitName, creditName }: DefaultAccoun
   if (creditName) {
     return [prose(`Le entrate arrivano su ${creditName}; nessun conto di prelievo predefinito.`)];
   }
-  return [prose('Nessun conto predefinito: il dialog delle spese parte senza conto.')];
+  return [prose('Nessun conto predefinito: il modulo delle spese parte senza conto.')];
 }
 
 export interface ExpenseCategoryCounts {
@@ -668,7 +725,7 @@ export interface SharingInput {
 /** Condivisione account — who sees what, in words. */
 export function describeSharing({ memberNames }: SharingInput): Narrative {
   if (memberNames.length === 0) {
-    return [prose('Nessun accesso condiviso: questi dati li vedi solo tu.')];
+    return [prose('Nessun accesso condiviso: il tuo account lo vedi solo tu.')];
   }
   if (memberNames.length === 1) {
     return [prose(`${memberNames[0]} vede e modifica tutto — spese, asset, dividendi — con le sue credenziali.`)];

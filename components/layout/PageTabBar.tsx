@@ -8,7 +8,20 @@ export type TabDef = {
   value: string;
   label: string;
   icon?: ElementType;
+  /**
+   * The tab holds edits the page has not saved: a dot beside the icon, and the words in the
+   * tab's accessible name. A page with ONE Save over several tabs (Impostazioni) needs it, or the
+   * reader cannot tell which of six tabs is holding the change.
+   */
+  unsaved?: boolean;
 };
+
+/** The dot of an `unsaved` tab — decoration, the name carries the words. */
+function UnsavedDot() {
+  return <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />;
+}
+
+const tabName = (label: string, unsaved?: boolean) => (unsaved ? `${label}, modifiche non salvate` : label);
 
 const SPRING = { type: 'spring', stiffness: 400, damping: 35 } as const;
 
@@ -62,7 +75,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
         aria-label={ariaLabel}
         className="desktop:hidden flex w-fit max-w-full mx-auto overflow-x-auto scrollbar-none bg-muted rounded-lg p-1 my-2"
       >
-        {tabs.map(({ value: tv, label, icon: Icon }) => {
+        {tabs.map(({ value: tv, label, icon: Icon, unsaved }) => {
           const isActive = value === tv;
           // Show label when active, or always when the tab has no icon
           const showLabel = isActive || !Icon;
@@ -74,7 +87,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
               role="tab"
               aria-selected={isActive}
               aria-controls={panelId(tv)}
-              aria-label={label}
+              aria-label={tabName(label, unsaved)}
               onClick={() => onValueChange(tv)}
               transition={SPRING}
               className={cn(
@@ -84,6 +97,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
             >
               {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
               {showLabel && <span>{label}</span>}
+              {unsaved && <UnsavedDot />}
               {isActive && (
                 <motion.div
                   layoutId={`${layoutId}-pill`}
@@ -105,7 +119,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
           className,
         )}
       >
-        {tabs.map(({ value: tv, label, icon: Icon }) => {
+        {tabs.map(({ value: tv, label, icon: Icon, unsaved }) => {
           const isActive = value === tv;
           return (
             <button
@@ -114,7 +128,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
               role="tab"
               aria-selected={isActive}
               aria-controls={panelId(tv)}
-              aria-label={label}
+              aria-label={tabName(label, unsaved)}
               onClick={() => onValueChange(tv)}
               className={cn(
                 'relative flex shrink-0 items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors whitespace-nowrap',
@@ -123,6 +137,7 @@ export function PageTabBar({ tabs, value, onValueChange, layoutId, ariaLabel, re
             >
               {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
               {label}
+              {unsaved && <UnsavedDot />}
               {isActive && (
                 <motion.div
                   layoutId={`${layoutId}-underline`}

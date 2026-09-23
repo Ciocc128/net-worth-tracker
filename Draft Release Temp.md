@@ -62,6 +62,8 @@
 
 - Added «Aggiorna valore» to Previdenza: the monthly overwrite of a pension fund's value from its statement now lives on the page — in the header beside «Registra versamento» and in the footer of «Il fondo oggi» — instead of in the asset form. The dialog states the trap before the field: «I 500 € versati questo mese sono già dentro l'estratto: non aggiungerli».
 
+- Added a save bar to Impostazioni: while any tab holds changes, a bar at the bottom of the page names them («Modifiche non salvate in Allocazione e Preferenze») with «Annulla modifiche» beside «Salva», and each tab with pending edits carries a dot. Reloading or closing the page with edits pending asks first; the old «Anteprima attiva» chip did not exist on a phone and never said which tab held the change.
+
 ## 🐛 Bug Fixes
 
 - Fixed the FIRE Calcolatore contradicting itself once you are FIRE: the verdict said «Sei già FIRE.» while the Scenari tile printed «2027 · tra 1 anno» three times and the Ventaglio «Probabilità di FIRE entro il 2027: 100%». The projection only ever tested the target from next year; it now tests today first, in every scenario and in every simulated path, so «già raggiunto» replaces «tra 1 anno» wherever it applies (What If already read it this way).
@@ -128,6 +130,7 @@
 - Fixed the «Spese in comune» section of the periodic email, where the figure per person was printed in plain black whatever it said: somebody who came up short looked exactly like somebody who did not. It now carries the same green or red as the page, on what has actually been spent, and says underneath where the calendar takes it.
 - Fixed the period selector on every page that uses it: on a phone it was 36 pixels tall and the month arrows inside it were 28, both under the size a thumb needs; they are now 44.
 - Fixed the accessible name of every tabbed page — Cashflow, Impostazioni, FIRE e Simulazioni: a screen reader landing on a section heard nothing, because each panel was named after a control that does not exist in the page.
+- Fixed the compact page header on phones, which was meant to stay at the top while the page scrolls and never did, on every page: «Salva» and the other header actions scrolled away with the content. It now stays, on an opaque background.
 - Fixed the windows that open from a button drifting sideways as they opened and again as they closed — a note on Hall of Fame, a dividend's record, the custom period and the AI analysis on Rendimenti, a category's move or delete in Impostazioni. Each now grows from the button that opened it and shrinks back to it, in a straight line.
 
 - Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».
@@ -165,6 +168,10 @@
 - Fixed the delete confirmation in the Versamenti ledger: the row now says what the delete undoes («eliminando, il conto verrà riaccreditato») while the button stays a compact «Conferma».
 
 - Fixed the delete of a saved conversation in the Assistente, which disarmed itself after three seconds: it now waits for you, says what goes («Eliminando, la conversazione e i suoi messaggi spariscono; la memoria resta.») and lets go on Esc without closing the window.
+
+- Fixed Impostazioni answering a failed read with an empty list: when the shared accesses could not be loaded the tile said «Nessun accesso condiviso» — a reassurance about who can see your money, stated about data nobody read. That tile, the categories, the default accounts and the dividend settings now say the read failed, what that means, and offer «Riprova».
+- Fixed the allocation targets of Impostazioni speaking English when a group of specific assets did not add up («Specific asset percentages must sum to exactly 100%»): every refusal of «Salva» is now an Italian sentence that names the group («Gli asset specifici di «ETF» (Azioni) sommano 80% invece del 100%»).
+- Fixed a note under the allocation targets promising that changes reach Allocazione «immediatamente»: they arrive with «Salva», and the note now says so.
 
 ## 🔧 Improvements
 
@@ -224,8 +231,14 @@
 - Improved accessibility on Previdenza: every form error is announced with its field, the year switch is a radio group, the tiles' names carry the year they show, and the ledger announces arm and cancel once instead of once per row.
 
 - Improved Impostazioni: a category without a colour of its own now takes the theme's first chart colour instead of a fixed blue, so it follows the selected theme like everything else.
+- Improved «Salva» on Impostazioni › Allocazione: a group of subcategories that does not add up is shown on its class row even when the group is closed («90% ≠ 100%»), the tile's reading names it while you type, and «Salva» — from any tab — opens that group and puts the cursor on the field to fix instead of showing a toast and leaving you there.
+- Improved the Auto-calcolo of the allocation targets: age and risk-free rate now sit in the same tile as the formula they unlock. They used to live in another tab, and the switch stayed disabled until you found them.
+- Improved the two-press confirmations on Impostazioni (deleting a category, syncing past dividends, and now revoking someone's access): they no longer let go after three seconds, the armed row says what the second press does («Revocando, … non vedrà più il tuo account») and screen readers hear both the arming and the release.
+- Improved Impostazioni on a phone: every button, row action and link in the page is at least 44 px tall to the touch, «Ripristina default» has a name when it shows only its icon, and the Preferenze tab places its short tiles beside the tall one instead of leaving them half empty.
 
 ## 📚 Documentation
+
+- The Impostazioni guide records the save state per tab, the target rules that say where they failed, the failed reads that are never an empty list and the two-press confirms without a timer; the Impeccable critique of Impostazioni (23/40) is committed and closed, and the page has its first browser tests.
 
 - The FIRE guide records that year 0 is a year in both walks, the new grid, the empty state's one action, the neutral legends and target lines, and that the bridge number can stay put while the SWR moves.
 
