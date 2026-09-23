@@ -74,6 +74,10 @@ that domain's guide, never here.
   viewport. Per-cell `@container` scales a monetary value to the CELL width, or large amounts overflow.
 - **A grid item stretches to the row height, but a normal-flow child does not inherit it without its own `h-full`** —
   side-by-side cards of different content length need `h-full` on BOTH the grid-item wrapper and the card `div`.
+- **`sticky` travels only inside its containing block** (2026-09-22): the compact `PageHeader`'s mobile navbar was
+  `sticky top-0` INSIDE a wrapper exactly as tall as itself, so it never stuck — on every page, for months, «Salva»
+  scrolled away. Put `sticky` on the box whose parent is the tall one, and prove it by scrolling `main` in a spec
+  (`e2e/settings.mobile.spec.ts`).
 - **`sticky` on a grid item needs `self-start`** — the default stretch makes the item as tall as the row, so a
   `sticky top-6` companion column has no room to travel and silently behaves as static.
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child — add explicit
@@ -444,7 +448,8 @@ file used to carry.
 - Il resto — `PDF_RAMP`, the class labels, `signedPct`/`signedEur` it-IT, the deterministic-comparison rule, the AI-prompt body — in `doc/guide/email-pdf.md`.
 
 ### Impostazioni — tessere senza verdetto → `doc/guide/impostazioni.md`
-- The page has NO verdict and must not grow one (a configuration page measures nothing) — it keeps the CADENCE: 22 `describe*` functions in `settingsNarrative.ts`, NO `build*Verdict`.
+- The page has NO verdict and must not grow one (a configuration page measures nothing) — it keeps the CADENCE: 21 `describe*` functions in `settingsNarrative.ts`, NO `build*Verdict`.
+- ONE «Salva», so the save state is PER TAB (2026-09-22): a dot on each tab holding edits, a bottom bar naming them with «Annulla modifiche» (a re-read, not a copy); the target rules are `allocationTargetValidation.ts`, which says WHERE they failed so «Salva» opens the group and focuses the field. A failed read here is never an empty list (members, categories, accounts).
 - A reading declares the effect DOWNSTREAM, not the control under it; the Narrative Honesty Rule holds (a missing input drops its clause).
 - A field another page OWNS is DECLARED, never edited here («Parametri del piano» from FIRE, «Assistente» a mirror that loses on read). The colour theme and light/dark mode save themselves, outside `handleSave`.
 - The write fan-out for any setting (the FIVE/SIX/SEVEN places) is `doc/guide/impostazioni.md § Settings — the FIVE places` (stub below).
@@ -633,6 +638,9 @@ file used to carry.
   `aria-controls` through `renderedPanels`, which a page with lazily mounted panels must pass — an
   `aria-controls` naming a panel that was never opened is the same dangling reference from the other
   end. Pinned by `e2e/cashflow.split.spec.ts`.
+- **An inactive `PageTabs` panel keeps its `div`, not its CONTENT** (2026-09-22): Radix renders the panel (so its id
+  and `aria-controls` survive) but unmounts the children, so a field of another tab is not in the DOM and a spec
+  anchors on the OPENED panel (`#<layoutId>-panel-<tab> section`), never on a tile of a tab that is not showing.
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
   import from it, never redeclare inline. **A route link in the shell is a `SceneLink`** (`components/layout/SceneLink.tsx`,
   a `next/link` whose plain left click runs the page scene — prefetch, modifier clicks, `target` and the caller's own

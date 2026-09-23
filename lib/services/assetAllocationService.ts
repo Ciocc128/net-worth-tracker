@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
-import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, SpecificAssetAllocation, AllocationData } from '@/types/assets';
+import { Asset, AssetClass, AssetAllocationTarget, AssetAllocationSettings, AllocationResult, AllocationData } from '@/types/assets';
 import { calculateAssetValue, calculateTotalValue } from './assetService';
 import { expandAssetExposure } from '@/lib/utils/assetExposureUtils';
 import { partitionByAllocationRole, ASSET_CLASS_SEQUENCE, NO_SUBCATEGORY_LABEL } from '@/lib/utils/allocationUtils';
@@ -1012,45 +1012,6 @@ export function calculateEquityPercentage(
   const percentage = 125 - userAge - (riskFreeRate * 5);
   // Ensure percentage is between 0 and 100
   return Math.max(0, Math.min(100, percentage));
-}
-
-/**
- * Validate specific assets allocation
- * Returns error message if validation fails, null if valid
- */
-export function validateSpecificAssets(
-  specificAssets: SpecificAssetAllocation[]
-): string | null {
-  if (!specificAssets || specificAssets.length === 0) {
-    return 'At least one specific asset is required';
-  }
-
-  // Check for empty names
-  for (const asset of specificAssets) {
-    if (!asset.name || asset.name.trim() === '') {
-      return 'All specific assets must have a name';
-    }
-    if (asset.targetPercentage < 0 || asset.targetPercentage > 100) {
-      return 'Specific asset percentages must be between 0 and 100';
-    }
-  }
-
-  // Check for duplicate names
-  const names = specificAssets.map(a => a.name.trim().toLowerCase());
-  const uniqueNames = new Set(names);
-  if (names.length !== uniqueNames.size) {
-    return 'Duplicate specific asset names are not allowed';
-  }
-
-  // Check if sum equals 100%
-  const sum = specificAssets.reduce((acc, asset) => acc + asset.targetPercentage, 0);
-  const tolerance = 0.01; // Allow 0.01% tolerance for floating point arithmetic
-
-  if (Math.abs(sum - 100) > tolerance) {
-    return `Specific asset percentages must sum to exactly 100% (current: ${sum.toFixed(2)}%)`;
-  }
-
-  return null; // Valid
 }
 
 /**
