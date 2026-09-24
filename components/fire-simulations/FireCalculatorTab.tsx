@@ -55,20 +55,26 @@ import {
   calculateFIRENetWorth,
   calculateIlliquidFIRENetWorth,
   calculateLiquidFIRENetWorth,
+  filterFireEligibleAssets,
   getAllAssets,
 } from '@/lib/services/assetService';
+import { resolveGainShare, resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { calculateCurrentAllocation, getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import {
-  buildBridgeFireTargets,
+  calculateCoastFireNetRealAnnualPension,
   calculateFIREMetrics,
   calculateFIREProjection,
-  calculateFireBridgeNumber,
   getAnnualCashflowData,
   getDefaultScenarios,
   getFIREData,
+  normalizeCoastFirePensions,
+  normalizeCoastFireTaxBrackets,
   prepareRunwaySummaryLabel,
+  resolveFanFireTargets,
+  resolveFireRequirement,
+  type FireHonestInputs,
   type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
 import { getDefaultMarketParameters, runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
@@ -83,6 +89,7 @@ import {
   summarizeScenarios,
   summarizeTarget,
   summarizeTimeline,
+  type FireTargetHonest,
 } from '@/lib/utils/fireSummary';
 import Link from 'next/link';
 import {
@@ -286,7 +293,6 @@ export function FireCalculatorTab() {
   // conservative when the floor binds, and neutral otherwise because the fund grows and is
   // discounted at the same scenario real return. The PREVIEW base scenario, the one the
   // projection runs on: the number and the year must move together while a parameter is edited.
-  const baseRealReturn = scenarios.base.growthRate - scenarios.base.inflationRate;
   const pensionUnlockYears =
     pensionLockState && pensionLockState.inflows.length > 0 ? Math.max(...pensionLockState.inflows.map((inflow) => inflow.yearsFromNow)) : 0;
   const pensionBridge = useMemo<FireProjectionPensionBridge | null>(
@@ -301,6 +307,33 @@ export function FireCalculatorTab() {
   // Read once here: the fan's memos above the render's `currentYear` need it too.
   const currentYearForFan = getItalyYear();
   const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
+
+  // ─── What makes the number honest (2026-09-24) ────────────────────────────────
+  // The tax profile of the capital the plan withdraws from — the FIRE-eligible assets minus the
+  // locked funds (the same set `currentNetWorth` sums) — and the state pensions saved in Coast
+  // FIRE, dated by the saved age. Null profile = no EUR cost basis anywhere: tax not modelled.
+  const now = useMemo(() => new Date(), []);
+  const taxProfile = useMemo(() => {
+    if (!assets) return null;
+    const lockedIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
+    return resolvePortfolioTaxProfile(
+      filterFireEligibleAssets(assets, includePrimaryResidence).filter((asset) => !lockedIds.has(asset.id)),
+      calculateAssetValue,
+    );
+  }, [assets, includePrimaryResidence, pensionLockState]);
+  const savedPensions = settings?.coastFirePensions;
+  const savedTaxBrackets = settings?.coastFireTaxBrackets;
+  const honest = useMemo<FireHonestInputs>(
+    () => ({
+      userAge,
+      pensions: normalizeCoastFirePensions(savedPensions),
+      taxBrackets: normalizeCoastFireTaxBrackets(savedTaxBrackets),
+      withdrawalTax: taxProfile ? { basisToday: taxProfile.basisToday, rate: taxProfile.rate } : undefined,
+      now,
+    }),
+    [userAge, savedPensions, savedTaxBrackets, taxProfile, now],
+  );
+  const gainShareToday = taxProfile ? resolveGainShare(currentNetWorth, taxProfile.basisToday) : 0;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
   const illiquidNetWorth = assets ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue) : 0;
 
@@ -363,24 +396,48 @@ export function FireCalculatorTab() {
   // ONE basis for the number, the verdict and the chart (The Same-Basis Rule). `getFIREData`'s
   // own metrics read the last full year only, which on a fresh account is a 0 that would call
   // the number «non calcolabile» while the projection kept drawing.
+  // The requirement of TODAY (`resolveFireRequirement`, the ONE rule the walk runs year by
+  // year): the bridge while the unlock is ahead, the pensions from their start, the tax on what
+  // the portfolio funds. `withoutBridge` is the same number with the fund free — the caption's
+  // «senza il vincolo sarebbe».
+  const requirementToday = useMemo(() => {
+    if (!cashflowData || currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
+    const shared = { annualExpenses: projectionAnnualExpenses, withdrawalRate: previewWithdrawalRate, scenario: scenarios.base, yearsElapsed: 0, honest, gainShare: gainShareToday };
+    const bridge = pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { compartmentValue: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined;
+    return { withBridge: resolveFireRequirement({ ...shared, bridge }), withoutBridge: resolveFireRequirement(shared) };
+  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base, honest, gainShareToday, pensionBridgeValueToday, pensionBridgeYearsToUnlock]);
+
   const displayedFireMetrics = useMemo(() => {
     if (!cashflowData || currentNetWorth <= 0) return null;
     const metrics = calculateFIREMetrics(currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, liquidNetWorth, illiquidNetWorth);
-    if (pensionBridgeValueToday <= 0 || pensionBridgeYearsToUnlock <= 0) return metrics;
-    const { bridgeFireNumber } = calculateFireBridgeNumber({
-      annualExpenses: metrics.annualExpenses,
-      withdrawalRate: previewWithdrawalRate,
-      realReturn: baseRealReturn,
-      yearsToUnlock: pensionBridgeYearsToUnlock,
-      pensionValueToday: pensionBridgeValueToday,
-      pensionGrowthRate: baseRealReturn,
-    });
+    if (!requirementToday) return metrics;
+    const { requirement } = requirementToday.withBridge;
     return {
       ...metrics,
-      fireNumber: bridgeFireNumber,
-      progressToFI: bridgeFireNumber > 0 ? (currentNetWorth / bridgeFireNumber) * 100 : 0,
+      fireNumber: requirement,
+      progressToFI: requirement > 0 ? (currentNetWorth / requirement) * 100 : 0,
     };
-  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, liquidNetWorth, previewWithdrawalRate, illiquidNetWorth, pensionBridgeValueToday, pensionBridgeYearsToUnlock, baseRealReturn]);
+  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, liquidNetWorth, previewWithdrawalRate, illiquidNetWorth, requirementToday]);
+
+  // What is inside the number, for the rows, the caption and the verdict (declared when out).
+  const honestSummary = useMemo<FireTargetHonest>(() => {
+    const req = requirementToday?.withBridge;
+    const pensionsConsidered = req?.pensionsConsidered ?? false;
+    return {
+      pensionsConsidered,
+      pensionNetAnnual: req?.pensionNetAnnual ?? 0,
+      pensionStartCalendarYear:
+        pensionsConsidered && req?.pensionLatestStartAge !== null && req?.pensionLatestStartAge !== undefined && userAge !== undefined
+          ? currentYearForFan + Math.max(0, Math.ceil(req.pensionLatestStartAge - userAge))
+          : null,
+      pensionCount: req?.pensionCount ?? 0,
+      pensionsSkipped: pensionsConsidered ? null : honest.pensions.length === 0 ? 'none-saved' : 'no-age',
+      taxConsidered: taxProfile !== null,
+      taxRate: taxProfile?.rate ?? 0,
+      gainSharePct: gainShareToday * 100,
+      taxSkipped: taxProfile ? null : 'no-basis',
+    };
+  }, [requirementToday, userAge, currentYearForFan, honest.pensions.length, taxProfile, gainShareToday]);
 
   // The deterministic projection — the verdict, the Traguardo and the Scenari share it.
   const projection = useMemo(() => {
@@ -393,8 +450,9 @@ export function FireCalculatorTab() {
       scenarios,
       PROJECTION_HORIZON_YEARS,
       pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined,
+      honest,
     );
-  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, pensionBridgeValueToday, pensionBridgeYearsToUnlock]);
+  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, pensionBridgeValueToday, pensionBridgeYearsToUnlock, honest]);
 
   // Fan (Ventaglio) inputs: market exposure from the REAL portfolio via the shared normalizer
   // (identical to the Monte Carlo tab's), market params from the saved MC base scenario or the
@@ -440,22 +498,23 @@ export function FireCalculatorTab() {
     RETIREMENT_HORIZON_MAX_YEARS,
     Math.max(fanYears, userAge !== undefined && Number.isFinite(userAge) ? Math.max(0, RETIREMENT_HORIZON_AGE - userAge) : RETIREMENT_HORIZON_FALLBACK_YEARS),
   );
-  // With the lock on, the paths aim at the bridge requirement the walk tests (the standard
-  // number from the unlock year on), never at the number without the lock under a verdict that
-  // names the bridge one. Deterministic, so one array serves every run.
+  // The paths aim at the walk's own requirement, year by year (bridge, pensions and tax in),
+  // never at a number the verdict does not name; and from their FIRE year they withdraw what the
+  // walk assumed — the expenses less the pensions, tax on the sale.
   const fanFireTargets = useMemo(
-    () =>
-      pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 && fanYears > 0
-        ? buildBridgeFireTargets({
-            annualExpenses: projectionAnnualExpenses,
-            withdrawalRate: previewWithdrawalRate,
-            scenario: scenarios.base,
-            pensionBridge: { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock },
-            years: fanYears,
-          })
-        : undefined,
-    [pensionBridgeValueToday, pensionBridgeYearsToUnlock, fanYears, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base],
+    () => (projection && displayedFireMetrics ? resolveFanFireTargets(displayedFireMetrics.fireNumber, projection) : undefined),
+    [projection, displayedFireMetrics],
   );
+  const fanRetirement = useMemo(() => {
+    const pensionsConsidered = honestSummary.pensionsConsidered && userAge !== undefined;
+    const statePensions = pensionsConsidered
+      ? honest.pensions.map((pension) => {
+          const breakdown = calculateCoastFireNetRealAnnualPension(pension, userAge as number, scenarios.base.inflationRate, honest.taxBrackets, now);
+          return { fromYear: Math.max(0, Math.ceil(breakdown.yearsUntilStart)), annualNetToday: breakdown.netAnnualRealAtStart };
+        })
+      : undefined;
+    return { statePensions, withdrawalTax: honest.withdrawalTax };
+  }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now]);
   const runFan = useCallback(
     (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings) =>
       runAccumulationSimulation({
@@ -464,9 +523,10 @@ export function FireCalculatorTab() {
         years: fanYears,
         retirementHorizonYears,
         fireTargets: fanFireTargets,
+        retirement: fanRetirement,
         random: createSeededRandom(FAN_SEED),
       }),
-    [fanYears, retirementHorizonYears, fanFireTargets],
+    [fanYears, retirementHorizonYears, fanFireTargets, fanRetirement],
   );
   const fanResult = useMemo(() => (view === 'scenari' || !fanInputs || fanYears <= 0 ? null : runFan(fanInputs)), [view, fanInputs, fanYears, runFan]);
 
@@ -525,7 +585,10 @@ export function FireCalculatorTab() {
   const currentYear = currentYearForFan;
   const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: previewInpsRetirementAge, pensionRitaLongUnemployment: ritaLongUnemployment });
   const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
-  const target = useMemo(() => (displayedFireMetrics ? summarizeTarget(displayedFireMetrics, pensionBridge !== null) : null), [displayedFireMetrics, pensionBridge]);
+  const target = useMemo(
+    () => (displayedFireMetrics ? summarizeTarget(displayedFireMetrics, pensionBridge !== null, honestSummary, requirementToday?.withoutBridge.requirement) : null),
+    [displayedFireMetrics, pensionBridge, honestSummary, requirementToday],
+  );
   const timeline = useMemo(() => (projection ? summarizeTimeline(projection, currentYear, userAge, PROJECTION_HORIZON_YEARS) : null), [projection, currentYear, userAge]);
   const scenarioRows = useMemo(() => (projection ? summarizeScenarios(projection, currentYear) : []), [projection, currentYear]);
   const passiveIncome = useMemo(() => (displayedFireMetrics ? summarizePassiveIncome(displayedFireMetrics) : null), [displayedFireMetrics]);
@@ -546,6 +609,7 @@ export function FireCalculatorTab() {
         referenceYear: cashflowData?.referenceYear ?? null,
         isAnnualized: cashflowData?.isAnnualized ?? false,
         includesResidence: includePrimaryResidence,
+        honest: honestSummary,
       }
     : null;
 
@@ -560,8 +624,9 @@ export function FireCalculatorTab() {
         swr: previewWithdrawalRate,
         monthlyAllowance: passiveIncome?.monthly ?? 0,
         lock,
+        honest: honestSummary,
       }),
-    [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock],
+    [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock, honestSummary],
   );
 
   // ─── Mutations ───────────────────────────────────────────────────────────────
@@ -789,7 +854,7 @@ export function FireCalculatorTab() {
         distribution={fireYearDistribution}
         reading={describeFireYearDistribution(fireYearDistribution)}
         lever={tailLever ? describeTailLever(tailLever, currentYear) : null}
-        survival={retirementSurvival ? describeRetirementSurvival(retirementSurvival) : null}
+        survival={retirementSurvival ? describeRetirementSurvival(retirementSurvival, honestSummary) : null}
       />
     ) : null
   ) : fanResult && fanVerdict ? (
@@ -809,7 +874,7 @@ export function FireCalculatorTab() {
           <TraguardoTile
             reading={describeTarget(target)}
             target={target}
-            caption={describeTargetCaption(target, displayedFireMetrics.annualExpenses)}
+            caption={describeTargetCaption(target, displayedFireMetrics.annualExpenses, previewWithdrawalRate)}
             view={view}
             onViewChange={setView}
             fanAvailable={fanAvailable && projection !== null}
@@ -825,10 +890,11 @@ export function FireCalculatorTab() {
                     simulationCount: FAN_SIMULATION_COUNT,
                     allocationLabel,
                     lastProjectedYear: projection.yearlyData[projection.yearlyData.length - 1]?.calendarYear ?? null,
+                    honest: honestSummary,
                   })
                 : null
             }
-            method={view === 'distribuzione' && fireYearDistribution ? describeFireDistributionMethod(fireYearDistribution.binWidthYears) : null}
+            method={view === 'distribuzione' && fireYearDistribution ? describeFireDistributionMethod(fireYearDistribution.binWidthYears, honestSummary) : null}
           />
         </div>
 
@@ -843,6 +909,7 @@ export function FireCalculatorTab() {
             lockDisabled={isDemo || lockMutation.isPending}
             lockDisabledReason={isDemo ? 'non modificabile in demo' : null}
             footer={describeBaseFooter(includePrimaryResidence)}
+            currentYear={currentYear}
           />
         </div>
 

@@ -30,6 +30,8 @@ import {
   describeParametriFooter,
   describePensionInflowRow,
   describePercentili,
+  describeStatePensionRow,
+  describeWithdrawalTaxRow,
   describeProbabilita,
   describeProbabilitaAside,
   describeProbabilitaFooter,
@@ -111,6 +113,8 @@ function makePlan(overrides: Partial<MonteCarloPlan> = {}): MonteCarloPlan {
       { key: 'commodities', label: 'materie prime', pct: 5 },
     ],
     inflows: [{ yearOffset: 19, calendarYear: 2045, amount: 31400 }],
+    statePensions: [],
+    withdrawalTax: null,
     ...overrides,
   };
 }
@@ -272,6 +276,10 @@ describe('Parametri', () => {
 
   it('reads the pension row and the run state in the footer', () => {
     expect(plain(describePensionInflowRow({ yearOffset: 19, calendarYear: 2045, amount: 31400 }))).toBe("Fondo pensione: +31.400 € aggiunti da soli nell'anno 19 (2045), al valore di oggi.");
+    expect(plain(describeStatePensionRow({ yearOffset: 34, calendarYear: 2060, annualNetToday: 13000 }))).toBe("Pensione statale: −13.000 € l'anno tolti dal prelievo dall'anno 34 (2060), netti, al valore di oggi.");
+    expect(plain(describeStatePensionRow({ yearOffset: 0, calendarYear: 2026, annualNetToday: 13000 }))).toBe("Pensione statale: −13.000 € l'anno tolti dal prelievo da subito, netti, al valore di oggi.");
+    expect(plain(describeWithdrawalTaxRow({ rate: 26, gainSharePct: 40 }))).toBe('Tasse sui prelievi: ogni prelievo vende quanto serve a pagare il 26% sulla plusvalenza (40% del capitale oggi).');
+    expect(plain(describeWithdrawalTaxRow(null))).toBe('Tasse sui prelievi: non stimate, nessun PMC in euro nel portafoglio.');
     expect(plain(describeParametriFooter({ stale: false, simulations: 10000 }))).toBe('Ultima esecuzione con questi parametri · 30.000 traiettorie, 10.000 per scenario.');
     expect(plain(describeParametriFooter({ stale: true, simulations: 10000 }))).toBe("I risultati sopra usano i parametri dell'ultima esecuzione: premi Esegui simulazione per aggiornarli.");
     expect(PARAMETRI_ASIDE).toBe('esplorazione, non salvati · gli scenari si salvano nel profilo');

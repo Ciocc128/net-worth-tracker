@@ -20,7 +20,7 @@ import { formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent, startsWithVowel } from '@/lib/utils/patrimonioNarrative';
 import type { FireLock } from '@/lib/utils/fireSummary';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
-import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
+import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type PlanStatePension, type PlanWithdrawalTax, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -317,6 +317,18 @@ export function describeParametri(plan: MonteCarloPlan): Narrative {
 /** «Fondo pensione: +31.400 € aggiunti da soli nell'anno 19 (2045), al valore di oggi.» */
 export function describePensionInflowRow(inflow: PlanInflow): Narrative {
   return [prose('Fondo pensione: '), figure(`+${formatAmount(inflow.amount)}`), prose(" aggiunti da soli nell'anno "), figure(String(inflow.yearOffset)), prose(' ('), year(inflow.calendarYear), prose('), al valore di oggi.')];
+}
+
+/** «Pensione statale: −13.000 € l'anno tolti dal prelievo dall'anno 34 (2060), netti, al valore di oggi.» */
+export function describeStatePensionRow(pension: PlanStatePension): Narrative {
+  const from: Narrative = pension.yearOffset <= 0 ? [prose(' tolti dal prelievo da subito')] : [prose(" tolti dal prelievo dall'anno "), figure(String(pension.yearOffset)), prose(' ('), year(pension.calendarYear), prose(')')];
+  return [prose('Pensione statale: '), figure(`−${formatAmount(pension.annualNetToday)}`), prose(" l'anno"), ...from, prose(', netti, al valore di oggi.')];
+}
+
+/** «Tasse sui prelievi: ogni prelievo vende quanto serve a pagare il 26% sulla plusvalenza (40% del capitale oggi).» */
+export function describeWithdrawalTaxRow(tax: PlanWithdrawalTax | null): Narrative {
+  if (!tax) return [prose('Tasse sui prelievi: non stimate, nessun PMC in euro nel portafoglio.')];
+  return [prose('Tasse sui prelievi: ogni prelievo vende quanto serve a pagare il '), figure(ratePct(tax.rate)), prose(' sulla plusvalenza ('), figure(ratePct(tax.gainSharePct)), prose(' del capitale oggi).')];
 }
 
 export interface ParametriFooterInput {

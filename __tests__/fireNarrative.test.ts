@@ -39,10 +39,12 @@ import {
   describeTargetFooter,
   describeFireDistributionMethod,
   describeFireYearDistribution,
+  describePensionRow,
   describeRetirementSurvival,
+  describeTaxRow,
   type FireVerdictInput,
 } from '@/lib/utils/fireNarrative';
-import type { FanVerdict, FireLock, FireTarget, FireTimeline, PassiveIncome, ScenarioRow } from '@/lib/utils/fireSummary';
+import { NO_HONEST, type FanVerdict, type FireLock, type FireTarget, type FireTargetHonest, type FireTimeline, type PassiveIncome, type ScenarioRow } from '@/lib/utils/fireSummary';
 import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 
@@ -54,6 +56,7 @@ const target = (overrides: Partial<FireTarget> = {}): FireTarget => ({
   fireNumber: 604_000,
   standardFireNumber: 690_000,
   isBridge: true,
+  honest: NO_HONEST,
   netWorth: 412_500,
   progressPct: 68.29,
   gap: 191_500,
@@ -389,6 +392,79 @@ describe('describeFireDistributionMethod', () => {
     expect(one[1]).toContain('un anno per classe');
     expect(describeFireDistributionMethod(5)[1]).toContain('5 anni per classe');
     expect(one[2]).toContain('Il seme è fisso');
+    expect(one[3]).toContain('nessuna pensione statale');
+    expect(describeFireDistributionMethod(1, honest())[3]).toContain('meno le pensioni statali dal loro avvio; ogni prelievo vende quanto serve');
+  });
+});
+
+// ─── What makes the number honest (2026-09-24) ────────────────────────────────
+
+const honest = (overrides: Partial<FireTargetHonest> = {}): FireTargetHonest => ({
+  pensionsConsidered: true,
+  pensionNetAnnual: 13_000,
+  pensionStartCalendarYear: 2060,
+  pensionCount: 1,
+  pensionsSkipped: null,
+  taxConsidered: true,
+  taxRate: 26,
+  gainSharePct: 45.2,
+  taxSkipped: null,
+  ...overrides,
+});
+
+describe('describeBase with the honest inputs', () => {
+  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, includesResidence: false };
+
+  it('names the pension and the tax inside the number', () => {
+    expect(plain(describeBase({ ...base, honest: honest() }))).toBe(
+      "Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; nel numero anche la pensione statale dal 2060, 13.000 € netti l'anno e le tasse sui prelievi (26% sulla plusvalenza).",
+    );
+    expect(plain(describeBase({ ...base, honest: honest({ pensionCount: 2 }) }))).toContain("le pensioni statali, 13.000 € netti l'anno dall'ultima nel 2060");
+    expect(plain(describeBase({ ...base, honest: honest({ taxConsidered: false, taxSkipped: 'no-basis' }) }))).toBe(
+      "Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; nel numero anche la pensione statale dal 2060, 13.000 € netti l'anno.",
+    );
+  });
+
+  it('says a pension left out for a missing age, and nothing about none saved (the row does)', () => {
+    expect(plain(describeBase({ ...base, honest: honest({ pensionsConsidered: false, pensionsSkipped: 'no-age', taxConsidered: false }) }))).toBe(
+      "Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; le pensioni statali restano fuori: manca l'età in Coast FIRE.",
+    );
+    expect(plain(describeBase({ ...base, honest: NO_HONEST }))).toBe("Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%.");
+  });
+});
+
+describe('describePensionRow and describeTaxRow', () => {
+  it('print the value and the caption in each of the three states', () => {
+    const rowText = (row: { value: string | null; caption: string }) => ({ value: flat(row.value), caption: row.caption });
+    expect(rowText(describePensionRow(honest(), 2026))).toEqual({ value: '13.000 €', caption: "netti l'anno, dal 2060 · da Coast FIRE › Ipotesi" });
+    expect(rowText(describePensionRow(honest({ pensionCount: 2, pensionStartCalendarYear: 2020 }), 2026))).toEqual({ value: '13.000 €', caption: "2 pensioni, nette l'anno, l'ultima già in corso · da Coast FIRE › Ipotesi" });
+    expect(describePensionRow(honest({ pensionsConsidered: false, pensionsSkipped: 'no-age' }), 2026)).toEqual({ value: null, caption: "non considerate: manca l'età in Coast FIRE › Ipotesi" });
+    expect(describePensionRow(NO_HONEST, 2026)).toEqual({ value: null, caption: 'nessuna in Coast FIRE › Ipotesi: il numero le esclude' });
+    expect(describeTaxRow(honest())).toEqual({ value: '26%', caption: 'sul 45% di plusvalenza latente oggi · dentro il numero' });
+    expect(describeTaxRow(NO_HONEST)).toEqual({ value: null, caption: 'non stimate: nessun PMC in euro nel portafoglio' });
+  });
+});
+
+describe('the honest clauses on the Traguardo and the verdict', () => {
+  it('extends the caption with the pension and the tax, on the plain and the bridge formula', () => {
+    expect(plain(describeTargetCaption(target({ isBridge: false, honest: honest() }), 27_600, 4))).toBe('27.600 € di spese ÷ SWR del 4%, meno la pensione dal 2060, tasse sui prelievi comprese');
+    expect(plain(describeTargetCaption(target({ honest: honest({ pensionCount: 2, taxConsidered: false }) }), 27_600, 4))).toBe(
+      'modello ponte: gli asset liberi coprono le spese fino allo sblocco, poi il fondo rientra, meno le pensioni dal 2060; senza il vincolo sarebbe 690.000 €',
+    );
+  });
+
+  it('closes the verdict on the tax and the pension', () => {
+    const verdict = buildFireVerdict({ hasNetWorth: true, target: target({ isBridge: false }), timeline: timeline(), monthlySavings: 1_850, swr: 4, monthlyAllowance: 1_375, lock: lockOff, honest: honest() });
+    expect(plain(verdict.sentence)).toContain('copre le tue spese, tasse sui prelievi comprese: 2300 € al mese di oggi, 2667 € del 2032 con l\'inflazione al 2,5%; dal 2060 la pensione statale ne copre 13.000 € l\'anno.');
+  });
+
+  it('says what the dashed line carries in the Scenari footer, and what the ledger withdraws', () => {
+    expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046, honest: honest() }))).toBe(
+      'Linea tratteggiata: quanto serve nello scenario base in ogni anno, meno le pensioni statali dal loro avvio, tasse sui prelievi comprese; il risparmio si ferma al FIRE.',
+    );
+    expect(plain(describeRetirementSurvival({ retiredCount: 963, survivedCount: 963, ruinedCount: 0, survivedPct: 100, horizonCalendarYear: 2076, horizonAge: 90, p10RuinCalendarYear: null, medianYearsLastedWhenRuined: null }, honest()))).toBe(
+      'Prelevando le spese meno le pensioni, tasse comprese, dal proprio anno FIRE, il capitale dura fino al 2076 (a 90 anni) in tutti i 963 percorsi che ci arrivano.',
+    );
   });
 });
 

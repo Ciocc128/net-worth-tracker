@@ -271,7 +271,22 @@ describe('summarizeMonteCarloPlan', () => {
   });
 
   it('drops the classes at 0% and reads a fixed withdrawal', () => {
+    const honest = summarizeMonteCarloPlan(
+      makeParams({ annualInflows: [{ fromYear: 34, annualNetToday: 13000 }, { fromYear: 30, annualNetToday: 5000 }], withdrawalTax: { basisToday: 293160, rate: 26 } }),
+      [],
+      0,
+      CTX,
+    );
+    // The pensions in start order, dated; the gain share read on the starting capital (40%).
+    expect(honest.statePensions).toEqual([
+      { yearOffset: 30, calendarYear: 2056, annualNetToday: 5000 },
+      { yearOffset: 34, calendarYear: 2060, annualNetToday: 13000 },
+    ]);
+    expect(honest.withdrawalTax?.rate).toBe(26);
+    expect(honest.withdrawalTax?.gainSharePct).toBeCloseTo(40);
     const plan = summarizeMonteCarloPlan(makeParams({ realEstatePercentage: 0, commoditiesPercentage: 0, equityPercentage: 60, bondsPercentage: 40, withdrawalAdjustment: 'fixed' }), [], 0, CTX);
+    expect(plan.statePensions).toEqual([]);
+    expect(plan.withdrawalTax).toBeNull();
     expect(plan.allocation.map((a) => a.key)).toEqual(['equity', 'bonds']);
     expect(plan.isIndexed).toBe(false);
     expect(plan.lockedValue).toBe(0);
@@ -293,6 +308,11 @@ describe('haveRunInputsChanged', () => {
     scenarios.bear.equityReturn = 3;
     expect(haveRunInputsChanged(a, { ...inputs(), scenarios })).toBe(true);
     expect(haveRunInputsChanged(a, { ...inputs(), inflows: [] })).toBe(true);
+    // The pensions and the tax ride on the params (2026-09-24): a change is a new plan.
+    expect(haveRunInputsChanged(a, { ...inputs(), params: makeParams({ annualInflows: [{ fromYear: 34, annualNetToday: 13000 }] }) })).toBe(true);
+    expect(haveRunInputsChanged(a, { ...inputs(), params: makeParams({ withdrawalTax: { basisToday: 300000, rate: 26 } }) })).toBe(true);
+    const withTax = { ...inputs(), params: makeParams({ withdrawalTax: { basisToday: 300000, rate: 26 } }) };
+    expect(haveRunInputsChanged(withTax, { ...inputs(), params: makeParams({ withdrawalTax: { basisToday: 300000, rate: 26 } }) })).toBe(false);
   });
 
   it('ignores the market fields of the single form (the scenarios carry them)', () => {

@@ -8,6 +8,27 @@ import {
   MonteCarloScenarioParams,
 } from '@/types/assets';
 import { formatCurrencyCompact } from './chartService';
+import { withdrawGross } from '@/lib/utils/withdrawalTax';
+
+/** A net annual amount that arrives every year from `fromYear` on, at today's value. */
+export interface AnnualInflow {
+  fromYear: number;
+  annualNetToday: number;
+}
+
+/** The tax on withdrawals as the engines take it (`lib/utils/withdrawalTax.ts`). */
+export interface WithdrawalTaxInput {
+  basisToday: number;
+  /** Percent. */
+  rate: number;
+}
+
+/** The net pensions active at `year`, indexed with `inflationRate` from today (nominal at that year). */
+function activeAnnualInflows(inflows: AnnualInflow[] | undefined, year: number, inflationRate: number): number {
+  if (!inflows || inflows.length === 0) return 0;
+  const index = Math.pow(1 + inflationRate / 100, year);
+  return inflows.reduce((sum, inflow) => (inflow.fromYear <= year ? sum + inflow.annualNetToday * index : sum), 0);
+}
 
 /**
  * Generate a random number from a normal distribution using Box-Muller transform
@@ -58,13 +79,19 @@ function runSingleSimulation(
   for (const inflow of inflows) {
     if (inflow.year <= 0) portfolio += inflow.amount;
   }
+  // The cost basis the withdrawal tax reads (2026-09-24): today's, plus every inflow as it lands.
+  const tax = params.withdrawalTax;
+  let basis = (tax?.basisToday ?? 0) + inflows.reduce((sum, inflow) => (inflow.year <= 0 ? sum + inflow.amount : sum), 0);
 
   const path: { year: number; value: number }[] = [{ year: 0, value: portfolio }];
 
   for (let year = 1; year <= params.retirementYears; year++) {
     // Add the inflows landing this year BEFORE applying the market return
     for (const inflow of inflows) {
-      if (inflow.year === year) portfolio += inflow.amount;
+      if (inflow.year === year) {
+        portfolio += inflow.amount;
+        basis += inflow.amount;
+      }
     }
 
     // Generate random returns for each asset class
@@ -83,10 +110,24 @@ function runSingleSimulation(
     // Apply return to portfolio
     portfolio *= 1 + portfolioReturn / 100;
 
-    // Calculate withdrawal (adjusted for inflation if needed)
+    // Calculate withdrawal (adjusted for inflation if needed), net of the pensions active this
+    // year (indexed the same way), then grossed up for the tax on the sale that funds it.
     let withdrawal = params.annualWithdrawal;
     if (params.withdrawalAdjustment === 'inflation') {
       withdrawal *= Math.pow(1 + params.inflationRate / 100, year);
+    }
+    const pensionsThisYear = activeAnnualInflows(
+      params.annualInflows,
+      year,
+      params.withdrawalAdjustment === 'inflation' ? params.inflationRate : 0
+    );
+    const netWithdrawal = Math.max(0, withdrawal - pensionsThisYear);
+    if (tax) {
+      const sale = withdrawGross(portfolio, basis, netWithdrawal, tax.rate);
+      withdrawal = sale.gross;
+      basis = sale.basisAfter;
+    } else {
+      withdrawal = netWithdrawal;
     }
 
     // Subtract withdrawal
@@ -312,12 +353,22 @@ export interface AccumulationSimulationParams {
   retirementHorizonYears?: number;
   /**
    * The moving FIRE target per year (index 0 = today), replacing the inflated-expenses ÷ SWR
-   * chain: with the pension lock on, the Calcolatore hands the bridge requirement of the
-   * deterministic walk (`buildBridgeFireTargets`), or the paths aim at the number WITHOUT the
-   * lock while the verdict names the bridge one (seen on the mirror, 2026-09-24). Entries past
-   * `years` are ignored; a shorter array falls back to the chain from where it ends.
+   * chain: the Calcolatore hands the deterministic walk's own requirement (`resolveFanFireTargets`
+   * — the bridge, the pensions and the tax in), or the paths aim at a number the verdict never
+   * names (seen on the mirror, 2026-09-24). Entries past `years` are ignored; a shorter array
+   * falls back to the chain from where it ends.
    */
   fireTargets?: number[];
+  /**
+   * What the retirement ledger withdraws against (2026-09-24): the state pensions, net and at
+   * today's value, indexed with the expense inflation from their start year, and the tax on
+   * withdrawals — today's basis, grown by every euro saved and by the inflows, and the rate.
+   * Absent → the ledger withdraws the bare inflated expenses.
+   */
+  retirement?: {
+    statePensions?: AnnualInflow[];
+    withdrawalTax?: WithdrawalTaxInput;
+  };
 }
 
 export interface AccumulationPercentilePoint extends PercentilesData {
@@ -405,6 +456,9 @@ export function runAccumulationSimulation(
     // The retirement ledger equals the accumulation ledger through the FIRE year, then forks.
     let retirementCapital = portfolio;
     let ruinYear: number | null = null;
+    // The basis behind it: today's, every euro saved, every inflow — consumed by the sales.
+    const retirementTax = params.retirement?.withdrawalTax;
+    let basis = (retirementTax?.basisToday ?? 0) + startingInflow;
 
     for (let year = 1; year <= horizon; year++) {
       const equityReturn = randomNormal(params.equityReturn, params.equityVolatility, random);
@@ -425,7 +479,10 @@ export function runAccumulationSimulation(
         portfolio *= growth;
 
         // Savings stop once the path retires — same rule as the deterministic projection.
-        if (fireYear === null) portfolio += params.annualSavings;
+        if (fireYear === null) {
+          portfolio += params.annualSavings;
+          basis += params.annualSavings;
+        }
 
         if (fireYear === null && wrDecimal > 0 && portfolio >= fireTargets[year]) {
           fireYear = year;
@@ -435,18 +492,28 @@ export function runAccumulationSimulation(
       }
 
       // The retirement ledger: the same capital until the FIRE year (savings included), then
-      // this year's expenses out instead of savings in, until it runs out.
+      // this year's expenses out instead of savings in — net of the pensions active that year,
+      // grossed up for the tax on the sale — until it runs out.
       if (ruinYear !== null) continue;
       if (fireYear !== null && year > fireYear) {
         retirementCapital += inflowThisYear;
+        basis += inflowThisYear;
         retirementCapital *= growth;
-        retirementCapital -= expensesByYear[year];
+        const netNeed = Math.max(0, expensesByYear[year] - activeAnnualInflows(params.retirement?.statePensions, year, params.expenseInflationRate));
+        if (retirementTax) {
+          const sale = withdrawGross(retirementCapital, basis, netNeed, retirementTax.rate);
+          retirementCapital -= sale.gross;
+          basis = sale.basisAfter;
+        } else {
+          retirementCapital -= netNeed;
+        }
         if (retirementCapital <= 0) {
           retirementCapital = 0;
           ruinYear = year;
         }
       } else if (year <= params.years) {
         retirementCapital = portfolio;
+        basis += inflowThisYear;
       }
     }
 

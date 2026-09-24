@@ -629,16 +629,23 @@ export function calculateIlliquidNetWorth(assets: Asset[]): number {
  * @param includePrimaryResidence - If true, include primary residences; if false, exclude them (default: false)
  * @returns Total value of FIRE-eligible assets
  */
+/**
+ * The assets the FIRE number runs on: everything but a primary residence, when the setting
+ * keeps it out. ONE filter, shared by the net worth below and by the tax profile of the
+ * withdrawals (`resolvePortfolioTaxProfile`), so the basis and the value are read on the same set.
+ */
+export function filterFireEligibleAssets(assets: Asset[], includePrimaryResidence: boolean = false): Asset[] {
+  return assets.filter(asset => {
+    // Exclude real estate marked as primary residence (if user setting is disabled)
+    if (!includePrimaryResidence && asset.assetClass === 'realestate' && asset.isPrimaryResidence === true) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export function calculateFIRENetWorth(assets: Asset[], includePrimaryResidence: boolean = false): number {
-  return assets
-    .filter(asset => {
-      // Exclude real estate marked as primary residence (if user setting is disabled)
-      if (!includePrimaryResidence && asset.assetClass === 'realestate' && asset.isPrimaryResidence === true) {
-        return false;
-      }
-      return true;
-    })
-    .reduce((total, asset) => total + calculateAssetValue(asset), 0);
+  return filterFireEligibleAssets(assets, includePrimaryResidence).reduce((total, asset) => total + calculateAssetValue(asset), 0);
 }
 
 /**

@@ -529,6 +529,13 @@ export interface MonteCarloParams {
   // Applied at the START of their year, before that year's market return and withdrawal;
   // entries with year <= 0 are folded into the initial portfolio.
   capitalInflows?: MonteCarloCapitalInflow[];
+
+  // The state pensions (2026-09-24): a net annual amount at today's value from `fromYear` on,
+  // indexed like the withdrawal, taken off the withdrawal before the sale.
+  annualInflows?: { fromYear: number; annualNetToday: number }[];
+  // The tax on withdrawals (lib/utils/withdrawalTax.ts): today's cost basis and the rate, in
+  // percent. Absent = every withdrawn euro is a euro sold.
+  withdrawalTax?: { basisToday: number; rate: number };
 }
 
 export interface MonteCarloCapitalInflow {

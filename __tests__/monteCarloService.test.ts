@@ -16,7 +16,7 @@ import {
   runAccumulationSimulation,
   type AccumulationSimulationParams,
 } from '@/lib/services/monteCarloService';
-import { buildBridgeFireTargets, calculateFIREProjection, getDefaultScenarios } from '@/lib/services/fireService';
+import { calculateFIREProjection, getDefaultScenarios, resolveFanFireTargets, resolveFireRequirement } from '@/lib/services/fireService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import type { MonteCarloParams } from '@/types/assets';
 
@@ -402,14 +402,16 @@ describe('runAccumulationSimulation — seed and the retirement ledger', () => {
     expect(projection.baseYearsToFIRE).not.toBeNull();
     expect(projection.baseYearsToFIRE as number).toBeLessThan(30);
     const years = Math.min(projection.yearlyData.length, 40);
-    const targets = buildBridgeFireTargets({ annualExpenses: 30_000, withdrawalRate: 4, scenario: getDefaultScenarios().base, pensionBridge: bridge, years });
+    // The targets are the walk's own rows (today's requirement first), as the tab hands them.
+    const today = resolveFireRequirement({ annualExpenses: 30_000, withdrawalRate: 4, scenario: getDefaultScenarios().base, yearsElapsed: 0, bridge: { compartmentValue: bridge.valueToday, yearsToUnlock: bridge.yearsToUnlock } });
+    const targets = resolveFanFireTargets(today.requirement, projection);
     const withBridge = runAccumulationSimulation(makeAccumulationParams({ years, fireTargets: targets }));
     const withoutBridge = runAccumulationSimulation(makeAccumulationParams({ years }));
     expect(withBridge.fireYears[0]).toBe(projection.baseYearsToFIRE);
     // The standard chain reads later: that is the gap the mirror showed under the lock.
     expect(withoutBridge.fireYears[0] as number).toBeGreaterThan(projection.baseYearsToFIRE as number);
-    // From the unlock year on the series is the standard chain.
-    expect(targets[30]).toBeCloseTo((30_000 * 1.025 ** 30) / 0.04, 3);
+    // From the unlock year on the row is the standard chain (rounded to the euro by the walk).
+    expect(targets[30]).toBeCloseTo((30_000 * 1.025 ** 30) / 0.04, -1);
     expect(targets[0]).toBeLessThan(30_000 / 0.04);
   });
 
@@ -423,6 +425,75 @@ describe('runAccumulationSimulation — seed and the retirement ledger', () => {
     expect(long.paths).toEqual(short.paths);
     expect(long.fireYears).toEqual(short.fireYears);
     expect(long.percentiles).toEqual(short.percentiles);
+  });
+});
+
+/**
+ * The honest number's two ingredients inside the engines (2026-09-24): the state pensions taken
+ * off what a retired path withdraws, and the tax on the sale that funds each withdrawal.
+ */
+describe('runAccumulationSimulation — pensions and tax in the retirement ledger', () => {
+  it('takes the pensions off the expenses from their start year: the capital lasts longer', () => {
+    const params = makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20, retirementHorizonYears: 70 });
+    const bare = runAccumulationSimulation(params);
+    const withPension = runAccumulationSimulation({ ...params, retirement: { statePensions: [{ fromYear: 20, annualNetToday: 6_000 }] } });
+    const fireYear = bare.fireYears[0] as number;
+    expect(fireYear).toBeLessThan(20);
+    // Same FIRE year (the pension is not in the target here), later ruin: independent replica
+    // of the ledger with zero return — expenses out, the indexed pension in from year 20.
+    expect(withPension.fireYears[0]).toBe(fireYear);
+    let capital = params.initialPortfolio + params.annualSavings * fireYear;
+    let expectedRuin: number | null = null;
+    for (let year = fireYear + 1; year <= 70; year++) {
+      const index = Math.pow(1 + params.expenseInflationRate / 100, year);
+      capital -= Math.max(0, params.annualExpenses * index - (year >= 20 ? 6_000 * index : 0));
+      if (capital <= 0) {
+        expectedRuin = year;
+        break;
+      }
+    }
+    expect(withPension.retirements[0]?.ruinYear).toBe(expectedRuin);
+    expect(expectedRuin as number).toBeGreaterThan(bare.retirements[0]?.ruinYear as number);
+  });
+
+  it('pays the tax on the sale that funds each withdrawal, so a portfolio with gains ends lower', () => {
+    const params = makeAccumulationParams({ years: 30, retirementHorizonYears: 60 });
+    const bare = runAccumulationSimulation(params);
+    // Today's capital is all basis; the 7% growth builds the gain the sales are taxed on.
+    const taxed = runAccumulationSimulation({ ...params, retirement: { withdrawalTax: { basisToday: params.initialPortfolio, rate: 26 } } });
+    expect(taxed.fireYears[0]).toBe(bare.fireYears[0]);
+    expect(taxed.retirements[0]?.finalValue as number).toBeLessThan(bare.retirements[0]?.finalValue as number);
+    // No gain (the basis IS the capital, no growth): the tax changes nothing.
+    const flat = makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20, retirementHorizonYears: 40 });
+    const flatTaxed = runAccumulationSimulation({ ...flat, retirement: { withdrawalTax: { basisToday: flat.initialPortfolio, rate: 26 } } });
+    expect(flatTaxed.retirements[0]).toEqual(runAccumulationSimulation(flat).retirements[0]);
+  });
+});
+
+describe('runMonteCarloSimulation — pensions and tax', () => {
+  it('takes the annual inflows off the withdrawal from their year, indexed like it', () => {
+    const params = makeDeterministicParams({ retirementYears: 6, annualInflows: [{ fromYear: 3, annualNetToday: 20_000 }] });
+    const result = runMonteCarloSimulation(params);
+    // Fixed withdrawal: 50k until year 2, 30k from year 3 (no indexing on a fixed plan).
+    const expected = [1_000_000];
+    let capital = 1_000_000;
+    for (let year = 1; year <= 6; year++) {
+      capital *= 1.05;
+      capital -= year >= 3 ? 30_000 : 50_000;
+      expected.push(capital);
+    }
+    expect(pathValues(result).map((v) => Math.round(v))).toEqual(expected.map((v) => Math.round(v)));
+  });
+
+  it('sells more than the withdrawal to pay the tax on the gain, and a plan can fail for it', () => {
+    const bare = makeDeterministicParams({ retirementYears: 30, initialPortfolio: 1_000_000, annualWithdrawal: 55_000 });
+    const taxed = { ...bare, withdrawalTax: { basisToday: 400_000, rate: 26 } };
+    const bareResult = runMonteCarloSimulation(bare);
+    const taxedResult = runMonteCarloSimulation(taxed);
+    expect(taxedResult.simulations[0].finalValue).toBeLessThan(bareResult.simulations[0].finalValue);
+    // Year 1 replica: 1M × 1,05 = 1.050.000, gain share 1 − 400k/1.050k, gross = 55k / (1 − share × 0,26).
+    const share = 1 - 400_000 / 1_050_000;
+    expect(taxedResult.simulations[0].path[1].value).toBeCloseTo(1_050_000 - 55_000 / (1 - share * 0.26), 3);
   });
 });
 

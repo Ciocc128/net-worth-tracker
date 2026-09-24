@@ -27,6 +27,14 @@
 - **The pension lock rides as inflows at today's value** (`resolvePensionLockState` → `capitalInflows`; order inflow → return → withdrawal in the
   service): the starting capital is net of the locked total, the read-only row under the amount field names each inflow, the fan draws a dashed
   muted guide at the unlock year when it is on the plot and the Probabilità footer names the step.
+- **The withdrawal is net of the state pensions and gross of the tax** (2026-09-24, `MonteCarloParams.annualInflows` and `withdrawalTax`,
+  doc/guide/fire.md § the tax rule): the tab dates the Coast pensions by the saved age (`calculateCoastFireNetRealAnnualPension`, base-scenario
+  inflation) and reads the tax profile of everything but the locked funds, carrying its gain share onto whatever capital is typed
+  (`basisToday = capital × (1 − gainShare)`). Per year: `max(0, W_t − P_t)`, both indexed on an inflation-indexed plan, then `withdrawGross` —
+  the basis grows with the lump inflows and shrinks with the sales. Two read-only rows under the plan say what is in («Pensione statale: −13.000 €
+  l'anno tolti dal prelievo dall'anno 34 (2060)…», «Tasse sui prelievi: ogni prelievo vende quanto serve a pagare il 26% sulla plusvalenza (40% del
+  capitale oggi)») or why not («nessuna datata in Coast FIRE › Ipotesi (serve l'età)», «non stimate, nessun PMC in euro»). `haveRunInputsChanged`
+  compares them too: a saved age or a new PMC is a new plan, flagged until «Esegui».
 - **`createDistribution` caps the equal-width bins at the 95th percentile** (2026-08-26) and the last bin takes the tail to the maximum
   (`from`/`to` on every bin, the last one closed on `to`): bins stretched to a ten-times-the-median outlier left nine of ten empty on the first
   screenshot. The Distribuzione footer names both bounds; the bars are hand-written SVG (`FinalValueBars` over the shared `HistogramBars`

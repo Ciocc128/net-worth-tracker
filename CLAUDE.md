@@ -13,7 +13,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **179 files / 4193 tests** green + **33 Playwright spec files** (108 tests, incl. 5 auth setups; last full run 2026-09-23, 3,5 min: 108 green, `modal.origin` included; the FIRE pair re-run green on 2026-09-24). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **180 files / 4219 tests** green + **33 Playwright spec files** (108 tests, incl. 5 auth setups; last full run 2026-09-23, 3,5 min: 108 green, `modal.origin` included; the FIRE pair re-run green on 2026-09-24). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
 - Latest (2026-09-24): **FIRE › Calcolatore — la terza vista del Traguardo, «Distribuzione», e le due code.** L'anno
   FIRE dei 1000 percorsi del ventaglio (`fireYears`, calcolato da sempre e letto da nessuno) come istogramma per anno
   solare (`binYears`, larghezze 1/2/3/5/10, l'anno del base bordato, «oltre l'orizzonte» in grigio), tre KPI a rango
@@ -33,8 +33,18 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   (46 test nuovi; falsificati: ordine prelievo↔rendimento, nearest-rank→floor, bollo, e la spec E2E con l'aria-label
   rotta), Playwright `fire.spec.ts` (toggle a tre viste) + `fire.mobile.spec.ts` (390 con la Distribuzione aperta)
   6/6; sonda Playwright sul mirror a 1440 e 390 (overflow 0), che ha rivelato entrambi i difetti del ponte e delle
-  etichette. Estensione Chrome non connessa. Backlog deciso: «Numero FIRE più onesto» (pensione INPS nel Calcolatore e
-  nel MC, prelievo al netto delle tasse). doc/guide/fire.md, fire-monte-carlo.md, patrimonio.md.
+  etichette. Estensione Chrome non connessa. **Seconda parte, «Numero FIRE più onesto»** (stessa PR): UNA regola per
+  anno, `resolveFireRequirement` — spese meno le pensioni statali della Coast (nette IRPEF, datate dall'età salvata;
+  senza età FUORI e dichiarato), × gross-up fiscale 1/(1 − g·τ) di `lib/utils/withdrawalTax.ts` (base dai PMC in
+  euro, liquidità e fondi come base, `null` senza PMC e dichiarato), il fondo allo sblocco — sul walk Coast; il walk
+  deterministico la legge per anno e la scrive in `*FireNumber` (la tratteggiata del grafico È il target), il
+  ventaglio prende quelle righe (`resolveFanFireTargets`, `buildBridgeFireTargets` rimossa), il registro pensione e
+  il Monte Carlo prelevano al netto delle pensioni e al lordo della tassa (`withdrawGross`, base consumata in
+  proporzione), What If porta gli stessi input con la base che si muove con l'evento, Coast lo stesso gross-up al
+  target. Base di calcolo con due righe nuove (Pensioni statali · Tasse sui prelievi), didascalia del Traguardo,
+  verdetto, footer Scenari e «dal FIRE in poi» dichiarano cosa c'è dentro. Vitest 180 file / 4219 (26 nuovi;
+  falsificati: gross-up tolto, moltiplicatore forzato a 1, pensioni ignorate — rossi in 3, 1 e 2 punti).
+  doc/guide/fire.md, fire-coast.md, fire-what-if.md, fire-monte-carlo.md, patrimonio.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.

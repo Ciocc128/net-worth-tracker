@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **FIRE**: Calcolatore `components/fire-simulations/FireCalculatorTab.tsx` + `tiles/*` + `{FireParametri,FireDettaglio,FIREProjectionChart,FireFanChart,SettledValue}.tsx`, pure `lib/utils/{fireSummary,fireNarrative}.ts`; shared `lib/services/{fireService,whatIfService,monteCarloService,goalService}.ts`, `lib/utils/{pensionUnlock,monteCarloParams,goalTrajectory,goalMath}.ts` (`pensionUnlock` = the single unlock resolution, `deriveMonteCarloAllocation`, `serializeGoalForFirestore` = the persistence allowlist); Coast `CoastFireTab.tsx` + `coast/*`, pure `lib/utils/coastFireView.ts`, `lib/hooks/useCoastFireSettingsDraft.ts`; What If `WhatIfAnalysisTab.tsx` + `whatif/*`, pure `lib/utils/{whatIfSummary,whatIfNarrative}.ts`, `types/whatIf.ts`; Monte Carlo `MonteCarloTab.tsx` + `components/monte-carlo/*` (`SCENARIO_SLOT`), pure `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`; Obiettivi `GoalBasedInvestingTab.tsx` + `components/goals/*`, pure `lib/utils/{goalsSummary,goalsNarrative}.ts`; specs `e2e/fire*.spec.ts`, `e2e/coast*.spec.ts`, fixture `scripts/seedCoastFireE2E.mts`
+- **FIRE**: Calcolatore `components/fire-simulations/FireCalculatorTab.tsx` + `tiles/*` + `{FireParametri,FireDettaglio,FIREProjectionChart,FireFanChart,FireYearDistributionView,SettledValue}.tsx`, pure `lib/utils/{fireSummary,fireNarrative,fireDistribution,yearHistogram,withdrawalTax,seededRandom}.ts`; shared `lib/services/{fireService,whatIfService,monteCarloService,goalService}.ts`, `lib/utils/{pensionUnlock,monteCarloParams,goalTrajectory,goalMath}.ts` (`pensionUnlock` = the single unlock resolution, `deriveMonteCarloAllocation`, `serializeGoalForFirestore` = the persistence allowlist); Coast `CoastFireTab.tsx` + `coast/*`, pure `lib/utils/coastFireView.ts`, `lib/hooks/useCoastFireSettingsDraft.ts`; What If `WhatIfAnalysisTab.tsx` + `whatif/*`, pure `lib/utils/{whatIfSummary,whatIfNarrative}.ts`, `types/whatIf.ts`; Monte Carlo `MonteCarloTab.tsx` + `components/monte-carlo/*` (`SCENARIO_SLOT`), pure `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`; Obiettivi `GoalBasedInvestingTab.tsx` + `components/goals/*`, pure `lib/utils/{goalsSummary,goalsNarrative}.ts`; specs `e2e/fire*.spec.ts`, `e2e/coast*.spec.ts`, fixture `scripts/seedCoastFireE2E.mts`
 
 ## FIRE, What If and Goals
 
@@ -86,17 +86,46 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   the wrapper on the view): its sentences take the height they need and can never overrun the footer; the bars are the
   one element that stretches. The footer says what the bars are, the method sits behind «Come si calcola»
   (`describeFireDistributionMethod`, the tile's `method` prop → `TileMethodNote`).
-- **Under the lock the fan aims at the BRIDGE requirement, year by year** (2026-09-24, `buildBridgeFireTargets` in
-  `fireService.ts` → `AccumulationSimulationParams.fireTargets`): the same test the walk runs —
-  `calculateFireBridgeNumber` on that year's inflated expenses and the compartment grown at the base rate while
-  the unlock is ahead, the standard number from the unlock year on. Until then the fan's moving target was ALWAYS
-  expenses ÷ SWR, the number WITHOUT the lock, under a verdict that named the bridge one: on the owner's mirror
-  (lock on, unlock 2060) the Distribuzione read «Meno di metà dei percorsi è FIRE entro il 2066» under «FIRE nel
-  2049» and the lever asked for 67.000 € a year — and the Ventaglio's «Probabilità di FIRE entro il 2049» had
-  been reading against the standard number since it was born. At zero volatility the fan now lands on the walk's
-  FIRE year when it falls BEFORE the unlock (pinned); after it the two still diverge by the compartment's growth
-  (the walk merges the grown fund, the fan injects today's value — the documented model). The footer clause says
-  so: «fino ad allora il target è il numero del modello ponte».
+- **THE ONE RULE of the requirement is `resolveFireRequirement`** (2026-09-24, `fireService.ts`): what the free
+  capital must hold at year t so that, retiring then, the expenses are covered — the state pensions taken off from
+  their start, the tax on withdrawals added on what the portfolio funds, the locked fund arriving at its unlock. It is
+  the Coast walk (`buildCoastFIRERetirementNeeds`) run from year t as the retirement day (`currentAge = età + t`,
+  `currentDate = oggi + t`, expenses in year-t euro), with the new `portfolioNeedMultiplier` = 1/(1 − g_t·τ) on
+  `max(E − P, 0)` — applied to what the portfolio funds, NEVER to the pensions, which arrive net. With nothing in it
+  is expenses ÷ SWR; with the fund alone it is `calculateFireBridgeNumber`'s figure (kept, same walk). The walk
+  (`calculateFIREProjection`, 8th param `honest: FireHonestInputs`) reads it per scenario per year for the reached
+  test AND writes it into `*FireNumber` — so the Scenari chart's dashed line IS the target the verdict runs on, and
+  **the fan's targets are those rows** (`resolveFanFireTargets(todayRequirement, projection)` →
+  `AccumulationSimulationParams.fireTargets`; `buildBridgeFireTargets` lived for three hours and is gone). Until
+  then the row printed expenses ÷ SWR while the test ran on the bridge figure, and the fan aimed at the number
+  WITHOUT the lock under a verdict that named the bridge one: on the owner's mirror (lock on, unlock 2060) the
+  Distribuzione read «Meno di metà dei percorsi è FIRE entro il 2066» under «FIRE nel 2049» and the lever asked
+  for 67.000 € a year. Zero-volatility coherence: without pensions and tax `honest` passed or not is byte-identical
+  (pinned); with the bridge the fan lands on the walk's year BEFORE the unlock (pinned); after it the two diverge by
+  the compartment's growth (the walk merges the grown fund, the fan injects today's value — the documented model).
+- **The state pensions are the Coast tab's, dated by the saved age** (`settings.coastFirePensions`,
+  `coastFireTaxBrackets`, `userAge`): net through the IRPEF brackets and deflated with the scenario's inflation —
+  `calculateCoastFireNetRealAnnualPension`, the SAME figure the Afflussi tile prints. **No age places no pension**
+  and the Base di calcolo says so («non considerate: manca l'età in Coast FIRE › Ipotesi»); none saved is the row's
+  «nessuna in Coast FIRE › Ipotesi: il numero le esclude» — never a silent «as if no pension». `FireTargetHonest`
+  (`fireSummary.ts`) is what the tile's two rows, the caption («, meno la pensione dal 2060, tasse sui prelievi
+  comprese»), `describeBase` («; nel numero anche …») and the verdict's closing clause read.
+- **The tax on withdrawals is ONE rule in `lib/utils/withdrawalTax.ts`**: `resolvePortfolioTaxProfile` reads the
+  FIRE-eligible assets minus the locked funds (`filterFireEligibleAssets`, the same set `currentNetWorth` sums) —
+  basis = Σ quantità × PMC in euro, cash and pension funds AS basis (a fund's exit taxation is another regime,
+  declared), an instrument with no EUR basis as basis too and COUNTED (`uncoveredCount`); τ is value-weighted on
+  the positive gains (26% where an asset carries none); `null` when no instrument has a basis at all, and the row
+  says «non stimate: nessun PMC in euro» — a gain share of 0 there would read «no tax» about a portfolio nobody
+  measured. The gain share g_t = max(0, 1 − B_t/V_t) with the basis growing by every euro saved and by the fund at
+  its unlock, never by the market; `withdrawGross(capital, basis, net, rate)` sells `net / (1 − g·τ)` and consumes
+  the basis in proportion (average-cost logic), so a sale never moves the gain share — only the market does. Both
+  engines read it: the fan's retirement ledger (`retirement: { statePensions, withdrawalTax }`) withdraws
+  `max(0, E_t − P_t)` grossed up, the decumulation engine (`MonteCarloParams.annualInflows`, `withdrawalTax`) the
+  plan's withdrawal net of the pensions active that year, indexed like it. What If rides the same inputs
+  (`WhatIfBaseline.honest`), with the basis moved by the event: money that arrives (a windfall) is basis, money that
+  leaves is sold at the portfolio's own gain share (`honestFor`). Coast takes `withdrawalTax` on the projection and
+  reads the gain share on the capital grown to the target (a coaster adds no basis); its Ipotesi line says «tasse
+  sui prelievi comprese (26% sulla plusvalenza)» or «non stimate».
 - **The fan is SEEDED** (`FAN_SEED`, `createSeededRandom` in `lib/utils/seededRandom.ts`, mulberry32): the same inputs
   give the same thousand paths at every opening, and — the reason it exists — the lever re-runs on the SAME shocks
   (common random numbers), so a difference between two runs is the difference between two plans and not noise. The
@@ -208,6 +237,6 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause, the Scenari rows say «oggi · già raggiunto» and the Scenari chart draws no FIRE marker for it; the Ventaglio and the Distribuzione run only while open, the probability lives in the Traguardo footer; **the fan is seeded** (since 2026-09-24): two openings show the same thousand paths and the same distribution — not a frozen cache, a fixed seed — while the Monte Carlo tab's «Esegui» still draws anew; **the Distribuzione's percentiles are nearest-rank** and can differ by a year from what the fan's bands suggest; the median of the paths can land AFTER the deterministic base year (volatility drag: the arithmetic-mean return of the walk overstates the median path) and the reading says «dopo il base»; the lever's «servirebbero +X € l'anno» is rounded up to 100 € and re-run, so a smaller figure may also work; «dal FIRE in poi» withdraws the expenses only — no state pension, no tax — so its survival understates a plan that has either; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit; the bridge number can stay put while the SWR moves (the pension floor binds) — the caption's «senza il vincolo sarebbe» is the figure that moves; the parameter inputs are native `type=number` and print `3.5` with a dot, a limit of the control the it-IT figures around it do not share; Recharts logs «The width(-1) and height(-1) of chart should be greater than 0» once when the Scenari or the Ventaglio mounts (the absolute box measures 0 on the first layout pass, then the chart draws) — seen in every Playwright run, harmless, the Distribuzione view (hand-written SVG) logs nothing.
+- **FIRE › Calcolatore**: «FIRE nel {anno}» is the BASE scenario of a deterministic walk on the last full cashflow year (or the running year annualized, said in Base di calcolo) — changed expenses read stale until the year closes; a target reached «today» prints no passive-income clause, the Scenari rows say «oggi · già raggiunto» and the Scenari chart draws no FIRE marker for it; the Ventaglio and the Distribuzione run only while open, the probability lives in the Traguardo footer; **the fan is seeded** (since 2026-09-24): two openings show the same thousand paths and the same distribution — not a frozen cache, a fixed seed — while the Monte Carlo tab's «Esegui» still draws anew; **the Distribuzione's percentiles are nearest-rank** and can differ by a year from what the fan's bands suggest; **the number is net of the state pensions and gross of the tax only where the inputs exist** — a pension saved in Coast FIRE without a saved age is OUT (the Base di calcolo row says it), a portfolio with no EUR PMC pays no modelled tax (the row says it), and an instrument with no PMC counts as basis, so a foreign position before its backfill understates the tax; the tax reads the gain share at the FIRE year of the deterministic walk (basis = today's + savings + the fund), so a rebalance that realises gains today lowers tomorrow's estimate; the pension's net figure is the Coast tab's (IRPEF brackets on the real-at-start gross), one year of bridge whatever the month; the median of the paths can land AFTER the deterministic base year (volatility drag: the arithmetic-mean return of the walk overstates the median path) and the reading says «dopo il base»; the lever's «servirebbero +X € l'anno» is rounded up to 100 € and re-run, so a smaller figure may also work; «dal FIRE in poi» withdraws the expenses only — no state pension, no tax — so its survival understates a plan that has either; `getFIREData` still runs for runway and history but its `metrics` are ignored; the fan is unavailable without an allocation in the four MC classes; the pension-lock switch is optimistic (a failed save reverts with a toast), disabled in demo; Parametri reopens on every unsaved edit; the bridge number can stay put while the SWR moves (the pension floor binds) — the caption's «senza il vincolo sarebbe» is the figure that moves; the parameter inputs are native `type=number` and print `3.5` with a dot, a limit of the control the it-IT figures around it do not share; Recharts logs «The width(-1) and height(-1) of chart should be greater than 0» once when the Scenari or the Ventaglio mounts (the absolute box measures 0 on the first layout pass, then the chart draws) — seen in every Playwright run, harmless, the Distribuzione view (hand-written SVG) logs nothing.
 - The blind spots of the other four tabs live at the end of their own guides: `doc/guide/fire-coast.md`, `doc/guide/fire-what-if.md`, `doc/guide/fire-monte-carlo.md`, `doc/guide/fire-obiettivi.md`.
 - **Le 5 spec del Calcolatore FIRE falliscono se la suite E2E gira prima del 5 del mese**: `seedEmulator.ts` data le spese al giorno 5 del mese corrente e `getAnnualCashflowData` interroga «inizio anno → adesso», quindi la finestra è vuota. Artefatto della fixture, non una regressione. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

@@ -436,6 +436,14 @@ describe('coastFireView — the Ipotesi disclosure', () => {
     expect(describeIpotesi({ currentAge: 35, retirementAge: 60, annualExpenses: 30_000, usesCustomExpenses: true, withdrawalRate: 4, baseRealReturn: 4.5, respectPensionLockIn: true, pensionUnlockCalendarYear: 2048, pensionCount: 2 })).toBe(parts.join(' · '));
   });
 
+  it('declares the tax on withdrawals, in the number or out with its reason (2026-09-24)', () => {
+    const common = { currentAge: 35, retirementAge: 60, annualExpenses: 30_000, usesCustomExpenses: false, withdrawalRate: 4, baseRealReturn: 4.5, respectPensionLockIn: false, pensionUnlockCalendarYear: null, pensionCount: 0 };
+    expect(buildCoastBasisParts({ ...common, withdrawalTaxRate: 26 }).at(-1)).toBe('tasse sui prelievi comprese (26% sulla plusvalenza)');
+    expect(buildCoastBasisParts({ ...common, withdrawalTaxRate: null }).at(-1)).toBe('tasse sui prelievi non stimate (nessun PMC in euro)');
+    // Absent altogether (a caller that does not know): no part, the line of before.
+    expect(buildCoastBasisParts(common).at(-1)).toBe('nessuna pensione statale');
+  });
+
   it('should distinguish "toggle on but nothing locked" from "toggle off", and count zero or one pension', () => {
     const common = {
       currentAge: 35,
