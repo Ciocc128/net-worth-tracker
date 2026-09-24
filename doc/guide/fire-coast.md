@@ -57,6 +57,13 @@
   fondo pensione sono esclusi da queste cifre perché restano bloccati fino al 2045; il calcolo li conta da quell'anno
   in poi». The Traguardo footer names the gross line («472.977 € con il fondo
   pensione dentro») only when the unlock is on the plot; an unlock past the target age is said as such.
+- **The tax on withdrawals is in the Coast number too** (2026-09-24, `calculateCoastFIREProjection(…, withdrawalTax)` →
+  `calculateCoastFIREMetrics` and the needs' `portfolioNeedMultiplier`, doc/guide/fire.md § the tax rule): each scenario reads the
+  gain share on the capital grown to the target at its OWN real return — a coaster adds no basis — so the required capital at the target
+  is `max(E − P, 0) / (1 − g·τ)` per year and at steady state, and the Coast number today discounts it as before. The tab reads the same
+  profile as the Calcolatore (FIRE-eligible assets minus the locked funds) and the Ipotesi line declares it («tasse sui prelievi comprese
+  (26% sulla plusvalenza)» / «non stimate (nessun PMC in euro)», `withdrawalTaxRate` on `CoastBasisInput`; a caller that passes nothing
+  prints the line of before). Without a profile the walk is byte-identical (multiplier 1).
 - The lock is `summarizeLock(pensionLockState, { currentYear, ritaUnlockAge })` — the same `FireLock` the Calcolatore
   reads — with `ritaUnlockAge` from the SAVED settings (`resolveRitaUnlockAge(settings)`): Coast has no RITA form of its
   own. The page has NO switch: the pension lock is the Calcolatore's Base di calcolo control (`doc/guide/fire.md § FIRE › Calcolatore — a verdict over tiles`), the Ipotesi description

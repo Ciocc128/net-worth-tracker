@@ -21,6 +21,7 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/pensionUnlock';
 import { MONTH_NAMES } from '@/lib/constants/months';
+import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR } from '@/lib/constants/stampDuty';
 import type { ExpenseType } from '@/types/expenses';
 import type { AssetClass } from '@/types/assets';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
@@ -105,9 +106,6 @@ export function describePerformanceBase({
   return [prose(base), prose(cashClause), prose(monthClause)];
 }
 
-/** For checking accounts the stamp duty applies only above this balance (Italian rule). */
-const STAMP_DUTY_CHECKING_THRESHOLD = 5000;
-
 export interface CostsInput {
   stampDutyEnabled: boolean;
   stampDutyRate: number;
@@ -115,7 +113,11 @@ export interface CostsInput {
   checkingAccountSubCategory: string;
 }
 
-/** Costi — the stamp duty and where its checking-account threshold applies. */
+/**
+ * Costi — the stamp duty, and the checking-account rule: a flat fee above the threshold, never
+ * the rate (the rate is the securities'). The sentence names the fee since 2026-09-24, when the
+ * calculation was found charging the rate on the balance while this line implied the threshold alone.
+ */
 export function describeCosts({ stampDutyEnabled, stampDutyRate, checkingAccountSubCategory }: CostsInput): Narrative {
   if (!stampDutyEnabled) {
     return [prose('Imposta di bollo spenta: non entra nel costo annuo del portafoglio.')];
@@ -129,16 +131,18 @@ export function describeCosts({ stampDutyEnabled, stampDutyRate, checkingAccount
   if (hasSubCategory) {
     return [
       ...head,
-      prose(`per i conti in ${checkingAccountSubCategory} vale solo oltre `),
-      figure(euro(STAMP_DUTY_CHECKING_THRESHOLD)),
+      prose(`per i conti in ${checkingAccountSubCategory} è fisso, `),
+      figure(cachedFormatCurrencyEUR(CHECKING_ACCOUNT_STAMP_DUTY_EUR)),
+      prose(" l'anno solo oltre "),
+      figure(euro(CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR)),
       prose('.'),
     ];
   }
   return [
     ...head,
     prose('senza la sottocategoria dei conti correnti, la soglia dei '),
-    figure(euro(STAMP_DUTY_CHECKING_THRESHOLD)),
-    prose(' non si applica.'),
+    figure(euro(CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR)),
+    prose(' e il bollo fisso non si applicano.'),
   ];
 }
 

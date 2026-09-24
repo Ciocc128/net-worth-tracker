@@ -47,7 +47,8 @@ import {
   getDefaultScenarios,
   type PensionCapitalInflowToday,
 } from '@/lib/services/fireService';
-import { calculateAssetValue, calculateFIRENetWorth, calculateLiquidFIRENetWorth, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue, calculateFIRENetWorth, calculateLiquidFIRENetWorth, filterFireEligibleAssets, getAllAssets } from '@/lib/services/assetService';
+import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { summarizeLock } from '@/lib/utils/fireSummary';
@@ -190,6 +191,18 @@ export function CoastFireTab() {
   );
   const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
 
+  // The tax on withdrawals (2026-09-24), read on the same capital the number runs on — the
+  // FIRE-eligible assets minus the locked funds — so the Coast number and the Calcolatore's agree.
+  const taxProfile = useMemo(() => {
+    if (!assets) return null;
+    const lockedIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
+    return resolvePortfolioTaxProfile(
+      filterFireEligibleAssets(assets, includePrimaryResidence).filter((asset) => !lockedIds.has(asset.id)),
+      calculateAssetValue,
+    );
+  }, [assets, includePrimaryResidence, pensionLockState]);
+  const withdrawalTax = useMemo(() => (taxProfile ? { basisToday: taxProfile.basisToday, rate: taxProfile.rate } : undefined), [taxProfile]);
+
   // Custom expenses when the toggle is on and the value parses to a positive number; otherwise
   // the last complete year's actuals from the query.
   const effectiveAnnualExpenses = draft.usesCustomExpenses ? draft.parsedCustomExpenses : annualExpenses;
@@ -211,8 +224,9 @@ export function CoastFireTab() {
       previewTaxBrackets,
       undefined, // currentDate: keep the function's own default
       pensionInflowsToday,
+      withdrawalTax,
     );
-  }, [effectiveAnnualExpenses, currentAge, currentNetWorth, pensionInflowsToday, previewPensions, previewTaxBrackets, retirementAge, scenarios, withdrawalRate]);
+  }, [effectiveAnnualExpenses, currentAge, currentNetWorth, pensionInflowsToday, previewPensions, previewTaxBrackets, retirementAge, scenarios, withdrawalRate, withdrawalTax]);
 
   // ─── The numbers (pure layer over the projection) ────────────────────────────
   const currentYear = getItalyYear();
@@ -261,6 +275,7 @@ export function CoastFireTab() {
     respectPensionLockIn,
     pensionUnlockCalendarYear: lock.unlockCalendarYear,
     pensionCount: previewPensions.length,
+    withdrawalTaxRate: taxProfile ? taxProfile.rate : null,
   });
 
   // ─── Config-first disclosure ─────────────────────────────────────────────────

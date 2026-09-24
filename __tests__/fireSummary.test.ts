@@ -245,6 +245,8 @@ describe('resolveFanVerdict', () => {
   const result = (probabilities: number[]): AccumulationSimulationResult => ({
     paths: [],
     fireYears: [],
+    retirements: [],
+    retirementHorizonYears: probabilities.length - 1,
     percentiles: probabilities.map((fireProbability, year) => ({
       year,
       p10: 0,

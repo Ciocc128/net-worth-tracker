@@ -963,6 +963,8 @@ export interface CoastBasisInput {
   /** Calendar year the locked pension capital re-enters, or null when nothing is locked. */
   pensionUnlockCalendarYear: number | null;
   pensionCount: number;
+  /** The capital-gains rate the withdrawals pay (percent), null when no cost basis estimates it. */
+  withdrawalTaxRate?: number | null;
 }
 
 export function buildCoastBasisParts(input: CoastBasisInput): string[] {
@@ -995,6 +997,11 @@ export function buildCoastBasisParts(input: CoastBasisInput): string[] {
   );
 
   parts.push(input.pensionCount === 0 ? 'nessuna pensione statale' : input.pensionCount === 1 ? '1 pensione statale' : `${input.pensionCount} pensioni statali`);
+
+  // The tax on withdrawals (2026-09-24): in the number, or declared out with its reason.
+  if (input.withdrawalTaxRate !== undefined) {
+    parts.push(input.withdrawalTaxRate === null ? 'tasse sui prelievi non stimate (nessun PMC in euro)' : `tasse sui prelievi comprese (${formatRate(input.withdrawalTaxRate)} sulla plusvalenza)`);
+  }
 
   return parts;
 }
