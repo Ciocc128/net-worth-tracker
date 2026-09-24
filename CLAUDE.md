@@ -13,38 +13,25 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **195 files / 4496 tests** green (+ 2 skipped) + **28 Playwright spec files** (91 tests, incl. 4 auth setups; last all-green full run 2026-09-21, fork after the fourth upstream merge, 3,0 min). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-21, fork): **Quarto riallineamento a upstream (#364–#378) sopra `origin/main`** (Lime Frost, PAC,
-  ottimizzatore). Upstream vince nel merito; il fork tiene i suoi lati dichiarati in doc/guide/fork-scelte-ui.md (scrub
-  dello Storico sopra il nuovo Driver a registro, banda del mese corrente invece del contorno, token di ruolo al posto
-  degli slot `--chart-N` nei grafici di Storico e Rendimenti, `--trade-*` letti dal clamp di upstream che ora accetta
-  anche `#hex`). Collaudo: `tsc` 0, ESLint 0, Vitest 195 file / 4496 test (anche sotto `TZ=Europe/Rome`),
-  build verde, Playwright 91/91, giro guidato in cinque fasi sullo specchio confermato dal proprietario il 2026-09-22.
-  Trovato nel giro: il Piano su un portafoglio con leva non ha il ridisegno di upstream (niente ritenuta), anche in
-  upstream — TODO in fork-scelte-ui.md. Il resto della storia del fork: `git log`.
-- Latest upstream (2026-09-21): **Allocazione — impeccable critique (27/40) chiusa.** A rebalance now names the INSTRUMENTS it
-  would trade, through the very splits Versa and Preleva already use (`RebalanceDescent`; Σgambe === la mossa di
-  classe), and every plan that sells prices the withholding on the realized fraction of the gain
-  (`estimatePlanSaleTax` over `estimateSaleTax`) — `null` WITH a reason when a leg has no EUR cost basis or rate, never
-  a flattering zero. A class with neither value nor target keeps its row and loses its verdict (`isDormantClass`): the
-  page said «Immobili in linea» at 0 € while the Previdenza tile, on the same screen, printed 60.000 € of it, and
-  counted it in «4 classi su 8» where the honest figure is 4 su 6. The verdict says «all'85%». Found on the way, and
-  bigger than the critique saw: **`useActionColors`'s legibility clamp had never run** — it matched `/oklch\(/` and
-  the browser answers `lab(…)`, so COMPRA/VENDI/OK shipped as raw chart slots at 2,39–4,02:1 as TEXT
-  (`lib/utils/actionColor.ts`, `ACTION_LIGHT_MAX_L`/`ACTION_DARK_MIN_L`/`ACTION_CHIP_FILL_PCT`, measured on all twelve
-  theme blocks). Keyboard: ONE Tab stop per list (`useRovingFocus` on `AsideToggle` and `RankedRows`, shared), the row
-  no longer hiding its own figures behind an `aria-label`, the band announcing its reclassification.
-  Closed on the owner's tour: a level that repeats the one above it is dropped (`collapseRepeatedLevels`; an
-  instrument is `isInstrument`, never a depth) and the grid's two columns stand at natural height — the void beside
-  the Piano fell from 684 to ~90px and the page from 2359 to 2112. And «prelevare 1000 €» now means 1000 € IN HAND:
-  the plan sells the gross that survives the withholding (`solveWithdrawalGross`, a fixed point — the tax follows
-  which instruments are drained, so a division by (1 − rate) is the wrong shape and is pinned red by a test).
-  **Verification**: `tsc`, lint 0, Vitest 4085 with and without `TZ=Europe/Rome`, Playwright **87/87** (the page's
-  FIRST spec, `e2e/allocation.spec.ts` — it was the last verdict page with none), eleven falsifications seen red one
-  behaviour at a time (two stayed green and are recorded as such: the sell's re-cap is guaranteed by
-  `splitFromSurplus`, the loss floor by `estimateSaleTax`), and the before/after measured in the browser on the
-  production mirror at 1440 and 390 in both modes — thirteen contrast failures → zero, «Dettaglio» 41 Tab → 23,
-  overflow 0 everywhere, console clean. doc/guide/allocazione.md.
+- `tsc` clean; **200 files / 4640 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **36 Playwright spec files** (124 tests, incl. 6 auth setups; last full run 2026-09-24, fork after the fifth upstream merge, 3,5 min: 122 green, the two reds intermittent — see Known Issues). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-24, fork): **Quinto riallineamento a upstream (#379–#389) sopra `origin/main`**. Upstream vince nel
+  merito; il fork tiene i suoi lati (doc/guide/fork-scelte-ui.md § 1): i colori di scenario FIRE restano
+  `SCENARIO_COLOR` anche nei nuovi istogrammi (`HistogramBars` su `--scenario-base`) e il Dettaglio su `--flow-in/out`;
+  in Impostazioni il colore del ruolo 50/30/20 passa nel `CategoryRow` di upstream, Allocazione ideale entra nello
+  stato «non salvato» per tab, e la frase 50/30/20 dice «non letti» quando le categorie non si leggono. Hall of Fame:
+  preso il rimedio di upstream al troncamento (la divergenza del fork è ritirata). La **roadmap** del 22/09 ora vive in
+  fork-scelte-ui.md § 3 (prossimo passo: PR A, il Piano con leva). Collaudo: `tsc` 0, ESLint 0, Vitest 200 file /
+  4640 nei due fusi, build verde, Playwright 122/124 (due intermittenti), sonda Playwright sullo specchio a 1440 e
+  390 e giro guidato confermato dal proprietario il 2026-09-24.
+- Latest upstream (2026-09-24, sera): **Hall of Fame — critique Impeccable (26/40) chiusa.** Il periodo non si tronca
+  più («2026 · ORA», un `min-w-` e mai un tetto), articoli da `articleForPercent`/`pluralArticleFor`, la tessera non
+  ripete la cifra del verdetto, l'asse dei 12 record con l'anno, la nota precompilata DALLA RIGA (`NotePrefill`), il
+  footer Record chiude sulla ripresa (`stats.sinceWorstMonth`), il primo anno parziale dichiarato
+  (`YearlyRecord.monthsCovered`). Nuovo fixture `hof@example.com` (`scripts/seedHallOfFameE2E.mts`,
+  `e2e/hall-of-fame.hof{,.mobile}.spec.ts`). Prima, nella stessa serie (#379–#387): critique di Divisione, FIRE, Coast
+  FIRE e Impostazioni (lettura fallita ≠ lista vuota, stato di salvataggio per tab, `allocationTargetValidation.ts`),
+  la vista Distribuzione e il numero FIRE onesto (pensioni e tassa sui prelievi, `withdrawalTax.ts`).
+  doc/guide/hall-of-fame.md, fire.md, impostazioni.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -65,7 +52,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
-- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?». doc/guide/cashflow-divisione.md.
+- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
 - **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
@@ -75,7 +62,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **FIRE**: Calcolatore, Coast FIRE, What If, Monte Carlo and Obiettivi, one verdict each. doc/guide/fire.md (+ fire-coast, fire-what-if, fire-monte-carlo, fire-obiettivi).
 - **Assistente AI**: the verdict IS the context; SSE streaming, memory, goal proposals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
 - **Hall of Fame**: «quali sono stati i mesi e gli anni migliori?», no axis. doc/guide/hall-of-fame.md.
-- **Impostazioni**: six tabs, no verdict, one Save per page; the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
+- **Impostazioni**: six tabs, no verdict, one Save per page with the save state per tab (a dot, a bottom bar, «Annulla modifiche»); the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
 - **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
 - **Dialogs and forms**: 40 modals on one vocabulary in `ResponsiveModal`; row deletes arm in the row. doc/guide/dialog.md; DESIGN → The Modal-Is-A-Tile Rule.
 - **Periodic emails · budget email · PDF export**: rule-generated verdict first, AI comment second; every hex from `printTokens.ts`. doc/guide/email-pdf.md; DESIGN → The Out-Of-DOM Token Rule.
@@ -105,7 +92,7 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 - **Two deliberate dependency pins keep advisories open.** `firebase-admin` at `^13.6.0` (@14 pulls pure-ESM `jose@6` → `ERR_REQUIRE_ESM` on Vercel; 8 moderate `uuid` advisories stay) and `next` at `~16.2.12` (16.3.0 breaks Vercel at `onBuildComplete`; 2 HIGH libvips advisories via `sharp`, low exposure). **Unpin next and re-run `npm audit fix` once Vercel digests 16.3.x.**
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Three Vitest cases fail under `TZ=UTC`** (`budgetUtils` › crossing day, `pensionSummary` › value age, `tracciamentoSummary` › `isScheduledRow`), on a clean `develop` too (checked in a worktree, 2026-09-20): they read «today» by Italian calendar day against fixtures built in the process timezone. The suite's two timezones are the machine's and `Europe/Rome`; a CI in UTC would see them red.
-- **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two are fixed; the others take the opener when they are next touched.
+- **Every controlled `ResponsiveModal` opened without `returnFocusTo` drops focus on `body` when it closes** (Radix cancels its own restore when there is no `Trigger`; doc/guide/dialog.md). Rendimenti's two and Hall of Fame's two are fixed; the others take the opener when they are next touched.
 - **`--muted-foreground` measures 4,46:1 on `--background` in the default LIGHT theme** (measured in the browser,
   2026-09-21, on the compact `PageHeader`'s description) — just under the AA floor of 4,5:1, on every page that uses
   the shell, not on one. It is a theme-token change with a twelve-block blast radius, so it belongs to a
@@ -119,7 +106,19 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
 - **Solo fork — `CACHE_MATH_VERSION` è `'v{n}-fork'`** (`lib/services/performanceService.ts`): distinta da upstream qualunque
   forma abbia la chiave; un bump di upstream si porta come `v{n}-fork`. Il backfill di `averageCostEur` non riparte su
   un account che l'ha già eseguito con la versione del fork (stessa formula, innocuo).
+- **`e2e/settings.mobile.spec.ts` › «Ripristina default» is intermittent in a FULL run** (2026-09-24, fork): the button
+  measured 43,99999px against the `>= 44` floor once in two full runs — a sub-pixel height, green alone and in the whole
+  `mobile` project. Upstream's own spec, left as is.
+- **`e2e/modal.origin.spec.ts` is intermittent in a FULL run** (2026-09-21): it failed twice in a row and then passed
+  twice with the same code — once with `components/ui/period-picker.tsx` reverted and once with it restored, so that
+  change is not the cause (and it failed once more in the full run of 2026-09-22, green alone right after). When it fails, Rendimenti's «Periodo personalizzato» button has moved **23,4px** between the
+  `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
+  height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
+  so not yet fixed — re-read this before trusting a single red run of it.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
+- **Two shared primitives stay below 44px on touch, on every page**: the `PageTabBar` pill below 1440 (inactive tabs
+  38×32, icon only) and the `Switch` (36×20; its row's `Label` is clickable, the thumb alone is not). Measured on
+  Impostazioni, 2026-09-22; left alone there because enlarging either changes every page at once.
 
 ## Key Files
 Cross-cutting entry points only: each area's files open its guide (`doc/guide/<tema>.md` § Files), every pure module has
@@ -133,7 +132,7 @@ Cross-cutting entry points only: each area's files open its guide (`doc/guide/<t
   `components/allocation/tiles/ComposizioneIdealeTile.tsx`; temi `lib/utils/{colorLightness,actionColor}.ts` (i colori
   serviti sono `#hex`/`lab()`), il blocco Lime Frost in `app/globals.css`; Storico `lib/utils/storicoScrub.ts`
   (`resolveScrubView`); 50/30/20 `lib/utils/spendingRoles.ts`.
-- **E2E**: `playwright.config.ts`, `e2e/*.ts`, `e2e/global-setup.ts`, fixtures `scripts/{seedEmulator.ts,seedPensionE2E,seedAnalisiE2E,seedCoastFireE2E,seedCostCentersE2E}.mts`; scripts `test:e2e`/`e2e:seed*`/`dev:e2e`; the production mirror `scripts/mirrorProdAccount.mts` (`mirror:seed`/`mirror:remove`)
+- **E2E**: `playwright.config.ts`, `e2e/*.ts`, `e2e/global-setup.ts`, fixtures `scripts/{seedEmulator.ts,seedPensionE2E,seedAnalisiE2E,seedCoastFireE2E,seedCostCentersE2E,seedSplitE2E,seedHallOfFameE2E}.mts`; scripts `test:e2e`/`e2e:seed*`/`dev:e2e`; the production mirror `scripts/mirrorProdAccount.mts` (`mirror:seed`/`mirror:remove`)
 
 
 ## Design Context

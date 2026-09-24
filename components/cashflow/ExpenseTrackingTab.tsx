@@ -151,6 +151,12 @@ interface ExpenseTrackingTabProps {
   splitEnabled: boolean;
   /** The household, from the settings — the people a row can be attributed to. */
   familyMembers: FamilyMember[];
+  /**
+   * The «Intestatario» filter this tab should open on, from `?owner=` — how «Attribuisci spese»
+   * on Divisione hands over the rows to work through. Null on every other entry, which leaves
+   * the filter where the reader left it.
+   */
+  initialOwnerId?: string | null;
 }
 
 interface ListFilters {
@@ -251,6 +257,7 @@ export function ExpenseTrackingTab({
   assetNameMap,
   splitEnabled,
   familyMembers,
+  initialOwnerId = null,
 }: ExpenseTrackingTabProps) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
@@ -312,7 +319,16 @@ export function ExpenseTrackingTab({
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
 
   // Intestatario filter (Divisione only) — 'all' means no owner filter applied.
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string>(OWNER_FILTER_ALL);
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>(initialOwnerId ?? OWNER_FILTER_ALL);
+  // A link arriving from Divisione changes `?owner=` without remounting this tab (it is
+  // `forceMount`), so the initializer above would never run again. Settled DURING render on the
+  // param as its subject — never `useEffect + setState`, which would paint one frame of the old
+  // filter (AGENTS.md → react-hooks/set-state-in-effect, answer 3).
+  const [ownerParamSeen, setOwnerParamSeen] = useState<string | null | undefined>(initialOwnerId);
+  if (ownerParamSeen !== initialOwnerId) {
+    setOwnerParamSeen(initialOwnerId);
+    setSelectedOwnerId(initialOwnerId ?? OWNER_FILTER_ALL);
+  }
 
   // Generate available years from ALL expenses (not filtered)
   const availableYears = useMemo(() => {

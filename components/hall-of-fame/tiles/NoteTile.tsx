@@ -63,7 +63,10 @@ export function NoteTile({ reading, summary, notes, onOpenNote, onAddNote, disab
                   {/* Below desktop the three columns stack: a 390px row has no space for them side by side. */}
                   <span className="flex min-w-0 flex-1 flex-col gap-1 desktop:flex-row desktop:items-baseline desktop:gap-3">
                     <span className="flex min-w-0 shrink-0 items-baseline gap-2 desktop:w-[240px]">
-                      <span className="font-mono text-[13px] tabular-nums text-foreground">{row.label}</span>
+                      {/* The period is the row's identity: it never wraps («mar / 2024» did, measured 39px tall
+                          beside 20px rows on 2026-09-24); the ranking names beside it wrap instead
+                          (the fork never cuts a label, doc/guide/fork-scelte-ui.md § 1). */}
+                      <span className="whitespace-nowrap font-mono text-[13px] tabular-nums text-foreground">{row.label}</span>
                       <span className="break-words text-[11px] text-muted-foreground">
                         {row.sectionLabels.join(' · ')}
                       </span>
@@ -78,7 +81,8 @@ export function NoteTile({ reading, summary, notes, onOpenNote, onAddNote, disab
       )}
 
       <div className="mt-auto border-t border-border pt-3.5">
-        <p className="text-[11px] leading-[1.5] text-muted-foreground">
+        {/* A full-width tile: the footer keeps a readable measure instead of running 200 characters a line. */}
+        <p className="max-w-[72ch] text-[11px] leading-[1.5] text-muted-foreground">
           Una nota può valere su più classifiche, e resta anche quando il periodo esce dalla top venti.
         </p>
       </div>

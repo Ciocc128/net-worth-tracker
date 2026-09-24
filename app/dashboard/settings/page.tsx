@@ -15,17 +15,24 @@
  * - Bonds = remainder after equity + other asset classes
  * Based on Bogleheads investment principles.
  *
- * PERCENTAGE VALIDATION:
+ * PERCENTAGE VALIDATION (lib/utils/allocationTargetValidation.ts):
  * - Asset classes must sum to AT LEAST 100% (or remainder if cash uses fixed €); above 100% is a
  *   legitimate target leverage (exactly 100% = no leverage)
  * - Sub-categories must sum to 100% within parent
  * - Specific assets must sum to 100% within parent sub-category
- * All validations run on save with clear error messages.
+ * The first broken rule is stated live in the Target per classe reading; «Salva» refuses to write
+ * and takes the reader THERE (opens the group, focuses the field) instead of toasting and leaving.
+ *
+ * SAVE STATE: one «Salva» for every tab. Each tab keeps its own dirty snapshot, so the tab bar
+ * marks the tabs holding edits and a bar at the bottom of the page names them, with «Annulla
+ * modifiche» (re-read the saved settings) beside «Salva». The color theme and the light/dark
+ * mode are the exception: they save themselves.
  *
  * KEY TRADE-OFFS:
  * - Complex nested state vs flat structure: Nested chosen to mirror target hierarchy
  * - Auto-calculation vs manual: Optional auto-calc simplifies for users following standard advice
- * - Immediate validation vs save-time: Save-time chosen to avoid interrupting user flow
+ * - Live diagnosis vs blocking input: the reading states the problem while typing, the fields
+ *   never refuse a keystroke; only the write is refused
  */
 
 'use client';
@@ -45,8 +52,19 @@ import {
   setSettings,
   getDefaultTargets,
   calculateEquityPercentage,
-  validateSpecificAssets,
 } from '@/lib/services/assetAllocationService';
+import {
+  dropUnnamedSubTargets,
+  findTargetProblem,
+  isTargetTotalValid,
+  sumSubTargets,
+  sumsToHundred,
+  type ClassTargetDraft,
+  type TargetProblem,
+} from '@/lib/utils/allocationTargetValidation';
+import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
+import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
+import { narrativeToText } from '@/lib/utils/narrative';
 import { resolveAutoEquityBondsSplit } from '@/lib/utils/equityBondsAutoTargets';
 import {
   AssetAllocationTarget,
@@ -56,7 +74,7 @@ import {
   IdealAllocationSettings,
 } from '@/types/assets';
 import { DEFAULT_IDEAL_ALLOCATION, findSecondLevelGaps } from '@/lib/utils/weightOptimizer';
-import { resolveAllocationRole, ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
+import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import { IdealAllocationTile } from '@/components/settings/IdealAllocationTile';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
@@ -77,7 +95,7 @@ import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { useColorTheme, ColorTheme } from '@/contexts/ColorThemeContext';
 import { TabsContent } from '@/components/ui/tabs';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
@@ -89,17 +107,18 @@ import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCat
 import { CategoryManagementDialog } from '@/components/expenses/CategoryManagementDialog';
 import { CategoryDeleteConfirmDialog } from '@/components/expenses/CategoryDeleteConfirmDialog';
 import { CategoryMoveDialog } from '@/components/expenses/CategoryMoveDialog';
-import { getLazyIcon } from '@/components/expenses/IconPickerPopover';
+import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import { CreateDummySnapshotModal } from '@/components/CreateDummySnapshotModal';
 import { DeleteDummyDataDialog } from '@/components/DeleteDummyDataDialog';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { PageTabs } from '@/components/layout/PageTabs';
-import type { TabDef } from '@/components/layout/PageTabBar';
-import { Tile, TILE_CELL_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { pageTabPanelId, type TabDef } from '@/components/layout/PageTabBar';
+import { Tile, TILE_CELL_CLASS, TILE_FOOTER_ACTION_CLASS, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
+import { TileMethodNote } from '@/components/ui/tile-method-note';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
-import { describeReadFailure } from '@/lib/utils/statesNarrative';
+import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { applyThemeWithTransition } from '@/lib/utils/themeTransition';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/pensionUnlock';
@@ -120,8 +139,9 @@ import {
   describeFireToggles,
   describePerformanceBase,
   describePlanParameters,
-  describeProfile,
+  describeTargetProblem,
   describeThemeMode,
+  describeUnsavedChanges,
   summarizeExpenseCategories,
   type ThemeMode,
 } from '@/lib/utils/settingsNarrative';
@@ -148,16 +168,9 @@ interface AssetClassState {
   expanded: boolean;
 }
 
-const assetClassLabels: Record<AssetClass, string> = {
-  equity: 'Azioni (Equity)',
-  bonds: 'Obbligazioni (Bonds)',
-  crypto: 'Criptovalute (Crypto)',
-  realestate: 'Immobili (Real Estate)',
-  cash: 'Liquidità (Cash)',
-  commodity: 'Materie Prime (Commodity)',
-  trendFollowing: 'Trend Following',
-  carry: 'Carry',
-};
+// The class names Allocazione prints (one label map, no English in brackets: «Azioni», never
+// «Azioni (Equity)»).
+const assetClassLabel = (assetClass: AssetClass): string => ASSET_CLASS_LABELS[assetClass] ?? assetClass;
 
 // Order: Azioni → Obbligazioni → Commodities → Real Estate → Cash → Crypto → Trend Following → Carry.
 // trendFollowing/carry get a settable target here from L2 on:
@@ -202,12 +215,6 @@ const sumOtherClassTargets = (
     .filter((assetClass) => assetClass !== 'equity' && assetClass !== 'bonds')
     .filter((assetClass) => !(assetClass === 'cash' && cashUseFixedAmount))
     .reduce((sum, assetClass) => sum + (states[assetClass]?.targetPercentage || 0), 0);
-
-// Leverage-aware: the target percentages are desired NOTIONAL exposure over invested capital, so a
-// total of EXACTLY 100 means "no leverage" and anything ABOVE 100 is a legitimate target leverage
-// Only an under-allocated total (< 100) is invalid. Shared by handleSave's guard and the
-// render-time isValidTotal so the two can never drift apart.
-const isTargetTotalValid = (total: number): boolean => total >= 100 - 0.01;
 
 // Famiglia — household members a pension fund can be attributed to (Impostazioni → Preferenze).
 // String-typed draft (never fights the user while typing), same shape as CoastFireTab's pension/tax
@@ -414,6 +421,180 @@ function DeclarationRow({ label, value, mono = true }: { label: string; value: s
   );
 }
 
+/**
+ * Ids of the target fields «Salva» can send the focus to (see `revealTargetProblem`). A class's
+ * own input keeps the bare class id, which its `aria-label` already names.
+ */
+const targetFieldId = {
+  subName: (assetClass: AssetClass, subIndex: number) => `target-${assetClass}-sub-${subIndex}-name`,
+  subPct: (assetClass: AssetClass, subIndex: number) => `target-${assetClass}-sub-${subIndex}-pct`,
+  assetName: (assetClass: AssetClass, subIndex: number, assetIndex: number) =>
+    `target-${assetClass}-sub-${subIndex}-asset-${assetIndex}-name`,
+  assetPct: (assetClass: AssetClass, subIndex: number, assetIndex: number) =>
+    `target-${assetClass}-sub-${subIndex}-asset-${assetIndex}-pct`,
+  assetAdd: (assetClass: AssetClass, subIndex: number) => `target-${assetClass}-sub-${subIndex}-asset-add`,
+};
+
+/** What a first press on a category's delete led to. */
+type CategoryDeleteRequest = 'dialog' | 'arm' | 'failed';
+
+interface CategoryRowProps {
+  category: ExpenseCategory;
+  onEdit: (category: ExpenseCategory) => void;
+  onMove: (category: ExpenseCategory, triggerOrigin: string) => void;
+  /**
+   * The first press: a category WITH movements opens the reassignment dialog (which is its
+   * confirmation), one without them arms the row — its second press deletes.
+   */
+  onRequestDelete: (category: ExpenseCategory, triggerOrigin: string) => Promise<CategoryDeleteRequest>;
+  onConfirmDelete: (categoryId: string) => void;
+  /** The list's one live region: arm and disarm are sentences, spoken there. */
+  announce: (text: string) => void;
+  /** With the 50/30/20 roles on, the badge wears the role, not the saved hue (fork). */
+  spendingRolesEnabled: boolean;
+}
+
+/**
+ * One category of the Categorie tile. Module-level because the armed state of its delete lives
+ * here (`useArmedDelete`: no timer — the 3-second auto-disarm this row used to have was a WCAG
+ * 2.2.1 time limit and announced nothing); the button stays a compact «Conferma» and the ROW
+ * prints what the second press does (AGENTS.md → Accessibility).
+ */
+function CategoryRow({ category, onEdit, onMove, onRequestDelete, onConfirmDelete, announce, spendingRolesEnabled }: CategoryRowProps) {
+  const deleteRef = useRef<HTMLButtonElement | null>(null);
+  const { armed, onClick: onArmedClick, onBlur } = useArmedDelete(deleteRef, () => onConfirmDelete(category.id));
+  const wasArmed = useRef(false);
+  useEffect(() => {
+    if (armed) {
+      wasArmed.current = true;
+      announce(`Premi di nuovo per eliminare ${category.name}`);
+    } else if (wasArmed.current) {
+      wasArmed.current = false;
+      announce('Eliminazione annullata');
+    }
+  }, [armed, announce, category.name]);
+
+  const handleDeleteClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (armed) {
+      onArmedClick();
+      return;
+    }
+    const origin = resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect());
+    if ((await onRequestDelete(category, origin)) === 'arm') onArmedClick();
+  };
+
+  // A LOOKUP in the module-level map, never a call: a component obtained from a call during
+  // render is a new type every render (`react-hooks/static-components`).
+  const CatIcon = category.icon ? LAZY_CATEGORY_ICONS[category.icon] : undefined;
+  const iconButtonClass = 'h-11 w-11 desktop:h-8 desktop:w-8';
+  const roleColor = categoryRoleColor(category, spendingRolesEnabled);
+  const glyph = roleColor ?? (category.color || 'var(--muted-foreground)');
+  const wash = roleColor
+    ? `color-mix(in oklch, ${roleColor} 14%, transparent)`
+    : category.color ? `${category.color}20` : 'var(--muted)';
+  const dot = roleColor ?? (category.color || 'var(--chart-1)');
+
+  return (
+    <div className={cn('flex items-center justify-between gap-3 py-2.5 transition-colors', armed ? 'bg-destructive/5' : 'hover:bg-muted/30')}>
+      <div className="flex min-w-0 items-center gap-3">
+        <div
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: wash }}
+        >
+          {CatIcon ? (
+            <Suspense fallback={<div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: dot }} />}>
+              <CatIcon className="h-3.5 w-3.5" style={{ color: glyph }} aria-hidden="true" />
+            </Suspense>
+          ) : (
+            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: dot }} />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-medium">{category.name}</p>
+          {armed ? (
+            <p className="text-[11px] leading-[1.4] text-destructive">Nessuna transazione la usa: «Conferma» la elimina.</p>
+          ) : (
+            category.subCategories.length > 0 && (
+              <p className="truncate text-[11px] text-muted-foreground">
+                {category.subCategories.length} {category.subCategories.length === 1 ? 'sottocategoria' : 'sottocategorie'}:{' '}
+                {category.subCategories.map((sub) => sub.name).join(', ')}
+              </p>
+            )
+          )}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button variant="ghost" size="icon" className={iconButtonClass} aria-label={`Modifica ${category.name}`} onClick={() => onEdit(category)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={iconButtonClass}
+          aria-label={`Sposta tutte le transazioni di ${category.name}`}
+          onClick={(event) => onMove(category, resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect()))}
+        >
+          <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+        </Button>
+        <Button
+          ref={deleteRef}
+          variant="ghost"
+          size="sm"
+          aria-label={armed ? `Conferma eliminazione di ${category.name}` : `Elimina ${category.name}`}
+          className={cn('h-11 min-w-11 desktop:h-8 desktop:min-w-8', armed && 'text-destructive hover:bg-destructive/10 hover:text-destructive')}
+          onClick={handleDeleteClick}
+          onBlur={onBlur}
+        >
+          <Trash2 className={cn('h-4 w-4', !armed && 'text-muted-foreground')} />
+          {armed && <span className="text-xs">Conferma</span>}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface SyncDividendsButtonProps {
+  disabled: boolean;
+  syncing: boolean;
+  onSync: () => void;
+  /** The tile's live region: the armed and disarmed states are said, not only drawn. */
+  announce: (text: string) => void;
+}
+
+/**
+ * «Sincronizza dividendi esistenti» — a two-click confirm (`useArmedDelete`, no timer). It writes
+ * cashflow rows for every recorded dividend, so the first press asks; it does not destroy
+ * anything, so the armed state is the primary tint, not the destructive one.
+ */
+function SyncDividendsButton({ disabled, syncing, onSync, announce }: SyncDividendsButtonProps) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const { armed, onClick, onBlur } = useArmedDelete(ref, onSync);
+  const wasArmed = useRef(false);
+  useEffect(() => {
+    if (armed) {
+      wasArmed.current = true;
+      announce('Premi di nuovo per sincronizzare i dividendi già registrati');
+    } else if (wasArmed.current) {
+      wasArmed.current = false;
+      announce('Sincronizzazione annullata');
+    }
+  }, [armed, announce]);
+
+  return (
+    <Button
+      ref={ref}
+      onClick={onClick}
+      onBlur={onBlur}
+      disabled={disabled}
+      variant={armed ? 'default' : 'outline'}
+      className="h-11 gap-2 desktop:h-9"
+    >
+      <Coins className="h-4 w-4" />
+      {syncing ? 'Sincronizzazione…' : armed ? 'Conferma sincronizzazione' : 'Sincronizza dividendi esistenti'}
+    </Button>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
@@ -475,9 +656,15 @@ export default function SettingsPage() {
     [assetClass: string]: { [currentName: string]: string }; // currentName -> originalName
   }>({});
 
-  // Expense categories state
+  // Expense categories state. `loadingCategories` starts TRUE: before the first read an empty
+  // list is «not read yet», never «no categories».
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  /** The categories were not read: every tile fed by them says so instead of «nessuna». */
+  const [categoriesFailed, setCategoriesFailed] = useState(false);
+  // Announcements of the Categorie list and of the dividend sync (one live region each).
+  const [categoryAnnouncement, setCategoryAnnouncement] = useState('');
+  const [syncAnnouncement, setSyncAnnouncement] = useState('');
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
 
@@ -491,8 +678,11 @@ export default function SettingsPage() {
   const [categoryToMove, setCategoryToMove] = useState<ExpenseCategory | null>(null);
   const [expenseCountToMove, setExpenseCountToMove] = useState(0);
 
-  // Default cash account settings
+  // Default cash account settings — the accounts are read beside the settings, with their own
+  // wait and their own failure (a failed read is not «nessun conto»).
   const [cashAssets, setCashAssets] = useState<Asset[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [accountsFailed, setAccountsFailed] = useState(false);
   const [defaultDebitCashAssetId, setDefaultDebitCashAssetId] = useState<string>('__none__');
   const [defaultCreditCashAssetId, setDefaultCreditCashAssetId] = useState<string>('__none__');
 
@@ -511,17 +701,6 @@ export default function SettingsPage() {
   // Default account credited by dividends and coupons ('__none__' = none, like the expense defaults).
   const [dividendCashAssetId, setDividendCashAssetId] = useState<string>('__none__');
   const [syncingDividends, setSyncingDividends] = useState(false);
-
-  // 2-click disarm for zero-expense category deletion (avoids window.confirm)
-  const [pendingDeleteDirectCategoryId, setPendingDeleteDirectCategoryId] = useState<string | null>(null);
-  const pendingDeleteDirectTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 2-click disarm for dividend sync confirmation (avoids window.confirm)
-  const [syncConfirmArmed, setSyncConfirmArmed] = useState(false);
-  const syncConfirmTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Progressive disclosure: notes block in Allocazione tab
-  const [isNotesOpen, setIsNotesOpen] = useState(false);
 
   // Test snapshot modal state
   const [dummySnapshotModalOpen, setDummySnapshotModalOpen] = useState(false);
@@ -547,6 +726,7 @@ export default function SettingsPage() {
   const [generalBaselineKey, setGeneralBaselineKey] = useState('');
   const [familyMemberDrafts, setFamilyMemberDrafts] = useState<FamilyMemberDraft[]>([]);
   const [dividendBaselineKey, setDividendBaselineKey] = useState('');
+  const [speseBaselineKey, setSpeseBaselineKey] = useState('');
   const [deleteDialogOrigin, setDeleteDialogOrigin] = useState<string | undefined>(
     undefined
   );
@@ -598,11 +778,17 @@ export default function SettingsPage() {
     }
   }
 
-  const loadTargets = useCallback(async () => {
-    if (!user || !ownerId) return;
+  /**
+   * Reads the saved settings into the form and captures the four dirty baselines from them.
+   * `quiet` keeps the page on screen instead of the skeleton: it is «Annulla modifiche», which
+   * re-reads what is saved rather than keeping a second copy of it — so an edit the co-owner
+   * saved meanwhile comes back too. Resolves `true` once the form holds the saved values.
+   */
+  const loadTargets = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}): Promise<boolean> => {
+    if (!user || !ownerId) return false;
 
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       setLoadFailed(false);
       const settingsData = await getSettings(ownerId);
       const targets = settingsData?.targets || getDefaultTargets();
@@ -728,6 +914,10 @@ export default function SettingsPage() {
 
       setAllocationBaselineKey(
         JSON.stringify({
+          // Età and risk-free are typed in the Auto-calcolo tile (moved back from Preferenze ›
+          // Profilo on 2026-09-22): the snapshot follows the tab that EDITS a field.
+          userAge: settingsData?.userAge ?? null,
+          riskFreeRate: settingsData?.riskFreeRate ?? null,
           autoCalculate:
             settingsData?.autoCalculateEquityBonds ??
             (settingsData?.userAge !== undefined && settingsData?.riskFreeRate !== undefined),
@@ -756,10 +946,6 @@ export default function SettingsPage() {
 
       setGeneralBaselineKey(
         JSON.stringify({
-          // Età and risk-free are edited from Preferenze → Profilo (they still feed the
-          // Allocazione formula, whose equity/bonds targets sit in the allocation snapshot).
-          userAge: settingsData?.userAge ?? null,
-          riskFreeRate: settingsData?.riskFreeRate ?? null,
           includePrimaryResidenceInFIRE:
             settingsData?.includePrimaryResidenceInFIRE ?? false,
           goalBasedInvestingEnabled: settingsData?.goalBasedInvestingEnabled ?? false,
@@ -769,10 +955,6 @@ export default function SettingsPage() {
           stampDutyRate: roundToTwoDecimals(settingsData?.stampDutyRate ?? 0.2),
           checkingAccountSubCategory:
             settingsData?.checkingAccountSubCategory || '__none__',
-          defaultDebitCashAssetId:
-            settingsData?.defaultDebitCashAssetId || '__none__',
-          defaultCreditCashAssetId:
-            settingsData?.defaultCreditCashAssetId || '__none__',
           cashflowHistoryStartYear: settingsData?.cashflowHistoryStartYear ?? 2025,
           laborIncomeCategoryIds: [...(settingsData?.laborIncomeCategoryIds ?? [])].sort(),
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
@@ -800,10 +982,19 @@ export default function SettingsPage() {
           dividendCashAssetId: settingsData?.dividendCashAssetId || '__none__',
         })
       );
+
+      setSpeseBaselineKey(
+        JSON.stringify({
+          defaultDebitCashAssetId: settingsData?.defaultDebitCashAssetId || '__none__',
+          defaultCreditCashAssetId: settingsData?.defaultCreditCashAssetId || '__none__',
+        })
+      );
+      return true;
     } catch (error) {
       setLoadFailed(true);
       console.error('Error loading targets:', error);
       toast.error('Errore nel caricamento dei target');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -814,15 +1005,44 @@ export default function SettingsPage() {
 
     try {
       setLoadingCategories(true);
+      setCategoriesFailed(false);
       const categories = await getAllCategories(ownerId);
       setExpenseCategories(categories);
     } catch (error) {
+      // No toast: the tiles that depend on the categories carry the failure in place.
       console.error('Error loading expense categories:', error);
-      toast.error('Errore nel caricamento delle categorie spese');
+      setCategoriesFailed(true);
     } finally {
       setLoadingCategories(false);
     }
   }, [user, ownerId]);
+
+  const loadCashAccounts = useCallback(async () => {
+    if (!ownerId) return;
+
+    try {
+      setLoadingAccounts(true);
+      setAccountsFailed(false);
+      const assets = await getAllAssets(ownerId);
+      // Default debit/credit account picker: an actual conto, not just a "cash-class" asset —
+      // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
+      // (convenzione stretta, doc/guide/patrimonio.md § Asset Pricing, FX and Assets).
+      setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'));
+      // Same read, second consumer: Allocazione ideale's instrument/group limits — only tradable
+      // assets can carry a weight (doc/weight-optimizer-ate.md §7.3).
+      setOptimizerTradableAssets(assets.filter((a) => resolveAllocationRole(a) === 'tradable'));
+      setOptimizerScopedAssets(
+        assets.filter((a) => resolveAllocationRole(a) === 'tradable' || resolveAllocationRole(a) === 'frozen')
+      );
+    } catch (error) {
+      // It used to have no catch at all: a failed read left `[]`, and the tile told the reader
+      // to create an account they already had.
+      console.error('Error loading cash accounts:', error);
+      setAccountsFailed(true);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, [ownerId]);
 
   // First load, and again when the viewed account changes (doc/guide/account-condiviso-demo.md § Shared Account / Delegated Access: manual
   // loaders key on ownerId).
@@ -832,21 +1052,10 @@ export default function SettingsPage() {
     const timer = setTimeout(() => {
       loadTargets();
       loadExpenseCategories();
+      loadCashAccounts();
     }, 0);
-    getAllAssets(ownerId).then((assets) => {
-      // Default debit/credit account picker: an actual conto, not just a "cash-class" asset —
-      // a money-market ETF (assetClass 'cash') is not a settlement account. Strict convention
-      // (convenzione stretta, doc/guide/patrimonio.md § Asset Pricing, FX and Assets).
-      setCashAssets(assets.filter((a) => a.type === 'cash' && a.assetClass === 'cash'));
-      // Allocazione ideale's instrument/group limits: only tradable assets can carry a weight
-      // (doc/weight-optimizer-ate.md §7.3).
-      setOptimizerTradableAssets(assets.filter((a) => resolveAllocationRole(a) === 'tradable'));
-      setOptimizerScopedAssets(
-        assets.filter((a) => resolveAllocationRole(a) === 'tradable' || resolveAllocationRole(a) === 'frozen')
-      );
-    });
     return () => clearTimeout(timer);
-  }, [user, ownerId, loadTargets, loadExpenseCategories]);
+  }, [user, ownerId, loadTargets, loadExpenseCategories, loadCashAccounts]);
 
   // Refresh categories (the import may have created new ones) and invalidate every
   // Cashflow query key that reads expenses/categories/overview data, so the freshly
@@ -870,41 +1079,34 @@ export default function SettingsPage() {
     setCategoryDialogOpen(true);
   };
 
-  const handleDeleteExpenseCategory = async (
-    categoryId: string,
-    categoryName: string,
-    triggerOrigin?: string
-  ) => {
-    if (!user || !ownerId) return;
+  // The first press on a category's delete. With movements the reassignment dialog IS the
+  // confirmation; without them the row arms itself (CategoryRow) and deletes at the second press.
+  const requestCategoryDelete = async (
+    category: ExpenseCategory,
+    triggerOrigin: string
+  ): Promise<CategoryDeleteRequest> => {
+    if (!user || !ownerId) return 'failed';
 
     try {
-      // Check if there are expenses associated with this category
-      const expenseCount = await getExpenseCountByCategoryId(categoryId, ownerId);
+      const expenseCount = await getExpenseCountByCategoryId(category.id, ownerId);
+      if (expenseCount === 0) return 'arm';
 
-      if (expenseCount > 0) {
-        // Show reassignment dialog
-        const category = await getCategoryById(categoryId);
-        if (category) {
-          setCategoryToDelete(category);
-          setExpenseCountToReassign(expenseCount);
-          setDeleteDialogOrigin(triggerOrigin);
-          setDeleteConfirmDialogOpen(true);
-        }
-      } else {
-        // No expenses: arm the 2-click disarm instead of blocking window.confirm.
-        // First click sets the pending state; the button turns destructive.
-        // Second click calls handleConfirmDirectDelete. Auto-disarms after 3s.
-        if (pendingDeleteDirectTimerRef.current) clearTimeout(pendingDeleteDirectTimerRef.current);
-        setPendingDeleteDirectCategoryId(categoryId);
-        pendingDeleteDirectTimerRef.current = setTimeout(() => {
-          setPendingDeleteDirectCategoryId(null);
-        }, 3000);
-      }
+      const fresh = await getCategoryById(category.id);
+      if (!fresh) return 'failed';
+      setCategoryToDelete(fresh);
+      setExpenseCountToReassign(expenseCount);
+      setDeleteDialogOrigin(triggerOrigin);
+      setDeleteConfirmDialogOpen(true);
+      return 'dialog';
     } catch (error) {
       console.error('Error deleting category:', error);
-      toast.error('Errore nell\'eliminazione della categoria');
+      toast.error("Errore nell'eliminazione della categoria");
+      return 'failed';
     }
   };
+
+  const announceCategory = useCallback((text: string) => setCategoryAnnouncement(text), []);
+  const announceSync = useCallback((text: string) => setSyncAnnouncement(text), []);
 
   const handleConfirmDeleteWithReassignment = async (
     newCategoryId?: string,
@@ -980,10 +1182,8 @@ export default function SettingsPage() {
     }
   };
 
-  // Executes the deletion after the 2-click disarm is confirmed (zero-expense path).
+  // The second press of an armed row (zero-expense path).
   const handleConfirmDirectDelete = async (categoryId: string) => {
-    if (pendingDeleteDirectTimerRef.current) clearTimeout(pendingDeleteDirectTimerRef.current);
-    setPendingDeleteDirectCategoryId(null);
     try {
       await deleteCategory(categoryId);
       toast.success('Categoria eliminata con successo');
@@ -996,22 +1196,18 @@ export default function SettingsPage() {
 
   // ========== Move Category Handlers ==========
 
-  const handleMoveExpenseCategory = async (
-    categoryId: string,
-    categoryName: string,
-    triggerOrigin?: string
-  ) => {
+  const handleMoveExpenseCategory = async (source: ExpenseCategory, triggerOrigin: string) => {
     if (!user || !ownerId) return;
 
     try {
-      const expenseCount = await getExpenseCountByCategoryId(categoryId, ownerId);
+      const expenseCount = await getExpenseCountByCategoryId(source.id, ownerId);
 
       if (expenseCount === 0) {
-        toast.warning(`La categoria "${categoryName}" non ha transazioni da spostare`);
+        toast.warning(`La categoria «${source.name}» non ha transazioni da spostare`);
         return;
       }
 
-      const category = await getCategoryById(categoryId);
+      const category = await getCategoryById(source.id);
       if (category) {
         setCategoryToMove(category);
         setExpenseCountToMove(expenseCount);
@@ -1087,6 +1283,7 @@ export default function SettingsPage() {
 
   // Dividend sync — the CATEGORY itself is saved by the page's one Save (handleSave already
   // persists it); the tab keeps only the sync action, so the field has a single save surface.
+  // Runs at the SECOND press of SyncDividendsButton.
   const handleSyncDividends = async () => {
     if (!user || !ownerId) return;
 
@@ -1094,19 +1291,6 @@ export default function SettingsPage() {
       toast.error('Seleziona prima una categoria per le entrate da dividendi');
       return;
     }
-
-    // 2-click disarm: first click arms the button; second click proceeds.
-    // Avoids blocking window.confirm which breaks the app visual system.
-    if (!syncConfirmArmed) {
-      setSyncConfirmArmed(true);
-      if (syncConfirmTimerRef.current) clearTimeout(syncConfirmTimerRef.current);
-      syncConfirmTimerRef.current = setTimeout(() => setSyncConfirmArmed(false), 3000);
-      return;
-    }
-
-    // Second click: disarm and proceed
-    if (syncConfirmTimerRef.current) clearTimeout(syncConfirmTimerRef.current);
-    setSyncConfirmArmed(false);
 
     try {
       setSyncingDividends(true);
@@ -1160,13 +1344,10 @@ export default function SettingsPage() {
 
       if (result.failed > 0) {
         toast.warning(
-          `Sincronizzazione completata con ${result.failed} errori. ` +
-          `Create: ${result.created}, Saltate: ${result.skipped}`
+          `Sincronizzazione completata con ${result.failed} errori: ${result.created} voci create, ${result.skipped} già presenti.`
         );
       } else {
-        toast.success(
-          `Sincronizzazione completata! Create: ${result.created}, Saltate: ${result.skipped}`
-        );
+        toast.success(`Sincronizzazione completata: ${result.created} voci create, ${result.skipped} già presenti.`);
       }
     } catch (error) {
       console.error('Error syncing dividends:', error);
@@ -1193,14 +1374,7 @@ export default function SettingsPage() {
     );
   };
 
-  const calculateSubTargetTotal = (assetClass: AssetClass) => {
-    return (
-      assetClassStates[assetClass]?.subTargets.reduce(
-        (sum, target) => sum + target.percentage,
-        0
-      ) || 0
-    );
-  };
+  const calculateSubTargetTotal = (assetClass: AssetClass) => sumSubTargets(assetClassStates[assetClass]?.subTargets ?? []);
 
   // Famiglia — add/update/remove a member row (plain array state, same pattern as
   // updatePensionRow/removePensionRow in CoastFireTab.tsx).
@@ -1225,86 +1399,93 @@ export default function SettingsPage() {
     setFamilyMemberDrafts((current) => current.filter((draft) => draft.id !== id));
   };
 
+  // The target tree as the validation module sees it.
+  const toClassDrafts = (states: Record<AssetClass, AssetClassState>): ClassTargetDraft[] =>
+    assetClasses.map((assetClass) => ({
+      assetClass,
+      subCategoryEnabled: states[assetClass]?.subCategoryEnabled ?? false,
+      subTargets: states[assetClass]?.subTargets ?? [],
+    }));
+
+  /**
+   * Takes the reader to the first broken rule: the Allocazione tab, the class's group opened
+   * (and the subcategory's assets, for an asset rule), the focus on the field to fix. The
+   * reading of Target per classe already states the problem; this puts the cursor where it is.
+   */
+  const revealTargetProblem = (problem: TargetProblem, cleanedStates: Record<AssetClass, AssetClassState>) => {
+    let states = cleanedStates;
+    if (activeTab !== 'allocazione') handleTabChange('allocazione');
+
+    let fieldId: string;
+    if (problem.kind === 'total-below-100') {
+      // The first class the reader can type into (the formula owns Azioni/Obbligazioni when on).
+      const editable = assetClasses.find(
+        (assetClass) => !(autoCalculate && (assetClass === 'equity' || assetClass === 'bonds'))
+      );
+      fieldId = editable ?? assetClasses[0];
+    } else {
+      const { assetClass } = problem;
+      const subTargets = [...states[assetClass].subTargets];
+      if (problem.kind === 'sub-total') {
+        // The first row as the list shows it (sorted by name), so the focus lands at the top.
+        const firstShown = subTargets
+          .map((target, index) => ({ name: target.name, index }))
+          .sort((a, b) => a.name.localeCompare(b.name))[0];
+        fieldId = firstShown ? targetFieldId.subPct(assetClass, firstShown.index) : `toggle-${assetClass}`;
+      } else if (problem.kind === 'sub-name-duplicate') {
+        fieldId = targetFieldId.subName(assetClass, problem.subIndex);
+      } else {
+        subTargets[problem.subIndex] = { ...subTargets[problem.subIndex], expanded: true };
+        fieldId =
+          problem.kind === 'specific-empty'
+            ? targetFieldId.assetAdd(assetClass, problem.subIndex)
+            : problem.kind === 'specific-total'
+              ? targetFieldId.assetPct(assetClass, problem.subIndex, 0)
+              : problem.kind === 'specific-out-of-range'
+                ? targetFieldId.assetPct(assetClass, problem.subIndex, problem.assetIndex)
+                : targetFieldId.assetName(assetClass, problem.subIndex, problem.assetIndex);
+      }
+      states = { ...states, [assetClass]: { ...states[assetClass], expanded: true, subTargets } };
+    }
+    setAssetClassStates(states);
+
+    // After React has committed the open group and the visible tab.
+    window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        const field = document.getElementById(fieldId);
+        if (!field) return;
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        field.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+        field.focus({ preventScroll: true });
+      });
+    }, 0);
+  };
+
   const handleSave = async () => {
     if (!user || !ownerId) return;
 
-    // Auto-cleanup empty subcategory rows before validation (Bug #8 fix)
-    assetClasses.forEach(assetClass => {
+    // A subcategory row with no name is one the reader started and left: it is dropped, in the
+    // form as in the document (dropUnnamedSubTargets). The rest is validated as it will be written.
+    const cleanedDrafts = dropUnnamedSubTargets(toClassDrafts(assetClassStates));
+    const cleanedStates = { ...assetClassStates };
+    cleanedDrafts.forEach(({ assetClass, subTargets }) => {
       const state = assetClassStates[assetClass];
-      if (state.subCategoryEnabled && state.subTargets.length > 0) {
-        const cleanedSubTargets = state.subTargets.filter(t => t.name.trim() !== '');
-        if (cleanedSubTargets.length !== state.subTargets.length) {
-          updateAssetClassState(assetClass, {
-            subTargets: cleanedSubTargets,
-            categories: cleanedSubTargets.map(t => t.name),
-          });
-        }
+      if (subTargets.length !== state.subTargets.length) {
+        cleanedStates[assetClass] = {
+          ...state,
+          subTargets: subTargets as SubTarget[],
+          categories: subTargets.map((target) => target.name),
+        };
       }
     });
 
-    const total = calculateTotal();
-    if (!isTargetTotalValid(total)) {
-      toast.error(
-        `Il totale deve essere almeno 100%. Attualmente è ${formatPercentage(total)} — residuo da allocare ${formatPercentage(100 - total)}.`
-      );
+    const problem = findTargetProblem(calculateTotal(), cleanedDrafts);
+    if (problem) {
+      revealTargetProblem(problem, cleanedStates);
+      toast.error(narrativeToText(describeTargetProblem(problem)));
       return;
     }
-
-    // Validate sub-targets for each enabled asset class
-    for (const assetClass of assetClasses) {
-      const state = assetClassStates[assetClass];
-      if (state.subCategoryEnabled) {
-        const subTotal = calculateSubTargetTotal(assetClass);
-        if (Math.abs(subTotal - 100) > 0.01) {
-          toast.error(
-            `Il totale delle sotto-categorie ${assetClassLabels[assetClass]} deve essere 100%. Attualmente è ${formatPercentage(
-              subTotal
-            )}`
-          );
-          return;
-        }
-
-        // Check for empty names
-        const hasEmptyNames = state.subTargets.some(
-          (target) => !target.name.trim()
-        );
-        if (hasEmptyNames) {
-          toast.error(
-            `Tutte le sotto-categorie di ${assetClassLabels[assetClass]} devono avere un nome`
-          );
-          return;
-        }
-
-        // Check for duplicates
-        const names = state.subTargets.map((t) => t.name.trim().toLowerCase());
-        const hasDuplicates = names.length !== new Set(names).size;
-        if (hasDuplicates) {
-          toast.error(
-            `Le sotto-categorie di ${assetClassLabels[assetClass]} non possono avere nomi duplicati`
-          );
-          return;
-        }
-
-        // Validate specific assets for each subcategory
-        for (const subTarget of state.subTargets) {
-          if (subTarget.specificAssetsEnabled && subTarget.specificAssets) {
-            const validationError = validateSpecificAssets(
-              subTarget.specificAssets.map(sa => ({
-                name: sa.name,
-                targetPercentage: sa.targetPercentage,
-              }))
-            );
-
-            if (validationError) {
-              toast.error(
-                `Sottocategoria "${subTarget.name}" in ${assetClassLabels[assetClass]}: ${validationError}`
-              );
-              return;
-            }
-          }
-        }
-      }
-    }
+    if (cleanedStates !== assetClassStates) setAssetClassStates(cleanedStates);
 
     // Validate Allocazione ideale (doc/weight-optimizer-ate.md §7.3): min ≤ max, 0..100, and at
     // most one instrument limit per asset — the UI already prevents the last one by construction.
@@ -1337,7 +1518,7 @@ export default function SettingsPage() {
       const targets: AssetAllocationTarget = {};
 
       assetClasses.forEach((assetClass) => {
-        const state = assetClassStates[assetClass];
+        const state = cleanedStates[assetClass];
         targets[assetClass] = {
           targetPercentage: state.targetPercentage,
           ...(assetClass === 'cash' && {
@@ -1420,10 +1601,13 @@ export default function SettingsPage() {
         familyMembers: parseFamilyMemberDrafts(familyMemberDrafts),
         idealAllocation,
       });
-      toast.success('Impostazioni salvate con successo');
-      setAllocationBaselineKey(allocationSnapshotKey);
+      toast.success('Impostazioni salvate');
+      // The allocation baseline is captured from what was WRITTEN (the cleaned tree), so a
+      // dropped empty row does not leave the tab marked as unsaved.
+      setAllocationBaselineKey(buildAllocationSnapshotKey(cleanedStates));
       setGeneralBaselineKey(generalSnapshotKey);
       setDividendBaselineKey(dividendSnapshotKey);
+      setSpeseBaselineKey(speseSnapshotKey);
       // Other consumers (AssetDialog's family-member Select, PensionOverview) read settings via
       // React Query with a 5-minute staleTime — without this, a just-added member wouldn't be
       // selectable there until that cache naturally expired.
@@ -1523,7 +1707,7 @@ export default function SettingsPage() {
     // Prevent adding if there are existing empty names (Bug #8 fix)
     const hasEmpty = state.subTargets.some(t => !t.name.trim());
     if (hasEmpty) {
-      toast.error('Completa le sotto-categorie esistenti prima di aggiungerne altre');
+      toast.error('Dai un nome alla sottocategoria vuota prima di aggiungerne un\'altra.');
       return;
     }
 
@@ -1667,41 +1851,39 @@ export default function SettingsPage() {
   // consumes them as a value (only `!==` and the save handler), so the React Compiler prunes the
   // scope and a manual memo becomes one it "could not preserve" (react-hooks/preserve-manual-
   // memoization). Three small JSON.stringify calls per render cost less than the comparison.
-  const allocationSnapshotKey = JSON.stringify({
-        autoCalculate,
-        cashUseFixedAmount,
-        cashFixedAmount: roundToTwoDecimals(cashFixedAmount),
-        assetClassStates: assetClasses.map((assetClass) => ({
-          assetClass,
-          targetPercentage: roundToTwoDecimals(
-            assetClassStates[assetClass]?.targetPercentage || 0
-          ),
-          subCategoryEnabled: assetClassStates[assetClass]?.subCategoryEnabled || false,
-          categories: assetClassStates[assetClass]?.categories || [],
-          subTargets: (assetClassStates[assetClass]?.subTargets || []).map((target) => ({
-            name: target.name,
-            percentage: roundToTwoDecimals(target.percentage),
-            specificAssetsEnabled: target.specificAssetsEnabled || false,
-            specificAssets: (target.specificAssets || []).map((asset) => ({
-              name: asset.name,
-              targetPercentage: roundToTwoDecimals(asset.targetPercentage),
-            })),
+  const buildAllocationSnapshotKey = (states: Record<AssetClass, AssetClassState>) =>
+    JSON.stringify({
+      userAge: userAge ?? null,
+      riskFreeRate: riskFreeRate ?? null,
+      autoCalculate,
+      cashUseFixedAmount,
+      cashFixedAmount: roundToTwoDecimals(cashFixedAmount),
+      assetClassStates: assetClasses.map((assetClass) => ({
+        assetClass,
+        targetPercentage: roundToTwoDecimals(states[assetClass]?.targetPercentage || 0),
+        subCategoryEnabled: states[assetClass]?.subCategoryEnabled || false,
+        categories: states[assetClass]?.categories || [],
+        subTargets: (states[assetClass]?.subTargets || []).map((target) => ({
+          name: target.name,
+          percentage: roundToTwoDecimals(target.percentage),
+          specificAssetsEnabled: target.specificAssetsEnabled || false,
+          specificAssets: (target.specificAssets || []).map((asset) => ({
+            name: asset.name,
+            targetPercentage: roundToTwoDecimals(asset.targetPercentage),
           })),
         })),
-        idealAllocation: idealAllocationSnapshotValue(idealAllocation),
-      });
+      })),
+      idealAllocation: idealAllocationSnapshotValue(idealAllocation),
+    });
+  const allocationSnapshotKey = buildAllocationSnapshotKey(assetClassStates);
 
   const generalSnapshotKey = JSON.stringify({
-        userAge: userAge ?? null,
-        riskFreeRate: riskFreeRate ?? null,
         includePrimaryResidenceInFIRE,
         goalBasedInvestingEnabled,
         goalDrivenAllocationEnabled,
         stampDutyEnabled,
         stampDutyRate: roundToTwoDecimals(stampDutyRate),
         checkingAccountSubCategory,
-        defaultDebitCashAssetId,
-        defaultCreditCashAssetId,
         cashflowHistoryStartYear,
         laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         costCentersEnabled,
@@ -1726,17 +1908,43 @@ export default function SettingsPage() {
         dividendCashAssetId,
       });
 
-  const hasUnsavedAllocationChanges =
-    allocationBaselineKey.length > 0 && allocationSnapshotKey !== allocationBaselineKey;
-  const hasUnsavedGeneralChanges =
-    generalBaselineKey.length > 0 && generalSnapshotKey !== generalBaselineKey;
-  const hasUnsavedDividendChanges =
-    dividendBaselineKey.length > 0 && dividendSnapshotKey !== dividendBaselineKey;
+  const speseSnapshotKey = JSON.stringify({
+        defaultDebitCashAssetId,
+        defaultCreditCashAssetId,
+      });
 
-  const hasUnsavedChanges =
-    hasUnsavedAllocationChanges ||
-    hasUnsavedGeneralChanges ||
-    hasUnsavedDividendChanges;
+  // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
+  // the tab that EDITS them (doc/guide/impostazioni.md § Settings — the FIVE places).
+  const unsavedByTab: Partial<Record<SettingsTabId, boolean>> = {
+    allocazione: allocationBaselineKey.length > 0 && allocationSnapshotKey !== allocationBaselineKey,
+    generale: generalBaselineKey.length > 0 && generalSnapshotKey !== generalBaselineKey,
+    spese: speseBaselineKey.length > 0 && speseSnapshotKey !== speseBaselineKey,
+    dividendi: dividendBaselineKey.length > 0 && dividendSnapshotKey !== dividendBaselineKey,
+  };
+  const settingsTabs = SETTINGS_TABS.map((tab) => ({ ...tab, unsaved: unsavedByTab[tab.value as SettingsTabId] ?? false }));
+  const unsavedSentence = describeUnsavedChanges(settingsTabs.filter((tab) => tab.unsaved).map((tab) => tab.label));
+  const hasUnsavedChanges = unsavedSentence !== null;
+  // `aria-controls` may only name a panel that exists: Allocazione is always mounted, the
+  // others once opened.
+  const renderedPanels = new Set<string>([...mountedTabs, 'allocazione']);
+
+  // A reload or a closed tab with edits pending asks first (the browser's own prompt). An
+  // in-app link does not: the App Router has no navigation guard, so the bar at the bottom is
+  // the reminder there.
+  useEffect(() => {
+    if (!hasUnsavedChanges || isDemo) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedChanges, isDemo]);
+
+  // «Annulla modifiche»: back to what is saved, by reading it again.
+  const handleRevert = async () => {
+    // A failed re-read replaces the page with its ErrorNotice, which says what happened.
+    if (await loadTargets({ quiet: true })) {
+      toast.info('Modifiche annullate: il modulo mostra di nuovo le impostazioni salvate.');
+    }
+  };
 
   if (loading) {
     return (
@@ -1848,6 +2056,10 @@ export default function SettingsPage() {
       assetClassStates[assetClass]?.subCategoryEnabled && (assetClassStates[assetClass]?.subTargets.length ?? 0) > 0
   ).length;
   const classesWithTarget = Object.values(assetClassStates).filter((s) => s && s.targetPercentage > 0).length;
+  // The first rule «Salva» would refuse, stated live in the Target per classe reading.
+  const targetProblem = findTargetProblem(total, dropUnnamedSubTargets(toClassDrafts(assetClassStates)));
+  const categoriesState = resolveSurfaceState({ loading: loadingCategories, failed: categoriesFailed });
+  const accountsState = resolveSurfaceState({ loading: loadingAccounts, failed: accountsFailed });
   const laborCategoryNames = getCategoriesByType('income')
     .filter((cat) => laborIncomeCategoryIds.includes(cat.id))
     .map((cat) => cat.name);
@@ -1871,115 +2083,66 @@ export default function SettingsPage() {
         description="Target, preferenze e flussi"
         actions={
           <div className="flex items-center gap-2">
-            {/* Save state as a quiet chip: it is context for the buttons, not a metric.
-                In demo the chip carries the disabled reason in visible copy (never a title). */}
-            {isDemo ? (
-              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
+            {/* The save STATE is the bar at the bottom of the page (it names the tabs) and the dot
+                on each tab; the header keeps the actions. In demo the disabled reason is visible
+                copy (never a title). */}
+            {isDemo && (
+              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-foreground">
                 Modalità demo: salvataggio disattivato
               </span>
-            ) : hasUnsavedChanges ? (
-              <span className="hidden sm:inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs text-primary">
-                Anteprima attiva: modifiche non salvate
-              </span>
-            ) : (
-              <span className="hidden sm:inline-flex items-center rounded-full border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
-                Tutte le modifiche sono salvate
-              </span>
             )}
-            {/* Reset is only meaningful for allocation targets */}
+            {/* Reset is only meaningful for allocation targets; it is the FACTORY targets, not
+                the last save — «Annulla modifiche» in the bar is that. */}
             {activeTab === 'allocazione' && (
-              <Button variant="outline" size="sm" onClick={handleReset} disabled={isDemo}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                disabled={isDemo}
+                aria-label="Ripristina default"
+                className="h-11 desktop:h-8"
+              >
                 <RotateCcw className="h-4 w-4" />
                 <span className="hidden sm:inline">Ripristina default</span>
               </Button>
             )}
-            <Button size="sm" onClick={handleSave} disabled={isDemo || saving}>
+            <Button size="sm" onClick={handleSave} disabled={isDemo || saving} className="h-11 desktop:h-8">
               <Save className="h-4 w-4" />
-              {saving ? 'Salvataggio...' : 'Salva'}
+              {saving ? 'Salvataggio…' : 'Salva'}
             </Button>
           </div>
         }
       />
 
       <PageTabs
-        tabs={SETTINGS_TABS}
+        tabs={settingsTabs}
         value={activeTab}
         onValueChange={handleTabChange}
         layoutId="settings-tab-pill"
         ariaLabel="Sezioni delle Impostazioni"
+        renderedPanels={renderedPanels}
       >
 
         {/* Tab: Preferenze (lazy) — every group is a tile: eyebrow = the group, reading = ONE
             rule-generated state line (settingsNarrative), controls below. */}
         {mountedTabs.has('generale') && (
-          <TabsContent value="generale" className="mt-4">
+          <TabsContent
+          value="generale"
+          id={pageTabPanelId('settings-tab-pill', 'generale')}
+          aria-label="Preferenze"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
-              {/* Profilo — età e risk-free (moved here from Allocazione; the formula still lives there) */}
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
-                <Tile eyebrow="Profilo" reading={describeProfile({ userAge, riskFreeRate })}>
-                  <div className="mt-1 flex flex-col divide-y divide-border">
-                    <div className="flex items-center justify-between gap-4 py-3">
-                      <div className="min-w-0">
-                        <Label htmlFor="userAge" className="text-[13px] font-medium">Età</Label>
-                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Entra nella formula dei target</p>
-                      </div>
-                      <Input
-                        id="userAge"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={userAge || ''}
-                        onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : undefined;
-                          setUserAge(value);
-                        }}
-                        placeholder="anni"
-                        className={cn('w-24 shrink-0 text-right font-mono', interactiveControlClass)}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 py-3">
-                      <div className="min-w-0">
-                        <Label htmlFor="riskFreeRate" className="text-[13px] font-medium">Risk-free rate</Label>
-                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                          <a
-                            href="https://www.investing.com/rates-bonds/italy-10-year-bond-yield"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            BTP 10 anni
-                          </a>
-                          {' '}su Investing.com
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <Input
-                          id="riskFreeRate"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          value={riskFreeRate || ''}
-                          onChange={(e) => {
-                            const value = e.target.value ? parseFloat(e.target.value) : undefined;
-                            setRiskFreeRate(value);
-                          }}
-                          placeholder="es. 3.5"
-                          className={cn('w-24 text-right font-mono', interactiveControlClass)}
-                        />
-                        <span className="text-sm text-muted-foreground">%</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Sharpe e Sortino di Rendimenti usano questo tasso come rendimento privo di rischio.
-                  </div>
-                </Tile>
-              </div>
-
+              {/* Order: what this tab WRITES first (three rows of editable tiles), then the two
+                  read-only declarations of fields other pages own. Età and risk-free rate are no
+                  longer here: they live in Allocazione › Auto-calcolo, beside the formula whose
+                  switch they unlock (2026-09-22). */}
               {/* Calcolo dei rendimenti — measurement base + pension-return start month */}
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
                 <Tile
                   eyebrow="Calcolo dei rendimenti"
                   aside="Rendimenti"
@@ -2058,13 +2221,22 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Cambiare la base invalida la cache delle metriche: si ricalcolano alla prossima visita di Rendimenti.
+                    Le metriche si ricalcolano alla prossima visita di Rendimenti; il risk-free di Sharpe e Sortino
+                    si imposta in{' '}
+                    <button type="button" onClick={() => handleTabChange('allocazione')} className={TILE_FOOTER_ACTION_CLASS}>
+                      Allocazione
+                    </button>
+                    .
                   </div>
                 </Tile>
               </div>
 
+              {/* Costi and FIRE e obiettivi stack beside Calcolo dei rendimenti: three tiles in one
+                  row left ~300px empty in the two short ones (critique of 2026-09-22). Below
+                  `desktop:` the wrapper dissolves and each tile is a cell of its own. */}
+              <div className="contents desktop:col-span-6 desktop:flex desktop:flex-col desktop:gap-3">
               {/* Costi — imposta di bollo */}
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+              <div className={cn(TILE_CELL_CLASS)}>
                 <Tile
                   eyebrow="Costi"
                   aside="stima annua"
@@ -2110,7 +2282,7 @@ export default function SettingsPage() {
                         {assetClassStates.cash?.subCategoryEnabled && (assetClassStates.cash?.categories?.length ?? 0) > 0 ? (
                           <Select value={checkingAccountSubCategory} onValueChange={setCheckingAccountSubCategory}>
                             <SelectTrigger className={cn('w-44', interactiveControlClass)} aria-label="Sottocategoria conti correnti">
-                              <SelectValue placeholder="Seleziona sottocategoria..." />
+                              <SelectValue placeholder="Seleziona sottocategoria…" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">Nessuna (soglia non applicata)</SelectItem>
@@ -2121,20 +2293,20 @@ export default function SettingsPage() {
                           </Select>
                         ) : (
                           <p className="text-[11px] leading-[1.4] text-warning-foreground">
-                            Configura le sottocategorie di Liquidità nel tab Allocazione per abilitarla.
+                            Configura le sottocategorie di Liquidità, in Allocazione, per abilitarla.
                           </p>
                         )}
                       </div>
                     )}
                   </div>
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Gli asset esenti si marcano dal dialog dello strumento, in Patrimonio.
+                    Gli asset esenti si marcano dalla scheda dello strumento, in Patrimonio.
                   </div>
                 </Tile>
               </div>
 
-              {/* FIRE e obiettivi — the three toggles this page OWNS */}
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+              {/* FIRE e obiettivi — the three toggles this page OWNS; it takes the column's slack */}
+              <div className={cn(TILE_CELL_CLASS, 'desktop:flex-1')}>
                 <Tile
                   eyebrow="FIRE e obiettivi"
                   reading={describeFireToggles({
@@ -2200,83 +2372,7 @@ export default function SettingsPage() {
                 </Tile>
               </div>
 
-              {/* Parametri del piano — read-only declaration; the FIRE pages stay the only write surfaces */}
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
-                <Tile eyebrow="Parametri del piano" aside="sola lettura" reading={describePlanParameters(planParams)}>
-                  <div className="mt-1 flex flex-col divide-y divide-border">
-                    {planParams.withdrawalRate !== undefined && (
-                      <DeclarationRow label="Safe withdrawal rate" value={pctLabel(planParams.withdrawalRate)} />
-                    )}
-                    {planParams.plannedAnnualExpenses !== undefined && (
-                      <DeclarationRow
-                        label="Spese pianificate"
-                        value={`${cachedFormatCurrencyEUR(planParams.plannedAnnualExpenses, true)}/anno`}
-                      />
-                    )}
-                    <DeclarationRow
-                      label="Età pensione INPS"
-                      value={`${inpsAgeShown} anni${planParams.pensionInpsRetirementAge === undefined ? ' · predefinita' : ''}`}
-                    />
-                    <DeclarationRow label="RITA (sblocco fondo)" value={`${ritaAgeShown} anni`} />
-                    <DeclarationRow
-                      label="Vincolo fondo nel FIRE"
-                      value={planParams.respectPensionLockInFire ? 'Attivo' : 'Spento'}
-                      mono={false}
-                    />
-                  </div>
-                  <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Si modificano dove agiscono:{' '}
-                    <Link href="/dashboard/fire-simulations?tab=fire" className="text-foreground underline-offset-2 hover:underline">
-                      FIRE › Calcolatore → Parametri
-                    </Link>
-                    {' '}e{' '}
-                    <Link href="/dashboard/fire-simulations?tab=coast" className="text-foreground underline-offset-2 hover:underline">
-                      Coast FIRE → Ipotesi
-                    </Link>
-                    .
-                  </div>
-                </Tile>
               </div>
-
-              {/* Assistente — read-only mirror; the popover beside the conversation is the write surface */}
-              {SHOW_ASSISTANT ? (
-                <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
-                  <Tile eyebrow="Assistente" aside="sola lettura" reading={describeAssistantPreferences(assistantPrefs)}>
-                    <div className="mt-1 flex flex-col divide-y divide-border">
-                      {assistantPrefs.responseStyle !== undefined && (
-                        <DeclarationRow
-                          label="Stile delle risposte"
-                          value={ASSISTANT_STYLE_LABELS[assistantPrefs.responseStyle]}
-                          mono={false}
-                        />
-                      )}
-                      {assistantPrefs.memoryEnabled !== undefined && (
-                        <DeclarationRow
-                          label="Apprendimento automatico"
-                          value={assistantPrefs.memoryEnabled ? 'Attivo' : 'Spento'}
-                          mono={false}
-                        />
-                      )}
-                      {assistantPrefs.macroContextEnabled !== undefined && (
-                        <DeclarationRow
-                          label="Contesto macro (web)"
-                          value={assistantPrefs.macroContextEnabled ? 'Attivo' : 'Spento'}
-                          mono={false}
-                        />
-                      )}
-                    </div>
-                    <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                      Si modificano{' '}
-                      <Link href="/dashboard/assistant" className="text-foreground underline-offset-2 hover:underline">
-                        dall&apos;Assistente
-                      </Link>
-                      , accanto alla conversazione.
-                    </div>
-                  </Tile>
-                </div>
-              ) : (
-                <div className="hidden desktop:block desktop:col-span-4" aria-hidden="true" />
-              )}
 
               {/* Cashflow — labor income, history floor, cost centers */}
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
@@ -2290,13 +2386,18 @@ export default function SettingsPage() {
                     familyMemberCount: familyMembersForReading.length,
                     spendingRolesEnabled,
                     categoryClassification,
+                    categoriesUnread: categoriesState === 'failed',
                   })}
                 >
                   <div className="mt-3">
                     <p className={TILE_SUB_EYEBROW_CLASS}>Reddito da lavoro</p>
-                    {getCategoriesByType('income').length === 0 ? (
+                    {categoriesState === 'failed' ? (
+                      <p className="mt-2 text-[11px] leading-[1.4] text-destructive">
+                        Categorie non lette: la scelta salvata resta quella di prima.
+                      </p>
+                    ) : categoriesState === 'loading' ? null : getCategoriesByType('income').length === 0 ? (
                       <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">
-                        Nessuna categoria di tipo «Entrate»: creane una nel tab Spese.
+                        Nessuna categoria di tipo «Entrate»: creane una in Spese.
                       </p>
                     ) : (
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -2315,7 +2416,7 @@ export default function SettingsPage() {
                                 )
                               }
                               className={cn(
-                                'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors',
+                                'inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors desktop:h-8',
                                 checked
                                   ? 'border-primary bg-primary text-primary-foreground'
                                   : 'border-border bg-background text-foreground hover:bg-muted'
@@ -2360,7 +2461,7 @@ export default function SettingsPage() {
                       <div className="min-w-0">
                         <Label htmlFor="costCentersEnabled" className="text-[13px] font-medium">Centri di Costo</Label>
                         <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                          Il tab appare in Cashflow, il selettore nel dialog delle spese
+                          Il tab appare in Cashflow, il selettore nel modulo delle spese
                         </p>
                       </div>
                       <Switch
@@ -2427,7 +2528,7 @@ export default function SettingsPage() {
                         <Input
                           value={member.name}
                           onChange={(e) => updateFamilyMemberRow(member.id, 'name', e.target.value)}
-                          placeholder="es. Giuseppe"
+                          placeholder="Nome"
                           aria-label="Nome del membro"
                           disabled={isDemo}
                           className={cn('col-span-2 desktop:col-span-1', interactiveControlClass)}
@@ -2580,9 +2681,10 @@ export default function SettingsPage() {
                             {monthlyEmailRecipients.map((email) => (
                               <li
                                 key={email}
-                                className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
+                                className="flex items-center justify-between rounded-md border border-border bg-muted/30 py-0.5 pl-3 pr-0.5 text-sm"
                               >
                                 <span className="truncate text-foreground">{email}</span>
+                                {/* Removing a recipient is a draft edit like any other: it waits for «Salva». */}
                                 <button
                                   type="button"
                                   aria-label={`Rimuovi ${email}`}
@@ -2592,7 +2694,7 @@ export default function SettingsPage() {
                                       monthlyEmailRecipients.filter((r) => r !== email)
                                     )
                                   }
-                                  className="ml-3 shrink-0 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40"
+                                  className="ml-3 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40 desktop:h-8 desktop:w-8"
                                 >
                                   <X className="h-4 w-4" />
                                 </button>
@@ -2627,7 +2729,7 @@ export default function SettingsPage() {
                                     }
                                   );
                                   if (res.ok) {
-                                    toast.success('Email inviata con successo!');
+                                    toast.success('Email inviata ai destinatari.');
                                   } else {
                                     const resBody = await res.json().catch(() => ({}));
                                     toast.error(resBody.error ?? "Errore durante l'invio");
@@ -2642,7 +2744,7 @@ export default function SettingsPage() {
                               {sendingTestEmailType === type ? (
                                 <span className="flex items-center gap-2">
                                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                  Invio in corso...
+                                  Invio in corso…
                                 </span>
                               ) : (
                                 <span className="flex items-center gap-2">
@@ -2661,6 +2763,84 @@ export default function SettingsPage() {
                   </div>
                 </Tile>
               </div>
+
+              {/* Parametri del piano — read-only declaration; the FIRE pages stay the only write surfaces */}
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
+                <Tile eyebrow="Parametri del piano" aside="sola lettura" reading={describePlanParameters(planParams)}>
+                  <div className="mt-1 flex flex-col divide-y divide-border">
+                    {planParams.withdrawalRate !== undefined && (
+                      <DeclarationRow label="Safe withdrawal rate" value={pctLabel(planParams.withdrawalRate)} />
+                    )}
+                    {planParams.plannedAnnualExpenses !== undefined && (
+                      <DeclarationRow
+                        label="Spese pianificate"
+                        value={`${cachedFormatCurrencyEUR(planParams.plannedAnnualExpenses, true)}/anno`}
+                      />
+                    )}
+                    <DeclarationRow
+                      label="Età pensione INPS"
+                      value={`${inpsAgeShown} anni${planParams.pensionInpsRetirementAge === undefined ? ' · predefinita' : ''}`}
+                    />
+                    <DeclarationRow label="RITA (sblocco fondo)" value={`${ritaAgeShown} anni`} />
+                    <DeclarationRow
+                      label="Vincolo fondo nel FIRE"
+                      value={planParams.respectPensionLockInFire ? 'Attivo' : 'Spento'}
+                      mono={false}
+                    />
+                  </div>
+                  <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
+                    Si modificano dove agiscono:{' '}
+                    <Link href="/dashboard/fire-simulations?tab=fire" className={TILE_FOOTER_ACTION_CLASS}>
+                      FIRE › Calcolatore → Parametri
+                    </Link>
+                    {' '}e{' '}
+                    <Link href="/dashboard/fire-simulations?tab=coast" className={TILE_FOOTER_ACTION_CLASS}>
+                      Coast FIRE → Ipotesi
+                    </Link>
+                    .
+                  </div>
+                </Tile>
+              </div>
+
+              {/* Assistente — read-only mirror; the popover beside the conversation is the write surface */}
+              {SHOW_ASSISTANT ? (
+                <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
+                  <Tile eyebrow="Assistente" aside="sola lettura" reading={describeAssistantPreferences(assistantPrefs)}>
+                    <div className="mt-1 flex flex-col divide-y divide-border">
+                      {assistantPrefs.responseStyle !== undefined && (
+                        <DeclarationRow
+                          label="Stile delle risposte"
+                          value={ASSISTANT_STYLE_LABELS[assistantPrefs.responseStyle]}
+                          mono={false}
+                        />
+                      )}
+                      {assistantPrefs.memoryEnabled !== undefined && (
+                        <DeclarationRow
+                          label="Apprendimento automatico"
+                          value={assistantPrefs.memoryEnabled ? 'Attivo' : 'Spento'}
+                          mono={false}
+                        />
+                      )}
+                      {assistantPrefs.macroContextEnabled !== undefined && (
+                        <DeclarationRow
+                          label="Contesto macro (web)"
+                          value={assistantPrefs.macroContextEnabled ? 'Attivo' : 'Spento'}
+                          mono={false}
+                        />
+                      )}
+                    </div>
+                    <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
+                      Si modificano{' '}
+                      <Link href="/dashboard/assistant" className={TILE_FOOTER_ACTION_CLASS}>
+                        dall&apos;Assistente
+                      </Link>
+                      , accanto alla conversazione.
+                    </div>
+                  </Tile>
+                </div>
+              ) : (
+                <div className="hidden desktop:block desktop:col-span-6" aria-hidden="true" />
+              )}
 
             </div>
 
@@ -2722,7 +2902,15 @@ export default function SettingsPage() {
 
         {/* Tab: Allocazione (default, always mounted) — the total as a tile, the formula's state,
             the editable target list at the tile's cadence. */}
-        <TabsContent value="allocazione" className="mt-4">
+        <TabsContent
+          value="allocazione"
+          id={pageTabPanelId('settings-tab-pill', 'allocazione')}
+          aria-label="Allocazione"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
           <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
             {/* Allocazione target — the plan's one number */}
@@ -2760,7 +2948,7 @@ export default function SettingsPage() {
                 <div className="mt-3.5 flex flex-col divide-y divide-border">
                   <DeclarationRow label="Classi con target > 0" value={`${classesWithTarget} su ${assetClasses.length}`} />
                   <DeclarationRow
-                    label="Sotto-categorie configurate"
+                    label="Sottocategorie configurate"
                     value={classesWithSubcategories === 1 ? '1 classe' : `${classesWithSubcategories} classi`}
                   />
                   {!isValidTotal && (
@@ -2779,15 +2967,12 @@ export default function SettingsPage() {
               </Tile>
             </div>
 
-            {/* Auto-calcolo — the formula's switch, with the profile it reads */}
+            {/* Auto-calcolo — the formula's switch WITH the two inputs it reads. They used to live
+                in Preferenze › Profilo, and the switch stayed disabled until a field on another tab
+                was filled in: a dependency the reader had to remember (critique of 2026-09-22). */}
             <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-7')}>
               <Tile
                 eyebrow="Auto-calcolo Azioni / Obbligazioni"
-                aside={
-                  userAge !== undefined && riskFreeRate !== undefined
-                    ? `profilo: ${userAge} anni · ${pctLabel(riskFreeRate)}`
-                    : undefined
-                }
                 reading={describeAutoCalc({
                   enabled: autoCalculate,
                   userAge,
@@ -2797,41 +2982,87 @@ export default function SettingsPage() {
                   otherTotal: otherClassTotal,
                 })}
               >
-                <div className="mt-1 flex items-center justify-between gap-4 py-3">
-                  <div className="min-w-0">
-                    <Label htmlFor="autoCalculate" className="text-[13px] font-medium">Calcolo automatico</Label>
-                    <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                      Formula di{' '}
-                      <a
-                        href="https://www.youtube.com/channel/UCNp1e5n6rlnfm5aWbHe3cJw"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        The Bull
-                      </a>
-                      : 125 {'−'} età {'−'} (tasso {'×'} 5) = % Azioni; le altre classi scalano dalle Azioni, le
-                      Obbligazioni prendono il residuo
-                    </p>
+                <div className="mt-1 flex flex-col divide-y divide-border">
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <Label htmlFor="userAge" className="text-[13px] font-medium">Età</Label>
+                      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">In anni compiuti</p>
+                    </div>
+                    <Input
+                      id="userAge"
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={userAge || ''}
+                      onChange={(e) => {
+                        const value = e.target.value ? parseInt(e.target.value) : undefined;
+                        setUserAge(value);
+                      }}
+                      placeholder="anni"
+                      className={cn('w-24 shrink-0 text-right font-mono', interactiveControlClass)}
+                    />
                   </div>
-                  <Switch
-                    id="autoCalculate"
-                    checked={autoCalculate}
-                    onCheckedChange={setAutoCalculate}
-                    disabled={userAge === undefined || riskFreeRate === undefined}
-                    className={cn('shrink-0', interactiveControlClass)}
-                  />
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <Label htmlFor="riskFreeRate" className="text-[13px] font-medium">Risk-free rate</Label>
+                      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                        Il rendimento del{' '}
+                        <a
+                          href="https://www.investing.com/rates-bonds/italy-10-year-bond-yield"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={TILE_FOOTER_ACTION_CLASS}
+                        >
+                          BTP 10 anni
+                        </a>
+                        ; vale anche per Sharpe e Sortino
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Input
+                        id="riskFreeRate"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={riskFreeRate || ''}
+                        onChange={(e) => {
+                          const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                          setRiskFreeRate(value);
+                        }}
+                        placeholder="tasso"
+                        className={cn('w-24 text-right font-mono', interactiveControlClass)}
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <Label htmlFor="autoCalculate" className="text-[13px] font-medium">Calcolo automatico</Label>
+                      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                        Formula di{' '}
+                        <a
+                          href="https://www.youtube.com/channel/UCNp1e5n6rlnfm5aWbHe3cJw"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={TILE_FOOTER_ACTION_CLASS}
+                        >
+                          The Bull
+                        </a>
+                        : 125 {'−'} età {'−'} (tasso {'×'} 5) = % Azioni
+                      </p>
+                    </div>
+                    <Switch
+                      id="autoCalculate"
+                      checked={autoCalculate}
+                      onCheckedChange={setAutoCalculate}
+                      disabled={userAge === undefined || riskFreeRate === undefined}
+                      className={cn('shrink-0', interactiveControlClass)}
+                    />
+                  </div>
                 </div>
                 <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                  Età e risk-free rate si impostano in{' '}
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange('generale')}
-                    className="text-foreground underline-offset-2 hover:underline"
-                  >
-                    Preferenze → Profilo
-                  </button>
-                  .
+                  Le altre classi scalano dalle Azioni; le Obbligazioni prendono il residuo.
                 </div>
               </Tile>
             </div>
@@ -2849,7 +3080,7 @@ export default function SettingsPage() {
                 reading={describeClassTargets({
                   classCount: assetClasses.length,
                   withSubcategories: classesWithSubcategories,
-                  isValid: isValidTotal,
+                  problem: targetProblem,
                 })}
               >
                 <div className="mt-1 flex flex-col divide-y divide-border">
@@ -2860,14 +3091,17 @@ export default function SettingsPage() {
                     const isAutoCalculated = autoCalculate && (assetClass === 'equity' || assetClass === 'bonds');
                     const isCash = assetClass === 'cash';
                     const subTotal = calculateSubTargetTotal(assetClass);
-                    const isValidSubTotal = Math.abs(subTotal - 100) < 0.01;
+                    const isValidSubTotal = sumsToHundred(subTotal);
+                    // A group that does not add up says so ON THE CLASS ROW, closed or open: it
+                    // used to be visible only inside the group, which could be collapsed.
+                    const showsSubTotalError = state.subCategoryEnabled && !isValidSubTotal;
 
                     return (
                       <div key={assetClass}>
                         {/* Asset class main row */}
                         <div className="flex items-center gap-3 py-3">
                           <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-medium">{assetClassLabels[assetClass]}</p>
+                            <p className="text-[13px] font-medium">{assetClassLabel(assetClass)}</p>
                             {isAutoCalculated && (
                               <p className="mt-0.5 text-[11px] text-muted-foreground">Calcolata dalla formula</p>
                             )}
@@ -2908,7 +3142,7 @@ export default function SettingsPage() {
                                 }
                               }}
                               disabled={isAutoCalculated}
-                              aria-label={`Target ${assetClassLabels[assetClass]}`}
+                              aria-label={`Target ${assetClassLabel(assetClass)}`}
                               className={cn(
                                 'w-28 text-right font-mono',
                                 interactiveControlClass,
@@ -2922,12 +3156,21 @@ export default function SettingsPage() {
                           {/* Sub-category expand/collapse */}
                           <button
                             type="button"
-                            className="flex shrink-0 items-center gap-1 p-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                            className={cn(
+                              'flex h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md px-1.5 text-xs transition-colors hover:text-foreground desktop:h-8',
+                              showsSubTotalError ? 'text-destructive' : 'text-muted-foreground'
+                            )}
                             onClick={() => updateAssetClassState(assetClass, { expanded: !state.expanded })}
                             aria-expanded={state.expanded}
-                            aria-label={`${state.expanded ? 'Chiudi' : 'Apri'} sotto-categorie di ${assetClassLabels[assetClass]}`}
+                            aria-label={`${state.expanded ? 'Chiudi' : 'Apri'} sottocategorie di ${assetClassLabel(assetClass)}${
+                              showsSubTotalError ? ` (sommano ${pctLabel(subTotal)}, non 100%)` : ''
+                            }`}
                           >
-                            <span className="hidden sm:inline">Sotto-cat.</span>
+                            {showsSubTotalError ? (
+                              <span className="font-mono font-semibold tabular-nums">{pctLabel(subTotal)} ≠ 100%</span>
+                            ) : (
+                              <span className="hidden sm:inline">Sottocategorie</span>
+                            )}
                             <ChevronDown
                               className={cn(
                                 'h-4 w-4 transition-transform duration-200 motion-reduce:transition-none',
@@ -2960,7 +3203,7 @@ export default function SettingsPage() {
                                     className={interactiveControlClass}
                                   />
                                   <Label htmlFor={`toggle-${assetClass}`} className="text-[13px]">
-                                    Abilita sotto-categorie
+                                    Abilita sottocategorie
                                   </Label>
                                 </div>
                                 {state.subCategoryEnabled && (
@@ -2970,7 +3213,7 @@ export default function SettingsPage() {
                                       isValidSubTotal ? 'text-muted-foreground' : 'text-destructive'
                                     )}
                                   >
-                                    {formatPercentage(subTotal)}
+                                    {pctLabel(subTotal)}
                                     {!isValidSubTotal && ' ≠ 100%'}
                                   </span>
                                 )}
@@ -2993,6 +3236,7 @@ export default function SettingsPage() {
                                             <div className="flex items-center gap-2">
                                               <div className="min-w-0 flex-1">
                                                 <Input
+                                                  id={targetFieldId.subName(assetClass, originalIndex)}
                                                   placeholder="Nome sottocategoria"
                                                   value={target.name}
                                                   onChange={(e) =>
@@ -3014,6 +3258,7 @@ export default function SettingsPage() {
                                                 </datalist>
                                               </div>
                                               <Input
+                                                id={targetFieldId.subPct(assetClass, originalIndex)}
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
@@ -3036,10 +3281,10 @@ export default function SettingsPage() {
                                               <span className="shrink-0 text-sm text-muted-foreground">%</span>
                                               <Button
                                                 variant="ghost"
-                                                size="sm"
+                                                size="icon"
                                                 onClick={() => handleRemoveSubTarget(assetClass, originalIndex)}
                                                 aria-label={`Rimuovi ${target.name || 'sottocategoria'}`}
-                                                className="shrink-0"
+                                                className="h-11 w-11 shrink-0 desktop:h-8 desktop:w-8"
                                               >
                                                 <Trash2 className="h-4 w-4 text-muted-foreground" />
                                               </Button>
@@ -3076,7 +3321,7 @@ export default function SettingsPage() {
                                                         isValidSpecificTotal ? 'text-muted-foreground' : 'text-destructive'
                                                       )}
                                                     >
-                                                      {formatPercentage(specificAssetTotal)}
+                                                      {pctLabel(specificAssetTotal)}
                                                       {!isValidSpecificTotal && ' ≠ 100%'}
                                                     </span>
                                                   )}
@@ -3125,6 +3370,7 @@ export default function SettingsPage() {
                                                                   className="flex items-center gap-2"
                                                                 >
                                                                   <Input
+                                                                    id={targetFieldId.assetName(assetClass, originalIndex, specificIndex)}
                                                                     placeholder="Ticker/Nome (es. AAPL)"
                                                                     value={specificAsset.name}
                                                                     onChange={(e) =>
@@ -3143,6 +3389,7 @@ export default function SettingsPage() {
                                                                     )}
                                                                   />
                                                                   <Input
+                                                                    id={targetFieldId.assetPct(assetClass, originalIndex, specificIndex)}
                                                                     type="number"
                                                                     step="0.01"
                                                                     min="0"
@@ -3170,7 +3417,8 @@ export default function SettingsPage() {
                                                                   </span>
                                                                   <Button
                                                                     variant="ghost"
-                                                                    size="sm"
+                                                                    size="icon"
+                                                                    className="h-11 w-11 shrink-0 desktop:h-8 desktop:w-8"
                                                                     aria-label={`Rimuovi ${specificAsset.name || 'asset specifico'}`}
                                                                     onClick={() =>
                                                                       handleRemoveSpecificAsset(
@@ -3186,9 +3434,10 @@ export default function SettingsPage() {
                                                               )
                                                             )}
                                                           <Button
+                                                            id={targetFieldId.assetAdd(assetClass, originalIndex)}
                                                             variant="outline"
                                                             size="sm"
-                                                            className="w-full text-xs"
+                                                            className="h-11 w-full text-xs desktop:h-8"
                                                             onClick={() =>
                                                               handleAddSpecificAsset(assetClass, originalIndex)
                                                             }
@@ -3214,11 +3463,11 @@ export default function SettingsPage() {
                                     onClick={() => handleAddSubTarget(assetClass)}
                                   >
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Aggiungi sotto-categoria
+                                    Aggiungi sottocategoria
                                   </Button>
                                   <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">
-                                    Le sotto-categorie sono espresse come percentuale di{' '}
-                                    {assetClassLabels[assetClass]} ({formatPercentage(state.targetPercentage)})
+                                    Le sottocategorie sono espresse come percentuale di{' '}
+                                    {assetClassLabel(assetClass)} ({pctLabel(state.targetPercentage)})
                                   </p>
                                 </div>
                               )}
@@ -3229,10 +3478,21 @@ export default function SettingsPage() {
                     );
                   })}
                 </div>
-                <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                  Il Salva della pagina valida qui: totale ≥ 100%, ogni gruppo di sotto-categorie esattamente 100%. La
-                  liquidità come importo fisso esce dal budget percentuale: le altre classi si applicano al resto.
-                </div>
+                <TileMethodNote
+                  subject="Target per classe"
+                  summary="«Salva» controlla il totale (almeno 100%) e ogni gruppo di sottocategorie (esattamente 100%)."
+                >
+                  <span>Sopra il 100% il totale è una leva target: 110% vuol dire leva 1,10×.</span>
+                  <span>
+                    La liquidità come importo fisso in euro esce dal budget percentuale: le altre classi si applicano al
+                    patrimonio che resta.
+                  </span>
+                  <span>
+                    Le sottocategorie sono percentuali della loro classe; con «Abilita sottocategorie» spento la classe resta
+                    un blocco unico. Lo stesso vale per gli asset specifici dentro una sottocategoria.
+                  </span>
+                  <span>I target arrivano in Allocazione con «Salva», non prima.</span>
+                </TileMethodNote>
               </Tile>
             </div>
 
@@ -3250,48 +3510,42 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Note tecniche — collapsed by default, below the grid */}
-            <div className="tablet:col-span-2 desktop:col-span-12">
-              <Collapsible open={isNotesOpen} onOpenChange={setIsNotesOpen}>
-                <CollapsibleTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/50"
-                  >
-                    <span className="font-medium text-foreground">Note e dettagli tecnici</span>
-                    <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', isNotesOpen && 'rotate-180')} />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200">
-                  <div className="rounded-b-xl border border-t-0 border-border bg-muted/30 px-4 py-4">
-                    <ul className="space-y-1 text-sm text-muted-foreground">
-                      <li>• Il totale delle allocazioni delle asset class deve essere almeno 100%. Oltre il 100% rappresenta una leva target (es. 110% = leva 1,10×)</li>
-                      <li>• La liquidità può essere impostata come valore fisso in euro. In questo caso, le percentuali delle altre asset class si applicheranno al patrimonio rimanente (totale - liquidità fissa)</li>
-                      <li>• Per ogni asset class con sotto-categorie abilitate, il totale delle sotto-categorie deve essere esattamente 100%</li>
-                      <li>• Le sotto-categorie sono espresse come percentuale della loro asset class di appartenenza</li>
-                      <li>• Usa il toggle &quot;Abilita&quot; per attivare/disattivare le sotto-categorie per ciascuna asset class</li>
-                      <li>• I cambiamenti saranno applicati immediatamente alla pagina Allocazione</li>
-                    </ul>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-
           </div>
         </TabsContent>
 
         {/* Tab: Spese (lazy) — default accounts, the CSV import, the category inventory */}
         {mountedTabs.has('spese') && (
-          <TabsContent value="spese" className="mt-4">
+          <TabsContent
+          value="spese"
+          id={pageTabPanelId('settings-tab-pill', 'spese')}
+          aria-label="Spese"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
               {/* Conti di default (moved here from Preferenze: they act in the expense dialog) */}
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
+                {accountsState === 'failed' ? (
+                  <ErrorNotice
+                    onRetry={() => void loadCashAccounts()}
+                    notice={describeReadFailure({
+                      subject: 'Conti di default',
+                      consequence:
+                        'I conti non sono stati letti: non si possono scegliere ora, e i predefiniti salvati restano quelli di prima.',
+                      canRetry: true,
+                    })}
+                  />
+                ) : (
                 <Tile
                   eyebrow="Conti di default"
                   reading={describeDefaultAccounts({ debitName: debitAccount?.name, creditName: creditAccount?.name })}
                 >
-                  {cashAssets.length === 0 ? (
+                  {accountsState === 'loading' ? (
+                    <p className="mt-3 text-[13px] text-muted-foreground">Caricamento dei conti…</p>
+                  ) : cashAssets.length === 0 ? (
                     <p className="mt-3 text-[13px] text-muted-foreground">
                       Nessun conto disponibile: crea un conto (tipo «Liquidità») in Patrimonio.
                     </p>
@@ -3338,9 +3592,10 @@ export default function SettingsPage() {
                     </div>
                   )}
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Pre-selezionati nel dialog di spese ed entrate; solo conti veri, non asset di classe liquidità.
+                    Proposti nel modulo di spese ed entrate; solo conti veri, non asset di classe liquidità.
                   </div>
                 </Tile>
+                )}
               </div>
 
               {/* Import CSV — the section renders its own tile (preview-first, undo per batch) */}
@@ -3350,18 +3605,29 @@ export default function SettingsPage() {
 
               {/* Categorie — the management inventory at the tile's cadence */}
               <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+                {categoriesState === 'failed' ? (
+                  <ErrorNotice
+                    onRetry={() => void loadExpenseCategories()}
+                    notice={describeReadFailure({
+                      subject: 'Categorie',
+                      consequence:
+                        "Le categorie non sono state lette: l'elenco sembrerebbe vuoto senza esserlo, quindi qui non compare.",
+                      canRetry: true,
+                    })}
+                  />
+                ) : (
                 <Tile
                   eyebrow="Categorie"
                   aside={
-                    <Button onClick={handleAddExpenseCategory} variant="outline" size="sm" className="h-7 text-[11px]">
+                    <Button onClick={handleAddExpenseCategory} variant="outline" size="sm" className="h-11 text-[12px] desktop:h-8">
                       <Plus className="mr-1 h-3.5 w-3.5" />
                       Nuova categoria
                     </Button>
                   }
-                  reading={describeExpenseCategories(categoryCounts)}
+                  reading={categoriesState === 'loading' ? null : describeExpenseCategories(categoryCounts)}
                 >
-                  {loadingCategories ? (
-                    <p className="mt-3 text-[13px] text-muted-foreground">Caricamento categorie...</p>
+                  {categoriesState === 'loading' ? (
+                    <p className="mt-3 text-[13px] text-muted-foreground">Caricamento delle categorie…</p>
                   ) : (
                     <div className="mt-1">
                       {(['income', 'fixed', 'variable', 'debt'] as ExpenseType[]).map((type) => {
@@ -3372,107 +3638,16 @@ export default function SettingsPage() {
                             <p className={TILE_SUB_EYEBROW_CLASS}>{EXPENSE_TYPE_LABELS[type]}</p>
                             <div className="mt-1 divide-y divide-border">
                               {categories.map((category) => (
-                                <div
+                                <CategoryRow
                                   key={category.id}
-                                  className="flex items-center justify-between gap-3 py-2.5 transition-colors hover:bg-muted/30"
-                                >
-                                  <div className="flex min-w-0 items-center gap-3">
-                                    {(() => {
-                                      const CatIcon = category.icon ? getLazyIcon(category.icon) : null;
-                                      // With the 50/30/20 roles on, the badge wears the role, not the saved hue.
-                                      const roleColor = categoryRoleColor(category, spendingRolesEnabled);
-                                      const glyph = roleColor ?? (category.color || 'var(--muted-foreground)');
-                                      const wash = roleColor
-                                        ? `color-mix(in oklch, ${roleColor} 14%, transparent)`
-                                        : category.color ? `${category.color}20` : 'var(--muted)';
-                                      const dot = roleColor ?? (category.color || 'var(--chart-1)');
-                                      return (
-                                        <div
-                                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-                                          style={{ backgroundColor: wash }}
-                                        >
-                                          {CatIcon ? (
-                                            <Suspense fallback={<div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: dot }} />}>
-                                              <CatIcon className="h-3.5 w-3.5" style={{ color: glyph }} aria-hidden="true" />
-                                            </Suspense>
-                                          ) : (
-                                            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: dot }} />
-                                          )}
-                                        </div>
-                                      );
-                                    })()}
-                                    <div className="min-w-0">
-                                      <p className="truncate text-[13px] font-medium">{category.name}</p>
-                                      {category.subCategories && category.subCategories.length > 0 && (
-                                        <p className="truncate text-[11px] text-muted-foreground">
-                                          {category.subCategories.length} sotto-{category.subCategories.length === 1 ? 'categoria' : 'categorie'}: {category.subCategories.map(sub => sub.name).join(', ')}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex shrink-0 items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      aria-label={`Modifica ${category.name}`}
-                                      onClick={() => handleEditExpenseCategory(category)}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      aria-label={`Sposta tutte le transazioni di ${category.name}`}
-                                      onClick={(event) =>
-                                        handleMoveExpenseCategory(
-                                          category.id,
-                                          category.name,
-                                          resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect())
-                                        )
-                                      }
-                                    >
-                                      <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                    {/* Delete button — 2-click disarm: first click arms (red Elimina),
-                                        second click confirms, auto-disarms after 3s. */}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      aria-label={
-                                        pendingDeleteDirectCategoryId === category.id
-                                          ? `Conferma eliminazione di ${category.name}`
-                                          : `Elimina ${category.name}`
-                                      }
-                                      className={
-                                        pendingDeleteDirectCategoryId === category.id
-                                          ? 'text-destructive hover:bg-destructive/10 hover:text-destructive'
-                                          : ''
-                                      }
-                                      onClick={(event) => {
-                                        if (pendingDeleteDirectCategoryId === category.id) {
-                                          handleConfirmDirectDelete(category.id);
-                                        } else {
-                                          handleDeleteExpenseCategory(
-                                            category.id,
-                                            category.name,
-                                            resolveCenteredModalOrigin(event.currentTarget.getBoundingClientRect())
-                                          );
-                                        }
-                                      }}
-                                    >
-                                      <Trash2
-                                        className={`h-4 w-4 ${
-                                          pendingDeleteDirectCategoryId === category.id
-                                            ? ''
-                                            : 'text-muted-foreground'
-                                        }`}
-                                      />
-                                      {pendingDeleteDirectCategoryId === category.id && (
-                                        <span className="ml-1 text-xs">Elimina</span>
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
+                                  category={category}
+                                  onEdit={handleEditExpenseCategory}
+                                  onMove={handleMoveExpenseCategory}
+                                  onRequestDelete={requestCategoryDelete}
+                                  onConfirmDelete={handleConfirmDirectDelete}
+                                  announce={announceCategory}
+                                  spendingRolesEnabled={spendingRolesEnabled}
+                                />
                               ))}
                             </div>
                           </div>
@@ -3480,11 +3655,16 @@ export default function SettingsPage() {
                       })}
                     </div>
                   )}
+                  {/* The list's one live region: arm and disarm are sentences, spoken here. */}
+                  <span className="sr-only" role="status" aria-live="polite">
+                    {categoryAnnouncement}
+                  </span>
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
                     Elimina chiede la riassegnazione se la categoria ha transazioni (altrimenti conferma al secondo
                     tocco); la freccia sposta tutte le transazioni in un&apos;altra categoria senza eliminarla.
                   </div>
                 </Tile>
+                )}
               </div>
 
             </div>
@@ -3493,11 +3673,34 @@ export default function SettingsPage() {
 
         {/* Tab: Dividendi (lazy) — the landing category (saved by the page's Save) + the BTP Italia FOI declaration */}
         {mountedTabs.has('dividendi') && (
-          <TabsContent value="dividendi" className="mt-4">
+          <TabsContent
+          value="dividendi"
+          id={pageTabPanelId('settings-tab-pill', 'dividendi')}
+          aria-label="Dividendi"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
-              {/* Entrate da dividendi */}
+              {/* Entrate da dividendi — it reads the categories AND the accounts: either failing makes
+                  its selects empty for a reason that is not «none», so it steps aside for the notice. */}
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-7')}>
+                {categoriesState === 'failed' || accountsState === 'failed' ? (
+                  <ErrorNotice
+                    onRetry={() => {
+                      if (categoriesState === 'failed') void loadExpenseCategories();
+                      if (accountsState === 'failed') void loadCashAccounts();
+                    }}
+                    notice={describeReadFailure({
+                      subject: 'Entrate da dividendi',
+                      consequence:
+                        'Categorie o conti non letti: la categoria e il conto dei dividendi non si possono mostrare. Quelli salvati restano.',
+                      canRetry: true,
+                    })}
+                  />
+                ) : (
                 <Tile
                   eyebrow="Entrate da dividendi"
                   reading={describeDividendCategory({
@@ -3536,12 +3739,14 @@ export default function SettingsPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="h-11 desktop:h-8"
+                            aria-label="Rimuovi la categoria dei dividendi"
                             onClick={() => {
                               setDividendIncomeCategoryId('');
                               setDividendIncomeSubCategoryId('');
                             }}
                           >
-                            Cancella
+                            Rimuovi
                           </Button>
                         )}
                       </div>
@@ -3576,9 +3781,11 @@ export default function SettingsPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="h-11 desktop:h-8"
+                            aria-label="Rimuovi la sottocategoria dei dividendi"
                             onClick={() => setDividendIncomeSubCategoryId('')}
                           >
-                            Cancella
+                            Rimuovi
                           </Button>
                         )}
                       </div>
@@ -3607,21 +3814,15 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="mt-3.5">
-                    {/* Sync button — 2-click disarm: first click turns destructive ("Conferma"),
-                        second click executes the sync. Auto-disarms after 3s if not confirmed. */}
-                    <Button
-                      onClick={handleSyncDividends}
-                      disabled={syncingDividends || !dividendIncomeCategoryId}
-                      variant={syncConfirmArmed ? 'destructive' : 'outline'}
-                      className="flex items-center gap-2"
-                    >
-                      <Coins className="h-4 w-4" />
-                      {syncingDividends
-                        ? 'Sincronizzazione...'
-                        : syncConfirmArmed
-                        ? 'Conferma sincronizzazione'
-                        : 'Sincronizza dividendi esistenti'}
-                    </Button>
+                    <SyncDividendsButton
+                      disabled={isDemo || syncingDividends || !dividendIncomeCategoryId}
+                      syncing={syncingDividends}
+                      onSync={() => void handleSyncDividends()}
+                      announce={announceSync}
+                    />
+                    <span className="sr-only" role="status" aria-live="polite">
+                      {syncAnnouncement}
+                    </span>
                     {!dividendIncomeCategoryId && (
                       <p className="mt-2 text-[11px] leading-[1.4] text-warning-foreground">
                         Scegli una categoria per abilitare la sincronizzazione dei dividendi già registrati.
@@ -3634,6 +3835,7 @@ export default function SettingsPage() {
                     categoria si salva con il Salva della pagina.
                   </div>
                 </Tile>
+                )}
               </div>
 
               {/* BTP Italia — declaration: the FOI is announced per coupon, from the Dividendi calendar */}
@@ -3646,7 +3848,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
                     Si gestisce in{' '}
-                    <Link href="/dashboard/cashflow?tab=dividends" className="text-foreground underline-offset-2 hover:underline">
+                    <Link href="/dashboard/cashflow?tab=dividends" className={TILE_FOOTER_ACTION_CLASS}>
                       Cashflow › Dividendi
                     </Link>
                     , per singola cedola.
@@ -3660,7 +3862,15 @@ export default function SettingsPage() {
 
         {/* Tab: Condivisione account — the sharing section renders its own tile; beside it, how it works */}
         {mountedTabs.has('condivisione') && (
-          <TabsContent value="condivisione" className="mt-4">
+          <TabsContent
+          value="condivisione"
+          id={pageTabPanelId('settings-tab-pill', 'condivisione')}
+          aria-label="Condivisione"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-7')}>
                 <AccountSharingSection disabled={isDemo} />
@@ -3692,7 +3902,15 @@ export default function SettingsPage() {
 
         {/* Tab: Aspetto — light/dark/system beside the seven color themes */}
         {mountedTabs.has('aspetto') && (
-          <TabsContent value="aspetto" className="mt-4">
+          <TabsContent
+          value="aspetto"
+          id={pageTabPanelId('settings-tab-pill', 'aspetto')}
+          aria-label="Aspetto"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
               {/* Modalità — next-themes, per device, with the circle view transition */}
@@ -3773,6 +3991,38 @@ export default function SettingsPage() {
         )}
 
       </PageTabs>
+
+      {/* The save state, where the thumb and the eye are: a bar that sticks to the bottom of the
+          scroll area while any tab holds edits, naming them, with the way back beside «Salva».
+          Sticky, not fixed: it lives in `<main>`'s flow, so its offset is measured from the
+          scroller's content edge — clear of the phone's bottom pill (main's 88px portrait
+          padding) and of the sidebar on desktop without a single hand-tuned inset. */}
+      {!isDemo && unsavedSentence && (
+        <div className="sticky bottom-4 z-20 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2">
+          <section
+            aria-label="Modifiche non salvate"
+            className="mx-auto flex max-w-[720px] flex-wrap desktop:ml-0 items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-lg"
+          >
+            <p className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-foreground">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              {unsavedSentence}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button variant="outline" size="sm" className="h-11 desktop:h-8" onClick={() => void handleRevert()} disabled={saving}>
+                Annulla modifiche
+              </Button>
+              <Button size="sm" className="h-11 desktop:h-8" onClick={handleSave} disabled={saving}>
+                <Save className="h-4 w-4" />
+                {saving ? 'Salvataggio…' : 'Salva'}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+      {/* Said once when the set of unsaved tabs changes; the bar above is its visible twin. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {isDemo ? '' : unsavedSentence ?? ''}
+      </span>
 
       {/* Category Management Dialog */}
       <CategoryManagementDialog
