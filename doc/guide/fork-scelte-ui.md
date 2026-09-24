@@ -84,8 +84,11 @@ Lime Frost never reaches an upstream PR; at most its logic (role tokens with neu
 issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's history).
 
 1. **Upstream PR A — the Piano on a leveraged portfolio** (the item «Piano on a leveraged portfolio» below). First
-   because it fills a gap upstream has too; still untouched upstream on 09-24. Optionally bundle the first-trade
-   guard's `isBaseline` opening (CLAUDE.md → Known Issues).
+   because it fills a gap upstream has too; still untouched upstream on 09-24. **09-24 night: opened as upstream
+   draft #391** (branch `fix/leveraged-plan`, one commit on `upstream/develop`). The owner's calls: a composite order
+   split by composition across its classes, a same-class swap as two moves, the first-trade guard NOT bundled (its own
+   PR), and the fork WAITS for upstream's merge — at that realignment `InstrumentTradeList.tsx` conflicts (deleted
+   upstream, modified here): take the deletion, and bring «Mostra tutte» to the tree only if the Piano grows too tall.
 2. **Fork UI** (fork branch → fork main): staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
    (neutral class colours, not Lime tokens, so it can travel in PR C); Flusso «Per tipo» on a phone, designed
    upstream-neutral (PR B needs it). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
@@ -99,6 +102,9 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
    prerequisite of the optimizer.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
+7. **Upstream PR E — the composite class chip on Patrimonio › Strumenti** (added 09-24, the item «Composite class
+   chip» below). Small and upstream-neutral (chart slots, no Lime token), so it can move ahead of steps 2–6 whenever a
+   short session is free; branch from `upstream/develop`, never from the fork's main.
 
 **Next UI session — the owner's list after the fourth upstream merge (2026-09-22):**
 - [ ] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)
@@ -122,7 +128,17 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   override).
 - [ ] **Dark Lime Frost**: the five open decisions of the Carta (ground tint, hover direction, lime as text, series
   lightness, neutral «Elimina» on navy), then the same page audit in dark, desktop and iPhone.
-- [ ] **Piano on a leveraged portfolio misses upstream's 09-21 redesign** (#377): with `targetLeverageRatio` the Piano
+- [ ] **Composite class chip** (owner, 09-24): in Patrimonio › Strumenti a composite instrument (a 60/40 fund, a
+  leveraged equity/bond ETF) stays ONE row — it is one instrument — but its chip shows only the prevailing class
+  (`resolveDisplayAssetClass`), so a 60/40 reads as pure «Azioni». Make the chip split: one segment per composition
+  leg, each tinted like that class's own chip (`AssetClassChip`: `getAssetClassCssVar`, 15% fill, 30% border), the
+  owner's picture being half Azioni, half Obbligazioni. Where: the desktop row (`StrumentiTile.tsx`, the `Classe`
+  column) and the phone row (`AssetRow.tsx`); NOT the group header, which names the group, and the row stays grouped
+  and sorted under the prevailing class. To settle in the session: equal halves or widths by composition (60/40), the
+  label for two legs and for three or more («Azioni · Obbl.», «Misto»), the accessible name with the shares («Azioni
+  60%, Obbligazioni 40%»), and a phone width that does not squeeze the name. Same look-through as Classi and the
+  Piano (`assetClassLegs` in `assetDisplayClass.ts`), so the three surfaces tell one story.
+- [ ] **Piano on a leveraged portfolio misses upstream's 09-21 redesign** (#377) — **draft upstream PR #391**: with `targetLeverageRatio` the Piano
   takes the leverage engine's flat `InstrumentTrade` list (`view.trades`), so no class row with its instruments
   under it, no withholding estimate (`estimatePlanSaleTax` reads `PlanNode`s only, `allocazioneSummary.ts` ~457) and a
   GROSS withdrawal (`grossedUp: false`). Same gap in upstream's own code (its demo has no leverage, so it never shows).
