@@ -65,6 +65,8 @@ that domain's guide, never here.
 
 ### Tailwind Breakpoints and Responsive Layout
 - `desktop:` = 1440px, never `lg:`. Dialog-internal layouts use `sm:`; portrait wrappers `max-desktop:portrait:pb-20`.
+  **`min-width` is inclusive**, so `h-11 desktop:h-9` measures 36px at exactly 1440 — the width the Playwright
+  desktop projects run at (2026-09-21).
 - **NEVER mix arbitrary `min-[px]:` with named breakpoints on the same property** — named ones compile to rem and v4
   emits them last, so `sm:grid-cols-2 min-[960px]:grid-cols-3` renders 2 columns at every width ≥ 640px. Between
   `tablet:`(768) and `desktop:`(1440) use a container query (`@container` + `@[640px]:`, all px).
@@ -72,6 +74,10 @@ that domain's guide, never here.
   viewport. Per-cell `@container` scales a monetary value to the CELL width, or large amounts overflow.
 - **A grid item stretches to the row height, but a normal-flow child does not inherit it without its own `h-full`** —
   side-by-side cards of different content length need `h-full` on BOTH the grid-item wrapper and the card `div`.
+- **`sticky` travels only inside its containing block** (2026-09-22): the compact `PageHeader`'s mobile navbar was
+  `sticky top-0` INSIDE a wrapper exactly as tall as itself, so it never stuck — on every page, for months, «Salva»
+  scrolled away. Put `sticky` on the box whose parent is the tall one, and prove it by scrolling `main` in a spec
+  (`e2e/settings.mobile.spec.ts`).
 - **`sticky` on a grid item needs `self-start`** — the default stretch makes the item as tall as the row, so a
   `sticky top-6` companion column has no room to travel and silently behaves as static.
 - **Horizontal page scroll on mobile**: an implicit-`auto`-track grid expands to its widest child — add explicit
@@ -364,10 +370,11 @@ file used to carry.
 
 ### Cashflow › Divisione → `doc/guide/cashflow-divisione.md`
 - Opt-in, on Tracciamento's period axis. ONE field carries the feature: `Expense.personalMemberId`; absent (or `null`) MEANS «in comune» (so no migration). Members are Previdenza's `FamilyMember`s, never a second list. NOT denormalized to a name.
-- The share is NEVER invented: `resolveSplitBasis` returns `unavailable` (with `missingNames`) below two people, with no labor category, or when one person has no salary in the period; every split figure is then `null`.
+- The share is NEVER invented: `resolveSplitBasis` returns `unavailable` (with `missingNames`) below two people, with no labor category, or when one person has no salary in the period; every split figure is then `null`. Labor income nobody owns is DECLARED (`unattributedSalary`), never dropped.
+- A residual is of money that has MOVED: the page prints and colours `remainingBooked`, and where the calendar takes it is a separate clause (2026-09-21). `remaining` is the whole period's.
 - The base is the PERIOD's attributed labor income (owner's decision, 2026-08-31) — the most faithful and most volatile reading; do not «stabilise» it silently.
 - `allocateByShare` charges the rounding residual to the LARGEST share and re-rounds — untestable on two shares (they cancel), test on three. Writing it is a FOUR-place fan-out; the readers outside the tab are Tracciamento's «Intestatario» filter and the owner chip (`movementsOwnerFilter.ts`, same contract).
-- Il resto — the deleted-member bucket, the dialog control, `effectiveTab` — in `doc/guide/cashflow-divisione.md`.
+- Il resto — the deleted-member bucket, the dialog control, `effectiveTab`, the one-cell people row, the verdict-explains/tile-instructs split, «Attribuisci spese» — in `doc/guide/cashflow-divisione.md`.
 
 ### Cashflow › Dividendi · Dividends and Coupons → `doc/guide/cashflow-dividendi.md`
 - RECEIVED AND ANNOUNCED ARE NEVER ONE FIGURE — counted, totalled and coloured apart on every surface; `summarizePayments` returns two halves and no sum.
@@ -389,8 +396,8 @@ file used to carry.
 - The page has NO axis and re-derives nothing: `hall-of-fame/{userId}` holds the rankings; "today" is a PARAMETER, never `new Date()` inside the module.
 - `hallOfFameRecords.ts` is the ONE definition of a record AND a ranking — both writers and the periodic email call `buildHallOfFameRankings`; never re-implement a ranking.
 - A stale document heals only from the page's «Aggiorna» button when the account has no assets (the cron gates on `snapshotResult.success`); disabled in demo. Never document a field as "the cron will fill it in".
-- A savings record needs income (`totalIncome > 0` guard); `stats` and the two savings rankings are OPTIONAL on pre-2026-08-25 documents — `getBoard` returns `null` (≠ empty board), never `?? []`.
-- Il resto — the podium-vs-chronology split, `NoteTrigger`, the section-key fan-out — in `doc/guide/hall-of-fame.md`.
+- A savings record needs income (`totalIncome > 0` guard); `stats` and the two savings rankings are OPTIONAL on pre-2026-08-25 documents — `getBoard` returns `null` (≠ empty board), never `?? []`. Same for `rankingsUpdatedAt`, `stats.sinceWorstMonth` and `YearlyRecord.monthsCovered` (2026-09-24): stored by `updateHallOfFame`, never derived, their clause dropped when absent.
+- Il resto — the podium-vs-chronology split, the tile-never-repeats-the-verdict rule, `NoteTrigger` and the prefilled note, the section-key fan-out, the Playwright locators — in `doc/guide/hall-of-fame.md`.
 
 ### Rendimenti → `doc/guide/rendimenti.md`
 - The base is resolved ONCE by `resolvePerformanceBase` for its THREE call sites (service, page, PDF). An exclusion read from `byAsset` MUST be backfilled across the pre-`byAsset` months (constant `E₀`) or it becomes a phantom crash.
@@ -428,7 +435,7 @@ file used to carry.
 ### FIRE, What If and Goals → `doc/guide/fire.md`
 - What If = perturbation + diff, no new projection math; keep the pure layer category-agnostic. Pension unlock is ONE rule in `pensionUnlock.ts` (explicit `now`).
 - `respectPensionLockInFire` governs the WHOLE FIRE page: each tab subtracts the locked total AND passes the inflows (subtraction alone reintroduces "sottratto per sempre"). The bridge model reuses the Coast walk, never a second formula.
-- The Ventaglio engine mirrors the deterministic walk BY CONSTRUCTION — at zero volatility every path collapses onto the base scenario (the coherence test pins that WITHOUT inflows). `deriveMonteCarloAllocation` is the ONE allocation→4-class normalizer.
+- The Ventaglio engine mirrors the deterministic walk BY CONSTRUCTION — at zero volatility every path collapses onto the base scenario (the coherence test pins that WITHOUT inflows). `deriveMonteCarloAllocation` is the ONE allocation→4-class normalizer. **Year 0 is a year in both walks** (2026-09-22): a target already cleared today is `yearsToFIRE = 0`, rendered as a word («già raggiunto»), never «tra 1 anno». **The fan is seeded and keeps a second ledger** (2026-09-24): `createSeededRandom` gives every lever comparison the same shocks, `retirements` withdraws from each path's own FIRE year without touching `paths`; the Distribuzione view reads `fireYears` by NEAREST-RANK percentiles (`fireDistribution.ts`), never the fan's `floor`. **The requirement is ONE rule, `resolveFireRequirement`** (2026-09-24): expenses less the Coast pensions from their start (dated by the saved age, else OUT and said), × the tax gross-up of `lib/utils/withdrawalTax.ts` (basis from the PMC, cash and funds as basis, `null` without any PMC and said), the fund at its unlock — the walk's `*FireNumber` rows ARE it, the fan's targets are those rows, What If and Coast read the same inputs.
 - Goal math the server needs lives in `goalMath.ts` (imports `calculateAssetValue` directly); `serializeGoalForFirestore` IS the persistence allowlist; the goal document is rewritten WHOLE, never patched.
 - Il resto — each tab computes nothing (numbers from `*Summary`, words from `*Narrative`); config-first collapse; the five verdict-over-tiles sections; Playwright locators — in `doc/guide/fire.md` (pagina e Calcolatore), `fire-coast.md`, `fire-what-if.md`, `fire-monte-carlo.md`, `fire-obiettivi.md`.
 
@@ -447,7 +454,8 @@ file used to carry.
 - Il resto — `PDF_RAMP`, the class labels, `signedPct`/`signedEur` it-IT, the deterministic-comparison rule, the AI-prompt body — in `doc/guide/email-pdf.md`.
 
 ### Impostazioni — tessere senza verdetto → `doc/guide/impostazioni.md`
-- The page has NO verdict and must not grow one (a configuration page measures nothing) — it keeps the CADENCE: 22 `describe*` functions in `settingsNarrative.ts`, NO `build*Verdict`.
+- The page has NO verdict and must not grow one (a configuration page measures nothing) — it keeps the CADENCE: 21 `describe*` functions in `settingsNarrative.ts`, NO `build*Verdict`.
+- ONE «Salva», so the save state is PER TAB (2026-09-22): a dot on each tab holding edits, a bottom bar naming them with «Annulla modifiche» (a re-read, not a copy); the target rules are `allocationTargetValidation.ts`, which says WHERE they failed so «Salva» opens the group and focuses the field. A failed read here is never an empty list (members, categories, accounts).
 - A reading declares the effect DOWNSTREAM, not the control under it; the Narrative Honesty Rule holds (a missing input drops its clause).
 - A field another page OWNS is DECLARED, never edited here («Parametri del piano» from FIRE, «Assistente» a mirror that loses on read). The colour theme and light/dark mode save themselves, outside `handleSave`.
 - The write fan-out for any setting (the FIVE/SIX/SEVEN places) is `doc/guide/impostazioni.md § Settings — the FIVE places` (stub below).
@@ -544,7 +552,9 @@ file used to carry.
   `PageHeader`, `page-main` on the layout's `<main>`; a `forceMount` tab panel is `display: none` and does not count.
   Do not name the tile grid — several pages render more than one.
 - `useCountUp` always with `once: true`, called **before** any conditional early return and unconditionally for both
-  branches of a mode switch; it has **no `enabled` option**, so gate the display in JSX. **`layout="position"`, not bare
+  branches of a mode switch; it has **no `enabled` option**, so gate the display in JSX. **A `fromPrevious` count-up
+  passes `landFirstValue`** (2026-09-23): a figure that settles between previews has no previous value on mount, and a
+  count from zero there paints «0 €» under a track or a chip already at its share — two readings of one figure. **`layout="position"`, not bare
   `layout`, when a Framer parent wraps a Radix `CollapsibleContent`** — bare `layout` stretches the trigger text.
 - **Collapsible technique, by content shape:** nested rows expanding into sub-rows → pure CSS `grid-rows-[0fr] →
   grid-rows-[1fr]` with an `overflow-hidden` child and `inert` on the closed wrapper (Framer + `height:'auto'` left
@@ -629,6 +639,16 @@ file used to carry.
 - A sticky `<thead>` needs a fully opaque token, never an alpha background.
 
 ### Navigation
+- **A `PageTabs` panel names ITSELF** (2026-09-21): `PageTabBar` renders plain buttons, not Radix
+  `TabsTrigger`s, so every `TabsContent` was born with an `aria-labelledby` naming a trigger id that
+  does not exist and had an EMPTY accessible name. A panel takes `id={pageTabPanelId(layoutId,
+  value)}`, an `aria-label`, and `aria-labelledby={undefined}` to drop Radix's own; the tabs take
+  `aria-controls` through `renderedPanels`, which a page with lazily mounted panels must pass — an
+  `aria-controls` naming a panel that was never opened is the same dangling reference from the other
+  end. Pinned by `e2e/cashflow.split.spec.ts`.
+- **An inactive `PageTabs` panel keeps its `div`, not its CONTENT** (2026-09-22): Radix renders the panel (so its id
+  and `aria-controls` survive) but unmounts the children, so a field of another tab is not in the DOM and a spec
+  anchors on the OPENED panel (`#<layoutId>-panel-<tab> section`), never on a tile of a tab that is not showing.
 - **Single source for nav arrays**: `lib/constants/navigation.ts` — Sidebar, BottomNavigation and SecondaryMenuDrawer all
   import from it, never redeclare inline. **A route link in the shell is a `SceneLink`** (`components/layout/SceneLink.tsx`,
   a `next/link` whose plain left click runs the page scene — prefetch, modifier clicks, `target` and the caller's own
@@ -744,6 +764,10 @@ file used to carry.
   than in what you touched. Run `npm install` first.
 - `npm test -- <file>` / `npx vitest run <file>` for targeted tests; **`npx tsc --noEmit` before any PR**, re-run AFTER
   writing the tests, not only after the code.
+- **Never `git checkout <file>` to undo ONE edit on uncommitted work** (2026-09-24): it restores the COMMITTED file and
+  silently throws away the whole session's rewrite of it — the dev server then failed to build and a full Vitest run
+  had 17 reds before anyone noticed. A falsification is undone with the same tool that made it (the one line back),
+  and `tsc` runs again before the next suite.
 - **`npm run lint` is at zero since 2026-09-06 and stays there**: a new `any` gets its real type, a new `eslint-disable`
   is not written. The config ignores `.agents/**` (the plugin's vendored scripts) and the `.next-*/**` dist dirs — a
   Playwright run used to leave ~170 generated-file findings behind.
@@ -784,7 +808,7 @@ file used to carry.
 | Asset / bond | `assetDialogHelpers`, `couponUtils` |
 | Cashflow › Budget | `budgetUtils`, `budgetSummary`, `budgetNarrative` (+ `patrimonioNarrative` for the articles, `weeklyBudgetEmailService`, `monthlyEmailService`) |
 | Centri di costo | `costCenterSummary`, `costCenterNarrative` (+ `patrimonioNarrative` for the articles, `budgetNarrative` for `dayRef`), `costCenterUtils`, `costCenterColors` · **Browser** `e2e/cashflow.centri{,.mobile}.spec.ts` (own account, `npm run e2e:seed:centri`) |
-| Cashflow › Divisione | `expenseSplitSummary`, `expenseSplitNarrative` (+ `cashflowNarrative` for the scheduled clause, `settingsRoundTrip` for the flag) |
+| Cashflow › Divisione | `expenseSplitSummary`, `expenseSplitNarrative` (+ `cashflowNarrative` for the scheduled clause, `settingsRoundTrip` for the flag) · **Browser** `e2e/cashflow.split{,.mobile}.spec.ts` (own account, `npm run e2e:seed:split`) |
 | Cashflow › Tracciamento | `tracciamentoSummary`, `cashflowNarrative` (+ `overviewNarrative` for `projectMonthEndSpending`, `patrimonioNarrative` for the articles) |
 | Impostazioni | **Letture** `settingsNarrative` · **Round-trip** `settingsRoundTrip` · **Formula** `equityBondsAutoTargets` · **Sblocco** `pensionUnlock` |
 | Accesso / Registrazione | **Verdetti, letture ed errori** `authNarrative` · **Policy** `registrationPolicy` (i due devono restare d'accordo sulla precedenza whitelist/flag) |
@@ -833,7 +857,8 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
 - **`workers: 1`, non-negotiable**, and **each suite its OWN fixture** (an `npm run e2e:seed:*` script plus one
   `spawnSync` in `e2e/global-setup.ts`). Re-seeding an account mid-suite logs it out: creation once, data-only per test.
 - **The FILENAME chooses the account**: `*.spec.ts` → `desktop`, `*.mobile.spec.ts` → `mobile`, `*.degraded.spec.ts` →
-  degraded, only `analisi.spec.ts` / `centri.spec.ts` reach those fixtures. A throwaway spec gets its own
+  degraded, only `analisi.spec.ts` / `centri.spec.ts` / `split.spec.ts` reach those fixtures — and each of those three is
+  ALSO excluded from `desktop`/`mobile` by `testIgnore`, or it would run a second time on the base account. A throwaway spec gets its own
   `playwright.<name>.config.ts` and is deleted before the full suite (2026-08-28).
 - **`localhost`, never `127.0.0.1`** (the page never hydrates and the login submits natively), and `storageState`
   captures the Firebase session only with `{ path, indexedDB: true }`.
@@ -869,7 +894,11 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
   `splitFromSurplus` re-caps at the capacity; a plan's `Math.max(0, gainFraction)` is inert because `estimateSaleTax`
   already floors a loss; removing `itemProps` from `AsideToggle` does not add Tab stops because the explicit
   `tabIndex` beside it holds them. Naming the load-bearing line is the point: otherwise the next reader deletes it as
-  dead code and the test stays green through the regression. **The fixture can make
+  dead code and the test stays green through the regression. **And the ASSERTION can be
+  the inert one** (2026-09-21, the monthly email's split tile): `expect(html).toContain('1400')` passes whatever the
+  amount cell says, because the caption two lines below prints the same figure — the test only went red once it read
+  the `<td align="right">` cells. When a falsification stays green, suspect the assertion's ANCHOR before the code.
+  **The fixture can make
   a branch unreachable**: `allocateByShare`'s rounding correction cannot fire on two shares, so a two-person fixture
   stayed green with the branch disabled — when falsification does NOT turn a test red, the test is the bug. **And a test
   can PIN the defect**: `summarizeLaborMetrics` counted the baseline's own month and had no right edge, and both

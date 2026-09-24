@@ -7,7 +7,8 @@ Lime Frost only). Token mechanics live in [temi.md](temi.md); the theme's charte
 the artifact «Carta del tema Lime Frost». Dates are 2026.
 
 Branch: `feat/ui-lime-frost-agentation` (theme + 50/30/20 + third upstream merge `79816d1` + the 2026-09-15 passes),
-merged into `main` with PR #3; fourth upstream merge (#364–#378) on `merge/upstream-2026-09-21`, over `origin/main`.
+merged into `main` with PR #3; fourth upstream merge (#364–#378) on `merge/upstream-2026-09-21` (PR #9); fifth
+(#379–#389) on `merge/upstream-2026-09-24`, over `origin/main`.
 
 ---
 
@@ -19,13 +20,14 @@ Keep these on every merge; each one conflicted, or will conflict, with an upstre
 |---|---|---|---|
 | **Storico scrub** | Retired 09-13 (`5e6e3c6`): a hover reads only the chart it is on | **Restored 09-15**: the month under the pointer drives Evoluzione's head, Composizione, Valore per strumento and the Driver slot. The milestone confetti stays retired | `lib/utils/storicoScrub.ts`, `components/history/tiles/{Evoluzione,Composizione,Driver}Tile.tsx`, `app/dashboard/history/page.tsx`, `lib/utils/historyComposition.ts`. 09-21: re-applied over upstream's two-column grid and its ledger Driver (three bars: savings, market, tax) |
 | **Current month in monthly bar charts** | A 1px foreground outline around the month's bars | A faint column behind the slot + the month name in a pill (`CurrentSlotBand`, `CURRENT_SLOT_LABEL_CLASS`), in every monthly bar chart: Tracciamento, Budget, Analisi, Risparmio nel tempo, Dividendi, Storico Driver, Hall of Fame | `components/ui/chart-hover.tsx` + the seven charts |
-| **Truncated labels** | `truncate` on ranked rows, record rows, feed titles, Strumenti names, Piano rows | **Never cut**: two-line clamp (`line-clamp-2 break-words`); on a phone a ranked row's caption drops under the name; Hall of Fame widens its label column when a row carries «ora» | `components/ui/{ranked-rows,composition-list}.tsx`, `components/hall-of-fame/{RecordRows,tiles/NoteTile}.tsx`, `components/cashflow/CompactExpenseRow.tsx`, `components/assets/AssetRow.tsx`, `components/allocation/{PlanRow,InstrumentTradeList,tiles/PianoTile}.tsx` |
+| **Truncated labels** | `truncate` on ranked rows, feed titles, Strumenti names, Piano rows (09-24: Hall of Fame's record rows and Note periods stopped cutting too — `min-w-`, `whitespace-nowrap`) | **Never cut**: two-line clamp (`line-clamp-2 break-words`); on a phone a ranked row's caption drops under the name. Hall of Fame: upstream's own fix taken on 09-24 (the fork's `w-[108px]` retired); the Note tile's ranking names wrap instead of upstream's `truncate` | `components/ui/{ranked-rows,composition-list}.tsx`, `components/hall-of-fame/tiles/NoteTile.tsx`, `components/cashflow/CompactExpenseRow.tsx`, `components/assets/AssetRow.tsx`, `components/allocation/{PlanRow,InstrumentTradeList,tiles/PianoTile}.tsx` |
 | **Analisi Flusso** | One classic Sankey, types only; upstream's column-driven height, `align="start"`, top-6×4 subcategories | **50/30/20 view «Per ruolo»** (default, opt-in setting) beside «Per tipo»; the **thin** Sankey in every desktop view, subcategories included (two-line labels with a card halo, 44px per node of the widest column); the same top-6×4 subcategory rule in both views; on a phone the roles view is the 50/30/20 bar + rows | `components/cashflow/{CashflowSankeyChart,analisi/tiles/FlussoTile,analisi/SpendingRolesMobileFlow}.tsx`, `lib/utils/{cashflowSankey,spendingRoles}.ts` |
 | **Phone 50/30/20 bar** | — | Shares on the **same base as the reading** (income + what the wealth covered = what left): 58/42, never 60/44 on income; the deficit is a red «entrate» line inside the bar, labelled under it | `SpendingRolesMobileFlow.tsx` |
 | **Category badge colours in Impostazioni** | The hue the user saved | With the 50/30/20 roles on, the **role's colour** (need · want · saving · unclassified; income the income flow); the saved hue appears nowhere else | `lib/utils/categoryIconStyle.ts` (`categoryRoleColor`), `app/dashboard/settings/page.tsx` |
 | **Deletes** | Upstream's armed delete, `outline` + red text | Upstream's armed flow kept, on the fork's `outlineDestructive` variant; Previdenza's bins appear on row hover on desktop | `components/assets/{AssetRow,CashAccountDialog}.tsx`, `components/pension/tiles/VersamentiTile.tsx`, `components/ui/button.tsx` |
 | **Liquidità (Patrimonio)** | «Mostra tutti» expanding the tile | Fixed-height list (5.5 rows as the scroll cue), flat divided rows | `components/assets/tiles/LiquiditaTile.tsx` |
 | **Type colour map** | One map, income dot/badge `bg-positive`, series on `--chart-2`/`--chart-1` | Same single map, reading the role tokens `--flow-in`/`--flow-out` (defaults = upstream's slots), income dot/badge on `--flow-in` (a type marker, not a verdict) | `lib/constants/expenseTypeColors.ts` |
+| **FIRE scenario colours** | Slots `--chart-5/1/2` per scenario; 09-24: the three histograms (`HistogramBars`) on `--chart-1`, Coast/FIRE target lines neutral | The same slots through `SCENARIO_COLOR` (`--scenario-bear/base/bull`, `:root` defaults = upstream's slots); `HistogramBars` on `--scenario-base`; the Dettaglio's income/spending lines on `--flow-in`/`--flow-out` | `lib/constants/scenarioColors.ts`, `components/fire-simulations/*`, `components/ui/histogram-bars.tsx` |
 | **Storico and Rendimenti series** | 09-20: one word, one colour per page on the chart slots — market/portfolio `--chart-1`, savings `--chart-2`, invested base the neutral ink | The same pairing on the **role tokens**: market/portfolio `--hero-series`, savings `--flow-in`, a losing market `--sign-chart-loss`, capital `--capital-networth`/`--capital-invested` (09-21: their `:root` defaults moved to upstream's new pair, `--chart-1` / `--muted-foreground`), heatmap on `--sign-chart-gain/loss`, Sharpe `--sharpe-series` | `components/history/{tiles/DriverTile,StoricoDettaglio}.tsx`, `components/dashboard/LaborMetricsChart.tsx`, `components/performance/*` |
 | **COMPRA / VENDI / OK** | 09-21: the clamp finally runs (`lib/utils/actionColor.ts`, AA-tested on the chart slots) | Upstream's clamp, reading the role tokens `--trade-buy/sell/ok` and also parsing `#hex` (served form of an in-gamut colour). The contrast test does not read `--trade-*` | `lib/hooks/useActionColors.ts`, `lib/utils/actionColor.ts` |
 | **Esposizione reading** | 09-21: the clause of the open view first (three views) | Same rule on the fork's five views: Valuta opens on the currency contrast, Geografia keeps holding-first | `lib/utils/allocazioneNarrative.ts` (`describeExposure`) |
@@ -72,6 +74,31 @@ amber, categories flat in their type colour.
 (`limeFrostTheme.test.ts`).
 
 ## 3. Open — TODO
+
+**Roadmap** (agreed with the owner on 2026-09-22, reviewed on 2026-09-24 after the fifth upstream merge #379–#389).
+One session per step; each step's detailed items are in the list below.
+
+*The branch rule (non-negotiable)*: every PR to upstream is a branch cut from `upstream/main` carrying ONLY its topic
+(cherry-pick or rewrite), never from the fork's main, which holds Lime Frost, the scrub and the fork's UI choices.
+Lime Frost never reaches an upstream PR; at most its logic (role tokens with neutral `:root` defaults) goes to an
+issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's history).
+
+1. **Upstream PR A — the Piano on a leveraged portfolio** (the item «Piano on a leveraged portfolio» below). First
+   because it fills a gap upstream has too; still untouched upstream on 09-24. Optionally bundle the first-trade
+   guard's `isBaseline` opening (CLAUDE.md → Known Issues).
+2. **Fork UI** (fork branch → fork main): staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
+   (neutral class colours, not Lime tokens, so it can travel in PR C); Flusso «Per tipo» on a phone, designed
+   upstream-neutral (PR B needs it). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
+   (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles.
+3. **Upstream PR B — 50/30/20 roles** (issue first): `spendingRoles.ts`, the category field + dialog + settings
+   (the five write places), Flusso «Per ruolo» and its phone bar, the phone «Per tipo» from step 2. Role tokens only
+   as `:root` aliases. **09-24**: built on upstream's rewritten Impostazioni (`CategoryRow` carries the role colour,
+   per-tab dirty state, failed-read states — the roles clause says «non letti» when the categories failed).
+4. **Lime Frost** (fork only): the three light points (Lime-only rules fork-wide or not; class palette ΔE and
+   `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
+5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
+   prerequisite of the optimizer.
+6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
 
 **Next UI session — the owner's list after the fourth upstream merge (2026-09-22):**
 - [ ] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)

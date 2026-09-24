@@ -129,6 +129,24 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   the client SDK on the emulators, with `globalThis.fetch` prefixing the tour server's origin to the relative `/api/…`
   routes the services call, and compare with the page's payload.
 
+- **A ranked row's amount is an inert colour unless it asks for one** (2026-09-22, seen in a render).
+  `EmailRankedRow.trailingSign` colours the optional THIRD column, not the amount; a list that
+  passes no `trailing` — «Spese in comune» is one — printed every amount in the plain foreground,
+  so a person who came up short looked exactly like one who did not. The amount takes a sign only
+  through **`amountSign`**, and only where the amount IS a gain or a loss: a ranked category total
+  is a magnitude, and colouring it would assert a verdict the list has no baseline for.
+- **«Spese in comune» leads with the BOOKED residual**, like the tile on the page, and carries the
+  calendar in its caption («Con le spese ancora in calendario mancano 500 €»). The amount and the
+  caption come from two different calls, so leading with the period's figure would make the row
+  contradict its own second line — which is how the divergence was found. doc/guide/cashflow-divisione.md.
+- **The recipe, run for real on 2026-09-22**: `npx tsx --conditions=react-server <script>.tmp.mts`
+  from the repo root, calling `buildPeriodEmailData` itself on the emulators and handing the result
+  to `generateEmailHtml`. Two things the script has to do or it will not start: `--conditions=react-server`
+  (the `server-only` marker throws on a plain Node import) and the four `NEXT_PUBLIC_FIREBASE_*`
+  variables (the module graph reaches the CLIENT SDK, which refuses an absent API key). The email
+  also refuses to build without a monthly snapshot for its window (`realCurrentDocs.length === 0
+  → null`), so a fixture about expenses needs one planted for the render and removed after.
+
 ## Per-page blind spots
 
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
