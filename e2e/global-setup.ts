@@ -83,4 +83,11 @@ export default async function globalSetup(): Promise<void> {
   if (splitSeed.status !== 0) {
     throw new Error('The Divisione E2E fixture failed to seed — see the output above.');
   }
+
+  // Hall of Fame: its own account with a four-year history, seeded before its session is parked.
+  // The seed writes snapshots and rows only — the specs build the rankings through the real route.
+  const hofSeed = spawnSync('npm', ['run', 'e2e:seed:hof'], { stdio: 'inherit', shell: true });
+  if (hofSeed.status !== 0) {
+    throw new Error('The Hall of Fame E2E fixture failed to seed — see the output above.');
+  }
 }
