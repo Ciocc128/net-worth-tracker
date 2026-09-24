@@ -52,16 +52,19 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
   }
 });
 
-test('the Scenari | Ventaglio toggle swaps the projection chart inside the Traguardo', async ({ page }) => {
+test('the Scenari | Ventaglio | Distribuzione toggle swaps the projection inside the Traguardo', async ({ page }) => {
   await gotoFire(page);
 
+  const traguardo = page.getByRole('region', { name: 'Traguardo FIRE' });
   const scenariChart = page.locator('[role="img"][aria-label*="proiezione scenari"]');
   const fanChart = page.locator('[role="img"][aria-label*="Ventaglio Monte Carlo"]');
+  const distributionChart = page.locator('[role="img"][aria-label*="Distribuzione dell\'anno FIRE"]');
   const toggle = page.getByRole('group', { name: 'Vista della proiezione' });
 
   // Default view: deterministic scenarios, no fan mounted.
   await expect(scenariChart).toBeVisible({ timeout: 15_000 });
   await expect(fanChart).toHaveCount(0);
+  await expect(distributionChart).toHaveCount(0);
 
   // Switch to Ventaglio: the fan replaces the scenario chart (same tile, one chart at a time).
   await toggle.getByRole('button', { name: 'Ventaglio' }).click();
@@ -71,12 +74,24 @@ test('the Scenari | Ventaglio toggle swaps the projection chart inside the Tragu
 
   // The tile's footer states the cumulative FIRE probability — or, on an account already past
   // its target (the base fixture is, depending on the run month), that every path starts there.
-  await expect(page.getByRole('region', { name: 'Traguardo FIRE' }).getByText(/Probabilità di FIRE entro il|FIRE già raggiunto oggi/)).toBeVisible();
+  await expect(traguardo.getByText(/Probabilità di FIRE entro il|FIRE già raggiunto oggi/)).toBeVisible();
+
+  // Switch to Distribuzione: the histogram of the FIRE year, its three percentile years as KPIs,
+  // the reading that names the median against the base, and the method behind «Come si calcola».
+  await toggle.getByRole('button', { name: 'Distribuzione' }).click();
+  await expect(toggle.getByRole('button', { name: 'Distribuzione' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(distributionChart).toBeVisible({ timeout: 15_000 });
+  await expect(fanChart).toHaveCount(0);
+  await expect(scenariChart).toHaveCount(0);
+  await expect(traguardo.getByText('Mediana', { exact: true })).toBeVisible();
+  await expect(traguardo.getByText(/Metà dei percorsi è FIRE entro il|Meno di metà dei percorsi è FIRE|FIRE già raggiunto oggi, quindi in tutti/)).toBeVisible();
+  await expect(traguardo.getByRole('button', { name: "Come si calcola: Distribuzione dell'anno FIRE" })).toBeVisible();
 
   // And back.
   await toggle.getByRole('button', { name: 'Scenari' }).click();
   await expect(scenariChart).toBeVisible({ timeout: 15_000 });
   await expect(fanChart).toHaveCount(0);
+  await expect(distributionChart).toHaveCount(0);
 });
 
 test('the Parametri disclosure opens and closes, measured by height', async ({ page }) => {

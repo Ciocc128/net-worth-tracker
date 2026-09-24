@@ -61,6 +61,7 @@ import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { calculateCurrentAllocation, getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import {
+  buildBridgeFireTargets,
   calculateFIREMetrics,
   calculateFIREProjection,
   calculateFireBridgeNumber,
@@ -72,6 +73,8 @@ import {
 } from '@/lib/services/fireService';
 import { getDefaultMarketParameters, runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
+import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
   formatAllocationLabel,
   resolveFanVerdict,
@@ -89,13 +92,17 @@ import {
   describeBaseFooter,
   describeDettaglio,
   describeEmptyTiles,
+  describeFireDistributionMethod,
+  describeFireYearDistribution,
   describeLock,
   describeParametri,
   describePassiveIncome,
+  describeRetirementSurvival,
   describeRitaPreview,
   describeRunway,
   describeScenarios,
   describeScenariosFooter,
+  describeTailLever,
   describeTarget,
   describeTargetCaption,
   describeTargetFooter,
@@ -120,6 +127,7 @@ import { FireParametri, type FireSettingsForm } from '@/components/fire-simulati
 import { FireDettaglio } from '@/components/fire-simulations/FireDettaglio';
 import { FIREProjectionChart } from '@/components/fire-simulations/FIREProjectionChart';
 import { FireFanChart } from '@/components/fire-simulations/FireFanChart';
+import { FireYearDistributionView } from '@/components/fire-simulations/FireYearDistributionView';
 
 /** How many Monte Carlo paths the Ventaglio runs — plenty for stable deciles, cheap on mobile. */
 const FAN_SIMULATION_COUNT = 1000;
@@ -127,6 +135,18 @@ const FAN_SIMULATION_COUNT = 1000;
 const FAN_MAX_YEARS = 40;
 /** The deterministic projection's horizon. */
 const PROJECTION_HORIZON_YEARS = 50;
+/**
+ * The fan's seed («FIRE» in ASCII), fixed on purpose: the same base gives the same thousand
+ * paths at every opening, and every lever comparison re-runs on the same shocks
+ * (`lib/utils/seededRandom.ts`). The Monte Carlo tab stays unseeded — its «Esegui» is a new draw.
+ */
+const FAN_SEED = 0x46495245;
+/** The retirement ledger runs to this age when the age is known… */
+const RETIREMENT_HORIZON_AGE = 90;
+/** …and this many years from today when it is not (said in the survival sentence: no age, no «a 90 anni»). */
+const RETIREMENT_HORIZON_FALLBACK_YEARS = 50;
+/** No ledger runs past this: a 20-year-old's «90 anni» is 70 years of draws per path. */
+const RETIREMENT_HORIZON_MAX_YEARS = 70;
 
 /** The fan's inputs minus the horizon, which is derived from the deterministic projection. */
 type FanSimulationInputs = Omit<AccumulationSimulationParams, 'years'>;
@@ -278,6 +298,8 @@ export function FireCalculatorTab() {
   const pensionBridgeYearsToUnlock = pensionBridge?.yearsToUnlock ?? 0;
 
   const includePrimaryResidence = form.includePrimaryResidence;
+  // Read once here: the fan's memos above the render's `currentYear` need it too.
+  const currentYearForFan = getItalyYear();
   const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
   const illiquidNetWorth = assets ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue) : 0;
@@ -409,13 +431,68 @@ export function FireCalculatorTab() {
     } satisfies FanSimulationInputs;
   }, [assets, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloBase, pensionCapitalInflows]);
 
-  // The fan only pays its CPU cost while its view is open. Keyed on the same inputs that
-  // change the deterministic projection, so an edited parameter re-runs it immediately.
+  // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
+  // Keyed on the same inputs that change the deterministic projection, so an edited parameter
+  // re-runs it immediately. Seeded: the same inputs give the same paths, and the lever below
+  // re-runs on the same shocks. The retirement ledger runs to age 90 (or 50 years without an age).
   const fanYears = projection ? Math.min(projection.yearlyData.length, FAN_MAX_YEARS) : 0;
-  const fanResult = useMemo(() => {
-    if (view !== 'ventaglio' || !fanInputs || fanYears <= 0) return null;
-    return runAccumulationSimulation({ ...fanInputs, years: fanYears });
-  }, [view, fanInputs, fanYears]);
+  const retirementHorizonYears = Math.min(
+    RETIREMENT_HORIZON_MAX_YEARS,
+    Math.max(fanYears, userAge !== undefined && Number.isFinite(userAge) ? Math.max(0, RETIREMENT_HORIZON_AGE - userAge) : RETIREMENT_HORIZON_FALLBACK_YEARS),
+  );
+  // With the lock on, the paths aim at the bridge requirement the walk tests (the standard
+  // number from the unlock year on), never at the number without the lock under a verdict that
+  // names the bridge one. Deterministic, so one array serves every run.
+  const fanFireTargets = useMemo(
+    () =>
+      pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 && fanYears > 0
+        ? buildBridgeFireTargets({
+            annualExpenses: projectionAnnualExpenses,
+            withdrawalRate: previewWithdrawalRate,
+            scenario: scenarios.base,
+            pensionBridge: { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock },
+            years: fanYears,
+          })
+        : undefined,
+    [pensionBridgeValueToday, pensionBridgeYearsToUnlock, fanYears, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base],
+  );
+  const runFan = useCallback(
+    (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings) =>
+      runAccumulationSimulation({
+        ...inputs,
+        annualSavings,
+        years: fanYears,
+        retirementHorizonYears,
+        fireTargets: fanFireTargets,
+        random: createSeededRandom(FAN_SEED),
+      }),
+    [fanYears, retirementHorizonYears, fanFireTargets],
+  );
+  const fanResult = useMemo(() => (view === 'scenari' || !fanInputs || fanYears <= 0 ? null : runFan(fanInputs)), [view, fanInputs, fanYears, runFan]);
+
+  // ─── The Distribuzione view: the FIRE year across the paths, the lever, the retirement ────
+  const fireYearDistribution = useMemo(
+    () => (view === 'distribuzione' && fanResult && projection ? summarizeFireYearDistribution(fanResult, currentYearForFan, projection.baseYearsToFIRE) : null),
+    [view, fanResult, projection, currentYearForFan],
+  );
+  // The lever aims at the deterministic base year; with no base year (never within 50 years)
+  // or a target already cleared today there is nothing to aim at, and the sentence is absent.
+  const tailLever = useMemo(() => {
+    if (!fireYearDistribution || !fanResult || !fanInputs || !projection) return null;
+    const targetYears = projection.baseYearsToFIRE;
+    if (targetYears === null || targetYears === 0) return null;
+    return solveSavingsForTail({
+      baseResult: fanResult,
+      run: (annualSavings) => runFan(fanInputs, annualSavings),
+      baseAnnualSavings: fanInputs.annualSavings,
+      targetYears,
+      extraCap: resolveLeverCap(fanInputs.annualSavings, fanInputs.annualExpenses),
+    });
+  }, [fireYearDistribution, fanResult, fanInputs, projection, runFan]);
+  const retirementSurvival = useMemo(
+    () => (fireYearDistribution && fanResult ? summarizeRetirementSurvival(fanResult, currentYearForFan, userAge) : null),
+    [fireYearDistribution, fanResult, currentYearForFan, userAge],
+  );
 
   const displayedRunwayData = useMemo(() => {
     const targetYearsOfExpenses = previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null;
@@ -445,7 +522,7 @@ export function FireCalculatorTab() {
     };
   }, [displayedRunwayData, previewWithdrawalRate]);
 
-  const currentYear = getItalyYear();
+  const currentYear = currentYearForFan;
   const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: previewInpsRetirementAge, pensionRitaLongUnemployment: ritaLongUnemployment });
   const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
   const target = useMemo(() => (displayedFireMetrics ? summarizeTarget(displayedFireMetrics, pensionBridge !== null) : null), [displayedFireMetrics, pensionBridge]);
@@ -706,6 +783,15 @@ export function FireCalculatorTab() {
       marginLeft={0}
       pensionUnlockCalendarYear={pensionBridge ? currentYear + pensionUnlockYears : null}
     />
+  ) : view === 'distribuzione' ? (
+    fireYearDistribution ? (
+      <FireYearDistributionView
+        distribution={fireYearDistribution}
+        reading={describeFireYearDistribution(fireYearDistribution)}
+        lever={tailLever ? describeTailLever(tailLever, currentYear) : null}
+        survival={retirementSurvival ? describeRetirementSurvival(retirementSurvival) : null}
+      />
+    ) : null
   ) : fanResult && fanVerdict ? (
     <FireFanChart result={fanResult} startCalendarYear={currentYear} verdict={fanVerdict} height="100%" />
   ) : null;
@@ -733,6 +819,7 @@ export function FireCalculatorTab() {
                 ? describeTargetFooter({
                     view: fanAvailable ? view : 'scenari',
                     fan: fanVerdict,
+                    distribution: fireYearDistribution,
                     fanAvailable,
                     lock,
                     simulationCount: FAN_SIMULATION_COUNT,
@@ -741,6 +828,7 @@ export function FireCalculatorTab() {
                   })
                 : null
             }
+            method={view === 'distribuzione' && fireYearDistribution ? describeFireDistributionMethod(fireYearDistribution.binWidthYears) : null}
           />
         </div>
 

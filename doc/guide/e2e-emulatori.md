@@ -51,6 +51,10 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   cache. Delete the dist dir and restart before doubting your edit; prefer a fresh `NEXT_DIST_DIR=.next-throwaway`
   (keep the `.next-` prefix, what `.gitignore` matches) over someone else's; `next dev` rewrites `tsconfig.json`
   (check it out again) and keeps writing briefly after it is stopped (delete the dir after the process is gone).
+  **The plain `.next` can hold a PRODUCTION build** (`BUILD_ID`, `standalone/`, `routes-manifest.json`, 2026-09-24):
+  `npm run dev:emulator` on it served `/login` and `/dashboard` but answered 404 on `/dashboard/fire-simulations` and
+  on `/api/dashboard/overview` — routes that exist — while the `.next-e2e` server on :3100 served them; deleting
+  `.next/dev` alone did not cure it. The tour server goes on `NEXT_DIST_DIR=.next-throwaway` too.
 - **A Firestore `DELETE` on a missing document answers 200**, so a phase-F cleanup aimed at the wrong collection reports
   success. Know where each write lands: a registration plants `users/{uid}` AND `assetAllocationTargets/{uid}`
   (`setSettings` writes there, NOT to a `settings` collection — verified 2026-08-30); a throwaway account that logs in

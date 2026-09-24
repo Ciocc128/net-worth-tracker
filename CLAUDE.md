@@ -13,28 +13,28 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **176 files / 4147 tests** green + **33 Playwright spec files** (108 tests, incl. 5 auth setups; last full run 2026-09-23, 3,5 min: 108 green, `modal.origin` included). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-23): **FIRE › Coast FIRE — impeccable critique (27/40, la prima del tab) chiusa.** **P0: il «Salva
-  ipotesi» di un co-owner scriveva sul SUO documento** (`useCoastFireSettingsDraft` prendeva `userId` come bersaglio e
-  `ownerId` come chiave di cache: copia delle impostazioni dell'owner sul doc del viewer, rilettura di quello dell'owner
-  intatto, toast di successo) — l'unica scrittura FIRE sfuggita al giro del 25/08; ora l'hook prende `ownerId` e basta.
-  **«Non ancora» ha un «quando»** (`resolveCoastPace`): il risparmio del Calcolatore (stessa query key) sommato alla
-  serie base, il primo anno in cui supera il numero Coast di QUELL'anno, poi «coasta» e atterra sul target per
-  costruzione — nel verdetto («Al ritmo attuale, X l'anno di risparmio, lo raggiungi nel 2031, a 40 anni» / «non lo
-  raggiungi prima dei 60 anni»), come serie punteggiata e marcatore sul grafico, nel footer; senza risparmio la clausola
-  è assente. Le pensioni restano SOLO negli Afflussi (annue). Grafico allineato al Calcolatore (`SeriesLegend`, nome
-  senza tinte, euro interi, target neutro, `aria-valuetext`); lo stato vuoto tiene le tre tessere con UNA azione (link a
-  Patrimonio o bottone che apre le Ipotesi sul campo mancante); `SettledValue` atterra sul primo valore
-  (`landFirstValue` in `useCountUp`, vale anche per il Calcolatore); didascalie `/70` (2,60:1) a inchiostro pieno,
-  metodi dietro «Come si calcola»; Ipotesi a due colonne ad altezza naturale (vuoti 127 e 251 px → ≤ 1), controlli
-  44 px sul tocco, `aria-invalid` sulle età. **Verifica**: `tsc`, lint 0, Vitest 4147 nei due fusi (6 test nuovi,
-  falsificati uno alla volta — uno è rimasto verde e l'asserzione inerte è stata sostituita), Playwright
-  108/108 (`e2e/coast.degraded.spec.ts` nuova, entrambe le spec viste rosse); sonda Playwright sul dev server
-  (overflow 0, contrasto solo il 4,38 del token trasversale, target piccoli solo lo Switch); il P0 provato sugli
-  emulatori con un grant e una seconda identità (doc dell'owner cambiato, doc del viewer assente; rosso con `user.uid`).
-  Estensione Chrome non connessa: evidenza di Playwright. Giro dell'owner sul mirror (verdetto con il ritmo e
-  l'anno, punteggiata e marcatore, Ipotesi a due colonne, «Come si calcola», telefono): ok (2026-09-23).
-  doc/guide/fire-coast.md.
+- `tsc` clean; **179 files / 4193 tests** green + **33 Playwright spec files** (108 tests, incl. 5 auth setups; last full run 2026-09-23, 3,5 min: 108 green, `modal.origin` included; the FIRE pair re-run green on 2026-09-24). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-24): **FIRE › Calcolatore — la terza vista del Traguardo, «Distribuzione», e le due code.** L'anno
+  FIRE dei 1000 percorsi del ventaglio (`fireYears`, calcolato da sempre e letto da nessuno) come istogramma per anno
+  solare (`binYears`, larghezze 1/2/3/5/10, l'anno del base bordato, «oltre l'orizzonte» in grigio), tre KPI a rango
+  più vicino («un percorso su dieci entro il 2045, metà entro il 2058, nove su dieci…») e la lettura con il «mai» come
+  clausola propria; **la leva** (`solveSavingsForTail`: bisezione sul risparmio annuo, ~13 ri-esecuzioni a SHOCK COMUNI
+  — il ventaglio ora è seminato, `createSeededRandom`/`FAN_SEED` — arrotondata ai 100 € e RI-ESEGUITA, cap
+  `resolveLeverCap`, la coda fortunata nominata perché il risparmio pesa su entrambe); **«dal FIRE in poi»** (secondo
+  registro nel motore, `retirements`: dal proprio anno FIRE il percorso preleva le spese inflazionate con gli STESSI
+  rendimenti, orizzonte 90 anni, `paths` intatti → il test di coerenza resta byte-identico). Monte Carlo › Distribuzione
+  ha la vista «Esaurimento» (`failureYearBins`: i falliti per anno, prima uno 0 € nel primo bin). Primitiva
+  `components/ui/histogram-bars.tsx` (+ `year-bars.tsx`, `FinalValueBars` adattatore; etichette diradate sotto 400 px
+  di plot). **Due bug trovati e chiusi**: il ventaglio sotto il vincolo pensione puntava al numero FIRE SENZA vincolo
+  mentre il verdetto nominava quello ponte (sul mirror: «meno di metà entro il 2066» sotto «FIRE nel 2049», leva a
+  67.000 €/anno) → `buildBridgeFireTargets` + `fireTargets` nel motore, coerenza CON il ponte pinnata; e il bollo sui
+  conti correnti era `saldo × 0,2%` con il commento che diceva 34,20 € fissi e il test che fissava 12 € su 6.000 €
+  (`lib/constants/stampDuty.ts`, `describeCosts` nomina la cifra). **Verifica**: `tsc`, lint 0, Vitest 4193 nei due fusi
+  (46 test nuovi; falsificati: ordine prelievo↔rendimento, nearest-rank→floor, bollo, e la spec E2E con l'aria-label
+  rotta), Playwright `fire.spec.ts` (toggle a tre viste) + `fire.mobile.spec.ts` (390 con la Distribuzione aperta)
+  6/6; sonda Playwright sul mirror a 1440 e 390 (overflow 0), che ha rivelato entrambi i difetti del ponte e delle
+  etichette. Estensione Chrome non connessa. Backlog deciso: «Numero FIRE più onesto» (pensione INPS nel Calcolatore e
+  nel MC, prelievo al netto delle tasse). doc/guide/fire.md, fire-monte-carlo.md, patrimonio.md.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.

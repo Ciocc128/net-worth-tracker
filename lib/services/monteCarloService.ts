@@ -21,13 +21,15 @@ import { formatCurrencyCompact } from './chartService';
  *
  * @param mean - Mean of the distribution
  * @param stdDev - Standard deviation of the distribution
+ * @param random - The uniform source, `Math.random` by default; a seeded one makes the draw reproducible
  * @returns Random number from normal distribution
  *
  * @see https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
  */
-function randomNormal(mean: number, stdDev: number): number {
-  const u1 = Math.random();
-  const u2 = Math.random();
+function randomNormal(mean: number, stdDev: number, random: () => number = Math.random): number {
+  // log(0) is −∞: a uniform source can return exactly 0 (the seeded one once in 2^32 draws).
+  const u1 = Math.max(random(), Number.EPSILON);
+  const u2 = random();
   const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   return mean + z0 * stdDev;
 }
@@ -294,6 +296,28 @@ export interface AccumulationSimulationParams {
   // Pension inflows at TODAY's value (no deterministic fund growth inside a stochastic
   // run — doc/guide/fire.md § FIRE, What If and Goals). Order per year: inflow → return → savings.
   capitalInflows?: MonteCarloCapitalInflow[];
+
+  /**
+   * The uniform source of the draws, `Math.random` by default. A seeded source
+   * (`createSeededRandom`) makes the run reproducible and lets two runs share their shocks,
+   * which is what a comparison between two plans needs (`lib/utils/fireDistribution.ts`).
+   */
+  random?: () => number;
+  /**
+   * How far the retirement ledger runs, in years from today (at least `years`, the default).
+   * After its own FIRE year a path stops saving and withdraws the inflated expenses instead;
+   * the ledger records the year that capital runs out, if it does. Extending it past `years`
+   * draws more returns per path, so a seeded run with a different horizon is a different run.
+   */
+  retirementHorizonYears?: number;
+  /**
+   * The moving FIRE target per year (index 0 = today), replacing the inflated-expenses ÷ SWR
+   * chain: with the pension lock on, the Calcolatore hands the bridge requirement of the
+   * deterministic walk (`buildBridgeFireTargets`), or the paths aim at the number WITHOUT the
+   * lock while the verdict names the bridge one (seen on the mirror, 2026-09-24). Entries past
+   * `years` are ignored; a shorter array falls back to the chain from where it ends.
+   */
+  fireTargets?: number[];
 }
 
 export interface AccumulationPercentilePoint extends PercentilesData {
@@ -303,12 +327,26 @@ export interface AccumulationPercentilePoint extends PercentilesData {
   fireProbability: number;
 }
 
+/** What happens to a path after its FIRE year, on the same returns it accumulated with. */
+export interface RetirementOutcome {
+  /** The path's FIRE year: the last year it saves, the year before it starts withdrawing. */
+  fireYear: number;
+  /** The first year (from today) the withdrawing capital falls to zero; null = still positive at the horizon. */
+  ruinYear: number | null;
+  /** The capital at the retirement horizon, 0 once ruined. */
+  finalValue: number;
+}
+
 export interface AccumulationSimulationResult {
   /** One full path per simulation, year 0..years — no path ever fails (accumulation only). */
   paths: { year: number; value: number }[][];
   percentiles: AccumulationPercentilePoint[];
   /** Per path, the first year its portfolio met the moving FIRE target (null = never). */
   fireYears: (number | null)[];
+  /** Per path, its retirement on the same returns; null for a path that never reaches FIRE within `years`. */
+  retirements: (RetirementOutcome | null)[];
+  /** The retirement ledger's horizon, in years from today. */
+  retirementHorizonYears: number;
 }
 
 /**
@@ -321,7 +359,14 @@ export interface AccumulationSimulationResult {
  * At zero volatility every step degenerates to calculateFIREProjection's base-scenario float
  * chain, which is the coherence property the tests pin.
  *
- * No withdrawals and no failures: decumulation stays with runMonteCarloSimulation (MC tab).
+ * `paths` never withdraw and never fail: past its FIRE year a path keeps compounding without
+ * savings, which is what the fan draws. The RETIREMENT LEDGER is a second book on the SAME
+ * returns (`retirements`): from the year after its FIRE year a path withdraws that year's
+ * inflated expenses (inflow → return → withdrawal, the decumulation engine's order) and the
+ * ledger records the year the capital runs out — «dal FIRE in poi», the tail the Distribuzione
+ * view reads. One draw per path per year up to the retirement horizon, made whether or not any
+ * ledger still needs it, so a seeded run gives every plan the same shocks.
+ *
  * The new number this engine adds is `fireProbability`: the cumulative share of paths that
  * have reached FIRE by each year, which the deterministic projection cannot express.
  */
@@ -329,22 +374,27 @@ export function runAccumulationSimulation(
   params: AccumulationSimulationParams
 ): AccumulationSimulationResult {
   const wrDecimal = params.withdrawalRate / 100;
+  const random = params.random ?? Math.random;
+  const horizon = Math.max(params.years, Math.floor(params.retirementHorizonYears ?? params.years));
   const inflows = params.capitalInflows ?? [];
   const startingInflow = inflows
     .filter((inflow) => inflow.year <= 0)
     .reduce((sum, inflow) => sum + inflow.amount, 0);
 
-  // The moving target is deterministic (inflation only) — computed once, shared by all paths.
-  const fireTargets: number[] = [];
-  let targetExpenses = params.annualExpenses;
-  fireTargets.push(wrDecimal > 0 ? targetExpenses / wrDecimal : 0);
-  for (let year = 1; year <= params.years; year++) {
-    targetExpenses *= 1 + params.expenseInflationRate / 100;
-    fireTargets.push(wrDecimal > 0 ? targetExpenses / wrDecimal : 0);
+  // The expenses and the moving target are deterministic (inflation only) — computed once to
+  // the retirement horizon, shared by all paths. A caller-given target wins where it exists.
+  const givenTargets = params.fireTargets ?? [];
+  const expensesByYear: number[] = [params.annualExpenses];
+  const fireTargets: number[] = [givenTargets[0] ?? (wrDecimal > 0 ? params.annualExpenses / wrDecimal : 0)];
+  for (let year = 1; year <= horizon; year++) {
+    const expenses = expensesByYear[year - 1] * (1 + params.expenseInflationRate / 100);
+    expensesByYear.push(expenses);
+    fireTargets.push(givenTargets[year] ?? (wrDecimal > 0 ? expenses / wrDecimal : 0));
   }
 
   const paths: { year: number; value: number }[][] = [];
   const fireYears: (number | null)[] = [];
+  const retirements: (RetirementOutcome | null)[] = [];
 
   for (let sim = 0; sim < params.numberOfSimulations; sim++) {
     let portfolio = params.initialPortfolio + startingInflow;
@@ -352,39 +402,57 @@ export function runAccumulationSimulation(
     // Year 0 is tested like every other year (mirrors calculateFIREProjection): a portfolio
     // already past today's target is FIRE at year 0 in every path, and saves nothing from year 1.
     let fireYear: number | null = wrDecimal > 0 && portfolio >= fireTargets[0] ? 0 : null;
+    // The retirement ledger equals the accumulation ledger through the FIRE year, then forks.
+    let retirementCapital = portfolio;
+    let ruinYear: number | null = null;
 
-    for (let year = 1; year <= params.years; year++) {
-      for (const inflow of inflows) {
-        if (inflow.year === year) portfolio += inflow.amount;
-      }
-
-      const equityReturn = randomNormal(params.equityReturn, params.equityVolatility);
-      const bondsReturn = randomNormal(params.bondsReturn, params.bondsVolatility);
-      const realEstateReturn = randomNormal(params.realEstateReturn, params.realEstateVolatility);
-      const commoditiesReturn = randomNormal(
-        params.commoditiesReturn,
-        params.commoditiesVolatility
-      );
+    for (let year = 1; year <= horizon; year++) {
+      const equityReturn = randomNormal(params.equityReturn, params.equityVolatility, random);
+      const bondsReturn = randomNormal(params.bondsReturn, params.bondsVolatility, random);
+      const realEstateReturn = randomNormal(params.realEstateReturn, params.realEstateVolatility, random);
+      const commoditiesReturn = randomNormal(params.commoditiesReturn, params.commoditiesVolatility, random);
       const portfolioReturn =
         (equityReturn * params.equityPercentage) / 100 +
         (bondsReturn * params.bondsPercentage) / 100 +
         (realEstateReturn * params.realEstatePercentage) / 100 +
         (commoditiesReturn * params.commoditiesPercentage) / 100;
+      const growth = 1 + portfolioReturn / 100;
+      const inflowThisYear = inflows.reduce((sum, inflow) => (inflow.year === year ? sum + inflow.amount : sum), 0);
 
-      portfolio *= 1 + portfolioReturn / 100;
+      // The accumulation ledger, inside the fan's horizon only.
+      if (year <= params.years) {
+        portfolio += inflowThisYear;
+        portfolio *= growth;
 
-      // Savings stop once the path retires — same rule as the deterministic projection.
-      if (fireYear === null) portfolio += params.annualSavings;
+        // Savings stop once the path retires — same rule as the deterministic projection.
+        if (fireYear === null) portfolio += params.annualSavings;
 
-      if (fireYear === null && wrDecimal > 0 && portfolio >= fireTargets[year]) {
-        fireYear = year;
+        if (fireYear === null && wrDecimal > 0 && portfolio >= fireTargets[year]) {
+          fireYear = year;
+        }
+
+        path.push({ year, value: portfolio });
       }
 
-      path.push({ year, value: portfolio });
+      // The retirement ledger: the same capital until the FIRE year (savings included), then
+      // this year's expenses out instead of savings in, until it runs out.
+      if (ruinYear !== null) continue;
+      if (fireYear !== null && year > fireYear) {
+        retirementCapital += inflowThisYear;
+        retirementCapital *= growth;
+        retirementCapital -= expensesByYear[year];
+        if (retirementCapital <= 0) {
+          retirementCapital = 0;
+          ruinYear = year;
+        }
+      } else if (year <= params.years) {
+        retirementCapital = portfolio;
+      }
     }
 
     paths.push(path);
     fireYears.push(fireYear);
+    retirements.push(fireYear !== null ? { fireYear, ruinYear, finalValue: retirementCapital } : null);
   }
 
   // Percentiles per year. Every path has full length, so the values array is always complete
@@ -409,7 +477,7 @@ export function runAccumulationSimulation(
     });
   }
 
-  return { paths, percentiles, fireYears };
+  return { paths, percentiles, fireYears, retirements, retirementHorizonYears: horizon };
 }
 
 /**

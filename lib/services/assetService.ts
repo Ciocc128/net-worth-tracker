@@ -17,6 +17,7 @@ import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firest
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { costBasisPerUnitEur, unitPriceEur } from '@/lib/utils/costBasisEur';
+import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR } from '@/lib/constants/stampDuty';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { Asset, AssetFormData, BondDetails } from '@/types/assets';
 
@@ -822,7 +823,11 @@ export function calculateAnnualPortfolioCost(assets: Asset[]): number {
 /**
  * Calculate annual stamp duty (imposta di bollo) on the portfolio.
  * Excluded: sold assets (quantity=0) and assets with stampDutyExempt=true.
- * For checking accounts (cash with the specified subCategory): applies only if value strictly > 5000€.
+ * For checking accounts (cash with the specified subCategory): a FLAT 34,20 € a year, only when
+ * the balance is strictly above 5.000 € (`lib/constants/stampDuty.ts`) — never the proportional
+ * rate, which is the securities' rule. Until 2026-09-24 the account paid `balance × rate`, the
+ * comment above it said the flat rule, and the test pinned the wrong figure. The threshold is
+ * read on today's balance; the law reads the year's average balance, which the app does not keep.
  */
 export function calculateStampDuty(
   assets: Asset[],
@@ -846,7 +851,7 @@ export function calculateStampDuty(
         checkingAccountSubCategory &&
         asset.subCategory === checkingAccountSubCategory
       ) {
-        return value > 5000 ? total + value * (stampDutyRate / 100) : total;
+        return value > CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR ? total + CHECKING_ACCOUNT_STAMP_DUTY_EUR : total;
       }
       return total + value * (stampDutyRate / 100);
     }, 0);

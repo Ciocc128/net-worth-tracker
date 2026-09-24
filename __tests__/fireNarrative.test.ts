@@ -33,12 +33,17 @@ import {
   describeScenarioParams,
   describeScenarios,
   describeScenariosFooter,
+  describeTailLever,
   describeTarget,
   describeTargetCaption,
   describeTargetFooter,
+  describeFireDistributionMethod,
+  describeFireYearDistribution,
+  describeRetirementSurvival,
   type FireVerdictInput,
 } from '@/lib/utils/fireNarrative';
 import type { FanVerdict, FireLock, FireTarget, FireTimeline, PassiveIncome, ScenarioRow } from '@/lib/utils/fireSummary';
+import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 
 /** The screen prints a no-break space before €; the tests read it as a normal one. */
@@ -233,7 +238,7 @@ describe('describeTargetFooter', () => {
 
   it('states the probability in the Ventaglio view, with the allocation and the inflow model', () => {
     expect(plain(describeTargetFooter({ view: 'ventaglio', fan, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '62% azioni, 28% obbligazioni, 10% immobili', lastProjectedYear: 2046 }))).toBe(
-      'Probabilità di FIRE entro il 2032: 71% su 1000 percorsi con l\'allocazione attuale (62% azioni, 28% obbligazioni, 10% immobili). Il fondo pensione entra all\'anno di sblocco al valore di oggi.',
+      'Probabilità di FIRE entro il 2032: 71% su 1000 percorsi con l\'allocazione attuale (62% azioni, 28% obbligazioni, 10% immobili). Il fondo pensione entra all\'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.',
     );
     expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { ...fan, onHorizon: true, calendarYear: 2066 }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni', lastProjectedYear: 2046 }))).toBe(
       'Probabilità di FIRE entro il 2066 (orizzonte della simulazione): 71% su 1000 percorsi con l\'allocazione attuale (100% azioni).',
@@ -244,6 +249,146 @@ describe('describeTargetFooter', () => {
     expect(plain(describeTargetFooter({ view: 'ventaglio', fan: null, fanAvailable: false, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).toBe(
       'Il ventaglio richiede un\'allocazione in azioni, obbligazioni, immobili o materie prime.',
     );
+    expect(plain(describeTargetFooter({ view: 'distribuzione', fan: null, fanAvailable: false, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).toBe(
+      'La distribuzione richiede un\'allocazione in azioni, obbligazioni, immobili o materie prime.',
+    );
+  });
+
+  it('says what the bars are in the Distribuzione view: the shared shocks, the border, the grey bar, the inflows', () => {
+    const base = { view: 'distribuzione' as const, fan: null, fanAvailable: true, simulationCount: 1000, allocationLabel: '100% azioni', lastProjectedYear: 2046 };
+    expect(plain(describeTargetFooter({ ...base, lock: lockOn(), distribution: distribution() }))).toBe(
+      "1000 percorsi con l'allocazione attuale (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base, la classe grigia i percorsi che non ci arrivano entro il 2066. Il fondo pensione entra all'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.",
+    );
+    // Nothing past the horizon: no grey bar to explain. No base year: no border to explain.
+    expect(plain(describeTargetFooter({ ...base, lock: lockOff, distribution: distribution({ neverCount: 0 }) }))).toBe(
+      "1000 percorsi con l'allocazione attuale (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base.",
+    );
+    expect(plain(describeTargetFooter({ ...base, lock: lockOff, distribution: distribution({ baseCalendarYear: null }) }))).toContain('nessun bordo, perché nel base il FIRE non arriva');
+    expect(describeTargetFooter({ ...base, lock: lockOff, distribution: null })).toBeNull();
+  });
+});
+
+const distribution = (overrides: Partial<FireYearDistribution> = {}): FireYearDistribution => ({
+  bins: [],
+  binWidthYears: 1,
+  pathCount: 1000,
+  neverCount: 37,
+  neverPct: 3.7,
+  horizonCalendarYear: 2066,
+  baseCalendarYear: 2034,
+  atStart: false,
+  p10Year: 2030,
+  p50Year: 2034,
+  p90Year: 2041,
+  earlyCount: 400,
+  atBaseCount: 120,
+  lateCount: 480,
+  ...overrides,
+});
+
+describe('describeFireYearDistribution', () => {
+  it('names the median against the base, the two tails and the never paths', () => {
+    expect(plain(describeFireYearDistribution(distribution()))).toBe(
+      'Metà dei percorsi è FIRE entro il 2034, come nel base; un percorso su dieci entro il 2030, nove su dieci entro il 2041; 37 su 1000 non ci arrivano entro il 2066.',
+    );
+    expect(plain(describeFireYearDistribution(distribution({ p50Year: 2036, neverCount: 0 })))).toBe(
+      'Metà dei percorsi è FIRE entro il 2036, dopo il base (2034); un percorso su dieci entro il 2030, nove su dieci entro il 2041.',
+    );
+    expect(plain(describeFireYearDistribution(distribution({ p50Year: 2033, neverCount: 0 })))).toContain('prima del base (2034)');
+  });
+
+  it('drops a tail the horizon cuts, and reads a base that never reaches FIRE without a comparison', () => {
+    expect(plain(describeFireYearDistribution(distribution({ p90Year: null, neverCount: 150, neverPct: 15 })))).toBe(
+      'Metà dei percorsi è FIRE entro il 2034, come nel base; un percorso su dieci entro il 2030; 150 su 1000 non ci arrivano entro il 2066.',
+    );
+    expect(plain(describeFireYearDistribution(distribution({ baseCalendarYear: null, neverCount: 0 })))).toBe(
+      'Metà dei percorsi è FIRE entro il 2034; un percorso su dieci entro il 2030, nove su dieci entro il 2041.',
+    );
+    expect(plain(describeFireYearDistribution(distribution({ p10Year: null, baseCalendarYear: null, neverCount: 0 })))).toBe(
+      'Metà dei percorsi è FIRE entro il 2034; nove percorsi su dieci entro il 2041.',
+    );
+  });
+
+  it('says so when fewer than half the paths get there, and when every path starts past the target', () => {
+    expect(plain(describeFireYearDistribution(distribution({ p50Year: null, p90Year: null, neverCount: 620, neverPct: 62 })))).toBe(
+      'Meno di metà dei percorsi è FIRE entro il 2066: ci arrivano 380 su 1000; un percorso su dieci entro il 2030.',
+    );
+    expect(plain(describeFireYearDistribution(distribution({ atStart: true })))).toBe(
+      "FIRE già raggiunto oggi, quindi in tutti i 1000 percorsi: non c'è una coda da misurare.",
+    );
+  });
+});
+
+describe('describeTailLever', () => {
+  const lever = (overrides: Partial<TailLever> = {}): TailLever => ({
+    targetYears: 8,
+    percentile: 0.9,
+    extraAnnualSavings: 6_000,
+    extraCap: 36_000,
+    tailYearsBefore: 15,
+    tailYearsAfter: 8,
+    luckyYearsBefore: 4,
+    luckyYearsAfter: 3,
+    ...overrides,
+  });
+
+  it('names the extra saving per year and per month, and what it does to the lucky tail', () => {
+    expect(plain(describeTailLever(lever(), 2026))).toBe(
+      "Perché anche nove percorsi su dieci siano FIRE entro il 2034 servirebbero 6000 € l'anno di risparmio in più (500 € al mese); il 10% più fortunato passerebbe dal 2030 al 2029.",
+    );
+    expect(plain(describeTailLever(lever({ luckyYearsAfter: 4 }), 2026))).toContain('il 10% più fortunato resterebbe al 2030.');
+  });
+
+  it('says the tail is already inside the plan, or that the cap is not enough and what it buys', () => {
+    expect(plain(describeTailLever(lever({ extraAnnualSavings: 0, tailYearsBefore: 7, tailYearsAfter: 7 }), 2026))).toBe(
+      'Già oggi nove percorsi su dieci sono FIRE entro il 2034: la coda è dentro il piano.',
+    );
+    expect(plain(describeTailLever(lever({ extraAnnualSavings: null, tailYearsAfter: 11 }), 2026))).toBe(
+      "Nemmeno 36.000 € l'anno di risparmio in più porta nove percorsi su dieci entro il 2034: con quella cifra ci arriverebbero entro il 2037.",
+    );
+    expect(plain(describeTailLever(lever({ extraAnnualSavings: null, tailYearsAfter: null }), 2026))).toContain("non ci arriverebbero entro l'orizzonte.");
+  });
+});
+
+describe('describeRetirementSurvival', () => {
+  const survival = (overrides: Partial<RetirementSurvival> = {}): RetirementSurvival => ({
+    retiredCount: 963,
+    survivedCount: 940,
+    ruinedCount: 23,
+    survivedPct: 97.6,
+    horizonCalendarYear: 2076,
+    horizonAge: 90,
+    p10RuinCalendarYear: null,
+    medianYearsLastedWhenRuined: 31,
+    ...overrides,
+  });
+
+  it('counts the survivors at the horizon, dated in age when known, and how long the ruined ones lasted', () => {
+    expect(plain(describeRetirementSurvival(survival()))).toBe(
+      'Prelevando le spese dal proprio anno FIRE, il capitale dura fino al 2076 (a 90 anni) in 940 percorsi su 963; nei 23 che lo esauriscono dura in mediana 31 anni dal FIRE.',
+    );
+    expect(plain(describeRetirementSurvival(survival({ horizonAge: null, ruinedCount: 1, survivedCount: 962 })))).toBe(
+      "Prelevando le spese dal proprio anno FIRE, il capitale dura fino al 2076 in 962 percorsi su 963; nell'unico che lo esaurisce dura in mediana 31 anni dal FIRE.".replace('dura in mediana', 'dura'),
+    );
+  });
+
+  it('dates the worst tenth when one path in ten runs out, and reads a full survival as «tutti»', () => {
+    expect(plain(describeRetirementSurvival(survival({ survivedCount: 850, ruinedCount: 113, p10RuinCalendarYear: 2068 })))).toBe(
+      'Prelevando le spese dal proprio anno FIRE, il capitale dura fino al 2076 (a 90 anni) in 850 percorsi su 963; nel 10% peggiore si esaurisce entro il 2068.',
+    );
+    expect(plain(describeRetirementSurvival(survival({ survivedCount: 963, ruinedCount: 0, medianYearsLastedWhenRuined: null })))).toBe(
+      'Prelevando le spese dal proprio anno FIRE, il capitale dura fino al 2076 (a 90 anni) in tutti i 963 percorsi che ci arrivano.',
+    );
+  });
+});
+
+describe('describeFireDistributionMethod', () => {
+  it('is four paragraphs and names the bin width in words', () => {
+    const one = describeFireDistributionMethod(1);
+    expect(one).toHaveLength(4);
+    expect(one[1]).toContain('un anno per classe');
+    expect(describeFireDistributionMethod(5)[1]).toContain('5 anni per classe');
+    expect(one[2]).toContain('Il seme è fisso');
   });
 });
 

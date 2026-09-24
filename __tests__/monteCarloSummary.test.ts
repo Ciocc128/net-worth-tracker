@@ -156,6 +156,39 @@ describe('summarizeMonteCarloRun', () => {
     expect(run.failureMedianCalendarYear).toBeNull();
   });
 
+  it('bins the failed simulations by the calendar year they ran out, the median failure year outlined', () => {
+    const simulation = (id: number, failureYear?: number) => ({
+      simulationId: id,
+      success: failureYear === undefined,
+      failureYear,
+      finalValue: failureYear === undefined ? 900000 : 0,
+      path: [{ year: 0, value: 488600 }],
+    });
+    const results = makeResults({
+      simulations: [simulation(0), simulation(1), simulation(2, 20), simulation(3, 22), simulation(4, 26), simulation(5, 30)],
+      failureAnalysis: { averageFailureYear: 24.5, medianFailureYear: 26 },
+    });
+    const run = summarizeMonteCarloRun(results, makeParams({ numberOfSimulations: 6 }), CTX);
+
+    // 2046..2056 is an eleven-year span: one bin per year, counts adding up to the four failures.
+    expect(run.failureYearBinWidth).toBe(1);
+    expect(run.failureYearBins).toHaveLength(11);
+    expect(run.failureYearBins.reduce((sum, bin) => sum + bin.count, 0)).toBe(4);
+    expect(run.failureYearBins[0]).toMatchObject({ fromYear: 2046, toYear: 2046, count: 1, isReference: false });
+    expect(run.failureYearBins[6]).toMatchObject({ fromYear: 2052, toYear: 2052, count: 1, isReference: true });
+    // Shares are of ALL simulations, like the final-value bins'.
+    expect(run.failureYearBins[0].sharePct).toBeCloseTo(100 / 6);
+    expect(run.failureFirstCalendarYear).toBe(2046);
+    expect(run.failureLastCalendarYear).toBe(2056);
+  });
+
+  it('has no failure bins when nothing fails', () => {
+    const run = summarizeMonteCarloRun(makeResults({ failureAnalysis: null, failureCount: 0 }), makeParams(), CTX);
+    expect(run.failureYearBins).toEqual([]);
+    expect(run.failureFirstCalendarYear).toBeNull();
+    expect(run.failureLastCalendarYear).toBeNull();
+  });
+
   it('builds the histogram with each bin share and marks the bin holding the median', () => {
     const run = summarizeMonteCarloRun(makeResults(), makeParams(), CTX);
     expect(run.histogram).toHaveLength(3);

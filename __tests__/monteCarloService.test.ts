@@ -16,7 +16,8 @@ import {
   runAccumulationSimulation,
   type AccumulationSimulationParams,
 } from '@/lib/services/monteCarloService';
-import { calculateFIREProjection, getDefaultScenarios } from '@/lib/services/fireService';
+import { buildBridgeFireTargets, calculateFIREProjection, getDefaultScenarios } from '@/lib/services/fireService';
+import { createSeededRandom } from '@/lib/utils/seededRandom';
 import type { MonteCarloParams } from '@/types/assets';
 
 /**
@@ -296,6 +297,132 @@ describe('runAccumulationSimulation — Ventaglio engine', () => {
 
     expect(withEmpty.paths[0].map((p) => p.value)).toEqual(without.paths[0].map((p) => p.value));
     expect(withEmpty.fireYears).toEqual(without.fireYears);
+  });
+});
+
+/**
+ * The seeded source and the retirement ledger (2026-09-24). The ledger is replicated here
+ * independently of the service: the same order the docstring states — inflow → return →
+ * withdrawal from the year AFTER the FIRE year, the expenses inflating every year from today.
+ */
+describe('runAccumulationSimulation — seed and the retirement ledger', () => {
+  const volatile = { equityVolatility: 18, numberOfSimulations: 50, years: 20 };
+
+  it('gives the same paths, FIRE years and retirements for the same seed, different ones for another', () => {
+    const first = runAccumulationSimulation(makeAccumulationParams({ ...volatile, random: createSeededRandom(7) }));
+    const again = runAccumulationSimulation(makeAccumulationParams({ ...volatile, random: createSeededRandom(7) }));
+    const other = runAccumulationSimulation(makeAccumulationParams({ ...volatile, random: createSeededRandom(8) }));
+    expect(again).toEqual(first);
+    expect(other.paths[0].map((p) => p.value)).not.toEqual(first.paths[0].map((p) => p.value));
+  });
+
+  it('two seeded runs that differ only in the savings share every shock (common random numbers)', () => {
+    // At zero savings the year-1 return is the path's whole year-1 change; with savings the
+    // same return shows through as (value − savings) / initial. Identical across the two runs.
+    const lean = runAccumulationSimulation(makeAccumulationParams({ ...volatile, annualSavings: 0, random: createSeededRandom(3) }));
+    const rich = runAccumulationSimulation(makeAccumulationParams({ ...volatile, annualSavings: 20_000, random: createSeededRandom(3) }));
+    for (let sim = 0; sim < 50; sim++) {
+      const leanReturn = lean.paths[sim][1].value / 100_000;
+      const richReturn = (rich.paths[sim][1].value - 20_000) / 100_000;
+      expect(richReturn).toBeCloseTo(leanReturn, 10);
+    }
+  });
+
+  it('withdraws the inflated expenses from the year after FIRE and records the ruin year', () => {
+    // No growth: the ledger is a plain subtraction the test can replay. Expenses of 10.000 € so
+    // that 20.000 € a year of savings can still reach the inflating target (year 12).
+    const params = makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 40, retirementHorizonYears: 70 });
+    const result = runAccumulationSimulation(params);
+    const fireYear = result.fireYears[0] as number;
+    expect(fireYear).not.toBeNull();
+
+    // Independent replica: accumulate to the FIRE year, then withdraw with zero return.
+    const expensesAt = (year: number) => params.annualExpenses * Math.pow(1 + params.expenseInflationRate / 100, year);
+    let capital = params.initialPortfolio + params.annualSavings * fireYear;
+    let expectedRuin: number | null = null;
+    for (let year = fireYear + 1; year <= 70; year++) {
+      capital -= expensesAt(year);
+      if (capital <= 0) {
+        expectedRuin = year;
+        break;
+      }
+    }
+    expect(expectedRuin).not.toBeNull();
+    expect(result.retirements[0]).toEqual({ fireYear, ruinYear: expectedRuin, finalValue: 0 });
+    expect(result.retirementHorizonYears).toBe(70);
+    // The accumulation ledger is untouched by the withdrawals: the fan keeps compounding.
+    expect(result.paths[0][40].value).toBeCloseTo(params.initialPortfolio + params.annualSavings * fireYear, 6);
+  });
+
+  it('keeps the capital positive at the horizon when the return outruns the withdrawals, return before withdrawal', () => {
+    const params = makeAccumulationParams({ years: 40, retirementHorizonYears: 60 });
+    const result = runAccumulationSimulation(params);
+    const outcome = result.retirements[0];
+    expect(outcome).not.toBeNull();
+    expect(outcome?.ruinYear).toBeNull();
+    expect(outcome?.finalValue).toBeGreaterThan(0);
+
+    // Independent replica with growth: the year's return lands BEFORE the year's withdrawal
+    // (the decumulation engine's order). Withdrawing first would leave a smaller capital.
+    const fireYear = outcome?.fireYear as number;
+    const expensesAt = (year: number) => params.annualExpenses * Math.pow(1 + params.expenseInflationRate / 100, year);
+    let capital = result.paths[0][fireYear].value;
+    for (let year = fireYear + 1; year <= 60; year++) {
+      capital *= 1 + params.equityReturn / 100;
+      capital -= expensesAt(year);
+    }
+    expect(outcome?.finalValue).toBeCloseTo(capital, 3);
+  });
+
+  it('gives a path that never reaches FIRE no retirement', () => {
+    const result = runAccumulationSimulation(makeAccumulationParams({ annualExpenses: 5_000_000, years: 10 }));
+    expect(result.fireYears.every((year) => year === null)).toBe(true);
+    expect(result.retirements.every((outcome) => outcome === null)).toBe(true);
+  });
+
+  it('aims the paths at the targets given, year by year, instead of the expenses ÷ SWR chain', () => {
+    // A target of 1 € from year 3 on: every path is FIRE exactly at year 3, whatever its portfolio.
+    const targets = [1e12, 1e12, 1e12, 1, 1, 1, 1, 1, 1, 1, 1];
+    const result = runAccumulationSimulation(makeAccumulationParams({ years: 10, fireTargets: targets }));
+    expect(result.fireYears.every((year) => year === 3)).toBe(true);
+    expect(result.percentiles[2].fireTarget).toBe(1e12);
+    expect(result.percentiles[3].fireTarget).toBe(1);
+    // A shorter array falls back to the chain from where it ends.
+    const partial = runAccumulationSimulation(makeAccumulationParams({ years: 10, fireTargets: [1e12, 1e12] }));
+    expect(partial.percentiles[1].fireTarget).toBe(1e12);
+    expect(Math.round(partial.percentiles[2].fireTarget)).toBe(Math.round((30_000 * 1.025 ** 2) / 0.04));
+  });
+
+  it('with the bridge targets, the zero-volatility fan lands on the walk\'s FIRE year before the unlock', () => {
+    // The walk under the bridge: free capital 100k, a 50k fund locked for 30 years. The bridge
+    // requirement is lower than the standard number, so FIRE lands before the unlock — where the
+    // two models agree exactly (after it, the walk merges the GROWN fund and the fan today's value).
+    const bridge = { valueToday: 50_000, yearsToUnlock: 30 };
+    const projection = calculateFIREProjection(100_000, 30_000, 20_000, 4, getDefaultScenarios(), 50, bridge);
+    expect(projection.baseYearsToFIRE).not.toBeNull();
+    expect(projection.baseYearsToFIRE as number).toBeLessThan(30);
+    const years = Math.min(projection.yearlyData.length, 40);
+    const targets = buildBridgeFireTargets({ annualExpenses: 30_000, withdrawalRate: 4, scenario: getDefaultScenarios().base, pensionBridge: bridge, years });
+    const withBridge = runAccumulationSimulation(makeAccumulationParams({ years, fireTargets: targets }));
+    const withoutBridge = runAccumulationSimulation(makeAccumulationParams({ years }));
+    expect(withBridge.fireYears[0]).toBe(projection.baseYearsToFIRE);
+    // The standard chain reads later: that is the gap the mirror showed under the lock.
+    expect(withoutBridge.fireYears[0] as number).toBeGreaterThan(projection.baseYearsToFIRE as number);
+    // From the unlock year on the series is the standard chain.
+    expect(targets[30]).toBeCloseTo((30_000 * 1.025 ** 30) / 0.04, 3);
+    expect(targets[0]).toBeLessThan(30_000 / 0.04);
+  });
+
+  it('runs the ledger to `years` by default and only the longer horizon sees a later ruin', () => {
+    const short = runAccumulationSimulation(makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20 }));
+    const long = runAccumulationSimulation(makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20, retirementHorizonYears: 70 }));
+    expect(short.retirementHorizonYears).toBe(20);
+    expect(short.retirements[0]?.ruinYear).toBeNull();
+    expect(long.retirements[0]?.ruinYear).toBeGreaterThan(20);
+    // Paths, percentiles and FIRE years do not depend on the retirement horizon at zero volatility.
+    expect(long.paths).toEqual(short.paths);
+    expect(long.fireYears).toEqual(short.fireYears);
+    expect(long.percentiles).toEqual(short.percentiles);
   });
 });
 

@@ -24,6 +24,8 @@ import {
   describeDistribuzione,
   describeDistribuzioneAside,
   describeDistribuzioneFooter,
+  describeEsaurimento,
+  describeEsaurimentoFooter,
   describeParametri,
   describeParametriFooter,
   describePensionInflowRow,
@@ -66,6 +68,15 @@ function makeRun(overrides: Partial<MonteCarloRun> = {}): MonteCarloRun {
     histogram: Array.from({ length: 10 }, (_, index) => ({ from: index * 420000, to: (index + 1) * 420000, count: index === 0 ? 1579 : 936, sharePct: index === 0 ? 15.79 : 9.36, containsMedian: index === 1 })),
     histogramCap: 3780000,
     histogramMax: 4200000,
+    failureYearBins: [
+      { fromYear: 2041, toYear: 2045, count: 300, sharePct: 3, isReference: false },
+      { fromYear: 2046, toYear: 2050, count: 500, sharePct: 5, isReference: false },
+      { fromYear: 2051, toYear: 2055, count: 600, sharePct: 6, isReference: true },
+      { fromYear: 2056, toYear: 2060, count: 179, sharePct: 1.79, isReference: false },
+    ],
+    failureYearBinWidth: 5,
+    failureFirstCalendarYear: 2041,
+    failureLastCalendarYear: 2060,
     ...overrides,
   };
 }
@@ -191,8 +202,37 @@ describe('Distribuzione', () => {
   it('names the window and the bins', () => {
     expect(describeDistribuzioneAside(makeRun())).toBe('valori finali nel 2061 · scenario base');
     expect(plain(describeDistribuzioneFooter(makeRun()))).toBe(
-      "Dieci classi di uguale ampiezza fino al 95° percentile (3.780.000 €); l'ultima raccoglie anche gli esiti oltre, fino a 4.200.000 €, la prima le simulazioni finite a zero; la classe con il bordo contiene la mediana. Valori nominali del 2061.",
+      "Dieci classi di uguale ampiezza fino al 95° percentile (3.780.000 €); l'ultima raccoglie anche gli esiti oltre, fino a 4.200.000 €, la prima le simulazioni finite a zero; la classe con il bordo contiene la mediana. Valori nominali del 2061, scenario base.",
     );
+  });
+});
+
+describe('describeEsaurimento', () => {
+  it('dates the failed simulations: first, last and the median', () => {
+    // Four digits print ungrouped in it-IT («1579»), five grouped («10.000»).
+    expect(plain(describeEsaurimento(makeRun()))).toBe('Le 1579 simulazioni che falliscono esauriscono il capitale tra il 2041 e il 2060, la metà entro il 2052.');
+  });
+
+  it('says none fail, and names the horizon', () => {
+    expect(plain(describeEsaurimento(makeRun({ failureCount: 0, failureFirstCalendarYear: null, failureLastCalendarYear: null })))).toBe(
+      'Nessuna simulazione esaurisce il capitale entro il 2061.',
+    );
+  });
+
+  it('reads a single failure in the singular, and one shared year as «tutte»', () => {
+    expect(plain(describeEsaurimento(makeRun({ failureCount: 1, failureFirstCalendarYear: 2050, failureLastCalendarYear: 2050 })))).toBe(
+      "L'unica simulazione che fallisce esaurisce il capitale nel 2050.",
+    );
+    expect(plain(describeEsaurimento(makeRun({ failureCount: 3, failureFirstCalendarYear: 2050, failureLastCalendarYear: 2050 })))).toBe(
+      'Le 3 simulazioni che falliscono esauriscono il capitale tutte nel 2050.',
+    );
+  });
+
+  it('names the bin width and the denominator in the footer', () => {
+    expect(plain(describeEsaurimentoFooter(makeRun()))).toBe(
+      "Una classe ogni 5 anni tra il primo e l'ultimo esaurimento; la classe con il bordo contiene la mediana dei fallimenti, le quote sono sul totale delle 10.000 simulazioni. Scenario base.",
+    );
+    expect(plain(describeEsaurimentoFooter(makeRun({ failureYearBinWidth: 1 })))).toContain('Una classe per anno');
   });
 });
 

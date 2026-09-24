@@ -1602,6 +1602,59 @@ export function calculateFIREProjection(
   };
 }
 
+export interface BridgeFireTargetsInput {
+  annualExpenses: number;
+  withdrawalRate: number;
+  /** The scenario the targets follow — the base one on the Calcolatore. */
+  scenario: { growthRate: number; inflationRate: number };
+  pensionBridge: FireProjectionPensionBridge;
+  /** Years from today the series covers (index 0 = today, `years` entries after it). */
+  years: number;
+}
+
+/**
+ * The moving FIRE target of the bridge model, year by year: the SAME requirement the walk
+ * above tests — `calculateFireBridgeNumber` on that year's inflated expenses and the
+ * compartment grown at the scenario's rate while the unlock is ahead, the standard number
+ * (expenses ÷ SWR) from the unlock year on. Deterministic, so the Ventaglio can aim its paths
+ * at it (`AccumulationSimulationParams.fireTargets`): until 2026-09-24 the fan aimed at the
+ * standard number while the verdict named the bridge one, and on the owner's mirror that read
+ * «meno di metà dei percorsi entro il 2066» under «FIRE nel 2049». Without an active bridge the
+ * series is the plain chain.
+ */
+export function buildBridgeFireTargets(input: BridgeFireTargetsInput): number[] {
+  const wrDecimal = input.withdrawalRate / 100;
+  const bridgeActive = input.pensionBridge.valueToday > 0 && input.pensionBridge.yearsToUnlock > 0;
+  const unlockYear = bridgeActive ? Math.max(1, Math.round(input.pensionBridge.yearsToUnlock)) : 0;
+  const realReturn = input.scenario.growthRate - input.scenario.inflationRate;
+  const targets: number[] = [];
+  let expenses = input.annualExpenses;
+  let compartment = bridgeActive ? input.pensionBridge.valueToday : 0;
+  for (let year = 0; year <= input.years; year++) {
+    if (year > 0) {
+      expenses *= 1 + input.scenario.inflationRate / 100;
+      compartment *= 1 + input.scenario.growthRate / 100;
+    }
+    if (wrDecimal <= 0) {
+      targets.push(0);
+    } else if (bridgeActive && year < unlockYear) {
+      targets.push(
+        calculateFireBridgeNumber({
+          annualExpenses: expenses,
+          withdrawalRate: input.withdrawalRate,
+          realReturn,
+          yearsToUnlock: unlockYear - year,
+          pensionValueToday: compartment,
+          pensionGrowthRate: realReturn,
+        }).bridgeFireNumber,
+      );
+    } else {
+      targets.push(expenses / wrDecimal);
+    }
+  }
+  return targets;
+}
+
 export function calculateFIRESensitivityMatrix(
   initialNetWorth: number,
   baselineAnnualExpenses: number,

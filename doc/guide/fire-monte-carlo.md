@@ -29,8 +29,16 @@
   muted guide at the unlock year when it is on the plot and the Probabilità footer names the step.
 - **`createDistribution` caps the equal-width bins at the 95th percentile** (2026-08-26) and the last bin takes the tail to the maximum
   (`from`/`to` on every bin, the last one closed on `to`): bins stretched to a ten-times-the-median outlier left nine of ten empty on the first
-  screenshot. The Distribuzione footer names both bounds; the bars are hand-written SVG (`FinalValueBars`, the In-tile Bars rule: labels outside
-  the SVG, the median's bin outlined, hover reading under `(pointer: fine)`).
+  screenshot. The Distribuzione footer names both bounds; the bars are hand-written SVG (`FinalValueBars` over the shared `HistogramBars`
+  primitive since 2026-09-24, the In-tile Bars rule: labels outside the SVG, the median's bin outlined, hover reading under `(pointer: fine)`).
+- **The Distribuzione tile has a second view, «Esaurimento»** (2026-09-24): the failed simulations by the calendar year their capital ran out —
+  they used to vanish into the first bin of the final values, 0 € beside the low survivors. `summarizeMonteCarloRun` reads
+  `results.simulations[].failureYear` (kept in full, read by no screen until then) into `failureYearBins` through `binYears`
+  (`lib/utils/yearHistogram.ts`, the binning shared with the Calcolatore's Distribuzione), the median failure year's bin as the reference,
+  shares of ALL simulations like the final-value bins'; `describeEsaurimento` dates first, last and median. The view exists only while
+  something fails: with `failureCount === 0` the aside stays the plain window label and the tab forces «Valori finali». The `AsideToggle`
+  is «Vista della distribuzione»; the tile's `aria-label` stays «Distribuzione dei valori finali» in both views (the locator every spec
+  would use). The footer of «Valori finali» now closes on «scenario base», which the aside carried before the toggle took its place.
 - **No figure on the page wears a sign token** — a probability is not a gain, a projected value not a loss; the headline's tone
   (`resolveSuccessTone`: ≥ 90 positive, 80–89 warning, below negative — the old hero's thresholds) is the one judgement, and the fan's dashed
   zero line is the one `--destructive` stroke (the capital exhausted is a fact with a sign). Scenario colours are ONE map, `SCENARIO_SLOT`
@@ -46,4 +54,4 @@
 
 ## Per-page blind spots
 
-- **FIRE › Monte Carlo**: no Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); `results.medianFinalValue` has no surface.
+- **FIRE › Monte Carlo**: no Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point — unlike the Calcolatore's fan, seeded since 2026-09-24) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); the «Esaurimento» view disappears with the toggle when a re-run fails nothing, and its shares are of all simulations, so its bars are short by construction on a plan that holds; `results.medianFinalValue` has no surface.

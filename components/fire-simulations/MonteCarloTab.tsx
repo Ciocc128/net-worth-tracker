@@ -61,6 +61,9 @@ import {
   describeDistribuzione,
   describeDistribuzioneAside,
   describeDistribuzioneFooter,
+  describeEsaurimento,
+  describeEsaurimentoFooter,
+  type DistributionView,
   describeParametri,
   describeParametriFooter,
   describePercentili,
@@ -239,6 +242,8 @@ export function MonteCarloTab() {
   // ─── The run: the three scenarios in one go ──────────────────────────────────
   const [lastRun, setLastRun] = useState<MonteCarloRunState | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  // The Distribuzione tile's view (final values | the year the money runs out): the tile's scope.
+  const [distributionView, setDistributionView] = useState<DistributionView>('finali');
 
   const runScenarios = useCallback((inputs: MonteCarloRunInputs) => {
     setIsRunning(true);
@@ -354,7 +359,14 @@ export function MonteCarloTab() {
 
         {run && (
           <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
-            <DistribuzioneTile reading={describeDistribuzione(run)} aside={describeDistribuzioneAside(run)} run={run} footer={describeDistribuzioneFooter(run)} />
+            <DistribuzioneTile
+              reading={distributionView === 'esaurimento' && run.failureCount > 0 ? describeEsaurimento(run) : describeDistribuzione(run)}
+              aside={describeDistribuzioneAside(run)}
+              run={run}
+              view={distributionView}
+              onViewChange={setDistributionView}
+              footer={distributionView === 'esaurimento' && run.failureCount > 0 ? describeEsaurimentoFooter(run) : describeDistribuzioneFooter(run)}
+            />
           </div>
         )}
 

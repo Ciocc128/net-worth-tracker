@@ -148,7 +148,7 @@ describe('describeCosts', () => {
         describeCosts({ stampDutyEnabled: true, stampDutyRate: 0.2, checkingAccountSubCategory: 'Conto Corrente' })
       )
     ).toBe(
-      'Bollo allo 0,2% attivo: entra nel costo annuo del portafoglio; per i conti in Conto Corrente vale solo oltre 5000 €.'
+      "Bollo allo 0,2% attivo: entra nel costo annuo del portafoglio; per i conti in Conto Corrente è fisso, 34,20 € l'anno solo oltre 5000 €."
     );
   });
 
@@ -156,7 +156,7 @@ describe('describeCosts', () => {
     expect(
       plain(describeCosts({ stampDutyEnabled: true, stampDutyRate: 0.2, checkingAccountSubCategory: '__none__' }))
     ).toBe(
-      'Bollo allo 0,2% attivo: entra nel costo annuo del portafoglio; senza la sottocategoria dei conti correnti, la soglia dei 5000 € non si applica.'
+      'Bollo allo 0,2% attivo: entra nel costo annuo del portafoglio; senza la sottocategoria dei conti correnti, la soglia dei 5000 € e il bollo fisso non si applicano.'
     );
   });
 

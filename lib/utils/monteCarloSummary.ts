@@ -15,6 +15,7 @@
 
 import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloResults, MonteCarloScenarios, PercentilesData } from '@/types/assets';
 import type { VerdictTone } from '@/lib/utils/narrative';
+import { binYears, type YearHistogramBin } from '@/lib/utils/yearHistogram';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,16 @@ export interface MonteCarloRun {
   histogramCap: number;
   /** Upper bound of the last bin — the largest final value simulated. */
   histogramMax: number;
+  /**
+   * The failed simulations by the calendar year their capital ran out (2026-09-24): the tile's
+   * second view. Shares are of ALL simulations, like the final-value bins'; the median failure
+   * year's bin is the reference. Empty when nothing fails.
+   */
+  failureYearBins: YearHistogramBin[];
+  failureYearBinWidth: number;
+  /** The first and the last calendar year a simulation ran out; null when none did. */
+  failureFirstCalendarYear: number | null;
+  failureLastCalendarYear: number | null;
 }
 
 /**
@@ -110,6 +121,14 @@ export function summarizeMonteCarloRun(results: MonteCarloResults, params: Monte
   const failureAverageYear = results.failureAnalysis ? Math.round(results.failureAnalysis.averageFailureYear) : null;
   const failureMedianYear = results.failureAnalysis ? Math.round(results.failureAnalysis.medianFailureYear) : null;
   const histogram = buildHistogram(results, finalPercentiles.p50);
+  const failureCalendarYears = results.simulations
+    .filter((simulation) => !simulation.success && simulation.failureYear !== undefined)
+    .map((simulation) => ctx.startCalendarYear + (simulation.failureYear as number));
+  const failureYears = binYears(failureCalendarYears, {
+    total: params.numberOfSimulations,
+    referenceYear: calendarOf(failureMedianYear, ctx),
+    ceilingYear: ctx.startCalendarYear + years,
+  });
 
   return {
     successRate: results.successRate,
@@ -131,6 +150,10 @@ export function summarizeMonteCarloRun(results: MonteCarloResults, params: Monte
     histogram,
     histogramCap: histogram.length > 1 ? histogram[histogram.length - 2].to : histogram.length === 1 ? histogram[0].to : 0,
     histogramMax: histogram.length > 0 ? histogram[histogram.length - 1].to : 0,
+    failureYearBins: failureYears.bins,
+    failureYearBinWidth: failureYears.binWidthYears,
+    failureFirstCalendarYear: failureCalendarYears.length > 0 ? Math.min(...failureCalendarYears) : null,
+    failureLastCalendarYear: failureCalendarYears.length > 0 ? Math.max(...failureCalendarYears) : null,
   };
 }
 
