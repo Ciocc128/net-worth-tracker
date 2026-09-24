@@ -53,6 +53,12 @@ export const CENTRI_STORAGE_STATE = 'e2e/.auth/centri.json';
  * ordinary row that would move every figure the other Cashflow specs assert.
  */
 export const SPLIT_STORAGE_STATE = 'e2e/.auth/split.json';
+/**
+ * Session of the Hall of Fame fixture account (scripts/seedHallOfFameE2E.mts): 47 monthly
+ * snapshots since 2022, because a ranking needs a history behind it — and a history on the base
+ * account would move every figure the other specs assert.
+ */
+export const HOF_STORAGE_STATE = 'e2e/.auth/hof.json';
 
 export default defineConfig({
   testDir: './e2e',
@@ -76,13 +82,35 @@ export default defineConfig({
     { name: 'setup-analisi', testMatch: /auth\.analisi\.setup\.ts/ },
     { name: 'setup-centri', testMatch: /auth\.centri\.setup\.ts/ },
     { name: 'setup-split', testMatch: /auth\.split\.setup\.ts/ },
+    { name: 'setup-hof', testMatch: /auth\.hof\.setup\.ts/ },
     {
       name: 'desktop',
       // 1440px is the project's `desktop:` breakpoint — the width where the layout switches.
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: STORAGE_STATE },
       dependencies: ['setup'],
       // analisi.* runs in its own projects on the dedicated fixture account.
-      testIgnore: [/\.(mobile|degraded)\.spec\.ts/, /analisi\./, /centri\./, /split\./],
+      testIgnore: [/\.(mobile|degraded)\.spec\.ts/, /analisi\./, /centri\./, /split\./, /hof\./],
+    },
+    {
+      // Hall of Fame on its own fixture account. Listed BEFORE its mobile twin: with `workers: 1`
+      // the projects run in this order, and the desktop spec is the one that presses «Aggiorna i
+      // record» to build the document the phone spec then reads.
+      name: 'hof',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, storageState: HOF_STORAGE_STATE },
+      dependencies: ['setup-hof'],
+      testMatch: /hof\.spec\.ts/,
+    },
+    {
+      name: 'hof-mobile',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+        storageState: HOF_STORAGE_STATE,
+      },
+      dependencies: ['setup-hof'],
+      testMatch: /hof\.mobile\.spec\.ts/,
     },
     {
       name: 'centri',
@@ -169,7 +197,7 @@ export default defineConfig({
       },
       dependencies: ['setup'],
       testMatch: /\.mobile\.spec\.ts/,
-      testIgnore: [/analisi\./, /centri\./, /split\./],
+      testIgnore: [/analisi\./, /centri\./, /split\./, /hof\./],
     },
   ],
 

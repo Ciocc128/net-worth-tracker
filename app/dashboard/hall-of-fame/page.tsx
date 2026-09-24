@@ -24,7 +24,7 @@
  * from the stored rankings in `hallOfFameSummary.ts`. No component computes a figure.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveCenteredModalOrigin } from '@/lib/utils/modalOrigin';
 import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -40,15 +40,21 @@ import {
   getHallOfFameData,
   updateHallOfFameNote,
 } from '@/lib/services/hallOfFameService';
-import { buildRecordTimeline, getBoard, summarizeHallOfFame } from '@/lib/utils/hallOfFameSummary';
+import {
+  buildRecordTimeline,
+  getBoard,
+  isPeriodRanked,
+  rowAboveCurrent,
+  summarizeHallOfFame,
+} from '@/lib/utils/hallOfFameSummary';
 import {
   buildHallOfFameVerdict,
   describeHallOfFameHeader,
   describeIncomeAverage,
   describeIncomeRecords,
-  describeMonthsAside,
   describeNetWorthRecords,
   describeNotes,
+  describeRecordWindow,
   describeSavingsRecords,
   describeWorstMonth,
   describeWorstYear,
@@ -70,6 +76,7 @@ import { NoteTile } from '@/components/hall-of-fame/tiles/NoteTile';
 import { HallOfFameDettaglio } from '@/components/hall-of-fame/HallOfFameDettaglio';
 import { HallOfFameNoteDialog } from '@/components/hall-of-fame/HallOfFameNoteDialog';
 import { HallOfFameNoteViewDialog } from '@/components/hall-of-fame/HallOfFameNoteViewDialog';
+import type { NotePrefill } from '@/components/hall-of-fame/NoteTrigger';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
@@ -117,6 +124,11 @@ export default function HallOfFamePage() {
   const [viewingNote, setViewingNote] = useState<HallOfFameNote | null>(null);
   const [noteEditOpen, setNoteEditOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<HallOfFameNote | null>(null);
+  /** The period and ranking a row hands the form; null when the form opens from a header button. */
+  const [notePrefill, setNotePrefill] = useState<NotePrefill | null>(null);
+  // The control that opened a note window: a controlled modal with no Radix Trigger drops the
+  // focus on `body` when it closes unless it is told where to put it back (doc/guide/dialog.md).
+  const noteOpenerRef = useRef<HTMLElement | null>(null);
   // Where a note's window grows from: the control that opened it, resolved at the click
   // (lib/utils/modalOrigin.ts) and shared by the two windows — «Modifica» hands the view over
   // to the form, which keeps growing from the same record. Never cleared on close: the exit
@@ -161,6 +173,7 @@ export default function HallOfFamePage() {
   const declineYears = getBoard(summary, 'annual', 'decline');
 
   const timeline = useMemo(() => buildRecordTimeline(growthMonths?.rows ?? []), [growthMonths]);
+  const availableYears = useMemo(() => (data ? collectAvailableYears(data) : []), [data]);
 
   const verdict = useMemo(
     () =>
@@ -225,39 +238,58 @@ export default function HallOfFamePage() {
     await loadData();
   };
 
-  const handleNoteClick = (note: HallOfFameNote, trigger: HTMLElement | null) => {
+  const rememberOpener = (trigger: HTMLElement | null) => {
+    noteOpenerRef.current = trigger;
     setNoteOrigin(trigger ? resolveCenteredModalOrigin(trigger.getBoundingClientRect()) : undefined);
+  };
+
+  const handleNoteClick = (note: HallOfFameNote, trigger: HTMLElement | null) => {
+    rememberOpener(trigger);
     setViewingNote(note);
     setNoteViewOpen(true);
   };
 
+  /** From a header button or the Note tile: the form opens empty. */
   const handleAddNote = (trigger: HTMLElement | null) => {
-    setNoteOrigin(trigger ? resolveCenteredModalOrigin(trigger.getBoundingClientRect()) : undefined);
+    rememberOpener(trigger);
     setEditingNote(null);
+    setNotePrefill(null);
     setNoteEditOpen(true);
   };
+
+  /** From a ranked row: the form opens with that row's period and ranking already written. */
+  const handleAddNoteForRow = (prefill: NotePrefill, trigger: HTMLElement | null) => {
+    rememberOpener(trigger);
+    setEditingNote(null);
+    setNotePrefill(prefill);
+    setNoteEditOpen(true);
+  };
+
+  const isRankedPeriod = (section: HallOfFameSectionKey, year: number, month?: number) =>
+    isPeriodRanked(summary, section, year, month);
 
   // ─── Header ─────────────────────────────────────────────────────────────────
   const headerActions = (stacked: boolean) => {
     const size = stacked ? 'h-11 w-full justify-center' : 'h-8 px-2.5 text-xs';
     return (
       <>
+        {/* The visible text IS the accessible name; only the demo adds why the button is off. */}
         <Button
           variant="outline"
           onClick={(event) => handleAddNote(event.currentTarget)}
           disabled={isDemo}
           className={cn('gap-1.5', size)}
-          aria-label={isDemo ? 'Aggiungi una nota — non disponibile in modalità demo' : 'Aggiungi una nota'}
+          aria-label={isDemo ? 'Aggiungi una nota — non disponibile in modalità demo' : undefined}
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          Aggiungi nota
+          Aggiungi una nota
         </Button>
         <Button
           variant="outline"
           onClick={handleRecalculate}
           disabled={isDemo || recalculating}
           className={cn('gap-1.5', size)}
-          aria-label={isDemo ? 'Aggiorna i record — non disponibile in modalità demo' : 'Aggiorna i record'}
+          aria-label={isDemo ? 'Aggiorna i record — non disponibile in modalità demo' : undefined}
         >
           {recalculating ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -274,23 +306,10 @@ export default function HallOfFamePage() {
     <PageHeader
       label="Analisi"
       title="Hall of Fame"
-      description={describeHallOfFameHeader(summary.stats)}
-      actions={
-        <>
-          <div className="hidden items-center gap-2 desktop:flex">{headerActions(false)}</div>
-          {/* The sticky navbar's slot is cramped: only the note fits there on a phone. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(event) => handleAddNote(event.currentTarget)}
-            disabled={isDemo}
-            className="h-9 w-9 text-muted-foreground desktop:hidden"
-            aria-label="Aggiungi una nota"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </>
-      }
+      description={describeHallOfFameHeader(summary.stats, summary.rankingsUpdatedAt)}
+      // Below desktop the two actions sit under the verdict at 44px; the sticky navbar carries
+      // no third «Aggiungi una nota» (a 36px icon, the same name twice in the Tab order).
+      actions={<div className="hidden items-center gap-2 desktop:flex">{headerActions(false)}</div>}
     />
   );
 
@@ -308,19 +327,26 @@ export default function HallOfFamePage() {
           setNoteEditOpen(true);
         }}
         triggerOrigin={noteOrigin}
+        returnFocusTo={noteOpenerRef}
       />
       {data && (
         <HallOfFameNoteDialog
           open={noteEditOpen}
           onOpenChange={(open) => {
             setNoteEditOpen(open);
-            if (!open) setEditingNote(null);
+            if (!open) {
+              setEditingNote(null);
+              setNotePrefill(null);
+            }
           }}
           editNote={editingNote}
-          availableYears={collectAvailableYears(data)}
+          prefill={notePrefill}
+          availableYears={availableYears}
+          isPeriodRanked={isRankedPeriod}
           onSave={handleNoteSave}
           onDelete={handleNoteDelete}
           triggerOrigin={noteOrigin}
+          returnFocusTo={noteOpenerRef}
         />
       )}
     </>
@@ -401,13 +427,18 @@ export default function HallOfFamePage() {
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
         <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2')}>
           <RecordPatrimonioTile
-            reading={describeNetWorthRecords({ best: growthMonths?.top ?? null, topThreeGrowth: summary.topThreeGrowth })}
-            aside={describeMonthsAside(summary.stats)}
+            reading={describeNetWorthRecords({
+              best: growthMonths?.top ?? null,
+              topThreeGrowth: summary.topThreeGrowth,
+              last: growthMonths?.rows[Math.min(BOARD_PREVIEW_SIZE, growthMonths.total) - 1] ?? null,
+            })}
+            aside={describeRecordWindow(summary.stats)}
             board={growthMonths}
             timeline={timeline}
-            footer={describeWorstMonth(declineMonths?.top ?? null)}
+            footer={describeWorstMonth(declineMonths?.top ?? null, summary.stats?.sinceWorstMonth ?? null)}
             notes={notes}
             onNoteClick={handleNoteClick}
+            onAddNote={handleAddNoteForRow}
           />
         </div>
 
@@ -421,11 +452,12 @@ export default function HallOfFamePage() {
             })}
             board={incomeMonths}
             limit={BOARD_PREVIEW_SIZE}
-            labelClassName="w-[66px]"
+            labelClassName="min-w-[66px]"
             emptyCopy="Nessuna entrata registrata nei mesi con uno snapshot."
             footer={describeIncomeAverage(summary.stats)}
             notes={notes}
             onNoteClick={handleNoteClick}
+            onAddNote={handleAddNoteForRow}
             ariaLabel="I mesi con le entrate più alte"
           />
         </div>
@@ -437,16 +469,23 @@ export default function HallOfFamePage() {
             reading={describeSavingsRecords(savingMonths?.top ?? null)}
             board={savingMonths}
             limit={BOARD_PREVIEW_SIZE}
-            labelClassName="w-[68px]"
+            labelClassName="min-w-[68px]"
             emptyCopy={
               savingMonths
                 ? "Nessun mese con entrate registrate: senza un'entrata non c'è un tasso di risparmio."
                 : 'Questa classifica arriva con il prossimo aggiornamento dei record.'
             }
             emptyAction={savingMonths ? undefined : recalculateAction}
-            footerCopy="In classifica solo i mesi con entrate registrate: senza un'entrata non c'è un tasso di risparmio."
+            footerCopy="In classifica solo i mesi con entrate registrate."
+            method={
+              <span>
+                Senza un{"'"}entrata non c{"'"}è un tasso di risparmio: un mese non tracciato risparmierebbe
+                quanto uno che non ha guadagnato nulla, e batterebbe ogni mese vero.
+              </span>
+            }
             notes={notes}
             onNoteClick={handleNoteClick}
+            onAddNote={handleAddNoteForRow}
             ariaLabel="I mesi in cui hai messo da parte di più"
           />
         </div>
@@ -459,14 +498,16 @@ export default function HallOfFamePage() {
               top: growthYears?.top ?? null,
               current: growthYears?.current ?? null,
               currentRank: growthYears?.currentRank ?? null,
+              above: rowAboveCurrent(growthYears),
             })}
             board={growthYears}
             limit={BOARD_PREVIEW_SIZE}
-            labelClassName="w-[58px]"
+            labelClassName="min-w-[58px]"
             emptyCopy="Nessun anno chiuso in crescita, per ora."
             footer={describeWorstYear(declineYears?.top ?? null)}
             notes={notes}
             onNoteClick={handleNoteClick}
+            onAddNote={handleAddNoteForRow}
             ariaLabel="Gli anni con la crescita di patrimonio più alta"
           />
         </div>
@@ -483,7 +524,7 @@ export default function HallOfFamePage() {
         </div>
       </div>
 
-      <HallOfFameDettaglio summary={summary} notes={notes} onNoteClick={handleNoteClick} />
+      <HallOfFameDettaglio summary={summary} notes={notes} onNoteClick={handleNoteClick} onAddNote={handleAddNoteForRow} />
 
       {dialogs}
     </PageContainer>
