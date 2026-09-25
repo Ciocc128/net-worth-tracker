@@ -5,8 +5,9 @@
  * What only a browser (and the emulator) can prove: that the TAN typed on the property is saved,
  * that the expense form splits the instalment on today's debt BEFORE the save, and that the debt
  * then moves by the PRINCIPAL through the app's own paths — the rows already happened at save
- * (the one to come waits, `balancePending`), the delete of the whole series (only what was repaid
- * comes back), and «Collega la serie al mutuo…» for a series entered before the link existed.
+ * (the one to come waits, `balancePending`), Patrimonio's «Mutuo» tile reading the interest and
+ * principal that instalment paid, the delete of the whole series (only what was repaid comes
+ * back), and «Collega la serie al mutuo…» for a series entered before the link existed.
  * Every step is read back from Firestore. The arithmetic belongs to Vitest
  * (`mortgageRepayment.test.ts`), and so does the server's settlement of the row that comes due
  * (`serverCashSettlement.test.ts`): a spec cannot import `lib/server` (no `@/` alias here).
@@ -127,13 +128,65 @@ test('a mortgage series repays today\'s principal at save and leaves the next on
 
   const db = await admin();
   const [today, next] = await rowsWith(db, NOTE);
-  expect(today.data()).toMatchObject({ type: 'debt', amount: -INSTALMENT, debtAssetId: HOME_ID, debtPrincipalRepaid: 412 });
+  expect(today.data()).toMatchObject({ type: 'debt', amount: -INSTALMENT, debtAssetId: HOME_ID, debtPrincipalRepaid: 412, debtInterestPaid: 600 });
   expect(today.data().balancePending).toBeUndefined();
   expect(next.data()).toMatchObject({ debtAssetId: HOME_ID, balancePending: true });
   expect(next.data().debtPrincipalRepaid).toBeUndefined();
   // Falsifiable: the whole instalment would read 198.988, a missed settlement 200.000.
   expect((await asset(db, HOME_ID)).outstandingDebt).toBe(DEBT - 412);
   expect((await asset(db, CASH_ID)).quantity).toBeCloseTo(cashStart - INSTALMENT, 2);
+});
+
+test('Patrimonio\'s «Mutuo» tile reads the interest and the principal the year\'s instalment paid', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/dashboard/assets', { waitUntil: 'load' });
+  const tile = page.getByRole('region', { name: 'Mutuo', exact: true });
+  const year = new Date().getFullYear();
+  // Falsifiable: without the stored interest the tile would read the year's instalments as nothing.
+  await expect(tile).toContainText(
+    new RegExp(`Nel ${year} hai pagato 600,00[\\s\\u00a0]*€ di interessi e rimborsato 412,00[\\s\\u00a0]*€ di capitale, in 1 rata; al ritmo di oggi il mutuo si chiude a \\p{L}+ \\d{4}\\.`, 'u'),
+    { timeout: 60_000 }
+  );
+  await expect(tile.getByText(`Interessi ${year}`, { exact: true })).toBeVisible();
+  await expect(tile).toContainText('Interessi dalle rate collegate, da ');
+  await expect(tile).toContainText('TAN 3,6%.');
+  // One measured year is the KPIs: no «Per anno» table yet (anchored on the KPI just seen).
+  await expect(tile.getByRole('table')).toHaveCount(0);
+});
+
+test('from the second measured year the tile lists every year, the partial ones captioned', async ({ page }) => {
+  test.setTimeout(120_000);
+  const db = await admin();
+  const year = new Date().getFullYear();
+  // An instalment settled last December (a fixture: the row as the settlement leaves it).
+  const now = new Date();
+  await db.collection('expenses').add({
+    userId: UID,
+    type: 'debt',
+    categoryId: CATEGORY_ID,
+    categoryName: CATEGORY_NAME,
+    amount: -INSTALMENT,
+    currency: 'EUR',
+    date: new Date(year - 1, 11, 28, 12),
+    notes: 'Rata Fenicottero di dicembre',
+    debtAssetId: HOME_ID,
+    debtPrincipalRepaid: 410,
+    debtInterestPaid: 602,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await page.goto('/dashboard/assets', { waitUntil: 'load' });
+  const table = page.getByRole('region', { name: 'Mutuo', exact: true }).getByRole('table');
+  await expect(table).toBeVisible({ timeout: 60_000 });
+  const rows = table.locator('tbody tr');
+  await expect(rows).toHaveCount(2);
+  // Newest first; the running year is «finora», the first measured one starts at the link.
+  await expect(rows.nth(0)).toContainText(`${year}finora`);
+  await expect(rows.nth(0)).toContainText(/600,00[\s\u00a0]*€/);
+  await expect(rows.nth(1)).toContainText(`${year - 1}da dicembre`);
+  await expect(rows.nth(1)).toContainText(/602,00[\s\u00a0]*€/);
+  await expect(page.getByRole('region', { name: 'Mutuo', exact: true })).toContainText(/1\.?202,00[\s\u00a0]*€ dal collegamento/);
 });
 
 test('deleting the whole series gives the debt back what each instalment repaid', async ({ page }) => {
