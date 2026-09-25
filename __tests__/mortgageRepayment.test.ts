@@ -55,8 +55,9 @@ describe('splitInstalment', () => {
 
   it('should never repay more than the debt, nor less than nothing', () => {
     expect(splitInstalment(1012, 300, 3.6).principal).toBe(300);
-    // An instalment below the month's interest repays nothing (negative amortisation is not modelled).
-    expect(splitInstalment(100, 200_000, 3.6).principal).toBe(0);
+    // An instalment below the month's interest repays nothing (negative amortisation is not modelled),
+    // and pays as interest no more than itself.
+    expect(splitInstalment(100, 200_000, 3.6)).toEqual({ interest: 100, principal: 0 });
     expect(splitInstalment(1012, 0, 3.6)).toEqual({ interest: 0, principal: 0 });
   });
 });
@@ -70,6 +71,9 @@ describe('planDebtRepayments', () => {
     // Second month: 199.588 × 3,6% / 12 = 598,76 of interest → 413,24 of principal.
     expect(plan.principals.get('b')).toBe(413.24);
     expect(plan.debts.get('casa')).toBe(199_174.76);
+    // The interest each instalment PAID, stored beside its principal for Patrimonio's «Mutuo» tile.
+    expect(plan.interests.get('a')).toBe(600);
+    expect(plan.interests.get('b')).toBe(598.76);
   });
 
   it('should keep each property on its own debt', () => {
