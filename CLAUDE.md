@@ -13,24 +13,20 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **204 files / 4727 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (134 tests, incl. 6 auth setups; last full run 2026-09-25, fork, Allocazione in two stacks with #391, 3,8 min: 133 green, the red one `settings.mobile` «Ripristina default» at 43,99999px — the known intermittent, green alone). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-25, fork): **Allocazione — due pile, il Piano con leva della #391, Accumulo e Composizione ideale.**
-  La pagina è a DUE PILE INDIPENDENTI da 1440, nessuna riga a tutta larghezza (Bilanciamento, Per classe, Accumulo |
-  Piano, Composizione ideale, Esposizione, Previdenza): il Piano va da 381 a 1159px sul conto del proprietario e sotto
-  due colonne ogni riga intera lasciava un vuoto di 250–580px; ora si muove solo il fondo. Dentro le pile, container
-  query (Accumulo `@[720px]`, Previdenza `@[900px]`). La #391 è fusa nel fork prima di upstream (merge, stesso commit
-  `9486aa7f`). Composizione ideale: lettura sua e indice per nome (`buildIdealAllocationInput`, le due copie di
-  Allocazione stampavano l'id). Accumulo: la striscia classi è una `TargetTick` con l'anello di fine piano, senza
-  classi dormienti (`selectClassStripRows`); bersagli 44px, «Scollega» ghost, barra dei mesi su `--progress-fill`. Lo
-  specchio copia `accumulationPlans` e `userPreferences`. doc/guide/allocazione.md, accumulo.md, fork-scelte-ui.md § 1.
-- Latest upstream (2026-09-25): **Cashflow — la commissione di un trasferimento e la rata del mutuo.** (1)
-  «Commissione» su un Trasferimento: una spesa PROPRIA nella categoria di Impostazioni › Spese
-  (`transferFeeCategoryId`), sul conto di origine alla data del trasferimento, legata nei due sensi, creata, modificata
-  ed eliminata col trasferimento (`lib/utils/transferFee.ts`). (2) Una voce Debito può ridurre il debito di un immobile
-  della sola QUOTA CAPITALE, `rata − debito × TAN / 12` (`debtInterestRate`, salvata in `debtPrincipalRepaid`), nel
-  giorno della rata come il `balancePending` del conto (`lib/utils/mortgageRepayment.ts`,
-  `lib/services/debtRepaymentService.ts`, `settleDueBalances`). Spec `e2e/cashflow.{transfer-fee,mortgage}.spec.ts`;
-  doc/guide/cashflow.md, e2e-emulatori.md; la verifica per esteso nel messaggio di `b9a50bfc`.
+- `tsc` clean; **205 files / 4745 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-25, fork after the seventh upstream merge, 3,7 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25, fork, ter): **Settimo riallineamento a upstream (#394–#395)**, solo il merge: un conflitto,
+  questo file. Roadmap: la ciambella dell'Esposizione è ARCHIVIATA (nelle due pile l'Esposizione non ha più una riga
+  intera); il passo 2 riprende da Flusso «Per tipo» sul telefono. Collaudo: `tsc` 0, ESLint 0, Vitest 205 file /
+  4745 nei due fusi, build verde, Playwright 136/136.
+- Prima (2026-09-25, fork): **Allocazione — due pile indipendenti, il Piano con leva della #391, Accumulo e
+  Composizione ideale** (PR #13, `3d84a670`): nessuna riga a tutta larghezza, container query dentro le pile, la #391
+  fusa prima di upstream. doc/guide/allocazione.md, accumulo.md, fork-scelte-ui.md § 1.
+- Latest upstream (2026-09-25, bis): **Patrimonio › «Mutuo» — gli interessi del mutuo, anno per anno.** Ogni rata
+  regolata salva anche gli interessi pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`: salvataggio, modifica,
+  job serale); una tessera «Mutuo» a tutta larghezza per immobile con rate collegate, tra Rendimento e Strumenti — debito,
+  interessi e capitale dell'anno, fine prevista (`projectPayoff`), la tabella «Per anno» dal secondo anno. Gli interessi
+  contano solo dalle rate regolate dall'app. `lib/utils/mortgageSummary.ts`, `components/assets/tiles/MutuoTile.tsx`,
+  doc/guide/patrimonio.md; la verifica per esteso nel messaggio di `e47de34d`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -46,7 +42,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.
 - **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
-- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
+- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles, plus «Mutuo» per property with linked instalments (interest and principal by year, projected end); Strumenti is the management table. doc/guide/patrimonio.md.
 - **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, a transfer's fee as its own row, a mortgage instalment repaying its property's principal, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.

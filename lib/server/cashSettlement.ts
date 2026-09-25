@@ -97,7 +97,7 @@ async function settleChunk(userId: string, refs: DocumentReference[], now: Date)
       const principal = plan.principals.get(snap.id);
       tx.update(snap.ref, {
         balancePending: FieldValue.delete(),
-        ...(principal !== undefined ? { debtPrincipalRepaid: principal } : {}),
+        ...(principal !== undefined ? { debtPrincipalRepaid: principal, debtInterestPaid: plan.interests.get(snap.id) ?? 0 } : {}),
         updatedAt: new Date(),
       });
     }

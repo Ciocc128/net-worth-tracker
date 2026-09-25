@@ -55,7 +55,11 @@ export async function applyDebtRepayments(rows: DebtRow[]): Promise<boolean> {
       tx.update(doc(db, ASSETS_COLLECTION, assetId), { outstandingDebt: debt, updatedAt: new Date() });
     }
     for (const row of rows) {
-      tx.update(doc(db, EXPENSES_COLLECTION, row.id), { debtPrincipalRepaid: plan.principals.get(row.id) ?? 0, updatedAt: new Date() });
+      tx.update(doc(db, EXPENSES_COLLECTION, row.id), {
+        debtPrincipalRepaid: plan.principals.get(row.id) ?? 0,
+        debtInterestPaid: plan.interests.get(row.id) ?? 0,
+        updatedAt: new Date(),
+      });
     }
   });
 
@@ -105,7 +109,7 @@ export async function applyDebtRepaymentEdit(
   if (!plan.giveBack && !plan.applyNow) {
     // Nothing to move; a stamp left on a row that no longer repays anything goes with it.
     if (before.debtPrincipalRepaid === undefined) return false;
-    await updateDoc(doc(db, EXPENSES_COLLECTION, rowId), { debtPrincipalRepaid: deleteField() });
+    await updateDoc(doc(db, EXPENSES_COLLECTION, rowId), { debtPrincipalRepaid: deleteField(), debtInterestPaid: deleteField() });
     return false;
   }
 
@@ -126,19 +130,20 @@ export async function applyDebtRepaymentEdit(
     if (plan.giveBack && debts.has(plan.giveBack.assetId)) {
       newDebts.set(plan.giveBack.assetId, toCents(debts.get(plan.giveBack.assetId)!.debt + plan.giveBack.principal));
     }
-    let principal: number | null = null;
+    let split: { principal: number; interest: number } | null = null;
     if (plan.applyNow && after.debtAssetId && debts.has(after.debtAssetId)) {
       const property = debts.get(after.debtAssetId)!;
       const debt = newDebts.get(after.debtAssetId) ?? property.debt;
-      principal = splitInstalment(after.amount, debt, property.annualRatePct).principal;
-      newDebts.set(after.debtAssetId, toCents(debt - principal));
+      split = splitInstalment(after.amount, debt, property.annualRatePct);
+      newDebts.set(after.debtAssetId, toCents(debt - split.principal));
     }
 
     for (const [assetId, debt] of newDebts) {
       tx.update(doc(db, ASSETS_COLLECTION, assetId), { outstandingDebt: debt, updatedAt: new Date() });
     }
     tx.update(doc(db, EXPENSES_COLLECTION, rowId), {
-      debtPrincipalRepaid: principal ?? deleteField(),
+      debtPrincipalRepaid: split?.principal ?? deleteField(),
+      debtInterestPaid: split?.interest ?? deleteField(),
       updatedAt: new Date(),
     });
   });
