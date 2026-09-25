@@ -74,6 +74,7 @@ import {
   resolvePeriodThroughMonth,
   resolveSingleMonth,
   summarizeFlow,
+  buildTypeFlowBreakdown,
   type AnalisiPeriod,
   type MonthRef,
   type PeriodMode,
@@ -425,6 +426,8 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
   const expenseSlices = useMemo(() => buildExpenseComposition(periodExpenses), [periodExpenses]);
   const incomeSlices = useMemo(() => buildIncomeComposition(periodExpenses), [periodExpenses]);
   const flow = useMemo(() => summarizeFlow(periodExpenses), [periodExpenses]);
+  // The phone's type view: the reading's own type shares, plus each type's categories.
+  const typeBreakdown = useMemo(() => buildTypeFlowBreakdown(periodExpenses, flow), [periodExpenses, flow]);
   // The 50/30/20 view reads the same totals the Sankey draws (summarizeSpendingRoles), off when the setting is.
   const spendingRolesFlow = useMemo(
     () =>
@@ -807,6 +810,7 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
                 expenses={periodExpenses}
                 isMobile={isMobile}
                 reading={describeFlow(flow, totals.savingsRate)}
+                typeBreakdown={typeBreakdown}
                 spendingRoles={spendingRolesFlow}
                 onEntityClick={handleEntitySelect}
               />

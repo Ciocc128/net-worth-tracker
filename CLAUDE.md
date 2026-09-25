@@ -13,14 +13,16 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **205 files / 4745 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-25, fork after the seventh upstream merge, 3,7 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-25, fork, ter): **Settimo riallineamento a upstream (#394–#395)**, solo il merge: un conflitto,
-  questo file. Roadmap: la ciambella dell'Esposizione è ARCHIVIATA (nelle due pile l'Esposizione non ha più una riga
-  intera); il passo 2 riprende da Flusso «Per tipo» sul telefono. Collaudo: `tsc` 0, ESLint 0, Vitest 205 file /
-  4745 nei due fusi, build verde, Playwright 136/136.
-- Prima (2026-09-25, fork): **Allocazione — due pile indipendenti, il Piano con leva della #391, Accumulo e
-  Composizione ideale** (PR #13, `3d84a670`): nessuna riga a tutta larghezza, container query dentro le pile, la #391
-  fusa prima di upstream. doc/guide/allocazione.md, accumulo.md, fork-scelte-ui.md § 1.
+- `tsc` clean; **205 files / 4748 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-25, fork, Flusso «Per tipo» sul telefono, 3,7 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25, fork, quater): **Analisi › Flusso sul telefono — niente Sankey in nessuna delle due viste.**
+  «Per tipo» (l'unica vista con i ruoli spenti, quindi neutrale rispetto a upstream) è la gemella di «Per ruolo»: una
+  barra delle SPESE per tipo con le quote della lettura stessa (`buildTypeFlowBreakdown` prende `flow.typeShares`: una
+  base per schermata), le categorie di ogni tipo in righe, il Risparmio come blocco sotto. Le due viste sono un solo
+  `FlowShareMobile`; le quote passano dal bianco dentro i segmenti (1,30–7,30:1 sui blocchi tema) a una legenda sotto
+  la barra. doc/guide/cashflow-analisi.md, fork-scelte-ui.md § 3. Collaudo: `tsc` 0, Vitest 4748 nei due fusi,
+  Playwright 136/136, sonda sul mirror a 390 e 1440.
+- Prima (2026-09-25, fork, ter): **Settimo riallineamento a upstream (#394–#395)**, solo il merge; la ciambella
+  dell'Esposizione ARCHIVIATA.
 - Latest upstream (2026-09-25, bis): **Patrimonio › «Mutuo» — gli interessi del mutuo, anno per anno.** Ogni rata
   regolata salva anche gli interessi pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`: salvataggio, modifica,
   job serale); una tessera «Mutuo» a tutta larghezza per immobile con rate collegate, tra Rendimento e Strumenti — debito,

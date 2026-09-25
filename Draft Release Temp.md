@@ -205,6 +205,7 @@
 
 ## 🔧 Improvements
 
+- Improved the Flusso of Analisi on a phone: the view by type is no longer a Sankey too narrow to read but a bar of the spending split by type — the same shares the sentence above prints — then each type's categories as rows that open their Scheda, and what was put aside under them. The shares of both phone views now sit in a legend under the bar, legible on every theme, instead of white text inside the segments.
 - Improved the note form of the Hall of Fame: the rankings carry the tiles' own names («Crescita del patrimonio», «Entrate», «Risparmio») grouped under «Mensili» and «Annuali», each row a thumb-sized target, a failed save explained in the app's words; the note's window carries one action, «Modifica».
 - Improved the Hall of Fame on a phone: thumb-sized note markers, the full ranking's pills at 44 px, the full table fading at its right edge while it can still scroll, and no third «Aggiungi una nota» in the sticky navbar.
 - Improved the small copy of the Hall of Fame: «Leggi la nota di marzo 2024» instead of «3/2024», the Record tile's scope as its window («da dic 2022 a set 2026»), «I 12 record più grandi» over a chart that drops eight of the twenty, one sentence for an empty ranking, and two footers behind «Come si calcola».
@@ -274,6 +275,7 @@
 
 ## 📚 Documentation
 
+- The Analisi guide records that a phone draws the Flusso as a bar and rows in both views, why the type bar is of the spending and not of the income, and how the browser test finds the legend before asserting the chart is gone.
 - The Cashflow guide records that a transfer's fee is an entry of its own and that a mortgage instalment repays its property by the principal, stored on the entry; the browser-test guide records what differs in a cloud container.
 
 - The Hall of Fame guide records the three stored fields, the note prefilled from a row, the tiles' vocabulary and the page's Playwright locators; the Impeccable critique of Hall of Fame (26/40) is committed and closed, the page has its first browser tests on a fixture account with a four-year history, and the design sidecar is back in step with DESIGN.md.
