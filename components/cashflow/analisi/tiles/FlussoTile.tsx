@@ -24,6 +24,7 @@ import {
   type SpendingRolePalette,
 } from '@/lib/utils/cashflowSankey';
 import type { SpendingBucket, SpendingRoleSource, SpendingRolesSummary } from '@/lib/utils/spendingRoles';
+import type { TypeFlowBreakdown } from '@/lib/utils/analisiSummary';
 import { useCssColorTokens } from '@/lib/hooks/useCssColorTokens';
 import { narrativeToText } from '@/lib/utils/narrative';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ import { Tile } from '@/components/ui/tile';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
 import { CashflowSankeyChart } from '@/components/cashflow/CashflowSankeyChart';
 import { SpendingRolesMobileFlow } from '@/components/cashflow/analisi/SpendingRolesMobileFlow';
+import { SpendingTypesMobileFlow } from '@/components/cashflow/analisi/SpendingTypesMobileFlow';
 
 /** The 50/30/20 view's inputs; `null` while settings.spendingRolesEnabled is off. */
 export interface SpendingRolesFlowInput {
@@ -45,6 +47,8 @@ interface FlussoTileProps {
   isMobile: boolean;
   /** The reading of the type view. */
   reading: Narrative | null;
+  /** The type view on a phone: the reading's own type shares plus each type's categories. */
+  typeBreakdown: TypeFlowBreakdown;
   spendingRoles: SpendingRolesFlowInput | null;
   /**
    * Category/subcategory node clicks land HERE, not in an internal drill — the page routes
@@ -105,10 +109,11 @@ const TYPE_TOKEN_FALLBACKS: Record<keyof TypeFlowPalette, string> = { income: ''
  * above the plot describe exactly what is drawn.
  *
  * On desktop every view uses the thin chart (owner's pick «B», 2026-09-15, extended to the
- * subcategory layer the same day). On a phone the roles view is not a
- * Sankey at all: the 50/30/20 bar and the categories as rows (SpendingRolesMobileFlow).
+ * subcategory layer the same day). On a phone neither view is a Sankey: a share bar and the
+ * categories as rows — the 50/30/20 bar for the roles (SpendingRolesMobileFlow), the spending by
+ * type for the types (SpendingTypesMobileFlow, 2026-09-25), both drawn by FlowShareMobile.
  */
-export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntityClick, className }: FlussoTileProps) {
+export function FlussoTile({ expenses, isMobile, reading, typeBreakdown, spendingRoles, onEntityClick, className }: FlussoTileProps) {
   const [drill, setDrill] = useState<DrillState | null>(null);
   const [showSubcategories, setShowSubcategories] = useState(false);
   const [preferredMode, setPreferredMode] = useState<FlowMode>('roles');
@@ -121,7 +126,9 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
 
   // With the setting off there is only one view, whatever was chosen before.
   const mode: FlowMode = spendingRoles ? preferredMode : 'types';
-  const mobileRoles = isMobile && spendingRoles !== null && mode === 'roles' && !drill;
+  // A phone draws no Sankey in either view: a bar and the categories as rows (the drill states
+  // are reachable only from a Sankey node, so they appear here only when carried from a wider width).
+  const phoneRows = isMobile && !drill;
   const grouping = isMobile ? undefined : DESKTOP_GROUPING;
 
   const view = useMemo((): SankeyView => {
@@ -196,7 +203,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
       eyebrow="Flusso"
       aside={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-          {!mobileRoles && (
+          {!phoneRows && (
             <span>
               {modeLabel} · <span className="font-mono tabular-nums">{view.nodes.length}</span> nodi ·{' '}
               <span className="font-mono tabular-nums">{view.links.length}</span> flussi
@@ -217,7 +224,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
               ))}
             </div>
           )}
-          {!drill && !mobileRoles && (
+          {!drill && !phoneRows && (
             <button
               type="button"
               onClick={() => setShowSubcategories((value) => !value)}
@@ -248,8 +255,12 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
           />
         </div>
       )}
-      {mobileRoles && spendingRoles ? (
-        <SpendingRolesMobileFlow summary={spendingRoles.summary} onEntityClick={onEntityClick} />
+      {phoneRows ? (
+        spendingRoles && mode === 'roles' ? (
+          <SpendingRolesMobileFlow summary={spendingRoles.summary} onEntityClick={onEntityClick} />
+        ) : (
+          <SpendingTypesMobileFlow breakdown={typeBreakdown} onEntityClick={onEntityClick} />
+        )
       ) : (
         <>
           {/* The mobile chart drops small slices for legibility — declared, never silent. */}
@@ -275,7 +286,7 @@ export function FlussoTile({ expenses, isMobile, reading, spendingRoles, onEntit
       )}
       {/* What a click does, in words — it used to live in a hover tooltip only, invisible to touch. */}
       <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
-        {mobileRoles
+        {phoneRows
           ? 'Una categoria apre la sua scheda.'
           : drill
             ? 'Una categoria apre la sua scheda; «Indietro» torna al flusso intero.'

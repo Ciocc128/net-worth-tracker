@@ -99,7 +99,8 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
 2. **Fork UI** (fork branch → fork main). **09-25**: the owner chose to open it with Allocazione's Accumulo and
    Composizione ideale (done 09-25), the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; ~~Esposizione pie/donut~~
    (**archived 09-25**, owner: in the two stacks Esposizione no longer has a full row, so there is no room for it);
-   Flusso «Per tipo» on a phone, designed upstream-neutral (PR B needs it) — **the next item** (owner, 09-25). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
+   Flusso «Per tipo» on a phone, designed upstream-neutral (PR B needs it) — **done 09-25** (branch
+   `feat/flusso-per-tipo-mobile`). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
    (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles.
 3. **Upstream PR B — 50/30/20 roles** (issue first): `spendingRoles.ts`, the category field + dialog + settings
    (the five write places), Flusso «Per ruolo» and its phone bar, the phone «Per tipo» from step 2. Role tokens only
@@ -126,13 +127,17 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
 - [~] **Esposizione on desktop is now full width**: enrich it with a pie/donut beside the ranked rows (one per view),
   using the space upstream gave it. **Archived 2026-09-25** (owner): since the two stacks (§ 1, «Allocazione grid»)
   Esposizione sits in the 662px right stack, not a full row, and the donut has no room beside the rows.
-- [ ] **Analisi › Flusso «Per tipo» on a phone is still a Sankey**, unreadable at 390 and with no insight (same item as
-  the one below, owner re-raised it): design a mobile view like the roles view's bar + rows.
+- [x] **Analisi › Flusso «Per tipo» on a phone is still a Sankey** — done 2026-09-25 (branch
+  `feat/flusso-per-tipo-mobile`): the roles view's twin, one `FlowShareMobile` for both. The owner's calls: bar + rows;
+  no «Entrate» block; the bar is the SPENDING by type (the reading's own shares, one base per screen), Risparmio a
+  block under it. The agent's, confirmed by the owner in the tour: the shares moved from white text inside the segments
+  to a legend under the bar (both views). doc/guide/cashflow-analisi.md, the Flusso item. Open: the Sankey builders' `isMobile` branches now serve only
+  a drill carried across a resize — delete them with PR B or keep them.
 - [ ] **Is Lime Frost light ready to flip to dark?** Decide what must close first (see the Carta's «Verso il tema
   scuro» and the light items below) before touching `.dark[data-theme="lime-frost"]`.
 
-- [ ] **Flusso on a phone, «Per tipo»**: the Sankey does not read at 390px. Rethink an insight view for the type
-  split on mobile (the roles view already has the 50/30/20 bar + rows); owner's note 09-15.
+- [x] **Flusso on a phone, «Per tipo»**: the Sankey does not read at 390px. Rethink an insight view for the type
+  split on mobile (the roles view already has the 50/30/20 bar + rows); owner's note 09-15. Done 2026-09-25, see above.
 - [x] **Production 50/30/20 data**: applied by the owner on 2026-09-15 (one atomic batch: 16 categories, 25 rows,
   2 deletions; backup `scratchpad/backup-503020-prod-2026-09-15T19-52-43-025Z.json`, `--restore` undoes).
 - [x] **Deploy the roles code** (PR #3 merged, main `f6c834d`, 2026-09-15 20:17; Vercel green) — then: Production code (`origin/main` = `9f1f6da`) does not have the roles yet: after

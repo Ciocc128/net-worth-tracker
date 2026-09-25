@@ -10,6 +10,7 @@ import type { Expense, ExpenseType } from '@/types/expenses';
 import type { CategoryDeltaRow } from '@/lib/utils/comparisonDeltas';
 import {
   buildMonthlySpending,
+  buildTypeFlowBreakdown,
   buildYearlySpending,
   isPeriodOngoing,
   rankTopExpenses,
@@ -253,6 +254,51 @@ describe('summarizeFlow', () => {
     expect(flow.typeShares.map((share) => share.type)).toEqual(['fixed', 'variable']);
     expect(flow.categoryCount).toBe(2);
     expect(flow.incomeSources).toBe(0);
+  });
+});
+
+describe('buildTypeFlowBreakdown', () => {
+  const rows = [
+    on(2026, 1, { type: 'income', amount: 3000, categoryId: 'cat-stip', categoryName: 'Stipendio' }),
+    on(2026, 1, { type: 'fixed', amount: -1000, categoryId: 'cat-casa', categoryName: 'Casa' }),
+    on(2026, 1, { type: 'fixed', amount: -200, categoryId: 'cat-luce', categoryName: 'Bollette' }),
+    on(2026, 1, { type: 'variable', amount: -500, categoryId: 'cat-cibo', categoryName: 'Cibo' }),
+    on(2026, 2, { type: 'variable', amount: -300, categoryId: 'cat-cibo', categoryName: 'Cibo' }),
+    on(2026, 1, { type: 'variable', amount: -900, categoryId: 'cat-casa-v', categoryName: 'Casa' }),
+    on(2026, 1, { type: 'transfer', amount: 400, categoryId: 'cat-giro', categoryName: 'Giroconto' }),
+  ];
+
+  it('should give the bar the very type shares the reading prints, in its order', () => {
+    const flow = summarizeFlow(rows);
+    const breakdown = buildTypeFlowBreakdown(rows, flow);
+
+    expect(breakdown.blocks.map((block) => [block.type, block.amount, block.percentage])).toEqual(
+      flow.typeShares.map((share) => [share.type, share.amount, share.percentage])
+    );
+    expect(breakdown.blocks.map((block) => block.type)).toEqual(['variable', 'fixed']);
+  });
+
+  it("should rank each type's categories and sum them to the type, apart from a same-named category of another type", () => {
+    const breakdown = buildTypeFlowBreakdown(rows, summarizeFlow(rows));
+    const [variable, fixed] = breakdown.blocks;
+
+    expect(variable.categories).toEqual([
+      { categoryKey: 'cat-casa-v', categoryName: 'Casa', value: 900 },
+      { categoryKey: 'cat-cibo', categoryName: 'Cibo', value: 800 },
+    ]);
+    expect(fixed.categories.map((category) => category.categoryKey)).toEqual(['cat-casa', 'cat-luce']);
+    for (const block of breakdown.blocks) {
+      expect(block.categories.reduce((sum, category) => sum + category.value, 0)).toBe(block.amount);
+    }
+  });
+
+  it('should put the surplus outside the bar, and the deficit when spending runs past income', () => {
+    expect(buildTypeFlowBreakdown(rows, summarizeFlow(rows))).toMatchObject({ surplus: 100, deficit: 0 });
+
+    const short = [...rows, on(2026, 3, { type: 'debt', amount: -600, categoryId: 'cat-mutuo', categoryName: 'Mutuo' })];
+    const breakdown = buildTypeFlowBreakdown(short, summarizeFlow(short));
+    expect(breakdown).toMatchObject({ surplus: 0, deficit: 500 });
+    expect(breakdown.blocks.map((block) => block.type)).toEqual(['variable', 'fixed', 'debt']);
   });
 });
 
