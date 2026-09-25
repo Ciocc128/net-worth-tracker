@@ -96,12 +96,14 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    `feat/allocazione-pac-composizione-ui`, so upstream's own merge will find the same commit `9486aa7f`. The deletion
    taken; «Mostra tutte» NOT restored (owner: full height — in two stacks a tall Piano leaves no hole); the fork's
    `line-clamp-2` kept on `MoveRow`. The Ribilancia is 1159px on the owner's account.
-2. **Fork UI** (fork branch → fork main). **09-25**: the owner chose to open it with Allocazione's Accumulo and
-   Composizione ideale (done 09-25), the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; ~~Esposizione pie/donut~~
+2. **Fork UI** (fork branch → fork main) — **DONE 2026-09-25**, every item closed or archived. **09-25**: the owner chose to open it with Allocazione's Accumulo and
+   Composizione ideale (done 09-25), the other items in later sessions: staggered tiles (**closed 09-25**, owner: it
+   meant Allocazione only, solved by the two stacks); Accumulo and Composizione ideale; ~~Esposizione pie/donut~~
    (**archived 09-25**, owner: in the two stacks Esposizione no longer has a full row, so there is no room for it);
    Flusso «Per tipo» on a phone, designed upstream-neutral (PR B needs it) — **done 09-25** (branch
    `feat/flusso-per-tipo-mobile`). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
-   (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles.
+   (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles — **done 09-25**
+   (owner: the page already reads coherent in Lime Frost; the § 1 row «FIRE scenario colours» is the state, no change).
 3. **Upstream PR B — 50/30/20 roles** (issue first): `spendingRoles.ts`, the category field + dialog + settings
    (the five write places), Flusso «Per ruolo» and its phone bar, the phone «Per tipo» from step 2. Role tokens only
    as `:root` aliases. **09-24**: built on upstream's rewritten Impostazioni (`CategoryRow` carries the role colour,
@@ -116,8 +118,12 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    short session is free; branch from `upstream/develop`, never from the fork's main.
 
 **Next UI session — the owner's list after the fourth upstream merge (2026-09-22):**
-- [ ] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)
-  leave some tiles out of line with their neighbours — walk the pages at 1440 and 390 and name each one.
+- [x] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)
+  leave some tiles out of line with their neighbours — walk the pages at 1440 and 390 and name each one. **Closed
+  2026-09-25** (owner): the item meant Allocazione only, solved by its two independent stacks (§ 1). The walk on the
+  mirror at 1440 found, for the record and NOT as the owner's items: Storico's second row starts 77px apart (Evoluzione
+  taller than Raddoppi), Rendimenti's lower columns end 74px apart, Budget leaves a 79px hole under Categorie a
+  rischio · Avvisi when there is no annual budget (the hero keeps its two rows). 390: one column everywhere.
 - [x] **Allocazione — the two fork features' UI** (done 2026-09-25, branch `feat/allocazione-pac-composizione-ui`):
   the page as two independent stacks (§ 1, «Allocazione grid»), Composizione ideale under the Piano, its reading its own («Il portafoglio che rispetta
   meglio…») and the index by name; Accumulo in two columns from `desktop:` (lines | «Classi del piano»), the class

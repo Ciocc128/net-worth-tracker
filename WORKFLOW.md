@@ -163,8 +163,10 @@ The app **is** locally runnable; there is no fallback to declare.
   page needs — `npm run e2e:seed` (Previdenza), `npm run e2e:seed:analisi` (Analisi),
   `npm run e2e:seed:coast` (Coast FIRE). Give the owner the **exact URL**, e.g.
   `http://localhost:3000/dashboard/pension`, not "go to Previdenza".
-- **The routes** are `/dashboard` plus `assets · cashflow · analisi · dividends · performance ·
-  history · allocation · pension · fire-simulations · hall-of-fame · assistant · settings`.
+- **The routes** are `/dashboard` plus `assets · cashflow · analisi · performance · history · allocation · pension ·
+  fire-simulations · hall-of-fame · assistant · settings`. Dividendi, Budget, Centri di Costo and Divisione are TABS of
+  Cashflow: `/dashboard/cashflow?tab=` `tracking · dividends · budget · cost-centers · split` — `/dashboard/dividends`
+  answers 404 (2026-09-25).
 - **The owner's REAL data, without touching production — the standard since 2026-09-07**: `npm run mirror:seed --
   <production email>` reads the production account (service account from `.env.local`, `.get()` only, refuses to run
   with `FIRESTORE_EMULATOR_HOST`) and seeds it into the emulators under `mirror@example.com` / `test1234` (uid
