@@ -9,7 +9,8 @@ the artifact «Carta del tema Lime Frost». Dates are 2026.
 Branch: `feat/ui-lime-frost-agentation` (theme + 50/30/20 + third upstream merge `79816d1` + the 2026-09-15 passes),
 merged into `main` with PR #3; fourth upstream merge (#364–#378) on `merge/upstream-2026-09-21` (PR #9); fifth
 (#379–#389) on `merge/upstream-2026-09-24`, over `origin/main`; sixth (#392–#393, transfer fee and mortgage principal —
-no fork-side conflict in code) on `merge/upstream-2026-09-25`.
+no fork-side conflict in code) on `merge/upstream-2026-09-25`; seventh (#394–#395, the «Mutuo» tile on Patrimonio —
+no fork-side conflict in code) on `merge/upstream-2026-09-25b`.
 
 ---
 
@@ -96,9 +97,9 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    taken; «Mostra tutte» NOT restored (owner: full height — in two stacks a tall Piano leaves no hole); the fork's
    `line-clamp-2` kept on `MoveRow`. The Ribilancia is 1159px on the owner's account.
 2. **Fork UI** (fork branch → fork main). **09-25**: the owner chose to open it with Allocazione's Accumulo and
-   Composizione ideale (done 09-25), the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
-   (neutral class colours, not Lime tokens, so it can travel in PR C); Flusso «Per tipo» on a phone, designed
-   upstream-neutral (PR B needs it). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
+   Composizione ideale (done 09-25), the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; ~~Esposizione pie/donut~~
+   (**archived 09-25**, owner: in the two stacks Esposizione no longer has a full row, so there is no room for it);
+   Flusso «Per tipo» on a phone, designed upstream-neutral (PR B needs it) — **the next item** (owner, 09-25). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
    (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles.
 3. **Upstream PR B — 50/30/20 roles** (issue first): `spendingRoles.ts`, the category field + dialog + settings
    (the five write places), Flusso «Per ruolo» and its phone bar, the phone «Per tipo» from step 2. Role tokens only
@@ -122,8 +123,9 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   strip as rows with a track (today · target · end-of-plan ring, dormant classes dropped, amber only out of band),
   44px targets on a phone, the undo actions as ghosts, the months bar on `--progress-fill`. doc/guide/accumulo.md
   § Il tile attivo — forma.
-- [ ] **Esposizione on desktop is now full width**: enrich it with a pie/donut beside the ranked rows (one per view),
-  using the space upstream gave it.
+- [~] **Esposizione on desktop is now full width**: enrich it with a pie/donut beside the ranked rows (one per view),
+  using the space upstream gave it. **Archived 2026-09-25** (owner): since the two stacks (§ 1, «Allocazione grid»)
+  Esposizione sits in the 662px right stack, not a full row, and the donut has no room beside the rows.
 - [ ] **Analisi › Flusso «Per tipo» on a phone is still a Sankey**, unreadable at 390 and with no insight (same item as
   the one below, owner re-raised it): design a mobile view like the roles view's bar + rows.
 - [ ] **Is Lime Frost light ready to flip to dark?** Decide what must close first (see the Carta's «Verso il tema
