@@ -968,7 +968,7 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --type-flow-savings: var(--role-saving);
   --type-flow-fixed: var(--flow-out);
   --type-flow-variable: var(--role-want);
-  --type-flow-debt: oklch(0.6800 0.1000 75.0000);
+  --type-flow-debt: oklch(0.6600 0.1000 75.0000);
   --role-unclassified: var(--chart-5);
   --role-deficit: var(--destructive);
   --sidebar: oklch(1.0000 0 0);
@@ -983,6 +983,13 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
 }
 
 .dark[data-theme="lime-frost"] {
+  /* The dark half of the owner's Lime Frost (roadmap step 4, 2026-09-25): the light block's roles,
+     carried into the night. The owner's calls: the ground stays night blue (the cold is the «frost»
+     half, the green lives in the lime of the action); a hover presses toward MORE contrast, so here
+     it lightens; the lime is text and selection too (13.4:1 on the tile); every role series is the
+     light one lifted by 0.10 in L, same hue and chroma; the class slots keep the light hues; the
+     sign rule, the amber and the neutral category icons hold here too. Measured by
+     limeFrostTheme.test.ts and chartPaletteDistinctness.test.ts. */
   --background: oklch(0.1288 0.0406 264.6952);
   --foreground: oklch(0.9842 0.0034 247.8575);
   --card: oklch(0.2077 0.0398 265.7549);
@@ -990,92 +997,103 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --popover: oklch(0.2077 0.0398 265.7549);
   --popover-foreground: oklch(0.9842 0.0034 247.8575);
   --primary: oklch(0.8871 0.2122 128.5041);
-  --primary-foreground: oklch(0.0000 0 0);
+  /* The Carta's lime label: a night slate, not pure black. */
+  --primary-foreground: oklch(0.1300 0.0300 265.0000);
   --secondary: oklch(0.2795 0.0368 260.0310);
   --secondary-foreground: oklch(0.9842 0.0034 247.8575);
   --muted: oklch(0.2795 0.0368 260.0310);
   --muted-foreground: oklch(0.7107 0.0351 256.7878);
-  --accent: oklch(0.3925 0.0896 152.5353);
-  --accent-foreground: oklch(0.8871 0.2122 128.5041);
+  /* Hover of outline buttons and menu rows: a green veil lighter than the tile (R3 in the dark). */
+  --accent: oklch(0.3400 0.0600 145.0000);
+  --accent-foreground: oklch(0.9842 0.0034 247.8575);
   --destructive: oklch(0.6900 0.1900 25.3313);
   --destructive-foreground: oklch(1.0000 0 0);
-  /* The light block's deeper gain green would cascade in over `.dark` (same specificity, later rule). */
-  --positive: oklch(0.740 0.156 148.655);
+  /* One green for gains, income and COMPRA: the light's hue 138, lifted for the night. */
+  --positive: oklch(0.8000 0.1600 138.0000);
   --warning: oklch(0.260 0.038 78);
   --warning-foreground: oklch(0.854 0.090 82);
   --warning-border: oklch(0.460 0.085 75);
   --border: oklch(0.2795 0.0368 260.0310);
   --input: oklch(0.2795 0.0368 260.0310);
   --ring: oklch(0.8871 0.2122 128.5041);
-  --chart-1: oklch(0.8871 0.2122 128.5041);
-  --chart-2: oklch(0.6231 0.1880 259.8145);
-  --chart-3: oklch(0.7227 0.1920 149.5793);
-  --chart-4: oklch(0.6268 0.2325 303.9004);
-  --chart-5: oklch(0.7686 0.1647 70.0804);
-  --chart-6: oklch(0.7000 0.1300 95.0000);
-  --chart-7: oklch(0.7000 0.1100 205.0000);
-  --chart-8: oklch(0.6900 0.1800 345.0000);
-  --chart-9: oklch(0.7200 0.1500 40.0000);
-  --flow-in: var(--chart-2);
-  --flow-out: var(--chart-1);
+  /* Outline buttons rest on the tile's own surface; the border draws them. */
+  --outline-surface: oklch(0.2077 0.0398 265.7549);
+  /* «Elimina» wears a red veil (owner): recognisable before it is read, red text on it. */
+  --destructive-surface: oklch(0.2600 0.0400 25.0000);
+  --destructive-surface-hover: oklch(0.3000 0.0550 25.0000);
+  --destructive-outline: oklch(0.3800 0.0800 25.0000);
+  --hero-series: oklch(0.7200 0.1000 228.0000);
+  /* The chosen option is the lightest surface on its slate track (white in light). */
+  --segment-active: oklch(0.3700 0.0350 260.0000);
+  --ghost-hover: oklch(0.3200 0.0400 228.0000);
+  --ghost-hover-foreground: oklch(0.8200 0.0800 228.0000);
+  --ghost-destructive-hover: oklch(0.3000 0.0600 25.0000);
+  --manual-row: oklch(0.7200 0.1000 228.0000);
+  --action: oklch(0.8871 0.2122 128.5041);
+  --action-foreground: oklch(0.1300 0.0300 265.0000);
+  --action-hover: oklch(0.9300 0.1800 128.5041);
+  --toggle-on: oklch(0.3400 0.0700 140.0000);
+  --toggle-on-foreground: oklch(0.9842 0.0034 247.8575);
+  --toggle-on-hover: oklch(0.3900 0.0800 140.0000);
+  --aside-toggle-on: var(--toggle-on);
+  --aside-toggle-on-foreground: var(--toggle-on-foreground);
+  --trade-buy: oklch(0.8000 0.1600 138.0000);
+  --trade-sell: oklch(0.7600 0.1100 295.0000);
+  --trade-ok: oklch(0.7200 0.0300 240.0000);
+  --scenario-bear: oklch(0.7400 0.1200 295.0000);
+  --scenario-base: var(--hero-series);
+  --scenario-bull: var(--flow-in);
+  /* No near-white bar either: a mid slate, as in light. */
+  --progress-fill: oklch(0.6000 0.0400 257.0000);
+  /* A milestone warms from a dim ice toward the net-worth ice as it closes in. */
+  --milestone-far: oklch(0.3800 0.0300 228.0000);
+  --milestone-near: var(--hero-series);
+  --allocation-row-bar: initial;
+  --exposure-bar: oklch(0.6600 0.0250 235.0000);
+  --sign-chart-gain: oklch(0.7000 0.1000 138.0000);
+  --sign-chart-loss: oklch(0.6400 0.1400 27.3000);
+  --cost-figure: var(--warning-foreground);
+  --estimate-figure: var(--warning-foreground);
+  --income-figure: var(--foreground);
+  --expense-figure: var(--foreground);
+  --series-dot: inline-block;
+  --net-gain-figure: var(--positive);
+  --net-loss-figure: var(--destructive);
+  --category-icon: var(--muted-foreground);
+  --category-icon-bg: var(--muted);
+  --capital-networth: var(--hero-series);
+  /* The invested capital recedes, and in the dark receding is darker. */
+  --capital-invested: oklch(0.6000 0.0250 235.0000);
+  --sharpe-series: oklch(0.7400 0.1200 295.0000);
+  --drawdown: oklch(0.6200 0.0450 240.0000);
+  /* The light block's hues, +0.10 in L (chroma cut where sRGB ends: Azioni 0.177 → 0.119), so a
+     class keeps its colour when the mode flips. Carry to 345 for margin from Immobili (14.1 → 16.7). */
+  --chart-1: oklch(0.7650 0.1190 264.3760);
+  --chart-2: oklch(0.7400 0.1360 162.4800);
+  --chart-3: oklch(0.7650 0.1440 70.0800);
+  --chart-4: oklch(0.7800 0.1370 303.9000);
+  --chart-5: oklch(0.6500 0.0300 235.0000);
+  --chart-6: oklch(0.7550 0.1080 100.0000);
+  --chart-7: oklch(0.7500 0.0920 215.0000);
+  --chart-8: oklch(0.7400 0.1600 345.0000);
+  --chart-9: oklch(0.7300 0.1500 40.0000);
+  --flow-in: oklch(0.7450 0.1400 138.0000);
+  --flow-out: oklch(0.7450 0.1200 232.0000);
   --role-need: var(--flow-out);
-  --role-want: var(--chart-4);
-  --role-saving: var(--flow-in);
-  --role-unclassified: var(--muted-foreground);
+  --role-want: oklch(0.7450 0.1200 295.0000);
+  --role-saving: oklch(0.7450 0.1100 175.0000);
+  --type-flow-income: var(--flow-in);
+  --type-flow-budget: var(--muted-foreground);
+  --type-flow-savings: var(--role-saving);
+  --type-flow-fixed: var(--flow-out);
+  --type-flow-variable: var(--role-want);
+  --type-flow-debt: oklch(0.7800 0.1000 75.0000);
+  --role-unclassified: var(--chart-5);
   --role-deficit: var(--destructive);
-  /* Every token the light block names outright would cascade in here (same specificity, earlier
-     rule loses): dark takes each back to its default alias. */
-  --hero-series: var(--chart-1);
-  --segment-active: var(--background);
-  --ghost-hover: var(--accent);
-  --ghost-hover-foreground: var(--accent-foreground);
-  --ghost-destructive-hover: var(--ghost-hover);
-  --manual-row: var(--chart-3);
-  --action: var(--primary);
-  --action-foreground: var(--primary-foreground);
-  --action-hover: color-mix(in oklab, var(--action) 90%, transparent);
-  --toggle-on: var(--action);
-  --toggle-on-foreground: var(--action-foreground);
-  --toggle-on-hover: var(--action-hover);
-  --aside-toggle-on: var(--muted);
-  --aside-toggle-on-foreground: var(--foreground);
-  --trade-buy: var(--chart-3);
-  --trade-sell: var(--chart-5);
-  --trade-ok: var(--chart-2);
-  --scenario-bear: var(--chart-5);
-  --scenario-base: var(--chart-1);
-  --scenario-bull: var(--chart-2);
-  --progress-fill: var(--foreground);
-  --milestone-far: var(--foreground);
-  --milestone-near: var(--foreground);
-  --allocation-row-bar: var(--chart-1);
-  --exposure-bar: var(--chart-1);
-  --sign-chart-gain: var(--positive);
-  --sign-chart-loss: var(--destructive);
-  --cost-figure: var(--foreground);
-  --estimate-figure: var(--foreground);
-  --income-figure: var(--positive);
-  --expense-figure: var(--destructive);
-  --series-dot: none;
-  --net-gain-figure: var(--foreground);
-  --net-loss-figure: var(--foreground);
-  /* `initial` invalidates the variable, so categoryIconStyle falls back to the saved hue. */
-  --category-icon: initial;
-  --category-icon-bg: initial;
-  --type-flow-income: initial;
-  --type-flow-budget: initial;
-  --type-flow-savings: initial;
-  --type-flow-fixed: initial;
-  --type-flow-variable: initial;
-  --type-flow-debt: initial;
-  --capital-networth: var(--chart-1);
-  --capital-invested: var(--muted-foreground);
-  --sharpe-series: var(--chart-3);
-  --drawdown: var(--destructive);
   --sidebar: oklch(0.1288 0.0406 264.6952);
   --sidebar-foreground: oklch(0.9842 0.0034 247.8575);
   --sidebar-primary: oklch(0.8871 0.2122 128.5041);
-  --sidebar-primary-foreground: oklch(0.0000 0 0);
+  --sidebar-primary-foreground: oklch(0.1300 0.0300 265.0000);
   --sidebar-accent: oklch(0.2795 0.0368 260.0310);
   --sidebar-accent-foreground: oklch(0.9842 0.0034 247.8575);
   --sidebar-border: oklch(0.2795 0.0368 260.0310);

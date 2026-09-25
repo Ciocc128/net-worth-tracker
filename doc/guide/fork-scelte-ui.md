@@ -128,8 +128,22 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    the sign rule and the amber stay Lime-only (§ 2); Liquidità's slot to L 0.55 and Lime Frost light in the
    distinctness test, `--chart-9` passes (§ 2); the role-token index in `:root` completed — every one of the 44
    role tokens the light block names sits in one of the four families, the figures in Flows, no colour changed.
-   **Next: the Carta's five dark decisions**, then the dark audit; the dark block and the hue-band test join the
-   distinctness suite once they are taken.
+   **09-25 (later) — the dark half built, WAITING FOR THE OWNER'S TOUR** (branch `feat/lime-frost-dark`, not yet a
+   PR). The owner's calls on the Carta's five: ground stays night blue; a hover presses toward MORE contrast (in
+   the dark it lightens); the lime is `--primary` too (13.4:1 on the tile); «Elimina» on a RED VEIL (not the
+   light's near-neutral grey); role series = the light ones +0.10 in L. Also: the class slots take the light
+   hues (+0.10, chroma cut at the sRGB edge, Carry to 345°), and all four data rules cross over (role colours,
+   sign only for judgements, amber costs, neutral category icons). Found and fixed: the dark block never took
+   back `--outline-surface` / `--destructive-surface(-hover)` / `--destructive-outline`, so the light's near-white
+   surfaces leaked into dark (R10) — now a test; light `--type-flow-debt` 0.68 → 0.66 (2.92:1 < 3 on white).
+   Lime Frost is in `chartPaletteDistinctness` in both modes; `limeFrostTheme.test.ts` also measures the role
+   series and text on its surface. **Resume with the owner's feedback on the tour** (mirror account, Lime Frost
+   dark, 1440): (1) hover lightens on outline / ghost / lime; (2) «Elimina» red veil in a Liquidità account's
+   dialog; (3) the OFF switch track barely off the tile (`--input` 0.2795 on the card, ~1.2:1, inherited from the
+   source theme — lightening it moves the field borders too); (4) Liquidità's grey area in Storico ›
+   Composizione and the brightness of the +0.10 series (Cashflow bars); (5) chosen options (green veil toggles,
+   slate pills). Then the phone pass (390) and the pages not shot (Analisi, Dividendi, Budget, Previdenza,
+   dialogs).
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
    prerequisite of the optimizer.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
@@ -170,8 +184,9 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   deploying, turn on «Ruoli 50/30/20» in Impostazioni (the script does not write `spendingRolesEnabled`). Until the
   deploy, avoid editing categories from the live app (a subcategory edit could rewrite the array without its role
   override).
-- [ ] **Dark Lime Frost**: the five open decisions of the Carta (ground tint, hover direction, lime as text, series
-  lightness, neutral «Elimina» on navy), then the same page audit in dark, desktop and iPhone.
+- [~] **Dark Lime Frost**: the five open decisions of the Carta (ground tint, hover direction, lime as text, series
+  lightness, neutral «Elimina» on navy), then the same page audit in dark, desktop and iPhone. **09-25: decided and
+  built** (roadmap step 4 above); the owner's tour and the iPhone audit still open.
 - [ ] **Composite class chip** (owner, 09-24): in Patrimonio › Strumenti a composite instrument (a 60/40 fund, a
   leveraged equity/bond ETF) stays ONE row — it is one instrument — but its chip shows only the prevailing class
   (`resolveDisplayAssetClass`), so a 60/40 reads as pure «Azioni». Make the chip split: one segment per composition
@@ -188,8 +203,9 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   GROSS withdrawal (`grossedUp: false`). Same gap in upstream's own code (its demo has no leverage, so it never shows).
   To do: group the trades by class into `MoveRow`s with legs, price the sold instruments through `estimateSaleTax`,
   solve the net withdrawal (`solveWithdrawalGross`) on the leverage path too; tests + mirror. Candidate PR to upstream.
-- [~] **Lime Frost fails upstream's chart-distinctness floors** — **light fixed 09-25** (Liquidità L 0.55, the
-  light block in the test, `--chart-9` reviewed); dark still open: (`__tests__/chartPaletteDistinctness.test.ts`, which
+- [x] **Lime Frost fails upstream's chart-distinctness floors** — **light fixed 09-25** (Liquidità L 0.55, the
+  light block in the test, `--chart-9` reviewed); **dark fixed 09-25 too** (light hues, `'lime-frost'` in `THEMES`).
+  The original note: (`__tests__/chartPaletteDistinctness.test.ts`, which
   lists the twelve upstream blocks, not Lime Frost): light Liquidità ↔ Trend Following ΔE00 11,7 (< 14), and dark's
   slots are not the light ones' hue bands (Azioni 264° light vs 128° dark). Settle it with the dark decisions, then add
   `'lime-frost'` to the test's `THEMES`. `--chart-9` (Previdenza band) was added on 09-21 at hue 40, unreviewed.

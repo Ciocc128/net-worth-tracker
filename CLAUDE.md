@@ -13,14 +13,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **205 files / 4750 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-25, fork, Flusso «Per tipo» sul telefono, 3,7 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-25, fork, quinquies): **Lime Frost chiaro — i tre punti del passo 4 chiusi** (la PR B aspetta
-  upstream #397). Il segno solo per i giudizi e l'ambra di costi e stime restano solo Lime; lo slot di Liquidità a
-  L 0,55 (a 0,64 stava a ΔE00 11,7–13,4 da tre classi) e Lime Frost chiaro nel test di distinzione
-  (`LIGHT_ONLY_THEMES`), `--chart-9` misurato; l'indice dei token di ruolo in `:root` completo, nessun colore
-  cambiato. fork-scelte-ui.md § 2–3. Collaudo: `tsc` 0, Vitest 4750 nei due fusi, falsificazione del grigio vecchio.
-- Prima (2026-09-25, fork, quater): **Analisi › Flusso sul telefono — niente Sankey in nessuna delle due viste**
-  («Per tipo» come barra delle spese + righe, un solo `FlowShareMobile`). doc/guide/cashflow-analisi.md.
+- `tsc` clean; **205 files / 4894 tests** green in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-25, fork, Flusso «Per tipo» sul telefono, 3,7 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25, fork, sexies — IN CORSO, ramo `feat/lime-frost-dark`): **Lime Frost scuro costruito, aspetta il
+  giro del proprietario.** Le cinque decisioni della Carta prese (fondo blu notte, hover = più contrasto, lime anche
+  come testo, «Elimina» su velo rosso, serie +0,10), le classi con le tinte del chiaro, le quattro regole dei dati
+  anche al buio; la fuga R10 delle superfici chiare nello scuro chiusa e testata. fork-scelte-ui.md § 3, passo 4.
+  Collaudo: `tsc` 0, Vitest 4894 nei due fusi, falsificazioni sul vecchio blocco, 9 pagine a 1440 sul mirror.
+- Prima (2026-09-25, fork, quinquies): **Lime Frost chiaro — i tre punti del passo 4 chiusi** (PR #18): segno e
+  ambra solo Lime, Liquidità a L 0,55, l'indice dei token di ruolo completo.
 - Latest upstream (2026-09-25, bis): **Patrimonio › «Mutuo» — gli interessi del mutuo, anno per anno.** Ogni rata
   regolata salva anche gli interessi pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`: salvataggio, modifica,
   job serale); una tessera «Mutuo» a tutta larghezza per immobile con rate collegate, tra Rendimento e Strumenti — debito,

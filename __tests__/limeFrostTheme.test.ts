@@ -50,7 +50,41 @@ function contrast(x: Oklch, y: Oklch): number {
 }
 
 const TEXT_ON_GROUND = ['primary', 'positive', 'destructive', 'muted-foreground', 'foreground'] as const;
-const CHART_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8].map((slot) => `chart-${slot}`);
+const CHART_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((slot) => `chart-${slot}`);
+/** The role series both blocks write outright: a series is a mark, so the 3:1 floor on the tile. */
+const ROLE_SERIES = [
+  'flow-in', 'flow-out', 'hero-series', 'role-want', 'role-saving', 'scenario-bear', 'sharpe-series',
+  'sign-chart-gain', 'sign-chart-loss', 'type-flow-debt', 'progress-fill', 'drawdown',
+] as const;
+/** Text and the surface it sits on, where the theme names both (R9: 4.5:1). */
+const TEXT_ON_SURFACE = [
+  ['destructive', 'destructive-surface'],
+  ['destructive', 'destructive-surface-hover'],
+  ['toggle-on-foreground', 'toggle-on'],
+  ['toggle-on-foreground', 'toggle-on-hover'],
+  ['ghost-hover-foreground', 'ghost-hover'],
+  ['foreground', 'segment-active'],
+  ['foreground', 'outline-surface'],
+  ['action-foreground', 'action-hover'],
+] as const;
+
+/** Every custom property a block declares, whatever its value (`oklch`, `var()`, `initial`). */
+function declaredNames(selector: string): Set<string> {
+  const start = css.indexOf(`${selector} {`);
+  const body = css.slice(start, css.indexOf('\n}', start));
+  return new Set([...body.matchAll(/^\s*--([a-z0-9-]+):/gm)].map(([, name]) => name));
+}
+
+describe('Lime Frost — R10: the dark block takes back every token the light block names', () => {
+  // `[data-theme]` and `.dark[data-theme]` both match in dark mode, so a token the light block writes
+  // and the dark block omits leaks the LIGHT value into dark — how the near-white outline buttons and
+  // «Elimina» surfaces reached Lime Frost dark until 2026-09-25. `--radius` is mode-independent.
+  const light = declaredNames('[data-theme="lime-frost"]');
+  const dark = declaredNames('.dark[data-theme="lime-frost"]');
+  it.each([...light].filter((name) => name !== 'radius'))('--%s', (name) => {
+    expect(dark.has(name)).toBe(true);
+  });
+});
 
 describe.each([
   ['light', '[data-theme="lime-frost"]'],
@@ -71,17 +105,27 @@ describe.each([
     expect(contrast(tokens[name], tokens.card)).toBeGreaterThanOrEqual(3);
   });
 
-  // Light fills its buttons with the lime itself (dark aliases --action to --primary, not parsed).
+  // Both blocks fill the main action with the lime itself (dark since 2026-09-25).
   it.runIf(tokens.action !== undefined)('a filled button label clears 4.5:1 on its --action fill', () => {
     expect(contrast(tokens['action-foreground'], tokens.action)).toBeGreaterThanOrEqual(4.5);
   });
 
-  // COMPRA / VENDI / OK are printed as amounts in the Piano: text, so the text floor (light only —
-  // dark aliases them to the chart slots and is not parsed).
+  // COMPRA / VENDI / OK are printed as amounts in the Piano: text, so the text floor.
   it.runIf(tokens['trade-buy'] !== undefined)('trade colours clear 4.5:1 on --card', () => {
     for (const name of ['trade-buy', 'trade-sell', 'trade-ok']) {
       expect(contrast(tokens[name], tokens.card)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it.each(ROLE_SERIES)('role series: --%s clears the 3:1 chart floor on --card', (name) => {
+    expect(tokens[name], `--${name} written outright`).toBeDefined();
+    expect(contrast(tokens[name], tokens.card)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(TEXT_ON_SURFACE)('text on its surface: --%s clears 4.5:1 on --%s', (text, surface) => {
+    expect(tokens[text], `--${text} written outright`).toBeDefined();
+    expect(tokens[surface], `--${surface} written outright`).toBeDefined();
+    expect(contrast(tokens[text], tokens[surface])).toBeGreaterThanOrEqual(4.5);
   });
 
   it('the tiles stand off the ground', () => {
