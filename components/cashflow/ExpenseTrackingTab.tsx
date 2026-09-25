@@ -44,6 +44,8 @@ import {
   getExpensesByInstallmentParentId,
 } from '@/lib/services/expenseService';
 import { reverseAppliedBalances } from '@/lib/services/cashBalanceReconciliation';
+import { rowsDeletedWith } from '@/lib/utils/transferFee';
+import { isRepayableProperty } from '@/lib/utils/mortgageRepayment';
 import { queryKeys } from '@/lib/query/queryKeys';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -286,6 +288,10 @@ export function ExpenseTrackingTab({
   const { data: allAssets } = useAssets(ownerId ?? undefined);
   const cashAccounts = useMemo(() => (allAssets ?? []).filter((a) => a.type === 'cash' && a.assetClass === 'cash'), [allAssets]);
   const accountNames = useMemo(() => new Map((allAssets ?? []).filter((a) => a.type === 'cash').map((a) => [a.id, a.name.trim()])), [allAssets]);
+  // Properties a mortgage instalment can repay (lib/utils/mortgageRepayment.ts); the names cover
+  // every property, so a row whose debt was repaid in full still names its house.
+  const repayableProperties = useMemo(() => (allAssets ?? []).filter(isRepayableProperty), [allAssets]);
+  const propertyNames = useMemo(() => new Map((allAssets ?? []).filter((a) => a.type === 'realestate').map((a) => [a.id, a.name.trim()])), [allAssets]);
 
   // Desktop list view: the day-grouped feed (default, shared with mobile) or the dense table.
   // Remembered (localStorage), like Patrimonio's toggles: a reader who works in the table
@@ -451,11 +457,13 @@ export function ExpenseTrackingTab({
       try {
         // Give back what the row has applied — both accounts of a transfer — before deleting
         // it; a row still waiting for its date moved nothing (mirror of ExpenseTable's delete).
-        if ((await reverseAppliedBalances([expense])) && user && ownerId) {
+        // A transfer's fee row goes with it (lib/utils/transferFee.ts), its balance given back too.
+        const { deleteExpenseRows, getTransferFeeOf } = await import('@/lib/services/expenseService');
+        const rows = rowsDeletedWith(expense, await getTransferFeeOf(expense));
+        if ((await reverseAppliedBalances(rows)) && user && ownerId) {
           queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
         }
-        const { deleteExpense } = await import('@/lib/services/expenseService');
-        await deleteExpense(expense.id);
+        await deleteExpenseRows(expense.userId, rows);
         if (user && ownerId) queryClient.invalidateQueries({ queryKey: queryKeys.costCenters.all(ownerId) });
         toast.success('Voce eliminata con successo');
         await onRefresh();
@@ -765,11 +773,12 @@ export function ExpenseTrackingTab({
       grouped={mobileSortKey === 'date-desc' || mobileSortKey === 'date-asc'}
       onEdit={handleEditExpense}
       onDelete={handleDeleteExpense}
-      onLinkSeries={(expense) => {
+      onLinkSeries={(expense, target) => {
         const mode = resolveSeriesDeleteMode(expense);
-        if (mode) setLinkRequest({ expense, mode });
+        if (mode) setLinkRequest({ expense, mode, target });
       }}
       accountNames={accountNames}
+      propertyNames={repayableProperties.length > 0 ? propertyNames : undefined}
       isDemo={isDemo}
       hasActiveFilters={hasActiveFilters}
       categoryMetaMap={categoryMetaMap}
@@ -1133,6 +1142,7 @@ export function ExpenseTrackingTab({
           request={linkRequest}
           ownerId={ownerId}
           cashAccounts={cashAccounts}
+          properties={repayableProperties}
           now={now}
           onClose={() => setLinkRequest(null)}
           onLinked={() => void onRefresh()}

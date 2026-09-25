@@ -181,6 +181,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   landed under 0,5% on the Panoramica (found in the browser, 2026-08-30). A hard-coded «al »/«del » is correct for most
   figures, which is precisely why it survives review — grep for a quoted preposition sitting next to a
   `formatPercentage` call before writing another one.
+- **A property's debt moves by itself when instalments are linked to it** (2026-09-25, doc/guide/cashflow.md § Expense
+  Sign Convention and Type Changes): the form's «TAN del mutuo» (`debtInterestRate`, shown with «Debito residuo»)
+  splits each linked instalment into interest and the principal that lowers `outstandingDebt`. Both fields are
+  user-clearable through `updateAsset`'s `'x' in updates` guard — before it, switching «Debito residuo» off saved
+  nothing and the debt came back on the next load (pinned by `__tests__/updateAssetDebtFields.test.ts`).
 - **A failed overview is an alert, not a skeleton**: the page gates the skeleton on `isLoading` of EVERY query it
   reads (assets, overview, snapshots, ledger meta) and, when the overview errs, keeps Liquidità, Movimenti and
   Strumenti alive on the live assets (`totalValue` falls back to `calculateTotalValue(assets)`) behind a

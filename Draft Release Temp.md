@@ -40,7 +40,9 @@
 
 - Added a second sentence to the Cashflow verdict whenever the calendar reaches past today: the judgement is on what has happened, then where the calendar takes the month («Con 1000 € di spese e 2000 € di entrate già in calendario da qui a fine mese, il mese chiude a +700 € (il 30%)») — mid-month the page used to say «Settembre sta andando bene» on a salary still to come.
 - Added the «solo questa o tutte?» modal for deleting a row of an instalment plan or a recurring series, naming the row, the plan and what the account gets back; a plain row arms in place and says what the second press does («Eliminando, il conto viene riaccreditato di 100,00 €»).
-- Added «Collega la serie a un conto» to the detail of an instalment or a recurring entry: the entries still to come take the account and each moves it on its own date, and a movement's detail names the account it moves and when («Conto corrente · si muove il 28 settembre»).
+- Added «Riduce il debito di» to a Debito entry: on the instalment's own date the property's residual debt falls by the principal only, the instalment minus the month's interest at the property's TAN («sul debito di oggi 400 € di 1000 €, il resto (600 €) sono interessi al TAN 3,6%»). The house's net value and Storico's «mutuo» follow the plan without a monthly edit, and deleting or editing an instalment gives back exactly what it had repaid.
+- Added «Commissione» to a Trasferimento: the bank's charge becomes a spending entry of its own in the category chosen in Impostazioni › Spese («Commissioni sui trasferimenti»), debited from the origin account on the transfer's date. It is edited from the transfer and deleted with it; without a category the field stays off and links the setting.
+- Added «Collega la serie a un conto» and «Collega la serie al mutuo» to the detail of an instalment or a recurring entry: the entries still to come take the account, each moving it on its own date, or the property whose mortgage they repay, and a movement's detail names both («Conto corrente · si muove il 28 settembre», «Casa · capitale 400,00 €»).
 - Added memory to the «Feed | Tabella» switch of Movimenti: the table stays the table across visits.
 - Added a count to the Movimenti filters on a phone or a tablet («2 filtri attivi: restano 27 movimenti su 112.», «Mostra 27 movimenti»), with «Ripristina» beside it.
 
@@ -60,6 +62,7 @@
 - Added a credit account for dividends and coupons: each instrument can name the account its payments land on (the asset form, «Conto di accredito dividendi» — two brokers, two accounts) and Impostazioni › Dividendi holds the default for the others. A payment dated today or later credits that account when its income is recorded; payments already in the past are recorded without moving any balance, so a first download of the history never counts them twice.
 
 - Added negative balances to cash accounts, so a credit card can be tracked as an account in the red until the bank pays it off: the Liquidità tile reads it as «debito» and measures the other accounts' shares on the money actually held, and the Panoramica counts it in the cash part of your liquidity instead of the invested part.
+- Added «TAN del mutuo» to a property with a residual debt, which splits each linked instalment into interest and principal; without it the whole instalment lowers the debt, and the form says so.
 - Added the maturity and the next coupon under a bond’s name in the Strumenti table («scade il 10/03/2032 · prossima cedola 10/12»), on desktop and on a phone: a BTP no longer reads like a crypto row.
 - Added «Andamento» as a view of the Strumenti table: the three Δ windows take the place of Quantità, Prezzo, PMC and TER, are sortable, and the table no longer scrolls sideways at 1440; both toggles are remembered.
 - Added «Tasse trattenute» to the sale form of the Registro operazioni: prefilled with the estimate — the price difference at the instrument's rate, with no commission, as the broker computes it — and following it until you type the figure on your statement. The settlement account now receives proceeds less fees less that tax («Accredito sul conto», printed before you save) instead of the gross, which had to be corrected by hand and read as «altre variazioni» in the verdicts.
@@ -80,21 +83,21 @@
 
 ## 🐛 Bug Fixes
 
-- Fixed the running year cut to «20…» in the Anni tile of the Hall of Fame at every width: the period column is a floor now and the bar yields, on every ranked row.
-- Fixed «il 88,5%», «Gli 10 anni» and «dal migliore» over a ranking of costs on the Hall of Fame: «l'88,5%», «i 10 anni», and Spese and Calo ordered «dal più alto» and «dal più forte».
-- Fixed the Hall of Fame printing the record month's figures three times in 200 px and the running year's rank twice: the Record tile now says what the podium is worth and where it ends («I tre mesi migliori valgono insieme +45.500 €; l'ultimo in tessera, ottobre 2025, è a +2195 €»), the Anni tile the distance from the place above («è a 8610 € dal secondo posto»).
-- Fixed the two note windows of the Hall of Fame dropping the keyboard focus on the page body when closed: it returns to the row or button that opened them.
-- Fixed «Salva ipotesi» on Coast FIRE for a shared account: a co-owner's save landed on their own unused document while the page still reported success; it now saves to the account being viewed, and a failed save is explained in Italian.
-- Fixed the Coast FIRE chart naming colours the theme does not paint («Orso (rosso)» on a palette where the bear is green), its legend printed in the series' own colour at 3,1:1 and cents on a 2040 tooltip: the legend is the app's neutral one under the plot, the target line neutral, the tooltip in whole euros.
-- Fixed the captions of the Coast FIRE rows and the «Parte a 61 anni» chips measuring 2,6:1 in light mode: they use the foreground ink now.
-- Fixed the first frame of Coast FIRE and of the FIRE Calcolatore counting the hero up from «0 €» while the track below was already filled to its share: the first value now lands.
-- Fixed the FIRE Calcolatore contradicting itself once you are FIRE («Sei già FIRE.» over «2027 · tra 1 anno» and «Probabilità di FIRE entro il 2027: 100%»): the projection now tests today first, so «già raggiunto» replaces «tra 1 anno» wherever it applies.
-- Fixed the Scenari chart's description for screen readers naming colours the theme does not paint: the three scenarios are named without a hue on every chart of the tab.
-- Fixed three legends on the FIRE Calcolatore printed in the series' own colour at 3,1:1 and 3,8:1: the Scenari chart, the runway and the cashflow history use the app's neutral legend and dashed neutral target lines.
-- Fixed the captions of the FIRE tiles («124 € al mese», «fondo pensione bloccato escluso») measuring 2,6:1 in light mode: no longer printed at 70% opacity.
-- Fixed «FIRE Orso», «FIRE Base» and «FIRE Toro» stacking on the Scenari chart when two scenarios reach the target in the same year: one line and one label («FIRE Base · Toro»), inside the plot.
-- Fixed «Anni di spesa coperti» wrapping under its own figure on the Reddito passivo tile: the liquid/illiquid split is the row's caption now.
-- Fixed the FIRE Ventaglio under the pension lock aiming its paths at the FIRE number WITHOUT the lock while the verdict named the bridge one («Meno di metà dei percorsi è FIRE entro il 2066» under «FIRE nel 2049» on a real account): the paths now aim at the bridge requirement until the unlock and at the standard number after it, and the footer says so.
+- Fixed the running year cut to «20…» in the Anni tile of the Hall of Fame at every width.
+- Fixed «il 88,5%», «Gli 10 anni» and «dal migliore» over a ranking of costs on the Hall of Fame («l'88,5%», «i 10 anni», «dal più alto»).
+- Fixed the Hall of Fame printing the record month's figures three times in 200 px: the Anni tile now says the distance from the place above («è a 8610 € dal secondo posto»).
+- Fixed the two note windows of the Hall of Fame dropping the keyboard focus on the page body when closed.
+- Fixed «Salva ipotesi» on Coast FIRE for a shared account, which saved a co-owner's changes to their own unused document while reporting success.
+- Fixed the Coast FIRE chart naming colours the theme does not paint, with a legend at 3,1:1 and cents on its tooltip.
+- Fixed the captions of the Coast FIRE rows and the «Parte a 61 anni» chips measuring 2,6:1 in light mode.
+- Fixed the first frame of Coast FIRE and of the FIRE Calcolatore counting the hero up from «0 €» beside a track already filled.
+- Fixed the FIRE Calcolatore contradicting itself once you are FIRE («Sei già FIRE.» over «2027 · tra 1 anno»): «già raggiunto» now replaces «tra 1 anno».
+- Fixed the Scenari chart's description for screen readers naming colours the theme does not paint.
+- Fixed three legends on the FIRE Calcolatore printed in the series' own colour at 3,1:1 and 3,8:1.
+- Fixed the captions of the FIRE tiles («124 € al mese») measuring 2,6:1 in light mode.
+- Fixed «FIRE Orso», «FIRE Base» and «FIRE Toro» stacking on the Scenari chart when two scenarios reach the target in the same year («FIRE Base · Toro»).
+- Fixed «Anni di spesa coperti» wrapping under its own figure on the Reddito passivo tile.
+- Fixed the FIRE Ventaglio under the pension lock aiming its paths at the number without the lock while the verdict named the bridge one.
 
 - Fixed COMPRA, VENDI and OK being unreadable in light mode on Allocazione: the guard meant to correct the chart colours for text had never run, and the chip labels, the plan's amounts and the gap column now clear the contrast floor in every one of the twelve colour themes, light and dark.
 - Fixed «Allineato al 85%», which is not Italian: the verdict now writes «all'85%», and so for every score whose name starts with a vowel.
@@ -159,6 +162,7 @@
 - Fixed the Registro’s XIRR on a young position: a position opened 47 days earlier printed «+4388,68% annualizzato»; under six months the vital is now «Rendimento sul periodo · +66,92% · in 53 giorni, non annualizzato».
 - Fixed the asset form refusing a submit in English and in silence («Ticker is required»): the messages are Italian, the reading line says «Mancano 2 campi: Ticker e Nome.» and the first refused field scrolls into view.
 - Fixed the cash-account detail: Escape while «Elimina» was armed closed the modal with the row still armed; the delete is now a two-click confirm without a timer and, while armed, the reading says what the second press loses and that it is not reversible.
+- Fixed a property's residual debt that could not be removed: switching «Debito residuo» off in the asset form saved nothing, and the old debt came back on the next load.
 - Fixed hand-valued rows in the Strumenti table (a property, a pension fund, a private-equity stake): they printed their whole value as a quantity at 1,0000 € and a «+0,00 €» gain that measured nothing; they now print «—» there, «valore a mano dal 12/08» under the name, and no G/P.
 - Fixed the sale note of «Quanto costa vendere» in target mode, which re-read the gross value typed as a net proceed and added the tax on top.
 - Fixed account balances moving by fractions of a cent on a trade or a dividend whose computed amount had more than two decimals: what reaches an account is rounded to the cent, as the bank does, while the record keeps its exact value.
@@ -267,6 +271,8 @@
 - Improved Impostazioni on a phone: every button, row action and link in the page is at least 44 px tall to the touch, «Ripristina default» has a name when it shows only its icon, and the Preferenze tab places its short tiles beside the tall one instead of leaving them half empty.
 
 ## 📚 Documentation
+
+- The Cashflow guide records that a transfer's fee is an entry of its own and that a mortgage instalment repays its property by the principal, stored on the entry; the browser-test guide records what differs in a cloud container.
 
 - The Hall of Fame guide records the three stored fields, the note prefilled from a row, the tiles' vocabulary and the page's Playwright locators; the Impeccable critique of Hall of Fame (26/40) is committed and closed, the page has its first browser tests on a fixture account with a four-year history, and the design sidecar is back in step with DESIGN.md.
 - The Impostazioni guide records the save state per tab, the target rules that say where they failed, the failed reads that are never an empty list and the two-press confirms without a timer; the Impeccable critique of Impostazioni (23/40) is committed and closed, and the page has its first browser tests.

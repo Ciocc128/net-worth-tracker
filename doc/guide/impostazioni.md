@@ -113,6 +113,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   2026-09-22 when they moved into the Auto-calcolo tile; the default debit/credit accounts sit in `speseSnapshotKey`
   because Spese edits them. Get this wrong and the dot lands on the wrong tab, or on none, over an edited field.
 - `cashflowHistoryStartYear` is shared (Cashflow / Storico / Assistant / overview) — never rename it page-specifically.
+- **«Commissioni sui trasferimenti»** (Spese, 2026-09-25): `transferFeeCategoryId` / `transferFeeSubCategoryId`, both
+  user-clearable (`'x' in settings` in both `setSettings` branches), in the `spese` snapshot, read ONLY by the expense
+  form (no server mapper). The Select lists the spending categories grouped by type — the fee row takes the category's
+  type. `e2e/cashflow.transfer-fee.spec.ts` is the one spec that WRITES this page's settings: it picks the category,
+  presses «Salva», reloads, and restores the WHOLE settings document in `afterAll`: «Salva» rewrites every field the page
+  holds, and on the base seed it drops the allocation sub-targets (the seed's shape is not the page's), so restoring the
+  two fee fields alone left `e2e/allocation.spec.ts` with no class row to open (seen red in the full run, 2026-09-25).
 
 ## Per-page blind spots
 

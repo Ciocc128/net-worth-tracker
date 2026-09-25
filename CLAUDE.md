@@ -13,25 +13,21 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **200 files / 4640 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **36 Playwright spec files** (124 tests, incl. 6 auth setups; last full run 2026-09-24, fork after the fifth upstream merge, 3,5 min: 122 green, the two reds intermittent — see Known Issues). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-24, fork): **Quinto riallineamento a upstream (#379–#389) sopra `origin/main`**. Upstream vince nel
-  merito; il fork tiene i suoi lati (doc/guide/fork-scelte-ui.md § 1): i colori di scenario FIRE restano
-  `SCENARIO_COLOR` anche nei nuovi istogrammi (`HistogramBars` su `--scenario-base`) e il Dettaglio su `--flow-in/out`;
-  in Impostazioni il colore del ruolo 50/30/20 passa nel `CategoryRow` di upstream, Allocazione ideale entra nello
-  stato «non salvato» per tab, e la frase 50/30/20 dice «non letti» quando le categorie non si leggono. Hall of Fame:
-  preso il rimedio di upstream al troncamento (la divergenza del fork è ritirata). La **roadmap** del 22/09 ora vive in
-  fork-scelte-ui.md § 3 (prossimo passo: PR A, il Piano con leva). Collaudo: `tsc` 0, ESLint 0, Vitest 200 file /
-  4640 nei due fusi, build verde, Playwright 122/124 (due intermittenti), sonda Playwright sullo specchio a 1440 e
-  390 e giro guidato confermato dal proprietario il 2026-09-24.
-- Latest upstream (2026-09-24, sera): **Hall of Fame — critique Impeccable (26/40) chiusa.** Il periodo non si tronca
-  più («2026 · ORA», un `min-w-` e mai un tetto), articoli da `articleForPercent`/`pluralArticleFor`, la tessera non
-  ripete la cifra del verdetto, l'asse dei 12 record con l'anno, la nota precompilata DALLA RIGA (`NotePrefill`), il
-  footer Record chiude sulla ripresa (`stats.sinceWorstMonth`), il primo anno parziale dichiarato
-  (`YearlyRecord.monthsCovered`). Nuovo fixture `hof@example.com` (`scripts/seedHallOfFameE2E.mts`,
-  `e2e/hall-of-fame.hof{,.mobile}.spec.ts`). Prima, nella stessa serie (#379–#387): critique di Divisione, FIRE, Coast
-  FIRE e Impostazioni (lettura fallita ≠ lista vuota, stato di salvataggio per tab, `allocationTargetValidation.ts`),
-  la vista Distribuzione e il numero FIRE onesto (pensioni e tassa sui prelievi, `withdrawalTax.ts`).
-  doc/guide/hall-of-fame.md, fire.md, impostazioni.md.
+- `tsc` clean; **204 files / 4708 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **38 Playwright spec files** (132 tests, incl. 6 auth setups; last full run 2026-09-25, fork after the sixth upstream merge, 3,8 min: 132 green — the two intermittents of Known Issues passed). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25, fork): **Sesto riallineamento a upstream (#392–#393) sopra `origin/main`**, solo il merge (il
+  passo 2 della roadmap, doc/guide/fork-scelte-ui.md § 3, apre la prossima sessione con Accumulo e Composizione
+  ideale). Nessun lato del fork in gioco nel codice: due conflitti additivi (`settingsRoundTrip`: `idealAllocation` del
+  fork più i due `transferFee*`; questo file); in Impostazioni › Spese la tessera «Commissioni sui trasferimenti» entra
+  nello stato «non salvato» del tab. La PR A (#391) non è ancora fusa upstream. Collaudo: `tsc` 0, ESLint 0, Vitest 204
+  file / 4708 nei due fusi, build verde, Playwright 132/132.
+- Latest upstream (2026-09-25): **Cashflow — la commissione di un trasferimento e la rata del mutuo.** (1)
+  «Commissione» su un Trasferimento: una spesa PROPRIA nella categoria di Impostazioni › Spese
+  (`transferFeeCategoryId`), sul conto di origine alla data del trasferimento, legata nei due sensi, creata, modificata
+  ed eliminata col trasferimento (`lib/utils/transferFee.ts`). (2) Una voce Debito può ridurre il debito di un immobile
+  della sola QUOTA CAPITALE, `rata − debito × TAN / 12` (`debtInterestRate`, salvata in `debtPrincipalRepaid`), nel
+  giorno della rata come il `balancePending` del conto (`lib/utils/mortgageRepayment.ts`,
+  `lib/services/debtRepaymentService.ts`, `settleDueBalances`). Spec `e2e/cashflow.{transfer-fee,mortgage}.spec.ts`;
+  doc/guide/cashflow.md, e2e-emulatori.md; la verifica per esteso nel messaggio di `b9a50bfc`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -49,7 +45,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
 - **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
 - **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
-- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
+- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, a transfer's fee as its own row, a mortgage instalment repaying its property's principal, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
 - **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
@@ -115,6 +111,8 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
   height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
   so not yet fixed — re-read this before trusting a single red run of it.
+- **Four base specs are red in the cloud container only** (2026-09-25): its Chromium groups four-digit euros («1.100 €»),
+  the specs expect «1100 €» as on the Mac (doc/guide/e2e-emulatori.md). Read the received text before «fixing» code.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 - **Two shared primitives stay below 44px on touch, on every page**: the `PageTabBar` pill below 1440 (inactive tabs
   38×32, icon only) and the `Switch` (36×20; its row's `Label` is clickable, the thumb alone is not). Measured on

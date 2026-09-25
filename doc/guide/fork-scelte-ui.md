@@ -8,7 +8,8 @@ the artifact «Carta del tema Lime Frost». Dates are 2026.
 
 Branch: `feat/ui-lime-frost-agentation` (theme + 50/30/20 + third upstream merge `79816d1` + the 2026-09-15 passes),
 merged into `main` with PR #3; fourth upstream merge (#364–#378) on `merge/upstream-2026-09-21` (PR #9); fifth
-(#379–#389) on `merge/upstream-2026-09-24`, over `origin/main`.
+(#379–#389) on `merge/upstream-2026-09-24`, over `origin/main`; sixth (#392–#393, transfer fee and mortgage principal —
+no fork-side conflict in code) on `merge/upstream-2026-09-25`.
 
 ---
 
@@ -89,7 +90,8 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    split by composition across its classes, a same-class swap as two moves, the first-trade guard NOT bundled (its own
    PR), and the fork WAITS for upstream's merge — at that realignment `InstrumentTradeList.tsx` conflicts (deleted
    upstream, modified here): take the deletion, and bring «Mostra tutte» to the tree only if the Piano grows too tall.
-2. **Fork UI** (fork branch → fork main): staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
+2. **Fork UI** (fork branch → fork main). **09-25**: the owner chose to open it with Allocazione's Accumulo and
+   Composizione ideale, the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
    (neutral class colours, not Lime tokens, so it can travel in PR C); Flusso «Per tipo» on a phone, designed
    upstream-neutral (PR B needs it). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
    (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles.
