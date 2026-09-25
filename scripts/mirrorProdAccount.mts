@@ -31,8 +31,8 @@ const EMULATOR_ENV = {
   FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
   GCLOUD_PROJECT: 'demo-net-worth',
 };
-const USER_COLLECTIONS = ['assets', 'expenses', 'expenseCategories', 'monthly-snapshots', 'assetTransactions', 'pensionContributions', 'dividends', 'costCenters', 'goals', 'assistantThreads'];
-const PER_USER_DOCS = ['users', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'performance-cache', 'exposure-cache', 'dashboardOverviewSummaries'];
+const USER_COLLECTIONS = ['assets', 'expenses', 'expenseCategories', 'monthly-snapshots', 'assetTransactions', 'pensionContributions', 'dividends', 'costCenters', 'goals', 'assistantThreads', 'accumulationPlans'];
+const PER_USER_DOCS = ['users', 'assetAllocationTargets', 'assetTransactionsMeta', 'budgets', 'hall-of-fame', 'userPreferences', 'performance-cache', 'exposure-cache', 'dashboardOverviewSummaries'];
 
 type AnyRecord = Record<string, unknown>;
 const [command, argument] = process.argv.slice(2);

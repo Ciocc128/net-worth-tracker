@@ -13,7 +13,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { Asset, AssetAllocationTarget, AssetClass, IdealAllocationSettings } from '@/types/assets';
 import type { AccumulationPlanDraft, OptimizerSnapshot } from '@/types/accumulationPlan';
-import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import {
   findSecondLevelGaps,
   hasSpecificAssetTargets,
@@ -25,7 +24,7 @@ import { calculateAssetValue } from '@/lib/services/assetService';
 import { resolvePositionStates, unitPriceEur, type PlanDeps } from '@/lib/utils/accumulationPlanUtils';
 import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
 import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
-import { describeIdealAllocation } from '@/lib/utils/settingsNarrative';
+import { buildIdealAllocationInput, describeIdealAllocation } from '@/lib/utils/settingsNarrative';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import {
   describeOptimizerMode,
@@ -91,7 +90,7 @@ export function OptimizerPanel({
     return states.reduce((sum, s) => sum + s.currentValueEur, 0) + liquidityL;
   }, [draft.positions, assetsById, liquidityL]);
 
-  const { geographyProfile, referenceCountries, referenceAreas, referenceEstimatedShare } =
+  const { referenceCountries, referenceAreas, referenceEstimatedShare } =
     useOptimizerGeographyReference(idealAllocation);
 
   const result: OptimizerResult | null = useMemo(() => {
@@ -141,22 +140,7 @@ export function OptimizerPanel({
     );
   }
 
-  const readingInput = {
-    enabled: idealAllocation.enabled,
-    classPriority: idealAllocation.classPriority,
-    leveragePriority: idealAllocation.leveragePriority,
-    targetLeverageRatio,
-    factorObjectives: idealAllocation.factorObjectives.map((f) => ({
-      classLabel: ASSET_CLASS_LABELS[f.assetClass] ?? f.assetClass,
-      priority: f.priority,
-    })),
-    geography: idealAllocation.geography?.enabled
-      ? {
-          referenceIndexLabel: geographyProfile?.label ?? idealAllocation.geography.referenceIndexId,
-          priority: idealAllocation.geography.priority,
-        }
-      : null,
-  };
+  const readingInput = buildIdealAllocationInput(idealAllocation, targetLeverageRatio);
 
   const labelOf = (key: string): string => draft.positions.find((p) => p.id === key)?.label ?? key;
 

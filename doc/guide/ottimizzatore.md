@@ -37,6 +37,15 @@ motivo per cui non può («Hai già un piano aperto»). I pesi restano modificab
 l'ottimizzatore non scrive mai da solo, propone soltanto (stessa filosofia del matching col ledger,
 doc/guide/accumulo.md § Abbinamento).
 
+**Le parole degli obiettivi hanno UNA sorgente** (`buildIdealAllocationInput` in `settingsNarrative.ts`,
+2026-09-25): Impostazioni, il pannello Ottimizzato del PAC, `ComposizioneIdealeTile` e il suo dialog ne
+costruivano ciascuno una copia a mano, e le due di Allocazione stampavano l'id dell'indice
+(«geografia come wt-global-efficient-core») invece del suo nome curato. Le frasi sono due, sulla
+stessa lista: `describeIdealAllocation` («Il PAC può proporre i pesi da N obiettivi…», Impostazioni e
+PAC) e `describeIdealComposition` («Il portafoglio che rispetta meglio i tuoi N obiettivi, strumento
+per strumento…», lo strumento a sé, che non è il PAC — parole del proprietario). Il tile sta nella
+colonna destra di Allocazione, sotto il Piano (doc/guide/allocazione.md).
+
 **Un avviso preventivo, non un blocco**: `findSecondLevelGaps` (stessa normalizzazione di
 `calculateCurrentAllocationSnapshot`, `sub?.trim() || NO_SUBCATEGORY_LABEL`) elenca gli strumenti
 tradable/frozen di valore positivo senza una sottocategoria riconosciuta dalla classe, mostrato sia

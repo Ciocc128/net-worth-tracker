@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { Asset, AssetAllocationTarget, AssetClass, IdealAllocationSettings } from '@/types/assets';
 import type { PlanPosition, OptimizerSnapshot } from '@/types/accumulationPlan';
-import { ASSET_CLASS_LABELS, resolveAllocationRole } from '@/lib/utils/allocationUtils';
+import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import {
   buildStandaloneCandidates,
   findSecondLevelGaps,
@@ -29,7 +29,7 @@ import { calculateAssetValue } from '@/lib/services/assetService';
 import { useInstrumentProfiles } from '@/lib/hooks/useInstrumentProfiles';
 import { useOptimizerGeographyReference } from '@/lib/hooks/useOptimizerGeographyReference';
 import { useAccumulationPlans, selectOpenPlan } from '@/lib/hooks/useAccumulationPlan';
-import { describeIdealAllocation } from '@/lib/utils/settingsNarrative';
+import { buildIdealAllocationInput, describeIdealComposition } from '@/lib/utils/settingsNarrative';
 import { formatPercentageIt } from '@/lib/utils/formatters';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import {
@@ -158,22 +158,7 @@ export function IdealCompositionDialog({
   const plansQuery = useAccumulationPlans(ownerId);
   const openPlan = selectOpenPlan(plansQuery.data);
 
-  const readingInput = {
-    enabled: idealAllocation.enabled,
-    classPriority: idealAllocation.classPriority,
-    leveragePriority: idealAllocation.leveragePriority,
-    targetLeverageRatio,
-    factorObjectives: idealAllocation.factorObjectives.map((f) => ({
-      classLabel: ASSET_CLASS_LABELS[f.assetClass] ?? f.assetClass,
-      priority: f.priority,
-    })),
-    geography: idealAllocation.geography?.enabled
-      ? {
-          referenceIndexLabel: idealAllocation.geography.referenceIndexId,
-          priority: idealAllocation.geography.priority,
-        }
-      : null,
-  };
+  const readingInput = buildIdealAllocationInput(idealAllocation, targetLeverageRatio);
 
   const labelOf = (key: string): string => standalone.positions.find((p) => p.key === key)?.label ?? key;
 
@@ -202,7 +187,7 @@ export function IdealCompositionDialog({
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             {OPTIMIZER_OBJECTIVES_TITLE}
           </p>
-          <NarrativeText segments={describeIdealAllocation(readingInput)} className="text-[13px] text-foreground" />
+          <NarrativeText segments={describeIdealComposition(readingInput)} className="text-[13px] text-foreground" />
           <Link href="/dashboard/settings?tab=allocazione" className="mt-1.5 inline-block text-[11px] underline underline-offset-2">
             {OPTIMIZER_ACTION_MODIFY_IN_SETTINGS}
           </Link>

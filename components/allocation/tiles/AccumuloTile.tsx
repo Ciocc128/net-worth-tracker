@@ -32,6 +32,7 @@ import {
   projectPlanOutcome,
   projectClassTrajectory,
   resolvePositionStates,
+  selectClassStripRows,
   toMonthKey,
   unitPriceEur,
   type PlanDeps,
@@ -41,6 +42,7 @@ import { getItalyDateIso } from '@/lib/utils/dateHelpers';
 import { compareAllocations } from '@/lib/services/assetAllocationService';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import { getAssetClassCssVar } from '@/lib/constants/colors';
 import {
   selectOpenPlan,
   useAccumulationPlans,
@@ -65,6 +67,7 @@ import { NarrativeText } from '@/components/ui/narrative-text';
 import { AccumulationPlanDialog } from '@/components/allocation/AccumulationPlanDialog';
 import { AccumulationCalendarDialog } from '@/components/allocation/AccumulationCalendarDialog';
 import { AccumulationRecalibrateDialog } from '@/components/allocation/AccumulationRecalibrateDialog';
+import { TargetTick } from '@/components/allocation/TargetTick';
 import { describeReadFailure } from '@/lib/utils/statesNarrative';
 import { cachedFormatCurrencyEUR, formatNumberIt } from '@/lib/utils/formatters';
 import { armedActionLabel, describeWriteError } from '@/lib/utils/dialogNarrative';
@@ -89,6 +92,8 @@ import {
   ACCUMULO_ACTION_STOP_VERB,
   ACCUMULO_ACTION_UNDO_EXECUTED,
   ACCUMULO_ACTION_UNLINK,
+  ACCUMULO_CLASS_STRIP_LEGEND,
+  ACCUMULO_CLASS_STRIP_TITLE,
   ACCUMULO_DISPOSALS_SECTION_TITLE,
   ACCUMULO_DONE_BOX_DRIFT,
   ACCUMULO_DONE_BOX_EXECUTED,
@@ -126,6 +131,16 @@ interface AccumuloTileProps {
 }
 
 const DEPS: PlanDeps = { valueOf: calculateAssetValue, priceOf: unitPriceEur };
+
+/** Every button of the tile: 44px on touch, the dense 32px from `desktop:` (AGENTS.md → Accessibility). */
+const TILE_ACTION_CLASS = 'h-11 text-[12px] desktop:h-8';
+/** A row's action: the same floor, a tighter label. */
+const ROW_ACTION_CLASS = 'h-11 shrink-0 px-3 text-[12px] desktop:h-8 desktop:px-2 desktop:text-[11px]';
+/** Undoing a closed line («Scollega», «Segna da rifare») is rare and asks nothing of the reader:
+ *  a ghost, so a column of seven executed lines does not read as seven calls to action. */
+// The negative right margin lines the ghost's LABEL up with the state above it (a ghost has no
+// edge of its own, so its padding read as a stray indent at 390).
+const ROW_UNDO_CLASS = `${ROW_ACTION_CLASS} -mr-3 text-muted-foreground desktop:-mr-2`;
 
 /** A dismissed `toConfirm` match falls back to what its raw state would be without a match — the
  *  dismissal is never written (see the file header), so it only affects THIS render. */
@@ -325,7 +340,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
     return (
       <>
         <Tile eyebrow={ACCUMULO_TILE_EYEBROW} reading={describeAccumulationNone(sourceCashEur)}>
-          <Button className="mt-3.5 w-fit" disabled={isDemo || !targets} onClick={() => setPlanDialogOpen(true)}>
+          <Button className={`mt-3.5 w-fit ${TILE_ACTION_CLASS}`} disabled={isDemo || !targets} onClick={() => setPlanDialogOpen(true)}>
             {ACCUMULO_ACTION_CREATE_PLAN}
           </Button>
         </Tile>
@@ -381,18 +396,18 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
             <Button
               ref={deleteDraftRef}
               variant="outline"
-              className="h-8 text-[12px]"
+              className={TILE_ACTION_CLASS}
               disabled={isDemo}
               onClick={deleteDraftArmed.onClick}
               onBlur={deleteDraftArmed.onBlur}
             >
               {deleteDraftArmed.armed ? armedActionLabel(ACCUMULO_ACTION_DELETE_DRAFT_VERB) : ACCUMULO_ACTION_DELETE_DRAFT}
             </Button>
-            <Button variant="outline" className="h-8 text-[12px]" onClick={() => setPlanDialogOpen(true)}>
+            <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => setPlanDialogOpen(true)}>
               {ACCUMULO_ACTION_EDIT}
             </Button>
             <Button
-              className="h-8 text-[12px]"
+              className={TILE_ACTION_CLASS}
               disabled={isDemo || !targets || draftIssues.length > 0}
               onClick={() => void handleActivate()}
             >
@@ -448,12 +463,12 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
             <DraftBox label={ACCUMULO_DONE_BOX_DRIFT} value={formatNumberIt(avgAbsDrift, 1) + ' pp'} />
           </div>
           <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-3.5">
-            <Button variant="outline" className="h-8 text-[12px]" onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
+            <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
             </Button>
             <Button
               ref={closeRef}
-              className="h-8 text-[12px]"
+              className={TILE_ACTION_CLASS}
               disabled={isDemo}
               onClick={closeArmed.onClick}
               onBlur={closeArmed.onBlur}
@@ -492,35 +507,32 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
     : 0;
 
   const clampedIndex = Math.min(currentIndex, plan.months);
-  const currentPoint = trajectory.find((p) => p.index === clampedIndex);
-  const finalPoint = trajectory[trajectory.length - 1];
 
-  const classStrip = currentPoint
-    ? Object.entries(currentPoint.byClass).map(([assetClass, data]) => {
-        const finalDriftPp = finalPoint?.byClass[assetClass as keyof typeof finalPoint.byClass]?.driftPp ?? data.driftPp;
-        let reentersAt: string | undefined;
-        if (data.outOfBand) {
-          const reentry = trajectory.find((p) => p.index > clampedIndex && !p.byClass[assetClass as keyof typeof p.byClass]?.outOfBand);
-          if (reentry) reentersAt = monthLabelLong(reentry.month === 'baseline' ? plan.startMonth : reentry.month, false);
-        }
-        return describeClassStripItem({
-          label: ASSET_CLASS_LABELS[assetClass] ?? assetClass,
-          currentPct: data.currentPct,
-          targetPct: data.targetPct,
-          currentDriftPp: data.driftPp,
-          finalDriftPp,
-          outOfBandNow: data.outOfBand,
-          reentersAt,
-        });
-      })
-    : [];
+  // The strip's rows and the reading's «furthest drift» come from the SAME list, dormant classes
+  // already out (`selectClassStripRows`), so the two can never name different classes.
+  const classRows = selectClassStripRows(trajectory, clampedIndex);
+  const classStrip = classRows.map((row) => ({
+    row,
+    item: describeClassStripItem({
+      label: ASSET_CLASS_LABELS[row.assetClass] ?? row.assetClass,
+      currentPct: row.currentPct,
+      targetPct: row.targetPct,
+      currentDriftPp: row.currentDriftPp,
+      finalDriftPp: row.finalDriftPp,
+      outOfBandNow: row.outOfBandNow,
+      reentersAt: row.reentryMonth
+        ? monthLabelLong(row.reentryMonth === 'baseline' ? plan.startMonth : row.reentryMonth, false)
+        : undefined,
+    }),
+  }));
 
-  const furthestDrift = classStrip.length > 0
-    ? classStrip.reduce((worst, item, i) => {
-        const driftAbs = Math.abs(Object.values(currentPoint!.byClass)[i]?.driftPp ?? 0);
-        return driftAbs > worst.abs ? { abs: driftAbs, label: item.label, deltaPp: Object.values(currentPoint!.byClass)[i]?.driftPp ?? 0 } : worst;
-      }, { abs: -1, label: '', deltaPp: 0 })
-    : null;
+  const furthestDrift = classRows.reduce<{ label: string; deltaPp: number } | null>(
+    (worst, row) =>
+      worst === null || Math.abs(row.currentDriftPp) > Math.abs(worst.deltaPp)
+        ? { label: ASSET_CLASS_LABELS[row.assetClass] ?? row.assetClass, deltaPp: row.currentDriftPp }
+        : worst,
+    null,
+  );
 
   const belowReserve = plan.liquidity.reserveEur > 0 && sourceCashEur < plan.liquidity.reserveEur;
 
@@ -540,7 +552,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
           lineCount: currentLines.length,
           executedCount,
           todoCount,
-          furthestDrift: furthestDrift && furthestDrift.abs >= 0 ? { label: furthestDrift.label, deltaPp: furthestDrift.deltaPp } : null,
+          furthestDrift,
         })}
       >
         {belowReserve && (
@@ -552,7 +564,9 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
           </p>
         )}
 
-        {/* Months bar (§10.2 point 3): one 3px segment per month. */}
+        {/* Months bar (§10.2 point 3): one 3px segment per month. A closed month takes the theme's
+            progress fill (`--progress-fill`, the foreground by default, mid slate in Lime Frost —
+            «no near-black bar anywhere», doc/guide/fork-scelte-ui.md § 2). */}
         <div className="mt-3 flex gap-[3px]" role="img" aria-label={describeMonthsBarCaption({ startMonth: plan.startMonth, endMonth: plan.installments[plan.installments.length - 1]?.month ?? plan.startMonth, closedCount: monthsClosed, totalMonths: plan.months })}>
           {plan.installments.map((installment) => {
             const hasLate = installment.index < currentIndex && installment.lines.some((line) => line.status === 'planned');
@@ -561,7 +575,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
             return (
               <div
                 key={installment.index}
-                className={`h-[3px] flex-1 rounded-full ${hasLate ? 'bg-destructive' : closed ? 'bg-foreground' : isCurrent ? 'bg-muted-foreground/60' : 'bg-muted'}`}
+                className={`h-[3px] flex-1 rounded-full ${hasLate ? 'bg-destructive' : closed ? 'bg-[var(--progress-fill)]' : isCurrent ? 'bg-muted-foreground/60' : 'bg-muted'}`}
               />
             );
           })}
@@ -570,8 +584,15 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
           {describeMonthsBarCaption({ startMonth: plan.startMonth, endMonth: plan.installments[plan.installments.length - 1]?.month ?? plan.startMonth, closedCount: monthsClosed, totalMonths: plan.months })}
         </p>
 
+        {/* Two columns when the TILE is wide enough (a container query: on the page the tile sits in
+            a 470px column at 1440 and full width on a tablet, so the viewport says nothing): what
+            to DO this month (the lines, then the disposals) on the left, where the plan takes each
+            CLASS on the right. Narrower, the strip follows the lines. */}
+        <div className="@container mt-3">
+        <div className="grid grid-cols-1 gap-y-4 @[720px]:grid-cols-12 @[720px]:gap-x-8">
+        <div className="min-w-0 @[720px]:col-span-7">
         {/* Lines of the current installment, late lines first (§10.2 point 4). */}
-        <ul className="mt-3 divide-y divide-border">
+        <ul className="divide-y divide-border">
           {[...lateLines.map(({ installment, line }) => ({ installmentIndex: installment.index, line })), ...currentLines.map((line) => ({ installmentIndex: currentIndex, line }))].map(
             ({ installmentIndex, line }) => {
               const key = `${installmentIndex}:${line.positionId}`;
@@ -582,23 +603,29 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
               const asset = assetsById.get(line.assetId);
               return (
                 <li key={key} className="py-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 flex-1 text-[13px] text-foreground">
-                      {plan.positions.find((p) => p.id === line.positionId)?.label ?? asset?.name ?? line.positionId}
-                      {asset && <span className="ml-1 text-[11px] text-muted-foreground">· {getAssetDisplayTicker(asset)}</span>}
-                      <span className="ml-2 font-mono text-[11px] tabular-nums text-muted-foreground">
+                  {/* The name takes the room and wraps (never cut — fork-scelte-ui.md § 1); the state
+                      and its actions stack at the right on a phone and sit in one line from
+                      `desktop:`. A wrapping row put «Scollega» on a line of its own at 390. */}
+                  <div className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 break-words text-[13px] text-foreground">
+                        {plan.positions.find((p) => p.id === line.positionId)?.label ?? asset?.name ?? line.positionId}
+                      </span>
+                      <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
+                        {asset && `${getAssetDisplayTicker(asset)} · `}
                         {formatNumberIt(line.plannedQuantity, 0)} · {cachedFormatCurrencyEUR(line.plannedAmountEur)}
                       </span>
                     </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
                     <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
                     {!isDemo && status === 'toConfirm' && match && (
                       <span className="flex shrink-0 gap-1.5">
-                        <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
+                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void confirmMatch(installmentIndex, line.positionId, match)}>
                           {ACCUMULO_ACTION_CONFIRM}
                         </Button>
                         <Button
                           variant="outline"
-                          className="h-7 px-2 text-[11px]"
+                          className={ROW_ACTION_CLASS}
                           onClick={() => setIgnoredMatches((prev) => new Set(prev).add(key))}
                         >
                           {ACCUMULO_ACTION_IGNORE_MATCH}
@@ -609,7 +636,7 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
                       <span className="flex shrink-0 gap-1.5">
                         <Button
                           variant="outline"
-                          className="h-7 px-2 text-[11px]"
+                          className={ROW_ACTION_CLASS}
                           onClick={() =>
                             setManualLine({
                               installmentIndex,
@@ -621,41 +648,42 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
                         >
                           {ACCUMULO_ACTION_MARK_EXECUTED}
                         </Button>
-                        <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void setStatus(installmentIndex, line.positionId, 'skipped')}>
+                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void setStatus(installmentIndex, line.positionId, 'skipped')}>
                           {ACCUMULO_ACTION_SKIP}
                         </Button>
                       </span>
                     )}
                     {!isDemo && status === 'executed' && !!line.transactionIds?.length && (
-                      <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void unlinkLine(installmentIndex, line.positionId)}>
+                      <Button variant="ghost" className={ROW_UNDO_CLASS} onClick={() => void unlinkLine(installmentIndex, line.positionId)}>
                         {ACCUMULO_ACTION_UNLINK}
                       </Button>
                     )}
                     {!isDemo && status === 'executed' && !line.transactionIds?.length && (
-                      <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void setStatus(installmentIndex, line.positionId, 'planned')}>
+                      <Button variant="ghost" className={ROW_UNDO_CLASS} onClick={() => void setStatus(installmentIndex, line.positionId, 'planned')}>
                         {ACCUMULO_ACTION_UNDO_EXECUTED}
                       </Button>
                     )}
                     {!isDemo && status === 'lostLink' && (
-                      <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => openCalendarOn(installmentIndex)}>
+                      <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => openCalendarOn(installmentIndex)}>
                         {ACCUMULO_ACTION_REVIEW}
                       </Button>
                     )}
+                  </div>
                   </div>
                   {isManual && (
                     <div className="mt-1.5 flex items-end gap-2 rounded-lg bg-muted p-2.5">
                       <label className="flex-1 text-[11px] text-muted-foreground">
                         {ACCUMULO_MANUAL_QUANTITY_LABEL}
-                        <Input type="number" value={manualLine.qty} onChange={(event) => setManualLine({ ...manualLine, qty: event.target.value })} className="mt-1 h-8 font-mono" />
+                        <Input type="number" value={manualLine.qty} onChange={(event) => setManualLine({ ...manualLine, qty: event.target.value })} className="mt-1 h-11 font-mono desktop:h-8" />
                       </label>
                       <label className="flex-1 text-[11px] text-muted-foreground">
                         {ACCUMULO_MANUAL_AMOUNT_LABEL}
-                        <Input type="number" value={manualLine.amount} onChange={(event) => setManualLine({ ...manualLine, amount: event.target.value })} className="mt-1 h-8 font-mono" />
+                        <Input type="number" value={manualLine.amount} onChange={(event) => setManualLine({ ...manualLine, amount: event.target.value })} className="mt-1 h-11 font-mono desktop:h-8" />
                       </label>
-                      <Button variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setManualLine(null)}>
+                      <Button variant="ghost" className={ROW_ACTION_CLASS} onClick={() => setManualLine(null)}>
                         {ACCUMULO_ACTION_CANCEL}
                       </Button>
-                      <Button className="h-8 px-2 text-[11px]" onClick={() => void saveManual()}>
+                      <Button className={ROW_ACTION_CLASS} onClick={() => void saveManual()}>
                         {ACCUMULO_ACTION_SAVE}
                       </Button>
                     </div>
@@ -680,23 +708,24 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
                 const asset = assetsById.get(disposal.assetId);
                 return (
                   <li key={key} className="py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="min-w-0 flex-1 text-[13px] text-foreground">
-                        {asset?.name ?? disposal.assetId}
-                        {asset && <span className="ml-1 text-[11px] text-muted-foreground">· {getAssetDisplayTicker(asset)}</span>}
-                        <span className="ml-2 font-mono text-[11px] tabular-nums text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-2 break-words text-[13px] text-foreground">{asset?.name ?? disposal.assetId}</span>
+                        <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-muted-foreground">
+                          {asset && `${getAssetDisplayTicker(asset)} · `}
                           {cachedFormatCurrencyEUR(disposal.executedAmountEur ?? disposal.estimatedProceedsEur)}
                         </span>
                       </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1 desktop:flex-row desktop:items-center desktop:gap-3">
                       <span className="shrink-0 text-[11px] text-muted-foreground">{ACCUMULO_LINE_STATUS_LABEL[status]}</span>
                       {!isDemo && status === 'toConfirm' && match && (
                         <span className="flex shrink-0 gap-1.5">
-                          <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
+                          <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void confirmDisposalMatch(disposal.assetId, match)}>
                             {ACCUMULO_ACTION_CONFIRM}
                           </Button>
                           <Button
                             variant="outline"
-                            className="h-7 px-2 text-[11px]"
+                            className={ROW_ACTION_CLASS}
                             onClick={() => setIgnoredMatches((prev) => new Set(prev).add(key))}
                           >
                             {ACCUMULO_ACTION_IGNORE_MATCH}
@@ -707,32 +736,33 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
                         <span className="flex shrink-0 gap-1.5">
                           <Button
                             variant="outline"
-                            className="h-7 px-2 text-[11px]"
+                            className={ROW_ACTION_CLASS}
                             onClick={() => setManualDisposal({ assetId: disposal.assetId, amount: disposal.estimatedProceedsEur.toFixed(2) })}
                           >
                             {ACCUMULO_ACTION_MARK_EXECUTED}
                           </Button>
-                          <Button variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void setDisposalStatus(disposal.assetId, 'skipped')}>
+                          <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void setDisposalStatus(disposal.assetId, 'skipped')}>
                             {ACCUMULO_ACTION_SKIP}
                           </Button>
                         </span>
                       )}
                       {!isDemo && status === 'executed' && !!disposal.transactionIds?.length && (
-                        <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void unlinkDisposal(disposal.assetId)}>
+                        <Button variant="ghost" className={ROW_UNDO_CLASS} onClick={() => void unlinkDisposal(disposal.assetId)}>
                           {ACCUMULO_ACTION_UNLINK}
                         </Button>
                       )}
                       {!isDemo && status === 'executed' && !disposal.transactionIds?.length && (
-                        <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void setDisposalStatus(disposal.assetId, 'planned')}>
+                        <Button variant="ghost" className={ROW_UNDO_CLASS} onClick={() => void setDisposalStatus(disposal.assetId, 'planned')}>
                           {ACCUMULO_ACTION_UNDO_EXECUTED}
                         </Button>
                       )}
                       {/* lostLink: no Calendario surface for disposals — the only recovery is unlinking. */}
                       {!isDemo && status === 'lostLink' && (
-                        <Button variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void unlinkDisposal(disposal.assetId)}>
+                        <Button variant="outline" className={ROW_ACTION_CLASS} onClick={() => void unlinkDisposal(disposal.assetId)}>
                           {ACCUMULO_ACTION_UNLINK}
                         </Button>
                       )}
+                    </div>
                     </div>
                     {isManual && (
                       <div className="mt-1.5 flex items-end gap-2 rounded-lg bg-muted p-2.5">
@@ -742,13 +772,13 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
                             type="number"
                             value={manualDisposal.amount}
                             onChange={(event) => setManualDisposal({ ...manualDisposal, amount: event.target.value })}
-                            className="mt-1 h-8 font-mono"
+                            className="mt-1 h-11 font-mono desktop:h-8"
                           />
                         </label>
-                        <Button variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => setManualDisposal(null)}>
+                        <Button variant="ghost" className={ROW_ACTION_CLASS} onClick={() => setManualDisposal(null)}>
                           {ACCUMULO_ACTION_CANCEL}
                         </Button>
-                        <Button className="h-8 px-2 text-[11px]" onClick={() => void saveManualDisposal()}>
+                        <Button className={ROW_ACTION_CLASS} onClick={() => void saveManualDisposal()}>
                           {ACCUMULO_ACTION_SAVE}
                         </Button>
                       </div>
@@ -760,36 +790,59 @@ export function AccumuloTile({ ownerId, allAssets, targets, band, targetLeverage
           </div>
         )}
 
-        {/* Class strip (D11): the absolute weight vs target leads (mono, prominent), the drift
-            that tells the same story in pp trails smaller and muted (owner's call, 2026-09-20 —
-            was the reverse: drift led, the absolute values were never printed at all). */}
+        </div>
+
+        {/* Class strip (D11): one row per class the plan touches (dormant ones dropped by
+            `selectClassStripRows`) — name, today's share and the target on one line, the track
+            under it (fill = today, hairline = target, ring = end of the plan), the drift in pp as
+            the muted second figure. Amber marks only a class OUT of band now, on its drift line
+            and its re-entry month, never the whole row (owner's call, 2026-09-25). */}
         {classStrip.length > 0 && (
-          <ul className="mt-3 space-y-1">
-            {classStrip.map((item, i) => (
-              <li key={i} className="text-[11px]">
-                <span className={`font-mono tabular-nums ${item.outOfBandNow ? 'text-warning-foreground' : 'text-foreground'}`}>
-                  {item.primary}
-                </span>
-                <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{item.secondary}</span>
-                {item.note && <span className="ml-1.5 text-muted-foreground">({item.note})</span>}
-              </li>
-            ))}
-          </ul>
+          <div className="min-w-0 @[720px]:col-span-5 @[720px]:border-l @[720px]:border-border @[720px]:pl-8">
+            <p className={TILE_SUB_EYEBROW_CLASS}>{ACCUMULO_CLASS_STRIP_TITLE}</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">{ACCUMULO_CLASS_STRIP_LEGEND}</p>
+            <ul className="mt-2.5 space-y-3">
+              {classStrip.map(({ row, item }) => (
+                <li key={row.assetClass}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-[13px] text-foreground">{item.label}</span>
+                    <span className="shrink-0 font-mono text-[12px] tabular-nums">
+                      <span className="font-semibold text-foreground">{item.current}</span>
+                      <span className="ml-1.5 text-muted-foreground">{item.target}</span>
+                    </span>
+                  </div>
+                  <TargetTick
+                    className="mt-1"
+                    color={`var(--allocation-row-bar, var(${getAssetClassCssVar(row.assetClass)}))`}
+                    currentPercentage={row.currentPct}
+                    targetPercentage={row.targetPct}
+                    projectedPercentage={row.finalPct}
+                  />
+                  <p className={`mt-0.5 font-mono text-[10px] tabular-nums ${item.outOfBandNow ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                    {item.secondary}
+                    {item.note && <span className="font-sans"> · {item.note}</span>}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
+        </div>
+        </div>
 
         <div className="mt-auto border-t border-border pt-3.5">
           <NarrativeText segments={describeAccumulationOutcomeFooter({ maxDrift, residualEur: outcome.residualEur })} className="text-[11px] leading-[1.5] text-muted-foreground" />
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <Button variant="outline" className="h-8 text-[12px]" disabled={!currentInstallment} onClick={() => setRecalibrateIndex(currentIndex)}>
+            <Button variant="outline" className={TILE_ACTION_CLASS} disabled={!currentInstallment} onClick={() => setRecalibrateIndex(currentIndex)}>
               {ACCUMULO_ACTION_RECALIBRATE}
             </Button>
-            <Button variant="outline" className="h-8 text-[12px]" onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
+            <Button variant="outline" className={TILE_ACTION_CLASS} onClick={() => { setCalendarFocusIndex(undefined); setCalendarOpen(true); }}>
               {ACCUMULO_ACTION_CALENDAR}
             </Button>
             <Button
               ref={stopRef}
               variant="outline"
-              className="h-8 text-[12px]"
+              className={TILE_ACTION_CLASS}
               disabled={isDemo}
               onClick={stopArmed.onClick}
               onBlur={stopArmed.onBlur}

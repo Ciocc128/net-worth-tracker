@@ -26,6 +26,7 @@ Keep these on every merge; each one conflicted, or will conflict, with an upstre
 | **Phone 50/30/20 bar** | — | Shares on the **same base as the reading** (income + what the wealth covered = what left): 58/42, never 60/44 on income; the deficit is a red «entrate» line inside the bar, labelled under it | `SpendingRolesMobileFlow.tsx` |
 | **Category badge colours in Impostazioni** | The hue the user saved | With the 50/30/20 roles on, the **role's colour** (need · want · saving · unclassified; income the income flow); the saved hue appears nowhere else | `lib/utils/categoryIconStyle.ts` (`categoryRoleColor`), `app/dashboard/settings/page.tsx` |
 | **Deletes** | Upstream's armed delete, `outline` + red text | Upstream's armed flow kept, on the fork's `outlineDestructive` variant; Previdenza's bins appear on row hover on desktop | `components/assets/{AssetRow,CashAccountDialog}.tsx`, `components/pension/tiles/VersamentiTile.tsx`, `components/ui/button.tsx` |
+| **Allocazione grid** | 09-21: two columns at natural height (Bilanciamento + Per classe \| Piano), then Esposizione and Previdenza as full-width rows | 09-25: **two independent stacks, no full-width row** — Bilanciamento, Per classe, Accumulo \| Piano, Composizione ideale, Esposizione, Previdenza. The Piano's height swings with the mode and the instruments (381–1159px on the owner's account), and a full-width row under two columns left a 250–580px hole; in stacks only the page's bottom edge moves. Accumulo's and Previdenza's inner columns are container queries | `app/dashboard/allocation/page.tsx`, `components/allocation/tiles/{AccumuloTile,PrevidenzaTile}.tsx`, `e2e/allocation.spec.ts` |
 | **Liquidità (Patrimonio)** | «Mostra tutti» expanding the tile | Fixed-height list (5.5 rows as the scroll cue), flat divided rows | `components/assets/tiles/LiquiditaTile.tsx` |
 | **Type colour map** | One map, income dot/badge `bg-positive`, series on `--chart-2`/`--chart-1` | Same single map, reading the role tokens `--flow-in`/`--flow-out` (defaults = upstream's slots), income dot/badge on `--flow-in` (a type marker, not a verdict) | `lib/constants/expenseTypeColors.ts` |
 | **FIRE scenario colours** | Slots `--chart-5/1/2` per scenario; 09-24: the three histograms (`HistogramBars`) on `--chart-1`, Coast/FIRE target lines neutral | The same slots through `SCENARIO_COLOR` (`--scenario-bear/base/bull`, `:root` defaults = upstream's slots); `HistogramBars` on `--scenario-base`; the Dettaglio's income/spending lines on `--flow-in`/`--flow-out` | `lib/constants/scenarioColors.ts`, `components/fire-simulations/*`, `components/ui/histogram-bars.tsx` |
@@ -90,8 +91,12 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    split by composition across its classes, a same-class swap as two moves, the first-trade guard NOT bundled (its own
    PR), and the fork WAITS for upstream's merge — at that realignment `InstrumentTradeList.tsx` conflicts (deleted
    upstream, modified here): take the deletion, and bring «Mostra tutte» to the tree only if the Piano grows too tall.
+   **09-25: the owner pulled it into the fork before upstream's merge** — merged (not cherry-picked) into
+   `feat/allocazione-pac-composizione-ui`, so upstream's own merge will find the same commit `9486aa7f`. The deletion
+   taken; «Mostra tutte» NOT restored (owner: full height — in two stacks a tall Piano leaves no hole); the fork's
+   `line-clamp-2` kept on `MoveRow`. The Ribilancia is 1159px on the owner's account.
 2. **Fork UI** (fork branch → fork main). **09-25**: the owner chose to open it with Allocazione's Accumulo and
-   Composizione ideale, the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
+   Composizione ideale (done 09-25), the other items in later sessions: staggered tiles; Accumulo and Composizione ideale; Esposizione pie/donut
    (neutral class colours, not Lime tokens, so it can travel in PR C); Flusso «Per tipo» on a phone, designed
    upstream-neutral (PR B needs it). **Added 09-24**: the FIRE page in Lime Frost — the Distribuzione histograms
    (`HistogramBars` on `--scenario-base`), the Coast pace line, the scenario colours on the new tiles.
@@ -111,8 +116,12 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
 **Next UI session — the owner's list after the fourth upstream merge (2026-09-22):**
 - [ ] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)
   leave some tiles out of line with their neighbours — walk the pages at 1440 and 390 and name each one.
-- [ ] **Allocazione — the two fork features' UI**: Accumulo (PAC) and Composizione ideale were laid in as full-width
-  rows under upstream's new grid; review their look against the rest of the page and Lime Frost.
+- [x] **Allocazione — the two fork features' UI** (done 2026-09-25, branch `feat/allocazione-pac-composizione-ui`):
+  the page as two independent stacks (§ 1, «Allocazione grid»), Composizione ideale under the Piano, its reading its own («Il portafoglio che rispetta
+  meglio…») and the index by name; Accumulo in two columns from `desktop:` (lines | «Classi del piano»), the class
+  strip as rows with a track (today · target · end-of-plan ring, dormant classes dropped, amber only out of band),
+  44px targets on a phone, the undo actions as ghosts, the months bar on `--progress-fill`. doc/guide/accumulo.md
+  § Il tile attivo — forma.
 - [ ] **Esposizione on desktop is now full width**: enrich it with a pie/donut beside the ranked rows (one per view),
   using the space upstream gave it.
 - [ ] **Analisi › Flusso «Per tipo» on a phone is still a Sankey**, unreadable at 390 and with no insight (same item as
@@ -140,7 +149,7 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   label for two legs and for three or more («Azioni · Obbl.», «Misto»), the accessible name with the shares («Azioni
   60%, Obbligazioni 40%»), and a phone width that does not squeeze the name. Same look-through as Classi and the
   Piano (`assetClassLegs` in `assetDisplayClass.ts`), so the three surfaces tell one story.
-- [ ] **Piano on a leveraged portfolio misses upstream's 09-21 redesign** (#377) — **draft upstream PR #391**: with `targetLeverageRatio` the Piano
+- [x] **Piano on a leveraged portfolio misses upstream's 09-21 redesign** (#377) — **upstream PR #391, in the fork since 09-25** (merged ahead of upstream): with `targetLeverageRatio` the Piano
   takes the leverage engine's flat `InstrumentTrade` list (`view.trades`), so no class row with its instruments
   under it, no withholding estimate (`estimatePlanSaleTax` reads `PlanNode`s only, `allocazioneSummary.ts` ~457) and a
   GROSS withdrawal (`grossedUp: false`). Same gap in upstream's own code (its demo has no leverage, so it never shows).

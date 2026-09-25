@@ -185,6 +185,9 @@ export const ACCUMULO_ACTION_REVIEW = 'Rivedi';
 export const ACCUMULO_MANUAL_QUANTITY_LABEL = 'Quantità';
 export const ACCUMULO_MANUAL_AMOUNT_LABEL = 'Importo (€)';
 export const ACCUMULO_DISPOSALS_SECTION_TITLE = 'Vendite fuori piano';
+export const ACCUMULO_CLASS_STRIP_TITLE = 'Classi del piano';
+/** The key under the strip's title: what the fill, the hairline and the ring on each track are. */
+export const ACCUMULO_CLASS_STRIP_LEGEND = 'barra oggi · tacca target · anello a fine piano';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Tile readings
@@ -378,8 +381,10 @@ export interface ClassStripItemInput {
 
 export interface ClassStripItem {
   label: string;
-  /** «Azioni 98,6% · target 95,0%» — the absolute values, meant to read prominently. */
-  primary: string;
+  /** «98,6%» — the class's share today, the row's prominent figure. */
+  current: string;
+  /** «target 95,0%» — beside it, in the same mono column register. */
+  target: string;
   /** «+3,4 pp oggi → +1,3 pp a fine piano» — the same story as a relative delta, meant smaller. */
   secondary: string;
   /** «rientra in banda a giugno», only when `outOfBandNow` and a re-entry month is known. */
@@ -388,10 +393,11 @@ export interface ClassStripItem {
 }
 
 export function describeClassStripItem(input: ClassStripItemInput): ClassStripItem {
-  const primary = `${input.label} ${formatPercentageIt(input.currentPct, 1)} · target ${formatPercentageIt(input.targetPct, 1)}`;
+  const current = formatPercentageIt(input.currentPct, 1);
+  const target = `target ${formatPercentageIt(input.targetPct, 1)}`;
   const secondary = `${formatSignedPp(input.currentDriftPp)} oggi → ${formatSignedPp(input.finalDriftPp)} a fine piano`;
   const note = input.outOfBandNow && input.reentersAt ? `rientra in banda a ${input.reentersAt}` : undefined;
-  return { label: input.label, primary, secondary, note, outOfBandNow: input.outOfBandNow };
+  return { label: input.label, current, target, secondary, note, outOfBandNow: input.outOfBandNow };
 }
 
 export interface AccumulationOutcomeFooterInput {

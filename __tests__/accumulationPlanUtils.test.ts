@@ -16,6 +16,8 @@ import {
   addMonths,
   monthIndexOf,
   weightsToSeedPositions,
+  selectClassStripRows,
+  type ClassTrajectoryPoint,
   type PlanDeps,
 } from '@/lib/utils/accumulationPlanUtils';
 import type { AccumulationPlan, PlanPosition, PlanLiquidity, PlanDisposal } from '@/types/accumulationPlan';
@@ -379,5 +381,72 @@ describe('weightsToSeedPositions', () => {
   it('defaults to crypto.randomUUID when no generator is injected', () => {
     const positions = weightsToSeedPositions([{ key: 'a1', label: 'VWCE', proposedPct: 100 }]);
     expect(positions[0].id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('selectClassStripRows', () => {
+  type ClassData = NonNullable<ClassTrajectoryPoint['byClass']['equity']>;
+  const cls = (currentPct: number, targetPct: number, outOfBand = false): ClassData => ({
+    currentPct,
+    targetPct,
+    driftPp: currentPct - targetPct,
+    outOfBand,
+  });
+  const point = (index: number, month: ClassTrajectoryPoint['month'], byClass: ClassTrajectoryPoint['byClass']): ClassTrajectoryPoint => ({
+    index,
+    month,
+    source: index <= 1 ? 'measured' : 'projected',
+    byClass,
+  });
+
+  // Owner's shape (mirror, 2026-09-25): bonds out of band today and back in December, three
+  // classes the target document carries at 0% with nothing in them.
+  const trajectory: ClassTrajectoryPoint[] = [
+    point(0, 'baseline', { equity: cls(66, 70), bonds: cls(30, 23, true), realestate: cls(0, 0), cash: cls(0, 0), crypto: cls(0.01, 0) }),
+    point(1, '2026-09', { equity: cls(67.9, 70), bonds: cls(28.3, 23, true), realestate: cls(0, 0), cash: cls(0, 0), crypto: cls(0.01, 0) }),
+    point(2, '2026-10', { equity: cls(68.5, 70), bonds: cls(27, 23, true), realestate: cls(0, 0), cash: cls(0, 0), crypto: cls(0, 0) }),
+    point(3, '2026-11', { equity: cls(68.5, 70), bonds: cls(26, 23, true), realestate: cls(0, 0), cash: cls(0, 0), crypto: cls(0, 0) }),
+    point(4, '2026-12', { equity: cls(68.5, 70), bonds: cls(24.5, 23), realestate: cls(0, 0), cash: cls(0, 0), crypto: cls(0, 0) }),
+  ];
+
+  it('drops a class with no share, no target and none at the end of the plan', () => {
+    const rows = selectClassStripRows(trajectory, 1);
+
+    expect(rows.map((row) => row.assetClass)).toEqual(['equity', 'bonds']);
+  });
+
+  it('keeps a class that is empty today but holds a target', () => {
+    const withTarget = trajectory.map((p) => ({ ...p, byClass: { ...p.byClass, crypto: cls(0, 5, true) } }));
+
+    const rows = selectClassStripRows(withTarget, 1);
+
+    expect(rows.map((row) => row.assetClass)).toContain('crypto');
+  });
+
+  it('keeps a class the plan will fill even when it is empty today and has no target', () => {
+    const filled = trajectory.map((p, i) => ({ ...p, byClass: { ...p.byClass, realestate: cls(i === 4 ? 2 : 0, 0) } }));
+
+    const rows = selectClassStripRows(filled, 1);
+
+    expect(rows.map((row) => row.assetClass)).toContain('realestate');
+  });
+
+  it('reads today at the index and the end of the plan at the last point', () => {
+    const bonds = selectClassStripRows(trajectory, 1).find((row) => row.assetClass === 'bonds')!;
+
+    expect(bonds).toMatchObject({ currentPct: 28.3, targetPct: 23, finalPct: 24.5, outOfBandNow: true });
+    expect(bonds.currentDriftPp).toBeCloseTo(5.3);
+    expect(bonds.finalDriftPp).toBeCloseTo(1.5);
+  });
+
+  it('names the first month AFTER today that the class is back in band, only when it is out now', () => {
+    const rows = selectClassStripRows(trajectory, 1);
+
+    expect(rows.find((row) => row.assetClass === 'bonds')?.reentryMonth).toBe('2026-12');
+    expect(rows.find((row) => row.assetClass === 'equity')?.reentryMonth).toBeUndefined();
+  });
+
+  it('returns nothing when the index has no point', () => {
+    expect(selectClassStripRows(trajectory, 9)).toEqual([]);
   });
 });

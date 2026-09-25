@@ -76,7 +76,10 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   nothing touches the disk. The child re-keys everything to `prod-mirror` (`userId` on every row, the snapshot ids
   `{uid}-{y}-{m}`, the per-user docs), creates `mirror@example.com` / `test1234`, and leaves the caches out so the app
   recomputes with the current math. The account is a standard; the data is removed at the end of the session
-  (`MIRROR_UID=… npm run mirror:remove` clears one seeded under another id).
+  (`MIRROR_UID=… npm run mirror:remove` clears one seeded under another id). **A collection or per-user doc the page
+  reads must be in the script's two lists, or the mirror shows a state the owner never sees** (2026-09-25): without
+  `accumulationPlans` the Accumulo tile always read «nessun piano», without `userPreferences` the page came up in the
+  default theme instead of the owner's Lime Frost. Both are in the lists now; add the next one the same way.
 - **Stopping the emulators: export FIRST, then kill.** `--export-on-exit` runs only on a SIGINT delivered to the
   `firebase` CLI process itself: on macOS `kill -INT <cli pid>` does it (2026-09-06) — but not reliably on emulators started as
   a background task of the agent's session (2026-09-20: 80 s with no export and the ports still held; the hub's export below

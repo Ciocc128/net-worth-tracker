@@ -19,7 +19,7 @@ import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-selec
 import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
-import { describeIdealAllocation, describeSecondLevelSetupHint } from '@/lib/utils/settingsNarrative';
+import { buildIdealAllocationInput, describeIdealAllocation, describeSecondLevelSetupHint } from '@/lib/utils/settingsNarrative';
 import { areasFromCountries, type SecondLevelGap } from '@/lib/utils/weightOptimizer';
 import { describeSecondLevelGaps } from '@/lib/utils/weightOptimizerNarrative';
 import { GEO_AREAS, GEO_AREA_LABELS } from '@/lib/constants/geoAreas';
@@ -98,22 +98,7 @@ export function IdealAllocationTile({
 
   const assetOptions: MultiSelectOption[] = tradableAssets.map((a) => ({ value: a.id, label: a.label }));
 
-  const readingInput = {
-    enabled: value.enabled,
-    classPriority: value.classPriority,
-    leveragePriority: value.leveragePriority,
-    targetLeverageRatio,
-    factorObjectives: value.factorObjectives.map((f) => ({
-      classLabel: factorClassOptions.find((c) => c.assetClass === f.assetClass)?.label ?? f.assetClass,
-      priority: f.priority,
-    })),
-    geography: value.geography?.enabled
-      ? {
-          referenceIndexLabel: INDEX_PROFILES[value.geography.referenceIndexId]?.label ?? value.geography.referenceIndexId,
-          priority: value.geography.priority,
-        }
-      : null,
-  };
+  const readingInput = buildIdealAllocationInput(value, targetLeverageRatio);
 
   const usedInstrumentAssetIds = new Set(value.instrumentLimits.map((l) => l.assetId));
   const firstUnusedAssetId = tradableAssets.find((a) => !usedInstrumentAssetIds.has(a.id))?.id;
