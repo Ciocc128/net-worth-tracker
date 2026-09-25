@@ -181,3 +181,48 @@ test('la pagina non scorre di lato, misurato sugli elementi e non sul contenitor
   expect(overflow.scrollWidth).toBe(overflow.clientWidth);
   expect(overflow.offenders).toEqual([]);
 });
+
+/** Every tile of the grid, grouped by its column (x), each column sorted top to bottom. */
+async function stacks(page: Page) {
+  return page.evaluate(() => {
+    const grid = document.querySelector('section[aria-label="Piano"]')!.closest('.grid')!;
+    const byX = new Map<number, { name: string; top: number; bottom: number; width: number }[]>();
+    for (const section of Array.from(grid.querySelectorAll('section'))) {
+      // Only the tiles, not the sections nested inside one.
+      if (section.parentElement?.closest('section')) continue;
+      const rect = section.getBoundingClientRect();
+      if (rect.height === 0) continue;
+      const x = Math.round(rect.x);
+      const list = byX.get(x) ?? [];
+      list.push({ name: section.getAttribute('aria-label') ?? '?', top: rect.top, bottom: rect.bottom, width: rect.width });
+      byX.set(x, list);
+    }
+    return Array.from(byX.values()).map((list) => list.sort((a, b) => a.top - b.top));
+  });
+}
+
+test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni modo del Piano (fork, 2026-09-25)', async ({ page }) => {
+  await openAllocazione(page);
+  await expect(page.locator('section[aria-label="Accumulo"]')).toBeVisible({ timeout: 30_000 });
+  const piano = page.locator('section[aria-label="Piano"]');
+
+  // Il Piano cambia altezza col modo (sul conto del proprietario da 381 a 1159px): con righe a tutta
+  // larghezza sotto due colonne, ogni cambio apriva un vuoto sotto la colonna più corta.
+  for (const mode of ['Ribilancia', 'Versa'] as const) {
+    const toggle = piano.getByRole('button', { name: mode, exact: true });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    const columns = await stacks(page);
+    expect(columns, 'due pile, nessuna tessera a tutta larghezza').toHaveLength(2);
+    for (const column of columns) {
+      for (let i = 1; i < column.length; i += 1) {
+        const gap = column[i].top - column[i - 1].bottom;
+        expect(Math.abs(gap - 12), `${column[i - 1].name} → ${column[i].name} in ${mode}`).toBeLessThanOrEqual(1);
+      }
+    }
+    const names = columns.map((column) => column.map((tile) => tile.name));
+    expect(names[0].slice(0, 3)).toEqual(["Bilanciamento dell'allocazione", 'Allocazione per classe', 'Accumulo']);
+    expect(names[1].slice(0, 2)).toEqual(['Piano', 'Composizione ideale']);
+  }
+});

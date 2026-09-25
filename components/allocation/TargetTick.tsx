@@ -17,6 +17,11 @@
  * cannot surface at a glance, is theme-aware and exposes a `progressbar` role. The scale is
  * per row — max(current, target) × 1.12 — so the fill and the marker stay legible for a tiny
  * sleeve, with the headroom keeping the marker off the right edge.
+ *
+ * `projectedPercentage` (optional, the Accumulo tile's class strip) adds a THIRD fact: a hollow
+ * ring where the plan leaves the class. Fill = today, hairline = target, ring = end of the plan —
+ * the reader sees whether the plan closes the gap without reading two pp figures. The scale takes
+ * it into account; without the prop the track is exactly the Per classe one.
  */
 'use client';
 
@@ -29,15 +34,25 @@ interface TargetTickProps {
   color?: string;
   currentPercentage: number;
   targetPercentage: number;
+  /** Where a plan leaves the class (end of the PAC); drawn as a hollow ring when given. */
+  projectedPercentage?: number;
   className?: string;
 }
 
-export function TargetTick({ color = 'var(--allocation-row-bar, var(--chart-1))', currentPercentage, targetPercentage, className }: TargetTickProps) {
+export function TargetTick({
+  color = 'var(--allocation-row-bar, var(--chart-1))',
+  currentPercentage,
+  targetPercentage,
+  projectedPercentage,
+  className,
+}: TargetTickProps) {
   const reducedMotion = useReducedMotion();
 
-  const scaleMax = Math.max(currentPercentage, targetPercentage, 1) * 1.12;
+  const scaleMax = Math.max(currentPercentage, targetPercentage, projectedPercentage ?? 0, 1) * 1.12;
   const fillWidth = Math.min((currentPercentage / scaleMax) * 100, 100);
   const targetPosition = Math.min((targetPercentage / scaleMax) * 100, 100);
+  const projectedPosition = projectedPercentage === undefined ? null : Math.min((projectedPercentage / scaleMax) * 100, 100);
+  const projectedClause = projectedPercentage === undefined ? '' : `, a fine piano ${formatPercentage(projectedPercentage, 1)}`;
 
   return (
     <div
@@ -46,7 +61,7 @@ export function TargetTick({ color = 'var(--allocation-row-bar, var(--chart-1))'
       aria-valuenow={Math.round(currentPercentage)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={`Allocazione corrente ${formatPercentage(currentPercentage, 1)}, target ${formatPercentage(targetPercentage, 0)}`}
+      aria-label={`Allocazione corrente ${formatPercentage(currentPercentage, 1)}, target ${formatPercentage(targetPercentage, 0)}${projectedClause}`}
     >
       {/* The 3px track, centred in the 9px root so the marker has 3px on each side. */}
       <div className="absolute inset-x-0 top-[3px] h-[3px] overflow-hidden rounded-full bg-muted">
@@ -67,6 +82,14 @@ export function TargetTick({ color = 'var(--allocation-row-bar, var(--chart-1))'
         style={{ left: `${targetPosition}%` }}
         aria-hidden="true"
       />
+      {/* The end of the plan: a hollow ring on the track, the card showing through it. */}
+      {projectedPosition !== null && (
+        <div
+          className="absolute top-1/2 size-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-foreground/70 bg-card"
+          style={{ left: `${projectedPosition}%` }}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }

@@ -115,6 +115,34 @@ Firebase: ogni dipendenza dal portafoglio vivo è iniettata (`PlanDeps.valueOf`/
   `ClassDriftChart`, così una colonna si riconosce per colore contro il grafico, non solo per
   posizione. doc/pac-ate.md §10.3.
 
+## Il tile attivo — forma (2026-09-25, passo 2 della roadmap del fork)
+
+- **Due colonne quando il TILE è largo almeno 720px** (container query `@[720px]:`, non `desktop:`: a
+  1440 il tile sta nella pila sinistra di Allocazione, 470px, e su un tablet è a tutta larghezza): a
+  sinistra le righe della rata e le vendite fuori piano, cioè cosa FARE questo mese; a destra «Classi
+  del piano», dove il piano porta ogni classe. Più stretto, la striscia segue le righe.
+- **Una riga di rata è il nome sopra, ticker · quote · importo sotto** (mono, 11px), il nome mai
+  tagliato (`line-clamp-2`); lo stato e le azioni stanno a destra, impilati sul telefono e in linea da
+  `desktop:`. Un `flex-wrap` sulla riga mandava «Scollega» su una riga sua a 390 (tile da 1179 a
+  1598px, misurato sul mirror).
+- **Bersagli**: ogni pulsante del tile è `h-11 desktop:h-8` (`TILE_ACTION_CLASS`, `ROW_ACTION_CLASS`);
+  erano 28 e 32px anche sul telefono. **«Scollega» e «Segna da rifare» sono ghost** in grigio
+  (`ROW_UNDO_CLASS`): annullano una riga chiusa e non chiedono niente, sette pulsanti bordati uno
+  sotto l'altro leggevano come sette inviti; restano bordati quelli che chiedono una decisione
+  (Conferma, Ignora, Segna eseguita, Salta, Rivedi).
+- **La striscia delle classi** (`selectClassStripRows` in `accumulationPlanUtils.ts`): una riga per
+  classe — nome, peso di oggi, target — sopra la `TargetTick` di Per classe con un TERZO segno,
+  l'anello di fine piano (`projectedPercentage`): pieno = oggi, tacca = target, anello = fine piano,
+  detto dalla legenda sotto il titolo. Lo scostamento in pp è la seconda cifra, grigia; **l'ambra
+  segna solo una classe fuori banda ORA**, sulla sua riga di scostamento e sul mese di rientro, mai
+  l'intera riga. **Una classe DORMIENTE sparisce** (quota nulla oggi, target nullo e nulla a fine
+  piano: stessa regola di `isDormantClass` in Per classe) — sul conto del proprietario erano tre
+  righe su otto a «0,0% · target 0,0%». Il «Sei a +5,3 pp … su Obbligazioni» della lettura legge
+  le STESSE righe: prima le prendeva per posizione da `byClass`, e togliere le dormienti le avrebbe
+  sfasate.
+- **La barra dei mesi**: un mese chiuso è `--progress-fill` (il foreground di default, ardesia media in
+  Lime Frost), non `bg-foreground` — nessuna barra quasi nera (fork-scelte-ui.md § 2).
+
 ## §9 — Abbinamento col ledger (`accumulationPlanMatching.ts`)
 
 `matchPlanExecutions(plan, transactions, today)` non scrive nulla: propone. Una riga (installment o
@@ -222,8 +250,10 @@ creare un piano in produzione — nessuna pipeline di questo repo lo fa per cont
 - **Un asset `frozen` (allocationRole) resta fuori dalla base del piano** (B = posizioni del piano + L,
   D3): il piano non lo vede né come sorgente né come target, anche se conta nel denominatore della
   pagina Allocazione.
-- **Nessuno spec Playwright** (fuori perimetro per l'intera ATE): la verifica del collaudo guidato passa
-  dall'anteprima Vercel (WORKFLOW.md §2 adattato, doc/pac-ate.md §13).
+- **Una sola spec Playwright, e solo per lo stato «nessun piano»** (`e2e/allocation.mobile.spec.ts`,
+  2026-09-25: «Crea piano» ≥ 44px a 390): nessun fixture semina un piano, quindi le righe della rata, la
+  striscia delle classi e le due colonne si verificano sul mirror (`npm run mirror:seed`, che dal
+  2026-09-25 copia `accumulationPlans`), non nella suite.
 - **`recalibrateInstallment` non scrive**: propone soltanto; `applyRecalibration` (chiamata dal dialog)
   sostituisce le righe ancora `planned` della rata, quelle già `executed` restano intatte.
 - **L'Ottimizzato tocca solo i pesi**: non aggiunge, rimuove o raggruppa posizioni — quello resta un

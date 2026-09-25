@@ -669,6 +669,62 @@ export function projectClassTrajectory(input: {
   return points;
 }
 
+/** Below this share (pp) a class counts as empty on the strip — rounding noise, never a position. */
+const DORMANT_CLASS_EPSILON_PP = 0.05;
+
+/** One class of the tile's class strip: where it is today, its target, and where the plan leaves it. */
+export interface ClassStripRow {
+  assetClass: AssetClass;
+  currentPct: number;
+  targetPct: number;
+  /** The class's share at the plan's last point (the end of the plan). */
+  finalPct: number;
+  currentDriftPp: number;
+  finalDriftPp: number;
+  outOfBandNow: boolean;
+  /** First month after today the class is back inside the band; only when it is out of it now. */
+  reentryMonth?: MonthKey | 'baseline';
+}
+
+/**
+ * The class strip's rows at `index` (today, clamped to the plan's length) against the trajectory's
+ * last point. A DORMANT class — no share today, no target and none at the end of the plan — is
+ * dropped: it exists only because the target document carries a 0% entry, and «Immobili 0,0% ·
+ * target 0,0%» is a verdict on a void (the same rule as Per classe's `isDormantClass`,
+ * doc/guide/allocazione.md). Rows keep the trajectory's class order, so the furthest drift a caller
+ * reads from them is aligned with what it prints.
+ */
+export function selectClassStripRows(trajectory: ClassTrajectoryPoint[], index: number): ClassStripRow[] {
+  const currentPoint = trajectory.find((point) => point.index === index);
+  if (!currentPoint) return [];
+  const finalPoint = trajectory[trajectory.length - 1];
+
+  const rows: ClassStripRow[] = [];
+  for (const [assetClass, data] of Object.entries(currentPoint.byClass) as [AssetClass, NonNullable<ClassTrajectoryPoint['byClass'][AssetClass]>][]) {
+    const final = finalPoint?.byClass[assetClass] ?? data;
+    const isDormant =
+      Math.abs(data.currentPct) < DORMANT_CLASS_EPSILON_PP &&
+      Math.abs(data.targetPct) < DORMANT_CLASS_EPSILON_PP &&
+      Math.abs(final.currentPct) < DORMANT_CLASS_EPSILON_PP;
+    if (isDormant) continue;
+
+    const reentry = data.outOfBand
+      ? trajectory.find((point) => point.index > index && point.byClass[assetClass] && !point.byClass[assetClass]!.outOfBand)
+      : undefined;
+    rows.push({
+      assetClass,
+      currentPct: data.currentPct,
+      targetPct: data.targetPct,
+      finalPct: final.currentPct,
+      currentDriftPp: data.driftPp,
+      finalDriftPp: final.driftPp,
+      outOfBandNow: data.outOfBand,
+      reentryMonth: reentry?.month,
+    });
+  }
+  return rows;
+}
+
 // ---------------------------------------------------------------------------
 // 5.10 buildClassMeasurement
 // ---------------------------------------------------------------------------

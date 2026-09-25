@@ -24,8 +24,9 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR } from '@/lib/constants/stampDuty';
 import type { ExpenseType } from '@/types/expenses';
 import type { CategoryClassificationCounts } from '@/lib/utils/spendingRoles';
-import type { AssetClass, ObjectivePriority } from '@/types/assets';
+import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/types/assets';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
+import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
@@ -623,21 +624,33 @@ export interface IdealAllocationInput {
 }
 
 /**
- * Allocazione ideale — which objectives the weight optimizer (doc/weight-optimizer-ate.md) can
- * propose PAC weights from, and their priority. Spenta: the PAC's Target step stays manual.
+ * The ONE translation of a saved `IdealAllocationSettings` into the words the readings print: class
+ * labels from `ASSET_CLASS_LABELS`, the geography reference by its curated NAME. Four surfaces read
+ * the objectives (Impostazioni, the PAC's Ottimizzato step, Composizione ideale and its dialog) and
+ * each used to build this by hand — the two Allocazione copies printed the raw index id
+ * («geografia come wt-global-efficient-core», 2026-09-25).
  */
-export function describeIdealAllocation({
-  enabled,
-  classPriority,
-  leveragePriority,
-  targetLeverageRatio,
-  factorObjectives,
-  geography,
-}: IdealAllocationInput): Narrative {
-  if (!enabled) {
-    return [prose('Spenta: nel PAC i pesi si inseriscono solo a mano.')];
-  }
+export function buildIdealAllocationInput(value: IdealAllocationSettings, targetLeverageRatio: number): IdealAllocationInput {
+  return {
+    enabled: value.enabled,
+    classPriority: value.classPriority,
+    leveragePriority: value.leveragePriority,
+    targetLeverageRatio,
+    factorObjectives: value.factorObjectives.map((f) => ({
+      classLabel: ASSET_CLASS_LABELS[f.assetClass] ?? f.assetClass,
+      priority: f.priority,
+    })),
+    geography: value.geography?.enabled
+      ? {
+          referenceIndexLabel: INDEX_PROFILES[value.geography.referenceIndexId]?.label ?? value.geography.referenceIndexId,
+          priority: value.geography.priority,
+        }
+      : null,
+  };
+}
 
+/** «classi (essenziale)», «leva 1,3× (alta)», … — one entry per objective that is on. */
+function listIdealObjectives({ classPriority, leveragePriority, targetLeverageRatio, factorObjectives, geography }: IdealAllocationInput): string[] {
   const objectiveTexts: string[] = [`classi (${OBJECTIVE_PRIORITY_LABELS[classPriority]})`];
 
   if (leveragePriority !== 'off') {
@@ -658,13 +671,36 @@ export function describeIdealAllocation({
       `geografia come ${geography.referenceIndexLabel} (${OBJECTIVE_PRIORITY_LABELS[geography.priority]})`
     );
   }
+  return objectiveTexts;
+}
 
+/**
+ * Allocazione ideale — which objectives the weight optimizer (doc/weight-optimizer-ate.md) can
+ * propose PAC weights from, and their priority. Spenta: the PAC's Target step stays manual.
+ */
+export function describeIdealAllocation(input: IdealAllocationInput): Narrative {
+  if (!input.enabled) {
+    return [prose('Spenta: nel PAC i pesi si inseriscono solo a mano.')];
+  }
+  const objectiveTexts = listIdealObjectives(input);
   const count = objectiveTexts.length;
   return [
     prose(
       `Il PAC può proporre i pesi da ${count} obiettiv${count === 1 ? 'o' : 'i'}: ${objectiveTexts.join(', ')}.`
     ),
   ];
+}
+
+/**
+ * Composizione ideale (Allocazione, and its dialog) — the same objectives read as the tile's own
+ * answer, «com'è fatto il mio portafoglio ideale, strumento per strumento?», not as what the PAC
+ * can do: the tool stands on its own, with or without a plan (owner's wording, 2026-09-25).
+ * Called only with the objectives on; the tile says «spenta» with its own sentence.
+ */
+export function describeIdealComposition(input: IdealAllocationInput): Narrative {
+  const objectiveTexts = listIdealObjectives(input);
+  const whose = objectiveTexts.length === 1 ? 'il tuo obiettivo' : `i tuoi ${objectiveTexts.length} obiettivi`;
+  return [prose(`Il portafoglio che rispetta meglio ${whose}, strumento per strumento: ${objectiveTexts.join(', ')}.`)];
 }
 
 /**

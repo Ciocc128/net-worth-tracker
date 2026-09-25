@@ -13,8 +13,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { Asset, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import type { PlanPosition, OptimizerSnapshot } from '@/types/accumulationPlan';
-import { ASSET_CLASS_LABELS, type RebalanceBand } from '@/lib/utils/allocationUtils';
-import { describeIdealAllocation } from '@/lib/utils/settingsNarrative';
+import type { RebalanceBand } from '@/lib/utils/allocationUtils';
+import { buildIdealAllocationInput, describeIdealComposition } from '@/lib/utils/settingsNarrative';
 import {
   IDEAL_COMPOSITION_TILE_EYEBROW,
   IDEAL_COMPOSITION_TILE_OFF_READING,
@@ -65,26 +65,11 @@ export function ComposizioneIdealeTile({
     );
   }
 
-  const readingInput = {
-    enabled: idealAllocation.enabled,
-    classPriority: idealAllocation.classPriority,
-    leveragePriority: idealAllocation.leveragePriority,
-    targetLeverageRatio,
-    factorObjectives: idealAllocation.factorObjectives.map((f) => ({
-      classLabel: ASSET_CLASS_LABELS[f.assetClass] ?? f.assetClass,
-      priority: f.priority,
-    })),
-    geography: idealAllocation.geography?.enabled
-      ? {
-          referenceIndexLabel: idealAllocation.geography.referenceIndexId,
-          priority: idealAllocation.geography.priority,
-        }
-      : null,
-  };
+  const readingInput = buildIdealAllocationInput(idealAllocation, targetLeverageRatio);
 
   return (
     <>
-      <Tile eyebrow={IDEAL_COMPOSITION_TILE_EYEBROW} reading={describeIdealAllocation(readingInput)}>
+      <Tile eyebrow={IDEAL_COMPOSITION_TILE_EYEBROW} reading={describeIdealComposition(readingInput)}>
         <Button className="mt-3.5 w-fit" onClick={() => setView('composition')} disabled={!targets}>
           {OPTIMIZER_ACTION_CALCULATE}
         </Button>

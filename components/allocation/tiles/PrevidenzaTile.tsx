@@ -111,9 +111,14 @@ export function PrevidenzaTile({ reading, aside, lookThrough, className }: Previ
 
   return (
     <Tile eyebrow="Previdenza" aside={aside} reading={reading} className={className} ariaLabel="Previdenza complementare">
-      <div className="mt-3.5 grid grid-cols-1 gap-6 desktop:grid-cols-2">
-        <MixColumn heading={fundHeading} slices={lookThrough.fundSlices} chartColors={chartColors} />
-        <MixColumn heading={combinedHeading} slices={lookThrough.combinedSlices} chartColors={chartColors} />
+      {/* Side by side only when the TILE is wide (a container query, fork 2026-09-25): on the fork's
+          Allocazione the tile sits in a 662px stack at 1440, where two columns left each class name
+          ~66px (`CompositionList`'s `desktop:w-[22%]`) and «Obbligazioni» broke mid-word. */}
+      <div className="@container mt-3.5">
+        <div className="grid grid-cols-1 gap-6 @[900px]:grid-cols-2">
+          <MixColumn heading={fundHeading} slices={lookThrough.fundSlices} chartColors={chartColors} />
+          <MixColumn heading={combinedHeading} slices={lookThrough.combinedSlices} chartColors={chartColors} />
+        </div>
       </div>
     </Tile>
   );

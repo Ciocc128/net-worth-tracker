@@ -36,7 +36,9 @@ import {
   describeEmails,
   describeFamily,
   describeFireToggles,
+  buildIdealAllocationInput,
   describeIdealAllocation,
+  describeIdealComposition,
   describeImport,
   describePerformanceBase,
   describePlanParameters,
@@ -768,6 +770,72 @@ describe('describeIdealAllocation', () => {
     ).toBe(
       'Il PAC può proporre i pesi da 4 obiettivi: classi (essenziale), leva 1,23× (alta), secondo livello di Azioni (Equity) (alta), geografia come FTSE All-World (media).'
     );
+  });
+});
+
+describe('buildIdealAllocationInput', () => {
+  const saved = {
+    enabled: true,
+    classPriority: 'essential' as const,
+    leveragePriority: 'high' as const,
+    factorObjectives: [{ assetClass: 'equity' as const, priority: 'high' as const }],
+    geography: { enabled: true, referenceIndexId: 'wt-global-efficient-core', priority: 'medium' as const },
+    instrumentLimits: [],
+    groupLimits: [],
+  };
+
+  it('names the geography reference by its curated label, never its id (2026-09-25: Allocazione printed the id)', () => {
+    const input = buildIdealAllocationInput(saved, 1.3);
+
+    expect(input.geography?.referenceIndexLabel).toBe('WisdomTree Global Efficient Core — azionario');
+  });
+
+  it('falls back to the id for a reference the curated table does not know', () => {
+    const input = buildIdealAllocationInput({ ...saved, geography: { ...saved.geography, referenceIndexId: 'ornitorinco-index' } }, 1.3);
+
+    expect(input.geography?.referenceIndexLabel).toBe('ornitorinco-index');
+  });
+
+  it('drops a geography objective that is saved but off, and labels the classes in Italian', () => {
+    const input = buildIdealAllocationInput({ ...saved, geography: { ...saved.geography, enabled: false } }, 1.3);
+
+    expect(input.geography).toBeNull();
+    expect(input.factorObjectives).toEqual([{ classLabel: 'Azioni', priority: 'high' }]);
+    expect(input.targetLeverageRatio).toBe(1.3);
+  });
+});
+
+describe('describeIdealComposition', () => {
+  it('reads the objectives as the portfolio they describe, not as what the PAC can do', () => {
+    expect(
+      plain(
+        describeIdealComposition({
+          enabled: true,
+          classPriority: 'essential',
+          leveragePriority: 'high',
+          targetLeverageRatio: 1.3,
+          factorObjectives: [{ classLabel: 'Azioni', priority: 'high' }],
+          geography: { referenceIndexLabel: 'FTSE All-World', priority: 'medium' },
+        })
+      )
+    ).toBe(
+      'Il portafoglio che rispetta meglio i tuoi 4 obiettivi, strumento per strumento: classi (essenziale), leva 1,3× (alta), secondo livello di Azioni (alta), geografia come FTSE All-World (media).'
+    );
+  });
+
+  it('speaks of ONE objective in the singular', () => {
+    expect(
+      plain(
+        describeIdealComposition({
+          enabled: true,
+          classPriority: 'low',
+          leveragePriority: 'off',
+          targetLeverageRatio: 1,
+          factorObjectives: [],
+          geography: null,
+        })
+      )
+    ).toBe('Il portafoglio che rispetta meglio il tuo obiettivo, strumento per strumento: classi (bassa).');
   });
 });
 

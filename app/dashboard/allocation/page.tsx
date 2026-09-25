@@ -14,10 +14,10 @@
  * the score it qualifies (Alt A of the canvas, chosen on 2026-08-25). The balance score itself is
  * band-INDEPENDENT (`computeBalanceScore`) and never moves with the band.
  *
- *   Desktop (12 col): [Bilanciamento + Per classe](5) | Piano(7)
- *                     Accumulo(12) · Composizione ideale(12)   (solo fork)
- *                     Esposizione(12)
- *                     Previdenza(12, only with a pension fund)
+ *   Desktop (12 col), two independent stacks (fork, 2026-09-25):
+ *                     [Bilanciamento · Per classe · Accumulo](5) | [Piano · Composizione ideale ·
+ *                     Esposizione · Previdenza (only with a pension fund)](7)
+ *                     (Accumulo and Composizione ideale: solo fork)
  *   Mobile (1 col):   Bilanciamento → Piano → Per classe → Accumulo → Composizione ideale →
  *                     Esposizione → Previdenza → Dettaglio
  *
@@ -458,15 +458,20 @@ export default function AllocationPage() {
         {describeBandChange({ band, offTargetCount: balanceSummary.offTargetCount, classCount })}
       </p>
 
-      {/* Two columns at NATURAL height from `desktop:`, because the Piano is no longer a tile of
-          Bilanciamento's size: naming the instruments of a rebalance makes it ~1060px beside a
-          ~380px neighbour, and a tile inflated to fill that is an empty card, not a layout
-          (AGENTS.md → a tile stretched beside a taller neighbour is cured in the GRID). Per classe
-          rises under Bilanciamento, which closes the void to ~110px, and Esposizione takes the full
-          width below. Below `desktop:` both wrappers are `contents`, so the tiles are items of the
-          grid again in their own `order-*` — the phone keeps reading Bilanciamento → Piano → Per
-          classe → Esposizione.
-          Tablet (768-1439): Bilanciamento and Piano full width, Per classe beside Esposizione. */}
+      {/* TWO INDEPENDENT STACKS from `desktop:`, and no full-width row under them (fork,
+          2026-09-25). The Piano's height is not a constant: on the owner's account it runs from
+          381px (Versa) to 1159px (Ribilancia) and grows with the instruments to trade, and Per
+          classe grows when a class opens. A full-width row under two columns has to start below
+          the LONGER one, so every change of mode used to open a 250–580px hole under the shorter
+          column. In two stacks a tile that grows only pushes the tiles under it in its own column:
+          no hole between tiles is possible, only the bottom edge of the page moves. The tiles are
+          dealt by MEASURED height so the two bottoms straddle each other (left ≈ 2100px, right
+          1650–2430px on the owner's account): Bilanciamento, Per classe, Accumulo | Piano,
+          Composizione ideale, Esposizione, Previdenza. AGENTS.md → a tile stretched beside a taller
+          neighbour is cured in the GRID.
+          Below `desktop:` both wrappers are `contents`, so the tiles are grid items again in their
+          own `order-*` and the phone keeps reading Bilanciamento → Piano → Per classe → Accumulo →
+          Composizione ideale → Esposizione → Previdenza. */}
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
         <div className="contents desktop:col-span-5 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
         <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none')}>
@@ -508,9 +513,25 @@ export default function AllocationPage() {
             excludedByClass={excludedByClass}
           />
         </div>
+
+        {ownerId && (
+          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none')}>
+            <AccumuloTile
+              ownerId={ownerId}
+              allAssets={allAssets}
+              targets={targets}
+              band={band}
+              targetLeverageRatio={targetLeverageRatio}
+              idealAllocation={idealAllocation}
+              onAssetsChanged={() => void loadData()}
+            />
+          </div>
+        )}
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-7 desktop:self-start')}>
+        {/* The right stack: what to do (Piano, Composizione ideale), then Esposizione and Previdenza. */}
+        <div className="contents desktop:col-span-7 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
+        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none')}>
           <PianoTile
             mode={planMode}
             onModeChange={setPlanMode}
@@ -523,21 +544,7 @@ export default function AllocationPage() {
         </div>
 
         {ownerId && (
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
-            <AccumuloTile
-              ownerId={ownerId}
-              allAssets={allAssets}
-              targets={targets}
-              band={band}
-              targetLeverageRatio={targetLeverageRatio}
-              idealAllocation={idealAllocation}
-              onAssetsChanged={() => void loadData()}
-            />
-          </div>
-        )}
-
-        {ownerId && (
-          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none')}>
             <ComposizioneIdealeTile
               ownerId={ownerId}
               allAssets={allAssets}
@@ -550,12 +557,12 @@ export default function AllocationPage() {
           </div>
         )}
 
-        <div className={cn(TILE_CELL_CLASS, 'order-6 desktop:order-none desktop:col-span-12')}>
+        <div className={cn(TILE_CELL_CLASS, 'order-6 desktop:order-none')}>
           {user && ownerId && <EsposizioneTile userId={ownerId} />}
         </div>
 
         {pension && (
-          <div className={cn(TILE_CELL_CLASS, 'order-7 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-7 tablet:col-span-2 desktop:order-none')}>
             <PrevidenzaTile
               reading={describePension(pension)}
               aside={describePensionAside({ fundNames: pensionFundNames, fundValue: pension.fundValue, allFrozen: pension.allFrozen })}
@@ -563,6 +570,8 @@ export default function AllocationPage() {
             />
           </div>
         )}
+        </div>
+
       </div>
 
       {mobileAction}

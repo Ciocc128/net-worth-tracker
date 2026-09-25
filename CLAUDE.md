@@ -13,13 +13,16 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **204 files / 4708 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **38 Playwright spec files** (132 tests, incl. 6 auth setups; last full run 2026-09-25, fork after the sixth upstream merge, 3,8 min: 132 green — the two intermittents of Known Issues passed). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-25, fork): **Sesto riallineamento a upstream (#392–#393) sopra `origin/main`**, solo il merge (il
-  passo 2 della roadmap, doc/guide/fork-scelte-ui.md § 3, apre la prossima sessione con Accumulo e Composizione
-  ideale). Nessun lato del fork in gioco nel codice: due conflitti additivi (`settingsRoundTrip`: `idealAllocation` del
-  fork più i due `transferFee*`; questo file); in Impostazioni › Spese la tessera «Commissioni sui trasferimenti» entra
-  nello stato «non salvato» del tab. La PR A (#391) non è ancora fusa upstream. Collaudo: `tsc` 0, ESLint 0, Vitest 204
-  file / 4708 nei due fusi, build verde, Playwright 132/132.
+- `tsc` clean; **204 files / 4727 tests** green (+ 2 skipped) in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (134 tests, incl. 6 auth setups; last full run 2026-09-25, fork, Allocazione in two stacks with #391, 3,8 min: 133 green, the red one `settings.mobile` «Ripristina default» at 43,99999px — the known intermittent, green alone). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25, fork): **Allocazione — due pile, il Piano con leva della #391, Accumulo e Composizione ideale.**
+  La pagina è a DUE PILE INDIPENDENTI da 1440, nessuna riga a tutta larghezza (Bilanciamento, Per classe, Accumulo |
+  Piano, Composizione ideale, Esposizione, Previdenza): il Piano va da 381 a 1159px sul conto del proprietario e sotto
+  due colonne ogni riga intera lasciava un vuoto di 250–580px; ora si muove solo il fondo. Dentro le pile, container
+  query (Accumulo `@[720px]`, Previdenza `@[900px]`). La #391 è fusa nel fork prima di upstream (merge, stesso commit
+  `9486aa7f`). Composizione ideale: lettura sua e indice per nome (`buildIdealAllocationInput`, le due copie di
+  Allocazione stampavano l'id). Accumulo: la striscia classi è una `TargetTick` con l'anello di fine piano, senza
+  classi dormienti (`selectClassStripRows`); bersagli 44px, «Scollega» ghost, barra dei mesi su `--progress-fill`. Lo
+  specchio copia `accumulationPlans` e `userPreferences`. doc/guide/allocazione.md, accumulo.md, fork-scelte-ui.md § 1.
 - Latest upstream (2026-09-25): **Cashflow — la commissione di un trasferimento e la rata del mutuo.** (1)
   «Commissione» su un Trasferimento: una spesa PROPRIA nella categoria di Impostazioni › Spese
   (`transferFeeCategoryId`), sul conto di origine alla data del trasferimento, legata nei due sensi, creata, modificata
