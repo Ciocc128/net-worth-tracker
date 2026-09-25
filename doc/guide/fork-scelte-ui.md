@@ -53,11 +53,16 @@ ice — **except a bin, which hovers red** (`--ghost-destructive-hover`).
 **Data vocabulary (cold).** Net worth ice 228 (`--hero-series`) everywhere a series is the portfolio or a part of it;
 income green 138 (`--flow-in`), spending ice 232 (`--flow-out`) in every bar, column and line; frost lavender 295 for
 secondary series, VENDI and the bear scenario; capital, benchmarks and 60/40 neutral. Chart slots (`--chart-N`)
-mean **asset classes only**; Liquidità's slot is a neutral ice grey.
+mean **asset classes only**; Liquidità's slot is a neutral ice grey, **L 0.55** since 09-25 (at 0.64 it sat ΔE00
+11.7–13.4 from Trend Following, Azioni and Immobili; now 17.3 from the nearest slot, 4.8:1 on white). The light block
+is held to `chartPaletteDistinctness.test.ts` (`LIGHT_ONLY_THEMES`); `--chart-9` (hue 40) reviewed there, 19.1 from
+Criptovalute.
 
 **Sign = judgement only.** Green/red for deltas, deficits, overruns, gains and losses — never for a type. Income and
 spending **figures** are ink with a series dot; only the savings (and its rate) take the sign. Owner, 09-15: **keep
-this in Lime Frost only for now** (it was briefly decided for all themes, then scoped back).
+this in Lime Frost only for now** (it was briefly decided for all themes, then scoped back). **Confirmed 09-25**
+(roadmap step 4): the sign rule and the amber below stay Lime Frost only — the other twelve blocks keep upstream's
+defaults, so a realignment never conflicts on them.
 
 **Amber = costs and estimates.** The annual cost (Panoramica), the estimated tax (Sintesi) and the estimated IRPEF
 saving (Previdenza) are amber (`--cost-figure`, `--estimate-figure`); amber otherwise stays for warnings and
@@ -119,6 +124,12 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    upstream's versions, not cherry-picked.
 4. **Lime Frost** (fork only): the three light points (Lime-only rules fork-wide or not; class palette ΔE and
    `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
+   **09-25 — the three light points closed** (branch `feat/lime-frost-step4`; step 3 waits for upstream #397):
+   the sign rule and the amber stay Lime-only (§ 2); Liquidità's slot to L 0.55 and Lime Frost light in the
+   distinctness test, `--chart-9` passes (§ 2); the role-token index in `:root` completed — every one of the 44
+   role tokens the light block names sits in one of the four families, the figures in Flows, no colour changed.
+   **Next: the Carta's five dark decisions**, then the dark audit; the dark block and the hue-band test join the
+   distinctness suite once they are taken.
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
    prerequisite of the optimizer.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
@@ -177,9 +188,11 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   GROSS withdrawal (`grossedUp: false`). Same gap in upstream's own code (its demo has no leverage, so it never shows).
   To do: group the trades by class into `MoveRow`s with legs, price the sold instruments through `estimateSaleTax`,
   solve the net withdrawal (`solveWithdrawalGross`) on the leverage path too; tests + mirror. Candidate PR to upstream.
-- [ ] **Lime Frost fails upstream's chart-distinctness floors** (`__tests__/chartPaletteDistinctness.test.ts`, which
+- [~] **Lime Frost fails upstream's chart-distinctness floors** — **light fixed 09-25** (Liquidità L 0.55, the
+  light block in the test, `--chart-9` reviewed); dark still open: (`__tests__/chartPaletteDistinctness.test.ts`, which
   lists the twelve upstream blocks, not Lime Frost): light Liquidità ↔ Trend Following ΔE00 11,7 (< 14), and dark's
   slots are not the light ones' hue bands (Azioni 264° light vs 128° dark). Settle it with the dark decisions, then add
   `'lime-frost'` to the test's `THEMES`. `--chart-9` (Previdenza band) was added on 09-21 at hue 40, unreviewed.
-- [ ] The annual-cost amber and the sign rule are Lime-only: decide whether they become fork-wide.
+- [x] The annual-cost amber and the sign rule are Lime-only: decide whether they become fork-wide. **Decided
+  09-25: they stay Lime-only** (§ 2).
 - [ ] Commit, push and PR of `feat/ui-lime-frost-agentation`; build and Playwright not run on the 09-15 passes.
