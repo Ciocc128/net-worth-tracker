@@ -9,6 +9,8 @@
 
 import { updateCashAssetBalancesAtomic } from '@/lib/services/assetService';
 import { appliedBalanceEffectsOf, netBalanceEffects, reverseBalanceEffects, type BalanceEffect, type SettlementRow } from '@/lib/utils/cashSettlement';
+import { reverseDebtRepayments } from '@/lib/services/debtRepaymentService';
+import type { Expense } from '@/types/expenses';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,10 +78,14 @@ export async function applyBalanceEffects(effects: BalanceEffect[]): Promise<boo
 /**
  * Give back what the given rows have APPLIED to their accounts, in one transaction — a row still
  * waiting for its date (`balancePending`) moved nothing and gives back nothing. Every delete path
- * (a single row, a whole series) calls this before removing the documents.
+ * (a single row, a whole series) calls this before removing the documents. A mortgage instalment
+ * linked to a property also gives back the principal it repaid (lib/utils/mortgageRepayment.ts):
+ * the property's debt is a balance the row moved, like the account. Returns true when anything moved.
  */
-export async function reverseAppliedBalances(rows: SettlementRow[]): Promise<boolean> {
-  return applyBalanceEffects(reverseBalanceEffects(rows.flatMap(appliedBalanceEffectsOf)));
+export async function reverseAppliedBalances(rows: (SettlementRow & Pick<Expense, 'debtPrincipalRepaid'>)[]): Promise<boolean> {
+  const balancesMoved = await applyBalanceEffects(reverseBalanceEffects(rows.flatMap(appliedBalanceEffectsOf)));
+  const debtsMoved = await reverseDebtRepayments(rows);
+  return balancesMoved || debtsMoved;
 }
 
 /**

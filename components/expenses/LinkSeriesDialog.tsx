@@ -9,6 +9,10 @@
  *
  * A `ResponsiveModal` `sm` like `SeriesDeleteDialog`: the reading says what the confirm will do
  * — how many occurrences, from when, and that the past stays as it is — before it is pressed.
+ *
+ * The same modal links a mortgage series to its PROPERTY (`target: 'debt'`, 2026-09-25): each
+ * occurrence still to come then repays the property's debt by its principal on its date
+ * (lib/utils/mortgageRepayment.ts). Same shape, a different list and a different selection rule.
  */
 
 import { useMemo, useState } from 'react';
@@ -20,15 +24,21 @@ import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { describeLinkSeriesReading, describeWriteError } from '@/lib/utils/dialogNarrative';
 import { selectLinkableOccurrences, settlesLater } from '@/lib/utils/cashSettlement';
-import { getSeriesOf, linkSeriesToCashAccount } from '@/lib/services/expenseService';
+import { selectDebtLinkableOccurrences } from '@/lib/utils/mortgageRepayment';
+import { getSeriesOf, linkSeriesToCashAccount, linkSeriesToDebt } from '@/lib/services/expenseService';
 import { getExpenseDate } from '@/lib/utils/expenseHelpers';
 import type { Asset } from '@/types/assets';
 import type { Expense } from '@/types/expenses';
 import type { SeriesDeleteMode } from '@/components/expenses/SeriesDeleteDialog';
 
+/** What a series is linked to: the account its rows move, or the property whose mortgage they repay. */
+export type LinkSeriesTarget = 'account' | 'debt';
+
 export interface LinkSeriesRequest {
   expense: Expense;
   mode: SeriesDeleteMode;
+  /** Absent = an account, the original use. */
+  target?: LinkSeriesTarget;
 }
 
 interface LinkSeriesDialogProps {
@@ -37,6 +47,8 @@ interface LinkSeriesDialogProps {
   ownerId: string;
   /** The cash accounts the series can move (`type === 'cash'`, class cash). */
   cashAccounts: Asset[];
+  /** The properties a mortgage series can repay (`isRepayableProperty`). */
+  properties: Asset[];
   now: Date;
   onClose: () => void;
   /** After a successful link: the caller refetches the movements. */
@@ -45,9 +57,11 @@ interface LinkSeriesDialogProps {
 
 const NONE = '__none__';
 
-export function LinkSeriesDialog({ request, ownerId, cashAccounts, now, onClose, onLinked }: LinkSeriesDialogProps) {
+export function LinkSeriesDialog({ request, ownerId, cashAccounts, properties, now, onClose, onLinked }: LinkSeriesDialogProps) {
   const expense = request?.expense ?? null;
   const mode = request?.mode ?? 'recurring';
+  const target = request?.target ?? 'account';
+  const choices = target === 'debt' ? properties : cashAccounts;
   const [accountId, setAccountId] = useState<{ key: string; value: string } | null>(null);
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -66,15 +80,16 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, now, onClose,
   const facts = useMemo(() => {
     const rows = series.data ?? [];
     const dated = rows.map((row) => ({ ...row, date: getExpenseDate(row.date) }));
-    const linkable = selectLinkableOccurrences(dated, now).sort((a, b) => a.date.getTime() - b.date.getTime());
+    const select = target === 'debt' ? selectDebtLinkableOccurrences : selectLinkableOccurrences;
+    const linkable = select(dated, now).sort((a, b) => a.date.getTime() - b.date.getTime());
     return {
       linkable,
       firstDate: linkable[0]?.date ?? null,
       pastCount: dated.filter((row) => !settlesLater(row.date, now)).length,
     };
-  }, [series.data, now]);
+  }, [series.data, now, target]);
 
-  const accountName = cashAccounts.find((a) => a.id === chosen)?.name ?? null;
+  const accountName = choices.find((a) => a.id === chosen)?.name ?? null;
   const canLink = !busy && !series.isLoading && facts.linkable.length > 0 && chosen !== NONE;
 
   const close = () => {
@@ -87,8 +102,9 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, now, onClose,
     setBusy(true);
     setFailure(null);
     try {
-      const linked = await linkSeriesToCashAccount(ownerId, expense, chosen, now);
-      toast.success(`${linked} ${mode === 'installment' ? (linked === 1 ? 'rata collegata' : 'rate collegate') : linked === 1 ? 'voce collegata' : 'voci collegate'} a ${accountName ?? 'conto'}`);
+      const linked =
+        target === 'debt' ? await linkSeriesToDebt(ownerId, expense, chosen, now) : await linkSeriesToCashAccount(ownerId, expense, chosen, now);
+      toast.success(`${linked} ${mode === 'installment' ? (linked === 1 ? 'rata collegata' : 'rate collegate') : linked === 1 ? 'voce collegata' : 'voci collegate'} a ${accountName ?? (target === 'debt' ? 'immobile' : 'conto')}`);
       // The next opening must read the series again: its occurrences now carry the account.
       queryClient.invalidateQueries({ queryKey: ['expense-series', ownerId] });
       onLinked();
@@ -106,7 +122,11 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, now, onClose,
       onClose={close}
       width="sm"
       eyebrow="Movimenti · Serie"
-      title={mode === 'installment' ? 'Collega il piano a un conto' : 'Collega la serie a un conto'}
+      title={
+        target === 'debt'
+          ? mode === 'installment' ? 'Collega il piano al mutuo' : 'Collega la serie al mutuo'
+          : mode === 'installment' ? 'Collega il piano a un conto' : 'Collega la serie a un conto'
+      }
       reading={
         failure
           ? { narrative: [{ text: failure }], tone: 'negative' }
@@ -119,11 +139,16 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, now, onClose,
                   firstDate: facts.firstDate,
                   pastCount: facts.pastCount,
                   accountName,
+                  target,
                 }),
                 tone: 'neutral',
               }
       }
-      description="Scegli il conto che le voci future della serie scaleranno alla loro data."
+      description={
+        target === 'debt'
+          ? 'Scegli l’immobile il cui debito le rate future della serie ridurranno alla loro data.'
+          : 'Scegli il conto che le voci future della serie scaleranno alla loro data.'
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={close} disabled={busy}>
@@ -136,14 +161,14 @@ export function LinkSeriesDialog({ request, ownerId, cashAccounts, now, onClose,
       }
     >
       <div className="space-y-2">
-        <Label htmlFor="link-series-account">Conto</Label>
+        <Label htmlFor="link-series-account">{target === 'debt' ? 'Immobile' : 'Conto'}</Label>
         <Select value={chosen} onValueChange={(value) => setAccountId({ key: subjectKey, value })} disabled={busy || facts.linkable.length === 0}>
           <SelectTrigger id="link-series-account">
-            <SelectValue placeholder="Seleziona conto" />
+            <SelectValue placeholder={target === 'debt' ? 'Seleziona immobile' : 'Seleziona conto'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE}>Seleziona conto</SelectItem>
-            {cashAccounts.map((asset) => (
+            <SelectItem value={NONE}>{target === 'debt' ? 'Seleziona immobile' : 'Seleziona conto'}</SelectItem>
+            {choices.map((asset) => (
               <SelectItem key={asset.id} value={asset.id}>
                 {asset.name}
               </SelectItem>

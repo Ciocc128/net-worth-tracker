@@ -26,13 +26,15 @@ import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { Expense, ExpenseCategory, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import {
-  deleteExpense,
+  deleteExpenseRows,
+  getTransferFeeOf,
   deleteRecurringExpenses,
   deleteInstallmentExpenses,
   getExpensesByRecurringParentId,
   getExpensesByInstallmentParentId,
 } from '@/lib/services/expenseService';
 import { reverseAppliedBalances } from '@/lib/services/cashBalanceReconciliation';
+import { rowsDeletedWith } from '@/lib/utils/transferFee';
 import { queryKeys } from '@/lib/query/queryKeys';
 import {
   Table,
@@ -127,7 +129,7 @@ function ExpenseTableRow({ expense, scheduled, ownerLabel, singleType, categoryM
   }, [armed, announce, rowName]);
 
   const consequence = armed
-    ? describeExpenseDeleteConsequence({ type: expense.type, amount: expense.amount, hasAccount: !!expense.linkedCashAssetId })
+    ? describeExpenseDeleteConsequence({ type: expense.type, amount: expense.amount, hasAccount: !!expense.linkedCashAssetId, hasFee: !!expense.transferFeeExpenseId })
     : null;
   const disabled = isDemo || busy;
   // A LOOKUP in the module-level map, never a call: a component obtained from a call during
@@ -296,10 +298,12 @@ export function ExpenseTable({ expenses, onEdit, onRefresh, isDemo = false, hasA
       setDeletingId(expense.id);
       // Give back what the row has applied — both accounts of a transfer — before deleting it;
       // a row still waiting for its date moved nothing (lib/utils/cashSettlement.ts).
-      if ((await reverseAppliedBalances([expense])) && user && ownerId) {
+      // A transfer's fee row goes with it (lib/utils/transferFee.ts), its balance given back too.
+      const rows = rowsDeletedWith(expense, await getTransferFeeOf(expense));
+      if ((await reverseAppliedBalances(rows)) && user && ownerId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.assets.all(ownerId) });
       }
-      await deleteExpense(expense.id);
+      await deleteExpenseRows(expense.userId, rows);
       toast.success('Voce eliminata con successo');
       onRefresh();
     } catch (error) {

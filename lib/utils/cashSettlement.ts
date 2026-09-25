@@ -13,6 +13,10 @@
  * The flag's ABSENCE means «applied» for a linked row: every row written before the rule moved its
  * account at save time, so no migration is needed and nothing old is ever applied twice.
  *
+ * The same date, and the same flag, govern the OTHER thing a row can move: a `debt` row linked to a
+ * property (`debtAssetId`) pays down its debt on its date (lib/utils/mortgageRepayment.ts). One
+ * flag for both, so a row is never half-settled.
+ *
  * SDK-free: plain rows in, balance effects out.
  */
 
@@ -26,7 +30,7 @@ export interface BalanceEffect {
 }
 
 /** The fields that decide a row's effect on the accounts. */
-export type SettlementRow = Pick<Expense, 'type' | 'amount' | 'linkedCashAssetId' | 'transferCashAssetId'> & {
+export type SettlementRow = Pick<Expense, 'type' | 'amount' | 'linkedCashAssetId' | 'transferCashAssetId' | 'debtAssetId'> & {
   balancePending?: boolean;
 };
 
@@ -64,6 +68,19 @@ export function movesAnAccount(row: SettlementRow): boolean {
   return balanceEffectsOf(row).some((effect) => Math.abs(effect.delta) > 0);
 }
 
+/** Whether a row pays down a property's debt on its date: a `debt` row linked to a property. */
+export function repaysDebt(row: Pick<Expense, 'type' | 'amount' | 'debtAssetId'>): boolean {
+  return row.type === 'debt' && !!row.debtAssetId && Math.abs(row.amount) > 0;
+}
+
+/**
+ * Whether a row has anything that waits for its date — an account to move or a debt to repay —
+ * and so is written `balancePending` when dated after today.
+ */
+export function hasDatedEffects(row: SettlementRow): boolean {
+  return movesAnAccount(row) || repaysDebt(row);
+}
+
 /** The effects summed per account, the ones that cancel out dropped (a sub-cent residue is float noise). */
 export function netBalanceEffects(effects: BalanceEffect[]): BalanceEffect[] {
   const byAsset = new Map<string, number>();
@@ -92,7 +109,7 @@ export function selectLinkableOccurrences<T extends SettlementRow & { date: Date
  * type across the transfer boundary, and the date moving across today in either direction.
  */
 export function editBalanceEffects(before: SettlementRow, after: SettlementRow & { date: Date }, now: Date): { effects: BalanceEffect[]; pending: boolean } {
-  const pending = movesAnAccount(after) && settlesLater(after.date, now);
+  const pending = hasDatedEffects(after) && settlesLater(after.date, now);
   const applied = pending ? [] : balanceEffectsOf(after);
   return { effects: netBalanceEffects([...reverseBalanceEffects(appliedBalanceEffectsOf(before)), ...applied]), pending };
 }
