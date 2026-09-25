@@ -248,6 +248,16 @@ export async function updateAsset(
       cleanedUpdates.subCategory = deleteField();
     }
 
+    // The debt and its TAN are user-clearable (the «Debito residuo» switch off, an emptied TAN).
+    // The `in` guard keeps a partial caller — a price refresh — from wiping a debt it never sent;
+    // the linked instalments move the debt through their own transaction (debtRepaymentService).
+    if ('outstandingDebt' in updates && updates.outstandingDebt === undefined) {
+      cleanedUpdates.outstandingDebt = deleteField();
+    }
+    if ('debtInterestRate' in updates && updates.debtInterestRate === undefined) {
+      cleanedUpdates.debtInterestRate = deleteField();
+    }
+
     // dividendCashAssetId is user-clearable («Predefinito» in AssetDialog). The `in` guard keeps a
     // partial caller — a price refresh — from wiping an account it never sent.
     if ('dividendCashAssetId' in updates && updates.dividendCashAssetId === undefined) {

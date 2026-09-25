@@ -92,6 +92,23 @@ the rules permitting the writes, real `Timestamp` values surviving `removeUndefi
   to `/it/login`, and the probe waited for a form that never came): read the «Local:» line of the dev log first.
 
 ## Browser-Driven E2E (Playwright)
+- **In a cloud container the pinned Chromium is not installed** (2026-09-25): `browserType.launch: Executable doesn't
+  exist at /opt/pw-browsers/chromium_headless_shell-XXXX`. Never `playwright install` there: a throwaway
+  `playwright.local.config.ts` (listed in `.git/info/exclude`, deleted at the end) spreads `playwright.config.ts` and
+  gives every project `launchOptions: { executablePath: '/opt/pw-browsers/chromium' }`; run with `-c` on it.
+- **A spec cannot import app code** (2026-09-25): Playwright does not resolve the `@/` alias, and every `lib/` module
+  uses it, so `import('../lib/server/…')` dies on its first transitive import. A server function is pinned in Vitest
+  against an in-memory Admin Firestore that enforces reads-before-writes (`__tests__/serverCashSettlement.test.ts`), and
+  exercised ONCE on the real emulator by a throwaway `.mts` run with `tsx` (which does resolve the alias).
+- **A spec that presses Impostazioni's «Salva» restores the whole document** (2026-09-25): the page writes every field
+  it holds, the `targets` tree included, and drops the base seed's sub-targets — two Allocazione tests went red in the
+  NEXT spec file of the full run, not in the one that saved. Read the document in `beforeAll`, `set()` it back whole in
+  `afterAll` (`e2e/cashflow.transfer-fee.spec.ts`).
+- **The cloud container's Chromium groups four-digit euros; Node and the pinned Chromium do not** (2026-09-25): the
+  container's `/opt/pw-browsers/chromium` (Chrome 141) prints «1.100 €» where Node and the Mac's pinned build print
+  «1100 €», so four specs whose regex reads an ungrouped four-digit amount are red there and only there
+  (`analisi.spec.ts`, `cashflow.centri.spec.ts`, `cashflow.split.spec.ts`, `pension.spec.ts` — green on the Mac on
+  2026-09-24). Not a regression: read the received text before touching code. A new spec takes both (`1\.?012,00`).
 - **A red spec you did not touch: read the fixture in the emulator before the code** (2026-09-20). `.emulator-data`
   persists across sessions, so the base seed DRIFTS: `seed-btp` had lost its `taxRate` a week earlier and the two
   Dividendi specs proposed the 26% fallback instead of the instrument's 12,5% — it read as a regression of the
