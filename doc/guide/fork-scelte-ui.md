@@ -108,6 +108,15 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    (the five write places), Flusso «Per ruolo» and its phone bar, the phone «Per tipo» from step 2. Role tokens only
    as `:root` aliases. **09-24**: built on upstream's rewritten Impostazioni (`CategoryRow` carries the role colour,
    per-tab dirty state, failed-read states — the roles clause says «non letti» when the categories failed).
+   **09-25: opened as upstream issue #397** (owner approved the draft as is; no code yet). What the issue fixes for
+   the PR, against the fork's code: the Switch goes in Impostazioni › **Spese** (upstream has no «Preferenze» tab);
+   the five `:root` aliases point at upstream's slots (`--chart-1/4/2`, `--muted-foreground`, `--destructive`), not
+   at the fork's `--flow-in`/`--flow-out`; «Per ruolo» on desktop is upstream's classic Sankey (the thin one is a
+   fork choice, § 1); the phone «Per tipo» bar only on the type map's slots, no `--type-flow-*`. Three questions to
+   the maintainer (opt-in default off; the phone «Per tipo» bar, which changes every user's phone Flusso, in this PR
+   or a separate one first; the Italian labels). **The code waits for the answers.** Branch `feat/spending-roles`,
+   cut from `upstream/main` (`3c6073eb`); the settings page, `CategoryRow` and the category dialog are rewritten on
+   upstream's versions, not cherry-picked.
 4. **Lime Frost** (fork only): the three light points (Lime-only rules fork-wide or not; class palette ΔE and
    `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
