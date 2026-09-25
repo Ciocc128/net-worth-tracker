@@ -53,7 +53,8 @@ function serializeFamilyMembers(
  *
  * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses,
  * coastFireRetirementAge, coastFirePensions, coastFireTaxBrackets,
- * includePrimaryResidenceInFIRE, dividendIncomeCategoryId, dividendIncomeSubCategoryId
+ * includePrimaryResidenceInFIRE, dividendIncomeCategoryId, dividendIncomeSubCategoryId,
+ * transferFeeCategoryId, transferFeeSubCategoryId
  *
  * WARNING (checklist comment): the mapping below is an EXPLICIT FIELD WHITELIST, not a spread of
  * `data`. A new field on `AssetAllocationSettings` that is not added here is written to Firestore
@@ -91,6 +92,8 @@ export async function getSettings(
       dividendIncomeCategoryId: data.dividendIncomeCategoryId,
       dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
       dividendCashAssetId: data.dividendCashAssetId,
+      transferFeeCategoryId: data.transferFeeCategoryId,
+      transferFeeSubCategoryId: data.transferFeeSubCategoryId,
       fireProjectionScenarios: data.fireProjectionScenarios,
       monteCarloScenarios: data.monteCarloScenarios,
       goalBasedInvestingEnabled: data.goalBasedInvestingEnabled,
@@ -231,6 +234,21 @@ export async function setSettings(
           docData.dividendCashAssetId = settings.dividendCashAssetId;
         } else {
           delete docData.dividendCashAssetId;
+        }
+      }
+      // User-clearable from Impostazioni → Spese (the transfer fee's category).
+      if ('transferFeeCategoryId' in settings) {
+        if (settings.transferFeeCategoryId !== undefined) {
+          docData.transferFeeCategoryId = settings.transferFeeCategoryId;
+        } else {
+          delete docData.transferFeeCategoryId;
+        }
+      }
+      if ('transferFeeSubCategoryId' in settings) {
+        if (settings.transferFeeSubCategoryId !== undefined) {
+          docData.transferFeeSubCategoryId = settings.transferFeeSubCategoryId;
+        } else {
+          delete docData.transferFeeSubCategoryId;
         }
       }
       if (settings.fireProjectionScenarios !== undefined) {
@@ -406,6 +424,15 @@ export async function setSettings(
       if ('dividendCashAssetId' in settings) {
         docData.dividendCashAssetId =
           settings.dividendCashAssetId !== undefined ? settings.dividendCashAssetId : deleteField();
+      }
+      // User-clearable from Impostazioni → Spese (the transfer fee's category).
+      if ('transferFeeCategoryId' in settings) {
+        docData.transferFeeCategoryId =
+          settings.transferFeeCategoryId !== undefined ? settings.transferFeeCategoryId : deleteField();
+      }
+      if ('transferFeeSubCategoryId' in settings) {
+        docData.transferFeeSubCategoryId =
+          settings.transferFeeSubCategoryId !== undefined ? settings.transferFeeSubCategoryId : deleteField();
       }
       if (settings.fireProjectionScenarios !== undefined) {
         docData.fireProjectionScenarios = settings.fireProjectionScenarios;

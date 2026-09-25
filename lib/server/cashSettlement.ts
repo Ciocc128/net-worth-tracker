@@ -11,12 +11,18 @@
  * it is still pending, so a second run (or two snapshots racing) moves nothing twice. A row whose
  * account no longer exists — or belongs to someone else — is marked settled without moving
  * anything, or it would wait forever.
+ *
+ * A `debt` row linked to a property also pays down its debt here (lib/utils/mortgageRepayment.ts):
+ * the principal of each due instalment, in date order on the debt as it stands, stamped on the row
+ * (`debtPrincipalRepaid`) in the same transaction — so the snapshot that follows photographs the
+ * property net of the month's principal, and Storico's «mutuo» measures it.
  */
 
 import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase/admin';
 import { toDate } from '@/lib/utils/dateHelpers';
-import { balanceEffectsOf, netBalanceEffects, settlesLater, type SettlementRow } from '@/lib/utils/cashSettlement';
+import { balanceEffectsOf, netBalanceEffects, repaysDebt, settlesLater, type SettlementRow } from '@/lib/utils/cashSettlement';
+import { planDebtRepayments, type DebtRow, type PropertyDebt } from '@/lib/utils/mortgageRepayment';
 import { invalidateDashboardOverviewSummaryServer } from '@/lib/services/dashboardOverviewInvalidation.server';
 
 /** Rows per transaction: each costs a read and a write, plus one read and write per account. */
@@ -46,7 +52,8 @@ export async function settleDueBalances(userId: string, now: Date): Promise<Sett
 
 async function settleChunk(userId: string, refs: DocumentReference[], now: Date): Promise<number> {
   return adminDb.runTransaction(async (tx) => {
-    // ALL reads before ANY write (Firestore transactions): the rows, then the accounts they move.
+    // ALL reads before ANY write (Firestore transactions): the rows, then the accounts and the
+    // properties they move.
     const rowSnaps = await Promise.all(refs.map((ref) => tx.get(ref)));
     const rows = rowSnaps.filter((snap) => {
       const data = snap.data();
@@ -56,6 +63,12 @@ async function settleChunk(userId: string, refs: DocumentReference[], now: Date)
     const assetRefs = effects.map((effect) => adminDb.collection('assets').doc(effect.assetId));
     const assetSnaps = await Promise.all(assetRefs.map((ref) => tx.get(ref)));
 
+    const debtRows: DebtRow[] = rows
+      .map((snap) => ({ ...(snap.data() as Omit<DebtRow, 'id' | 'date'>), id: snap.id, date: toDate(snap.data()!.date) }))
+      .filter(repaysDebt);
+    const propertyIds = [...new Set(debtRows.map((row) => row.debtAssetId!))];
+    const propertySnaps = await Promise.all(propertyIds.map((id) => tx.get(adminDb.collection('assets').doc(id))));
+
     effects.forEach((effect, index) => {
       const asset = assetSnaps[index];
       if (!asset.exists || asset.data()?.userId !== userId) {
@@ -64,7 +77,30 @@ async function settleChunk(userId: string, refs: DocumentReference[], now: Date)
       }
       tx.update(assetRefs[index], { quantity: (asset.data()!.quantity as number) + effect.delta, updatedAt: new Date() });
     });
-    for (const snap of rows) tx.update(snap.ref, { balancePending: FieldValue.delete(), updatedAt: new Date() });
+
+    // A property missing or someone else's is left out of `debts`: its rows repay 0 and settle.
+    const debts = new Map<string, PropertyDebt>();
+    propertySnaps.forEach((snap, index) => {
+      const data = snap.data();
+      if (!snap.exists || data?.userId !== userId) {
+        console.warn('[cashSettlement] Skipping a property that is missing or not the user\'s', { userId, assetId: propertyIds[index] });
+        return;
+      }
+      debts.set(propertyIds[index], { debt: (data.outstandingDebt as number | undefined) ?? 0, annualRatePct: data.debtInterestRate as number | undefined });
+    });
+    const plan = planDebtRepayments(debtRows, debts);
+    for (const [assetId, debt] of plan.debts) {
+      tx.update(adminDb.collection('assets').doc(assetId), { outstandingDebt: debt, updatedAt: new Date() });
+    }
+
+    for (const snap of rows) {
+      const principal = plan.principals.get(snap.id);
+      tx.update(snap.ref, {
+        balancePending: FieldValue.delete(),
+        ...(principal !== undefined ? { debtPrincipalRepaid: principal } : {}),
+        updatedAt: new Date(),
+      });
+    }
     return rows.length;
   });
 }

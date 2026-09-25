@@ -13,36 +13,30 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **180 files / 4241 tests** green in both timezones + **35 Playwright spec files** (120 tests, incl. 6 auth setups; last full run 2026-09-24 evening, 4,1 min: 120 green, `modal.origin` included). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-24, sera): **Hall of Fame — critique Impeccable (26/40) chiusa nella stessa sessione, tutto il backlog.**
-  Due P1: «2026 · ORA» troncato in «20…» nella tessera Anni a OGNI larghezza (la colonna del periodo era
-  `w-[58px]` + `truncate`: ora è un `min-w-`, mai un tetto, `whitespace-nowrap`, e le chip «ORA» / «2 mesi»
-  ne fanno parte) e tre articoli scritti a mano — «il 88,5%», «Gli 10 anni», «dal migliore» sulle spese —
-  ora da `articleForPercent`/`pluralArticleFor` e `RANKING_ORDER` («dal più alto» / «dal più forte»). Tre P2:
-  la cifra del verdetto stampata tre volte in 200 px (la lettura Record dice la somma del podio e l'ultima
-  riga in tessera, la lettura Anni il DISTACCO dal posto sopra — `rowAboveCurrent`, senza segno e senza
-  colore); l'asse dei 12 record senza anno (`TimelinePoint.yearLabel`, una seconda riga sotto i mesi); il
-  form nota rifatto — precompilato DALLA RIGA (`NoteTrigger` → `NotePrefill`, «+» al passaggio del mouse
-  sulle tessere, sempre nella colonna «Nota» del Dettaglio), `fieldset`/`legend`, il vocabolario delle
-  tessere (`SECTION_LABELS` «Crescita del patrimonio · mese», `SECTION_SUBJECTS`), `returnFocusTo` su
-  entrambe le finestre, `describeWriteError`, la lettura che dice quando il periodo non è in nessuna
-  classifica scelta (`isPeriodRanked`). Le scelte del proprietario: il footer Record chiude sulla RIPRESA
-  («da allora 32 mesi su 35 in crescita», `stats.sinceWorstMonth` salvato dai due writer, mai derivato) e
-  il primo anno parziale è dichiarato («2022 · 2 mesi», `YearlyRecord.monthsCovered`, `isPartialYear`);
-  l'header data i record (`rankingsUpdatedAt`, timbrato solo da `updateHallOfFame`: `updatedAt` si muove
-  a ogni nota). Minori: «mar 2024» a capo nella tessera Note, marcatori 44 px su touch, pillole 32/44 e
-  `semantics="radio"`, la tabella del Dettaglio con la dissolvenza a destra MISURATA (`scrollWidth >
-  clientWidth`), il trigger del Dettaglio letto per intero, «Leggi la nota di marzo 2024», l'aside Record
-  come finestra («da dic 2022 a set 2026») e non un terzo «46», «I 12 record più grandi», un'assenza in
-  una frase, due footer dietro «Come si calcola», il «+» del navbar mobile tolto (tre stop con lo stesso
-  nome). **Verifica**: `tsc`, lint 0, Vitest 180 file / 4241 nei due fusi (22 nuovi; falsificati: articolo a
-  mano, mesi piatti contati come crescita, `isPartialYear` forzato — rossi); Playwright NUOVO account
-  fixture `hof@example.com` (`scripts/seedHallOfFameE2E.mts`, 47 snapshot dal 2022, il documento costruito
-  DALLA ROUTE nella spec) con `e2e/hall-of-fame.hof{,.mobile}.spec.ts`, 11 test (+ setup) verdi, la
-  colonna troncata falsificata rossa in browser. Evidenza della critique: Playwright (estensione Chrome
-  non connessa), detector CLI 0, overlay 42/38 quasi tutti «per scala». doc/guide/hall-of-fame.md
-  riscritta (campi salvati, la tessera che non ripete il verdetto, la nota dalla riga, i locator); la
-  lezione della sessione (mai `git checkout <file>` per annullare una riga) in AGENTS.md § Commands.
+- `tsc` clean; **184 files / 4309 tests** green in `Europe/Rome` + **37 Playwright spec files** (128 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container, 10,6 min: 123 green — see Latest for the 5). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25): **Cashflow — la commissione di un trasferimento e la rata del mutuo che riduce il debito
+  dell'immobile.** Due richieste del proprietario, una sessione. (1) «Commissione» su un Trasferimento: una spesa
+  PROPRIA (il trasferimento non entra in nessun totale), nella categoria scelta in Impostazioni › Spese
+  («Commissioni sui trasferimenti», `transferFeeCategoryId`), addebitata sul conto di ORIGINE alla data del
+  trasferimento; legata nei due sensi (`transferFeeExpenseId` / `feeOfTransferId`), creata nello stesso batch, modificata
+  DAL trasferimento, eliminata con lui (`lib/utils/transferFee.ts`). Senza categoria il campo è spento e rimanda
+  all'impostazione. (2) «Riduce il debito di» su una voce Debito: nel giorno della rata (lo stesso `balancePending` del
+  conto) il debito dell'immobile scende della sola QUOTA CAPITALE, `rata − debito × TAN / 12` (ammortamento alla
+  francese, TAN nuovo su Patrimonio, `debtInterestRate`; senza TAN tutta la rata, e il form lo dice), salvata sulla riga
+  (`debtPrincipalRepaid`) perché modifica e cancellazione restituiscano esattamente quella; «Collega la serie al
+  mutuo…» per la serie già registrata, solo le rate future (`lib/utils/mortgageRepayment.ts`,
+  `lib/services/debtRepaymentService.ts`, la metà server in `settleDueBalances`). Storico › «mutuo» lo misura da sé.
+  Corretto anche il debito residuo che non si poteva togliere (`updateAsset` senza guardia `in`). **Verifica**: `tsc`,
+  lint 0, Vitest 184 file nei due fusi (in UTC i soli 3 rossi noti); Playwright `e2e/cashflow.transfer-fee.spec.ts` (4) e
+  `e2e/cashflow.mortgage.spec.ts` (4), tutto letto da Firestore; `settleDueBalances` in Vitest contro un Admin Firestore in
+  memoria che impone letture-prima-di-scritture (`serverCashSettlement.test.ts`) e una volta sull'emulatore vero.
+  Falsificati e visti rossi: commissione fuori dagli effetti, cancellazione senza commissione, `getSettings` senza il
+  campo, la guardia `isTransfer`, la quota capitale non applicata al salvataggio, lo storno del debito, le letture degli
+  immobili dopo le scritture, la guardia `in` del debito. Run completa nel container: 123 verdi; `modal.origin` rosso
+  una volta e verde da solo (intermittente noto); 4 rossi AMBIENTALI (Analisi, Centri, Divisione, Previdenza: il Chromium
+  del container stampa «1.100 €»), nessuno sul codice della sessione. La prima run aveva trovato un rosso vero causato
+  dalla sessione: «Salva» di Impostazioni riscrive i target, la spec delle commissioni ora ripristina tutto il documento.
+  Lezioni in doc/guide/e2e-emulatori.md.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -59,7 +53,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
 - **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
 - **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
-- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
+- **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, a transfer's fee as its own row, a mortgage instalment repaying its property's principal, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
 - **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
@@ -105,6 +99,8 @@ Only what crosses areas; an area's blind spots — the behaviours that look like
   `boundingBox()` the spec takes and the origin captured at the click: a late reflow under suite load, roughly the
   height of the custom-period chip row. It passes alone, and in the `desktop` project alone. Not reproduced on demand,
   so not yet fixed — re-read this before trusting a single red run of it.
+- **Four base specs are red in the cloud container only** (2026-09-25): its Chromium groups four-digit euros («1.100 €»),
+  the specs expect «1100 €» as on the Mac (doc/guide/e2e-emulatori.md). Read the received text before «fixing» code.
 - **The icon rail's 44px targets are measured at 1440 with a mouse**; no fixture covers a ≥1440px tablet in landscape.
 - **Two shared primitives stay below 44px on touch, on every page**: the `PageTabBar` pill below 1440 (inactive tabs
   38×32, icon only) and the `Switch` (36×20; its row's `Label` is clickable, the thumb alone is not). Measured on

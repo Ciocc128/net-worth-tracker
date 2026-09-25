@@ -42,6 +42,7 @@ import {
   describeSharing,
   describeTargetProblem,
   describeThemeMode,
+  describeTransferFeeCategory,
   describeUnsavedChanges,
   summarizeExpenseCategories,
 } from '@/lib/utils/settingsNarrative';
@@ -746,6 +747,20 @@ describe('describeImport', () => {
     expect(plain(describeImport({ phase: 'done', created: 1 }))).toBe(
       'Importata 1 transazione: la trovi in Cashflow e Analisi; «Annulla import» la rimuove.'
     );
+  });
+});
+
+// ─── Commissioni sui trasferimenti ────────────────────────────────────────────
+
+describe('describeTransferFeeCategory', () => {
+  it('says where a typed fee lands, subcategory included, and which account pays it', () => {
+    expect(plain(describeTransferFeeCategory({ categoryName: 'Commissioni', subCategoryName: 'Bonifici' }))).toBe(
+      'La commissione scritta su un trasferimento diventa una spesa in Commissioni › Bonifici, addebitata sul conto di origine.'
+    );
+  });
+
+  it('says what stalls without a category: the form field stays off', () => {
+    expect(plain(describeTransferFeeCategory({}))).toBe('Senza una categoria, il campo «Commissione» dei trasferimenti resta spento.');
   });
 });
 
