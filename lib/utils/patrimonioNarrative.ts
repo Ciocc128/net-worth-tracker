@@ -29,6 +29,7 @@ import {
   taxedGrowthHeadline,
 } from '@/lib/utils/salesNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
+import type { MortgageSummary, MortgageYear } from '@/lib/utils/mortgageSummary';
 
 export interface PatrimonioVerdictInput {
   /** Current calendar month, 1-12. */
@@ -434,4 +435,83 @@ export function describeLastPriceUpdate(lastUpdate: Date | null, now: Date): str
   const sameYear = updated.getFullYear() === today.getFullYear();
   const date = `${String(updated.getDate()).padStart(2, '0')}/${String(updated.getMonth() + 1).padStart(2, '0')}${sameYear ? '' : `/${updated.getFullYear()}`}`;
   return `prezzi aggiornati il ${date} alle ${time}`;
+}
+
+// ─── Mutuo ────────────────────────────────────────────────────────────────────
+
+/** «novembre 2036»: a month named with its year, lower case, from a local date. */
+function monthYearOf(date: Date): string {
+  return `${MONTH_NAMES[date.getMonth()].toLowerCase()} ${date.getFullYear()}`;
+}
+
+/** «28 settembre»: the day of an instalment still to come. */
+function dayMonthOf(date: Date): string {
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()].toLowerCase()}`;
+}
+
+/** Where the plan ends, as the clause that closes the reading; null without a projection. */
+function describePayoff(summary: MortgageSummary): NarrativeSegment[] | null {
+  const payoff = summary.payoff;
+  if (!payoff) return null;
+  if (payoff.kind === 'repaid') return [prose('il debito è estinto.')];
+  if (payoff.kind === 'never') return [prose('con questa rata il debito non scende: copre appena gli interessi.')];
+  return [prose('al ritmo di oggi il mutuo si chiude a '), figure(monthYearOf(payoff.date)), prose('.')];
+}
+
+/**
+ * The reading of Patrimonio's «Mutuo» tile (lib/utils/mortgageSummary.ts): what the instalments
+ * SETTLED this year cost in interest and repaid in principal, then where the plan ends. Before
+ * the first settled instalment it says what the next one will do, on today's debt — never a
+ * figure for the instalments paid before the link, which the app did not measure.
+ */
+export function describeMortgage(summary: MortgageSummary): Narrative {
+  const payoff = describePayoff(summary);
+  const closing = payoff ? [prose('; '), ...payoff] : [prose('.')];
+  if (summary.yearInstalments > 0) {
+    return [
+      prose(`Nel ${summary.year} hai pagato `),
+      figure(cachedFormatCurrencyEUR(summary.yearInterest)),
+      prose(' di interessi e rimborsato '),
+      figure(cachedFormatCurrencyEUR(summary.yearPrincipal)),
+      prose(` di capitale, in ${summary.yearInstalments === 1 ? '1 rata' : `${summary.yearInstalments} rate`}`),
+      ...closing,
+    ];
+  }
+  if (summary.next) {
+    const lead = summary.trackedSince ? 'La prossima rata, il ' : 'La prima rata collegata, il ';
+    return [
+      prose(lead),
+      figure(dayMonthOf(summary.next.date)),
+      prose(', rimborserà '),
+      figure(cachedFormatCurrencyEUR(summary.next.principal)),
+      prose(' di capitale; '),
+      figure(cachedFormatCurrencyEUR(summary.next.interest)),
+      prose(' saranno interessi'),
+      ...closing,
+    ];
+  }
+  return [prose(`Nel ${summary.year} nessuna rata collegata è ancora stata pagata`), ...closing];
+}
+
+/**
+ * The tile's footer line: from when the interest is measured, and on which TAN — or that the
+ * property has none, so every instalment counts as principal.
+ */
+export function describeMortgageScope(summary: MortgageSummary): string {
+  const since = summary.trackedSince ? `Interessi dalle rate collegate, da ${monthYearOf(summary.trackedSince)}` : 'Interessi dalle rate collegate, dalla prima pagata';
+  if (!summary.annualRatePct || summary.annualRatePct <= 0) return `${since} · senza TAN: ogni rata va tutta in capitale.`;
+  const rate = new Intl.NumberFormat('it-IT', { style: 'percent', maximumFractionDigits: 3 }).format(summary.annualRatePct / 100);
+  return `${since} · TAN ${rate}.`;
+}
+
+/**
+ * The caption of a year in the «Per anno» list: the first measured year is partial from the link
+ * («da settembre»), the running year is not over («finora») — a partial year printed bare would
+ * read as a year of lower interest.
+ */
+export function describeMortgageYearScope(entry: MortgageYear, currentYear: number): string | null {
+  const parts: string[] = [];
+  if (entry.partialFrom) parts.push(`da ${MONTH_NAMES[entry.partialFrom.getMonth()].toLowerCase()}`);
+  if (entry.year === currentYear) parts.push('finora');
+  return parts.length > 0 ? parts.join(', ') : null;
 }

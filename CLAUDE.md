@@ -13,30 +13,22 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **184 files / 4309 tests** green in `Europe/Rome` + **37 Playwright spec files** (128 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container, 10,6 min: 123 green — see Latest for the 5). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-25): **Cashflow — la commissione di un trasferimento e la rata del mutuo che riduce il debito
-  dell'immobile.** Due richieste del proprietario, una sessione. (1) «Commissione» su un Trasferimento: una spesa
-  PROPRIA (il trasferimento non entra in nessun totale), nella categoria scelta in Impostazioni › Spese
-  («Commissioni sui trasferimenti», `transferFeeCategoryId`), addebitata sul conto di ORIGINE alla data del
-  trasferimento; legata nei due sensi (`transferFeeExpenseId` / `feeOfTransferId`), creata nello stesso batch, modificata
-  DAL trasferimento, eliminata con lui (`lib/utils/transferFee.ts`). Senza categoria il campo è spento e rimanda
-  all'impostazione. (2) «Riduce il debito di» su una voce Debito: nel giorno della rata (lo stesso `balancePending` del
-  conto) il debito dell'immobile scende della sola QUOTA CAPITALE, `rata − debito × TAN / 12` (ammortamento alla
-  francese, TAN nuovo su Patrimonio, `debtInterestRate`; senza TAN tutta la rata, e il form lo dice), salvata sulla riga
-  (`debtPrincipalRepaid`) perché modifica e cancellazione restituiscano esattamente quella; «Collega la serie al
-  mutuo…» per la serie già registrata, solo le rate future (`lib/utils/mortgageRepayment.ts`,
-  `lib/services/debtRepaymentService.ts`, la metà server in `settleDueBalances`). Storico › «mutuo» lo misura da sé.
-  Corretto anche il debito residuo che non si poteva togliere (`updateAsset` senza guardia `in`). **Verifica**: `tsc`,
-  lint 0, Vitest 184 file nei due fusi (in UTC i soli 3 rossi noti); Playwright `e2e/cashflow.transfer-fee.spec.ts` (4) e
-  `e2e/cashflow.mortgage.spec.ts` (4), tutto letto da Firestore; `settleDueBalances` in Vitest contro un Admin Firestore in
-  memoria che impone letture-prima-di-scritture (`serverCashSettlement.test.ts`) e una volta sull'emulatore vero.
-  Falsificati e visti rossi: commissione fuori dagli effetti, cancellazione senza commissione, `getSettings` senza il
-  campo, la guardia `isTransfer`, la quota capitale non applicata al salvataggio, lo storno del debito, le letture degli
-  immobili dopo le scritture, la guardia `in` del debito. Run completa nel container: 123 verdi; `modal.origin` rosso
-  una volta e verde da solo (intermittente noto); 4 rossi AMBIENTALI (Analisi, Centri, Divisione, Previdenza: il Chromium
-  del container stampa «1.100 €»), nessuno sul codice della sessione. La prima run aveva trovato un rosso vero causato
-  dalla sessione: «Salva» di Impostazioni riscrive i target, la spec delle commissioni ora ripristina tutto il documento.
-  Lezioni in doc/guide/e2e-emulatori.md.
+- `tsc` clean; **185 files / 4327 tests** green in `Europe/Rome` + **37 Playwright spec files** (130 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container: 123 of 128 green, the 5 reds environmental or the known `modal.origin` — doc/guide/e2e-emulatori.md). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-25, bis): **Patrimonio › «Mutuo» — quanto costa il mutuo, in interessi, anno per anno.** Dopo le
+  rate che riducono il debito per la quota capitale (stessa giornata, PR precedente), ogni rata regolata salva anche gli
+  INTERESSI pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`, nei tre punti: salvataggio, modifica, job
+  serale). Una tessera «Mutuo» a tutta larghezza tra Rendimento e Strumenti, per ogni immobile con rate collegate: la
+  lettura dice interessi e capitale delle rate PAGATE dell'anno e quando si chiude il piano, i KPI debito · interessi
+  dell'anno · capitale dell'anno · fine prevista (ammortamento alla francese, `projectPayoff`), e dal secondo anno
+  misurato una tabella «Per anno» (il primo anno «da settembre», quello in corso «finora»). Scelte del proprietario:
+  solo Patrimonio, e gli interessi contano SOLO dalle rate regolate dall'app — il passato non si ricostruisce e il
+  footer dice da quando. Letture: una query per immobile (`userId` + `debtAssetId`, nessun indice composto), chiave
+  sotto `assets.all`, `staleTime: 0`. **Verifica**: `tsc`, lint 0, Vitest 185 file / 4327 in `Europe/Rome`
+  (`mortgageSummary`, `patrimonioNarrative`, stamp degli interessi nel job server e nel piano); Playwright
+  `e2e/cashflow.mortgage.spec.ts` 6 test (+2: la tessera legge 600 € di interessi e 412 € di capitale; la tabella con
+  due anni e le didascalie), più le spec Commissioni, Conti e Patrimonio verdi; a 390 e 1440 nessuno sforamento né di
+  `main` né dentro la tessera. Falsificati e visti rossi: lo stamp lato server (Vitest), lo stamp lato client (E2E su
+  Firestore), la soglia della tabella. Un atteso sbagliato nel test («124 rate») era mio: il conto a mano dà 122,998 → 123.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -51,7 +43,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.
 - **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
-- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles; Strumenti is the management table. doc/guide/patrimonio.md.
+- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles, plus «Mutuo» per property with linked instalments (interest and principal by year, projected end); Strumenti is the management table. doc/guide/patrimonio.md.
 - **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, a transfer's fee as its own row, a mortgage instalment repaying its property's principal, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.

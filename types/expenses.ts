@@ -121,6 +121,10 @@ export interface Expense {
   // or a delete gives back exactly what was repaid. Absent while pending.
   debtAssetId?: string;
   debtPrincipalRepaid?: number;
+  // The interest the same instalment paid (debt × TAN / 12 on the day it settled), stored beside
+  // the principal for Patrimonio's «Mutuo» tile. Absent on a row settled before the field existed:
+  // read it through `interestPaidOf` (lib/utils/mortgageSummary.ts).
+  debtInterestPaid?: number;
   // Optional cost center assignment for grouping expenses by object/project (e.g. "Automobile Dacia").
   // costCenterName is denormalized for query performance — same pattern as categoryName.
   // WARNING: If a cost center is renamed, bulk-update all linked expenses via costCenterService.renameCostCenter.

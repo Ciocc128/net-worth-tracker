@@ -31,7 +31,7 @@ import type { Expense } from '@/types/expenses';
 import { repaysDebt, settlesLater } from '@/lib/utils/cashSettlement';
 
 /** The fields that decide what a row does to a property's debt. */
-export type DebtRow = Pick<Expense, 'type' | 'amount' | 'debtAssetId' | 'debtPrincipalRepaid' | 'balancePending'> & {
+export type DebtRow = Pick<Expense, 'type' | 'amount' | 'debtAssetId' | 'debtPrincipalRepaid' | 'debtInterestPaid' | 'balancePending'> & {
   id: string;
   date: Date;
 };
@@ -54,20 +54,23 @@ const toCents = (value: number) => Math.round(value * 100) / 100;
 /**
  * Split an instalment into interest and principal on the debt it is paid against. The principal
  * never goes below zero (an instalment smaller than the month's interest repays nothing) nor
- * above the debt (the last instalment cannot push the debt negative).
+ * above the debt (the last instalment cannot push the debt negative); the interest is never more
+ * than the instalment — what was PAID, not what accrued.
  */
 export function splitInstalment(instalment: number, debt: number, annualRatePct?: number): InstalmentSplit {
   const outstanding = Math.max(0, debt);
   const rate = annualRatePct && annualRatePct > 0 ? annualRatePct : 0;
-  const interest = toCents((outstanding * rate) / 100 / 12);
-  const principal = toCents(Math.min(outstanding, Math.max(0, Math.abs(instalment) - interest)));
-  return { interest, principal };
+  const accrued = toCents((outstanding * rate) / 100 / 12);
+  const paid = Math.abs(instalment);
+  const principal = toCents(Math.min(outstanding, Math.max(0, paid - accrued)));
+  return { interest: Math.min(accrued, toCents(paid)), principal };
 }
 
-/** The result of applying rows to their properties: each property's new debt, each row's principal. */
+/** The result of applying rows to their properties: each property's new debt, each row's principal and interest. */
 export interface DebtRepaymentPlan {
   debts: Map<string, number>;
   principals: Map<string, number>;
+  interests: Map<string, number>;
 }
 
 /**
@@ -78,19 +81,22 @@ export interface DebtRepaymentPlan {
 export function planDebtRepayments(rows: DebtRow[], debts: Map<string, PropertyDebt>): DebtRepaymentPlan {
   const running = new Map<string, number>();
   const principals = new Map<string, number>();
+  const interests = new Map<string, number>();
   const ordered = rows.filter(repaysDebt).sort((a, b) => a.date.getTime() - b.date.getTime() || a.id.localeCompare(b.id));
   for (const row of ordered) {
     const property = debts.get(row.debtAssetId!);
     if (!property) {
       principals.set(row.id, 0);
+      interests.set(row.id, 0);
       continue;
     }
     const debt = running.get(row.debtAssetId!) ?? property.debt;
-    const { principal } = splitInstalment(row.amount, debt, property.annualRatePct);
+    const { principal, interest } = splitInstalment(row.amount, debt, property.annualRatePct);
     principals.set(row.id, principal);
+    interests.set(row.id, interest);
     running.set(row.debtAssetId!, toCents(debt - principal));
   }
-  return { debts: running, principals };
+  return { debts: running, principals, interests };
 }
 
 /** What a row HAS repaid on its property: nothing while it waits for its date. */

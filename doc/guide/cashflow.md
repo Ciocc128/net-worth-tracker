@@ -82,8 +82,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `outstandingDebt` falls by `instalment − debt × TAN / 12` (`splitInstalment`, French amortisation, TAN =
   `Asset.debtInterestRate`, absent = 0% and said in the form), never by the whole instalment — the interest would
   otherwise inflate the net worth every month. Rows applied together go in DATE ORDER on the debt the previous one left
-  (`planDebtRepayments`). What a row repaid is STORED (`debtPrincipalRepaid`) because the interest depends on that day's
-  debt: an edit gives it back and re-splits on today's debt (`planDebtEdit`, a no-op when property, amount and date side
+  (`planDebtRepayments`). What a row repaid is STORED (`debtPrincipalRepaid`, and beside it the interest it paid,
+  `debtInterestPaid`, read by Patrimonio's «Mutuo» tile) because the interest depends on that day's debt: an edit gives it back and re-splits on today's debt (`planDebtEdit`, a no-op when property, amount and date side
   are unchanged), a delete gives back exactly it (`reverseAppliedBalances` → `reverseDebtRepayments`). The client applies
   the rows already happened (`debtRepaymentService`), `settleDueBalances` the rest on their day, in the same
   transaction as the accounts. «Collega la serie al mutuo…» (`selectDebtLinkableOccurrences`) links only the future

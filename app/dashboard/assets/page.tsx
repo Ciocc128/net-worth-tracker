@@ -5,9 +5,10 @@
  * verdict (lib/utils/patrimonioNarrative.ts) whose driver is an INSTRUMENT, then a 12-column
  * bento, each tile one question with a one-line reading above its figures:
  *
- *   Mobile (1 col):   Verdict → Patrimonio → Movimenti → Liquidità → Classi → Rendimento → Strumenti
+ *   Mobile (1 col):   Verdict → Patrimonio → Movimenti → Liquidità → Classi → Rendimento → [Mutuo] → Strumenti
  *   Desktop (12 col): Patrimonio(5, 2 rows) | Liquidità(3) | Movimenti(4)
  *                                           | Classi(3)    | Rendimento(4)
+ *                     [Mutuo(12) — one per property with instalments linked to its debt]
  *                     Strumenti(12)
  *
  * The DOM order IS the mobile order (Movimenti before Liquidità); the desktop row is placed by
@@ -77,6 +78,9 @@ import type { SparklinePeriod } from '@/components/dashboard/PeriodSelector';
 import { LiquiditaTile } from '@/components/assets/tiles/LiquiditaTile';
 import { MovimentiTile } from '@/components/assets/tiles/MovimentiTile';
 import { RendimentoTile } from '@/components/assets/tiles/RendimentoTile';
+import { MutuoTile } from '@/components/assets/tiles/MutuoTile';
+import { useMortgageInstalments } from '@/lib/hooks/useMortgageInstalments';
+import { summarizeMortgage } from '@/lib/utils/mortgageSummary';
 import { StrumentiTile } from '@/components/assets/StrumentiTile';
 import { AssetDialog } from '@/components/assets/AssetDialog';
 import { TransactionDialog } from '@/components/assets/TransactionDialog';
@@ -187,6 +191,26 @@ export default function AssetsPage() {
   // Sold-out positions stay in the table («Azzerato») but are not owned: every count runs on these.
   const heldInstruments = useMemo(() => instruments.filter(isHeld), [instruments]);
   const assetsById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
+
+  // «Mutuo»: every property is asked for its linked instalments (a repaid one keeps its history);
+  // a tile appears only for a property that has at least one (lib/utils/mortgageSummary.ts).
+  const propertyIds = useMemo(
+    () => assets.filter((a) => a.type === 'realestate' && a.assetClass === 'realestate').map((a) => a.id),
+    [assets],
+  );
+  const {
+    data: mortgageRows = [],
+    isLoading: loadingMortgage,
+    isError: mortgageError,
+  } = useMortgageInstalments(ownerId, propertyIds);
+  const mortgages = useMemo(() => {
+    const now = new Date();
+    return assets
+      .filter((a) => propertyIds.includes(a.id))
+      .map((property) => ({ property, rows: mortgageRows.filter((row) => row.debtAssetId === property.id) }))
+      .filter(({ rows }) => rows.length > 0)
+      .map(({ property, rows }) => summarizeMortgage(property, rows, now));
+  }, [assets, propertyIds, mortgageRows]);
 
   const cashSummary = useMemo(() => summarizeCashAccounts(cashAccounts, totalValue), [cashAccounts, totalValue]);
   const tradesSummary = useMemo(() => summarizeMonthTrades(trades, today), [trades, today]);
@@ -326,7 +350,7 @@ export default function AssetsPage() {
   // The skeleton waits for EVERY query the tiles read (a cold ledger meta or snapshot read would
   // otherwise flash "registro non attivo" or empty Δ columns); a failed fetch is not an empty
   // set, so an error is an alert, never a skeleton that never lifts.
-  if (loadingAssets || loadingOverview || loadingSnapshots || isLedgerMetaLoading) {
+  if (loadingAssets || loadingOverview || loadingSnapshots || isLedgerMetaLoading || loadingMortgage) {
     return (
       <PageContainer>
         <PageHeader label="Patrimonio" title="Strumenti e conti" />
@@ -461,6 +485,24 @@ export default function AssetsPage() {
                 <RendimentoTile gains={gains} ranking={ranking} rankedFrom={ranking.rankedFrom} />
               </motion.div>
             </>
+          )}
+
+          {/* A failed read of the instalments is not «no mortgage»: it says so where the tile would be. */}
+          {mortgageError ? (
+            <motion.div variants={cardItem} className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+              <ErrorNotice
+                notice={describeReadFailure({
+                  subject: 'Mutuo',
+                  consequence: 'Le rate collegate agli immobili non sono state lette: interessi e capitale pagati tornano al prossimo caricamento.',
+                })}
+              />
+            </motion.div>
+          ) : (
+            mortgages.map((summary) => (
+              <motion.div key={summary.propertyId} variants={cardItem} className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+                <MutuoTile summary={summary} showPropertyName={mortgages.length > 1} />
+              </motion.div>
+            ))
           )}
 
           <motion.div variants={cardItem} className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>

@@ -1417,6 +1417,22 @@ export async function linkSeriesToCashAccount(userId: string, expense: Expense, 
 }
 
 /**
+ * The instalments linked to each of the given properties (`debtAssetId`), for Patrimonio's «Mutuo»
+ * tile (lib/utils/mortgageSummary.ts). One query per property with two equalities — `userId`,
+ * which `firestore.rules` needs on every list, and the property — the same shape as a series
+ * lookup, so no composite index is involved.
+ */
+export async function getMortgageInstalments(userId: string, propertyIds: string[]): Promise<Expense[]> {
+  const perProperty = await Promise.all(
+    propertyIds.map(async (propertyId) => {
+      const snapshot = await getDocs(query(collection(db, EXPENSES_COLLECTION), where('userId', '==', userId), where('debtAssetId', '==', propertyId)));
+      return snapshot.docs.map((docSnapshot) => expenseFromSnapshot(docSnapshot));
+    })
+  );
+  return perProperty.flat();
+}
+
+/**
  * «Collega la serie al mutuo»: link the occurrences of `expense`'s series still to come to the
  * property `debtAssetId`, each repaying its principal on its own date (lib/utils/mortgageRepayment.ts,
  * settled by the server like an account). The past is never touched: the debt typed on the property

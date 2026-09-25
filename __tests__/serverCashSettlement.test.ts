@@ -114,7 +114,7 @@ describe('settleDueBalances — a mortgage instalment on its day', () => {
     expect(collections.assets.get('bnl')!.quantity).toBe(5000 - 1012);
     // 200.000 × 3,6% / 12 = 600 of interest → 412 of principal.
     expect(collections.assets.get('casa')!.outstandingDebt).toBe(199_588);
-    expect(collections.expenses.get('due')).toMatchObject({ debtPrincipalRepaid: 412 });
+    expect(collections.expenses.get('due')).toMatchObject({ debtPrincipalRepaid: 412, debtInterestPaid: 600 });
     expect(collections.expenses.get('due')).not.toHaveProperty('balancePending');
     expect(collections.expenses.get('later')).toMatchObject({ balancePending: true });
     expect(collections.expenses.get('later')).not.toHaveProperty('debtPrincipalRepaid');
