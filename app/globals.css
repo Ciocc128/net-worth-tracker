@@ -118,15 +118,23 @@
      Every one defaults to what the component painted before, so only a theme that names it
      changes. Four families — look here before adding a fifth:
        · Surfaces     --outline-surface · --segment-active · --destructive-surface(-hover) ·
-                      --destructive-outline · --progress-fill
+                      --destructive-outline · --progress-fill · --milestone-far/-near ·
+                      --allocation-row-bar · --exposure-bar
        · Interaction  --action(-foreground, -hover) · --toggle-on(-foreground, -hover) ·
-                      --aside-toggle-on(-foreground) · --ghost-hover(-foreground)
-       · Flows        --flow-in · --flow-out · --cost-figure · --trade-buy · --trade-sell · --trade-ok ·
-                      --role-need · --role-want · --role-saving · --role-unclassified · --role-deficit
+                      --aside-toggle-on(-foreground) · --ghost-hover(-foreground) ·
+                      --ghost-destructive-hover
+       · Flows        --flow-in · --flow-out · --trade-buy · --trade-sell · --trade-ok ·
+                      --role-need · --role-want · --role-saving · --role-unclassified · --role-deficit ·
+                      the figures: --cost-figure · --estimate-figure · --income-figure ·
+                      --expense-figure · --net-gain-figure · --net-loss-figure
        · Series       --hero-series · --capital-networth · --capital-invested · --sharpe-series ·
-                      --drawdown · --scenario-bear/-base/-bull · --manual-row
-     Plus --category-icon(-bg), undeclared on purpose (lib/utils/categoryIconStyle.ts). A theme
-     block that writes one of these as a literal must take it back in its dark block. */
+                      --drawdown · --scenario-bear/-base/-bull · --manual-row ·
+                      --sign-chart-gain/-loss · --series-dot
+     Plus two groups undeclared on purpose, so a `var(…, fallback)` falls through: --category-icon(-bg)
+     (lib/utils/categoryIconStyle.ts) and the Flows' --type-flow-income/-budget/-savings/-fixed/
+     -variable/-debt (the Sankey's «Per tipo» view keeps its type slots in every theme that does not
+     name them). A theme block that writes one of these as a literal must take it back in its dark
+     block. */
   /* Category-bar colours for money in / money out (Panoramica, Tracciamento). Default to the
      slots they used before, so a theme that does not set them renders exactly as it did. */
   --flow-in: var(--chart-2);
@@ -930,8 +938,10 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-3: oklch(0.6650 0.1440 70.0800);
   --chart-4: oklch(0.6800 0.2090 303.9000);
   /* Slot 5 is Liquidità (ASSET_CLASS_CHART_INDEX.cash): a neutral ice grey, as its chip already
-     is — the class that holds no position must not read as a loss (still ≥ 3:1 on white). */
-  --chart-5: oklch(0.6400 0.0350 235.0000);
+     is — the class that holds no position must not read as a loss. L 0.55 since 2026-09-25 (owner):
+     at 0.64 it sat ΔE00 11.7–13.4 from Trend Following, Azioni and Immobili, under the floor of
+     chartPaletteDistinctness.test.ts; darker it measures 17.3 from the nearest slot, 4.8:1 on white. */
+  --chart-5: oklch(0.5500 0.0300 235.0000);
   --chart-6: oklch(0.6550 0.1080 100.0000);
   --chart-7: oklch(0.6500 0.0920 215.0000);
   --chart-8: oklch(0.6800 0.1520 340.0000);

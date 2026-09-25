@@ -147,10 +147,27 @@ const darkSelector = (theme: ThemeName) => (theme ? `.dark[data-theme="${theme}"
 /** Below this chroma a slot is a neutral: it has no hue to keep across the modes. */
 const NEUTRAL_CHROMA = 0.03;
 
-const BLOCKS = THEMES.flatMap((theme) => [
-  { label: `${theme ?? 'default'} · light`, selector: lightSelector(theme), guard: { maxL: 0.82, minL: 0 } },
-  { label: `${theme ?? 'default'} · dark`, selector: darkSelector(theme), guard: { maxL: 1, minL: 0.3 } },
-]);
+/**
+ * Fork only: Lime Frost is held to the floors in LIGHT alone. Its dark block still carries the
+ * source theme's slots (Azioni lime 128° in dark, ice 264° in light), which is one of the open
+ * dark decisions (doc/guide/fork-scelte-ui.md § 3, step 4); the dark block and the hue-band test
+ * join once those are taken.
+ */
+const LIGHT_ONLY_THEMES = ['lime-frost'] as const;
+
+const lightBlock = (theme: ThemeName | (typeof LIGHT_ONLY_THEMES)[number]) => ({
+  label: `${theme ?? 'default'} · light`,
+  selector: theme ? `[data-theme="${theme}"]` : ':root',
+  guard: { maxL: 0.82, minL: 0 },
+});
+
+const BLOCKS = [
+  ...THEMES.flatMap((theme) => [
+    lightBlock(theme),
+    { label: `${theme ?? 'default'} · dark`, selector: darkSelector(theme), guard: { maxL: 1, minL: 0.3 } },
+  ]),
+  ...LIGHT_ONLY_THEMES.map(lightBlock),
+];
 
 describe.each(BLOCKS)('the chart slots of $label', ({ selector, guard }) => {
   const slots = chartSlotsOf(selector);
