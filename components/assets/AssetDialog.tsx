@@ -251,6 +251,11 @@ function buildAssetFormDataFromValues(
       data.outstandingDebt && !isNaN(data.outstandingDebt) && data.outstandingDebt > 0
         ? data.outstandingDebt
         : undefined,
+    // The TAN only means something beside a debt (lib/utils/mortgageRepayment.ts).
+    debtInterestRate:
+      data.outstandingDebt && data.outstandingDebt > 0 && data.debtInterestRate && !isNaN(data.debtInterestRate) && data.debtInterestRate > 0
+        ? data.debtInterestRate
+        : undefined,
     isPrimaryResidence: data.isPrimaryResidence || false,
     allocationRole: data.allocationRole ?? 'tradable',
     pensionFundDetails: buildPensionFundDetailsFromForm(data),
@@ -367,6 +372,7 @@ const assetSchema = z.object({
   autoUpdatePrice: z.boolean().optional(),
   isComposite: z.boolean().optional(),
   outstandingDebt: z.number().nonnegative('Il debito non può essere negativo').optional().or(z.nan()),
+  debtInterestRate: z.number().nonnegative('Il TAN non può essere negativo').max(30, 'Un TAN tra 0 e 30%').optional().or(z.nan()),
   isPrimaryResidence: z.boolean().optional(),
   allocationRole: z.enum(['tradable', 'frozen', 'excluded']).optional(),
   // Opening-position fields (ledger create only): the first buy's date + optional settlement account.
@@ -458,6 +464,7 @@ const FIELD_LABELS: Partial<Record<keyof AssetFormValues, string>> = {
   totalExpenseRatio: 'TER',
   leverageRatio: 'Leva',
   outstandingDebt: 'Debito residuo',
+  debtInterestRate: 'TAN del mutuo',
   openingDate: 'Data di acquisto',
   bondCouponRate: 'Tasso cedola',
   bondNominalValue: 'Valore nominale',
@@ -577,6 +584,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
       autoUpdatePrice: true,
       isComposite: false,
       outstandingDebt: undefined,
+      debtInterestRate: undefined,
       isPrimaryResidence: false,
       allocationRole: 'tradable',
       openingCashAssetId: '__none__',
@@ -861,6 +869,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         autoUpdatePrice: asset.autoUpdatePrice !== undefined ? asset.autoUpdatePrice : shouldUpdatePrice(asset.type, asset.subCategory),
         isComposite: !!(asset.composition && asset.composition.length > 0),
         outstandingDebt: asset.outstandingDebt || undefined,
+        debtInterestRate: asset.debtInterestRate || undefined,
         isPrimaryResidence: asset.isPrimaryResidence || false,
         allocationRole: resolveAllocationRole(asset),
         isin: asset.isin || undefined,
@@ -912,6 +921,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
         autoUpdatePrice: true,
         isComposite: false,
         outstandingDebt: undefined,
+        debtInterestRate: undefined,
         isPrimaryResidence: false,
         allocationRole: 'tradable',
         openingDate: todayIso,
@@ -2196,6 +2206,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                     setHasOutstandingDebt(checked);
                     if (!checked) {
                       setValue('outstandingDebt', undefined);
+                      setValue('debtInterestRate', undefined);
                     }
                   }}
                 />
@@ -2217,6 +2228,24 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
                   )}
                   <p className="text-xs text-muted-foreground">
                     Il valore netto dell&apos;immobile sarà calcolato come: valore lordo - debito residuo
+                  </p>
+                  <Label htmlFor="debtInterestRate" className="pt-2">
+                    TAN del mutuo (%) <span className="text-muted-foreground font-normal">(opzionale)</span>
+                  </Label>
+                  <Input
+                    id="debtInterestRate"
+                    type="number"
+                    step="any"
+                    min="0"
+                    {...register('debtInterestRate', { valueAsNumber: true })}
+                    placeholder="es. 3,2"
+                  />
+                  {errors.debtInterestRate && (
+                    <p className="text-sm text-destructive">{errors.debtInterestRate.message}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Serve alle rate collegate a questo immobile: ognuna riduce il debito della sola quota capitale
+                    (rata − debito × TAN / 12). Senza TAN, l&apos;intera rata riduce il debito.
                   </p>
                 </div>
               )}

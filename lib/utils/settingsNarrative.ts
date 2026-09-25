@@ -705,6 +705,24 @@ export function describeDefaultAccounts({ debitName, creditName }: DefaultAccoun
   return [prose('Nessun conto predefinito: il modulo delle spese parte senza conto.')];
 }
 
+export interface TransferFeeCategoryInput {
+  /** The chosen category's name; absent when none is chosen (or it no longer exists). */
+  categoryName?: string;
+  subCategoryName?: string;
+}
+
+/**
+ * Commissioni sui trasferimenti — where the fee typed on a transfer lands. Without a category the
+ * form's field stays off, and the sentence says so: that is what stalls without the input.
+ */
+export function describeTransferFeeCategory({ categoryName, subCategoryName }: TransferFeeCategoryInput): Narrative {
+  if (!categoryName) {
+    return [prose('Senza una categoria, il campo «Commissione» dei trasferimenti resta spento.')];
+  }
+  const target = subCategoryName ? `${categoryName} › ${subCategoryName}` : categoryName;
+  return [prose(`La commissione scritta su un trasferimento diventa una spesa in ${target}, addebitata sul conto di origine.`)];
+}
+
 export interface ExpenseCategoryCounts {
   income: number;
   fixed: number;

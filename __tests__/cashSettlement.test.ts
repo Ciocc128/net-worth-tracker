@@ -13,6 +13,7 @@ import {
   appliedBalanceEffectsOf,
   balanceEffectsOf,
   editBalanceEffects,
+  hasDatedEffects,
   netBalanceEffects,
   selectLinkableOccurrences,
   settlesLater,
@@ -97,6 +98,18 @@ describe('editBalanceEffects', () => {
   it('should keep a future row waiting with no effect, and a row without account never pending', () => {
     expect(editBalanceEffects(spend(100, 'bnl', { balancePending: true }), after(spend(150, 'carta'), FUTURE), TODAY)).toEqual({ effects: [], pending: true });
     expect(editBalanceEffects(spend(100), after(spend(150), FUTURE), TODAY)).toEqual({ effects: [], pending: false });
+  });
+});
+
+describe('hasDatedEffects — a mortgage instalment waits for its date like an account', () => {
+  it('should wait for a debt row linked to a property even without an account', () => {
+    expect(hasDatedEffects({ type: 'debt', amount: -1012, debtAssetId: 'casa' })).toBe(true);
+    expect(editBalanceEffects({ type: 'debt', amount: -1012 }, { type: 'debt', amount: -1012, debtAssetId: 'casa', date: FUTURE }, TODAY).pending).toBe(true);
+  });
+
+  it('should not wait for a property on a row that is not a debt, nor for nothing', () => {
+    expect(hasDatedEffects({ type: 'fixed', amount: -40, debtAssetId: 'casa' })).toBe(false);
+    expect(hasDatedEffects({ type: 'debt', amount: -1012 })).toBe(false);
   });
 });
 

@@ -66,6 +66,8 @@ const STORED_SETTINGS = {
   spendingRolesEnabled: true,
   idealAllocation: STORED_IDEAL_ALLOCATION,
   dividendCashAssetId: 'cash-1',
+  transferFeeCategoryId: 'cat-fee',
+  transferFeeSubCategoryId: 'sub-fee',
 };
 
 const TARGETS = { equity: { targetPercentage: 100 } } as unknown as AssetAllocationTarget;
@@ -108,6 +110,13 @@ describe('getSettings — lettura', () => {
     expect(settings?.familyMembers).toEqual([{ id: 'm1', name: 'Giuseppe' }]);
     expect(settings?.expenseSplitEnabled).toBe(true);
     expect(settings?.spendingRolesEnabled).toBe(true);
+  });
+
+  it('returns the transfer fee category instead of dropping it', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.transferFeeCategoryId).toBe('cat-fee');
+    expect(settings?.transferFeeSubCategoryId).toBe('sub-fee');
   });
 
   it('returns the default dividend account instead of dropping it', async () => {
@@ -212,6 +221,8 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['dividendIncomeSubCategoryId', 'sub-1'],
     ['idealAllocation', STORED_IDEAL_ALLOCATION],
     ['dividendCashAssetId', 'cash-1'],
+    ['transferFeeCategoryId', 'cat-fee'],
+    ['transferFeeSubCategoryId', 'sub-fee'],
   ])('drops %s from the payload when it is cleared', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,
@@ -233,6 +244,8 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['dividendIncomeSubCategoryId', 'sub-1'],
     ['idealAllocation', STORED_IDEAL_ALLOCATION],
     ['dividendCashAssetId', 'cash-1'],
+    ['transferFeeCategoryId', 'cat-fee'],
+    ['transferFeeSubCategoryId', 'sub-fee'],
   ])('leaves an untouched %s alone when the key is absent from the update', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,
@@ -320,7 +333,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
 
   // Lo stesso per gli altri quattro campi svuotabili: qui si scrive con merge, quindi omettere
   // la chiave lascerebbe il valore vecchio — serve un deleteField() esplicito (2026-08-29).
-  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'dividendCashAssetId'])(
+  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'dividendCashAssetId', 'transferFeeCategoryId', 'transferFeeSubCategoryId'])(
     'uses deleteField to clear %s, since omitting the key would keep it',
     async (field) => {
       await setSettings('user-1', { [field]: undefined } as unknown as AssetAllocationSettings);
@@ -329,7 +342,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     }
   );
 
-  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'dividendCashAssetId'])(
+  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'dividendCashAssetId', 'transferFeeCategoryId', 'transferFeeSubCategoryId'])(
     'does not touch %s when the key is absent from the update',
     async (field) => {
       await setSettings('user-1', { costCentersEnabled: true } as AssetAllocationSettings);

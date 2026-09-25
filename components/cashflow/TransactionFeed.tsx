@@ -23,7 +23,7 @@
 import { Suspense, useMemo, useRef, useState } from 'react';
 import { format, subDays } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Link2, Pencil, Trash2 } from 'lucide-react';
+import { Home, Link2, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -41,6 +41,7 @@ import { resolveOwnerLabel } from '@/lib/utils/movementsOwnerFilter';
 import { appliedBalanceEffectsOf } from '@/lib/utils/cashSettlement';
 import type { Expense, ExpenseType } from '@/types/expenses';
 import { CompactExpenseRow } from '@/components/cashflow/CompactExpenseRow';
+import type { LinkSeriesTarget } from '@/components/expenses/LinkSeriesDialog';
 import { EXPENSE_TYPE_DOT_CLASS as TYPE_DOT_CLASS } from '@/lib/constants/expenseTypeColors';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
 import { categoryIconBackground, categoryIconColor } from '@/lib/utils/categoryIconStyle';
@@ -101,12 +102,29 @@ interface TransactionDetailModalProps {
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
   /** «Collega la serie…» on a series row; absent = the action is not offered. */
-  onLinkSeries?: (expense: Expense) => void;
+  onLinkSeries?: (expense: Expense, target: LinkSeriesTarget) => void;
   isDemo: boolean;
   categoryMetaMap: Map<string, { icon?: string; color?: string }>;
   memberNames: Map<string, string> | null;
   /** Cash account names by id, for the «Conto» row; absent = the row is not printed. */
   accountNames?: Map<string, string>;
+  /**
+   * Names of the properties a debt row can repay (lib/utils/mortgageRepayment.ts), for the «Mutuo»
+   * row and «Collega la serie al mutuo…»; absent or empty = neither is offered.
+   */
+  propertyNames?: Map<string, string>;
+}
+
+/**
+ * «Casa · capitale 412,30 €», «Casa · alla data della rata» — which property a mortgage
+ * instalment repays and, once it has, by how much principal. A deleted one reads «immobile
+ * eliminato».
+ */
+function describeDebtLink(expense: Expense, names: Map<string, string>): string | null {
+  if (expense.type !== 'debt' || !expense.debtAssetId) return null;
+  const name = names.get(expense.debtAssetId) ?? 'immobile eliminato';
+  if (expense.balancePending) return `${name} · alla data della rata`;
+  return expense.debtPrincipalRepaid !== undefined ? `${name} · capitale ${cachedFormatCurrencyEUR(expense.debtPrincipalRepaid)}` : name;
 }
 
 /**
@@ -134,6 +152,7 @@ function TransactionDetailModal({
   categoryMetaMap,
   memberNames,
   accountNames,
+  propertyNames,
 }: Readonly<TransactionDetailModalProps>) {
   const deleteRef = useRef<HTMLButtonElement | null>(null);
   const { armed, onClick: onArmedClick, onBlur } = useArmedDelete(deleteRef, () => onDelete(expense));
@@ -173,6 +192,10 @@ function TransactionDetailModal({
   const accounts = accountNames ? describeAccounts(expense, accountNames) : null;
   if (accounts) {
     details.push({ label: expense.type === 'transfer' ? 'Conti' : 'Conto', value: accounts });
+  }
+  const debtLink = propertyNames ? describeDebtLink(expense, propertyNames) : null;
+  if (debtLink) {
+    details.push({ label: 'Mutuo', value: debtLink });
   }
   if (expense.costCenterName) {
     details.push({ label: 'Centro di costo', value: expense.costCenterName });
@@ -217,7 +240,7 @@ function TransactionDetailModal({
         scheduled,
         phase: armed ? 'armed' : wasArmed ? 'disarmed' : 'idle',
         // A row still waiting for its date has moved nothing, so its delete gives nothing back.
-        deletion: { type: expense.type, amount: expense.amount, hasAccount: appliedBalanceEffectsOf(expense).length > 0 },
+        deletion: { type: expense.type, amount: expense.amount, hasAccount: appliedBalanceEffectsOf(expense).length > 0, hasFee: !!expense.transferFeeExpenseId },
       })}
       footer={
         <>
@@ -296,9 +319,17 @@ function TransactionDetailModal({
         ))}
       </dl>
       {isSeries && onLinkSeries && !isDemo && (
-        <Button type="button" variant="outline" size="sm" className="mt-3 h-11 w-full desktop:h-8" onClick={() => onLinkSeries(expense)}>
+        <Button type="button" variant="outline" size="sm" className="mt-3 h-11 w-full desktop:h-8" onClick={() => onLinkSeries(expense, 'account')}>
           <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
           {expense.isInstallment ? 'Collega il piano a un conto…' : 'Collega la serie a un conto…'}
+        </Button>
+      )}
+      {/* A mortgage entered as a series before the property link existed: its occurrences still to
+          come take the property here, each repaying its principal on its date. */}
+      {isSeries && expense.type === 'debt' && onLinkSeries && !isDemo && propertyNames && propertyNames.size > 0 && (
+        <Button type="button" variant="outline" size="sm" className="mt-2 h-11 w-full desktop:h-8" onClick={() => onLinkSeries(expense, 'debt')}>
+          <Home className="mr-2 h-4 w-4" aria-hidden="true" />
+          {expense.isInstallment ? 'Collega il piano al mutuo…' : 'Collega la serie al mutuo…'}
         </Button>
       )}
     </ResponsiveModal>
@@ -324,9 +355,11 @@ export interface TransactionFeedProps {
   onEdit: (expense: Expense) => void;
   onDelete: (expense: Expense) => void;
   /** «Collega la serie…» from a series row's detail; absent = not offered. */
-  onLinkSeries?: (expense: Expense) => void;
+  onLinkSeries?: (expense: Expense, target: LinkSeriesTarget) => void;
   /** Cash account names by id, for the detail's «Conto» row. */
   accountNames?: Map<string, string>;
+  /** Property names by id, for the detail's «Mutuo» row and «Collega la serie al mutuo…». */
+  propertyNames?: Map<string, string>;
   isDemo: boolean;
   hasActiveFilters: boolean;
   /** Map of categoryId → { icon?, color? } for row icon badges. */
@@ -362,6 +395,7 @@ export function TransactionFeed({
   onDelete,
   onLinkSeries,
   accountNames,
+  propertyNames,
   isDemo,
   hasActiveFilters,
   categoryMetaMap,
@@ -490,9 +524,9 @@ export function TransactionFeed({
           }}
           onLinkSeries={
             onLinkSeries
-              ? (expense) => {
+              ? (expense, target) => {
                   closeDetail();
-                  onLinkSeries(expense);
+                  onLinkSeries(expense, target);
                 }
               : undefined
           }
@@ -500,6 +534,7 @@ export function TransactionFeed({
           categoryMetaMap={categoryMetaMap}
           memberNames={memberNames}
           accountNames={accountNames}
+          propertyNames={propertyNames}
         />
       )}
     </div>

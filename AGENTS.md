@@ -336,7 +336,7 @@ file used to carry.
 - A recurring expense is N real future-dated rows sharing `recurringParentId`, not a rule; `canTypeRecur` = `fixed`/`variable`/`debt` only; `MAX_RECURRENCE_OCCURRENCES` keeps the batch under 500.
 - A linked row moves its account ON ITS OWN DATE (`lib/utils/cashSettlement.ts`, 2026-09-19): `balancePending` until `settleDueBalances` runs in `/api/portfolio/snapshot`; the flag ABSENT means applied; edits and deletes move only what was applied.
 - CSV import: MANDATORY preview, undo by `importBatchId`, category identity is (name, type). ONE drill destination (`handleEntitySelect`); Sankey ids are built from ids.
-- Il resto — le sei regole per esteso, `linkedCashAssetId` su ogni occorrenza, «Collega la serie», lo schema del transfer e la sua spec — in `doc/guide/cashflow.md`.
+- Il resto — le sei regole per esteso, `linkedCashAssetId` su ogni occorrenza, «Collega la serie», lo schema del transfer e la sua spec, la commissione come riga propria (`transferFee.ts`), la rata che riduce il debito per la QUOTA CAPITALE (`mortgageRepayment.ts`) — in `doc/guide/cashflow.md`.
 
 ### Cashflow › Tracciamento → `doc/guide/cashflow-tracciamento.md`
 - ONE period axis, two slices: `expenses` feeds the verdict and every tile; `filteredExpenses` feeds ONLY the Movimenti list. Never route a tile through `filteredExpenses`; the phone bar's picker is a second HANDLE on the same `period`, never a second axis.
@@ -815,7 +815,7 @@ file used to carry.
 | Landing pubblica | **Parole** `landingNarrative` · **Invarianti del profilo** `landingSampleData` (+ `authNarrative` per la promessa condivisa e la precedenza registrazioni) |
 | Cashflow › Dividendi | `dividendAnalytics`, `dividendiNarrative` (+ `patrimonioNarrative` for the articles) |
 | Analisi | `analisiSummary`, `analisiNarrative` (+ `cashflowNarrative` for the shared readings, `patrimonioNarrative` for the articles), `expenseGrouping`, `cashflowSankey`, `cashflowComposition`, `comparisonDeltas`, `expenseEntityStats`, `entitySearch` |
-| Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature` · **Ricorrenze** `recurrenceDates` |
+| Transfers / cash | `cashBalanceReconciliation`, `updateCashAssetBalancesAtomic`, `transferFeature`, `cashSettlement`, `serverCashSettlement` · **Commissione** `transferFee` (+ `settingsRoundTrip`) · **Mutuo** `mortgageRepayment`, `updateAssetDebtFields` · **Ricorrenze** `recurrenceDates` · **Browser** `e2e/cashflow.{accounts,transfer-fee,mortgage}.spec.ts` |
 | Allocazione | `allocationUtils`, `allocazioneSummary`, `allocazioneNarrative` · **Tinte d'azione** `actionColorContrast` (dodici blocchi tema) · **Browser** `e2e/allocation.spec.ts` · **Ledger** `assetTransactionUtils`, `assetTransactionsRoutes`, `assetTransactionWriteTx`, `saleTax`, `cents`, `periodSales` · **Browser** `e2e/assets.sale-tax.spec.ts` |
 | Fondo pensione | `pensionDeduction`, `pensionContributions`, `pensionReturn`, `pensionContributionService`, `performanceBase`, `pensionFire`, `pensionUnlock`, `pensionFamilyMembers` + the transfer trio · **Verdetto e letture** `pensionSummary`, `pensionNarrative` |
 
@@ -867,6 +867,9 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
   (2026-08-31). On the BASE account FIRE figures depend on the run month: assert STRUCTURE and FORMAT, never amounts.
 - **Proving a refactor changed no number**: measure the noise floor first (two dumps of unchanged code), compare
   old-vs-new MINUTES apart, and compare the SET of rendered values, not the page text.
+- **In the cloud container** (2026-09-25) the pinned Chromium is missing (a throwaway `playwright.local.config.ts` sets
+  `executablePath`), its own Chromium groups «1.100 €» (four base specs read red there only), and no spec can import
+  `lib/` (no `@/` alias): doc/guide/e2e-emulatori.md.
 - Il resto — the page-reading traps (`addInitScript`, `innerText`, `boundingBox`, hidden mobile duplicates, hydration
   wiping a `fill()`), the vaul drawer after Escape, locators that are not buttons and substring matching (`exact: true`),
   the euro regex and U+202F, forcing a server flag on the response, the settings reload rule, the armed two-click
@@ -910,7 +913,9 @@ widening `AssetClass` also means `ASSET_CLASS_SEQUENCE` and everything reading i
   assertion on `performance-cache/{uid}` found it (2026-09-06, `e2e/performance.degraded.spec.ts`). `removeUndefinedDeep`
   before every `setDoc`, like every other write.
 - **A spec that edits a document another fixture also writes RESTORES what it read, never deletes** (2026-09-11,
-  `cashflow.owner.spec.ts` against the Previdenza seed's `familyMembers`); a fixture ISIN is one the account never
+  `cashflow.owner.spec.ts` against the Previdenza seed's `familyMembers`) — the WHOLE document when a page save rewrites
+  it (2026-09-25: Impostazioni's «Salva» dropped the seed's sub-targets and Allocazione's spec went red a file later;
+  `e2e/cashflow.transfer-fee.spec.ts` restores it with `set()`); a fixture ISIN is one the account never
   held, and a fixture date is UTC midnight like the form's, never local midnight. The three cases:
   doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 - **An assertion of ABSENCE needs a positive anchor first**: `toHaveCount(0)` passes against a page that has not

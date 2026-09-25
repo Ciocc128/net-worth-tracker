@@ -9,6 +9,12 @@ vi.mock('@/lib/services/assetService', () => ({
   updateCashAssetBalancesAtomic: (...args: unknown[]) => mockUpdateCashAssetBalancesAtomic(...args),
 }));
 
+// The property half of a delete (a mortgage instalment's principal) has its own transaction.
+const mockReverseDebtRepayments = vi.fn();
+vi.mock('@/lib/services/debtRepaymentService', () => ({
+  reverseDebtRepayments: (...args: unknown[]) => mockReverseDebtRepayments(...args),
+}));
+
 import {
   applyBalanceEffects,
   reconcileTransferCreate,
@@ -22,6 +28,8 @@ describe('cashBalanceReconciliation', () => {
     mockUpdateCashAssetBalance.mockResolvedValue(undefined);
     mockUpdateCashAssetBalancesAtomic.mockReset();
     mockUpdateCashAssetBalancesAtomic.mockResolvedValue(undefined);
+    mockReverseDebtRepayments.mockReset();
+    mockReverseDebtRepayments.mockResolvedValue(false);
   });
 
   // ─── reconcileTransferCreate ───────────────────────────────────────────────
@@ -145,6 +153,15 @@ describe('cashBalanceReconciliation', () => {
       ]);
       mockUpdateCashAssetBalancesAtomic.mockClear();
       expect(await reverseAppliedBalances([{ type: 'transfer', amount: 300, linkedCashAssetId: 'bnl', transferCashAssetId: 'carta', balancePending: true }])).toBe(false);
+      expect(mockUpdateCashAssetBalancesAtomic).not.toHaveBeenCalled();
+    });
+
+    it('should hand every deleted row to the debt reversal too, and report a debt that moved', async () => {
+      mockReverseDebtRepayments.mockResolvedValue(true);
+      const rows = [{ type: 'debt' as const, amount: -750, debtAssetId: 'casa', debtPrincipalRepaid: 412.3 }];
+      // No account on the row: only the property moves, and that still counts as a write.
+      expect(await reverseAppliedBalances(rows)).toBe(true);
+      expect(mockReverseDebtRepayments).toHaveBeenCalledWith(rows);
       expect(mockUpdateCashAssetBalancesAtomic).not.toHaveBeenCalled();
     });
   });

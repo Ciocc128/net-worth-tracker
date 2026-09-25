@@ -175,6 +175,9 @@ export interface Asset {
   autoUpdatePrice?: boolean; // Default: true - indicates whether price should be automatically updated via Yahoo Finance
   composition?: AssetComposition[]; // For composite assets (e.g., pension funds with mixed allocation: 60% equity, 40% bonds)
   outstandingDebt?: number; // Outstanding mortgage/loan for real estate. Net value calculation: value - outstandingDebt
+  // The mortgage's TAN in percent (3.2 = 3,2%): splits each linked instalment into interest and the
+  // principal that lowers `outstandingDebt` (lib/utils/mortgageRepayment.ts). Absent = a 0% loan.
+  debtInterestRate?: number;
   isPrimaryResidence?: boolean; // Indicates if this real estate is the primary residence (excluded from FIRE calculations based on user setting)
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole. Absent → legacy excludeFromAllocation, else 'tradable'.
   /** @deprecated Superseded by `allocationRole`. Read-only legacy fallback: true → 'excluded'. Never write it. */
@@ -221,6 +224,7 @@ export interface AssetFormData {
   autoUpdatePrice?: boolean;
   composition?: AssetComposition[];
   outstandingDebt?: number;
+  debtInterestRate?: number; // TAN % of the mortgage (see Asset)
   isPrimaryResidence?: boolean;
   allocationRole?: AllocationRole; // How the Allocazione page treats this asset. See AllocationRole.
   leverageRatio?: number; // For a leveraged/composite ETF: 2 = 2x, 3 = 3x, 1 or absent = no leverage.
@@ -350,6 +354,10 @@ export interface AssetAllocationSettings {
   includePrimaryResidenceInFIRE?: boolean; // If true, include primary residences in FIRE calculations; if false, exclude them (FIRE standard)
   dividendIncomeCategoryId?: string; // Category ID for automatic dividend income entries
   dividendIncomeSubCategoryId?: string; // Subcategory ID for automatic dividend income entries
+  // Where the fee of a transfer lands (lib/utils/transferFee.ts): a spending category, its type
+  // decides the fee row's. Absent → the form's «Commissione» field is disabled, with a pointer here.
+  transferFeeCategoryId?: string;
+  transferFeeSubCategoryId?: string;
   // Default cash account credited by dividends and coupons; an instrument's own
   // `Asset.dividendCashAssetId` wins over it (lib/utils/dividendAccount.ts). Read server-side
   // straight from the settings doc by `dividendIncomeService`.

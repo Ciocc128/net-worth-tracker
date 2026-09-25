@@ -85,7 +85,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -132,6 +134,7 @@ import {
   describeColorTheme,
   describeCosts,
   describeDefaultAccounts,
+  describeTransferFeeCategory,
   describeDividendCategory,
   describeExpenseCategories,
   describeEmails,
@@ -685,6 +688,9 @@ export default function SettingsPage() {
   const [accountsFailed, setAccountsFailed] = useState(false);
   const [defaultDebitCashAssetId, setDefaultDebitCashAssetId] = useState<string>('__none__');
   const [defaultCreditCashAssetId, setDefaultCreditCashAssetId] = useState<string>('__none__');
+  // Where a transfer's fee lands ('' = none: the expense form's «Commissione» stays off).
+  const [transferFeeCategoryId, setTransferFeeCategoryId] = useState<string>('');
+  const [transferFeeSubCategoryId, setTransferFeeSubCategoryId] = useState<string>('');
 
   // Allocazione ideale (doc/weight-optimizer-ate.md §7) — the PAC weight optimizer's objectives.
   // optimizerTradableAssets feeds the tile's instrument/group limit pickers.
@@ -810,6 +816,8 @@ export default function SettingsPage() {
         // Load default cash account settings
         setDefaultDebitCashAssetId(settingsData.defaultDebitCashAssetId || '__none__');
         setDefaultCreditCashAssetId(settingsData.defaultCreditCashAssetId || '__none__');
+        setTransferFeeCategoryId(settingsData.transferFeeCategoryId || '');
+        setTransferFeeSubCategoryId(settingsData.transferFeeSubCategoryId || '');
         // Load stamp duty settings
         setStampDutyEnabled(settingsData.stampDutyEnabled ?? false);
         setStampDutyRate(settingsData.stampDutyRate ?? 0.2);
@@ -987,6 +995,8 @@ export default function SettingsPage() {
         JSON.stringify({
           defaultDebitCashAssetId: settingsData?.defaultDebitCashAssetId || '__none__',
           defaultCreditCashAssetId: settingsData?.defaultCreditCashAssetId || '__none__',
+          transferFeeCategoryId: settingsData?.transferFeeCategoryId || '',
+          transferFeeSubCategoryId: settingsData?.transferFeeSubCategoryId || '',
         })
       );
       return true;
@@ -1578,6 +1588,8 @@ export default function SettingsPage() {
         dividendCashAssetId: dividendCashAssetId !== '__none__' ? dividendCashAssetId : undefined,
         defaultDebitCashAssetId: defaultDebitCashAssetId !== '__none__' ? defaultDebitCashAssetId : undefined,
         defaultCreditCashAssetId: defaultCreditCashAssetId !== '__none__' ? defaultCreditCashAssetId : undefined,
+        transferFeeCategoryId: transferFeeCategoryId || undefined,
+        transferFeeSubCategoryId: transferFeeSubCategoryId || undefined,
         stampDutyEnabled,
         stampDutyRate,
         checkingAccountSubCategory,
@@ -1911,6 +1923,8 @@ export default function SettingsPage() {
   const speseSnapshotKey = JSON.stringify({
         defaultDebitCashAssetId,
         defaultCreditCashAssetId,
+        transferFeeCategoryId,
+        transferFeeSubCategoryId,
       });
 
   // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
@@ -2070,6 +2084,8 @@ export default function SettingsPage() {
   const categoryClassification = summarizeCategoryClassification(expenseCategories);
   const dividendCategory = expenseCategories.find((cat) => cat.id === dividendIncomeCategoryId);
   const dividendSubCategory = dividendCategory?.subCategories.find((sub) => sub.id === dividendIncomeSubCategoryId);
+  const transferFeeCategory = expenseCategories.find((cat) => cat.id === transferFeeCategoryId);
+  const transferFeeSubCategory = transferFeeCategory?.subCategories.find((sub) => sub.id === transferFeeSubCategoryId);
   const inpsAgeShown = planParams.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
   const ritaAgeShown = resolveRitaUnlockAge(planParams);
   const resolvedThemeMode = isThemeHydrated ? (theme as ThemeMode | undefined) : undefined;
@@ -3526,8 +3542,12 @@ export default function SettingsPage() {
         >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
+              {/* Left column: the two settings the expense FORM reads. Below desktop the wrapper
+                  dissolves (`contents`) and each tile is a grid cell; from desktop the two stack at
+                  their natural height beside the taller import tile. */}
+              <div className="contents desktop:col-span-5 desktop:flex desktop:flex-col desktop:gap-3">
               {/* Conti di default (moved here from Preferenze: they act in the expense dialog) */}
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
+              <div className={TILE_CELL_CLASS}>
                 {accountsState === 'failed' ? (
                   <ErrorNotice
                     onRetry={() => void loadCashAccounts()}
@@ -3596,6 +3616,125 @@ export default function SettingsPage() {
                   </div>
                 </Tile>
                 )}
+              </div>
+
+              {/* Commissioni sui trasferimenti — where a transfer's fee lands (lib/utils/transferFee.ts) */}
+              <div className={TILE_CELL_CLASS}>
+                {categoriesState === 'failed' ? (
+                  <ErrorNotice
+                    onRetry={() => void loadExpenseCategories()}
+                    notice={describeReadFailure({
+                      subject: 'Commissioni sui trasferimenti',
+                      consequence:
+                        'Le categorie non sono state lette: quella delle commissioni non si può mostrare. Quella salvata resta.',
+                      canRetry: true,
+                    })}
+                  />
+                ) : (
+                <Tile
+                  eyebrow="Commissioni sui trasferimenti"
+                  reading={
+                    categoriesState === 'loading'
+                      ? null
+                      : describeTransferFeeCategory({
+                          categoryName: transferFeeCategory?.name,
+                          subCategoryName: transferFeeSubCategory?.name,
+                        })
+                  }
+                >
+                  <div className="mt-1 flex flex-col divide-y divide-border">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium">Categoria</p>
+                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Una categoria di spesa</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={transferFeeCategoryId || undefined}
+                          onValueChange={(value) => {
+                            setTransferFeeCategoryId(value);
+                            setTransferFeeSubCategoryId('');
+                          }}
+                        >
+                          <SelectTrigger className={cn('w-52', interactiveControlClass)} aria-label="Categoria delle commissioni sui trasferimenti">
+                            <SelectValue placeholder="Seleziona categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {/* Any spending type can take the fee: an income or a transfer is not a cost. */}
+                            {(['variable', 'fixed', 'debt'] as ExpenseType[]).map((type) =>
+                              getCategoriesByType(type).length === 0 ? null : (
+                                <SelectGroup key={type}>
+                                  <SelectLabel>{EXPENSE_TYPE_LABELS[type]}</SelectLabel>
+                                  {getCategoriesByType(type).map((cat) => (
+                                    <SelectItem key={cat.id} value={cat.id}>
+                                      {cat.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {transferFeeCategoryId && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-11 desktop:h-8"
+                            aria-label="Rimuovi la categoria delle commissioni"
+                            onClick={() => {
+                              setTransferFeeCategoryId('');
+                              setTransferFeeSubCategoryId('');
+                            }}
+                          >
+                            Rimuovi
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium">Sottocategoria</p>
+                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">Opzionale</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={transferFeeSubCategoryId || undefined}
+                          onValueChange={setTransferFeeSubCategoryId}
+                          disabled={!transferFeeCategoryId}
+                        >
+                          <SelectTrigger className={cn('w-52', interactiveControlClass)} aria-label="Sottocategoria delle commissioni sui trasferimenti">
+                            <SelectValue placeholder="Seleziona sottocategoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {transferFeeCategory?.subCategories.map((sub) => (
+                              <SelectItem key={sub.id} value={sub.id}>
+                                {sub.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {transferFeeSubCategoryId && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-11 desktop:h-8"
+                            aria-label="Rimuovi la sottocategoria delle commissioni"
+                            onClick={() => setTransferFeeSubCategoryId('')}
+                          >
+                            Rimuovi
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
+                    Vale per le commissioni nuove; una già registrata resta nella sua categoria.
+                  </div>
+                </Tile>
+                )}
+              </div>
               </div>
 
               {/* Import CSV — the section renders its own tile (preview-first, undo per batch) */}
