@@ -13,7 +13,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **185 files / 4327 tests** green in `Europe/Rome` + **37 Playwright spec files** (130 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container: 123 of 128 green, the 5 reds environmental or the known `modal.origin` — doc/guide/e2e-emulatori.md). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- `tsc` clean; **185 files / 4335 tests** green in `Europe/Rome` + **37 Playwright spec files** (130 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container: 123 of 128 green, the 5 reds environmental or the known `modal.origin` — doc/guide/e2e-emulatori.md). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
 - Latest (2026-09-25, bis): **Patrimonio › «Mutuo» — quanto costa il mutuo, in interessi, anno per anno.** Dopo le
   rate che riducono il debito per la quota capitale (stessa giornata, PR precedente), ogni rata regolata salva anche gli
   INTERESSI pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`, nei tre punti: salvataggio, modifica, job
@@ -29,6 +29,16 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   due anni e le didascalie), più le spec Commissioni, Conti e Patrimonio verdi; a 390 e 1440 nessuno sforamento né di
   `main` né dentro la tessera. Falsificati e visti rossi: lo stamp lato server (Vitest), lo stamp lato client (E2E su
   Firestore), la soglia della tabella. Un atteso sbagliato nel test («124 rate») era mio: il conto a mano dà 122,998 → 123.
+- Latest (2026-09-24, notte): **Allocazione — il Piano con leva prende il ridisegno del 21/09.** Il motore con leva
+  pianificava su strumenti che l'albero e la ritenuta non leggevano: lista piatta, niente ritenuta, Preleva lordo.
+  Ora `groupFlowTrades`/`groupRebalanceTrades` (`allocazioneSummary.ts`) fanno dei suoi ordini lo stesso albero classe →
+  strumento: un composito si divide per composizione nelle sue classi (le gambe di `buildHoldings`, trovate per
+  `AllocatableHolding.assetId`, con `PlanNode.order` «parte di un ordine da X € di TICKER»), uno scambio dentro una
+  classe sono DUE mosse (una per azione), il «→ %» di classe è quello del motore. `solveWithdrawalGross` prende il
+  pianificatore: anche il Preleva con leva si lorda. `InstrumentTradeList` rimosso. Collaudo: `tsc` 0, ESLint 0, Vitest
+  180 file / 4249 nei due fusi (8 test nuovi, quattro falsificazioni viste rosse), `e2e/allocation.spec.ts` 7/7, sonda
+  Playwright sullo specchio a 1440 e 390 (trovato e corretto: il ticker perso nel nome troncato a 390) e giro guidato
+  confermato dal proprietario. doc/guide/allocazione.md.
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
