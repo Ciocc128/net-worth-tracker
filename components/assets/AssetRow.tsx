@@ -16,7 +16,7 @@ import { toDate } from '@/lib/utils/dateHelpers';
 import { useArmedDelete } from '@/lib/hooks/useArmedDelete';
 import { getAssetClassCssVar } from '@/lib/constants/colors';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
-import { resolveDisplayAssetClass } from '@/lib/utils/assetDisplayClass';
+import { describeAssetClassChip, type AssetClassChipModel } from '@/lib/utils/assetDisplayClass';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { getMetricValueColor } from '@/lib/utils/metricColors';
 import type { AssetPerformanceData } from '@/lib/utils/assetPerformanceDeltas';
@@ -58,6 +58,63 @@ export function AssetClassChip({ assetClass, className }: { assetClass: string; 
       }}
     >
       {ASSET_CLASS_LABELS[assetClass] ?? assetClass}
+    </span>
+  );
+}
+
+/** Hard-stop gradient of the chip's segments at `mix`% of each class's chart slot. */
+function segmentGradient(segments: AssetClassChipModel['segments'], mix: number): string {
+  let start = 0;
+  const stops = segments.map(({ assetClass, share }) => {
+    const end = start + share;
+    const stop = `color-mix(in srgb, var(${getAssetClassCssVar(assetClass)}) ${mix}%, transparent) ${start}% ${end}%`;
+    start = end;
+    return stop;
+  });
+  return `linear-gradient(to right, ${stops.join(', ')})`;
+}
+
+/**
+ * The class chip of ONE instrument row (desktop table and phone row). A single-class asset gets the
+ * plain `AssetClassChip`; a composite one (a 60/40 fund) splits into one segment per leg, each as
+ * wide as its share and tinted like that class's own chip (15% fill, 30% border — the border drawn
+ * as a second gradient on the border box, so it follows the rounded ends). The visible label is
+ * short («Azioni · Obbl.», «Misto»); the shares are `sr-only` text, not an `aria-label`, because the
+ * chip's content IS the information (AGENTS.md). The group header keeps `AssetClassChip`: it names
+ * the group, not an instrument.
+ */
+export function InstrumentClassChip({ asset }: { asset: Pick<Asset, 'assetClass' | 'composition'> }) {
+  const chip = describeAssetClassChip(asset);
+  if (chip.accessibleName === null) return <AssetClassChip assetClass={chip.segments[0].assetClass} />;
+  return (
+    <span
+      data-composite-chip
+      // No CSS border: the plain chip's 1px border becomes 1px of padding (px-[9px] py-[3px] = px-2
+      // py-0.5 + 1px), and the ring is the overlay below — a border-box gradient would show through
+      // the translucent fill and double its tint. A fixed minimum width from two segments on, so the
+      // proportions compare down the column.
+      className={cn(
+        'relative inline-flex items-center justify-center whitespace-nowrap rounded-full px-[9px] py-[3px] text-[11px] font-medium text-foreground',
+        chip.segments.length > 1 && 'min-w-[112px]',
+      )}
+      style={{ background: segmentGradient(chip.segments, 15) }}
+    >
+      {/* The ring: the 30% gradient masked down to its outer 1px, like the plain chip's border
+          drawn over its own fill. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-full p-px"
+        style={{
+          background: segmentGradient(chip.segments, 30),
+          mask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)',
+          WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+          WebkitMaskComposite: 'xor',
+        }}
+      />
+      <span aria-hidden="true" data-chip-label className="relative">
+        {chip.label}
+      </span>
+      <span className="sr-only">{chip.accessibleName}</span>
     </span>
   );
 }
@@ -151,7 +208,6 @@ export function AssetRow({
   }, [armed, announce, asset.name]);
 
   const value = calculateAssetValue(asset);
-  const displayAssetClass = resolveDisplayAssetClass(asset);
   // A hand-VALUED holding keeps its value in `quantity` at price 1: those cells describe the
   // storage, so the details say the value and when it was typed instead.
   const isHandValued = !hasMarketPrice(asset.type, asset.subCategory);
@@ -223,7 +279,7 @@ export function AssetRow({
           <span className="flex min-w-0 items-center gap-1.5">
             {/* pensionFund has no ticker input — a leftover raw value must not resurface here. */}
             {showTicker && <span className="font-mono text-[11px] text-muted-foreground">{getAssetDisplayTicker(asset)}</span>}
-            <AssetClassChip assetClass={displayAssetClass} />
+            <InstrumentClassChip asset={asset} />
           </span>
           {subLine && <span className="truncate text-[11px] text-muted-foreground">{subLine}</span>}
         </div>
