@@ -84,6 +84,7 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed the Piano of Allocazione on a leveraged portfolio, which had missed the 09-21 redesign: it was a flat list of instruments with no class rows, no withholding and a gross Preleva. It now reads like the plan without leverage — each class with the instruments under it, «Per prelevare 1000 € netti vendi 1040 €… la ritenuta stimata è 40 €», and the withholding on Ribilancia too. A composite leveraged ETF (60% azioni, 40% obbligazioni) appears under both classes with its share, each saying «parte di un ordine da 2000 € di» its ticker so the single order can be placed; a Ribilancia that sells a 1× ETF to buy a 2× one in the same class shows two rows, one per action.
 - Fixed the running year cut to «20…» in the Anni tile of the Hall of Fame at every width.
 - Fixed «il 88,5%», «Gli 10 anni» and «dal migliore» over a ranking of costs on the Hall of Fame («l'88,5%», «i 10 anni», «dal più alto»).
 - Fixed the Hall of Fame printing the record month's figures three times in 200 px: the Anni tile now says the distance from the place above («è a 8610 € dal secondo posto»).
@@ -272,6 +273,8 @@
 - Improved Impostazioni on a phone: every button, row action and link in the page is at least 44 px tall to the touch, «Ripristina default» has a name when it shows only its icon, and the Preferenze tab places its short tiles beside the tall one instead of leaving them half empty.
 
 ## 📚 Documentation
+
+- A performance dossier (`doc/perf/`) records how fast each page is today on a production build against real-sized data (cold and warm, first figure on screen, long tasks, Firestore and API calls per page, JS per route), what the causes are, and fourteen implementation specs — one per change, each with its measure of closure, its tests to see red once, its guided tour and the prompt to run it — ordered by impact: the shell before authentication, the last known data shown at once, one chunk of charts instead of four, every collection read once, expenses read by window, the overview recomputed in one round, the functions in Firestore's region, the React Compiler on.
 
 - The Cashflow guide records that a transfer's fee is an entry of its own and that a mortgage instalment repays its property by the principal, stored on the entry; the browser-test guide records what differs in a cloud container.
 
