@@ -135,6 +135,7 @@ import {
   describeCosts,
   describeDefaultAccounts,
   describeTransferFeeCategory,
+  describeSpendingRolesSetting,
   describeDividendCategory,
   describeExpenseCategories,
   describeEmails,
@@ -967,7 +968,6 @@ export default function SettingsPage() {
           laborIncomeCategoryIds: [...(settingsData?.laborIncomeCategoryIds ?? [])].sort(),
           costCentersEnabled: settingsData?.costCentersEnabled ?? false,
           expenseSplitEnabled: settingsData?.expenseSplitEnabled ?? false,
-          spendingRolesEnabled: settingsData?.spendingRolesEnabled ?? false,
           performanceIncludesPensionFunds: settingsData?.performanceIncludesPensionFunds ?? false,
           performanceIncludesExcludedAssets: settingsData?.performanceIncludesExcludedAssets ?? false,
           performanceExcludesCash: settingsData?.performanceExcludesCash ?? false,
@@ -997,6 +997,7 @@ export default function SettingsPage() {
           defaultCreditCashAssetId: settingsData?.defaultCreditCashAssetId || '__none__',
           transferFeeCategoryId: settingsData?.transferFeeCategoryId || '',
           transferFeeSubCategoryId: settingsData?.transferFeeSubCategoryId || '',
+          spendingRolesEnabled: settingsData?.spendingRolesEnabled ?? false,
         })
       );
       return true;
@@ -1900,7 +1901,6 @@ export default function SettingsPage() {
         laborIncomeCategoryIds: [...laborIncomeCategoryIds].sort(),
         costCentersEnabled,
         expenseSplitEnabled,
-        spendingRolesEnabled,
         performanceIncludesPensionFunds,
         performanceIncludesExcludedAssets,
         performanceExcludesCash,
@@ -1925,6 +1925,7 @@ export default function SettingsPage() {
         defaultCreditCashAssetId,
         transferFeeCategoryId,
         transferFeeSubCategoryId,
+        spendingRolesEnabled,
       });
 
   // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
@@ -2400,8 +2401,6 @@ export default function SettingsPage() {
                     costCentersEnabled,
                     expenseSplitEnabled,
                     familyMemberCount: familyMembersForReading.length,
-                    spendingRolesEnabled,
-                    categoryClassification,
                     categoriesUnread: categoriesState === 'failed',
                   })}
                 >
@@ -2498,20 +2497,6 @@ export default function SettingsPage() {
                         id="expenseSplitEnabled"
                         checked={expenseSplitEnabled}
                         onCheckedChange={setExpenseSplitEnabled}
-                        className={cn('shrink-0', interactiveControlClass)}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 py-3">
-                      <div className="min-w-0">
-                        <Label htmlFor="spendingRolesEnabled" className="text-[13px] font-medium">Necessità, desideri, risparmi</Label>
-                        <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                          Ogni categoria di spesa riceve un ruolo 50/30/20, che il flusso di Analisi può mostrare
-                        </p>
-                      </div>
-                      <Switch
-                        id="spendingRolesEnabled"
-                        checked={spendingRolesEnabled}
-                        onCheckedChange={setSpendingRolesEnabled}
                         className={cn('shrink-0', interactiveControlClass)}
                       />
                     </div>
@@ -3542,9 +3527,9 @@ export default function SettingsPage() {
         >
             <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
 
-              {/* Left column: the two settings the expense FORM reads. Below desktop the wrapper
-                  dissolves (`contents`) and each tile is a grid cell; from desktop the two stack at
-                  their natural height beside the taller import tile. */}
+              {/* Left column: the two settings the expense FORM reads, then the 50/30/20 switch. Below
+                  desktop the wrapper dissolves (`contents`) and each tile is a grid cell; from desktop
+                  they stack at their natural height beside the taller import tile. */}
               <div className="contents desktop:col-span-5 desktop:flex desktop:flex-col desktop:gap-3">
               {/* Conti di default (moved here from Preferenze: they act in the expense dialog) */}
               <div className={TILE_CELL_CLASS}>
@@ -3734,6 +3719,38 @@ export default function SettingsPage() {
                   </div>
                 </Tile>
                 )}
+              </div>
+              {/* Ruoli 50/30/20 — opt-in; the roles themselves are set in the category dialog. Its own
+                  tile, not a row of Categorie: that tile gives way to an error notice when the
+                  categories fail to load, and the switch and the «non letti» reading must not. */}
+              <div className={TILE_CELL_CLASS}>
+                <Tile
+                  eyebrow="Ruoli 50/30/20"
+                  reading={
+                    categoriesState === 'loading'
+                      ? null
+                      : describeSpendingRolesSetting({
+                          enabled: spendingRolesEnabled,
+                          classification: categoryClassification,
+                          categoriesUnread: categoriesState === 'failed',
+                        })
+                  }
+                >
+                  <div className="mt-1 flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <Label htmlFor="spendingRolesEnabled" className="text-[13px] font-medium">Necessità, desideri, risparmi</Label>
+                      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                        Ogni categoria di spesa riceve un ruolo, e il flusso di Analisi si legge anche per ruolo
+                      </p>
+                    </div>
+                    <Switch
+                      id="spendingRolesEnabled"
+                      checked={spendingRolesEnabled}
+                      onCheckedChange={setSpendingRolesEnabled}
+                      className={cn('shrink-0', interactiveControlClass)}
+                    />
+                  </div>
+                </Tile>
               </div>
               </div>
 
