@@ -188,6 +188,15 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
 7. **Upstream PR E — the composite class chip on Patrimonio › Strumenti** (added 09-24, the item «Composite class
    chip» below). Small and upstream-neutral (chart slots, no Lime token), so it can move ahead of steps 2–6 whenever a
    short session is free; branch from `upstream/develop`, never from the fork's main.
+   **09-26: opened as upstream DRAFT #403** (branch `feat/composite-class-chip` on `upstream/develop` `48cb44aa`, one
+   commit `00573cbc`) and **merged into the fork the same day** (branch `feat/composite-chip-fork`, a merge, not a
+   cherry-pick, so upstream's merge of #403 finds the same commit — as with #391). The owner's calls: segments as wide
+   as each leg's share; «Azioni · Obbl.» for two, «Misto» from three; a leg under 5 % gets no segment (the `sr-only`
+   shares keep it). Found in the browser and fixed before the PR: a `border-box` gradient under the translucent fill
+   doubled the tint — the ring is a masked overlay. The owner approved on screenshots (1440 light and dark, 390).
+   The merge also brought upstream's `48cb44aa` (the Draft Release deleted at the v10.0.0 tag): the fork's draft
+   took upstream's recreated file, the fork-only entries stay in git history and in § 1. **Waiting for the
+   maintainer** on #403.
 
 **Next UI session — the owner's list after the fourth upstream merge (2026-09-22):**
 - [x] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)
@@ -225,7 +234,8 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
 - [x] **Dark Lime Frost**: the five open decisions of the Carta (ground tint, hover direction, lime as text, series
   lightness, neutral «Elimina» on navy), then the same page audit in dark, desktop and iPhone. **09-25: decided and
   built** (roadmap step 4 above); **09-26: the owner's tour and phone pass done, closed.**
-- [ ] **Composite class chip** (owner, 09-24): in Patrimonio › Strumenti a composite instrument (a 60/40 fund, a
+- [x] **Composite class chip** — **done 09-26**: upstream draft #403, in the fork too (step 7 above;
+  doc/guide/patrimonio.md). The original note (owner, 09-24): in Patrimonio › Strumenti a composite instrument (a 60/40 fund, a
   leveraged equity/bond ETF) stays ONE row — it is one instrument — but its chip shows only the prevailing class
   (`resolveDisplayAssetClass`), so a 60/40 reads as pure «Azioni». Make the chip split: one segment per composition
   leg, each tinted like that class's own chip (`AssetClassChip`: `getAssetClassCssVar`, 15% fill, 30% border), the

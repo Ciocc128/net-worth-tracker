@@ -13,22 +13,21 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **205 files / 4897 tests** green in the machine timezone and under `Europe/Rome` + **40 Playwright spec files** (139 tests, incl. 6 auth setups; last full run 2026-09-26, fork, after the eighth upstream merge, 4,1 min: 139 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-26, fork, bis): **Ottavo riallineamento a upstream (#391, #398–#399)**, solo il merge: la #391 era già
-  nel fork dal 25/09 (stesso commit), arrivano `doc/perf/` e la chiusura della v10.0.0; due conflitti, questo file e
-  il Draft Release. Roadmap: passo 1 CHIUSO (#391 fusa upstream il 26/09); passo 3 in attesa del maintainer (#400,
-  #401 bozze); passo 5 = issue upstream #402 (solo Yahoo, tre viste; la PR D senza geografia). Collaudo: `tsc` 0, ESLint 0, Vitest 205 file / 4897 nei due fusi, build verde, Playwright 139/139.
-- Prima (2026-09-26, fork): **Lime Frost chiuso, chiaro e scuro — il passo 4 della roadmap** (PR #19): il giro del
-  proprietario sul mirror e sul telefono; le classi `dark:` delle varianti di `button.tsx` spostate nel blocco `.dark`;
-  il Sankey scuro con `linkBlendMode` normale e la sua famiglia a L 0,83 (`--role-income`/`--role-budget` nuovi).
-  doc/guide/temi.md, fork-scelte-ui.md § 3 passo 4.
+- `tsc` clean; **205 files / 4905 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (141 tests, incl. 6 auth setups; last full run 2026-09-26, fork, with the composite chip, 4,2 min: 141 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-26, fork, ter): **Patrimonio › Strumenti — il chip di classe composito, dalla bozza upstream #403**
+  (passo 7 della roadmap), fuso come merge del branch `feat/composite-class-chip` perché il merge di upstream trovi lo
+  stesso commit `00573cbc`: un fondo 60/40 resta UNA riga, il chip ha un segmento per classe largo quanto la quota
+  («Azioni · Obbl.», «Misto» da tre, niente segmento sotto il 5 %, quote `sr-only`). Arriva anche `48cb44aa` di
+  upstream (il Draft Release cancellato al tag v10.0.0 e ricreato dal modello). doc/guide/patrimonio.md,
+  fork-scelte-ui.md § 3 passo 7. Collaudo: `tsc` 0, ESLint 0, Vitest 205 file / 4905 nei due fusi, build verde, Playwright 141/141; chip visto anche in Lime Frost chiaro e scuro.
+- Prima (2026-09-26, fork, bis): **Ottavo riallineamento a upstream (#391, #398–#399)**, solo il merge: la #391 era già
+  nel fork dal 25/09 (stesso commit), arrivano `doc/perf/` e la chiusura della v10.0.0 (PR #21). Roadmap: passo 1
+  CHIUSO; passo 5 = issue upstream #402 (solo Yahoo, tre viste; la PR D senza geografia).
 - Latest upstream (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato).
   Misurato su build di produzione + emulatori + mirror: HTML di ogni route = lo spinner, 460 KB gz di JS su ogni pagina
   (recharts in quattro chunk, @react-pdf nel grafo di Storico), Rendimenti 17 API, overview in 6 stadi in serie, la
   chiave cache dell'Esposizione che non combacia mai (Yahoo a ogni apertura), React Compiler spento. Firebase NON è il
   limite. Ordine e decisioni in `doc/perf/README.md`; PERF-01 prima di tutto.
-- Prima upstream (2026-09-25, bis): **Patrimonio › «Mutuo»** — gli interessi di ogni rata regolata
-  (`debtInterestPaid`), la tessera «Mutuo» per immobile. doc/guide/patrimonio.md; la verifica nel messaggio di `e47de34d`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
