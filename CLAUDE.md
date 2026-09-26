@@ -14,6 +14,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **185 files / 4335 tests** green in `Europe/Rome` + **37 Playwright spec files** (130 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container: 123 of 128 green, the 5 reds environmental or the known `modal.origin` — doc/guide/e2e-emulatori.md). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato). Misurato su
+  build di produzione + emulatori + mirror del proprietario (1533 spese): l'HTML di ogni route è lo spinner (46 caratteri),
+  460 KB gz di JS su ogni pagina (recharts in QUATTRO chunk, @react-pdf nel grafo di Storico → 1,19 MB, lucide intero alla
+  prima icona), Cashflow 2,1 s / Storico 2,3 s / Analisi 1,7 s al primo numero con Firestore a ~1 ms (tutta E letta),
+  Rendimenti 17 API + 5 collezioni lette due volte, overview ricalcolata in 6 stadi in serie (TTL 5 min, iad1 → EU), la
+  chiave cache dell'Esposizione che non combacia mai (Yahoo a ogni apertura), React Compiler mai acceso, cache IndexedDB
+  mai letta a caldo. Firebase NON è il limite: nessuna migrazione. Ordine, dipendenze, decisioni del proprietario e stato in
+  `doc/perf/README.md`; PERF-01 (benchmark + budget in repo) va prima di tutto.
 - Latest (2026-09-25, bis): **Patrimonio › «Mutuo» — quanto costa il mutuo, in interessi, anno per anno.** Dopo le
   rate che riducono il debito per la quota capitale (stessa giornata, PR precedente), ogni rata regolata salva anche gli
   INTERESSI pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`, nei tre punti: salvataggio, modifica, job
@@ -78,6 +86,8 @@ One line per area: the question it answers, then where it is described. *What th
 - Vitest: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. New tests in `__tests__/`; prefer pure functions over Firestore-coupled code.
 - **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch: run `npm install` first (AGENTS → *Commands*).
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
+- **Performance**: baseline (cold/warm per page, bundle per route), method and the fourteen specs in `doc/perf/README.md`;
+  the benchmark lands in repo with PERF-01 (`npm run perf:bench` / `perf:budget`).
 - **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations
