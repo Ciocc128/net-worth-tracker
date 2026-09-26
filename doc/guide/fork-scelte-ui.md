@@ -91,7 +91,10 @@ One session per step; each step's detailed items are in the list below.
 Lime Frost never reaches an upstream PR; at most its logic (role tokens with neutral `:root` defaults) goes to an
 issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's history).
 
-1. **Upstream PR A — the Piano on a leveraged portfolio** (the item «Piano on a leveraged portfolio» below). First
+1. **Upstream PR A — the Piano on a leveraged portfolio** — **CLOSED 2026-09-26**: upstream merged #391 on 09-26
+   (`b0ff856e`, released in v10.0.0 by #399); the fork took it in the eighth realignment
+   (`merge/upstream-2026-09-26`) with no conflict, the commit being the same. The history: (the item «Piano on a
+   leveraged portfolio» below). First
    because it fills a gap upstream has too; still untouched upstream on 09-24. **09-24 night: opened as upstream
    draft #391** (branch `fix/leveraged-plan`, one commit on `upstream/develop`). The owner's calls: a composite order
    split by composition across its classes, a same-class swap as two moves, the first-trade guard NOT bundled (its own
@@ -122,6 +125,12 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    or a separate one first; the Italian labels). **The code waits for the answers.** Branch `feat/spending-roles`,
    cut from `upstream/main` (`3c6073eb`); the settings page, `CategoryRow` and the category dialog are rewritten on
    upstream's versions, not cherry-picked.
+   **09-26: WAITING FOR THE MAINTAINER.** The maintainer answered #397 on 09-26: opt-in, default off; the phone
+   «Per tipo» bar as a SEPARATE PR with its own spec; the labels as proposed; the Flusso opens on «Per ruolo» with
+   the switch on; base the PRs on `develop`. So: **PR B = upstream draft #400** (`feat/spending-roles` → `develop`)
+   and **the phone «Per tipo» bar = upstream draft #401** (`feat/phone-type-flow` → `develop`, stacked on #400). In
+   the fork the roles switch sits in Impostazioni › **Spese**, as in #400 (fork PR #20, merged). As of 09-26 evening
+   no maintainer comment or review on #400/#401 — only Vercel's preview, waiting for his authorization.
 4. **Lime Frost** (fork only) — **DONE 2026-09-26**, light and dark (owner). The three light points (Lime-only rules fork-wide or not; class palette ΔE and
    `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
    **09-25 — the three light points closed** (branch `feat/lime-frost-step4`; step 3 waits for upstream #397):
@@ -158,8 +167,24 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    50/30/20 view's sources and Budget lift too. The owner's phone pass (390): fine as is. **Step 4 closed**, branch
    `feat/lime-frost-dark`.
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
-   prerequisite of the optimizer.
+   prerequisite of the optimizer. **09-26: opened as upstream issue #402 — Yahoo only, three views** (owner's call).
+   Upstream gets the fork's engine on its OWN three views (Titoli · Settori · Emittenti): leverage as notional
+   (Emittenti at market value, over every allocatable asset), the coverage line (read / not applicable / unread), the
+   Allocazione base, and the fixed cache key (`buildExposureCacheKey` in `lib/utils/exposureCacheKey.ts`, closing
+   upstream's PERF-10 § A). NOT proposed, and nothing promised: Paesi and Valute, the curated tables
+   (`instrumentProfiles.ts`, `geoAreas.ts`), the issuers' factsheet PDFs, `exposure:refresh` / `exposure:report`.
+   Why: upstream once specced justETF scraping for geography and currency and removed it for the site's terms
+   (`c7f083b8`, 2026-05-14, inside PR #132), and Yahoo publishes no country or currency breakdown for funds; an honest
+   «non letta» beats a figure from a source the repo cannot use. The fork keeps its five views and its tables. Four
+   questions to the maintainer (the base; Emittenti over every allocatable asset; PERF-10 § A here or first; `develop`
+   plus the tests). **The code waits for the answers.** The mechanism is Yahoo-only; the maintainer never saw the
+   fork's `exposureRefresh.mts`, which sends a browser User-Agent — keep it out of any upstream branch.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
+   **09-26 — consequence of step 5's Yahoo-only call** (owner, informed before choosing): D ships the optimizer
+   WITHOUT the geography objective. Its class, leverage, factor (the asset's sub-category) and group objectives read
+   nothing from the curated tables; geography needs `INDEX_PROFILES` countries for both the reference index and each
+   ETF (`useOptimizerGeographyReference`, `resolveAreaPerEuro`), and without them `buildGeoRows` returns no row. So no
+   «Geografia» in Allocazione ideale upstream, no `geoAreas`, no `otherAreaSplit`; the fork keeps all of it.
 7. **Upstream PR E — the composite class chip on Patrimonio › Strumenti** (added 09-24, the item «Composite class
    chip» below). Small and upstream-neutral (chart slots, no Lime token), so it can move ahead of steps 2–6 whenever a
    short session is free; branch from `upstream/develop`, never from the fork's main.
@@ -222,6 +247,11 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   lists the twelve upstream blocks, not Lime Frost): light Liquidità ↔ Trend Following ΔE00 11,7 (< 14), and dark's
   slots are not the light ones' hue bands (Azioni 264° light vs 128° dark). Settle it with the dark decisions, then add
   `'lime-frost'` to the test's `THEMES`. `--chart-9` (Previdenza band) was added on 09-21 at hue 40, unreviewed.
+  **Checked 09-26 against step 4's close**: `'lime-frost'` is in `THEMES`, so both blocks meet the ΔE00 floor, the
+  luminance guard and the light/dark hue band; the 09-26 tour notes (`0771efbb`) touched role and type-flow tokens,
+  not the nine slots — the entry holds, the test green in the eighth realignment.
 - [x] The annual-cost amber and the sign rule are Lime-only: decide whether they become fork-wide. **Decided
   09-25: they stay Lime-only** (§ 2).
-- [ ] Commit, push and PR of `feat/ui-lime-frost-agentation`; build and Playwright not run on the 09-15 passes.
+- [x] Commit, push and PR of `feat/ui-lime-frost-agentation` — **closed 09-26**: the branch merged whole into main
+  with fork PR #3 on 09-15 (its tip `3f08b8ca` is an ancestor of main); build and the full Playwright suite have run
+  green many times since (136/136 on 09-26).
