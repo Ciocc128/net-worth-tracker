@@ -48,7 +48,7 @@ export function LiquiditaTile({ summary, accountsById, onSelect, onAdd, isDemo, 
             </p>
           </div>
           {/* The -mx-2/px-2 pair keeps the rows' hover wash inside the scroll box, which clips on both axes. */}
-          <div className="mb-3.5 mt-2.5 flex max-h-[214px] flex-col divide-y divide-border overflow-y-auto overscroll-contain">
+          <div className="mb-3.5 mt-2.5 flex max-h-[214px] flex-col divide-y divide-border overflow-y-auto overscroll-contain lime-quiet-scroll">
             {accounts.map((account) => {
               const asset = accountsById.get(account.id);
               return (

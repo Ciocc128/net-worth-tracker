@@ -114,12 +114,23 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   its too-light / too-dark fallback to `CHART_COLORS` now fires on the served forms too (before, it never did): a theme
   whose served chart slot is above L 0.82 in light, or below 0.30 in dark, now paints the static slot instead.
   **`colorToHex`** turns any served form into `#rrggbb` for Nivo, through `lib/hooks/useCssColorTokens.ts`.
-- **The 50/30/20 roles** (`--role-need · --role-want · --role-saving · --role-unclassified · --role-deficit`, Analisi's
-  Flusso): aliases in `:root` (`--flow-out`, `--chart-4`, `--flow-in`, `--muted-foreground`, `--destructive`), the
-  approved triad in Lime Frost light — need = `--flow-out` ice 232, want lavender 295, saving green-teal 175 (ΔE_ok
-  0.084 from `--flow-in`; 165 read as the income green), unclassified `--chart-5`, deficit the sign red — each ≥ 3:1
-  on the white tile, and taken back to the aliases in Lime Frost dark. Chosen from a swatch preview on the owner's
-  figures (2026-09-15).
+- **The 50/30/20 roles** (`--role-income · --role-budget · --role-need · --role-want · --role-saving ·
+  --role-unclassified · --role-deficit`, Analisi's Flusso): aliases in `:root` (`--flow-in`, `--muted-foreground`,
+  `--flow-out`, `--chart-4`, `--flow-in`, `--muted-foreground`, `--destructive`), the approved triad in Lime Frost
+  light — need = `--flow-out` ice 232, want lavender 295, saving green-teal 175 (ΔE_ok 0.084 from `--flow-in`; 165 read
+  as the income green), unclassified `--chart-5`, deficit the sign red — each ≥ 3:1 on the white tile. Chosen from a
+  swatch preview on the owner's figures (2026-09-15). In **Lime Frost dark** the Sankey family (`--role-*`,
+  `--type-flow-*`) has its own values, the same hues at L 0.83 — a step above the bars' flows (0.745), because the
+  ribbons sit at 50% on the night ground (owner's tour, 2026-09-26); `--role-income` / `--role-budget` exist so the
+  role view's sources and Budget node lift with it.
+- **Lime Frost dark (roadmap step 4, closed 2026-09-26)**: `.dark[data-theme="lime-frost"]`, the owner's calls in
+  doc/guide/fork-scelte-ui.md § 3 step 4. Two traps it found, both theme-wide:
+  a **`dark:` utility on a button variant beats every theme's token** — `ghost` carried `dark:hover:bg-accent/50`,
+  `outlineDestructive` `dark:bg-input/30 …`, so no dark block could name its own hover or «Elimina» veil. They now
+  live in the default `.dark` block as `--ghost-hover` / `--destructive-surface(-hover)` / `--destructive-outline`
+  with the same washes (other themes unchanged, measured); `limeFrostTheme.test.ts` keeps `dark:` backgrounds off
+  those two variants. And **nivo's Sankey multiplies its ribbons into the ground** (`linkBlendMode` default
+  `multiply`): invisible on a light tile, near-black on a dark one — `CashflowSankeyChart` blends `normal` in dark.
 - **Charts slots mean asset classes.** A series that is not a class (net worth, income, spending, a scenario) takes its
   role token, never a `--chart-N`; in Lime Frost light `--chart-5` (Liquidità) is a neutral ice grey. Still on slots:
   the Analisi Sankey (hard-coded hex, planned with the 50/30/20 split) and a few FIRE Dettaglio lines.

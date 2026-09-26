@@ -80,8 +80,8 @@ type DrillState =
 
 // Module-level so useCssColorTokens' effect sees stable identities.
 const ROLE_TOKENS: Record<keyof SpendingRolePalette, string> = {
-  income: '--flow-in',
-  budget: '--muted-foreground',
+  income: '--role-income',
+  budget: '--role-budget',
   need: '--role-need',
   want: '--role-want',
   saving: '--role-saving',
