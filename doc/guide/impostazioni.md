@@ -57,6 +57,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   dialog IS the confirmation, without them the row arms), dividend sync (`SyncDividendsButton`, armed in the primary
   tint: it writes, it does not destroy) and the revoke of an access (`MemberRow`, the row says what is taken away).
   One live region per list.
+- **«Ruoli 50/30/20» is its own tile in Spese** (2026-09-26, aligned with the upstream PR), under the two the expense
+  form reads — not a row of Categorie, because that tile gives way to an `ErrorNotice` when the categories fail, and
+  the switch and its reading must not. The reading (`describeSpendingRolesSetting`) counts the classified spending
+  categories and says «non letti» on a failed read; the Cashflow reading of Preferenze no longer carries a 50/30/20
+  clause. The flag's dirty snapshot is Spese's.
 - **`ExpenseImportSection` and `AccountSharingSection` render their own `Tile`** — the page places them in a grid cell
   and passes nothing but their props. Their reading lines come from the same pure module, so the wizard's phase
   («142 voci da importare, 6 righe scartate, 3 categorie da creare») and the grant list are stated in words before the

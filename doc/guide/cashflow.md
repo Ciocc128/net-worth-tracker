@@ -134,7 +134,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   blanking the chart. **Ids are opaque**: `index` is the only sanctioned way to ask what a node is.
 
 ## Ruoli 50/30/20: Necessità · Desideri · Risparmi (`lib/utils/spendingRoles.ts`)
-- **Opt-in** (`settings.spendingRolesEnabled`, Impostazioni › Preferenze › Cashflow, the five write places) and meant
+- **Opt-in** (`settings.spendingRolesEnabled`, Impostazioni › Spese › «Ruoli 50/30/20» since 2026-09-26 — where upstream's PR puts it; before, Preferenze › Cashflow —, the five write places) and meant
   for Analisi's Sankey only: category icons stay neutral and there is no 50/30/20 tile. Session A (2026-09-15) shipped
   the field, the dialog and the pure layer; session B the Flusso view, its reading and the role tokens
   (doc/guide/cashflow-analisi.md, doc/guide/temi.md).

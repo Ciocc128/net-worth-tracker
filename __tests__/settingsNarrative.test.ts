@@ -46,6 +46,7 @@ import {
   describeTargetProblem,
   describeThemeMode,
   describeTransferFeeCategory,
+  describeSpendingRolesSetting,
   describeUnsavedChanges,
   summarizeExpenseCategories,
 } from '@/lib/utils/settingsNarrative';
@@ -293,8 +294,7 @@ describe('describeAssistantPreferences', () => {
 });
 
 describe('describeCashflowSettings', () => {
-  const ROLES_OFF = { spendingRolesEnabled: false, categoryClassification: { spending: 4, classified: 0 } };
-  const SPLIT_OFF = { expenseSplitEnabled: false, familyMemberCount: 0, ...ROLES_OFF };
+  const SPLIT_OFF = { expenseSplitEnabled: false, familyMemberCount: 0 };
 
   it('names up to two labor categories, the history floor and cost centers', () => {
     expect(
@@ -366,7 +366,6 @@ describe('describeCashflowSettings', () => {
           costCentersEnabled: false,
           expenseSplitEnabled: true,
           familyMemberCount: 2,
-          ...ROLES_OFF,
         })
       )
     ).toBe(
@@ -385,7 +384,6 @@ describe('describeCashflowSettings', () => {
           costCentersEnabled: false,
           expenseSplitEnabled: true,
           familyMemberCount: 1,
-          ...ROLES_OFF,
         })
       )
     ).toContain('Divisione attiva, ma in Famiglia c\'è una persona sola: servono almeno due.');
@@ -398,65 +396,9 @@ describe('describeCashflowSettings', () => {
           costCentersEnabled: false,
           expenseSplitEnabled: true,
           familyMemberCount: 0,
-          ...ROLES_OFF,
         })
       )
     ).toContain('Divisione attiva, ma senza nessuno in Famiglia non riparte nulla.');
-  });
-
-  describe('the 50/30/20 sentence', () => {
-    const BASE = {
-      laborCategoryNames: ['Stipendio'],
-      historyStartYear: 2025,
-      costCentersEnabled: false,
-      expenseSplitEnabled: false,
-      familyMemberCount: 0,
-      spendingRolesEnabled: true,
-    };
-    const PREFIX = 'Stipendio conta come reddito da lavoro; lo storico parte dal 2025; Centri di Costo spenti; Divisione spenta.';
-
-    it('says nothing when the feature is off, even with unclassified categories', () => {
-      expect(plain(describeCashflowSettings({ ...BASE, ...ROLES_OFF }))).toBe(PREFIX);
-    });
-
-    it('names how many categories still land in «Da classificare»', () => {
-      expect(
-        plain(describeCashflowSettings({ ...BASE, categoryClassification: { spending: 14, classified: 11 } }))
-      ).toBe(`${PREFIX} 50/30/20: 11 categorie di spesa su 14 hanno un ruolo; 3 finiscono in «Da classificare».`);
-      expect(
-        plain(describeCashflowSettings({ ...BASE, categoryClassification: { spending: 14, classified: 13 } }))
-      ).toBe(`${PREFIX} 50/30/20: 13 categorie di spesa su 14 hanno un ruolo; 1 finisce in «Da classificare».`);
-    });
-
-    it('reads the fully classified state', () => {
-      expect(
-        plain(describeCashflowSettings({ ...BASE, categoryClassification: { spending: 14, classified: 14 } }))
-      ).toBe(`${PREFIX} 50/30/20: tutte le 14 categorie di spesa hanno un ruolo.`);
-      expect(
-        plain(describeCashflowSettings({ ...BASE, categoryClassification: { spending: 1, classified: 1 } }))
-      ).toBe(`${PREFIX} 50/30/20: l’unica categoria di spesa ha un ruolo.`);
-    });
-
-    it('names the missing input when there is nothing to classify', () => {
-      expect(
-        plain(describeCashflowSettings({ ...BASE, categoryClassification: { spending: 0, classified: 0 } }))
-      ).toBe(`${PREFIX} 50/30/20 attivo, ma non c’è ancora nessuna categoria di spesa da classificare.`);
-    });
-
-    it('does not read a failed category fetch as «nothing to classify»', () => {
-      expect(
-        plain(
-          describeCashflowSettings({
-            ...BASE,
-            laborCategoryNames: [],
-            categoriesUnread: true,
-            categoryClassification: { spending: 0, classified: 0 },
-          })
-        )
-      ).toBe(
-        'Le categorie non sono state lette: il reddito da lavoro scelto non si può mostrare; lo storico parte dal 2025; Centri di Costo spenti; Divisione spenta. 50/30/20 attivo; i ruoli delle categorie non sono stati letti.'
-      );
-    });
   });
 });
 
@@ -928,6 +870,52 @@ describe('describeImport', () => {
 });
 
 // ─── Commissioni sui trasferimenti ────────────────────────────────────────────
+
+describe('describeSpendingRolesSetting', () => {
+  const ON = { enabled: true };
+
+  it('says what off means, and that the roles already set survive it', () => {
+    expect(plain(describeSpendingRolesSetting({ enabled: false, classification: { spending: 4, classified: 0 } }))).toBe(
+      'Spenti: il flusso di Analisi si legge solo per tipo di spesa. I ruoli già assegnati restano sulle categorie.'
+    );
+  });
+
+  it('names how many categories still land in «Da classificare»', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 14, classified: 11 } }))).toBe(
+      'Attivi: 11 categorie di spesa su 14 hanno un ruolo; 3 finiscono in «Da classificare».'
+    );
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 14, classified: 13 } }))).toBe(
+      'Attivi: 13 categorie di spesa su 14 hanno un ruolo; 1 finisce in «Da classificare».'
+    );
+  });
+
+  it('speaks of ONE classified category in the singular', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 3, classified: 1 } }))).toBe(
+      'Attivi: 1 categoria di spesa su 3 ha un ruolo; 2 finiscono in «Da classificare».'
+    );
+  });
+
+  it('reads the fully classified state', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 14, classified: 14 } }))).toBe(
+      'Attivi: tutte le 14 categorie di spesa hanno un ruolo.'
+    );
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 1, classified: 1 } }))).toBe(
+      'Attivi: l’unica categoria di spesa ha un ruolo.'
+    );
+  });
+
+  it('names the missing input when there is nothing to classify', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 0, classified: 0 } }))).toBe(
+      'Attivi, ma non c’è ancora nessuna categoria di spesa da classificare.'
+    );
+  });
+
+  it('does not read a failed category fetch as «nothing to classify»', () => {
+    expect(
+      plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 0, classified: 0 }, categoriesUnread: true }))
+    ).toBe('Attivi; i ruoli delle categorie non sono stati letti.');
+  });
+});
 
 describe('describeTransferFeeCategory', () => {
   it('says where a typed fee lands, subcategory included, and which account pays it', () => {
