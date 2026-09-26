@@ -13,8 +13,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **185 files / 4335 tests** green in `Europe/Rome` + **37 Playwright spec files** (130 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container: 123 of 128 green, the 5 reds environmental or the known `modal.origin` — doc/guide/e2e-emulatori.md). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato). Misurato su
+- `tsc` clean; **185 files / 4343 tests** green in the machine timezone and under `Europe/Rome` + **38 Playwright spec files** (132 tests, incl. 6 auth setups; last full run 2026-09-26 on a Mac, 3,7 min: 132 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-26, bis): **Patrimonio › Strumenti — il chip di classe di uno strumento composito.** Un fondo 60/40
+  resta UNA riga (raggruppata e ordinata sotto la classe prevalente), ma il suo chip ha un segmento per classe, largo
+  quanto la quota: «Azioni · Obbl.» con due classi, «Misto» da tre; sotto il 5 % nessun segmento; le quote in testo
+  `sr-only`; gruppo e chip su una sola classifica (`rankedClassLegs`). `lib/utils/assetDisplayClass.ts`,
+  `InstrumentClassChip` in `AssetRow.tsx`, doc/guide/patrimonio.md. **Verifica**: Vitest 4343 nei due fusi (8 nuovi,
+  4 visti rossi), Playwright 132/132 con `e2e/assets.composite-chip.spec.ts` (1440 e 390, visti rossi).
+- Prima (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato). Misurato su
   build di produzione + emulatori + mirror del proprietario (1533 spese): l'HTML di ogni route è lo spinner (46 caratteri),
   460 KB gz di JS su ogni pagina (recharts in QUATTRO chunk, @react-pdf nel grafo di Storico → 1,19 MB, lucide intero alla
   prima icona), Cashflow 2,1 s / Storico 2,3 s / Analisi 1,7 s al primo numero con Firestore a ~1 ms (tutta E letta),
