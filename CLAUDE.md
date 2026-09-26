@@ -13,22 +13,22 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **205 files / 4896 tests** green in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-26, fork, Lime Frost scuro, 3,9 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-26, fork): **Lime Frost chiuso, chiaro e scuro — il passo 4 della roadmap.** Il giro del
-  proprietario sul mirror (sei note Agentation) e sul telefono: hover di menu e dialoghi sull'ardesia della barra
-  laterale; ghost ghiaccio, cestino ed «Elimina» rossi — le classi `dark:` sulle varianti di `button.tsx` coprivano i
-  token di ogni tema, ora vivono nel blocco `.dark` con gli stessi valori; nessuna barra di scorrimento in Liquidità;
-  il Sankey scuro non «moltiplica» più i nastri nel fondo (`linkBlendMode`), nastri a 0,5 e la sua famiglia di colori
-  a L 0,83 (`--role-income`/`--role-budget` nuovi). doc/guide/temi.md, fork-scelte-ui.md § 3 passo 4. Collaudo:
-  `tsc` 0, ESLint 0, Vitest 4896 nei due fusi, build verde, Playwright 136/136.
-- Prima (2026-09-25, fork, quinquies): **Lime Frost chiaro — i tre punti del passo 4 chiusi** (PR #18): segno e
-  ambra solo Lime, Liquidità a L 0,55, l'indice dei token di ruolo completo.
-- Latest upstream (2026-09-25, bis): **Patrimonio › «Mutuo» — gli interessi del mutuo, anno per anno.** Ogni rata
-  regolata salva anche gli interessi pagati (`debtInterestPaid`, accanto a `debtPrincipalRepaid`: salvataggio, modifica,
-  job serale); una tessera «Mutuo» a tutta larghezza per immobile con rate collegate, tra Rendimento e Strumenti — debito,
-  interessi e capitale dell'anno, fine prevista (`projectPayoff`), la tabella «Per anno» dal secondo anno. Gli interessi
-  contano solo dalle rate regolate dall'app. `lib/utils/mortgageSummary.ts`, `components/assets/tiles/MutuoTile.tsx`,
-  doc/guide/patrimonio.md; la verifica per esteso nel messaggio di `e47de34d`.
+- `tsc` clean; **205 files / 4897 tests** green in the machine timezone and under `Europe/Rome` + **40 Playwright spec files** (139 tests, incl. 6 auth setups; last full run 2026-09-26, fork, after the eighth upstream merge, 4,1 min: 139 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-26, fork, bis): **Ottavo riallineamento a upstream (#391, #398–#399)**, solo il merge: la #391 era già
+  nel fork dal 25/09 (stesso commit), arrivano `doc/perf/` e la chiusura della v10.0.0; due conflitti, questo file e
+  il Draft Release. Roadmap: passo 1 CHIUSO (#391 fusa upstream il 26/09); passo 3 in attesa del maintainer (#400,
+  #401 bozze); passo 5 aperto come bozza d'issue. Collaudo: `tsc` 0, ESLint 0, Vitest 205 file / 4897 nei due fusi, build verde, Playwright 139/139.
+- Prima (2026-09-26, fork): **Lime Frost chiuso, chiaro e scuro — il passo 4 della roadmap** (PR #19): il giro del
+  proprietario sul mirror e sul telefono; le classi `dark:` delle varianti di `button.tsx` spostate nel blocco `.dark`;
+  il Sankey scuro con `linkBlendMode` normale e la sua famiglia a L 0,83 (`--role-income`/`--role-budget` nuovi).
+  doc/guide/temi.md, fork-scelte-ui.md § 3 passo 4.
+- Latest upstream (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato).
+  Misurato su build di produzione + emulatori + mirror: HTML di ogni route = lo spinner, 460 KB gz di JS su ogni pagina
+  (recharts in quattro chunk, @react-pdf nel grafo di Storico), Rendimenti 17 API, overview in 6 stadi in serie, la
+  chiave cache dell'Esposizione che non combacia mai (Yahoo a ogni apertura), React Compiler spento. Firebase NON è il
+  limite. Ordine e decisioni in `doc/perf/README.md`; PERF-01 prima di tutto.
+- Prima upstream (2026-09-25, bis): **Patrimonio › «Mutuo»** — gli interessi di ogni rata regolata
+  (`debtInterestPaid`), la tessera «Mutuo» per immobile. doc/guide/patrimonio.md; la verifica nel messaggio di `e47de34d`.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -77,6 +77,8 @@ One line per area: the question it answers, then where it is described. *What th
 - Vitest: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. New tests in `__tests__/`; prefer pure functions over Firestore-coupled code.
 - **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch: run `npm install` first (AGENTS → *Commands*).
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
+- **Performance**: baseline (cold/warm per page, bundle per route), method and the fourteen specs in `doc/perf/README.md`;
+  the benchmark lands in repo with PERF-01 (`npm run perf:bench` / `perf:budget`).
 - **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations

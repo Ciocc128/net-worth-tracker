@@ -91,7 +91,10 @@ One session per step; each step's detailed items are in the list below.
 Lime Frost never reaches an upstream PR; at most its logic (role tokens with neutral `:root` defaults) goes to an
 issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's history).
 
-1. **Upstream PR A — the Piano on a leveraged portfolio** (the item «Piano on a leveraged portfolio» below). First
+1. **Upstream PR A — the Piano on a leveraged portfolio** — **CLOSED 2026-09-26**: upstream merged #391 on 09-26
+   (`b0ff856e`, released in v10.0.0 by #399); the fork took it in the eighth realignment
+   (`merge/upstream-2026-09-26`) with no conflict, the commit being the same. The history: (the item «Piano on a
+   leveraged portfolio» below). First
    because it fills a gap upstream has too; still untouched upstream on 09-24. **09-24 night: opened as upstream
    draft #391** (branch `fix/leveraged-plan`, one commit on `upstream/develop`). The owner's calls: a composite order
    split by composition across its classes, a same-class swap as two moves, the first-trade guard NOT bundled (its own
@@ -122,6 +125,12 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    or a separate one first; the Italian labels). **The code waits for the answers.** Branch `feat/spending-roles`,
    cut from `upstream/main` (`3c6073eb`); the settings page, `CategoryRow` and the category dialog are rewritten on
    upstream's versions, not cherry-picked.
+   **09-26: WAITING FOR THE MAINTAINER.** The maintainer answered #397 on 09-26: opt-in, default off; the phone
+   «Per tipo» bar as a SEPARATE PR with its own spec; the labels as proposed; the Flusso opens on «Per ruolo» with
+   the switch on; base the PRs on `develop`. So: **PR B = upstream draft #400** (`feat/spending-roles` → `develop`)
+   and **the phone «Per tipo» bar = upstream draft #401** (`feat/phone-type-flow` → `develop`, stacked on #400). In
+   the fork the roles switch sits in Impostazioni › **Spese**, as in #400 (fork PR #20, merged). As of 09-26 evening
+   no maintainer comment or review on #400/#401 — only Vercel's preview, waiting for his authorization.
 4. **Lime Frost** (fork only) — **DONE 2026-09-26**, light and dark (owner). The three light points (Lime-only rules fork-wide or not; class palette ΔE and
    `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
    **09-25 — the three light points closed** (branch `feat/lime-frost-step4`; step 3 waits for upstream #397):
@@ -158,7 +167,8 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    50/30/20 view's sources and Budget lift too. The owner's phone pass (390): fine as is. **Step 4 closed**, branch
    `feat/lime-frost-dark`.
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
-   prerequisite of the optimizer.
+   prerequisite of the optimizer. **09-26: opened** — the issue draft (English) prepared in the session of the eighth
+   realignment and shown to the owner before publishing; no code, no branch yet.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
 7. **Upstream PR E — the composite class chip on Patrimonio › Strumenti** (added 09-24, the item «Composite class
    chip» below). Small and upstream-neutral (chart slots, no Lime token), so it can move ahead of steps 2–6 whenever a
@@ -222,6 +232,11 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   lists the twelve upstream blocks, not Lime Frost): light Liquidità ↔ Trend Following ΔE00 11,7 (< 14), and dark's
   slots are not the light ones' hue bands (Azioni 264° light vs 128° dark). Settle it with the dark decisions, then add
   `'lime-frost'` to the test's `THEMES`. `--chart-9` (Previdenza band) was added on 09-21 at hue 40, unreviewed.
+  **Checked 09-26 against step 4's close**: `'lime-frost'` is in `THEMES`, so both blocks meet the ΔE00 floor, the
+  luminance guard and the light/dark hue band; the 09-26 tour notes (`0771efbb`) touched role and type-flow tokens,
+  not the nine slots — the entry holds, the test green in the eighth realignment.
 - [x] The annual-cost amber and the sign rule are Lime-only: decide whether they become fork-wide. **Decided
   09-25: they stay Lime-only** (§ 2).
-- [ ] Commit, push and PR of `feat/ui-lime-frost-agentation`; build and Playwright not run on the 09-15 passes.
+- [x] Commit, push and PR of `feat/ui-lime-frost-agentation` — **closed 09-26**: the branch merged whole into main
+  with fork PR #3 on 09-15 (its tip `3f08b8ca` is an ancestor of main); build and the full Playwright suite have run
+  green many times since (136/136 on 09-26).
