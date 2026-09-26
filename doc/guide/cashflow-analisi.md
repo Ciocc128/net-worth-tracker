@@ -11,6 +11,7 @@
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Analisi**: `components/cashflow/AnalisiTab.tsx` (`handleEntitySelect`) + `components/cashflow/analisi/*`, `components/cashflow/{EntityDossier,EntitySearch,ConfrontoAnnualeSection,CashflowSankeyChart,SavingsRateTrendSection,AndamentoStoricoSection}.tsx`; pure `lib/utils/{analisiSummary,analisiNarrative,expenseGrouping,cashflowSankey,cashflowComposition,expenseCategoryMatching,comparisonDeltas,expenseEntityStats,entitySearch}.ts`
+- **Flusso by 50/30/20 role**: `components/cashflow/analisi/{SpendingRolesMobileFlow,FlowShareMobile}.tsx`, `lib/hooks/useCssColorTokens.ts` + pure `lib/utils/cssColorToHex.ts`; the roles' builders at the end of `cashflowSankey.ts`; browser: the «50/30/20» blocks of `e2e/analisi{,.mobile}.spec.ts`
 
 ## Analisi — a verdict over tiles (`components/cashflow/AnalisiTab.tsx`, `components/cashflow/analisi/*`, `lib/utils/{analisiSummary,analisiNarrative}.ts`)
 - **ONE axis, three modes** (Anno corrente | Anno | Storico, plus a month): `PeriodMode`/`AnalisiPeriod` live in
@@ -122,6 +123,22 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **`CashflowSankeyChart` is a plot, `FlussoTile` is the navigation**: the tile owns the subcategory toggle
   (`aria-pressed`) and the single type drill, builds the `SankeyView` with the pure builders and passes it down;
   node clicks come back as DESCRIPTORS (`view.index`), never parsed from the id. Colours stay hex (react-spring).
+- **Flusso has two views once `spendingRolesEnabled` is on — «Per ruolo» (the default) and «Per tipo»** (today's view,
+  unchanged), two twin `aria-pressed` toggles in the «Sottocategorie» button's own style, hidden inside a drill. The
+  roles view is the same classic Sankey: Entrate (+ «Coperto dal patrimonio») → Budget → Necessità / Desideri / Da
+  classificare / Risparmi → categorie (`buildSpendingRolesFlowData`, subcategory layer too, same top-6×4 cut). A
+  category split by a subcategory override is one node per role, its label qualified by the role. A role node drills
+  to its categories like a type node (`buildSpendingRoleDrillDownData`); the reading is `describeSpendingRolesFlow`
+  over the same `summarizeSpendingRoles` the builder takes its totals from, so the words and the chart cannot
+  disagree. Its nodes keep the builder's order (`nodeSort="input"`), or a role's categories interleave with another's
+  by value. Entrate and Budget keep the type view's colours; the roles are the five `--role-*` aliases
+  (doc/guide/temi.md) resolved to hex by `useCssColorTokens`, their categories the derived shades as under a type.
+  **On a phone the roles view is not a Sankey** (four columns get ~80 px each at 390): `SpendingRolesMobileFlow`
+  draws the 50/30/20 bar — shares of what left (income + what the wealth covered, the reading's own base), ticks at
+  50 and 80, a red «entrate» line where a deficit runs past income — then each role's categories as `RankedRows`
+  (5 + «Mostra tutte»; a row opens the Scheda), through the role-agnostic `FlowShareMobile`: the shares are a legend
+  under the bar in the foreground ink, never figures inside the segments. The phone's «Per tipo» keeps the reduced
+  Sankey. The rules of the roles themselves are in doc/guide/cashflow.md § Ruoli 50/30/20.
 - **`RankedRows` is a real `<ul>`, and a clickable row is a real `<button>` inside its `<li>`** — named
   «{label} · {caption}, {amount}, {share}%» (the caption is the day and the subcategory of a single expense) with
   `aria-current` on the focused one. Never `role="listitem"` on the button (the `CompositionList` habit): the explicit

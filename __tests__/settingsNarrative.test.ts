@@ -43,6 +43,7 @@ import {
   describeTargetProblem,
   describeThemeMode,
   describeTransferFeeCategory,
+  describeSpendingRolesSetting,
   describeUnsavedChanges,
   summarizeExpenseCategories,
 } from '@/lib/utils/settingsNarrative';
@@ -751,6 +752,52 @@ describe('describeImport', () => {
 });
 
 // ─── Commissioni sui trasferimenti ────────────────────────────────────────────
+
+describe('describeSpendingRolesSetting', () => {
+  const ON = { enabled: true };
+
+  it('says what off means, and that the roles already set survive it', () => {
+    expect(plain(describeSpendingRolesSetting({ enabled: false, classification: { spending: 4, classified: 0 } }))).toBe(
+      'Spenti: il flusso di Analisi si legge solo per tipo di spesa. I ruoli già assegnati restano sulle categorie.'
+    );
+  });
+
+  it('names how many categories still land in «Da classificare»', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 14, classified: 11 } }))).toBe(
+      'Attivi: 11 categorie di spesa su 14 hanno un ruolo; 3 finiscono in «Da classificare».'
+    );
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 14, classified: 13 } }))).toBe(
+      'Attivi: 13 categorie di spesa su 14 hanno un ruolo; 1 finisce in «Da classificare».'
+    );
+  });
+
+  it('speaks of ONE classified category in the singular', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 3, classified: 1 } }))).toBe(
+      'Attivi: 1 categoria di spesa su 3 ha un ruolo; 2 finiscono in «Da classificare».'
+    );
+  });
+
+  it('reads the fully classified state', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 14, classified: 14 } }))).toBe(
+      'Attivi: tutte le 14 categorie di spesa hanno un ruolo.'
+    );
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 1, classified: 1 } }))).toBe(
+      'Attivi: l’unica categoria di spesa ha un ruolo.'
+    );
+  });
+
+  it('names the missing input when there is nothing to classify', () => {
+    expect(plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 0, classified: 0 } }))).toBe(
+      'Attivi, ma non c’è ancora nessuna categoria di spesa da classificare.'
+    );
+  });
+
+  it('does not read a failed category fetch as «nothing to classify»', () => {
+    expect(
+      plain(describeSpendingRolesSetting({ ...ON, classification: { spending: 0, classified: 0 }, categoriesUnread: true }))
+    ).toBe('Attivi; i ruoli delle categorie non sono stati letti.');
+  });
+});
 
 describe('describeTransferFeeCategory', () => {
   it('says where a typed fee lands, subcategory included, and which account pays it', () => {

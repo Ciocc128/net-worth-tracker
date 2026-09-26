@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`, `CategoryRow`, `SyncDividendsButton`, `targetFieldId`), `components/settings/{ExpenseImportSection,AccountSharingSection}.tsx`, pure `lib/utils/{settingsNarrative,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile}.spec.ts`
+- **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`, `CategoryRow`, `SyncDividendsButton`, `targetFieldId`), `components/settings/{ExpenseImportSection,AccountSharingSection}.tsx`, pure `lib/utils/{settingsNarrative,spendingRoles,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile,.roles}.spec.ts`
 
 ## Impostazioni — tessere senza verdetto (`app/dashboard/settings/page.tsx`, `lib/utils/settingsNarrative.ts`)
 
@@ -57,6 +57,12 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   dialog IS the confirmation, without them the row arms), dividend sync (`SyncDividendsButton`, armed in the primary
   tint: it writes, it does not destroy) and the revoke of an access (`MemberRow`, the row says what is taken away).
   One live region per list.
+- **«Ruoli 50/30/20» is its own tile in Spese**, under the two the expense form reads — not a row of Categorie,
+  because that tile gives way to an `ErrorNotice` when the categories fail, and the switch and its reading must not.
+  The reading (`describeSpendingRolesSetting`) counts the classified spending categories
+  (`summarizeCategoryClassification`) and says «non letti» on a failed read, never «0 classificate». With the switch
+  on, each `CategoryRow` badge wears its role's colour (`categoryRoleColor`: income `--positive`, a transfer its saved
+  hue), and the category dialog shows the role picker. The flag's dirty snapshot is Spese's.
 - **`ExpenseImportSection` and `AccountSharingSection` render their own `Tile`** — the page places them in a grid cell
   and passes nothing but their props. Their reading lines come from the same pure module, so the wizard's phase
   («142 voci da importare, 6 righe scartate, 3 categorie da creare») and the grant list are stated in words before the

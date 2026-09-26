@@ -82,6 +82,13 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   **A new theme or a moved slot runs `__tests__/chartPaletteDistinctness.test.ts` first** — solar-dusk shipped two
   classes as the same grey for months.
 
+- **The 50/30/20 role tokens are aliases, declared ONCE in `:root`** (`--role-need: var(--chart-1)`, `--role-want:
+  var(--chart-4)`, `--role-saving: var(--chart-2)`, `--role-unclassified: var(--muted-foreground)`, `--role-deficit:
+  var(--destructive)`). The theme attribute and `.dark` sit on the same root element, so the alias resolves against
+  the active block's slots — no block names a role. A theme may declare its own later. Nivo reads them through
+  `useCssColorTokens` (`lib/utils/cssColorToHex.ts` turns the served `#hex` / `lab()` / `oklch()` into hex); the phone's
+  50/30/20 bar reads them as `var()`.
+
 ## Per-page blind spots
 
 - **The chart slots are measured for DISTANCE, not for every surface they land on** (2026-09-20): ΔE00 ≥ 14 and the luminance guard hold on all twelve blocks, and the re-pitched slots were searched at ≥ 3:1 against their card — but that contrast is NOT asserted by the suite, the default theme's two slots under 3:1 (next entry) are untouched, and a colour-blind reader is not modelled: a composition is never readable by colour alone, which is why every band is also a named row.

@@ -23,6 +23,7 @@ import { resolveRitaUnlockAge, DEFAULT_INPS_RETIREMENT_AGE } from '@/lib/utils/p
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR } from '@/lib/constants/stampDuty';
 import type { ExpenseType } from '@/types/expenses';
+import type { CategoryClassificationCounts } from '@/lib/utils/spendingRoles';
 import type { AssetClass } from '@/types/assets';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
@@ -561,6 +562,45 @@ export function describeClassTargets({ classCount, withSubcategories, problem }:
 }
 
 // ─── Spese ────────────────────────────────────────────────────────────────────
+
+export interface SpendingRolesSettingInput {
+  enabled: boolean;
+  // From summarizeCategoryClassification — the roles live on the categories, so the reading can
+  // only be honest about the Flusso by saying how many of them carry one.
+  classification: CategoryClassificationCounts;
+  /** The categories were NOT read: their roles are unknown, never «0 classified». */
+  categoriesUnread?: boolean;
+}
+
+/**
+ * Ruoli 50/30/20 (Spese) — whether Analisi's Flusso can be read by role, and how far the
+ * classification has got. Names what is still unclassified, because those categories land in
+ * «Da classificare» on the Flusso rather than in any of the three roles.
+ */
+export function describeSpendingRolesSetting({ enabled, classification, categoriesUnread = false }: SpendingRolesSettingInput): Narrative {
+  if (!enabled) {
+    return [prose('Spenti: il flusso di Analisi si legge solo per tipo di spesa. I ruoli già assegnati restano sulle categorie.')];
+  }
+  if (categoriesUnread) {
+    return [prose('Attivi; i ruoli delle categorie non sono stati letti.')];
+  }
+  const { spending, classified } = classification;
+  if (spending === 0) {
+    return [prose('Attivi, ma non c’è ancora nessuna categoria di spesa da classificare.')];
+  }
+  if (classified === spending) {
+    if (spending === 1) return [prose('Attivi: l’unica categoria di spesa ha un ruolo.')];
+    return [prose('Attivi: tutte le '), figure(String(spending)), prose(' categorie di spesa hanno un ruolo.')];
+  }
+  const missing = spending - classified;
+  return [
+    prose('Attivi: '),
+    figure(String(classified)),
+    prose(classified === 1 ? ` categoria di spesa su ${spending} ha un ruolo; ` : ` categorie di spesa su ${spending} hanno un ruolo; `),
+    figure(String(missing)),
+    prose(missing === 1 ? ' finisce in «Da classificare».' : ' finiscono in «Da classificare».'),
+  ];
+}
 
 export interface DefaultAccountsInput {
   debitName?: string;

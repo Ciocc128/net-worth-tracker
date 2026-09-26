@@ -8,7 +8,8 @@
  * `onNodeClick` with the node's DESCRIPTOR — the index says what a node is, the handler never
  * infers it from the id's shape.
  *
- * Colours stay hardcoded hex (react-spring cannot interpolate oklch — AGENTS.md → Recharts).
+ * Colours reach it as hex (react-spring cannot interpolate oklch — AGENTS.md → Recharts): the type
+ * view's are hardcoded, the 50/30/20 view's roles are theme tokens resolved by useCssColorTokens.
  *
  * Used by: components/cashflow/analisi/tiles/FlussoTile.tsx
  */
@@ -35,9 +36,14 @@ interface CashflowSankeyChartProps {
   /** The svg's accessible name: what is drawn, in the tile's words. */
   ariaLabel: string;
   onNodeClick: (descriptor: SankeyNodeDescriptor, color: string) => void;
+  /**
+   * 'input' keeps the builder's node order inside each column (the 50/30/20 view: a role's
+   * categories stay together instead of interleaving by value); 'auto' is d3-sankey's own.
+   */
+  nodeSort?: 'auto' | 'input';
 }
 
-export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, ariaLabel, onNodeClick }: CashflowSankeyChartProps) {
+export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, ariaLabel, onNodeClick, nodeSort = 'auto' }: CashflowSankeyChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const prefersReducedMotion = useReducedMotion();
@@ -94,6 +100,7 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, 
           // subcategory layer stays in the categories' column and the savings node beside
           // the types — `justify` pushed every leaf to the last column, 54 nodes deep.
           align="start"
+          sort={nodeSort}
           role="img"
           ariaLabel={ariaLabel}
           colors={{ datum: 'nodeColor' }}
@@ -143,10 +150,12 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, 
                     <span className="text-xs italic text-muted-foreground">Click per aprire la scheda</span>
                   </>
                 )}
-                {!drilled && kind === 'expenseType' && (
+                {!drilled && (kind === 'expenseType' || kind === 'spendingRole') && (
                   <>
                     <br />
-                    <span className="text-xs italic text-muted-foreground">Click per il dettaglio per tipologia</span>
+                    <span className="text-xs italic text-muted-foreground">
+                      {kind === 'spendingRole' ? 'Click per il dettaglio per ruolo' : 'Click per il dettaglio per tipologia'}
+                    </span>
                   </>
                 )}
               </div>
