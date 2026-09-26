@@ -137,8 +137,14 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   draws the 50/30/20 bar — shares of what left (income + what the wealth covered, the reading's own base), ticks at
   50 and 80, a red «entrate» line where a deficit runs past income — then each role's categories as `RankedRows`
   (5 + «Mostra tutte»; a row opens the Scheda), through the role-agnostic `FlowShareMobile`: the shares are a legend
-  under the bar in the foreground ink, never figures inside the segments. The phone's «Per tipo» keeps the reduced
-  Sankey. The rules of the roles themselves are in doc/guide/cashflow.md § Ruoli 50/30/20.
+  under the bar in the foreground ink, never figures inside the segments. **Nor is the type view a Sankey on a phone**
+  (it is the only view with the roles off): `SpendingTypesMobileFlow` draws ONE bar of the SPENDING split by type, then
+  each type's categories as `RankedRows`, then «Risparmio» as a closing block («X € avanzati nel periodo»), absent in a
+  deficit. The base is the spending because `describeFlow` prints the types over the spending and the savings over the
+  income: the bar's figures come from the reading's own `FlowSummary` (`buildTypeFlowBreakdown` in
+  `analisiSummary.ts`, whose blocks ARE `flow.typeShares`). Colours: the one type map's slots (`--chart-1/4/3`, savings
+  `--chart-2`), never the Sankey's hex. So a phone draws no Sankey outside a drill carried across a resize, and the
+  subcategory toggle and the node count are hidden there. The rules of the roles themselves are in doc/guide/cashflow.md § Ruoli 50/30/20.
 - **`RankedRows` is a real `<ul>`, and a clickable row is a real `<button>` inside its `<li>`** — named
   «{label} · {caption}, {amount}, {share}%» (the caption is the day and the subcategory of a single expense) with
   `aria-current` on the focused one. Never `role="listitem"` on the button (the `CompositionList` habit): the explicit
@@ -151,4 +157,4 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **Analisi**: «Fuori scala» runs on ONE month only (25% / 50 € over a 6-month average, hardcoded); a month not started gets «non è ancora iniziato»; «Mostra tutte», the Confronto year and the Flusso toggles are session-only; the Scheda's transactions window is 25 + «Mostra altre»; `EntityDossier` stays Recharts; `SavingsRateTrendSection`/`AndamentoStoricoSection` compute in the component (untested); the Sankey drops small slices on phones; a previous month recorded in one batch (September 2025 on the real account: 65 rows, all from the 21st) leaves the running month with NO comparison under the same-days rule until the days catch up, and the Periodo says so; no spec covers «Anno» with a month.
+- **Analisi**: «Fuori scala» runs on ONE month only (25% / 50 € over a 6-month average, hardcoded); a month not started gets «non è ancora iniziato»; «Mostra tutte», the Confronto year and the Flusso toggles are session-only; the Scheda's transactions window is 25 + «Mostra altre»; `EntityDossier` stays Recharts; `SavingsRateTrendSection`/`AndamentoStoricoSection` compute in the component (untested); a phone reaches the reduced Sankey only through a drill carried across a resize; a previous month recorded in one batch (September 2025 on the real account: 65 rows, all from the 21st) leaves the running month with NO comparison under the same-days rule until the days catch up, and the Periodo says so; no spec covers «Anno» with a month.

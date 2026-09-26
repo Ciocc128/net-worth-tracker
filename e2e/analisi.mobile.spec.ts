@@ -2,8 +2,8 @@
  * Analisi at 390px — the width DESIGN.md designs against first.
  *
  * Three things only a mobile viewport can prove: the tiles stack in the declared reading order
- * with nothing scrolling sideways, the Sankey's truncation is DECLARED (the chart drops small
- * slices for legibility — silent truncation was a recorded defect), and the row-to-Scheda flow
+ * with nothing scrolling sideways, the Flusso draws no Sankey (a bar of the spending by type and
+ * the categories as rows — a four-column Sankey does not read at 390), and the row-to-Scheda flow
  * works under touch at the narrow layout.
  */
 
@@ -36,8 +36,25 @@ test('stacks the tiles in the declared order with no horizontal overflow', async
   expect(overflow).toEqual({ scroll: 0, culprits: 0 });
 });
 
-test('declares the mobile Sankey truncation instead of dropping slices silently', async ({ page }) => {
-  await expect(page.getByText(/mostra solo le voci principali/)).toBeVisible();
+test('draws the Flusso by type as a bar of the spending and rows, never a Sankey, on the reading\'s own shares', async ({ page }) => {
+  const flusso = page.getByRole('region', { name: 'Flusso', exact: true });
+  const legend = flusso.getByRole('list', { name: 'Quote del flusso' });
+  // Positive anchor first: the legend is there, so the absence of the chart below means something.
+  await expect(legend).toBeVisible();
+  await expect(flusso.getByRole('img', { name: /^Flusso del periodo/ })).toHaveCount(0);
+
+  // The fixture's year: fixed 380 €, variable 400 €, income 2000 €. The bar is the SPENDING, so
+  // its legend prints the reading's own «variabili 51%, fisse 49%» — never 20/19 of the income.
+  await expect(legend.getByRole('listitem')).toHaveText([/^Variabili\s*51%$/, /^Fisse\s*49%$/]);
+  await expect(flusso).toContainText(/variabili 51%, fisse 49%/i);
+
+  // Savings stay out of the bar: a closing block with the amount.
+  await expect(flusso.getByRole('region', { name: 'Risparmio' }).getByText(/^1220[\s\u00a0]*€ avanzati nel periodo\.$/)).toBeVisible();
+
+  // A row opens the Scheda, like every other entry point.
+  await flusso.getByRole('region', { name: 'Spese Variabili' }).getByRole('button', { name: /^Alimentari, / }).click();
+  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`)).toBeVisible();
+  await expect(page.getByText(`Totale · ${CURRENT_YEAR}`).locator('..').getByText(/^400[\s\u00a0]*€$/)).toBeVisible();
 });
 
 test('opens the Scheda from a category row under touch', async ({ page }) => {
@@ -97,11 +114,10 @@ test.describe('Flusso by 50/30/20 role at 390', () => {
     await expect(page.getByRole('region', { name: /^Scheda di / })).toContainText('Alimentari');
   });
 
-  test('«Per tipo» keeps today\'s reduced phone Sankey', async ({ page }) => {
+  test('«Per tipo» swaps the 50/30/20 bar for the bar of the spending by type, still no Sankey', async ({ page }) => {
     const flusso = page.getByRole('region', { name: 'Flusso', exact: true });
     await flusso.getByRole('button', { name: 'Per tipo' }).click();
-    await expect(flusso.getByRole('img')).toBeVisible();
-    await expect(flusso.getByText(/mostra solo le voci principali/)).toBeVisible();
-    await expect(flusso.getByRole('list', { name: 'Quote del flusso' })).toHaveCount(0);
+    await expect(flusso.getByRole('list', { name: 'Quote del flusso' }).getByRole('listitem')).toHaveText([/^Variabili\s*51%$/, /^Fisse\s*49%$/]);
+    await expect(flusso.getByRole('img')).toHaveCount(0);
   });
 });

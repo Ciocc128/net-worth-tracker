@@ -298,6 +298,64 @@ export function summarizeFlow(expenses: Expense[]): FlowSummary {
   };
 }
 
+/** One spending category inside a type block of the phone's type flow. */
+export interface TypeFlowCategory {
+  /** `getCategoryKey` of the rows — the identity a click hands to Analisi's entity focus. */
+  categoryKey: string;
+  categoryName: string;
+  value: number;
+}
+
+export interface TypeFlowBlock extends TypeShare {
+  /** Every category of the type, largest first. Sums to `amount`. */
+  categories: TypeFlowCategory[];
+}
+
+export interface TypeFlowBreakdown {
+  /** The spending types in the reading's own order (largest first), each with its categories. */
+  blocks: TypeFlowBlock[];
+  /** income − spending when positive, else 0: what the period put aside. */
+  surplus: number;
+  /** spending − income when positive, else 0: what the wealth covered. */
+  deficit: number;
+}
+
+/**
+ * The Flusso «Per tipo» on a phone, in numbers: the reading's type
+ * shares — taken from the SAME `FlowSummary` the sentence prints, so the bar and the words can
+ * never show two figures — plus each type's categories for the rows under it.
+ *
+ * Shares are of the SPENDING, not of what left the budget: the reading gives the types over the
+ * spending and the savings over the income, and a screen shows one base, never two figures on
+ * different bases. Savings therefore sit outside the bar, as `surplus`.
+ *
+ * Categories are keyed by (type, category) and labelled by their plain name: inside one type's
+ * block a qualifier could only repeat the block's own type (see `resolveDisplayLabels`).
+ */
+export function buildTypeFlowBreakdown(expenses: Expense[], flow: FlowSummary): TypeFlowBreakdown {
+  const byType = new Map<SpendingType, Map<string, TypeFlowCategory>>(SPENDING_TYPES.map((type) => [type, new Map()]));
+  for (const expense of expenses) {
+    const categories = byType.get(expense.type as SpendingType);
+    if (!categories) continue;
+    const categoryKey = getCategoryKey(expense);
+    const category = categories.get(categoryKey) ?? { categoryKey, categoryName: getCategoryName(expense), value: 0 };
+    category.value += Math.abs(expense.amount);
+    categories.set(categoryKey, category);
+  }
+
+  const blocks = flow.typeShares.map((share) => ({
+    ...share,
+    categories: Array.from(byType.get(share.type)!.values())
+      .filter((category) => category.value > 0)
+      .sort((a, b) => b.value - a.value),
+  }));
+  return {
+    blocks,
+    surplus: Math.max(0, flow.incomeTotal - flow.expensesTotal),
+    deficit: Math.max(0, flow.expensesTotal - flow.incomeTotal),
+  };
+}
+
 // ─── Movers ───────────────────────────────────────────────────────────────────
 
 export interface CategoryMover {
