@@ -274,6 +274,8 @@
 
 ## 📚 Documentation
 
+- A performance dossier (`doc/perf/`) records how fast each page is today on a production build against real-sized data (cold and warm, first figure on screen, long tasks, Firestore and API calls per page, JS per route), what the causes are, and fourteen implementation specs — one per change, each with its measure of closure, its tests to see red once, its guided tour and the prompt to run it — ordered by impact: the shell before authentication, the last known data shown at once, one chunk of charts instead of four, every collection read once, expenses read by window, the overview recomputed in one round, the functions in Firestore's region, the React Compiler on.
+
 - The Cashflow guide records that a transfer's fee is an entry of its own and that a mortgage instalment repays its property by the principal, stored on the entry; the browser-test guide records what differs in a cloud container.
 
 - The Hall of Fame guide records the three stored fields, the note prefilled from a row, the tiles' vocabulary and the page's Playwright locators; the Impeccable critique of Hall of Fame (26/40) is committed and closed, the page has its first browser tests on a fixture account with a four-year history, and the design sidecar is back in step with DESIGN.md.
