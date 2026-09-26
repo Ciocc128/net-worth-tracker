@@ -167,9 +167,24 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    50/30/20 view's sources and Budget lift too. The owner's phone pass (390): fine as is. **Step 4 closed**, branch
    `feat/lime-frost-dark`.
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
-   prerequisite of the optimizer. **09-26: opened** — the issue draft (English) prepared in the session of the eighth
-   realignment and shown to the owner before publishing; no code, no branch yet.
+   prerequisite of the optimizer. **09-26: opened as upstream issue #402 — Yahoo only, three views** (owner's call).
+   Upstream gets the fork's engine on its OWN three views (Titoli · Settori · Emittenti): leverage as notional
+   (Emittenti at market value, over every allocatable asset), the coverage line (read / not applicable / unread), the
+   Allocazione base, and the fixed cache key (`buildExposureCacheKey` in `lib/utils/exposureCacheKey.ts`, closing
+   upstream's PERF-10 § A). NOT proposed, and nothing promised: Paesi and Valute, the curated tables
+   (`instrumentProfiles.ts`, `geoAreas.ts`), the issuers' factsheet PDFs, `exposure:refresh` / `exposure:report`.
+   Why: upstream once specced justETF scraping for geography and currency and removed it for the site's terms
+   (`c7f083b8`, 2026-05-14, inside PR #132), and Yahoo publishes no country or currency breakdown for funds; an honest
+   «non letta» beats a figure from a source the repo cannot use. The fork keeps its five views and its tables. Four
+   questions to the maintainer (the base; Emittenti over every allocatable asset; PERF-10 § A here or first; `develop`
+   plus the tests). **The code waits for the answers.** The mechanism is Yahoo-only; the maintainer never saw the
+   fork's `exposureRefresh.mts`, which sends a browser User-Agent — keep it out of any upstream branch.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
+   **09-26 — consequence of step 5's Yahoo-only call** (owner, informed before choosing): D ships the optimizer
+   WITHOUT the geography objective. Its class, leverage, factor (the asset's sub-category) and group objectives read
+   nothing from the curated tables; geography needs `INDEX_PROFILES` countries for both the reference index and each
+   ETF (`useOptimizerGeographyReference`, `resolveAreaPerEuro`), and without them `buildGeoRows` returns no row. So no
+   «Geografia» in Allocazione ideale upstream, no `geoAreas`, no `otherAreaSplit`; the fork keeps all of it.
 7. **Upstream PR E — the composite class chip on Patrimonio › Strumenti** (added 09-24, the item «Composite class
    chip» below). Small and upstream-neutral (chart slots, no Lime token), so it can move ahead of steps 2–6 whenever a
    short session is free; branch from `upstream/develop`, never from the fork's main.

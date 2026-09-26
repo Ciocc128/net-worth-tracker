@@ -17,7 +17,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 - Latest (2026-09-26, fork, bis): **Ottavo riallineamento a upstream (#391, #398–#399)**, solo il merge: la #391 era già
   nel fork dal 25/09 (stesso commit), arrivano `doc/perf/` e la chiusura della v10.0.0; due conflitti, questo file e
   il Draft Release. Roadmap: passo 1 CHIUSO (#391 fusa upstream il 26/09); passo 3 in attesa del maintainer (#400,
-  #401 bozze); passo 5 aperto come bozza d'issue. Collaudo: `tsc` 0, ESLint 0, Vitest 205 file / 4897 nei due fusi, build verde, Playwright 139/139.
+  #401 bozze); passo 5 = issue upstream #402 (solo Yahoo, tre viste; la PR D senza geografia). Collaudo: `tsc` 0, ESLint 0, Vitest 205 file / 4897 nei due fusi, build verde, Playwright 139/139.
 - Prima (2026-09-26, fork): **Lime Frost chiuso, chiaro e scuro — il passo 4 della roadmap** (PR #19): il giro del
   proprietario sul mirror e sul telefono; le classi `dark:` delle varianti di `button.tsx` spostate nel blocco `.dark`;
   il Sankey scuro con `linkBlendMode` normale e la sua famiglia a L 0,83 (`--role-income`/`--role-budget` nuovi).
