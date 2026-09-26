@@ -16,14 +16,14 @@ const buttonVariants = cva(
           "border bg-outline-surface shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         // A destructive action before it is armed: an outline button that reads red. Its fill,
         // hover and border are theme tokens (Lime Frost light keeps them near-neutral, so the red
-        // does not vibrate on green); dark mode wears the outline variant's input wash.
+        // does not vibrate on green); the default dark block gives them the outline variant's input wash.
         outlineDestructive:
-          "border border-destructive-outline bg-destructive-surface text-destructive shadow-xs hover:bg-destructive-surface-hover hover:text-destructive dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border border-destructive-outline bg-destructive-surface text-destructive shadow-xs hover:bg-destructive-surface-hover hover:text-destructive",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         // A bin (an icon in text-destructive) keeps its red and hovers on the theme's destructive wash.
         ghost:
-          "hover:bg-ghost-hover hover:text-ghost-hover-foreground hover:has-[svg.text-destructive]:bg-ghost-destructive-hover dark:hover:bg-accent/50",
+          "hover:bg-ghost-hover hover:text-ghost-hover-foreground hover:has-[svg.text-destructive]:bg-ghost-destructive-hover",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

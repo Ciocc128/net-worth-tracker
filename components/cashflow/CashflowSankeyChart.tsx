@@ -205,8 +205,13 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, 
           nodeBorderWidth={chartConfig.nodeBorderWidth}
           nodeBorderColor={{ from: 'color', modifiers: [['darker', 0.8]] }}
           nodeBorderRadius={thin ? 2 : 3}
-          linkOpacity={thin ? (isDark ? 0.4 : 0.22) : isDark ? 0.68 : 0.42}
-          linkHoverOpacity={thin ? (isDark ? 0.6 : 0.4) : isDark ? 0.88 : 0.62}
+          // Thin ribbons in the dark at 0.5 (owner's tour, 2026-09-26), once they blend normally (below):
+          // the hues read on the night ground and the labels over a ribbon keep their contrast.
+          linkOpacity={thin ? (isDark ? 0.5 : 0.22) : isDark ? 0.68 : 0.42}
+          linkHoverOpacity={thin ? (isDark ? 0.72 : 0.4) : isDark ? 0.88 : 0.62}
+          // nivo multiplies ribbons into the ground by default: harmless on a light tile, but on a
+          // dark one every hue sank to near-black (owner's tour, 2026-09-26). Dark blends normally.
+          linkBlendMode={isDark ? 'normal' : 'multiply'}
           linkContract={thin ? 0 : 3}
           enableLabels={!thin}
           layers={thin ? ['links', 'nodes', thinLabels, 'legends'] : ['links', 'nodes', 'labels', 'legends']}

@@ -86,6 +86,19 @@ describe('Lime Frost — R10: the dark block takes back every token the light bl
   });
 });
 
+describe('Lime Frost — a button variant reads its dark surface from the theme, not from a `dark:` class', () => {
+  // A `dark:bg-*` utility on the variant beats the token in every theme, so the dark block's ice
+  // hover and red «Elimina» veil never reached the screen: the owner's tour of 2026-09-26 saw the
+  // ghost icons hover green (`dark:hover:bg-accent/50`) and «Elimina» hover blue (`dark:hover:bg-input/50`).
+  // The default dark block gives these tokens the old washes, so the other themes are unchanged.
+  const button = readFileSync(resolve(__dirname, '../components/ui/button.tsx'), 'utf8');
+  it.each(['ghost', 'outlineDestructive'])('%s has no dark: background or border', (variant) => {
+    const classes = button.match(new RegExp(`\\b${variant}:\\s*"([^"]+)"`))?.[1];
+    expect(classes).toBeDefined();
+    expect(classes).not.toMatch(/dark:(hover:)?(bg|border)-/);
+  });
+});
+
 describe.each([
   ['light', '[data-theme="lime-frost"]'],
   ['dark', '.dark[data-theme="lime-frost"]'],

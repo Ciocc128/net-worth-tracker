@@ -13,12 +13,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **205 files / 4894 tests** green in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-25, fork, Flusso «Per tipo» sul telefono, 3,7 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-25, fork, sexies — IN CORSO, ramo `feat/lime-frost-dark`): **Lime Frost scuro costruito, aspetta il
-  giro del proprietario.** Le cinque decisioni della Carta prese (fondo blu notte, hover = più contrasto, lime anche
-  come testo, «Elimina» su velo rosso, serie +0,10), le classi con le tinte del chiaro, le quattro regole dei dati
-  anche al buio; la fuga R10 delle superfici chiare nello scuro chiusa e testata. fork-scelte-ui.md § 3, passo 4.
-  Collaudo: `tsc` 0, Vitest 4894 nei due fusi, falsificazioni sul vecchio blocco, 9 pagine a 1440 sul mirror.
+- `tsc` clean; **205 files / 4896 tests** green in the machine timezone and under `Europe/Rome` + **39 Playwright spec files** (136 tests, incl. 6 auth setups; last full run 2026-09-26, fork, Lime Frost scuro, 3,9 min: 136 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-26, fork): **Lime Frost chiuso, chiaro e scuro — il passo 4 della roadmap.** Il giro del
+  proprietario sul mirror (sei note Agentation) e sul telefono: hover di menu e dialoghi sull'ardesia della barra
+  laterale; ghost ghiaccio, cestino ed «Elimina» rossi — le classi `dark:` sulle varianti di `button.tsx` coprivano i
+  token di ogni tema, ora vivono nel blocco `.dark` con gli stessi valori; nessuna barra di scorrimento in Liquidità;
+  il Sankey scuro non «moltiplica» più i nastri nel fondo (`linkBlendMode`), nastri a 0,5 e la sua famiglia di colori
+  a L 0,83 (`--role-income`/`--role-budget` nuovi). doc/guide/temi.md, fork-scelte-ui.md § 3 passo 4. Collaudo:
+  `tsc` 0, ESLint 0, Vitest 4896 nei due fusi, build verde, Playwright 136/136.
 - Prima (2026-09-25, fork, quinquies): **Lime Frost chiaro — i tre punti del passo 4 chiusi** (PR #18): segno e
   ambra solo Lime, Liquidità a L 0,55, l'indice dei token di ruolo completo.
 - Latest upstream (2026-09-25, bis): **Patrimonio › «Mutuo» — gli interessi del mutuo, anno per anno.** Ogni rata

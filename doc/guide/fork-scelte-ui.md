@@ -122,7 +122,7 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    or a separate one first; the Italian labels). **The code waits for the answers.** Branch `feat/spending-roles`,
    cut from `upstream/main` (`3c6073eb`); the settings page, `CategoryRow` and the category dialog are rewritten on
    upstream's versions, not cherry-picked.
-4. **Lime Frost** (fork only): the three light points (Lime-only rules fork-wide or not; class palette ΔE and
+4. **Lime Frost** (fork only) — **DONE 2026-09-26**, light and dark (owner). The three light points (Lime-only rules fork-wide or not; class palette ΔE and
    `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
    **09-25 — the three light points closed** (branch `feat/lime-frost-step4`; step 3 waits for upstream #397):
    the sign rule and the amber stay Lime-only (§ 2); Liquidità's slot to L 0.55 and Lime Frost light in the
@@ -144,6 +144,19 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    Composizione and the brightness of the +0.10 series (Cashflow bars); (5) chosen options (green veil toggles,
    slate pills). Then the phone pass (390) and the pages not shot (Analisi, Dividendi, Budget, Previdenza,
    dialogs).
+   **09-26 — the owner's tour: the five points hold, six notes applied** (Agentation, mirror account): menu and
+   dialog rows hover on the SIDEBAR's slate, not a green veil (dark `--accent` = `--sidebar-accent`); the ghost
+   icons hover ice, a bin red; «Elimina» (`outlineDestructive`) hovers red — both were hidden by `dark:` classes on
+   the variants in `button.tsx`, which beat every theme's tokens: moved into the default `.dark` block with the same
+   washes (other themes unchanged, measured), a test keeps them out; the Liquidità tile's scroll box shows no
+   scrollbar in Lime Frost (`.lime-quiet-scroll`, light and dark). The Sankey in the dark: nivo MULTIPLIES ribbons
+   into the ground by default (`linkBlendMode`), which on navy sank every hue to near-black — the dark now blends
+   `normal` (every theme; light keeps multiply), the thin ribbons at 0.5 (hover 0.72, was 0.4/0.6); and the owner
+   asked the Sankey family lighter, same hues: in Lime Frost dark `--role-*` / `--type-flow-*` are their own values
+   at L 0.83 (+0.085 over the bars' flows, chroma cut at the sRGB edge), with two new role tokens
+   `--role-income` / `--role-budget` (`:root` = `--flow-in` / `--muted-foreground`, other themes unchanged) so the
+   50/30/20 view's sources and Budget lift too. The owner's phone pass (390): fine as is. **Step 4 closed**, branch
+   `feat/lime-frost-dark`.
 5. **Upstream PR C — Esposizione a cinque viste** (issue first; it replaces upstream's three-view tile) —
    prerequisite of the optimizer.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
@@ -173,7 +186,7 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   block under it. The agent's, confirmed by the owner in the tour: the shares moved from white text inside the segments
   to a legend under the bar (both views). doc/guide/cashflow-analisi.md, the Flusso item. Open: the Sankey builders' `isMobile` branches now serve only
   a drill carried across a resize — delete them with PR B or keep them.
-- [ ] **Is Lime Frost light ready to flip to dark?** Decide what must close first (see the Carta's «Verso il tema
+- [x] **Is Lime Frost light ready to flip to dark?** Superseded: the dark was built and closed with step 4 (09-26). Decide what must close first (see the Carta's «Verso il tema
   scuro» and the light items below) before touching `.dark[data-theme="lime-frost"]`.
 
 - [x] **Flusso on a phone, «Per tipo»**: the Sankey does not read at 390px. Rethink an insight view for the type
@@ -184,9 +197,9 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
   deploying, turn on «Ruoli 50/30/20» in Impostazioni (the script does not write `spendingRolesEnabled`). Until the
   deploy, avoid editing categories from the live app (a subcategory edit could rewrite the array without its role
   override).
-- [~] **Dark Lime Frost**: the five open decisions of the Carta (ground tint, hover direction, lime as text, series
+- [x] **Dark Lime Frost**: the five open decisions of the Carta (ground tint, hover direction, lime as text, series
   lightness, neutral «Elimina» on navy), then the same page audit in dark, desktop and iPhone. **09-25: decided and
-  built** (roadmap step 4 above); the owner's tour and the iPhone audit still open.
+  built** (roadmap step 4 above); **09-26: the owner's tour and phone pass done, closed.**
 - [ ] **Composite class chip** (owner, 09-24): in Patrimonio › Strumenti a composite instrument (a 60/40 fund, a
   leveraged equity/bond ETF) stays ONE row — it is one instrument — but its chip shows only the prevailing class
   (`resolveDisplayAssetClass`), so a 60/40 reads as pure «Azioni». Make the chip split: one segment per composition

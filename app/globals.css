@@ -124,7 +124,8 @@
                       --aside-toggle-on(-foreground) · --ghost-hover(-foreground) ·
                       --ghost-destructive-hover
        · Flows        --flow-in · --flow-out · --trade-buy · --trade-sell · --trade-ok ·
-                      --role-need · --role-want · --role-saving · --role-unclassified · --role-deficit ·
+                      --role-income · --role-budget · --role-need · --role-want · --role-saving ·
+                      --role-unclassified · --role-deficit ·
                       the figures: --cost-figure · --estimate-figure · --income-figure ·
                       --expense-figure · --net-gain-figure · --net-loss-figure
        · Series       --hero-series · --capital-networth · --capital-invested · --sharpe-series ·
@@ -142,6 +143,10 @@
   /* Analisi's 50/30/20 flow (settings.spendingRolesEnabled): Necessità, Desideri, Risparmi, «Da
      classificare», «Coperto dal patrimonio». Resolved to hex by useCssColorTokens for Nivo. Aliases
      of existing slots unless a theme names its own; the deficit is a judgement, so the sign red. */
+  /* The 50/30/20 Sankey's income sources and Budget node: the flows' green and the muted ink,
+     unless a theme lifts its Sankey family (Lime Frost dark). */
+  --role-income: var(--flow-in);
+  --role-budget: var(--muted-foreground);
   --role-need: var(--flow-out);
   --role-want: var(--chart-4);
   --role-saving: var(--flow-in);
@@ -256,6 +261,14 @@
   --warning: oklch(0.260 0.038 78);
   --warning-foreground: oklch(0.854 0.090 82);
   --warning-border: oklch(0.460 0.085 75);
+  /* A ghost button's hover in the dark: the accent at half strength (it was the button's own
+     `dark:hover:bg-accent/50`, moved here so a theme's dark block can name its own). */
+  --ghost-hover: color-mix(in oklab, var(--accent) 50%, transparent);
+  /* The destructive outline button in the dark: the outline variant's input wash (it was the
+     button's own `dark:` classes, moved here so Lime Frost's dark block can keep its red veil). */
+  --destructive-surface: color-mix(in oklab, var(--input) 30%, transparent);
+  --destructive-surface-hover: color-mix(in oklab, var(--input) 50%, transparent);
+  --destructive-outline: var(--input);
   /* Lighter green for dark mode — matches the luminance contrast patterns of other
      dark-mode semantic tokens (e.g. --destructive shifts from 0.577 to 0.704). */
   --positive: oklch(0.740 0.156 148.655);
@@ -1003,8 +1016,9 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --secondary-foreground: oklch(0.9842 0.0034 247.8575);
   --muted: oklch(0.2795 0.0368 260.0310);
   --muted-foreground: oklch(0.7107 0.0351 256.7878);
-  /* Hover of outline buttons and menu rows: a green veil lighter than the tile (R3 in the dark). */
-  --accent: oklch(0.3400 0.0600 145.0000);
+  /* Hover of menu rows, list rows and outline buttons: the sidebar's own slate (owner's tour,
+     2026-09-26 — the green veil read as a selection, not a hover; one hover for every row). */
+  --accent: oklch(0.2795 0.0368 260.0310);
   --accent-foreground: oklch(0.9842 0.0034 247.8575);
   --destructive: oklch(0.6900 0.1900 25.3313);
   --destructive-foreground: oklch(1.0000 0 0);
@@ -1079,16 +1093,22 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   --chart-9: oklch(0.7300 0.1500 40.0000);
   --flow-in: oklch(0.7450 0.1400 138.0000);
   --flow-out: oklch(0.7450 0.1200 232.0000);
-  --role-need: var(--flow-out);
-  --role-want: oklch(0.7450 0.1200 295.0000);
-  --role-saving: oklch(0.7450 0.1100 175.0000);
-  --type-flow-income: var(--flow-in);
-  --type-flow-budget: var(--muted-foreground);
+  /* The Sankey's family a step lighter than the bars' flows (owner's tour, 2026-09-26): the ribbons
+     sit at 62% on the night ground, so at the bars' L 0.745 every hue sank toward the blue. Same
+     hues, +0.085 in L; chroma cut where sRGB ends (ice 0.12 → 0.103, lavender 0.12 → 0.094). Also
+     the 50/30/20 category icons and the phone's «Per tipo» bars, the same family. */
+  --role-need: oklch(0.8300 0.1030 232.0000);
+  --role-want: oklch(0.8300 0.0940 295.0000);
+  --role-saving: oklch(0.8300 0.1100 175.0000);
+  --type-flow-income: oklch(0.8300 0.1400 138.0000);
+  --type-flow-budget: oklch(0.7950 0.0351 256.7878);
   --type-flow-savings: var(--role-saving);
-  --type-flow-fixed: var(--flow-out);
+  --type-flow-fixed: var(--role-need);
+  --role-income: var(--type-flow-income);
+  --role-budget: var(--type-flow-budget);
   --type-flow-variable: var(--role-want);
-  --type-flow-debt: oklch(0.7800 0.1000 75.0000);
-  --role-unclassified: var(--chart-5);
+  --type-flow-debt: oklch(0.8650 0.1000 75.0000);
+  --role-unclassified: oklch(0.7350 0.0300 235.0000);
   --role-deficit: var(--destructive);
   --sidebar: oklch(0.1288 0.0406 264.6952);
   --sidebar-foreground: oklch(0.9842 0.0034 247.8575);
@@ -1107,6 +1127,15 @@ html[data-vt="page"]::view-transition-image-pair(page-verdict) {
   .animate-spin {
     animation: none;
   }
+}
+
+/* Lime Frost only (owner's tour, 2026-09-26): a tile's inner scroll box shows no scrollbar, in
+ * light and dark; it still scrolls by wheel and touch. Other themes keep the native bar. */
+[data-theme="lime-frost"] .lime-quiet-scroll {
+  scrollbar-width: none;
+}
+[data-theme="lime-frost"] .lime-quiet-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* Hide the scrollbar while keeping the element scrollable (touch + wheel). */
