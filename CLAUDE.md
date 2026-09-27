@@ -13,16 +13,13 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **205 files / 4905 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (141 tests, incl. 6 auth setups; last full run 2026-09-26, fork, with the composite chip, 4,2 min: 141 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-26, fork, ter): **Patrimonio › Strumenti — il chip di classe composito, dalla bozza upstream #403**
-  (passo 7 della roadmap), fuso come merge del branch `feat/composite-class-chip` perché il merge di upstream trovi lo
-  stesso commit `00573cbc`: un fondo 60/40 resta UNA riga, il chip ha un segmento per classe largo quanto la quota
-  («Azioni · Obbl.», «Misto» da tre, niente segmento sotto il 5 %, quote `sr-only`). Arriva anche `48cb44aa` di
-  upstream (il Draft Release cancellato al tag v10.0.0 e ricreato dal modello). doc/guide/patrimonio.md,
-  fork-scelte-ui.md § 3 passo 7. Collaudo: `tsc` 0, ESLint 0, Vitest 205 file / 4905 nei due fusi, build verde, Playwright 141/141; chip visto anche in Lime Frost chiaro e scuro.
-- Prima (2026-09-26, fork, bis): **Ottavo riallineamento a upstream (#391, #398–#399)**, solo il merge: la #391 era già
-  nel fork dal 25/09 (stesso commit), arrivano `doc/perf/` e la chiusura della v10.0.0 (PR #21). Roadmap: passo 1
-  CHIUSO; passo 5 = issue upstream #402 (solo Yahoo, tre viste; la PR D senza geografia).
+- `tsc` clean; **207 files / 4938 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (143 tests, incl. 6 auth setups; last full run 2026-09-27, fork, «Con vendite mirate», 3,8 min: 142 green + the known `settings.mobile` › «Ripristina default» sub-pixel intermittent, green alone). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-27, fork): **Composizione ideale › «Con vendite mirate»** (doc/weight-optimizer-targeted-ate.md):
+  tetto di tasse in euro + «Non vendere»; solo nel tile. Solver rivisto prima del codice: active set esatto
+  (`lib/utils/activeSetQP.ts`, 0,2 ms contro i 525 del prototipo) dove il tetto lega, altrove le pipeline di
+  Ideale/Raggiungibile (T6 per costruzione). doc/guide/ottimizzatore.md. Collaudo A–G, giro del proprietario OK; a 390
+  «Differenza» cede il posto a «Tasse» (e2e mobile). `tsc` 0, ESLint 0, Vitest 207 / 4938 nei due fusi, build verde.
+- Prima (2026-09-26, fork): **chip di classe composito** (bozza upstream #403) — doc/guide/patrimonio.md.
 - Latest upstream (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato).
   Misurato su build di produzione + emulatori + mirror: HTML di ogni route = lo spinner, 460 KB gz di JS su ogni pagina
   (recharts in quattro chunk, @react-pdf nel grafo di Storico), Rendimenti 17 API, overview in 6 stadi in serie, la
@@ -67,7 +64,7 @@ One line per area: the question it answers, then where it is described. *What th
   come esposizione nozionale — doc/guide/allocazione.md; **Accumulo (PAC)**, un piano per strumento che propone e mai
   scrive da solo — doc/guide/accumulo.md; **Ottimizzatore dei pesi** dagli obiettivi di «Allocazione ideale» (QP
   convesso, secondo livello delle sottocategorie, due ingressi: il passo Target del PAC e il tile **Composizione
-  ideale**) — doc/guide/ottimizzatore.md; **import CSV** delle spese; **alias dei ticker** (`getAssetDisplayTicker`);
+  ideale**; nel tile anche **«Con vendite mirate»**, tetto di tasse) — doc/guide/ottimizzatore.md; **import CSV** delle spese; **alias dei ticker** (`getAssetDisplayTicker`);
   la **guardia sulla prima operazione** del registro; il tema **Lime Frost** (una palette di ruoli) e i **ruoli
   50/30/20** nel Flusso di Analisi — doc/guide/temi.md, doc/guide/cashflow.md.
 - **Themes**: fourteen theme blocks (twelve + Lime Frost light/dark, solo fork) × nine chart slots through `useChartColors`, every block held to the distinctness floor by `__tests__/chartPaletteDistinctness.test.ts`. doc/guide/temi.md.
@@ -128,7 +125,7 @@ Cross-cutting entry points only: each area's files open its guide (`doc/guide/<t
 - **Solo fork**: Esposizione `lib/utils/exposureEngine.ts` (`computeExposure`), `lib/server/portfolioExposureService.ts` +
   `lib/server/exposure/{profileResolver,yahooSource,issuerResolver}.ts`, `lib/constants/instrumentProfiles.ts`
   (`npm run exposure:report`/`exposure:refresh`); Accumulo `lib/utils/accumulationPlan{Utils,Schema,Matching}.ts`,
-  `components/allocation/tiles/AccumuloTile.tsx`; Ottimizzatore `lib/utils/{boxProjection,weightOptimizer,weightOptimizerNarrative}.ts`,
+  `components/allocation/tiles/AccumuloTile.tsx`; Ottimizzatore `lib/utils/{boxProjection,activeSetQP,weightOptimizer,weightOptimizerNarrative}.ts`,
   `components/allocation/tiles/ComposizioneIdealeTile.tsx`; temi `lib/utils/{colorLightness,actionColor}.ts` (i colori
   serviti sono `#hex`/`lab()`), il blocco Lime Frost in `app/globals.css`; Storico `lib/utils/storicoScrub.ts`
   (`resolveScrubView`); 50/30/20 `lib/utils/spendingRoles.ts`.

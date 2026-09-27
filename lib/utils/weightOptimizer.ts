@@ -13,6 +13,11 @@
  * `ObjectiveReport.label` is built by `describeObjectiveLabel` (`weightOptimizerNarrative.ts`,
  * O4 §9.3) — the one place that turns a row's (kind, class, sub-category, area, group) into the
  * Italian text the panel and the report both read.
+ *
+ * Third mode, `'targeted'` («Con vendite mirate», doc/weight-optimizer-targeted-ate.md): the same
+ * `J(w)` under a tax cap in euro plus per-instrument «Non vendere» locks. Where the cap does not
+ * bind (or is 0) it runs the Ideale / Raggiungibile pipeline itself — same `solveQP`, same bits —
+ * and only where it binds the exact active-set solver of `./activeSetQP` (§5, `solveTargeted`).
  */
 import type {
   Asset,
@@ -26,13 +31,16 @@ import { GEO_AREAS, countryToArea, type GeoArea } from '@/lib/constants/geoAreas
 import { NO_SUBCATEGORY_LABEL, resolveAllocationRole } from './allocationUtils';
 import { exposurePerEuro } from './accumulationPlanUtils';
 import { dot, projectOntoBudgetBox } from './boxProjection';
+import { solvePiecewiseQP, type PiecewiseQP } from './activeSetQP';
+import { costBasisPerUnitEur, unitPriceEur } from './costBasisEur';
+import { DEFAULT_CAPITAL_GAINS_RATE } from './withdrawalTax';
 import { describeObjectiveLabel } from './weightOptimizerNarrative';
 
 // ---------------------------------------------------------------------------
 // §5.1 — input types
 // ---------------------------------------------------------------------------
 
-export type OptimizerMode = 'reachable' | 'ideal';
+export type OptimizerMode = 'reachable' | 'ideal' | 'targeted';
 
 export interface OptimizerCandidate {
   key: string; // positionId when coming from the PAC, else assetId
@@ -47,6 +55,10 @@ export interface OptimizerCandidate {
   fixedValueEur: number; // Σ value of non-buy members (proxy) — held, never bought, never sold
   lowerPct: number; // 0..100, resolved bounds (§5.5)
   upperPct: number;
+  /** Tax per € sold (targeted ATE §3), read only by `'targeted'`; `null` = unknown fiscal cost →
+   *  never sold. Optional so hand-built candidates of the other two modes need not carry it —
+   *  absent reads as `null`. */
+  taxPerEuroSold?: number | null;
 }
 
 export interface OptimizerInput {
@@ -59,6 +71,13 @@ export interface OptimizerInput {
   mode: OptimizerMode;
   /** L* — `deriveTargetLeverageRatio(targets)`, passed in by the caller (§6.1). */
   targetLeverageRatio: number;
+  /** Only with mode `'targeted'`, ignored otherwise; absent = cap 0, no lock (targeted ATE §5.1). */
+  sale?: OptimizerSaleInput;
+}
+
+export interface OptimizerSaleInput {
+  taxCapEur: number;
+  lockedKeys: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +118,21 @@ export interface OptimizerResult {
   warnings: OptimizerWarning[];
   iterations: number;
   converged: boolean;
+  /** Only in `'targeted'` (targeted ATE §8). */
+  sale?: OptimizerSaleReport;
+}
+
+export interface OptimizerSaleReport {
+  taxCapEur: number;
+  /** The tax the Impostazioni limits force whatever the cap (a max below the held weight, a min
+   *  above it with nothing to invest): when it exceeds `taxCapEur` it IS the cap (owner's call,
+   *  2026-09-27), and the total line says so. 0 in the common case. */
+  minTaxEur: number;
+  soldEur: number; // Σ max(0, cur − w) · B on the rounded weights
+  taxEur: number; // Σ c_i · sold_i on the rounded weights, ≤ max(taxCapEur, minTaxEur)
+  idealTaxEur: number; // what Ideale with the same locks would cost (before rounding)
+  capBinding: boolean;
+  perCandidate: Array<{ key: string; soldEur: number; taxEur: number }>;
 }
 
 /** Injectable only from tests (§10), to force `not_converged` without waiting out 8000 iterations. */
@@ -230,6 +264,21 @@ function factorPerEuroOf(asset: Asset): Partial<Record<AssetClass, Record<string
   }
 
   return result;
+}
+
+/**
+ * Targeted ATE §3 — the tax one € of sale costs today: the gain share of the price (fiscal cost
+ * per unit from `costBasisPerUnitEur`, THE rule — purchase fees included) times the instrument's
+ * rate (`DEFAULT_CAPITAL_GAINS_RATE` unless it carries its own, 12,5 on government bonds). A
+ * position at a loss costs 0; an unknown fiscal cost (a foreign asset without `averageCostEur`)
+ * is `null`, never presumed zero.
+ */
+export function taxPerEuroSoldOf(asset: Asset): number | null {
+  const basis = costBasisPerUnitEur(asset);
+  const price = unitPriceEur(asset);
+  if (basis === undefined || !(price > 0)) return null;
+  const rate = asset.taxRate ?? DEFAULT_CAPITAL_GAINS_RATE;
+  return (rate / 100) * Math.max(0, 1 - basis / price);
 }
 
 interface AreaResolution {
@@ -385,6 +434,7 @@ export function buildOptimizerCandidates(input: {
       fixedValueEur,
       lowerPct,
       upperPct,
+      taxPerEuroSold: taxPerEuroSoldOf(buyAsset),
     });
   }
 
@@ -693,6 +743,9 @@ function evaluateRowRaw(row: ObjectiveRow, x: number[]): number {
 // §6.2 — regularisation reference
 // ---------------------------------------------------------------------------
 
+/** `'targeted'` takes the `ideal` branch: the targeted ATE §4 asks for the reachable reference
+ *  (current weight on B, normalised), which is the same vector — (v/B)/Σ(v/B) = v/Σv — and this
+ *  spelling keeps the cap-not-binding path bit-identical to Ideale (T6). */
 function computeWRef(candidates: OptimizerCandidate[], mode: OptimizerMode, baseEur: number): number[] {
   const n = candidates.length;
   const raw = candidates.map((c) => (mode === 'reachable' && baseEur > 0 ? c.currentValueEur / baseEur : c.currentValueEur));
@@ -887,16 +940,23 @@ function computeConflicts(
   lo: number[],
   hi: number[],
   wRef: number[],
-  solverOptions?: SolverOptions
+  solverOptions?: SolverOptions,
+  /** Targeted mode, cap binding: re-solve without a row at the SAME tax multiplier (targeted ATE §8). */
+  solveWithout?: (remainingRows: ObjectiveRow[]) => number[]
 ): ConflictReport[] {
   const flagged = rows.filter((row) => Math.abs(finalGaps.get(row.id) ?? 0) > 0.25);
   const scored: Array<ConflictReport & { weightedSum: number }> = [];
 
   for (const removed of flagged) {
     const remainingRows = rows.filter((row) => row.id !== removed.id);
-    const objective = buildObjective(remainingRows, wRef, n);
-    const gradient = buildGradient(remainingRows, wRef, n);
-    const solved = solveQP(n, wRef, lo, hi, objective, gradient, solverOptions);
+    let solvedX: number[];
+    if (solveWithout) {
+      solvedX = solveWithout(remainingRows);
+    } else {
+      const objective = buildObjective(remainingRows, wRef, n);
+      const gradient = buildGradient(remainingRows, wRef, n);
+      solvedX = solveQP(n, wRef, lo, hi, objective, gradient, solverOptions).x;
+    }
 
     const improvements: ConflictReport['improvements'] = [];
     let weightedSum = 0;
@@ -904,7 +964,7 @@ function computeConflicts(
     for (const other of flagged) {
       if (other.id === removed.id) continue;
       const fromGapPp = finalGaps.get(other.id) ?? 0;
-      const toGapPp = evaluateRow(other, solved.x);
+      const toGapPp = evaluateRow(other, solvedX);
       const improvement = Math.abs(fromGapPp) - Math.abs(toGapPp);
       if (improvement >= 0.25) {
         improvements.push({ objectiveId: other.id, fromGapPp, toGapPp });
@@ -932,6 +992,7 @@ export function optimizeWeights(input: OptimizerInput, solverOptions?: SolverOpt
   if (n === 0) {
     return { status: 'no_candidates', weights: [], objectives: [], conflicts: [], warnings: [], iterations: 0, converged: false };
   }
+  if (mode === 'targeted') return optimizeTargeted(input, solverOptions);
 
   const sumLowerPct = candidates.reduce((sum, c) => sum + c.lowerPct, 0);
   if (sumLowerPct > 100) {
@@ -951,6 +1012,38 @@ export function optimizeWeights(input: OptimizerInput, solverOptions?: SolverOpt
   if (!result.converged) warnings.push({ code: 'not_converged' });
 
   const roundedPct = roundToHalfPoints(result.x, hi);
+  const { objectives, finalGaps } = reportObjectives(rows, candidates, roundedPct, referenceEstimatedShare, warnings);
+  const conflicts = computeConflicts(rows, finalGaps, n, lo, hi, wRef, solverOptions);
+
+  return {
+    status: 'ok',
+    weights: weightsOf(candidates, baseEur, roundedPct),
+    objectives,
+    conflicts,
+    warnings,
+    iterations: result.iterations,
+    converged: result.converged,
+  };
+}
+
+function weightsOf(candidates: OptimizerCandidate[], baseEur: number, roundedPct: number[]): OptimizerResult['weights'] {
+  return candidates.map((c, i) => ({
+    key: c.key,
+    label: c.label,
+    currentPct: baseEur > 0 ? (c.currentValueEur / baseEur) * 100 : 0,
+    proposedPct: roundedPct[i],
+  }));
+}
+
+/** The estimate warnings, the geography coverage and one report per objective row, all on the
+ *  ROUNDED weights — shared by every mode. */
+function reportObjectives(
+  rows: ObjectiveRow[],
+  candidates: OptimizerCandidate[],
+  roundedPct: number[],
+  referenceEstimatedShare: number,
+  warnings: OptimizerWarning[]
+): { objectives: ObjectiveReport[]; finalGaps: Map<string, number> } {
   const xRounded = roundedPct.map((p) => p / 100);
 
   if (referenceEstimatedShare > 0) {
@@ -994,23 +1087,529 @@ export function optimizeWeights(input: OptimizerInput, solverOptions?: SolverOpt
     };
   });
 
-  const conflicts = computeConflicts(rows, finalGaps, n, lo, hi, wRef, solverOptions);
+  return { objectives, finalGaps };
+}
 
-  const weights = candidates.map((c, i) => ({
-    key: c.key,
-    label: c.label,
-    currentPct: baseEur > 0 ? (c.currentValueEur / baseEur) * 100 : 0,
-    proposedPct: roundedPct[i],
-  }));
+// ---------------------------------------------------------------------------
+// Targeted ATE §4–§8 — «Con vendite mirate»: J(w) under a tax cap in euro and «Non vendere» locks
+// ---------------------------------------------------------------------------
+
+/** Below this many euro of tax the cap counts as met (float noise, never a real sale). */
+const TAX_EPSILON_EUR = 1e-6;
+/** The μ search stops once the tax sits within half a cent under the cap. */
+const TAX_SEARCH_TOLERANCE_EUR = 0.005;
+/** A candidate this close to its current weight is HELD (targeted ATE §6): kept exact, off-grid. */
+const HELD_TOLERANCE = 1e-6;
+const HALF_POINT = 0.5;
+
+/** §4 — a locked candidate, or one whose tax per € is unknown, never goes below its current weight.
+ *  Applied here rather than in `resolveCandidateBounds`, so hand-built candidates honour it too;
+ *  a lock above an Impostazioni max wins, with `bound_conflict` (same rule as §5.5's table). */
+function applyTargetedLocks(
+  candidates: OptimizerCandidate[],
+  sale: OptimizerSaleInput | undefined,
+  baseEur: number,
+  warnings: OptimizerWarning[]
+): { candidates: OptimizerCandidate[]; unsellable: boolean[] } {
+  const locked = new Set(sale?.lockedKeys ?? []);
+  const unsellable = candidates.map((c) => locked.has(c.key) || c.taxPerEuroSold === undefined || c.taxPerEuroSold === null);
+  const bounded = candidates.map((c, i) => {
+    if (!unsellable[i]) return c;
+    const heldPct = baseEur > 0 ? (c.currentValueEur / baseEur) * 100 : 0;
+    const lowerPct = Math.max(c.lowerPct, heldPct);
+    if (lowerPct > c.upperPct) {
+      warnings.push({ code: 'bound_conflict', key: c.key });
+      return { ...c, lowerPct, upperPct: lowerPct };
+    }
+    return { ...c, lowerPct };
+  });
+  return { candidates: bounded, unsellable };
+}
+
+/**
+ * The least tax the box can cost (owner's call, 2026-09-27: when the Impostazioni limits force a
+ * sale, this becomes the cap): start from the current weights clamped into the box — a max below the
+ * held weight is a sale already — then, if the clamped weights exceed 100%, sell the cheapest tax per
+ * € first (a continuous knapsack: greedy by rate is optimal). Buying costs nothing.
+ */
+function minimumTaxEur(cur: number[], lo: number[], hi: number[], rate: number[], baseEur: number): number {
+  const w = cur.map((c, i) => Math.min(Math.max(c, lo[i]), hi[i]));
+  let tax = cur.reduce((sum, c, i) => sum + rate[i] * Math.max(0, c - w[i]), 0);
+  let excess = w.reduce((sum, v) => sum + v, 0) - 1;
+  const order = cur.map((_, i) => i).sort((a, b) => rate[a] - rate[b] || a - b);
+  for (const i of order) {
+    if (excess <= 0) break;
+    const take = Math.min(excess, w[i] - lo[i]);
+    if (take <= 0) continue;
+    tax += rate[i] * take;
+    excess -= take;
+  }
+  return tax * baseEur;
+}
+
+/**
+ * `J(w)` as `½xᵀGx − qᵀx` (+ a constant) over x = [w; t], one slack `t_k ≥ 0` per hinge row:
+ * `max(0, r)² = min_{t ≥ 0} (r + t)²`, so a group cap stays exact inside a single quadratic, and the
+ * ε term keeps G positive definite (`./activeSetQP`'s requirement).
+ */
+function buildQuadratic(rows: ObjectiveRow[], wRef: number[], n: number): { G: number[][]; q: number[]; hingeRows: ObjectiveRow[] } {
+  const hingeRows = rows.filter((row) => row.hinge);
+  const m = n + hingeRows.length;
+  const G = Array.from({ length: m }, () => new Array<number>(m).fill(0));
+  const q = new Array<number>(m).fill(0);
+  let slack = n;
+  for (const row of rows) {
+    const l2 = 2 * LAMBDA[row.priority];
+    const a = row.coeffs;
+    for (let i = 0; i < n; i++) {
+      if (a[i] === 0) continue;
+      q[i] += l2 * row.constant * a[i];
+      for (let j = 0; j < n; j++) G[i][j] += l2 * a[i] * a[j];
+    }
+    if (row.hinge) {
+      for (let i = 0; i < n; i++) {
+        G[i][slack] += l2 * a[i];
+        G[slack][i] += l2 * a[i];
+      }
+      G[slack][slack] += l2;
+      q[slack] += l2 * row.constant;
+      slack += 1;
+    }
+  }
+  const e = 2 * EPSILON * 100 * 100;
+  for (let i = 0; i < n; i++) {
+    G[i][i] += e;
+    q[i] += e * wRef[i];
+  }
+  return { G, q, hingeRows };
+}
+
+interface TargetedSolve {
+  w: number[];
+  iterations: number;
+  converged: boolean;
+}
+
+/** One exact solve of `J(w) + μ·tax(w)` over the box, warm-started from `start` (w only). */
+function solveAtMultiplier(
+  rows: ObjectiveRow[],
+  wRef: number[],
+  cur: number[],
+  rateEurPerUnit: number[],
+  lo: number[],
+  hi: number[],
+  mu: number,
+  start: number[]
+): TargetedSolve {
+  const n = cur.length;
+  const { G, q, hingeRows } = buildQuadratic(rows, wRef, n);
+  const w0 = projectOntoBudgetBox(start, lo, hi, 1);
+  const t0 = hingeRows.map((row) => Math.max(0, row.constant - dot(row.coeffs, w0)));
+  const problem: PiecewiseQP = {
+    G,
+    q,
+    e: [...new Array<number>(n).fill(1), ...new Array<number>(hingeRows.length).fill(0)],
+    total: 1,
+    lo: [...lo, ...new Array<number>(hingeRows.length).fill(0)],
+    hi: [...hi, ...new Array<number>(hingeRows.length).fill(Infinity)],
+    kinks: [
+      ...cur.map((c, i) => (mu > 0 && rateEurPerUnit[i] > 0 ? { at: c, slopeBelow: -mu * rateEurPerUnit[i] } : null)),
+      ...new Array<null>(hingeRows.length).fill(null),
+    ],
+  };
+  const solved = solvePiecewiseQP(problem, [...w0, ...t0]);
+  return { w: solved.x.slice(0, n), iterations: solved.iterations, converged: solved.converged };
+}
+
+/**
+ * §5 — the smallest μ whose solution keeps the tax under `capEur`: tax(μ) is continuous,
+ * non-increasing and piecewise linear, so after bracketing (×4 from 1 — μ is in J per € of tax,
+ * the scale that took the prototype's 54 solves down to ~12) the Illinois variant of regula falsi
+ * lands on the cap in a handful of exact solves. Always returns the feasible side of the bracket.
+ */
+function searchTaxMultiplier(
+  solve: (mu: number, start: number[]) => TargetedSolve,
+  taxOf: (w: number[]) => number,
+  capEur: number,
+  atZero: TargetedSolve
+): { mu: number; solve: TargetedSolve; iterations: number; converged: boolean } {
+  let iterations = atZero.iterations;
+  let converged = atZero.converged;
+  const run = (mu: number, start: number[]) => {
+    const r = solve(mu, start);
+    iterations += r.iterations;
+    converged = converged && r.converged;
+    return r;
+  };
+
+  let muLo = 0;
+  let fLo = taxOf(atZero.w) - capEur;
+  if (fLo <= TAX_EPSILON_EUR) return { mu: 0, solve: atZero, iterations, converged };
+
+  let muHi = 1;
+  let hiSolve = run(muHi, atZero.w);
+  let fHi = taxOf(hiSolve.w) - capEur;
+  for (let k = 0; k < 60 && fHi > TAX_EPSILON_EUR; k++) {
+    muLo = muHi;
+    fLo = fHi;
+    muHi *= 4;
+    hiSolve = run(muHi, hiSolve.w);
+    fHi = taxOf(hiSolve.w) - capEur;
+  }
+  if (fHi > TAX_EPSILON_EUR) return { mu: muHi, solve: hiSolve, iterations, converged: false };
+
+  let fHiTrue = fHi;
+  let fLoWeighted = fLo;
+  let fHiWeighted = fHi;
+  let side = 0;
+  for (let k = 0; k < 100; k++) {
+    if (fHiTrue >= -TAX_SEARCH_TOLERANCE_EUR || muHi - muLo <= 1e-12 * muHi) break;
+    let mu = (muLo * fHiWeighted - muHi * fLoWeighted) / (fHiWeighted - fLoWeighted);
+    if (!(mu > muLo && mu < muHi)) mu = (muLo + muHi) / 2;
+    const mid = run(mu, hiSolve.w);
+    const f = taxOf(mid.w) - capEur;
+    if (f > TAX_EPSILON_EUR) {
+      muLo = mu;
+      fLoWeighted = f;
+      if (side === -1) fHiWeighted /= 2;
+      side = -1;
+    } else {
+      muHi = mu;
+      hiSolve = mid;
+      fHiTrue = f;
+      fHiWeighted = f;
+      if (side === 1) fLoWeighted /= 2;
+      side = 1;
+    }
+  }
+  return { mu: muHi, solve: hiSolve, iterations, converged };
+}
+
+/**
+ * §6 — rounding that never invents a sale nor grows one: a HELD candidate stays at its current
+ * weight exactly (off the grid), a candidate in SALE rounds towards its current weight (sells
+ * less), a candidate in PURCHASE rounds by largest remainder without going below its current
+ * weight. Held weights are off the grid, so one purchase absorbs the fraction left over; the total
+ * is 100 to float precision. Every step only ever shrinks a sale, so tax(rounded) ≤ tax(raw).
+ */
+function roundTargeted(x: number[], cur: number[], hi: number[]): number[] {
+  const n = x.length;
+  const xp = x.map((v) => v * 100);
+  const cp = cur.map((v) => v * 100);
+  const hp = hi.map((v) => v * 100);
+  const ceilGrid = (v: number) => Math.ceil(v / HALF_POINT - 1e-9) * HALF_POINT;
+  const floorGrid = (v: number) => Math.floor(v / HALF_POINT + 1e-9) * HALF_POINT;
+  const nextGrid = (v: number) => (Math.floor(v / HALF_POINT + 1e-9) + 1) * HALF_POINT;
+  const prevGrid = (v: number) => (Math.ceil(v / HALF_POINT - 1e-9) - 1) * HALF_POINT;
+
+  const kind: Array<'held' | 'sold' | 'bought'> = new Array(n);
+  const r = new Array<number>(n);
+  for (let i = 0; i < n; i++) {
+    if (Math.abs(x[i] - cur[i]) < HELD_TOLERANCE) {
+      kind[i] = 'held';
+      r[i] = cp[i];
+    } else if (x[i] < cur[i]) {
+      kind[i] = 'sold';
+      r[i] = Math.min(ceilGrid(xp[i]), cp[i]);
+    } else {
+      kind[i] = 'bought';
+      r[i] = Math.min(Math.max(floorGrid(xp[i]), cp[i]), hp[i]);
+    }
+  }
+
+  let gap = 100 - r.reduce((sum, v) => sum + v, 0);
+  const bought = r.map((_, i) => i).filter((i) => kind[i] === 'bought');
+  const byRemainderDesc = [...bought].sort((a, b) => xp[b] - r[b] - (xp[a] - r[a]) || xp[b] - xp[a] || a - b);
+
+  if (gap > 1e-9) {
+    for (let pass = 0; pass < 400 && gap > 1e-9; pass++) {
+      let moved = false;
+      for (const i of byRemainderDesc) {
+        if (gap <= 1e-9) break;
+        const take = Math.min(nextGrid(r[i]) - r[i], gap, hp[i] - r[i]);
+        if (take > 1e-12) {
+          r[i] += take;
+          gap -= take;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    // No purchase has room left: sell less (a sale back towards its current weight), then buy anywhere.
+    for (let i = 0; i < n && gap > 1e-9; i++) {
+      if (kind[i] !== 'sold') continue;
+      const take = Math.min(gap, cp[i] - r[i]);
+      r[i] += take;
+      gap -= take;
+    }
+    for (let i = 0; i < n && gap > 1e-9; i++) {
+      const take = Math.min(gap, hp[i] - r[i]);
+      if (take > 0) {
+        r[i] += take;
+        gap -= take;
+      }
+    }
+  } else if (gap < -1e-9) {
+    const byRemainderAsc = [...byRemainderDesc].reverse();
+    for (let pass = 0; pass < 400 && gap < -1e-9; pass++) {
+      let moved = false;
+      for (const i of byRemainderAsc) {
+        if (gap >= -1e-9) break;
+        const take = Math.min(r[i] - Math.max(cp[i], prevGrid(r[i])), -gap);
+        if (take > 1e-12) {
+          r[i] -= take;
+          gap += take;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    // Purchases are at their current weight: give back part of a sale's rounding, never below the raw sale.
+    for (let i = 0; i < n && gap < -1e-9; i++) {
+      if (kind[i] !== 'sold') continue;
+      const take = Math.min(-gap, r[i] - xp[i]);
+      r[i] -= take;
+      gap += take;
+    }
+  }
+  // `Math.ceil(-0.3)` is −0: normalise it, or the dialog would print «−0,0 %».
+  return r.map((v) => v + 0);
+}
+
+interface TargetedCore {
+  candidates: OptimizerCandidate[];
+  unsellable: boolean[];
+  rows: ObjectiveRow[];
+  warnings: OptimizerWarning[];
+  wRef: number[];
+  cur: number[];
+  rate: number[];
+  loUsed: number[];
+  hi: number[];
+  x: number[];
+  objectiveValue: number;
+  taxOf: (w: number[]) => number;
+  taxCapEur: number;
+  minTaxEur: number;
+  capEur: number;
+  idealTaxEur: number;
+  capBinding: boolean;
+  iterations: number;
+  converged: boolean;
+  solveWithout?: (remainingRows: ObjectiveRow[]) => number[];
+}
+
+/** Everything up to the raw (unrounded) weights; `null` when the lower bounds alone exceed 100%. */
+function solveTargetedCore(input: OptimizerInput, solverOptions?: SolverOptions): TargetedCore | null {
+  const { baseEur, targets, settings, referenceAreas, targetLeverageRatio } = input;
+  const warnings: OptimizerWarning[] = [];
+  const { candidates, unsellable } = applyTargetedLocks(input.candidates, input.sale, baseEur, warnings);
+  const n = candidates.length;
+
+  const sumLowerPct = candidates.reduce((sum, c) => sum + c.lowerPct, 0);
+  if (sumLowerPct > 100) return null;
+
+  const taxCapEur = Math.max(0, input.sale?.taxCapEur ?? 0);
+  const lo = candidates.map((c) => c.lowerPct / 100);
+  const hiInit = candidates.map((c) => c.upperPct / 100);
+  const cur = candidates.map((c) => (baseEur > 0 ? c.currentValueEur / baseEur : 0));
+  // An unsellable candidate never sells (lo ≥ cur), so its rate is irrelevant: 0 keeps the sums clean.
+  const rate = candidates.map((c, i) => (unsellable[i] ? 0 : (c.taxPerEuroSold ?? 0)));
+  const rateEurPerUnit = rate.map((r) => r * baseEur);
+  const taxOf = (w: number[]) => cur.reduce((sum, c, i) => sum + rateEurPerUnit[i] * Math.max(0, c - w[i]), 0);
+  const wRef = computeWRef(candidates, 'targeted', baseEur);
+
+  const rows = buildObjectiveRows(candidates, targets, settings, targetLeverageRatio, referenceAreas, baseEur, warnings);
+  const objective = buildObjective(rows, wRef, n);
+  const gradient = buildGradient(rows, wRef, n);
+
+  const minTaxEur = minimumTaxEur(cur, lo, hiInit, rate, baseEur);
+  const capEur = Math.max(taxCapEur, minTaxEur);
+
+  // Path 1 — μ = 0: Ideale's own pipeline with these bounds. If it fits, it IS Ideale (T6).
+  const ideal = applyMinWeightHeuristic(n, wRef, lo, hiInit, objective, gradient, solverOptions);
+  const idealTaxEur = taxOf(ideal.result.x);
+
+  let x: number[];
+  let hi: number[];
+  let loUsed = lo;
+  let iterations: number;
+  let converged: boolean;
+  let capBinding: boolean;
+  let solveWithout: ((remainingRows: ObjectiveRow[]) => number[]) | undefined;
+
+  const untaxedPipeline = () => {
+    // No taxed sale at all: Raggiungibile's pipeline, every taxed candidate held at least at its weight.
+    const loUntaxed = lo.map((l, i) => (rate[i] > 0 ? Math.max(l, cur[i]) : l));
+    const untaxed = applyMinWeightHeuristic(n, wRef, loUntaxed, hiInit, objective, gradient, solverOptions);
+    return { untaxed, loUntaxed };
+  };
+
+  if (idealTaxEur <= capEur + TAX_EPSILON_EUR) {
+    x = ideal.result.x;
+    hi = ideal.hi;
+    iterations = ideal.result.iterations;
+    converged = ideal.result.converged;
+    capBinding = false;
+  } else if (capEur <= TAX_EPSILON_EUR) {
+    // Path 2 — cap 0 and nothing forced: Raggiungibile (T6).
+    const { untaxed, loUntaxed } = untaxedPipeline();
+    x = untaxed.result.x;
+    hi = untaxed.hi;
+    loUsed = loUntaxed;
+    iterations = untaxed.result.iterations;
+    converged = untaxed.result.converged;
+    capBinding = true;
+  } else {
+    // Path 3 — the cap binds: exact solves of J(w) + μ·tax(w), μ searched so that tax = cap.
+    const solveWith = (hiBox: number[]) => (mu: number, start: number[]) =>
+      solveAtMultiplier(rows, wRef, cur, rateEurPerUnit, lo, hiBox, mu, start);
+    const runSearch = (hiBox: number[], start: number[]) => {
+      const solve = solveWith(hiBox);
+      return searchTaxMultiplier(solve, taxOf, capEur, solve(0, start));
+    };
+
+    hi = [...hiInit];
+    let search = runSearch(hi, wRef);
+    let mu = search.mu;
+    x = search.solve.w;
+    iterations = search.iterations;
+    converged = search.converged;
+
+    // §7 — the 2% heuristic, at the multiplier found: zeroing a small weight is a sale, so it
+    // stands only if the tax stays under the cap. A buy from zero (nothing held) is zeroed as in
+    // the other modes: if moving its weight elsewhere tips the tax over, μ is searched again.
+    for (let pass = 0; pass < 5; pass++) {
+      const small: number[] = [];
+      for (let i = 0; i < n; i++) if (x[i] < 0.02 && lo[i] === 0 && x[i] > 0) small.push(i);
+      if (small.length === 0) break;
+
+      const zeroed = (set: number[]) => {
+        const next = [...hi];
+        for (const i of set) next[i] = 0;
+        return next;
+      };
+      const hiAll = zeroed(small);
+      if (hiAll.reduce((s, v) => s + v, 0) < 1) break;
+      const tryAll = solveWith(hiAll)(mu, x);
+      iterations += tryAll.iterations;
+      converged = converged && tryAll.converged;
+      if (taxOf(tryAll.w) <= capEur + TAX_EPSILON_EUR) {
+        hi = hiAll;
+        x = tryAll.w;
+        continue;
+      }
+      const fromZero = small.filter((i) => cur[i] === 0);
+      if (fromZero.length === 0) break;
+      const hiFromZero = zeroed(fromZero);
+      if (hiFromZero.reduce((s, v) => s + v, 0) < 1) break;
+      search = runSearch(hiFromZero, x);
+      hi = hiFromZero;
+      mu = search.mu;
+      x = search.solve.w;
+      iterations += search.iterations;
+      converged = converged && search.converged;
+    }
+
+    if (!converged || taxOf(x) > capEur + TAX_EPSILON_EUR) {
+      // The exact solver did not finish (never seen on 1600 random portfolios): fall back to the
+      // pipeline that sells nothing taxed when that is allowed, and say so.
+      converged = false;
+      if (minTaxEur <= TAX_EPSILON_EUR) {
+        const { untaxed, loUntaxed } = untaxedPipeline();
+        x = untaxed.result.x;
+        hi = untaxed.hi;
+        loUsed = loUntaxed;
+      }
+    } else {
+      const finalHi = hi;
+      const finalMu = mu;
+      const finalX = x;
+      solveWithout = (remainingRows) =>
+        solveAtMultiplier(remainingRows, wRef, cur, rateEurPerUnit, lo, finalHi, finalMu, finalX).w;
+    }
+    capBinding = true;
+  }
+  if (!converged) warnings.push({ code: 'not_converged' });
+
+  return {
+    candidates,
+    unsellable,
+    rows,
+    warnings,
+    wRef,
+    cur,
+    rate,
+    loUsed,
+    hi,
+    x,
+    objectiveValue: objective(x),
+    taxOf,
+    taxCapEur,
+    minTaxEur,
+    capEur,
+    idealTaxEur,
+    capBinding,
+    iterations,
+    converged,
+    solveWithout,
+  };
+}
+
+/**
+ * Test-only window on the raw solution (targeted ATE §11.1 point 5): tax and `J` are monotone in
+ * the cap BEFORE rounding — after it they are not (one half point of a 49.000 € position is ~630 €
+ * of sale, ~22 € of tax), so the monotonicity test reads these.
+ */
+export function targetedRawSolution(input: OptimizerInput): { weights: number[]; taxEur: number; objectiveValue: number; capBinding: boolean } | null {
+  const core = solveTargetedCore({ ...input, mode: 'targeted' });
+  if (!core) return null;
+  return { weights: core.x, taxEur: core.taxOf(core.x), objectiveValue: core.objectiveValue, capBinding: core.capBinding };
+}
+
+function optimizeTargeted(input: OptimizerInput, solverOptions?: SolverOptions): OptimizerResult {
+  const core = solveTargetedCore(input, solverOptions);
+  if (!core) {
+    return { status: 'infeasible_bounds', weights: [], objectives: [], conflicts: [], warnings: [], iterations: 0, converged: false };
+  }
+  const { candidates, unsellable, rows, warnings, wRef, cur, rate, loUsed, hi, x, taxOf, capEur } = core;
+  const { baseEur, referenceEstimatedShare } = input;
+  const n = candidates.length;
+
+  // Ideale's own rounding when it neither sells a locked instrument nor breaks the cap — so a cap
+  // that does not bind shows Ideale's weights to the half point (T6); otherwise §6's rounding.
+  const plainRounded = roundToHalfPoints(x, hi);
+  const plainOk =
+    taxOf(plainRounded.map((p) => p / 100)) <= capEur + TAX_EPSILON_EUR &&
+    plainRounded.every((p, i) => !unsellable[i] || p >= cur[i] * 100 - 1e-9) &&
+    Math.abs(plainRounded.reduce((s, v) => s + v, 0) - 100) < 1e-9;
+  const roundedPct = plainOk ? plainRounded : roundTargeted(x, cur, hi);
+
+  const { objectives, finalGaps } = reportObjectives(rows, candidates, roundedPct, referenceEstimatedShare, warnings);
+  const conflicts = computeConflicts(rows, finalGaps, n, loUsed, hi, wRef, solverOptions, core.solveWithout);
+
+  const perCandidate = candidates.map((c, i) => {
+    const soldEur = (Math.max(0, cur[i] * 100 - roundedPct[i]) / 100) * baseEur;
+    return { key: c.key, soldEur, taxEur: rate[i] * soldEur };
+  });
 
   return {
     status: 'ok',
-    weights,
+    weights: weightsOf(candidates, baseEur, roundedPct),
     objectives,
     conflicts,
     warnings,
-    iterations: result.iterations,
-    converged: result.converged,
+    iterations: core.iterations,
+    converged: core.converged,
+    sale: {
+      taxCapEur: core.taxCapEur,
+      minTaxEur: core.minTaxEur,
+      soldEur: perCandidate.reduce((sum, p) => sum + p.soldEur, 0),
+      taxEur: perCandidate.reduce((sum, p) => sum + p.taxEur, 0),
+      idealTaxEur: core.idealTaxEur,
+      capBinding: core.capBinding,
+      perCandidate,
+    },
   };
 }
 
@@ -1040,6 +1639,8 @@ export function runOptimizer(input: {
    *  freshly-built candidates, before `optimizeWeights` runs. `OptimizerPanel` never passes it: a
    *  PAC position already resolves this through `resolveCandidateBounds`'s own `fixedValueEur` term. */
   fixBounds?: (candidate: OptimizerCandidate) => Partial<Pick<OptimizerCandidate, 'lowerPct' | 'upperPct'>>;
+  /** Only with mode `'targeted'` (targeted ATE §5.1). */
+  sale?: OptimizerSaleInput;
 }): OptimizerResult {
   const { candidates } = buildOptimizerCandidates({
     positions: input.positions,
@@ -1062,6 +1663,7 @@ export function runOptimizer(input: {
     referenceEstimatedShare: input.referenceEstimatedShare,
     mode: input.mode,
     targetLeverageRatio: input.targetLeverageRatio,
+    ...(input.sale ? { sale: input.sale } : {}),
   });
 }
 

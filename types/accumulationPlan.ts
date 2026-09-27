@@ -76,6 +76,10 @@ export interface OptimizerSnapshot {
   settingsUsed: IdealAllocationSettings;
   weights: Array<{ key: string; proposedPct: number }>;
   objectives: ObjectiveReport[];
+  /** Only mode 'targeted' (doc/weight-optimizer-targeted-ate.md §10): the tax cap and the
+   *  «Non vendere» keys the weights were computed with. */
+  taxCapEur?: number;
+  lockedKeys?: string[];
 }
 
 export interface AccumulationPlan {
