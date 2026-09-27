@@ -135,6 +135,17 @@ tetto 0, nessun blocco.
 
 ### 5.2 Formulazione
 
+> **Decisione del proprietario, 2026-09-27 (revisione del solver, prima dell'implementazione).** La
+> formulazione qui sotto resta il riferimento matematico, ma il **solver** implementato non è la discesa
+> proiettata sulle 2n variabili: è un **active set esatto** (`lib/utils/activeSetQP.ts`) su `J(w) + μ·tassa(w)`,
+> con `μ` in J per euro di tassa e la regula falsi di Illinois al posto della bisezione; dove il tetto non
+> lega, o è 0, girano le pipeline di Ideale e di Raggiungibile così come sono. Misure sul fixture di A.2
+> (mediana di 3, caso peggiore su 21 scenari): prototipo 525 ms; questo §5 alla lettera (warm start, 1 €)
+> 373 ms; con `μ` in euro 18 ms; con Illinois 14 ms; active set **0,2 ms**, esatto. Dettagli, degenerazione
+> trovata e controllo incrociato: `doc/guide/ottimizzatore.md` § «Con vendite mirate» — il tetto di tasse.
+> Seconda decisione dello stesso giorno, fuori da T1–T6: se i limiti di Impostazioni obbligano a vendere, la
+> tassa minima inevitabile diventa il tetto (`OptimizerSaleReport.minTaxEur`) e la riga del totale lo dice.
+
 Con `cur_i = currentValueEur_i / B` e `c_i = taxPerEuroSold_i` (0 dove `null`, tanto il candidato è
 bloccato), il problema è:
 
@@ -342,7 +353,11 @@ seminato da uno script usa e getta.
 
 ---
 
-## Appendice A — Il prototipo (2026-09-27), da rivedere
+## Appendice A — Il prototipo (2026-09-27), rivisto
+
+> Rieseguito il 2026-09-27 seguendo le istruzioni qui sotto: la tabella A.3 si riproduce identica, ma i
+> tempi su quella macchina erano 320–525 ms (non 0,8–1,2 s). Dove andava il tempo e le alternative misurate:
+> nota in testa al §5.2.
 
 Scritto in una sessione di analisi per validare §5, **non** codice di produzione: una funzione
 aggiunta in fondo a una copia di `lib/utils/weightOptimizer.ts` (usa le sue funzioni private

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ConflictReport, ObjectiveReport, OptimizerWarning, SecondLevelGap } from '@/lib/utils/weightOptimizer';
+import type { ConflictReport, ObjectiveReport, OptimizerSaleReport, OptimizerWarning, SecondLevelGap } from '@/lib/utils/weightOptimizer';
 import {
   describeConflict,
   describeObjectiveLabel,
@@ -8,6 +8,8 @@ import {
   describeOptimizerSnapshot,
   describeOptimizerWarning,
   describeSecondLevelGaps,
+  describeTargetedSaleTotal,
+  formatSaleTaxCell,
   formatObjectiveAchieved,
   formatObjectiveGap,
   formatObjectiveTarget,
@@ -139,6 +141,56 @@ describe('describeOptimizerMode', () => {
     expect(OPTIMIZER_MODE_LABELS.ideal).toBe('Ideale');
     expect(describeOptimizerMode('reachable')).not.toBe(describeOptimizerMode('ideal'));
     expect(describeOptimizerMode('reachable').length).toBeGreaterThan(0);
+  });
+});
+
+describe('the targeted mode, «Con vendite mirate» (targeted ATE §9)', () => {
+  const NBSP = /[\u00A0\u202F]/g;
+  const plain = (text: string) => text.replace(NBSP, ' ');
+  const sale = (overrides: Partial<OptimizerSaleReport> = {}): OptimizerSaleReport => ({
+    taxCapEur: 500,
+    minTaxEur: 0,
+    soldEur: 18213.4,
+    taxEur: 494.2,
+    idealTaxEur: 876,
+    capBinding: true,
+    perCandidate: [],
+    ...overrides,
+  });
+
+  it('has its own label and description', () => {
+    expect(OPTIMIZER_MODE_LABELS.targeted).toBe('Con vendite mirate');
+    expect(describeOptimizerMode('targeted')).toBe(
+      'Con vendite mirate vende solo ciò che conviene di più, finché le tasse restano sotto il tetto; gli strumenti spuntati non si vendono.'
+    );
+  });
+
+  it('says the sale and the cap when the cap binds', () => {
+    expect(plain(describeTargetedSaleTotal(sale()))).toBe('Vendi 18.213 €, paghi circa 494 € di tasse (tetto 500 €).');
+  });
+
+  it('says it is Ideale when the cap does not bind', () => {
+    expect(plain(describeTargetedSaleTotal(sale({ capBinding: false, soldEur: 23078, taxEur: 876, taxCapEur: 10000 })))).toBe(
+      "Vendi 23.078 €, paghi circa 876 € di tasse: è l'Ideale, il tetto di 10.000 € non serve."
+    );
+  });
+
+  it('says nothing is sold — the reachable weights — when nothing is', () => {
+    expect(plain(describeTargetedSaleTotal(sale({ soldEur: 0, taxEur: 0, taxCapEur: 0 })))).toBe(
+      'Nessuna vendita: i pesi sono quelli raggiungibili col PAC.'
+    );
+  });
+
+  it('names the tax the Impostazioni limits force when it exceeds the cap', () => {
+    expect(plain(describeTargetedSaleTotal(sale({ taxCapEur: 0, minTaxEur: 120, taxEur: 120, soldEur: 12000 })))).toBe(
+      'I limiti in Impostazioni obbligano a pagare almeno 120 € di tasse, oltre il tetto di 0 €: vendi 12.000 €, paghi circa 120 € di tasse.'
+    );
+  });
+
+  it('prints the tax on a row in sale, 0,00 € on a sale at a loss, — on a row that sells nothing', () => {
+    expect(plain(formatSaleTaxCell(1880, 216.62))).toBe('216,62 €');
+    expect(plain(formatSaleTaxCell(2758, 0))).toBe('0,00 €');
+    expect(plain(formatSaleTaxCell(0, 0))).toBe('—');
   });
 });
 

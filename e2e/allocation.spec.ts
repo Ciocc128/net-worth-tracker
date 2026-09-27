@@ -226,3 +226,81 @@ test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni 
     expect(names[1].slice(0, 2)).toEqual(['Piano', 'Composizione ideale']);
   }
 });
+
+/**
+ * «Composizione ideale» › «Con vendite mirate» (fork, 2026-09-27, doc/weight-optimizer-targeted-ate.md
+ * §11.2). The base account has no ideal allocation, so this block turns one on for the duration —
+ * classes only, no geography — and removes the field afterwards. With targets 60/30/10 against a
+ * portfolio that is mostly Bitcoin (bought at 38.000, now 55.000), Ideale sells Bitcoin and pays
+ * tax: the mode must sell nothing at cap 0, and a «Non vendere» tick must take Bitcoin out of sale.
+ * Apple is in dollars with no EUR cost basis: its box is ticked and disabled (§3, `null` = unknown).
+ *
+ * REGRESSION GUARD, seen red once each: the lock ignored (`applyTargetedLocks` returning every
+ * candidate as sellable — Bitcoin stays in sale), and the tax column dropped from the table.
+ */
+test.describe('Composizione ideale › Con vendite mirate', () => {
+  const FIRESTORE = 'http://127.0.0.1:8080/v1/projects/demo-net-worth/databases/(default)/documents';
+  const SETTINGS_URL = `${FIRESTORE}/assetAllocationTargets/test-user-1?updateMask.fieldPaths=idealAllocation`;
+  const HEADERS = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+
+  test.beforeAll(async () => {
+    const idealAllocation = {
+      mapValue: {
+        fields: {
+          enabled: { booleanValue: true },
+          classPriority: { stringValue: 'essential' },
+          leveragePriority: { stringValue: 'off' },
+          factorObjectives: { arrayValue: {} },
+          geography: { nullValue: null },
+          instrumentLimits: { arrayValue: {} },
+          groupLimits: { arrayValue: {} },
+        },
+      },
+    };
+    const res = await fetch(SETTINGS_URL, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ fields: { idealAllocation } }) });
+    expect(res.ok).toBe(true);
+  });
+
+  test.afterAll(async () => {
+    // An update mask naming a field the body omits deletes that field.
+    await fetch(SETTINGS_URL, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ fields: {} }) });
+  });
+
+  test('cap 0 sells nothing taxed; «Non vendere» takes a row out of sale', async ({ page }) => {
+    await openAllocazione(page);
+    const tile = page.locator('section[aria-label="Composizione ideale"]');
+    await tile.getByRole('button', { name: 'Calcola' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Composizione ideale' });
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole('radio', { name: 'Con vendite mirate' }).click();
+    await expect(dialog.getByLabel('Tasse massime (€)')).toBeVisible();
+
+    // The rows are there BEFORE «Calcola» (§9.3), each with its box; Apple's is forced.
+    const row = (name: string) => dialog.locator('tbody tr', { has: page.getByText(name, { exact: true }) });
+    await expect(row('Bitcoin')).toBeVisible();
+    await expect(row('Apple Inc.').getByRole('checkbox')).toBeDisabled();
+    await expect(row('Apple Inc.').getByRole('checkbox')).toBeChecked();
+    await expect(row('Bitcoin').getByRole('checkbox')).not.toBeChecked();
+
+    await dialog.getByRole('button', { name: 'Calcola' }).click();
+    const taxCell = (name: string) => row(name).locator('td').last();
+
+    // Cap empty = 0: no taxed sale — every tax cell is «—» or «0,00 €», and the total says so.
+    await expect(dialog.getByText(/^(Nessuna vendita|Vendi .*paghi circa 0\s€)/)).toBeVisible({ timeout: 60_000 });
+    for (const cell of await dialog.locator('tbody tr td:last-child').allTextContents()) {
+      expect(cell.replace(/\s/g, ' ')).toMatch(/^(—|0,00 €)$/);
+    }
+
+    // A cap no sale reaches: Bitcoin is sold, with its tax on the row.
+    await dialog.getByLabel('Tasse massime (€)').fill('100000');
+    await expect(dialog.getByText(/il tetto di 100\.000\s€ non serve/)).toBeVisible();
+    await expect(taxCell('Bitcoin')).not.toHaveText('—');
+    await expect(taxCell('Bitcoin')).not.toHaveText(/^0,00/);
+
+    // «Non vendere» on Bitcoin: the row is no longer in sale.
+    await row('Bitcoin').getByRole('checkbox').click();
+    await expect(row('Bitcoin').getByRole('checkbox')).toBeChecked();
+    await expect(taxCell('Bitcoin')).toHaveText('—');
+  });
+});
