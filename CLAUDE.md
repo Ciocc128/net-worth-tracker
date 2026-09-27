@@ -14,6 +14,16 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **185 files / 4335 tests** green in `Europe/Rome` + **37 Playwright spec files** (130 tests, incl. 6 auth setups; last full run 2026-09-25 in the cloud container: 123 of 128 green, the 5 reds environmental or the known `modal.origin` — doc/guide/e2e-emulatori.md). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-27): **Composizione mobile — analisi, tre direzioni e 9 specifiche in `doc/mobile/`** (nessun codice
+  toccato). Censimento del mobile attuale su 19 superfici a 390/768/1024 sul mirror: a 390 la prima schermata è il verdetto
+  più l'INIZIO di una tessera, mai una intera, con 2–5 schermate di scroll sotto (mediana 3,8; Panoramica: verdetto 315 px,
+  hero 709 px; Movimenti 1587 px); a 768 lo scroll si dimezza, a 1024 landscape si torna al telefono. Tre direzioni
+  disegnate come artboard su cifre inventate e messe alla prova (canvas privato del proprietario); scelta **A «Prima
+  schermata»**: verdetto breve (titolo + prima frase), striscia di ≤4 cifre lette dai riassunti delle tessere, UNA
+  tessera aperta, il resto in righe chiuse con il loro eyebrow; una sola composizione per telefono e tablet. Nove spec
+  (MOB-01 censimento e budget → MOB-02 primitive → MOB-03..07 le pagine → MOB-08 tablet → MOB-09 DESIGN.md), ognuna
+  verificata da un revisore avversario contro il codice (161 correzioni) e allineata a MOB-02; le otto decisioni di
+  fondazione e le domande aperte in `doc/mobile/README.md` § 9–10. **Si implementa DOPO tutte le PERF.**
 - Latest (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato). Misurato su
   build di produzione + emulatori + mirror del proprietario (1533 spese): l'HTML di ogni route è lo spinner (46 caratteri),
   460 KB gz di JS su ogni pagina (recharts in QUATTRO chunk, @react-pdf nel grafo di Storico → 1,19 MB, lucide intero alla
@@ -37,16 +47,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
   due anni e le didascalie), più le spec Commissioni, Conti e Patrimonio verdi; a 390 e 1440 nessuno sforamento né di
   `main` né dentro la tessera. Falsificati e visti rossi: lo stamp lato server (Vitest), lo stamp lato client (E2E su
   Firestore), la soglia della tabella. Un atteso sbagliato nel test («124 rate») era mio: il conto a mano dà 122,998 → 123.
-- Latest (2026-09-24, notte): **Allocazione — il Piano con leva prende il ridisegno del 21/09.** Il motore con leva
-  pianificava su strumenti che l'albero e la ritenuta non leggevano: lista piatta, niente ritenuta, Preleva lordo.
-  Ora `groupFlowTrades`/`groupRebalanceTrades` (`allocazioneSummary.ts`) fanno dei suoi ordini lo stesso albero classe →
-  strumento: un composito si divide per composizione nelle sue classi (le gambe di `buildHoldings`, trovate per
-  `AllocatableHolding.assetId`, con `PlanNode.order` «parte di un ordine da X € di TICKER»), uno scambio dentro una
-  classe sono DUE mosse (una per azione), il «→ %» di classe è quello del motore. `solveWithdrawalGross` prende il
-  pianificatore: anche il Preleva con leva si lorda. `InstrumentTradeList` rimosso. Collaudo: `tsc` 0, ESLint 0, Vitest
-  180 file / 4249 nei due fusi (8 test nuovi, quattro falsificazioni viste rosse), `e2e/allocation.spec.ts` 7/7, sonda
-  Playwright sullo specchio a 1440 e 390 (trovato e corretto: il ticker perso nel nome troncato a 390) e giro guidato
-  confermato dal proprietario. doc/guide/allocazione.md.
+
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
 - `lib/services/*` (service layer) → pure `lib/utils/*` → `lib/server/*` (server-only). React Query for caching/invalidation.
@@ -88,6 +89,9 @@ One line per area: the question it answers, then where it is described. *What th
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
 - **Performance**: baseline (cold/warm per page, bundle per route), method and the fourteen specs in `doc/perf/README.md`;
   the benchmark lands in repo with PERF-01 (`npm run perf:bench` / `perf:budget`).
+- **Mobile composition**: the small-screen census (19 surfaces × 390/768/1024), the chosen direction, the nine specs and
+  the owner's decisions in `doc/mobile/README.md`; the census script in `doc/mobile/reference/` (MOB-01 ports it to
+  `npm run mobile:census` / `mobile:budget`). Implemented after `doc/perf/`.
 - **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations
