@@ -38,11 +38,13 @@ import {
   ExpenseType,
   EXPENSE_TYPE_LABELS,
   NO_SUBCATEGORY_KEY,
-  SPENDING_ROLE_LABELS,
-  UNCLASSIFIED_SPENDING_LABEL,
 } from '@/types/expenses';
 import {
+  isSpendingType,
   resolveSpendingRole,
+  SPENDING_BUCKET_LABELS,
+  SPENDING_EXPENSE_TYPES,
+  SPENDING_ROLE_FLOW_ORDER,
   summarizeSpendingRoles,
   type SpendingBucket,
   type SpendingRoleSource,
@@ -85,14 +87,6 @@ export const TYPE_COLORS: Record<ExpenseType, string> = {
 
 const BUDGET_NODE_COLOR = '#10b981';
 const SAVINGS_NODE_COLOR = '#3b82f6';
-
-/** The spending types the flow renders, in reading order. Income and transfers are not flows here. */
-export const EXPENSE_FLOW_TYPES: ExpenseType[] = ['fixed', 'variable', 'debt'];
-
-// Mobile keeps the chart legible by showing only the largest slices at each level.
-const MOBILE_MAX_INCOME_CATEGORIES = 5;
-const MOBILE_MAX_CATEGORIES_PER_TYPE = 3;
-const MOBILE_MAX_DRILLDOWN_ITEMS = 8;
 
 /**
  * The subcategory layer is a detail of the biggest categories, not a fifth column for every
@@ -137,7 +131,16 @@ export function countSankeyLayers(view: SankeyView): SankeyLayerCounts {
         else counts.categories++;
         break;
       case 'expenseType':
+      case 'spendingRole':
         counts.expenseTypes++;
+        break;
+      case 'deficit':
+        counts.incomeCategories++;
+        break;
+      // Fork: an «Altre» node sits in its parent's column — the sources', or a branch's categories'.
+      case 'others':
+        if (descriptor.parent.kind === 'income') counts.incomeCategories++;
+        else counts.categories++;
         break;
       case 'subCategory':
         counts.subCategories++;
@@ -153,8 +156,8 @@ export function countSankeyLayers(view: SankeyView): SankeyLayerCounts {
 }
 
 /** Vertical room per node of the widest column: the spacing plus an 11px label with its leading. */
-const ROW_PX = { desktop: 26, mobile: 22 } as const;
-const BASE_HEIGHT = { desktop: 500, mobile: 400 } as const;
+const ROW_PX = 26;
+const BASE_HEIGHT = 500;
 const MAX_HEIGHT = 1100;
 
 /**
@@ -162,12 +165,11 @@ const MAX_HEIGHT = 1100;
  * of spacing, so the smallest nodes' labels overlapped (16 pairs measured at 1440 on the real
  * account, 2026-09-14). Each node of the widest column gets a row; the height never drops
  * below the base and never exceeds the cap, so a pathological taxonomy scrolls the page rather
- * than the label pitch.
+ * than the label pitch. One variant only: the Sankey is not drawn below 640px (FlussoTile).
  */
-export function resolveSankeyHeight(counts: SankeyLayerCounts, isMobile: boolean): number {
+export function resolveSankeyHeight(counts: SankeyLayerCounts): number {
   const widest = Math.max(counts.incomeCategories, counts.expenseTypes + (counts.hasSavings ? 1 : 0), counts.categories, counts.subCategories, 1);
-  const variant = isMobile ? 'mobile' : 'desktop';
-  return Math.min(MAX_HEIGHT, Math.max(BASE_HEIGHT[variant], widest * ROW_PX[variant] + 80));
+  return Math.min(MAX_HEIGHT, Math.max(BASE_HEIGHT, widest * ROW_PX + 80));
 }
 
 // ── Public shapes ────────────────────────────────────────────────────────────
@@ -252,11 +254,19 @@ const subCategoryRestNodeId = (expenseType: ExpenseType, categoryKey: string): s
 // ── Color derivation ─────────────────────────────────────────────────────────
 
 /**
+ * The darkest a derived shade gets, as a share of the base colour's brightness. Without it the
+ * ramp below reaches zero at the eighth shade and paints every later node #000000 — invisible on
+ * a dark theme — which a branch of 25 categories («Da classificare») made plain (2026-09-27).
+ */
+const MIN_SHADE_FACTOR = 0.55;
+
+/**
  * Derive subcategory colors from parent category color
  *
  * Algorithm: Brightness-based variation from base color
  * - Parse hex to RGB
- * - Apply brightness factor (1.0 → 0.55) for gradual darkening
+ * - Apply brightness factor (1.0 → MIN_SHADE_FACTOR) for gradual darkening: the first four shades
+ *   differ, every later one takes the floor
  * - Convert back to hex
  */
 export const deriveSubcategoryColors = (baseColor: string, count: number): string[] => {
@@ -268,8 +278,8 @@ export const deriveSubcategoryColors = (baseColor: string, count: number): strin
 
   const colors: string[] = [];
   for (let i = 0; i < count; i++) {
-    // Create variations by adjusting brightness (gradually darken)
-    const factor = 1 - (i * 0.15);
+    // Create variations by adjusting brightness (gradually darken, never past the floor)
+    const factor = Math.max(MIN_SHADE_FACTOR, 1 - (i * 0.15));
     const newR = Math.round(Math.max(0, Math.min(255, r * factor)));
     const newG = Math.round(Math.max(0, Math.min(255, g * factor)));
     const newB = Math.round(Math.max(0, Math.min(255, b * factor)));
@@ -464,7 +474,6 @@ export interface TypeFlowPalette {
 interface BudgetFlowOptions {
   /** Emit the subcategory layer (5-layer view) instead of stopping at categories. */
   withSubcategories: boolean;
-  isMobile: boolean;
   grouping?: FlowGrouping;
   palette?: TypeFlowPalette;
 }
@@ -483,30 +492,30 @@ const childColors = (base: string, count: number, palette?: TypeFlowPalette): st
  * @param expenses All rows for the period, income and expenses together.
  */
 function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): SankeyView {
-  const { withSubcategories, isMobile, grouping, palette } = options;
+  const { withSubcategories, grouping, palette } = options;
   const totals = aggregateFlow(expenses);
   const savings = totals.totalIncome - totals.totalExpenses;
 
   const incomeSplit = splitTail(
-    rank(totals.incomeCategories.values(), isMobile ? MOBILE_MAX_INCOME_CATEGORIES : undefined),
+    rank(totals.incomeCategories.values()),
     grouping?.incomeSources
   );
   const incomeCategories = incomeSplit.shown;
 
-  // Rank and slice per type BEFORE labelling, so the labels describe what is on screen:
-  // a name that collides only with a category the mobile cut removed is not ambiguous.
+  // Rank and group per type BEFORE labelling, so the labels describe what is on screen:
+  // a name that collides only with a category folded into «Altre» is not ambiguous.
   const categoryLimit = withSubcategories ? undefined : grouping?.categoriesPerBranch;
   const splitByType = new Map(
-    EXPENSE_FLOW_TYPES.map((type) => [
+    SPENDING_EXPENSE_TYPES.map((type) => [
       type,
       splitTail(
-        rank((totals.categoriesByType.get(type) ?? new Map<string, CategoryTotal>()).values(), isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : undefined),
+        rank((totals.categoriesByType.get(type) ?? new Map<string, CategoryTotal>()).values()),
         categoryLimit
       ),
     ])
   );
   const categoriesByType = new Map<ExpenseType, CategoryTotal[]>(
-    EXPENSE_FLOW_TYPES.map((type) => [type, splitByType.get(type)!.shown])
+    SPENDING_EXPENSE_TYPES.map((type) => [type, splitByType.get(type)!.shown])
   );
 
   const labels = resolveCategoryLabels([
@@ -515,7 +524,7 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
       name: category.name,
       expenseType: 'income' as ExpenseType,
     })),
-    ...EXPENSE_FLOW_TYPES.flatMap((type) =>
+    ...SPENDING_EXPENSE_TYPES.flatMap((type) =>
       (categoriesByType.get(type) ?? []).map((category) => ({
         nodeId: categoryNodeId(type, category.key),
         name: category.name,
@@ -525,14 +534,14 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
   ]);
 
   // The categories that open into a subcategory layer: the largest with a real breakdown,
-  // across the types (see MAX_SUBCATEGORY_CATEGORIES). Mobile keeps its own tighter cuts.
+  // across the types (see MAX_SUBCATEGORY_CATEGORIES).
   const openCategories = new Set<string>(
     withSubcategories
       ? rank(
-          EXPENSE_FLOW_TYPES.flatMap((type) =>
+          SPENDING_EXPENSE_TYPES.flatMap((type) =>
             (categoriesByType.get(type) ?? []).filter(hasRealBreakdown).map((category) => ({ nodeId: categoryNodeId(type, category.key), value: category.value })),
           ),
-          isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : MAX_SUBCATEGORY_CATEGORIES,
+          MAX_SUBCATEGORY_CATEGORIES,
         ).map((entry) => entry.nodeId)
       : [],
   );
@@ -561,7 +570,7 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
   builder.addNode(BUDGET_NODE_ID, 'Budget', palette?.budget ?? BUDGET_NODE_COLOR, { kind: 'budget' });
 
   // Layer 3+: one branch per spending type
-  for (const type of EXPENSE_FLOW_TYPES) {
+  for (const type of SPENDING_EXPENSE_TYPES) {
     const typeTotal = totals.totalsByType.get(type) ?? 0;
     if (typeTotal <= 0) continue;
 
@@ -646,8 +655,8 @@ function buildBudgetFlow(expenses: Expense[], options: BudgetFlowOptions): Sanke
  * 4-layer budget flow: Income categories → Budget → Expense types → Categories + Savings. With
  * `grouping`, the smaller sources and each type's smaller categories become «Altre» nodes.
  */
-export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean, grouping?: FlowGrouping, palette?: TypeFlowPalette): SankeyView {
-  return buildBudgetFlow(expenses, { withSubcategories: false, isMobile, grouping, palette });
+export function buildBudgetFlowData(expenses: Expense[], grouping?: FlowGrouping, palette?: TypeFlowPalette): SankeyView {
+  return buildBudgetFlow(expenses, { withSubcategories: false, grouping, palette });
 }
 
 /**
@@ -655,8 +664,8 @@ export function buildBudgetFlowData(expenses: Expense[], isMobile: boolean, grou
  * (MAX_SUBCATEGORY_CATEGORIES, MAX_SUBCATEGORIES + one «Altre N» node each); every other
  * category, and one whose rows carry no subcategory at all (hasRealBreakdown), stays a leaf.
  */
-export function buildBudgetFlowDataWithSubcategories(expenses: Expense[], isMobile: boolean, palette?: TypeFlowPalette): SankeyView {
-  return buildBudgetFlow(expenses, { withSubcategories: true, isMobile, palette });
+export function buildBudgetFlowDataWithSubcategories(expenses: Expense[], palette?: TypeFlowPalette): SankeyView {
+  return buildBudgetFlow(expenses, { withSubcategories: true, palette });
 }
 
 /**
@@ -674,7 +683,6 @@ export function buildTypeDrillDownData(
   expenses: Expense[],
   expenseType: ExpenseType,
   typeColor: string,
-  isMobile: boolean,
   /** Under a theme palette the categories wear the type's colour flat, as in the full view. */
   flat = false
 ): SankeyView {
@@ -685,7 +693,7 @@ export function buildTypeDrillDownData(
   }
   if (bucket.size === 0) return EMPTY_VIEW;
 
-  const categories = rank(bucket.values(), isMobile ? MOBILE_MAX_DRILLDOWN_ITEMS : undefined);
+  const categories = rank(bucket.values());
   const colors = flat ? categories.map(() => typeColor) : deriveSubcategoryColors(typeColor, categories.length);
 
   const builder = new ViewBuilder();
@@ -736,14 +744,6 @@ export const DEFAULT_SPENDING_ROLE_PALETTE: SpendingRolePalette = {
   deficit: '#ef4444',
 };
 
-/** Reading order of the role nodes: the two spending roles, what is left unclassified, then savings. */
-export const SPENDING_ROLE_FLOW_ORDER: SpendingBucket[] = ['need', 'want', 'unclassified', 'saving'];
-
-export const SPENDING_BUCKET_LABELS: Record<SpendingBucket, string> = {
-  ...SPENDING_ROLE_LABELS,
-  unclassified: UNCLASSIFIED_SPENDING_LABEL,
-};
-
 export const DEFICIT_NODE_LABEL = 'Coperto dal patrimonio';
 
 const DEFICIT_NODE_ID = 'deficit';
@@ -758,8 +758,68 @@ const roleSubCategoryNodeId = (bucket: SpendingBucket, expenseType: ExpenseType,
 const roleSubCategoryRestNodeId = (bucket: SpendingBucket, expenseType: ExpenseType, categoryKey: string): string =>
   `rsubrest:${bucket}:${expenseType}:${categoryKey}`;
 
+/**
+ * Lowers a ranked list to `total`, taking the excess off the largest entries first and dropping
+ * any that reach zero; re-ranked, because taking from the largest can reorder it. The largest
+ * first because they can absorb it with the least change to the picture.
+ */
+function trimToTotal<T extends { value: number }>(items: T[], total: number): T[] {
+  let excess = items.reduce((sum, item) => sum + item.value, 0) - total;
+  const trimmed = rank(items).map((item) => {
+    const taken = Math.min(Math.max(excess, 0), item.value);
+    excess -= taken;
+    return { ...item, value: item.value - taken };
+  });
+  // Not `> 0`: euro amounts in binary floating point leave a 1e-13 residue that would be a node.
+  return rank(trimmed.filter((item) => item.value > 1e-6));
+}
+
 interface RoleCategoryTotal extends CategoryTotal {
   expenseType: ExpenseType;
+}
+
+interface RoleCategoryLabelEntry {
+  nodeId: string;
+  name: string;
+  /** `null` for an income category, which has no role. */
+  bucket: SpendingBucket | null;
+  expenseType: ExpenseType;
+}
+
+/**
+ * The labels of every category node of the roles flow, disambiguating only real collisions and
+ * only by what actually differs between the nodes that collide.
+ *
+ * A name can repeat for two reasons here, where the type view has one. The SAME category split by
+ * a subcategory override sits under two roles: the role tells the two nodes apart («Abbonamenti
+ * (Necessità)» / «Abbonamenti (Desideri)»). Two DIFFERENT categories that share a name sit under
+ * one role with two types: the role they share says nothing, the type does («Casa (Spese Fisse)» /
+ * «Casa (Spese Variabili)»). When both happen at once the qualifier carries both. An income
+ * category is always «(Entrate)»: it has no role, and its type is what sets it apart.
+ */
+function resolveRoleCategoryLabels(entries: RoleCategoryLabelEntry[]): Map<string, string> {
+  const roleOf = (entry: RoleCategoryLabelEntry): string =>
+    entry.bucket === null ? EXPENSE_TYPE_LABELS.income : SPENDING_BUCKET_LABELS[entry.bucket];
+  const typeOf = (entry: RoleCategoryLabelEntry): string => EXPENSE_TYPE_LABELS[entry.expenseType];
+  const bothOf = (entry: RoleCategoryLabelEntry): string =>
+    entry.bucket === null ? EXPENSE_TYPE_LABELS.income : `${roleOf(entry)} · ${typeOf(entry)}`;
+
+  const byName = new Map<string, RoleCategoryLabelEntry[]>();
+  for (const entry of entries) byName.set(entry.name, [...(byName.get(entry.name) ?? []), entry]);
+
+  const labels = new Map<string, string>();
+  for (const [name, sameName] of byName) {
+    if (sameName.length === 1) {
+      labels.set(sameName[0].nodeId, name);
+      continue;
+    }
+    // The shortest qualifier that leaves no two of these nodes with the same words.
+    const isDistinct = (qualify: (entry: RoleCategoryLabelEntry) => string): boolean =>
+      new Set(sameName.map(qualify)).size === sameName.length;
+    const qualify = [roleOf, typeOf].find(isDistinct) ?? bothOf;
+    for (const entry of sameName) labels.set(entry.nodeId, `${name} (${qualify(entry)})`);
+  }
+  return labels;
 }
 
 /** Spending rows grouped bucket → (type, category) → subcategory, by the ONE role resolution. */
@@ -772,7 +832,7 @@ function aggregateByRole(
     SPENDING_ROLE_FLOW_ORDER.map((bucket) => [bucket, new Map()])
   );
   for (const expense of expenses) {
-    if (!EXPENSE_FLOW_TYPES.includes(expense.type)) continue;
+    if (!isSpendingType(expense.type)) continue;
     const bucket: SpendingBucket = resolveSpendingRole(categoriesById.get(expense.categoryId), expense.subCategoryId) ?? 'unclassified';
     const perCategory = byBucket.get(bucket)!;
     const key = getCategoryKey(expense);
@@ -787,7 +847,6 @@ function aggregateByRole(
 
 interface SpendingRolesFlowOptions {
   withSubcategories: boolean;
-  isMobile: boolean;
   grouping?: FlowGrouping;
 }
 
@@ -797,40 +856,55 @@ function buildSpendingRolesFlow(
   palette: SpendingRolePalette,
   options: SpendingRolesFlowOptions
 ): SankeyView {
-  const { withSubcategories, isMobile, grouping } = options;
+  const { withSubcategories, grouping } = options;
   const summary = summarizeSpendingRoles(expenses, categories);
-  if (summary.income <= 0 && summary.spending <= 0) return EMPTY_VIEW;
+  if (summary.income + summary.deficit <= 0) return EMPTY_VIEW;
 
-  const incomeTotals = aggregateFlow(expenses).incomeCategories;
+  // The income side comes from the SAME summary as the role totals, net per category (a reversal
+  // lowers its category). aggregateFlow's income is a magnitude per row — right for the type
+  // view's own totals, but it would add a reversal to the left of this one while the summary
+  // subtracts it on the right.
+  //
+  // The right side of Budget is spending + surplus = max(spending, income), so the left side is
+  // built to match it: the income categories carry max(income, 0) and «Coperto dal patrimonio»
+  // the rest of the spending. A category netting to ≤ 0 is not in `summary.incomeCategories` (a
+  // link has no negative width), so its reversal is still owed by the others: it comes off them
+  // largest first, which is how the list adds up to the income Periodo prints.
+  const coveredIncome = Math.max(summary.income, 0);
+  // Fork: with `grouping` the smaller sources fold into «Altre entrate», AFTER the trim, so the
+  // folded node carries what is left of them and the left side still adds up.
   const incomeSplit = splitTail(
-    rank(incomeTotals.values(), isMobile ? MOBILE_MAX_INCOME_CATEGORIES : undefined),
+    trimToTotal(
+      summary.incomeCategories.map((slice) => ({ key: slice.categoryKey, name: slice.categoryName, value: slice.value })),
+      coveredIncome
+    ),
     grouping?.incomeSources
   );
   const incomeCategories = incomeSplit.shown;
+  const uncovered = summary.spending - coveredIncome;
   const byRole = aggregateByRole(expenses, categories);
   // The subcategory layer never groups: an «Altre» node has no breakdown to show under it.
   const categoryLimit = withSubcategories ? undefined : grouping?.categoriesPerBranch;
   const splitByRole = new Map(
-    SPENDING_ROLE_FLOW_ORDER.map((bucket) => [
-      bucket,
-      splitTail(rank(byRole.get(bucket)!.values(), isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : undefined), categoryLimit),
-    ])
+    SPENDING_ROLE_FLOW_ORDER.map((bucket) => [bucket, splitTail(rank(byRole.get(bucket)!.values()), categoryLimit)])
   );
   const rankedByRole = new Map<SpendingBucket, RoleCategoryTotal[]>(
     SPENDING_ROLE_FLOW_ORDER.map((bucket) => [bucket, splitByRole.get(bucket)!.shown])
   );
 
-  const labels = resolveDisplayLabels([
+  const labels = resolveRoleCategoryLabels([
     ...incomeCategories.map((category) => ({
-      key: categoryNodeId('income', category.key),
+      nodeId: categoryNodeId('income', category.key),
       name: category.name,
-      qualifier: EXPENSE_TYPE_LABELS.income,
+      bucket: null,
+      expenseType: 'income' as ExpenseType,
     })),
     ...SPENDING_ROLE_FLOW_ORDER.flatMap((bucket) =>
       (rankedByRole.get(bucket) ?? []).map((category) => ({
-        key: roleCategoryNodeId(bucket, category.expenseType, category.key),
+        nodeId: roleCategoryNodeId(bucket, category.expenseType, category.key),
         name: category.name,
-        qualifier: SPENDING_BUCKET_LABELS[bucket],
+        bucket,
+        expenseType: category.expenseType,
       }))
     ),
   ]);
@@ -851,7 +925,7 @@ function buildSpendingRolesFlow(
               .filter(hasRealBreakdown)
               .map((category) => ({ nodeId: roleCategoryNodeId(bucket, category.expenseType, category.key), value: category.value })),
           ),
-          isMobile ? MOBILE_MAX_CATEGORIES_PER_TYPE : MAX_SUBCATEGORY_CATEGORIES,
+          MAX_SUBCATEGORY_CATEGORIES,
         ).map((entry) => entry.nodeId)
       : [],
   );
@@ -871,9 +945,11 @@ function buildSpendingRolesFlow(
     builder.addNode(id, 'Altre entrate', palette.income, { kind: 'others', parent, count: incomeSplit.tail.count });
     builder.addLink(id, BUDGET_NODE_ID, incomeSplit.tail.value);
   }
-  if (summary.deficit > 0) {
+  // Not `summary.deficit` (spending − SIGNED income): with income net negative that would also
+  // count the reversals, which no longer appear on either side.
+  if (uncovered > 0) {
     builder.addNode(DEFICIT_NODE_ID, DEFICIT_NODE_LABEL, palette.deficit, { kind: 'deficit' });
-    builder.addLink(DEFICIT_NODE_ID, BUDGET_NODE_ID, summary.deficit);
+    builder.addLink(DEFICIT_NODE_ID, BUDGET_NODE_ID, uncovered);
   }
 
   // Layer 2
@@ -949,20 +1025,18 @@ export function buildSpendingRolesFlowData(
   expenses: Expense[],
   categories: SpendingRoleSource[],
   palette: SpendingRolePalette,
-  isMobile: boolean,
   grouping?: FlowGrouping
 ): SankeyView {
-  return buildSpendingRolesFlow(expenses, categories, palette, { withSubcategories: false, isMobile, grouping });
+  return buildSpendingRolesFlow(expenses, categories, palette, { withSubcategories: false, grouping });
 }
 
 /** The same flow with a subcategory layer; categories without a real breakdown drop, as in the type view. */
 export function buildSpendingRolesFlowDataWithSubcategories(
   expenses: Expense[],
   categories: SpendingRoleSource[],
-  palette: SpendingRolePalette,
-  isMobile: boolean
+  palette: SpendingRolePalette
 ): SankeyView {
-  return buildSpendingRolesFlow(expenses, categories, palette, { withSubcategories: true, isMobile });
+  return buildSpendingRolesFlow(expenses, categories, palette, { withSubcategories: true });
 }
 
 /**
@@ -973,10 +1047,9 @@ export function buildSpendingRoleDrillDownData(
   expenses: Expense[],
   categories: SpendingRoleSource[],
   bucket: SpendingBucket,
-  color: string,
-  isMobile: boolean
+  color: string
 ): SankeyView {
-  const ranked = rank(aggregateByRole(expenses, categories).get(bucket)!.values(), isMobile ? MOBILE_MAX_DRILLDOWN_ITEMS : undefined);
+  const ranked = rank(aggregateByRole(expenses, categories).get(bucket)!.values());
   if (ranked.length === 0) return EMPTY_VIEW;
 
   // Inside one role the only possible collision is the same name under two types.

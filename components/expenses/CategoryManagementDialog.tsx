@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -31,6 +32,7 @@ import {
   TransferBoundaryError,
 } from '@/lib/services/expenseService';
 import { crossesTransferBoundary } from '@/lib/utils/expenseTypeTransition';
+import { queryKeys } from '@/lib/query/queryKeys';
 import { CategoryDeleteConfirmDialog } from './CategoryDeleteConfirmDialog';
 import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
@@ -101,6 +103,23 @@ const SPENDING_ROLE_DESCRIPTIONS: Record<SpendingRole, string> = {
   want: 'Uscite, svago, viaggi, shopping: ciò che si sceglie',
   saving: 'Uscite che restano patrimonio, oltre a quanto avanza nel periodo',
 };
+
+/**
+ * What a category write leaves stale in React Query. The taxonomy (and the 50/30/20 roles on it)
+ * is read by Analisi from `expenses.categories` under the global 5-minute staleTime: without this,
+ * a role set in Impostazioni reached the Flusso only minutes later (review of PR #400, F4). When the
+ * write also rewrote the ROWS — a rename or a type change cascades into them
+ * (`updateExpensesCategoryName` / `updateExpensesType`), a move or a reassignment re-points them —
+ * every expense list goes too (`expenses.all` is the prefix of the per-month keys).
+ *
+ * Called where the writes happen: this dialog (create, update, a subcategory's move or
+ * reassignment — it is mounted by Impostazioni, ExpenseDialog, CategoryMoveDialog and
+ * CategoryDeleteConfirmDialog alike) and the Impostazioni handlers that move or delete a category.
+ */
+export function invalidateCategoryCaches(queryClient: QueryClient, ownerId: string, { rowsChanged }: { rowsChanged: boolean }): void {
+  queryClient.invalidateQueries({ queryKey: queryKeys.expenses.categories(ownerId) });
+  if (rowsChanged) queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all(ownerId) });
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -512,6 +531,7 @@ export function CategoryManagementDialog({
 }: Readonly<CategoryManagementDialogProps>) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
+  const queryClient = useQueryClient();
 
   const [subCategories, setSubCategories] = useState<ExpenseSubCategory[]>([]);
   const [newSubCategoryName, setNewSubCategoryName] = useState('');
@@ -667,6 +687,8 @@ export function CategoryManagementDialog({
         setSubCategories(subCategories.filter((s) => s.id !== subCategoryToDelete.id));
         toast.success(`Sottocategoria "${subCategoryToDelete.name}" eliminata. Le spese rimarranno nella categoria senza sottocategoria.`);
       }
+      // The rows moved already, whether or not the dialog is then saved.
+      invalidateCategoryCaches(queryClient, ownerId, { rowsChanged: true });
       setDeleteSubCategoryDialogOpen(false);
       setSubCategoryToDelete(null);
       setSubCategoryExpenseCount(0);
@@ -717,6 +739,7 @@ export function CategoryManagementDialog({
       );
       const destLabel = resolvedSubName ? `${newCategory.name} \u2192 ${resolvedSubName}` : newCategory.name;
       toast.success(`${movedCount} ${movedCount === 1 ? 'transazione spostata' : 'transazioni spostate'} da "${category.name} \u2192 ${subCategoryToMove.name}" a "${destLabel}"`);
+      invalidateCategoryCaches(queryClient, ownerId, { rowsChanged: true });
       setMoveSubCategoryDialogOpen(false);
       setSubCategoryToMove(null);
       setSubCategoryMoveExpenseCount(0);
@@ -755,6 +778,9 @@ export function CategoryManagementDialog({
         await createCategory(ownerId, categoryData);
         toast.success('Categoria creata');
       }
+      // The same comparison updateCategory makes before cascading into the rows.
+      const rowsChanged = !!category && (category.name !== categoryData.name || category.type !== categoryData.type);
+      invalidateCategoryCaches(queryClient, ownerId, { rowsChanged });
       onSuccess?.();
       onClose();
     } catch (error) {

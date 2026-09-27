@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Composite class chip** (2026-09-26): `InstrumentClassChip` in `components/assets/AssetRow.tsx` (desktop `Classe` column and phone row; the group header keeps `AssetClassChip`), pure `describeAssetClassChip` + `rankedClassLegs` in `lib/utils/assetDisplayClass.ts`; tests `__tests__/assetDisplayClass.test.ts`, `e2e/assets.composite-chip.spec.ts`
+- **Composite class chip** (2026-09-26): `InstrumentClassChip` in `components/assets/AssetRow.tsx` (desktop `Classe` column and phone row; the group header keeps `AssetClassChip`), pure `describeAssetClassChip` + `rankedClassLegs` + `SHORT_CLASS_LABELS` in `lib/utils/assetDisplayClass.ts`; tests `__tests__/assetDisplayClass.test.ts`, `e2e/assets.composite-chip.spec.ts` (1440: the 112px floor, «Andamento» without sideways scroll, the grouped header's plain chip; 390: the chip ends before the amount after a 12-character ticker, `main` does not scroll)
 - **Mutuo tile** (2026-09-25): `components/assets/tiles/MutuoTile.tsx`, pure `lib/utils/mortgageSummary.ts` (`summarizeMortgage`, `projectPayoff`, `interestPaidOf`), words `describeMortgage*` in `patrimonioNarrative.ts`, reader `getMortgageInstalments` + `lib/hooks/useMortgageInstalments.ts`; tests `__tests__/mortgageSummary.test.ts`, `e2e/cashflow.mortgage.spec.ts`
 - **Patrimonio**: `app/dashboard/assets/page.tsx` (owns every dialog), `components/assets/*` (+ `PatrimonioTile`/`ComposizioneTile` reused from the overview), pure `lib/utils/{patrimonioNarrative,patrimonioSummary,assetPerformanceDeltas,costBasisEur}.ts` (`costBasisPerUnitEur`/`unitPriceEur` = EUR against EUR, fees included), `lib/utils/bondPricing.ts` (`resolveBondPrice` = the ONE Borsa Italiana quote → euro per unit, nominal 1 € by default, BTP€i coefficient; `toBorsaItalianaQuote` the inverse; shared with `lib/helpers/priceUpdater.ts`), `lib/utils/bondDetailsForm.ts` (`buildBondDetailsFromForm`, a rate of 0 is a zero coupon); `lib/services/assetService.ts`, `types/assets.ts`; spec `e2e/assets.bond.spec.ts`
 
@@ -131,16 +131,24 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **A composite instrument is ONE row with a split chip** (2026-09-26): a 60/40 fund stays one row, grouped and sorted
   under its prevailing class, but its chip (`InstrumentClassChip`) has one segment per composition leg, as wide as the
   leg's share of the market value (`leverageRatio` never widens a segment), each tinted like that class's own chip.
-  Two segments read «Azioni · Obbl.» (fixed short forms), three or more «Misto»; a leg under 5 %
-  (`MIN_CHIP_SEGMENT_PCT`) gets no segment and no word (a 97/3 fund reads «Azioni» at plain width) but stays in the
-  `sr-only` shares («Azioni 97%, Liquidità 3%») — text, not an `aria-label`, since the chip's content is the
-  information. From two segments the chip is at least 112px wide, so proportions compare down the column. **One
+  Two segments read «Azioni · Obbl.» (fixed short forms, `SHORT_CLASS_LABELS` — the sixth label map,
+  doc/guide/allocazione.md), three or more «Misto»; a leg under 5 % (`MIN_CHIP_SEGMENT_PCT`) gets no segment and no
+  word (a 97/3 fund reads «Azioni» at plain width) but stays in the `sr-only` shares («Azioni 97%, Liquidità 3%») —
+  text, not an `aria-label`, since the chip's content is the information. **The 5 % floor reads the share AS
+  PRINTED** (one decimal, `formatPercentageIt`): a 4,96 % leg is heard as «5%» and keeps its segment, a 4,94 % one is
+  heard as «4,9%» and has none — the chip never drops a leg the screen reader announces at 5 % or more. The widths are
+  normalised over the visible legs; the spoken shares are the stored ones, unscaled. **From two segments the chip is
+  at least 112px wide in the desktop table only** (`desktop:min-w-[112px]`, owner's decision 2026-09-27): there the
+  chips stand in the Classe column and the proportions compare down it; on the phone row each chip starts after a
+  ticker of its own width, so there is no column, and a floor would push the chip under the amount on a long ticker. **One
   ranking for group and chip** (`rankedClassLegs`: one leg per class, largest first, ties to the first in the
   composition): a class named twice is summed before ranking, so the first segment IS the group. **The ring is an
   overlay, not a CSS border**: a `border-box` gradient under a translucent `padding-box` fill shows through and doubled
   the tint (seen in the browser, 2026-09-26); the overlay is the 30% gradient masked to its outer 1px
   (`mask-composite: exclude`), and the chip's 1px of padding stands in for the plain chip's border, so both measure
-  the same.
+  the same. In the inline style the `-webkit-mask` pair is declared BEFORE the standard `mask`: an engine that aliases
+  the prefixed shorthand to `mask` would otherwise reset the `exclude`. The ring itself is asserted by no test (the
+  spec reads the fill's stops only) — look at it in the browser when touching the mask.
 - **«Andamento» is a VIEW, not four more columns** (2026-09-14, the page's first Impeccable critique): with the
   toggle on, Quantità · Prezzo · PMC · TER leave the table and the three Δ windows take their place, so at 1440
   nothing scrolls and the actions never leave sight (appended, the Δ columns pushed the actions column 202px out of

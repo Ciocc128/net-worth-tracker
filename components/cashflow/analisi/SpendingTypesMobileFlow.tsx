@@ -1,78 +1,76 @@
 'use client';
 
 /**
- * Flusso's type view on a phone — the only view when the 50/30/20 roles are off (owner's call,
- * 2026-09-25: the reduced Sankey did not read at 390 and said nothing). The twin of the roles
- * view: one bar of the SPENDING split by type, then each type's categories as ranked rows, then
- * what was put aside.
+ * Flusso's type view below 640px — the only view when the 50/30/20 roles are off: one bar of the
+ * SPENDING split by type, then each type's categories as ranked rows, then what was put aside.
+ * Drawn by FlowShareMobile.
  *
- * One base on the screen (owner's rule of 2026-09-15): the reading above prints the types as
- * shares of the spending («Fisse 53%, variabili 37%, debiti 10%»), so the bar is the spending and
- * its legend prints those very figures (buildTypeFlowBreakdown takes them from the reading's own
- * FlowSummary). Savings are a share of the income in that sentence, so they stay out of the bar:
- * a closing block with the amount. A deficit is the red «entrate» line inside the bar, where the
- * income ends.
+ * One base on the screen: the reading above prints the types as shares of the spending («fisse
+ * 53%, variabili 37%, debiti 10%»), so the bar is the spending and its legend prints those very
+ * figures (`buildTypeFlowBreakdown` takes them from the reading's own FlowSummary). Savings are a
+ * share of the income in that sentence, so they stay out of the bar: a closing «Risparmio» block
+ * whose note is analisiNarrative's, as are the caption and the empty line. A deficit is the red
+ * «entrate» line inside the bar, where the income ends (clamped by the pure layer).
  *
- * Colours: the theme's `--type-flow-*` when it names them (Lime Frost light, the colours its
- * desktop Sankey draws), else the slots of the ONE type colour map (`EXPENSE_TYPE_DOT_CLASS`:
- * fixed `--chart-1`, variable `--chart-4`, debt `--chart-3`) — never the Sankey's hex.
+ * Colours: the theme's `--type-flow-*` when it names them (fork: Lime Frost, the colours its desktop
+ * Sankey draws), else the slots of the ONE type colour map (`EXPENSE_TYPE_COLOR_VAR`) and income's
+ * series slot for what is kept (`CASHFLOW_SERIES_COLOR.income`) — never the desktop Sankey's hex.
  */
 
 import { EXPENSE_TYPE_LABELS, type ExpenseType } from '@/types/expenses';
-import type { SpendingType, TypeFlowBreakdown } from '@/lib/utils/analisiSummary';
-import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
+import type { TypeFlowBreakdown } from '@/lib/utils/analisiSummary';
+import type { ScheduledSlice } from '@/lib/utils/tracciamentoSummary';
+import { CASHFLOW_SERIES_COLOR, EXPENSE_TYPE_COLOR_VAR } from '@/lib/constants/expenseTypeColors';
+import { describeFlowSurplus, describeShareCompact, describeTypeFlowBar } from '@/lib/utils/analisiNarrative';
 import { FlowShareMobile, type FlowShareGroup } from '@/components/cashflow/analisi/FlowShareMobile';
 
-const TYPE_COLOR: Record<SpendingType, string> = {
-  fixed: 'var(--type-flow-fixed, var(--chart-1))',
-  variable: 'var(--type-flow-variable, var(--chart-4))',
-  debt: 'var(--type-flow-debt, var(--chart-3))',
-};
-
-/** Income's slot where the theme does not name a savings colour: what is left is income kept. */
-const SAVINGS_COLOR = 'var(--type-flow-savings, var(--chart-2))';
+/** Fork: a theme's `--type-flow-*` first (Lime Frost), the ONE type colour map as the fallback. */
+const TYPE_COLOR = (type: ExpenseType): string => `var(--type-flow-${type}, ${EXPENSE_TYPE_COLOR_VAR[type]})`;
+const SAVINGS_COLOR = `var(--type-flow-savings, ${CASHFLOW_SERIES_COLOR.income})`;
 
 interface Props {
   breakdown: TypeFlowBreakdown;
+  /** The period's not-yet-happened slice (AnalisiTab's `scheduled`, the verdict's own), for the surplus note. */
+  scheduled: ScheduledSlice;
+  /** How far that calendar reaches (`describeAnalisiScheduledHorizon`). */
+  horizon: string | null;
   onEntityClick: (target: { expenseType: ExpenseType; categoryKey: string }) => void;
 }
 
-const euro = (value: number) => cachedFormatCurrencyEUR(value, true);
-
-export function SpendingTypesMobileFlow({ breakdown, onEntityClick }: Props) {
-  const { blocks, surplus, deficit } = breakdown;
-  const spending = blocks.reduce((sum, block) => sum + block.amount, 0);
-  if (spending <= 0 && surplus <= 0) {
-    return <p className="py-8 text-center text-[13px] text-muted-foreground">Nessun flusso nel periodo.</p>;
-  }
-
-  const groups: FlowShareGroup[] = blocks.map((block) => ({
+export function SpendingTypesMobileFlow({ breakdown, scheduled, horizon, onEntityClick }: Props) {
+  const groups: FlowShareGroup[] = breakdown.blocks.map((block) => ({
     key: block.type,
     // The types' full names, as the drill breadcrumb on this same tile prints them.
     label: EXPENSE_TYPE_LABELS[block.type],
-    color: TYPE_COLOR[block.type],
+    color: TYPE_COLOR(block.type),
     total: block.amount,
     categories: block.categories.map((category) => ({ ...category, expenseType: block.type })),
   }));
-  if (surplus > 0) {
-    groups.push({ key: 'savings', label: 'Risparmio', color: SAVINGS_COLOR, total: surplus, categories: [], note: `${euro(surplus)} avanzati nel periodo.` });
+  if (breakdown.surplus > 0) {
+    groups.push({
+      key: 'savings',
+      label: 'Risparmio',
+      color: SAVINGS_COLOR,
+      total: breakdown.surplus,
+      categories: [],
+      note: describeFlowSurplus({ surplus: breakdown.surplus, afterRows: false, scheduled, horizon }),
+    });
   }
 
   return (
     <FlowShareMobile
+      absence={breakdown.absence}
       bar={{
-        segments: blocks.map((block) => ({
+        segments: breakdown.blocks.map((block) => ({
           key: block.type,
           label: block.label,
-          value: block.amount,
-          share: formatPercentageIt(block.percentage, 0),
-          color: TYPE_COLOR[block.type],
+          percentage: block.printedPercentage,
+          printed: describeShareCompact(block.printedPercentage),
+          color: TYPE_COLOR(block.type),
         })),
-        incomeEdge: deficit > 0 ? ((spending - deficit) / spending) * 100 : null,
-        caption:
-          spending > 0
-            ? `Quote delle spese (${euro(spending)}).` + (deficit > 0 ? ` Oltre la linea delle entrate: ${euro(deficit)} dal patrimonio.` : '')
-            : 'Nessuna spesa nel periodo.',
+        ariaLabel: 'Quote delle spese per tipo',
+        incomeEdge: breakdown.incomeEdge,
+        caption: describeTypeFlowBar(breakdown),
       }}
       groups={groups}
       onEntityClick={onEntityClick}

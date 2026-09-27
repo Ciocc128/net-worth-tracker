@@ -13,18 +13,17 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **207 files / 4938 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (143 tests, incl. 6 auth setups; last full run 2026-09-27, fork, «Con vendite mirate», 3,8 min: 142 green + the known `settings.mobile` › «Ripristina default» sub-pixel intermittent, green alone). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-27, fork): **Composizione ideale › «Con vendite mirate»** (doc/weight-optimizer-targeted-ate.md):
-  tetto di tasse in euro + «Non vendere»; solo nel tile. Solver rivisto prima del codice: active set esatto
-  (`lib/utils/activeSetQP.ts`, 0,2 ms contro i 525 del prototipo) dove il tetto lega, altrove le pipeline di
-  Ideale/Raggiungibile (T6 per costruzione). doc/guide/ottimizzatore.md. Collaudo A–G, giro del proprietario OK; a 390
-  «Differenza» cede il posto a «Tasse» (e2e mobile). `tsc` 0, ESLint 0, Vitest 207 / 4938 nei due fusi, build verde.
-- Prima (2026-09-26, fork): **chip di classe composito** (bozza upstream #403) — doc/guide/patrimonio.md.
-- Latest upstream (2026-09-26): **Velocità — analisi, baseline e 14 specifiche in `doc/perf/`** (nessun codice toccato).
-  Misurato su build di produzione + emulatori + mirror: HTML di ogni route = lo spinner, 460 KB gz di JS su ogni pagina
-  (recharts in quattro chunk, @react-pdf nel grafo di Storico), Rendimenti 17 API, overview in 6 stadi in serie, la
-  chiave cache dell'Esposizione che non combacia mai (Yahoo a ogni apertura), React Compiler spento. Firebase NON è il
-  limite. Ordine e decisioni in `doc/perf/README.md`; PERF-01 prima di tutto.
+- `tsc` clean; **210 files / 5027 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-27, fork): **ninth upstream merge** (#404 mobile dossier, #405/#406) on `merge/upstream-2026-09-27`.
+  Upstream integrated the fork's #400, #401, #403 WITH CHANGES: the fork takes its reviewed pure layer, words, phone
+  views and chip, and keeps on top the thin Sankey, the «Altre» grouping, flat role colours and the Lime tokens
+  (doc/guide/fork-scelte-ui.md § 1, «Analisi Flusso»). #402 became upstream's `doc/perf/PERF-00` — upstream writes the
+  Esposizione itself; the fork keeps its five views. Also in: Divisione's pool netted of the common income. Owner's tour on the mirror OK.
+- Prima (2026-09-27, fork): **Composizione ideale › «Con vendite mirate»** — tetto di tasse + «Non vendere», solver
+  active set esatto (`lib/utils/activeSetQP.ts`); doc/guide/ottimizzatore.md.
+- Latest upstream (2026-09-27): #400/#401/#403 integrated, #402 → PERF-00 (before PERF-01), Divisione's «in comune»
+  income pays the common spending first; dossiers `doc/perf/README.md` (fourteen specs) and `doc/mobile/README.md`
+  (nine, after the PERF ones), the owner's decisions in each § 9.
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -40,13 +39,13 @@ One line per area: the question it answers, then where it is described. *What th
 - **Landing**: the Panoramica for someone with no data, the app's real tiles on a declared sample profile. doc/guide/landing.md.
 - **Accesso e Registrazione**: one 420px tile, a verdict generated from the registration state, Italian errors only. doc/guide/accesso-registrazione.md.
 - **Panoramica**: «come va il mese?» — rule-generated verdict over a tile grid on `GET /api/dashboard/overview`. doc/guide/panoramica.md.
-- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles, plus «Mutuo» per property with linked instalments (interest and principal by year, projected end); Strumenti is the management table. doc/guide/patrimonio.md.
+- **Patrimonio**: the portfolio's verdict (its driver an instrument) over six tiles, plus «Mutuo» per property with linked instalments (interest and principal by year, projected end); Strumenti is the management table, a composite instrument's class chip split by class. doc/guide/patrimonio.md.
 - **Registro operazioni**: BUY/SELL/ADJUSTMENT with cash settlement in cents (a sell net of the withheld tax), the asset doc rebuilt by full replay. doc/guide/registro-operazioni.md.
 - **Cashflow › Tracciamento**: «come sta andando il mese?» on one period axis. doc/guide/cashflow-tracciamento.md; shared rules (sign, recurrence, a linked account moving on each row's own date, a transfer's fee as its own row, a mortgage instalment repaying its property's principal, CSV import, grouping, Sankey) in doc/guide/cashflow.md.
 - **Cashflow › Budget**: «sto rispettando il budget?», no axis, the ceiling historicised by the daily cron. doc/guide/cashflow-budget.md.
 - **Centri di Costo** (optional): «quanto sta costando il progetto?», no axis and no pace. doc/guide/centri-di-costo.md.
-- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
-- **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey. doc/guide/cashflow-analisi.md.
+- **Cashflow › Divisione** (optional): «quanto è costato in comune, e quanto resta a ciascuno?» — le entrate in comune pagano prima, le quote dividono il netto; il residuo è di denaro che si è mosso, il calendario è una clausola a parte. doc/guide/cashflow-divisione.md.
+- **Analisi**: «dove vanno i soldi, e cosa è cambiato?» on a four-mode axis; the app's only Sankey, by type or — opt-in `spendingRolesEnabled` — by 50/30/20 role; below 640px the Flusso is a share bar and rows. doc/guide/cashflow-analisi.md; the roles in doc/guide/cashflow.md.
 - **Dividendi**: «quanto rendono i miei flussi?»; received and announced never one figure; BTP Italia and BTP€i coupons; a payment credits the instrument's account, else the default, never an arrear. doc/guide/cashflow-dividendi.md.
 - **Rendimenti**: «quanto rende il portafoglio, e rispetto a cosa?» — configurable base, six EUR benchmarks, per-instrument attribution; below a year the hero is the period's return, Contributi is the ONE capital the formulas neutralise. doc/guide/rendimenti.md.
 - **Storico**: «come sono arrivato qui?» — wealth growth, contributions included; the Driver splits it into savings, measured market, sale taxes, mortgage, pension contributions and the rest, as a ledger that adds up to the euro behind each year. doc/guide/storico.md.
@@ -73,8 +72,12 @@ One line per area: the question it answers, then where it is described. *What th
 - Vitest: `npx vitest run <file>`, `npm test -- <file>`, `npx tsc --noEmit`. New tests in `__tests__/`; prefer pure functions over Firestore-coupled code.
 - **Phantom `tsc` errors** clustered in `e2e/` and `lib/utils/expenseImport.ts` after a branch switch: run `npm install` first (AGENTS → *Commands*).
 - **Dev/test without production data**: Firebase Emulator Suite (`npm run emulators` + `emulators:seed` + `dev:emulator`), requires a JDK. SETUP.md → Step 6. **The owner's real data for a tour**: `npm run mirror:seed -- <email>` (production read-only → emulators as `mirror@example.com`, nothing on disk) and `npm run mirror:remove` at the end — the account is the standard, the data is re-read every time (WORKFLOW.md § 3).
-- **Performance**: baseline (cold/warm per page, bundle per route), method and the fourteen specs in `doc/perf/README.md`;
-  the benchmark lands in repo with PERF-01 (`npm run perf:bench` / `perf:budget`).
+- **Performance**: baseline (cold/warm per page, bundle per route), method and the specs in `doc/perf/README.md` —
+  PERF-00 (the new Esposizione, issue #402) first, then the fourteen; the benchmark lands in repo with PERF-01
+  (`npm run perf:bench` / `perf:budget`).
+- **Mobile composition**: the small-screen census (19 surfaces × 390/768/1024), the chosen direction, the nine specs and
+  the owner's decisions in `doc/mobile/README.md`; the census script in `doc/mobile/reference/` (MOB-01 ports it to
+  `npm run mobile:census` / `mobile:budget`). Implemented after `doc/perf/`.
 - **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations

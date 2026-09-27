@@ -22,6 +22,12 @@ Lavoro di rendering che ogni pagina paga e nessuno guarda (audit 2026-09-26, ver
   la pagina finché non cambiano `colorTheme` o `resolvedTheme`. E il filtro di luminanza dentro (`parseOklchL`) è INERTE:
   il browser risponde `lab(…)`, non `oklch(…)` (doc/guide/temi.md; AGENTS.md § Layout and Color Tokens: «Anything that READS
   a colour token parses `lab()` too», `lib/utils/actionColor.ts` è l'esempio).
+- **`useCssColorTokens`** (dal 2026-09-27, #400): un terzo lettore per istanza con lo stesso schema (rAF +
+  `getComputedStyle` + `setState`), per i cinque alias `--role-*` del Flusso convertiti in hex per Nivo. Ha un argomento
+  `enabled` e gira solo quando il Sankey dei ruoli si disegna; ma quando gira, `FlussoTile` renderizza due volte come ogni
+  host di `useChartColors`. E con lui un convertitore in più, non un parser: `lib/utils/cssColorToHex.ts` (`colorToHex`: hex e
+  `rgb()` con due regex sue, `oklch()` e `lab()` attraverso `parseToOklch` di `actionColor.ts` — l'UNICO parser di `lab()`
+  del repo — poi l'ultima gamba OKLCH → sRGB); l'altro lettore di colori resta `parseOklchL` di `useChartColors`, inerte.
 - Lo stagger della Panoramica: `staggerContainer` (`delayChildren 0.05`, `staggerChildren 0.08`) × 8 tessere + `cardItem`
   0,4 s → l'ultima tessera è opaca ~1 s dopo i dati; sul hard load si somma il fade di `template.tsx` (0,35 s). È
   un'estetica (DESIGN.md), non un bug: la spec la MISURA e la lascia decidere al proprietario.
@@ -73,8 +79,13 @@ string[]` e `actionColors`. `useChartColors()` e `useActionColors()` leggono il 
 cambiano; senza provider (`useContext` → `null`) cadono sul calcolo locale di oggi, così la landing (`app/page.tsx` usa i
 tile della Panoramica) e i test di componente non si rompono. La regola di timing di doc/guide/temi.md («`useEffect +
 useState + requestAnimationFrame`, NOT `useMemo`») resta vera: è il provider a farlo, una volta. Il filtro di luminanza
-diventa VIVO: `parseLabL` (da `lib/utils/actionColor.ts`, o estratto in `lib/utils/colorParse.ts` per entrambi) al posto di
-`parseOklchL`; le soglie (`> 0.82` in chiaro, `< 0.30` in scuro) vanno riverificate su L di `lab()` (scala 0–100, non 0–1) e
+diventa VIVO: `parseToOklch` (oggi in `lib/utils/actionColor.ts`, già l'unico parser di `lab()` e `oklch()`,
+importato da `cssColorToHex.ts`) si sposta in `lib/utils/colorParse.ts` insieme alla gamba OKLCH → sRGB di
+`cssColorToHex.ts`, e prende il posto di `parseOklchL`; `__tests__/cssColorToHex.test.ts` e `actionColorContrast.test.ts`
+restano verdi senza modifiche. Un token servito in `#rrggbb` (Lightning CSS riporta in hex i colori dentro sRGB)
+`parseToOklch` non lo legge: il filtro lo converte hex → OKLCH o lo dichiara fuori filtro, mai in silenzio. Anche `useCssColorTokens(tokens, fallbacks, enabled)` legge il contesto: il provider espone i cinque
+`--role-*` GIÀ in hex (`roleColorsHex`), perché Nivo su react-spring non interpola né `oklch()` né `lab()`; firma
+invariata, fallback locale senza provider, e `enabled: false` continua a non leggere nulla. Le soglie (`> 0.82` in chiaro, `< 0.30` in scuro) restano sulla L di OKLCH (0–1, quella che `parseToOklch` restituisce) e vanno
 misurate sui dodici blocchi tema con `chartPaletteDistinctness` — se un blocco cambia palette per il filtro ora vivo, è una
 decisione da mostrare al proprietario, non da prendere.
 
@@ -86,8 +97,9 @@ solo prima visita. La risposta va in DESIGN.md per mano sua o con una riga conco
 
 - `app/dashboard/page.tsx`, `app/dashboard/assets/page.tsx` — il wrapper.
 - `components/layout/BottomNavigation.tsx` — `layout` e `layoutId` gated.
-- `contexts/ChartColorsContext.tsx` (nuovo), `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`, `lib/utils/colorParse.ts`
-  (o `actionColor.ts`), `app/dashboard/layout.tsx`.
+- `contexts/ChartColorsContext.tsx` (nuovo), `lib/hooks/useChartColors.ts`, `lib/hooks/useActionColors.ts`,
+  `lib/hooks/useCssColorTokens.ts`, `lib/utils/colorParse.ts` (nuovo: `parseToOklch` da `actionColor.ts` e
+  la gamba OKLCH → sRGB da `cssColorToHex.ts`; i due moduli lo importano), `app/dashboard/layout.tsx`.
 - `lib/utils/motionVariants.ts` — solo se D è approvata.
 - Test: `__tests__/chartColorsContext.test.ts` (la palette dal provider = quella del vecchio hook su un `getComputedStyle`
   finto che risponde `lab(…)`; il fallback senza provider; il filtro vivo su una L fuori soglia), `e2e/motion.layout.spec.ts`
@@ -112,6 +124,8 @@ solo prima visita. La risposta va in DESIGN.md per mano sua o con una riga conco
 - Provider: con `getComputedStyle` finto che risponde `lab(64.8793% 25.0679 78.4211)` per `--chart-3` la palette contiene
   quella stringa (mai `/^oklch\(/`, la trappola documentata); una L fuori soglia cade sul colore statico (falsificare:
   rimettere `parseOklchL` → il filtro non scatta, rosso); senza provider il hook restituisce la stessa palette del calcolo locale.
+- Il Flusso per ruolo: con i ruoli accesi `FlussoTile` non chiama `getComputedStyle` al mount (spy) e renderizza una volta
+  (census di PERF-12); i cinque hex del Sankey sono quelli di `colorToHex` (`cssColorToHex.ts`) sugli stessi token (identità sul fixture).
 - Bottom nav: a 1440 `LayoutCount` a un cambio pathname non cresce per la nav (misura CDP prima/dopo, con il `layout` gated);
   a 390 portrait il FAB che appare la fa scorrere (anchor: la posizione cambia). Falsificare invertendo la media query.
 - Suite: `chartPaletteDistinctness`, `actionColorContrast`, E2E completo (ogni grafico legge i colori).

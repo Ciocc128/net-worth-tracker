@@ -18,8 +18,27 @@ import type { ExpenseType } from '@/types/expenses';
  *     `--chart-1` — a theme may re-pitch the pair) and NOT the sign token: a bar is a series, not a
  *     verdict on a figure.
  *
- * CHECKLIST: a new `ExpenseType` needs a dot, a badge and — if it is a flow — a series colour.
+ * CHECKLIST: a new `ExpenseType` needs a dot, a badge, a colour value (EXPENSE_TYPE_COLOR_VAR) and
+ * — if it is a flow — a series colour.
  */
+
+/**
+ * The same colours as CSS values, for what paints through `style` (the Flusso's share bar and its
+ * legend). NOT derived from EXPENSE_TYPE_DOT_CLASS, nor the reverse: Tailwind only generates a
+ * class it finds written out literally in the source, so the classes must stay literals and the
+ * two maps are kept in step by hand.
+ *
+ * CHECKLIST: moving a slot here means moving it in EXPENSE_TYPE_DOT_CLASS and
+ * EXPENSE_TYPE_BADGE_CLASS in the same commit; __tests__/expenseTypeColors.test.ts fails otherwise.
+ */
+export const EXPENSE_TYPE_COLOR_VAR: Record<ExpenseType, string> = {
+  income: 'var(--flow-in)',
+  fixed: 'var(--chart-1)',
+  variable: 'var(--chart-4)',
+  debt: 'var(--chart-3)',
+  transfer: 'var(--chart-5)',
+};
+
 export const EXPENSE_TYPE_DOT_CLASS: Record<ExpenseType, string> = {
   income: 'bg-[var(--flow-in)]',
   fixed: 'bg-[var(--chart-1)]',

@@ -74,7 +74,6 @@ import {
   resolvePeriodThroughMonth,
   resolveSingleMonth,
   summarizeFlow,
-  buildTypeFlowBreakdown,
   type AnalisiPeriod,
   type MonthRef,
   type PeriodMode,
@@ -82,6 +81,7 @@ import {
 } from '@/lib/utils/analisiSummary';
 import {
   buildAnalisiVerdict,
+  describeAnalisiScheduledHorizon,
   describeAnalisiSubject,
   describeAnomalies,
   describeBaseline,
@@ -426,8 +426,6 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
   const expenseSlices = useMemo(() => buildExpenseComposition(periodExpenses), [periodExpenses]);
   const incomeSlices = useMemo(() => buildIncomeComposition(periodExpenses), [periodExpenses]);
   const flow = useMemo(() => summarizeFlow(periodExpenses), [periodExpenses]);
-  // The phone's type view: the reading's own type shares, plus each type's categories.
-  const typeBreakdown = useMemo(() => buildTypeFlowBreakdown(periodExpenses, flow), [periodExpenses, flow]);
   // The 50/30/20 view reads the same totals the Sankey draws (summarizeSpendingRoles), off when the setting is.
   const spendingRolesFlow = useMemo(
     () =>
@@ -810,8 +808,11 @@ export function AnalisiTab({ allExpenses, categories, loading, loadFailed, histo
                 expenses={periodExpenses}
                 isMobile={isMobile}
                 reading={describeFlow(flow, totals.savingsRate)}
-                typeBreakdown={typeBreakdown}
+                flow={flow}
                 spendingRoles={spendingRolesFlow}
+                // The verdict's own calendar slice: on a phone the surplus note declares it too.
+                scheduled={scheduled}
+                scheduledHorizon={describeAnalisiScheduledHorizon(period, today)}
                 onEntityClick={handleEntitySelect}
               />
             </div>

@@ -1,75 +1,71 @@
 'use client';
 
 /**
- * Flusso's 50/30/20 view on a phone: the 50/30/20 bar with the reference ticks, then each role's
- * categories as ranked rows (the owner's call, 2026-09-15, after trying a vertical flow beside
- * it). Drawn by FlowShareMobile, the type view's twin.
+ * Flusso's 50/30/20 view below 640px: the 50/30/20 bar with the reference ticks, then each role's
+ * categories as ranked rows. Drawn by FlowShareMobile.
  *
- * The bar's shares are on the SAME base as the tile's reading above — income plus what the wealth
- * covered, i.e. what left — so the bar and the sentence print the same 58/42 (owner, 2026-09-15:
- * the income base printed 60/44 under a 58/42 sentence). A deficit is the red «entrate» line inside
- * the bar. The role headers print amounts only.
- *
- * Every number comes from the summary Analisi already computed (summarizeSpendingRoles).
+ * Every figure and every word comes from the pure layer: the shares from
+ * `summarizeSpendingRoleShares` — the SAME source `describeSpendingRolesFlow` prints above the bar,
+ * so the legend and the sentence cannot disagree by a rounding — and the caption, the surplus note
+ * and the empty line from analisiNarrative.ts. The bar's base is what left the budget (income plus
+ * what the wealth covered); a deficit is the red «entrate» line, clamped onto the bar.
  */
 
 import type { ExpenseType } from '@/types/expenses';
-import type { SpendingBucket, SpendingRolesSummary } from '@/lib/utils/spendingRoles';
-import { SPENDING_BUCKET_LABELS, SPENDING_ROLE_FLOW_ORDER } from '@/lib/utils/cashflowSankey';
-import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
+import type { ScheduledSlice } from '@/lib/utils/tracciamentoSummary';
+import { labelRoleSlices, summarizeSpendingRoleShares, type SpendingRolesSummary } from '@/lib/utils/spendingRoles';
+import { describeFlowSurplus, describeShareCompact, describeSpendingRolesBar } from '@/lib/utils/analisiNarrative';
+import { spendingRoleColorVar } from '@/lib/constants/spendingRoleColors';
 import { FlowShareMobile, type FlowShareGroup } from '@/components/cashflow/analisi/FlowShareMobile';
 
-const ROLE_COLOR: Record<SpendingBucket, string> = {
-  need: 'var(--role-need)',
-  want: 'var(--role-want)',
-  saving: 'var(--role-saving)',
-  unclassified: 'var(--role-unclassified)',
-};
-
-/** The 50/30/20 reference: needs up to 50, needs + wants up to 80. */
-const RULE_TICKS = [50, 80];
+/**
+ * The 50/30/20 reference: needs up to 50, needs + wants up to 80. If these move, move the words too:
+ * describeSpendingRolesBar says «tacche a 50 e 80».
+ */
+const RULE_TICKS = [50, 80] as const;
 
 interface Props {
   summary: SpendingRolesSummary;
+  /** The period's not-yet-happened slice (AnalisiTab's `scheduled`, the verdict's own), for the surplus note. */
+  scheduled: ScheduledSlice;
+  /** How far that calendar reaches (`describeAnalisiScheduledHorizon`). */
+  horizon: string | null;
   onEntityClick: (target: { expenseType: ExpenseType; categoryKey: string }) => void;
 }
 
-const euro = (value: number) => cachedFormatCurrencyEUR(value, true);
+export function SpendingRolesMobileFlow({ summary, scheduled, horizon, onEntityClick }: Props) {
+  const roleShares = summarizeSpendingRoleShares(summary);
 
-export function SpendingRolesMobileFlow({ summary, onEntityClick }: Props) {
-  const span = summary.income + summary.deficit;
-  if (span <= 0) {
-    return <p className="py-8 text-center text-[13px] text-muted-foreground">Nessun flusso nel periodo.</p>;
-  }
-
-  const groups: FlowShareGroup[] = SPENDING_ROLE_FLOW_ORDER.map((bucket) => {
-    const categories = summary.byBucket[bucket].categories;
-    const surplus = bucket === 'saving' ? summary.surplus : 0;
-    return {
-      key: bucket,
-      label: SPENDING_BUCKET_LABELS[bucket],
-      color: ROLE_COLOR[bucket],
-      total: bucket === 'saving' ? summary.savings : summary.byBucket[bucket].total,
-      categories,
-      note: surplus > 0 ? (categories.length > 0 ? `Più ${euro(surplus)} avanzati nel periodo.` : `${euro(surplus)} avanzati nel periodo.`) : null,
-    };
-  }).filter((group) => group.total > 0);
+  const groups: FlowShareGroup[] = roleShares.shares.map((share) => ({
+    key: share.bucket,
+    label: share.label,
+    color: spendingRoleColorVar(share.bucket),
+    total: share.amount,
+    // Two categories of one role can share a name (a fixed «Casa» and a variable one): the rows
+    // then carry their type, or the list would print the same word twice.
+    categories: labelRoleSlices(summary.byBucket[share.bucket].categories),
+    // Risparmi's surplus has no category row: it is said under the group, «Più …» after saving rows.
+    note:
+      share.bucket === 'saving'
+        ? describeFlowSurplus({ surplus: roleShares.surplus, afterRows: roleShares.saved > 0, scheduled, horizon })
+        : null,
+  }));
 
   return (
     <FlowShareMobile
+      absence={roleShares.absence}
       bar={{
-        segments: groups.map((group) => ({
-          key: group.key,
-          label: group.label,
-          value: group.total,
-          share: formatPercentageIt((group.total / span) * 100, 0),
-          color: group.color,
+        segments: roleShares.shares.map((share) => ({
+          key: share.bucket,
+          label: share.label,
+          percentage: share.percentage,
+          printed: describeShareCompact(share.percentage),
+          color: spendingRoleColorVar(share.bucket),
         })),
+        ariaLabel: 'Quote per ruolo, sul riferimento 50/30/20',
         ticks: RULE_TICKS,
-        incomeEdge: summary.deficit > 0 ? (summary.income / span) * 100 : null,
-        caption:
-          `Quote di quanto è uscito (${euro(span)}); tacche a 50 e 80, il riferimento 50/30/20.` +
-          (summary.deficit > 0 ? ` Oltre la linea delle entrate: ${euro(summary.deficit)} dal patrimonio.` : ''),
+        incomeEdge: roleShares.incomeEdge,
+        caption: describeSpendingRolesBar(roleShares),
       }}
       groups={groups}
       onEntityClick={onEntityClick}

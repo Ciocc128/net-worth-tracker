@@ -37,7 +37,7 @@
 
 'use client';
 
-import { categoryRoleColor } from '@/lib/utils/categoryIconStyle';
+import { categoryRoleColor } from '@/lib/utils/spendingRoles';
 import React, { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -106,7 +106,7 @@ import { Asset } from '@/types/assets';
 import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
 import { getAllCategories, deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
 import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory, TransferBoundaryError } from '@/lib/services/expenseService';
-import { CategoryManagementDialog } from '@/components/expenses/CategoryManagementDialog';
+import { CategoryManagementDialog, invalidateCategoryCaches } from '@/components/expenses/CategoryManagementDialog';
 import { CategoryDeleteConfirmDialog } from '@/components/expenses/CategoryDeleteConfirmDialog';
 import { CategoryMoveDialog } from '@/components/expenses/CategoryMoveDialog';
 import { LAZY_CATEGORY_ICONS } from '@/components/expenses/IconPickerPopover';
@@ -1145,6 +1145,7 @@ export default function SettingsPage() {
         setDeleteConfirmDialogOpen(false);
         setCategoryToDelete(null);
         setExpenseCountToReassign(0);
+        invalidateCategoryCaches(queryClient, ownerId, { rowsChanged: true });
         await loadExpenseCategories();
         return;
       }
@@ -1186,6 +1187,7 @@ export default function SettingsPage() {
       setDeleteConfirmDialogOpen(false);
       setCategoryToDelete(null);
       setExpenseCountToReassign(0);
+      invalidateCategoryCaches(queryClient, ownerId, { rowsChanged: true });
       await loadExpenseCategories();
     } catch (error) {
       console.error('Error during reassignment and deletion:', error);
@@ -1198,6 +1200,8 @@ export default function SettingsPage() {
     try {
       await deleteCategory(categoryId);
       toast.success('Categoria eliminata con successo');
+      // The armed path is the zero-row one: only the taxonomy changed.
+      if (ownerId) invalidateCategoryCaches(queryClient, ownerId, { rowsChanged: false });
       await loadExpenseCategories();
     } catch (error) {
       console.error('Error deleting category:', error);
@@ -1271,6 +1275,8 @@ export default function SettingsPage() {
         `${movedCount} ${movedCount === 1 ? 'transazione spostata' : 'transazioni spostate'} da "${categoryToMove.name}" a "${newCategory.name}"`
       );
 
+      invalidateCategoryCaches(queryClient, ownerId, { rowsChanged: true });
+
       // Reset state — source category is NOT deleted
       setMoveCategoryDialogOpen(false);
       setCategoryToMove(null);
@@ -1288,6 +1294,8 @@ export default function SettingsPage() {
     setEditingCategory(null);
   };
 
+  // The dialog has already invalidated the React Query copies (invalidateCategoryCaches, where the
+  // write happens): what is left is the page's own list.
   const handleExpenseCategorySuccess = async () => {
     await loadExpenseCategories();
   };

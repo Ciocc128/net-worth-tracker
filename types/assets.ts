@@ -384,7 +384,7 @@ export interface AssetAllocationSettings {
   // monthly email, so it lives in the settings mapper of dashboardOverviewService.ts too.
   expenseSplitEnabled?: boolean;
   // When true, the category dialog offers the 50/30/20 role (Necessità / Desideri / Risparmi) and
-  // Analisi's Sankey can split spending by it. The roles themselves live on the category documents
+  // Analisi's Flusso can split spending by it. The roles themselves live on the category documents
   // (ExpenseCategory.spendingRole), so turning this off hides them without erasing them. Read only
   // client-side: not in the server settings mappers.
   spendingRolesEnabled?: boolean;
