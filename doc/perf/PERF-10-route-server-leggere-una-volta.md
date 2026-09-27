@@ -1,20 +1,24 @@
-# PERF-10 — Le route server leggono una volta: la chiave dell'Esposizione, le statistiche dividendi, le thread dell'assistente
+# PERF-10 — Le route server leggono una volta: le statistiche dividendi, le thread dell'assistente (l'Esposizione è di PERF-00)
 
-> Stato: da fare · Priorità: 2 (la chiave dell'Esposizione è un bug che chiama Yahoo a ogni apertura) · Sforzo: S/M · Dipende da: PERF-07 (`Server-Timing`) · Sblocca: —
+> Stato: da fare · Priorità: 2 · Sforzo: S/M · Dipende da: PERF-07 (`Server-Timing`), PERF-00 (chiude § A) · Sblocca: —
 
 ## 1. Il problema, misurato
 
 Tre route lette il 2026-09-26, tutte verificate a riga:
 
-**A. `/api/portfolio/exposure` non va MAI in cache.** La route calcola `expectedCacheKey = ${etfCount}-${etfTickers}-${round(total)}`
-(`app/api/portfolio/exposure/route.ts:55`, tre segmenti, il totale calcolato inline) e confronta con `cached.cacheKey` (`:67`,
-insieme a un TTL server di 24 h, `:11`); il servizio salva `${etfCount}-${etfTickers}-${stockTickers}-${round(totalPortfolioValue)}`
-(`lib/server/portfolioExposureService.ts:336`, QUATTRO segmenti, il totale da `resolveAssetValueEur`) e la route lo persiste
-così (`:83`). I due formati non coincidono mai → `computePortfolioExposure` a ogni apertura di Allocazione → **Yahoo
-`quoteSummary` per ogni ETF e azione** (`:118`, `:147`), serialmente per rate limit. Anche a formati uguali, `round(total)`
-nella chiave invalida a ogni movimento di prezzo. Benchmark: Allocazione 590 ms cold / 606 warm CON GLI EMULATORI — i
-600 ms sono Yahoo vero, chiamato dal benchmark (l'unico caso in cui la misura locale ha toccato Internet). Il client ha
-`staleTime` 20 min (`usePortfolioExposure.ts:52`): a caldo non richiama, a ogni reload sì.
+**A. `/api/portfolio/exposure` non va MAI in cache — CHIUSA da `doc/perf/PERF-00`** (proprietario, 2026-09-27: la
+proposta #402 entra prima di PERF-01 e riscrive l'Esposizione). Resta qui la diagnosi, perché è il «prima» della sua
+misura. La route calcolava `expectedCacheKey = ${etfCount}-${etfTickers}-${round(total)}`
+(`app/api/portfolio/exposure/route.ts:55`, tre segmenti, il totale calcolato inline) e confrontava con `cached.cacheKey`
+(`:67`, insieme a un TTL server di 24 h, `:11`); il servizio salvava
+`${etfCount}-${etfTickers}-${stockTickers}-${round(totalPortfolioValue)}` (`lib/server/portfolioExposureService.ts:336`,
+QUATTRO segmenti, il totale da `resolveAssetValueEur`) e la route lo persisteva così (`:83`). I due formati non
+coincidevano mai, nemmeno senza azioni dirette (il segmento vuoto lascia `--`) → `computePortfolioExposure` a ogni apertura
+di Allocazione → **Yahoo `quoteSummary` per ogni ETF e azione** (`:118`, `:147`), in parallelo (`Promise.allSettled`,
+`:114-158`). Benchmark: Allocazione 590 ms cold / 606 warm CON GLI EMULATORI — i 600 ms erano Yahoo vero. PERF-00 ritira
+route, servizio e `exposure-cache/{userId}`: le risposte di Yahoo vivono per ticker in `instrument-profile-cache`, e la
+pesatura si rifà a ogni apertura — nel browser se il proprietario conferma PERF-00 § 4.9, domanda 1; rileggere lì la
+scelta presa prima di toccare § A.
 
 **B. `/api/dividends/stats`: sette `await` in serie e D letta tre volte** (`app/api/dividends/stats/route.ts:106, 109, 112, 116,
 123, 144, 173`): `calculateDividendStats` per il periodo (con le date legge per intervallo, `dividendService.ts:417-421`), di
@@ -29,9 +33,11 @@ com'è, dichiarato in § 3.
 
 ## 2. Obiettivo misurabile
 
-- A: seconda apertura di Allocazione → `Server-Timing: source=cache`, zero chiamate a Yahoo (log della route), `total` < 100 ms
-  in locale. Test Vitest che la chiave della route e quella del servizio sono la STESSA funzione, e che un movimento di
-  prezzo NON cambia la chiave (composizione uguale → chiave uguale).
+- A: **solo la misura di chiusura che PERF-00 non poteva avere** (PERF-07 non esisteva): `Server-Timing` sulla route
+  `/api/portfolio/instrument-profiles` (`db`, `yahoo`, i due conteggi `hits` e `fetched`, e `source=cache` quando tutti i profili vengono dalla
+  cache, `source=yahoo` quando almeno uno è stato chiesto a Yahoo), e il benchmark di Allocazione che conferma
+  zero chiamate a Yahoo alla seconda apertura (`total` < 100 ms in locale). Il test «seconda chiamata → mock Yahoo a 0
+  chiamate» è di PERF-00 (`__tests__/instrumentProfilesRoute.test.ts`): qui si rilegge, non si riscrive.
 - B: la route fa **un** `Promise.all` (D, A, S, T; l'upcoming derivato o in parallelo) e deriva periodo/all-time/upcoming in
   memoria; `Server-Timing` con `db` una volta; risposta identica (diff del JSON prima/dopo su fixture).
 - C: thread con `limit(50)` + cursore (`startAfter`) esposto dalla route e usato dal client (`useInfiniteQuery` con «Mostra
@@ -40,21 +46,17 @@ com'è, dichiarato in § 3.
 
 ## 3. Non-obiettivi
 
-- Non si cambia cosa l'Esposizione calcola, né i settori/holding di Yahoo, né il TTL server (24 h) o client (20 min).
+- L'Esposizione non è più di questa spec: cosa calcola, la base, la leva come nozionale e la cache per ticker li ha decisi
+  PERF-00 (doc/guide/allocazione.md). Qui si aggiunge solo il `Server-Timing`.
 - Non si toccano i numeri delle statistiche dividendi: sono derivazioni dello stesso D.
 - Non si tocca il protocollo dell'assistente né i builder di contesto («a new required bundle field means updating ALL 4
   builders»); la doppia lettura della memoria resta.
 
 ## 4. Design
 
-**A. Una funzione, una chiave.** `buildExposureCacheKey(assets)` in un modulo puro `lib/utils/exposureCacheKey.ts`
-(testabile senza Admin): ordina i ticker di ETF e azioni, conta, NIENTE totale (la composizione è l'input di Yahoo; il
-totale non cambia settori né holding — quello che cambia è il peso in euro, che il servizio ricalcola dai valori correnti
-SENZA Yahoo: separare «cosa chiede a Yahoo» da «come lo pesa»: `fetchHoldingsFromYahoo(tickers)` (cacheabile per ticker) e
-`weighExposure(holdings, assets)` (pura)). La route chiama la stessa funzione per `expectedCacheKey`. Meglio ancora, la
-cache per TICKER in una collezione condivisa (`exposure-holdings-cache/{ticker}`, `read: isAuthenticated(); write: false`
-come benchmark/FX, AGENTS.md § Caching «Global shared cache»): l'ETF dell'utente A serve anche a B, e un asset nuovo costa
-una chiamata sola. Da proporre al proprietario (strumento interattivo, consigliata «sì»).
+**A. `Server-Timing` sulla route dei profili.** Il servizio di PERF-00 (`lib/server/exposure/instrumentProfileService.ts`)
+restituisce accanto ai profili quanti ne ha presi dalla cache e quanti da Yahoo; la route li scrive nel header con il
+helper di PERF-07. Se PERF-00 NON fosse chiusa quando questa spec parte, fermarsi e dirlo: § A non si reimplementa qui.
 
 **B. Un giro.** `Promise.all([getAllDividends, getUserAssetsAdmin, getUserSnapshotsAdmin, getAssetTransactionsAdmin])`; poi
 `summarizeDividendStats(all, { startDate, endDate, assetId, now })` e `summarizeDividendStats(all, { now })` come funzioni PURE
@@ -73,29 +75,25 @@ in silenzio la 51ª: non accettabile).
 
 ## 5. File da toccare
 
-- `app/api/portfolio/exposure/route.ts`, `lib/server/portfolioExposureService.ts`, `lib/utils/exposureCacheKey.ts` (nuovo),
-  `firestore.rules` (la collezione condivisa se scelta) + `firebase deploy --only firestore:rules` (AGENTS.md § 5: il login
-  CLI stale dà 401 su `serviceusage`, non «please log in»).
+- `app/api/portfolio/instrument-profiles/route.ts`, `lib/server/exposure/instrumentProfileService.ts` — solo il
+  `Server-Timing` e i due conteggi.
 - `app/api/dividends/stats/route.ts`, `lib/utils/dividendAnalytics.ts` (le funzioni pure con `now`), `lib/services/dividendService.ts`.
 - `lib/server/assistant/store.ts`, `app/api/ai/assistant/threads/route.ts`, `lib/hooks/useAssistantThreads.ts`,
   `components/assistant/AssistantThreadList.tsx` («Mostra altre»).
-- Test: `__tests__/exposureCacheKey.test.ts`, `__tests__/portfolioExposureService.test.ts` (la route va in cache: mock di
-  Yahoo chiamato 0 volte alla seconda), `__tests__/dividendAnalytics.test.ts` (periodo/all-time/upcoming da un array, con `now`),
+- Test: `__tests__/instrumentProfilesRoute.test.ts` (il header, accanto ai casi di PERF-00),
+  `__tests__/dividendAnalytics.test.ts` (periodo/all-time/upcoming da un array, con `now`),
   `__tests__/apiAuthRoutes.test.ts` (le route: stessa risposta), `__tests__/assistantRoutes.test.ts` (limit e cursore).
 
 ## 6. Passi
 
-1. A: test della chiave (rosso oggi: le due chiavi differiscono — è la prova del bug), funzione unica, test verde; la
-   separazione fetch/pesatura; la cache per ticker se il proprietario la vuole.
+1. A: verificare che PERF-00 sia chiusa (`doc/perf/README.md` § 6); il `Server-Timing` sulla route dei profili.
 2. B: funzioni pure + test con attesi presi dalla risposta della route vecchia su fixture; la route a un giro; diff.
 3. C: limit + cursore + «Mostra altre».
 4. `Server-Timing` sulle tre; benchmark Allocazione e Cashflow › Dividendi prima/dopo.
 
 ## 7. Test e falsificazione
 
-- Chiave: `buildExposureCacheKey(assetsA) === buildExposureCacheKey(assetsA con prezzi diversi)`; ≠ con un ticker in più.
-  Falsificazione: rimettere il totale nella chiave → rosso.
-- Route Esposizione: seconda chiamata → mock Yahoo a 0 chiamate; falsificare rompendo il confronto → Yahoo chiamato.
+- Route dei profili: il header dice `source=cache` alla seconda chiamata; falsificare forzando il TTL a zero → `source=yahoo`.
 - Statistiche: le funzioni pure riproducono gli attesi della route vecchia (fixture con 7 dividendi come il mirror);
   falsificare sommando ricevuti e annunciati → rosso; `now` a fine anno → l'upcoming cambia (prova che `now` è letto).
 - Thread: 60 thread → 50 + cursore → 10; falsificare il cursore (`startAt` invece di `startAfter`) → 11.
@@ -103,55 +101,54 @@ in silenzio la 51ª: non accettabile).
 
 ## 8. Collaudo guidato
 
-- C: le quattro falsificazioni. D: `curl` delle tre route (200; per `/dividends/stats` e le thread anche il 403 su un altro
-  utente con il proprio documento come controllo positivo — l'Esposizione non prende `userId`, usa il token: la coppia
-  non si applica).
-- F (mirror): 1) Allocazione › Esposizione apre in un attimo la seconda volta, stessi settori e holding; 2) Cashflow ›
+- C: le tre falsificazioni. D: `curl` delle tre route (200) e, per tutte e tre, il 403 su un altro utente con il proprio
+  documento come controllo positivo — da PERF-00 anche la route dell'Esposizione prende `userId` (l'owner) e
+  `assertCanAccessAccount`: prima leggeva gli asset del token, e un membro delegato vedeva la propria esposizione sulla
+  pagina dell'owner.
+- F (mirror): 1) Allocazione › Esposizione apre in un attimo la SECONDA volta, e nelle DevTools il header dice
+  `source=cache` (la prima, sul mirror appena seminato, può dire `yahoo`: i suoi ticker non sono nel seed); 2) Cashflow ›
   Dividendi: le statistiche identiche (ricevuti / annunciati separati); 3) Assistente: le thread ci sono tutte (6 < 50) e
-  «Mostra altre» non appare; 4) «Aggiorna» dell'Esposizione (`force=true`) rifà Yahoo. Non coperto: rate limit di Yahoo in
-  produzione.
+  «Mostra altre» non appare; 4) «Aggiorna» dell'Esposizione (`force=true`) rifà Yahoo: `source=yahoo`. Non coperto: rate
+  limit di Yahoo in produzione.
 - G: `npm run mirror:remove`.
 
 ## 9. Rischi e rollback
 
-- La cache condivisa per ticker è una collezione nuova con rules: inerte finché non deployata (AGENTS.md); se il deploy
-  delle rules non si fa in sessione, la spec resta sulla cache per utente e lo dice.
+- PERF-00 non chiusa: § A si ferma (§ 4). B e C non ne dipendono e possono chiudere da sole.
 - Rollback per route (tre blocchi indipendenti).
 
 ## 10. Documentazione da aggiornare
 
-- CLAUDE.md «Latest»; doc/guide/allocazione.md (la chiave, la cache per ticker), cashflow-dividendi.md (le funzioni pure
-  della route, `now`), assistente.md (limit, cursore, «Mostra altre»); AGENTS.md § Caching (la collezione condivisa se
-  nasce); `Draft Release Temp.md`; doc/perf/README.md.
+- CLAUDE.md «Latest»; doc/guide/allocazione.md (il `Server-Timing` della route dei profili), cashflow-dividendi.md (le
+  funzioni pure della route, `now`), assistente.md (limit, cursore, «Mostra altre»); `Draft Release Temp.md`;
+  doc/perf/README.md.
 
 ## 11. Prompt di implementazione
 
 ```text
-Ciao, in questa sessione implementiamo doc/perf/PERF-10-route-server-leggere-una-volta.md: (A) la chiave della cache
-dell'Esposizione diventa UNA funzione pura senza il totale (oggi route e servizio la costruiscono diversa e la cache non
-va mai a segno: Yahoo a ogni apertura), con la separazione fra ciò che si chiede a Yahoo e come lo si pesa; (B)
-/api/dividends/stats legge D, A, S, T una volta in un Promise.all e deriva periodo, all-time e upcoming da funzioni pure
-che prendono now; (C) le thread dell'assistente hanno limit e cursore con «Mostra altre» nella lista. Server-Timing su
-tutte e tre. Benchmark di Allocazione e Dividendi prima/dopo.
+Ciao, in questa sessione implementiamo doc/perf/PERF-10-route-server-leggere-una-volta.md: (A) SOLO il Server-Timing
+sulla route dei profili dell'Esposizione (/api/portfolio/instrument-profiles), che doc/perf/PERF-00 ha già
+riscritto: la chiave e la cache NON si toccano; (B) /api/dividends/stats legge D, A, S, T una volta in un Promise.all e
+deriva periodo, all-time e upcoming da funzioni pure che prendono now; (C) le thread dell'assistente hanno limit e cursore
+con «Mostra altre» nella lista. Server-Timing su tutte e tre. Benchmark di Allocazione e Dividendi prima/dopo.
 
 Da fare TASSATIVAMENTE prima di ogni cosa:
 - Leggi WORKFLOW.md, AGENTS.md (§ Caching, § Server Layer and API Authorization, § Firestore Queries and the Rules,
   § Dynamic Imports: le funzioni con new Date() dentro), CLAUDE.md
 - Leggi doc/guide/allocazione.md, cashflow-dividendi.md, assistente.md, e2e-emulatori.md
 - Leggi COMMENTS.md e DEVELOPMENT_GUIDELINES.md e APPLICALE mentre scrivi codice
-- Leggi doc/perf/README.md e la spec PERF-10 per intero; PERF-07 deve essere chiusa (il helper Server-Timing esiste)
+- Leggi doc/perf/README.md e la spec PERF-10 per intero; PERF-07 deve essere chiusa (il helper Server-Timing esiste) e
+  PERF-00 pure (doc/perf/README.md § 6): se PERF-00 è aperta, fermati su (A) e dimmelo
 - Crea SESSION_NOTES.md; crea il branch dalla branch attiva PRIMA di editare
 
-Regole: nessun commit senza il mio OK; un branch e un commit; rispondi in italiano; la cache per ticker condivisa me la
-proponi con lo strumento interattivo (consigliata «sì») prima di scriverla.
-Chiusura: il test della chiave scritto PRIMA del fix e visto rosso sul codice di oggi; le quattro falsificazioni di § 7
-viste ROSSE; diff delle risposte prima/dopo su fixture; curl delle tre route; benchmark prima/dopo; suite d'area, tsc,
-lint 0, Vitest in Europe/Rome, npm run test:e2e COMPLETO; giro guidato di 4 punti sul mirror, poi mirror:remove;
-CLAUDE.md «Latest», le tre guide, AGENTS.md se nasce la collezione, Draft Release Temp.md (senza dati privati),
-doc/perf/README.md; proponi il commit.
+Regole: nessun commit senza il mio OK; un branch e un commit; rispondi in italiano.
+Chiusura: le tre falsificazioni di § 7 viste ROSSE; diff delle risposte prima/dopo su fixture; curl delle tre route con
+la coppia 200/403; benchmark prima/dopo; suite d'area, tsc, lint 0, Vitest in Europe/Rome, npm run test:e2e COMPLETO;
+giro guidato di 4 punti sul mirror, poi mirror:remove; CLAUDE.md «Latest», le tre guide, Draft Release Temp.md (senza
+dati privati), doc/perf/README.md; proponi il commit.
 ```
 
 ## 12. Modello ed effort
 
-**Claude Opus 5.5, effort high.** Tre route indipendenti con logica chiara e test facili da falsificare; la parte di dominio
-(ricevuti/annunciati mai in una cifra) è scritta nella guida. Sonnet 5 per (C) da solo; Opus per (A) e (B).
+**Claude Opus 5.5, effort high.** Due route indipendenti con logica chiara e test facili da falsificare, più un header; la
+parte di dominio (ricevuti/annunciati mai in una cifra) è scritta nella guida. Sonnet 5 per (C) da solo; Opus per (B).

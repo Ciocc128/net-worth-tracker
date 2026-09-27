@@ -21,7 +21,7 @@ Panoramica e `performance-cache` (PERF-07, PERF-09).
 **Lato codice** sta quasi tutto: la shell che non esiste finché Auth non risolve (PERF-02), la cache che muore al reload
 (PERF-03), 460 KB gz di JS su ogni pagina con recharts quattro volte e il PDF nel grafo di Storico (PERF-04), le stesse
 collezioni lette con meccanismi diversi (PERF-05), le spese intere per mostrare un mese (PERF-06), N grafici montati al
-buio su Patrimonio (PERF-11), il React Compiler mai acceso e 71 stati in un componente (PERF-12, PERF-13), il lavoro di
+buio su Patrimonio (PERF-11), il React Compiler mai acceso e 70 stati in un componente (PERF-12, PERF-13), il lavoro di
 layout e colori a ogni mount (PERF-14).
 
 ## 2. Come è stata misurata
@@ -46,6 +46,10 @@ layout e colori a ogni mount (PERF-14).
   identificato per firma (`CartesianGrid`, `@firebase/firestore`, `pdfkit`, …).
 
 ## 3. Baseline (2026-09-26, laptop Windows, mirror, nessun throttling CPU)
+
+> Misurata su `develop` PRIMA dei contributi del 2026-09-27 (#400 e #401: il Flusso per ruolo e sul telefono; #403: il
+> chip composito di Strumenti) e di PERF-00 (la nuova Esposizione). PERF-01 rimisura sulla build che li contiene (§ 5):
+> le tabelle qui sotto restano come storia, e la nota «Esposizione → Yahoo ogni volta» è il «prima» di PERF-00.
 
 **Cold** — reload della route dopo il login (ms; mediane di 3):
 
@@ -110,6 +114,8 @@ Gli archi (A → B = «B dipende da A»), gli stessi dell'intestazione di ogni s
 
 | Da | A |
 |---|---|
+| #400, #401, #403 (integrate il 2026-09-27), PERF-00 | 01 |
+| PERF-00 | 10 (§ A) |
 | PERF-01 | 02, 04, 05, 07, 12 |
 | PERF-02 | 03 |
 | PERF-04 | 11 |
@@ -117,26 +123,38 @@ Gli archi (A → B = «B dipende da A»), gli stessi dell'intestazione di ogni s
 | PERF-07 | 08, 09, 10 |
 | PERF-12 | 11, 13, 14 (il census in `scripts/`) |
 
+**PERF-00 va prima di tutto, PERF-01 compresa** (proprietario, 2026-09-27): non è una spec di sola velocità — è la
+proposta #402, la nuova Esposizione — ma chiude il difetto misurato di PERF-10 § A e cambia ciò che la baseline di
+Allocazione misura, quindi entra prima che il benchmark fissi i suoi numeri.
+
 Quattro sessioni indipendenti possono partire subito dopo PERF-01: **PERF-05** (dati), **PERF-04** (bundle), **PERF-07 →
 PERF-08 / PERF-10** (server), **PERF-12** (compiler). PERF-02 e PERF-03 sono le due che il proprietario SENTE di più; PERF-03
 vuole PERF-02 e PERF-05 prima. Due spec che toccano lo stesso punto se lo sono spartito: il `layout="position"` delle pagine è
 di PERF-14 sola; il `getDoc` bloccante di `AuthContext` è di PERF-02 sola; la lettura delle impostazioni di `AssetDialog`
-chiuso è di PERF-05 sola; il secondo `MotionConfig` è di PERF-02 sola.
+chiuso è di PERF-05 sola; il secondo `MotionConfig` è di PERF-02 sola; la cache dell'Esposizione è di PERF-00 sola
+(PERF-10 vi aggiunge il `Server-Timing`); il Sankey del Flusso dietro `next/dynamic` è di PERF-04 sola.
+
+**Contributi esterni e funzioni nuove (proprietario, 2026-09-27).** Le tre PR di Ciocc128 sono entrate PRIMA di PERF-01,
+con le correzioni della revisione; la proposta #402 la implementiamo noi da `doc/perf/PERF-00`, anche lei prima di
+PERF-01. Così baseline e budget nascono sull'app che li contiene. Una PR che arriva DOPO PERF-01 segue il protocollo di
+AGENTS.md § Commands: trial merge, matrice contro le spec aperte, emendamenti nello stesso commit, e il tetto del
+budget alzato con la misura se la route cresce (PERF-01 § 9).
 
 ## 6. Stato
 
 | Spec | Titolo | Priorità | Sforzo | Dipende da | Modello · effort | Stato |
 |---|---|---|---|---|---|---|
-| [PERF-01](PERF-01-benchmark-e-budget.md) | Il benchmark in repo e il budget che può solo scendere | 1 | M | — | Opus 5.5 · high | da fare |
+| [PERF-00](PERF-00-esposizione-leva-copertura-cache.md) | Esposizione: leva, copertura, base di Allocazione, cache per ticker (issue #402) | 1 | L | — (#400/#401/#403 già integrate) | Fable 5.1 · xhigh | da fare |
+| [PERF-01](PERF-01-benchmark-e-budget.md) | Il benchmark in repo e il budget che può solo scendere | 1 | M | 00 | Opus 5.5 · high | da fare |
 | [PERF-02](PERF-02-avvio-shell-prima-di-auth.md) | La shell prima dell'autenticazione | 2 | M | 01 | Fable 5.1 · xhigh | da fare |
 | [PERF-03](PERF-03-ultimo-dato-noto-subito.md) | L'ultimo dato noto subito, il fresco appena arriva | 2 | M | 02, 05 | Fable 5.1 · xhigh | da fare |
-| [PERF-04](PERF-04-bundle-recharts-pdf-lucide.md) | recharts una volta, il PDF e le icone quando servono | 2 | M | 01 | Opus 5.5 · high | da fare |
+| [PERF-04](PERF-04-bundle-recharts-pdf-lucide.md) | recharts una volta, il PDF, le icone e il Sankey quando servono | 2 | M | 01 | Opus 5.5 · high | da fare |
 | [PERF-05](PERF-05-un-solo-binario-react-query.md) | Un solo binario per i dati (hook React Query) | 1 | L | 01 | Fable 5.1 · high | da fare |
 | [PERF-06](PERF-06-spese-per-finestra.md) | Le spese per finestra | 2 | L | 05 | Fable 5.1 · high | da fare |
 | [PERF-07](PERF-07-overview-ricalcolo-parallelo.md) | Overview: ricalcolo parallelo, scrittura dopo, `Server-Timing` | 2 | S | 01 | Opus 5.5 · high | da fare |
 | [PERF-08](PERF-08-regione-vercel-europa.md) | Le funzioni Vercel nella regione di Firestore | 3 | S | 07 | Sonnet 5 · medium | da fare |
 | [PERF-09](PERF-09-rendimenti-una-lettura.md) | Rendimenti: ogni collezione una volta, una route per i rendimenti | 2 | M | 05, 07 | Fable 5.1 · xhigh | da fare |
-| [PERF-10](PERF-10-route-server-leggere-una-volta.md) | Route server: chiave Esposizione, statistiche dividendi, assistente | 2 | S/M | 07 | Opus 5.5 · high | da fare |
+| [PERF-10](PERF-10-route-server-leggere-una-volta.md) | Route server: statistiche dividendi, assistente, `Server-Timing` sui profili | 2 | S/M | 07, PERF-00 | Opus 5.5 · high | da fare |
 | [PERF-11](PERF-11-patrimonio-righe-leggere.md) | Patrimonio: sparkline all'apertura, un elenco, dialog montati da aperti | 3 | M | 04, 05, 12 | Opus 5.5 · high | da fare |
 | [PERF-12](PERF-12-react-compiler.md) | Il React Compiler acceso, con il census | 2 | M | 01 | Opus 5.5 · high | da fare |
 | [PERF-13](PERF-13-impostazioni-per-tab.md) | Impostazioni: sei tab, sei viste, una bozza sola | 3 | L | 05, 12 | Fable 5.1 · high | da fare |
@@ -160,7 +178,8 @@ Fino a PERF-01: `reference/perf-measure.mjs` copiato nella radice del repo come 
 risolve da lì, non dallo scratchpad), lanciato con `node .tmp-perf-measure.mjs --runs=3`, cancellato a fine sessione. Da
 PERF-01: `npm run perf:build`, `npm run perf:serve` (terminali del proprietario, con gli emulatori e il mirror, porta :3200),
 `npm run perf:bench -- --email=mirror@example.com` e `npm run perf:budget` — il `--` è obbligatorio: senza, npm si tiene le
-opzioni come `npm_config_*` e lo script non le vede. Firestore emulato risponde in ~1 ms: i waterfall sono più corti che
+opzioni come `npm_config_*` e lo script non le vede. Una spec o una PR che fa crescere una route alza il suo tetto nello
+stesso commit, con la misura e la riga di motivazione (PERF-01 § 9). Firestore emulato risponde in ~1 ms: i waterfall sono più corti che
 in produzione, e i tempi delle route server si leggono dal `Server-Timing` (PERF-07) nelle DevTools, in produzione.
 
 ## 9. Decisioni del proprietario (2026-09-26)
@@ -169,3 +188,8 @@ in produzione, e i tempi delle route server si leggono dal `Server-Timing` (PERF
 - Telefono e desktop alla pari → ordine per rapporto impatto/sforzo.
 - Sì all'ultimo dato noto subito, ovunque, con l'etichetta «Aggiornato alle…» → PERF-03.
 - Sì al React Compiler con collaudo completo → PERF-12.
+
+**2026-09-27** (integrazione dei contributi esterni):
+- Le PR #400, #401 e #403 entrano prima di PERF-01, con le correzioni applicate da noi.
+- La proposta #402 la scriviamo noi (PERF-00) ed entra prima di PERF-01; PERF-10 perde § A.
+- Una funzione nuova può alzare un tetto del budget nello stesso commit, con la misura prima/dopo → PERF-01 § 9.

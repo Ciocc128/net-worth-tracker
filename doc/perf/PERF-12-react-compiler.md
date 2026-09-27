@@ -10,13 +10,16 @@ vincoli — ma **il compiler non gira**: `next.config.ts` non ha `reactCompiler`
 `babel-plugin-react-compiler`, non esiste `.babelrc` (verificato 2026-09-26). E **non c'è un solo `React.memo` in
 `components/` o `app/`**. Quindi ogni cambio di stato in una pagina ri-renderizza l'intero sottoalbero:
 
-- `app/dashboard/settings/page.tsx`: UN componente di 4046 righe con **71 `useState`**; ogni tasto in un campo controllato
-  (`setNewEmailInput :2486`, `setStampDutyRate :2126`, …) ri-renderizza tutto, comprese le sei tab visitate (il JSX di ogni
+- `app/dashboard/settings/page.tsx`: UN componente di 4105 righe con **70 chiamate a `useState`**; ogni tasto in un campo controllato
+  (`setNewEmailInput :2511`, `setStampDutyRate :2151`, …) ri-renderizza tutto, comprese le sei tab visitate (il JSX di ogni
   tab montata è ricostruito ad ogni render).
 - `app/dashboard/cashflow/page.tsx`: ogni tab visitata resta montata (`forceMount`) e si ri-renderizza a ogni stato della
   pagina (cambio tab, `loading`, `allExpenses`, l'arrivo delle impostazioni, un `handleRefresh` nuovo ad ogni render).
-- `AssetDialog`/`ExpenseDialog`: 23 e 18 `useWatch` alla radice — un tasto, 2887 o 2235 righe.
+- `AssetDialog`/`ExpenseDialog`: 23 e 18 `useWatch` alla radice — un tasto, 2887 o 2238 righe.
 - `useChartColors` fa `setState` un frame dopo il mount in ogni host: ogni pagina con un grafico renderizza due volte.
+  `useCssColorTokens` (dal 2026-09-27, i cinque `--role-*` del Flusso per ruolo) fa lo stesso, ma solo quando il Sankey
+  dei ruoli si disegna (`enabled`): a ruoli spenti, o sulle righe del telefono, `FlussoTile` renderizza una volta sola — il
+  census lo conferma, ed è il caso che va rosso se qualcuno toglie il gate.
 
 La regola di Next 16 (`node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/reactCompiler.md`):
 `reactCompiler: true` + `babel-plugin-react-compiler`; Next applica il plugin solo ai file con JSX/hook tramite SWC, quindi
@@ -84,7 +87,7 @@ la build rallenta poco. Il post ha contato hook e sottoscrizioni prima di taglia
   (`_c(` / `useMemoCache`): grep sui chunk prima (0) e dopo (> 0).
 - Un componente «saltato»: il plugin Babel non espone un logger nella config di Next (da verificare in
   `reactCompiler.md`); il lint è la mappa (zero `preserve-manual-memoization` = nessun salto noto).
-- Suite: TUTTE (Vitest 185 file nei due fusi, E2E 37 spec).
+- Suite: TUTTE (Vitest 190 file nei due fusi, E2E 39 spec).
 
 ## 8. Collaudo guidato
 

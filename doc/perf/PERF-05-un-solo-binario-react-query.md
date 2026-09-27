@@ -10,13 +10,13 @@ ogni pagina riparte dal server. Misura warm (navigazione client, stessa sessione
 | Pagina | primo numero (ms) | richieste Firestore | perché |
 |---|---|---|---|
 | Analisi, con le spese GIÀ in cache dopo Cashflow | **242** (nessuno skeleton) | 2 | `useExpenses` deduplica |
-| Storico | **1250** | 8 | 7 chiamate DIRETTE ai servizi in `Promise.all` (`app/dashboard/history/page.tsx:139-147`), nessuna chiave React Query: rilegge S, A, TUTTA E, T, P e `getSettings` DUE volte (`getTargets` è `getSettings(...).targets`, `assetAllocationService.ts:136-141`) |
+| Storico | **1250** | 8 | 7 chiamate DIRETTE ai servizi in `Promise.all` (`app/dashboard/history/page.tsx:139-147`), nessuna chiave React Query: rilegge S, A, TUTTA E, T, P e `getSettings` DUE volte (`getTargets` è `getSettings(...).targets`, `assetAllocationService.ts:137-142`) |
 | Patrimonio | 314 | **11** | `useAssets` → poi `useMortgageInstalments` (una query per immobile, `expenseService.ts:1425-1428`, `staleTime: 0`), `useAssetLedgerMeta` → poi `useAssetTransactions` (T intera per mostrare un mese, `assets/page.tsx:165-168`), più `AssetDialog` CHIUSO che legge `assetAllocationTargets` al mount (`AssetDialog.tsx:543-547`, montato a `assets/page.tsx:528`) |
 | FIRE › Calcolatore | 1757 | 6 | 3 round trip in serie: assets → `getFIREData` (S diretta + E dell'anno scorso) → E dall'11 mesi prima del primo snapshot (`fireService.ts:782-785, 811`); l'anno scorso letto DUE volte (`annualCashflowData` e `getAnnualExpenses`) |
 | Cashflow › Centri | — | 1 + N centri | N+1 (`CostCentersTab.tsx:105-116`) su righe già in `allExpenses` |
 | Cashflow › Dividendi | — | +1 | `getAllAssets` diretta (`cashflow/page.tsx:144`) accanto a `useAssets` (`:108`) |
 | Allocazione, Impostazioni, Analisi, Rendimenti (stadio 1) | — | — | `getSettings`/`getAllAssets` diretti in `useEffect`, fuori chiave |
-| ExpenseDialog all'apertura | — | 4 | categorie, A, settings, centri: tutte già in cache sulla pagina (`ExpenseDialog.tsx:1429, 1441`) |
+| ExpenseDialog all'apertura | — | 4 | categorie, A, settings, centri: tutte già in cache sulla pagina (`ExpenseDialog.tsx:1430, 1442`) |
 
 Le righe sono del 2026-09-26: riverificarle prima di toccare. Regole già in AGENTS.md § React Query and Derived State che
 questa spec applica fino in fondo: «`forceMount` tabs deriving from a sibling's data MUST use React Query»; «Declare N fixed
@@ -43,7 +43,7 @@ settings, S tutte per chiave, zero duplicati).
 
 **Gli hook che mancano** (`lib/hooks/`): `useSettings(ownerId)` su `['settings', ownerId]` (la chiave che `AssetDialog`,
 FIRE e Previdenza già usano: portarla in `queryKeys.settings.all(ownerId)`, e portare sulla stessa costante i CINQUE punti
-che oggi la invalidano a mano — `settings/page.tsx:1516`, `FireCalculatorTab.tsx:645/661/680`, `MonteCarloTab.tsx:323`,
+che oggi la invalidano a mano — `settings/page.tsx:1539`, `FireCalculatorTab.tsx:645/661/680`, `MonteCarloTab.tsx:323`,
 `useCoastFireSettingsDraft.ts:230`), `usePensionContributions` esiste, `useSnapshots` esiste, `useAssets`/`useExpenses`/
 `useExpenseCategories` esistono; `useCostCenters(ownerId)` — ATTENZIONE: la chiave `costCenters.all` ESISTE già con un'altra
 forma (`CostCentersTab.tsx:102-116` vi mette `{ centers, byCenter }`): la forma cambia in «i centri e basta», e ogni lettore
@@ -61,15 +61,30 @@ trovati dal grep del 2026-09-26: `components/dividends/DividendDialog.tsx`, `Coa
 `MonteCarloTab.tsx`, `WhatIfAnalysisTab.tsx`, `PensionOverview.tsx`. Dove la pagina ha un «Aggiorna» che oggi richiama la
 funzione, chiama `queryClient.invalidateQueries` sulle chiavi (mai `refetch()` nudo, AGENTS.md § Caching).
 
+**Analisi legge DUE campi delle impostazioni**: `cashflowHistoryStartYear` e, dal 2026-09-27 (#400),
+`spendingRolesEnabled`. Entrambi vengono da `useSettings(ownerId)` e il secondo entra nel `loading` della pagina come il
+primo: mai un `false` provvisorio, che aprirebbe il Flusso su «Per tipo» e poi lo farebbe saltare a «Per ruolo». Una
+lettura fallita resta NON fatale come oggi (il pavimento di default, il Flusso solo «Per tipo»), ma da qui l'`isError`
+dell'hook la rende visibile: il blind spot di doc/guide/cashflow-analisi.md si chiude.
+
 **Le mutazioni invalidano le chiavi**: già oggi per asset e spese (`useDeleteAsset`, `useCreateSnapshot`); verificare che ogni
 scrittura di impostazioni (`setSettings`, le sette sedi di doc/guide/impostazioni.md § Settings — the FIVE places) invalidi
-`settings.all`, e che il salvataggio di un centro invalidi `costCenters.all`.
+`settings.all`, e che il salvataggio di un centro invalidi `costCenters.all`. Le scritture di CATEGORIA invalidano già
+`queryKeys.expenses.categories(ownerId)`, e le liste delle spese quando cambiano tipo o nome, dal 2026-09-27 (il ruolo
+50/30/20 vive sulla categoria e Analisi lo legge da quella chiave): qui passano dalle mutation degli hook, e la pagina
+Impostazioni smette di tenere la SUA copia delle categorie (`loadExpenseCategories`) accanto alla chiave.
 
 **I punti singoli:**
 - `AssetDialog.tsx:543-547`: `enabled: open && !!ownerId` — o meglio `useSettings` con `enabled: open`.
-- `ExpenseDialog.tsx:1429, 1441`: le quattro letture diventano `useExpenseCategories`, `useAssets`, `useSettings`,
+- `ExpenseDialog.tsx:1430, 1442`: le quattro letture diventano `useExpenseCategories`, `useAssets`, `useSettings`,
   `useCostCenters` (dati già in cache sulla pagina: l'apertura non aspetta nulla). Il reset del form resta com'è
-  (§ Dialog Form Reset).
+  (§ Dialog Form Reset). `spendingRolesEnabled` (#400) arriva da `useSettings` con gli altri campi e scende a
+  `CategoryManagementDialog` per prop, come oggi; i due host che non lo passano (`CategoryDeleteConfirmDialog`,
+  `CategoryMoveDialog`) restano così: senza il flag il dialog non mostra né scrive il ruolo, per scelta.
+- Esposizione (PERF-00): se PERF-00 ha chiuso § 4.9, domanda 1 con la pesatura nel browser, la tessera riceve gli asset
+  dalla pagina e legge i profili da `queryKeys.portfolio.instrumentProfiles`; quando Allocazione passa a `useAssets`, la
+  tessera prende `assets` da lì. Altrimenti la sua chiave resta quella che PERF-00 ha scritto, e qui si verifica solo che
+  una modifica di un asset la invalidi.
 - Centri: `groupExpensesByCostCenter(allExpenses)` in `lib/utils/costCenterUtils.ts` (pura, testata) al posto delle N query;
   resta `useCostCenters`. Il conteggio accanto a un'azione distruttiva deve venire dalla STESSA query della mutazione
   (doc/guide/centri-di-costo.md): verificare che la mutazione di eliminazione legga anche lei da `allExpenses` o mantenga la
