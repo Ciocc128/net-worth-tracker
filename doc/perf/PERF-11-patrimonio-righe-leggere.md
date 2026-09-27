@@ -10,7 +10,7 @@ e 314 ms warm con 11 richieste Firestore (PERF-05 ne toglie 7). Il lavoro di ren
 - `components/assets/StrumentiTile.tsx:621-644` rende **DUE volte l'elenco**: la lista mobile di `AssetRow` (`desktop:hidden`) e
   la tabella desktop (`hidden desktop:block`) sono entrambe nel DOM a ogni larghezza. La sparkline vive SOLO in `AssetRow`
   (`AssetSparkline` è importata solo lì, grep 2026-09-26): la tabella desktop non ne ha. Ogni `AssetRow` monta il suo pannello
-  collassato con CSS (`grid-rows-[0fr]` + `inert`, `AssetRow.tsx:248-265`) e dentro `AssetSparkline` (`AssetRow.tsx:263`):
+  collassato con CSS (`grid-rows-[0fr]` + `inert`, `AssetRow.tsx:312-329`) e dentro `AssetSparkline` (`AssetRow.tsx:329`):
   un `LineChart` recharts in `ResponsiveContainer` (ResizeObserver), un `useChartColors` (rAF + `getComputedStyle` + 9
   `getPropertyValue`) e un secondo rAF `setReady` (`AssetSparkline.tsx:22-30`). Con N asset: **N grafici, 2N rAF, N+1
   `getComputedStyle`** montati dentro `display:none` (desktop, la lista intera è nascosta) o dentro righe chiuse (mobile), a ogni apertura.
@@ -40,7 +40,9 @@ renderer che tocca solo ciò che cambia.
 
 ## 3. Non-obiettivi
 
-- Non si cambia l'aspetto della riga, della tabella o della sparkline (DESIGN.md; doc/guide/patrimonio.md).
+- Non si cambia l'aspetto della riga, della tabella, della sparkline né del chip di classe (`InstrumentClassChip`, dal
+  2026-09-27: segmenti in CSS sulle variabili dei temi, nessun hook, nessun `getComputedStyle`) (DESIGN.md;
+  doc/guide/patrimonio.md).
 - Non si spezza `AssetDialog` in file più piccoli (un refactor a parte, se mai; qui solo il mount e i `useWatch`).
 - Non si tocca la matematica (`patrimonioSummary.ts`, `assetPerformanceDeltas.ts`), né il `layout="position"` (PERF-14).
 
@@ -54,7 +56,9 @@ stessa altezza (`h-8`) quando chiuso, così l'animazione della griglia non cambi
 **B. Un elenco per larghezza.** `const isDesktop = useMediaQuery('(min-width: 1440px)')` in `StrumentiTile` e `{isDesktop ?
 <table> : <lista>}`. ATTENZIONE alle spec: oggi la trappola documentata è «responsive DOM duplicates make `.first()` the
 HIDDEN mobile copy» (doc/guide/e2e-emulatori.md); dopo, esiste UNA copia. Le spec che usano `.filter({ visible: true })`
-restano verdi; quelle che contano righe raddoppiate (se esistono) vanno lette.
+restano verdi; quelle che contano righe raddoppiate (se esistono) vanno lette. Il chip composito (`InstrumentClassChip`)
+è oggi in entrambe le copie: con un elenco per larghezza i chip diventano N. Non ha un hook per riga (i colori sono
+`var(--…)` in CSS), quindi non c'è nulla da passare a prop; il suo minimo di 112 px è `desktop:` e vale solo nella tabella.
 
 **C. Dialog montati all'apertura, smontati dopo l'uscita.** `ResponsiveModal` tiene il contenuto durante l'animazione di
 chiusura (doc/guide/dialog.md:71-72) ed è lì che Radix ripristina il focus (`onCloseAutoFocus`): uno smontaggio immediato
@@ -78,8 +82,10 @@ sezione quantità/PMC, non il picker del tipo. `useWatch()` per il render, `getV
 - `components/assets/AssetDialog.tsx` — sezioni con `useWatch` locale.
 - Test: `e2e/assets.rows.spec.ts` (1440: 0 sparkline al mount; `<tr>` = N, `AssetRow` = 0; il focus torna all'opener dopo
   Escape), `e2e/assets.rows.mobile.spec.ts` (390: 1 sparkline dopo l'apertura di una riga, righe = N — il NOME sceglie il
-  progetto), `e2e/assets.bond.spec.ts`, `assets.sale-tax.spec.ts`, `cashflow.mortgage.spec.ts` (la tessera Mutuo sta in
-  Patrimonio), `__tests__/assetDialogHelpers.test.ts`.
+  progetto), `e2e/assets.bond.spec.ts`, `assets.sale-tax.spec.ts`, `assets.composite-chip.spec.ts` (1440 e 390 con
+  `setViewportSize` prima del `goto`: il suo commento «Both the desktop table and the phone rows are in the DOM» si
+  riscrive, i locator restano), `cashflow.mortgage.spec.ts` (la tessera Mutuo sta in Patrimonio),
+  `__tests__/assetDialogHelpers.test.ts`.
 
 ## 6. Passi
 
@@ -105,7 +111,8 @@ sezione quantità/PMC, non il picker del tipo. `useWatch()` per il render, `getV
 ## 8. Collaudo guidato
 
 - A: E2E Patrimonio + Mutuo. C: le tre falsificazioni.
-- F (mirror, 390 e 1440): 1) la tabella e le righe identiche a prima, i Δ e le azioni; 2) aprire una riga sul telefono: la
+- F (mirror, 390 e 1440): 1) la tabella e le righe identiche a prima, i Δ, il chip diviso di uno strumento composito e le
+  azioni; 2) aprire una riga sul telefono: la
   sparkline compare senza salto; 3) «Modifica» su un ETF → fase 2 con i campi; poi «Nuovo» → fase 1; 4) digitare la
   quantità: il dialog non «pensa»; 5) Escape: il modal esce con la sua animazione e il focus torna sul bottone. Non
   coperto: solo il tempo (benchmark).

@@ -4,18 +4,18 @@
 
 ## 1. Il problema, misurato
 
-`app/dashboard/settings/page.tsx` è **un componente di 4046 righe** (`SettingsPage` da `:535`) con **71 `useState`**, 5 `useEffect`,
-5 `useCallback`, 0 `useMemo`, nessuna query React Query (letture dirette: `getSettings :723`, `getAllCategories :939`,
-`getAllAssets :956` — PERF-05). Sei tab (generale `:1989`, allocazione `:2749`, spese `:3348`, dividendi `:3628`, condivisione
-`:3817`, aspetto `:3857`) gated da `mountedTabs` (`:649`; `allocazione` sempre in `renderedPanels`, `:1831`): Radix smonta i
-pannelli inattivi (`TabsContent` senza `forceMount`, `:1988-1996`, `:2749-2757`), ma **il JSX di ogni tab visitata più
+`app/dashboard/settings/page.tsx` è **un componente di 4105 righe** (`SettingsPage` da `:546`) con **70 chiamate a `useState`**, 5 `useEffect`,
+5 `useCallback`, 0 `useMemo`, nessuna query React Query (letture dirette: `getSettings :735`, `getAllCategories :953`,
+`getAllAssets :970` — PERF-05). Sei tab (generale `:2014`, allocazione `:2774`, spese `:3373`, dividendi `:3686`, condivisione
+`:3875`, aspetto `:3915`) gated da `mountedTabs` (`:661`; `allocazione` sempre in `renderedPanels`, `:1855`): Radix smonta i
+pannelli inattivi (`TabsContent` senza `forceMount`, `:2013-2021`, `:2774-2782`), ma **il JSX di ogni tab visitata più
 allocazione viene ricostruito a ogni render**, e ogni tasto in un campo controllato è un render dell'intera funzione. In
-allocazione, `forceMount` sui `CollapsibleContent` per classe (`:3030`) e per sotto-categoria (`:3201`) rende OGNI editor
-anche collassato. Al mount, `router.replace(\`${pathname}?tab=${initialTab}\`)` incondizionato (`:676-679`) e a ogni cambio tab
-(`:673`): ogni `useSearchParams`/`usePathname` consumer (i `SceneLink`, `AddExpenseFab`) ri-renderizza.
+allocazione, `forceMount` sui `CollapsibleContent` per classe (`:3055`) e per sotto-categoria (`:3226`) rende OGNI editor
+anche collassato. Al mount, `router.replace(\`${pathname}?tab=${initialTab}\`)` incondizionato (`:688-691`) e a ogni cambio tab
+(`:685`): ogni `useSearchParams`/`usePathname` consumer (i `SceneLink`, `AddExpenseFab`) ri-renderizza.
 
 Il proprietario lo sente digitando (2026-09-26). Con il compiler acceso (PERF-12) i FIGLI memoizzano, ma il componente
-stesso ha 71 stati e continua a rieseguire 4000 righe di funzione: il compiler non può spezzare un componente. La regola del
+stesso ha 70 stati e continua a rieseguire 4000 righe di funzione: il compiler non può spezzare un componente. La regola del
 repo esiste già: «Prefer rendering large local subtrees as pure render helpers or top-level components» (AGENTS.md
 § Hierarchy). E doc/guide/impostazioni.md fissa la struttura: UN «Salva» per pagina con lo stato di salvataggio PER TAB (un
 punto sulla tab, la barra in basso, «Annulla modifiche» come RILETTURA dal server — `loadTargets({ quiet: true })`, così il
@@ -40,7 +40,7 @@ salvataggio di un co-proprietario torna), il «Salva» che apre il gruppo e foca
   chiuso, la pagina attiva la tab, APRE il gruppo (stato nella bozza: `openGroups`) e focalizza il campo (`pendingFocus`
   nella bozza, consumato dalla vista al mount con un effetto).
 - Round trip invariato: `__tests__/settingsRoundTrip.test.ts` verde senza modifiche al fixture `STORED_SETTINGS`;
-  `e2e/settings*.spec.ts` verdi; il dirty tracking per tab con le stesse parole (`settingsNarrative.ts`, 21 `describe*`).
+  `e2e/settings*.spec.ts` verdi; il dirty tracking per tab con le stesse parole (`settingsNarrative.ts`, 23 `describe*`).
 
 ## 3. Non-obiettivi
 
@@ -63,10 +63,17 @@ fa `loadTargets({ quiet: true })`), mai una copia dalla memoria.
 `setActiveTab(sede)`; la vista che monta legge `pendingFocus` dalla sua fetta e, in un effetto sul mount, focalizza il
 campo e `dispatch({ type: 'focusConsumed' })`. Nessun `useImperativeHandle` attraverso un pannello smontato.
 
-**Allocazione** è la tab più grande (`:2749-3347`): classi, sotto-categorie, target specifici, formula, leva. Dentro, un
+**Allocazione** è la tab più grande (`:2774-3372`): classi, sotto-categorie, target specifici, formula, leva. Dentro, un
 componente per classe (`AllocationClassEditor`) e uno per sotto-categoria, a livello di modulo, che ricevono la loro fetta
 e `onChange`; `Collapsible` SENZA `forceMount`, aperto/chiuso da `openGroups` nella bozza; la lista delle classi da
 `ASSET_CLASS_SEQUENCE`.
+
+**Spese** ha, nella colonna sinistra, Conti di default, Commissioni sui trasferimenti e **Ruoli 50/30/20** (dal
+2026-09-27, #400: una tessera sua e non una riga di Categorie, perché resta leggibile quando le categorie non si leggono,
+«non letti»), poi Import e Categorie. La fetta «spese» della bozza porta `spendingRolesEnabled`. `CategoryRow` (il colore
+del badge per ruolo) e `CategoryManagementDialog` (il selettore del ruolo) ricevono il valore DELLA BOZZA, non del
+documento salvato: oggi l'interruttore acceso e non ancora salvato colora già i badge e apre il selettore nel dialog, e
+così deve restare. `summarizeCategoryClassification(expenseCategories)` si calcola nella vista, non nell'orchestratore.
 
 **Le letture** (`getSettings`, categorie, asset) dagli hook di PERF-05; il «Salva» invalida `settings.all` e le chiavi delle
 pagine che leggono un'impostazione (la lista in doc/guide/impostazioni.md).
@@ -102,7 +109,10 @@ accorcia a ogni passo e il diff resta leggibile.
 ## 7. Test e falsificazione
 
 - `composeSettingsDocument(sliceSettings(STORED_SETTINGS))` deep-equals `STORED_SETTINGS`; falsificare togliendo un campo dalla
-  fetta «dividendi» → rosso (è ESATTAMENTE il bug che questa struttura può reintrodurre: un campo che non torna).
+  fetta «dividendi» → rosso (è ESATTAMENTE il bug che questa struttura può reintrodurre: un campo che non torna); seconda
+  falsificazione: togliere `spendingRolesEnabled` dalla fetta «spese» → rosso.
+- `e2e/settings.roles.spec.ts` (#400: l'interruttore salvato e riletto, il dialog che imposta un ruolo, «Da classificare»
+  che cancella il campo, il dialog a interruttore spento che non mostra né riscrive un ruolo) resta verde dopo OGNI tab.
 - La spec «salva da una tab, le altre restano»: leggere il documento in `beforeAll`, `set()` intero in `afterAll` (la regola
   di `cashflow.transfer-fee.spec.ts`).
 - Il focus attraverso le tab: spec che mette un target a 150% in allocazione, va in generale, preme Salva → la tab
@@ -139,8 +149,8 @@ accorcia a ogni passo e il diff resta leggibile.
 ## 11. Prompt di implementazione
 
 ```text
-Ciao, in questa sessione implementiamo doc/perf/PERF-13-impostazioni-per-tab.md: la pagina Impostazioni (4046 righe, 71
-useState in un componente) diventa un orchestratore sotto 500 righe con UNA bozza (useReducer + lib/utils/settingsDraft.ts:
+Ciao, in questa sessione implementiamo doc/perf/PERF-13-impostazioni-per-tab.md: la pagina Impostazioni (4105 righe, 70
+chiamate a useState in un componente) diventa un orchestratore sotto 500 righe con UNA bozza (useReducer + lib/utils/settingsDraft.ts:
 reducer, sliceSettings, composeSettingsDocument, isSliceDirty, testati contro STORED_SETTINGS) e sei viste-tab controllate
 a livello di modulo SENZA stato di form proprio (Radix smonta il pannello inattivo); «Annulla modifiche» rilegge dal
 server; il Salva con errore attiva la tab, apre il gruppo e focalizza il campo attraverso la bozza; un editor collassato in

@@ -11,6 +11,10 @@
  * Colours reach it as hex (react-spring cannot interpolate oklch — AGENTS.md → Recharts): the type
  * view's are hardcoded, the 50/30/20 view's are theme tokens resolved by useCssColorTokens.
  *
+ * Drawn from 640px only: below it the Flusso is a share bar and rows (FlowShareMobile), so there is
+ * no reduced phone variant. Fork: two desktop variants, the classic one and the THIN one the Flusso
+ * draws (doc/guide/fork-scelte-ui.md § 1).
+ *
  * Used by: components/cashflow/analisi/tiles/FlussoTile.tsx
  */
 'use client';
@@ -28,8 +32,6 @@ interface CashflowSankeyChartProps {
   view: SankeyView;
   /** Keyed on identity so switching views remounts the reveal animation. */
   viewKey: string;
-  /** Compact layout: labels inside, thinner nodes, no gradients. */
-  isMobile: boolean;
   /** The plot's height, from the view's widest column (`resolveSankeyHeight`) — never a fixed 500. */
   height: number;
   /** Inside a type's own view a type node is a no-op — the tooltip must not promise a drill. */
@@ -109,7 +111,7 @@ function widestColumn(view: SankeyView): number {
   return Math.max(1, ...perColumn.values());
 }
 
-export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, ariaLabel, onNodeClick, nodeSort = 'auto', variant = 'classic' }: CashflowSankeyChartProps) {
+export function CashflowSankeyChart({ view, viewKey, height, drilled, ariaLabel, onNodeClick, nodeSort = 'auto', variant = 'classic' }: CashflowSankeyChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const prefersReducedMotion = useReducedMotion();
@@ -124,7 +126,7 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, 
     return view.links.reduce((sum, link) => (drilled || link.target === budgetNodeId ? sum + link.value : sum), 0);
   }, [view, drilled]);
 
-  const thin = variant === 'thin' && !isMobile;
+  const thin = variant === 'thin';
   // The labels' base is what flows THROUGH Budget — max(in, out), the node's own value — so Budget
   // reads 100% and the branches add up to it even when spending exceeds income and the type view has
   // no deficit node to balance the left side (income alone gave «Budget · 104%»). In a drill, the root.
@@ -149,16 +151,6 @@ export function CashflowSankeyChart({ view, viewKey, isMobile, height, drilled, 
         enableLinkGradient: true,
         labelPosition: 'outside' as const,
         labelOffset: 12,
-      }
-    : isMobile
-    ? {
-        margin: { top: 20, right: 60, bottom: 20, left: 60 },
-        nodeThickness: 15,
-        nodeSpacing: 10,
-        nodeBorderWidth: 1,
-        enableLinkGradient: false,
-        labelPosition: 'inside' as const,
-        labelOffset: 0,
       }
     : {
         margin: { top: 40, right: 160, bottom: 40, left: 160 },

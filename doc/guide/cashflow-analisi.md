@@ -11,6 +11,7 @@
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **Analisi**: `components/cashflow/AnalisiTab.tsx` (`handleEntitySelect`) + `components/cashflow/analisi/*`, `components/cashflow/{EntityDossier,EntitySearch,ConfrontoAnnualeSection,CashflowSankeyChart,SavingsRateTrendSection,AndamentoStoricoSection}.tsx`; pure `lib/utils/{analisiSummary,analisiNarrative,expenseGrouping,cashflowSankey,cashflowComposition,expenseCategoryMatching,comparisonDeltas,expenseEntityStats,entitySearch}.ts`
+- **Flusso**: `components/cashflow/analisi/tiles/FlussoTile.tsx` (the view, the drill, the 640px switch); from 640px the Sankey `components/cashflow/CashflowSankeyChart.tsx` on the pure builders of `lib/utils/cashflowSankey.ts` (the roles' at its end), the role colours from `lib/constants/spendingRoleColors.ts` through `lib/hooks/useCssColorTokens.ts` + pure `lib/utils/cssColorToHex.ts`; below 640px `components/cashflow/analisi/FlowShareMobile.tsx` on the shared `components/ui/composition-bar.tsx`, with its TWO callers `SpendingTypesMobileFlow.tsx` (the type view, numbers from `buildTypeFlowBreakdown` in `analisiSummary.ts`) and `SpendingRolesMobileFlow.tsx` (the roles view, numbers from `summarizeSpendingRoleShares` in `spendingRoles.ts`); the words in `analisiNarrative.ts` — `describeFlow`, `describeSpendingRolesFlow`, and for the phone `describeTypeFlowBar`, `describeSpendingRolesBar`, `describeFlowSurplus`, `describeFlowAbsence`; tests `__tests__/{cashflowSankey,spendingRoles,analisiSummary,analisiNarrative,cssColorToHex,compositionBar}.test.ts`; browser: the Flusso tests and the «50/30/20» blocks of `e2e/analisi{,.mobile}.spec.ts`, the deficit block of the mobile one
 
 ## Analisi — a verdict over tiles (`components/cashflow/AnalisiTab.tsx`, `components/cashflow/analisi/*`, `lib/utils/{analisiSummary,analisiNarrative}.ts`)
 - **ONE axis, three modes** (Anno corrente | Anno | Storico, plus a month): `PeriodMode`/`AnalisiPeriod` live in
@@ -78,7 +79,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   is «su 2025 (3 mesi ancora in calendario)» (`comparisonPhrase` in `AnalisiTab`) while the year runs. Pinned by
   `comparisonDeltas.test.ts` and `analisiNarrative.test.ts`.
 - **The Flusso is legible on the real account or it is not a Flusso** (2026-09-14): the plot's height comes from its widest column
-  (`countSankeyLayers` → `resolveSankeyHeight`: a 26px row per node from `desktop:`, 22 below, floor 500/400, cap 1100 — a fixed
+  (`countSankeyLayers` → `resolveSankeyHeight`: a 26px row per node, floor 500, cap 1100 — one variant, the Sankey is not drawn below 640px; a fixed
   500px packed 30 categories at 10px of spacing and 16 pairs of labels overlapped), the nodes are aligned `start` (a leaf category
   stays in the categories' column and the savings beside the types; `justify` pushed every leaf to the last column), the labels
   are one neutral per mode (`LABEL_TEXT_COLORS`, declared in DESIGN.md's hex inventory) and the svg carries the tile's reading as
@@ -122,39 +123,84 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **`CashflowSankeyChart` is a plot, `FlussoTile` is the navigation**: the tile owns the subcategory toggle
   (`aria-pressed`) and the single type drill, builds the `SankeyView` with the pure builders and passes it down;
   node clicks come back as DESCRIPTORS (`view.index`), never parsed from the id. Colours stay hex (react-spring).
-- **Flusso's chart on desktop is the THIN one, in both views** (owner's pick «B» from a five-form comparison,
-  2026-09-15): `CashflowSankeyChart variant="thin"` — 4-px nodes, pale gradient ribbons that arrive in the target's
-  colour, a two-line label (name, then whole-euro amount · share) drawn by a custom Nivo layer. Shares are of what
-  flows THROUGH Budget (max(in, out)), so Budget reads 100% even when spending exceeds income. The builders take a
-  `FlowGrouping` (3 sources, 4 categories a branch): the rest becomes «Altre entrate» / «Altre N» (a tail of one is
-  drawn as itself), and «Altre N» opens its type or role (`OthersParent`). The five-column subcategory layer keeps the
-  classic chart and never groups — two-line labels do not fit.
-- **Flusso has two views once `spendingRolesEnabled` is on — «Per ruolo» (the default) and «Per tipo»**, two twin
-  `aria-pressed` toggles in the «Sottocategorie» button's own style (one always pressed), hidden inside a drill. The roles view is Entrate (+ «Coperto dal patrimonio») → Budget →
-  Necessità / Desideri / Da classificare / Risparmi → categorie (`buildSpendingRolesFlowData`, subcategory layer too).
-  **On a phone the roles view is not a Sankey** (a four-column Sankey gets ~80 px a column at 390): `SpendingRolesMobileFlow`
-  draws the 50/30/20 bar — shares of INCOME with ticks at 50 and 80 and a red 100% line a deficit runs past — then
-  each role's categories as `RankedRows` (5 + «Mostra tutte»; a row opens the Scheda). The owner chose it over a
-  vertical flow after trying both. The reading above still measures shares of what left, so the role headers print
-  amounts only: no second percentage on another base on the same screen. **On a phone the type view is not a Sankey
-  either** (2026-09-25, the owner's call — the reduced Sankey did not read at 390; it is the ONLY view with the roles
-  off, so upstream-neutral): `SpendingTypesMobileFlow` draws ONE bar of the SPENDING split by type, then each type's
-  categories as `RankedRows`, then «Risparmio» as a closing block («X € avanzati nel periodo»), absent in a deficit.
-  The base is the spending because `describeFlow` prints the types over the spending and the savings over the income:
-  the bar's figures come from the reading's own `FlowSummary` (`buildTypeFlowBreakdown` in `analisiSummary.ts`, whose
-  blocks ARE `flow.typeShares`), and the savings stay off the bar. A deficit is the red «entrate» line where income
-  ends. Colours: `var(--type-flow-*)` where the theme names them (Lime Frost light, the desktop Sankey's), else the
-  ONE type map's slots (`--chart-1/4/3`, savings `--chart-2`) — never the Sankey's hex. **Both phone views are
-  `FlowShareMobile`**: the bar is proportion only and the shares are a legend under it in the foreground ink (white
-  inside the segments measured 1,30–7,30:1 across the theme blocks, and a thin segment clipped its figure), 5 rows +
-  «Mostra tutte» a group, a row opens the Scheda. So a phone draws NO Sankey outside a drill carried across a resize,
-  and the subcategory toggle and the node count are hidden there. The Sankey builders' `isMobile` limits
-  (`MOBILE_MAX_*`) are reached only through that carried drill.
-  A role node drills to its categories like a type node (`buildSpendingRoleDrillDownData`); the reading is
-  `describeSpendingRolesFlow` over the same `summarizeSpendingRoles` the builder takes its totals from. Its nodes keep
-  the builder's order (`nodeSort="input"`), or a role's categories interleave with the other's by value; the Tipi view
-  keeps d3's own order. Colours are theme tokens resolved to hex (doc/guide/temi.md); the rules of the roles themselves
-  are in doc/guide/cashflow.md § Ruoli 50/30/20.
+  **A drill is stored WITH its subject** (`{ isMobile, drill }`, AGENTS.md → React Query and Derived State): it is a
+  place inside the Sankey, so below 640px it resolves to none — no effect resets it — and it comes back if the width
+  does.
+- **The Flusso picks its drawing at 640px — a legibility threshold of the chart, not a second composition: from 640
+  to 1439 the Sankey, below it a share bar and ranked rows** (owner's decision, 2026-09-27; the switch is AnalisiTab's
+  `useMediaQuery('(max-width: 639px)')`, older than the phone view). A four-column Sankey gets ~80px a column at 390, so
+  the phone gets the chart's DATA instead: the same figures, the same words, the same landing (a row opens the Scheda
+  through `handleEntitySelect`). Below 640 no Sankey model is built at all — no view, no `resolveSankeyHeight`, no
+  chart label — and the type breakdown is built only when the phone's type view is what the tile draws
+  (`buildTypeFlowBreakdown`, called in `FlussoTile`, not in AnalisiTab). The builders and the chart have no phone
+  variant any more (the old top-N cut and its «solo le voci principali» note were deleted with the last caller).
+- **Flusso has two views once `spendingRolesEnabled` is on — «Per ruolo» (the default) and «Per tipo»** (today's view,
+  unchanged): an `AsideToggle` named «Raggruppa il flusso» (a group of `aria-pressed` buttons, ONE Tab stop on the
+  pressed option, 44px below `desktop:`), hidden inside a drill, beside the «Sottocategorie» toggle — two Tab stops in
+  the aside, one on a phone. The roles view is the same classic Sankey: Entrate (+ «Coperto dal patrimonio») → Budget →
+  Necessità / Desideri / Da classificare / Risparmi → categorie (`buildSpendingRolesFlowData`, subcategory layer too,
+  same top-6×4 cut). A category split by a subcategory override is one node per role, its label qualified by the role.
+  A role node drills to its categories like a type node (`buildSpendingRoleDrillDownData`). The reading is
+  `describeSpendingRolesFlow`, whose shares come from `summarizeSpendingRoleShares` — the source the phone bar reads
+  too — in `SPENDING_ROLE_FLOW_ORDER`, the order the Sankey and the bar draw, rounded so they add up to 100 as printed.
+  Its nodes keep the builder's order (`nodeSort="input"`), or a role's categories interleave with another's by value.
+  Entrate and Budget keep the type view's colours; the roles are the five `--role-*` aliases (doc/guide/temi.md), mapped
+  once in `lib/constants/spendingRoleColors.ts` (`SPENDING_ROLE_TOKEN`, `spendingRoleColorVar`),
+  resolved to hex by `useCssColorTokens` ONLY while the roles Sankey is on screen (its `enabled`), their categories
+  the derived shades as under a type; the type view's memo never depends on them.
+- **Two owner wordings (2026-09-27).** (a) «Risparmi» keeps its name in the roles view although it is the rows
+  classified as saving PLUS the surplus, while the type view's «Risparmi» is the surplus alone — so whenever saving rows
+  exist the reading says what it is made of: «risparmi 30% (di cui 300 € accantonati e 450 € avanzati)», or «(tutti
+  accantonati)» without a surplus. (b) The phone's surplus note keeps the past tense, «X € avanzati nel periodo.», and
+  a running year's calendar is declared, never re-worded: `describeFlowSurplus` appends the shared `scheduledSentence`
+  with the verdict's own `scheduled` slice and `describeAnalisiScheduledHorizon`, both handed down by AnalisiTab.
+- **Three rules the owner's tour found on real data (2026-09-27)**, each pinned by a Vitest case seen red.
+  (a) **A name that repeats is qualified by what actually differs** (`resolveRoleCategoryLabels`): the same category
+  split across two roles takes the role («Abbonamenti (Necessità)»), two DIFFERENT categories that share a name inside
+  one role take the type («Casa (Spese Fisse)» / «Casa (Spese Variabili)» — the role they share printed «Casa (Da
+  classificare)» twice), and both when both happen; the phone's rows do the same per role (`labelRoleSlices`), and the
+  roles summary keys its slices by type AND key, as the Sankey's aggregation does. (b) **A derived shade never goes below
+  55% of its base** (`MIN_SHADE_FACTOR` in `deriveSubcategoryColors`): the ramp had no floor and painted every node from
+  the eighth on #000000, invisible on a dark theme — in the type view too, from the fifth category of a type on the
+  shades are now the floor's. (c) **A share that holds money and rounds to zero reads «meno dell'1%»** in a sentence and
+  «<1%» in a legend (`describeShare` / `describeShareCompact`), never «0%»; the drift that makes the shares add up to
+  100 never pushes a share of one point down to zero, so a printed zero always means «less than half a point».
+- **On a phone** `FlowShareMobile` draws both views and computes nothing a reader sees but a group's row shares and
+  its «Altre N categorie» (CategorieTile's precedent): the bar is the shared `CompositionBar` with its additive props —
+  `ticks` (50 and 80), the `edge` (the red «entrate» line, clamped by the pure layer; its word sits right of the line
+  below the bar's middle and left of it above, so it never paints outside the tile), whole-percent legend
+  (`legendDecimals`) named «Quote del flusso» — and every sentence is a `Narrative` from analisiNarrative:
+  `describeSpendingRolesBar` / `describeTypeFlowBar` under the bar (the deficit tail, or «Nessuna entrata: tutto è
+  coperto dal patrimonio.» with no line at all when income is ≤ 0), `describeFlowSurplus` under the savings group,
+  `describeFlowAbsence` (`missing` / `zero`) instead of a flow. «Mostra tutte» under a group of more than five rows is a
+  real disclosure (`aria-expanded`, `aria-controls` naming the list). `SpendingRolesMobileFlow` draws the 50/30/20 bar
+  on the reading's own base (income + what the wealth covered); `SpendingTypesMobileFlow` — the only view with the
+  roles off — draws ONE bar of the SPENDING by type, then each type's categories, then «Risparmio» as a closing block,
+  absent in a deficit: the base is the spending because `describeFlow` prints the types over the spending and the
+  savings over the income, and `buildTypeFlowBreakdown`'s blocks ARE `flow.typeShares`. Both print
+  `TypeShare.printedPercentage`, rounded ONCE in `summarizeFlow` with the drift on the largest type (no type is a
+  remainder), so three equal types read 34 + 33 + 33 and never 99; `percentage` stays unrounded and nothing on screen
+  prints it. Colours: the one type map
+  (`EXPENSE_TYPE_COLOR_VAR`, savings `CASHFLOW_SERIES_COLOR.income`), never the Sankey's hex. The subcategory toggle
+  and the node count are hidden there. The rules of the roles themselves are in doc/guide/cashflow.md § Ruoli 50/30/20.
+- **Fork — where the Flusso diverges from the upstream text above** (doc/guide/fork-scelte-ui.md § 1, «Analisi
+  Flusso»; re-applied over upstream's integration of #400/#401 on 2026-09-27):
+  (a) **From 640px every view is the THIN chart** (owner's pick «B» from a five-form comparison, 2026-09-15):
+  `CashflowSankeyChart variant="thin"` — 4-px nodes, pale gradient ribbons that arrive in the target's colour, a
+  two-line label (name, then whole-euro amount · share) drawn by a custom Nivo layer. Shares are of what flows THROUGH
+  Budget (max(in, out)), so Budget reads 100% even when spending exceeds income. The classic chart stays for the
+  five-column subcategory layer, whose labels do not fit on two lines.
+  (b) **Grouping**: the compact views take a `FlowGrouping` (`DESKTOP_GROUPING` in `FlussoTile`: 3 sources, 4
+  categories a branch); the rest becomes «Altre entrate» / «Altre N» (a tail of one is drawn as itself), and «Altre N»
+  opens its type or role (`OthersParent`). In the roles view the grouping runs AFTER upstream's `trimToTotal`, so
+  «Altre entrate» carries the signed, netted income and Budget stays balanced. The subcategory layer never groups.
+  `countSankeyLayers` counts an «Altre» node in its parent's column.
+  (c) **Colours**: the roles view's sources and Budget read `--role-income` / `--role-budget` (`ROLE_TOKENS` in
+  `FlussoTile` = `SPENDING_ROLE_TOKEN` + those two; `:root` = `--flow-in` / `--muted-foreground`, so every theme but
+  Lime Frost dark is unchanged) instead of the type view's colours; a role's categories wear the role's colour FLAT,
+  in the roles Sankey and its drill, not derived shades. The type view reads the theme's `--type-flow-*` when it names
+  them (Lime Frost; `TYPE_TOKENS`, read only while a type Sankey is drawn) — sources, Budget and each type flat — and
+  on the phone `SpendingTypesMobileFlow` puts `var(--type-flow-*, <the ONE type map's slot>)` on its bar.
 - **`RankedRows` is a real `<ul>`, and a clickable row is a real `<button>` inside its `<li>`** — named
   «{label} · {caption}, {amount}, {share}%» (the caption is the day and the subcategory of a single expense) with
   `aria-current` on the focused one. Never `role="listitem"` on the button (the `CompositionList` habit): the explicit
@@ -171,4 +217,4 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## Per-page blind spots
 
-- **Analisi**: «Fuori scala» runs on ONE month only (25% / 50 € over a 6-month average, hardcoded); a month not started gets «non è ancora iniziato»; «Mostra tutte», the Confronto year and the Flusso toggles are session-only; the Scheda's transactions window is 25 + «Mostra altre»; `EntityDossier` stays Recharts; `SavingsRateTrendSection`/`AndamentoStoricoSection` compute in the component (untested); a phone shows no Sankey and no subcategory layer — the Flusso there is a bar and the categories, and the subcategories are reached through the Scheda; the phone's type bar is of the spending, so Risparmio is a block under it and not a segment (the roles bar is of what left and carries it); a previous month recorded in one batch (September 2025 on the real account: 65 rows, all from the 21st) leaves the running month with NO comparison under the same-days rule until the days catch up, and the Periodo says so; no spec covers «Anno» with a month.
+- **Analisi**: «Fuori scala» runs on ONE month only (25% / 50 € over a 6-month average, hardcoded); a month not started gets «non è ancora iniziato»; «Mostra tutte», the Confronto year and the Flusso toggles are session-only; the Scheda's transactions window is 25 + «Mostra altre»; `EntityDossier` stays Recharts; `SavingsRateTrendSection`/`AndamentoStoricoSection` compute in the component (untested); a drill opened from 640px up disappears below 640 and comes back when the width does (it is stored with the width, not reset); **a failed settings read turns the roles view off silently**, by design — the page's settings loader is non-fatal for the history floor, so the flag stays at its `false` default and only «Per tipo» shows, with nothing saying why, until the settings hook surfaces the error (PERF-05's `useSettings`); the type Sankey's income nodes are magnitudes per row (a reversal enlarges them), the roles Sankey's are signed and net per category, as the readings are; a previous month recorded in one batch (September 2025 on the real account: 65 rows, all from the 21st) leaves the running month with NO comparison under the same-days rule until the days catch up, and the Periodo says so; no spec covers «Anno» with a month.

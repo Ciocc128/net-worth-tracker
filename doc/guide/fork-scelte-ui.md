@@ -10,7 +10,9 @@ Branch: `feat/ui-lime-frost-agentation` (theme + 50/30/20 + third upstream merge
 merged into `main` with PR #3; fourth upstream merge (#364–#378) on `merge/upstream-2026-09-21` (PR #9); fifth
 (#379–#389) on `merge/upstream-2026-09-24`, over `origin/main`; sixth (#392–#393, transfer fee and mortgage principal —
 no fork-side conflict in code) on `merge/upstream-2026-09-25`; seventh (#394–#395, the «Mutuo» tile on Patrimonio —
-no fork-side conflict in code) on `merge/upstream-2026-09-25b`.
+no fork-side conflict in code) on `merge/upstream-2026-09-25b`; eighth (#391, #398 perf dossier, #399 v10.0.0) on
+`merge/upstream-2026-09-26`; ninth (#404 mobile dossier, #405/#406 — upstream's integration of the fork's #400, #401,
+#403 with changes, PERF-00 from #402, Divisione's common income) on `merge/upstream-2026-09-27`.
 
 ---
 
@@ -23,17 +25,17 @@ Keep these on every merge; each one conflicted, or will conflict, with an upstre
 | **Storico scrub** | Retired 09-13 (`5e6e3c6`): a hover reads only the chart it is on | **Restored 09-15**: the month under the pointer drives Evoluzione's head, Composizione, Valore per strumento and the Driver slot. The milestone confetti stays retired | `lib/utils/storicoScrub.ts`, `components/history/tiles/{Evoluzione,Composizione,Driver}Tile.tsx`, `app/dashboard/history/page.tsx`, `lib/utils/historyComposition.ts`. 09-21: re-applied over upstream's two-column grid and its ledger Driver (three bars: savings, market, tax) |
 | **Current month in monthly bar charts** | A 1px foreground outline around the month's bars | A faint column behind the slot + the month name in a pill (`CurrentSlotBand`, `CURRENT_SLOT_LABEL_CLASS`), in every monthly bar chart: Tracciamento, Budget, Analisi, Risparmio nel tempo, Dividendi, Storico Driver, Hall of Fame | `components/ui/chart-hover.tsx` + the seven charts |
 | **Truncated labels** | `truncate` on ranked rows, feed titles, Strumenti names, Piano rows (09-24: Hall of Fame's record rows and Note periods stopped cutting too — `min-w-`, `whitespace-nowrap`) | **Never cut**: two-line clamp (`line-clamp-2 break-words`); on a phone a ranked row's caption drops under the name. Hall of Fame: upstream's own fix taken on 09-24 (the fork's `w-[108px]` retired); the Note tile's ranking names wrap instead of upstream's `truncate` | `components/ui/{ranked-rows,composition-list}.tsx`, `components/hall-of-fame/tiles/NoteTile.tsx`, `components/cashflow/CompactExpenseRow.tsx`, `components/assets/AssetRow.tsx`, `components/allocation/{PlanRow,InstrumentTradeList,tiles/PianoTile}.tsx` |
-| **Analisi Flusso** | One classic Sankey, types only; upstream's column-driven height, `align="start"`, top-6×4 subcategories | **50/30/20 view «Per ruolo»** (default, opt-in setting) beside «Per tipo»; the **thin** Sankey in every desktop view, subcategories included (two-line labels with a card halo, 44px per node of the widest column); the same top-6×4 subcategory rule in both views; on a phone the roles view is the 50/30/20 bar + rows | `components/cashflow/{CashflowSankeyChart,analisi/tiles/FlussoTile,analisi/SpendingRolesMobileFlow}.tsx`, `lib/utils/{cashflowSankey,spendingRoles}.ts` |
-| **Phone 50/30/20 bar** | — | Shares on the **same base as the reading** (income + what the wealth covered = what left): 58/42, never 60/44 on income; the deficit is a red «entrate» line inside the bar, labelled under it | `SpendingRolesMobileFlow.tsx` |
-| **Category badge colours in Impostazioni** | The hue the user saved | With the 50/30/20 roles on, the **role's colour** (need · want · saving · unclassified; income the income flow); the saved hue appears nowhere else | `lib/utils/categoryIconStyle.ts` (`categoryRoleColor`), `app/dashboard/settings/page.tsx` |
+| **Analisi Flusso** | Since 09-27 (#405, the fork's #400/#401 reviewed): «Per ruolo» / «Per tipo» on an `AsideToggle`, the CLASSIC Sankey from 640px, a share bar + rows below it; role categories in derived shades, sources and Budget in the type view's colours | Upstream's pure layer, words, `AsideToggle` and phone views TAKEN (09-27, ninth merge). Kept: the **thin** Sankey in every compact desktop view (the five-column subcategory layer stays classic); the **«Altre» grouping** (`DESKTOP_GROUPING`, 3 sources / 4 categories a branch, after upstream's `trimToTotal`); a role's categories **flat** in its colour; sources and Budget on `--role-income`/`--role-budget`; the type view on `--type-flow-*` when the theme names them (desktop and the phone bar). Owner, 09-27: «noi la versione snella, upstream quella più grossa originale». The owner's tour on the mirror (09-27): thin chart, «Altre», flat role colours OK; the `AsideToggle` accepted (it looks like the old twin toggles; one Tab stop, arrows). Details: doc/guide/cashflow-analisi.md, the «Fork» item | `components/cashflow/{CashflowSankeyChart,analisi/tiles/FlussoTile,analisi/SpendingTypesMobileFlow}.tsx`, `lib/utils/cashflowSankey.ts` |
+| **Category badge colours in Impostazioni** | Since 09-27: the role's colour with the roles on, income `--positive`, a transfer its saved hue | Upstream's `categoryRoleColor` (in `spendingRoles.ts` since the ninth merge; the fork's copy in `categoryIconStyle.ts` retired), income on **`--flow-in`** (a type marker, as the type map) | `lib/utils/spendingRoles.ts` (`categoryRoleColor`), `app/dashboard/settings/page.tsx` |
 | **Deletes** | Upstream's armed delete, `outline` + red text | Upstream's armed flow kept, on the fork's `outlineDestructive` variant; Previdenza's bins appear on row hover on desktop | `components/assets/{AssetRow,CashAccountDialog}.tsx`, `components/pension/tiles/VersamentiTile.tsx`, `components/ui/button.tsx` |
 | **Allocazione grid** | 09-21: two columns at natural height (Bilanciamento + Per classe \| Piano), then Esposizione and Previdenza as full-width rows | 09-25: **two independent stacks, no full-width row** — Bilanciamento, Per classe, Accumulo \| Piano, Composizione ideale, Esposizione, Previdenza. The Piano's height swings with the mode and the instruments (381–1159px on the owner's account), and a full-width row under two columns left a 250–580px hole; in stacks only the page's bottom edge moves. Accumulo's and Previdenza's inner columns are container queries | `app/dashboard/allocation/page.tsx`, `components/allocation/tiles/{AccumuloTile,PrevidenzaTile}.tsx`, `e2e/allocation.spec.ts` |
 | **Liquidità (Patrimonio)** | «Mostra tutti» expanding the tile | Fixed-height list (5.5 rows as the scroll cue), flat divided rows | `components/assets/tiles/LiquiditaTile.tsx` |
-| **Type colour map** | One map, income dot/badge `bg-positive`, series on `--chart-2`/`--chart-1` | Same single map, reading the role tokens `--flow-in`/`--flow-out` (defaults = upstream's slots), income dot/badge on `--flow-in` (a type marker, not a verdict) | `lib/constants/expenseTypeColors.ts` |
+| **Type colour map** | One map, income dot/badge `bg-positive`, series on `--chart-2`/`--chart-1`; 09-27 adds `EXPENSE_TYPE_COLOR_VAR` (income `--positive`) | Same single map, reading the role tokens `--flow-in`/`--flow-out` (defaults = upstream's slots), income dot/badge AND `EXPENSE_TYPE_COLOR_VAR.income` on `--flow-in` (a type marker, not a verdict) | `lib/constants/expenseTypeColors.ts` |
 | **FIRE scenario colours** | Slots `--chart-5/1/2` per scenario; 09-24: the three histograms (`HistogramBars`) on `--chart-1`, Coast/FIRE target lines neutral | The same slots through `SCENARIO_COLOR` (`--scenario-bear/base/bull`, `:root` defaults = upstream's slots); `HistogramBars` on `--scenario-base`; the Dettaglio's income/spending lines on `--flow-in`/`--flow-out` | `lib/constants/scenarioColors.ts`, `components/fire-simulations/*`, `components/ui/histogram-bars.tsx` |
 | **Storico and Rendimenti series** | 09-20: one word, one colour per page on the chart slots — market/portfolio `--chart-1`, savings `--chart-2`, invested base the neutral ink | The same pairing on the **role tokens**: market/portfolio `--hero-series`, savings `--flow-in`, a losing market `--sign-chart-loss`, capital `--capital-networth`/`--capital-invested` (09-21: their `:root` defaults moved to upstream's new pair, `--chart-1` / `--muted-foreground`), heatmap on `--sign-chart-gain/loss`, Sharpe `--sharpe-series` | `components/history/{tiles/DriverTile,StoricoDettaglio}.tsx`, `components/dashboard/LaborMetricsChart.tsx`, `components/performance/*` |
 | **COMPRA / VENDI / OK** | 09-21: the clamp finally runs (`lib/utils/actionColor.ts`, AA-tested on the chart slots) | Upstream's clamp, reading the role tokens `--trade-buy/sell/ok` and also parsing `#hex` (served form of an in-gamut colour). The contrast test does not read `--trade-*` | `lib/hooks/useActionColors.ts`, `lib/utils/actionColor.ts` |
 | **Esposizione reading** | 09-21: the clause of the open view first (three views) | Same rule on the fork's five views: Valuta opens on the currency contrast, Geografia keeps holding-first | `lib/utils/allocazioneNarrative.ts` (`describeExposure`) |
+| **Esposizione engine (coming)** | 09-27: `doc/perf/PERF-00` — upstream will write the new Esposizione itself from #402 (three views, Yahoo only, ONE shared cache per ticker holding only Yahoo's answers, euros weighed in the browser at each opening, `exposure-cache/{userId}` retired, bonds named in the coverage line, owner-scoped route) | **The fork keeps its FIVE views** (Titoli · Settori · Geografia · Valuta · Emittenti), the curated tables (`instrumentProfiles.ts`, `geoAreas.ts`), `exposure:refresh`/`exposure:report` and what the optimizer's geography reads. When PERF-00 lands, the realignment takes its mechanism only where it does not lose a view or a curated profile — expect `portfolioExposureService.ts`, `types/exposure.ts`, `exposureEngine.ts` and the tile to conflict | `lib/server/portfolioExposureService.ts`, `lib/server/exposure/*`, `lib/utils/exposureEngine.ts`, `types/exposure.ts` |
 | **Cache key** | `v8` | `v8-fork` — always `v{n}-fork` | `lib/services/performanceService.ts` |
 | **Solo-fork features** (older) | absent | Esposizione a cinque viste, leveraged ETF + Trend/Carry, CSV import, ticker alias, first-trade guard | see CLAUDE.md |
 
@@ -131,6 +133,10 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    and **the phone «Per tipo» bar = upstream draft #401** (`feat/phone-type-flow` → `develop`, stacked on #400). In
    the fork the roles switch sits in Impostazioni › **Spese**, as in #400 (fork PR #20, merged). As of 09-26 evening
    no maintainer comment or review on #400/#401 — only Vercel's preview, waiting for his authorization.
+   **CLOSED 2026-09-27**: the maintainer integrated #400 and #401 WITH CHANGES in `17b92183` (#405 → `develop`, #406 →
+   `main`, the owner as co-author), closed both drafts and #397. The fork took it in the ninth realignment
+   (`merge/upstream-2026-09-27`): upstream's reviewed pure layer, words and phone views, the fork's thin Sankey and
+   colours kept on top (§ 1, «Analisi Flusso»).
 4. **Lime Frost** (fork only) — **DONE 2026-09-26**, light and dark (owner). The three light points (Lime-only rules fork-wide or not; class palette ΔE and
    `--chart-9`; ~25 tokens into four families), then the Carta's five dark decisions and the dark audit.
    **09-25 — the three light points closed** (branch `feat/lime-frost-step4`; step 3 waits for upstream #397):
@@ -179,12 +185,19 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    questions to the maintainer (the base; Emittenti over every allocatable asset; PERF-10 § A here or first; `develop`
    plus the tests). **The code waits for the answers.** The mechanism is Yahoo-only; the maintainer never saw the
    fork's `exposureRefresh.mts`, which sends a browser User-Agent — keep it out of any upstream branch.
+   **09-27 — answered: «yes to the direction, with changes», and UPSTREAM WRITES IT ITSELF** from
+   `doc/perf/PERF-00-esposizione-leva-copertura-cache.md` (before PERF-01; it closes PERF-10 § A); the fork «stays the
+   reference we read». No PR C from the fork. Its § 4.9 questions are the maintainer's own. The issue stays open until
+   it lands; at that realignment the fork keeps its five views (§ 1, «Esposizione engine (coming)»). Step 6's PR D
+   will then sit on upstream's PERF-00 engine, not on the fork's.
 6. **Upstream PR D — PAC + weight optimizer** on top of C (issue first); coupled through `OptimizerPanel`.
    **09-26 — consequence of step 5's Yahoo-only call** (owner, informed before choosing): D ships the optimizer
    WITHOUT the geography objective. Its class, leverage, factor (the asset's sub-category) and group objectives read
    nothing from the curated tables; geography needs `INDEX_PROFILES` countries for both the reference index and each
    ETF (`useOptimizerGeographyReference`, `resolveAreaPerEuro`), and without them `buildGeoRows` returns no row. So no
    «Geografia» in Allocazione ideale upstream, no `geoAreas`, no `otherAreaSplit`; the fork keeps all of it.
+   **Open since 09-27** (step 8): whether D also carries the optimizer's third mode «Con vendite mirate» and
+   `lib/utils/activeSetQP.ts`, or they stay fork-only — not discussed with the owner yet; decide when D is opened.
 7. **Upstream PR E — the composite class chip on Patrimonio › Strumenti** (added 09-24, the item «Composite class
    chip» below). Small and upstream-neutral (chart slots, no Lime token), so it can move ahead of steps 2–6 whenever a
    short session is free; branch from `upstream/develop`, never from the fork's main.
@@ -195,8 +208,17 @@ issue. Fork PRs merge with a merge commit, never squash (it keeps upstream's his
    shares keep it). Found in the browser and fixed before the PR: a `border-box` gradient under the translucent fill
    doubled the tint — the ring is a masked overlay. The owner approved on screenshots (1440 light and dark, 390).
    The merge also brought upstream's `48cb44aa` (the Draft Release deleted at the v10.0.0 tag): the fork's draft
-   took upstream's recreated file, the fork-only entries stay in git history and in § 1. **Waiting for the
-   maintainer** on #403.
+   took upstream's recreated file, the fork-only entries stay in git history and in § 1. **CLOSED 2026-09-27**:
+   integrated with changes in `17b92183` (#405/#406; the 112px floor desktop-only, the 5 % floor on the printed
+   share), #403 closed; the fork took upstream's version whole in the ninth realignment.
+8. **Fork only — the optimizer's third mode «Con vendite mirate»** (added 09-27, outside the 09-22 plan) —
+   **DONE 2026-09-27**, fork PR #23 (commit `f9ae9376`, merge `10af705e`; it also brought the spec's commit
+   `ab6897c`, written in another session). Spec `doc/weight-optimizer-targeted-ate.md`; a tax cap in euro plus a
+   «Non vendere» box per row, only in Composizione ideale (the PAC keeps two modes). The owner's calls: after a
+   review of the solver measured on the real case (prototype 525 ms, the spec's § 5 as written 373), an exact
+   active-set solver (0,2 ms) only where the cap binds, Ideale's and Raggiungibile's pipelines elsewhere; the minimum
+   tax forced by Impostazioni's limits becomes the cap. Details in `doc/guide/ottimizzatore.md`. Its upstream fate is
+   step 6's open question.
 
 **Next UI session — the owner's list after the fourth upstream merge (2026-09-22):**
 - [x] **Staggered tiles with the new layouts**: upstream's natural-height columns (Storico, Allocazione, Rendimenti)

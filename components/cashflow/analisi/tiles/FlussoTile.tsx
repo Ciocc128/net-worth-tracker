@@ -15,7 +15,6 @@ import {
   DEFAULT_SPENDING_ROLE_PALETTE,
   MAX_SUBCATEGORY_CATEGORIES,
   resolveSankeyHeight,
-  SPENDING_BUCKET_LABELS,
   TYPE_COLORS,
   type FlowGrouping,
   type SankeyNodeDescriptor,
@@ -23,12 +22,15 @@ import {
   type SankeyView,
   type SpendingRolePalette,
 } from '@/lib/utils/cashflowSankey';
-import type { SpendingBucket, SpendingRoleSource, SpendingRolesSummary } from '@/lib/utils/spendingRoles';
-import type { TypeFlowBreakdown } from '@/lib/utils/analisiSummary';
+import { SPENDING_BUCKET_LABELS, type SpendingBucket, type SpendingRoleSource, type SpendingRolesSummary } from '@/lib/utils/spendingRoles';
+import { buildTypeFlowBreakdown, type FlowSummary } from '@/lib/utils/analisiSummary';
+import type { ScheduledSlice } from '@/lib/utils/tracciamentoSummary';
 import { useCssColorTokens } from '@/lib/hooks/useCssColorTokens';
+import { SPENDING_ROLE_TOKEN } from '@/lib/constants/spendingRoleColors';
 import { narrativeToText } from '@/lib/utils/narrative';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
+import { AsideToggle } from '@/components/ui/aside-toggle';
 import { DrillBreadcrumb } from '@/components/ui/drill-breadcrumb';
 import { CashflowSankeyChart } from '@/components/cashflow/CashflowSankeyChart';
 import { SpendingRolesMobileFlow } from '@/components/cashflow/analisi/SpendingRolesMobileFlow';
@@ -44,12 +46,16 @@ export interface SpendingRolesFlowInput {
 interface FlussoTileProps {
   /** The period's rows (income + spending); transfers are not flows. */
   expenses: Expense[];
+  /** Below 640px: the tile draws a share bar and rows, never a Sankey. */
   isMobile: boolean;
   /** The reading of the type view. */
   reading: Narrative | null;
-  /** The type view on a phone: the reading's own type shares plus each type's categories. */
-  typeBreakdown: TypeFlowBreakdown;
+  /** The reading's own figures (`summarizeFlow`) — the phone's type bar is built from them, only when drawn. */
+  flow: FlowSummary;
   spendingRoles: SpendingRolesFlowInput | null;
+  /** The period's not-yet-happened slice and how far it reaches: the phone's surplus note declares it. */
+  scheduled: ScheduledSlice;
+  scheduledHorizon: string | null;
   /**
    * Category/subcategory node clicks land HERE, not in an internal drill — the page routes
    * them to the one entity-focus path every other entry point uses.
@@ -60,37 +66,35 @@ interface FlussoTileProps {
 
 type FlowMode = 'types' | 'roles';
 
-// Two twin toggles in the Sottocategorie button's own style: parallel names that say what the flow
-// is grouped by, one always pressed (owner's call, 2026-09-15).
+// Parallel names that say what the flow is grouped by, one always pressed: the tile-aside view
+// switch (AsideToggle — one Tab stop, the selected option; 44px below desktop:).
 const FLOW_MODE_OPTIONS: ReadonlyArray<{ value: FlowMode; label: string }> = [
   { value: 'roles', label: 'Per ruolo' },
   { value: 'types', label: 'Per tipo' },
 ];
 
-const TOGGLE_CLASS =
-  'h-11 rounded-md border border-border px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40 desktop:h-8 desktop:px-2.5';
-
 /** Desktop's thin chart draws the three largest sources and four categories a branch; the rest is «Altre». */
 const DESKTOP_GROUPING: FlowGrouping = { incomeSources: 3, categoriesPerBranch: 4 };
 
-/** The only internal drill left: one expense type's flow, or one role's. */
+/**
+ * The only internal drill left: one expense type's flow, or one role's. `color` is the root
+ * node's own colour — in the fork a role's categories wear it flat, a type's too under a theme palette.
+ */
 type DrillState =
   | { kind: 'type'; expenseType: ExpenseType; color: string }
   | { kind: 'role'; bucket: SpendingBucket; color: string };
 
-// Module-level so useCssColorTokens' effect sees stable identities.
+// Module-level so useCssColorTokens' effect sees stable identities. The fork reads two more role
+// tokens than upstream's map: the sources and Budget lift with the roles in Lime Frost dark
+// (`:root` = `--flow-in` / `--muted-foreground`, every other theme unchanged).
 const ROLE_TOKENS: Record<keyof SpendingRolePalette, string> = {
+  ...SPENDING_ROLE_TOKEN,
   income: '--role-income',
   budget: '--role-budget',
-  need: '--role-need',
-  want: '--role-want',
-  saving: '--role-saving',
-  unclassified: '--role-unclassified',
-  deficit: '--role-deficit',
 };
 
 // The type view's theme colours: undeclared in :root, so a theme without them (every one but
-// Lime Frost light) resolves the empty fallbacks and keeps the historical palette.
+// Lime Frost) resolves the empty fallbacks and keeps the historical palette.
 const TYPE_TOKENS: Record<keyof TypeFlowPalette, string> = {
   income: '--type-flow-income',
   budget: '--type-flow-budget',
@@ -108,43 +112,65 @@ const TYPE_TOKEN_FALLBACKS: Record<keyof TypeFlowPalette, string> = { income: ''
  * on), the subcategory layer and the single type/role drill — and builds the view, so the words
  * above the plot describe exactly what is drawn.
  *
- * On desktop every view uses the thin chart (owner's pick «B», 2026-09-15, extended to the
- * subcategory layer the same day). On a phone neither view is a Sankey: a share bar and the
- * categories as rows — the 50/30/20 bar for the roles (SpendingRolesMobileFlow), the spending by
- * type for the types (SpendingTypesMobileFlow, 2026-09-25), both drawn by FlowShareMobile.
+ * THE FLUSSO PICKS ITS DRAWING AT 640px (owner's decision, 2026-09-27): a legibility threshold of
+ * the chart, not a second composition. From 640 the Sankey; below it, where a four-column flow gets
+ * ~80px a column, the SAME figures as a share bar and ranked rows — SpendingRolesMobileFlow for the
+ * roles view, SpendingTypesMobileFlow for the type view, both drawn by FlowShareMobile. Below 640
+ * no Sankey model is built at all (no view, no height, no label), and the role colours are not read.
+ *
+ * Fork: from 640 every view is the THIN chart (owner's pick «B», 2026-09-15, extended to the
+ * subcategory layer the same day), with the smaller sources and categories grouped into «Altre»
+ * (DESKTOP_GROUPING); upstream draws the classic one (doc/guide/fork-scelte-ui.md § 1).
  */
-export function FlussoTile({ expenses, isMobile, reading, typeBreakdown, spendingRoles, onEntityClick, className }: FlussoTileProps) {
-  const [drill, setDrill] = useState<DrillState | null>(null);
+export function FlussoTile({ expenses, isMobile, reading, flow, spendingRoles, scheduled, scheduledHorizon, onEntityClick, className }: FlussoTileProps) {
   const [showSubcategories, setShowSubcategories] = useState(false);
   const [preferredMode, setPreferredMode] = useState<FlowMode>('roles');
-  const palette = useCssColorTokens(ROLE_TOKENS, DEFAULT_SPENDING_ROLE_PALETTE);
-  const typeTokens = useCssColorTokens(TYPE_TOKENS, TYPE_TOKEN_FALLBACKS);
+  // A drill is a place INSIDE the Sankey, and the Sankey exists only from 640px. Stored WITH the
+  // width it was opened at (AGENTS.md → «State belonging to a subject must be stored WITH its
+  // subject»), it resolves to none as soon as the viewport crosses below 640 — no effect resets it,
+  // and the phone never builds a view for it; widened again, the reader is back where they were.
+  const [storedDrill, setStoredDrill] = useState<{ isMobile: boolean; drill: DrillState } | null>(null);
+  const drill = storedDrill !== null && storedDrill.isMobile === isMobile ? storedDrill.drill : null;
+  const setDrill = (next: DrillState | null) => setStoredDrill(next ? { isMobile, drill: next } : null);
+
+  // With the setting off there is only one view, whatever was chosen before.
+  const mode: FlowMode = spendingRoles ? preferredMode : 'types';
+  // The role colours are read from the theme only while the roles Sankey is on screen: with the
+  // setting off, on «Per tipo» or on a phone nothing paints them, and the read would cost a second
+  // render of the tile and a second build of the Sankey for nothing (PERF-12/PERF-14).
+  const rolesSankeyDrawn = !isMobile && spendingRoles !== null && mode === 'roles';
+  const palette: SpendingRolePalette = useCssColorTokens(ROLE_TOKENS, DEFAULT_SPENDING_ROLE_PALETTE, rolesSankeyDrawn);
+  // Fork: the type view's theme colours, read under the same rule — only while a type Sankey is drawn.
+  const typeTokens = useCssColorTokens(TYPE_TOKENS, TYPE_TOKEN_FALLBACKS, !isMobile && mode === 'types');
   const typePalette = useMemo<TypeFlowPalette | undefined>(
     () => (Object.values(typeTokens).every(Boolean) ? typeTokens : undefined),
     [typeTokens],
   );
 
-  // With the setting off there is only one view, whatever was chosen before.
-  const mode: FlowMode = spendingRoles ? preferredMode : 'types';
-  // A phone draws no Sankey in either view: a bar and the categories as rows (the drill states
-  // are reachable only from a Sankey node, so they appear here only when carried from a wider width).
-  const phoneRows = isMobile && !drill;
-  const grouping = isMobile ? undefined : DESKTOP_GROUPING;
-
-  const view = useMemo((): SankeyView => {
-    if (drill?.kind === 'type') return buildTypeDrillDownData(expenses, drill.expenseType, drill.color, isMobile, typePalette !== undefined);
-    if (spendingRoles && drill?.kind === 'role') {
-      return buildSpendingRoleDrillDownData(expenses, spendingRoles.categories, drill.bucket, drill.color, isMobile);
-    }
-    if (spendingRoles && mode === 'roles') {
-      return showSubcategories
-        ? buildSpendingRolesFlowDataWithSubcategories(expenses, spendingRoles.categories, palette, isMobile)
-        : buildSpendingRolesFlowData(expenses, spendingRoles.categories, palette, isMobile, grouping);
-    }
+  // Every view that does NOT read the ROLE palette — the type flow and both drills (a drill takes
+  // its colour from the clicked node) — so a role-palette read never rebuilds them. Null on a phone.
+  const plainView = useMemo((): SankeyView | null => {
+    if (isMobile) return null;
+    if (drill?.kind === 'type') return buildTypeDrillDownData(expenses, drill.expenseType, drill.color, typePalette !== undefined);
+    if (drill?.kind === 'role' && spendingRoles) return buildSpendingRoleDrillDownData(expenses, spendingRoles.categories, drill.bucket, drill.color);
+    if (mode === 'roles') return null;
     return showSubcategories
-      ? buildBudgetFlowDataWithSubcategories(expenses, isMobile, typePalette)
-      : buildBudgetFlowData(expenses, isMobile, grouping, typePalette);
-  }, [expenses, drill, isMobile, showSubcategories, spendingRoles, mode, palette, grouping, typePalette]);
+      ? buildBudgetFlowDataWithSubcategories(expenses, typePalette)
+      : buildBudgetFlowData(expenses, DESKTOP_GROUPING, typePalette);
+  }, [isMobile, drill, expenses, spendingRoles, mode, showSubcategories, typePalette]);
+
+  // The roles flow, the one view painted with the theme's role colours.
+  const rolesView = useMemo((): SankeyView | null => {
+    if (!rolesSankeyDrawn || drill || !spendingRoles) return null;
+    return showSubcategories
+      ? buildSpendingRolesFlowDataWithSubcategories(expenses, spendingRoles.categories, palette)
+      : buildSpendingRolesFlowData(expenses, spendingRoles.categories, palette, DESKTOP_GROUPING);
+  }, [rolesSankeyDrawn, drill, spendingRoles, showSubcategories, expenses, palette]);
+
+  const view = rolesView ?? plainView;
+
+  // The phone's type bar and rows, built only when they are what the tile draws.
+  const typeBreakdown = useMemo(() => (isMobile && mode === 'types' ? buildTypeFlowBreakdown(expenses, flow) : null), [isMobile, mode, expenses, flow]);
 
   const layer = showSubcategories ? 'subcategories' : 'categories';
   const viewKey = drill
@@ -156,9 +182,11 @@ export function FlussoTile({ expenses, isMobile, reading, typeBreakdown, spendin
   const drillLabel = drill ? (drill.kind === 'type' ? EXPENSE_TYPE_LABELS[drill.expenseType] : SPENDING_BUCKET_LABELS[drill.bucket]) : null;
   const shownReading = mode === 'roles' && spendingRoles && !drill ? spendingRoles.reading : reading;
   // The plot grows with its widest column, so every label keeps its own line (see resolveSankeyHeight).
-  const height = resolveSankeyHeight(countSankeyLayers(view), isMobile);
+  const height = view ? resolveSankeyHeight(countSankeyLayers(view)) : 0;
   // The chart is an image to a screen reader: its name is the tile's reading and its size.
-  const chartLabel = `Flusso del periodo, ${modeLabel.toLowerCase()}: ${view.nodes.length} nodi e ${view.links.length} flussi.${shownReading ? ` ${narrativeToText(shownReading)}` : ''}`;
+  const chartLabel = view
+    ? `Flusso del periodo, ${modeLabel.toLowerCase()}: ${view.nodes.length} nodi e ${view.links.length} flussi.${shownReading ? ` ${narrativeToText(shownReading)}` : ''}`
+    : '';
 
   const roleColor = (bucket: SpendingBucket) =>
     ({ need: palette.need, want: palette.want, saving: palette.saving, unclassified: palette.unclassified })[bucket];
@@ -203,33 +231,24 @@ export function FlussoTile({ expenses, isMobile, reading, typeBreakdown, spendin
       eyebrow="Flusso"
       aside={
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-          {!phoneRows && (
+          {view && (
             <span>
               {modeLabel} · <span className="font-mono tabular-nums">{view.nodes.length}</span> nodi ·{' '}
               <span className="font-mono tabular-nums">{view.links.length}</span> flussi
             </span>
           )}
           {spendingRoles && !drill && (
-            <div role="group" aria-label="Raggruppa il flusso" className="flex items-center gap-1.5">
-              {FLOW_MODE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleModeChange(option.value)}
-                  aria-pressed={mode === option.value}
-                  className={cn(TOGGLE_CLASS, mode === option.value && 'bg-muted')}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <AsideToggle options={FLOW_MODE_OPTIONS} value={mode} onChange={handleModeChange} ariaLabel="Raggruppa il flusso" />
           )}
-          {!drill && !phoneRows && (
+          {!drill && !isMobile && (
             <button
               type="button"
               onClick={() => setShowSubcategories((value) => !value)}
               aria-pressed={showSubcategories}
-              className={cn(TOGGLE_CLASS, showSubcategories && 'bg-muted')}
+              className={cn(
+                'h-11 rounded-md border border-border px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40 desktop:h-8 desktop:px-2.5',
+                showSubcategories && 'bg-muted',
+              )}
             >
               Sottocategorie
             </button>
@@ -255,25 +274,20 @@ export function FlussoTile({ expenses, isMobile, reading, typeBreakdown, spendin
           />
         </div>
       )}
-      {phoneRows ? (
+      {isMobile ? (
         spendingRoles && mode === 'roles' ? (
-          <SpendingRolesMobileFlow summary={spendingRoles.summary} onEntityClick={onEntityClick} />
+          <SpendingRolesMobileFlow summary={spendingRoles.summary} scheduled={scheduled} horizon={scheduledHorizon} onEntityClick={onEntityClick} />
         ) : (
-          <SpendingTypesMobileFlow breakdown={typeBreakdown} onEntityClick={onEntityClick} />
+          typeBreakdown && (
+            <SpendingTypesMobileFlow breakdown={typeBreakdown} scheduled={scheduled} horizon={scheduledHorizon} onEntityClick={onEntityClick} />
+          )
         )
       ) : (
-        <>
-          {/* The mobile chart drops small slices for legibility — declared, never silent. */}
-          {isMobile && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Su schermi piccoli il grafico mostra solo le voci principali — l&apos;elenco completo è nelle tessere per categoria.
-            </p>
-          )}
+        view && (
           <div className="mt-3">
             <CashflowSankeyChart
               view={view}
               viewKey={viewKey}
-              isMobile={isMobile}
               height={height}
               drilled={drill !== null}
               ariaLabel={chartLabel}
@@ -282,11 +296,11 @@ export function FlussoTile({ expenses, isMobile, reading, typeBreakdown, spendin
               variant="thin"
             />
           </div>
-        </>
+        )
       )}
       {/* What a click does, in words — it used to live in a hover tooltip only, invisible to touch. */}
       <p className="mt-auto border-t border-border pt-3.5 text-[11px] text-muted-foreground">
-        {phoneRows
+        {isMobile
           ? 'Una categoria apre la sua scheda.'
           : drill
             ? 'Una categoria apre la sua scheda; «Indietro» torna al flusso intero.'
