@@ -20,6 +20,8 @@
  *                     (Accumulo and Composizione ideale: solo fork)
  *   Mobile (1 col):   Bilanciamento → Piano → Per classe → Accumulo → Composizione ideale →
  *                     Esposizione → Previdenza → Dettaglio
+ *   Tablet (2 col):   Bilanciamento → Piano → [Per classe | Esposizione] → Accumulo →
+ *                     Composizione ideale → Previdenza (the two half-width tiles share one row)
  *
  * The «Dettaglio» disclosure under the grid holds the two holdings lists the old hero kept in
  * popovers — Non negoziabili (inside the total, untouchable) and Esclusi (outside it).
@@ -471,7 +473,10 @@ export default function AllocationPage() {
           neighbour is cured in the GRID.
           Below `desktop:` both wrappers are `contents`, so the tiles are grid items again in their
           own `order-*` and the phone keeps reading Bilanciamento → Piano → Per classe → Accumulo →
-          Composizione ideale → Esposizione → Previdenza. */}
+          Composizione ideale → Esposizione → Previdenza. On `tablet:` (two columns, the iPad) Per
+          classe and Esposizione are the only half-width tiles, so `tablet:order-*` pulls Esposizione
+          up beside Per classe: in the phone's order a full-width tile sat between them and each one
+          had an empty half row beside it (fork, 2026-09-27). */}
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
         <div className="contents desktop:col-span-5 desktop:flex desktop:min-w-0 desktop:flex-col desktop:gap-3 desktop:self-start">
         <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none')}>
@@ -515,7 +520,7 @@ export default function AllocationPage() {
         </div>
 
         {ownerId && (
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:order-5 tablet:col-span-2 desktop:order-none')}>
             <AccumuloTile
               ownerId={ownerId}
               allAssets={allAssets}
@@ -544,7 +549,7 @@ export default function AllocationPage() {
         </div>
 
         {ownerId && (
-          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:order-6 tablet:col-span-2 desktop:order-none')}>
             <ComposizioneIdealeTile
               ownerId={ownerId}
               allAssets={allAssets}
@@ -557,7 +562,7 @@ export default function AllocationPage() {
           </div>
         )}
 
-        <div className={cn(TILE_CELL_CLASS, 'order-6 desktop:order-none')}>
+        <div className={cn(TILE_CELL_CLASS, 'order-6 tablet:order-4 desktop:order-none')}>
           {user && ownerId && <EsposizioneTile userId={ownerId} />}
         </div>
 

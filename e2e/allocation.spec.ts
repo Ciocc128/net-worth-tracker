@@ -228,6 +228,29 @@ test('due pile indipendenti: fra due tessere della stessa colonna 12px, in ogni 
 });
 
 /**
+ * Su `tablet:` (768–1439px) le pile sono `contents` e le tessere tornano all'ordine `order-*`: Per
+ * classe ed Esposizione sono le sole a mezza larghezza, e con Accumulo e Composizione ideale in mezzo
+ * ciascuna restava sola con mezza riga vuota accanto (fork, 2026-09-27, visto sul giro su iPad).
+ *
+ * REGRESSION GUARD: vista rossa togliendo `tablet:order-4` dall'Esposizione.
+ */
+for (const width of [1024, 820]) {
+  test(`su iPad Per classe ed Esposizione stanno sulla stessa riga (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width >= 1024 ? 768 : 1180 });
+    await openAllocazione(page);
+    const perClasse = page.locator('section[aria-label="Allocazione per classe"]');
+    const esposizione = page.locator('section[aria-label="Esposizione del portafoglio"]');
+    await expect(esposizione).toBeVisible({ timeout: 30_000 });
+
+    const left = await perClasse.boundingBox();
+    const right = await esposizione.boundingBox();
+    expect(left && right).toBeTruthy();
+    expect(Math.abs(right!.y - left!.y), 'stessa riga').toBeLessThanOrEqual(1);
+    expect(right!.x, 'Esposizione a destra di Per classe').toBeGreaterThan(left!.x + left!.width);
+  });
+}
+
+/**
  * «Composizione ideale» › «Con vendite mirate» (fork, 2026-09-27, doc/weight-optimizer-targeted-ate.md
  * §11.2). The base account has no ideal allocation, so this block turns one on for the duration —
  * classes only, no geography — and removes the field afterwards. With targets 60/30/10 against a
