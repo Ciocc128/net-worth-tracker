@@ -1,4 +1,4 @@
-# PERF-04 — Il JS che ogni pagina spedisce: recharts una volta sola, il PDF e le icone quando servono
+# PERF-04 — Il JS che ogni pagina spedisce: recharts una volta sola, il PDF, le icone e il Sankey quando servono
 
 > Stato: da fare · Priorità: 2 · Sforzo: M · Dipende da: PERF-01 (il budget misura la chiusura) · Sblocca: PERF-11 (recharts in un chunk prima di toccare le sparkline); il ratchet di `perf/budget.json` scende
 
@@ -12,8 +12,9 @@ Build di produzione del 2026-09-26 (Turbopack, Next 16.2.12), chunk iniziali per
 | Storico | **1192 KB** | un chunk da 1568 KB raw / 513 KB gz: `@react-pdf/renderer` + recharts + codice pagina |
 | Patrimonio · Analisi · Storico · Rendimenti+FIRE | +101 KB ciascuna | **recharts bundlato QUATTRO volte**: quattro chunk diversi, identici a 350 KB raw (`42yav89z`, `14i2tr0m`, `15_g8lvfbcef_`, `2gmq4b0ohq719`), uno per pagina → cambiare pagina lo riscarica |
 | Cashflow › Tracciamento (prima icona categoria) | +143 KB | **lucide-react INTERO** (575 KB raw): `import('lucide-react')` dinamico con accesso per nome in `components/expenses/IconPickerPopover.tsx:23-32` non è tree-shakabile |
-| Cashflow | 119 KB | `ExpenseTrackingTab` + `ExpenseDialog` (2235 righe, sempre montato) + `CategoryManagementDialog` |
+| Cashflow | 119 KB | `ExpenseTrackingTab` + `ExpenseDialog` (2238 righe, sempre montato) + `CategoryManagementDialog` |
 | Assistente | 41 KB | react-markdown + remark-gfm statici (difendibile: è il contenuto della pagina) |
+| Analisi (Flusso) | da misurare | `@nivo/sankey` (con d3-sankey e `@react-spring/web`) statico in `CashflowSankeyChart.tsx`, il suo UNICO importatore: dal 2026-09-27 (#401) sotto i 640 px il Flusso è una barra e righe e il Sankey non si disegna mai, ma il telefono lo scarica |
 
 Cause verificate a file:riga:
 - `app/dashboard/history/page.tsx:87` importa `ExportPDFButton` → `components/dashboard/ExportPDFButton.tsx:13` → `PDFExportDialog`
@@ -43,6 +44,8 @@ meccanico di tutti e vale ~250 KB gz su Storico e ~100 KB a ogni cambio pagina f
   sotto 150 KB per navigazione).
 - Tracciamento: nessun chunk da 575 KB raw alla prima icona; il chunk richiesto per un'icona è < 5 KB.
 - Rendimenti: recharts non nel grafo iniziale (arriva all'apertura del Dettaglio).
+- Analisi a 390: nessuna richiesta a un chunk che contiene `d3-sankey`; a 1440 arriva (anchor positivo) e il Sankey
+  compare senza salto di layout.
 - Zero regressioni visive: le spec E2E delle pagine con grafici (`history*`, `analisi`, `fire*`) e le due di Patrimonio
   (`assets.bond`, `assets.sale-tax`) verdi; nessun salto di layout all'apertura di una sezione pigra (`layout-shift` = 0).
 
@@ -88,6 +91,14 @@ grafici), e le 4 tab non di default di FIRE (`CoastFire*`, `WhatIf*`, `MonteCarl
 Le `aria-controls`/`renderedPanels` di `PageTabs` restano coerenti (AGENTS.md § Navigation: una tab con pannello caricato
 pigramente lo dichiara).
 
+**Il Sankey di Analisi** è un grafico a vista, non dentro una disclosure, ma sotto i 640 px non esiste più (la soglia di
+leggibilità del Flusso, doc/guide/cashflow-analisi.md): `CashflowSankeyChart` diventa `dynamic(…, { ssr: false })` a
+livello di modulo in `FlussoTile.tsx`, reso solo fuori dalle righe del telefono, dentro un contenitore alto
+`resolveSankeyHeight(…)` così l'arrivo del chunk non sposta nulla a 1440. Il modello del Sankey sotto i 640 px non si
+costruisce già più dal 2026-09-27: qui si toglie il download. `role="img"` e le etichette che `e2e/analisi.spec.ts` legge
+arrivano con il chunk: le asserzioni aspettano già. Misurare PRIMA quanto pesa `@nivo/*` nel chunk di Analisi (la lista
+dei chunk più grandi di `perf:budget`): né la baseline né questa spec lo avevano contato.
+
 **D. Le icone per nome.** `LAZY_CATEGORY_ICONS` cambia implementazione, non contratto: resta una mappa nome → COMPONENTE
 (mai un nodo renderizzato: `CategoryIcon` spalma `iconProps` — `className`, `size` — sul componente, `IconPickerPopover.tsx:52-59`,
 e AGENTS.md § Two-Step: «`Icon` as the COMPONENT, never a rendered node»). Due strade equivalenti: `lazy(dynamicIconImports[kebab])`
@@ -107,12 +118,14 @@ Impostazioni › spese, già in una tab).
 - `components/ui/charts/recharts.ts` — nuovo barrel; i 20 importatori di `recharts` passano da lì (`grep -rl "from 'recharts'"`).
 - `components/dashboard/ExportPDFButton.tsx` — `dynamic` del dialog al click.
 - `app/dashboard/performance/page.tsx`, `app/dashboard/fire-simulations/page.tsx`, `app/dashboard/history/page.tsx`
-  (`StoricoDettaglio`), `components/cashflow/AnalisiTab.tsx` (le disclosure) — `dynamic` a livello di modulo.
+  (`StoricoDettaglio`), `components/cashflow/AnalisiTab.tsx` (le disclosure),
+  `components/cashflow/analisi/tiles/FlussoTile.tsx` (il Sankey) — `dynamic` a livello di modulo.
 - `components/expenses/IconPickerPopover.tsx`, `lib/constants/categoryIcons.ts` — `DynamicIcon`; test dei nomi.
 - `next.config.ts` — solo se (2) di A serve.
 - `perf/budget.json` — tetti abbassati; `scripts/perfBudget.mts` + `lib/utils/perfBudget.ts` — il controllo `libraryCopies`.
 - Test: `__tests__/categoryIcons.test.ts` (ogni nome risolve), `e2e/bundle.lazy.spec.ts` (il chunk del PDF arriva solo dopo
-  il click: `page.on('request')` filtrando i chunk, anchor positivo = il chunk arriva al click).
+  il click: `page.on('request')` filtrando i chunk, anchor positivo = il chunk arriva al click), `e2e/bundle.lazy.mobile.spec.ts` (390: nessun chunk con `d3-sankey` su
+  Analisi; a 1440 in `bundle.lazy.spec.ts` sì).
 
 ## 6. Passi
 
@@ -131,17 +144,24 @@ Impostazioni › spese, già in una tab).
   dopo il click sì (anchor positivo). Il nome del chunk cambia a ogni build: identificarlo dal CONTENUTO (la spec scarica il
   chunk e cerca `pdfkit`), non dal nome. ATTENZIONE: la suite gira su `next dev`, che spezza i chunk diversamente dalla
   build: la spec prova la pigrizia dell'IMPORT, la dimensione la prova `perf:budget` sulla build.
+- `e2e/bundle.lazy.mobile.spec.ts` (390: il NOME lo manda al progetto `mobile`, account standard — non `analisi`, che
+  prende solo `analisi.spec.ts`/`analisi.mobile.spec.ts`; il seed base ha un Flusso su Analisi, lo raggiunge già
+  `settings.roles.spec.ts`): su Analisi il Flusso a barra e righe è visibile e nessuna richiesta a un chunk che contiene
+  `d3-sankey`; la stessa asserzione a 1440 in `bundle.lazy.spec.ts` (progetto `desktop`, stesso account) lo trova (anchor
+  positivo).
+  Falsificare rimettendo l'import statico: a 390 il chunk arriva.
 - Il ratchet stesso: `perf:budget` rosso se recharts torna in due chunk (tetto sul numero di chunk che contengono
   `CartesianGrid`: aggiungere a `perfBudget` un `libraryCopies: { recharts: 1 }`).
 - Suite: `tsc`, lint 0, Vitest `Europe/Rome`, `npm run test:e2e` completo (Storico, Analisi, FIRE, Patrimonio, Cashflow).
 
 ## 8. Collaudo guidato
 
-- C: budget rosso/verde con i tetti nuovi; le tre falsificazioni sopra.
+- C: budget rosso/verde con i tetti nuovi; le quattro falsificazioni sopra.
 - F (mirror, telefono 390 e desktop 1440): 1) Storico apre e il Dettaglio si apre senza salto; 2) «Esporta PDF» apre il
   modal con la sua attesa e il PDF si genera (renderizzarlo davvero: è l'unico modo, doc/guide/email-pdf.md); 3) Rendimenti:
   il Dettaglio si apre, il drawdown c'è; 4) FIRE: tutte le cinque tab; 5) Tracciamento: le icone delle categorie ci sono
-  tutte (confrontare con il picker). Non coperto: la latenza di rete reale del primo chunk.
+  tutte (confrontare con il picker). In più, fuori dai cinque: Analisi a 390 mostra il Flusso a barra e righe, a 1440 il
+  Sankey senza salto. Non coperto: la latenza di rete reale del primo chunk.
 - G: `npm run mirror:remove`.
 
 ## 9. Rischi e rollback
@@ -163,7 +183,8 @@ Impostazioni › spese, già in una tab).
 Ciao, in questa sessione implementiamo doc/perf/PERF-04-bundle-recharts-pdf-lucide.md: recharts in un solo chunk per tutta
 l'app (oggi quattro copie), @react-pdf fuori dal grafo iniziale di Storico (arriva al click su «Esporta PDF»), le sezioni
 con grafici chiuse di default dietro next/dynamic a livello di modulo, le icone di categoria per nome con
-lucide-react/dynamic invece dell'import dinamico dell'intera libreria.
+lucide-react/dynamic invece dell'import dinamico dell'intera libreria, e il Sankey del Flusso di Analisi (@nivo/sankey)
+dietro next/dynamic in FlussoTile.tsx, così il telefono, che sotto i 640 px non lo disegna, non lo scarica.
 
 Da fare TASSATIVAMENTE prima di ogni cosa:
 - Leggi WORKFLOW.md, AGENTS.md (§ Dynamic Imports and Module Hygiene, § Navigation, § Recharts), CLAUDE.md
@@ -176,9 +197,9 @@ Da fare TASSATIVAMENTE prima di ogni cosa:
 Regole: nessun commit senza il mio OK; un branch e un commit; rispondi in italiano.
 Metodo: misura PRIMA (perf:build + perf:budget + next experimental-analyze --output) e annota in SESSION_NOTES perché
 recharts è in quattro chunk; prova i rimedi nell'ordine della spec § 4.A misurando ogni volta; ogni next/dynamic a livello
-di modulo con skeleton della stessa altezza (misura il layout shift all'apertura). Le tre falsificazioni di § 7 viste ROSSE.
+di modulo con skeleton della stessa altezza (misura il layout shift all'apertura). Le quattro falsificazioni di § 7 viste ROSSE.
 Chiusura: perf/budget.json abbassato ai valori nuovi; tsc, lint 0, Vitest in Europe/Rome, npm run test:e2e COMPLETO;
-giro guidato di 5 punti sul mirror con il PDF generato davvero; CLAUDE.md «Latest», AGENTS.md, le guide, Draft Release
+giro guidato di 5 punti sul mirror con il PDF generato davvero, più Analisi a 390 e a 1440; CLAUDE.md «Latest», AGENTS.md, le guide, Draft Release
 Temp.md (senza dati privati), doc/perf/README.md; poi proponi il commit.
 ```
 

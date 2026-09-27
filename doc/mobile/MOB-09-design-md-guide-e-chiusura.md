@@ -14,10 +14,10 @@ Righe del 2026-09-26 (MOB-02..08 possono spostarle: riverificare).
   ha 44 voci `{ name, body, section }` (la `[26]` è `:681`), nessuna delle quattro; `extensions.motion` senza
   `ease-spring`; `components[]` descrive Page Verdict, Tile ed Error Notice («role=alert») come oggi.
 - `PRODUCT.md:9` «Mobile-first at 390px with desktop as an elevated variant». `CLAUDE.md:116-119`: la rail «measured
-  at 1440», la pill «38×32»; 19.240 byte in LF (19.370 nel checkout CRLF) contro «well under 20.000».
+  at 1440», la pill «38×32»; 19.190 byte in LF il 2026-09-27 (da rimisurare alla chiusura) contro «well under 20.000».
 - `grep -rn "Composizione mobile" doc/guide` → 0 oggi; MOB-02..08 ne scrivono una per pagina, ognuna a modo suo.
 - `.impeccable/critique/`: 16 snapshot `closed: true` (2026-09-13 → 09-24) sulla composizione di PRIMA.
-  `doc/mobile/README.md:173` (§ 6) è «(compilato a fine sessione)».
+  `doc/mobile/README.md` § 6 tiene tutte le spec «da fare»: qui si chiude, una riga per spec con data e misura.
 
 ## 2. Obiettivo misurabile
 
@@ -48,7 +48,9 @@ celle 44 px, la barra di 1024 misurata da MOB-08) e le regole:
 > question; every other tile is a closed row under «Il resto della pagina», in the desktop's DOM order and the phone's
 > `order-*`. The budget is measured, not felt: at most five figures outside the verdict above the fold, the first
 > closed row above the pill (`npm run mobile:budget`). Two corollaries. **The small screen shows less, never something
-> else**: the same tiles, tokens, narratives, routes and tabs; a strip cell opens the section that explains it.
+> else**: the same tiles, tokens, narratives, routes and tabs; a strip cell opens the section that explains it. A chart
+> may change its drawing below the width where it stops being legible — the Flusso's Sankey becomes a share bar and
+> ranked rows under 640px — never its figures or where a row lands.
 > **One composition serves 390, 768 and 1024**: two columns from `tablet:`, an open row across both; three at most in
 > landscape, the open tile on two. `desktop:` stays the only switch.
 
@@ -80,7 +82,9 @@ celle 44 px, la barra di 1024 misurata da MOB-08) e le regole:
   and opens every tile».
 - `:1394` → «**Don't** squeeze the desktop into a column, nor give the small screen a second design (The First-Screen
   Rule). Mobile is the base and shows LESS — the same tiles, tokens and narratives, most of them closed rows — never
-  something different: no mobile-only tile, figure, wording or route.»
+  something different: no mobile-only tile, figure, narrative or route. A chart may change its drawing below the width
+  where it stops being legible, never its figures or where a row lands.» («narrative», non «wording»: il Flusso sotto i 640 px ha didascalie
+  sue, che vengono da `analisiNarrative.ts` come ogni altra frase; proprietario, 2026-09-27.)
 - `:681`: dopo «`order-*`» + «and composed (The First-Screen Rule): the first screen is chosen, not squeezed»; «not a
   rule» e `:1379` («no scroll») restano. `:958`: «Tabs shrink to icon width, never under a 44×44 target» (MOB-02
   § 4.6); `:866` resta. `:1070`: un rimando.
@@ -103,7 +107,8 @@ of Panoramica and Patrimonio», che PERF-14 toglie) riletto con `grep -rn spring
   `fire-what-if`, `fire-monte-carlo`, `fire-obiettivi`: una guida per pagina o tab, CLAUDE.md); `impostazioni`,
   `assistente`: «nessuna composizione, perché». Otto voci: LA tessera · la striscia (etichetta → campo del `*Summary` →
   sezione aperta) · i blocchi sollevati · le righe e il loro aside · le clausole `binding` · le assenze · la chiave
-  `mobile-sections:` · 768/1024 e le spec. MOB-09 le uniforma contro il codice, non le riscrive.
+  `mobile-sections:` · 768/1024 e le spec. MOB-09 le uniforma contro il codice, non le riscrive. In `cashflow-analisi`
+  l'ultima voce nomina la soglia dei 640 px del Flusso, che la guida dichiara già dal 2026-09-27.
 - **Stub di AGENTS § 3**: «the mobile composition» nella riga «Il resto —»; un punto nuovo solo per una trappola vera.
 - **AGENTS § 4 Hierarchy, Density and Disclosure**: un punto con le quattro regole per nome e le trappole — il pannello
   chiuso è vuoto (una spec apre la riga prima di leggere), la memoria si scrive solo a un gesto, `order-*` letterali.

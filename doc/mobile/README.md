@@ -40,6 +40,11 @@ temi, la regola degli stati su venti superfici e quaranta modali: escluso.
 
 ## 3. Baseline (2026-09-26, mirror, dev server)
 
+> Presa PRIMA dei contributi del 2026-09-27. Da #401 la riga **Analisi a 390** cambia: sotto i 640 px il Flusso non è più
+> un Sankey, `charts` scende da 2 a 1, cifre e controlli salgono, le schermate sono da rimisurare; a 768 e 1024 no. Da
+> PERF-00 cambiano le righe **Allocazione** (la base dell'Esposizione e la riga di copertura). #400 a interruttore spento
+> e #403 non muovono righe. MOB-01 rimisura: il budget nasce con i contributi dentro.
+
 `screens` = schermate di scroll. `tiles` = tessere visibili (sopra la piega = che INIZIANO nella prima schermata;
 «fully» = interamente dentro). `figures` = cifre € o % (totali / sopra la piega). `words` = parole (totali / sopra la
 piega). `controls` = bottoni, link, tab, input (totali / sopra la piega).
@@ -171,10 +176,15 @@ Gli archi (A → B = «B dipende da A»), gli stessi dell'intestazione di ogni s
 | Da | A |
 |---|---|
 | PERF-01 | MOB-01 |
+| PERF-00 | MOB-01, MOB-07 |
 | MOB-01 | 02, 03, 04, 05, 06, 07, 08 |
 | MOB-02 | 03, 04, 05, 06, 07, 08 |
 | MOB-03, 04, 05, 06, 07 | 08, 09 |
 | MOB-08 | 09 |
+
+I contributi esterni del 2026-09-27 (#400, #401, #403) sono già in `develop`, e PERF-00 (la nuova Esposizione) entra
+prima di PERF-01: MOB-01 misura un'app che li contiene, e MOB-06 e MOB-07 compongono il Flusso e l'Esposizione come sono
+DOPO quei contributi (`doc/perf/README.md` § 5).
 
 MOB-01 va prima di tutto, come PERF-01: le altre si chiudono con i suoi numeri. MOB-02 è il CONTRATTO che sette spec
 citano alla lettera (la tabella delle API in § 4.1): le due decisioni di fondazione che pone — l'ordine del DOM e la
@@ -193,13 +203,13 @@ per spec.
 
 | Spec | Titolo | Priorità | Sforzo | Dipende da | Modello · effort | Stato |
 |---|---|---|---|---|---|---|
-| [MOB-01](MOB-01-censimento-e-budget-prima-schermata.md) | Il censimento in repo e il budget della prima schermata | 1 | M | PERF-01 | Opus 5.5 · high | da fare |
+| [MOB-01](MOB-01-censimento-e-budget-prima-schermata.md) | Il censimento in repo e il budget della prima schermata | 1 | M | PERF-01, PERF-00 | Opus 5.5 · high | da fare |
 | [MOB-02](MOB-02-primitive-della-composizione.md) | Le primitive della composizione | 1 | L | MOB-01, PERF-12, PERF-14 (con PERF-02; PERF-03) | Fable 5.1 · xhigh | da fare |
 | [MOB-03](MOB-03-panoramica.md) | Panoramica | 2 | M | MOB-02, PERF-03, PERF-07 | Fable 5.1 · high | da fare |
 | [MOB-04](MOB-04-cashflow-cinque-tab.md) | Cashflow: le cinque tab | 2 | L | MOB-02, PERF-06 | Fable 5.1 · xhigh | da fare |
 | [MOB-05](MOB-05-rendimenti.md) | Rendimenti | 2 | M | MOB-02, PERF-09 | Fable 5.1 · high | da fare |
 | [MOB-06](MOB-06-patrimonio-analisi-storico-hall-of-fame.md) | Patrimonio · Analisi · Storico · Hall of Fame | 3 | L | MOB-02, PERF-11 | Opus 5.5 · high | da fare |
-| [MOB-07](MOB-07-allocazione-previdenza-fire.md) | Allocazione · Previdenza · FIRE | 3 | L | MOB-02 (PERF-04, 05, 10 chiuse) | Fable 5.1 · high | da fare |
+| [MOB-07](MOB-07-allocazione-previdenza-fire.md) | Allocazione · Previdenza · FIRE | 3 | L | MOB-02 (PERF-04, 05, 10 e PERF-00 chiuse) | Fable 5.1 · high | da fare |
 | [MOB-08](MOB-08-tablet-768-e-1024.md) | Tablet: 768 e 1024 | 3 | M | MOB-03..07 (PERF-01, 02, 14) | Opus 5.5 · high | da fare |
 | [MOB-09](MOB-09-design-md-guide-e-chiusura.md) | DESIGN.md, guide e chiusura | 3 | M | MOB-03..08 | Opus 5.5 · high | da fare |
 
@@ -251,6 +261,11 @@ npm davanti alle opzioni.
   che diventa «.») dove serve al taglio; (6) **il budget di MOB-01 si misura su un fixture deterministico**, il mirror
   resta per il giro guidato; (7) **una «cifra» è solo € e %**, come la baseline; (8) **la stessa cifra può ripetersi nel
   paragrafo aperto di «Il perché», mai nella tessera**.
+- **Il Flusso di Analisi sceglie il disegno a 640 px (2026-09-27, con l'integrazione di #400 e #401)**: sotto, una barra
+  di quote e le righe; da 640 a 1439 il Sankey. È una soglia di leggibilità del GRAFICO, non una seconda composizione:
+  «una sola composizione» e «`desktop:` unico switch» valgono per griglia, striscia e righe, e restano. Un grafico può
+  cambiare disegno sotto la larghezza in cui smette di leggersi; mai cifre né atterraggi, e le sue didascalie vengono da
+  `analisiNarrative.ts` come ogni altra frase (MOB-06 § 4.2, MOB-08 § 4.1, MOB-09 § 4.1).
 
 ## 10. Domande aperte al proprietario
 
@@ -275,7 +290,7 @@ sono decise, § 9). MOB-02: LA tessera non si chiude mai; +12 px sulle pagine a 
 «Messo da parte» finora o mese intero. MOB-04: Divisione (paragrafo o didascalia), spesa salvata fuori periodo,
 Dividendi e Centri senza striscia, spese avvenute o il trio, Budget «Oltre» dal solo calendario, il «−» di Divisione a
 1440. MOB-05: Benchmark in errore, Contributi senza registro. MOB-06: Movimenti in `ErrorNotice` a 1440, le azioni di
-Hall of Fame in fondo. MOB-07: il vincolo del fondo come riga d'ambito o `binding`, What If (Evento o Prima e dopo),
+Hall of Fame in fondo, la didascalia della barra del Flusso senza importo sul telefono. MOB-07: il vincolo del fondo come riga d'ambito o `binding`, What If (Evento o Prima e dopo),
 Obiettivi con o senza striscia. MOB-08: trigger della barra a 44 px, `dense` a 768, sei righe accanto o tutte, iPad
 12,9" verticale. MOB-09: il testo delle quattro regole, quali critiche Impeccable, `tile-closed-row` nel frontmatter,
 una voce o una per pagina nel draft.

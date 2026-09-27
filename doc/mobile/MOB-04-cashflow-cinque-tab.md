@@ -13,12 +13,12 @@ Dividendi 3,77 / 6 / 8. Il codice di oggi (righe da riverificare):
   `:379-501` cinque `TabsContent forceMount`, l'inattiva `display:none` (`components/ui/tabs.tsx:47`); una tab spenta
   ricade su Tracciamento (`:254-255`).
 - `components/cashflow/ExpenseTrackingTab.tsx:272-279`: il FAB (`BottomNavigation.tsx:42`) apre il dialog e basta;
-  `onSuccess` non dice cosa ha salvato (`components/expenses/ExpenseDialog.tsx:375`, `:2020`) benché gli id ci siano
-  (`:1975-1985`); la riga del feed non porta il suo id (`TransactionFeed.tsx:480`).
+  `onSuccess` non dice cosa ha salvato (`components/expenses/ExpenseDialog.tsx:375`, `:2022`) benché gli id ci siano
+  (`:1977-1987`); la riga del feed non porta il suo id (`TransactionFeed.tsx:480`).
 - `ExpenseTrackingTab.tsx:1026-1044`: il trio (`tiles/CashflowKpiTrio.tsx:53-92`, via `CashflowPeriodoTile.tsx:69`)
   stampa i totali del PERIODO, calendario compreso; il verdetto (`lib/utils/cashflowNarrative.ts:385-418`) giudica la
   parte vissuta e col calendario chiude con `calendarSentence` (`:345-372`). `:800-806`: il secondo handle sul `period`.
-- `ExpenseSplitTab.tsx:76`: Divisione ha un `period` SUO; `expenseSplitNarrative.ts:247` mette «Nel totale ci sono ancora
+- `ExpenseSplitTab.tsx:89`: Divisione ha un `period` SUO; `expenseSplitNarrative.ts:286` mette «Nel totale ci sono ancora
   X € … in calendario» (qualifica «In comune») dopo i residui. `BudgetTab.tsx:309`: il `role="status"` del salvataggio
   sta nell'aside di Per categoria. `DividendTrackingTab.tsx:211`: `/api/dividends/stats` è l'unica lettura PER TESSERA.
 
@@ -115,18 +115,24 @@ Dividendi 3,77 / 6 / 8. Il codice di oggi (righe da riverificare):
 
 ### 4.5 Divisione (sul suo asse)
 
-- **LA tessera** = In comune (`spl-comune`); righe `spl-quota` («dagli stipendi») e una per persona
+- **LA tessera** = In comune (`spl-comune`); righe `spl-quota` («dalle entrate», dal 2026-09-27) e una per persona
   (`spl-persona-<memberId>`, eyebrow = il nome, `asideWhenClosed` «quanto resta»: oggi senza aside), dentro UNA cella
-  della griglia (`ExpenseSplitTab.tsx:219`): l'`order-*` va sul contenitore.
+  della griglia (`ExpenseSplitTab.tsx:245`): l'`order-*` va sul contenitore. **Dal 2026-09-27 LA tessera porta, sotto
+  l'eroe, un `<dl>` di due righe («Entrate in comune −X €», «Da dividere Y €»; una terza «Avanzano Z €» sull'avanzo),
+  presente solo con entrate lasciate in comune (`ExpenseSplitTab.tsx:189`): ~40 px a riga a 390, dentro il budget
+  di 1,5 schermate di § 2 (l'eroe resta la spesa lorda, le righe non si chiudono).** Il `−` delle righe è già U+2212.
 - **Striscia** = `selectSplitStrip(summary)` in `expenseSplitSummary.ts`: una cella per persona, etichetta = il nome,
   valore = `remainingBooked` (denaro MOSSO, `currency`, tono dal segno), apre la sua riga e solleva la cifra da 32 px
   della sua tessera; senza base `null` con `reason` «senza base»; oltre quattro persone `[]`. **Il segno**: la tessera
-  stampa il `-` di Intl (`ExpenseSplitTab.tsx:249`), `currency` il `−` U+2212 del trio (`CashflowKpiTrio.tsx:74`): la
+  stampa il `-` di Intl (`ExpenseSplitTab.tsx:275`), `currency` il `−` U+2212 del trio (`CashflowKpiTrio.tsx:74`): la
   tessera passa al `−` (The Comma Rule, `DESIGN.md:455`), anche a 1440, o l'identità di § 7 è rossa sul negativo.
-- **Il taglio**: `leadLength` = la prima frase (totale in comune e quote). `scheduledSentence` qualifica «In comune», già
-  stampato lì: i suoi segmenti sono **`binding`** e `splitVerdict` annulla il taglio (domanda 2). La funzione è condivisa
-  con Analisi (`analisiNarrative.ts:297`, `:333`): MOB-06 eredita il marchio. `calendarClause` (dove il calendario porta
-  il residuo) è un altro fatto: seguito.
+- **Il taglio**: `leadLength` = la prima frase (totale in comune, **dal 2026-09-27 la clausola delle entrate in comune
+  «meno X € di entrate in comune: Y € da dividere» o «coperte per intero…» — `poolClause`,
+  `expenseSplitNarrative.ts:219` — e le quote**, tutto in UNA frase: a 390 la prima frase sale a ~4 righe con la
+  clausola; il taglio resta alla prima frase perché le quote sono quote del NETTO e la clausola è ciò che lo dice).
+  `scheduledSentence` qualifica «In comune», già stampato lì: i suoi segmenti sono **`binding`** e `splitVerdict` annulla
+  il taglio (domanda 2). La funzione è condivisa con Analisi (`analisiNarrative.ts:298`, `:334`): MOB-06 eredita il
+  marchio. `calendarClause` (dove il calendario porta il residuo) è un altro fatto: seguito.
 
 ### 4.6 Dividendi
 
@@ -143,7 +149,7 @@ Dividendi 3,77 / 6 / 8. Il codice di oggi (righe da riverificare):
 
 - **PERF-06**: la striscia legge i riassunti delle tessere, quindi la stessa finestra; il FAB rivela solo righe del
   periodo dopo il refetch per prefisso. PERF-06 fa leggere a Divisione la finestra di Tracciamento (PERF-06 § 4), ma il
-  periodo di Divisione è suo (`ExpenseSplitTab.tsx:76`): se la finestra non lo segue, un altro mese legge vuoto — si
+  periodo di Divisione è suo (`ExpenseSplitTab.tsx:89`): se la finestra non lo segue, un altro mese legge vuoto — si
   riapre PERF-06.
 - **PERF-05** tocca solo `assets.all` in `loadOtherData`: `otherDataFailed` (`page.tsx:122`) resta l'errore di TAB; il
   `failed` di `dvd-rendimento` è `statsError` di `useDividendStats`, già React Query. **PERF-04**: qui niente recharts
@@ -155,7 +161,7 @@ Dividendi 3,77 / 6 / 8. Il codice di oggi (righe da riverificare):
 1. Tracciamento senza calendario: solo il titolo sopra la striscia (`leadLength: 0`), o anche la prima frase che ripete **Deciso il 2026-09-27 (doc/mobile/README.md § 9): deroga ammessa e dichiarata quando la prima frase ristamperebbe ≥ 2 cifre della striscia.**
    le tre cifre? (Comune a MOB-03 § 4.6, 1 e MOB-05 § 4.8, 1: una risposta per le tre.)
 2. Divisione con spese in comune in calendario: paragrafo intero (proposta), o «di cui X € in calendario» sotto l'eroe di
-   In comune e il taglio resta? (Allora «Con quelle, …», `expenseSplitNarrative.ts:295`, perde l'antecedente.)
+   In comune e il taglio resta? (Allora «Con quelle, …», `expenseSplitNarrative.ts:339`, perde l'antecedente.)
 3. Spesa salvata fuori dal periodo o dai filtri: nessuna apertura e periodo fermo (proposta)?
 4. La didascalia del calendario anche a 1440 sul trio, come MOB-03 sulla Panoramica, o solo `scope` sotto `desktop:`?
 5. Se Tracciamento resta sotto la pill con il grafico a 100 px: eccezione in `budget.json` o grafico più basso?

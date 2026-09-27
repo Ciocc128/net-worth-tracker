@@ -102,14 +102,20 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Widening `AssetClass` only breaks the Records actually typed `Record<AssetClass, …>`** — grep first. The costly one is
   the zod `z.enum([...])` in `AssetDialog.tsx`, surfacing as indirect assignability errors on `reset()`/`setValue()`
   sites that never name the enum.
-- **A label map has its own REGISTER and is extended, never consolidated.** Five Italian label maps exist on purpose:
+- **A label map has its own REGISTER and is extended, never consolidated.** Six Italian label maps exist on purpose:
   `allocationUtils.ASSET_CLASS_LABELS` (nominal — «Azioni», the canonical one), `chartService.getAssetClassName`
   (nominal, feeds Panoramica › Composizione and Patrimonio › Classi), `pdfDataService.getAssetClassName` (**adjectival**
-  — «Azionario»), `PortfolioSection.getAssetClassShort` (abbreviated to the column — «Materie P.») and
-  `monthlyEmailService.ASSET_CLASS_LABELS` (lowercase — «Materie prime»). Routing them all through one constant renames
-  four classes in the PDF for a fix that was meant to add two keys. **Add the key to each map**; they all close with
-  `|| assetClass`, so a missing one prints the camelCase Firestore key on screen (2026-08-30: it did, for
-  `trendFollowing` and `carry`, on the Panoramica, Patrimonio, the PDF and the periodic emails).
+  — «Azionario»), `PortfolioSection.getAssetClassShort` (abbreviated to the column — «Materie», «Obblig.»),
+  `monthlyEmailService.ASSET_CLASS_LABELS` (lowercase — «Materie prime») and `assetDisplayClass.SHORT_CLASS_LABELS`
+  (abbreviated to the chip — «Obbl.», «Mat. prime»; the split chip of a composite instrument in Patrimonio ›
+  Strumenti, 2026-09-26). The two abbreviated maps differ on purpose: the PDF column holds ONE name alone and can afford
+  «Immobili» and «Liquidità», while the chip holds TWO names joined by « · » in a pill whose width carries the
+  proportions, so every long form is cut and the dot marks the cut («Immob.», «Liquid.»); «Cripto» follows the
+  canonical «Criptovalute», not the PDF's «Crypto». Routing them all through one constant renames four classes in the
+  PDF for a fix that was meant to add two keys. **Add the key to each map**; five close with `|| assetClass`, so a
+  missing one prints the camelCase Firestore key on screen (2026-08-30: it did, for `trendFollowing` and `carry`, on
+  the Panoramica, Patrimonio, the PDF and the periodic emails), and `SHORT_CLASS_LABELS` is a `Record<AssetClass,
+  string>`, so `tsc` refuses a widened `AssetClass` until the chip has its form.
 - **A raw class key must never reach the model either.** `lib/server/assistant/prompts.ts` resolves every
   `assetClass` through `assetClassLabel()` before interpolating: the blocks are quoted back to the user in Italian
   prose, so «dell'trendFollowing» is how a Firestore key becomes a sentence.

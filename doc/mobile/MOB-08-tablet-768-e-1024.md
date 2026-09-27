@@ -34,7 +34,9 @@ Analisi 1/1): il landscape è il tablet peggiore. Righe del 2026-09-26, da river
 - Telefono (MOB-02..07), desktop, DESIGN.md (MOB-09), B e C; le griglie annidate (`*Dettaglio.tsx`, Impostazioni,
   Assistente) restano su `tablet:`.
 - `TileGridSkeleton` (`components/ui/tile-grid-skeleton.tsx:57`) resta a due colonne (§ 4.6, 5).
-- Hall of Fame, Analisi, Centri, Divisione a tablet in Playwright: fixture proprie, escluse come oggi.
+- Hall of Fame, Analisi, Centri, Divisione a tablet in Playwright: fixture proprie, escluse come oggi. La soglia dei 640
+  del Flusso resta quindi coperta a 390 (`analisi.mobile.spec.ts`) e a 1440 (`analisi.spec.ts`), non fra i due: il Sankey
+  a 768 e 1024 lo guarda il giro (§ 8).
 
 ## 4. Design
 
@@ -68,6 +70,11 @@ occupano una colonna, aperte le allarga `OPEN_CELL_CLASS` (esce dopo `tablet:`).
   riparte dalla riga 1), con la settima chiusa della Panoramica stirata accanto al fondo di LA tessera.
 - Verdetto breve, `freshness` (PERF-03), striscia e riga d'ambito stanno sopra la griglia; `LIFTED_FIGURE_CLASS`
   (`max-tablet:hidden`) ridà le cifre sollevate (The Lifted-Figure Rule).
+- **Il Flusso di Analisi sceglie il disegno a 640 px, non a `desktop:`** (proprietario, 2026-09-27): sotto i 640 px una
+  barra e le righe, da 640 il Sankey. È una soglia di leggibilità del GRAFICO (a 390 quattro colonne da ~80 px), come la
+  tendina di `period-picker.tsx` e di `multi-select.tsx`, non una seconda composizione: a 768 e a 1024 `analisi-flusso`
+  aperta va a tutta larghezza (`OPEN_CELL_CLASS`) e disegna il Sankey con le misure del desktop. `useCompactLayout` resta
+  l'unico interruttore della COMPOSIZIONE.
 
 ### 4.2 La funzione pura e l'hook
 
@@ -136,7 +143,7 @@ Tracciamento** (tab, «+» e «Aggiungi», Movimenti; `e2e/cashflow.tablet.spec.
 - Nuovi: `lib/utils/tabletComposition.ts`, `lib/hooks/useTabletComposition.ts`, `__tests__/tabletComposition.test.ts`,
   `e2e/overview.tablet.spec.ts`, `e2e/cashflow.tablet.spec.ts`.
 - Griglie: `app/dashboard/{page.tsx:351,assets/page.tsx:412,performance/page.tsx:753,history/page.tsx:424,allocation/page.tsx:460,hall-of-fame/page.tsx:427}`,
-  `components/cashflow/{ExpenseTrackingTab.tsx:1025,BudgetTab.tsx:251,CostCentersTab.tsx:294,CostCenterDetail.tsx:374,ExpenseSplitTab.tsx:154,AnalisiTab.tsx:704}`,
+  `components/cashflow/{ExpenseTrackingTab.tsx:1025,BudgetTab.tsx:251,CostCentersTab.tsx:294,CostCenterDetail.tsx:374,ExpenseSplitTab.tsx:167,AnalisiTab.tsx:715}`,
   `components/dividends/DividendTrackingTab.tsx:650`, `components/pension/PensionOverview.tsx:262`,
   `components/fire-simulations/{FireCalculatorTab.tsx:170,CoastFireTab.tsx:110,WhatIfAnalysisTab.tsx:403,MonteCarloTab.tsx:372,GoalBasedInvestingTab.tsx:290}`.
 - `app/dashboard/layout.tsx:37`, `components/cashflow/ExpenseTrackingTab.tsx:1017`, `playwright.config.ts`,
@@ -175,7 +182,8 @@ Tracciamento** (tab, «+» e «Aggiungi», Movimenti; `e2e/cashflow.tablet.spec.
 - **C**: § 7, e `mobile:budget` rosso con una falsificazione.
 - **F** (mirror; un iPad vero se c'è, se no DevTools a 768×1024 e 1024×768): 1) Panoramica orizzontale, LA tessera
   intera e le righe accanto; 2) aprirne una: dove va, e se la pagina la segue; 3) ruotare, da tre a due colonne senza
-  perdere le aperte; 4) il menu della barra col pollice; 5) «Aggiungi» in Tracciamento orizzontale.
+  perdere le aperte; 4) il menu della barra col pollice; 5) «Aggiungi» in Tracciamento orizzontale. In più, fuori dai
+  cinque: Analisi a 768 e a 1024, il Flusso aperto disegna il Sankey e si legge.
 - **G**: `npm run mirror:remove`; `.mobile-census/` cancellata; nessun `.tmp-*`.
 
 ## 9. Rischi e rollback
