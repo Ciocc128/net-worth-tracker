@@ -1,7 +1,7 @@
 # MOB-07 — Allocazione · Previdenza · FIRE
 
 > Stato: da fare · Priorità: 3 (Pianificazione, la meno aperta dal telefono) · Sforzo: L · Dipende da: MOB-02 (MOB-01 per
-> il budget; PERF-04, PERF-05, PERF-10 chiuse) · Sblocca: MOB-08, MOB-09
+> il budget; PERF-04, PERF-05, PERF-10 e PERF-00 chiuse) · Sblocca: MOB-08, MOB-09
 
 ## 1. Il problema, misurato
 
@@ -20,7 +20,8 @@ Censimento 2026-09-26, 390×844 (altezze in px; righe di codice da riverificare)
   `contents desktop:flex` (`:461`). Il verdetto è UNA frase di clausole unite da «; »
   (`lib/utils/allocazioneNarrative.ts:211-212`); il punteggio è titolo (`:198`) e anello (`BilanciamentoTile.tsx:129`);
   l'aside di Previdenza è un importo (`allocazioneNarrative.ts:697-702`). Esposizione legge da sé
-  (`EsposizioneTile.tsx:139`), con il suo `role="alert"` (`:203`).
+  (`EsposizioneTile.tsx:139`), con il suo `role="alert"` (`:203`): PERF-00 la riscrive (i profili da una route nuova, la
+  pesatura nel browser sugli asset della pagina, la riga di copertura), e queste righe si riverificano dopo.
 - **Previdenza** (`components/pension/PensionOverview.tsx:263-330`): versamenti non letti = quattro `ErrorNotice`. Il
   verdetto è una frase per contribuente con le tre cause (`lib/utils/pensionNarrative.ts:120-143`); `returnState` viene
   da `isPensionReturnMeasurable` (`lib/utils/pensionReturn.ts:183`); l'aside di Anno fiscale è la RAL (`pensionNarrative.ts:397-404`).
@@ -37,7 +38,7 @@ Censimento 2026-09-26, 390×844 (altezze in px; righe di codice da riverificare)
   `figuresOutsideVerdict` e `firstClosedRowAbovePill` registrati: con LA tessera oltre ~420 px la prima riga chiusa sta
   sotto la pill (§ 4.6, 5).
 - Playwright: DOM in ordine desktop, pannelli chiusi vuoti, memoria per pagina e per tab, eyebrow rosso, zero richieste
-  `/api/portfolio/exposure` a Esposizione chiusa; a 1440 le pagine di oggi salvo § 4.6, 2.
+  `/api/portfolio/instrument-profiles` (la route di PERF-00) a Esposizione chiusa; a 1440 le pagine di oggi salvo § 4.6, 2.
 
 ## 3. Non-obiettivi
 
@@ -75,9 +76,13 @@ Censimento 2026-09-26, 390×844 (altezze in px; righe di codice da riverificare)
 - **Righe**: `alloc-piano` («Ribilancia, Versa o Preleva»), `alloc-per-classe` («corrente, target e gap»),
   `alloc-esposizione` («titoli, settori, emittenti»), `alloc-previdenza` («il fondo nel mix», non l'importo). Importo e
   modalità del Piano sono stato della pagina.
-- **Esposizione**: la pagina osserva la stessa chiave, `usePortfolioExposure(ownerId, !compact ||
-  !!collapse('alloc-esposizione')?.mounted)`; con `isError` sotto `desktop:` rende `<ErrorNotice collapse live={false}>`
-  e passa `failed`. La regione della banda (`page.tsx:447`) resta: annuncia un gesto, non un errore.
+- **Esposizione**: la pagina osserva la stessa chiave dell'hook di PERF-00 (i profili, `enabled` = `!compact ||
+  !!collapse('alloc-esposizione')?.mounted`; la firma esatta si legge dopo PERF-00); con `isError` sotto `desktop:` rende
+  `<ErrorNotice collapse live={false}>` e passa `failed`. La regione della banda (`page.tsx:447`) resta: annuncia un
+  gesto, non un errore. **La riga di copertura** (letto · non letto · non applicabile · fuori vista) sta nel pannello,
+  sopra l'elenco: mai nella striscia né in `asideWhenClosed` (porta importi). **Una fetta «non letta» non è una lettura
+  fallita**: `failed` e l'eyebrow rosso restano il solo `isError` della query, mai una copertura parziale. La pesatura
+  gira nel browser: a riga chiusa non si calcola nulla, oltre a non leggere nulla.
 - **Verdetto**: la prima clausola diventa frase e `leadLength`; leva e prossimi soldi sono il seguito, `restLabel` secondo
   ciò che c'è («dove vanno i prossimi soldi», «la leva»: `nextMoney` è `null` senza importo). I target irraggiungibili
   (`orphanSentence`, `allocazioneNarrative.ts:169`) sono `binding`: nessun taglio.
@@ -120,7 +125,8 @@ Censimento 2026-09-26, 390×844 (altezze in px; righe di codice da riverificare)
 PERF-04 fa pigra la tab intera (What If, Coast, Monte Carlo, Obiettivi; PERF-04 § 4, C), non i grafici dentro: Prima e
 dopo è nel chunk della tab (`WhatIfAnalysisTab.tsx:89`), si monta all'apertura senza scaricare nulla; lo skeleton di
 MOB-02 § 4.8 vale per un grafico pigro da sé. PERF-05: `failed` = gli `isError` degli hook (Previdenza li ha già,
-`PensionOverview.tsx:117-130`); le righe citate si spostano. PERF-10: l'Esposizione parte all'apertura. PERF-03:
+`PensionOverview.tsx:117-130`); le righe citate si spostano. PERF-00 (e PERF-10 per il `Server-Timing`): l'Esposizione
+parte all'apertura e da calda non chiama Yahoo. PERF-03:
 `freshness` fuori da «Il perché». PERF-12/14: nessun `layout`. PERF-13: § 3.
 
 ### 4.6 Domande al proprietario
@@ -165,9 +171,10 @@ cinque tab. 4. Playwright, tsc, lint, Vitest. 5. `mobile:census`/`mobile:budget`
   FIRE: `lead` chiude con «.», vincolo nel `rest` (falsificare lasciando «, e da allora»). `fireNarrative.test.ts`:
   `describeFireLockScope` non nullo ⇔ frase del vincolo (tre tab su `lock`, What If su `isBridge`); didascalia con
   tasse e pensioni (falsificare togliendo `captionHonestClauses`).
-- **`e2e/allocation.mobile.spec.ts`** (nuovo, progetto `mobile`): (1) due celle ≥ 44 px, KPI «Fuori posizione» nascosto
+- **`e2e/allocation.mobile.spec.ts`** (esiste da PERF-00 con la riga di copertura a 390: si ESTENDE, non si crea, e il
+  suo caso apre prima «Esposizione»; progetto `mobile`): (1) due celle ≥ 44 px, KPI «Fuori posizione» nascosto
   e lettura intera, quattro trigger chiusi, `#alloc-piano-panel` `inert` e vuoto; (2) la cella apre il Piano, focus sul
-  trigger; (3) zero richieste all'esposizione a riga chiusa; (4) `page.route('**/api/portfolio/exposure**', abort)`
+  trigger; (3) zero richieste ai profili a riga chiusa; (4) `page.route('**/api/portfolio/instrument-profiles**', abort)`
   (`e2e/settings.spec.ts:143`), aprire e chiudere: eyebrow `text-destructive`, «, lettura fallita», l'annuncio;
   (5) reload, `mobile-sections:allocation`; (6) nessuno sforamento. Rossi falsificando: (1) `liftedFigures` assente;
   (2) `reveal` senza focus; (3) `enabled` sempre vero; (4) `failed` sempre falso; (5) nessuna scrittura; (6) una cella
@@ -214,7 +221,7 @@ Da fare TASSATIVAMENTE prima di ogni cosa:
   fire-obiettivi.md, stati.md, e2e-emulatori.md
 - Leggi COMMENTS.md e DEVELOPMENT_GUIDELINES.md e APPLICALE mentre scrivi codice
 - Leggi doc/mobile/README.md, MOB-02 (§ 4.1 è il contratto) e questa spec per intero; DESIGN.md § 5 e § 6 (MAI
-  rigenerarlo). MOB-01, MOB-02, PERF-04, PERF-05 e PERF-10 devono essere chiuse
+  rigenerarlo). MOB-01, MOB-02, PERF-04, PERF-05, PERF-10 e doc/perf/PERF-00 devono essere chiuse
 - Crea SESSION_NOTES.md; crea il branch dalla branch attiva PRIMA di editare
 
 Regole: nessun commit senza il mio OK; un branch e un commit; rispondi in italiano; le sette domande di § 4.6 con lo

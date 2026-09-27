@@ -1,6 +1,6 @@
 # MOB-01 — Il censimento in repo e il budget della prima schermata
 
-> Stato: da fare · Priorità: 1 (le altre MOB si chiudono con i suoi numeri) · Sforzo: M · Dipende da: PERF-01 · Sblocca: MOB-02..MOB-08
+> Stato: da fare · Priorità: 1 (le altre MOB si chiudono con i suoi numeri) · Sforzo: M · Dipende da: PERF-01 (e PERF-00: l'Esposizione misurata e `instrument-profile-cache` nel seed) · Sblocca: MOB-02..MOB-08
 
 ## 1. Il problema, misurato
 
@@ -14,6 +14,12 @@ misurato sul mirror, dev server, 19 superfici (11 route; Cashflow e FIRE per tab
 
 La tabella intera (soli numeri) è `doc/mobile/README.md` § 3, «la baseline» qui sotto; il budget parte dalla prima
 corsa sulla build, confrontata con essa.
+
+**La baseline precede i contributi del 2026-09-27.** Da #401 il Flusso di Analisi sotto i 640 px non è più un Sankey ma
+una barra e le righe: a 390 `charts` scende da 2 a 1 (il Sankey era un `svg[role="img"]`), cifre e controlli salgono, le
+schermate sono da rimisurare; a 768 e 1024 nulla cambia. Da PERF-00 cambia l'Esposizione di Allocazione (la base e la riga
+di copertura). #400 a interruttore spento e #403 non muovono righe (le quote del chip sono `sr-only`). Uno scarto su
+Analisi a 390 o su Allocazione si attribuisce a quei contributi, non al censimento.
 
 Lo script non può diventare un budget così com'è (righe del 2026-09-26, chi implementa le riverifica):
 
@@ -78,11 +84,15 @@ Diagnostica non vincolante: `mainTop` (la barra a 1024), `pillTop`, `headerHeigh
   § 4.3): le cifre di `ul[aria-label="Le cifre del verdetto"]` (§ 4.4) contano fuori, come nei mock di A.
 - **La riga chiusa** (MOB-02 § 4.2): una `section.rounded-2xl[id]` il cui `h3 > button[aria-expanded="false"]` ha
   `aria-controls` = `<id>-panel`. Un `button[aria-expanded][aria-controls]` qualunque non basta: oggi l'hanno le righe
-  di `DriverTile.tsx:139`, `AssetRow.tsx:210` (Patrimonio) e `PerCategoriaTile.tsx:241` (Budget).
+  di `DriverTile.tsx:139`, `AssetRow.tsx:274` (Patrimonio), `PerCategoriaTile.tsx:241` (Budget) e, dal 2026-09-27, «Mostra
+  tutte» del Flusso sul telefono (`FlowShareMobile.tsx`).
 - **Le superfici** stanno in `budget.json` → `surfaces` (chiave, `path`, `tab` = `aria-label` della tab, come FIRE a
   `:46-51`). Il tab attivo visibile (`aria-selected="true"`) deve combaciare, se no la superficie è `missing` (rosso).
   Parità dei `path` senza `?tab=` con `lib/constants/navigation.ts` (`primaryNav` `:22`, `analysisNav` `:29`,
-  `planningNav` `:39`, `secondaryHrefs` `:55`), meno `assistantNavItem` (`:48`).
+  `planningNav` `:39`, `secondaryHrefs` `:55`), meno `assistantNavItem` (`:48`). Una superficie con un'opzione (Centri,
+  Divisione e, da #400, i ruoli 50/30/20 del Flusso) si misura nello stato che il fixture dichiara:
+  `spendingRolesEnabled` spento, il default. La vista per ruolo non è nel budget; sul mirror il report stampa lo stato
+  dell'interruttore, perché il Flusso a 390 cambia forma con lui.
 - **Il settle**: `h1`, nessun `[data-slot="skeleton"]` visibile (`components/ui/skeleton.tsx:20`), una cifra o 8 s, nessun
   `role="status"` con testo nella `section` del verdetto o nel `PageHeader` (la riga di PERF-03 § 4; gli altri di `main`
   no: `components/fire-simulations/coast/CoastIpotesi.tsx:276` resta pieno), poi 500 ms; oltre 60 s `unsettled` (rosso).
@@ -142,7 +152,8 @@ guidato; (2) una cifra è solo «€ e %», come la baseline. Restano (3) e (4),
   l'Assistente. Falsificare aggiungendo `/dashboard/dividends` (non esiste).
 - Il censimento: su un account senza Divisione `--surfaces=cashflow-divisione` → `missing`, budget rosso. Sulla build di
   oggi `firstClosedRowAbovePill` è `null` su tutte le 19: falsificare riducendo il riconoscimento a
-  `button[aria-expanded="false"][aria-controls]` → Storico, Patrimonio e Budget diventano non-`null`.
+  `button[aria-expanded="false"][aria-controls]` → Storico, Patrimonio, Budget e, a 390 con più di cinque categorie in un gruppo, Analisi («Mostra tutte» del Flusso)
+  diventano non-`null`.
 - Suite: `npx tsc --noEmit`, `npm run lint`, `TZ=Europe/Rome npx vitest run`.
 
 ## 8. Collaudo guidato
@@ -158,6 +169,11 @@ guidato; (2) una cifra è solo «€ e %», come la baseline. Restano (3) e (4),
   `screens` o `figuresAboveFold` si guarda prima la data. **Dev contro build**: uno scarto forte dalla baseline (dev) si
   annota in SESSION_NOTES; il budget resta la prima corsa sulla build.
 - **Contratto con MOB-02**: senza l'ARIA di § 4 `firstClosedRowAbovePill` resta `null`. Rollback: tutto additivo.
+- **Yahoo nel fixture**: da PERF-00 l'Esposizione chiede i profili a `/api/portfolio/instrument-profiles`, che chiama
+  Yahoo solo a `instrument-profile-cache` vuota o scaduta, e `emulators:seed` la precompila per i ticker della fixture
+  (`VWCE.DE`, `AAPL`): il budget di Allocazione non tocca la rete. Un ticker non seminato va a Yahoo (senza rete è «non
+  letto» e la tessera è più corta): la diagnostica registra il `source` del `Server-Timing` della route (da PERF-10), e un
+  `source=yahoo` sul fixture si corregge nel seed prima di prendere il budget, non si assorbe.
 
 ## 10. Documentazione da aggiornare
 
@@ -178,7 +194,7 @@ Da fare TASSATIVAMENTE prima di ogni cosa:
   § Browser-Driven E2E), CLAUDE.md (§ Testing, § Known Issues), doc/guide/e2e-emulatori.md
 - Leggi COMMENTS.md e DEVELOPMENT_GUIDELINES.md e APPLICALI mentre scrivi codice
 - Leggi doc/mobile/README.md (§ 3 è la baseline) e la spec MOB-01 per intero; doc/mobile/MOB-02 § 4.1-4.4 (il contratto
-  che il censimento riconosce); doc/perf/PERF-01-benchmark-e-budget.md § 4-5 (PERF-01 deve essere fatta: perf:build,
+  che il censimento riconosce); doc/perf/PERF-01-benchmark-e-budget.md § 4-5 (PERF-01 deve essere fatta, e doc/perf/PERF-00 pure: perf:build,
   perf:serve, porta :3200); DESIGN.md § mobile se MOB-09 l'ha già scritta
 - Crea SESSION_NOTES.md; crea il branch dalla branch attiva PRIMA di editare
 

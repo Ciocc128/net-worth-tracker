@@ -86,8 +86,11 @@ vecchio dice la sua età.
 dopo il login e PRIMA di `storageState`. Una spec che muta dati vede il fresco per invalidazione; una spec che leggesse un
 dato vecchio starebbe segnalando un bug del persister, non del test.
 
-**Cosa NON persistere**: `performance-cache` (già su Firestore), `portfolio.exposure`, benchmark/FX (cache server),
-assistant.*, `budgetHistory` (1 h stale, letture da 6 doc), `fireData` (la chiave porta `currentNetWorth`).
+**Cosa NON persistere**: `performance-cache` (già su Firestore), benchmark/FX (cache server),
+assistant.*, `budgetHistory` (1 h stale, letture da 6 doc), `fireData` (la chiave porta `currentNetWorth`). L'Esposizione:
+fuori dalla allowlist come benchmark e FX, qualunque sia la chiave che PERF-00 lascia (`portfolio.instrumentProfiles` con
+la pesatura nel browser, se il proprietario conferma PERF-00 § 4.9, domanda 1): i profili di Yahoo stanno già dietro una
+cache server di 30 giorni.
 
 ## 5. File da toccare
 
@@ -145,8 +148,11 @@ assistant.*, `budgetHistory` (1 h stale, letture da 6 doc), `fireData` (la chiav
 
 ## 9. Rischi e rollback
 
-- Un payload persistito con una forma vecchia dopo un deploy: `buster` è la difesa; ogni spec che cambia un tipo persistito
-  DEVE bumpare `PERSIST_CACHE_VERSION` — regola in AGENTS.md § Caching, accanto a `CACHE_MATH_VERSION`.
+- Un payload persistito con una forma vecchia dopo un deploy: `buster` è la difesa; ogni spec O PR (anche di un
+  contributore) che RINOMINA, TOGLIE o cambia il TIPO di un campo di un payload persistito DEVE bumpare
+  `PERSIST_CACHE_VERSION` — regola in AGENTS.md § Caching, accanto a `CACHE_MATH_VERSION`. Un campo nuovo e facoltativo la
+  cui assenza vale il default non lo chiede: `ExpenseCategory.spendingRole` e `spendingRolesEnabled` (#400) non possono
+  essere letti male da un payload più vecchio, che semplicemente non li ha. Nel dubbio si bumpa: costa una rilettura.
 - Un dato vecchio letto come vero: l'etichetta è obbligatoria e la Narrative Honesty Rule la copre; il verdetto NON cambia
   tono per un dato in revalidazione.
 - Quota IndexedDB su iOS Safari (~50 MB per origine, spesso meno): il persister scrive con `throttleTime` 1 s e `try/catch`;
