@@ -12,6 +12,7 @@
  */
 
 import { generateText, isSurfaceConfigured } from '@/lib/server/llm';
+import { outputBudget, type OutputBudget } from '@/lib/server/llm/budget';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
@@ -32,7 +33,8 @@ import {
 import {
   buildPeriodEmailVerdict,
   describeNetWorthTile,
-  describeMarketSplit,
+  describeDriverFooter,
+  describeHallOfFameStanding,
   describeCompositionTile,
   describeClassMovesTile,
   describeCashflowTile,
@@ -53,7 +55,7 @@ import {
   type PeriodEmailVerdictInput,
 } from '@/lib/utils/emailNarrative';
 import { printChartHexForAssetClass, PRINT_COLORS } from '@/lib/constants/printTokens';
-import { cachedFormatCurrencyEUR, formatPercentageIt } from '@/lib/utils/formatters';
+import { cachedFormatCurrencyEUR, formatNumberIt, formatPercentageIt } from '@/lib/utils/formatters';
 import { getItalyDate } from '@/lib/utils/dateHelpers';
 import { AssetAllocationSettings } from '@/types/assets';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
@@ -65,6 +67,7 @@ import {
   buildResponseStyleInstruction,
   ASSISTANT_SYSTEM_CORE,
   buildEmailPeriodicFormatContract,
+  EMAIL_PERIODIC_WORD_LIMITS,
   type AssistantPromptParts,
 } from '@/lib/server/assistant/prompts';
 import {
@@ -84,7 +87,31 @@ import type { BudgetAlert, BudgetItem } from '@/types/budget';
 import { type Expense, type ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { summarizeExpenseSplit, type ExpenseSplitSummary } from '@/lib/utils/expenseSplitSummary';
 import { summarizePeriodSales, type PeriodSalesSummary } from '@/lib/utils/periodSales';
-import { getAssetTransactionsAdmin, getUserAssetsAdmin } from '@/lib/server/assetAdminRepository';
+import { getAssetTransactionsAdmin, getPensionContributionsAdmin, getUserAssetsAdmin } from '@/lib/server/assetAdminRepository';
+import { getGoalDataAdmin } from '@/lib/server/goalData';
+import type { Asset } from '@/types/assets';
+import type { AssetTransaction } from '@/types/assetTransactions';
+import type { GrowthDrivers } from '@/lib/utils/growthDrivers';
+import { buildDriverLedger } from '@/lib/utils/storicoNarrative';
+import { describeBalanceFooter, describeClasses, formatLeverage } from '@/lib/utils/allocazioneNarrative';
+import {
+  EMAIL_REBALANCE_BAND,
+  MAX_TRADE_INSTRUMENTS,
+  measureEmailDrivers,
+  resolveEmailPeriodReturn,
+  type EmailClassMove,
+  summarizeEmailAllocation,
+  summarizeTradesByInstrument,
+  type EmailAllocationSummary,
+  type EmailDrivers,
+  type EmailInstrumentTrades,
+  type EmailPeriodReturn,
+} from '@/lib/utils/emailPortfolio';
+import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
+import { resolvePensionReturnStart } from '@/lib/utils/pensionReturn';
+import { resolvePerformanceBase } from '@/lib/utils/performanceBase';
+import { describeMeasurementBase } from '@/lib/utils/performanceNarrative';
+import { calculatePerformanceForPeriod } from '@/lib/services/performanceService';
 import {
   describeCommonIncome,
   describeMemberBalance,
@@ -105,19 +132,6 @@ import {
 
 export type EmailPeriodType = 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 
-interface AssetClassEntry {
-  name: string;
-  deltaPct: number;
-  deltaAbs: number;
-}
-
-export interface AssetClassPerformers {
-  bestPct: AssetClassEntry | null;
-  worstPct: AssetClassEntry | null;
-  bestAbs: AssetClassEntry | null;
-  worstAbs: AssetClassEntry | null;
-}
-
 export interface MonthlyEmailData {
   periodType: EmailPeriodType;
   year: number;
@@ -131,7 +145,6 @@ export interface MonthlyEmailData {
   liquidNetWorth: number;
   byAssetClass: Record<string, number>;
   previousByAssetClass: Record<string, number>;
-  assetClassPerformers: AssetClassPerformers;
   totalIncome: number;
   totalExpenses: number; // always positive (raw amounts are negative)
   // Category identity travels as `key` (categoryId, name-fallback for legacy rows):
@@ -161,6 +174,19 @@ export interface MonthlyEmailData {
   // verdict can name a taxed sale instead of calling it a market loss (lib/utils/periodSales.ts).
   // null = nothing sold; undefined on data built before the field existed.
   periodSales?: PeriodSalesSummary | null;
+  // The portfolio measured with the pages' own rules (F1b, lib/utils/emailPortfolio.ts). Each is
+  // null when it cannot be measured and undefined on data built before the fields existed; the
+  // tile and the prompt block that read it are then absent, never estimated another way.
+  /** Storico's Driver over the window (`isMarketMeasured` false = the market is the residual). */
+  drivers?: GrowthDrivers | null;
+  /** «Andamento per classe»: market and flows per band; null when not measured per instrument. */
+  classMoves?: EmailDrivers['classMoves'];
+  /** Allocazione on the period-end snapshot, today's roles, the 5/25 band. */
+  allocation?: EmailAllocationSummary | null;
+  /** The window's BUY/SELL, per instrument. */
+  trades?: EmailInstrumentTrades[];
+  /** Rendimenti's TWR on its base, as the hero states it. */
+  periodReturn?: EmailPeriodReturn | null;
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -494,38 +520,151 @@ function formatComparisonForPrompt(title: string, set: ComparisonSet): string {
 }
 
 /**
- * The market/valuation component of the period, as a prompt block.
- *
- * Δ patrimonio − risparmio netto, computed here rather than left to the model: the AI used
- * to call it "una stima residuale" every month, which is exactly what a number nobody
- * computed for it looks like. It is a STRUCTURAL decomposition, not a market return — it
- * also absorbs every patrimony movement that never passed through tracked cashflow — and
- * the block says so, or the comment would present it as pure market performance.
- *
- * Both inputs come from the bundle, so the figure agrees with the PATRIMONIO and CASHFLOW
- * blocks above it line for line. A missing snapshot at either end makes it unknowable, and
- * that is said out loud instead of falling back to a delta measured from zero.
+ * Where the period's change came from — Storico's Driver, as the ledger the Patrimonio tile prints
+ * (the rows add up to the growth, to the euro). Precomputed, never left to the model. Until F1b
+ * this block was `Δ − risparmio` under the name «effetto mercato»: it charged the market with
+ * every pension contribution and every untracked movement (agosto 2026 on the real account:
+ * +507 € where the Driver measures −1.063 €). The block says which market it is: measured per
+ * instrument, or — without `byAsset` — the remainder of what the ledger names.
  */
-function formatMarketEffectForPrompt(bundle: AssistantMonthContextBundle): string[] {
-  const lines = ['--- EFFETTO MERCATO (calcolato) ---'];
-  const { delta } = bundle.netWorth;
-
-  if (delta === null) {
-    lines.push(
-      'Non calcolabile: manca lo snapshot patrimoniale di inizio o di fine periodo, quindi la variazione del patrimonio non è nota. Non stimarla.'
-    );
-    lines.push('');
+function formatDriversForPrompt(emailData: MonthlyEmailData): string[] {
+  const lines = ['--- DA COSA VIENE LA VARIAZIONE DEL PATRIMONIO (calcolato, come il Driver dello Storico) ---'];
+  const drivers = emailData.previousNetWorth > 0 ? emailData.drivers : null;
+  if (!drivers) {
+    lines.push('Non calcolabile: manca lo snapshot patrimoniale di inizio o di fine periodo. Non stimarla.', '');
     return lines;
   }
+  for (const row of buildDriverLedger(drivers)) lines.push(`${row.label}: ${signedEur(row.value)}`);
+  lines.push(
+    drivers.isMarketMeasured
+      ? 'Il mercato è MISURATO strumento per strumento (variazione di prezzo delle quote detenute e delle operazioni del periodo, dal prezzo di carico al valore di fine periodo): non è un residuo. «Risparmio» sono entrate meno uscite registrate nel cashflow; «versamenti al fondo pensione» sono TFR e contributi registrati in Previdenza, che non passano dal cashflow; «altre variazioni» sono saldi inseriti a mano in giorni diversi dai movimenti, rettifiche, la differenza tra tassa stimata e trattenuta, e la crescita di un fondo pensione prima del mese da cui se ne misura il rendimento.'
+      : 'Il mercato NON è misurato strumento per strumento (gli snapshot del periodo non hanno il dettaglio): è la crescita meno risparmio, versamenti al fondo pensione e più le tasse stimate, quindi assorbe anche i movimenti non tracciati. Presentalo come stima, non come rendimento.',
+    'Le righe sono già calcolate e sommano alla crescita: usale così come sono, non ricalcolarle.',
+    '',
+  );
+  return lines;
+}
 
-  const netSavings = bundle.cashflow.netCashFlow;
+/** Rendimenti's TWR over the window, on its named base — the figure the PDF prints too (#324). */
+function formatPeriodReturnForPrompt(emailData: MonthlyEmailData): string[] {
+  const periodReturn = emailData.periodReturn;
+  if (!periodReturn) return [];
+  return [
+    '--- RENDIMENTO DEL PERIODO (TWR, come la pagina Rendimenti) ---',
+    `${signedPct(periodReturn.value)} ${periodReturn.label}. ${periodReturn.baseLabel}`,
+    'Il TWR neutralizza versamenti e prelievi: misura quanto ha reso il capitale, non quanto è cresciuto il patrimonio.',
+    '',
+  ];
+}
+
+/**
+ * The whole net worth by class at the period's end — the Composizione tile. Kept apart from the
+ * allocation below, which is measured on another base: naming both bases is what stops the model
+ * from reading a 44% share of the net worth against a 70% target of the portfolio.
+ */
+function formatCompositionForPrompt(emailData: MonthlyEmailData): string[] {
+  const entries = Object.entries(emailData.byAssetClass).filter(([, value]) => value > 0).sort(([, a], [, b]) => b - a);
+  if (entries.length === 0) return [];
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  return [
+    '--- COMPOSIZIONE DEL PATRIMONIO A FINE PERIODO (patrimonio intero, tutte le classi) ---',
+    ...entries.map(([assetClass, value]) => `${ASSET_CLASS_LABELS[assetClass] ?? assetClass}: ${formatEur(value)} (${formatPercentageIt((value / total) * 100, 1)} del patrimonio)`),
+    'Queste percentuali NON si confrontano con i target: i target valgono sul portafoglio allocato, nel blocco successivo.',
+    '',
+  ];
+}
+
+/** Allocazione at the period's end, as the page measures it: base, targets, 5/25, sleeves. */
+function formatAllocationForPrompt(emailData: MonthlyEmailData): string[] {
+  const allocation = emailData.allocation;
+  const header = '--- ALLOCAZIONE vs TARGET (come la pagina Allocazione) ---';
+  if (!allocation) {
+    return [header, 'Non calcolabile per questo periodo (lo snapshot di fine periodo non ha il dettaglio per strumento, o non c\'è nulla di allocato). Non stimare scostamenti dai target.', ''];
+  }
+  const lines = [
+    header,
+    `Base: il portafoglio allocato, ${formatEur(allocation.marketValue)} a fine periodo (asset negoziabili e non negoziabili; gli esclusi, come la casa, sono fuori). Valori di fine periodo con i ruoli di oggi.`,
+    `Origine dei target: ${allocation.fromGoals ? 'derivati dagli obiettivi di investimento' : 'Impostazioni → Allocazione'}, già riespressi sulla base (target effettivi). Una classe è fuori target secondo la regola 5/25: scarto oltre 5 punti o oltre il 25% del suo target.`,
+  ];
+  if (allocation.hasLeveragedExposure) {
+    lines.push(`Leva: ${formatLeverage(allocation.leverageRatio)}; le percentuali sono esposizioni nozionali sul capitale investito e possono sommare più di 100.`);
+  }
+  for (const gap of allocation.classes) {
+    lines.push(
+      `${gap.label}: attuale ${formatPercentageIt(gap.currentPercentage, 1)} | target ${formatPercentageIt(gap.targetPercentage, 1)} | scarto ${gap.differencePp >= 0 ? '+' : '−'}${formatNumberIt(Math.abs(gap.differencePp), 1)} p.p. (${signedEur(gap.differenceValue)}) | ${gap.action === 'OK' ? 'in linea' : 'fuori target'}`
+    );
+    for (const sleeve of allocation.subCategories.filter((row) => row.assetClass === gap.assetClass)) {
+      const target =
+        sleeve.targetPercentage === null
+          ? 'nessun target (sottocategoria non assegnata)'
+          : `target ${formatPercentageIt(sleeve.targetPercentage, 1)} della classe | scarto ${(sleeve.differencePp ?? 0) >= 0 ? '+' : '−'}${formatNumberIt(Math.abs(sleeve.differencePp ?? 0), 1)} p.p.`;
+      lines.push(`  › ${sleeve.subCategory}: ${formatPercentageIt(sleeve.currentPercentage, 1)} della classe (${formatEur(sleeve.currentValue)}) | ${target}`);
+    }
+  }
+  const footer = describeBalanceFooter({ frozen: allocation.frozen, excluded: allocation.excluded, netWorth: emailData.currentNetWorth });
+  if (footer) lines.push(narrativeToText(footer));
+  if (allocation.unmatched.length > 0) {
+    lines.push(`Fuori dal calcolo: ${allocation.unmatched.map((row) => `${row.name} (${formatEur(row.totalValue)})`).join(', ')}, strumenti dello snapshot non più presenti.`);
+  }
+  lines.push('I compositi sono divisi tra le classi secondo la loro composizione.', '');
+  return lines;
+}
+
+/**
+ * The class moves with market and flows apart — the Panoramica's rule (`computeTopMovers`) on the
+ * Driver's per-instrument market. Until F1b this was «VARIAZIONI ALLOCAZIONE», a snapshot
+ * difference that read a month of PAC instalments as equity growth.
+ */
+function formatClassMovesForPrompt(emailData: MonthlyEmailData): string[] {
+  const header = '--- ANDAMENTO PER CLASSE (mercato separato da acquisti, vendite e versamenti) ---';
+  const moves = emailData.classMoves;
+  if (!moves) {
+    return [header, 'Non misurato strumento per strumento in questo periodo: non attribuire a una classe una variazione di mercato, e non leggere una differenza di valore come rendimento.', ''];
+  }
+  const lines = [header];
+  for (const row of moves.rows) {
+    const parts = [`mercato ${Math.round(row.market) === 0 ? formatEur(0) : signedEur(row.market)}`];
+    if (Math.abs(row.traded) >= 1) parts.push(`acquisti e vendite ${signedEur(row.traded)}`);
+    if (Math.abs(row.paidIn) >= 1) parts.push(`versamenti al fondo pensione ${signedEur(row.paidIn)}`);
+    if (Math.abs(row.other) >= 1) parts.push(`altri movimenti ${signedEur(row.other)}`);
+    lines.push(`${row.label}: variazione ${signedEur(row.valueChange)} = ${parts.join(' + ')}`);
+  }
   lines.push(
-    `Variazione di mercato/valutativa = Δ patrimonio (${signedEur(delta)}) − risparmio netto (${signedEur(netSavings)}) = ${signedEur(delta - netSavings)}`
+    '«Acquisti e vendite» è denaro spostato dall\'utente, non rendimento; «altri movimenti» sono depositi e prelievi sui conti, rate di mutuo, rettifiche. I fondi pensione sono la riga Previdenza: prima del mese da cui Previdenza misura il rendimento del fondo, tutta la sua crescita è «altri movimenti», perché non si separa dai versamenti.',
+    '',
   );
-  lines.push(
-    'È una scomposizione strutturale già calcolata: usala così com\'è, non ricalcolarla e non presentarla come una stima. Oltre alla performance di mercato contiene ogni movimento patrimoniale che non passa dal cashflow tracciato (rivalutazioni immobiliari, versamenti da conti non tracciati, effetti di cambio).'
-  );
-  lines.push('');
+  return lines;
+}
+
+/** A quantity of quotes the it-IT way, no trailing zeros: «68», «2,4685». */
+const formatQuantity = (quantity: number) => quantity.toLocaleString('it-IT', { maximumFractionDigits: 4 });
+
+/** The period's BUY/SELL, per instrument, with the cap stated like MAX_CATEGORY_DELTAS. */
+function formatTradesForPrompt(emailData: MonthlyEmailData): string[] {
+  const trades = emailData.trades;
+  if (!trades) return [];
+  const lines = [`--- OPERAZIONI DEL PERIODO (registro operazioni, per strumento; i primi ${MAX_TRADE_INSTRUMENTS} per importo) ---`];
+  if (trades.length === 0) {
+    lines.push('Nessun acquisto né vendita registrati nel periodo.', '');
+    return lines;
+  }
+  for (const entry of trades.slice(0, MAX_TRADE_INSTRUMENTS)) {
+    const parts: string[] = [];
+    if (entry.buys > 0) {
+      parts.push(`${entry.buys} ${entry.buys === 1 ? 'acquisto' : 'acquisti'} per ${formatQuantity(entry.boughtQuantity)} quote, ${formatEur(entry.invested)} investiti (commissioni incluse)`);
+    }
+    if (entry.sells > 0) {
+      const tax = entry.estimatedTax === null ? 'tassa non stimabile' : `tassa stimata ${formatEur(entry.estimatedTax)}`;
+      parts.push(`${entry.sells} ${entry.sells === 1 ? 'vendita' : 'vendite'} per ${formatQuantity(entry.soldQuantity)} quote, ${formatEur(entry.proceeds)} incassati al netto delle commissioni (${tax})`);
+    }
+    lines.push(`- ${entry.name}: ${parts.join('; ')}`);
+  }
+  const omitted = trades.slice(MAX_TRADE_INSTRUMENTS);
+  if (omitted.length > 0) {
+    const total = omitted.reduce((sum, entry) => sum + entry.invested + entry.proceeds, 0);
+    lines.push(`Oltre i primi ${MAX_TRADE_INSTRUMENTS} restano ${omitted.length === 1 ? '1 strumento' : `${omitted.length} strumenti`} per ${formatEur(total)} di operazioni complessive.`);
+  }
+  lines.push('Gli acquisti pagati dai conti spiegano il calo della liquidità: non sono spese.', '');
   return lines;
 }
 
@@ -577,12 +716,12 @@ function formatHallOfFameForPrompt(emailData: MonthlyEmailData): string[] {
   const rank = emailData.hallOfFameRank;
   if (!rank) return [];
 
-  const scopeNoun = rank.scope === 'month' ? 'mese' : 'anno';
+  // The verdict's own sentence (`describeHallOfFameStanding`), then what it is NOT: the model read
+  // «18° … su 18» as eighteen growing months in a row (F1b, 2026-09-28).
   return [
     '--- HALL OF FAME ---',
-    rank.trend === 'growth'
-      ? `È il ${rank.rank}° ${scopeNoun} per crescita del patrimonio (su ${rank.total} con crescita).`
-      : `${scopeNoun === 'mese' ? 'Mese' : 'Anno'} in calo del patrimonio: ${rank.rank}° calo più marcato su ${rank.total}.`,
+    narrativeToText(describeHallOfFameStanding({ position: rank.rank, total: rank.total, scope: rank.scope, trend: rank.trend })),
+    'È un piazzamento in classifica tra tutti i periodi registrati, non una serie di periodi consecutivi.',
     '',
   ];
 }
@@ -668,10 +807,12 @@ function formatExpenseSplitForPrompt(emailData: MonthlyEmailData, label: string)
  * The body IS the assistant's own numeric block (`formatBundleForPrompt`) over a bundle
  * built on the email's window: the two surfaces then read the same exhaustive data, every
  * future bundle field reaches the emails for free, and the "questo blocco è ESAUSTIVO"
- * guardrails in ASSISTANT_SYSTEM_CORE stop promising blocks the email never sent. Appended
- * to it are the sections only the email has — the precomputed market effect, the
- * deterministic comparisons, the per-category deltas, the Hall of Fame standing, the
- * month's budget alerts and the household split.
+ * guardrails in ASSISTANT_SYSTEM_CORE stop promising blocks the email never sent — minus the
+ * bundle's allocation blocks (`omitAllocation`), which measure on the whole net worth. Appended
+ * to it are the sections only the email has, measured with the pages' rules (F1b): Storico's
+ * Driver, Rendimenti's TWR, the composition, Allocazione's comparison, the class moves and the
+ * trades; then the deterministic comparisons, the per-category deltas, the Hall of Fame
+ * standing, the month's budget alerts and the household split.
  *
  * The largest single expenses are deliberately NOT re-listed: the bundle already carries
  * them, with their date, in `--- SPESE SINGOLE PIU' GRANDI ---`.
@@ -703,8 +844,13 @@ export function buildEmailAiPrompt(
     `Stai redigendo il commento di riepilogo per: ${label}.`,
     'Di seguito i dati del periodo, estratti in modo affidabile dal sistema. Le variazioni sono già calcolate: non ricalcolarle e non inventare numeri.',
     '',
-    formatBundleForPrompt(bundle, label),
-    ...formatMarketEffectForPrompt(bundle),
+    formatBundleForPrompt(bundle, label, { omitAllocation: true }),
+    ...formatDriversForPrompt(emailData),
+    ...formatPeriodReturnForPrompt(emailData),
+    ...formatCompositionForPrompt(emailData),
+    ...formatAllocationForPrompt(emailData),
+    ...formatClassMovesForPrompt(emailData),
+    ...formatTradesForPrompt(emailData),
     // The dividend registry is a different source from the cashflow rows above (which only
     // see dividends the user also booked as income): naming the source is what keeps the
     // two figures from reading as a contradiction.
@@ -729,24 +875,30 @@ export function buildEmailAiPrompt(
 }
 
 /**
- * Output budget per period, thinking included (`max_tokens` covers thinking AND text).
- * It scales with the period because the format contract's word ceiling does: a 900-word
- * annual recap on the monthly budget would be cut off mid-section.
+ * The reasoning's own ceiling per period (`outputBudget` adds the text's room from the contract's
+ * word limit). It scales with the period like the word limit does. Until 2026-09-28 one
+ * `max_tokens` (6000/8000/8000/10000) covered both, and a long reasoning truncated the text: a
+ * paid answer thrown away and an email without its comment.
  */
-const EMAIL_AI_MAX_TOKENS: Record<EmailPeriodType, number> = {
-  monthly: 6000,
-  quarterly: 8000,
-  semiannual: 8000,
-  yearly: 10000,
+const EMAIL_AI_REASONING_TOKENS: Record<EmailPeriodType, number> = {
+  monthly: 4000,
+  quarterly: 6000,
+  semiannual: 6000,
+  yearly: 8000,
 };
+
+/** Reasoning ceiling + room for the period's word limit, twice over (lib/server/llm/budget.ts). */
+export function emailAiOutputBudget(periodType: EmailPeriodType): OutputBudget {
+  return outputBudget({ wordLimit: EMAIL_PERIODIC_WORD_LIMITS[periodType], reasoningTokens: EMAIL_AI_REASONING_TOKENS[periodType] });
+}
 
 /**
  * Generates the AI comment for the period via a dedicated, email-specific prompt, through the
  * provider layer (`lib/server/llm`, surface `EMAIL_PERIODIC` — an open model on OpenRouter).
  *
  * The comment interprets the same exhaustive bundle the in-app assistant reads, plus the
- * deterministic email-only sections (market effect, comparisons, category deltas, budget
- * alerts, Hall of Fame). There is no web search since 2026-09-28: the layer has no tools, and
+ * deterministic email-only sections (Driver, return, allocation, class moves, trades,
+ * comparisons, category deltas, budget alerts, Hall of Fame). There is no web search since 2026-09-28: the layer has no tools, and
  * the macro context arrives from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4) — until
  * then `includeMacroContext` only changes the prompt's wording, not what the model can do.
  *
@@ -801,7 +953,7 @@ export async function generateEmailAiComment(
     const result = await generateText('EMAIL_PERIODIC', {
       system,
       user: userContent,
-      maxTokens: EMAIL_AI_MAX_TOKENS[emailData.periodType],
+      ...emailAiOutputBudget(emailData.periodType),
     });
     return result?.text ?? null;
   } catch (error) {
@@ -837,42 +989,17 @@ export async function getSettingsAdmin(
     familyMembers: data.familyMembers ?? [],
     laborIncomeCategoryIds: data.laborIncomeCategoryIds ?? [],
     targets: data.targets,
+    // The portfolio section (F1b): the Allocazione page's effective targets, Storico's pension
+    // start month and Rendimenti's base — the SAME fields the three pages read.
+    goalBasedInvestingEnabled: data.goalBasedInvestingEnabled,
+    goalDrivenAllocationEnabled: data.goalDrivenAllocationEnabled,
+    pensionReturnStartMonth: data.pensionReturnStartMonth,
+    performanceIncludesPensionFunds: data.performanceIncludesPensionFunds,
+    performanceIncludesExcludedAssets: data.performanceIncludesExcludedAssets,
+    performanceExcludesCash: data.performanceExcludesCash,
+    riskFreeRate: data.riskFreeRate,
+    dividendIncomeCategoryId: data.dividendIncomeCategoryId,
   } as AssetAllocationSettings;
-}
-
-// ─── Asset class performer computation ───────────────────────────────────────
-
-/**
- * Computes the best and worst performing asset classes by Δ% relative to the previous period.
- * Classes with zero or missing previous value are excluded (no meaningful % base).
- * Returns { best: null, worst: null } when there is insufficient data.
- * Exported for testing.
- */
-export function computeAssetClassPerformers(
-  current: Record<string, number>,
-  previous: Record<string, number>
-): AssetClassPerformers {
-  const entries: AssetClassEntry[] = [];
-
-  for (const [cls, value] of Object.entries(current)) {
-    const prev = previous[cls];
-    if (!prev || prev <= 0) continue; // can't compute % without a positive base
-    const deltaAbs = value - prev;
-    const deltaPct = (deltaAbs / prev) * 100;
-    entries.push({ name: ASSET_CLASS_LABELS[cls] ?? cls, deltaPct, deltaAbs });
-  }
-
-  if (entries.length === 0) return { bestPct: null, worstPct: null, bestAbs: null, worstAbs: null };
-
-  const byPct = [...entries].sort((a, b) => b.deltaPct - a.deltaPct);
-  const byAbs = [...entries].sort((a, b) => b.deltaAbs - a.deltaAbs);
-
-  return {
-    bestPct: byPct[0],
-    worstPct: byPct.length > 1 ? byPct[byPct.length - 1] : null,
-    bestAbs: byAbs[0],
-    worstAbs: byAbs.length > 1 ? byAbs[byAbs.length - 1] : null,
-  };
 }
 
 // ─── Expense / dividend aggregation (pure helpers) ───────────────────────────
@@ -1234,7 +1361,17 @@ export async function buildPeriodEmailData(
   const hallOfFameRank = await computeHallOfFameRank(userId, periodType, year, month);
 
   const expenseSplit = await buildExpenseSplitForPeriod(userId, expensesSnap.docs, new Date());
-  const periodSales = await buildPeriodSales(userId, windowStart, windowEnd);
+  const portfolio = await buildEmailPortfolio({
+    userId,
+    year,
+    month,
+    prevYear,
+    prevMonth,
+    windowStartMonth,
+    windowStart,
+    windowEnd,
+    expenseDocs: expensesSnap.docs,
+  });
 
   return {
     periodType,
@@ -1249,7 +1386,6 @@ export async function buildPeriodEmailData(
     liquidNetWorth: current.liquidNetWorth ?? 0,
     byAssetClass,
     previousByAssetClass,
-    assetClassPerformers: computeAssetClassPerformers(byAssetClass, previousByAssetClass),
     totalIncome,
     totalExpenses,
     topExpenseCategories,
@@ -1262,22 +1398,127 @@ export async function buildPeriodEmailData(
     hallOfFameRank,
     budgetAlerts,
     expenseSplit,
-    periodSales,
+    ...portfolio,
   };
 }
 
+type EmailPortfolioSection = Pick<MonthlyEmailData, 'periodSales' | 'drivers' | 'classMoves' | 'allocation' | 'trades' | 'periodReturn'>;
+
 /**
- * The period's sells from the trade ledger, or null when nothing was sold — never blocks the
- * email: a failed read costs the sales clause and the verdict falls back to the market rule.
+ * The portfolio half of the email, measured with the pages' own functions (F1b,
+ * lib/utils/emailPortfolio.ts): Storico's Driver over the window, the Allocazione comparison on
+ * the period-end snapshot, the ledger's trades and Rendimenti's TWR on its base. Every part is
+ * independent and never blocks the email — a failed read costs its tile and its prompt block, and
+ * the verdict drops the clause (a failed ledger read leaves the sales clause out, as before).
  */
-async function buildPeriodSales(userId: string, windowStart: Date, windowEnd: Date): Promise<PeriodSalesSummary | null> {
+async function buildEmailPortfolio(input: {
+  userId: string;
+  year: number;
+  month: number;
+  prevYear: number;
+  prevMonth: number;
+  windowStartMonth: number;
+  windowStart: Date;
+  windowEnd: Date;
+  expenseDocs: FirebaseFirestore.QueryDocumentSnapshot[];
+}): Promise<EmailPortfolioSection> {
+  const { userId, year, month, prevYear, prevMonth, windowStart, windowEnd } = input;
+  let assets: Asset[];
+  let transactions: AssetTransaction[];
   try {
-    const [assets, transactions] = await Promise.all([getUserAssetsAdmin(userId), getAssetTransactionsAdmin(userId)]);
-    return summarizePeriodSales(assets, transactions, { start: windowStart, end: windowEnd });
+    [assets, transactions] = await Promise.all([getUserAssetsAdmin(userId), getAssetTransactionsAdmin(userId)]);
   } catch (error) {
-    console.error(`[periodSales] Ledger read failed for user ${userId}:`, error);
-    return null;
+    console.error(`[emailPortfolio] Assets or ledger read failed for user ${userId}:`, error);
+    return { periodSales: null, drivers: null, classMoves: null, allocation: null, trades: [], periodReturn: null };
   }
+
+  const periodSales = summarizePeriodSales(assets, transactions, { start: windowStart, end: windowEnd });
+  const trades = summarizeTradesByInstrument({
+    assets,
+    trades: transactions,
+    months: { from: { year, month: input.windowStartMonth }, to: { year, month } },
+    sales: periodSales,
+  });
+
+  const [snapshotsRead, contributionsRead, settingsRead, goalsRead] = await Promise.allSettled([
+    getUserSnapshotsAdmin(userId),
+    getPensionContributionsAdmin(userId),
+    getSettingsAdmin(userId),
+    getGoalDataAdmin(userId),
+  ]);
+  const settings = settingsRead.status === 'fulfilled' ? settingsRead.value : null;
+  if (snapshotsRead.status === 'rejected' || contributionsRead.status === 'rejected') {
+    console.error(`[emailPortfolio] Snapshots or pension read failed for user ${userId}`);
+    return { periodSales, drivers: null, classMoves: null, allocation: null, trades, periodReturn: null };
+  }
+  const snapshots = snapshotsRead.value;
+  const contributions = contributionsRead.value;
+  const expenses = input.expenseDocs.map((doc) => {
+    const data = doc.data();
+    return { ...data, id: doc.id, date: data.date?.toDate?.() ?? new Date() } as Expense;
+  });
+
+  // Storico's Driver over the window: the email's own two snapshots and every real one between.
+  const index = (y: number, m: number) => y * 12 + m;
+  const chain = snapshots.filter((s) => !s.isDummy && index(s.year, s.month) >= index(prevYear, prevMonth) && index(s.year, s.month) <= index(year, month));
+  let measured: EmailDrivers | null = null;
+  try {
+    measured = measureEmailDrivers(chain, {
+      expenses,
+      transactions,
+      assets,
+      pension: { contributions, startMonth: resolvePensionReturnStart(contributions, settings?.pensionReturnStartMonth) },
+      today: new Date(),
+    });
+  } catch (error) {
+    console.error(`[emailPortfolio] Driver failed for user ${userId}:`, error);
+  }
+
+  // Allocazione on the period-end snapshot, with the page's effective targets.
+  let allocation: EmailAllocationSummary | null = null;
+  const current = chain.find((s) => s.year === year && s.month === month);
+  if (current) {
+    try {
+      const { targets, fromGoals } = resolveEffectiveTargets({
+        settings,
+        goalData: goalsRead.status === 'fulfilled' ? goalsRead.value : null,
+        assets,
+      });
+      allocation = summarizeEmailAllocation({ assets, snapshot: current, targets, fromGoals });
+    } catch (error) {
+      console.error(`[emailPortfolio] Allocation failed for user ${userId}:`, error);
+    }
+  }
+
+  // Rendimenti's TWR on its own base, over the email's window (the PDF's precedent, #324).
+  let periodReturn: EmailPeriodReturn | null = null;
+  try {
+    const base = resolvePerformanceBase({ snapshots, assets, contributions, settings, trades: transactions });
+    const metrics = await calculatePerformanceForPeriod(
+      userId,
+      base.snapshots,
+      'CUSTOM',
+      settings?.riskFreeRate ?? 2.5,
+      windowStart,
+      windowEnd,
+      expenses,
+      settings?.dividendIncomeCategoryId,
+      base.pensionFlows,
+      base.portfolioFlows,
+    );
+    periodReturn = resolveEmailPeriodReturn(metrics, describeMeasurementBase(base));
+  } catch (error) {
+    console.error(`[emailPortfolio] Period return failed for user ${userId}:`, error);
+  }
+
+  return {
+    periodSales,
+    drivers: measured?.drivers ?? null,
+    classMoves: measured?.classMoves ?? null,
+    allocation,
+    trades,
+    periodReturn,
+  };
 }
 
 /**
@@ -1338,19 +1579,61 @@ export async function buildMonthlyEmailData(
 const RANKED_ROWS_SHOWN = 6;
 
 /**
- * `Δ patrimonio − risparmio netto` — the same structural residual the AI prompt is handed,
- * computed here from the email's own figures rather than from the assistant bundle (which
- * `generateEmailHtml` does not receive). Null when there is no earlier snapshot: without a
- * baseline the movement itself is unknown, and an unattributable effect is not a zero one.
+ * The Driver as Storico's ledger (`buildDriverLedger`): whole euros that add up to the growth on
+ * the last row. A flow is uncoloured, the market and the total take their sign, the tax is a loss
+ * — `DriverLedgerKind`, the page's own rule.
  */
+function driverLedgerRows(drivers: GrowthDrivers): EmailRankedRow[] {
+  return buildDriverLedger(drivers).map((row) => {
+    const amountSign: EmailRankedRow['amountSign'] =
+      row.kind === 'loss' ? 'negative' : row.kind === 'flow' ? undefined : row.value >= 0 ? 'positive' : 'negative';
+    return { label: row.label, amount: signedEur(row.value), ...(amountSign ? { amountSign } : {}) };
+  });
+}
+
 /**
- * `Δ − risparmio netto + tasse stimate sulle vendite`: the residual the email calls «mercato». The
- * tax is added BACK because it left the account without a cashflow row — inside the residual it
- * read as a market loss (`PeriodEmailVerdictInput.marketEffect`).
+ * One row per class of the allocated base: its share, the target beside it, and the drift in
+ * points — coloured only when the 5/25 band calls it off target (a drift inside the band is not
+ * a loss). The share bar carries the class colour, like Composizione.
  */
-function marketEffectOf(data: MonthlyEmailData): number | null {
-  if (data.previousNetWorth <= 0) return null;
-  return data.netWorthDelta - (data.totalIncome - data.totalExpenses) + (data.periodSales?.estimatedTax ?? 0);
+function allocationRows(allocation: EmailAllocationSummary): EmailRankedRow[] {
+  const largest = Math.max(0, ...allocation.classes.map((gap) => gap.currentPercentage));
+  return allocation.classes.map((gap) => {
+    const offTarget = gap.action !== 'OK';
+    return {
+      label: gap.label,
+      caption: `target ${formatPercentageIt(gap.targetPercentage, 1)} · ${offTarget ? 'fuori dalla regola 5/25' : 'in linea'}`,
+      amount: formatPercentageIt(gap.currentPercentage, 1),
+      trailing: `${gap.differencePp >= 0 ? '+' : '−'}${formatNumberIt(Math.abs(gap.differencePp), 1)} pp`,
+      ...(offTarget ? { trailingSign: 'negative' as const } : {}),
+      fill: largest > 0 ? gap.currentPercentage / largest : 0,
+      fillHex: printChartHexForAssetClass(gap.assetClass),
+    };
+  });
+}
+
+/**
+ * «Andamento per classe»: the amount is the band's MARKET (coloured by sign); what else moved it
+ * — the money traded, the pension contributions, the rest — rides in the caption, uncoloured,
+ * because a purchase is not a gain.
+ */
+function classMoveRows(rows: EmailClassMove[]): EmailRankedRow[] {
+  return rows.map((row) => {
+    const parts = [
+      Math.abs(row.traded) >= 1 ? `acquisti e vendite ${signedEur(row.traded)}` : null,
+      Math.abs(row.paidIn) >= 1 ? `versamenti ${signedEur(row.paidIn)}` : null,
+      Math.abs(row.other) >= 1 ? `altri movimenti ${signedEur(row.other)}` : null,
+    ].filter(Boolean);
+    // A market that prints as zero carries neither sign nor colour (Storico's `isPrintedZero` rule):
+    // «+0 €» in green on the cash row read as a gain (seen in the F1b render, 2026-09-28).
+    const zero = Math.round(row.market) === 0;
+    return {
+      label: row.label,
+      caption: `variazione ${signedEur(row.valueChange)}${parts.length > 0 ? ` · ${parts.join(' · ')}` : ''}`,
+      amount: zero ? formatEur(0) : signedEur(row.market),
+      ...(zero ? {} : { amountSign: row.market > 0 ? ('positive' as const) : ('negative' as const) }),
+    };
+  });
 }
 
 /** The Hall of Fame standing, in the shape the verdict expects. */
@@ -1413,32 +1696,6 @@ function assetClassRows(byAssetClass: Record<string, number>): { rows: EmailRank
       fillHex: printChartHexForAssetClass(assetClass),
     })),
   };
-}
-
-/** Best and worst by percent and by euro, as three at most non-repeating rows. */
-function classMoveRows(performers: AssetClassPerformers): EmailRankedRow[] {
-  const rows: EmailRankedRow[] = [];
-  const push = (entry: AssetClassEntry | null, caption: string) => {
-    if (!entry) return;
-    if (rows.some((row) => row.label === entry.name && row.caption === caption)) return;
-    rows.push({
-      label: entry.name,
-      caption,
-      amount: signedEur(entry.deltaAbs),
-      trailing: signedPct(entry.deltaPct),
-      trailingSign: entry.deltaPct >= 0 ? 'positive' : 'negative',
-    });
-  };
-
-  push(performers.bestPct, 'migliore in percentuale');
-  if (performers.bestAbs && performers.bestAbs.name !== performers.bestPct?.name) {
-    push(performers.bestAbs, 'migliore in euro');
-  }
-  // Only list a loser when one actually lost — a period in which every class gained has none.
-  if (performers.worstPct && performers.worstPct.deltaPct < 0) {
-    push(performers.worstPct, 'peggiore');
-  }
-  return rows;
 }
 
 /** Individual transactions: the category on the row, the note under it when it adds anything. */
@@ -1597,7 +1854,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
   const period = emailPeriodOf(data);
   const title = periodTitle(data);
   const savings = data.totalIncome - data.totalExpenses;
-  const marketEffect = marketEffectOf(data);
+  const drivers = data.previousNetWorth > 0 ? (data.drivers ?? null) : null;
 
   const verdict = buildPeriodEmailVerdict({
     period,
@@ -1607,7 +1864,9 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
     netWorthDeltaPct: data.netWorthDeltaPct,
     totalIncome: data.totalIncome,
     totalExpenses: data.totalExpenses,
-    marketEffect,
+    drivers,
+    periodReturn: data.periodReturn ?? null,
+    offTarget: data.allocation?.offTarget ?? [],
     sales: data.periodSales ?? null,
     rank: verdictRank(data),
   });
@@ -1643,6 +1902,19 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
       muted: true,
     });
   }
+  // The Driver's ledger under the hero (Storico's rows, adding up to the growth); Rendimenti's
+  // return in the footer with its base. Not a third key figure: three nowrap figures in one row
+  // pushed the email to 434px on a 390 phone (seen in the F1b render, 2026-09-28).
+  const netWorthFooter: Narrative = [
+    ...(drivers ? describeDriverFooter(drivers) : []),
+    ...(data.periodReturn
+      ? [
+          { text: `${drivers ? ' ' : ''}Rendimento del portafoglio ${data.periodReturn.label}: ` },
+          { text: signedPct(data.periodReturn.value), mono: true, sign: data.periodReturn.value >= 0 ? ('positive' as const) : ('negative' as const) },
+          { text: ` (TWR). ${data.periodReturn.baseLabel}` },
+        ]
+      : []),
+  ];
   tiles.push(
     emailTile({
       eyebrow: 'Patrimonio',
@@ -1653,8 +1925,11 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
         netWorthDelta: data.netWorthDelta,
         netWorthDeltaPct: data.netWorthDeltaPct,
       }),
-      body: emailHero(formatEur(data.currentNetWorth)) + emailKeyFigures(netWorthFigures),
-      footer: describeMarketSplit(marketEffect, savings, data.periodSales?.estimatedTax ?? null),
+      body:
+        emailHero(formatEur(data.currentNetWorth)) +
+        emailKeyFigures(netWorthFigures) +
+        (drivers ? emailRankedRows(driverLedgerRows(drivers)) : ''),
+      footer: netWorthFooter.length > 0 ? netWorthFooter : undefined,
     }),
   );
 
@@ -1673,15 +1948,42 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
     );
   }
 
-  // ── Andamento per classe ──
-  const moves = classMoveRows(data.assetClassPerformers);
+  // ── Allocazione ── the allocated base (tradable + frozen) at the period's end, today's roles,
+  // the page's effective targets, the 5/25 band. Composizione above stays on the whole net worth.
+  const allocation = data.allocation;
+  if (allocation && allocation.classes.length > 0) {
+    // The leverage rides in the footer: in the scope it pushed a 390px phone 1px sideways (the head
+    // row does not wrap; seen in the F1b render, 2026-09-28).
+    const leverage = allocation.hasLeveragedExposure ? ` Leva ${formatLeverage(allocation.leverageRatio)}: le quote sono esposizioni sul capitale investito.` : '';
+    const footer: Narrative = [
+      ...(describeBalanceFooter({ frozen: allocation.frozen, excluded: allocation.excluded, netWorth: data.currentNetWorth }) ?? []),
+      { text: `${allocation.frozen.count + allocation.excluded.count > 0 ? ' ' : ''}Valori di fine periodo, ruoli di oggi; target ${allocation.fromGoals ? 'derivati dagli obiettivi' : 'di Impostazioni'}, banda 5/25.${leverage}` },
+      ...(allocation.unmatched.length > 0
+        ? [{ text: ` Fuori dal calcolo ${allocation.unmatched.length === 1 ? 'uno strumento non più presente' : `${allocation.unmatched.length} strumenti non più presenti`} (${formatEur(allocation.unmatched.reduce((sum, row) => sum + row.totalValue, 0))}).` }]
+        : []),
+    ];
+    tiles.push(
+      emailTile({
+        eyebrow: 'Allocazione',
+        scope: `${formatEur(allocation.marketValue)} allocati`,
+        reading: describeClasses(allocation.classes, EMAIL_REBALANCE_BAND) ?? undefined,
+        body: emailRankedRows(allocationRows(allocation)),
+        footer,
+      }),
+    );
+  }
+
+  // ── Andamento per classe ── market and flows apart; absent when the period is not measured
+  // per instrument (a class difference cannot tell a purchase from a price).
+  const moves = data.classMoves?.rows ?? [];
   if (moves.length > 0) {
     tiles.push(
       emailTile({
         eyebrow: 'Andamento per classe',
         scope: periodScopeLabel(period),
-        reading: describeClassMovesTile(data.assetClassPerformers),
-        body: emailRankedRows(moves),
+        reading: describeClassMovesTile(moves) ?? undefined,
+        body: emailRankedRows(classMoveRows(moves)),
+        footer: [{ text: 'L’importo è il mercato, misurato strumento per strumento; la variazione comprende acquisti, vendite e versamenti. I compositi sono divisi per classe, i fondi pensione stanno in Previdenza.' }],
       }),
     );
   }

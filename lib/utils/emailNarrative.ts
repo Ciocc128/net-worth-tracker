@@ -27,6 +27,9 @@ import { atThePercent, pluralArticleFor } from '@/lib/utils/patrimonioNarrative'
 import { resolveDeclineCause, resolveTaxedGrowth, type PeriodSalesSummary } from '@/lib/utils/periodSales';
 import { declineHeadlineTail, describePurchases, describeSales, taxedGrowthHeadline } from '@/lib/utils/salesNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
+import type { GrowthDrivers } from '@/lib/utils/growthDrivers';
+import { describeDriverEngines, describeDriverRest } from '@/lib/utils/storicoNarrative';
+import { driftClause } from '@/lib/utils/allocazioneNarrative';
 
 export type { Narrative, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 
@@ -237,14 +240,18 @@ export interface PeriodEmailVerdictInput {
   /** Always a positive magnitude, following `calculateTotalExpenses`. */
   totalExpenses: number;
   /**
-   * `Δ patrimonio − risparmio netto + tasse stimate sulle vendite`, or null when no earlier
-   * snapshot makes it attributable. A STRUCTURAL residual: it also absorbs movements the app never
-   * saw, which is why the tile that prints it says so and the verdict never calls it
-   * "performance". The tax is taken OUT of it because the ledger knows it (`sales`): the broker's
-   * withholding leaves the account with no cashflow row, and read as «mercato» it turned a
-   * 4.000 € tax into a market loss on the real account (settembre 2026).
+   * Storico's Driver over the window (F1b, 2026-09-28): `Δ = risparmio + mercato − tasse + mutuo +
+   * versamenti al fondo pensione + altre`, the market MEASURED per instrument — or, when a snapshot
+   * lacks `byAsset`, the residual net of what is named (`isMarketMeasured` false, and the verdict
+   * says so). Null without an earlier snapshot. Until F1b the email's «mercato» was `Δ − risparmio
+   * + tasse`: on the real account agosto 2026 read +507 € where the Driver measures −1.063 €, the
+   * gap being 2.177 € of pension contributions.
    */
-  marketEffect: number | null;
+  drivers: GrowthDrivers | null;
+  /** Rendimenti's TWR on its base, as the hero states it; null when not measurable. */
+  periodReturn?: { value: number; label: string } | null;
+  /** The classes outside the 5/25 band, farthest first (`offTargetGaps`); empty when all in line. */
+  offTarget?: Array<{ assetClass: string; label: string; differencePp: number }>;
   /**
    * The period's sells from the trade ledger, with the estimated tax withheld on them; null when
    * nothing was sold, absent on data built before the field existed.
@@ -289,19 +296,20 @@ function resolveHeadline(input: PeriodEmailVerdictInput): { headline: string; to
     if (input.totalIncome > 0 && savings < 0) {
       return { headline: `${subject} è cresciuto, ma le spese hanno superato le entrate.`, tone: 'warning' };
     }
-    if (input.marketEffect !== null && input.marketEffect > 0) {
+    const market = input.drivers?.market ?? null;
+    if (market !== null && market > 0) {
       return { headline: `${subject} è cresciuto: il mercato ha spinto.`, tone: 'positive' };
     }
-    if (input.marketEffect !== null) {
+    if (market !== null) {
       return { headline: `${subject} è cresciuto, nonostante il mercato.`, tone: 'positive' };
     }
     return { headline: `${subject} è cresciuto.`, tone: 'positive' };
   }
 
-  // A falling period: the same decision the Panoramica makes (`resolveDeclineCause`). The email's
-  // residual is already net of savings, so there is no «own flows» half to weigh against it.
+  // A falling period: the same decision the Panoramica makes (`resolveDeclineCause`). The Driver's
+  // market is already apart from the savings, so there is no «own flows» half to weigh against it.
   const cause = resolveDeclineCause({
-    marketEffect: input.marketEffect,
+    marketEffect: input.drivers?.market ?? null,
     ownFlows: null,
     salesTax: input.sales?.estimatedTax ?? null,
   });
@@ -336,22 +344,13 @@ export function buildPeriodEmailVerdict(input: PeriodEmailVerdictInput): PageVer
   }
   sentence.push(prose('.'));
 
-  // The split is exact by construction — `marketEffect` is DEFINED as Δ minus net savings (plus
-  // the tax the ledger knows) — so it is stated only when both halves exist, and never inferred
-  // from one of them. With a taxed sale the split has three parts, and they still sum to Δ.
-  const salesTax = input.sales?.estimatedTax ?? null;
-  if (hasBaseline && input.marketEffect !== null) {
-    sentence.push(prose(' Di quel movimento, '), signedEuro(input.marketEffect), prose(' viene dal mercato'));
-    if (salesTax !== null && salesTax > 0) {
-      sentence.push(
-        prose(', '),
-        signedEuro(savings),
-        prose(' da quanto hai risparmiato e '),
-        signedEuro(-salesTax),
-        prose(' dalle tasse sulle vendite.'),
-      );
-    } else {
-      sentence.push(prose(' e '), signedEuro(savings), prose(' da quanto hai risparmiato.'));
+  // Storico's own sentence for the split: the two engines, heavier first, then the rest as ONE
+  // netted figure — the parts are the Patrimonio tile's ledger, which adds up to the euro. When a
+  // snapshot lacks `byAsset` the market is the residual, and the sentence says so.
+  if (hasBaseline && input.drivers) {
+    sentence.push(prose(' Di quel movimento: '), ...describeDriverEngines(input.drivers), prose('.'), ...describeDriverRest(input.drivers));
+    if (!input.drivers.isMarketMeasured) {
+      sentence.push(prose(' Il mercato qui è un residuo: il periodo non ha il dettaglio per strumento.'));
     }
   } else if (input.totalIncome > 0) {
     sentence.push(
@@ -363,16 +362,21 @@ export function buildPeriodEmailVerdict(input: PeriodEmailVerdictInput): PageVer
     );
   }
 
-  if (input.rank) {
-    const noun = input.rank.scope === 'month' ? 'mese' : 'anno';
-    const standing = input.rank.trend === 'growth' ? `${noun} migliore` : 'calo più marcato';
+  if (input.rank) sentence.push(prose(' '), ...describeHallOfFameStanding(input.rank));
+
+  // Rendimenti's return on its base — the figure its hero prints for the same window.
+  if (input.periodReturn) {
     sentence.push(
-      prose(' È il '),
-      figure(`${input.rank.position}°`),
-      prose(` ${standing} su `),
-      figure(`${input.rank.total}`),
-      prose(` ${pluralise(input.rank.total, 'registrato', 'registrati')}.`),
+      prose(' Il rendimento del portafoglio (TWR, sulla base di Rendimenti) è '),
+      signedPercent(input.periodReturn.value, 1),
+      prose(` ${input.periodReturn.label}.`),
     );
+  }
+
+  // Allocation only when a class leaves the 5/25 band; «in linea» is the Allocazione tile's to say.
+  const offTarget = input.offTarget ?? [];
+  if (offTarget.length > 0) {
+    sentence.push(prose(' '), ...driftClause(offTarget), prose(', fuori dalla regola 5/25.'));
   }
 
   // The sale behind the tax, in the same words the Panoramica prints — without its counterfactual,
@@ -384,6 +388,30 @@ export function buildPeriodEmailVerdict(input: PeriodEmailVerdictInput): PageVer
   }
 
   return { headline, tone, sentence };
+}
+
+/**
+ * The Hall of Fame standing as ONE sentence, for the verdict and the AI prompt alike. It names the
+ * side of the ranking and its population: «È il mese con la crescita più piccola tra i 18 in
+ * crescita registrati.» The old «È il 18° mese migliore su 18» was read by the model as «18 mesi di
+ * crescita di fila» in both F1b generations (2026-09-28) — a ranking, not a streak.
+ */
+export function describeHallOfFameStanding(rank: NonNullable<PeriodEmailVerdictInput['rank']>): Narrative {
+  const month = rank.scope === 'month';
+  const noun = month ? 'mese' : 'anno';
+  const nouns = month ? 'mesi' : 'anni';
+  const growth = rank.trend === 'growth';
+  const population = [prose(' tra i '), figure(`${rank.total}`), prose(` ${nouns} ${growth ? 'in crescita' : 'in calo'} registrati.`)];
+  if (rank.total === 1) {
+    return [prose(`È l'unico ${noun} ${growth ? 'in crescita' : 'in calo'} registrato.`)];
+  }
+  if (rank.position === 1) {
+    return [prose(growth ? `È il ${noun} con la crescita più alta` : `È il ${noun} con il calo più marcato`), ...population];
+  }
+  if (rank.position === rank.total) {
+    return [prose(growth ? `È il ${noun} con la crescita più piccola` : `È il ${noun} con il calo più lieve`), ...population];
+  }
+  return [prose('È il '), figure(`${rank.position}°`), prose(growth ? ` ${noun} per crescita` : ` ${noun} per ampiezza del calo`), ...population];
 }
 
 // ─── Tile readings ────────────────────────────────────────────────────────────
@@ -413,21 +441,15 @@ export function describeNetWorthTile(input: {
 }
 
 /**
- * The market split, as the Patrimonio tile's footer. Absent when not attributable. The tax on the
- * period's sales is its own part when the ledger knows one (estimated, so «circa»).
+ * The Patrimonio tile's footer, under the Driver's ledger: what «mercato» is. Measured per
+ * instrument it is Storico's; without `byAsset` it is the remainder of what the ledger names, and
+ * the footer says so instead of letting the row pass for a measure.
  */
-export function describeMarketSplit(
-  marketEffect: number | null,
-  savings: number,
-  salesTax: number | null = null,
-): Narrative | null {
-  if (marketEffect === null) return null;
-  const narrative: Narrative = [prose('Mercato '), signedEuro(marketEffect), prose(', risparmio '), signedEuro(savings)];
-  if (salesTax !== null && salesTax > 0) {
-    narrative.push(prose(', tasse sulle vendite circa '), signedEuro(-salesTax));
+export function describeDriverFooter(drivers: Pick<GrowthDrivers, 'isMarketMeasured'>): Narrative {
+  if (drivers.isMarketMeasured) {
+    return [prose('Il mercato è misurato strumento per strumento, come nel Driver dello Storico; le righe sommano alla crescita.')];
   }
-  narrative.push(prose('. È un residuo strutturale: assorbe anche i movimenti non tracciati.'));
-  return narrative;
+  return [prose('Il mercato non è misurato strumento per strumento (il periodo non ha il dettaglio negli snapshot): è quanto resta della crescita tolti risparmio, tasse e versamenti.')];
 }
 
 /**
@@ -466,43 +488,36 @@ export function describeCompositionTile(
   ];
 }
 
-export interface AssetClassMove {
-  name: string;
-  deltaPct: number;
-  deltaAbs: number;
+export interface ClassMoveReading {
+  label: string;
+  /** The Driver's market, per band. */
+  market: number;
+  /** Money the period's BUY/SELL put in (negative = taken out). */
+  traded: number;
 }
 
 /**
- * Andamento per classe. Best and worst are two different questions when measured in percent
- * and in euro — a 6% move on a small position is not the mover of the period — so the reading
- * names both axes, and says nothing when only one of them exists.
+ * Andamento per classe: market and trades are two questions — what the prices did, what you
+ * bought — and until F1b a class's snapshot difference answered both at once, so a month of PAC
+ * instalments read as the equity «growth». The reading names the band the market moved most and,
+ * when something was traded, the one the money went to. Null without a band.
  */
-export function describeClassMovesTile(performers: {
-  bestPct: AssetClassMove | null;
-  worstPct: AssetClassMove | null;
-  bestAbs: AssetClassMove | null;
-  worstAbs: AssetClassMove | null;
-}): Narrative | null {
-  const { bestPct, worstPct, bestAbs } = performers;
-  if (!bestPct && !bestAbs) return null;
-
-  const clauses: Narrative = [];
-  if (bestPct && bestAbs && bestPct.name !== bestAbs.name) {
+export function describeClassMovesTile(rows: ClassMoveReading[]): Narrative | null {
+  if (rows.length === 0) return null;
+  const byMarket = rows.reduce((best, row) => (Math.abs(row.market) > Math.abs(best.market) ? row : best));
+  const clauses: Narrative =
+    Math.abs(byMarket.market) >= 1
+      ? [prose('Il mercato ha mosso soprattutto '), figure(byMarket.label), prose(' ('), signedEuro(byMarket.market), prose(')')]
+      : [prose('Il mercato non ha mosso nessuna classe di almeno un euro')];
+  const byTrade = rows.reduce((best, row) => (Math.abs(row.traded) > Math.abs(best.traded) ? row : best));
+  if (Math.abs(byTrade.traded) >= 1) {
     clauses.push(
-      prose('In percentuale ha spinto '),
-      figure(bestPct.name),
-      prose(', in euro '),
-      figure(bestAbs.name),
+      prose(byTrade.traded > 0 ? '; hai comprato soprattutto ' : '; hai venduto soprattutto '),
+      figure(byTrade.label),
+      prose(' ('),
+      signedEuro(byTrade.traded),
+      prose(')'),
     );
-  } else if (bestAbs) {
-    clauses.push(prose('Ha spinto '), figure(bestAbs.name));
-  } else if (bestPct) {
-    clauses.push(prose('Ha spinto '), figure(bestPct.name));
-  }
-
-  // Only claim a loser when one actually lost: a period in which every class gained has none.
-  if (worstPct && worstPct.deltaPct < 0) {
-    clauses.push(prose('; sotto zero '), figure(worstPct.name));
   }
   clauses.push(prose('.'));
   return clauses;

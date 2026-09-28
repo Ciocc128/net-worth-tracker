@@ -37,6 +37,7 @@ const completionSchema = z.object({
       prompt_tokens: z.number(),
       completion_tokens: z.number(),
       cost: z.number().optional(),
+      completion_tokens_details: z.object({ reasoning_tokens: z.number().nullish() }).nullish(),
     })
     .optional(),
 });
@@ -74,11 +75,13 @@ export function createOpenRouterAdapter({
       throw new Error(`[openrouter] refused ${model}: free variants may log and train on prompts`);
     }
 
+    const { reasoningMaxTokens, ...rest } = body;
     const payload = JSON.stringify({
       model,
-      ...body,
-      // Reasoning tokens still count against max_tokens, but their text stays out of `content`.
-      reasoning: { exclude: true },
+      ...rest,
+      // Reasoning tokens still count against max_tokens, but their text stays out of `content`;
+      // a ceiling of their own keeps them from eating the text's share (`outputBudget`).
+      reasoning: { exclude: true, ...(typeof reasoningMaxTokens === 'number' ? { max_tokens: reasoningMaxTokens } : {}) },
       provider: {
         data_collection: 'deny',
         zdr: true,
@@ -118,6 +121,9 @@ export function createOpenRouterAdapter({
               input: completion.usage.prompt_tokens,
               output: completion.usage.completion_tokens,
               ...(completion.usage.cost !== undefined ? { cost: completion.usage.cost } : {}),
+              ...(typeof completion.usage.completion_tokens_details?.reasoning_tokens === 'number'
+                ? { reasoning: completion.usage.completion_tokens_details.reasoning_tokens }
+                : {}),
             }
           : null,
       };
@@ -125,13 +131,14 @@ export function createOpenRouterAdapter({
   }
 
   return {
-    generateText(model, { system, user, maxTokens }, apiKey) {
+    generateText(model, { system, user, maxTokens, reasoningMaxTokens }, apiKey) {
       return complete(model, apiKey, {
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },
         ],
         max_tokens: maxTokens,
+        ...(reasoningMaxTokens !== undefined ? { reasoningMaxTokens } : {}),
       });
     },
 

@@ -86,7 +86,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | --- | --- |
 | **F0 — Misura** ✔ | `scripts/estimateAiTokens.mts`, `npm run ai:estimate`. |
 | **F1 — Provider** ✔ | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
-| **F1b — Email allineate all'app** | Prima di F2 (§4.4): il bundle delle email ragiona ancora sul patrimonio intero, sul residuo «Δ − risparmio» e sulle differenze tra snapshot. Un eval su quegli ingressi misurerebbe i modelli su dati sbagliati. |
+| **F1b — Email allineate all'app** ✔ | Prima di F2 (§4.4): verdetto, tile e prompt leggono il Driver dello Storico, l'Allocazione sulla base allocata (regola 5/25), mercato e acquisti per classe, le operazioni e il TWR di Rendimenti. Budget di uscita dal contratto, con il ragionamento a parte (§4.5). |
 | **F2 — Eval rapido** | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione. |
 | **F3 — Vault e TheBull** | Repo privato, struttura (§5.1), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
 | **F4 — Il vault interrogabile** | Prime pagine Principi in sessione, export dei dati (§6.1), `CLAUDE.md` del vault (§6.2). Da qui il canale dell'abbonamento è completo. |
@@ -174,6 +174,32 @@ porta nelle email (verdetto, tile e prompt) le quattro regole dell'app:
    acquisti (`tradeAwarePriceEffect`, come `computeTopMovers` della Panoramica); le operazioni del
    periodo entrano nel prompt.
 4. **Rendimento del periodo**: il TWR sulla base di Rendimenti, come il PDF.
+
+**F1b fatto (2026-09-28).** Le quattro regole sono nell'email tramite `lib/utils/emailPortfolio.ts`, che compone i
+moduli delle pagine (doc/guide/email-pdf.md § Periodic Emails). Scelte del proprietario in sessione: allocazione sul
+`byAsset` di fine periodo con i ruoli di OGGI; banda **5/25** nell'email; «Versamenti al fondo pensione» come nel
+registro dello Storico; la frase del verdetto è quella del Driver; operazioni nel prompt per strumento (tetto 15
+dichiarato); senza `byAsset` il mercato è dichiarato residuo e «Andamento per classe» sparisce; l'Assistente resta
+com'è (`formatBundleForPrompt(…, { omitAllocation: true })` solo per l'email).
+
+**Collaudo sul mirror riseminato (2026-09-28), agosto 2026:** email e Storico danno lo stesso Driver (+762 € mercato,
+−255 € altre) perché in produzione `pensionReturnStartMonth` è ora 2026-08 (impostato dal proprietario): con un mese ≤
+luglio escono esattamente i −1.063 / +2.177 / −608 misurati al mattino. Azioni 69,4 % a fine agosto (69,6 % oggi)
+contro 70 %; azioni semplici 3.702 € di acquisti e 819 € di mercato; sei BUY per 4.891 €; TWR +0,5 % nel mese. Due
+generazioni con `z-ai/glm-5.3-flash` (autorizzate): la prima col tetto unico 6.000 ne ha spesi **5.450** (a un passo dal
+troncamento, 0,0037 $); la seconda con il budget del §4.5 **858** token, `reasoning: 0`, 0,0014 $, 439 parole, 49/49
+cifre nel prompt, le sei sezioni. Il modello ha letto in entrambe «18° mese per crescita… su 18» come una serie: la
+frase del piazzamento ora dice il lato della classifica (`describeHallOfFameStanding`, verdetto e prompt).
+
+### 4.5 Budget di uscita (F1b, 2026-09-28)
+
+Un tetto `max_tokens` non si paga: si paga il generato. Si paga invece, e si butta, una risposta **troncata**. Su un
+modello che ragiona il tetto copre ragionamento **e** testo, quindi (`lib/server/llm/budget.ts`): il ragionamento ha un
+tetto suo (`reasoning.max_tokens`: mensile 4.000, trimestrale e semestrale 6.000, annuale 8.000, settimanale 1.500), il
+testo lo spazio del limite di parole × 1,8 × 2, e `max_tokens` è la somma. Niente è tarato su un modello: F2 può
+sceglierne un altro. Il log `[ai-usage]` registra `reasoning`, e **F2 lo misura per candidato** (il costo vero è
+prezzo di uscita × ragionamento + testo); lì si rivede il budget. **Per F2**: i controlli sulle cifre devono leggere
+anche i punti percentuali («p.p.»), che oggi passano (Carry «−3,7 p.p.» contro −3,6 nel prompt).
 
 ---
 

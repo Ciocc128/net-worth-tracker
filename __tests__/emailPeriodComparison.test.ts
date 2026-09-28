@@ -65,7 +65,6 @@ function makeEmailData(overrides: Partial<MonthlyEmailData> = {}): MonthlyEmailD
     liquidNetWorth: 30000,
     byAssetClass: {},
     previousByAssetClass: {},
-    assetClassPerformers: { bestPct: null, worstPct: null, bestAbs: null, worstAbs: null },
     totalIncome: 3500,
     totalExpenses: 2000,
     topExpenseCategories: [

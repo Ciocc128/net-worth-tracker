@@ -2,6 +2,7 @@ import { adminDb } from '@/lib/firebase/admin';
 import { Asset, MonthlySnapshot } from '@/types/assets';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { ASSET_TRANSACTIONS_COLLECTION, type AssetTransaction } from '@/types/assetTransactions';
+import type { PensionContribution } from '@/types/pension';
 
 /**
  * Fetch all assets for a user using Firebase Admin SDK (server-side only).
@@ -92,4 +93,28 @@ export async function getAssetTransactionsAdmin(userId: string): Promise<AssetTr
     console.error('[getAssetTransactionsAdmin] Error fetching asset transactions:', error);
     throw new Error('Failed to fetch asset transactions');
   }
+}
+
+/**
+ * Every pension contribution of a user, Admin SDK (server-side only) — what the Panoramica's
+ * market digest and the periodic email's Driver need to split a fund's growth into contributions
+ * and return. Moved here from `dashboardOverviewService` (2026-09-28) so the two read one reader.
+ */
+export async function getPensionContributionsAdmin(userId: string): Promise<PensionContribution[]> {
+  const snapshot = await adminDb
+    // Literal on purpose: `pensionContributionService` exports the constant but top-level-imports
+    // the CLIENT Firebase SDK (the same trap as goalService — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation).
+    .collection('pensionContributions')
+    .where('userId', '==', userId)
+    .get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      date: toDate(data.date),
+      createdAt: data.createdAt ? toDate(data.createdAt) : undefined,
+    };
+  }) as PensionContribution[];
 }

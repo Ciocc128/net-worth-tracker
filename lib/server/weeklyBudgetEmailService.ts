@@ -50,6 +50,12 @@ import {
 import type { BudgetItem, BudgetPeriod } from '@/types/budget';
 import type { Expense } from '@/types/expenses';
 import { generateText } from '@/lib/server/llm';
+import { outputBudget } from '@/lib/server/llm/budget';
+
+/** The comment's contract: two sentences, at most this many words (stated in the prompt). */
+const WEEKLY_COMMENT_WORD_LIMIT = 45;
+/** The reasoning's own ceiling; the text's room comes from the word limit (`outputBudget`). */
+const WEEKLY_COMMENT_REASONING_TOKENS = 1500;
 
 const WARNING_RATIO = 0.8;
 
@@ -302,17 +308,18 @@ REGOLE
 - Rispetta l'orizzonte di ogni voce. I budget mensili e il budget complessivo si misurano sul MESE CORRENTE e le loro proiezioni sono A FINE MESE: non definirle mai "a fine anno". Solo i budget annuali riguardano l'anno.
 - Nessun dato qui è settimanale: la mail arriva ogni settimana, ma i numeri no. Non parlare di "questa settimana".
 
-Scrivi esattamente DUE frasi in italiano (massimo 45 parole in totale):
+Scrivi esattamente DUE frasi in italiano (massimo ${WEEKLY_COMMENT_WORD_LIMIT} parole in totale):
 1. il fatto più rilevante — il budget più critico (vicino o oltre il limite) oppure, se è tutto in ordine, l'andamento positivo più significativo;
 2. una singola azione concreta e specifica che l'utente può fare da qui a fine periodo.
 Niente elenchi, saluti, premesse o titoli.`;
 
     // The prompt carries its own rules, so it stays the user turn; the system turn only fixes
-    // the language. 400 tokens cover reasoning AND text, as they did on Anthropic.
+    // the language. Until 2026-09-28 400 tokens covered reasoning AND text, tight on a reasoning
+    // model: the reasoning now has its own ceiling and the text its room (lib/server/llm/budget.ts).
     const result = await generateText('EMAIL_WEEKLY_BUDGET', {
       system: 'Sei un assistente finanziario personale italiano. Rispondi solo in italiano.',
       user: prompt,
-      maxTokens: 400,
+      ...outputBudget({ wordLimit: WEEKLY_COMMENT_WORD_LIMIT, reasoningTokens: WEEKLY_COMMENT_REASONING_TOKENS }),
     });
     return result?.text ?? null;
   } catch (error) {

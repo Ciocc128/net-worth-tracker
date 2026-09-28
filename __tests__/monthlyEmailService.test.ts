@@ -99,7 +99,6 @@ import {
   getMostRecentCompletedQuarterEnd,
   getMostRecentCompletedHalfYearEnd,
   getMostRecentCompletedYearEnd,
-  computeAssetClassPerformers,
   aggregateExpenses,
   buildMonthlyEmailData,
   buildPeriodEmailData,
@@ -117,7 +116,34 @@ import type { BudgetAlert } from '@/types/budget';
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 
+/** An email's visible text: tags out, no-break spaces flattened — a sentence spans several `<span>`s. */
+const textOf = (html: string) => html.replace(/<[^>]+>/g, '').replace(/\u00a0|&nbsp;/g, ' ');
+
+/**
+ * The fixture's Driver, when a test does not pass one: measured, its market what the old residual
+ * was (Δ − risparmio + tasse), nothing else moving — so a headline test keeps its meaning (F1b).
+ */
+function residualDriver(data: MonthlyEmailData): MonthlyEmailData['drivers'] {
+  const netSavings = data.totalIncome - data.totalExpenses;
+  const taxes = Math.max(data.periodSales?.estimatedTax ?? 0, 0);
+  return {
+    netWorthGrowth: data.netWorthDelta,
+    netSavings,
+    market: data.netWorthDelta - netSavings + taxes,
+    taxes,
+    debtRepaid: 0,
+    pensionContributions: 0,
+    other: 0,
+    isMarketMeasured: true,
+  };
+}
+
 function makeMonthlyData(overrides: Partial<MonthlyEmailData> = {}): MonthlyEmailData {
+  const data = makeMonthlyDataWithoutDriver(overrides);
+  return 'drivers' in overrides ? data : { ...data, drivers: residualDriver(data) };
+}
+
+function makeMonthlyDataWithoutDriver(overrides: Partial<MonthlyEmailData>): MonthlyEmailData {
   return {
     periodType: 'monthly',
     year: 2025,
@@ -129,7 +155,6 @@ function makeMonthlyData(overrides: Partial<MonthlyEmailData> = {}): MonthlyEmai
     liquidNetWorth: 30000,
     byAssetClass: { equity: 90000, bonds: 40000, cash: 20000 },
     previousByAssetClass: { equity: 85000, bonds: 42000, cash: 18000 },
-    assetClassPerformers: { bestPct: null, worstPct: null, bestAbs: null, worstAbs: null },
     totalIncome: 3500,
     totalExpenses: 2000,
     topExpenseCategories: [
@@ -271,7 +296,8 @@ describe('buildEmailAiPrompt', () => {
     // true if these sections are actually in the message.
     expect(userContent).toContain('--- SPESE PER CATEGORIA E SOTTOCATEGORIA');
     expect(userContent).toContain('--- ENTRATE PER CATEGORIA');
-    expect(userContent).toContain('--- ALLOCAZIONE CORRENTE');
+    // The allocation blocks are the email's own since F1b (the bundle's four are omitted).
+    expect(userContent).toContain('--- COMPOSIZIONE DEL PATRIMONIO A FINE PERIODO');
     expect(userContent).toContain('--- CATEGORIE DI SPESA CONFIGURATE ---');
     expect(userContent).toContain('--- OBIETTIVI DI INVESTIMENTO');
     expect(userContent).toContain('--- NOTE QUALITÀ DATI ---');
@@ -292,32 +318,58 @@ describe('buildEmailAiPrompt', () => {
     expect(userContent).not.toContain('=== DATI FINANZIARI: Settembre 2026 ===');
   });
 
-  it('states the market effect as a computed figure, not something to estimate', () => {
+  it('hands the model the Driver as a ledger that adds up, never the residual Δ − risparmio', () => {
     const { userContent } = buildEmailAiPrompt(
-      makeMonthlyData(),
+      makeMonthlyData({
+        drivers: { netWorthGrowth: 5000, netSavings: 1500, market: -1063, taxes: 0, debtRepaid: 0, pensionContributions: 2177, other: 2386, isMarketMeasured: true },
+      }),
       makeComparison(),
-      // delta 12.000 − risparmio netto 2.000 = 10.000
       makeBundle(),
       makePreferences(),
       []
     );
 
-    expect(userContent).toContain('--- EFFETTO MERCATO (calcolato) ---');
-    expect(userContent).toMatch(/Variazione di mercato\/valutativa[^\n]*\+10\.000/);
-    expect(userContent).toContain('non ricalcolarla');
+    expect(userContent).toContain('--- DA COSA VIENE LA VARIAZIONE DEL PATRIMONIO (calcolato, come il Driver dello Storico) ---');
+    const flat = userContent.replace(/\u00a0/g, ' ');
+    expect(flat).toContain('Mercato: −1063 €');
+    expect(flat).toContain('Versamenti al fondo pensione: +2177 €');
+    expect(flat).toContain('Crescita del patrimonio: +5000 €');
+    expect(userContent).toContain('Il mercato è MISURATO strumento per strumento');
+    expect(userContent).not.toContain('EFFETTO MERCATO');
+    expect(userContent).not.toContain('Variazione di mercato/valutativa');
   });
 
-  it('says the market effect is not computable when the window has no starting snapshot', () => {
+  it('says the market is a remainder when the period is not measured per instrument', () => {
+    const data = makeMonthlyData();
     const { userContent } = buildEmailAiPrompt(
-      makeMonthlyData(),
+      { ...data, drivers: { ...data.drivers!, isMarketMeasured: false }, classMoves: null },
+      makeComparison(),
+      makeBundle(),
+      makePreferences(),
+      []
+    );
+    expect(userContent).toContain('Il mercato NON è misurato strumento per strumento');
+    expect(userContent).toContain('non attribuire a una classe una variazione di mercato');
+  });
+
+  it('says the split is not computable without a starting snapshot', () => {
+    const { userContent } = buildEmailAiPrompt(
+      makeMonthlyData({ previousNetWorth: 0, drivers: null }),
       makeComparison(),
       makeBundle({ netWorth: { start: null, end: 200000, delta: null, deltaPct: null } }),
       makePreferences(),
       []
     );
+    expect(userContent).toMatch(/DA COSA VIENE LA VARIAZIONE[^\n]*\nNon calcolabile/);
+  });
 
-    expect(userContent).toContain('--- EFFETTO MERCATO (calcolato) ---');
-    expect(userContent).toMatch(/Non calcolabile/);
+  it('omits the bundle’s whole-net-worth allocation blocks and prints the page’s own', () => {
+    const { userContent } = buildEmailAiPrompt(makeMonthlyData(), makeComparison(), makeBundle(), makePreferences(), []);
+    expect(userContent).not.toContain('--- ALLOCAZIONE CORRENTE (tutte le classi) ---');
+    expect(userContent).not.toContain('--- ALLOCAZIONE TARGET vs CORRENTE ---');
+    expect(userContent).not.toContain('--- VARIAZIONI ALLOCAZIONE');
+    expect(userContent).toContain('--- COMPOSIZIONE DEL PATRIMONIO A FINE PERIODO (patrimonio intero, tutte le classi) ---');
+    expect(userContent).toContain('--- ALLOCAZIONE vs TARGET (come la pagina Allocazione) ---');
   });
 
   it('declares the category-delta cap in the text the model reads', () => {
@@ -442,7 +494,9 @@ describe('buildEmailAiPrompt', () => {
     );
 
     expect(userContent).toContain('--- HALL OF FAME ---');
-    expect(userContent).toContain('2°');
+    // The verdict's sentence, and what it is not: a ranking, never a streak (F1b).
+    expect(userContent).toContain('È il 2° mese per crescita tra i 14 mesi in crescita registrati.');
+    expect(userContent).toContain('non una serie di periodi consecutivi');
   });
 
   it('injects memory only when the preference allows it', () => {
@@ -795,50 +849,6 @@ describe('getMostRecentCompletedHalfYearEnd', () => {
   });
 });
 
-// ─── computeAssetClassPerformers ──────────────────────────────────────────────
-
-describe('computeAssetClassPerformers', () => {
-  it('identifies best and worst by Δ% and absolute', () => {
-    const current = { equity: 110000, bonds: 38000, cash: 20000 };
-    const previous = { equity: 100000, bonds: 40000, cash: 20000 };
-    // equity: +10% (+€10000), bonds: -5% (-€2000), cash: 0%
-    const result = computeAssetClassPerformers(current, previous);
-    expect(result.bestPct?.name).toBe('Azioni');
-    expect(result.bestPct?.deltaPct).toBeCloseTo(10);
-    expect(result.bestPct?.deltaAbs).toBe(10000);
-    expect(result.worstPct?.name).toBe('Obbligazioni');
-    expect(result.worstPct?.deltaPct).toBeCloseTo(-5);
-    expect(result.worstPct?.deltaAbs).toBe(-2000);
-    // absolute: equity gained most (+10000), bonds lost most (-2000)
-    expect(result.bestAbs?.name).toBe('Azioni');
-    expect(result.worstAbs?.name).toBe('Obbligazioni');
-  });
-
-  it('returns nulls when previous is empty', () => {
-    const result = computeAssetClassPerformers({ equity: 100 }, {});
-    expect(result.bestPct).toBeNull();
-    expect(result.worstPct).toBeNull();
-    expect(result.bestAbs).toBeNull();
-    expect(result.worstAbs).toBeNull();
-  });
-
-  it('returns only best (no worst) when a single class has a previous value', () => {
-    const result = computeAssetClassPerformers({ equity: 110 }, { equity: 100 });
-    expect(result.bestPct?.deltaPct).toBeCloseTo(10);
-    expect(result.worstPct).toBeNull();
-    expect(result.bestAbs?.deltaAbs).toBe(10);
-    expect(result.worstAbs).toBeNull();
-  });
-
-  it('excludes classes with zero previous value', () => {
-    const current = { equity: 110, bonds: 50 };
-    const previous = { equity: 100, bonds: 0 }; // bonds has no base
-    const result = computeAssetClassPerformers(current, previous);
-    expect(result.bestPct?.name).toBe('Azioni');
-    expect(result.worstPct).toBeNull();
-  });
-});
-
 // ─── aggregateExpenses ────────────────────────────────────────────────────────
 
 // Minimal QueryDocumentSnapshot stub — aggregateExpenses only reads doc.data().
@@ -922,9 +932,10 @@ describe('generateEmailHtml', () => {
       }),
     );
     expect(html).toContain('Marzo è in calo: il mercato ha pesato, le tasse sulle vendite di più');
-    expect(html).toContain('dalle tasse sulle vendite');
+    // The Driver names the tax as its own part: in the verdict's rest and in the ledger.
+    expect(textOf(html)).toContain('Il resto: −4000 € di tasse stimate sulle vendite.');
     expect(html).toContain('Hai venduto VWCE per');
-    expect(html).toContain('tasse sulle vendite circa');
+    expect(html).toContain('Tasse sulle vendite');
   });
 
   it('carries no arrow glyphs: the sign is the colour and the sign of the figure', () => {
@@ -965,25 +976,81 @@ describe('generateEmailHtml', () => {
     expect(html).toContain('60,0%');
   });
 
-  it('names the class that moved, in percent and in euro, when they differ', () => {
+  it('reads each class with the market apart from what was bought (F1b)', () => {
+    // Agosto 2026's shape: the PAC bought 3.702 € of equity, the market added 819 €.
     const html = generateEmailHtml(
       makeMonthlyData({
-        assetClassPerformers: {
-          bestPct: { name: 'Criptovalute', deltaPct: 10, deltaAbs: 900 },
-          worstPct: { name: 'Obbligazioni', deltaPct: -5, deltaAbs: -2000 },
-          bestAbs: { name: 'Azioni', deltaPct: 4, deltaAbs: 10000 },
-          worstAbs: { name: 'Obbligazioni', deltaPct: -5, deltaAbs: -2000 },
+        classMoves: {
+          rows: [
+            { band: 'equity', label: 'Azioni', market: 819, traded: 3702, paidIn: 0, other: 0, valueChange: 4521 },
+            { band: 'cash', label: 'Liquidità', market: 0, traded: 0, paidIn: 0, other: -5119, valueChange: -5119 },
+          ],
+          unassigned: null,
         },
       }),
     );
     expect(html).toContain('Andamento per classe');
-    expect(html).toContain('migliore in percentuale');
-    expect(html).toContain('migliore in euro');
-    expect(html).toContain('peggiore');
+    expect(html).toContain('hai comprato soprattutto');
+    expect(html).toContain('acquisti e vendite +3702');
+    expect(html).toContain('altri movimenti −5119');
+    // Cash has no market: «0 €», never a green «+0 €».
+    expect(textOf(html)).not.toContain('+0 €');
+    expect(html).not.toContain('migliore in percentuale');
   });
 
-  it('omits the class-move tile when nothing is attributable', () => {
+  it('omits the class-move tile when the period is not measured per instrument', () => {
     expect(generateEmailHtml(makeMonthlyData())).not.toContain('Andamento per classe');
+    expect(generateEmailHtml(makeMonthlyData({ classMoves: null }))).not.toContain('Andamento per classe');
+  });
+
+  it('prints the Driver as a ledger under the Patrimonio hero, adding up to the growth', () => {
+    const html = generateEmailHtml(
+      makeMonthlyData({
+        drivers: { netWorthGrowth: 5000, netSavings: 1500, market: -1063, taxes: 0, debtRepaid: 0, pensionContributions: 2177, other: 2386, isMarketMeasured: true },
+      }),
+    );
+    expect(html).toContain('Versamenti al fondo pensione');
+    expect(html).toContain('Crescita del patrimonio');
+    expect(html).toContain('misurato strumento per strumento');
+    expect(html).not.toContain('residuo strutturale');
+  });
+
+  it('adds an Allocazione tile on the allocated base, with the 5/25 band', () => {
+    const gap = (assetClass: string, label: string, current: number, target: number, action: 'OK' | 'COMPRA' | 'VENDI') => ({
+      assetClass,
+      label,
+      currentPercentage: current,
+      targetPercentage: target,
+      differencePp: current - target,
+      differenceValue: (current - target) * 1000,
+      currentValue: current * 1000,
+      action,
+      dormant: false,
+    });
+    const empty = { count: 0, total: 0, holdings: [], rows: [] };
+    const classes = [gap('equity', 'Azioni', 69.6, 70, 'OK'), gap('bonds', 'Obbligazioni', 24, 30, 'COMPRA')];
+    const html = generateEmailHtml(
+      makeMonthlyData({
+        allocation: {
+          marketValue: 100000,
+          leverageRatio: 1,
+          hasLeveragedExposure: false,
+          fromGoals: false,
+          classes,
+          offTarget: [classes[1]],
+          subCategories: [],
+          frozen: empty,
+          excluded: empty,
+          unmatched: [],
+        },
+      }),
+    );
+    expect(html).toContain('>Allocazione<');
+    expect(textOf(html)).toContain('100.000 € allocati');
+    expect(html).toContain('69,6%');
+    expect(html).toContain('fuori dalla regola 5/25');
+    // The verdict names the class out of band in the Allocazione page's words.
+    expect(textOf(html)).toContain('Le obbligazioni pesano 6,0 pp meno del target, fuori dalla regola 5/25.');
   });
 
   it('states the savings rate and what net savings means', () => {
@@ -1597,7 +1664,9 @@ describe('buildAndSendForPeriod — AI comment through the provider layer', () =
     );
     expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.max_tokens).toBe(6000);
+    // 4000 of reasoning + 500 words × 1,8 × 2 of text (lib/server/llm/budget.ts).
+    expect(body.max_tokens).toBe(5800);
+    expect(body.reasoning).toEqual({ exclude: true, max_tokens: 4000 });
     expect(body.messages[0].role).toBe('system');
     expect(htmlSent()).toContain('Commento AI');
     expect(htmlSent()).toContain('fenicottero');

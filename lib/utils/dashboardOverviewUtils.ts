@@ -20,7 +20,7 @@ import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { PENSION_BAND_KEY } from '@/lib/utils/historyComposition';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
-import { pensionPaidInBetween, tradeAwarePriceEffect } from '@/lib/utils/marketEffect';
+import { pensionPaidInBetween, sumByMarketBand, tradeAwarePriceEffect } from '@/lib/utils/marketEffect';
 import type { PensionContribution } from '@/types/pension';
 import type { AssetTransaction } from '@/types/assetTransactions';
 
@@ -163,23 +163,7 @@ export function computeTopMovers(
   const effects = computePriceEffectsByAsset(assets, previousSnapshot, pension, monthTrades);
   if (!effects) return [];
 
-  const byClass = new Map<string, number>();
-  const add = (assetClass: string, amount: number) =>
-    byClass.set(assetClass, (byClass.get(assetClass) ?? 0) + amount);
-
-  for (const asset of assets) {
-    const effect = effects.get(asset.id);
-    if (!effect) continue;
-    if (asset.type === 'pensionFund') {
-      add(PENSION_BAND_KEY, effect);
-    } else if (asset.composition && asset.composition.length > 0) {
-      for (const component of asset.composition) {
-        add(component.assetClass, (effect * component.percentage) / 100);
-      }
-    } else {
-      add(asset.assetClass, effect);
-    }
-  }
+  const byClass = sumByMarketBand(assets, (assetId) => effects.get(assetId) || undefined);
 
   const movers: DashboardOverviewMover[] = [];
   for (const [assetClass, delta] of byClass) {

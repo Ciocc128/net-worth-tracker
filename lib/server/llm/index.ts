@@ -57,6 +57,7 @@ function logUsage(
     input: usage?.input ?? null,
     output: usage?.output ?? null,
     ...(usage?.cost !== undefined ? { cost: usage.cost } : {}),
+    ...(usage?.reasoning !== undefined ? { reasoning: usage.reasoning } : {}),
     outcome,
   });
 }

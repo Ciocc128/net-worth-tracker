@@ -33,6 +33,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **No role is ever inferred at read time** — the `realestate → excluded` / `Private Equity → frozen` / `pensionFund →
   frozen` suggestion is a FORM default for NEW assets, one ternary in the existing touched-flag effect. The role is
   orthogonal to `isLiquid` (only the liquid/illiquid split) and `isPrimaryResidence` (only FIRE net worth).
+- **`compareAllocations`, the target resolution and the defaults live in `lib/utils/allocationComparison.ts`** (2026-09-28,
+  F1b): the service re-exports them, the page resolves its targets through `resolveEffectiveTargets`, and the periodic
+  email measures the period-end snapshot (`assetsAtSnapshot`, today's roles) with the same function, on the 5/25 band
+  (doc/guide/email-pdf.md). Change the comparison there, never in a copy.
 - **THE RULE: partition upstream of `compareAllocations`, never downstream.** Filtering the *output* is wrong twice:
   every other class's `targetValue = target% × totalValue` measures against the wrong base, and it breaks the
   Σ(current − target) = 0 invariant the balance score halves.

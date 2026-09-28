@@ -26,7 +26,7 @@ import {
 } from '@/lib/utils/dashboardOverviewUtils';
 import { resolvePensionReturnStart } from '@/lib/utils/pensionReturn';
 import { summarizePeriodSales } from '@/lib/utils/periodSales';
-import { getAssetTransactionsAdmin } from '@/lib/server/assetAdminRepository';
+import { getAssetTransactionsAdmin, getPensionContributionsAdmin } from '@/lib/server/assetAdminRepository';
 import type { PensionContribution } from '@/types/pension';
 import type { AssetTransaction } from '@/types/assetTransactions';
 import {
@@ -117,29 +117,6 @@ async function getSnapshotsForUser(userId: string): Promise<MonthlySnapshot[]> {
       createdAt: toDate(data.createdAt),
     };
   }) as MonthlySnapshot[];
-}
-
-/**
- * The owner's pension contributions — read only when a pension fund is held, because the digest
- * needs them to split a fund's growth into contributions and return (see `computeTopMovers`).
- */
-async function getPensionContributionsForUser(userId: string): Promise<PensionContribution[]> {
-  const snapshot = await adminDb
-    // Literal on purpose: `pensionContributionService` exports the constant but top-level-imports
-    // the CLIENT Firebase SDK (the same trap as goalService — doc/guide/panoramica.md § Panoramica and Dashboard Data Isolation).
-    .collection('pensionContributions')
-    .where('userId', '==', userId)
-    .get();
-
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      ...data,
-      date: toDate(data.date),
-      createdAt: data.createdAt ? toDate(data.createdAt) : undefined,
-    };
-  }) as PensionContribution[];
 }
 
 async function getSettingsForUser(userId: string): Promise<AssetAllocationSettings | null> {
@@ -578,7 +555,7 @@ async function recomputeDashboardOverview(userId: string): Promise<DashboardOver
   // Only a holder of a pension fund pays for this read; the digest needs it to tell a fund's
   // return from its contributions.
   const holdsPensionFund = assets.some((a) => a.type === 'pensionFund' && a.quantity > 0);
-  const pensionContributions = holdsPensionFund ? await getPensionContributionsForUser(userId) : [];
+  const pensionContributions = holdsPensionFund ? await getPensionContributionsAdmin(userId) : [];
 
   // The ledger: the month's sells, so the verdict can name the tax that left with them, and the
   // trades the market digest reads its new quotes from. A failed read costs the sales clause and

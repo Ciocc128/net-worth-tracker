@@ -14,12 +14,13 @@
  * question is about the next money, and a verdict that changed with a toggle would be that
  * tile's title, not the page's.
  *
- * Percentages go through chartService's it-IT formatter (comma decimals), currency through
+ * Percentages go through the it-IT formatter (`formatPercentageIt`, comma decimals), currency through
  * `cachedFormatCurrencyEUR` (no-break space before €) — AGENTS.md → Italian Localization.
  */
 
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatPercentage } from '@/lib/services/chartService';
+// formatters, not chartService (same function): the periodic email reads these sentences on the server.
+import { formatPercentageIt as formatPercentage } from '@/lib/utils/formatters';
 import { articleForPercent, atThePercent } from '@/lib/utils/patrimonioNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { OrphanedTarget, RebalanceBand, RebalanceMove } from '@/lib/utils/allocationUtils';
@@ -140,8 +141,11 @@ export interface AllocazioneVerdictInput {
   orphans: OrphanedTarget[];
 }
 
-/** «Le azioni pesano 3,3 pp più del target, le obbligazioni 9,1 pp meno e la liquidità 3,3 pp meno» */
-function driftClause(offTarget: ClassGap[]): Narrative {
+/**
+ * «Le azioni pesano 3,3 pp più del target, le obbligazioni 9,1 pp meno e la liquidità 3,3 pp meno»
+ * — the page's verdict and the periodic email's (which closes it on its band) say a drift alike.
+ */
+export function driftClause(offTarget: Pick<ClassGap, 'assetClass' | 'label' | 'differencePp'>[]): Narrative {
   const items = offTarget.map((gap, i) => {
     const subject = classSubject(gap.assetClass, gap.label);
     const direction = gap.differencePp > 0 ? 'più' : 'meno';

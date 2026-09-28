@@ -12,11 +12,19 @@
 
 ## 🐛 Bug Fixes
 
+- Fixed the periodic emails reading the portfolio differently from the app: the verdict, the tiles and the AI comment's data now use the pages' own rules. «Mercato» is Storico's Driver, measured instrument by instrument, with savings, sale taxes, mortgage, pension contributions and other changes as rows that add up to the growth, instead of «growth minus savings», which counted a pension contribution as market. The allocation is measured like Allocazione: on the allocated portfolio, with excluded assets out, leverage and the effective targets, and the 5/25 rule. For example «Azioni 70% contro un target del 70%» where the email compared 50% of the whole net worth with the same target. «Andamento per classe» separates what the market did from what you bought, so a month of PAC instalments no longer reads as growth. The comment also receives the period's purchases and sales per instrument, and the period's return (TWR) on Rendimenti's base.
+
 - Fixed a category edited in Impostazioni › Spese (name, type or role) keeping its old values in Analisi for up to five minutes: the change now arrives at once.
 
 - Fixed the smallest categories of the Analisi › Flusso chart being painted black — invisible on a dark theme — when a branch held more than seven categories: a shade now never goes darker than 55% of its colour.
 
 ## 🔧 Improvements
+
+- Improved how the periodic email states a Hall of Fame standing: it now says which end of the ranking the period sits at and among how many, for example «È il mese con la crescita più piccola tra i 12 mesi in crescita registrati», instead of «È il 12° mese migliore su 12», which read like twelve growing months in a row.
+
+- Improved the periodic emails with a new «Allocazione» section: each class of the allocated portfolio against its target, the classes outside the 5/25 rule marked, and what is excluded named in the footer; the verdict names a class only when it leaves the band. The Patrimonio section now lists where the change came from (risparmio, mercato, tasse, mutuo, versamenti al fondo pensione, altre variazioni) and states the period's return with its base.
+
+- Improved the reliability of the AI comment in the periodic and weekly budget emails: the model's reasoning now has a ceiling of its own and the text always keeps room for the word limit, so a long reasoning no longer cuts the comment off and leaves the email without it. The server log line of each call also records how many tokens went to reasoning.
 
 - Improved the AI comment of the periodic and weekly budget emails: it now goes through a small provider layer (`lib/server/llm`) and runs on an open model through OpenRouter, set with `OPENROUTER_API_KEY`; which surface calls which provider and model is written in one place (`lib/constants/aiModels.ts`), so an installation with only an Anthropic key can route the emails back to Claude. Every request asks for providers that neither train on nor retain the data, free model variants are refused, and every call writes one `[ai-usage]` line (surface, model, tokens, cost) in the server logs. An answer that arrives cut off is now discarded rather than printed half-way, and whatever goes wrong the email is still sent, without the comment. The web search the monthly comment could use is gone. On a typical month the comments cost a fraction of a cent.
 
