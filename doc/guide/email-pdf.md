@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the model eval (F2, doc/ai-open-models-wiki.md § 7) `scripts/aiEval.mts` (`npm run ai:eval:freeze` on the emulators, `npm run ai:eval` for estimate · run · blind · score, data OUTSIDE git) + `lib/utils/{aiEvalChecks,aiEvalScore}.ts`, tests `__tests__/{aiEvalChecks,aiEvalScore}.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
+- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the model eval (F2, doc/ai-open-models-wiki.md § 7) `scripts/aiEval.mts` (`npm run ai:eval:freeze` on the emulators, `npm run ai:eval` for estimate · run · blind · score, data OUTSIDE git) + `lib/utils/{aiEvalChecks,aiEvalScore}.ts`, tests `__tests__/{aiEvalChecks,aiEvalScore}.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-9), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
 
 ## PDF Export (`lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `lib/utils/pdfTimeFilters.ts`)
 
@@ -158,6 +158,35 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   budget gets revised. **There is no web search since 2026-09-28**: the layer has no tools, and the macro context arrives
   from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4); until then `includeMacroContext` only changes the prompt's
   wording (it was off on the owner's account anyway).
+
+## The vault and TheBull (F3, doc/ai-open-models-wiki.md § 5)
+
+Not an email yet — F5 puts its month pages in the periodic prompt — but the same cron and the same provider layer.
+
+- **Files**: `lib/utils/thebullParse.ts` (the template read by code: cleaning rule, sections, index table, readings,
+  episodes), `lib/utils/wikiMacro.ts` (extraction contract, the quote check, the pages, `log.md`),
+  `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `app/api/wiki/ingest/route.ts`, the cron's phase 9,
+  `scripts/wikiCompile.mts` (`npm run wiki:compile`), the Apps Script `scripts/wiki/thebullIngest.gs`; tests
+  `__tests__/{thebullParse,wikiMacro,thebullCompiler,githubVault,wikiIngestRoute}.test.ts` on a SYNTHETIC newsletter
+  (`__tests__/thebullFixture.ts`) — a real issue never enters the repo: the text is TheBull's and its links carry the
+  subscriber's id.
+- **The model reads one section.** Only «Il punto della settimana» goes to `THEBULL_COMPILE`; the index table, the
+  readings and the episodes are parsed, so their figures never pass through a model. The sponsor never reaches it.
+- **Every item holds to a quote, by code.** The quote must be in the text (whitespace, apostrophes and quotes
+  normalised) and every number of the summary must be in the quote — a year inferred from «da allora» is dropped. A
+  quote already used is a `doppione`. A week with no fact, or with more than a third of its items failing their quote,
+  is refused (`pending`), never published thin. The first real run (issue 23, 2026-09-27): 16 facts, 8 theses,
+  3 hints, 2 dropped, 0,002 $.
+- **The raw is cleaned BEFORE it is written, then immutable** (`THEBULL_CLEAN_VERSION`): sponsor, Academy promotion,
+  social links, footer and every line with the subscriber's id go; the rest stays in the template's own format, so
+  the SAME parser reads the email and the stored raw — the property the retry depends on (tested).
+- **One commit per operation** (Git Data API), rebuilt once on a fresh head when the owner pushed from Obsidian in
+  between. The raw is committed even when the model fails; `log.md` then says `pending 0/3`, the cron retries three
+  times, then `failed`; `npm run wiki:compile -- <date>` recompiles by hand.
+- **The month page is rebuilt from the weeks' `.json` records**, chosen by the issue's DATE (a week that straddles
+  two months belongs to the month of its Sunday); quotes stay in the weeks, so the month stays short for F5.
+- **Themes, principles and the lint are NOT the server's**: a Claude Code session writes them (the vault's
+  `CLAUDE.md`, § 5.5 of the spec).
 
 ## Verifying a surface with no DOM
 

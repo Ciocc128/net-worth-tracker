@@ -57,6 +57,8 @@ export interface ExtractStructuredRequest<T> {
   /** Tool (Anthropic) or schema (OpenRouter) name: `[a-zA-Z0-9_-]`, at most 64 characters. */
   name?: string;
   maxTokens?: number;
+  /** A ceiling on the reasoning alone, as in `GenerateTextRequest`. */
+  reasoningMaxTokens?: number;
 }
 
 export interface AdapterResponse<V> {
@@ -78,6 +80,7 @@ export interface LlmAdapter {
       jsonSchema: Record<string, unknown>;
       name: string;
       maxTokens: number;
+      reasoningMaxTokens?: number;
     },
     apiKey: string
   ): Promise<AdapterResponse<unknown>>;

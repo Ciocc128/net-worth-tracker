@@ -88,7 +88,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F1 — Provider** ✔ | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
 | **F1b — Email allineate all'app** ✔ | Prima di F2 (§4.4): verdetto, tile e prompt leggono il Driver dello Storico, l'Allocazione sulla base allocata (regola 5/25), mercato e acquisti per classe, le operazioni e il TWR di Rendimenti. Budget di uscita dal contratto, con il ragionamento a parte (§4.5). |
 | **F2 — Eval rapido** ✔ | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione — **GLM 5.3 Flash**, 2026-09-28 (§7.2). |
-| **F3 — Vault e TheBull** | Repo privato, struttura (§5.1), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
+| **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
 | **F4 — Il vault interrogabile** | Prime pagine Principi in sessione, export dei dati (§6.1), `CLAUDE.md` del vault (§6.2). Da qui il canale dell'abbonamento è completo. |
 | **F5 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4). |
 | **F6 — Eval completo** | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull. Sceglie il modello definitivo; se cambia, si ricompilano le pagine macro dai grezzi. |
@@ -209,8 +209,8 @@ percentuali («p.p.»).
 
 ### 5.1 Struttura
 
-Repo GitHub **privato** (nome **[da decidere]**, es. `finance-wiki`), aperto in Obsidian con il
-plugin Obsidian Git. Schema ispirato alla «LLM Wiki» di Karpathy: le fonti grezze non si toccano, le
+Repo GitHub **privato** `Ciocc128/finance-wiki` (creato il 2026-09-28, con lo schema in `CLAUDE.md`), aperto in
+Obsidian con il plugin Obsidian Git. Schema ispirato alla «LLM Wiki» di Karpathy: le fonti grezze non si toccano, le
 pagine sono compilate da un LLM e riviste dal proprietario.
 
 ```
@@ -228,37 +228,77 @@ wiki/
   macro/settimane/2026-W39.md  ← una pagina per settimana (frontmatter: settimana, fonte, date)
   macro/mesi/2026-09.md        ← riassunto del mese, rigenerato a ogni settimana del mese
   macro/temi/<tema>.md         ← tassi, inflazione, azionario, cambio EUR-USD, materie prime
+  analisi/<data>-<slug>.md     ← risposte tenute: la domanda, la risposta, le fonti (§5.5)
 log.md                         ← una riga per ingestione, compilazione, export
 ```
 
-Chi scrive cosa: il server scrive `raw/thebull/`, `wiki/macro/`, `dati/` e `log.md`; `wiki/principi/`
-e `CLAUDE.md` li scrive solo il proprietario o una sua sessione Claude Code. Ogni pagina compilata
+Chi scrive cosa: il server scrive `raw/thebull/`, `wiki/macro/settimane/`, `wiki/macro/mesi/`, `dati/` e
+`log.md`; `wiki/macro/temi/`, `wiki/principi/`, `wiki/analisi/` e `CLAUDE.md` li scrive solo il proprietario o
+una sua sessione Claude Code. **I temi non li scrive il server** (decisione del 2026-09-28): riscrivere cinque
+pagine a settimana con un modello piccolo accumula «falsa coerenza»; li aggiorna il lint mensile (§5.5),
+dalle settimane del mese, col modello dell'abbonamento. Ogni pagina compilata
 porta nel frontmatter le fonti da cui deriva. La copia grezza di TheBull resta nel repo privato: uso
 personale, mai esposta in UI, demo o export.
 
 ### 5.2 Ingestione
 
-1. **Apps Script** nell'account Gmail, trigger ogni domenica tra le 10 e le 11: cerca
-   `from:(<mittente TheBull>) newer_than:2d` (**[da decidere]** il mittente esatto, dal primo invio
-   reale), prende `getPlainBody()`, fa `POST /api/wiki/ingest` con `Authorization: Bearer
-   <WIKI_INGEST_SECRET>` e il corpo `{ source: 'thebull', receivedAt, subject, text }`. Marca il
-   messaggio con un'etichetta `wiki/ingested` per non reinviarlo. Una seconda funzione dello script,
-   da lanciare **una volta a mano**, fa lo stesso per l'archivio passato (tutte le newsletter non
-   ancora etichettate, dalla più vecchia), a ritmo lento: la Wiki macro nasce con uno storico, e
-   l'eval completo trova le pagine macro dei mesi del mirror.
-2. **Endpoint** `app/api/wiki/ingest/route.ts`: verifica il segreto (confronto a tempo costante),
-   rifiuta testi oltre una soglia, è idempotente sulla data, scrive il grezzo con la GitHub Contents
-   API (token fine-grained, *contents: write* sul solo repo del vault).
-3. Nella stessa richiesta: **compilazione** (§5.3) e commit delle pagine `macro/`. Se fallisce, il
-   grezzo resta salvato e una riga `pending` in `log.md` la fa ritentare dal cron giornaliero delle 18.
+TheBull arriva da `newsletter@thebull.it` la domenica mattina (~08:30 ora di Roma), template Mailchimp fisso:
+`#<numero> - GG/MM/AAAA` in testa, poi sezioni `** TITOLO` + una riga di trattini. Al 2026-09-27 è al **n. 23**:
+l'archivio intero sono circa 23 email.
+
+1. **Apps Script** nell'account Gmail (`scripts/wiki/thebullIngest.gs`, la configurazione nella sua testata):
+   `ingestLatest` ogni domenica alle 10 cerca `from:newsletter@thebull.it -label:wiki-ingested newer_than:7d`,
+   prende `getPlainBody()` e fa `POST /api/wiki/ingest` con `Authorization: Bearer <WIKI_INGEST_SECRET>` e il corpo
+   `{ source: 'thebull', receivedAt, subject, text }`. Etichetta il messaggio `wiki-ingested` solo dopo un 200
+   (`duplicate`) o un 201 (ingerito, compilato o `pending`); ogni altro esito lo lascia per la volta dopo.
+   `startBackfill`, lanciata **una volta a mano**, fa lo stesso per **tutto l'archivio** (dalla più vecchia), a lotti
+   di 4,5 minuti con un trigger ogni 10 minuti che si toglie da solo a fine archivio.
+2. **Endpoint** `app/api/wiki/ingest/route.ts`: segreto a tempo costante (401), vault non configurato (503), corpo
+   zod (400), testo oltre 200.000 caratteri (413); idempotente sulla **data del numero** (`duplicate`, 200). Il testo
+   passa per `cleanTheBullText` **prima** di essere scritto (decisione del 2026-09-28): via sponsor, promozione
+   dell'Academy, social, footer e **ogni riga con l'id dell'iscritto** (i link Mailchimp `e=…`); il resto resta nel
+   formato del template, così **lo stesso parser legge l'email e il grezzo salvato**. Dopo, il grezzo è immutabile;
+   il frontmatter dice fonte, numero, data, oggetto, ricezione e versione del filtro.
+3. Nella stessa richiesta: **compilazione** (§5.3) e **un solo commit** (Git Data API: grezzo, settimana, il suo
+   `.json`, il mese, `log.md`), ricostruito una volta sulla testa nuova se il proprietario ha fatto push nel
+   frattempo. Se la compilazione fallisce il grezzo si committa lo stesso con `pending 0/3` in `log.md`; la fase 9 del
+   cron giornaliero delle 18 (nessun cron nuovo) ritenta, **tre volte, poi `failed`**; `npm run wiki:compile --
+   <AAAA-MM-GG>` ricompila a comando, `-- --dry-run <file>` prova una newsletter locale senza scrivere. Il lint
+   mensile elenca le `failed`.
 
 ### 5.3 Compilazione (modello open)
 
-Una chiamata `extractStructured`: per la settimana, i movimenti di indici, tassi, inflazione, banche
-centrali, cambio, materie prime ed eventi, **ciascuno con la frase della newsletter da cui viene**.
-Il server rende il markdown da quella struttura (funzione pura in `lib/utils/wikiMacro.ts`): non è il
-modello a scrivere il file. Poi rigenera `macro/mesi/<mese>.md`. **Nessun numero del portafoglio**
-entra in questa chiamata.
+**Il modello legge una sola sezione**, «Il punto della settimana» (~8k caratteri su ~16k). Tabella dei rendimenti
+degli indici, letture consigliate ed episodi li legge il **codice** (`lib/utils/thebullParse.ts`): le loro cifre non
+passano mai da un modello, e lo sponsor non gli arriva. Senza il marcatore «Il punto» (un numero vecchio?) il punto
+sono le sezioni che il template non nomina.
+
+Una chiamata `extractStructured` (`THEBULL_COMPILE`, schema rigido) restituisce tre liste, **ogni voce con la frase
+copiata dal testo** (decisione del 2026-09-28):
+
+| Lista | Contenuto | Tetto nel prompt |
+| --- | --- | --- |
+| `fatti` | area, paese, sintesi: ciò che è accaduto o misurato nella settimana | 20 |
+| `tesi` | area, sintesi: le interpretazioni dell'autore, marcate come opinione | 8 |
+| `spunti` | sintesi: i consigli per chi investe — il lint mensile propone quali promuovere a Principio | 5 |
+
+**Il codice** (`verifyExtraction`) tiene una voce solo se la citazione è nel testo (spazi, apostrofi e virgolette
+normalizzati) e ogni numero della sintesi sta nella citazione; una citazione già usata è un `doppione`. Una settimana
+senza fatti, o con più di un terzo delle voci fallite, è rifiutata (`pending`), mai pubblicata magra. Il server rende
+il markdown (`lib/utils/wikiMacro.ts`) con le voci scartate in fondo; il mese si ricostruisce dai `.json` delle sue
+settimane, scelte per **data** del numero. **Nessun numero del portafoglio** entra in questa chiamata.
+
+Primo giro reale (n. 23, 2026-09-27, GLM 5.3 Flash): 16 fatti, 8 tesi, 3 spunti, 2 scartate (un «dal 1981» dedotto
+da «da allora»), **0,002 $**. Il primo prompt, senza tetti, dava 27/24/4 con doppioni: i tetti e la regola del
+doppione vengono da lì.
+
+**Collaudo del 2026-09-28** (WORKFLOW.md § 2), sulla route vera, GLM vero e GitHub vero, su un branch usa-e-getta del
+vault (`collaudo-f3`, poi cancellato), con una newsletter-esca: token che legge il vault e non scrive altrove (B);
+ingest → un commit con i cinque file, doppione → 200 senza commit, modello irraggiungibile → grezzo + `pending 0/3`,
+tre ritentativi → `failed` e il cron non lo tocca più, ricompilazione a mano → `ok (manuale)` col mese a due settimane
+(C, 17/17); segreto sbagliato e header assente → 401, nessun commit (E, con la C come controllo positivo); il n. 23 vero
+ingerito e rivisto dal proprietario in Obsidian (F). Resta fuori, per costruzione: l'Apps Script e l'HTTP reale da
+Gmail, che arrivano con il deploy.
 
 ### 5.4 Lettura nelle email (F5)
 
@@ -269,6 +309,23 @@ insight che poggia su un principio lo nomina; quando i dati contraddicono un pri
 
 Lettura del vault via GitHub API con token in sola lettura e `ETag`; limite 5.000 richieste/ora,
 un'email ne fa al più una manciata.
+
+### 5.5 Le tre operazioni della Wiki (modello di Karpathy)
+
+Riferimento: il [gist «LLM Wiki»](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) —
+tre livelli (fonti immutabili, pagine compilate, uno schema che dice come lavorarci) e tre operazioni.
+Lo schema è il `CLAUDE.md` del vault; qui solo il disegno, le regole operative stanno lì.
+
+| Operazione | Chi | Cosa |
+| --- | --- | --- |
+| **Ingest** di TheBull | server + modello open, ogni domenica | Grezzo → settimana → mese (§5.2–5.3): una pipeline a schema rigido, senza discussione |
+| **Ingest** di una fonte | sessione Claude Code | La fonte in `raw/sources/`; la sessione ne **discute** 3–5 punti col proprietario prima di scrivere, poi aggiorna `principi/`, `_digest.md`, `index.md`, `log.md`; una contraddizione con un principio va in «In tensione», non sovrascrive |
+| **Query** | sessione Claude Code | `index.md` prima, poi le pagine; numeri solo da `dati/`; la risposta che merita si **archivia** in `wiki/analisi/` dopo il sì del proprietario |
+| **Lint** mensile | sessione Claude Code | Aggiorna i **temi** dalle settimane del mese; elenca contraddizioni, analisi superate da un export più recente, orfane e link rotti, pagine senza `fonti`, righe `failed`; applica solo ciò che il proprietario approva |
+
+Ogni pagina di `wiki/` porta `tipo`, `aggiornato` e `fonti` nel frontmatter: la provenienza si
+traccia dal primo ingest, perché una wiki che non sa da dove viene un'affermazione non si può più
+correggere.
 
 ---
 
@@ -292,7 +349,9 @@ e resi in markdown da una funzione pura. Nessun LLM: sono numeri dell'app, non r
 
 ### 6.2 `CLAUDE.md` del vault
 
-Le regole di `ASSISTANT_SYSTEM_CORE` adattate: i numeri si prendono **solo** da `dati/` e si citano
+Scritto il 2026-09-28 insieme allo scheletro (F3): schema delle pagine, chi scrive cosa, le tre
+operazioni (§5.5), il formato di `index.md` e `log.md`. F4 lo rilegge quando arrivano `dati/` e i primi
+Principi. Le regole di `ASSISTANT_SYSTEM_CORE` adattate: i numeri si prendono **solo** da `dati/` e si citano
 con il file da cui vengono; il contesto macro solo da `wiki/macro/`; ogni giudizio che poggia su un
 principio cita la pagina; quando i dati smentiscono un principio, lo si dice; un dato assente si dice
 assente, non si stima. Più il flusso di manutenzione dei Principi: una fonte in `raw/sources/` → la
@@ -456,7 +515,7 @@ GLM 5.3 Flash** per `EMAIL_PERIODIC` ed `EMAIL_WEEKLY_BUDGET`, provvisorio fino 
 | --- | --- |
 | F1 | `lib/server/llm/{index,openrouter,anthropic}.ts`, `lib/constants/aiModels.ts`, le due email, il pulsante di Rendimenti |
 | F6 | `scripts/aiEval.mts` con i controlli del secondo giro (fatti macro, principi) |
-| F3 | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/wikiMacro.ts`, l'Apps Script (con il recupero dell'archivio) documentato in `doc/guide/email-pdf.md` |
+| F3 ✔ | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/{thebullParse,wikiMacro}.ts`, la fase 9 del cron, `scripts/wikiCompile.mts` (`npm run wiki:compile`), l'Apps Script `scripts/wiki/thebullIngest.gs`; test su una newsletter sintetica (`__tests__/thebullFixture.ts`); guida in `doc/guide/email-pdf.md` |
 | F4 | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, il cron mensile, `CLAUDE.md` del vault |
 | F5 | `lib/server/wiki/wikiReader.ts`, i prompt in `monthlyEmailService.ts` e `weeklyBudgetEmailService.ts` |
 | Ogni fase | `doc/guide/email-pdf.md`, `CLAUDE.md` (Current Status, Data & Integrations), `SETUP.md` (`OPENROUTER_API_KEY`, `WIKI_INGEST_SECRET`, `WIKI_GITHUB_TOKEN`, `WIKI_GITHUB_REPO`) |

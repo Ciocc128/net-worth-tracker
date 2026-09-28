@@ -124,11 +124,11 @@ export async function generateText(surface: AiSurface, request: GenerateTextRequ
  */
 export async function extractStructured<T>(
   surface: AiSurface,
-  { system, user, schema, jsonSchema, name = 'structured_output', maxTokens = DEFAULT_EXTRACTION_MAX_TOKENS }: ExtractStructuredRequest<T>
+  { system, user, schema, jsonSchema, name = 'structured_output', maxTokens = DEFAULT_EXTRACTION_MAX_TOKENS, reasoningMaxTokens }: ExtractStructuredRequest<T>
 ): Promise<T | null> {
   const done = await run(
     surface,
-    (adapter, model, apiKey) => adapter.extractJson(model, { system, user, jsonSchema, name, maxTokens }, apiKey),
+    (adapter, model, apiKey) => adapter.extractJson(model, { system, user, jsonSchema, name, maxTokens, reasoningMaxTokens }, apiKey),
     (value: unknown) => {
       if (value === undefined) return { outcome: 'empty' };
       const parsed = schema.safeParse(value);

@@ -20,6 +20,8 @@ import { isWeeklyBudgetDayItaly, buildAndSendWeeklyBudget } from '@/lib/server/w
 import { evaluateActiveGoals } from '@/lib/server/assistant/goalEvaluationService';
 import { captureBudgetHistory } from '@/lib/server/budgetHistoryService';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
+import { createVaultClient, readVaultConfig } from '@/lib/server/wiki/githubVault';
+import { retryPendingTheBull } from '@/lib/server/wiki/thebullCompiler';
 
 /**
  * GET /api/cron/monthly-snapshot
@@ -371,6 +373,19 @@ export async function GET(request: NextRequest) {
       console.error('[cron] budget history capture failed (non-blocking):', historyError);
     }
 
+    // Phase 9: Retry TheBull weeks whose compilation is still owed (every day, up to three
+    // times; doc/ai-open-models-wiki.md § 5.2). Off when the vault is not configured; non-fatal.
+    let wikiRetrySummary: { retried: number; compiled: number } | null = null;
+    const vaultConfig = readVaultConfig();
+    if (vaultConfig) {
+      try {
+        wikiRetrySummary = await retryPendingTheBull({ vault: createVaultClient(vaultConfig) });
+        if (wikiRetrySummary.retried > 0) console.log('[cron] wiki retries', wikiRetrySummary);
+      } catch (wikiError) {
+        console.error('[cron] wiki retry failed (non-blocking):', wikiError);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Monthly snapshots job completed`,
@@ -386,6 +401,7 @@ export async function GET(request: NextRequest) {
       weeklyBudgetEmailSummary: weeklyBudgetEmailResults,
       goalEvaluationSummary: goalEvaluationResults,
       budgetHistorySummary,
+      wikiRetrySummary,
     });
   } catch (error) {
     console.error('Error in monthly snapshot cron job:', error);
