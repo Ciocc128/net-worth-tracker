@@ -259,6 +259,14 @@ export function parseTheBull(text: string): TheBullIssue {
   };
 }
 
+/**
+ * Whether the text is a newsletter issue at all: it has the `#n - date` line or a point to read.
+ * The same sender also mails the subscription confirmation and the like — those are not weeks.
+ */
+export function isTheBullIssue(issue: TheBullIssue): boolean {
+  return issue.issue !== null || issue.point.length > 0;
+}
+
 /** «Il punto della settimana» as the model reads it: each sub-section's title, then its prose. */
 export function pointText(issue: TheBullIssue): string {
   return issue.point.map((section) => `## ${section.title}\n\n${section.body}`).join('\n\n');

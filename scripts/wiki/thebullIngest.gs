@@ -11,7 +11,8 @@
  *   4. For the archive: run `startBackfill` once; it re-schedules itself every 10 minutes and
  *      removes its own trigger when no unlabelled issue is left.
  *
- * A message is labelled `wiki-ingested` only after the app answered 200 (duplicate) or 201
+ * A message is labelled `wiki-ingested` only after the app answered 200 (duplicate, or ignored: not
+ * an issue, like the subscription confirmation) or 201
  * (ingested — compiled or pending: the app retries the compilation itself). Anything else leaves
  * it unlabelled, so the next run sends it again; the endpoint is idempotent on the issue's date,
  * so a request that timed out here but completed there is simply a `duplicate` next time.
@@ -87,12 +88,15 @@ function ingestMatching_(query) {
       muteHttpExceptions: true,
     });
     var status = response.getResponseCode();
-    console.log(message.getDate().toISOString() + ' ' + message.getSubject() + ' → ' + status + ' ' + response.getContentText());
+    // The body only up to 200 characters: an error page would flood the execution log.
+    console.log(message.getDate().toISOString() + ' ' + message.getSubject() + ' → ' + status + ' ' + response.getContentText().slice(0, 200));
     if (status === 200 || status === 201) {
       messages[i].thread.addLabel(label);
       sent++;
     } else if (status === 401 || status === 503) {
       throw new Error('The app refused the ingestion (' + status + '): check the secret and the vault settings');
+    } else if (status === 404) {
+      throw new Error('No /api/wiki/ingest at INGEST_URL (404): is the deploy with F3 live, and the URL right?');
     }
   }
   return messages.length - sent;

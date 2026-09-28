@@ -250,7 +250,10 @@ l'archivio intero sono circa 23 email.
    `ingestLatest` ogni domenica alle 10 cerca `from:newsletter@thebull.it -label:wiki-ingested newer_than:7d`,
    prende `getPlainBody()` e fa `POST /api/wiki/ingest` con `Authorization: Bearer <WIKI_INGEST_SECRET>` e il corpo
    `{ source: 'thebull', receivedAt, subject, text }`. Etichetta il messaggio `wiki-ingested` solo dopo un 200
-   (`duplicate`) o un 201 (ingerito, compilato o `pending`); ogni altro esito lo lascia per la volta dopo.
+   (`duplicate`, oppure `ignored`: un'email dello stesso mittente che non è un numero, come la conferma d'iscrizione
+   del 4 luglio 2026) o un 201 (ingerito, compilato o `pending`); ogni altro esito lo lascia per la volta dopo, e 401,
+   404 e 503 fermano il giro (segreto, deploy o vault da sistemare: il primo `startBackfill`, lanciato prima del
+   deploy, ha risposto 404 a ogni email).
    `startBackfill`, lanciata **una volta a mano**, fa lo stesso per **tutto l'archivio** (dalla più vecchia), a lotti
    di 4,5 minuti con un trigger ogni 10 minuti che si toglie da solo a fine archivio.
 2. **Endpoint** `app/api/wiki/ingest/route.ts`: segreto a tempo costante (401), vault non configurato (503), corpo

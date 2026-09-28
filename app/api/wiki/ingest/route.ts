@@ -10,8 +10,10 @@ import { ingestTheBull } from '@/lib/server/wiki/thebullCompiler';
  *
  * Auth is a shared secret (`WIKI_INGEST_SECRET`), not a user session: the caller is a script in
  * the owner's Gmail. Idempotent on the newsletter's date — a second POST of the same issue is a
- * 200 `duplicate`, so the script can label the message either way. The compilation runs in the
- * same request; when it fails the raw is still committed and the daily cron retries it.
+ * 200 `duplicate`, so the script can label the message either way; a mail from the same sender that
+ * is not an issue (the subscription confirmation) is a 200 `ignored`, labelled and never sent again.
+ * The compilation runs in the same request; when it fails the raw is still committed and the daily
+ * cron retries it.
  */
 
 // One model call plus a handful of GitHub requests: well past the default on a slow provider.
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
   try {
     const outcome = await ingestTheBull(parsed.data, { vault: createVaultClient(config) });
     console.info('[wiki] ingest', outcome);
-    return NextResponse.json(outcome, { status: outcome.status === 'duplicate' ? 200 : 201 });
+    return NextResponse.json(outcome, { status: outcome.status === 'ingested' ? 201 : 200 });
   } catch (error) {
     console.error('[wiki] ingest failed:', error);
     return NextResponse.json({ error: 'Scrittura nel vault non riuscita' }, { status: 502 });
