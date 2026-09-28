@@ -34,7 +34,7 @@ nessuno storico di consumo. Non si migra: si sceglie con che cosa accenderle.
 | D5 | La newsletter domenicale di **TheBull** arriva con un **Google Apps Script** nell'account Gmail del proprietario: niente OAuth nell'app. |
 | D6 | La pagina settimanale macro la compila **il server con un modello open**. Le pagine **Principi** si compilano **in sessione Claude Code**. |
 | D7 | I dati dell'app arrivano al vault per **export markdown** (§6.1); un **server MCP in sola lettura** è una fase facoltativa successiva (§6.3). |
-| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Candidati del 2026-09-28: **GLM 5.3 Flash**, **Qwen3.8-Flash-Next**, **MiMo-V2.6-Flash**, **DeepSeek V4.1 Flash** (controllo); riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). |
+| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). |
 
 Fuori perimetro: più utenti sulla Wiki (è del solo proprietario; account condiviso e demo non la
 vedono), database vettoriali ed embedding, self-hosting dei modelli, ridistribuzione dei contenuti di
@@ -87,7 +87,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F0 — Misura** ✔ | `scripts/estimateAiTokens.mts`, `npm run ai:estimate`. |
 | **F1 — Provider** ✔ | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
 | **F1b — Email allineate all'app** ✔ | Prima di F2 (§4.4): verdetto, tile e prompt leggono il Driver dello Storico, l'Allocazione sulla base allocata (regola 5/25), mercato e acquisti per classe, le operazioni e il TWR di Rendimenti. Budget di uscita dal contratto, con il ragionamento a parte (§4.5). |
-| **F2 — Eval rapido** | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione. |
+| **F2 — Eval rapido** ✔ | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione — **GLM 5.3 Flash**, 2026-09-28 (§7.2). |
 | **F3 — Vault e TheBull** | Repo privato, struttura (§5.1), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
 | **F4 — Il vault interrogabile** | Prime pagine Principi in sessione, export dei dati (§6.1), `CLAUDE.md` del vault (§6.2). Da qui il canale dell'abbonamento è completo. |
 | **F5 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4). |
@@ -198,8 +198,10 @@ modello che ragiona il tetto copre ragionamento **e** testo, quindi (`lib/server
 tetto suo (`reasoning.max_tokens`: mensile 4.000, trimestrale e semestrale 6.000, annuale 8.000, settimanale 1.500), il
 testo lo spazio del limite di parole × 1,8 × 2, e `max_tokens` è la somma. Niente è tarato su un modello: F2 può
 sceglierne un altro. Il log `[ai-usage]` registra `reasoning`, e **F2 lo misura per candidato** (il costo vero è
-prezzo di uscita × ragionamento + testo); lì si rivede il budget. **Per F2**: i controlli sulle cifre devono leggere
-anche i punti percentuali («p.p.»), che oggi passano (Carry «−3,7 p.p.» contro −3,6 nel prompt).
+prezzo di uscita × ragionamento + testo); lì si rivede il budget. **F2 l'ha misurato** (§7.2): il budget resta com'è.
+GLM 5.3 Flash ragiona in media **64 token** su un tetto mensile di 4.000; solo MiniMax-M3 lo sfonda (4.767 su 4.000 in una
+mensile) e ha troncato due settimanali su tre (tetto 1.500): il difetto è suo, non del budget. I controlli di F2 leggono anche i punti
+percentuali («p.p.»).
 
 ---
 
@@ -327,8 +329,8 @@ in `raw/` non si toccano mai, e le pagine macro si ricompilano.
 - **Ingressi:** bundle di email reali dal mirror (un mese buono, uno cattivo, uno con budget
   sforati, un trimestre, un anno), congelati in JSON **fuori da git**; le newsletter sono i grezzi
   del vault.
-- **Candidati:** quelli del D8 (GLM 5.3 Flash, Qwen3.8-Flash-Next, MiMo-V2.6-Flash, DeepSeek V4.1
-  Flash); riferimenti Sonnet 5 `medium` e Haiku 4.5. Prima di ogni giro si rilegge la classifica
+- **Candidati:** quelli del D8 (in F2: GLM 5.3 Flash, MiniMax-M3, MiMo-V2.6-Pro; controlli MiMo-V2.6-Flash e
+  DeepSeek V4.1 Flash); riferimenti Sonnet 5 `medium` e Haiku 4.5. Prima di ogni giro si rilegge la classifica
   (§7.1): un candidato deprecato o superato si sostituisce, con l'OK del proprietario.
 - **Controlli automatici, email:** ogni cifra in euro o percentuale nel testo esiste nel bundle
   (tolleranza di arrotondamento); limite di parole e sezioni del contratto rispettati; nessuna
@@ -340,7 +342,11 @@ in `raw/` non si toccano mai, e le pagine macro si ricompilano.
 - **Giudizio del proprietario, alla cieca:** versioni in ordine casuale, voto 1–5 su utilità e tono
   (nel secondo giro anche: «il collegamento tra macro, principi e portafoglio è sensato?»). Vince il
   modello open più economico che non perde nei controlli automatici e sta entro mezzo punto dal
-  migliore dei riferimenti.
+  migliore dei riferimenti. «Non perde» = non più esecuzioni fallite del riferimento **più pulito** (quello
+  con meno fallite, che può non essere il più votato: lettura severa, fissata alla chiusura di F2); un'esecuzione
+  fallisce se tronca, va in errore o ha un controllo rosso (`lib/utils/aiEvalScore.ts`). **Lezione di F2 per F6:**
+  a questi prezzi (millesimi di dollaro per email) «il più economico» decide poco; il voto del proprietario
+  pesa di più, perché solo lui sa se un'ipotesi sulla sua vita è giusta (§7.2).
 - **Costo:** ogni giro pochi centesimi; si chiede l'OK prima di lanciarlo.
 
 ### 7.1 Preselezione su Artificial Analysis
@@ -373,24 +379,83 @@ Lettura del 2026-09-28 (costo di un'email = 5.200 token in + 2.500 out, stima):
 
 Qwen3-235B, candidato della prima stesura, risulta deprecato.
 
+**Riletta prima del giro di F2 (2026-09-28)**, dal JSON della classifica e dagli endpoint ZDR di OpenRouter
+(`/api/v1/endpoints/zdr`): **Qwen3.8-Flash-Next esce** (nessun endpoint ZDR, quindi il vincolo di privacy del §4.3 lo
+esclude); entrano **MiniMax-M3** e **MiMo-V2.6-Pro** come candidati; MiMo-V2.6-Flash (non-allucinazione 0,46) e
+DeepSeek V4.1 Flash (0,04) restano **controlli dichiarati**, misurati e mai scelti. Dopo i voti il proprietario ha
+chiesto di provare **GPT-5.6 Luna** e **GPT-6 Luna**: chiusi (non open weights, quindi fuori dai criteri minimi), ma
+serviti con ZDR da Azure, anche nella regione UE; sono entrati come eccezione dichiarata, sui soli periodici.
+
+### 7.2 Risultati di F2 (2026-09-28)
+
+**Giro:** 10 bundle congelati dal mirror (7 periodici: un mese buono, uno cattivo, uno con budget sforati, due mesi
+recenti, un trimestre, un anno; 3 settimanali), 7 modelli + i due Luna sui soli periodici. **Spesa: 0,545 $** in tutto,
+ritentativi compresi. Il proprietario ha votato alla cieca i **soli periodici**: l'email settimanale non la userà.
+
+| Modello | Ruolo | Esiti ok | Fallite | Cifre · parole · forma | Cifre non nel prompt | Token in · out · ragion. (media) | Costo / email | Voto del proprietario (U · T) | Voto di Claude (U · T) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **GLM 5.3 Flash** | candidato | 10/10 | 2 | 1 · 1 · 0 | 1 | 4.584 · 748 · 64 | **0,0010 $** | 3,4 · 3,7 | 4,6 · 4,6 |
+| MiniMax-M3 | candidato | 8/10 (2 troncate) | 7 | 5 · 0 · 0 | 9 | 4.722 · 3.286 · 2.478 | 0,0052 $ | 3,6 · 3,9 | 4,6 · 5,0 |
+| MiMo-V2.6-Pro | candidato | 6/10 | 6 | 2 · 1 · 0 | 4 | 5.171 · 1.272 · 361 | 0,0031 $ | 4,3 · 3,8 | 4,5 · 4,5 |
+| MiMo-V2.6-Flash | controllo | 8/10 | 5 | 2 · 0 · 1 | 4 | 4.863 · 857 · 60 | 0,0009 $ | 3,0 · 2,8 | 3,8 · 4,0 |
+| DeepSeek V4.1 Flash | controllo | 10/10 | 2 | 2 · 0 · 0 | 4 | 4.682 · 1.086 · 360 | 0,0025 $ | 3,9 · 3,9 | 4,6 · 4,9 |
+| GPT-5.6 Luna | candidato (eccezione) | 7/7 | 0 | 0 · 0 · 0 | 0 | 6.051 · 1.241 · 276 | 0,0026 $ | letto, non votato | 4,9 · 4,7 |
+| GPT-6 Luna | candidato (eccezione) | 7/7 | 1 | 0 · 0 · 1 | 0 | 6.051 · 1.374 · 567 | 0,0013 $ | letto, non votato | 4,4 · 5,0 |
+| Sonnet 5 `medium` | riferimento | 10/10 | 3 | 1 · 2 · 0 | 1 | 6.843 · 1.087 · 0 | 0,0246 $ | 3,4 · 3,6 | 4,6 · 4,9 |
+| Haiku 4.5 | riferimento | 10/10 | 7 | 7 · 1 · 2 | 19 | 5.157 · 2.142 · 1.318 | 0,0159 $ | 3,9 · 3,9 | 3,4 · 3,4 |
+
+Voti medi 1–5 sui 7 periodici; «Fallite» su tutte le esecuzioni del modello (un troncamento, un errore o un controllo
+rosso); il costo è quello fatturato, medio per email. Nessuna colonna «promesse» o «italiano»: nessun modello ne ha
+fallito uno.
+
+**Regola del §7 sui voti del proprietario:** il miglior riferimento è Haiku (3,86), la soglia di voto 3,36, quella
+sulle fallite 3 (Sonnet, il più pulito). MiniMax-M3 e MiMo-V2.6-Pro perdono nei controlli; GLM passa ed è il più
+economico. **Sui voti di Claude** il miglior riferimento è Sonnet, e vince ancora GLM. **Scelta del proprietario:
+GLM 5.3 Flash** per `EMAIL_PERIODIC` ed `EMAIL_WEEKLY_BUDGET`, provvisorio fino a F6.
+
+**Osservazioni:**
+
+- **Tutti calcolano cifre proprie, riferimenti compresi**: percentuali e somme che il prompt non contiene. Molte sono
+  giuste (una quota calcolata correttamente), alcune no: DeepSeek sbaglia due percentuali nello stesso trimestrale,
+  Haiku ne produce 19 non verificabili. Il controllo le segnala tutte; la differenza tra giusta e sbagliata la fa la
+  lettura.
+- **Narratore contro analista.** GLM, DeepSeek e MiniMax *interpretano*: fanno ipotesi sulle cause e le dichiarano
+  («è una mia lettura», «verifica tu se…»). I due Luna *riconciliano* i blocchi senza errori ma senza dire nulla che il
+  prompt non dica già. Il proprietario, rileggendo tutto in chiaro, ha preferito gli insight: un'ipotesi dichiarata e
+  verificabile vale più di una parafrasi corretta.
+- **Il giudice sbaglia dove il proprietario sa.** La griglia di Claude (`rubric.md`, fuori git) aveva fissato come
+  «lettura giusta» di un trimestre un buco di registrazione; era invece un cambio di vita reale, che GLM aveva colto
+  come ipotesi. Il voto automatico è affidabile sugli errori di aritmetica e di logica, non sul contesto personale.
+  Per F6, dove la Wiki porta proprio quel contesto, conta il voto del proprietario.
+- **I due voti divergono di circa un punto** (Claude più generoso), tranne su Haiku, che il proprietario premia più di
+  Claude; sui periodi lunghi (anno, trimestre) lo scarto cresce.
+- **Affidabilità del servizio:** MiMo-V2.6-Pro ha un solo host ZDR (metà delle richieste in 429 o timeout);
+  MiMo-V2.6-Flash due timeout a 120 s; MiniMax-M3 tronca le settimanali sfondando il tetto di ragionamento.
+- **Dati e strumenti fuori da git** (`scratchpad/ai-eval/`): bundle, esecuzioni, chiave, voti, note del giudice e
+  `review.html`, la pagina che mostra ogni email con costo, controlli e i due voti; restano per F6.
+
 ---
 
 ## 8. File
 
-### Già in questo branch
+### Già nel repo
 
 | File | Cosa |
 | --- | --- |
 | `scripts/estimateAiTokens.mts` | F0: token di input per superficie dai builder reali, sugli emulatori. |
-| `package.json` | `npm run ai:estimate`. |
+| `package.json` | `npm run ai:estimate`; F2: `ai:eval:freeze` (sugli emulatori) e `ai:eval`. |
 | `doc/ai-open-models-wiki.md` | Questa specifica. |
+| `scripts/aiEval.mts` | F2: `freeze` · `estimate` · `run` · `blind` · `score`, tutto in una cartella fuori da git. |
+| `lib/utils/aiEvalChecks.ts` | F2: i controlli automatici (cifre €/%/p.p. contro il prompt, parole, forma, promesse, italiano). |
+| `lib/utils/aiEvalScore.ts` | F2: aggregati per modello e regola del §7. |
+| `lib/server/weeklyBudgetEmailService.ts` | F2: `buildWeeklyBudgetPrompt` estratto, così l'eval congela il prompt vero. |
 
 ### Previsti
 
 | Fase | File |
 | --- | --- |
 | F1 | `lib/server/llm/{index,openrouter,anthropic}.ts`, `lib/constants/aiModels.ts`, le due email, il pulsante di Rendimenti |
-| F2, F6 | `scripts/aiEval.mts` |
+| F6 | `scripts/aiEval.mts` con i controlli del secondo giro (fatti macro, principi) |
 | F3 | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/wikiMacro.ts`, l'Apps Script (con il recupero dell'archivio) documentato in `doc/guide/email-pdf.md` |
 | F4 | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, il cron mensile, `CLAUDE.md` del vault |
 | F5 | `lib/server/wiki/wikiReader.ts`, i prompt in `monthlyEmailService.ts` e `weeklyBudgetEmailService.ts` |

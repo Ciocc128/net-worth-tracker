@@ -36,6 +36,8 @@
 
 ## 📚 Documentation
 
+- The AI spec records the quick model evaluation for the email comments: nine models (open ones, two OpenAI ones on request, and Sonnet and Haiku as references) wrote the comments of ten real periods, frozen outside the repository; automatic checks (every figure against the prompt, word limit, sections, Italian) and a blind vote on usefulness and tone picked GLM 5.3 Flash, at about a tenth of a cent per email, until the full evaluation with the personal Wiki. The results table lists tokens, cost, failed runs and votes per model. The evaluation is reproducible with `npm run ai:eval` (freeze · estimate · run · blind · score); the email guide says where the figure checks live — in the evaluation, not on the cron's path.
+
 - SETUP.md, README.md and `.env.local.example` describe `OPENROUTER_API_KEY` and what `ANTHROPIC_API_KEY` still enables; the email guide describes the provider layer, what makes a comment be discarded, and a known gap found while testing it: the periodic email still measures allocation on the whole net worth and reads «mercato» as net worth change minus savings, while the app now measures both on the portfolio base and with the trade ledger — an alignment planned before the models are compared.
 
 - The optimizer guide describes the third mode: the three paths (Ideale, no taxed sale, the ceiling binding), why the binding case uses an exact active-set solver, the rounding that never invents a sale, and the known limits (conflicts at a fixed tax multiplier, losses not offset against gains, fees not counted).

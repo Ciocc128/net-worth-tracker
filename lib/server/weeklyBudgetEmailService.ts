@@ -49,7 +49,7 @@ import {
 } from '@/lib/utils/budgetUtils';
 import type { BudgetItem, BudgetPeriod } from '@/types/budget';
 import type { Expense } from '@/types/expenses';
-import { generateText } from '@/lib/server/llm';
+import { generateText, type GenerateTextRequest } from '@/lib/server/llm';
 import { outputBudget } from '@/lib/server/llm/budget';
 
 /** The comment's contract: two sentences, at most this many words (stated in the prompt). */
@@ -293,13 +293,12 @@ export function buildCommentContext(data: WeeklyBudgetData): string {
 }
 
 /**
- * Generates a short Italian comment (2 sentences: the most notable fact + one concrete
- * action) for the weekly email, through the provider layer (surface `EMAIL_WEEKLY_BUDGET`).
- * Non-blocking: returns null on any failure or when the provider's key is not set.
+ * The weekly comment's whole request — system, user and output budget — as `generateText`
+ * receives it. Pure; exported so the AI eval (`scripts/aiEval.mts`) freezes the very prompt
+ * production sends, and for testing.
  */
-async function generateWeeklyBudgetComment(data: WeeklyBudgetData): Promise<string | null> {
-  try {
-    const prompt = `Sei un assistente finanziario personale italiano. Questo è lo stato dei budget dell'utente:
+export function buildWeeklyBudgetPrompt(data: WeeklyBudgetData): GenerateTextRequest & { wordLimit: number } {
+  const prompt = `Sei un assistente finanziario personale italiano. Questo è lo stato dei budget dell'utente:
 
 ${buildCommentContext(data)}
 
@@ -313,14 +312,26 @@ Scrivi esattamente DUE frasi in italiano (massimo ${WEEKLY_COMMENT_WORD_LIMIT} p
 2. una singola azione concreta e specifica che l'utente può fare da qui a fine periodo.
 Niente elenchi, saluti, premesse o titoli.`;
 
-    // The prompt carries its own rules, so it stays the user turn; the system turn only fixes
-    // the language. Until 2026-09-28 400 tokens covered reasoning AND text, tight on a reasoning
-    // model: the reasoning now has its own ceiling and the text its room (lib/server/llm/budget.ts).
-    const result = await generateText('EMAIL_WEEKLY_BUDGET', {
-      system: 'Sei un assistente finanziario personale italiano. Rispondi solo in italiano.',
-      user: prompt,
-      ...outputBudget({ wordLimit: WEEKLY_COMMENT_WORD_LIMIT, reasoningTokens: WEEKLY_COMMENT_REASONING_TOKENS }),
-    });
+  // The prompt carries its own rules, so it stays the user turn; the system turn only fixes
+  // the language. Until 2026-09-28 400 tokens covered reasoning AND text, tight on a reasoning
+  // model: the reasoning now has its own ceiling and the text its room (lib/server/llm/budget.ts).
+  return {
+    system: 'Sei un assistente finanziario personale italiano. Rispondi solo in italiano.',
+    user: prompt,
+    wordLimit: WEEKLY_COMMENT_WORD_LIMIT,
+    ...outputBudget({ wordLimit: WEEKLY_COMMENT_WORD_LIMIT, reasoningTokens: WEEKLY_COMMENT_REASONING_TOKENS }),
+  };
+}
+
+/**
+ * Generates a short Italian comment (2 sentences: the most notable fact + one concrete
+ * action) for the weekly email, through the provider layer (surface `EMAIL_WEEKLY_BUDGET`).
+ * Non-blocking: returns null on any failure or when the provider's key is not set.
+ */
+async function generateWeeklyBudgetComment(data: WeeklyBudgetData): Promise<string | null> {
+  try {
+    const { system, user, maxTokens, reasoningMaxTokens } = buildWeeklyBudgetPrompt(data);
+    const result = await generateText('EMAIL_WEEKLY_BUDGET', { system, user, maxTokens, reasoningMaxTokens });
     return result?.text ?? null;
   } catch (error) {
     console.error('[weeklyBudgetEmail] AI comment generation failed:', error);

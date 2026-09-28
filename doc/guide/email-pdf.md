@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
+- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the model eval (F2, doc/ai-open-models-wiki.md § 7) `scripts/aiEval.mts` (`npm run ai:eval:freeze` on the emulators, `npm run ai:eval` for estimate · run · blind · score, data OUTSIDE git) + `lib/utils/{aiEvalChecks,aiEvalScore}.ts`, tests `__tests__/{aiEvalChecks,aiEvalScore}.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
 
 ## PDF Export (`lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `lib/utils/pdfTimeFilters.ts`)
 
@@ -91,7 +91,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The email AI comment goes through the provider layer** (`lib/server/llm`, since 2026-09-28 — F1 of
   doc/ai-open-models-wiki.md), not the assistant pipeline: `generateText('EMAIL_PERIODIC' | 'EMAIL_WEEKLY_BUDGET', …)`,
   and `lib/constants/aiModels.ts` says which provider and model answer — today an OPEN model on OpenRouter
-  (`OPENROUTER_API_KEY`), provisional until the eval of F2. The Anthropic adapter keeps the old call (adaptive thinking,
+  (`OPENROUTER_API_KEY`): GLM 5.3 Flash, chosen by the quick eval (F2, 2026-09-28) and provisional until F6. The Anthropic adapter keeps the old call (adaptive thinking,
   `effort: high`) for whoever routes a surface back to it. AI and comparison failures are both non-blocking — and so
   is the context bundle, built inside the same `try`; without the provider's key the periodic email skips the bundle
   too (its Firestore reads would feed a call that cannot happen).
@@ -207,7 +207,11 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   −1.063 €). Not a bug of the email.
 - **The in-app Assistant still reads the pre-ledger allocation** (`formatBundleForPrompt` without `omitAllocation`): whole net
   worth, raw targets, snapshot differences. It is off (D2) and upstream's; aligning it is a separate decision.
-- **The F1 figure check sees only € and %**: a drift in points («−3,7 p.p.» where the prompt says −3,6) passes it. F2's
-  checks must read «p.p.» too.
+- **Nothing checks the comment's figures in production**: the checks — every €, % and p.p. figure against the prompt,
+  word limit, the contract's sections, no promised block that is absent, Italian only — live in the EVAL
+  (`lib/utils/aiEvalChecks.ts`, run by `scripts/aiEval.mts` over frozen bundles; F2, 2026-09-28), not on the cron's
+  path. The one F1 had, a step of its collaudo, read only € and %. And a flagged figure is not a wrong one: every model
+  computes shares and sums the prompt does not contain, most of them right (doc/ai-open-models-wiki.md § 7.2). A
+  comment that slips in production reaches the inbox as written.
 
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)
