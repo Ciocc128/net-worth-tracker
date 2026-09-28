@@ -236,7 +236,11 @@ function formatGoalsSection(goals: AssistantMonthContextBundle['goals']): string
  */
 export function formatBundleForPrompt(
   bundle: AssistantMonthContextBundle,
-  periodLabel: string = getAssistantPeriodLabel(bundle.selector)
+  periodLabel: string = getAssistantPeriodLabel(bundle.selector),
+  // The periodic email prints its own allocation blocks, measured with the pages' rules (roles,
+  // leverage, effective targets, market apart from purchases — F1b): it omits these four so the
+  // model never reads two allocations. The assistant keeps them as they are.
+  options: { omitAllocation?: boolean } = {}
 ): string {
   const { netWorth, cashflow, allocationChanges, dataQuality, currentSnapshot } = bundle;
 
@@ -339,7 +343,7 @@ export function formatBundleForPrompt(
   // even when they have zero monthly change. Without this, Claude only sees the top-5 movers
   // and incorrectly labels stable classes (like real estate) as "unclassified" patrimony.
   const byAssetClass = currentSnapshot?.byAssetClass;
-  if (byAssetClass && Object.keys(byAssetClass).length > 0) {
+  if (!options.omitAllocation && byAssetClass && Object.keys(byAssetClass).length > 0) {
     const totalNetWorth = currentSnapshot?.totalNetWorth ?? 0;
     lines.push('--- ALLOCAZIONE CORRENTE (tutte le classi) ---');
     const entries = Object.entries(byAssetClass).sort((a, b) => b[1] - a[1]);
@@ -356,7 +360,7 @@ export function formatBundleForPrompt(
   // This lets Claude cite specific sub-allocations like "Azioni USA €42.000"
   // rather than just "equity €80.000".
   const subCatAlloc = bundle.bySubCategoryAllocation;
-  if (subCatAlloc && Object.keys(subCatAlloc).length > 0) {
+  if (!options.omitAllocation && subCatAlloc && Object.keys(subCatAlloc).length > 0) {
     const totalNetWorth = currentSnapshot?.totalNetWorth ?? 0;
     lines.push('--- SOTTO-ALLOCAZIONE PER CLASSE ---');
     for (const [assetClass, subCats] of Object.entries(subCatAlloc)) {
@@ -374,7 +378,7 @@ export function formatBundleForPrompt(
   // Only rendered when targets are configured and a snapshot is available — otherwise
   // the section is silently omitted to keep the prompt clean.
   const targetAlloc = bundle.targetAllocation;
-  if (targetAlloc && byAssetClass && Object.keys(byAssetClass).length > 0) {
+  if (!options.omitAllocation && targetAlloc && byAssetClass && Object.keys(byAssetClass).length > 0) {
     const totalNetWorth = currentSnapshot?.totalNetWorth ?? 0;
     lines.push('--- ALLOCAZIONE TARGET vs CORRENTE ---');
     // Naming the source matters: with goal-driven allocation on, these percentages are
@@ -414,7 +418,7 @@ export function formatBundleForPrompt(
 
   // Top-5 movers section: shows which classes changed most this period.
   // allocationChanges is already capped at 5 by the context builder.
-  if (allocationChanges.length > 0) {
+  if (!options.omitAllocation && allocationChanges.length > 0) {
     lines.push('--- VARIAZIONI ALLOCAZIONE (top 5 per variazione assoluta) ---');
     for (const change of allocationChanges) {
       const prev = change.previousValue !== null ? eur(change.previousValue) : 'N/D';
@@ -596,7 +600,8 @@ const CHAT_FORMAT_CONTRACT = [
 // (prompts.ts must not import that module, which pulls firebase-admin and Resend).
 export type EmailPeriodicPeriodType = 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 
-const EMAIL_PERIODIC_WORD_LIMITS: Record<EmailPeriodicPeriodType, number> = {
+/** Exported for the email's output budget (lib/server/llm/budget.ts): the text's room follows the contract. */
+export const EMAIL_PERIODIC_WORD_LIMITS: Record<EmailPeriodicPeriodType, number> = {
   monthly: 500,
   quarterly: 700,
   semiannual: 700,
@@ -620,7 +625,7 @@ export function buildEmailPeriodicFormatContract(periodType: EmailPeriodicPeriod
     '# Formato della risposta',
     'Struttura la risposta in markdown con queste sezioni, in questo ordine:',
     '1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo; se i dati includono un piazzamento Hall of Fame, citalo (non inventare la posizione)',
-    "2. **Patrimonio e investimenti** — come si è mosso il patrimonio: usa la riga EFFETTO MERCATO già calcolata per separare quanto viene dal risparmio e quanto dalla variazione di mercato, commenta l'allocazione corrente e il suo scostamento dai target quando sono configurati, e cita gli obiettivi di investimento solo se il blocco relativo ne contiene",
+    "2. **Patrimonio e investimenti** — come si è mosso il patrimonio: usa il blocco DA COSA VIENE LA VARIAZIONE già calcolato (risparmio, mercato, tasse, mutuo, versamenti al fondo pensione, altre variazioni) senza ricalcolarlo, cita il rendimento del periodo con la sua base, distingui per classe il mercato dagli acquisti e dalle vendite, commenta l'allocazione sul portafoglio allocato e il suo scostamento dai target, e cita gli obiettivi di investimento solo se il blocco relativo ne contiene",
     '3. **Rispetto al periodo precedente** — cosa è cambiato rispetto al periodo precedente, citando i numeri del blocco di confronto fornito',
     "4. **Confronto con l'anno precedente** — confronto anno su anno citando i numeri forniti; se il periodo è annuale e questo confronto coincide con quello del punto 3 (i dati te lo segnalano esplicitamente), unisci le due sezioni e dillo",
     "5. **Entrate e spese: di quanto e perché** — quantifica l'aumento o la diminuzione di entrate e spese e ipotizza le cause più probabili basandoti sui dati per categoria e sottocategoria; commenta il mix per tipo (Fisse/Variabili/Debiti) quando rilevante",

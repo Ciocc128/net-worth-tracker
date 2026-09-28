@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
+- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types,budget}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; the portfolio half of the periodic email `lib/utils/emailPortfolio.ts` (F1b: Driver, allocation, class moves, trades, TWR — composed from the pages' modules, `lib/utils/allocationComparison.ts` among them), tests `__tests__/{emailPortfolio,allocationComparison}.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
 
 ## PDF Export (`lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `lib/utils/pdfTimeFilters.ts`)
 
@@ -104,29 +104,60 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   its outcome, on Vercel's logs: it is the consumption history, and a rejected answer was paid for all the same.
 - **Privacy is in every OpenRouter request**, not a setting: `provider: { data_collection: 'deny', zdr: true }`, and a
   `:free` model id is refused before anything is sent (free endpoints may log and train on prompts).
-- **The prompt BODY is the assistant's own block**: `buildEmailAiPrompt` = `formatBundleForPrompt(bundle, label)` +
-  the sections only the email has (market effect, comparisons, category deltas, Hall of Fame, budget alerts). Do not
-  re-list what the bundle already carries — the largest single expenses are the standing example — and do not add a
-  second cashflow computation: `resolveEmailPeriodRange` hands the email's own window to the range builder, whose
-  baseline is by construction the same snapshot the email calls `previousNetWorth`.
-- **The market effect is precomputed, never left to the model** (`Δ patrimonio − risparmio netto`, both from the
-  bundle). It is a STRUCTURAL residual — it also absorbs untracked movements — and the block must keep saying so, or
-  the comment presents it as pure market performance.
-- **The email's «mercato» nets out the tax on the period's sales** (2026-09-11): `marketEffectOf` = `Δ − risparmio
-  netto + tasse stimate` (`MonthlyEmailData.periodSales`, read from the ledger by `summarizePeriodSales` over the
-  email's own window, `null` without a sale, never blocking). Why: the broker's withholding leaves the account with no
-  cashflow row, so inside the residual a 4.089 € tax read as a market loss on the real account (settembre 2026). The
-  verdict then follows the Panoramica's `resolveDeclineCause` («il mercato ha pesato, le tasse sulle vendite di più»),
-  the split has THREE parts that still sum to Δ («… viene dal mercato, +988 € da quanto hai risparmiato e −4089 €
-  dalle tasse sulle vendite»), the sale is told by `describeSales` and the Patrimonio tile's footer names the tax
-  «circa». The AI prompt's market block is unchanged (it still prints `Δ − risparmio`): a known asymmetry, and a
-  tax the owner ALSO records as a cashflow expense would be counted twice in the split (doc/guide/panoramica.md § Per-page blind spots).
+- **The portfolio half is measured with the PAGES' functions, never a second rule** (F1b, 2026-09-28, doc/ai-open-models-wiki.md
+  § 4.4; `lib/utils/emailPortfolio.ts`, built by `buildEmailPortfolio` in `monthlyEmailService.ts`). Until then the email read
+  the pre-ledger model: allocation on the whole net worth against the raw Settings targets (44,7% against 70% where
+  Allocazione said 69,6%), «mercato» as `Δ − risparmio (+ tasse)` (+507 € where Storico measured −1.063 €),
+  «Andamento per classe» as snapshot differences that read PAC instalments as growth, and no trades. Now, four rules:
+  - **Driver**: Storico's `growthDrivers` over the window (`measureEmailDrivers`: every consecutive pair from the
+    baseline to the period's snapshot, so a quarter adds up to its months), in the verdict (`describeDriverEngines` +
+    `describeDriverRest`, Storico's own sentences), in the Patrimonio tile (`buildDriverLedger`: rows that add up to the
+    euro) and in the prompt (`--- DA COSA VIENE LA VARIAZIONE ---`). Without `byAsset` on a pair the market is the
+    residual and all three SAY so (`isMarketMeasured`); «Andamento per classe» then disappears (owner's call). The tax on
+    the period's sales is the Driver's own part (`summarizePeriodSales`' estimate); the headline still follows the
+    Panoramica's `resolveDeclineCause` / `resolveTaxedGrowth` on it, and the sale is told by `describeSales`.
+  - **Allocation**: `assetsAtSnapshot` (the period-end `byAsset` with TODAY's roles, composition, leverage — roles are not
+    historicised, owner's call) → `compareAllocations` → `applyRebalanceBand` with the **5/25 rule** (`EMAIL_REBALANCE_BAND`,
+    owner's call for the email — the page's band is a session control, default ±2) → Allocazione's `summarizeClassGaps` /
+    `activeClassGaps` / `offTargetGaps`, orphaned sub-targets stripped. The effective targets come from
+    `resolveEffectiveTargets`, the page's own resolution (goal-driven, manual or default). A new «Allocazione» tile follows
+    Composizione (which stays on the whole net worth — another question); the verdict names a class only when it leaves
+    the band, in the page's words (`driftClause`).
+  - **Class moves**: the Driver per instrument (`measureAssets`: market, money traded from the ledger via `tradedMoney`,
+    pension paid in, value change) grouped by the Panoramica's bands (`sumByMarketBand`, shared with `computeTopMovers`:
+    composites split, pension funds as «Previdenza»). The row's amount is the market; purchases, contributions and the
+    rest ride in the caption, uncoloured. A market that prints as zero has no sign and no colour.
+  - **Return**: Rendimenti's TWR on its base over the window (`resolvePerformanceBase` + `calculatePerformanceForPeriod`
+    `CUSTOM`, the PDF's precedent #324), stated as the hero does (`resolveHeroReturn`: «nel mese»), with
+    `describeMeasurementBase` in the Patrimonio footer and in the prompt.
+  Every part is non-blocking: a failed read costs its tile and its prompt block, never the email.
+- **The prompt BODY is the assistant's own block MINUS its allocation**: `buildEmailAiPrompt` = `formatBundleForPrompt(bundle,
+  label, { omitAllocation: true })` + the email's own blocks (Driver, TWR, composition of the whole net worth, allocation
+  vs target, class moves, trades per instrument, dividends, comparisons, category deltas, Hall of Fame, budget alerts,
+  split). The option drops the bundle's four allocation blocks (ALLOCAZIONE CORRENTE, SOTTO-ALLOCAZIONE, TARGET vs
+  CORRENTE, VARIAZIONI ALLOCAZIONE), which still measure on the whole net worth: the ASSISTANT keeps them (owner's call,
+  2026-09-28 — it is off and upstream's; see the blind spots). Do not re-list what the bundle already carries, and do not add
+  a second cashflow computation: `resolveEmailPeriodRange` hands the email's own window to the range builder.
+- **The composition and the allocation are two blocks with two named bases**: the whole net worth by class, «NON si confrontano
+  con i target», then the allocated base with the effective targets. One block with both read 44,7% against a 70% target.
+- **The period's trades are in the prompt, one line per instrument** (`summarizeTradesByInstrument`, owner's call), capped
+  at `MAX_TRADE_INSTRUMENTS` (15) with the omitted count and amount stated like `MAX_CATEGORY_DELTAS`. Without them the
+  model explained a −5.119 € cash month as «la vacanza pagata da cassa»; it was six PAC purchases.
+- **The Hall of Fame standing is ONE sentence, from its own side** (`describeHallOfFameStanding`, verdict and prompt alike,
+  2026-09-28): «È il mese con la crescita più piccola tra i 18 mesi in crescita registrati», never «È il 18° mese migliore su
+  18», which the model read twice as «18° mese consecutivo di crescita». The prompt adds that it is a ranking, not a streak.
 - **Every email cap is stated in the prompt**: `MAX_CATEGORY_DELTAS` (12) is named in the section header together with
   how many categories were left out. The selection is by SPEND, not by size of variation — describe it as it is.
-- **`max_tokens` and the word ceiling scale together** per period (6000/8000/8000/10000 against 500/700/700/900 words):
-  raise one and the other has to follow. **There is no web search since 2026-09-28**: the layer has no tools, and the
-  macro context arrives from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4); until then `includeMacroContext` only
-  changes the prompt's wording (it was off on the owner's account anyway).
+- **The output budget comes from the CONTRACT, never from a model** (`lib/server/llm/budget.ts`, 2026-09-28). `max_tokens`
+  is a ceiling, not a price — a provider bills what it generates — and what wastes money is a TRUNCATED answer: paid in
+  full, discarded, the email without its comment. On a reasoning model `max_tokens` covers the reasoning AND the text,
+  and one August comment spent 5.450 of 6.000 on it. So the reasoning has its own ceiling (`reasoning.max_tokens` on
+  OpenRouter: 4000/6000/6000/8000 per period, 1500 for the weekly email) and the text the room of the contract's word
+  limit twice over (`words × 1,8 × 2`); `maxTokens` is their sum (5800 for the monthly). The `[ai-usage]` line logs
+  `reasoning` when the provider reports it: that is where F2 measures what each candidate really costs, and where a
+  budget gets revised. **There is no web search since 2026-09-28**: the layer has no tools, and the macro context arrives
+  from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4); until then `includeMacroContext` only changes the prompt's
+  wording (it was off on the owner's account anyway).
 
 ## Verifying a surface with no DOM
 
@@ -164,13 +195,19 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
 
 ## Per-page blind spots
 
-- **The periodic email still reads the PRE-ledger model of the app** (found 2026-09-28 on the F1 test, owner reading
-  the comment of agosto 2026 on the mirror). Allocation vs target is measured on the whole net worth with the raw
-  Settings targets (44,7% against 70% where Allocazione says 69,6%); «mercato» is the residual `Δ − risparmio (+
-  tasse)` (+507 € where Storico's Driver measures −1.063 €, the gap being 2.177 € of pension contributions);
-  «Andamento per classe» and the prompt's class moves are snapshot differences that count a PAC purchase as growth;
-  the period's trades are not in the prompt at all. The verdict and the Patrimonio tile carry the residual too, so
-  this is NOT only the AI's. Fix planned as F1b, before the eval (doc/ai-open-models-wiki.md § 4.4) — until then read
-  the email's market and allocation lines with that in mind.
+- **The periodic email's allocation is the END of the period on TODAY's roles** (F1b, owner's call): roles, composition
+  and leverage are not historicised, so an asset re-roled since then is measured with its new role, and a snapshot row
+  whose asset was deleted is left out and declared («Fuori dal calcolo…»). An email of agosto regenerated in ottobre gives
+  the same figures; the Allocazione page shows TODAY's values (69,6% against the email's 69,4% on the real account).
+- **The email's band is 5/25, the page's is whatever the session picked** (default ±2): the same class can be «in linea» in
+  the email and COMPRA on the page. Owner's call; the tile's footer names the band.
+- **A pension fund before its start month is «altre variazioni»**: with `pensionReturnStartMonth` = 2026-08 the ten
+  contributions of the real account (2.177 €, all effective in August) are not attributed in August and the fund's
+  growth lands in «altre» — the Driver's rule, the same on Storico (market +762 € where a start month ≤ July gives
+  −1.063 €). Not a bug of the email.
+- **The in-app Assistant still reads the pre-ledger allocation** (`formatBundleForPrompt` without `omitAllocation`): whole net
+  worth, raw targets, snapshot differences. It is off (D2) and upstream's; aligning it is a separate decision.
+- **The F1 figure check sees only € and %**: a drift in points («−3,7 p.p.» where the prompt says −3,6) passes it. F2's
+  checks must read «p.p.» too.
 
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

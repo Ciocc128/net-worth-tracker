@@ -13,13 +13,11 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **211 files / 5061 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-28, fork): **AI provider layer (F1, doc/ai-open-models-wiki.md)** — `lib/server/llm`, `aiModels.ts`
-  surface → `{ provider, model }`, email comments on an open model via OpenRouter, `[ai-usage]` per call; Rendimenti's AI
-  button hidden without `ANTHROPIC_API_KEY`. Mirror test OK (0,0012 $); it showed the email still reads the pre-ledger
-  model → F1b before F2 (spec § 4.4).
-- Prima (2026-09-27, fork): **ninth upstream merge** (#404–#406; the fork keeps thin Sankey, «Altre», role colours and
-  Lime tokens on upstream's #400/#401/#403 — doc/guide/fork-scelte-ui.md § 1); «Con vendite mirate» (doc/guide/ottimizzatore.md).
+- `tsc` clean; **213 files / 5094 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-28, fork): **F1b — periodic emails aligned with the app** (spec § 4.4-4.5): Storico's Driver, Allocazione
+  on the allocated base (5/25), market vs purchases per class, trades and Rendimenti's TWR, all from the pages' modules
+  (`lib/utils/emailPortfolio.ts`); comment budget from the contract, reasoning capped apart (`lib/server/llm/budget.ts`). Mirror tour OK.
+- Prima (2026-09-28): F1 provider layer (`lib/server/llm`, OpenRouter); 2026-09-27 the ninth upstream merge.
 - Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot

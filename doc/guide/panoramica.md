@@ -64,6 +64,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Testing Italian copy: `Intl('it-IT')` puts a no-break space before `€` and leaves four-digit amounts
   ungrouped** (`4120,18 €`, not `4.120,18 €`). `__tests__/overviewNarrative.test.ts` flattens the nbsp through a
   `plain()` helper and writes expectations the way the screen prints them — do not "fix" the formatter.
+- **The digest's grouping is `sumByMarketBand`** (`marketEffect.ts`, 2026-09-28): pension funds in «Previdenza», composites
+  split, the rest by class — shared with the periodic email's «Andamento per classe» (doc/guide/email-pdf.md).
 - **`topMovers` / `marketEffect` are MARKET return, never the user's flows.** `computeTopMovers` sums the per-asset
   price effect `q_prev × (u_curr − u_prev)` from `attributeSelectedChange` (the same split Storico uses) — or, for an
   instrument TRADED in the month, the ledger reading of § *The market counts the month's trades* — and returns `[]` when the previous snapshot has no `byAsset` — a class-value delta cannot tell a purchase from a

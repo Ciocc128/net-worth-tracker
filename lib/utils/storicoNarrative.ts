@@ -16,7 +16,9 @@
  */
 
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatPercentage } from '@/lib/services/chartService';
+// From formatters, not chartService (same function): chartService imports the client SDK, and the
+// periodic email reads the Driver's sentences on the server (F1b).
+import { formatPercentageIt as formatPercentage } from '@/lib/utils/formatters';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { articleForPercent, atThePercent, monthWithPrepositionA } from '@/lib/utils/patrimonioNarrative';
@@ -380,23 +382,27 @@ export function describeDrivers(input: { row: DriverYear; isRunning: boolean } |
   const verb = total > 0 ? 'è cresciuto di ' : total < 0 ? 'è sceso di ' : "è rimasto dov'era";
   const pct: Narrative = total !== 0 && typeof row.growthPct === 'number' ? [prose(' ('), signedPercent(row.growthPct, 1), prose(')')] : [];
   const head: Narrative = total === 0 ? [prose(`${opening}${verb}`)] : [prose(`${opening}${verb}`), currencyWithSign(total), ...pct];
+  return [...head, prose(': '), ...describeDriverEngines(row), prose('.'), ...describeDriverRest(row)];
+}
 
+/**
+ * The Driver's two engines as one clause, the heavier FIRST, a negative half in words:
+ * «21.288 € dal mercato e 5364 € dal risparmio», «5364 € dal risparmio, mentre il mercato ha tolto
+ * 1063 €». No period: the caller closes it. Storico's `describeDrivers` and the periodic email's
+ * verdict both read it, so the two surfaces say the same month the same way.
+ */
+export function describeDriverEngines(row: Pick<GrowthDrivers, 'netSavings' | 'market'>): Narrative {
   const savingsPositive = row.netSavings >= 0;
   const marketPositive = row.market >= 0;
-  let tail: Narrative;
   if (savingsPositive && marketPositive) {
     const savings: Narrative = [amount(row.netSavings), prose(' dal risparmio')];
     const market: Narrative = [amount(row.market), prose(' dal mercato')];
     const [first, second] = row.market > row.netSavings ? [market, savings] : [savings, market];
-    tail = [...first, prose(' e '), ...second];
-  } else if (savingsPositive) {
-    tail = [amount(row.netSavings), prose(' dal risparmio, mentre il mercato ha tolto '), amount(row.market)];
-  } else if (marketPositive) {
-    tail = [amount(row.market), prose(' dal mercato, ma hai speso '), amount(row.netSavings), prose(' più di quanto hai incassato')];
-  } else {
-    tail = [prose('il mercato ha tolto '), amount(row.market), prose(' e hai speso '), amount(row.netSavings), prose(' più di quanto hai incassato')];
+    return [...first, prose(' e '), ...second];
   }
-  return [...head, prose(': '), ...tail, prose('.'), ...describeDriverRest(row)];
+  if (savingsPositive) return [amount(row.netSavings), prose(' dal risparmio, mentre il mercato ha tolto '), amount(row.market)];
+  if (marketPositive) return [amount(row.market), prose(' dal mercato, ma hai speso '), amount(row.netSavings), prose(' più di quanto hai incassato')];
+  return [prose('il mercato ha tolto '), amount(row.market), prose(' e hai speso '), amount(row.netSavings), prose(' più di quanto hai incassato')];
 }
 
 /**

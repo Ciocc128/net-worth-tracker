@@ -18,7 +18,8 @@ import {
   buildPeriodEmailVerdict,
   buildBudgetEmailVerdict,
   describeNetWorthTile,
-  describeMarketSplit,
+  describeHallOfFameStanding,
+  describeDriverFooter,
   describeCompositionTile,
   describeClassMovesTile,
   describeCashflowTile,
@@ -45,6 +46,7 @@ import {
   type BudgetEmailVerdictInput,
 } from '@/lib/utils/emailNarrative';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
+import type { GrowthDrivers } from '@/lib/utils/growthDrivers';
 
 const plain = (narrative: Narrative | null) =>
   narrative === null ? null : narrativeToText(narrative).replace(/ /g, ' ');
@@ -54,6 +56,15 @@ const Q3: EmailPeriod = { kind: 'quarterly', year: 2026, month: 9, quarter: 3 };
 const H1: EmailPeriod = { kind: 'semiannual', year: 2026, month: 6, semester: 1 };
 const YEAR: EmailPeriod = { kind: 'yearly', year: 2026, month: 12 };
 
+/**
+ * A Driver whose engines are the given market and the period's savings, with nothing else moving
+ * unless `rest` says so (F1b: the verdict reads Storico's Driver, not `Δ − risparmio`).
+ */
+const driver = (market: number, rest: Partial<GrowthDrivers> = {}): GrowthDrivers => {
+  const base = { netSavings: 1180, market, taxes: 0, debtRepaid: 0, pensionContributions: 0, other: 0, isMarketMeasured: true, ...rest };
+  return { ...base, netWorthGrowth: base.netSavings + base.market - base.taxes + base.debtRepaid + base.pensionContributions + base.other };
+};
+
 const GROWING: PeriodEmailVerdictInput = {
   period: AUGUST,
   currentNetWorth: 312480,
@@ -62,7 +73,7 @@ const GROWING: PeriodEmailVerdictInput = {
   netWorthDeltaPct: 1.4,
   totalIncome: 4180,
   totalExpenses: 3000,
-  marketEffect: 3130,
+  drivers: driver(3130),
   rank: { position: 7, total: 34, scope: 'month', trend: 'growth' },
 };
 
@@ -129,23 +140,23 @@ describe('buildPeriodEmailVerdict', () => {
   });
 
   it('refuses to credit the market when the market lost and the total still grew', () => {
-    const verdict = buildPeriodEmailVerdict({ ...GROWING, marketEffect: -900 });
+    const verdict = buildPeriodEmailVerdict({ ...GROWING, drivers: driver(-900) });
     expect(verdict.headline).toBe('Agosto è cresciuto, nonostante il mercato.');
     expect(verdict.tone).toBe('positive');
   });
 
   it('blames the market on a falling period only when the market lost money', () => {
     const falling = { ...GROWING, netWorthDelta: -2100, netWorthDeltaPct: -0.68 };
-    expect(buildPeriodEmailVerdict({ ...falling, marketEffect: -3280 }).headline).toBe(
+    expect(buildPeriodEmailVerdict({ ...falling, drivers: driver(-3280) }).headline).toBe(
       'Agosto è in calo: il mercato ha pesato.',
     );
-    expect(buildPeriodEmailVerdict({ ...falling, marketEffect: 500 }).headline).toBe(
+    expect(buildPeriodEmailVerdict({ ...falling, drivers: driver(500) }).headline).toBe(
       'Agosto è in calo, nonostante il mercato.',
     );
   });
 
   it('names no cause at all when nothing is attributable', () => {
-    const verdict = buildPeriodEmailVerdict({ ...GROWING, marketEffect: null });
+    const verdict = buildPeriodEmailVerdict({ ...GROWING, drivers: null });
     expect(verdict.headline).toBe('Agosto è cresciuto.');
     expect(plain(verdict.sentence)).not.toContain('mercato');
   });
@@ -165,11 +176,11 @@ describe('buildPeriodEmailVerdict', () => {
     );
   });
 
-  it('splits the movement into market and savings, exactly', () => {
+  it('splits the movement in Storico’s words: the two engines, heavier first', () => {
     expect(plain(buildPeriodEmailVerdict(GROWING).sentence)).toBe(
       'Il patrimonio vale 312.480 €: +4310 € (+1,40%) su luglio. ' +
-        'Di quel movimento, +3130 € viene dal mercato e +1180 € da quanto hai risparmiato. ' +
-        'È il 7° mese migliore su 34 registrati.',
+        'Di quel movimento: 3130 € dal mercato e 1180 € dal risparmio. ' +
+        'È il 7° mese per crescita tra i 34 mesi in crescita registrati.',
     );
   });
 
@@ -184,7 +195,7 @@ describe('buildPeriodEmailVerdict', () => {
       netWorthDeltaPct: -1.66,
       totalIncome: 2758,
       totalExpenses: 1770,
-      marketEffect: -1837,
+      drivers: driver(-1837, { netSavings: 988, taxes: 4088.86 }),
       sales: {
         proceeds: 39052.45,
         realizedGain: 15726.38,
@@ -197,7 +208,7 @@ describe('buildPeriodEmailVerdict', () => {
     expect(verdict.headline).toBe('Settembre è in calo: il mercato ha pesato, le tasse sulle vendite di più.');
     expect(plain(verdict.sentence)).toBe(
       'Il patrimonio vale 312.480 €: −4938 € (−1,66%) su agosto. ' +
-        'Di quel movimento, −1837 € viene dal mercato, +988 € da quanto hai risparmiato e −4089 € dalle tasse sulle vendite. ' +
+        'Di quel movimento: 988 € dal risparmio, mentre il mercato ha tolto 1837 €. Il resto: −4089 € di tasse stimate sulle vendite. ' +
         'Hai venduto Vanguard FTSE All-World per 39.052 € con una plusvalenza di 15.726 € e pagato circa 4089 € di tasse.',
     );
   });
@@ -239,7 +250,7 @@ describe('buildPeriodEmailVerdict', () => {
     expect(plain(quarter.sentence)).toContain('Nello stesso trimestre hai comprato 6 strumenti');
   });
 
-  it('keeps the two-part split when the sale carried no tax', () => {
+  it('adds no rest when the sale carried no tax', () => {
     const verdict = buildPeriodEmailVerdict({
       ...GROWING,
       sales: { proceeds: 1000, realizedGain: -200, estimatedTax: 0, instruments: [{ id: 'a', name: 'A', proceeds: 1000, realizedGain: -200, estimatedTax: 0 }], brokenLedgers: 0 },
@@ -247,9 +258,51 @@ describe('buildPeriodEmailVerdict', () => {
     });
     expect(plain(verdict.sentence)).toBe(
       'Il patrimonio vale 312.480 €: +4310 € (+1,40%) su luglio. ' +
-        'Di quel movimento, +3130 € viene dal mercato e +1180 € da quanto hai risparmiato. ' +
+        'Di quel movimento: 3130 € dal mercato e 1180 € dal risparmio. ' +
         'Hai venduto A per 1000 € con una minusvalenza di 200 €, senza tasse.',
     );
+  });
+
+  it('reads a month the market lost and the net worth gained through the Driver, not the residual', () => {
+    // Agosto 2026 on the real account (F1b): the residual Δ − risparmio read +507 € of «mercato»;
+    // the Driver measures −1.063 €, with 2.177 € paid into the pension fund and −608 € of the rest.
+    const verdict = buildPeriodEmailVerdict({
+      ...GROWING,
+      drivers: driver(-1063, { netSavings: 1180, pensionContributions: 2177, other: -608 }),
+      netWorthDelta: 1686,
+      netWorthDeltaPct: 0.55,
+      rank: null,
+    });
+    expect(verdict.headline).toBe('Agosto è cresciuto, nonostante il mercato.');
+    expect(plain(verdict.sentence)).toBe(
+      'Il patrimonio vale 312.480 €: +1686 € (+0,55%) su luglio. ' +
+        'Di quel movimento: 1180 € dal risparmio, mentre il mercato ha tolto 1063 €. Il resto, voce per voce qui sotto, vale +1569 €.',
+    );
+  });
+
+  it('says the market is a residual when the period is not measured per instrument', () => {
+    const verdict = buildPeriodEmailVerdict({ ...GROWING, drivers: driver(3130, { isMarketMeasured: false }), rank: null });
+    expect(plain(verdict.sentence)).toContain('Il mercato qui è un residuo: il periodo non ha il dettaglio per strumento.');
+    expect(plain(buildPeriodEmailVerdict({ ...GROWING, rank: null }).sentence)).not.toContain('residuo');
+  });
+
+  it('states the period return as Rendimenti’s hero does', () => {
+    const verdict = buildPeriodEmailVerdict({ ...GROWING, rank: null, periodReturn: { value: -0.42, label: 'nel mese' } });
+    expect(plain(verdict.sentence)).toContain('Il rendimento del portafoglio (TWR, sulla base di Rendimenti) è −0,4% nel mese.');
+    expect(plain(buildPeriodEmailVerdict({ ...GROWING, periodReturn: null }).sentence)).not.toContain('TWR');
+  });
+
+  it('names the allocation only when a class leaves the 5/25 band, in the page’s words', () => {
+    const verdict = buildPeriodEmailVerdict({
+      ...GROWING,
+      rank: null,
+      offTarget: [
+        { assetClass: 'bonds', label: 'Obbligazioni', differencePp: -6.1 },
+        { assetClass: 'equity', label: 'Azioni', differencePp: 5.2 },
+      ],
+    });
+    expect(plain(verdict.sentence)).toContain('Le obbligazioni pesano 6,1 pp meno del target e le azioni 5,2 pp più, fuori dalla regola 5/25.');
+    expect(plain(buildPeriodEmailVerdict({ ...GROWING, offTarget: [] }).sentence)).not.toContain('5/25');
   });
 
   it('never calls a record decline "il mese migliore"', () => {
@@ -257,10 +310,10 @@ describe('buildPeriodEmailVerdict', () => {
       ...GROWING,
       netWorthDelta: -9200,
       netWorthDeltaPct: -2.98,
-      marketEffect: -10380,
+      drivers: driver(-10380),
       rank: { position: 2, total: 34, scope: 'month', trend: 'decline' },
     });
-    expect(plain(verdict.sentence)).toContain('È il 2° calo più marcato su 34 registrati.');
+    expect(plain(verdict.sentence)).toContain('È il 2° mese per ampiezza del calo tra i 34 mesi in calo registrati.');
     expect(plain(verdict.sentence)).not.toContain('migliore');
   });
 
@@ -274,7 +327,7 @@ describe('buildPeriodEmailVerdict', () => {
       previousNetWorth: 0,
       totalIncome: 0,
       totalExpenses: 0,
-      marketEffect: null,
+      drivers: null,
       rank: null,
     });
     expect(plain(verdict.sentence)).toBe('Il patrimonio vale 312.480 €.');
@@ -288,6 +341,31 @@ describe('buildPeriodEmailVerdict', () => {
 });
 
 // ─── Tile readings ────────────────────────────────────────────────────────────
+
+describe('describeHallOfFameStanding — a ranking, never a streak', () => {
+  const standing = (position: number, total: number, trend: 'growth' | 'decline' = 'growth', scope: 'month' | 'year' = 'month') =>
+    plain(describeHallOfFameStanding({ position, total, trend, scope }));
+
+  it('names the LAST place as the smallest growth, not as the eighteenth month in a row', () => {
+    // Agosto 2026 on the real account: the model read «18° … su 18» as a streak, twice.
+    expect(standing(18, 18)).toBe('È il mese con la crescita più piccola tra i 18 mesi in crescita registrati.');
+  });
+
+  it('names the first place and a middle one, with their population', () => {
+    expect(standing(1, 18)).toBe('È il mese con la crescita più alta tra i 18 mesi in crescita registrati.');
+    expect(standing(3, 18)).toBe('È il 3° mese per crescita tra i 18 mesi in crescita registrati.');
+  });
+
+  it('reads a decline from its own side, and a year as a year', () => {
+    expect(standing(1, 6, 'decline')).toBe('È il mese con il calo più marcato tra i 6 mesi in calo registrati.');
+    expect(standing(6, 6, 'decline')).toBe('È il mese con il calo più lieve tra i 6 mesi in calo registrati.');
+    expect(standing(2, 3, 'growth', 'year')).toBe('È il 2° anno per crescita tra i 3 anni in crescita registrati.');
+  });
+
+  it('says «unico» when there is nothing to rank against', () => {
+    expect(standing(1, 1)).toBe("È l'unico mese in crescita registrato.");
+  });
+});
 
 describe('describeNetWorthTile', () => {
   it('reads the change against the named baseline', () => {
@@ -309,22 +387,15 @@ describe('describeNetWorthTile', () => {
   });
 });
 
-describe('describeMarketSplit', () => {
-  it('keeps calling the residual a residual', () => {
-    expect(plain(describeMarketSplit(3130, 1180))).toBe(
-      'Mercato +3130 €, risparmio +1180 €. È un residuo strutturale: assorbe anche i movimenti non tracciati.',
+describe('describeDriverFooter', () => {
+  it('says the market is measured, like Storico, when it is', () => {
+    expect(plain(describeDriverFooter({ isMarketMeasured: true }))).toBe(
+      'Il mercato è misurato strumento per strumento, come nel Driver dello Storico; le righe sommano alla crescita.',
     );
   });
 
-  it('is absent when the effect is not attributable', () => {
-    expect(describeMarketSplit(null, 1180)).toBeNull();
-  });
-
-  it('names the tax on the sales as its own part, as an estimate', () => {
-    expect(plain(describeMarketSplit(-1837, 988, 4088.86))).toBe(
-      'Mercato −1837 €, risparmio +988 €, tasse sulle vendite circa −4089 €. È un residuo strutturale: assorbe anche i movimenti non tracciati.',
-    );
-    expect(plain(describeMarketSplit(3130, 1180, 0))).not.toContain('tasse');
+  it('says it is a remainder when the period has no per-instrument detail', () => {
+    expect(plain(describeDriverFooter({ isMarketMeasured: false }))).toContain('non è misurato strumento per strumento');
   });
 });
 
@@ -365,34 +436,33 @@ describe('describeCompositionTile', () => {
 });
 
 describe('describeClassMovesTile', () => {
-  it('separates the percent mover from the euro mover when they differ', () => {
+  it('names the band the market moved most and, apart, the one the money went to', () => {
+    // Agosto 2026 on the real account: the PAC bought equity, the market moved it little.
     expect(
       plain(
-        describeClassMovesTile({
-          bestPct: { name: 'Criptovalute', deltaPct: 6.8, deltaAbs: 525 },
-          worstPct: { name: 'Obbligazioni', deltaPct: -0.9, deltaAbs: -498 },
-          bestAbs: { name: 'Azioni', deltaPct: 2.42, deltaAbs: 3980 },
-          worstAbs: { name: 'Obbligazioni', deltaPct: -0.9, deltaAbs: -498 },
-        }),
+        describeClassMovesTile([
+          { label: 'Azioni', market: 819, traded: 3702 },
+          { label: 'Previdenza', market: -1210, traded: 0 },
+          { label: 'Liquidità', market: 0, traded: 0 },
+        ]),
       ),
-    ).toBe('In percentuale ha spinto Criptovalute, in euro Azioni; sotto zero Obbligazioni.');
+    ).toBe('Il mercato ha mosso soprattutto Previdenza (−1210 €); hai comprato soprattutto Azioni (+3702 €).');
   });
 
-  it('claims no loser when every class gained', () => {
-    const reading = plain(
-      describeClassMovesTile({
-        bestPct: { name: 'Azioni', deltaPct: 4, deltaAbs: 3000 },
-        worstPct: { name: 'Obbligazioni', deltaPct: 0.4, deltaAbs: 120 },
-        bestAbs: { name: 'Azioni', deltaPct: 4, deltaAbs: 3000 },
-        worstAbs: { name: 'Obbligazioni', deltaPct: 0.4, deltaAbs: 120 },
-      }),
+  it('says a sale is a sale', () => {
+    expect(plain(describeClassMovesTile([{ label: 'Azioni', market: 300, traded: -5000 }]))).toBe(
+      'Il mercato ha mosso soprattutto Azioni (+300 €); hai venduto soprattutto Azioni (−5000 €).',
     );
-    expect(reading).toBe('Ha spinto Azioni.');
-    expect(reading).not.toContain('sotto zero');
   });
 
-  it('is absent when nothing moved at all', () => {
-    expect(describeClassMovesTile({ bestPct: null, worstPct: null, bestAbs: null, worstAbs: null })).toBeNull();
+  it('claims no trade when nothing was traded, and no market under a euro', () => {
+    expect(plain(describeClassMovesTile([{ label: 'Liquidità', market: 0.2, traded: 0 }]))).toBe(
+      'Il mercato non ha mosso nessuna classe di almeno un euro.',
+    );
+  });
+
+  it('is absent without a band', () => {
+    expect(describeClassMovesTile([])).toBeNull();
   });
 });
 

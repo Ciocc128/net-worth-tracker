@@ -19,6 +19,15 @@ vi.mock('@anthropic-ai/sdk', () => ({
 import { extractStructured, generateText, isSurfaceConfigured } from '@/lib/server/llm';
 import { createOpenRouterAdapter } from '@/lib/server/llm/openrouter';
 import { AI_MODELS } from '@/lib/constants/aiModels';
+import { outputBudget, TEXT_MARGIN, TOKENS_PER_WORD } from '@/lib/server/llm/budget';
+
+describe('outputBudget — derived from the contract, not from a model', () => {
+  it('adds the text’s room (word limit × tokens per word × margin) to the reasoning ceiling', () => {
+    expect(TOKENS_PER_WORD * TEXT_MARGIN).toBe(3.6);
+    expect(outputBudget({ wordLimit: 500, reasoningTokens: 4000 })).toEqual({ maxTokens: 5800, reasoningMaxTokens: 4000 });
+    expect(outputBudget({ wordLimit: 45, reasoningTokens: 1500 })).toEqual({ maxTokens: 1662, reasoningMaxTokens: 1500 });
+  });
+});
 
 const fetchMock = vi.fn();
 let infoSpy: { mock: { calls: unknown[][] } };
@@ -150,6 +159,20 @@ describe('generateText on OpenRouter', () => {
         outcome: 'ok',
       },
     ]);
+  });
+
+  it('gives the reasoning its own ceiling, and logs how much of the output was reasoning', async () => {
+    fetchMock.mockResolvedValue(
+      completion('Testo.', { usage: { prompt_tokens: 6492, completion_tokens: 5450, cost: 0.0037, completion_tokens_details: { reasoning_tokens: 4520 } } as never })
+    );
+    const result = await generateText('EMAIL_PERIODIC', { ...REQUEST, ...outputBudget({ wordLimit: 500, reasoningTokens: 4000 }) });
+    const body = sentBody();
+    expect(body.max_tokens).toBe(5800);
+    expect(body.reasoning).toEqual({ exclude: true, max_tokens: 4000 });
+    // The budget is a request field of the layer, not of OpenRouter's body.
+    expect(body.reasoningMaxTokens).toBeUndefined();
+    expect(result?.usage).toEqual({ input: 6492, output: 5450, cost: 0.0037, reasoning: 4520 });
+    expect(usageLines()[0]).toMatchObject({ reasoning: 4520, outcome: 'ok' });
   });
 
   it('rejects a truncated answer, and still logs what it cost', async () => {

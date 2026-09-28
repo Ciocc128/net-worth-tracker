@@ -15,6 +15,12 @@ export interface LlmUsage {
   output: number;
   /** In dollars, when the provider reports it (OpenRouter does; Anthropic does not). */
   cost?: number;
+  /**
+   * The share of `output` spent reasoning, when the provider reports it (OpenRouter's
+   * `completion_tokens_details.reasoning_tokens`). How much a model reasons is what its comment
+   * really costs — and what F2 has to measure per candidate (doc/ai-open-models-wiki.md § 7).
+   */
+  reasoning?: number;
 }
 
 export interface LlmResult {
@@ -30,6 +36,12 @@ export interface GenerateTextRequest {
   user: string;
   /** The whole output budget: on a reasoning model it covers the reasoning AND the text. */
   maxTokens: number;
+  /**
+   * A separate ceiling on the reasoning alone, so it can never eat the text's share of
+   * `maxTokens` (`outputBudget`). OpenRouter passes it as `reasoning.max_tokens`; the Anthropic
+   * adapter keeps its adaptive thinking and ignores it.
+   */
+  reasoningMaxTokens?: number;
 }
 
 export interface ExtractStructuredRequest<T> {

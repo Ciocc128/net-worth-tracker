@@ -52,7 +52,7 @@ import type { AssetTransaction } from '@/types/assetTransactions';
 import type { PensionContribution } from '@/types/pension';
 import { getItalyDateIso, getItalyMonth, getItalyYear, ITALY_TIMEZONE } from '@/lib/utils/dateHelpers';
 import { attributeSelectedChange } from '@/lib/utils/snapshotAssetBreakdown';
-import { pensionPaidInBetween, tradeAwarePriceEffect, type PositionValue } from '@/lib/utils/marketEffect';
+import { pensionPaidInBetween, tradeAwarePriceEffect, tradedMoney, type PositionValue } from '@/lib/utils/marketEffect';
 import { summarizePeriodSales } from '@/lib/utils/periodSales';
 
 export interface GrowthDrivers {
@@ -70,6 +70,18 @@ export interface GrowthDrivers {
   other: number;
   /** True when every pair of snapshots in the period was measured instrument by instrument. */
   isMarketMeasured: boolean;
+}
+
+/** One instrument between two snapshots (`measureAssets`). */
+export interface AssetMove {
+  /** The instrument's share of `GrowthDrivers.market`. */
+  market: number;
+  /** Money its BUY/SELL put in (negative = taken out by a sale), from the ledger. */
+  traded: number;
+  /** Paid into a pension fund, as recorded in Previdenza (0 for anything else). */
+  paidIn: number;
+  /** Change of its NET value between the two snapshots (a property net of its debt). */
+  valueChange: number;
 }
 
 export interface GrowthDriverContext {
@@ -161,11 +173,20 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
     return repaid;
   }
 
-  function measuredMarket(previous: MonthlySnapshot, current: MonthlySnapshot, trades: AssetTransaction[]): number {
+  /**
+   * The market, per instrument, between two snapshots that both carry `byAsset` — the rule
+   * `measuredMarket` sums — with what else moved each one: `traded` is the money its BUY/SELL put
+   * in (`tradedMoney`), `paidIn` what Previdenza records as paid into a fund, `valueChange` the
+   * change of its NET value (a property's debt included), so `valueChange − market − traded −
+   * paidIn` is what none of them explains.
+   */
+  function assetMovesOf(previous: MonthlySnapshot, current: MonthlySnapshot, trades: AssetTransaction[]): Map<string, AssetMove> {
     const previousRows = grossRows(previous.byAsset);
     const currentRows = grossRows(current.byAsset);
     const previousById = new Map(previousRows.map((row) => [row.assetId, row]));
     const currentById = new Map(currentRows.map((row) => [row.assetId, row]));
+    const previousNet = new Map(previous.byAsset.map((row) => [row.assetId, row.totalValue]));
+    const currentNet = new Map(current.byAsset.map((row) => [row.assetId, row.totalValue]));
     const tradesByAsset = new Map<string, AssetTransaction[]>();
     for (const trade of trades) tradesByAsset.set(trade.assetId, [...(tradesByAsset.get(trade.assetId) ?? []), trade]);
 
@@ -174,34 +195,58 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
     const { startMonth, contributions } = context.pension;
     const pensionTrackable = startMonth !== null && startMonth <= previousKey;
 
-    let market = 0;
+    const moves = new Map<string, AssetMove>();
     for (const assetId of new Set([...previousById.keys(), ...currentById.keys()])) {
       const before = held(previousById.get(assetId));
       const after = held(currentById.get(assetId));
+      const valueChange = (currentNet.get(assetId) ?? 0) - (previousNet.get(assetId) ?? 0);
       if (pensionFundIds.has(assetId)) {
         // Before the contributions are complete the fund's growth is not attributable: `other`.
-        if (pensionTrackable && before && after) {
-          market += after.totalValue - before.totalValue - pensionPaidInBetween(contributions, assetId, previousKey, currentKey);
-        }
+        const paidIn = pensionTrackable && before && after ? pensionPaidInBetween(contributions, assetId, previousKey, currentKey) : 0;
+        const market = pensionTrackable && before && after ? after.totalValue - before.totalValue - paidIn : 0;
+        moves.set(assetId, { market, traded: 0, paidIn, valueChange });
         continue;
       }
       const assetTrades = realEstateIds.has(assetId) ? undefined : tradesByAsset.get(assetId);
       const fromLedger = assetTrades ? tradeAwarePriceEffect(before, after, assetTrades) : null;
-      market += fromLedger ?? attributeSelectedChange(previousRows, currentRows, new Set([assetId])).priceEffect;
+      const market = fromLedger ?? attributeSelectedChange(previousRows, currentRows, new Set([assetId])).priceEffect;
+      moves.set(assetId, { market, traded: assetTrades ? (tradedMoney(assetTrades)?.moneyIn ?? 0) : 0, paidIn: 0, valueChange });
     }
+    return moves;
+  }
+
+  function measuredMarket(previous: MonthlySnapshot, current: MonthlySnapshot, trades: AssetTransaction[]): number {
+    let market = 0;
+    for (const move of assetMovesOf(previous, current, trades).values()) market += move.market;
     return market;
   }
 
   /** The drivers between two snapshots, over the months after `previous` through `current`. */
+  /** The ledger's trades in the months after `previous` through `current`. */
+  function tradesBetween(previous: MonthlySnapshot, current: MonthlySnapshot): AssetTransaction[] {
+    const trades: AssetTransaction[] = [];
+    for (let index = monthIndexOf(previous.year, previous.month) + 1; index <= monthIndexOf(current.year, current.month); index++) {
+      trades.push(...(tradesByMonth.get(index) ?? []));
+    }
+    return trades;
+  }
+
+  /**
+   * The market per instrument between two snapshots, with the money traded, paid in and the value
+   * change beside it — the parts `measure` sums into `market`. Null when either snapshot lacks
+   * `byAsset`: then nothing is measured per instrument, and `measure` falls back to the residual.
+   */
+  function measureAssets(previous: MonthlySnapshot, current: MonthlySnapshot): Map<string, AssetMove> | null {
+    if (!((previous.byAsset?.length ?? 0) > 0 && (current.byAsset?.length ?? 0) > 0)) return null;
+    return assetMovesOf(previous, current, tradesBetween(previous, current));
+  }
+
   function measure(previous: MonthlySnapshot, current: MonthlySnapshot): GrowthDrivers {
     const fromIndex = monthIndexOf(previous.year, previous.month) + 1;
     const toIndex = monthIndexOf(current.year, current.month);
     let netSavings = 0;
-    const trades: AssetTransaction[] = [];
-    for (let index = fromIndex; index <= toIndex; index++) {
-      netSavings += savingsByMonth.get(index)?.total ?? 0;
-      trades.push(...(tradesByMonth.get(index) ?? []));
-    }
+    for (let index = fromIndex; index <= toIndex; index++) netSavings += savingsByMonth.get(index)?.total ?? 0;
+    const trades = tradesBetween(previous, current);
     const sales = trades.some((t) => t.type === 'sell') ? summarizePeriodSales(context.assets, context.transactions, italyRangeOf(fromIndex, toIndex)) : null;
     const taxes = Math.max(sales?.estimatedTax ?? 0, 0);
 
@@ -222,7 +267,7 @@ export function createGrowthDriverMeter(context: GrowthDriverContext) {
     return { netWorthGrowth, netSavings, market, taxes, debtRepaid, pensionContributions, other, isMarketMeasured };
   }
 
-  return { measure, hasCashflowBetween };
+  return { measure, measureAssets, hasCashflowBetween };
 }
 
 /** Σ of periods; measured only when every part was. */

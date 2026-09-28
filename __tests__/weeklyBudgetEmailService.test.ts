@@ -321,7 +321,9 @@ describe('buildAndSendWeeklyBudget — the AI comment never blocks the email', (
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.model).toBe('z-ai/glm-5.3-flash');
-    expect(body.max_tokens).toBe(400);
+    // 1500 of reasoning + 45 words × 1,8 × 2 of text (lib/server/llm/budget.ts).
+    expect(body.max_tokens).toBe(1662);
+    expect(body.reasoning).toEqual({ exclude: true, max_tokens: 1500 });
     expect(mockSentEmails[0].html).toContain('Commento AI');
     expect(mockSentEmails[0].html).toContain('ornitorinco');
   });

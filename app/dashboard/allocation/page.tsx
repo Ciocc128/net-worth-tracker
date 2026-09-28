@@ -52,10 +52,9 @@ import {
   getSettings,
   compareAllocations,
   deriveTargetLeverageRatio,
-  getDefaultTargets,
-  buildTargetsFromGoalAllocation,
+  resolveEffectiveTargets,
 } from '@/lib/services/assetAllocationService';
-import { getGoalData, deriveTargetAllocationFromGoals } from '@/lib/services/goalService';
+import { getGoalData } from '@/lib/services/goalService';
 import type { LeveragePlanInputs } from '@/lib/utils/leverageAwareAllocationUtils';
 import type { Asset, AllocationResult, AssetAllocationTarget, IdealAllocationSettings } from '@/types/assets';
 import {
@@ -180,24 +179,9 @@ export default function AllocationPage() {
       const { tradable, frozen, excluded } = partitionByAllocationRole(assetsData);
       const inAllocation = [...tradable, ...frozen];
 
-      let effectiveTargets: AssetAllocationTarget;
-      let fromGoals = false;
-      if (
-        settings?.goalBasedInvestingEnabled &&
-        settings?.goalDrivenAllocationEnabled &&
-        goalData &&
-        goalData.goals.length > 0
-      ) {
-        const derived = deriveTargetAllocationFromGoals(goalData.goals, goalData.assignments, assetsData);
-        if (derived) {
-          effectiveTargets = buildTargetsFromGoalAllocation(derived, settings?.targets);
-          fromGoals = true;
-        } else {
-          effectiveTargets = settings?.targets || getDefaultTargets();
-        }
-      } else {
-        effectiveTargets = settings?.targets || getDefaultTargets();
-      }
+      // The ONE resolution of the targets the page measures against (goal-derived, manual or
+      // default) — the periodic email reads the same function (lib/utils/allocationComparison.ts).
+      const { targets: effectiveTargets, fromGoals } = resolveEffectiveTargets({ settings, goalData, assets: assetsData });
 
       setTargets(effectiveTargets);
       setUsingGoalTargets(fromGoals);
