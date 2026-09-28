@@ -49,7 +49,7 @@ import {
 } from '@/lib/utils/budgetUtils';
 import type { BudgetItem, BudgetPeriod } from '@/types/budget';
 import type { Expense } from '@/types/expenses';
-import { EMAIL_ANALYSIS_MODEL } from '@/lib/constants/aiModels';
+import { generateText } from '@/lib/server/llm';
 
 const WARNING_RATIO = 0.8;
 
@@ -288,11 +288,10 @@ export function buildCommentContext(data: WeeklyBudgetData): string {
 
 /**
  * Generates a short Italian comment (2 sentences: the most notable fact + one concrete
- * action) for the weekly email. Non-blocking: returns null on any failure or when no
- * API key is set.
+ * action) for the weekly email, through the provider layer (surface `EMAIL_WEEKLY_BUDGET`).
+ * Non-blocking: returns null on any failure or when the provider's key is not set.
  */
 async function generateWeeklyBudgetComment(data: WeeklyBudgetData): Promise<string | null> {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
   try {
     const prompt = `Sei un assistente finanziario personale italiano. Questo è lo stato dei budget dell'utente:
 
@@ -308,20 +307,14 @@ Scrivi esattamente DUE frasi in italiano (massimo 45 parole in totale):
 2. una singola azione concreta e specifica che l'utente può fare da qui a fine periodo.
 Niente elenchi, saluti, premesse o titoli.`;
 
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const message = await anthropic.messages.create({
-      model: EMAIL_ANALYSIS_MODEL,
-      max_tokens: 400,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'high' },
-      messages: [{ role: 'user', content: prompt }],
+    // The prompt carries its own rules, so it stays the user turn; the system turn only fixes
+    // the language. 400 tokens cover reasoning AND text, as they did on Anthropic.
+    const result = await generateText('EMAIL_WEEKLY_BUDGET', {
+      system: 'Sei un assistente finanziario personale italiano. Rispondi solo in italiano.',
+      user: prompt,
+      maxTokens: 400,
     });
-    const text = message.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('')
-      .trim();
-    return text || null;
+    return result?.text ?? null;
   } catch (error) {
     console.error('[weeklyBudgetEmail] AI comment generation failed:', error);
     return null;

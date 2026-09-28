@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PRINT_COLORS } from '@/lib/constants/printTokens';
 
@@ -14,6 +14,21 @@ vi.mock('resend', () => {
     emails = { send: resendSendMock };
   }
   return { Resend: ResendMock };
+});
+
+// The comparison and the assistant bundle are real by default; the AI-comment tests replace
+// them once with fixtures, so the send path reaches the provider without a full Firestore mock.
+vi.mock('@/lib/server/emailPeriodComparison', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/server/emailPeriodComparison')>(
+    '@/lib/server/emailPeriodComparison'
+  );
+  return { ...actual, buildPeriodComparison: vi.fn(actual.buildPeriodComparison) };
+});
+vi.mock('@/lib/services/assistantMonthContextService', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/services/assistantMonthContextService')>(
+    '@/lib/services/assistantMonthContextService'
+  );
+  return { ...actual, buildAssistantPeriodRangeContext: vi.fn(actual.buildAssistantPeriodRangeContext) };
 });
 
 // Per-collection query chains — filled per-test
@@ -91,9 +106,11 @@ import {
   generateEmailHtml,
   sendMonthlyEmail,
   buildExpenseSplitTile,
+  buildAndSendForPeriod,
   type MonthlyEmailData,
 } from '@/lib/server/monthlyEmailService';
-import { MAX_CATEGORY_DELTAS, type PeriodComparison } from '@/lib/server/emailPeriodComparison';
+import { MAX_CATEGORY_DELTAS, buildPeriodComparison, type PeriodComparison } from '@/lib/server/emailPeriodComparison';
+import { buildAssistantPeriodRangeContext } from '@/lib/services/assistantMonthContextService';
 import type { AssistantMemoryItem, AssistantMonthContextBundle, AssistantPreferences } from '@/types/assistant';
 import type { MonthlySnapshot } from '@/types/assets';
 import type { BudgetAlert } from '@/types/budget';
@@ -1519,5 +1536,78 @@ describe('buildExpenseSplitTile', () => {
 
     const gross = buildExpenseSplitTile(dataWith([member('Ghiandaia', 1400, 1400), member('Tarsio', 100, 100)]));
     expect(plain(gross)).not.toContain('da dividere');
+  });
+});
+
+// ─── buildAndSendForPeriod — the AI comment never blocks the email ───────────
+//
+// The comment goes through the provider layer (lib/server/llm) to OpenRouter; `fetch` is the only
+// thing simulated past the comparison and the bundle. The email leaves in EVERY case.
+
+describe('buildAndSendForPeriod — AI comment through the provider layer', () => {
+  const fetchMock = vi.fn();
+
+  function htmlSent(): string {
+    return resendSendMock.mock.calls.at(-1)![0].html;
+  }
+
+  beforeEach(() => {
+    Object.keys(collectionMocks).forEach((k) => delete collectionMocks[k]);
+    collectionMocks['monthly-snapshots'] = {
+      empty: false,
+      docs: [{ data: () => ({ totalNetWorth: 150000, liquidNetWorth: 30000, byAssetClass: { equity: 120000, cash: 30000 } }) }],
+    };
+    collectionMocks['expenses'] = { docs: [] };
+    collectionMocks['dividends'] = { docs: [] };
+    resendSendMock.mockClear();
+    resendSendMock.mockResolvedValue({ data: {}, error: null });
+    vi.mocked(buildPeriodComparison).mockResolvedValueOnce(makeComparison());
+    vi.mocked(buildAssistantPeriodRangeContext).mockClear();
+    vi.mocked(buildAssistantPeriodRangeContext).mockResolvedValueOnce(makeBundle());
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    delete process.env.OPENROUTER_API_KEY;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('without OPENROUTER_API_KEY sends the email, and builds no bundle for a call that cannot happen', async () => {
+    expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(buildAssistantPeriodRangeContext).not.toHaveBeenCalled();
+    expect(htmlSent()).not.toContain('Commento AI');
+  });
+
+  it("with a key sends the monthly token budget and puts the model's comment in the email", async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test';
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: 'stop', message: { content: 'Un mese da **fenicottero**.' } }],
+          usage: { prompt_tokens: 5100, completion_tokens: 800 },
+        }),
+        { status: 200 }
+      )
+    );
+    expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(6000);
+    expect(body.messages[0].role).toBe('system');
+    expect(htmlSent()).toContain('Commento AI');
+    expect(htmlSent()).toContain('fenicottero');
+  });
+
+  it('a provider error still sends the email, without the comment', async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test';
+    fetchMock.mockResolvedValue(new Response('down', { status: 400 }));
+    expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
+    expect(resendSendMock).toHaveBeenCalledTimes(1);
+    expect(htmlSent()).not.toContain('Commento AI');
   });
 });

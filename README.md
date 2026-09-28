@@ -168,7 +168,8 @@ Copy `.env.local.example` to `.env.local` and fill in your values:
 | `NEXT_PUBLIC_REGISTRATIONS_ENABLED` | No | Toggle new user registration (default: `true`) |
 | `NEXT_PUBLIC_REGISTRATION_WHITELIST_ENABLED` | No | Enable email whitelist for registration |
 | `NEXT_PUBLIC_ENABLE_TEST_SNAPSHOTS` | No | Enable test snapshot generation in Settings |
-| `ANTHROPIC_API_KEY` | No | Enables AI-powered performance analysis |
+| `ANTHROPIC_API_KEY` | No | Enables the Assistente AI and Rendimenti › «Analizza con AI» (the button is hidden without it) |
+| `OPENROUTER_API_KEY` | No | Enables the AI comment of the periodic and weekly budget emails, on an open model via OpenRouter |
 | `FRED_API_KEY` | No | Lets the daily cron refresh the ECB deposit facility rate history (via FRED) served by `/api/benchmarks/ecb-rates`; the Rendimenti page itself uses the risk-free rate configured in Settings |
 | `RESEND_API_KEY` | No | Enables automatic monthly portfolio summary emails (via [Resend](https://resend.com)) |
 | `RESEND_FROM_EMAIL` | No | Sender address for monthly emails (e.g. `onboarding@resend.dev` for personal use) |
@@ -181,7 +182,7 @@ See [`.env.local.example`](.env.local.example) for detailed comments on each var
 ### Security Notes
 
 - `NEXT_PUBLIC_FIREBASE_*` values are client configuration, not server secrets. They are expected to be visible in the browser bundle.
-- Keep `FIREBASE_ADMIN_*`, `FIREBASE_SERVICE_ACCOUNT_KEY`, `CRON_SECRET`, and `ANTHROPIC_API_KEY` server-only.
+- Keep `FIREBASE_ADMIN_*`, `FIREBASE_SERVICE_ACCOUNT_KEY`, `CRON_SECRET`, `ANTHROPIC_API_KEY` and `OPENROUTER_API_KEY` server-only.
 - Private App Router API routes are expected to verify Firebase ID tokens server-side. Scheduled cron flows authenticate separately with `CRON_SECRET`.
 
 ## Architecture

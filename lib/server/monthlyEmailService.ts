@@ -11,11 +11,10 @@
  * Never import it from client components.
  */
 
-import { EMAIL_ANALYSIS_MODEL } from '@/lib/constants/aiModels';
+import { generateText, isSurfaceConfigured } from '@/lib/server/llm';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
-import type Anthropic from '@anthropic-ai/sdk';
 import {
   escapeHtml,
   emailShell,
@@ -742,30 +741,34 @@ const EMAIL_AI_MAX_TOKENS: Record<EmailPeriodType, number> = {
 };
 
 /**
- * Generates the AI comment for the period via a dedicated, email-specific prompt and a
- * direct Anthropic call.
+ * Generates the AI comment for the period via a dedicated, email-specific prompt, through the
+ * provider layer (`lib/server/llm`, surface `EMAIL_PERIODIC` — an open model on OpenRouter).
  *
  * The comment interprets the same exhaustive bundle the in-app assistant reads, plus the
  * deterministic email-only sections (market effect, comparisons, category deltas, budget
- * alerts, Hall of Fame). Web search is offered only when the user's `includeMacroContext`
- * preference allows it, exactly as for the assistant's structured analyses — a tool that
- * is not declared cannot be called.
+ * alerts, Hall of Fame). There is no web search since 2026-09-28: the layer has no tools, and
+ * the macro context arrives from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4) — until
+ * then `includeMacroContext` only changes the prompt's wording, not what the model can do.
  *
- * `cache_control` is deliberately absent: a cache write costs 1,25× and only pays off
- * inside the 5-minute TTL, which a cron run sending a handful of emails never fills. The
- * `system` block is still built to be byte-identical per period type, so turning caching on
- * would be a one-line change if traffic ever justified it.
+ * No prompt caching: a cron run sending a handful of emails never fills a cache's TTL. The
+ * `system` block is still built to be byte-identical per period type, so turning it on would
+ * be a small change if traffic ever justified it.
  *
- * Every failure (bundle build, Anthropic error, missing key) is caught and logged: the
- * email is always sent, with or without the comment.
+ * Every failure (missing key, bundle build, provider error, a truncated answer) ends in null
+ * and a log line: the email is always sent, with or without the comment.
+ *
+ * Exported for the guided verification, which generates one real comment on the mirror
+ * without sending the email.
  *
  * @returns The AI-generated markdown text, or null on failure.
  */
-async function generateEmailAiComment(
+export async function generateEmailAiComment(
   userId: string,
   emailData: MonthlyEmailData,
   comparison: PeriodComparison
 ): Promise<string | null> {
+  // No key, no call: skip before the bundle, whose Firestore reads would be wasted.
+  if (!isSurfaceConfigured('EMAIL_PERIODIC')) return null;
   try {
     // Load user's assistant preferences and active memory items for personalisation.
     // Falls back to defaults + empty memory on any Firestore failure.
@@ -795,40 +798,12 @@ async function generateEmailAiComment(
       memoryItems
     );
 
-    // Lazy import so a module-level `new Anthropic()` never breaks test environments
-    // where ANTHROPIC_API_KEY is absent (same pattern as memoryExtraction).
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
-    const message = await anthropic.messages.create({
-      model: EMAIL_ANALYSIS_MODEL,
-      max_tokens: EMAIL_AI_MAX_TOKENS[emailData.periodType],
-      system: system,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'high' },
-      // Macro context is the only thing the search is for (the system core scopes it to
-      // market movements), so the preference that governs it governs the tool.
-      ...(preferences.includeMacroContext
-        ? {
-            tools: [
-              {
-                type: 'web_search_20250305',
-                name: 'web_search',
-                max_uses: 3,
-              } satisfies Anthropic.WebSearchTool20250305,
-            ],
-          }
-        : {}),
-      messages: [{ role: 'user', content: userContent }],
+    const result = await generateText('EMAIL_PERIODIC', {
+      system,
+      user: userContent,
+      maxTokens: EMAIL_AI_MAX_TOKENS[emailData.periodType],
     });
-
-    // Concatenate the text blocks of the (non-streamed) response (skips thinking/tool blocks).
-    const text = message.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('')
-      .trim();
-
-    return text || null;
+    return result?.text ?? null;
   } catch (error) {
     // AI failure must never block email sending
     console.error(`[emailAiComment] Generation failed for user ${userId}:`, error);

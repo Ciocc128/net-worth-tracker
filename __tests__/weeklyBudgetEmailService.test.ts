@@ -4,17 +4,26 @@
  * the budget maths is the real pure layer (budgetUtils).
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock state, filled per test (mock-prefixed so it can be referenced in factories).
 let mockBudgetDoc: { exists: boolean; data?: () => unknown } = { exists: false };
 let mockExpenseDocs: Array<{ data: () => unknown }> = [];
 let mockCategoryDocs: Array<{ id: string; data: () => unknown }> = [];
 
+// The provider layer (lib/server/llm) is server-only.
+vi.mock('server-only', () => ({}));
 vi.mock('firebase-admin/firestore', () => ({ Timestamp: { fromDate: (d: Date) => d } }));
+// Every sent email lands here, so a test can check it left WITHOUT the AI comment.
+const { mockSentEmails } = vi.hoisted(() => ({ mockSentEmails: [] as Array<{ html: string }> }));
 vi.mock('resend', () => ({
   Resend: class {
-    emails = { send: async () => ({ error: null }) };
+    emails = {
+      send: async (message: { html: string }) => {
+        mockSentEmails.push(message);
+        return { error: null };
+      },
+    };
   },
 }));
 vi.mock('@/lib/firebase/admin', () => ({
@@ -35,6 +44,7 @@ import {
   buildWeeklyBudgetData,
   buildWeeklyBudgetEmailHtml,
   buildCommentContext,
+  buildAndSendWeeklyBudget,
 } from '@/lib/server/weeklyBudgetEmailService';
 
 function expenseDoc(
@@ -253,5 +263,74 @@ describe('buildCommentContext', () => {
 
     expect(context).toContain('Vacanze (budget di spesa ANNUALE): 500€ da inizio anno a oggi');
     expect(context).toContain('Tecnologia (budget di spesa MENSILE): 150€ dal 1° giugno a oggi');
+  });
+});
+
+// The AI comment goes through the provider layer (lib/server/llm) to OpenRouter; `fetch` is the
+// only thing simulated. What this pins: the email leaves in EVERY case, and the comment is in it
+// only when the provider gave a usable answer.
+describe('buildAndSendWeeklyBudget — the AI comment never blocks the email', () => {
+  const now = new Date(2026, 5, 15, 12);
+  const fetchMock = vi.fn();
+
+  function completion(content: string) {
+    return new Response(
+      JSON.stringify({
+        model: 'z-ai/glm-5.3-flash',
+        choices: [{ finish_reason: 'stop', message: { content } }],
+        usage: { prompt_tokens: 500, completion_tokens: 60, cost: 0.0001 },
+      }),
+      { status: 200 }
+    );
+  }
+
+  beforeEach(() => {
+    mockSentEmails.length = 0;
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockBudgetDoc = {
+      exists: true,
+      data: () => ({
+        items: [{ id: 'g', kind: 'expense', scope: 'category', period: 'monthly', categoryId: 'c1', categoryName: 'Spesa', amount: 400, order: 0 }],
+      }),
+    };
+    mockExpenseDocs = [expenseDoc(-360, new Date(2026, 5, 10))];
+    mockCategoryDocs = [];
+  });
+
+  afterEach(() => {
+    delete process.env.OPENROUTER_API_KEY;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('without OPENROUTER_API_KEY sends the email with no comment and no call', async () => {
+    expect(await buildAndSendWeeklyBudget('u1', ['a@example.com'], now)).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockSentEmails).toHaveLength(1);
+    expect(mockSentEmails[0].html).not.toContain('Commento AI');
+  });
+
+  it("with a key puts the provider's answer in the email", async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test';
+    fetchMock.mockResolvedValue(completion('La Spesa è al 90% del limite: ornitorinco.'));
+    expect(await buildAndSendWeeklyBudget('u1', ['a@example.com'], now)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.model).toBe('z-ai/glm-5.3-flash');
+    expect(body.max_tokens).toBe(400);
+    expect(mockSentEmails[0].html).toContain('Commento AI');
+    expect(mockSentEmails[0].html).toContain('ornitorinco');
+  });
+
+  it('a provider failure still sends the email, without the comment', async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test';
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    expect(await buildAndSendWeeklyBudget('u1', ['a@example.com'], now)).toBe(true);
+    expect(mockSentEmails).toHaveLength(1);
+    expect(mockSentEmails[0].html).not.toContain('Commento AI');
   });
 });
