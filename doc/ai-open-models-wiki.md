@@ -29,7 +29,7 @@ nessuno storico di consumo. Non si migra: si sceglie con che cosa accenderle.
 | --- | --- |
 | D1 | **Due canali distinti.** Le **domande** le fa il proprietario a Claude Code con il suo **abbonamento**, sul vault (§6): costo API zero. Le **automazioni** dell'app (senza il proprietario davanti) usano una chiave API con un **modello open**. L'abbonamento non alimenta mai il server. |
 | D2 | Dentro l'app restano AI **solo il commento delle email** (periodiche + budget settimanale) e la **compilazione di TheBull**. L'**Assistente in app** e **Rendimenti › «Analizza con AI»** restano spenti; l'estrazione della memoria, che serve solo all'Assistente, con loro. |
-| D3 | Ordine: **provider → eval → Wiki** (§3). |
+| D3 | Ordine: **provider → eval rapido → Wiki → eval completo** (§3). L'eval rapido sceglie il modello provvisorio sulle email di oggi; quello completo misura il compito vero, con la Wiki nel prompt e la compilazione di TheBull (§7). |
 | D4 | La Wiki è un **vault Obsidian in un repo GitHub privato separato** — mai questa repo, che è il fork di un progetto pubblico. Nessun costo Firestore. |
 | D5 | La newsletter domenicale di **TheBull** arriva con un **Google Apps Script** nell'account Gmail del proprietario: niente OAuth nell'app. |
 | D6 | La pagina settimanale macro la compila **il server con un modello open**. Le pagine **Principi** si compilano **in sessione Claude Code**. |
@@ -86,11 +86,12 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | --- | --- |
 | **F0 — Misura** ✔ | `scripts/estimateAiTokens.mts`, `npm run ai:estimate`. |
 | **F1 — Provider** | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
-| **F2 — Eval** | Sulle due email, candidati del D8, prima di scegliere il modello di produzione (§7). |
-| **F3 — Vault e TheBull** | Repo privato, struttura (§5.1), Apps Script, endpoint di ingestione, compilazione con modello open. |
-| **F4 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email. |
-| **F5 — Il vault interrogabile** | Export dei dati (§6.1), `CLAUDE.md` del vault (§6.2), prime pagine Principi in sessione. |
-| **F6 — MCP (facoltativa)** | Server MCP in sola lettura (§6.3), solo se l'export risulta troppo vecchio nell'uso. |
+| **F2 — Eval rapido** | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione. |
+| **F3 — Vault e TheBull** | Repo privato, struttura (§5.1), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
+| **F4 — Il vault interrogabile** | Prime pagine Principi in sessione, export dei dati (§6.1), `CLAUDE.md` del vault (§6.2). Da qui il canale dell'abbonamento è completo. |
+| **F5 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4). |
+| **F6 — Eval completo** | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull. Sceglie il modello definitivo; se cambia, si ricompilano le pagine macro dai grezzi. |
+| **F7 — MCP (facoltativa)** | Server MCP in sola lettura (§6.3), solo se l'export risulta troppo vecchio nell'uso. |
 
 ---
 
@@ -133,7 +134,7 @@ un flag dedicato. Il codice di entrambi resta su Anthropic, intatto (è anche il
 
 ---
 
-## 5. Il vault e TheBull (F3–F4)
+## 5. Il vault e TheBull (F3, F5)
 
 ### 5.1 Struttura
 
@@ -170,7 +171,10 @@ personale, mai esposta in UI, demo o export.
    `from:(<mittente TheBull>) newer_than:2d` (**[da decidere]** il mittente esatto, dal primo invio
    reale), prende `getPlainBody()`, fa `POST /api/wiki/ingest` con `Authorization: Bearer
    <WIKI_INGEST_SECRET>` e il corpo `{ source: 'thebull', receivedAt, subject, text }`. Marca il
-   messaggio con un'etichetta `wiki/ingested` per non reinviarlo.
+   messaggio con un'etichetta `wiki/ingested` per non reinviarlo. Una seconda funzione dello script,
+   da lanciare **una volta a mano**, fa lo stesso per l'archivio passato (tutte le newsletter non
+   ancora etichettate, dalla più vecchia), a ritmo lento: la Wiki macro nasce con uno storico, e
+   l'eval completo trova le pagine macro dei mesi del mirror.
 2. **Endpoint** `app/api/wiki/ingest/route.ts`: verifica il segreto (confronto a tempo costante),
    rifiuta testi oltre una soglia, è idempotente sulla data, scrive il grezzo con la GitHub Contents
    API (token fine-grained, *contents: write* sul solo repo del vault).
@@ -185,7 +189,7 @@ Il server rende il markdown da quella struttura (funzione pura in `lib/utils/wik
 modello a scrivere il file. Poi rigenera `macro/mesi/<mese>.md`. **Nessun numero del portafoglio**
 entra in questa chiamata.
 
-### 5.4 Lettura nelle email (F4)
+### 5.4 Lettura nelle email (F5)
 
 Recupero **deterministico per data**: l'email mensile riceve `macro/mesi/<mese>.md`, le trimestrali,
 semestrali e annuali i riassunti dei mesi della finestra, tutte `principi/_digest.md` nel blocco di
@@ -197,7 +201,7 @@ un'email ne fa al più una manciata.
 
 ---
 
-## 6. Il vault interrogabile con l'abbonamento (F5–F6)
+## 6. Il vault interrogabile con l'abbonamento (F4, F7)
 
 Il proprietario apre il vault in Claude Code — in locale, o da telefono con Claude Code sul web
 (il vault è un repo GitHub) — e fa le sue domande lì. Nessuna chiamata API, nessun codice di chat da
@@ -237,20 +241,38 @@ Verificare nelle impostazioni di claude.ai l'opzione sull'uso delle chat per l'a
 
 ---
 
-## 7. Eval (F2)
+## 7. Eval (F2 e F6)
 
-- **Ingressi:** 8–12 bundle di email reali dal mirror (un mese buono, uno cattivo, uno con budget
-  sforati, un trimestre, un anno), congelati in JSON **fuori da git**.
+Due giri con lo stesso script (`scripts/aiEval.mts`), gli stessi controlli e lo stesso giudizio.
+Il primo sceglie un modello **provvisorio** per partire; il secondo misura il compito **vero** e
+sceglie quello definitivo. Il cambio di modello tra i due non costa nulla di irreversibile: i grezzi
+in `raw/` non si toccano mai, e le pagine macro si ricompilano.
+
+| | Eval rapido (F2) | Eval completo (F6) |
+| --- | --- | --- |
+| Compiti | commento dell'email, come oggi | commento dell'email **con** blocco macro e digest dei Principi; **compilazione di TheBull** |
+| Ingressi | 8–12 bundle dal mirror | gli stessi mesi, ora con la loro pagina macro; 6–8 newsletter reali |
+| Candidati | tutti quelli del D8 + i riferimenti | i migliori del primo giro + i riferimenti |
+| Esito | il modello provvisorio | il modello definitivo, per ciascuno dei due compiti |
+
+- **Ingressi:** bundle di email reali dal mirror (un mese buono, uno cattivo, uno con budget
+  sforati, un trimestre, un anno), congelati in JSON **fuori da git**; le newsletter sono i grezzi
+  del vault.
 - **Candidati:** quelli del D8 (GLM 5.3 Flash, Qwen3.8-Flash-Next, MiMo-V2.6-Flash, DeepSeek V4.1
-  Flash); riferimenti Sonnet 5 `medium` e Haiku 4.5. Prima di lanciare l'eval si rilegge la
-  classifica (§7.1): un candidato deprecato o superato si sostituisce, con l'OK del proprietario.
-- **Controlli automatici:** ogni cifra in euro o percentuale nel testo esiste nel bundle (tolleranza
-  di arrotondamento); limite di parole e sezioni del contratto rispettati; nessuna promessa di blocchi
-  assenti; solo italiano.
-- **Giudizio del proprietario, alla cieca:** versioni in ordine casuale, voto 1–5 su utilità e tono.
-  Vince il modello open più economico che non perde nei controlli automatici e sta entro mezzo punto
-  dal migliore dei riferimenti.
-- **Costo:** 10 bundle × 6 modelli, pochi centesimi; si chiede l'OK prima di lanciarlo.
+  Flash); riferimenti Sonnet 5 `medium` e Haiku 4.5. Prima di ogni giro si rilegge la classifica
+  (§7.1): un candidato deprecato o superato si sostituisce, con l'OK del proprietario.
+- **Controlli automatici, email:** ogni cifra in euro o percentuale nel testo esiste nel bundle
+  (tolleranza di arrotondamento); limite di parole e sezioni del contratto rispettati; nessuna
+  promessa di blocchi assenti; solo italiano. **Nel secondo giro, in più:** ogni fatto macro citato
+  esiste nella pagina macro fornita; ogni principio citato esiste nel digest; nessun numero del
+  portafoglio preso dalla pagina macro o viceversa.
+- **Controlli automatici, TheBull:** ogni voce estratta supera zod e la sua frase di citazione
+  compare davvero nella newsletter; nessuna cifra assente dal testo.
+- **Giudizio del proprietario, alla cieca:** versioni in ordine casuale, voto 1–5 su utilità e tono
+  (nel secondo giro anche: «il collegamento tra macro, principi e portafoglio è sensato?»). Vince il
+  modello open più economico che non perde nei controlli automatici e sta entro mezzo punto dal
+  migliore dei riferimenti.
+- **Costo:** ogni giro pochi centesimi; si chiede l'OK prima di lanciarlo.
 
 ### 7.1 Preselezione su Artificial Analysis
 
@@ -299,10 +321,10 @@ Qwen3-235B, candidato della prima stesura, risulta deprecato.
 | Fase | File |
 | --- | --- |
 | F1 | `lib/server/llm/{index,openrouter,anthropic}.ts`, `lib/constants/aiModels.ts`, le due email, il pulsante di Rendimenti |
-| F2 | `scripts/aiEval.mts` |
-| F3 | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/wikiMacro.ts`, l'Apps Script documentato in `doc/guide/email-pdf.md` |
-| F4 | `lib/server/wiki/wikiReader.ts`, i prompt in `monthlyEmailService.ts` e `weeklyBudgetEmailService.ts` |
-| F5 | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, il cron mensile, `CLAUDE.md` del vault |
+| F2, F6 | `scripts/aiEval.mts` |
+| F3 | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/wikiMacro.ts`, l'Apps Script (con il recupero dell'archivio) documentato in `doc/guide/email-pdf.md` |
+| F4 | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, il cron mensile, `CLAUDE.md` del vault |
+| F5 | `lib/server/wiki/wikiReader.ts`, i prompt in `monthlyEmailService.ts` e `weeklyBudgetEmailService.ts` |
 | Ogni fase | `doc/guide/email-pdf.md`, `CLAUDE.md` (Current Status, Data & Integrations), `SETUP.md` (`OPENROUTER_API_KEY`, `WIKI_INGEST_SECRET`, `WIKI_GITHUB_TOKEN`, `WIKI_GITHUB_REPO`) |
 
 ---
@@ -312,7 +334,7 @@ Qwen3-235B, candidato della prima stesura, risulta deprecato.
 - **Italiano dei modelli open:** il rischio principale per le email; l'eval lo misura.
 - **Newsletter che cambia formato:** la compilazione con citazione per ogni voce fallisce in modo
   visibile (zod) invece di inventare.
-- **Export vecchio:** la data in testa ai file lo rende evidente; se pesa, F6.
+- **Export vecchio:** la data in testa ai file lo rende evidente; se pesa, F7.
 - **Token GitHub nel runtime:** fine-grained, un solo repo, scadenza impostata.
 - **Principi che diventano dogma:** i guardrail del §5.4 e del §6.2 obbligano a dire quando i dati li
   smentiscono.
