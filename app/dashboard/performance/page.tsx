@@ -113,6 +113,7 @@ import { getItalyMonthYear } from '@/lib/utils/dateHelpers';
 import { MONTH_NAMES_SHORT } from '@/lib/utils/period';
 import { CustomDateRangeDialog } from '@/components/performance/CustomDateRangeDialog';
 import type { AIAnalysisDialogProps } from '@/components/performance/AIAnalysisDialog';
+import { usePerformanceAiAvailable } from '@/components/performance/PerformanceAiAvailability';
 import { CustomPeriodChip, PerformancePeriodPicker, type PickerPeriod } from '@/components/performance/PerformancePeriodPicker';
 import { RendimentoTile } from '@/components/performance/tiles/RendimentoTile';
 import { RischioTile } from '@/components/performance/tiles/RischioTile';
@@ -211,6 +212,7 @@ function describeHeaderWindow(metrics: PerformanceMetrics | null): string | unde
 function HeaderActions({
   stacked,
   isDemo,
+  aiAvailable,
   aiDisabled,
   isRefreshing,
   onCustom,
@@ -219,6 +221,8 @@ function HeaderActions({
 }: {
   stacked?: boolean;
   isDemo: boolean;
+  /** False when the report's provider has no key: the action is absent, not disabled. */
+  aiAvailable: boolean;
   aiDisabled: boolean;
   isRefreshing: boolean;
   onCustom: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -232,19 +236,21 @@ function HeaderActions({
         <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
         Periodo personalizzato
       </Button>
-      <Button
-        variant="outline"
-        onClick={onAI}
-        disabled={aiDisabled}
-        className={cn(
-          'group gap-1.5 transition-[border-color,color,box-shadow] duration-200 hover:border-[var(--ai-accent)] hover:text-[var(--ai-accent)] hover:shadow-[0_0_14px_color-mix(in_oklch,var(--ai-accent)_40%,transparent)]',
-          size,
-        )}
-        aria-label={isDemo ? 'Analizza con AI — non disponibile in modalità demo' : 'Analizza con AI'}
-      >
-        <Sparkles className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-12 group-hover:scale-110" aria-hidden="true" />
-        Analizza con AI
-      </Button>
+      {aiAvailable && (
+        <Button
+          variant="outline"
+          onClick={onAI}
+          disabled={aiDisabled}
+          className={cn(
+            'group gap-1.5 transition-[border-color,color,box-shadow] duration-200 hover:border-[var(--ai-accent)] hover:text-[var(--ai-accent)] hover:shadow-[0_0_14px_color-mix(in_oklch,var(--ai-accent)_40%,transparent)]',
+            size,
+          )}
+          aria-label={isDemo ? 'Analizza con AI — non disponibile in modalità demo' : 'Analizza con AI'}
+        >
+          <Sparkles className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-12 group-hover:scale-110" aria-hidden="true" />
+          Analizza con AI
+        </Button>
+      )}
       {!stacked && (
         <Button variant="ghost" onClick={onRefresh} disabled={isDemo || isRefreshing} className={cn('text-muted-foreground hover:text-foreground', size)} aria-label={isRefreshing ? 'Aggiornamento in corso' : 'Aggiorna'}>
           <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} aria-hidden="true" />
@@ -259,6 +265,7 @@ export default function PerformancePage() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
+  const aiAvailable = usePerformanceAiAvailable();
   const [isPendingPeriodChange, startPeriodTransition] = useTransition();
   const [performanceData, setPerformanceData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -589,6 +596,7 @@ export default function PerformancePage() {
     <HeaderActions
       stacked={stacked}
       isDemo={isDemo}
+      aiAvailable={aiAvailable}
       aiDisabled={isDemo || !metrics || metrics.hasInsufficientData}
       isRefreshing={isRefreshing}
       onCustom={(event) => {

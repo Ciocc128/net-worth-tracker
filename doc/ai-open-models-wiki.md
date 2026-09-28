@@ -85,7 +85,8 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | Fase | Contenuto |
 | --- | --- |
 | **F0 — Misura** ✔ | `scripts/estimateAiTokens.mts`, `npm run ai:estimate`. |
-| **F1 — Provider** | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
+| **F1 — Provider** ✔ | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
+| **F1b — Email allineate all'app** | Prima di F2 (§4.4): il bundle delle email ragiona ancora sul patrimonio intero, sul residuo «Δ − risparmio» e sulle differenze tra snapshot. Un eval su quegli ingressi misurerebbe i modelli su dati sbagliati. |
 | **F2 — Eval rapido** | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione. |
 | **F3 — Vault e TheBull** | Repo privato, struttura (§5.1), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
 | **F4 — Il vault interrogabile** | Prime pagine Principi in sessione, export dei dati (§6.1), `CLAUDE.md` del vault (§6.2). Da qui il canale dell'abbonamento è completo. |
@@ -115,13 +116,18 @@ Il modello è input non fidato: `extractStructured` valida con zod e restituisce
 scarto, come fa oggi `memoryExtraction.ts`. Un fallimento non blocca mai l'invio dell'email (regola
 già in vigore).
 
-**[da decidere]** in F1: SDK `openai` puntato su OpenRouter oppure `fetch` diretto.
+**Deciso in F1 (2026-09-28): `fetch` diretto**, nessuna dipendenza nuova — una sola rotta
+(`/chat/completions`), la risposta passa comunque per zod. Retry uno solo su 408/429/5xx, timeout 120 s.
+Nel corpo di ogni richiesta `provider: { data_collection: 'deny', zdr: true }` (§4.3); uno slug `:free`
+è rifiutato prima dell'invio. Una risposta troncata (`finish_reason: length`) è uno scarto come le altre.
+Le email hanno perso la ricerca web (il layer non ha strumenti): il contesto macro arriva con F5.
 
 ### 4.2 Assistente e Rendimenti spenti
 
-`NEXT_PUBLIC_ASSISTANT_AI_ENABLED=false` nasconde già l'Assistente. Rendimenti non ha un flag:
-**[da decidere]** in F1 se nascondere il pulsante quando manca la chiave del suo provider o legarlo a
-un flag dedicato. Il codice di entrambi resta su Anthropic, intatto (è anche il codice di upstream).
+`NEXT_PUBLIC_ASSISTANT_AI_ENABLED=false` nasconde già l'Assistente. **Deciso in F1 (2026-09-28):
+il pulsante di Rendimenti sparisce quando manca `ANTHROPIC_API_KEY`** — nessun flag nuovo: il server
+legge la chiave in `app/dashboard/performance/layout.tsx` e la pagina (client) la riceve da un context.
+Il codice di entrambi resta su Anthropic, intatto (è anche il codice di upstream).
 
 ### 4.3 Costi di OpenRouter (letti il 2026-09-28, da riverificare)
 
@@ -131,6 +137,43 @@ un flag dedicato. Il codice di entrambi resta su Anthropic, intatto (è anche il
 - BYOK: primo milione di richieste al mese gratuito, poi 5 %.
 - **Privacy:** solo provider che non trattengono né addestrano sui dati (filtro di OpenRouter); mai
   le varianti `:free`; mai le API dirette dei laboratori per i dati del portafoglio.
+
+### 4.4 Il collaudo di F1 e l'allineamento delle email (F1b)
+
+**Collaudo del 2026-09-28**, sul mirror, email mensile di agosto 2026, `z-ai/glm-5.3-flash`:
+una chiamata, `outcome: ok`, **5.785 token in / 729 out, 0,00123 $**, 17 s. Il testo ha 390 parole, le
+sei sezioni del contratto e 36 cifre in € o %, **tutte presenti nel prompt**. Il filtro `zdr: true` trova
+un provider. I token reali superano del 13 % la stima di F0: il tokenizer di GLM, sull'italiano, rende
+meno dei 3,5 caratteri/token usati da `ai:estimate`. Rendimenti senza chiave Anthropic: pulsante
+assente a 1440 e 390, presente con una chiave finta (Playwright).
+
+**Cosa ha trovato il proprietario leggendo il commento:** il modello non ha inventato nulla, ma il
+bundle gli ha dato una lettura che l'app non dà più. Misure di agosto 2026 fatte con i moduli delle pagine:
+
+| Domanda | Email (oggi) | App |
+| --- | --- | --- |
+| Peso delle azioni rispetto al target | 44,7 % contro 70 %: la base è il patrimonio intero e i target sono quelli grezzi delle Impostazioni (`formatBundleForPrompt`) | **69,6 % contro 70 %** su `tradable + frozen`, con la leva e i target effettivi (`compareAllocations`; prezzi di oggi) |
+| Mercato del mese | **+507 €** = Δ − risparmio (`marketEffectOf`, `formatMarketEffectForPrompt`) | **−1.063 €** misurato; +2.177 € sono contributi pensione, −608 € «altro» (`growthDrivers`, il Driver dello Storico) |
+| Azioni del mese | +4.332 € di differenza tra snapshot (`computeAssetClassPerformers`, «VARIAZIONI ALLOCAZIONE») | strumenti semplici +4.520 €, di cui **3.702 € di acquisti** e 819 € di mercato (`tradeAwarePriceEffect`) |
+| Liquidità −5.119 € | «la vacanza pagata da cassa» (inferenza del modello, in assenza del registro) | ha pagato 4.892 € di rate del PAC: sei acquisti, **nessuno nel prompt** |
+| Rendimento del periodo | assente | TWR sulla base di Rendimenti (`resolvePerformanceBase`), già nel PDF (#324) |
+
+Due di questi errori non sono dell'AI: `marketEffectOf` alimenta anche il **verdetto deterministico**
+e la ripartizione della tile Patrimonio, e «Andamento per classe» è deterministico.
+
+**F1b — decisioni del proprietario (2026-09-28):** una sessione dedicata, **prima di F2**, che
+porta nelle email (verdetto, tile e prompt) le quattro regole dell'app:
+
+1. **Allocazione sulla base**: ruoli (`excluded` fuori), leva, target effettivi, sotto-allocazione con i
+   compositi divisi. `compareAllocations` vive in `assetAllocationService.ts`, che importa l'SDK
+   client: va estratto in un modulo puro.
+2. **Mercato misurato**: il driver dello Storico (mercato, contributi pensione, mutuo, tasse, altro) al
+   posto del residuo, nel verdetto, nella tile e nel prompt. Chiude anche l'asimmetria nota del
+   blocco di mercato del prompt, che oggi non netta le tasse (doc/guide/email-pdf.md).
+3. **Classi e operazioni**: «Andamento per classe» e le variazioni nel prompt separano mercato e
+   acquisti (`tradeAwarePriceEffect`, come `computeTopMovers` della Panoramica); le operazioni del
+   periodo entrano nel prompt.
+4. **Rendimento del periodo**: il TWR sulla base di Rendimenti, come il PDF.
 
 ---
 

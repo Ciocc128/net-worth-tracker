@@ -13,17 +13,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **210 files / 5027 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-27, fork): **ninth upstream merge** (#404 mobile dossier, #405/#406) on `merge/upstream-2026-09-27`.
-  Upstream integrated the fork's #400, #401, #403 WITH CHANGES: the fork takes its reviewed pure layer, words, phone
-  views and chip, and keeps on top the thin Sankey, the «Altre» grouping, flat role colours and the Lime tokens
-  (doc/guide/fork-scelte-ui.md § 1, «Analisi Flusso»). #402 became upstream's `doc/perf/PERF-00` — upstream writes the
-  Esposizione itself; the fork keeps its five views. Also in: Divisione's pool netted of the common income. Owner's tour on the mirror OK.
-- Prima (2026-09-27, fork): **Composizione ideale › «Con vendite mirate»** — tetto di tasse + «Non vendere», solver
-  active set esatto (`lib/utils/activeSetQP.ts`); doc/guide/ottimizzatore.md.
-- Latest upstream (2026-09-27): #400/#401/#403 integrated, #402 → PERF-00 (before PERF-01), Divisione's «in comune»
-  income pays the common spending first; dossiers `doc/perf/README.md` (fourteen specs) and `doc/mobile/README.md`
-  (nine, after the PERF ones), the owner's decisions in each § 9.
+- `tsc` clean; **211 files / 5061 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-28, fork): **AI provider layer (F1, doc/ai-open-models-wiki.md)** — `lib/server/llm`, `aiModels.ts`
+  surface → `{ provider, model }`, email comments on an open model via OpenRouter, `[ai-usage]` per call; Rendimenti's AI
+  button hidden without `ANTHROPIC_API_KEY`. Mirror test OK (0,0012 $); it showed the email still reads the pre-ledger
+  model → F1b before F2 (spec § 4.4).
+- Prima (2026-09-27, fork): **ninth upstream merge** (#404–#406; the fork keeps thin Sankey, «Altre», role colours and
+  Lime tokens on upstream's #400/#401/#403 — doc/guide/fork-scelte-ui.md § 1); «Con vendite mirate» (doc/guide/ottimizzatore.md).
+- Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot
 - App Router; protected pages under `app/dashboard/*`.
@@ -81,12 +78,12 @@ One line per area: the question it answers, then where it is described. *What th
 - **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations
-Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa Italiana scraping (Italian bonds, dividends) · Frankfurter (FX) · FRED (`FRED_API_KEY`, series ECBDFR) · Anthropic (`claude-sonnet-5` analysis + assistant, `claude-haiku-4-5` extraction).
+Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa Italiana scraping (Italian bonds, dividends) · Frankfurter (FX) · FRED (`FRED_API_KEY`, series ECBDFR) · Anthropic (assistant, Rendimenti report, memory extraction) · OpenRouter (`OPENROUTER_API_KEY`: the email comments, on an open model) — which surface calls what: `lib/constants/aiModels.ts`.
 
 ## Known Issues (Active)
 Only what crosses areas; an area's blind spots — the behaviours that look like bugs and are not — close its `doc/guide/<tema>.md` (§ Per-page blind spots). The demo account's manual setup is in README.md → Known Issues, the shared account's prerequisites in SETUP.md → Step 5b.
 
-- **Two Sonnet generations coexist** (`lib/constants/aiModels.ts`): the Rendimenti analysis runs on `claude-sonnet-4-6`, the assistant and the emails on `claude-sonnet-5`. Aligning them changes cost and output, so it is a product decision still to take; until then the four constants stay distinct and each modal reads its OWN route's.
+- **The AI surfaces do not share a model** (`lib/constants/aiModels.ts`): Rendimenti on `claude-sonnet-4-6`, the assistant on `claude-sonnet-5`, the emails on a PROVISIONAL open model (GLM 5.3 Flash) until the eval (F2). A product decision each; the routes stay distinct.
 - **Two deliberate dependency pins keep advisories open.** `firebase-admin` at `^13.6.0` (@14 pulls pure-ESM `jose@6` → `ERR_REQUIRE_ESM` on Vercel; 8 moderate `uuid` advisories stay) and `next` at `~16.2.12` (16.3.0 breaks Vercel at `onBuildComplete`; 2 HIGH libvips advisories via `sharp`, low exposure). **Unpin next and re-run `npm audit fix` once Vercel digests 16.3.x.**
 - **Per-page blind spots** — the behaviours that look like bugs and are not — live at the end of each `doc/guide/<page>.md` (one *Per-page blind spots* section per page). Moved there verbatim from this file's Known Issues; CLAUDE.md keeps only the cross-cutting ones.
 - **Three Vitest cases fail under `TZ=UTC`** (`budgetUtils` › crossing day, `pensionSummary` › value age, `tracciamentoSummary` › `isScheduledRow`), on a clean `develop` too (checked in a worktree, 2026-09-20): they read «today» by Italian calendar day against fixtures built in the process timezone. The suite's two timezones are the machine's and `Europe/Rome`; a CI in UTC would see them red.

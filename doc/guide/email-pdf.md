@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
+- **Email · PDF · token fuori dal DOM**: `lib/constants/printTokens.ts` (l'unica sede di un hex fuori dal DOM); email `lib/utils/emailNarrative.ts` (parole), `lib/server/emailHtml.ts` (chrome, tabelle annidate), `lib/server/{monthlyEmailService,weeklyBudgetEmailService,emailPeriodComparison}.ts`; the AI comment's provider layer `lib/server/llm/{index,openrouter,anthropic,types}.ts` + `lib/constants/aiModels.ts` (surface → provider and model), tests `__tests__/llmProvider.test.ts`; PDF `lib/utils/pdfNarrative.ts` (`pdfSafeText` = il confine WinAnsi), `components/pdf/primitives/*` (`PDF_RAMP`), `lib/utils/pdfGenerator.tsx` → `lib/services/pdfDataService.ts` → `components/pdf/{PDFDocument,sections/*}`, `lib/utils/pdfTimeFilters.ts`, `types/pdf.ts`; cron `app/api/cron/monthly-snapshot/route.ts` (phases 2-8), `lib/server/{assetAdminRepository,dividendUseCase,dividendProcessor}.ts`
 
 ## PDF Export (`lib/utils/pdfGenerator.tsx`, `lib/services/pdfDataService.ts`, `lib/utils/pdfTimeFilters.ts`)
 
@@ -88,8 +88,22 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Comparison data is deterministic, AI only interprets**: **net worth = end-of-period snapshots (point-in-time);
   income/expenses/savings = flows over the window**, made explicit in the caption. The Hall of Fame mention is likewise
   deterministic, ranked with `lib/utils/hallOfFameRecords.ts` — the SAME definition as the in-app page.
-- **The email AI comment is a DEDICATED Anthropic call**, not the assistant pipeline; AI and comparison failures are
-  both non-blocking — and so is the context bundle, built inside the same `try`.
+- **The email AI comment goes through the provider layer** (`lib/server/llm`, since 2026-09-28 — F1 of
+  doc/ai-open-models-wiki.md), not the assistant pipeline: `generateText('EMAIL_PERIODIC' | 'EMAIL_WEEKLY_BUDGET', …)`,
+  and `lib/constants/aiModels.ts` says which provider and model answer — today an OPEN model on OpenRouter
+  (`OPENROUTER_API_KEY`), provisional until the eval of F2. The Anthropic adapter keeps the old call (adaptive thinking,
+  `effort: high`) for whoever routes a surface back to it. AI and comparison failures are both non-blocking — and so
+  is the context bundle, built inside the same `try`; without the provider's key the periodic email skips the bundle
+  too (its Firestore reads would feed a call that cannot happen).
+- **The layer returns `null` on ANY answer it cannot use**, and the email leaves without the tile: missing key,
+  network, HTTP status (one retry on 408/429/5xx), a body of the wrong shape, empty text, and a **truncated** answer
+  (`finish_reason: length` / `stop_reason: max_tokens`) — a change from before, when a comment cut mid-sentence was
+  printed as it was. On a reasoning model the reasoning counts against `max_tokens`: the weekly email's 400 is tight,
+  and a run of `truncated` in the logs is the sign to raise it.
+- **Every call logs one `[ai-usage]` line** — `{ surface, provider, model, input, output, cost?, outcome }` — whatever
+  its outcome, on Vercel's logs: it is the consumption history, and a rejected answer was paid for all the same.
+- **Privacy is in every OpenRouter request**, not a setting: `provider: { data_collection: 'deny', zdr: true }`, and a
+  `:free` model id is refused before anything is sent (free endpoints may log and train on prompts).
 - **The prompt BODY is the assistant's own block**: `buildEmailAiPrompt` = `formatBundleForPrompt(bundle, label)` +
   the sections only the email has (market effect, comparisons, category deltas, Hall of Fame, budget alerts). Do not
   re-list what the bundle already carries — the largest single expenses are the standing example — and do not add a
@@ -110,8 +124,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Every email cap is stated in the prompt**: `MAX_CATEGORY_DELTAS` (12) is named in the section header together with
   how many categories were left out. The selection is by SPEND, not by size of variation — describe it as it is.
 - **`max_tokens` and the word ceiling scale together** per period (6000/8000/8000/10000 against 500/700/700/900 words):
-  raise one and the other has to follow. Web search is offered only when `includeMacroContext` allows it, like the
-  assistant's structured analyses.
+  raise one and the other has to follow. **There is no web search since 2026-09-28**: the layer has no tools, and the
+  macro context arrives from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4); until then `includeMacroContext` only
+  changes the prompt's wording (it was off on the owner's account anyway).
 
 ## Verifying a surface with no DOM
 
@@ -148,5 +163,14 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   → null`), so a fixture about expenses needs one planted for the render and removed after.
 
 ## Per-page blind spots
+
+- **The periodic email still reads the PRE-ledger model of the app** (found 2026-09-28 on the F1 test, owner reading
+  the comment of agosto 2026 on the mirror). Allocation vs target is measured on the whole net worth with the raw
+  Settings targets (44,7% against 70% where Allocazione says 69,6%); «mercato» is the residual `Δ − risparmio (+
+  tasse)` (+507 € where Storico's Driver measures −1.063 €, the gap being 2.177 € of pension contributions);
+  «Andamento per classe» and the prompt's class moves are snapshot differences that count a PAC purchase as growth;
+  the period's trades are not in the prompt at all. The verdict and the Patrimonio tile carry the residual too, so
+  this is NOT only the AI's. Fix planned as F1b, before the eval (doc/ai-open-models-wiki.md § 4.4) — until then read
+  the email's market and allocation lines with that in mind.
 
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

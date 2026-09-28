@@ -38,7 +38,8 @@ const {
 const { buildMonthAnalysisPrompt, buildYearAnalysisPrompt, buildYtdAnalysisPrompt, buildHistoryAnalysisPrompt, buildChatPrompt } =
   await import('../lib/server/assistant/prompts');
 const { resolveAssistantWebSearchPolicy } = await import('../lib/server/assistant/webSearchPolicy');
-const { EMAIL_ANALYSIS_MODEL, ASSISTANT_MODEL } = await import('../lib/constants/aiModels');
+// countTokens is Claude's tokenizer whatever model answers the emails: a proxy for an open model.
+const { ASSISTANT_MODEL } = await import('../lib/constants/aiModels');
 const { getItalyMonthYear } = await import('../lib/utils/dateHelpers');
 
 const args = process.argv.slice(2);
@@ -116,8 +117,8 @@ for (const [periodType, { year, month }] of emailPeriods) {
   const comparison = await buildPeriodComparison(UID, emailData);
   const bundle = await buildAssistantPeriodRangeContext(UID, resolveEmailPeriodRange(emailData), preferences.includeDummySnapshots);
   const { system, userContent } = buildEmailAiPrompt(emailData, comparison, bundle, preferences, memoryItems);
-  const { tokens, exact } = await measure(EMAIL_ANALYSIS_MODEL, system, userContent);
-  rows.push({ surface, inputTokens: tokens, exact, maxTokens: EMAIL_MAX_TOKENS[periodType], webSearch: preferences.includeMacroContext ? 3 : 0 });
+  const { tokens, exact } = await measure(ASSISTANT_MODEL, system, userContent);
+  rows.push({ surface, inputTokens: tokens, exact, maxTokens: EMAIL_MAX_TOKENS[periodType], webSearch: 0 });
 }
 
 // ── Weekly budget email ────────────────────────────────────────────────────────────────────────

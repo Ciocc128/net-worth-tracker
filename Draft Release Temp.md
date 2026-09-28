@@ -18,11 +18,17 @@
 
 ## 🔧 Improvements
 
+- Improved the AI comment of the periodic and weekly budget emails: it now goes through a small provider layer (`lib/server/llm`) and runs on an open model through OpenRouter, set with `OPENROUTER_API_KEY`; which surface calls which provider and model is written in one place (`lib/constants/aiModels.ts`), so an installation with only an Anthropic key can route the emails back to Claude. Every request asks for providers that neither train on nor retain the data, free model variants are refused, and every call writes one `[ai-usage]` line (surface, model, tokens, cost) in the server logs. An answer that arrives cut off is now discarded rather than printed half-way, and whatever goes wrong the email is still sent, without the comment. The web search the monthly comment could use is gone. On a typical month the comments cost a fraction of a cent.
+
+- Improved Rendimenti without an Anthropic key: «Analizza con AI» is no longer shown, instead of opening a dialog that could only fail.
+
 - Improved Analisi › Flusso on a phone: it is now a bar of the period's spending split by type, each type's categories as rows (a row opens its Scheda) and what was left over as a closing line, instead of a Sankey too narrow to read; the printed shares always add up to 100, a type that rounds to zero reads «<1%», and when the period holds amounts that are only scheduled the closing line says so. From 640px up the Sankey is unchanged. (Contributed by Ciocc128.)
 
 - Improved Patrimonio › Strumenti for a composite instrument (a 60/40 fund, a balanced ETF): still one row, but its class chip now shows every class it holds — one segment per class, as wide as its share and in that class's colour, «Azioni · Obbl.» for two, «Misto» for three or more. A class under 5% gets no segment, a screen reader hears every share, and the group headers and the sort by class keep the prevailing class. (Contributed by Ciocc128.)
 
 ## 📚 Documentation
+
+- SETUP.md, README.md and `.env.local.example` describe `OPENROUTER_API_KEY` and what `ANTHROPIC_API_KEY` still enables; the email guide describes the provider layer, what makes a comment be discarded, and a known gap found while testing it: the periodic email still measures allocation on the whole net worth and reads «mercato» as net worth change minus savings, while the app now measures both on the portfolio base and with the trade ledger — an alignment planned before the models are compared.
 
 - The optimizer guide describes the third mode: the three paths (Ideale, no taxed sale, the ceiling binding), why the binding case uses an exact active-set solver, the rounding that never invents a sale, and the known limits (conflicts at a fixed tax multiplier, losses not offset against gains, fees not counted).
 
