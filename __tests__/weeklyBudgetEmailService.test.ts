@@ -44,6 +44,7 @@ import {
   buildWeeklyBudgetData,
   buildWeeklyBudgetEmailHtml,
   buildCommentContext,
+  buildWeeklyBudgetPrompt,
   buildAndSendWeeklyBudget,
 } from '@/lib/server/weeklyBudgetEmailService';
 
@@ -263,6 +264,23 @@ describe('buildCommentContext', () => {
 
     expect(context).toContain('Vacanze (budget di spesa ANNUALE): 500€ da inizio anno a oggi');
     expect(context).toContain('Tecnologia (budget di spesa MENSILE): 150€ dal 1° giugno a oggi');
+  });
+});
+
+// The AI eval (scripts/aiEval.mts) freezes this very request: it must be what production sends.
+describe('buildWeeklyBudgetPrompt', () => {
+  it('carries the context, the word limit and the output budget of the contract', async () => {
+    mockBudgetDoc = { exists: true, data: () => ({ items: [], overallMonthlyAmount: 2200 }) };
+    mockExpenseDocs = [expenseDoc(-1800, new Date(2026, 5, 10))];
+    const data = await buildWeeklyBudgetData('u1', new Date(2026, 5, 15, 12));
+
+    const prompt = buildWeeklyBudgetPrompt(data!);
+
+    expect(prompt.user).toContain(buildCommentContext(data!));
+    expect(prompt.user).toContain('massimo 45 parole');
+    expect(prompt.system).toContain('Rispondi solo in italiano');
+    // 1500 of reasoning + 45 words × 1,8 × 2 of text (lib/server/llm/budget.ts).
+    expect(prompt).toMatchObject({ wordLimit: 45, reasoningMaxTokens: 1500, maxTokens: 1662 });
   });
 });
 

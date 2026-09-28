@@ -31,8 +31,9 @@ export interface AiModelRoute {
  * Every AI surface of the app. The first three go through `lib/server/llm`; the last three call
  * the Anthropic SDK directly and read only their `model` (the SDK is their provider by code).
  *
- * The open model is PROVISIONAL (GLM 5.3 Flash, the first candidate of § 1 D8): the quick eval
- * (F2) picks the one that stays, the full eval (F6) the definitive one per task.
+ * The open model is GLM 5.3 Flash, chosen by the quick eval (F2) on 2026-09-28 and provisional
+ * until the full eval (F6), which picks the definitive one per task (§ 7.2). THEBULL_COMPILE only
+ * follows it: F6 decides that task on its own.
  */
 export const AI_MODELS = {
   /** The comment of the periodic emails (monthly, quarterly, semiannual, yearly). */
