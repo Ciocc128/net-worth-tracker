@@ -142,7 +142,7 @@ export function createOpenRouterAdapter({
       });
     },
 
-    async extractJson(model, { system, user, jsonSchema, name, maxTokens }, apiKey) {
+    async extractJson(model, { system, user, jsonSchema, name, maxTokens, reasoningMaxTokens }, apiKey) {
       const response = await complete(model, apiKey, {
         messages: [
           { role: 'system', content: system },
@@ -153,6 +153,7 @@ export function createOpenRouterAdapter({
           type: 'json_schema',
           json_schema: { name, strict: true, schema: jsonSchema },
         },
+        ...(reasoningMaxTokens !== undefined ? { reasoningMaxTokens } : {}),
       });
       return {
         ...response,

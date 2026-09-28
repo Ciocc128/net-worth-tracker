@@ -13,13 +13,14 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **215 files / 5136 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-28, fork): **F2 — the quick model eval** (doc/ai-open-models-wiki.md § 7.2): 9 models on 10 frozen
-  bundles from the mirror, 0,545 $; the owner's blind vote plus Claude's grid → **GLM 5.3 Flash** stays on both email
-  surfaces, provisional until F6. Tooling `scripts/aiEval.mts` (`npm run ai:eval`) + `lib/utils/{aiEvalChecks,aiEvalScore}.ts`;
-  data outside git in `scratchpad/ai-eval/` (kept for F6).
-- Prima (2026-09-28): F1b — periodic emails aligned with the app (`lib/utils/emailPortfolio.ts`, `lib/server/llm/budget.ts`);
-  F1 provider layer (`lib/server/llm`, OpenRouter); 2026-09-27 the ninth upstream merge.
+- `tsc` clean; **220 files / 5207 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-28, fork): **F3 — the vault and TheBull** (doc/ai-open-models-wiki.md § 5): a PRIVATE vault repo
+  (`finance-wiki`, an LLM Wiki after Karpathy, its schema in the vault's own `CLAUDE.md`); TheBull's Sunday newsletter
+  → Apps Script (`scripts/wiki/thebullIngest.gs`) → `POST /api/wiki/ingest` → cleaned raw + a week page whose every
+  item holds to a quote BY CODE, the month rebuilt, one commit; cron phase 9 retries three times. Code
+  `lib/utils/{thebullParse,wikiMacro}.ts`, `lib/server/wiki/`; guide doc/guide/email-pdf.md § The vault and TheBull.
+- Prima (2026-09-28): F2 — the quick eval keeps **GLM 5.3 Flash** on the emails, provisional until F6 (spec § 7.2,
+  `npm run ai:eval`, data outside git in `scratchpad/ai-eval/`); F1b emails aligned with the app; F1 `lib/server/llm`.
 - Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot
@@ -78,7 +79,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **Browser (E2E)**: Playwright, `npm run test:e2e` with the emulators up (needs **Java ≥ 21**); app on :3100 with an isolated build dir. Accounts and fixtures: SETUP.md → Step 7; gotchas: doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright).
 
 ## Data & Integrations
-Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa Italiana scraping (Italian bonds, dividends) · Frankfurter (FX) · FRED (`FRED_API_KEY`, series ECBDFR) · Anthropic (assistant, Rendimenti report, memory extraction) · OpenRouter (`OPENROUTER_API_KEY`: the email comments, on an open model) — which surface calls what: `lib/constants/aiModels.ts`.
+Firestore client + admin · Yahoo Finance (prices, benchmark history) · Borsa Italiana scraping (Italian bonds, dividends) · Frankfurter (FX) · FRED (`FRED_API_KEY`, series ECBDFR) · Anthropic (assistant, Rendimenti report, memory extraction) · OpenRouter (`OPENROUTER_API_KEY`: the email comments and TheBull's compilation, on an open model) · GitHub REST (`WIKI_GITHUB_TOKEN`, `WIKI_GITHUB_REPO`: the private vault, F3) — which surface calls what: `lib/constants/aiModels.ts`.
 
 ## Known Issues (Active)
 Only what crosses areas; an area's blind spots — the behaviours that look like bugs and are not — close its `doc/guide/<tema>.md` (§ Per-page blind spots). The demo account's manual setup is in README.md → Known Issues, the shared account's prerequisites in SETUP.md → Step 5b.
