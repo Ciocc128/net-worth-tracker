@@ -89,6 +89,13 @@ describe('the request', () => {
     expect(await response.json()).toEqual({ status: 'duplicate', date: '2026-06-14' });
   });
 
+  it('answers a mail that is not an issue with 200 `ignored`, so the script labels it and stops', async () => {
+    ingestMock.mockResolvedValue({ status: 'ignored', reason: 'non è un numero della newsletter' });
+    const response = await POST(post(body));
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toBe('ignored');
+  });
+
   it('is 502 when the vault write fails — the script will send it again next time', async () => {
     ingestMock.mockRejectedValue(new Error('[vault] update ref failed with HTTP 500'));
     expect((await POST(post(body))).status).toBe(502);

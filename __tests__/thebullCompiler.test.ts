@@ -94,6 +94,18 @@ describe('ingestTheBull', () => {
     expect(files.has('wiki/macro/settimane/2026-W24.md')).toBe(false);
   });
 
+  it('ignores a mail from the sender that is not an issue: no commit, no model call', async () => {
+    const { vault, commits } = memoryVault();
+    const extract = vi.fn(faithful);
+    const confirmation = 'The Bull: Confermi la tua iscrizione?\n\nClicca qui per confermare (https://thebull.us14.list-manage.com/subscribe/confirm?u=1&id=2&e=abc123def4)\n';
+    expect(await ingestTheBull({ ...input, text: confirmation }, { vault, extract, now })).toEqual({
+      status: 'ignored',
+      reason: 'non è un numero della newsletter',
+    });
+    expect(commits).toHaveLength(0);
+    expect(extract).not.toHaveBeenCalled();
+  });
+
   it('dates an issue without its «#n» line by the Italian day of receipt', async () => {
     const { vault } = memoryVault();
     // 23:30 UTC on the 13th is already the 14th in Rome.

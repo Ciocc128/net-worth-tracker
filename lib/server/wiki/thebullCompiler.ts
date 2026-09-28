@@ -13,7 +13,7 @@ import 'server-only';
 import { AI_MODELS } from '@/lib/constants/aiModels';
 import { extractStructured } from '@/lib/server/llm';
 import { getItalyDateIso } from '@/lib/utils/dateHelpers';
-import { THEBULL_CLEAN_VERSION, cleanTheBullText, isoWeekOf, parseTheBull, pointText, type TheBullIssue } from '@/lib/utils/thebullParse';
+import { THEBULL_CLEAN_VERSION, cleanTheBullText, isTheBullIssue, isoWeekOf, parseTheBull, pointText, type TheBullIssue } from '@/lib/utils/thebullParse';
 import {
   MACRO_EXTRACTION_JSON_SCHEMA,
   MACRO_EXTRACTION_SYSTEM,
@@ -140,12 +140,15 @@ export interface IngestInput {
 }
 
 export type IngestOutcome =
+  | { status: 'ignored'; reason: string }
   | { status: 'duplicate'; date: string }
   | { status: 'ingested'; date: string; week: string; compiled: boolean; reason?: string };
 
 export async function ingestTheBull(input: IngestInput, { vault, extract, now = () => new Date() }: CompilerDeps): Promise<IngestOutcome> {
   const cleaned = cleanTheBullText(input.text);
   const issue = parseTheBull(cleaned);
+  // A mail from the sender that is not an issue (the subscription confirmation): nothing to write.
+  if (!isTheBullIssue(issue)) return { status: 'ignored', reason: 'non è un numero della newsletter' };
   // The issue line dates the newsletter; the receipt's Italian day only when the line is missing.
   const date = issue.date ?? getItalyDateIso(new Date(input.receivedAt));
   const rawPath = rawPathFor(date);
