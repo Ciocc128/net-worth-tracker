@@ -13,14 +13,10 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
-- `tsc` clean; **220 files / 5207 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-28, fork): **F3 — the vault and TheBull** (doc/ai-open-models-wiki.md § 5): a PRIVATE vault repo
-  (`finance-wiki`, an LLM Wiki after Karpathy, its schema in the vault's own `CLAUDE.md`); TheBull's Sunday newsletter
-  → Apps Script (`scripts/wiki/thebullIngest.gs`) → `POST /api/wiki/ingest` → cleaned raw + a week page whose every
-  item holds to a quote BY CODE, the month rebuilt, one commit; cron phase 9 retries three times. Code
-  `lib/utils/{thebullParse,wikiMacro}.ts`, `lib/server/wiki/`; guide doc/guide/email-pdf.md § The vault and TheBull.
-- Prima (2026-09-28): F2 — the quick eval keeps **GLM 5.3 Flash** on the emails, provisional until F6 (spec § 7.2,
-  `npm run ai:eval`, data outside git in `scratchpad/ai-eval/`); F1b emails aligned with the app; F1 `lib/server/llm`.
+- `tsc` clean; **222 files / 5226 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
+- Latest (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
+  `WIKI_EXPORT_UID`, `npm run vault:export`; doc/guide/email-pdf.md § The vault's `dati/`); principles by interview.
+- Prima (2026-09-28): F3 vault + TheBull; F2 keeps **GLM 5.3 Flash** (provisional until F6); F1b; F1 `lib/server/llm`.
 - Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot
