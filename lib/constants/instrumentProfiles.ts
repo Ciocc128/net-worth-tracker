@@ -9,11 +9,9 @@
  *    ticker, a `kind` for a class with no security-level look-through, which curated `indexId`
  *    supplies its geography, an issuer display override, a currency override.
  *  - `INDEX_PROFILES` (keyed by `indexId`): country/currency breakdowns for an index an
- *    instrument tracks (or is proxied by). `msci-usa` is the ONE fully-populated entry in this
- *    first cut — it needs no factsheet, it is what the index IS by definition (US-domiciled
- *    constituents, USD). Every other `indexId` referenced below is a DECLARED GAP: the row exists
- *    (so `profileResolver.ts` knows the instrument is accounted for, not silently forgotten) but
- *    carries no `countries`/`currencies` yet — the engine reads that as `nonLetta`, never as zero.
+ *    instrument tracks (or is proxied by). `msci-usa` needs no factsheet — it is what the index IS
+ *    by definition (US-domiciled constituents, USD); every other row cites its factsheet. A row
+ *    with no `countries` would read as `nonLetta` in the engine, never as zero.
  *
  * ── Why the equity-notional coverage target (28% → 100%) needed almost none of this ────────────
  * The plan's headline number — Titoli/Settori coverage of the tradable equity notional — turned
@@ -24,19 +22,16 @@
  *     rest → 100%.
  * Everything below this line is Geografia/Valuta/Emittenti refinement, not the headline number.
  *
- * ── What's still a declared gap after this first cut (see the plan's "Limiti che restano") ─────
- * `msci-world-ex-usa` (EXUS), `msci-em-imi` (EIMI), `msci-world-momentum` (XDEM),
- * `dimensional-global-core` (DEGC), `global-small-cap-value` (AVWS), `ftse-all-world` (ALLW) have
- * no countries/currencies yet — their issuers block scripted downloads (Xtrackers/DWS, Dimensional,
- * Avantis) the way WisdomTree does; nobody has tried and failed here, nobody has tried and
- * succeeded either — the first `npm run exposure:refresh` after a human deposits a factsheet in
- * `data/factsheets/` is what fills these in. `NTSG-ETFP.MI`'s BONDS sleeve (Euro Bund/Gilt/JGB/US
- * Treasury futures, ≈28% of the Geografia base) needs WisdomTree's own CSV, which sits behind
- * Cloudflare for any script (403 on every header combination tried) — a human downloads it from a
- * browser into `data/factsheets/`, see AGENTS.md → *Allocazione — Esposizione*. Its EQUITY sleeve's
- * geography is ALSO left empty even though every one of its 8 disclosed Yahoo holdings is a US
- * megacap: that is suggestive, not proof (the same top-8 would show up almost as US-heavy on a
- * plain global cap-weighted fund today) — not solid enough to assert "100% USA" over 43.938 €.
+ * ── Where each row comes from, and the monthly pass ───────────────────────────────────────────
+ * Every `indexId` is filled (Geografia and Valuta at 100% since 2026-09-01). MSCI and FTSE Russell
+ * rows come from the index provider's own factsheet, Avantis from the fund's — all four sources
+ * download unattended in `npm run exposure:refresh`. Two are manual, because the issuer blocks
+ * scripts (Cloudflare): Dimensional (a QUARTERLY factsheet, so its `asOf` trails the others) and
+ * WisdomTree's MONTHLY factsheet PDF for NTSG's equity sleeve («Primi 10 Paesi»). NTSG's bond
+ * sleeve is the one RULE in this file, derived from that same equity table (see its entry); the
+ * fund's holdings CSV supplies neither sleeve — no country column, and its futures rows are
+ * unrealised P&L, not exposure. The pass: run the script, deposit the two manual files in
+ * `data/factsheets/`, read the extracts, edit the rows here by hand, then the checklist below.
  *
  * ── Update checklist ─────────────────────────────────────────────────────────────────────────
  *  1. New allocable instrument (`allocationRole` tradable/frozen) → confirm it needs a row here at
@@ -155,32 +150,32 @@ export const INSTRUMENT_PROFILES: Record<string, CuratedInstrumentEntry> = {
   },
   'EXUS.MI': {
     ticker: 'EXUS.MI',
-    indexId: 'msci-world-ex-usa', // declared gap — see this file's header.
+    indexId: 'msci-world-ex-usa',
     issuer: 'Xtrackers',
   },
   'EIMI.MI': {
     ticker: 'EIMI.MI',
-    indexId: 'msci-em-imi', // declared gap — see this file's header.
+    indexId: 'msci-em-imi',
     issuer: 'iShares',
   },
   'XDEM.MI': {
     ticker: 'XDEM.MI',
-    indexId: 'msci-world-momentum', // declared gap — see this file's header.
+    indexId: 'msci-world-momentum',
     issuer: 'Xtrackers',
   },
   'DEGC.DE': {
     ticker: 'DEGC.DE',
-    indexId: 'dimensional-global-core', // declared gap — see this file's header.
+    indexId: 'dimensional-global-core',
     issuer: 'Dimensional',
   },
   'AVWS.DE': {
     ticker: 'AVWS.DE',
-    indexId: 'global-small-cap-value', // declared gap — see this file's header.
+    indexId: 'global-small-cap-value',
     issuer: 'Avantis',
   },
   'ALLW.MI': {
     ticker: 'ALLW.MI',
-    indexId: 'ftse-all-world', // declared gap — see this file's header.
+    indexId: 'ftse-all-world',
     issuer: 'Xtrackers',
   },
   // BSP and BRK-B (direct stocks) need no row: `profileResolver.ts` handles a stock generically —
@@ -192,7 +187,7 @@ export const INSTRUMENT_PROFILES: Record<string, CuratedInstrumentEntry> = {
 export interface CuratedIndexProfile {
   indexId: string;
   label: string;
-  /** Empty until a human supplies the factsheet — see this file's header for which ones. */
+  /** From the factsheet `sourceUrl` names, as of `asOf`; absent reads as `nonLetta`. */
   countries?: Array<{ code: string; label: string; weight: number }>;
   currencies?: Array<{ code: string; weight: number }>;
   /** Share of the `countries` 'OTHER' slice per area, from the same factsheet. Sums to 1 ± 0.005.
@@ -214,40 +209,35 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
     asOf: '2026-09-01',
     sourceUrl: 'https://www.msci.com/indexes/index/990300',
   },
-  // NTSG's EQUITY sleeve, from WisdomTree's own monthly factsheet ("Primi 10 Paesi", data al
-  // 31/07/2026). The ten disclosed weights sum to 94.24%; the remainder is carried as an explicit
-  // OTHER row rather than being spread across the named ten, which would overstate every one of
-  // them. Note this DISPROVES the "8-for-8 US megacap ⇒ all-USD" reading of Yahoo's top holdings:
-  // a top-10 by SECURITY is US-heavy while the fund still holds 6.1% Japan, 8.7% eurozone, 3.0%
-  // UK, 3.0% Canada and 2.6% Switzerland. The BOND sleeve is deliberately NOT here — see the
-  // 'ntsg-bond-sleeve' entry.
+  // NTSG's EQUITY sleeve, from WisdomTree's own monthly factsheet ("Top 10 Countries" — "Primi 10
+  // Paesi" in the Italian edition; all data as of 31/08/2026). The ten disclosed weights sum to
+  // 94.23%; the remainder is carried as an explicit OTHER row rather than being spread across the
+  // named ten, which would overstate every one of them. Note this DISPROVES the "8-for-8 US
+  // megacap ⇒ all-USD" reading of Yahoo's top holdings: a top-10 by SECURITY is US-heavy while the
+  // fund still holds 6.1% Japan, 8.3% eurozone, 3.3% UK, 3.1% Canada and 2.5% Switzerland. The
+  // BOND sleeve is deliberately NOT here — see the 'ntsg-bond-sleeve' entry.
   'wt-global-efficient-core': {
     indexId: 'wt-global-efficient-core',
     label: 'WisdomTree Global Efficient Core — azionario',
     countries: [
-      { code: 'US', label: 'Stati Uniti', weight: 0.6932 },
-      { code: 'JP', label: 'Giappone', weight: 0.0608 },
-      { code: 'FR', label: 'Francia', weight: 0.0325 },
-      { code: 'GB', label: 'Regno Unito', weight: 0.0302 },
-      { code: 'CA', label: 'Canada', weight: 0.0298 },
-      { code: 'CH', label: 'Svizzera', weight: 0.0258 },
-      { code: 'DE', label: 'Germania', weight: 0.0247 },
-      { code: 'NL', label: 'Paesi Bassi', weight: 0.0158 },
-      { code: 'AU', label: 'Australia', weight: 0.0157 },
-      { code: 'ES', label: 'Spagna', weight: 0.0139 },
-      { code: 'OTHER', label: 'Altri paesi', weight: 0.0576 },
+      { code: 'US', label: 'Stati Uniti', weight: 0.6943 },
+      { code: 'JP', label: 'Giappone', weight: 0.0614 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.033 },
+      { code: 'FR', label: 'Francia', weight: 0.0313 },
+      { code: 'CA', label: 'Canada', weight: 0.0307 },
+      { code: 'DE', label: 'Germania', weight: 0.0255 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0248 },
+      { code: 'AU', label: 'Australia', weight: 0.0152 },
+      { code: 'ES', label: 'Spagna', weight: 0.0141 },
+      { code: 'NL', label: 'Paesi Bassi', weight: 0.012 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.0577 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl:
       'https://www.wisdomtree.com/se/products/equities/wisdomtree-global-efficient-core-ucits-etf---usd-acc',
   },
-  // NTSG's BOND sleeve: the factsheet names the four government-futures markets ("titoli di stato
-  // statunitensi, tedeschi, britannici e giapponesi", rebalanced quarterly to a 60% notional) but
-  // publishes NO weights, and the holdings CSV cannot supply them either — its eight futures rows
-  // carry mark-to-market values of −0.00% to −0.08% (≈ −0.27% in total), which is unrealised P&L
-  // on unfunded contracts, not exposure. Four known countries, four unknown weights: the row
-  // stays empty so the engine reads the leg as `nonLetta` (≈28% of the Geografia base) instead of
-  // asserting an equal split nobody published.
+  // NTSG's BOND sleeve (the four government-futures markets, "titoli di stato statunitensi,
+  // tedeschi, britannici e giapponesi", rebalanced quarterly to a 60% notional).
   //
   // A DECLARED RULE, not a published table — the one entry in this file that is neither. The
   // factsheet names the four government-futures markets and says the sleeve rebalances quarterly,
@@ -256,8 +246,8 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
   // rule applied here — the four markets are weighted by their relative market capitalisation —
   // is the fund owner's reading of the index methodology, and it is implemented by taking the
   // FOUR matching weights from this fund's own equity sleeve and renormalising them pro quota:
-  //   US 69.32 · JP 6.08 · GB 3.02 · DE 2.47  (sum 80.89)
-  //   →  85.70% · 7.52% · 3.73% · 3.05%
+  //   US 69.43 · JP 6.14 · GB 3.30 · DE 2.55  (sum 81.42, 31/08/2026)
+  //   →  85.27% · 7.54% · 4.05% · 3.13%
   // Two caveats to re-examine if the numbers ever look wrong: a GOVERNMENT-BOND basket weighted
   // by EQUITY capitalisation is unusual (sovereign baskets are normally weighted by debt
   // outstanding or by duration, which would raise Japan's share considerably), and these weights
@@ -268,12 +258,12 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
     indexId: 'ntsg-bond-sleeve',
     label: 'WisdomTree Global Efficient Core — obbligazionario',
     countries: [
-      { code: 'US', label: 'Stati Uniti', weight: 0.857 },
-      { code: 'JP', label: 'Giappone', weight: 0.0752 },
-      { code: 'GB', label: 'Regno Unito', weight: 0.0373 },
-      { code: 'DE', label: 'Germania', weight: 0.0305 },
+      { code: 'US', label: 'Stati Uniti', weight: 0.8527 },
+      { code: 'JP', label: 'Giappone', weight: 0.0754 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0405 },
+      { code: 'DE', label: 'Germania', weight: 0.0313 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl:
       'https://www.wisdomtree.com/se/products/equities/wisdomtree-global-efficient-core-ucits-etf---usd-acc',
   },
@@ -281,52 +271,55 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
   // MSCI and FTSE Russell publish country weights for the index itself, which is both the more
   // primary source and the more stable one: several ETFs can track one index, and a provider's
   // factsheet does not depend on which issuer's website happens to be scriptable this month. All
-  // four are dated JUL 31, 2026 and download unauthenticated (see DOWNLOAD_REGISTRY in
+  // four are dated AUG 31, 2026 and download unauthenticated (see DOWNLOAD_REGISTRY in
   // scripts/exposureRefresh.mts). MSCI publishes a top-5 plus "Other"; that residual is carried
   // as an explicit OTHER row, never spread across the named countries.
   'msci-world-ex-usa': {
     indexId: 'msci-world-ex-usa',
     label: 'MSCI World ex USA',
     countries: [
-      { code: 'JP', label: 'Giappone', weight: 0.2047 },
-      { code: 'GB', label: 'Regno Unito', weight: 0.1292 },
-      { code: 'CA', label: 'Canada', weight: 0.1221 },
-      { code: 'FR', label: 'Francia', weight: 0.0872 },
-      { code: 'CH', label: 'Svizzera', weight: 0.0827 },
-      { code: 'OTHER', label: 'Altri paesi', weight: 0.3741 },
+      { code: 'JP', label: 'Giappone', weight: 0.2073 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.1267 },
+      { code: 'CA', label: 'Canada', weight: 0.1241 },
+      { code: 'FR', label: 'Francia', weight: 0.0846 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0809 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.3764 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl: 'https://www.msci.com/documents/10199/255599/msci-world-ex-usa-index.pdf',
   },
   'msci-em-imi': {
     indexId: 'msci-em-imi',
     label: 'MSCI Emerging Markets IMI',
     countries: [
-      { code: 'TW', label: 'Taiwan', weight: 0.2642 },
-      { code: 'CN', label: 'Cina', weight: 0.1999 },
-      { code: 'KR', label: 'Corea del Sud', weight: 0.1952 },
-      { code: 'IN', label: 'India', weight: 0.1292 },
-      { code: 'BR', label: 'Brasile', weight: 0.0409 },
-      { code: 'OTHER', label: 'Altri paesi', weight: 0.1706 },
+      { code: 'TW', label: 'Taiwan', weight: 0.2744 },
+      { code: 'KR', label: 'Corea del Sud', weight: 0.2011 },
+      { code: 'CN', label: 'Cina', weight: 0.1916 },
+      { code: 'IN', label: 'India', weight: 0.1247 },
+      { code: 'BR', label: 'Brasile', weight: 0.0385 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1696 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl: 'https://www.msci.com/documents/10199/255599/msci-emerging-markets-imi-usd-net-since-2007.pdf',
   },
   'msci-world-momentum': {
     indexId: 'msci-world-momentum',
     label: 'MSCI World Momentum',
     countries: [
-      { code: 'US', label: 'Stati Uniti', weight: 0.5633 },
-      { code: 'JP', label: 'Giappone', weight: 0.1137 },
-      { code: 'CA', label: 'Canada', weight: 0.0686 },
-      { code: 'GB', label: 'Regno Unito', weight: 0.054 },
-      { code: 'NL', label: 'Paesi Bassi', weight: 0.0315 },
-      { code: 'OTHER', label: 'Altri paesi', weight: 0.1688 },
+      { code: 'US', label: 'Stati Uniti', weight: 0.5608 },
+      { code: 'JP', label: 'Giappone', weight: 0.1152 },
+      { code: 'CA', label: 'Canada', weight: 0.0709 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0533 },
+      { code: 'NL', label: 'Paesi Bassi', weight: 0.0316 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1683 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl: 'https://www.msci.com/documents/10199/255599/msci-world-momentum-index-usd-net.pdf',
   },
-  // Dimensional's own factsheet, "TOP COUNTRIES" (five rows, 87.18%); remainder as OTHER.
+  // Dimensional's own factsheet, "TOP COUNTRIES" (five rows, 87.18%); remainder as OTHER. The
+  // factsheet is QUARTERLY — these are the figures "as of 30 June 2026" (re-read on 2026-09-30:
+  // still the latest; the September quarter lands in October), hence an `asOf` older than the rows
+  // around it. An earlier cut stamped it 2026-07-31 alongside the monthly ones.
   'dimensional-global-core': {
     indexId: 'dimensional-global-core',
     label: 'Dimensional Global Core Equity',
@@ -338,46 +331,48 @@ export const INDEX_PROFILES: Record<string, CuratedIndexProfile> = {
       { code: 'CH', label: 'Svizzera', weight: 0.0219 },
       { code: 'OTHER', label: 'Altri paesi', weight: 0.1282 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-06-30',
     sourceUrl: 'https://www.dimensional.com/gb-en/funds/ie000eggfvg6/global-core-equity-ucits-etf-acc',
   },
-  // Avantis/American Century factsheet, country table (five rows, 89.05%); remainder as OTHER.
+  // Avantis/American Century factsheet, country table (five rows, 88.95%); remainder as OTHER.
   'global-small-cap-value': {
     indexId: 'global-small-cap-value',
     label: 'Global Small Cap Value',
     countries: [
-      { code: 'US', label: 'Stati Uniti', weight: 0.6924 },
-      { code: 'JP', label: 'Giappone', weight: 0.1022 },
-      { code: 'GB', label: 'Regno Unito', weight: 0.0361 },
-      { code: 'CA', label: 'Canada', weight: 0.0327 },
-      { code: 'AU', label: 'Australia', weight: 0.0271 },
-      { code: 'OTHER', label: 'Altri paesi', weight: 0.1095 },
+      { code: 'US', label: 'Stati Uniti', weight: 0.6785 },
+      { code: 'JP', label: 'Giappone', weight: 0.1059 },
+      { code: 'CA', label: 'Canada', weight: 0.0377 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.0372 },
+      { code: 'AU', label: 'Australia', weight: 0.0302 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.1105 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl: 'https://res.americancentury.com/docs/avantis-global-small-cap-value-ucits-etf-fact-sheet.pdf',
   },
-  // FTSE Russell publishes the FULL country table (47 markets), not a top-5 plus "Other" the way
-  // MSCI does. Kept to the twelve heaviest (89.37%) with the tail as OTHER: past the twelfth every
-  // market is under 1% and would never surface in a six-row tile, while the file stays readable.
+  // FTSE Russell publishes the FULL country table (48 markets), not a top-5 plus "Other" the way
+  // MSCI does. Kept to the twelve heaviest (91.49%) with the tail as OTHER: past the twelfth every
+  // market is under 1.2% and would never surface in a six-row tile, while the file stays readable.
+  // The July cut had no United Kingdom row (FTSE labels it «UK»; 3.20% in August, the fourth
+  // market): it sat inside OTHER, with the Netherlands as twelfth. Fixed 2026-09-30.
   'ftse-all-world': {
     indexId: 'ftse-all-world',
     label: 'FTSE All-World',
     countries: [
-      { code: 'US', label: 'Stati Uniti', weight: 0.6166 },
-      { code: 'JP', label: 'Giappone', weight: 0.0595 },
-      { code: 'TW', label: 'Taiwan', weight: 0.0317 },
-      { code: 'CA', label: 'Canada', weight: 0.0297 },
-      { code: 'CN', label: 'Cina', weight: 0.0282 },
-      { code: 'KR', label: 'Corea del Sud', weight: 0.0241 },
-      { code: 'FR', label: 'Francia', weight: 0.0207 },
-      { code: 'CH', label: 'Svizzera', weight: 0.0204 },
-      { code: 'DE', label: 'Germania', weight: 0.0188 },
-      { code: 'IN', label: 'India', weight: 0.0163 },
-      { code: 'AU', label: 'Australia', weight: 0.0162 },
-      { code: 'NL', label: 'Paesi Bassi', weight: 0.0115 },
-      { code: 'OTHER', label: 'Altri paesi', weight: 0.1063 },
+      { code: 'US', label: 'Stati Uniti', weight: 0.6171 },
+      { code: 'JP', label: 'Giappone', weight: 0.0598 },
+      { code: 'TW', label: 'Taiwan', weight: 0.033 },
+      { code: 'GB', label: 'Regno Unito', weight: 0.032 },
+      { code: 'CA', label: 'Canada', weight: 0.03 },
+      { code: 'CN', label: 'Cina', weight: 0.0274 },
+      { code: 'KR', label: 'Corea del Sud', weight: 0.025 },
+      { code: 'FR', label: 'Francia', weight: 0.0199 },
+      { code: 'CH', label: 'Svizzera', weight: 0.0198 },
+      { code: 'DE', label: 'Germania', weight: 0.019 },
+      { code: 'AU', label: 'Australia', weight: 0.0161 },
+      { code: 'IN', label: 'India', weight: 0.0158 },
+      { code: 'OTHER', label: 'Altri paesi', weight: 0.0851 },
     ],
-    asOf: '2026-07-31',
+    asOf: '2026-08-31',
     sourceUrl: 'https://research.ftserussell.com/Analytics/Factsheets/Home/DownloadSingleIssue?issueName=AWORLDS',
   },
 };

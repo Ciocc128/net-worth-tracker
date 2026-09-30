@@ -166,8 +166,8 @@ itemizzato. `areasFromCountries` lo risolve in ordine, MAI a caso:
 4. **Ripiego**: se il passo 3 non ha dati, `OTHER` va tutto a Sviluppati ex USA, stimato.
 
 **Nessun profilo curato porta ancora un `otherAreaSplit` reale** (2026-09-19): il campo esiste e si
-propaga, ma resta vuoto finché un umano non lo compila da un factsheet — stesso spirito di
-`INDEX_PROFILES`'s dichiarati "declared gap" in `instrumentProfiles.ts`. Fino a quel momento ogni
+propaga, ma resta vuoto finché un umano non lo compila da un factsheet (nessuna delle fonti lette il
+2026-09-30 scompone il residuo per area: MSCI dà un top-5 più «Other»). Fino a quel momento ogni
 indice di riferimento e ogni strumento passano dal passo 3 (stima) o 4 (ripiego).
 
 ## Classificazione geografica: una sola, MSCI

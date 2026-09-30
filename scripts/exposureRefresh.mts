@@ -24,7 +24,7 @@
  * never the curated table itself. `npm run exposure:report` (read-only, no local writes at all)
  * is the twin diagnosis-only command for "is anything blind right now".
  */
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 function loadEnvLocal(): void {
@@ -76,7 +76,7 @@ const DOWNLOAD_REGISTRY: Record<string, DownloadRegistryEntry> = {
   // indexes all block scripts one way or another (DWS serves a 2.3 KB JS shell, Dimensional
   // builds its document links client-side, WisdomTree sits behind Cloudflare), while the index
   // providers just serve the file. This is what turned the monthly pass from five manual
-  // downloads into one. All four verified 2026-09-01: HTTP 200, application/pdf, data JUL 31 2026.
+  // downloads into two (Dimensional and WisdomTree, below). All four verified 2026-09-01: HTTP 200, application/pdf, data JUL 31 2026.
   'msci-world-ex-usa': {
     issuer: 'MSCI (indice)',
     mode: 'auto',
@@ -96,7 +96,8 @@ const DOWNLOAD_REGISTRY: Record<string, DownloadRegistryEntry> = {
     fileName: 'idx-ftse-all-world.pdf',
   },
   // Dimensional serves the real product page (140 KB of HTML) but builds its document links
-  // client-side; `manual`, straight at the fund. Verified 2026-09-01.
+  // client-side; `manual`, straight at the fund. Verified 2026-09-01. The factsheet is QUARTERLY:
+  // between quarter-ends the same file comes back (on 2026-09-30 still «as of 30 June 2026»).
   'dimensional-global-core': {
     issuer: 'Dimensional',
     mode: 'manual',
@@ -111,16 +112,50 @@ const DOWNLOAD_REGISTRY: Record<string, DownloadRegistryEntry> = {
     url: 'https://res.americancentury.com/docs/avantis-global-small-cap-value-ucits-etf-fact-sheet.pdf',
     fileName: 'avantis-avws-factsheet.pdf',
   },
-  'ntsg-wisdomtree-csv': {
+  // WisdomTree sits behind Cloudflare. The MONTHLY FACTSHEET PDF is the file that matters: its
+  // «Primi 10 Paesi» table is NTSG's equity sleeve, and the bond sleeve's rule derives from it.
+  // The holdings CSV was listed here until 2026-09-30, but it has no country column and its
+  // futures rows are unrealised P&L — it supplies neither sleeve.
+  'wt-global-efficient-core': {
     issuer: 'WisdomTree',
     mode: 'manual',
     url: 'https://www.wisdomtree.com/se/products/equities/wisdomtree-global-efficient-core-ucits-etf---usd-acc',
-    fileName: 'wisdomtree-ntsg-holdings.csv',
+    fileName: 'wisdomtree-ntsg-factsheet.pdf',
   },
 };
 
 const FACTSHEETS_DIR = path.resolve(process.cwd(), 'data/factsheets');
 const EXPOSURE_DIR = path.resolve(process.cwd(), 'data/exposure');
+
+/** Writes the PDF's text layer to a sibling `.txt` and returns its path. */
+async function extractPdfText(pdfPath: string, buffer: Buffer): Promise<string> {
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const doc = await getDocument({ data: new Uint8Array(buffer), useWorkerFetch: false }).promise;
+  let text = '';
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map((item) => ('str' in item ? item.str : '')).join(' ') + '\n';
+  }
+  const txtPath = pdfPath.replace(/\.pdf$/i, '.txt');
+  writeFileSync(txtPath, text, 'utf8');
+  return txtPath;
+}
+
+/** A `manual` source: extract the file a human deposited, or say where it goes (absolute path —
+ *  a relative one was misread once, 2026-09-30, and the files landed in another `data/`). */
+async function readManualDeposit(indexId: string, entry: DownloadRegistryEntry): Promise<'manual-extracted' | 'manual-missing'> {
+  const filePath = path.join(FACTSHEETS_DIR, entry.fileName);
+  if (!existsSync(filePath)) {
+    console.log(`  [manuale] ${entry.issuer} (${indexId}): scarica ${entry.url} e depositalo in ${filePath}`);
+    return 'manual-missing';
+  }
+  const buffer = readFileSync(filePath);
+  const age = Math.floor((Date.now() - statSync(filePath).mtimeMs) / 86_400_000);
+  const txtPath = await extractPdfText(filePath, buffer);
+  console.log(`  [manuale] ${entry.issuer}: trovato (depositato ${age} giorni fa) ed estratto → ${path.relative(process.cwd(), txtPath)}`);
+  return 'manual-extracted';
+}
 
 async function tryAutoDownload(entry: DownloadRegistryEntry): Promise<'downloaded' | 'fell-back-to-manual' | 'error'> {
   try {
@@ -149,16 +184,7 @@ async function tryAutoDownload(entry: DownloadRegistryEntry): Promise<'downloade
     const pdfPath = path.join(FACTSHEETS_DIR, entry.fileName);
     writeFileSync(pdfPath, buffer);
 
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const doc = await getDocument({ data: new Uint8Array(buffer), useWorkerFetch: false }).promise;
-    let text = '';
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map((item) => ('str' in item ? item.str : '')).join(' ') + '\n';
-    }
-    const txtPath = pdfPath.replace(/\.pdf$/, '.txt');
-    writeFileSync(txtPath, text, 'utf8');
+    const txtPath = await extractPdfText(pdfPath, buffer);
     console.log(`  [auto] ${entry.issuer}: scaricato e estratto → ${path.relative(process.cwd(), txtPath)}`);
     return 'downloaded';
   } catch (err) {
@@ -196,8 +222,7 @@ async function main() {
   const results: Record<string, string> = {};
   for (const [indexId, entry] of Object.entries(DOWNLOAD_REGISTRY)) {
     if (entry.mode === 'manual') {
-      console.log(`  [manuale] ${entry.issuer} (${indexId}): scarica ${entry.url} e depositalo in data/factsheets/${entry.fileName}`);
-      results[indexId] = 'manuale';
+      results[indexId] = await readManualDeposit(indexId, entry);
       continue;
     }
     const outcome = await tryAutoDownload(entry);
