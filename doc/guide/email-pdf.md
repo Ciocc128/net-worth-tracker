@@ -188,6 +188,23 @@ Not an email yet — F5 puts its month pages in the periodic prompt — but the 
 - **Themes, principles and the lint are NOT the server's**: a Claude Code session writes them (the vault's
   `CLAUDE.md`, § 5.5 of the spec).
 
+### The vault's `dati/` (F4, doc/ai-open-models-wiki.md § 6.1)
+
+- **Files**: `lib/utils/vaultMarkdown.ts` (pure: the `--- TITLE ---` markers → headings, the frontmatter, the
+  portfolio table), `lib/server/wiki/vaultExport.ts` (`exportToVault`, one commit + one `log.md` line), the cron's
+  phase 10, `scripts/vaultExport.mts` (`npm run vault:export -- [YYYY-MM [YYYY-MM]] [--dry-run] [--email x]`); tests
+  `__tests__/{vaultMarkdown,vaultExport}.test.ts`.
+- **A month's file IS the monthly email's data block** (`buildEmailDataSections`, extracted from `buildEmailAiPrompt`
+  with no change to the prompt): the vault, the email and the email's model read ONE version of a month, with F1b's
+  rules. NOT the assistant's builders, which the spec first named: they still read allocation on the whole net worth
+  and the market as a residual (owner's decision, 2026-09-30).
+- **`dati/portafoglio.md`** is the latest real snapshot per instrument (class as the Strumenti chip names it, a
+  composite with every leg; the instruments at zero counted, not listed) plus the email's composition and
+  allocation blocks for that month.
+- **Whose data**: `WIKI_EXPORT_UID` (the vault is one person's); without it the cron's phase 10 is off. The cron
+  exports the month on its last day only; that evening the month is NOT `parziale` (the email's rule), before it is.
+- A month without a snapshot is skipped and named in the log line (`ok · senza snapshot: …`), never written empty.
+
 ## Verifying a surface with no DOM
 
 Moved here whole from `AGENTS.md` → *Commands* on 2026-09-20; the bullet «Verifying it means rendering it» above is the

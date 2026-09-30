@@ -802,6 +802,52 @@ function formatExpenseSplitForPrompt(emailData: MonthlyEmailData, label: string)
 }
 
 /**
+ * The period's numbers as the email's model reads them: the assistant's numeric block over the
+ * email's window (allocation omitted), then the sections measured with the pages' rules (F1b),
+ * the comparisons, the category deltas, the Hall of Fame, the budget alerts and the split.
+ *
+ * One function for two readers: the prompt below, and the vault's `dati/<AAAA-MM>.md`
+ * (lib/server/wiki/vaultExport.ts, doc/ai-open-models-wiki.md § 6.1) — so a question asked on
+ * the vault and the email's comment can never start from two different readings of a month.
+ */
+export function buildEmailDataSections(
+  emailData: MonthlyEmailData,
+  comparison: PeriodComparison,
+  bundle: AssistantMonthContextBundle
+): string[] {
+  const label = periodTitle(emailData);
+  return [
+    formatBundleForPrompt(bundle, label, { omitAllocation: true }),
+    ...formatDriversForPrompt(emailData),
+    ...formatPeriodReturnForPrompt(emailData),
+    ...formatCompositionForPrompt(emailData),
+    ...formatAllocationForPrompt(emailData),
+    ...formatClassMovesForPrompt(emailData),
+    ...formatTradesForPrompt(emailData),
+    // The dividend registry is a different source from the cashflow rows above (which only
+    // see dividends the user also booked as income): naming the source is what keeps the
+    // two figures from reading as a contradiction.
+    `--- DIVIDENDI DEL PERIODO (registro dividendi) ---`,
+    `Incassati: ${formatEur(emailData.dividendTotal)} lordi in ${emailData.dividendCount} pagament${emailData.dividendCount === 1 ? 'o' : 'i'}.`,
+    '',
+    formatComparisonForPrompt('CONFRONTO COL PERIODO PRECEDENTE', comparison.vsPrevious),
+    '',
+    ...(comparison.previousEqualsYoy
+      ? []
+      : [formatComparisonForPrompt("CONFRONTO CON LO STESSO PERIODO DELL'ANNO PRECEDENTE", comparison.vsYoy), '']),
+    ...formatCategoryDeltasForPrompt(emailData, comparison),
+    ...formatHallOfFameForPrompt(emailData),
+    ...formatBudgetAlertsForPrompt(emailData),
+    ...formatExpenseSplitForPrompt(emailData, label),
+  ];
+}
+
+/** Composition and Allocazione at the period's end: the vault's `dati/portafoglio.md` reads them. */
+export function buildEmailPortfolioSections(emailData: MonthlyEmailData): string[] {
+  return [...formatCompositionForPrompt(emailData), ...formatAllocationForPrompt(emailData)];
+}
+
+/**
  * Builds the prompt for the email AI comment.
  *
  * The body IS the assistant's own numeric block (`formatBundleForPrompt`) over a bundle
@@ -844,28 +890,7 @@ export function buildEmailAiPrompt(
     `Stai redigendo il commento di riepilogo per: ${label}.`,
     'Di seguito i dati del periodo, estratti in modo affidabile dal sistema. Le variazioni sono già calcolate: non ricalcolarle e non inventare numeri.',
     '',
-    formatBundleForPrompt(bundle, label, { omitAllocation: true }),
-    ...formatDriversForPrompt(emailData),
-    ...formatPeriodReturnForPrompt(emailData),
-    ...formatCompositionForPrompt(emailData),
-    ...formatAllocationForPrompt(emailData),
-    ...formatClassMovesForPrompt(emailData),
-    ...formatTradesForPrompt(emailData),
-    // The dividend registry is a different source from the cashflow rows above (which only
-    // see dividends the user also booked as income): naming the source is what keeps the
-    // two figures from reading as a contradiction.
-    `--- DIVIDENDI DEL PERIODO (registro dividendi) ---`,
-    `Incassati: ${formatEur(emailData.dividendTotal)} lordi in ${emailData.dividendCount} pagament${emailData.dividendCount === 1 ? 'o' : 'i'}.`,
-    '',
-    formatComparisonForPrompt('CONFRONTO COL PERIODO PRECEDENTE', comparison.vsPrevious),
-    '',
-    ...(comparison.previousEqualsYoy
-      ? []
-      : [formatComparisonForPrompt("CONFRONTO CON LO STESSO PERIODO DELL'ANNO PRECEDENTE", comparison.vsYoy), '']),
-    ...formatCategoryDeltasForPrompt(emailData, comparison),
-    ...formatHallOfFameForPrompt(emailData),
-    ...formatBudgetAlertsForPrompt(emailData),
-    ...formatExpenseSplitForPrompt(emailData, label),
+    ...buildEmailDataSections(emailData, comparison, bundle),
   ].join('\n');
 
   return {

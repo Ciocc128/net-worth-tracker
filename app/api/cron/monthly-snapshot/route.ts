@@ -22,6 +22,7 @@ import { captureBudgetHistory } from '@/lib/server/budgetHistoryService';
 import { verifyCronSecret } from '@/lib/server/apiAuth';
 import { createVaultClient, readVaultConfig } from '@/lib/server/wiki/githubVault';
 import { retryPendingTheBull } from '@/lib/server/wiki/thebullCompiler';
+import { exportToVault } from '@/lib/server/wiki/vaultExport';
 
 /**
  * GET /api/cron/monthly-snapshot
@@ -386,6 +387,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Phase 10: The month's numbers to the vault's dati/ (last day of the month only; doc/
+    // ai-open-models-wiki.md § 6.1). One owner, WIKI_EXPORT_UID; off without it; non-fatal.
+    let vaultExportSummary: { written: string[]; skipped: string[] } | null = null;
+    const exportUid = process.env.WIKI_EXPORT_UID;
+    if (vaultConfig && exportUid && isLastDayOfMonthItaly(now)) {
+      try {
+        const { written, skipped } = await exportToVault(exportUid, [getItalyMonthYear(now)], { vault: createVaultClient(vaultConfig) });
+        vaultExportSummary = { written, skipped };
+        console.log('[cron] vault export', vaultExportSummary);
+      } catch (exportError) {
+        console.error('[cron] vault export failed (non-blocking):', exportError);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Monthly snapshots job completed`,
@@ -402,6 +417,7 @@ export async function GET(request: NextRequest) {
       goalEvaluationSummary: goalEvaluationResults,
       budgetHistorySummary,
       wikiRetrySummary,
+      vaultExportSummary,
     });
   } catch (error) {
     console.error('Error in monthly snapshot cron job:', error);

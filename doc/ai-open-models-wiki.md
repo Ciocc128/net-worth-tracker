@@ -89,7 +89,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F1b — Email allineate all'app** ✔ | Prima di F2 (§4.4): verdetto, tile e prompt leggono il Driver dello Storico, l'Allocazione sulla base allocata (regola 5/25), mercato e acquisti per classe, le operazioni e il TWR di Rendimenti. Budget di uscita dal contratto, con il ragionamento a parte (§4.5). |
 | **F2 — Eval rapido** ✔ | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione — **GLM 5.3 Flash**, 2026-09-28 (§7.2). |
 | **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
-| **F4 — Il vault interrogabile** | Prime pagine Principi in sessione, export dei dati (§6.1), `CLAUDE.md` del vault (§6.2). Da qui il canale dell'abbonamento è completo. |
+| **F4 — Il vault interrogabile** | Export dei dati (✔ 2026-09-30, §6.1), `CLAUDE.md` del vault (✔ § 3.1 «I dati»), prime pagine Principi in sessione per intervista (✔ `allocazione-e-leva`, 2026-09-30; restano costi e fiscalità, comportamento, FIRE e obiettivi, liquidità e risparmio). Da qui il canale dell'abbonamento è completo. |
 | **F5 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4). |
 | **F6 — Eval completo** | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull. Sceglie il modello definitivo; se cambia, si ricompilano le pagine macro dai grezzi. |
 | **F7 — MCP (facoltativa)** | Server MCP in sola lettura (§6.3), solo se l'export risulta troppo vecchio nell'uso. |
@@ -340,15 +340,22 @@ mantenere nell'app.
 
 ### 6.1 Export dei dati
 
-`dati/<AAAA-MM>.md` e `dati/portafoglio.md`, generati dal server con i **builder del contesto che già
-esistono** (`buildAssistantMonthContext`, `buildAssistantYearContext`, `buildAssistantHistoryContext`)
-e resi in markdown da una funzione pura. Nessun LLM: sono numeri dell'app, non riassunti.
+`dati/<AAAA-MM>.md` e `dati/portafoglio.md`, scritti dal server in un commit con una riga in `log.md`. Nessun LLM:
+sono numeri dell'app, non riassunti.
 
-- **Quando:** a fine mese, nel cron che già produce lo snapshot mensile; e **a comando**, da un
-  pulsante in Impostazioni **[da decidere]** o da `npm run vault:export`.
-- **Cosa:** patrimonio e allocazione, flussi e spese per categoria, rendimenti del periodo, budget,
-  obiettivi — lo stesso perimetro del bundle dell'Assistente, niente di più.
-- La data di generazione in testa a ogni file, così chi legge sa quanto è vecchio.
+- **Da dove (decisione del 2026-09-30):** dal **blocco dati dell'email mensile** (`buildEmailDataSections`, estratto
+  da `buildEmailAiPrompt` senza cambiare il prompt), non dai builder dell'Assistente nominati prima: dopo F1b quelli
+  leggono ancora l'allocazione sul patrimonio intero e il mercato come residuo. Così vault, email e modello
+  dell'email leggono **una** versione di ogni mese. Resa in markdown da `lib/utils/vaultMarkdown.ts`.
+- **Quando:** l'ultimo giorno del mese, fase 10 del cron giornaliero (solo con `WIKI_EXPORT_UID`: il vault è di una
+  persona); e **a comando**, `npm run vault:export -- [AAAA-MM [AAAA-MM]]` (`--dry-run` stampa senza scrivere). Niente
+  pulsante in Impostazioni.
+- **Storico:** dal 2026-01 (scelta del proprietario). Primo export il 2026-09-30: nove mesi e il portafoglio,
+  commit `4a58d60` del vault.
+- **`portafoglio.md`:** l'ultimo snapshot per strumento (classe come la chip di Strumenti, i compositi con ogni
+  gamba; gli strumenti a zero contati, non elencati) più composizione e allocazione dell'email per quel mese.
+- La data di generazione nel frontmatter e nel testo; `parziale: true` per un mese ancora in corso (l'ultimo giorno
+  del mese non lo è, come per l'email).
 
 ### 6.2 `CLAUDE.md` del vault
 
@@ -519,7 +526,7 @@ GLM 5.3 Flash** per `EMAIL_PERIODIC` ed `EMAIL_WEEKLY_BUDGET`, provvisorio fino 
 | F1 | `lib/server/llm/{index,openrouter,anthropic}.ts`, `lib/constants/aiModels.ts`, le due email, il pulsante di Rendimenti |
 | F6 | `scripts/aiEval.mts` con i controlli del secondo giro (fatti macro, principi) |
 | F3 ✔ | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/{thebullParse,wikiMacro}.ts`, la fase 9 del cron, `scripts/wikiCompile.mts` (`npm run wiki:compile`), l'Apps Script `scripts/wiki/thebullIngest.gs`; test su una newsletter sintetica (`__tests__/thebullFixture.ts`); guida in `doc/guide/email-pdf.md` |
-| F4 | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, il cron mensile, `CLAUDE.md` del vault |
+| F4 ✔ | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, `buildEmailDataSections`/`buildEmailPortfolioSections` in `monthlyEmailService.ts`, la fase 10 del cron, `scripts/vaultExport.mts` (`npm run vault:export`), `CLAUDE.md` del vault |
 | F5 | `lib/server/wiki/wikiReader.ts`, i prompt in `monthlyEmailService.ts` e `weeklyBudgetEmailService.ts` |
 | Ogni fase | `doc/guide/email-pdf.md`, `CLAUDE.md` (Current Status, Data & Integrations), `SETUP.md` (`OPENROUTER_API_KEY`, `WIKI_INGEST_SECRET`, `WIKI_GITHUB_TOKEN`, `WIKI_GITHUB_REPO`) |
 

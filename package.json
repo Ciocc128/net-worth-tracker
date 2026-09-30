@@ -32,7 +32,8 @@
     "ai:estimate": "cross-env NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true NEXT_PUBLIC_FIREBASE_API_KEY=demo-key NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-net-worth NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-net-worth.firebaseapp.com FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth TZ=Europe/Rome tsx --conditions=react-server scripts/estimateAiTokens.mts",
     "ai:eval:freeze": "cross-env NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true NEXT_PUBLIC_FIREBASE_API_KEY=demo-key NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-net-worth NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-net-worth.firebaseapp.com FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-net-worth TZ=Europe/Rome tsx --conditions=react-server scripts/aiEval.mts freeze",
     "ai:eval": "tsx --env-file-if-exists=.env.local scripts/aiEval.mts",
-    "wiki:compile": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/wikiCompile.mts"
+    "wiki:compile": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/wikiCompile.mts",
+    "vault:export": "cross-env TZ=Europe/Rome tsx --env-file-if-exists=.env.local --conditions=react-server scripts/vaultExport.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
