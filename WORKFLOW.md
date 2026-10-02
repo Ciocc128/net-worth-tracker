@@ -38,6 +38,16 @@
    wording through the free-text answer («hai pagato», not «pagherai», for a tax the broker
    withholds at the sale).
 
+6. **Exception: cloud threads of the Net-Worth-Tracker project** (2026-10-02). Valid only for
+   sessions started from the project's threads on claude.ai; local sessions keep rules 1-5 and § 3
+   unchanged. In those threads: (a) rules 1 and 3 are relaxed: intermediate commits and pushes to
+   the thread's own branch need no per-commit approval, so the work survives a sandbox restart;
+   never push to `main`, never force-push or rewrite history. Opening the PR (always a draft),
+   taking it out of draft and merging still need the owner's approval. (b) rule 2 and § 3: the
+   branch starts from `main` of the fork and the PR targets `Ciocc128/net-worth-tracker:main`,
+   never upstream and not `develop`. (c) rule 5: there is no interactive question tool in the
+   cloud, so the question goes in the thread, one batch per topic, recommended option first.
+
 ---
 
 ## 2. Guided verification (*collaudo guidato*)
@@ -232,7 +242,8 @@ The app **is** locally runnable; there is no fallback to declare.
 ### Where things are recorded
 
 - **Branches**: `develop` is the integration branch, `main` the default; a session branches off
-  whatever is active (usually `develop`) and merges into it by PR.
+  whatever is active (usually `develop`) and merges into it by PR. Cloud project threads: see § 1
+  rule 6.
 - **The outcome of a verification**: `SESSION_NOTES.md` during the session (untracked — delete it
   before the commit); it is folded into `CLAUDE.md` (the "Latest" entry) and `Draft Release Temp.md`
   before the PR. **Before the closing prompt it ends with one block** (owner, 2026-09-27): *Cosa* (what
