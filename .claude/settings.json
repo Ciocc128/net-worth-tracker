@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx vitest run *)",
+      "Bash(TZ=Europe/Rome npx vitest run *)",
+      "Bash(npm test *)",
+      "Bash(npm run lint)",
+      "Bash(npx eslint app components lib types e2e scripts __tests__)",
+      "Bash(npx eslint app components lib types e2e scripts __tests__ *)"
+    ],
+    "deny": [
+      "Bash(git push)",
+      "Bash(git push origin)",
+      "Bash(git push main)",
+      "Bash(git push * main)",
+      "Bash(git push *:main)",
+      "Bash(git push * refs/heads/main)",
+      "Bash(git push *:refs/heads/main)",
+      "Bash(git push --force *)",
+      "Bash(git push * --force)",
+      "Bash(git push * --force *)",
+      "Bash(git push --force-with-lease*)",
+      "Bash(git push * --force-with-lease*)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f)",
+      "Bash(git push * -f *)",
+      "Bash(git push * +*)",
+      "Bash(git push upstream)",
+      "Bash(git push upstream *)",
+      "Bash(git push * upstream)",
+      "Bash(git push * upstream *)",
+      "Bash(git push *GiuseppeDM98*)",
+      "Bash(git push --delete *)",
+      "Bash(git push * --delete *)",
+      "Bash(git push -d *)",
+      "Bash(git push * -d *)",
+      "Bash(git push * :*)"
+    ]
+  }
+}
