@@ -2,7 +2,6 @@
 
 > **Per chi implementa (agente).** Questo dossier è la specifica vincolante delle task L1–L3. Le decisioni
 > funzionali (§ 3) prese con il proprietario sono **chiuse**: non riaprirle, non aggiungere funzionalità.
-> Le decisioni marcate «proposta» valgono solo dopo la conferma del proprietario, scritta in § 3 con la data.
 > Dove dossier e codice sembrano in contrasto, fermati e chiedi nel thread (WORKFLOW.md § 1 regola 6c).
 >
 > Base di codice analizzata: commit `2f87546` (03/10/2026, `main` del fork, merge della PR #39). Se `main` è
@@ -11,7 +10,8 @@
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; testo UI in italiano.
 >
 > Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` (§ 4, «Incoerenze tra le
-> schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto.
+> schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
+> della spec lo stesso giorno.
 
 ---
 
@@ -132,15 +132,15 @@ Allocazione ha target; altrimenti `weightsFromHoldings` (il portafoglio di oggi)
 quale dei due. **Un solo punto** li calcola per la pagina (§ 4.1); nessuna scheda chiama le due funzioni da sola.
 Il Monte Carlo resta l'unica scheda in cui i pesi si possono ritoccare per un'esecuzione (il seme è RP4).
 
-**RP5 — Capitale** (D4, proposta): `K` di RK (`computeSimulatedCapital`), al netto dei fondi pensione bloccati, per
+**RP5 — Capitale** (D4): `K` di RK (`computeSimulatedCapital`), al netto dei fondi pensione bloccati, per
 **tutte** le schede. Crypto e immobili (residenza compresa) restano fuori, dichiarati nella riga «Ipotesi usate»
 come oggi nel tile Parametri del Monte Carlo: «Fuori: Immobili 250.000 €, Crypto 5.000 €».
 
-**RP6 — Spesa** (D5, proposta): `spesa = plannedAnnualExpenses` di Impostazioni se impostata, altrimenti la spesa
+**RP6 — Spesa** (D5): `spesa = plannedAnnualExpenses` di Impostazioni se impostata, altrimenti la spesa
 del Cashflow di `getAnnualCashflowData` (ultimo anno intero, o anno in corso annualizzato). Una sola funzione
 pura `resolvePlanExpenses(settings, cashflowData)` restituisce importo e origine.
 
-**RP7 — Risparmio indicizzato** (D6, proposta): nel cammino deterministico e nel Ventaglio il risparmio dell'anno
+**RP7 — Risparmio indicizzato** (D6): nel cammino deterministico e nel Ventaglio il risparmio dell'anno
 `t` (t = 1, 2, …) è `S · (1 + π)^(t−1)`. Il primo anno resta `S`, quindi un orizzonte di un anno è identico a oggi.
 Coast tiene già il risparmio costante in euro reali: dopo RP7 Calcolatore e Coast danno lo stesso anno.
 
@@ -193,11 +193,11 @@ un portafoglio prudente scende.
 | D1 | **Presa** (03/10/2026) | **Fonte unica delle ipotesi.** Calcolatore, Coast, What If, Monte Carlo e Obiettivi leggono rendimento e inflazione dei tre scenari Orso/Base/Toro del **portafoglio target**, calcolati dalle ipotesi per classe di Impostazioni › Simulazioni. Conseguenze: `fireProjectionScenarios` non si legge più (§ 4.3); il Ventaglio passa dai pesi detenuti ai pesi target (RP4), rovesciando la scelta di default del dossier Monte Carlo § 3. | Numeri separati per scheda (il problema di oggi). |
 | D2 | **Presa** (03/10/2026) | **Numero per il Calcolatore**: per scenario il **rendimento composto atteso** del portafoglio (RP1), non la media aritmetica. I 2 scenari scritti a mano diventano i 3 del portafoglio. | Media aritmetica (anticipa l'anno FIRE: il drag di volatilità sparisce). |
 | D3 | **Presa** (03/10/2026), dettagli aperti | **Bootstrap storico** come seconda modalità del Monte Carlo, accanto alla parametrica, estraendo **blocchi di anni consecutivi**. Dettagli in § 3.1. | Estrarre anni singoli (perde le sequenze); sostituire la parametrica (resta l'unica con tre scenari). |
-| D4 | **Proposta** | **Capitale unico = `K`** (RP5) in tutte le schede: crypto e immobili, residenza compresa, fuori, dichiarati. L'interruttore «includi la casa di residenza» del Calcolatore sparisce dai Parametri (resta solo per lo storico del runway). | (b) Patrimonio FIRE ovunque, con crypto e immobili a rendimento reale zero anche nei motori stocastici: un compartimento non volatile da aggiungere al Monte Carlo e al Ventaglio, che non si preleva mai finché il resto basta; più codice e una regola di prelievo nuova. (c) Lasciare due capitali (l'incoerenza 3 resta). |
-| D5 | **Proposta** | **Spesa unica** (RP6): `plannedAnnualExpenses` di Impostazioni se impostata, altrimenti il Cashflow. La spesa personalizzata di Coast (`coastFireCustomExpenses`) migra una volta in `plannedAnnualExpenses` (se questa è vuota) e il suo interruttore sparisce. Il Monte Carlo si semina con la stessa cifra (oggi 30.000 € di ripiego). | Solo Cashflow (chi pianifica una spesa diversa in pensione non ha dove scriverla); una spesa per scheda (oggi). |
-| D6 | **Proposta** | **Risparmio indicizzato all'inflazione** (RP7) nel Calcolatore e nel Ventaglio, come già in Coast. | Nominale costante (oggi: si erode del 3% l'anno); un tasso di crescita del risparmio separato (un parametro in più, va con P2 se servirà). |
-| D7 | **Proposta** | **Rendimento reale con Fisher** (RP2) ovunque. | Sottrazione (oggi: sovrastima il reale di circa 0,1–0,3 punti e fa differire di un anno Coast e Calcolatore). |
-| D8 | **Proposta** | **Obiettivi**: il rendimento di un obiettivo è RP1 sullo scenario **Base**, con la sua allocazione consigliata se ne ha una (crypto e immobili tolti e il resto riscalato a 100, dichiarato), altrimenti con i pesi del portafoglio target. `GOAL_CLASS_RETURNS` e `DEFAULT_GOAL_RETURN` spariscono. Gli importi degli obiettivi restano nominali (nessuna inflazione). | Pesi del portafoglio target per tutti gli obiettivi (un fondo casa a 3 anni al 100% obbligazioni renderebbe come il portafoglio di lungo periodo); tre scenari anche negli Obiettivi (la scheda non ha una vista per scenari: nuovo design, fuori perimetro). |
+| D4 | **Presa** (03/10/2026) | **Capitale unico = `K`** (RP5) in tutte le schede: crypto e immobili, residenza compresa, fuori, dichiarati. L'interruttore «includi la casa di residenza» del Calcolatore sparisce dai Parametri (resta solo per lo storico del runway). | (b) Patrimonio FIRE ovunque, con crypto e immobili a rendimento reale zero anche nei motori stocastici: un compartimento non volatile da aggiungere al Monte Carlo e al Ventaglio, che non si preleva mai finché il resto basta; più codice e una regola di prelievo nuova. (c) Lasciare due capitali (l'incoerenza 3 resta). |
+| D5 | **Presa** (03/10/2026) | **Spesa unica** (RP6): `plannedAnnualExpenses` di Impostazioni se impostata, altrimenti il Cashflow. La spesa personalizzata di Coast (`coastFireCustomExpenses`) migra una volta in `plannedAnnualExpenses` (se questa è vuota) e il suo interruttore sparisce. Il Monte Carlo si semina con la stessa cifra (oggi 30.000 € di ripiego). | Solo Cashflow (chi pianifica una spesa diversa in pensione non ha dove scriverla); una spesa per scheda (oggi). |
+| D6 | **Presa** (03/10/2026) | **Risparmio indicizzato all'inflazione** (RP7) nel Calcolatore e nel Ventaglio, come già in Coast. | Nominale costante (oggi: si erode del 3% l'anno); un tasso di crescita del risparmio separato (un parametro in più, va con P2 se servirà). |
+| D7 | **Presa** (03/10/2026) | **Rendimento reale con Fisher** (RP2) ovunque. | Sottrazione (oggi: sovrastima il reale di circa 0,1–0,3 punti e fa differire di un anno Coast e Calcolatore). |
+| D8 | **Presa** (03/10/2026) | **Obiettivi**: il rendimento di un obiettivo è RP1 sullo scenario **Base**, con la sua allocazione consigliata se ne ha una (crypto e immobili tolti e il resto riscalato a 100, dichiarato), altrimenti con i pesi del portafoglio target. `GOAL_CLASS_RETURNS` e `DEFAULT_GOAL_RETURN` spariscono. Gli importi degli obiettivi restano nominali (nessuna inflazione). | Pesi del portafoglio target per tutti gli obiettivi (un fondo casa a 3 anni al 100% obbligazioni renderebbe come il portafoglio di lungo periodo); tre scenari anche negli Obiettivi (la scheda non ha una vista per scenari: nuovo design, fuori perimetro). |
 
 **Scelte di default prese dall'agente** (dichiarate, il proprietario può rovesciarle):
 - **Nome del dossier** `doc/fire-ipotesi/` (proposta del coordinatore): coerente con `doc/montecarlo/`, nomina
@@ -215,8 +215,6 @@ un portafoglio prudente scende.
 
 ### 3.1 Punti aperti
 
-- **D4–D8** attendono la conferma del proprietario (domanda nel thread del 03/10/2026). Se una viene scartata, la
-  task che la contiene (§ 5) perde quella parte; nessun'altra cambia.
 - **D3, bootstrap storico** — da specificare dopo una **ricerca B0** (thread «ricerca»):
   - quali serie annuali delle sette classi si possono **salvare nella repo** (licenze di Damodaran, testfolio,
     S&P GSCI, DBMFSIM, UEQCSIM; le serie R0 sono in `/mnt/project-files/montecarlo/r0-dati/`);
@@ -298,7 +296,7 @@ Una `DeclarationRow` (The Declaration-Tile Rule) sopra il verdetto di ogni sched
 ## 5. Task
 
 Ogni task è un thread «impl» (Sonnet 5.5, regola del progetto), un branch da `main`, una PR in bozza verso
-`Ciocc128/net-worth-tracker:main`. L1 non dipende da D4–D8; L2 e L3 sì.
+`Ciocc128/net-worth-tracker:main`. L2 e L3 partono dopo il merge di L1.
 
 ### 5.1 L1 — Le ipotesi del portafoglio target in tutte le schede (D1, D2, D7, pulizia)
 
@@ -344,7 +342,7 @@ Modificati: `lib/services/fireService.ts`, `lib/services/whatIfService.ts`, `typ
 - `monteCarloService.test.ts`: il test di coerenza del Ventaglio resta verde (A2 a volatilità zero).
 - `fireAssumptionsNarrative.test.ts`: le tre letture (target, portafoglio di oggi, leva).
 
-### 5.2 L2 — Capitale, spesa e risparmio comuni (D4, D5, D6) — dopo la conferma e dopo L1
+### 5.2 L2 — Capitale, spesa e risparmio comuni (D4, D5, D6) — dopo L1
 
 **Cosa vede l'utente**
 - Calcolatore, Coast, What If partono da `K`; «Fuori: …» nella riga «Ipotesi usate». Sparisce l'interruttore della
@@ -368,7 +366,7 @@ Modificati: `lib/services/fireService.ts`, `lib/services/whatIfService.ts`, `typ
 **Test**: A11–A13, A17, A18; `useCoastFireSettingsDraft` senza spesa personalizzata; `settingsRoundTrip.test.ts`
 per la migrazione.
 
-### 5.3 L3 — Obiettivi sulle ipotesi comuni (D8) — dopo la conferma e dopo L1
+### 5.3 L3 — Obiettivi sulle ipotesi comuni (D8) — dopo L1
 
 - `goalTrajectory.ts`: `expectedAnnualReturn(allocation)` → `goalAnnualReturn(allocation, assumptions)` (RP1 sullo
   scenario Base, crypto e immobili tolti e riscalati, A14–A16); via `GOAL_CLASS_RETURNS` e `DEFAULT_GOAL_RETURN`.
@@ -404,7 +402,7 @@ thread «spec» aggiunge a questo dossier (o a `doc/montecarlo/README.md`) la ta
 | **Merge con upstream**: `fireService.ts`, `FireCalculatorTab.tsx`, `FireParametri.tsx`, `CoastFireTab.tsx`, `goalTrajectory.ts` sono di upstream. | Logica nuova in moduli nuovi (`fireAssumptions*`); le firme di `calculateFIREProjection` e Coast restano; RP7 come parametro con default neutro; voce in `fork-scelte-ui.md`. |
 | L'utente vede numeri diversi dal giorno dopo (Orso molto meno severo, § 2). | La riga «Ipotesi usate» e la nota una tantum sui tassi scritti a mano; il collaudo confronta prima e dopo sul mirror dei dati. |
 | RP1 è un'approssimazione. | Scarto misurato ≤ 0,02 punti (A8), dichiarato nel «Come si calcola». |
-| Con D4 chi ha molti immobili o crypto vede il progresso verso il FIRE calare. | È la scelta proposta e va confermata; la riga «Fuori: …» lo dice; P5 (affitti come reddito) è la risposta di lungo periodo. |
+| Con D4 chi ha molti immobili o crypto vede il progresso verso il FIRE calare. | Scelta del proprietario (D4); la riga «Fuori: …» lo dice; P5 (affitti come reddito) è la risposta di lungo periodo. |
 | I test esistenti cambiano attese (RP2, RP7). | Ogni attesa cambiata ha il calcolo nel commento; il test di coerenza del Ventaglio non cambia nella sostanza. |
 | Prestazioni: RP1 ricalcolata a ogni render. | 7×7 operazioni per scenario, memoizzata su target, assets e mercato. |
 
@@ -419,8 +417,8 @@ Alla fine di ogni task: `npx tsc --noEmit`, `npx eslint app components lib types
 | Ordine | Task | Prerequisito | Criterio di fine |
 | --- | --- | --- | --- |
 | 1 | L1 ipotesi del portafoglio target | — | A1–A10 verdi; nessun lettore di `fireProjectionScenarios`; la riga «Ipotesi usate» in quattro schede; coerenza del Ventaglio verde |
-| 2 | L2 capitale, spesa, risparmio | L1 unita, D4–D6 confermate | A11–A13, A17, A18 verdi |
-| 3 | L3 Obiettivi | L1 unita, D8 confermata | A14–A16 verdi; nessun lettore di `GOAL_CLASS_RETURNS` |
+| 2 | L2 capitale, spesa, risparmio | L1 unita | A11–A13, A17, A18 verdi |
+| 3 | L3 Obiettivi | L1 unita | A14–A16 verdi; nessun lettore di `GOAL_CLASS_RETURNS` |
 | — | B0 ricerca bootstrap | — (in parallelo) | file in Library con fonti e licenze |
 
 **Collaudo**: dopo ciascuna PR, su anteprima Vercel, una fase per messaggio con l'esito scritto prima
