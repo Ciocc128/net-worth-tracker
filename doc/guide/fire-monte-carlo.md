@@ -4,6 +4,10 @@
 
 ## FIRE › Monte Carlo — a verdict over tiles (`components/fire-simulations/MonteCarloTab.tsx`, `components/monte-carlo/*`, `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`)
 
+- **The weights are seeded from `useFireAssumptions`** (2026-10-03, doc/fire-ipotesi/README.md L1): the page's ONE reading of RP4 (Allocazione targets, else the
+  portfolio held, else 60/40) — the same the Calcolatore's Ventaglio now simulates. The two buttons «Importa dai target / dal portafoglio di oggi» keep their own seeds.
+  The «Ipotesi usate» line above the verdict says the weights' origin; it does not follow a hand edit (the Parametri tile says «a mano»).
+
 - The tab answers «quanto è probabile?» and computes nothing: `runMonteCarloSimulation` runs, `monteCarloSummary.ts` reads the run (the base
   scenario's horizon dated in years and in age, the first year the 10th percentile touches zero, the final percentiles of ALL simulations, the
   histogram with the median's bin, the three scenarios, the Dettaglio's overlay and percentile rows, the plan as typed), `monteCarloNarrative.ts`

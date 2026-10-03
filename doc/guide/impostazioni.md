@@ -99,6 +99,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `OptimizerPanel` (the PAC's Ottimizzato view) receive it as a prop from `app/dashboard/allocation/page.tsx`'s own
   `getSettings` call — a second independent load, same shape as the dashboard-overview/email sixth-and-seventh places
   above, because the Allocazione page already loads `settings` for `targets` and would otherwise fetch it twice.
+- **Simulazioni shows what the typed numbers do to the portfolio** (2026-10-03, doc/fire-ipotesi/README.md L1): `MonteCarloMarketTile` takes `portfolio`
+  (the weights of `useFireAssumptions`, from the SAVED targets) and prints «Il portafoglio target rende (composto): Orso · Base · Toro» with
+  `portfolioCompoundReturn` over the DRAFT, so a typed CAGR moves it at once. Read-only: it saves nothing.
 - **Third worked example, a nested object saved ONLY when its tab is dirty** (2026-10-03, Monte Carlo T1): `monteCarloMarket`
   (`MonteCarloMarketSettings`, doc/montecarlo/README.md § 4.2) — type, `getSettings`, both `setSettings` branches
   (`'monteCarloMarket' in settings`: `delete docData.…` / `deleteField()`), the page's `marketDraft` + origin + baseline
