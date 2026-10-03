@@ -21,7 +21,7 @@
 - **The form is strings, the run is numbers**: the tab owns `MonteCarloForm` (as FireParametri's form) and derives `MonteCarloParams` with
   `parseItalianNumber` (it-IT amounts, plain numbers, a hand-typed «12.5») and `formatInputAmount`; the «Totale / Liquido» shortcuts write the
   string. The seed happens ONCE (`didSeedRef`) from the portfolio net of the locked funds, `plannedAnnualExpenses` and
-  `computeSimulatedCapital` + `deriveMonteCarloWeights` (the ONE normalizer, shared with the Ventaglio; 60/40 when the seven classes hold nothing) — a refetch never
+  `computeSimulatedCapital` and the weights from `seedWeightsFromTargets` / `weightsFromHoldings` (T3: the Allocazione targets first, leverage included; 60/40 when nothing is held) — a refetch never
   clobbers a typed value. Until the seeded plan has run once the tab shows the `TileGridSkeleton`; a plan that cannot run shows the verdict
   («Monte Carlo non calcolabile.») over the Parametri tile alone.
 - **The market assumptions are DECLARED here, edited in Impostazioni › Simulazioni** (T1, 2026-10-03; The Declaration-Tile
@@ -47,6 +47,22 @@
   the shared params, so `haveRunInputsChanged` marks a saved matrix as stale. Measured 2026-10-03 (cloud container, 10.000
   paths × 3 scenarios × 50 years): ≈1,48 s without correlations, ≈1,51 s with them — the matrix costs about 2%; the dossier's
   «under half a second» estimate was not met, the cost is the draw itself (Box-Muller on 7 classes), not the matrix.
+- **Leverage, seed and the second Base run** (T3, 2026-10-03; README § 7): weights summing above 100% ARE the leverage (no separate
+  field, D8). `portfolioReturn(weights, returns, spread)` (`lib/utils/monteCarloDraw.ts`) applies R4: `Σ w·(1+r) − (W−1)·(1+c)`,
+  `c` = the Liquidità return drawn THAT year + `leverageSpread` (Impostazioni › Simulazioni, 2,0% default, R0 § 6); the debt term does
+  not exist at `W ≤ 1`, so the unleveraged result is identical float for float (A12). A year with `1 + r_p ≤ 0` fails the path with
+  `failureCause: 'leverage'`; the withdrawals running it out is `'withdrawals'` (`leverageFailureCount` on the results, carried by
+  `MonteCarloRun`). **A failed path keeps drawing to the end of the horizon** (`failRun`): every path consumes exactly 7 × 2 ×
+  years uniforms, which is what makes the shocks identical across scenarios and between the leveraged and the unleveraged run (A13) —
+  a «shortcut» that returns early on failure breaks the comparison. The tab is SEEDED: `MONTE_CARLO_SEED`
+  (`monteCarloParams.ts`), one fresh `createSeededRandom` per run, so two «Esegui» with the same inputs give the same figures. With
+  `Σw > 100` the Base runs again with `w/W` and `leverageSpread: 0` on the same shocks (`results.unleveragedBase`); the verdict reads
+  its success rate («Con leva 1,5× … senza leva, sugli stessi rendimenti, …»; the comparison has no tone — only the leveraged rate
+  does). The weights are seeded from the EFFECTIVE targets of Allocazione (`seedWeightsFromTargets`, R6, fed by
+  `resolveEffectiveTargets`), else from the notional held (`weightsFromHoldings`, also the Ventaglio's); the buttons «Usa i target» and
+  «Importa il portafoglio di oggi» reload either, typing marks them «a mano». The run is blocked below 100% and above 300%. Measured
+  2026-10-03 (cloud container, 10.000 paths × 50 years, default market): three scenarios ≈1,7 s unleveraged; with leverage 1,5× the
+  fourth (unleveraged) run is added, ≈2,2 s; at 2,5× ≈2,4 s.
 - **A legacy `monteCarloScenarios` is migrated at read, never rewritten** (R2): arithmetic mean → CAGR with the same mean and
   variance of `1+r`, the real-estate pair dropped, the classes the old field never knew take the defaults. The field stays in
   the document (upstream still writes it); `monteCarloMarket` wins as soon as it is saved. The Simulazioni tile says
@@ -89,9 +105,17 @@
 
 ## Per-page blind spots
 
+- **FIRE › Monte Carlo, leverage (T3)**: the leverage is CONSTANT and rebalanced every year (an ETF's, not a margin account's: a fixed
+  debt with maintenance margin is not modelled, README § 7.4), so a bad year cannot be «waited out» — a loss above the capital is
+  final (`leva` failure) even if the next years would have recovered. The cost of the debt is the drawn Liquidità return plus a
+  spread measured on a 2x ETF (2,0%), NOT a retail broker's. The Ventaglio floors a leveraged year at zero (the fan never fails)
+  and counts it as ruin in its retirement ledger. The target seed rescales the modelled classes by `100/(100 − t_crypto −
+  t_immobili)`, so with 5% targeted to crypto the other targets read a little higher than typed. The figures with and without
+  leverage share the seed, so their difference is the leverage and nothing else; a seed this fixed does not make the figure exact.
+
 - **FIRE › Monte Carlo, correlations (T2)**: they are annual and FIXED across the three scenarios, so a crisis does not raise
   them (in a real one they rise); on MONTHLY data Materie prime–Carry is about −0,58 against the −0,23 annual that the model
   uses. A matrix the reader types can be impossible (three classes all at −0,9): the Save adapts it and says which pairs
   moved, and the Monte Carlo reads the adapted one.
 
-- **FIRE › Monte Carlo**: the weights come from the portfolio today, so a portfolio with a lot of cash now simulates it at the Liquidità CAGR (3,37% default) instead of at the mix's return; real estate and crypto never enter, and the tile says so. No Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point — unlike the Calcolatore's fan, seeded since 2026-09-24) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); the «Esaurimento» view disappears with the toggle when a re-run fails nothing, and its shares are of all simulations, so its bars are short by construction on a plan that holds; `results.medianFinalValue` has no surface.
+- **FIRE › Monte Carlo**: the weights come from the portfolio today, so a portfolio with a lot of cash now simulates it at the Liquidità CAGR (3,37% default) instead of at the mix's return; real estate and crypto never enter, and the tile says so. No Playwright spec; the paths are seeded since T3 (two runs with the same inputs give the same figures, the seed is fixed and the Dettaglio says so) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); the «Esaurimento» view disappears with the toggle when a re-run fails nothing, and its shares are of all simulations, so its bars are short by construction on a plan that holds; `results.medianFinalValue` has no surface.

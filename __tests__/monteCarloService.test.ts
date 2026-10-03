@@ -568,3 +568,116 @@ describe('seven-class draws (T1)', () => {
     expect(Math.abs(medianGrowthPct - 7)).toBeLessThan(0.5);
   });
 });
+
+describe('leverage (T3, rule R4)', () => {
+  /** Equity at `equityCagr`, cash at `cashCagr`, everything else flat; no volatility. */
+  const market = (equityCagr: number, cashCagr: number): MonteCarloMarketScenario => ({
+    classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? equityCagr : cls === 'cash' ? cashCagr : 0, volatility: 0 })),
+    inflationRate: 0,
+  });
+  const leveraged = (equity: number): Record<MonteCarloClass, number> => monteCarloClassRecord((cls) => (cls === 'equity' ? equity : 0));
+
+  it('A10: equity 150%, cash 2%, spread 1%, equity 7% → r_p = 1,5·1,07 − 0,5·1,03 − 1 = 9,0%', () => {
+    const result = runMonteCarloSimulation(
+      makeDeterministicParams({ weights: leveraged(150), market: market(7, 2), leverageSpread: 1, annualWithdrawal: 0, retirementYears: 1 }),
+    );
+    expect(result.simulations[0].path[1].value).toBeCloseTo(1_090_000, 4);
+  });
+
+  it('A11: a year of equity −60% at leverage 2,5 with the debt at 4% wipes the capital out: ruin by leverage in year 1', () => {
+    // 1 + r_p = 2,5·0,40 − 1,5·1,04 = −0,56
+    const result = runMonteCarloSimulation(
+      makeDeterministicParams({ weights: leveraged(250), market: market(-60, 4), annualWithdrawal: 0, retirementYears: 5, numberOfSimulations: 3 }),
+    );
+    expect(result.successRate).toBe(0);
+    expect(result.leverageFailureCount).toBe(3);
+    for (const sim of result.simulations) {
+      expect(sim.failureCause).toBe('leverage');
+      expect(sim.failureYear).toBe(1);
+      expect(sim.finalValue).toBe(0);
+    }
+  });
+
+  it('a path the withdrawals run out is a failure by withdrawals, not by leverage', () => {
+    const result = runMonteCarloSimulation(makeDeterministicParams({ initialPortfolio: 100_000, annualWithdrawal: 60_000, retirementYears: 5, market: flatMarket(0) }));
+    expect(result.failureCount).toBe(result.simulations.length);
+    expect(result.leverageFailureCount).toBe(0);
+    expect(result.simulations[0].failureCause).toBe('withdrawals');
+  });
+
+  it('A12: at leverage 1 the spread is irrelevant, float for float, on the same seed', () => {
+    const base = makeDeterministicParams({
+      market: { classes: monteCarloClassRecord(() => ({ cagr: 6, volatility: 15 })), inflationRate: 2 },
+      weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 30 : cls === 'cash' ? 10 : 0)),
+      numberOfSimulations: 200,
+      retirementYears: 20,
+    });
+    const without = runMonteCarloSimulation({ ...base, random: createSeededRandom(5) });
+    const withSpread = runMonteCarloSimulation({ ...base, leverageSpread: 7, random: createSeededRandom(5) });
+    expect(withSpread.simulations).toEqual(without.simulations);
+    expect(withSpread.successRate).toBe(without.successRate);
+  });
+
+  it('A13: every path consumes the same number of uniforms whatever happens to it, so a leveraged run and an unleveraged one meet the same shocks', () => {
+    const counted = (weights: Record<MonteCarloClass, number>) => {
+      const rng = createSeededRandom(9);
+      let calls = 0;
+      const random = () => {
+        calls++;
+        return rng();
+      };
+      runMonteCarloSimulation(
+        makeDeterministicParams({
+          weights,
+          market: { classes: monteCarloClassRecord(() => ({ cagr: 5, volatility: 40 })), inflationRate: 0 },
+          annualWithdrawal: 80_000,
+          numberOfSimulations: 50,
+          retirementYears: 25,
+          random,
+        }),
+      );
+      return calls;
+    };
+    // 7 classes × 2 uniforms × 25 years × 50 paths, with ruin by leverage, ruin by withdrawals or neither.
+    expect(counted(leveraged(100))).toBe(7 * 2 * 25 * 50);
+    expect(counted(leveraged(250))).toBe(7 * 2 * 25 * 50);
+  });
+
+  it('with the same seed the leveraged and the unleveraged Base differ only by the leverage: scaling the weights back to 100 reproduces the unleveraged run', () => {
+    const volatile: MonteCarloMarketScenario = { classes: monteCarloClassRecord(() => ({ cagr: 6, volatility: 18 })), inflationRate: 2 };
+    const run = (weights: Record<MonteCarloClass, number>, spread: number) =>
+      runMonteCarloSimulation(makeDeterministicParams({ weights, market: volatile, leverageSpread: spread, numberOfSimulations: 500, retirementYears: 30, random: createSeededRandom(21) }));
+    const mix = (equity: number, cash: number) => monteCarloClassRecord((cls) => (cls === 'equity' ? equity : cls === 'cash' ? cash : 0));
+    const levered = run(mix(150, 0), 2);
+    const unlevered = run(mix(100, 0), 2);
+    const alsoUnlevered = run(mix(150 / 1.5, 0), 0);
+    expect(alsoUnlevered.simulations).toEqual(unlevered.simulations);
+    expect(levered.successRate).not.toBe(unlevered.successRate);
+  });
+
+  it('is reproducible: the same seed and parameters give the same results', () => {
+    const params = makeDeterministicParams({ weights: leveraged(150), market: { classes: monteCarloClassRecord(() => ({ cagr: 6, volatility: 20 })), inflationRate: 0 }, numberOfSimulations: 300, retirementYears: 25, annualWithdrawal: 40_000 });
+    const a = runMonteCarloSimulation({ ...params, random: createSeededRandom(3) });
+    const b = runMonteCarloSimulation({ ...params, random: createSeededRandom(3) });
+    expect(b.successRate).toBe(a.successRate);
+    expect(b.percentiles).toEqual(a.percentiles);
+  });
+
+  it('the Ventaglio floors a leveraged year at zero and counts it as ruin in the retirement ledger', () => {
+    const result = runAccumulationSimulation(
+      makeAccumulationParams({
+        initialPortfolio: 1_000_000,
+        annualSavings: 0,
+        annualExpenses: 1,
+        withdrawalRate: 4,
+        weights: leveraged(250),
+        market: market(-60, 4),
+        years: 3,
+        numberOfSimulations: 2,
+      }),
+    );
+    for (const path of result.paths) path.forEach((point) => expect(point.value).toBeGreaterThanOrEqual(0));
+    expect(result.paths[0][1].value).toBe(0);
+    expect(result.retirements[0]?.ruinYear).toBe(1);
+  });
+});

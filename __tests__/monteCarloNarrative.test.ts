@@ -21,6 +21,10 @@ vi.mock('firebase/firestore', () => ({
 import {
   buildMonteCarloVerdict,
   DETTAGLIO_DESCRIPTION,
+  describeAllocationTotal,
+  describeWeightsSource,
+  formatLeverage,
+  resolveAllocationTotalState,
   describeDistribuzione,
   describeDistribuzioneAside,
   describeDistribuzioneFooter,
@@ -321,5 +325,53 @@ describe('Ipotesi di mercato nel tile Parametri', () => {
     expect(plain(describeExcludedRow({ realestate: 0, crypto: 5000 })!)).toBe('Fuori dalla simulazione: Crypto 5000 €.');
     expect(describeExcludedRow({ realestate: 0, crypto: 0 })).toBeNull();
     expect(describeExcludedRow(null)).toBeNull();
+  });
+});
+
+describe('leverage (T3)', () => {
+  it('the verdict adds the comparison with and without leverage, in the tone of the leveraged run', () => {
+    const run = makeRun({ successRate: 87, leverage: 1.5 });
+    const verdict = buildMonteCarloVerdict({ runnable: true, run, scenarios: null, lock: INACTIVE_LOCK, unleveragedSuccessRate: 94 });
+    expect(plain(verdict.sentence)).toContain("Con leva 1,5× il piano regge nell'87% delle simulazioni; senza leva, sugli stessi rendimenti, nel 94%.");
+    expect(verdict.tone).toBe('warning');
+  });
+
+  it('the verdict has no leverage sentence without leverage', () => {
+    const verdict = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK, unleveragedSuccessRate: null });
+    expect(plain(verdict.sentence)).not.toContain('leva');
+  });
+
+  it('the Probabilità footer splits the failures by cause only when some are leverage ruin', () => {
+    const withLeverage = plain(describeProbabilitaFooter(makeRun({ failureCount: 1300, leverageFailureCount: 420 }), INACTIVE_LOCK));
+    expect(withLeverage).toContain('Dei 1300 fallimenti, 420 per rovina da leva (una perdita annua oltre il capitale), 880 per prelievi.');
+    expect(plain(describeProbabilitaFooter(makeRun(), INACTIVE_LOCK))).not.toContain('rovina da leva');
+  });
+
+  it('the Esaurimento footer names the colour of the leverage segment only when there is one', () => {
+    expect(plain(describeEsaurimentoFooter(makeRun({ leverageFailureCount: 3 })))).toContain('rovina da leva');
+    expect(plain(describeEsaurimentoFooter(makeRun()))).not.toContain('leva');
+  });
+
+  it('the total of the weights reads leverage above 100% and blocks under 100% and over 300%', () => {
+    expect(plain(describeAllocationTotal(100))).toBe('Totale 100%');
+    expect(plain(describeAllocationTotal(150))).toBe('Totale 150% · leva 1,5×');
+    expect(plain(describeAllocationTotal(85))).toBe('Totale 85%: deve arrivare ad almeno 100%');
+    expect(plain(describeAllocationTotal(340))).toBe('Totale 340%: leva oltre 3×');
+    expect(['below', 'plain', 'leveraged', 'above']).toEqual([85, 100, 150, 340].map(resolveAllocationTotalState));
+    expect(resolveAllocationTotalState(300)).toBe('leveraged');
+  });
+
+  it('says where the weights come from', () => {
+    expect(plain(describeWeightsSource({ origin: 'targets', leverage: 1.5, hasTargets: true }))).toBe('Dai target di Allocazione, leva 1,5×.');
+    expect(plain(describeWeightsSource({ origin: 'holdings', leverage: 1.32, hasTargets: true }))).toBe('Dal portafoglio di oggi, leva 1,32×.');
+    expect(plain(describeWeightsSource({ origin: 'holdings', leverage: 1, hasTargets: false }))).toBe('Nessun target configurato in Allocazione: parti dal portafoglio di oggi.');
+    expect(plain(describeWeightsSource({ origin: 'edited', leverage: 1, hasTargets: true }))).toBe('Pesi modificati a mano.');
+    expect(formatLeverage(2)).toBe('2×');
+  });
+
+  it('declares the price of the debt on the market line only with leverage', () => {
+    const market = { origin: 'default' as const, editedClasses: [], leverageSpread: 2 };
+    expect(plain(describeMarketDeclaration(market, 1.5))).toContain('Il debito costa la liquidità dell’anno più 2%.');
+    expect(plain(describeMarketDeclaration(market, 1))).not.toContain('debito');
   });
 });

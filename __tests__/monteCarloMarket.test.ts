@@ -133,3 +133,18 @@ describe('correlations (T2)', () => {
     expect(countEditedCorrelations(MONTE_CARLO_DEFAULT_CORRELATIONS)).toBe(0);
   });
 });
+
+describe('leverage spread (T3)', () => {
+  const scenarios = getDefaultMonteCarloMarket().scenarios;
+
+  it('resolves to the 2,0% default when nothing is saved, and to the saved value otherwise', () => {
+    expect(resolveMonteCarloMarket({}).leverageSpread).toBe(2);
+    expect(resolveMonteCarloMarket({ monteCarloMarket: { ...getDefaultMonteCarloMarket(), leverageSpread: 3.5 } }).leverageSpread).toBe(3.5);
+    expect(resolveMonteCarloMarket({ monteCarloMarket: { ...getDefaultMonteCarloMarket(), leverageSpread: Number.NaN } }).leverageSpread).toBe(2);
+  });
+
+  it('is written only when it differs from the default', () => {
+    expect(toMonteCarloMarketSettings(scenarios, null, undefined, 2)).not.toHaveProperty('leverageSpread');
+    expect(toMonteCarloMarketSettings(scenarios, null, undefined, 3).leverageSpread).toBe(3);
+  });
+});

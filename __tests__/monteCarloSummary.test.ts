@@ -355,3 +355,33 @@ describe('parseItalianNumber / formatInputAmount', () => {
     expect(formatInputAmount(9500)).toBe('9500');
   });
 });
+
+describe('summarizeMonteCarloRun — leverage (T3)', () => {
+  const failed = (id: number, failureYear: number, failureCause: 'withdrawals' | 'leverage') => ({ simulationId: id, success: false, failureYear, failureCause, finalValue: 0, path: [{ year: 0, value: 488600 }] });
+
+  it('carries the leverage of the weights and the failures by cause, the leverage ones counted apart in each year bin', () => {
+    const results = makeResults({
+      leverageFailureCount: 1,
+      failureCount: 2,
+      simulations: [failed(0, 20, 'leverage'), failed(1, 22, 'withdrawals')],
+      failureAnalysis: { averageFailureYear: 21, medianFailureYear: 22 },
+    });
+    const run = summarizeMonteCarloRun(results, makeParams({ weights: weightsOf({ equity: 90, bonds: 60 }), numberOfSimulations: 2 }), CTX);
+    expect(run.leverage).toBeCloseTo(1.5, 10);
+    expect(run.leverageFailureCount).toBe(1);
+    expect(run.failureYearBins.map((bin) => bin.leverageCount)).toEqual([1, 0, 0]);
+  });
+
+  it('has leverage 1 and no leverage segment without leverage', () => {
+    const results = makeResults({ simulations: [{ simulationId: 0, success: false, failureYear: 20, failureCause: 'withdrawals', finalValue: 0, path: [{ year: 0, value: 1 }] }], failureCount: 1 });
+    const run = summarizeMonteCarloRun(results, makeParams({ numberOfSimulations: 1 }), CTX);
+    expect(run.leverage).toBe(1);
+    expect(run.failureYearBins[0]).not.toHaveProperty('leverageCount');
+  });
+
+  it('a change of the leverage spread makes the last run stale', () => {
+    const inputs = (spread: number): MonteCarloRunInputs => ({ params: makeParams({ leverageSpread: spread }), scenarios: defaultScenarios(), inflows: [] });
+    expect(haveRunInputsChanged(inputs(2), inputs(2))).toBe(false);
+    expect(haveRunInputsChanged(inputs(2), inputs(3))).toBe(true);
+  });
+});
