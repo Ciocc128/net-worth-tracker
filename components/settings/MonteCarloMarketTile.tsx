@@ -22,6 +22,8 @@ import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass } f
 import { MONTE_CARLO_CLASS_SOURCES, getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
 import { type MonteCarloScenarioKey } from '@/lib/utils/monteCarloMarket';
 import { toLogNormal } from '@/lib/utils/monteCarloDraw';
+import { portfolioCompoundReturn, type FireWeightsOrigin } from '@/lib/utils/fireAssumptions';
+import { formatPercentageIt } from '@/lib/utils/formatters';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -49,9 +51,17 @@ interface MonteCarloMarketTileProps {
   commoditySubCategories: string[];
   /** The sub-category in force: the draft's, or the one the default rule finds. */
   effectiveGoldSubCategory: string | null;
+  /** The weights the FIRE page simulates (targets of Allocazione, else the portfolio held): the tile shows what they return on the typed numbers. */
+  portfolio?: { weights: Record<MonteCarloClass, number>; origin: FireWeightsOrigin } | null;
   disabled?: boolean;
   className?: string;
 }
+
+const PORTFOLIO_SUBJECT: Record<FireWeightsOrigin, string> = {
+  targets: 'Il portafoglio target rende',
+  holdings: 'Il portafoglio di oggi rende',
+  default: 'Un portafoglio 60/40 rende',
+};
 
 const SCENARIO_OPTIONS: { value: MonteCarloScenarioKey; label: string }[] = [
   { value: 'bear', label: 'Orso' },
@@ -124,6 +134,7 @@ export function MonteCarloMarketTile({
   onDraftChange,
   commoditySubCategories,
   effectiveGoldSubCategory,
+  portfolio,
   disabled,
   className,
 }: MonteCarloMarketTileProps) {
@@ -158,6 +169,21 @@ export function MonteCarloMarketTile({
           Ripristina default · {scenarioLabel}
         </Button>
       </div>
+
+      {portfolio ? (
+        <p className="mt-3 text-[13px] text-muted-foreground" data-testid="mc-market-portfolio-return">
+          {PORTFOLIO_SUBJECT[portfolio.origin]} (composto):{' '}
+          {SCENARIO_OPTIONS.map((option, index) => {
+            const { cagr } = portfolioCompoundReturn(portfolio.weights, draft.scenarios[option.value], draft.correlations, draft.leverageSpread);
+            return (
+              <span key={option.value}>
+                {index > 0 ? ' · ' : ''}
+                {option.label} <span className="font-mono font-medium tabular-nums text-foreground">{formatPercentageIt(Math.round(cagr * 10) / 10, 1)}</span>
+              </span>
+            );
+          })}
+        </p>
+      ) : null}
 
       <div className="mt-4 flex flex-col" role="group" aria-label={`Ipotesi dello scenario ${scenarioLabel}`}>
         <div className="grid grid-cols-[minmax(0,1.6fr)_1fr_1fr_1fr] items-end gap-2 pb-1.5 text-[10px] text-muted-foreground">

@@ -243,7 +243,7 @@ export function FireParametri({
 
           {/* Scenari (6) */}
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
-            <Tile eyebrow="Scenari" aside="rendimento composto annuo, %" reading={describeScenarioParams()} ariaLabel="Ipotesi degli scenari">
+            <Tile eyebrow="Scenari" aside="rendimento composto annuo, %" reading={describeScenarioParams()} ariaLabel="Parametri degli scenari">
               {assumptions ? (
                 <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {SCENARIO_META.map(({ key, label, icon: Icon }) => {
