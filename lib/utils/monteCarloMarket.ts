@@ -15,7 +15,7 @@ import type {
   MonteCarloScenarioParams,
 } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
-import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket, MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD } from '@/lib/constants/monteCarloMarketDefaults';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 import { cagrFromArithmeticMean } from './monteCarloDraw';
 import { pairCount } from './correlationMatrix';
@@ -33,6 +33,8 @@ export interface ResolvedMonteCarloMarket {
   correlations: number[];
   /** `saved` = the document carries its own matrix; `default` = the research's. */
   correlationOrigin: 'saved' | 'default';
+  /** Percent added to the Liquidità return to price the debt of a leveraged portfolio (R4; saved, else the default). */
+  leverageSpread: number;
   /** Where the numbers come from, for the tile's reading. */
   origin: MonteCarloMarketOrigin;
   /** Classes whose numbers differ from the defaults, per scenario-agnostic count (for «modificate in N classi»). */
@@ -141,11 +143,14 @@ export function resolveMonteCarloMarket(
     Array.isArray(savedCorrelations) && savedCorrelations.length === pairCount(MONTE_CARLO_CLASSES.length) && savedCorrelations.every(isFiniteNumber);
   const correlations = hasSavedCorrelations ? [...savedCorrelations] : getDefaultMonteCarloCorrelations();
 
+  const leverageSpread = isFiniteNumber(saved?.leverageSpread) ? saved.leverageSpread : MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD;
+
   return {
     scenarios,
     goldSubCategory,
     correlations,
     correlationOrigin: hasSavedCorrelations ? 'saved' : 'default',
+    leverageSpread,
     origin,
     editedClasses: origin === 'default' ? [] : countEditedClasses(scenarios),
   };
@@ -156,11 +161,20 @@ export function toMonteCarloMarketSettings(
   scenarios: MonteCarloMarketSettings['scenarios'],
   goldSubCategory: string | null,
   correlations?: readonly number[],
+  leverageSpread?: number,
 ): MonteCarloMarketSettings {
   // The matrix is written only when it differs from the defaults, so a later improvement of the
   // defaults reaches whoever never touched it.
   const custom = correlations && countEditedCorrelations(correlations) > 0;
-  return { version: 1, scenarios, goldSubCategory, ...(custom ? { correlations: [...correlations] } : {}) };
+  // The spread follows the same rule: written only when it differs from the default.
+  const customSpread = leverageSpread !== undefined && leverageSpread !== MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD;
+  return {
+    version: 1,
+    scenarios,
+    goldSubCategory,
+    ...(custom ? { correlations: [...correlations] } : {}),
+    ...(customSpread ? { leverageSpread } : {}),
+  };
 }
 
 /**

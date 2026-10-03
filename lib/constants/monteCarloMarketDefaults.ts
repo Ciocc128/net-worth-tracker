@@ -120,6 +120,13 @@ export const MONTE_CARLO_CORRELATIONS_SOURCE = {
   note: 'Dati annuali: su dati mensili Materie prime–Carry vale circa −0,58 contro −0,23. Il modello è annuale.',
 } as const;
 
+/**
+ * Default spread of the leverage, percent (README § 2.3, R0 § 6): the debt of a leveraged portfolio costs the
+ * Liquidità return of the year plus this. Measured as the implicit cost of a 2x UCITS ETF over €STR, 2020–2025,
+ * about 2,0% a year; a retail broker's spread was not measured (R0 § 8), so this stands for it.
+ */
+export const MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD = 2;
+
 /** A fresh copy every call — the caller may edit it. */
 export function getDefaultMonteCarloCorrelations(): number[] {
   return [...MONTE_CARLO_DEFAULT_CORRELATIONS];

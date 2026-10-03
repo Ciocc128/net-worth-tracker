@@ -546,8 +546,11 @@ export interface MonteCarloParams {
   // Retirement duration
   retirementYears: number;
 
-  // Weights per Monte Carlo class, percent (T1-T2: they sum to 100).
+  // Weights per Monte Carlo class, percent. They sum to 100 or more: a sum above 100 is leverage
+  // (T3, rule R4), financed at the drawn Liquidità return plus `leverageSpread`.
   weights: Record<MonteCarloClass, number>;
+  // T3: percent added to the Liquidità return to price the debt; absent = no spread.
+  leverageSpread?: number;
 
   // Withdrawal settings
   annualWithdrawal: number;
@@ -590,6 +593,8 @@ export interface SingleSimulationResult {
   simulationId: number;
   success: boolean;
   failureYear?: number;
+  // Why a failed path failed: the withdrawals ran the capital out, or a year's loss exceeded it (leverage, R4).
+  failureCause?: 'withdrawals' | 'leverage';
   finalValue: number;
   path: SimulationPath[];
 }
@@ -607,6 +612,8 @@ export interface MonteCarloResults {
   successRate: number;
   successCount: number;
   failureCount: number;
+  // How many of the failures are leverage ruin (a loss above the capital); the rest ran out by withdrawals.
+  leverageFailureCount: number;
   medianFinalValue: number;
   percentiles: PercentilesData[];
   failureAnalysis: {

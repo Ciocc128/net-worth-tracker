@@ -329,7 +329,7 @@ function idealAllocationSnapshotValue(settings: IdealAllocationSettings) {
 // Dirty-state value of the Simulazioni draft: the three scenarios as typed and the Oro choice
 // (`undefined` = never chosen, kept apart from an explicit «Nessuna» = null).
 function marketSnapshotKey(draft: MonteCarloMarketDraft | null): string {
-  return draft ? JSON.stringify({ scenarios: draft.scenarios, goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory, correlations: draft.correlations }) : '';
+  return draft ? JSON.stringify({ scenarios: draft.scenarios, goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory, correlations: draft.correlations, leverageSpread: draft.leverageSpread }) : '';
 }
 
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
@@ -895,6 +895,7 @@ export default function SettingsPage() {
         scenarios: resolvedMarket.scenarios,
         goldSubCategory: settingsData?.monteCarloMarket ? settingsData.monteCarloMarket.goldSubCategory : undefined,
         correlations: resolvedMarket.correlations,
+        leverageSpread: resolvedMarket.leverageSpread,
       };
       setMarketDraft(loadedMarketDraft);
       setMarketOrigin(resolvedMarket.origin);
@@ -1574,10 +1575,10 @@ export default function SettingsPage() {
     let correctedCorrelations: number[] | null = null;
     if (marketDirty && marketDraft) {
       // Out-of-range pairs are reported by name before R5 gets to hide them by correcting.
-      const rangeProblems = findMonteCarloMarketProblems({ ...toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory), correlations: marketDraft.correlations });
+      const rangeProblems = findMonteCarloMarketProblems({ ...toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory), correlations: marketDraft.correlations, leverageSpread: marketDraft.leverageSpread });
       // R5: a matrix that is not valid is replaced by the nearest valid one, at full precision.
       correctedCorrelations = correctUpperTriangle(marketDraft.correlations, MONTE_CARLO_CLASSES.length);
-      marketPayload = toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory, correctedCorrelations);
+      marketPayload = toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory, correctedCorrelations, marketDraft.leverageSpread);
       const marketProblems = rangeProblems;
       if (marketProblems.length > 0) {
         handleTabChange('simulazioni');
@@ -1689,7 +1690,7 @@ export default function SettingsPage() {
       }
       if (marketPayload && marketDraft) {
         // The Oro choice is now explicit in the document: the draft says so, and stays clean.
-        const writtenMarketDraft: MonteCarloMarketDraft = { scenarios: marketDraft.scenarios, goldSubCategory: marketPayload.goldSubCategory, correlations: correctedCorrelations ?? marketDraft.correlations };
+        const writtenMarketDraft: MonteCarloMarketDraft = { scenarios: marketDraft.scenarios, goldSubCategory: marketPayload.goldSubCategory, correlations: correctedCorrelations ?? marketDraft.correlations, leverageSpread: marketDraft.leverageSpread };
         setMarketDraft(writtenMarketDraft);
         setMarketBaselineKey(marketSnapshotKey(writtenMarketDraft));
         setMarketOrigin('saved');

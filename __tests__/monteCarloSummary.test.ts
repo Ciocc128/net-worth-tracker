@@ -70,6 +70,7 @@ function makeResults(overrides: Partial<MonteCarloResults> = {}): MonteCarloResu
     successRate: 84.21,
     successCount: 8421,
     failureCount: 1579,
+    leverageFailureCount: 0,
     medianFinalValue: 640000,
     percentiles: makePercentiles(35, 27),
     failureAnalysis: { averageFailureYear: 24.4, medianFailureYear: 26 },

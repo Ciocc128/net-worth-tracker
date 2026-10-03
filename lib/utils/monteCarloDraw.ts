@@ -125,9 +125,26 @@ export function drawYear(plan: DrawPlan, random: () => number = Math.random): nu
   return out;
 }
 
-/** R3: `1 + r_p = Σ w_i·(1 + r_i)` with the weights in percent. Returns `r_p` as a decimal. */
-export function portfolioReturn(weightsPct: number[], returns: number[]): number {
+/** Index of the Liquidità class in the draw: the funding rate of the leverage reads its return (R4). */
+const CASH_INDEX = MONTE_CARLO_CLASSES.indexOf('cash');
+
+/** `W = Σw / 100`, the leverage of a weight vector in percent; 1 when it sums to 100 or less. */
+export function weightsLeverage(weightsPct: readonly number[]): number {
+  let sum = 0;
+  for (const weight of weightsPct) sum += weight;
+  return sum > 100 + 1e-9 ? sum / 100 : 1;
+}
+
+/**
+ * R3 + R4: `1 + r_p = Σ w_i·(1 + r_i) − (W − 1)·(1 + c)` with the weights in percent, `W = Σw/100` and
+ * `c` the Liquidità return drawn this year plus `leverageSpreadPct` (percent). The debt term exists only
+ * when `W > 1`: at `W ≤ 1` the result is the plain weighted return, float for float (A12).
+ * Returns `r_p` as a decimal; `−1` or less means the capital is wiped out (the engines call it «leva»).
+ */
+export function portfolioReturn(weightsPct: number[], returns: number[], leverageSpreadPct = 0): number {
   let growth = 0;
   for (let i = 0; i < returns.length; i++) growth += (weightsPct[i] / 100) * (1 + returns[i]);
+  const leverage = weightsLeverage(weightsPct);
+  if (leverage > 1) growth -= (leverage - 1) * (1 + returns[CASH_INDEX] + leverageSpreadPct / 100);
   return growth - 1;
 }
