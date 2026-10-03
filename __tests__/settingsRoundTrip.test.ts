@@ -16,6 +16,7 @@
  * __tests__/compareAllocations.test.ts.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
 
 vi.mock('@/lib/firebase/config', () => ({ db: {} }));
 vi.mock('@/lib/utils/authFetch', () => ({ authenticatedFetch: vi.fn() }));
@@ -48,6 +49,14 @@ const STORED_IDEAL_ALLOCATION: IdealAllocationSettings = {
   groupLimits: [{ id: 'group-1', label: 'Leva', assetIds: ['asset-1', 'asset-2'], maxPct: 20, priority: 'high' }],
 };
 
+/** Un mercato Monte Carlo con un numero diverso dal default per classe e uno scenario, e la scelta «Nessuna» per l'oro. */
+const STORED_MONTE_CARLO_MARKET = (() => {
+  const market = getDefaultMonteCarloMarket();
+  market.scenarios.base.classes.equity.cagr = 6.5;
+  market.scenarios.bear.classes.carry.volatility = 21;
+  return { ...market, goldSubCategory: null };
+})();
+
 /** Ogni valore è scelto per essere DIVERSO dal default, così un campo perso si vede. */
 const STORED_SETTINGS = {
   targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
@@ -65,6 +74,7 @@ const STORED_SETTINGS = {
   expenseSplitEnabled: true,
   spendingRolesEnabled: true,
   idealAllocation: STORED_IDEAL_ALLOCATION,
+  monteCarloMarket: STORED_MONTE_CARLO_MARKET,
   dividendCashAssetId: 'cash-1',
   transferFeeCategoryId: 'cat-fee',
   transferFeeSubCategoryId: 'sub-fee',
@@ -130,6 +140,12 @@ describe('getSettings — lettura', () => {
 
     expect(settings?.pensionInpsRetirementAge).toBe(68);
     expect(settings?.pensionRitaLongUnemployment).toBe(true);
+  });
+
+  it('returns monteCarloMarket instead of dropping it', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
   });
 
   it('returns idealAllocation instead of dropping it', async () => {
@@ -220,6 +236,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['dividendIncomeCategoryId', 'cat-1'],
     ['dividendIncomeSubCategoryId', 'sub-1'],
     ['idealAllocation', STORED_IDEAL_ALLOCATION],
+    ['monteCarloMarket', STORED_MONTE_CARLO_MARKET],
     ['dividendCashAssetId', 'cash-1'],
     ['transferFeeCategoryId', 'cat-fee'],
     ['transferFeeSubCategoryId', 'sub-fee'],
@@ -243,6 +260,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['dividendIncomeCategoryId', 'cat-1'],
     ['dividendIncomeSubCategoryId', 'sub-1'],
     ['idealAllocation', STORED_IDEAL_ALLOCATION],
+    ['monteCarloMarket', STORED_MONTE_CARLO_MARKET],
     ['dividendCashAssetId', 'cash-1'],
     ['transferFeeCategoryId', 'cat-fee'],
     ['transferFeeSubCategoryId', 'sub-fee'],
@@ -314,6 +332,14 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     expect(writtenPayload().spendingRolesEnabled).toBe(true);
   });
 
+  it('writes monteCarloMarket through both chains', async () => {
+    await setSettings('user-1', { monteCarloMarket: STORED_MONTE_CARLO_MARKET } as AssetAllocationSettings);
+    expect(writtenPayload().monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
+
+    await setSettings('user-1', { targets: TARGETS, monteCarloMarket: STORED_MONTE_CARLO_MARKET } as AssetAllocationSettings);
+    expect(writtenPayload().monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
+  });
+
   it('writes idealAllocation through both chains', async () => {
     await setSettings('user-1', { idealAllocation: STORED_IDEAL_ALLOCATION } as AssetAllocationSettings);
     expect(writtenPayload().idealAllocation).toEqual(STORED_IDEAL_ALLOCATION);
@@ -333,7 +359,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
 
   // Lo stesso per gli altri quattro campi svuotabili: qui si scrive con merge, quindi omettere
   // la chiave lascerebbe il valore vecchio — serve un deleteField() esplicito (2026-08-29).
-  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'dividendCashAssetId', 'transferFeeCategoryId', 'transferFeeSubCategoryId'])(
+  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'monteCarloMarket', 'dividendCashAssetId', 'transferFeeCategoryId', 'transferFeeSubCategoryId'])(
     'uses deleteField to clear %s, since omitting the key would keep it',
     async (field) => {
       await setSettings('user-1', { [field]: undefined } as unknown as AssetAllocationSettings);
@@ -342,7 +368,7 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     }
   );
 
-  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'dividendCashAssetId', 'transferFeeCategoryId', 'transferFeeSubCategoryId'])(
+  it.each(['userAge', 'riskFreeRate', 'dividendIncomeCategoryId', 'dividendIncomeSubCategoryId', 'idealAllocation', 'monteCarloMarket', 'dividendCashAssetId', 'transferFeeCategoryId', 'transferFeeSubCategoryId'])(
     'does not touch %s when the key is absent from the update',
     async (field) => {
       await setSettings('user-1', { costCentersEnabled: true } as AssetAllocationSettings);

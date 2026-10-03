@@ -13,7 +13,8 @@
  * Pure and Firestore-free; `lib/utils/monteCarloNarrative.ts` puts these numbers into words.
  */
 
-import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloResults, MonteCarloScenarios, PercentilesData } from '@/types/assets';
+import type { MonteCarloCapitalInflow, MonteCarloMarketSettings, MonteCarloParams, MonteCarloResults, PercentilesData } from '@/types/assets';
+import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import type { VerdictTone } from '@/lib/utils/narrative';
 import { binYears, type YearHistogramBin } from '@/lib/utils/yearHistogram';
 
@@ -237,7 +238,7 @@ export function buildPercentileRows(percentiles: PercentilesData[], startCalenda
 
 // ─── The plan as typed ────────────────────────────────────────────────────────
 
-export type AllocationKey = 'equity' | 'bonds' | 'realEstate' | 'commodities';
+export type AllocationKey = MonteCarloClass;
 
 export interface PlanAllocationEntry {
   key: AllocationKey;
@@ -287,13 +288,6 @@ export interface MonteCarloPlan {
   withdrawalTax: PlanWithdrawalTax | null;
 }
 
-const ALLOCATION_LABELS: { key: AllocationKey; label: string; field: keyof MonteCarloParams }[] = [
-  { key: 'equity', label: 'azioni', field: 'equityPercentage' },
-  { key: 'bonds', label: 'obbligazioni', field: 'bondsPercentage' },
-  { key: 'realEstate', label: 'immobili', field: 'realEstatePercentage' },
-  { key: 'commodities', label: 'materie prime', field: 'commoditiesPercentage' },
-];
-
 export function summarizeMonteCarloPlan(params: MonteCarloParams, inflows: MonteCarloCapitalInflow[], lockedValue: number, ctx: MonteCarloContext): MonteCarloPlan {
   return {
     initialPortfolio: params.initialPortfolio,
@@ -304,7 +298,7 @@ export function summarizeMonteCarloPlan(params: MonteCarloParams, inflows: Monte
     endAge: ageAt(params.retirementYears, ctx),
     endCalendarYear: ctx.startCalendarYear + params.retirementYears,
     simulations: params.numberOfSimulations,
-    allocation: ALLOCATION_LABELS.map(({ key, label, field }) => ({ key, label, pct: params[field] as number })).filter((entry) => entry.pct > 0),
+    allocation: MONTE_CARLO_CLASSES.map((key) => ({ key, label: MONTE_CARLO_CLASS_NOUNS[key], pct: params.weights[key] })).filter((entry) => entry.pct > 0),
     inflows: inflows.map((inflow) => ({ yearOffset: inflow.year, calendarYear: ctx.startCalendarYear + inflow.year, amount: inflow.amount })),
     statePensions: (params.annualInflows ?? [])
       .map((pension) => ({ yearOffset: pension.fromYear, calendarYear: ctx.startCalendarYear + pension.fromYear, annualNetToday: pension.annualNetToday }))
@@ -319,18 +313,14 @@ export function summarizeMonteCarloPlan(params: MonteCarloParams, inflows: Monte
 
 export interface MonteCarloRunInputs {
   params: MonteCarloParams;
-  scenarios: MonteCarloScenarios;
+  scenarios: MonteCarloMarketSettings['scenarios'];
   inflows: MonteCarloCapitalInflow[];
 }
 
-/** The plan fields a run reads. The single form's market fields are NOT among them: the scenarios carry those. */
+/** The plan fields a run reads (the weights are compared class by class below). The `market` on the shared params is NOT among them: the scenarios carry it. */
 const PLAN_FIELDS: (keyof MonteCarloParams)[] = [
   'initialPortfolio',
   'retirementYears',
-  'equityPercentage',
-  'bondsPercentage',
-  'realEstatePercentage',
-  'commoditiesPercentage',
   'annualWithdrawal',
   'withdrawalAdjustment',
   'numberOfSimulations',
@@ -342,12 +332,13 @@ const PLAN_FIELDS: (keyof MonteCarloParams)[] = [
  */
 export function haveRunInputsChanged(last: MonteCarloRunInputs, current: MonteCarloRunInputs): boolean {
   if (PLAN_FIELDS.some((field) => last.params[field] !== current.params[field])) return true;
+  if (MONTE_CARLO_CLASSES.some((cls) => last.params.weights[cls] !== current.params.weights[cls])) return true;
+  // The RESOLVED market, scenario by scenario: a save in Impostazioni makes the last run stale (The Stale-Run Rule).
   for (const key of SCENARIO_KEYS) {
     const a = last.scenarios[key];
     const b = current.scenarios[key];
-    for (const field of Object.keys(a) as (keyof typeof a)[]) {
-      if (a[field] !== b[field]) return true;
-    }
+    if (a.inflationRate !== b.inflationRate) return true;
+    if (MONTE_CARLO_CLASSES.some((cls) => a.classes[cls].cagr !== b.classes[cls].cagr || a.classes[cls].volatility !== b.classes[cls].volatility)) return true;
   }
   if (last.inflows.length !== current.inflows.length) return true;
   if (last.inflows.some((inflow, index) => inflow.year !== current.inflows[index].year || inflow.amount !== current.inflows[index].amount)) return true;

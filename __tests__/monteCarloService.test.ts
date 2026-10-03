@@ -18,7 +18,21 @@ import {
 } from '@/lib/services/monteCarloService';
 import { calculateFIREProjection, getDefaultScenarios, resolveFanFireTargets, resolveFireRequirement } from '@/lib/services/fireService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
-import type { MonteCarloParams } from '@/types/assets';
+import type { MonteCarloMarketScenario, MonteCarloParams } from '@/types/assets';
+import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+
+/** A market where only the equity class has a CAGR/volatility; every other class is flat at 0. */
+function flatMarket(equityCagr: number, equityVolatility = 0, inflationRate = 0): MonteCarloMarketScenario {
+  return {
+    classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? equityCagr : 0, volatility: cls === 'equity' ? equityVolatility : 0 })),
+    inflationRate,
+  };
+}
+
+/** Weights that put the whole portfolio in one class. */
+function allIn(cls: MonteCarloClass): Record<MonteCarloClass, number> {
+  return monteCarloClassRecord((key) => (key === cls ? 100 : 0));
+}
 
 /**
  * Zero-volatility params make every path deterministic (randomNormal(mean, 0) === mean),
@@ -30,21 +44,10 @@ function makeDeterministicParams(overrides: Partial<MonteCarloParams> = {}): Mon
     portfolioSource: 'custom',
     initialPortfolio: 1_000_000,
     retirementYears: 5,
-    equityPercentage: 100,
-    bondsPercentage: 0,
-    realEstatePercentage: 0,
-    commoditiesPercentage: 0,
+    weights: allIn('equity'),
     annualWithdrawal: 50_000,
     withdrawalAdjustment: 'fixed',
-    equityReturn: 5,
-    equityVolatility: 0,
-    bondsReturn: 0,
-    bondsVolatility: 0,
-    realEstateReturn: 0,
-    realEstateVolatility: 0,
-    commoditiesReturn: 0,
-    commoditiesVolatility: 0,
-    inflationRate: 0,
+    market: flatMarket(5),
     numberOfSimulations: 10,
     ...overrides,
   };
@@ -161,18 +164,8 @@ function makeAccumulationParams(
     withdrawalRate: 4,
     expenseInflationRate: 2.5,
     years: 40,
-    equityPercentage: 100,
-    bondsPercentage: 0,
-    realEstatePercentage: 0,
-    commoditiesPercentage: 0,
-    equityReturn: 7,
-    equityVolatility: 0,
-    bondsReturn: 0,
-    bondsVolatility: 0,
-    realEstateReturn: 0,
-    realEstateVolatility: 0,
-    commoditiesReturn: 0,
-    commoditiesVolatility: 0,
+    weights: allIn('equity'),
+    market: flatMarket(7),
     numberOfSimulations: 10,
     ...overrides,
   };
@@ -237,7 +230,7 @@ describe('runAccumulationSimulation — Ventaglio engine', () => {
     const result = runAccumulationSimulation(
       makeAccumulationParams({
         years: 25,
-        equityVolatility: 18,
+        market: flatMarket(7, 18),
         numberOfSimulations: 300,
       })
     );
@@ -255,7 +248,7 @@ describe('runAccumulationSimulation — Ventaglio engine', () => {
     const result = runAccumulationSimulation(
       makeAccumulationParams({
         years: 30,
-        equityVolatility: 18,
+        market: flatMarket(7, 18),
         numberOfSimulations: 300,
       })
     );
@@ -306,7 +299,7 @@ describe('runAccumulationSimulation — Ventaglio engine', () => {
  * withdrawal from the year AFTER the FIRE year, the expenses inflating every year from today.
  */
 describe('runAccumulationSimulation — seed and the retirement ledger', () => {
-  const volatile = { equityVolatility: 18, numberOfSimulations: 50, years: 20 };
+  const volatile = { market: flatMarket(7, 18), numberOfSimulations: 50, years: 20 };
 
   it('gives the same paths, FIRE years and retirements for the same seed, different ones for another', () => {
     const first = runAccumulationSimulation(makeAccumulationParams({ ...volatile, random: createSeededRandom(7) }));
@@ -331,7 +324,7 @@ describe('runAccumulationSimulation — seed and the retirement ledger', () => {
   it('withdraws the inflated expenses from the year after FIRE and records the ruin year', () => {
     // No growth: the ledger is a plain subtraction the test can replay. Expenses of 10.000 € so
     // that 20.000 € a year of savings can still reach the inflating target (year 12).
-    const params = makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 40, retirementHorizonYears: 70 });
+    const params = makeAccumulationParams({ market: flatMarket(0), annualExpenses: 10_000, years: 40, retirementHorizonYears: 70 });
     const result = runAccumulationSimulation(params);
     const fireYear = result.fireYears[0] as number;
     expect(fireYear).not.toBeNull();
@@ -368,7 +361,7 @@ describe('runAccumulationSimulation — seed and the retirement ledger', () => {
     const expensesAt = (year: number) => params.annualExpenses * Math.pow(1 + params.expenseInflationRate / 100, year);
     let capital = result.paths[0][fireYear].value;
     for (let year = fireYear + 1; year <= 60; year++) {
-      capital *= 1 + params.equityReturn / 100;
+      capital *= 1 + params.market.classes.equity.cagr / 100;
       capital -= expensesAt(year);
     }
     expect(outcome?.finalValue).toBeCloseTo(capital, 3);
@@ -416,8 +409,8 @@ describe('runAccumulationSimulation — seed and the retirement ledger', () => {
   });
 
   it('runs the ledger to `years` by default and only the longer horizon sees a later ruin', () => {
-    const short = runAccumulationSimulation(makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20 }));
-    const long = runAccumulationSimulation(makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20, retirementHorizonYears: 70 }));
+    const short = runAccumulationSimulation(makeAccumulationParams({ market: flatMarket(0), annualExpenses: 10_000, years: 20 }));
+    const long = runAccumulationSimulation(makeAccumulationParams({ market: flatMarket(0), annualExpenses: 10_000, years: 20, retirementHorizonYears: 70 }));
     expect(short.retirementHorizonYears).toBe(20);
     expect(short.retirements[0]?.ruinYear).toBeNull();
     expect(long.retirements[0]?.ruinYear).toBeGreaterThan(20);
@@ -434,7 +427,7 @@ describe('runAccumulationSimulation — seed and the retirement ledger', () => {
  */
 describe('runAccumulationSimulation — pensions and tax in the retirement ledger', () => {
   it('takes the pensions off the expenses from their start year: the capital lasts longer', () => {
-    const params = makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20, retirementHorizonYears: 70 });
+    const params = makeAccumulationParams({ market: flatMarket(0), annualExpenses: 10_000, years: 20, retirementHorizonYears: 70 });
     const bare = runAccumulationSimulation(params);
     const withPension = runAccumulationSimulation({ ...params, retirement: { statePensions: [{ fromYear: 20, annualNetToday: 6_000 }] } });
     const fireYear = bare.fireYears[0] as number;
@@ -464,7 +457,7 @@ describe('runAccumulationSimulation — pensions and tax in the retirement ledge
     expect(taxed.fireYears[0]).toBe(bare.fireYears[0]);
     expect(taxed.retirements[0]?.finalValue as number).toBeLessThan(bare.retirements[0]?.finalValue as number);
     // No gain (the basis IS the capital, no growth): the tax changes nothing.
-    const flat = makeAccumulationParams({ equityReturn: 0, annualExpenses: 10_000, years: 20, retirementHorizonYears: 40 });
+    const flat = makeAccumulationParams({ market: flatMarket(0), annualExpenses: 10_000, years: 20, retirementHorizonYears: 40 });
     const flatTaxed = runAccumulationSimulation({ ...flat, retirement: { withdrawalTax: { basisToday: flat.initialPortfolio, rate: 26 } } });
     expect(flatTaxed.retirements[0]).toEqual(runAccumulationSimulation(flat).retirements[0]);
   });
@@ -503,21 +496,13 @@ describe('createDistribution (through runMonteCarloSimulation)', () => {
       portfolioSource: 'total',
       initialPortfolio: 500000,
       retirementYears: 30,
-      equityPercentage: 60,
-      bondsPercentage: 40,
-      realEstatePercentage: 0,
-      commoditiesPercentage: 0,
+      weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0)),
       annualWithdrawal: 20000,
       withdrawalAdjustment: 'inflation',
-      equityReturn: 7,
-      equityVolatility: 18,
-      bondsReturn: 3,
-      bondsVolatility: 6,
-      realEstateReturn: 5,
-      realEstateVolatility: 12,
-      commoditiesReturn: 3.5,
-      commoditiesVolatility: 20,
-      inflationRate: 2.5,
+      market: {
+        classes: monteCarloClassRecord((cls) => (cls === 'bonds' ? { cagr: 3, volatility: 6 } : { cagr: 7, volatility: 18 })),
+        inflationRate: 2.5,
+      },
       numberOfSimulations: 600,
     });
     const bins = results.distribution;
@@ -534,5 +519,52 @@ describe('createDistribution (through runMonteCarloSimulation)', () => {
     for (let i = 1; i < bins.length; i++) expect(bins[i].from).toBeCloseTo(bins[i - 1].to, 6);
     // With a heavy right tail the last bin is the widest — never nine empty bins under one outlier.
     expect(bins[9].to - bins[9].from).toBeGreaterThan(bins[0].to - bins[0].from);
+  });
+});
+
+describe('seven-class draws (T1)', () => {
+  const market: MonteCarloMarketScenario = {
+    classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? 8 : cls === 'cash' ? 2 : cls === 'gold' ? 6 : 0, volatility: 0 })),
+    inflationRate: 0,
+  };
+
+  it('at zero volatility the portfolio earns the weighted sum of the class CAGRs, cash included', () => {
+    const params = makeDeterministicParams({
+      withdrawalAdjustment: 'fixed',
+      annualWithdrawal: 0,
+      weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 50 : cls === 'cash' ? 30 : cls === 'gold' ? 20 : 0)),
+      market,
+      retirementYears: 3,
+    });
+    const growth = 0.5 * 1.08 + 0.3 * 1.02 + 0.2 * 1.06;
+    const path = pathValues(runMonteCarloSimulation(params));
+    expect(path[3]).toBeCloseTo(1_000_000 * growth ** 3, 3);
+  });
+
+  it('the Ventaglio and the decumulation run read the same market: same weights, same growth', () => {
+    const weights = monteCarloClassRecord((cls) => (cls === 'equity' ? 50 : cls === 'cash' ? 30 : cls === 'gold' ? 20 : 0));
+    const decumulation = pathValues(runMonteCarloSimulation(makeDeterministicParams({ withdrawalAdjustment: 'fixed', annualWithdrawal: 0, weights, market, retirementYears: 4 })));
+    const accumulation = runAccumulationSimulation(
+      makeAccumulationParams({ initialPortfolio: 1_000_000, annualSavings: 0, annualExpenses: 1, weights, market, years: 4, numberOfSimulations: 1 }),
+    );
+    accumulation.paths[0].forEach((point, year) => expect(point.value).toBeCloseTo(decumulation[year], 3));
+  });
+
+  it('a seeded lognormal run keeps the median compound growth at the CAGR (A5 through the engine)', () => {
+    const volatile: MonteCarloMarketScenario = { classes: monteCarloClassRecord(() => ({ cagr: 7, volatility: 18 })), inflationRate: 0 };
+    const result = runMonteCarloSimulation(
+      makeDeterministicParams({
+        withdrawalAdjustment: 'fixed',
+        annualWithdrawal: 0,
+        weights: allIn('equity'),
+        market: volatile,
+        retirementYears: 1,
+        numberOfSimulations: 20_000,
+        random: createSeededRandom(11),
+      }),
+    );
+    const finals = result.simulations.map((sim) => sim.finalValue).sort((a, b) => a - b);
+    const medianGrowthPct = (finals[Math.floor(finals.length / 2)] / 1_000_000 - 1) * 100;
+    expect(Math.abs(medianGrowthPct - 7)).toBeLessThan(0.5);
   });
 });

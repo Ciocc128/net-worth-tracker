@@ -28,22 +28,25 @@
  * This file is the ORCHESTRATOR and computes nothing: the numbers come from
  * lib/utils/monteCarloSummary.ts over the results the service returns, the words from
  * lib/utils/monteCarloNarrative.ts. The form is ephemeral local state (strings, so a field can
- * hold «22.» while typing); only the scenarios persist, in the settings document.
+ * hold «22.» while typing). The market assumptions are NOT edited here: they live in Impostazioni ›
+ * Simulazioni and this tab only reads them (`resolveMonteCarloMarketForPortfolio`), declared in the
+ * Parametri tile (The Declaration-Tile Rule).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { calculateAssetValue, calculateLiquidNetWorth, calculateTotalValue, getAllAssets } from '@/lib/services/assetService';
-import { calculateCurrentAllocation, getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
-import { buildParamsFromScenario, getDefaultMarketParameters, getDefaultMonteCarloScenarios, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
+import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { getSettings } from '@/lib/services/assetAllocationService';
+import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import { DEFAULT_MONTE_CARLO_SIMULATIONS, deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
+import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, deriveMonteCarloWeights } from '@/lib/utils/monteCarloParams';
+import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
+import { MONTE_CARLO_CLASSES, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import {
@@ -66,6 +69,7 @@ import {
   describeEsaurimento,
   describeEsaurimentoFooter,
   type DistributionView,
+  describeMarketDeclaration,
   describeParametri,
   describeParametriFooter,
   describePercentili,
@@ -81,7 +85,7 @@ import {
   SCENARI_FOOTER,
   scenarioLabel,
 } from '@/lib/utils/monteCarloNarrative';
-import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloScenarios } from '@/types/assets';
+import type { MonteCarloCapitalInflow, MonteCarloParams } from '@/types/assets';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -127,8 +131,6 @@ function parseFloatField(value: string): number {
 export function MonteCarloTab() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
-  const queryClient = useQueryClient();
-  const isDemo = useDemoMode();
 
   // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
   const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
@@ -168,9 +170,19 @@ export function MonteCarloTab() {
     [pensionLockState],
   );
 
-  const grossTotalNetWorth = assets ? calculateTotalValue(assets) : 0;
-  const liquidNetWorth = assets ? calculateLiquidNetWorth(assets) : 0;
-  const totalNetWorth = Math.max(0, grossTotalNetWorth - pensionLockedValue);
+  // The market assumptions, saved in Impostazioni › Simulazioni (the legacy field migrated, else the defaults).
+  const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
+  const scenarios = market.scenarios;
+
+  // The capital the simulation covers (rule RK): the seven classes, net of the closed pension
+  // funds; real estate and crypto stay outside and are declared under the weights.
+  const lockedAssetIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
+  const capital = useMemo(
+    () => (assets ? computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null),
+    [assets, lockedAssetIds, market.goldSubCategory],
+  );
+  const totalNetWorth = Math.max(0, capital?.total ?? 0);
+  const liquidNetWorth = Math.max(0, capital?.liquid ?? 0);
 
   // What makes the plan honest (2026-09-24): the state pensions saved in Coast FIRE, dated by the
   // saved age and netted through the IRPEF brackets, taken off the withdrawal from their start;
@@ -179,9 +191,8 @@ export function MonteCarloTab() {
   const now = useMemo(() => new Date(), []);
   const taxProfile = useMemo(() => {
     if (!assets) return null;
-    const lockedIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
-    return resolvePortfolioTaxProfile(assets.filter((asset) => !lockedIds.has(asset.id)), calculateAssetValue);
-  }, [assets, pensionLockState]);
+    return resolvePortfolioTaxProfile(assets.filter((asset) => !lockedAssetIds.has(asset.id)), calculateAssetValue);
+  }, [assets, lockedAssetIds]);
 
   const currentYear = getItalyYear();
   const currentAge = settings?.userAge ?? null;
@@ -189,10 +200,9 @@ export function MonteCarloTab() {
   const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: settings?.pensionInpsRetirementAge, pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment });
   const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
 
-  // ─── The form (ephemeral) and the scenarios (persisted) ─────────────────────
+  // ─── The form (ephemeral) ────────────────────────────────────────────────────
   const [form, setForm] = useState<MonteCarloForm | null>(null);
   const onFormChange = useCallback((patch: Partial<MonteCarloForm>) => setForm((prev) => (prev ? { ...prev, ...patch } : prev)), []);
-  const [scenarios, setScenarios] = useState<MonteCarloScenarios>(getDefaultMonteCarloScenarios());
 
   // The state pensions, net through the IRPEF brackets and deflated with the base scenario's
   // inflation (the same figure Coast FIRE prints), dated by the saved age: without an age there
@@ -211,62 +221,49 @@ export function MonteCarloTab() {
   }, [userAge, savedPensions, savedTaxBrackets, baseInflationRate, now]);
 
   // Seed the form ONCE from the portfolio, after the data has loaded — the starting capital net of
-  // the locked funds, the planned expenses, the allocation normalized onto the four MC classes
-  // (`deriveMonteCarloAllocation`, shared with the Ventaglio: the two call sites must stay identical).
+  // the locked funds, the planned expenses, the allocation normalized onto the seven MC classes
+  // (`computeSimulatedCapital` + `deriveMonteCarloWeights`, shared with the Ventaglio: the two call sites must stay identical).
   // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
   const didSeedRef = useRef(false);
   useEffect(() => {
     if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets) return;
     const timer = setTimeout(() => {
       didSeedRef.current = true;
-      const allocation = deriveMonteCarloAllocation(calculateCurrentAllocation(assets).byAssetClass) ?? {
-        equityPercentage: 60,
-        bondsPercentage: 40,
-        realEstatePercentage: 0,
-        commoditiesPercentage: 0,
-      };
+      const weights = (capital ? deriveMonteCarloWeights(capital.byClass) : null) ?? monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0));
       setForm({
         initialPortfolio: formatInputAmount(totalNetWorth),
         retirementYears: String(DEFAULT_RETIREMENT_YEARS),
         annualWithdrawal: String(settings?.plannedAnnualExpenses || DEFAULT_WITHDRAWAL),
         numberOfSimulations: String(DEFAULT_SIMULATIONS),
-        equityPercentage: String(allocation.equityPercentage),
-        bondsPercentage: String(allocation.bondsPercentage),
-        realEstatePercentage: String(allocation.realEstatePercentage),
-        commoditiesPercentage: String(allocation.commoditiesPercentage),
+        weights: monteCarloClassRecord((cls) => String(weights[cls])),
       });
-      if (settings?.monteCarloScenarios) setScenarios(settings.monteCarloScenarios);
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth]);
+  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, capital]);
 
   // ─── The params the run reads (numbers from the strings) ─────────────────────
   const params = useMemo<MonteCarloParams | null>(() => {
     if (!form) return null;
-    const market = getDefaultMarketParameters();
     const initialPortfolio = Math.round(parseItalianNumber(form.initialPortfolio) ?? 0);
     return {
       portfolioSource: 'total',
       initialPortfolio,
       retirementYears: parseIntField(form.retirementYears, DEFAULT_RETIREMENT_YEARS),
-      equityPercentage: parseFloatField(form.equityPercentage),
-      bondsPercentage: parseFloatField(form.bondsPercentage),
-      realEstatePercentage: parseFloatField(form.realEstatePercentage),
-      commoditiesPercentage: parseFloatField(form.commoditiesPercentage),
+      weights: monteCarloClassRecord((cls) => parseFloatField(form.weights[cls])),
       annualWithdrawal: Math.round(parseFloatField(form.annualWithdrawal)),
       withdrawalAdjustment: 'inflation',
-      // The market fields of the shared params are overridden per scenario by
-      // `buildParamsFromScenario`; the defaults here are never what a run reads.
-      ...market,
+      // The shared params carry the Base market; each scenario's run overrides it with
+      // `buildScenarioParams`, so this is never what the Orso and Toro runs read.
+      market: scenarios.base,
       numberOfSimulations: Math.min(50000, Math.max(1000, parseIntField(form.numberOfSimulations, DEFAULT_SIMULATIONS))),
       capitalInflows: pensionInflows.length > 0 ? pensionInflows : undefined,
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
       // The typed capital keeps the portfolio's gain share: basis = capital × (1 − gain share).
       withdrawalTax: taxProfile ? { basisToday: initialPortfolio * (1 - taxProfile.gainShare), rate: taxProfile.rate } : undefined,
     };
-  }, [form, pensionInflows, statePensionInflows, taxProfile]);
+  }, [form, scenarios, pensionInflows, statePensionInflows, taxProfile]);
 
-  const allocationSum = params ? params.equityPercentage + params.bondsPercentage + params.realEstatePercentage + params.commoditiesPercentage : 0;
+  const allocationSum = params ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + params.weights[cls], 0) : 0;
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;
   const canRun = runnable && Math.abs(allocationSum - 100) <= 0.01 && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
 
@@ -285,9 +282,9 @@ export function MonteCarloTab() {
     window.setTimeout(() => {
       try {
         const results: ScenarioResults = {
-          bear: runMonteCarloSimulation(buildParamsFromScenario(inputs.params, inputs.scenarios.bear)),
-          base: runMonteCarloSimulation(buildParamsFromScenario(inputs.params, inputs.scenarios.base)),
-          bull: runMonteCarloSimulation(buildParamsFromScenario(inputs.params, inputs.scenarios.bull)),
+          bear: runMonteCarloSimulation(buildScenarioParams(inputs.params, inputs.scenarios.bear)),
+          base: runMonteCarloSimulation(buildScenarioParams(inputs.params, inputs.scenarios.base)),
+          bull: runMonteCarloSimulation(buildScenarioParams(inputs.params, inputs.scenarios.bull)),
         };
         setLastRun({ results, inputs });
       } catch (error) {
@@ -311,19 +308,6 @@ export function MonteCarloTab() {
   const handleRun = useCallback(() => {
     if (currentInputs && canRun) runScenarios(currentInputs);
   }, [currentInputs, canRun, runScenarios]);
-
-  // ─── Scenario persistence ────────────────────────────────────────────────────
-  const saveMutation = useMutation({
-    mutationFn: () => {
-      if (!user || !ownerId) throw new Error('User not authenticated');
-      return setSettings(ownerId, { ...settings, targets: settings?.targets || getDefaultTargets(), monteCarloScenarios: scenarios });
-    },
-    onSuccess: () => {
-      toast.success('Parametri degli scenari salvati');
-      queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
-    },
-    onError: () => toast.error('Errore nel salvataggio dei parametri'),
-  });
 
   // ─── The numbers (pure layer over the results) ───────────────────────────────
   const runParams = lastRun?.inputs.params ?? null;
@@ -424,15 +408,11 @@ export function MonteCarloTab() {
             allocationSum={allocationSum}
             totalNetWorth={totalNetWorth}
             liquidNetWorth={liquidNetWorth}
-            scenarios={scenarios}
-            onScenariosChange={setScenarios}
+            marketDeclaration={describeMarketDeclaration(market)}
+            excluded={capital?.excluded ?? null}
             onRun={handleRun}
             canRun={canRun}
             isRunning={isRunning}
-            onSaveScenarios={() => saveMutation.mutate()}
-            onResetScenarios={() => setScenarios(getDefaultMonteCarloScenarios())}
-            isSavingScenarios={saveMutation.isPending}
-            isDemo={isDemo}
             footer={
               lastRun
                 ? describeParametriFooter({ stale, simulations: lastRun.inputs.params.numberOfSimulations })

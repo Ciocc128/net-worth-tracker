@@ -4,9 +4,11 @@ import {
   MonteCarloCapitalInflow,
   SingleSimulationResult,
   PercentilesData,
-  MonteCarloScenarios,
-  MonteCarloScenarioParams,
+  MonteCarloMarketScenario,
 } from '@/types/assets';
+import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
+import { buildDrawPlan, drawYear, portfolioReturn, type DrawPlan } from '@/lib/utils/monteCarloDraw';
 import { formatCurrencyCompact } from './chartService';
 import { withdrawGross } from '@/lib/utils/withdrawalTax';
 
@@ -31,31 +33,6 @@ function activeAnnualInflows(inflows: AnnualInflow[] | undefined, year: number, 
 }
 
 /**
- * Generate a random number from a normal distribution using Box-Muller transform
- *
- * The Box-Muller transform converts two independent uniform random variables (0,1)
- * into two independent standard normal random variables. This is essential for
- * Monte Carlo simulations that require normally distributed returns.
- *
- * Algorithm: z = √(-2 * ln(u1)) * cos(2π * u2)
- * where u1, u2 are uniform random variables [0,1]
- *
- * @param mean - Mean of the distribution
- * @param stdDev - Standard deviation of the distribution
- * @param random - The uniform source, `Math.random` by default; a seeded one makes the draw reproducible
- * @returns Random number from normal distribution
- *
- * @see https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
- */
-function randomNormal(mean: number, stdDev: number, random: () => number = Math.random): number {
-  // log(0) is −∞: a uniform source can return exactly 0 (the seeded one once in 2^32 draws).
-  const u1 = Math.max(random(), Number.EPSILON);
-  const u2 = random();
-  const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-  return mean + z0 * stdDev;
-}
-
-/**
  * Calculate mean of an array of numbers
  */
 function mean(values: number[]): number {
@@ -68,8 +45,11 @@ function mean(values: number[]): number {
  */
 function runSingleSimulation(
   params: MonteCarloParams,
+  plan: DrawPlan,
+  weights: number[],
   simulationId: number
 ): SingleSimulationResult {
+  const random = params.random ?? Math.random;
   let portfolio = params.initialPortfolio;
 
   // Capital inflows: defined order is inflow → market return → withdrawal, so an
@@ -94,32 +74,22 @@ function runSingleSimulation(
       }
     }
 
-    // Generate random returns for each asset class
-    const equityReturn = randomNormal(params.equityReturn, params.equityVolatility);
-    const bondsReturn = randomNormal(params.bondsReturn, params.bondsVolatility);
-    const realEstateReturn = randomNormal(params.realEstateReturn, params.realEstateVolatility);
-    const commoditiesReturn = randomNormal(params.commoditiesReturn, params.commoditiesVolatility);
-
-    // Calculate weighted portfolio return across all 4 asset classes
-    const portfolioReturn =
-      (equityReturn * params.equityPercentage) / 100 +
-      (bondsReturn * params.bondsPercentage) / 100 +
-      (realEstateReturn * params.realEstatePercentage) / 100 +
-      (commoditiesReturn * params.commoditiesPercentage) / 100;
+    // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3).
+    const yearReturn = portfolioReturn(weights, drawYear(plan, random));
 
     // Apply return to portfolio
-    portfolio *= 1 + portfolioReturn / 100;
+    portfolio *= 1 + yearReturn;
 
     // Calculate withdrawal (adjusted for inflation if needed), net of the pensions active this
     // year (indexed the same way), then grossed up for the tax on the sale that funds it.
     let withdrawal = params.annualWithdrawal;
     if (params.withdrawalAdjustment === 'inflation') {
-      withdrawal *= Math.pow(1 + params.inflationRate / 100, year);
+      withdrawal *= Math.pow(1 + params.market.inflationRate / 100, year);
     }
     const pensionsThisYear = activeAnnualInflows(
       params.annualInflows,
       year,
-      params.withdrawalAdjustment === 'inflation' ? params.inflationRate : 0
+      params.withdrawalAdjustment === 'inflation' ? params.market.inflationRate : 0
     );
     const netWithdrawal = Math.max(0, withdrawal - pensionsThisYear);
     if (tax) {
@@ -243,7 +213,7 @@ function createDistribution(
  *
  * Performs multiple simulations of portfolio performance over retirement years.
  * Each simulation:
- * 1. Generates random returns for equity and bonds using normal distribution
+ * 1. Draws lognormal returns for the seven classes (CAGR and volatility of the scenario)
  * 2. Applies weighted portfolio returns
  * 3. Withdraws annual amount (optionally adjusted for inflation)
  * 4. Tracks success/failure and portfolio path
@@ -253,10 +223,12 @@ function createDistribution(
  */
 export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloResults {
   const simulations: SingleSimulationResult[] = [];
+  const plan = buildDrawPlan(params.market);
+  const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
 
   // Run all simulations
   for (let i = 0; i < params.numberOfSimulations; i++) {
-    simulations.push(runSingleSimulation(params, i));
+    simulations.push(runSingleSimulation(params, plan, weights, i));
   }
 
   // Analyze results
@@ -318,19 +290,9 @@ export interface AccumulationSimulationParams {
   /** Simulation horizon in years (the caller caps it — the Ventaglio uses min(deterministic, 40)). */
   years: number;
 
-  // 4-class allocation (summing to 100) + per-class market parameters, as in MonteCarloParams.
-  equityPercentage: number;
-  bondsPercentage: number;
-  realEstatePercentage: number;
-  commoditiesPercentage: number;
-  equityReturn: number;
-  equityVolatility: number;
-  bondsReturn: number;
-  bondsVolatility: number;
-  realEstateReturn: number;
-  realEstateVolatility: number;
-  commoditiesReturn: number;
-  commoditiesVolatility: number;
+  // Weights per Monte Carlo class (summing to 100) + the market assumptions, as in MonteCarloParams.
+  weights: Record<MonteCarloClass, number>;
+  market: MonteCarloMarketScenario;
 
   numberOfSimulations: number;
 
@@ -426,6 +388,8 @@ export function runAccumulationSimulation(
 ): AccumulationSimulationResult {
   const wrDecimal = params.withdrawalRate / 100;
   const random = params.random ?? Math.random;
+  const plan = buildDrawPlan(params.market);
+  const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
   const horizon = Math.max(params.years, Math.floor(params.retirementHorizonYears ?? params.years));
   const inflows = params.capitalInflows ?? [];
   const startingInflow = inflows
@@ -461,16 +425,7 @@ export function runAccumulationSimulation(
     let basis = (retirementTax?.basisToday ?? 0) + startingInflow;
 
     for (let year = 1; year <= horizon; year++) {
-      const equityReturn = randomNormal(params.equityReturn, params.equityVolatility, random);
-      const bondsReturn = randomNormal(params.bondsReturn, params.bondsVolatility, random);
-      const realEstateReturn = randomNormal(params.realEstateReturn, params.realEstateVolatility, random);
-      const commoditiesReturn = randomNormal(params.commoditiesReturn, params.commoditiesVolatility, random);
-      const portfolioReturn =
-        (equityReturn * params.equityPercentage) / 100 +
-        (bondsReturn * params.bondsPercentage) / 100 +
-        (realEstateReturn * params.realEstatePercentage) / 100 +
-        (commoditiesReturn * params.commoditiesPercentage) / 100;
-      const growth = 1 + portfolioReturn / 100;
+      const growth = 1 + portfolioReturn(weights, drawYear(plan, random));
       const inflowThisYear = inflows.reduce((sum, inflow) => (inflow.year === year ? sum + inflow.amount : sum), 0);
 
       // The accumulation ledger, inside the fan's horizon only.
@@ -548,82 +503,12 @@ export function runAccumulationSimulation(
 }
 
 /**
- * Get default market parameters for Monte Carlo simulations
- *
- * These defaults represent long-term historical averages for global markets:
- * - Equity: 7% return, 18% volatility (global stock index)
- * - Bonds: 3% return, 6% volatility (investment grade)
- * - Real Estate: 5% return, 12% volatility (REITs/residential)
- * - Commodities: 3.5% return, 20% volatility (broad commodity index)
- * - Inflation: 2.5%
- *
- * @returns Default market parameter object
+ * Build the full MonteCarloParams of one scenario from the plan's shared inputs and the market
+ * assumptions of that scenario (CAGR + volatility per class, inflation).
  */
-export function getDefaultMarketParameters() {
-  return {
-    equityReturn: 7.0,
-    equityVolatility: 18.0,
-    bondsReturn: 3.0,
-    bondsVolatility: 6.0,
-    realEstateReturn: 5.0,
-    realEstateVolatility: 12.0,
-    commoditiesReturn: 3.5,
-    commoditiesVolatility: 20.0,
-    inflationRate: 2.5,
-  };
-}
-
-/**
- * Get default Bear/Base/Bull scenario parameters for Monte Carlo
- *
- * Bear: low growth, high volatility, high inflation (stagflation-like)
- * Base: historical averages
- * Bull: strong growth, low volatility, low inflation
- */
-export function getDefaultMonteCarloScenarios(): MonteCarloScenarios {
-  return {
-    bear: {
-      equityReturn: 4.0, equityVolatility: 20.0,
-      bondsReturn: 2.0, bondsVolatility: 7.0,
-      realEstateReturn: 2.0, realEstateVolatility: 14.0,
-      commoditiesReturn: 1.0, commoditiesVolatility: 22.0,
-      inflationRate: 3.5,
-    },
-    base: {
-      equityReturn: 7.0, equityVolatility: 18.0,
-      bondsReturn: 3.0, bondsVolatility: 6.0,
-      realEstateReturn: 5.0, realEstateVolatility: 12.0,
-      commoditiesReturn: 3.5, commoditiesVolatility: 20.0,
-      inflationRate: 2.5,
-    },
-    bull: {
-      equityReturn: 10.0, equityVolatility: 16.0,
-      bondsReturn: 4.0, bondsVolatility: 5.0,
-      realEstateReturn: 8.0, realEstateVolatility: 10.0,
-      commoditiesReturn: 6.0, commoditiesVolatility: 18.0,
-      inflationRate: 1.5,
-    },
-  };
-}
-
-/**
- * Build full MonteCarloParams from shared settings and a single scenario's market parameters.
- * Keeps portfolio allocation, withdrawal, and simulation count from base; overrides market params from scenario.
- */
-export function buildParamsFromScenario(
-  baseParams: MonteCarloParams,
-  scenario: MonteCarloScenarioParams
+export function buildScenarioParams(
+  baseParams: Omit<MonteCarloParams, 'market'>,
+  market: MonteCarloMarketScenario
 ): MonteCarloParams {
-  return {
-    ...baseParams,
-    equityReturn: scenario.equityReturn,
-    equityVolatility: scenario.equityVolatility,
-    bondsReturn: scenario.bondsReturn,
-    bondsVolatility: scenario.bondsVolatility,
-    realEstateReturn: scenario.realEstateReturn,
-    realEstateVolatility: scenario.realEstateVolatility,
-    commoditiesReturn: scenario.commoditiesReturn,
-    commoditiesVolatility: scenario.commoditiesVolatility,
-    inflationRate: scenario.inflationRate,
-  };
+  return { ...baseParams, market };
 }

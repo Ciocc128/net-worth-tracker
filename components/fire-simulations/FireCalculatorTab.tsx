@@ -60,7 +60,7 @@ import {
 } from '@/lib/services/assetService';
 import { resolveGainShare, resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
-import { calculateCurrentAllocation, getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
+import { getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import {
   calculateCoastFireNetRealAnnualPension,
@@ -77,8 +77,9 @@ import {
   type FireHonestInputs,
   type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
-import { getDefaultMarketParameters, runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
-import { deriveMonteCarloAllocation } from '@/lib/utils/monteCarloParams';
+import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
+import { computeSimulatedCapital, deriveMonteCarloWeights } from '@/lib/utils/monteCarloParams';
+import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
@@ -462,32 +463,31 @@ export function FireCalculatorTab() {
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ year: inflow.yearsFromNow, amount: inflow.amount })),
     [pensionLockState],
   );
-  const monteCarloBase = settings?.monteCarloScenarios?.base;
+  // The SAME resolved market the Monte Carlo tab reads (Impostazioni › Simulazioni): one function, no copy.
+  const monteCarloMarket = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
+  const fanCapital = useMemo(() => {
+    if (!assets) return null;
+    const lockedAssetIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
+    return computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: monteCarloMarket.goldSubCategory });
+  }, [assets, pensionLockState, monteCarloMarket.goldSubCategory]);
   const fanInputs = useMemo<FanSimulationInputs | null>(() => {
-    if (!assets || assets.length === 0) return null;
+    if (!assets || assets.length === 0 || !fanCapital) return null;
     if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    const allocation = deriveMonteCarloAllocation(calculateCurrentAllocation(assets).byAssetClass);
-    if (!allocation) return null;
-    const market = monteCarloBase ?? getDefaultMarketParameters();
+    const weights = deriveMonteCarloWeights(fanCapital.byClass);
+    if (!weights) return null;
     return {
-      initialPortfolio: currentNetWorth,
+      // Rule RK: the fan starts from the capital the seven classes cover; real estate and crypto stay out.
+      initialPortfolio: fanCapital.total,
       annualSavings,
       annualExpenses: projectionAnnualExpenses,
       withdrawalRate: previewWithdrawalRate,
       expenseInflationRate: scenarios.base.inflationRate,
-      ...allocation,
-      equityReturn: market.equityReturn,
-      equityVolatility: market.equityVolatility,
-      bondsReturn: market.bondsReturn,
-      bondsVolatility: market.bondsVolatility,
-      realEstateReturn: market.realEstateReturn,
-      realEstateVolatility: market.realEstateVolatility,
-      commoditiesReturn: market.commoditiesReturn,
-      commoditiesVolatility: market.commoditiesVolatility,
+      weights,
+      market: monteCarloMarket.scenarios.base,
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
-  }, [assets, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloBase, pensionCapitalInflows]);
+  }, [assets, fanCapital, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, pensionCapitalInflows]);
 
   // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
   // Keyed on the same inputs that change the deterministic projection, so an edited parameter
@@ -513,8 +513,12 @@ export function FireCalculatorTab() {
           return { fromYear: Math.max(0, Math.ceil(breakdown.yearsUntilStart)), annualNetToday: breakdown.netAnnualRealAtStart };
         })
       : undefined;
-    return { statePensions, withdrawalTax: honest.withdrawalTax };
-  }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now]);
+    // The cost basis was measured on the whole FIRE capital; the fan starts from the simulated one
+    // (real estate and crypto stay out), so the basis carries over in proportion — the gain share stays.
+    const basisScale = fanCapital && currentNetWorth > 0 ? Math.min(1, fanCapital.total / currentNetWorth) : 1;
+    const withdrawalTax = honest.withdrawalTax ? { ...honest.withdrawalTax, basisToday: honest.withdrawalTax.basisToday * basisScale } : honest.withdrawalTax;
+    return { statePensions, withdrawalTax };
+  }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now, fanCapital, currentNetWorth]);
   const runFan = useCallback(
     (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings) =>
       runAccumulationSimulation({
@@ -596,7 +600,7 @@ export function FireCalculatorTab() {
     () => (fanResult && projection ? resolveFanVerdict(fanResult, projection.baseYearsToFIRE, currentYear) : null),
     [fanResult, projection, currentYear],
   );
-  const allocationLabel = fanInputs ? formatAllocationLabel(fanInputs) : '';
+  const allocationLabel = fanInputs ? formatAllocationLabel(fanInputs.weights) : '';
 
   const base: FireBase | null = displayedFireMetrics
     ? {

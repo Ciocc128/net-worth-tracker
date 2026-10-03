@@ -17,6 +17,7 @@ import type { FIREMetrics } from '@/lib/services/fireService';
 import type { AccumulationSimulationResult } from '@/lib/services/monteCarloService';
 import type { PensionLockState } from '@/lib/utils/pensionUnlock';
 import type { FIREProjectionResult } from '@/types/assets';
+import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 
 // ─── Target ───────────────────────────────────────────────────────────────────
 
@@ -296,20 +297,9 @@ export function resolveFanVerdict(
   };
 }
 
-/** «62% azioni, 28% obbligazioni, 10% immobili» — the fan's market exposure, zero classes dropped. */
-export function formatAllocationLabel(allocation: {
-  equityPercentage: number;
-  bondsPercentage: number;
-  realEstatePercentage: number;
-  commoditiesPercentage: number;
-}): string {
-  return [
-    [allocation.equityPercentage, 'azioni'],
-    [allocation.bondsPercentage, 'obbligazioni'],
-    [allocation.realEstatePercentage, 'immobili'],
-    [allocation.commoditiesPercentage, 'materie prime'],
-  ]
-    .filter(([share]) => (share as number) > 0)
-    .map(([share, label]) => `${share}% ${label}`)
+/** «62% azioni, 28% obbligazioni, 10% oro» — the fan's market exposure, zero classes dropped. */
+export function formatAllocationLabel(weights: Record<MonteCarloClass, number>): string {
+  return MONTE_CARLO_CLASSES.filter((cls) => weights[cls] > 0)
+    .map((cls) => `${weights[cls]}% ${MONTE_CARLO_CLASS_NOUNS[cls]}`)
     .join(', ');
 }

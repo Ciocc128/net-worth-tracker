@@ -27,6 +27,8 @@ import {
   describeEsaurimento,
   describeEsaurimentoFooter,
   describeParametri,
+  describeMarketDeclaration,
+  describeExcludedRow,
   describeParametriFooter,
   describePensionInflowRow,
   describePercentili,
@@ -109,8 +111,8 @@ function makePlan(overrides: Partial<MonteCarloPlan> = {}): MonteCarloPlan {
     allocation: [
       { key: 'equity', label: 'azioni', pct: 58 },
       { key: 'bonds', label: 'obbligazioni', pct: 27 },
-      { key: 'realEstate', label: 'immobili', pct: 10 },
-      { key: 'commodities', label: 'materie prime', pct: 5 },
+      { key: 'cash', label: 'liquidità', pct: 10 },
+      { key: 'commodity', label: 'materie prime', pct: 5 },
     ],
     inflows: [{ yearOffset: 19, calendarYear: 2045, amount: 31400 }],
     statePensions: [],
@@ -264,7 +266,7 @@ describe('Scenari a confronto', () => {
 describe('Parametri', () => {
   it('states the plan as typed, the locked fund named, the allocation listed', () => {
     expect(plain(describeParametri(makePlan()))).toBe(
-      'Parti da 488.600 € — il patrimonio senza i 31.400 € del fondo pensione bloccato — e prelevi 22.000 € l\'anno, indicizzati all\'inflazione, per 35 anni, con il 58% in azioni, il 27% in obbligazioni, il 10% in immobili e il 5% in materie prime.',
+      'Parti da 488.600 € — il patrimonio senza i 31.400 € del fondo pensione bloccato — e prelevi 22.000 € l\'anno, indicizzati all\'inflazione, per 35 anni, con il 58% in azioni, il 27% in obbligazioni, il 10% in liquidità e il 5% in materie prime.',
     );
   });
 
@@ -282,7 +284,7 @@ describe('Parametri', () => {
     expect(plain(describeWithdrawalTaxRow(null))).toBe('Tasse sui prelievi: non stimate, nessun PMC in euro nel portafoglio.');
     expect(plain(describeParametriFooter({ stale: false, simulations: 10000 }))).toBe('Ultima esecuzione con questi parametri · 30.000 traiettorie, 10.000 per scenario.');
     expect(plain(describeParametriFooter({ stale: true, simulations: 10000 }))).toBe("I risultati sopra usano i parametri dell'ultima esecuzione: premi Esegui simulazione per aggiornarli.");
-    expect(PARAMETRI_ASIDE).toBe('esplorazione, non salvati · gli scenari si salvano nel profilo');
+    expect(PARAMETRI_ASIDE).toBe('esplorazione, non salvata · le ipotesi di mercato stanno in Impostazioni');
   });
 });
 
@@ -298,5 +300,22 @@ describe('Dettaglio', () => {
     expect(plain(describePercentili(makeRun()))).toBe('Il 10° percentile scende a zero dal 2053: da lì in poi almeno una simulazione su dieci ha finito i soldi.');
     expect(plain(describePercentili(makeRun({ p10DepletionCalendarYear: null, finalPercentiles: { p10: 118000, p25: 300000, p50: 612400, p75: 1310000, p90: 2096000 } })))).toBe('Nessun percentile tocca zero: anche il 10° chiude il 2061 con 118.000 €.');
     expect(DETTAGLIO_DESCRIPTION).toBe('Traiettorie dei tre scenari, percentili a passi di 5 anni, come funziona');
+  });
+});
+
+describe('Ipotesi di mercato nel tile Parametri', () => {
+  it('declares where the assumptions come from, never editing them', () => {
+    expect(plain(describeMarketDeclaration({ origin: 'default', editedClasses: [] }))).toBe('Ipotesi di mercato: valori predefiniti, storici di lungo periodo in dollari.');
+    expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: [] }))).toBe('Ipotesi di mercato: salvate, uguali ai valori predefiniti.');
+    expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity'] }))).toBe('Ipotesi di mercato: salvate, modificate in 1 classe.');
+    expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity', 'gold', 'carry'] }))).toBe('Ipotesi di mercato: salvate, modificate in 3 classi.');
+    expect(plain(describeMarketDeclaration({ origin: 'migrated', editedClasses: [] }))).toBe('Ipotesi di mercato: migrate dai parametri salvati prima (da media aritmetica a CAGR): rileggile in Impostazioni.');
+  });
+
+  it('A7b: names what stays outside the simulated capital, and is absent when nothing does', () => {
+    expect(plain(describeExcludedRow({ realestate: 250000, crypto: 5000 })!)).toBe('Fuori dalla simulazione: Immobili 250.000 € e Crypto 5000 €.');
+    expect(plain(describeExcludedRow({ realestate: 0, crypto: 5000 })!)).toBe('Fuori dalla simulazione: Crypto 5000 €.');
+    expect(describeExcludedRow({ realestate: 0, crypto: 0 })).toBeNull();
+    expect(describeExcludedRow(null)).toBeNull();
   });
 });
