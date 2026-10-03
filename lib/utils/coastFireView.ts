@@ -944,7 +944,7 @@ export const COAST_SCENARIOS_FOOTER: Narrative = [prose('I tre scenari sono quel
 
 /** The method behind «Come si calcola» on the Scenari tile. */
 export const COAST_SCENARIOS_METHOD: readonly string[] = [
-  'Il rendimento reale di uno scenario è la sua crescita meno la sua inflazione: il numero Coast FIRE scende quando sale, perché al capitale serve meno spinta iniziale.',
+  'Il rendimento reale di uno scenario è la sua crescita depurata dall’inflazione, (1 + crescita) ÷ (1 + inflazione) − 1: il numero Coast FIRE scende quando sale, perché al capitale serve meno spinta iniziale.',
   'Ogni riga sconta lo stesso capitale richiesto al target al proprio rendimento reale; il verdetto e il Traguardo leggono la riga base.',
 ];
 

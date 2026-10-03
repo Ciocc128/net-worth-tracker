@@ -23,6 +23,7 @@ import {
   type FireHonestInputs,
 } from '@/lib/services/fireService'
 import type { MonthlySnapshot } from '@/types/assets'
+import { realReturn } from '@/lib/utils/realReturn'
 
 function makeSnapshot(
   year: number,
@@ -271,12 +272,13 @@ describe('calculateCoastFIREMetrics', () => {
 describe('calculateCoastFIREProjection', () => {
   const scenarios = getDefaultScenarios()
 
-  it('should reuse FIRE scenarios through real return = growth - inflation', () => {
+  it('should reuse FIRE scenarios through the Fisher real return (RP2)', () => {
     const result = calculateCoastFIREProjection(250000, 30000, 4, 35, 60, scenarios)
 
-    expect(result.scenarios.bear.realReturnRate).toBe(0.5)
-    expect(result.scenarios.base.realReturnRate).toBe(4.5)
-    expect(result.scenarios.bull.realReturnRate).toBe(8.5)
+    // (1 + g) / (1 + π) − 1: 1,04 / 1,035 · 1,07 / 1,025 · 1,10 / 1,015, not the subtraction 0,5 · 4,5 · 8,5.
+    expect(result.scenarios.bear.realReturnRate).toBeCloseTo(0.483092, 5)
+    expect(result.scenarios.base.realReturnRate).toBeCloseTo(4.390244, 5)
+    expect(result.scenarios.bull.realReturnRate).toBeCloseTo(8.374384, 5)
   })
 
   it('should expose a projection series through the retirement age', () => {
@@ -297,7 +299,7 @@ describe('calculateCoastFIREProjection', () => {
   })
 
   it('should keep Coast FIRE unchanged when no pensions are configured', () => {
-    const baseWithoutPension = calculateCoastFIREMetrics(250000, 30000, 4, 35, 60, 4.5, 2.5)
+    const baseWithoutPension = calculateCoastFIREMetrics(250000, 30000, 4, 35, 60, realReturn(7, 2.5), 2.5)
     const result = calculateCoastFIREProjection(250000, 30000, 4, 35, 60, scenarios)
 
     expect(result.scenarios.base.retirementCapitalRequired).toBeCloseTo(baseWithoutPension.retirementCapitalRequired, 6)
@@ -939,7 +941,7 @@ describe('calculateCoastFIREProjection — pension inflow step', () => {
       [{ yearsFromNow: 3, amountToday: 50000 }]
     )
 
-    const baseRate = 1.045 // base real return 4.5%
+    const baseRate = 1.07 / 1.025 // base real return, Fisher: 4,390244%
     // Before unlock: free capital only.
     expect(result.projectionData[2].basePortfolioValue).toBeCloseTo(
       250000 * Math.pow(baseRate, 2),
@@ -967,7 +969,7 @@ describe('calculateCoastFIREProjection — pension inflow step', () => {
       [{ yearsFromNow: 19, amountToday: 31400 }]
     )
     const base = result.scenarios.base
-    const fundAtRetirement = 31400 * Math.pow(1.045, 22)
+    const fundAtRetirement = 31400 * Math.pow(1.07 / 1.025, 22)
 
     expect(base.isCoastReached).toBe(false)
     // Before the unlock the line is what the FREE capital must reach at retirement.
@@ -1080,7 +1082,7 @@ describe('resolveFireRequirement', () => {
     expect(bare.pensionsConsidered).toBe(false)
     expect(bare.taxMultiplier).toBe(1)
     const bridged = resolveFireRequirement({ annualExpenses: 40000, withdrawalRate: 4, scenario: { growthRate: 7.5, inflationRate: 2.5 }, yearsElapsed: 0, bridge: { compartmentValue: 200000, yearsToUnlock: 2 } })
-    const reference = calculateFireBridgeNumber({ annualExpenses: 40000, withdrawalRate: 4, realReturn: 5, yearsToUnlock: 2, pensionValueToday: 200000, pensionGrowthRate: 5 })
+    const reference = calculateFireBridgeNumber({ annualExpenses: 40000, withdrawalRate: 4, realReturn: realReturn(7.5, 2.5), yearsToUnlock: 2, pensionValueToday: 200000, pensionGrowthRate: realReturn(7.5, 2.5) })
     expect(bridged.requirement).toBeCloseTo(reference.bridgeFireNumber, 6)
   })
 

@@ -39,6 +39,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, calculateFIRENetWorth, calculateIlliquidFIRENetWorth, calculateLiquidFIRENetWorth, filterFireEligibleAssets, getAllAssets } from '@/lib/services/assetService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
+import { realReturn } from '@/lib/utils/realReturn';
 import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import {
@@ -283,7 +284,7 @@ export function WhatIfAnalysisTab() {
               currentAge,
               retirementAge,
               annualExpenses: coastExpenses,
-              realReturnRate: scenarios.base.growthRate - scenarios.base.inflationRate,
+              realReturnRate: realReturn(scenarios.base.growthRate, scenarios.base.inflationRate),
               inflationRate: scenarios.base.inflationRate,
               pensions: normalizeCoastFirePensions(settings?.coastFirePensions),
               taxBrackets: normalizeCoastFireTaxBrackets(settings?.coastFireTaxBrackets),

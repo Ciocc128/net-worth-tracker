@@ -20,6 +20,7 @@ import { resolveEffectiveTargets } from './allocationComparison';
 import { expandUpperTriangle, identityMatrix, nearestCorrelation, pairCount } from './correlationMatrix';
 import { toLogNormal } from './monteCarloDraw';
 import { resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
+import { realReturn } from './realReturn';
 import { seedWeightsFromTargets, weightsFromHoldings } from './monteCarloWeights';
 
 export type FireScenarioKey = 'bear' | 'base' | 'bull';
@@ -101,10 +102,8 @@ export function portfolioCompoundReturn(
   return { cagr: cagr * 100, arithmeticMean: (mean - 1) * 100, volatility: Math.sqrt(variance) * 100 };
 }
 
-/** RP2: the Fisher real return, percent in, percent out. */
-export function realReturn(growthPct: number, inflationPct: number): number {
-  return ((1 + growthPct / 100) / (1 + inflationPct / 100) - 1) * 100;
-}
+/** RP2: the Fisher real return, percent in, percent out (the leaf module re-exported: one function for the page). */
+export { realReturn };
 
 export interface ResolveFireAssumptionsInput {
   settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled'> | null | undefined;

@@ -10,6 +10,7 @@ import {
 import { Expense } from '@/types/expenses';
 import { MONTH_NAMES } from '@/lib/constants/months';
 import { getItalyMonth, getItalyMonthYear, getItalyYear } from '@/lib/utils/dateHelpers';
+import { realReturn } from '@/lib/utils/realReturn';
 import { resolveGainShare, resolveTaxMultiplier } from '@/lib/utils/withdrawalTax';
 import { calculateTotalExpenses, calculateTotalIncome, getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
@@ -1204,7 +1205,7 @@ export function calculateCoastFIREMetrics(
 export interface FireBridgeInputs {
   annualExpenses: number;
   withdrawalRate: number;
-  realReturn: number; // % — scenario growthRate − inflationRate
+  realReturn: number; // % — the scenario's Fisher real return (`realReturn(growthRate, inflationRate)`)
   yearsToUnlock: number;
   pensionValueToday: number;
   // % — the bridge applies the scenario REAL return to the pension compartment too, a documented
@@ -1289,9 +1290,9 @@ export function calculateCoastFIREProjection(
   withdrawalTax?: { basisToday: number; rate: number }
 ): CoastFIREProjectionResult {
   const currentYear = getItalyYear();
-  const bearRealReturn = scenarios.bear.growthRate - scenarios.bear.inflationRate;
-  const baseRealReturn = scenarios.base.growthRate - scenarios.base.inflationRate;
-  const bullRealReturn = scenarios.bull.growthRate - scenarios.bull.inflationRate;
+  const bearRealReturn = realReturn(scenarios.bear.growthRate, scenarios.bear.inflationRate);
+  const baseRealReturn = realReturn(scenarios.base.growthRate, scenarios.base.inflationRate);
+  const bullRealReturn = realReturn(scenarios.bull.growthRate, scenarios.bull.inflationRate);
   const normalizedPensions = normalizeCoastFirePensions(pensions);
   const normalizedTaxBrackets = normalizeCoastFireTaxBrackets(taxBrackets);
   const yearsToRetirement = Math.max(retirementAge - currentAge, 0);
@@ -1539,7 +1540,7 @@ export interface FireRequirement {
 export function resolveFireRequirement(input: FireRequirementInput): FireRequirement {
   const wrDecimal = input.withdrawalRate / 100;
   const standardRequirement = wrDecimal > 0 ? input.annualExpenses / wrDecimal : 0;
-  const realReturn = input.scenario.growthRate - input.scenario.inflationRate;
+  const realReturnRate = realReturn(input.scenario.growthRate, input.scenario.inflationRate);
   const tax = input.honest?.withdrawalTax;
   const taxMultiplier = tax ? resolveTaxMultiplier(input.gainShare ?? 0, tax.rate) : 1;
   const pensions = input.honest ? normalizeCoastFirePensions(input.honest.pensions) : [];
@@ -1550,7 +1551,7 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
   if (input.bridge && input.bridge.compartmentValue > 0 && input.bridge.yearsToUnlock > 0) {
     const yearsToUnlock = Math.round(input.bridge.yearsToUnlock);
     if (yearsToUnlock > 0) {
-      inflows.push({ yearsFromRetirement: yearsToUnlock, amount: input.bridge.compartmentValue * Math.pow(1 + realReturn / 100, yearsToUnlock) });
+      inflows.push({ yearsFromRetirement: yearsToUnlock, amount: input.bridge.compartmentValue * Math.pow(1 + realReturnRate / 100, yearsToUnlock) });
     }
   }
 
@@ -1565,7 +1566,7 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
     input.withdrawalRate,
     ageAtYear,
     ageAtYear,
-    realReturn,
+    realReturnRate,
     input.scenario.inflationRate,
     pensionsConsidered ? pensions : [],
     input.honest ? normalizeCoastFireTaxBrackets(input.honest.taxBrackets) : DEFAULT_COAST_FIRE_TAX_BRACKETS,
