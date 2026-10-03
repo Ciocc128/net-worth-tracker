@@ -49,7 +49,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   weights. **Oro** is the commodity sub-category named in Impostazioni › Simulazioni (rule RG), everything else of
   `commodity` is Materie prime. `null` means "keep the previous allocation"; the rounding residual lands on the
   smallest class, even a zero-value one, and is taken off the largest instead if it would turn a class negative.
-  The Ventaglio now starts from `K`, not from the whole FIRE net worth, and carries the withdrawal-tax cost basis over
+  The Ventaglio draws with the same correlation matrix as the Monte Carlo (T2: `resolveMonteCarloMarket(...).correlations`, one source, no copy). It now starts from `K`, not from the whole FIRE net worth, and carries the withdrawal-tax cost basis over
   in proportion (`K / currentNetWorth`) so the gain share stays. **The market both engines draw from is ONE read**:
   `resolveMonteCarloMarketForPortfolio(settings, assets)` (`lib/utils/monteCarloMarket.ts`) — saved
   `monteCarloMarket`, else the legacy `monteCarloScenarios` migrated (R2), else the defaults. Nobody reads the two

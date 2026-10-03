@@ -23,6 +23,7 @@ vi.mock('firebase/firestore', () => ({
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 import {
   describeAllocationTotal,
+  describeMonteCarloCorrelations,
   describeAssistantPreferences,
   describeAutoCalc,
   describeBtpItalia,
@@ -1031,5 +1032,13 @@ describe('describeMonteCarloMarket', () => {
       'Migrate dai parametri salvati prima (da media aritmetica a CAGR, immobili tolti): rileggile e salva. Oro = sottocategoria «Gold».'
     );
     expect(plain(describeMonteCarloMarket({ ...migrated, dirty: true }))).toContain('modificate in 2');
+  });
+});
+
+describe('describeMonteCarloCorrelations', () => {
+  it('reads the defaults, the edited pairs and a correction', () => {
+    expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 0, correctedPairCount: 0 }))).toContain('Valori predefiniti');
+    expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 4, correctedPairCount: 0 }))).toContain('Modificate 4 coppie su 21');
+    expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 4, correctedPairCount: 3 }))).toContain('ne ha adattate 3');
   });
 });

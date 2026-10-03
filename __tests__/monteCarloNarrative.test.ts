@@ -309,6 +309,8 @@ describe('Ipotesi di mercato nel tile Parametri', () => {
     expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: [] }))).toBe('Ipotesi di mercato: salvate, uguali ai valori predefiniti.');
     expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity'] }))).toBe('Ipotesi di mercato: salvate, modificate in 1 classe.');
     expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity', 'gold', 'carry'] }))).toBe('Ipotesi di mercato: salvate, modificate in 3 classi.');
+    expect(plain(describeMarketDeclaration({ origin: 'default', editedClasses: [], correlationOrigin: 'default' }))).toBe('Ipotesi di mercato: valori predefiniti, storici di lungo periodo in dollari. Correlazioni predefinite.');
+    expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity'], correlationOrigin: 'saved' }))).toBe('Ipotesi di mercato: salvate, modificate in 1 classe. Correlazioni personalizzate.');
     expect(plain(describeMarketDeclaration({ origin: 'migrated', editedClasses: [] }))).toBe('Ipotesi di mercato: migrate dai parametri salvati prima (da media aritmetica a CAGR): rileggile in Impostazioni.');
   });
 

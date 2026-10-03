@@ -54,7 +54,7 @@ const STORED_MONTE_CARLO_MARKET = (() => {
   const market = getDefaultMonteCarloMarket();
   market.scenarios.base.classes.equity.cagr = 6.5;
   market.scenarios.bear.classes.carry.volatility = 21;
-  return { ...market, goldSubCategory: null };
+  return { ...market, goldSubCategory: null, correlations: [0.3, ...new Array(20).fill(-0.05)] };
 })();
 
 /** Ogni valore è scelto per essere DIVERSO dal default, così un campo perso si vede. */

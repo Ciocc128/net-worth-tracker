@@ -33,6 +33,7 @@ describe('findMonteCarloMarketProblems', () => {
     const market = { ...getDefaultMonteCarloMarket(), correlations: [0.2, 1.2], leverageSpread: 25 };
     const fields = findMonteCarloMarketProblems(market).map((problem) => problem.field);
     expect(fields).toEqual(['correlation', 'spread']);
+    expect(findMonteCarloMarketProblems(market)[0].message).toBe('Correlazione Azioni–Oro: fuori da −1 e 1');
     const broken = getDefaultMonteCarloMarket();
     broken.scenarios.base.classes.gold.cagr = Number.NaN;
     expect(findMonteCarloMarketProblems(broken)).toHaveLength(1);
