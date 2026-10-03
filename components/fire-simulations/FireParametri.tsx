@@ -3,7 +3,8 @@
 /**
  * «Parametri», below the grid behind a disclosure: the settings the calculator runs on — the
  * SWR, the residence rule, the RITA details of the pension lock — and the three scenarios'
- * growth and inflation, as two tiles (Impostazioni 6 · Scenari 6). Configuration, not a reading
+ * market assumptions, as two tiles (Impostazioni 6 · Scenari 6). The scenarios are DECLARED here, never typed:
+ * they are the target portfolio's rates computed from Impostazioni › Simulazioni (doc/fire-ipotesi/README.md D1). Configuration, not a reading
  * of the plan, so it does not earn a place in the grid (the Budget «Impostazioni» precedent).
  *
  * Config-first: the disclosure opens by itself only when no SWR is saved yet, or when an unsaved
@@ -15,12 +16,14 @@
  *
  * The pension-lock switch itself is NOT here: it is the Base di calcolo tile's control and saves
  * on change. What stays here is what needs a typed value: the INPS age and the long-unemployment
- * hypothesis that move the RITA unlock. The scenario parameters keep their Muted Sub-tile Variant B
- * (bordered, dense) — the one place the spec keeps that variant for.
+ * hypothesis that move the RITA unlock. The scenarios keep the Muted Sub-tile Variant B (bordered,
+ * dense), now read-only.
  */
 
-import { ChevronDown, HelpCircle, RotateCcw, Save, Target, TrendingDown, TrendingUp } from 'lucide-react';
-import type { FIREProjectionScenarios, FIREScenarioParams } from '@/types/assets';
+import Link from 'next/link';
+import { ChevronDown, HelpCircle, Target, TrendingDown, TrendingUp } from 'lucide-react';
+import type { FireAssumptions, FireScenarioKey } from '@/lib/utils/fireAssumptions';
+import { formatPercentage } from '@/lib/services/chartService';
 import type { Narrative } from '@/lib/utils/narrative';
 import { describeImpostazioni, describeScenarioParams } from '@/lib/utils/fireNarrative';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
@@ -59,14 +62,11 @@ interface FireParametriProps {
   onReset: () => void;
   /** `describeRitaPreview(...)` — the unlock the RITA controls imply, or what is missing to estimate it. */
   ritaPreview: Narrative;
-  scenarios: FIREProjectionScenarios;
-  onScenariosChange: (scenarios: FIREProjectionScenarios) => void;
-  onSaveScenarios: () => void;
-  onResetScenarios: () => void;
-  isSavingScenarios: boolean;
+  /** The page's hypotheses (read-only): the three scenarios of the target portfolio. */
+  assumptions: FireAssumptions | null;
 }
 
-type ScenarioKey = keyof FIREProjectionScenarios;
+type ScenarioKey = FireScenarioKey;
 
 const SCENARIO_META: { key: ScenarioKey; label: string; icon: typeof Target }[] = [
   { key: 'bear', label: 'Scenario Orso', icon: TrendingDown },
@@ -86,11 +86,7 @@ export function FireParametri({
   onSave,
   onReset,
   ritaPreview,
-  scenarios,
-  onScenariosChange,
-  onSaveScenarios,
-  onResetScenarios,
-  isSavingScenarios,
+  assumptions,
 }: FireParametriProps) {
 
   // The same bounds `handleSaveSettings` enforces, said AT the field while typing: a toast on
@@ -99,14 +95,6 @@ export function FireParametri({
   const swrInvalid = form.withdrawalRate.trim() !== '' && !(Number.isFinite(parsedSwr) && parsedSwr > 0 && parsedSwr <= 100);
   const parsedInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
   const inpsAgeInvalid = form.inpsRetirementAge.trim() !== '' && !(Number.isFinite(parsedInpsAge) && parsedInpsAge >= 60 && parsedInpsAge <= 75);
-
-  const updateScenario = (key: ScenarioKey, field: keyof FIREScenarioParams, value: string) => {
-    const numValue = parseFloat(value);
-    if (Number.isNaN(numValue)) return;
-    if (field === 'growthRate' && (numValue < 0 || numValue > 30)) return;
-    if (field === 'inflationRate' && (numValue < 0 || numValue > 15)) return;
-    onScenariosChange({ ...scenarios, [key]: { ...scenarios[key], [field]: numValue } });
-  };
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
@@ -255,63 +243,51 @@ export function FireParametri({
 
           {/* Scenari (6) */}
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
-            <Tile eyebrow="Scenari" aside="crescita e inflazione annue, %" reading={describeScenarioParams()} ariaLabel="Parametri degli scenari">
-              <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {SCENARIO_META.map(({ key, label, icon: Icon }) => (
-                  <div key={key} className="rounded-xl border border-border bg-muted p-3.5">
-                    {/* A chart slot is not a text colour: the slot is the swatch, the label stays muted. */}
-                    <p className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
-                      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                      {label}
-                    </p>
-                    <div className="mt-3 flex flex-col gap-3">
-                      <div>
-                        <Label htmlFor={`${key}-growth`} className="text-[11px] text-muted-foreground">
-                          Crescita mercati
-                        </Label>
-                        <Input
-                          id={`${key}-growth`}
-                          type="number"
-                          inputMode="decimal"
-                          step="0.5"
-                          min="0"
-                          max="30"
-                          value={scenarios[key].growthRate}
-                          onChange={(e) => updateScenario(key, 'growthRate', e.target.value)}
-                          className={cn(CONTROL_CLASS, 'desktop:h-8')}
-                        />
+            <Tile eyebrow="Scenari" aside="rendimento composto annuo, %" reading={describeScenarioParams()} ariaLabel="Ipotesi degli scenari">
+              {assumptions ? (
+                <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {SCENARIO_META.map(({ key, label, icon: Icon }) => {
+                    const scenario = assumptions.scenarios[key];
+                    return (
+                      <div key={key} className="rounded-xl border border-border bg-muted p-3.5">
+                        {/* A chart slot is not a text colour: the slot is the swatch, the label stays muted. */}
+                        <p className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                          <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
+                          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                          {label}
+                        </p>
+                        <dl className="mt-3 flex flex-col gap-2 text-[13px]">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <dt className="text-[11px] text-muted-foreground">Rendimento</dt>
+                            <dd className="m-0 font-mono tabular-nums font-semibold">{formatPercentage(scenario.growthRate, 2)}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <dt className="text-[11px] text-muted-foreground">Reale</dt>
+                            <dd className="m-0 font-mono tabular-nums">{formatPercentage(scenario.realReturnRate, 2)}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <dt className="text-[11px] text-muted-foreground">Inflazione</dt>
+                            <dd className="m-0 font-mono tabular-nums">{formatPercentage(scenario.inflationRate, 2)}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <dt className="text-[11px] text-muted-foreground">Media</dt>
+                            <dd className="m-0 font-mono tabular-nums">{formatPercentage(scenario.arithmeticMean, 2)}</dd>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <dt className="text-[11px] text-muted-foreground">Volatilità</dt>
+                            <dd className="m-0 font-mono tabular-nums">{formatPercentage(scenario.volatility, 2)}</dd>
+                          </div>
+                        </dl>
                       </div>
-                      <div>
-                        <Label htmlFor={`${key}-inflation`} className="text-[11px] text-muted-foreground">
-                          Inflazione
-                        </Label>
-                        <Input
-                          id={`${key}-inflation`}
-                          type="number"
-                          inputMode="decimal"
-                          step="0.5"
-                          min="0"
-                          max="15"
-                          value={scenarios[key].inflationRate}
-                          onChange={(e) => updateScenario(key, 'inflationRate', e.target.value)}
-                          className={cn(CONTROL_CLASS, 'desktop:h-8')}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : null}
 
-              <div className="mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:gap-3">
-                <Button variant="outline" size="sm" onClick={onResetScenarios} className="h-11 w-full desktop:h-9 sm:w-auto">
-                  <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Ripristina default
-                </Button>
-                <Button variant="outline" size="sm" onClick={onSaveScenarios} disabled={isDemo || isSavingScenarios} className="h-11 w-full desktop:h-9 sm:w-auto">
-                  <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {isSavingScenarios ? 'Salvataggio…' : 'Salva parametri'}
-                </Button>
+              <div className="mt-auto pt-4">
+                <Link href="/dashboard/settings?tab=simulazioni" className="inline-flex min-h-11 items-center text-[13px] text-foreground underline underline-offset-2 desktop:min-h-0">
+                  Modifica in Impostazioni › Simulazioni
+                </Link>
               </div>
             </Tile>
           </div>

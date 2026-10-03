@@ -96,6 +96,8 @@ import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloResults } fro
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -205,6 +207,8 @@ export function MonteCarloTab() {
     return seedWeightsFromTargets(targets, assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory });
   }, [assets, settings, goalData, goalDriven, lockedAssetIds, market.goldSubCategory]);
   const holdingsSeed = useMemo(() => (assets ? weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null), [assets, lockedAssetIds, market.goldSubCategory]);
+  // The page's hypotheses: the weights seed the form from the SAME reading as the other tabs (D1).
+  const { assumptions } = useFireAssumptions(lockedAssetIds);
   const totalNetWorth = Math.max(0, capital?.total ?? 0);
   const liquidNetWorth = Math.max(0, capital?.liquid ?? 0);
 
@@ -260,13 +264,12 @@ export function MonteCarloTab() {
   // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
   const didSeedRef = useRef(false);
   useEffect(() => {
-    if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets) return;
+    if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets || !assumptions) return;
     const timer = setTimeout(() => {
       didSeedRef.current = true;
       // The seed: the targets of Allocazione, else the portfolio held today (the Parametri line says which).
-      const seed = targetSeed ?? holdingsSeed;
-      const weights = seed?.weights ?? monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0));
-      setWeightsOrigin(targetSeed ? 'targets' : 'holdings');
+      const weights = assumptions.weights;
+      setWeightsOrigin(assumptions.weightsOrigin === 'targets' ? 'targets' : 'holdings');
       setForm({
         initialPortfolio: formatInputAmount(totalNetWorth),
         retirementYears: String(DEFAULT_RETIREMENT_YEARS),
@@ -276,7 +279,7 @@ export function MonteCarloTab() {
       });
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, targetSeed, holdingsSeed]);
+  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, assumptions]);
 
   // ─── The params the run reads (numbers from the strings) ─────────────────────
   const params = useMemo<MonteCarloParams | null>(() => {
@@ -403,6 +406,7 @@ export function MonteCarloTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
+        <FireAssumptionsRow assumptions={assumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Monte Carlo" />
       </div>
 
