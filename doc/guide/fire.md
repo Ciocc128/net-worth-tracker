@@ -41,9 +41,19 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   volatility every path collapses float-for-float onto `calculateFIREProjection`'s base scenario — the coherence test
   pins that identity WITHOUT inflows, because the deterministic bridge grows the pension compartment while a Monte
   Carlo run injects inflows at today's value. Do not "fix" the test to include them: the divergence IS the model.
-- **The allocation→4-MC-classes normalization is ONE function** (`deriveMonteCarloAllocation`): MonteCarloTab's
-  auto-fill and the FIRE Ventaglio consume it and must never re-inline it. `null` means "keep the previous allocation",
-  and the rounding residual lands on the smallest class, even a zero-value one (pinned by tests).
+- **The capital and its weights are ONE pair of functions** (`computeSimulatedCapital` + `deriveMonteCarloWeights` in
+  `lib/utils/monteCarloParams.ts`, since T1 of the Monte Carlo epic, doc/montecarlo/README.md § 5): MonteCarloTab's
+  auto-fill and the FIRE Ventaglio consume them and must never re-inline them. SEVEN classes (Azioni, Obbligazioni,
+  Oro, Materie prime, Liquidità, Trend, Carry — cash is now simulated); crypto and real estate (and the legs of a
+  composite in those classes) are OUTSIDE the capital `K` in BOTH engines, reported in a read-only row under the
+  weights. **Oro** is the commodity sub-category named in Impostazioni › Simulazioni (rule RG), everything else of
+  `commodity` is Materie prime. `null` means "keep the previous allocation"; the rounding residual lands on the
+  smallest class, even a zero-value one, and is taken off the largest instead if it would turn a class negative.
+  The Ventaglio now starts from `K`, not from the whole FIRE net worth, and carries the withdrawal-tax cost basis over
+  in proportion (`K / currentNetWorth`) so the gain share stays. **The market both engines draw from is ONE read**:
+  `resolveMonteCarloMarketForPortfolio(settings, assets)` (`lib/utils/monteCarloMarket.ts`) — saved
+  `monteCarloMarket`, else the legacy `monteCarloScenarios` migrated (R2), else the defaults. Nobody reads the two
+  settings fields directly.
 - **Memoize every input feeding the fan's `useMemo`** — a `pensionLockState` (and therefore `fanInputs`) rebuilt per
   render re-runs 1000 simulations on every keystroke. The fan is armed only on first opening its view.
 - **The Coast tab computes nothing**: `lib/utils/coastFireView.ts` chooses which of `fireService`'s own fields to show
@@ -129,8 +139,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The fan is SEEDED** (`FAN_SEED`, `createSeededRandom` in `lib/utils/seededRandom.ts`, mulberry32): the same inputs
   give the same thousand paths at every opening, and — the reason it exists — the lever re-runs on the SAME shocks
   (common random numbers), so a difference between two runs is the difference between two plans and not noise. The
-  Monte Carlo tab stays unseeded: its «Esegui» is a new draw by design. `randomNormal` takes the source as a parameter
-  and guards `log(0)` (a uniform can return exactly 0).
+  Monte Carlo tab stays unseeded until T3: its «Esegui» is a new draw by design. `drawYear` (`lib/utils/monteCarloDraw.ts`,
+  the ONE draw both engines call) takes the source as a parameter, guards `log(0)` (a uniform can return exactly 0) and
+  consumes two uniforms per class whatever the volatility, so a seeded run stays comparable across plans.
 - **The lever on the bad tail** (`solveSavingsForTail`): the extra annual saving that brings the 90th-percentile FIRE
   year within the deterministic base year, by bisection over the injected runner (`run(annualSavings)`, ~13 seeded
   re-runs, under 100 ms), rounded UP to 100 € and RE-RUN so the printed figure is one that meets the target; the cap
