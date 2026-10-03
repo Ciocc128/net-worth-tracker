@@ -56,6 +56,8 @@ function makeRun(overrides: Partial<MonteCarloRun> = {}): MonteCarloRun {
     successRate: 84.21,
     successCount: 8421,
     failureCount: 1579,
+    leverageFailureCount: 0,
+    leverage: 1,
     simulations: 10000,
     years: 35,
     endCalendarYear: 2061,

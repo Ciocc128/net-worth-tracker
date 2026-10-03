@@ -78,7 +78,8 @@ import {
   type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
-import { computeSimulatedCapital, deriveMonteCarloWeights } from '@/lib/utils/monteCarloParams';
+import { computeSimulatedCapital } from '@/lib/utils/monteCarloParams';
+import { weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
 import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
@@ -473,7 +474,10 @@ export function FireCalculatorTab() {
   const fanInputs = useMemo<FanSimulationInputs | null>(() => {
     if (!assets || assets.length === 0 || !fanCapital) return null;
     if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    const weights = deriveMonteCarloWeights(fanCapital.byClass);
+    // T3: the fan projects the portfolio HELD, so its weights are the notional held today, leverage
+    // included (`weightsFromHoldings`, the Monte Carlo tab's «Importa il portafoglio di oggi»).
+    const lockedAssetIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
+    const weights = weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: monteCarloMarket.goldSubCategory })?.weights;
     if (!weights) return null;
     return {
       // Rule RK: the fan starts from the capital the seven classes cover; real estate and crypto stay out.
@@ -485,10 +489,11 @@ export function FireCalculatorTab() {
       weights,
       market: monteCarloMarket.scenarios.base,
       correlations: monteCarloMarket.correlations,
+      leverageSpread: monteCarloMarket.leverageSpread,
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
-  }, [assets, fanCapital, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, monteCarloMarket.correlations, pensionCapitalInflows]);
+  }, [assets, fanCapital, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, monteCarloMarket.correlations, monteCarloMarket.leverageSpread, monteCarloMarket.goldSubCategory, pensionLockState, pensionCapitalInflows]);
 
   // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
   // Keyed on the same inputs that change the deterministic projection, so an edited parameter

@@ -40,11 +40,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
+import { getGoalData } from '@/lib/services/goalService';
+import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
+import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
+import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, deriveMonteCarloWeights } from '@/lib/utils/monteCarloParams';
+import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
@@ -72,6 +77,8 @@ import {
   describeMarketDeclaration,
   describeParametri,
   describeParametriFooter,
+  resolveAllocationTotalState,
+  type WeightsOrigin,
   describePercentili,
   describeProbabilita,
   describeProbabilitaAside,
@@ -85,7 +92,7 @@ import {
   SCENARI_FOOTER,
   scenarioLabel,
 } from '@/lib/utils/monteCarloNarrative';
-import type { MonteCarloCapitalInflow, MonteCarloParams } from '@/types/assets';
+import type { MonteCarloCapitalInflow, MonteCarloParams, MonteCarloResults } from '@/types/assets';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -147,6 +154,15 @@ export function MonteCarloTab() {
     staleTime: 300000,
   });
 
+  // The goal-driven targets (when that mode is on) are part of the effective targets the weights are seeded from.
+  const goalDriven = !!settings?.goalBasedInvestingEnabled && !!settings?.goalDrivenAllocationEnabled;
+  const { data: goalData } = useQuery({
+    queryKey: ['goalData', ownerId],
+    queryFn: () => getGoalData(ownerId!),
+    enabled: !!user && !!ownerId && goalDriven,
+    staleTime: 300000,
+  });
+
   // ─── The pension lock (governs the whole FIRE page) ──────────────────────────
   // With the lock on, the locked funds leave the starting portfolio and re-enter the simulation
   // as capital inflows at their unlock year, at TODAY's value (doc/guide/fire.md § FIRE, What If and Goals).
@@ -181,6 +197,14 @@ export function MonteCarloTab() {
     () => (assets ? computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null),
     [assets, lockedAssetIds, market.goldSubCategory],
   );
+  // The two seeds of the weights (R6): the effective targets of Allocazione (Σ above 100 = leverage), and the
+  // portfolio held today (notional, leverage included). With no targets on the modelled classes the first is null.
+  const targetSeed = useMemo(() => {
+    if (!assets) return null;
+    const { targets } = resolveEffectiveTargets({ settings, goalData: goalDriven ? goalData : null, assets });
+    return seedWeightsFromTargets(targets, assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory });
+  }, [assets, settings, goalData, goalDriven, lockedAssetIds, market.goldSubCategory]);
+  const holdingsSeed = useMemo(() => (assets ? weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null), [assets, lockedAssetIds, market.goldSubCategory]);
   const totalNetWorth = Math.max(0, capital?.total ?? 0);
   const liquidNetWorth = Math.max(0, capital?.liquid ?? 0);
 
@@ -202,7 +226,17 @@ export function MonteCarloTab() {
 
   // ─── The form (ephemeral) ────────────────────────────────────────────────────
   const [form, setForm] = useState<MonteCarloForm | null>(null);
-  const onFormChange = useCallback((patch: Partial<MonteCarloForm>) => setForm((prev) => (prev ? { ...prev, ...patch } : prev)), []);
+  // Where the weights come from (R6); typing in a weight field makes them «a mano».
+  const [weightsOrigin, setWeightsOrigin] = useState<WeightsOrigin>('targets');
+  const onFormChange = useCallback((patch: Partial<MonteCarloForm>) => {
+    if (patch.weights) setWeightsOrigin('edited');
+    setForm((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+  const applySeed = useCallback((seed: typeof targetSeed, origin: WeightsOrigin) => {
+    if (!seed) return;
+    setWeightsOrigin(origin);
+    setForm((prev) => (prev ? { ...prev, weights: monteCarloClassRecord((cls) => String(seed.weights[cls])) } : prev));
+  }, []);
 
   // The state pensions, net through the IRPEF brackets and deflated with the base scenario's
   // inflation (the same figure Coast FIRE prints), dated by the saved age: without an age there
@@ -229,7 +263,10 @@ export function MonteCarloTab() {
     if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets) return;
     const timer = setTimeout(() => {
       didSeedRef.current = true;
-      const weights = (capital ? deriveMonteCarloWeights(capital.byClass) : null) ?? monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0));
+      // The seed: the targets of Allocazione, else the portfolio held today (the Parametri line says which).
+      const seed = targetSeed ?? holdingsSeed;
+      const weights = seed?.weights ?? monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0));
+      setWeightsOrigin(targetSeed ? 'targets' : 'holdings');
       setForm({
         initialPortfolio: formatInputAmount(totalNetWorth),
         retirementYears: String(DEFAULT_RETIREMENT_YEARS),
@@ -239,7 +276,7 @@ export function MonteCarloTab() {
       });
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, capital]);
+  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, targetSeed, holdingsSeed]);
 
   // ─── The params the run reads (numbers from the strings) ─────────────────────
   const params = useMemo<MonteCarloParams | null>(() => {
@@ -257,17 +294,22 @@ export function MonteCarloTab() {
       market: scenarios.base,
       // The classes move together through the matrix saved in Impostazioni (one matrix for the three scenarios).
       correlations: market.correlations,
+      // R4: the debt of a leveraged portfolio costs the Liquidità return plus this (Impostazioni › Simulazioni).
+      leverageSpread: market.leverageSpread,
       numberOfSimulations: Math.min(50000, Math.max(1000, parseIntField(form.numberOfSimulations, DEFAULT_SIMULATIONS))),
       capitalInflows: pensionInflows.length > 0 ? pensionInflows : undefined,
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
       // The typed capital keeps the portfolio's gain share: basis = capital × (1 − gain share).
       withdrawalTax: taxProfile ? { basisToday: initialPortfolio * (1 - taxProfile.gainShare), rate: taxProfile.rate } : undefined,
     };
-  }, [form, scenarios, market.correlations, pensionInflows, statePensionInflows, taxProfile]);
+  }, [form, scenarios, market.correlations, market.leverageSpread, pensionInflows, statePensionInflows, taxProfile]);
 
   const allocationSum = params ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + params.weights[cls], 0) : 0;
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;
-  const canRun = runnable && Math.abs(allocationSum - 100) <= 0.01 && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
+  // Below 100% or above 300% the run stays blocked; in between a sum above 100% is leverage (R4).
+  const totalState = resolveAllocationTotalState(allocationSum);
+  const leverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => (params ? params.weights[cls] : 0)));
+  const canRun = runnable && (totalState === 'plain' || totalState === 'leveraged') && !!params && params.retirementYears >= 1 && params.retirementYears <= 60;
 
   const currentInputs = useMemo<MonteCarloRunInputs | null>(() => (params ? { params, scenarios, inflows: pensionInflows } : null), [params, scenarios, pensionInflows]);
 
@@ -283,11 +325,20 @@ export function MonteCarloTab() {
     // running state before the computation starts.
     window.setTimeout(() => {
       try {
+        // Seeded (T3): each run draws from a fresh generator on the SAME seed, so the three scenarios and the
+        // unleveraged Base meet the same shocks and a re-run with the same inputs gives the same figures.
+        const run = (scenario: keyof typeof inputs.scenarios, params: MonteCarloParams): MonteCarloResults =>
+          runMonteCarloSimulation({ ...buildScenarioParams(params, inputs.scenarios[scenario]), random: createSeededRandom(MONTE_CARLO_SEED) });
         const results: ScenarioResults = {
-          bear: runMonteCarloSimulation(buildScenarioParams(inputs.params, inputs.scenarios.bear)),
-          base: runMonteCarloSimulation(buildScenarioParams(inputs.params, inputs.scenarios.base)),
-          bull: runMonteCarloSimulation(buildScenarioParams(inputs.params, inputs.scenarios.bull)),
+          bear: run('bear', inputs.params),
+          base: run('base', inputs.params),
+          bull: run('bull', inputs.params),
         };
+        // D11: with leverage the Base runs again without it (weights scaled to 100) on the same shocks.
+        const runLeverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => inputs.params.weights[cls]));
+        if (runLeverage > 1) {
+          results.unleveragedBase = run('base', { ...inputs.params, weights: monteCarloClassRecord((cls) => inputs.params.weights[cls] / runLeverage), leverageSpread: 0 });
+        }
         setLastRun({ results, inputs });
       } catch (error) {
         console.error('Error running the Monte Carlo scenarios:', error);
@@ -323,7 +374,8 @@ export function MonteCarloTab() {
   const stale = !!lastRun && !!currentInputs && haveRunInputsChanged(lastRun.inputs, currentInputs);
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
-  const verdict = useMemo(() => buildMonteCarloVerdict({ runnable, run, scenarios: comparison, lock }), [runnable, run, comparison, lock]);
+  const unleveragedSuccessRate = lastRun?.results.unleveragedBase?.successRate ?? null;
+  const verdict = useMemo(() => buildMonteCarloVerdict({ runnable, run, scenarios: comparison, lock, unleveragedSuccessRate }), [runnable, run, comparison, lock, unleveragedSuccessRate]);
 
   // ─── Loading: until the seeded plan has run once ─────────────────────────────
   const awaitingFirstRun = runnable && canRun && !lastRun;
@@ -408,9 +460,14 @@ export function MonteCarloTab() {
             form={form}
             onFormChange={onFormChange}
             allocationSum={allocationSum}
+            weightsOrigin={weightsOrigin}
+            leverage={leverage}
+            hasTargets={targetSeed !== null}
+            onUseTargets={targetSeed ? () => applySeed(targetSeed, 'targets') : undefined}
+            onImportHoldings={holdingsSeed ? () => applySeed(holdingsSeed, 'holdings') : undefined}
             totalNetWorth={totalNetWorth}
             liquidNetWorth={liquidNetWorth}
-            marketDeclaration={describeMarketDeclaration(market)}
+            marketDeclaration={describeMarketDeclaration(market, leverage)}
             excluded={capital?.excluded ?? null}
             onRun={handleRun}
             canRun={canRun}
@@ -418,7 +475,7 @@ export function MonteCarloTab() {
             footer={
               lastRun
                 ? describeParametriFooter({ stale, simulations: lastRun.inputs.params.numberOfSimulations })
-                : [{ text: canRun ? 'Premi Esegui simulazione per lanciare i tre scenari.' : 'Completa il piano: patrimonio e prelievo maggiori di zero, allocazione al 100%, da 1 a 60 anni.' }]
+                : [{ text: canRun ? 'Premi Esegui simulazione per lanciare i tre scenari.' : 'Completa il piano: patrimonio e prelievo maggiori di zero, allocazione tra 100% e 300%, da 1 a 60 anni.' }]
             }
             stale={stale}
           />

@@ -36,6 +36,13 @@ import { suggestIsLiquid } from './assetLiquidity';
  */
 export const DEFAULT_MONTE_CARLO_SIMULATIONS = 10000;
 
+/**
+ * The seed of the Monte Carlo tab's draws (T3, README § 7.2 point 6): every scenario run — and the
+ * Base run again without leverage — starts a fresh `createSeededRandom` from it, so they all meet the
+ * same shocks and two «Esegui» with the same parameters give the same result.
+ */
+export const MONTE_CARLO_SEED = 20261003;
+
 export interface SimulatedCapital {
   /** EUR per Monte Carlo class. */
   byClass: Record<MonteCarloClass, number>;
