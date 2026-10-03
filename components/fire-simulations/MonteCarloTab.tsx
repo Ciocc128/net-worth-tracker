@@ -46,7 +46,6 @@ import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCa
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
-import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
@@ -208,7 +207,7 @@ export function MonteCarloTab() {
   }, [assets, settings, goalData, goalDriven, lockedAssetIds, market.goldSubCategory]);
   const holdingsSeed = useMemo(() => (assets ? weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null), [assets, lockedAssetIds, market.goldSubCategory]);
   // The page's hypotheses: the weights seed the form from the SAME reading as the other tabs (D1).
-  const { assumptions } = useFireAssumptions(lockedAssetIds);
+  const { assumptions, isLoading: isLoadingAssumptions, isError: assumptionsError } = useFireAssumptions(lockedAssetIds, { withCashflow: true });
   const totalNetWorth = Math.max(0, capital?.total ?? 0);
   const liquidNetWorth = Math.max(0, capital?.liquid ?? 0);
 
@@ -217,10 +216,8 @@ export function MonteCarloTab() {
   // and the tax on withdrawals, from the portfolio's cost basis — the capital the plan starts
   // from (everything but the locked funds), its gain share carried onto whatever amount is typed.
   const now = useMemo(() => new Date(), []);
-  const taxProfile = useMemo(() => {
-    if (!assets) return null;
-    return resolvePortfolioTaxProfile(assets.filter((asset) => !lockedAssetIds.has(asset.id)), calculateAssetValue);
-  }, [assets, lockedAssetIds]);
+  // The cost basis is `K`'s own (`resolveFireCapital`, the page's one reading): crypto and real estate are not in the basis either.
+  const taxProfile = assumptions?.capital?.taxProfile ?? null;
 
   const currentYear = getItalyYear();
   const currentAge = settings?.userAge ?? null;
@@ -273,7 +270,8 @@ export function MonteCarloTab() {
       setForm({
         initialPortfolio: formatInputAmount(totalNetWorth),
         retirementYears: String(DEFAULT_RETIREMENT_YEARS),
-        annualWithdrawal: String(settings?.plannedAnnualExpenses || DEFAULT_WITHDRAWAL),
+        // RP6 (D5): the same expenses as the other tabs; the old 30.000 € stands in only while there are none anywhere.
+        annualWithdrawal: String(Math.round(assumptions.expenses?.annual ?? 0) || DEFAULT_WITHDRAWAL),
         numberOfSimulations: String(DEFAULT_SIMULATIONS),
         weights: monteCarloClassRecord((cls) => String(weights[cls])),
       });
@@ -384,7 +382,7 @@ export function MonteCarloTab() {
   const awaitingFirstRun = runnable && canRun && !lastRun;
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  if (resolveSurfaceState({ loading: isLoadingAssets || isLoadingSettings, failed: assetsError || settingsError }) === 'failed') {
+  if (resolveSurfaceState({ loading: isLoadingAssets || isLoadingSettings || isLoadingAssumptions, failed: assetsError || settingsError || assumptionsError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
@@ -396,7 +394,7 @@ export function MonteCarloTab() {
     );
   }
 
-  if (isLoadingAssets || isLoadingSettings || !form || !params || !typedPlan || awaitingFirstRun) {
+  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || !form || !params || !typedPlan || awaitingFirstRun) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 

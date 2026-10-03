@@ -230,8 +230,14 @@ export async function setSettings(
       if (settings.withdrawalRate !== undefined) {
         docData.withdrawalRate = settings.withdrawalRate;
       }
-      if (settings.plannedAnnualExpenses !== undefined) {
-        docData.plannedAnnualExpenses = settings.plannedAnnualExpenses;
+      // The plan's expenses are USER-CLEARABLE (empty = «dal Cashflow», doc/fire-ipotesi/README.md D5): the key
+      // present and undefined removes the field, as for the Coast FIRE custom expenses below.
+      if ('plannedAnnualExpenses' in settings) {
+        if (settings.plannedAnnualExpenses !== undefined) {
+          docData.plannedAnnualExpenses = settings.plannedAnnualExpenses;
+        } else {
+          delete docData.plannedAnnualExpenses;
+        }
       }
       if (settings.coastFireRetirementAge !== undefined) {
         docData.coastFireRetirementAge = settings.coastFireRetirementAge;
@@ -452,20 +458,19 @@ export async function setSettings(
       if (settings.withdrawalRate !== undefined) {
         docData.withdrawalRate = settings.withdrawalRate;
       }
-      if (settings.plannedAnnualExpenses !== undefined) {
-        docData.plannedAnnualExpenses = settings.plannedAnnualExpenses;
+      // The plan's expenses are USER-CLEARABLE (empty = «dal Cashflow», doc/fire-ipotesi/README.md D5): the key
+      // present and undefined removes the field, as for the Coast FIRE custom expenses below.
+      if ('plannedAnnualExpenses' in settings) {
+        docData.plannedAnnualExpenses =
+          settings.plannedAnnualExpenses !== undefined ? settings.plannedAnnualExpenses : deleteField();
       }
       if (settings.coastFireRetirementAge !== undefined) {
         docData.coastFireRetirementAge = settings.coastFireRetirementAge;
       }
-      // When the key is present but undefined, remove the field from docData so setDoc drops it.
-      // deleteField() is not allowed with setDoc() without merge:true; omitting the key achieves the same result.
+      // Merge branch: omitting the key would leave the stale value, so an undefined one is a deleteField().
       if ('coastFireCustomExpenses' in settings) {
-        if (settings.coastFireCustomExpenses !== undefined) {
-          docData.coastFireCustomExpenses = settings.coastFireCustomExpenses;
-        } else {
-          delete docData.coastFireCustomExpenses;
-        }
+        docData.coastFireCustomExpenses =
+          settings.coastFireCustomExpenses !== undefined ? settings.coastFireCustomExpenses : deleteField();
       }
       if (settings.coastFirePensions !== undefined) {
         docData.coastFirePensions = serializeCoastFirePensions(settings.coastFirePensions);

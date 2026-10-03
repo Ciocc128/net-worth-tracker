@@ -1595,7 +1595,11 @@ export function calculateFIREProjection(
   maxYears: number = 50,
   pensionBridge?: FireProjectionPensionBridge,
   // The pensions and the withdrawal tax (2026-09-24): absent → the walk of before, byte-identical.
-  honest?: FireHonestInputs
+  honest?: FireHonestInputs,
+  // RP7 (doc/fire-ipotesi/README.md): the saving of year t is `annualSavings · (1 + π)^(t−1)`, π the
+  // scenario's own inflation, so the first year stays `annualSavings`. Default false = a constant
+  // nominal saving, the walk of before (upstream and the existing tests).
+  indexSavings: boolean = false
 ): FIREProjectionResult {
   const wrDecimal = withdrawalRate / 100;
   const currentYear = getItalyYear();
@@ -1679,17 +1683,22 @@ export function calculateFIREProjection(
       }
     }
 
+    const savingsOf = (scenario: FIREScenarioParams): number =>
+      indexSavings ? annualSavings * Math.pow(1 + scenario.inflationRate / 100, year - 1) : annualSavings;
     if (bearYearsToFIRE === null) {
-      bearNW += annualSavings;
-      bearBasis += annualSavings;
+      const savings = savingsOf(scenarios.bear);
+      bearNW += savings;
+      bearBasis += savings;
     }
     if (baseYearsToFIRE === null) {
-      baseNW += annualSavings;
-      baseBasis += annualSavings;
+      const savings = savingsOf(scenarios.base);
+      baseNW += savings;
+      baseBasis += savings;
     }
     if (bullYearsToFIRE === null) {
-      bullNW += annualSavings;
-      bullBasis += annualSavings;
+      const savings = savingsOf(scenarios.bull);
+      bullNW += savings;
+      bullBasis += savings;
     }
 
     bearExpenses *= (1 + scenarios.bear.inflationRate / 100);
@@ -1760,7 +1769,9 @@ export function calculateFIRESensitivityMatrix(
   baselineAnnualExpenses: number,
   baselineAnnualSavings: number,
   withdrawalRate: number,
-  scenarios: FIREProjectionScenarios
+  scenarios: FIREProjectionScenarios,
+  // RP7: the same indexed saving the Calcolatore walks (default false = constant nominal, as before).
+  indexSavings: boolean = false
 ): FIRESensitivityMatrix {
   const baselineProjection =
     initialNetWorth > 0 && baselineAnnualExpenses > 0 && withdrawalRate > 0
@@ -1769,7 +1780,11 @@ export function calculateFIRESensitivityMatrix(
           baselineAnnualExpenses,
           baselineAnnualSavings,
           withdrawalRate,
-          scenarios
+          scenarios,
+          undefined,
+          undefined,
+          undefined,
+          indexSavings
         )
       : null;
   const baselineYearsToFIRE = baselineProjection?.baseYearsToFIRE ?? null;
@@ -1800,7 +1815,11 @@ export function calculateFIRESensitivityMatrix(
               annualExpenses,
               column.annualSavings,
               withdrawalRate,
-              scenarios
+              scenarios,
+              undefined,
+              undefined,
+              undefined,
+              indexSavings
             )
           : null;
       const yearsToFIRE = projection?.baseYearsToFIRE ?? null;

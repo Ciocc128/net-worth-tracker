@@ -5,7 +5,9 @@
  */
 import { formatPercentage } from '@/lib/services/chartService';
 import { formatLeverage } from '@/lib/utils/monteCarloNarrative';
-import type { FireAssumptions } from '@/lib/utils/fireAssumptions';
+import { MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
+import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import type { FireAssumptions, FireCapital, FireExpenses } from '@/lib/utils/fireAssumptions';
 import type { Narrative, NarrativeSegment } from '@/lib/utils/narrative';
 
 const prose = (text: string): NarrativeSegment => ({ text });
@@ -25,7 +27,31 @@ function describeWeights(assumptions: FireAssumptions): Narrative {
   }
 }
 
-/** «Portafoglio target · Base 8,3% (reale 5,1%), Orso 6,0%, Toro 11,1% · inflazione 3,0%», with «· leva 1,5×» when the weights sum above 100%. */
+const euro = (value: number): string => cachedFormatCurrencyEUR(Math.round(value), true);
+
+/** «Immobili 250.000 €, Crypto 5.000 €» — what the plan's capital leaves out; null when nothing is left out (RP5). */
+export function describeOutsideCapital(outside: FireCapital['outside']): string | null {
+  const left = MONTE_CARLO_EXCLUDED_CLASSES.filter((cls) => outside[cls] > 0);
+  return left.length > 0 ? left.map((cls) => `${MONTE_CARLO_EXCLUDED_LABELS[cls]} ${euro(outside[cls])}`).join(', ') : null;
+}
+
+/** «spesa 32.000 € dal Cashflow 2025» / «… da Impostazioni» / «… dal Cashflow 2026, annualizzato»; a Cashflow with no expenses says so. */
+function describeExpenses(expenses: FireExpenses): Narrative {
+  if (expenses.origin === 'settings') return [prose(' · spesa '), figure(euro(expenses.annual)), prose(' da Impostazioni')];
+  if (!(expenses.annual > 0)) return [prose(' · spesa '), figure('non rilevata'), prose(' (nessuna spesa nel Cashflow)')];
+  return [prose(' · spesa '), figure(euro(expenses.annual)), prose(` dal Cashflow ${expenses.referenceYear ?? ''}${expenses.isAnnualized ? ', annualizzato' : ''}`.trimEnd())];
+}
+
+/** «capitale 410.000 € (fuori: Immobili 250.000 €)». */
+function describeCapital(capital: FireCapital): Narrative {
+  const outside = describeOutsideCapital(capital.outside);
+  return [prose(' · capitale '), figure(euro(capital.total)), ...(outside ? [prose(` (fuori: ${outside})`)] : [])];
+}
+
+/**
+ * «Portafoglio target · Base 8,3% (reale 5,1%), Orso 6,0%, Toro 11,1% · inflazione 3,0%», with «· leva 1,5×» when the weights
+ * sum above 100%, then «· spesa 32.000 € dal Cashflow 2025 · capitale 410.000 € (fuori: Immobili 250.000 €)».
+ */
 export function describeFireAssumptions(assumptions: FireAssumptions): Narrative {
   const { bear, base, bull } = assumptions.scenarios;
   const out: Narrative = [
@@ -44,5 +70,8 @@ export function describeFireAssumptions(assumptions: FireAssumptions): Narrative
   if (assumptions.leverage > 1) {
     out.push(prose(' · leva '), figure(formatLeverage(assumptions.leverage)));
   }
+  // L2: the expenses and the capital, once the tab has them (RP5, RP6).
+  if (assumptions.expenses) out.push(...describeExpenses(assumptions.expenses));
+  if (assumptions.capital) out.push(...describeCapital(assumptions.capital));
   return out;
 }

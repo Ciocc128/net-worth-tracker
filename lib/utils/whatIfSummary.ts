@@ -42,7 +42,7 @@ export interface WhatIfEvent {
 
 /** The event as the page states it, from the scenario the UI built and the inputs it produced. */
 export function summarizeWhatIfEvent(scenario: WhatIfScenario, baseline: WhatIfBaseline, adjusted: WhatIfAdjustedInputs): WhatIfEvent {
-  const householdIncome = baseline.annualExpenses + baseline.annualSavings;
+  const householdIncome = baseline.annualIncome ?? baseline.annualExpenses + baseline.annualSavings;
   const months = Math.max(0, scenario.monthsWithoutIncome ?? 0);
   const lostAnnualIncome = Math.max(0, scenario.lostAnnualIncome ?? householdIncome);
   const lumpSum = Math.max(0, scenario.lumpSumAmount ?? 0);

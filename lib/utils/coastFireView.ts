@@ -956,7 +956,8 @@ export interface CoastBasisInput {
   currentAge: number | null;
   retirementAge: number | null;
   annualExpenses: number | undefined;
-  usesCustomExpenses: boolean;
+  /** RP6: typed as the plan's expenses (`settings`) or read off the Cashflow. */
+  expensesOrigin: 'settings' | 'cashflow';
   withdrawalRate: number;
   baseRealReturn: number | null;
   respectPensionLockIn: boolean;
@@ -978,7 +979,7 @@ export function buildCoastBasisParts(input: CoastBasisInput): string[] {
 
   parts.push(
     input.annualExpenses !== undefined && input.annualExpenses > 0
-      ? `spese ${formatAmount(input.annualExpenses)} ${input.usesCustomExpenses ? '(personalizzate)' : '(ultimo anno completo)'}`
+      ? `spese ${formatAmount(input.annualExpenses)} ${input.expensesOrigin === 'settings' ? '(del piano)' : '(dal Cashflow)'}`
       : 'spese non disponibili'
   );
 

@@ -9,7 +9,8 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { getGoalData } from '@/lib/services/goalService';
 import { resolveFireAssumptions, type FireAssumptions } from '@/lib/utils/fireAssumptions';
@@ -20,8 +21,12 @@ export interface UseFireAssumptionsResult {
   isError: boolean;
 }
 
-/** `lockedAssetIds`: the funds the pension lock keeps closed (memoise it in the caller: its identity keys the result). */
-export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>): UseFireAssumptionsResult {
+/**
+ * `lockedAssetIds`: the funds the pension lock keeps closed (memoise it in the caller: its identity keys the result).
+ * `withCashflow`: also read the Cashflow (the SAME `['annualCashflowData', ownerId]` query the tabs make), so
+ * the result carries the plan's `expenses` (RP6) — the tabs that run a plan ask for it, the Settings tile does not.
+ */
+export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false }: { withCashflow?: boolean } = {}): UseFireAssumptionsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
@@ -46,15 +51,24 @@ export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>): UseFir
     staleTime: 300000,
   });
 
+  const cashflowQuery = useQuery({
+    queryKey: ['annualCashflowData', ownerId],
+    queryFn: () => getAnnualCashflowData(ownerId!),
+    enabled: !!user && !!ownerId && withCashflow,
+    staleTime: 300000,
+  });
+
   const assets = assetsQuery.data;
   const goalData = goalQuery.data;
+  const cashflowData = withCashflow ? cashflowQuery.data : undefined;
+  const ready = settingsQuery.isSuccess && assetsQuery.isSuccess && (!withCashflow || cashflowQuery.isSuccess);
   const assumptions = useMemo(
-    () => (settingsQuery.isSuccess && assetsQuery.isSuccess ? resolveFireAssumptions({ settings, assets, lockedAssetIds, goalData: goalDriven ? goalData : null }) : null),
-    [settingsQuery.isSuccess, assetsQuery.isSuccess, settings, assets, lockedAssetIds, goalDriven, goalData],
+    () => (ready ? resolveFireAssumptions({ settings, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
+    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData],
   );
   return {
     assumptions,
-    isLoading: settingsQuery.isLoading || assetsQuery.isLoading,
-    isError: settingsQuery.isError || assetsQuery.isError,
+    isLoading: settingsQuery.isLoading || assetsQuery.isLoading || (withCashflow && cashflowQuery.isLoading),
+    isError: settingsQuery.isError || assetsQuery.isError || (withCashflow && cashflowQuery.isError),
   };
 }

@@ -3,7 +3,7 @@
 /**
  * useCoastFireSettingsDraft — the Coast FIRE configuration form as one unit.
  *
- * Owns the local draft (age, target age, custom expenses, state pensions, IRPEF brackets), the
+ * Owns the local draft (age, target age, state pensions, IRPEF brackets), the
  * dirty check against the saved settings, and the save mutation. Everything the tab needs to
  * PROJECT — parsed ages, normalized pensions and brackets — comes out already derived, so the
  * preview stays instant: an edit updates the draft, the draft re-derives, the projection re-runs.
@@ -52,8 +52,6 @@ const DEFAULT_COAST_RETIREMENT_AGE = 60;
 interface DraftState {
   userAge: string;
   retirementAge: string;
-  useCustomExpenses: boolean;
-  customExpenses: string;
   pensions: CoastFirePensionDraft[];
   taxBrackets: CoastFireTaxBracketDraft[];
 }
@@ -62,8 +60,6 @@ interface DraftState {
 const BLANK_DRAFT: DraftState = {
   userAge: '',
   retirementAge: String(DEFAULT_COAST_RETIREMENT_AGE),
-  useCustomExpenses: false,
-  customExpenses: '',
   pensions: [],
   taxBrackets: [],
 };
@@ -76,8 +72,6 @@ function toDraftState(settings: Settings | null | undefined): DraftState {
   return {
     userAge: settings?.userAge !== undefined ? String(settings.userAge) : '',
     retirementAge: String(settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE),
-    useCustomExpenses: settings?.coastFireCustomExpenses !== undefined,
-    customExpenses: settings?.coastFireCustomExpenses?.toString() ?? '',
     pensions: toPensionDrafts(settings?.coastFirePensions, settings?.userAge),
     taxBrackets: toTaxBracketDrafts(settings?.coastFireTaxBrackets),
   };
@@ -104,10 +98,6 @@ export interface CoastFireSettingsDraft {
   setUserAge: (value: string) => void;
   retirementAge: string;
   setRetirementAge: (value: string) => void;
-  useCustomExpenses: boolean;
-  setUseCustomExpenses: (value: boolean) => void;
-  customExpenses: string;
-  setCustomExpenses: (value: string) => void;
   pensions: CoastFirePensionDraft[];
   taxBrackets: CoastFireTaxBracketDraft[];
 
@@ -121,8 +111,6 @@ export interface CoastFireSettingsDraft {
   /** null when the input is empty or outside 18-100 — the projection refuses to run on it. */
   currentAge: number | null;
   parsedRetirementAge: number | null;
-  usesCustomExpenses: boolean;
-  parsedCustomExpenses: number;
   previewPensions: CoastFirePensionInput[];
   previewTaxBrackets: CoastFireTaxBracket[];
   pensionIssues: PensionDraftIssue[];
@@ -150,7 +138,7 @@ export function useCoastFireSettingsDraft({
   );
   const [draft, setDraft] = useState<{ seed: DraftState; values: DraftState } | null>(null);
   const values = draft?.seed === seed ? draft.values : seed;
-  const { userAge, retirementAge, useCustomExpenses, customExpenses, pensions, taxBrackets } = values;
+  const { userAge, retirementAge, pensions, taxBrackets } = values;
 
   /** Applies an edit to the current draft, seeding it from `seed` when it is the first one. */
   const updateDraft = (patch: (current: DraftState) => Partial<DraftState>) =>
@@ -160,9 +148,6 @@ export function useCoastFireSettingsDraft({
     });
   const setUserAge = (value: string) => updateDraft(() => ({ userAge: value }));
   const setRetirementAge = (value: string) => updateDraft(() => ({ retirementAge: value }));
-  const setUseCustomExpensesState = (value: boolean) =>
-    updateDraft(() => ({ useCustomExpenses: value }));
-  const setCustomExpenses = (value: string) => updateDraft(() => ({ customExpenses: value }));
   const setPensions = (update: (current: CoastFirePensionDraft[]) => CoastFirePensionDraft[]) =>
     updateDraft((current) => ({ pensions: update(current.pensions) }));
   const setTaxBrackets = (
@@ -175,10 +160,6 @@ export function useCoastFireSettingsDraft({
   const parsedRetirementAgeRaw = parseOptionalInteger(retirementAge);
   const currentAge = isValidAge(parsedCurrentAge) ? parsedCurrentAge : null;
   const parsedRetirementAge = isValidAge(parsedRetirementAgeRaw) ? parsedRetirementAgeRaw : null;
-
-  const parsedCustomExpenses = parseFloat(customExpenses);
-  const usesCustomExpenses =
-    useCustomExpenses && !isNaN(parsedCustomExpenses) && parsedCustomExpenses > 0;
 
   const previewPensions = useMemo(() => parsePensionDrafts(pensions), [pensions]);
   const previewTaxBrackets = useMemo(() => parseTaxBracketDrafts(taxBrackets), [taxBrackets]);
@@ -207,8 +188,6 @@ export function useCoastFireSettingsDraft({
   const hasUnsavedChanges =
     userAge !== (settings?.userAge !== undefined ? String(settings.userAge) : '') ||
     retirementAge !== String(savedRetirementAge) ||
-    useCustomExpenses !== (settings?.coastFireCustomExpenses !== undefined) ||
-    (useCustomExpenses && parsedCustomExpenses !== settings?.coastFireCustomExpenses) ||
     previewPensionSnapshotKey !== savedPensionSnapshotKey ||
     previewTaxBracketSnapshotKey !== savedTaxBracketSnapshotKey;
 
@@ -216,7 +195,9 @@ export function useCoastFireSettingsDraft({
     mutationFn: (nextSettings: {
       userAge: number;
       coastFireRetirementAge: number;
-      coastFireCustomExpenses?: number;
+      // D5: the «spesa personalizzata» of before moves into the plan's expenses (when that is empty) and is dropped.
+      plannedAnnualExpenses?: number;
+      coastFireCustomExpenses: undefined;
       coastFirePensions: CoastFirePensionInput[];
       coastFireTaxBrackets: CoastFireTaxBracket[];
     }) =>
@@ -251,13 +232,6 @@ export function useCoastFireSettingsDraft({
     setUserAge,
     retirementAge,
     setRetirementAge,
-    useCustomExpenses,
-    setUseCustomExpenses: (checked: boolean) => {
-      setUseCustomExpensesState(checked);
-      if (!checked) setCustomExpenses('');
-    },
-    customExpenses,
-    setCustomExpenses,
     pensions,
     taxBrackets,
 
@@ -290,8 +264,6 @@ export function useCoastFireSettingsDraft({
 
     currentAge,
     parsedRetirementAge,
-    usesCustomExpenses,
-    parsedCustomExpenses,
     previewPensions,
     previewTaxBrackets,
     pensionIssues,
@@ -310,8 +282,9 @@ export function useCoastFireSettingsDraft({
       saveMutation.mutate({
         userAge: currentAge,
         coastFireRetirementAge: parsedRetirementAge,
-        // Undefined removes the field from Firestore; the service handles the deleteField() call.
-        coastFireCustomExpenses: usesCustomExpenses ? parsedCustomExpenses : undefined,
+        // D5: the legacy custom expenses become the plan's expenses once, and are not written again.
+        plannedAnnualExpenses: settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses,
+        coastFireCustomExpenses: undefined,
         coastFirePensions: previewPensions,
         coastFireTaxBrackets: previewTaxBrackets,
       });

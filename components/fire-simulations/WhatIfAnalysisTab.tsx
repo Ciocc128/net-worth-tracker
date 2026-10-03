@@ -37,10 +37,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { calculateAssetValue, calculateFIRENetWorth, calculateIlliquidFIRENetWorth, calculateLiquidFIRENetWorth, filterFireEligibleAssets, getAllAssets } from '@/lib/services/assetService';
+import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { realReturn } from '@/lib/utils/realReturn';
-import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import {
   calculateFIRESensitivityMatrix,
@@ -154,8 +153,6 @@ export function WhatIfAnalysisTab() {
   const [sensitivityBaselineInput, setSensitivityBaselineInput] = useState('');
 
   // ─── Baseline assembly ───────────────────────────────────────────────────────
-  const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
-
   // The FIRE lock-in toggle governs the whole page — the What If baseline inherits it. Locked
   // pension capital leaves the perturbable net worth and re-enters BOTH walks: the FIRE one as
   // the Calcolatore's bridge (compartment merged at the unlock year, bridge FIRE number until
@@ -179,7 +176,7 @@ export function WhatIfAnalysisTab() {
   // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
   // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const { assumptions } = useFireAssumptions(assumptionLockedIds);
+  const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ yearsFromNow: inflow.yearsFromNow, amountToday: inflow.amount })),
@@ -192,20 +189,15 @@ export function WhatIfAnalysisTab() {
     [pensionLockedValue, pensionUnlockYears],
   );
 
-  const netWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
-  const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
+  // RP5 (D4): the capital `K` of the whole page, and the tax profile behind it.
+  const capital = assumptions?.capital ?? null;
+  const netWorth = capital?.total ?? 0;
+  const liquidNetWorth = capital?.liquid ?? 0;
 
-  // The honest inputs of the Calcolatore (2026-09-24), built the same way: the tax profile of
-  // the FIRE-eligible assets minus the locked funds, the state pensions dated by the saved age.
+  // The honest inputs of the Calcolatore (2026-09-24), built the same way: the tax profile of `K`,
+  // the state pensions dated by the saved age.
   const now = useMemo(() => new Date(), []);
-  const taxProfile = useMemo(() => {
-    if (!assets) return null;
-    const lockedIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
-    return resolvePortfolioTaxProfile(
-      filterFireEligibleAssets(assets, includePrimaryResidence).filter((asset) => !lockedIds.has(asset.id)),
-      calculateAssetValue,
-    );
-  }, [assets, includePrimaryResidence, pensionLockState]);
+  const taxProfile = capital?.taxProfile ?? null;
   const honest = useMemo<FireHonestInputs>(
     () => ({
       userAge: settings?.userAge,
@@ -216,9 +208,11 @@ export function WhatIfAnalysisTab() {
     }),
     [settings?.userAge, settings?.coastFirePensions, settings?.coastFireTaxBrackets, taxProfile, now],
   );
-  const illiquidNetWorth = assets ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue) : 0;
+  const illiquidNetWorth = capital?.illiquid ?? 0;
   const withdrawalRate = settings?.withdrawalRate ?? 4;
-  const annualExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
+  // RP6 (D5): the plan's expenses. The Cashflow's own figure stays for the job loss, which is a fact of the income.
+  const annualExpenses = assumptions?.expenses?.annual ?? 0;
+  const cashflowExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
   const annualSavings = cashflowData?.annualSavings ?? 0;
 
   // ─── Income sources for the job-loss picker (UI-only) ────────────────────────
@@ -271,16 +265,16 @@ export function WhatIfAnalysisTab() {
   // ─── The baseline and the scenario ───────────────────────────────────────────
   const currentAge = settings?.userAge ?? null;
   const retirementAge = settings?.coastFireRetirementAge ?? 60;
-  const coastCustomExpenses = settings?.coastFireCustomExpenses;
 
   const baseline = useMemo<WhatIfBaseline>(() => {
-    const coastExpenses = coastCustomExpenses && coastCustomExpenses > 0 ? coastCustomExpenses : annualExpenses;
     return {
       netWorth,
       liquidNetWorth,
       illiquidNetWorth,
       annualExpenses,
       annualSavings,
+      annualIncome: cashflowExpenses + annualSavings,
+      indexSavings: true,
       withdrawalRate,
       scenarios,
       pensionBridge,
@@ -290,7 +284,7 @@ export function WhatIfAnalysisTab() {
           ? {
               currentAge,
               retirementAge,
-              annualExpenses: coastExpenses,
+              annualExpenses,
               realReturnRate: realReturn(scenarios.base.growthRate, scenarios.base.inflationRate),
               inflationRate: scenarios.base.inflationRate,
               pensions: normalizeCoastFirePensions(settings?.coastFirePensions),
@@ -305,6 +299,7 @@ export function WhatIfAnalysisTab() {
     liquidNetWorth,
     illiquidNetWorth,
     annualExpenses,
+    cashflowExpenses,
     annualSavings,
     withdrawalRate,
     scenarios,
@@ -312,7 +307,6 @@ export function WhatIfAnalysisTab() {
     honest,
     currentAge,
     retirementAge,
-    coastCustomExpenses,
     pensionInflowsToday,
     settings?.coastFirePensions,
     settings?.coastFireTaxBrackets,
@@ -346,8 +340,8 @@ export function WhatIfAnalysisTab() {
   const series = useMemo(() => (impact ? buildWhatIfComparisonSeries(impact.projections.before, impact.projections.after) : []), [impact]);
   const divergence = useMemo(() => (summary ? summarizeDivergence(series, summary.timeline) : null), [series, summary]);
   const jobLossHit = useMemo(
-    () => (event && event.kind === 'jobLoss' && !event.isEmpty ? decomposeJobLossHit({ annualSavings, annualExpenses, lostAnnualIncome: event.lostAnnualIncome, months: event.months }) : null),
-    [event, annualSavings, annualExpenses],
+    () => (event && event.kind === 'jobLoss' && !event.isEmpty ? decomposeJobLossHit({ annualSavings, annualExpenses: cashflowExpenses, lostAnnualIncome: event.lostAnnualIncome, months: event.months }) : null),
+    [event, annualSavings, cashflowExpenses],
   );
 
   const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: settings?.pensionInpsRetirementAge, pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment });
@@ -359,7 +353,7 @@ export function WhatIfAnalysisTab() {
   const sensitivityExpenses = Number.isFinite(parsedSensitivityBaseline) && parsedSensitivityBaseline > 0 ? parsedSensitivityBaseline : annualExpenses;
   const sensitivityMatrix = useMemo(() => {
     if (netWorth <= 0 || sensitivityExpenses <= 0 || withdrawalRate <= 0) return null;
-    return calculateFIRESensitivityMatrix(netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios);
+    return calculateFIRESensitivityMatrix(netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios, true);
   }, [netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios]);
   const sensitivityReading = useMemo(() => (sensitivityMatrix ? summarizeSensitivity(sensitivityMatrix) : null), [sensitivityMatrix]);
 

@@ -38,13 +38,14 @@ import {
   type PensionDraftIssue,
 } from '@/lib/utils/coastFireView';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
+import type { FireCapital, FireExpenses } from '@/lib/utils/fireAssumptions';
+import { describeOutsideCapital } from '@/lib/utils/fireAssumptionsNarrative';
 import { getItalyDateIso } from '@/lib/utils/dateHelpers';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Tile, TILE_CELL_CLASS, TILE_EYEBROW_CLASS } from '@/components/ui/tile';
 
 const CONTROL_CLASS =
@@ -57,13 +58,13 @@ interface CoastIpotesiProps {
   description: string;
   draft: CoastFireSettingsDraft;
   isDemo: boolean;
-  /** The last full year's expenses from the cashflow, when any. */
-  detectedAnnualExpenses: number | undefined;
+  /** RP6: the plan's expenses the page runs on and where they come from (declared here, typed in the Calcolatore's Parametri). */
+  expenses: FireExpenses | null;
   withdrawalRate: number;
-  includePrimaryResidence: boolean;
-  /** The FIRE-eligible net worth the page runs on, and its liquid part. */
+  /** RP5: the capital the page runs on (`K`), its liquid part and what stays outside it. */
   currentNetWorth: number;
   liquidNetWorth: number;
+  outsideCapital: FireCapital['outside'];
   /** True when a locked pension fund is subtracted from `currentNetWorth`. */
   lockSubtracted: boolean;
 }
@@ -96,13 +97,14 @@ export function CoastIpotesi({
   description,
   draft,
   isDemo,
-  detectedAnnualExpenses,
+  expenses,
   withdrawalRate,
-  includePrimaryResidence,
   currentNetWorth,
   liquidNetWorth,
+  outsideCapital,
   lockSubtracted,
 }: CoastIpotesiProps) {
+  const outside = describeOutsideCapital(outsideCapital);
   const incompleteCount = new Set(draft.pensionIssues.filter((issue) => issue.kind === 'incomplete').map((issue) => issue.pensionId)).size;
   const hasCompactPensionEditor = draft.pensions.length >= 3;
 
@@ -183,51 +185,26 @@ export function CoastIpotesi({
                 </div>
               </div>
 
-              <div className="mt-3.5 flex items-start justify-between gap-4 border-t border-border pt-3.5">
-                <div className="min-w-0">
-                  <Label htmlFor="coastUseCustomExpenses" className="text-[13px] leading-normal">
-                    Spese personalizzate
-                  </Label>
-                  <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                    {draft.useCustomExpenses
-                      ? 'Sostituiscono le spese rilevate.'
-                      : detectedAnnualExpenses !== undefined && detectedAnnualExpenses > 0
-                        ? `Spese rilevate dall'ultimo anno completo: ${compact(detectedAnnualExpenses)}. Attiva per sostituirle.`
-                        : "Nessuna spesa rilevata nell'ultimo anno completo: attiva e inserisci un importo."}
-                  </p>
-                </div>
-                <Switch
-                  id="coastUseCustomExpenses"
-                  checked={draft.useCustomExpenses}
-                  onCheckedChange={draft.setUseCustomExpenses}
-                  aria-label="Usa spese personalizzate"
-                  className="mt-0.5 shrink-0"
-                />
-              </div>
-              {draft.useCustomExpenses && (
-                <div className="mt-3">
-                  <Label htmlFor="coastCustomExpenses" className="text-[13px]">
-                    Spese annue (€)
-                  </Label>
-                  <Input
-                    id="coastCustomExpenses"
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="100"
-                    value={draft.customExpenses}
-                    onChange={(event) => draft.setCustomExpenses(event.target.value)}
-                    className={cn(CONTROL_CLASS, 'w-[180px]')}
-                    placeholder="Es. 30000"
-                  />
-                </div>
-              )}
-
               <div className="mt-3.5 flex flex-col divide-y divide-border border-t border-border">
-                <Row label="SWR · casa di abitazione" caption="si modificano nei Parametri del Calcolatore" value={`${formatRate(withdrawalRate)} · ${includePrimaryResidence ? 'inclusa' : 'esclusa'}`} />
                 <Row
-                  label="Patrimonio FIRE"
-                  caption={[lockSubtracted ? 'fondo pensione bloccato escluso' : null, `liquidi ${compact(liquidNetWorth)}`].filter((part): part is string => part !== null).join(' · ')}
+                  label="Spese annue"
+                  caption={
+                    expenses?.origin === 'settings'
+                      ? 'spesa del piano, da Parametri del Calcolatore'
+                      : expenses && expenses.annual > 0
+                        ? `dal Cashflow ${expenses.referenceYear}${expenses.isAnnualized ? ', annualizzato' : ''} · si cambiano nei Parametri del Calcolatore`
+                        : 'nessuna spesa nel Cashflow · si scrivono nei Parametri del Calcolatore'
+                  }
+                  value={expenses && expenses.annual > 0 ? compact(expenses.annual) : '—'}
+                />
+                <Row label="SWR" caption="si modifica nei Parametri del Calcolatore" value={formatRate(withdrawalRate)} />
+                <Row
+                  label="Capitale del piano"
+                  caption={[
+                    outside ? `fuori: ${outside}` : 'sette classi di Impostazioni › Simulazioni',
+                    lockSubtracted ? 'fondo pensione bloccato escluso' : null,
+                    `liquidi ${compact(liquidNetWorth)}`,
+                  ].filter((part): part is string => part !== null).join(' · ')}
                   value={compact(currentNetWorth)}
                 />
               </div>

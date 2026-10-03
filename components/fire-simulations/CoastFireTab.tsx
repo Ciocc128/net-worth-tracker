@@ -43,12 +43,10 @@ import { useCoastFireSettingsDraft } from '@/lib/hooks/useCoastFireSettingsDraft
 import {
   calculateCoastFIREProjection,
   getAnnualCashflowData,
-  getAnnualExpenses,
   getDefaultScenarios,
   type PensionCapitalInflowToday,
 } from '@/lib/services/fireService';
-import { calculateAssetValue, calculateFIRENetWorth, calculateLiquidFIRENetWorth, filterFireEligibleAssets, getAllAssets } from '@/lib/services/assetService';
-import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
+import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { summarizeLock } from '@/lib/utils/fireSummary';
@@ -143,13 +141,6 @@ export function CoastFireTab() {
     staleTime: 300000,
   });
 
-  const { data: annualExpenses, isLoading: isLoadingAnnualExpenses, isError: expensesError } = useQuery({
-    queryKey: ['coastFireAnnualExpenses', ownerId],
-    queryFn: () => getAnnualExpenses(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
-
   // The Calcolatore's savings — the SAME query key, so the two tabs read one figure — is the
   // pace the verdict names. It rejects on a failed read (never a zeroed payload), so the
   // failure reaches the notice below like the other three.
@@ -162,8 +153,6 @@ export function CoastFireTab() {
 
   const draft = useCoastFireSettingsDraft({ settings, isLoadingSettings, ownerId });
 
-  const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
-  const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
   const currentAge = draft.currentAge;
   const retirementAge = draft.parsedRetirementAge;
@@ -190,29 +179,23 @@ export function CoastFireTab() {
   // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
   // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const { assumptions } = useFireAssumptions(assumptionLockedIds);
+  const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
+  // RP5 (D4) and RP6 (D5): the capital `K` and the plan's expenses are the page's, not this tab's.
+  const capital = assumptions?.capital ?? null;
+  const liquidNetWorth = capital?.liquid ?? 0;
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ yearsFromNow: inflow.yearsFromNow, amountToday: inflow.amount })),
     [pensionLockState],
   );
-  const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
+  const currentNetWorth = capital?.total ?? 0;
 
-  // The tax on withdrawals (2026-09-24), read on the same capital the number runs on — the
-  // FIRE-eligible assets minus the locked funds — so the Coast number and the Calcolatore's agree.
-  const taxProfile = useMemo(() => {
-    if (!assets) return null;
-    const lockedIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
-    return resolvePortfolioTaxProfile(
-      filterFireEligibleAssets(assets, includePrimaryResidence).filter((asset) => !lockedIds.has(asset.id)),
-      calculateAssetValue,
-    );
-  }, [assets, includePrimaryResidence, pensionLockState]);
+  // The tax on withdrawals (2026-09-24), read on the same capital the number runs on — `K` — so the
+  // Coast number and the Calcolatore's agree.
+  const taxProfile = capital?.taxProfile ?? null;
   const withdrawalTax = useMemo(() => (taxProfile ? { basisToday: taxProfile.basisToday, rate: taxProfile.rate } : undefined), [taxProfile]);
 
-  // Custom expenses when the toggle is on and the value parses to a positive number; otherwise
-  // the last complete year's actuals from the query.
-  const effectiveAnnualExpenses = draft.usesCustomExpenses ? draft.parsedCustomExpenses : annualExpenses;
+  const effectiveAnnualExpenses = assumptions?.expenses?.annual;
 
   // ─── The projection (fireService, unchanged) ─────────────────────────────────
   const { previewPensions, previewTaxBrackets } = draft;
@@ -276,7 +259,7 @@ export function CoastFireTab() {
     currentAge,
     retirementAge,
     annualExpenses: effectiveAnnualExpenses,
-    usesCustomExpenses: draft.usesCustomExpenses,
+    expensesOrigin: assumptions?.expenses?.origin ?? 'cashflow',
     withdrawalRate,
     baseRealReturn: baseScenario?.realReturnRate ?? null,
     respectPensionLockIn,
@@ -325,8 +308,8 @@ export function CoastFireTab() {
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  const isLoading = isLoadingSettings || isLoadingAssets || isLoadingAnnualExpenses || isLoadingCashflow;
-  if (resolveSurfaceState({ loading: isLoading, failed: settingsError || assetsError || expensesError || cashflowError }) === 'failed') {
+  const isLoading = isLoadingSettings || isLoadingAssets || isLoadingCashflow;
+  if (resolveSurfaceState({ loading: isLoading, failed: settingsError || assetsError || cashflowError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
@@ -349,11 +332,11 @@ export function CoastFireTab() {
       description={ipotesiDescription}
       draft={draft}
       isDemo={isDemo}
-      detectedAnnualExpenses={annualExpenses}
+      expenses={assumptions?.expenses ?? null}
       withdrawalRate={withdrawalRate}
-      includePrimaryResidence={includePrimaryResidence}
       currentNetWorth={currentNetWorth}
       liquidNetWorth={liquidNetWorth}
+      outsideCapital={capital?.outside ?? { realestate: 0, crypto: 0 }}
       lockSubtracted={pensionLockedValue > 0}
     />
   );

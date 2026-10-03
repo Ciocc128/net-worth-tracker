@@ -50,15 +50,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import {
-  calculateAssetValue,
-  calculateFIRENetWorth,
-  calculateIlliquidFIRENetWorth,
-  calculateLiquidFIRENetWorth,
-  filterFireEligibleAssets,
-  getAllAssets,
-} from '@/lib/services/assetService';
-import { resolveGainShare, resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
+import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { resolveGainShare } from '@/lib/utils/withdrawalTax';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
@@ -78,8 +71,6 @@ import {
   type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
-import { computeSimulatedCapital } from '@/lib/utils/monteCarloParams';
-import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
@@ -123,6 +114,7 @@ import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { resolvePlanExpenses, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
@@ -192,7 +184,8 @@ function calculateDisplayedRunwayDelta(latestValue: number | null | undefined, c
 function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
   return {
     withdrawalRate: (settings?.withdrawalRate ?? 4.0).toString(),
-    includePrimaryResidence: settings?.includePrimaryResidenceInFIRE ?? false,
+    // The Coast FIRE «spesa personalizzata» of before D5 shows here until the next save moves it.
+    plannedExpenses: (settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses)?.toString() ?? '',
     inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
     ritaLongUnemployment: settings?.pensionRitaLongUnemployment ?? false,
   };
@@ -208,6 +201,8 @@ export function FireCalculatorTab() {
   const [form, setForm] = useState<FireSettingsForm>(() => settingsForm(null));
   const [respectPensionLockIn, setRespectPensionLockIn] = useState<boolean>(false);
   const [parametriOpen, setParametriOpen] = useState<boolean>(false);
+  // True once the form has been seeded from the saved settings: until then a typed «empty» would be read as «from the Cashflow».
+  const [formSettled, setFormSettled] = useState<boolean>(false);
   const [view, setView] = useState<ProjectionView>('scenari');
 
   const onFormChange = useCallback((patch: Partial<FireSettingsForm>) => setForm((prev) => ({ ...prev, ...patch })), []);
@@ -234,7 +229,6 @@ export function FireCalculatorTab() {
     staleTime: 300000,
   });
   const annualSavings = cashflowData?.annualSavings ?? 0;
-  const projectionAnnualExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
 
@@ -253,6 +247,7 @@ export function FireCalculatorTab() {
         lastSyncedFormRef.current = key;
         setForm(next);
       }
+      setFormSettled(true);
       setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
     }, 0);
     return () => clearTimeout(timer);
@@ -286,8 +281,22 @@ export function FireCalculatorTab() {
   // rates on the per-class assumptions of Impostazioni › Simulazioni — never typed here. While the
   // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const { assumptions } = useFireAssumptions(assumptionLockedIds);
-  const scenarios = useMemo<FIREProjectionScenarios>(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
+  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
+  const scenarios = useMemo<FIREProjectionScenarios>(() => savedAssumptions?.scenarios ?? getDefaultScenarios(), [savedAssumptions]);
+
+  // RP6: the plan's expenses, PREVIEWED from the typed field until saved (empty = from the Cashflow) like the SWR is;
+  // the «Ipotesi usate» line below carries the previewed figure too, so the line never says what the numbers do not.
+  const parsedPlannedExpenses = Number.parseFloat(form.plannedExpenses.replace(',', '.'));
+  const previewPlannedExpenses = Number.isFinite(parsedPlannedExpenses) && parsedPlannedExpenses > 0 ? parsedPlannedExpenses : undefined;
+  const planSource = useMemo(
+    () => (formSettled ? { plannedAnnualExpenses: previewPlannedExpenses } : { plannedAnnualExpenses: settings?.plannedAnnualExpenses, coastFireCustomExpenses: settings?.coastFireCustomExpenses }),
+    [formSettled, previewPlannedExpenses, settings?.plannedAnnualExpenses, settings?.coastFireCustomExpenses],
+  );
+  const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(planSource, cashflowData) : null), [cashflowData, planSource]);
+  const assumptions = useMemo<FireAssumptions | null>(() => (savedAssumptions ? { ...savedAssumptions, expenses: expenses ?? undefined } : null), [savedAssumptions, expenses]);
+  const projectionAnnualExpenses = expenses?.annual ?? 0;
+  // RP5 (D4): ONE capital for every tab — `K`, net of the closed pension funds; real estate and crypto stay out, declared in the line.
+  const capital = assumptions?.capital ?? null;
 
   // Bridge model inputs. Funds with different unlock years are aggregated on the LATEST year —
   // conservative when the floor binds, and neutral otherwise because the fund grows and is
@@ -303,24 +312,17 @@ export function FireCalculatorTab() {
   const pensionBridgeValueToday = pensionBridge?.valueToday ?? 0;
   const pensionBridgeYearsToUnlock = pensionBridge?.yearsToUnlock ?? 0;
 
-  const includePrimaryResidence = form.includePrimaryResidence;
+  // The residence rule of Impostazioni stays on the history of the runway only (facts, not hypotheses — D4).
+  const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
   // Read once here: the fan's memos above the render's `currentYear` need it too.
   const currentYearForFan = getItalyYear();
-  const currentNetWorth = assets ? calculateFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue : 0;
+  const currentNetWorth = capital?.total ?? 0;
 
   // ─── What makes the number honest (2026-09-24) ────────────────────────────────
-  // The tax profile of the capital the plan withdraws from — the FIRE-eligible assets minus the
-  // locked funds (the same set `currentNetWorth` sums) — and the state pensions saved in Coast
-  // FIRE, dated by the saved age. Null profile = no EUR cost basis anywhere: tax not modelled.
+  // The tax profile of the capital the plan withdraws from — `K`, the same set `currentNetWorth` is — and
+  // the state pensions saved in Coast FIRE, dated by the saved age. Null profile = no EUR cost basis anywhere: tax not modelled.
   const now = useMemo(() => new Date(), []);
-  const taxProfile = useMemo(() => {
-    if (!assets) return null;
-    const lockedIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
-    return resolvePortfolioTaxProfile(
-      filterFireEligibleAssets(assets, includePrimaryResidence).filter((asset) => !lockedIds.has(asset.id)),
-      calculateAssetValue,
-    );
-  }, [assets, includePrimaryResidence, pensionLockState]);
+  const taxProfile = capital?.taxProfile ?? null;
   const savedPensions = settings?.coastFirePensions;
   const savedTaxBrackets = settings?.coastFireTaxBrackets;
   const honest = useMemo<FireHonestInputs>(
@@ -334,8 +336,8 @@ export function FireCalculatorTab() {
     [userAge, savedPensions, savedTaxBrackets, taxProfile, now],
   );
   const gainShareToday = taxProfile ? resolveGainShare(currentNetWorth, taxProfile.basisToday) : 0;
-  const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
-  const illiquidNetWorth = assets ? Math.max(0, calculateIlliquidFIRENetWorth(assets, includePrimaryResidence) - pensionLockedValue) : 0;
+  const liquidNetWorth = capital?.liquid ?? 0;
+  const illiquidNetWorth = capital?.illiquid ?? 0;
 
   // `keepPreviousData`: the key moves with every lock flip and residence switch (currentNetWorth),
   // and without it the whole tab fell back to the skeleton mid-interaction — the pressed switch
@@ -356,7 +358,7 @@ export function FireCalculatorTab() {
     Number.isFinite(parsedPreviewWithdrawalRate) && parsedPreviewWithdrawalRate > 0 ? parsedPreviewWithdrawalRate : withdrawalRate;
   const hasUnsavedChanges =
     form.withdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
-    includePrimaryResidence !== (settings?.includePrimaryResidenceInFIRE ?? false) ||
+    form.plannedExpenses !== settingsForm(settings).plannedExpenses ||
     form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
     ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
 
@@ -451,6 +453,8 @@ export function FireCalculatorTab() {
       PROJECTION_HORIZON_YEARS,
       pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined,
       honest,
+      // RP7 (D6): the saving grows with the scenario's inflation, the pace Coast already keeps.
+      true,
     );
   }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, pensionBridgeValueToday, pensionBridgeYearsToUnlock, honest]);
 
@@ -461,23 +465,19 @@ export function FireCalculatorTab() {
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ year: inflow.yearsFromNow, amount: inflow.amount })),
     [pensionLockState],
   );
-  // The SAME resolved market the Monte Carlo tab reads (Impostazioni › Simulazioni): one function, no copy.
-  const monteCarloMarket = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
-  const fanCapital = useMemo(() => {
-    if (!assets) return null;
-    const lockedAssetIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
-    return computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: monteCarloMarket.goldSubCategory });
-  }, [assets, pensionLockState, monteCarloMarket.goldSubCategory]);
+  // The market and the capital are the page's own reading (`assumptions`), the Monte Carlo tab's too: no copy here.
+  const monteCarloMarket = assumptions?.market ?? null;
   const fanInputs = useMemo<FanSimulationInputs | null>(() => {
-    if (!assets || assets.length === 0 || !fanCapital || !assumptions) return null;
+    if (!assets || assets.length === 0 || !capital || !assumptions || !monteCarloMarket) return null;
     if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
     // D1: the fan simulates the TARGET portfolio (else the one held, else 60/40), the page's one reading of the weights.
     const weights = assumptions?.weights;
     if (!weights) return null;
     return {
-      // Rule RK: the fan starts from the capital the seven classes cover; real estate and crypto stay out.
-      initialPortfolio: fanCapital.total,
+      // Rule RK: the fan starts from `K` — the capital of every tab (D4).
+      initialPortfolio: capital.total,
       annualSavings,
+      savingsInflationRate: scenarios.base.inflationRate,
       annualExpenses: projectionAnnualExpenses,
       withdrawalRate: previewWithdrawalRate,
       expenseInflationRate: scenarios.base.inflationRate,
@@ -488,7 +488,7 @@ export function FireCalculatorTab() {
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
-  }, [assets, fanCapital, assumptions, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, monteCarloMarket.correlations, monteCarloMarket.leverageSpread, pensionCapitalInflows]);
+  }, [assets, capital, assumptions, monteCarloMarket, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, pensionCapitalInflows]);
 
   // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
   // Keyed on the same inputs that change the deterministic projection, so an edited parameter
@@ -514,12 +514,9 @@ export function FireCalculatorTab() {
           return { fromYear: Math.max(0, Math.ceil(breakdown.yearsUntilStart)), annualNetToday: breakdown.netAnnualRealAtStart };
         })
       : undefined;
-    // The cost basis was measured on the whole FIRE capital; the fan starts from the simulated one
-    // (real estate and crypto stay out), so the basis carries over in proportion — the gain share stays.
-    const basisScale = fanCapital && currentNetWorth > 0 ? Math.min(1, fanCapital.total / currentNetWorth) : 1;
-    const withdrawalTax = honest.withdrawalTax ? { ...honest.withdrawalTax, basisToday: honest.withdrawalTax.basisToday * basisScale } : honest.withdrawalTax;
-    return { statePensions, withdrawalTax };
-  }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now, fanCapital, currentNetWorth]);
+    // The cost basis is already `K`'s own (`resolveFireCapital`), so the fan carries it as it is.
+    return { statePensions, withdrawalTax: honest.withdrawalTax };
+  }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now]);
   const runFan = useCallback(
     (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings) =>
       runAccumulationSimulation({
@@ -613,7 +610,8 @@ export function FireCalculatorTab() {
         swr: previewWithdrawalRate,
         referenceYear: cashflowData?.referenceYear ?? null,
         isAnnualized: cashflowData?.isAnnualized ?? false,
-        includesResidence: includePrimaryResidence,
+        outsideCapital: capital?.outside ?? { realestate: 0, crypto: 0 },
+        planExpensesOrigin: expenses?.origin ?? 'cashflow',
         honest: honestSummary,
       }
     : null;
@@ -683,9 +681,19 @@ export function FireCalculatorTab() {
       toast.error("Inserisci un'età pensione INPS valida tra 60 e 75");
       return;
     }
+    // The plan's expenses are optional (empty = from the Cashflow); typed, they must be a positive amount.
+    const typedExpenses = form.plannedExpenses.trim();
+    const newPlannedExpenses = typedExpenses === '' ? undefined : Number.parseFloat(typedExpenses.replace(',', '.'));
+    if (newPlannedExpenses !== undefined && !(Number.isFinite(newPlannedExpenses) && newPlannedExpenses > 0)) {
+      toast.error('Inserisci una spesa del piano sopra 0, o lasciala vuota per leggerla dal Cashflow');
+      return;
+    }
     settingsMutation.mutate({
       withdrawalRate: newWR,
-      includePrimaryResidenceInFIRE: includePrimaryResidence,
+      // Undefined removes the field (empty = from the Cashflow); the Coast FIRE «spesa personalizzata» of before D5
+      // is moved into this field by the form's seed, so it is dropped here.
+      plannedAnnualExpenses: newPlannedExpenses,
+      coastFireCustomExpenses: undefined,
       pensionInpsRetirementAge: newInpsAge,
       pensionRitaLongUnemployment: ritaLongUnemployment,
     });
@@ -717,7 +725,7 @@ export function FireCalculatorTab() {
       onOpenChange={setParametriOpen}
       description={describeParametri({
         swr: previewWithdrawalRate,
-        includesResidence: includePrimaryResidence,
+        plannedExpenses: previewPlannedExpenses ?? null,
         lockActive: respectPensionLockIn,
         inpsRetirementAge: previewInpsRetirementAge,
         ritaUnlockAge,
@@ -888,7 +896,7 @@ export function FireCalculatorTab() {
             onLockChange={(active) => lockMutation.mutate(active)}
             lockDisabled={isDemo || lockMutation.isPending}
             lockDisabledReason={isDemo ? 'non modificabile in demo' : null}
-            footer={describeBaseFooter(includePrimaryResidence)}
+            footer={describeBaseFooter()}
             currentYear={currentYear}
           />
         </div>
