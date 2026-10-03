@@ -223,7 +223,7 @@ function createDistribution(
  */
 export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloResults {
   const simulations: SingleSimulationResult[] = [];
-  const plan = buildDrawPlan(params.market);
+  const plan = buildDrawPlan(params.market, params.correlations);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
 
   // Run all simulations
@@ -293,6 +293,8 @@ export interface AccumulationSimulationParams {
   // Weights per Monte Carlo class (summing to 100) + the market assumptions, as in MonteCarloParams.
   weights: Record<MonteCarloClass, number>;
   market: MonteCarloMarketScenario;
+  /** Correlations of the log-returns (upper triangle, 21 values); absent = independent classes. */
+  correlations?: number[];
 
   numberOfSimulations: number;
 
@@ -388,7 +390,7 @@ export function runAccumulationSimulation(
 ): AccumulationSimulationResult {
   const wrDecimal = params.withdrawalRate / 100;
   const random = params.random ?? Math.random;
-  const plan = buildDrawPlan(params.market);
+  const plan = buildDrawPlan(params.market, params.correlations);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
   const horizon = Math.max(params.years, Math.floor(params.retirementHorizonYears ?? params.years));
   const inflows = params.capitalInflows ?? [];

@@ -15,9 +15,10 @@ import type {
   MonteCarloScenarioParams,
 } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
-import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
 import { DEFAULT_SUB_CATEGORIES } from '@/lib/constants/defaultSubCategories';
 import { cagrFromArithmeticMean } from './monteCarloDraw';
+import { pairCount } from './correlationMatrix';
 
 export type MonteCarloScenarioKey = 'bear' | 'base' | 'bull';
 export const MONTE_CARLO_SCENARIO_KEYS: MonteCarloScenarioKey[] = ['bear', 'base', 'bull'];
@@ -28,6 +29,10 @@ export interface ResolvedMonteCarloMarket {
   scenarios: MonteCarloMarketSettings['scenarios'];
   /** The commodity sub-category simulated as Oro (RG); null = none. Resolved against `availableSubCategories` when given. */
   goldSubCategory: string | null;
+  /** The 21 correlations of the log-returns, upper triangle in `MONTE_CARLO_CLASSES` order (saved, else the defaults). */
+  correlations: number[];
+  /** `saved` = the document carries its own matrix; `default` = the research's. */
+  correlationOrigin: 'saved' | 'default';
   /** Where the numbers come from, for the tile's reading. */
   origin: MonteCarloMarketOrigin;
   /** Classes whose numbers differ from the defaults, per scenario-agnostic count (for «modificate in N classi»). */
@@ -80,6 +85,12 @@ function completeScenario(saved: Partial<MonteCarloMarketScenario> | undefined, 
   return { classes, inflationRate: isFiniteNumber(saved?.inflationRate) ? saved.inflationRate : fallback.inflationRate };
 }
 
+/** Pairs whose value differs from the defaults (for «modificate 4 coppie su 21»). */
+export function countEditedCorrelations(correlations: readonly number[]): number {
+  const defaults = getDefaultMonteCarloCorrelations();
+  return defaults.filter((value, index) => correlations[index] !== value).length;
+}
+
 /** The classes whose numbers differ from the defaults in any scenario. */
 export function countEditedClasses(scenarios: MonteCarloMarketSettings['scenarios']): MonteCarloClass[] {
   const defaults = getDefaultMonteCarloMarket().scenarios;
@@ -124,15 +135,32 @@ export function resolveMonteCarloMarket(
   // `undefined` = never chosen → the default rule; `null` = chosen «Nessuna».
   const goldSubCategory = saved?.goldSubCategory === undefined ? findDefaultGoldSubCategory(commoditySubCategories) : saved.goldSubCategory;
 
-  return { scenarios, goldSubCategory, origin, editedClasses: origin === 'default' ? [] : countEditedClasses(scenarios) };
+  // A saved matrix of the wrong length or with a non-number is not a matrix: the defaults stand in.
+  const savedCorrelations = saved?.correlations;
+  const hasSavedCorrelations =
+    Array.isArray(savedCorrelations) && savedCorrelations.length === pairCount(MONTE_CARLO_CLASSES.length) && savedCorrelations.every(isFiniteNumber);
+  const correlations = hasSavedCorrelations ? [...savedCorrelations] : getDefaultMonteCarloCorrelations();
+
+  return {
+    scenarios,
+    goldSubCategory,
+    correlations,
+    correlationOrigin: hasSavedCorrelations ? 'saved' : 'default',
+    origin,
+    editedClasses: origin === 'default' ? [] : countEditedClasses(scenarios),
+  };
 }
 
 /** The settings to write from a resolved market (the form's draft). */
 export function toMonteCarloMarketSettings(
   scenarios: MonteCarloMarketSettings['scenarios'],
   goldSubCategory: string | null,
+  correlations?: readonly number[],
 ): MonteCarloMarketSettings {
-  return { version: 1, scenarios, goldSubCategory };
+  // The matrix is written only when it differs from the defaults, so a later improvement of the
+  // defaults reaches whoever never touched it.
+  const custom = correlations && countEditedCorrelations(correlations) > 0;
+  return { version: 1, scenarios, goldSubCategory, ...(custom ? { correlations: [...correlations] } : {}) };
 }
 
 /**

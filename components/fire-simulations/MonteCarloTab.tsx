@@ -255,13 +255,15 @@ export function MonteCarloTab() {
       // The shared params carry the Base market; each scenario's run overrides it with
       // `buildScenarioParams`, so this is never what the Orso and Toro runs read.
       market: scenarios.base,
+      // The classes move together through the matrix saved in Impostazioni (one matrix for the three scenarios).
+      correlations: market.correlations,
       numberOfSimulations: Math.min(50000, Math.max(1000, parseIntField(form.numberOfSimulations, DEFAULT_SIMULATIONS))),
       capitalInflows: pensionInflows.length > 0 ? pensionInflows : undefined,
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
       // The typed capital keeps the portfolio's gain share: basis = capital × (1 − gain share).
       withdrawalTax: taxProfile ? { basisToday: initialPortfolio * (1 - taxProfile.gainShare), rate: taxProfile.rate } : undefined,
     };
-  }, [form, scenarios, pensionInflows, statePensionInflows, taxProfile]);
+  }, [form, scenarios, market.correlations, pensionInflows, statePensionInflows, taxProfile]);
 
   const allocationSum = params ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + params.weights[cls], 0) : 0;
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;

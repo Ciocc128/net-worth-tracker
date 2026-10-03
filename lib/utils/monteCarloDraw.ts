@@ -13,10 +13,14 @@
  *   μa = (1+g)·√x − 1               // arithmetic mean, shown read-only in Impostazioni
  *
  * Every `r > −100%` by construction. At zero volatility a class returns exactly its CAGR.
- * Until T2 (correlations) the classes are drawn independently.
+ *
+ * The seven classes move together through one correlation matrix `C` (T2, README § 6): the
+ * independent normals `ε` become `z = L·ε` with `L` the Cholesky factor of `C`, computed ONCE per
+ * run in `buildDrawPlan`. Without a matrix (or with the identity) `z = ε`, float for float.
  */
 import type { MonteCarloClassParams, MonteCarloMarketScenario } from '@/types/assets';
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
+import { cholesky, expandUpperTriangle, nearestCorrelation, pairCount, type Matrix } from './correlationMatrix';
 
 export interface LogNormalParams {
   /** Mean of the log-return. */
@@ -58,15 +62,35 @@ export interface DrawPlan {
   s: number[];
   /** `1 + g` per class: what a class with zero volatility returns, exactly. */
   medianGrowth: number[];
+  /** Lower Cholesky factor of the correlation matrix; `null` = independent classes (`C = I`). */
+  cholesky: Matrix | null;
 }
 
-/** Prepares what a run draws from, once per run. */
-export function buildDrawPlan(market: MonteCarloMarketScenario): DrawPlan {
+/**
+ * The Cholesky factor of the typed correlations, or `null` when there are none (independent draws).
+ * A matrix that is not valid is corrected silently (R5): a document written from elsewhere must
+ * never make a run fail.
+ */
+export function buildCorrelationFactor(correlations: readonly number[] | undefined): Matrix | null {
+  const n = MONTE_CARLO_CLASSES.length;
+  if (!correlations || correlations.length !== pairCount(n)) return null;
+  if (correlations.every((value) => value === 0)) return null;
+  const matrix = nearestCorrelation(expandUpperTriangle(correlations, n));
+  try {
+    return cholesky(matrix);
+  } catch {
+    return null;
+  }
+}
+
+/** Prepares what a run draws from, once per run. `correlations` is the upper triangle (21 values); absent = independent. */
+export function buildDrawPlan(market: MonteCarloMarketScenario, correlations?: readonly number[]): DrawPlan {
   const logNormals = MONTE_CARLO_CLASSES.map((cls) => toLogNormal(market.classes[cls]));
   return {
     m: logNormals.map((entry) => entry.m),
     s: logNormals.map((entry) => entry.s),
     medianGrowth: logNormals.map((entry) => entry.medianGrowth),
+    cholesky: buildCorrelationFactor(correlations),
   };
 }
 
@@ -80,13 +104,22 @@ export function standardNormal(random: () => number): number {
 
 /**
  * One year of simple returns (decimals) for the seven classes, in `MONTE_CARLO_CLASSES` order.
- * Always consumes two uniforms per class, whatever the volatility — the number of draws per path
- * must not depend on the parameters (a seeded run stays comparable across plans).
+ * Always consumes two uniforms per class, whatever the volatility or the correlations — the number
+ * of draws per path must not depend on the parameters (a seeded run stays comparable across plans).
  */
 export function drawYear(plan: DrawPlan, random: () => number = Math.random): number[] {
-  const out = new Array<number>(plan.m.length);
-  for (let i = 0; i < plan.m.length; i++) {
-    const z = standardNormal(random);
+  const n = plan.m.length;
+  const epsilon = new Array<number>(n);
+  for (let i = 0; i < n; i++) epsilon[i] = standardNormal(random);
+
+  const out = new Array<number>(n);
+  for (let i = 0; i < n; i++) {
+    let z = epsilon[i];
+    if (plan.cholesky) {
+      const row = plan.cholesky[i];
+      z = 0;
+      for (let k = 0; k <= i; k++) z += row[k] * epsilon[k];
+    }
     out[i] = plan.s[i] === 0 ? plan.medianGrowth[i] - 1 : Math.exp(plan.m[i] + plan.s[i] * z) - 1;
   }
   return out;

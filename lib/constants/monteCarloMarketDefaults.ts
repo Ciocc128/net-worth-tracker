@@ -96,5 +96,34 @@ export function getDefaultMonteCarloMarket(): MonteCarloMarketSettings {
   };
 }
 
+/**
+ * Default correlations of the log-returns (README § 2.3, research R0 `r0-dati/corr_v3.csv`): the 21
+ * pairs of the upper triangle in `MONTE_CARLO_CLASSES` order, row by row. Each pair is measured on
+ * the longest common period of the two series (with Trend 2000–2025, with Carry 2002–2025, with
+ * Materie prime 1980–2025, with Oro 1972–2025, the others 1928–2025). The matrix is positive
+ * semi-definite as it stands (minimum eigenvalue 0,42): rule R5 does not touch it.
+ */
+export const MONTE_CARLO_DEFAULT_CORRELATIONS: readonly number[] = [
+  0.0224, -0.1676, 0.2441, -0.0043, -0.2708, -0.2868, // Azioni with Obbligazioni, Oro, Materie prime, Liquidità, Trend, Carry
+  -0.0586, -0.1891, 0.2664, 0.1022, 0.2108, // Obbligazioni with Oro … Carry
+  0.1615, -0.0072, 0.1658, -0.0069, // Oro with Materie prime … Carry
+  0.1645, 0.1763, -0.2316, // Materie prime with Liquidità, Trend, Carry
+  0.0817, 0.3524, // Liquidità with Trend, Carry
+  -0.0008, // Trend with Carry
+];
+
+export const MONTE_CARLO_CORRELATIONS_SOURCE = {
+  id: 'R0',
+  series: 'log-rendimenti annui, periodo comune più lungo di ogni coppia',
+  period: '1928–2025',
+  asOf: DOWNLOAD_AS_OF,
+  note: 'Dati annuali: su dati mensili Materie prime–Carry vale circa −0,58 contro −0,23. Il modello è annuale.',
+} as const;
+
+/** A fresh copy every call — the caller may edit it. */
+export function getDefaultMonteCarloCorrelations(): number[] {
+  return [...MONTE_CARLO_DEFAULT_CORRELATIONS];
+}
+
 /** The date the numbers were collected, for the tile's reading («valori storici fino al …»). */
 export const MONTE_CARLO_DEFAULTS_LAST_YEAR = 2025;
