@@ -1,4 +1,4 @@
-# Monte Carlo — classi complete, correlazioni e leva (epic `epic-montecarlo`)
+# Monte Carlo — sei classi, correlazioni e leva (epic `epic-montecarlo`)
 
 > **Per chi implementa (agente).** Questo dossier è la specifica vincolante delle tre task dell'epic
 > Monte Carlo. Le decisioni funzionali (§ 3) sono **chiuse**: non riaprirle, non aggiungere
@@ -55,13 +55,15 @@ portafoglio con ETF a leva.
 ### 1.3 Perimetro
 
 **Incluso**
-- Otto classi: Azioni, Obbligazioni, Immobili, Materie prime, Liquidità, Crypto, Trend, Carry
-  (`AssetClass` di `types/assets.ts:22`, etichette di `lib/utils/assetDisplayClass.ts`).
+- Sei classi: Azioni, Obbligazioni, Materie prime, Liquidità, Trend, Carry (`AssetClass` di
+  `types/assets.ts:22`, etichette di `lib/utils/assetDisplayClass.ts`). **Crypto e Immobili restano fuori
+  dalla simulazione** (revisione del proprietario, 03/10/2026): il loro valore non entra nel capitale
+  simulato e il tile Parametri lo dichiara (§ 5.1).
 - Ipotesi di mercato salvate in **Impostazioni** (nuova tab), lette da **entrambi** i motori: Monte Carlo
   (decumulo) e Ventaglio del Calcolatore (accumulo).
 - Rendimento inserito come **CAGR**, volatilità come deviazione standard dei rendimenti annui semplici;
   estrazione **lognormale multivariata**.
-- Una **matrice di correlazione** unica (28 coppie), con correzione automatica alla più vicina valida.
+- Una **matrice di correlazione** unica (15 coppie), con correzione automatica alla più vicina valida.
 - **Leva** costante ribilanciata ogni anno, pesi che sommano ≥ 100, costo = liquidità estratta + spread,
   rovina da leva contata a parte, confronto «senza leva» sugli stessi shock.
 
@@ -71,6 +73,8 @@ portafoglio con ETF a leva.
 - Debito fisso con margin call: appartiene alla FEAT «Futures e margin account» (Backlog), che riuserà
   il motore di T3 cambiando solo la regola del debito (§ 7.4).
 - What If, Coast FIRE, Obiettivi: non leggono parametri di mercato per classe.
+- Crypto e Immobili: nessun parametro, nessun peso; il loro valore resta fuori dal capitale simulato.
+  Oggi gli Immobili sono una delle quattro classi del Monte Carlo: T1 li toglie.
 
 ### 1.4 Casi d'uso
 
@@ -78,7 +82,7 @@ portafoglio con ETF a leva.
    Monte Carlo simula 200.000 € al 100% azioni; dopo T1 al 50% azioni e 50% liquidità.
 2. **Chi ha letto un CAGR.** Scrive «Azioni 7%, volatilità 18%» da una fonte storica: dopo T1 la mediana
    composta simulata è 7%, non 5,5%; accanto legge «media aritmetica 8,5%» in sola lettura.
-3. **Le classi insieme.** Nell'anno in cui le azioni perdono il 30%, gli immobili tendono a perdere e il
+3. **Le classi insieme.** Nell'anno in cui le azioni perdono il 30%, le materie prime spesso le seguono e il
    Trend spesso guadagna: dopo T2 la dispersione del portafoglio misto riflette la diversificazione vera.
 4. **Il portafoglio a leva.** Target di Allocazione che sommano 150% (ETF 1,5x): dopo T3 il Monte Carlo
    simula 1,5× con il costo del debito, dice quante simulazioni falliscono per rovina da leva e quanto
@@ -105,7 +109,12 @@ intende **sui log-rendimenti** (è quella che la ricerca R0 misura). Ogni `r_i >
 
 **R2 — Migrazione dei valori salvati** (oggi medie aritmetiche `μ` di una normale con volatilità `σ`):
 `x = 1 + σ²/(1+μ)²`, `g = (1+μ)/√x − 1`, `σa = σ`. Così media e varianza di `1+r` restano quelle di
-prima e il piano salvato non cambia di significato.
+prima e il piano salvato non cambia di significato. I parametri salvati degli Immobili (`realEstateReturn`,
+`realEstateVolatility`) si scartano: la classe non esiste più nel Monte Carlo.
+
+**RK — Capitale simulato**: `K` = valore delle sei classi negli asset (per gli asset compositi, le sole
+gambe delle sei classi), al netto dei fondi pensione bloccati come oggi. Crypto e Immobili, e le gambe
+composite di quelle classi, restano fuori da `K` in **entrambi** i motori.
 
 **R3 — Rendimento del portafoglio senza leva** (pesi `w_i` in decimali, Σw = 1):
 `1 + r_p = Σ w_i · (1 + r_i)`. Ribilanciamento annuale, come oggi.
@@ -122,11 +131,13 @@ correzione di Dykstra), poi autovalori portati ad almeno `ε = 1e-6` e diagonale
 Si salva la matrice corretta a piena precisione; la UI mostra due decimali.
 
 **R6 — Pesi seminati dai target** (T3): sul capitale `K` della simulazione (patrimonio al netto dei fondi
-pensione bloccati, come oggi): `w_c = (t_c · B + E_c) / K`, dove `t_c` è il target effettivo della classe
+pensione bloccati, come oggi, RK): `w_c = (t_c · B + E_c) / K`, dove `t_c` è il target effettivo della classe
 (% del capitale investibile, come in Allocazione; la liquidità a importo fisso entra come importo), `B`
 il valore di mercato del capitale investibile (`allocationRole` ∈ {tradable, frozen}), `E_c` il
 nozionale della classe negli asset `excluded` che fanno parte di `K`. **Importa il portafoglio di oggi**:
 `w_c = Σ notional_c / K` con `expandAssetExposure` su tutti gli asset di `K`.
+Target e nozionale di Crypto e Immobili non entrano: i target delle sei classi si riscalano per
+`100 / (100 − t_crypto − t_immobili)`, così la leva relativa delle sei classi resta quella voluta.
 
 ### 1.6 Criteri di accettazione (valori di riferimento verificabili)
 
@@ -134,11 +145,12 @@ nozionale della classe negli asset `excluded` che fanno parte di `K`. **Importa 
 | --- | --- | --- |
 | A1 | R1 con g = 7%, σa = 18% | m = 0,067659; s = 0,164829; μa = 8,4634% |
 | A2 | R1 con g = 3%, σa = 6% | m = 0,029559; s = 0,058105; μa = 3,1740% |
-| A3 | R1 con g = 0%, σa = 60% (crypto-like) | m = 0; s = 0,497655; μa = 13,1824% |
+| A3 | R1 con g = 0%, σa = 60% (volatilità alta) | m = 0; s = 0,497655; μa = 13,1824% |
 | A4 | R2 con μ = 7%, σ = 18% | g = 5,5174%; e R1(g, 18%) restituisce μa = 7,0000% |
 | A5 | 200.000 estrazioni seminate, g = 7%, σa = 18% | mediana di r in 7% ± 0,2 pp; media in 8,46% ± 0,2 pp |
 | A6 | Volatilità 0 su tutte le classi | ogni classe rende esattamente il suo CAGR; il test di coerenza del Ventaglio con `calculateFIREProjection` resta verde |
 | A7 | 100.000 € azioni + 100.000 € liquidità | pesi seminati 50/50 (oggi 100/0) |
+| A7b | A7 + 250.000 € immobili + 5.000 € crypto | capitale 200.000 €, pesi 50/50; riga «Fuori dalla simulazione: Immobili 250.000 €, Crypto 5.000 €» |
 | A8 | Due classi, ρ = 0,5, 200.000 estrazioni seminate | correlazione campionaria dei log-rendimenti 0,50 ± 0,01 |
 | A9 | `C` = [[1, 0,9, 0,9], [0,9, 1, −0,9], [0,9, −0,9, 1]] (autovalori −0,8; 1,9; 1,9) | corretta ≈ [[1, 0,5, 0,5], [0,5, 1, −0,5], [0,5, −0,5, 1]] ± 0,01, Cholesky riesce |
 | A10 | Volatilità 0, Azioni 150%, Liquidità g = 2%, spread 1%, Azioni g = 7% | r_p = 1,5·1,07 − 0,5·1,03 − 1 = 9,0% |
@@ -151,15 +163,15 @@ nozionale della classe negli asset `excluded` che fanno parte di `K`. **Importa 
 ## 2. Prerequisito R0 — Ricerca dei valori predefiniti (thread «ricerca»)
 
 Non è codice. Consegna un file in Library (`/mnt/project-files/ricerca/montecarlo-default.md`) con, per
-ognuna delle otto classi, **fonti aggiornate e citate** (mai a memoria):
+ognuna delle sei classi, **fonti aggiornate e citate** (mai a memoria):
 
 1. Serie storica annuale scelta (indice, valuta EUR o USD dichiarata, periodo), CAGR nominale e
    deviazione standard dei rendimenti annui semplici sull'intero periodo → scenario **Base**.
 2. **Orso** e **Toro** con una regola unica e dichiarata. Proposta da verificare sulle serie: 10° e 90°
    percentile del CAGR su finestre mobili di 30 anni, con la volatilità della stessa finestra; dove la
-   serie è più corta di 60 anni (Crypto, Trend, Carry) la regola si adatta e la ricerca lo scrive.
+   serie è più corta di 60 anni (Trend, Carry) la regola si adatta e la ricerca lo scrive.
 3. Inflazione per scenario con la stessa regola (serie HICP area euro o equivalente dichiarata).
-4. Le 28 correlazioni dei **log-rendimenti annui** sul periodo comune più lungo, con il periodo usato
+4. Le 15 correlazioni dei **log-rendimenti annui** sul periodo comune più lungo, con il periodo usato
    per ogni coppia.
 5. Lo spread della leva: costo di finanziamento oltre il tasso a breve, misurato su un broker al
    dettaglio europeo e sul costo implicito di un ETF a leva UCITS (swap spread + TER oltre il 1x).
@@ -174,12 +186,12 @@ nel campo `source`.
 
 | # | Decisione | Alternative scartate e motivo |
 | --- | --- | --- |
-| D1 | La vecchia 1/3 si **riscrive**: otto classi, tutte con rendimento e volatilità per scenario; il capitale è la somma delle classi modellate. Trend e Carry sono classi a tutti gli effetti. | Chiuderla e spostare tutto nella 2/3 (la gonfia); aggiungere solo liquidità e crypto (lascia i motori divergenti). |
+| D1 | La vecchia 1/3 si **riscrive**: **sei classi** (Azioni, Obbligazioni, Materie prime, Liquidità, Trend, Carry), tutte con rendimento e volatilità per scenario; il capitale è la somma delle classi modellate. Trend e Carry sono classi a tutti gli effetti. **Revisione del 03/10/2026**: Crypto e Immobili tolti dalla feature, il loro valore resta fuori dal capitale simulato. | Chiuderla e spostare tutto nella 2/3 (la gonfia); aggiungere solo liquidità e crypto (lascia i motori divergenti). |
 | D2 | Le ipotesi vivono in **Impostazioni**; il tile Parametri le **dichiara** con un link (The Declaration-Tile Rule). Entrambi i motori leggono il salvato. | Restare nel tile (48+ campi in un tile di risultato, mobile ingestibile); fonte in Impostazioni con ritocco locale (due stati da tenere coerenti). |
 | D3 | Default da **medie storiche di lungo periodo con fonte** (R0); Orso e Toro con una regola dichiarata. | Stime prospettiche a 10 anni (orizzonte sbagliato per 30–50 anni di prelievi); tenere i numeri attuali (nessuna fonte). |
 | D4 | Il rendimento si inserisce come **CAGR**; la media aritmetica si ricava e si mostra in sola lettura. I salvati si migrano con R2. | Media aritmetica (l'errore di oggi resta possibile); selettore per campo (raddoppia stati e test). |
-| D5 | Distribuzione **lognormale** multivariata. | Normale (perdite oltre −100%, rotta con la leva); lognormale con code grasse (un parametro in più, aggiungibile dopo senza cambiare i dati); bootstrap (serie annuali per otto classi, scenari come finestre storiche). |
-| D6 | **Una** matrice di correlazione per tutti gli scenari. | Una per scenario (84 numeri, default dell'Orso da inventare); unica con stress nell'Orso (rinviabile senza cambiare il formato). |
+| D5 | Distribuzione **lognormale** multivariata. | Normale (perdite oltre −100%, rotta con la leva); lognormale con code grasse (un parametro in più, aggiungibile dopo senza cambiare i dati); bootstrap (serie annuali per tutte le classi, scenari come finestre storiche). |
+| D6 | **Una** matrice di correlazione per tutti gli scenari. | Una per scenario (45 numeri, default dell'Orso da inventare); unica con stress nell'Orso (rinviabile senza cambiare il formato). |
 | D7 | Inserimento come **elenco per classe** (ogni coppia una volta); matrice non valida **corretta automaticamente** (R5) con le coppie cambiate evidenziate. | Blocco al salvataggio (correggere a mano è difficile); solo default in lettura. |
 | D8 | I pesi si **seminano dai target effettivi di Allocazione** (somma > 100 = leva), con un pulsante **«Importa il portafoglio di oggi»** che carica il nozionale detenuto, leva compresa. Nessun campo «Leva» separato. | Dal portafoglio come default (scelta iniziale del proprietario, poi rivista); rapporto a mano (scelto e poi ritirato dal proprietario nella stessa sessione). |
 | D9 | Costo del debito = rendimento **estratto della Liquidità** nell'anno + **spread** fisso (Impostazioni). | ECBDFR di oggi + spread (fisso per 50 anni); tasso a mano per scenario (nessun legame con i tassi). |
@@ -211,13 +223,15 @@ nel campo `source`.
 
 ```ts
 export const MONTE_CARLO_CLASSES = [
-  'equity', 'bonds', 'realestate', 'commodity', 'cash', 'crypto', 'trendFollowing', 'carry',
+  'equity', 'bonds', 'commodity', 'cash', 'trendFollowing', 'carry',
 ] as const satisfies readonly AssetClass[];
 export type MonteCarloClass = (typeof MONTE_CARLO_CLASSES)[number];
 ```
 
-L'ordine è quello della matrice di correlazione (triangolo superiore riga per riga, 28 valori). Le
-chiavi sono quelle di `AssetClass`: nessuna mappa `realEstate`/`commodities` come oggi.
+L'ordine è quello della matrice di correlazione (triangolo superiore riga per riga, 15 valori). Le
+chiavi sono quelle di `AssetClass`: nessuna mappa `commodities` come oggi. `realestate` e `crypto` non
+sono classi del Monte Carlo: un asset di quelle classi (o la gamba di un composito) resta fuori dal
+capitale simulato.
 
 ### 4.2 Impostazioni — `types/assets.ts`
 
@@ -230,7 +244,7 @@ export interface MonteCarloMarketScenario {
 export interface MonteCarloMarketSettings {
   version: 1;
   scenarios: { bear: MonteCarloMarketScenario; base: MonteCarloMarketScenario; bull: MonteCarloMarketScenario };
-  correlations?: number[];   // T2: 28 values, upper triangle in MONTE_CARLO_CLASSES order; absent = defaults
+  correlations?: number[];   // T2: 15 values, upper triangle in MONTE_CARLO_CLASSES order; absent = defaults
   leverageSpread?: number;   // T3: percent; absent = default
 }
 // on AssetAllocationSettings:
@@ -254,7 +268,7 @@ monteCarloMarket?: MonteCarloMarketSettings;
   bisogno.
 - **Validazione** — `lib/utils/monteCarloMarketValidation.ts`: CAGR in [−50, 100], volatilità in [0, 200],
   inflazione in [−5, 20], correlazioni in [−1, 1], spread in [0, 20]. Restituisce l'elenco dei campi
-  fuori intervallo per nome («Crypto, Toro: volatilità oltre 200%»), come
+  fuori intervallo per nome («Trend, Toro: volatilità oltre 200%»), come
   `allocationTargetValidation.ts`.
 
 ### 4.3 Parametri dei motori — `types/assets.ts` e `lib/services/monteCarloService.ts`
@@ -272,7 +286,7 @@ random?: () => number;                           // already on the accumulation 
 
 Un solo modulo puro prepara l'estrazione: `lib/utils/monteCarloDraw.ts` (nuovo, T1) con
 `toLogNormal(params)` (R1), `buildDrawPlan(market, correlations)` (m, s, Cholesky una volta per
-esecuzione) e `drawYear(plan, random): number[]` (otto rendimenti dell'anno). **Entrambi** i motori
+esecuzione) e `drawYear(plan, random): number[]` (sei rendimenti dell'anno). **Entrambi** i motori
 chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 
 ---
@@ -282,17 +296,18 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 ### 5.1 Cosa vede l'utente
 
 - **Impostazioni › Simulazioni** (nuova tab). Un tile «Ipotesi di mercato» con lettura in una riga
-  («Otto classi, valori predefiniti da <fonte> fino al <anno>» / «modificate in 3 classi» / «migrate dai
+  («Sei classi, valori predefiniti da <fonte> fino al <anno>» / «modificate in 3 classi» / «migrate dai
   parametri salvati prima del <data>: rileggile»), un selettore Orso · Base · Toro (`segmented-pill`) e
-  sotto, per lo scenario scelto, otto righe: classe · CAGR % · volatilità % · «media 8,5%» in sola lettura
+  sotto, per lo scenario scelto, sei righe: classe · CAGR % · volatilità % · «media 8,5%» in sola lettura
   (μa di R1). Inflazione dello scenario sotto le righe. «Ripristina default» per scenario. Il salvataggio
   è il «Salva» unico della pagina, con il punto sulla tab quando ci sono modifiche.
 - **FIRE › Monte Carlo › Parametri**: la griglia degli scenari sparisce. Al suo posto una
   dichiarazione (`DeclarationRow`): «Ipotesi di mercato: valori predefiniti» / «salvate il 03/10/2026»,
-  con il link «Modifica in Impostazioni» (`/dashboard/settings?tab=simulazioni`). I pesi diventano otto
-  campi (Σ = 100, come oggi la regola dei quattro).
-- Il campo del capitale e le sue scorciatoie «Totale / Liquido» restano; il capitale ora coincide con
-  quello che i pesi coprono.
+  con il link «Modifica in Impostazioni» (`/dashboard/settings?tab=simulazioni`). I pesi diventano sei
+  campi (Σ = 100, come oggi la regola dei quattro). Sotto i pesi, una riga in sola lettura dichiara ciò che
+  resta fuori: «Fuori dalla simulazione: Immobili 250.000 €, Crypto 5.000 €» (assente se non c'è nulla).
+- Il campo del capitale e le sue scorciatoie «Totale / Liquido» restano, ma «Totale» diventa `K` (RK) e
+  «Liquido» la sua parte liquida: il capitale coincide con quello che i pesi coprono.
 - **Dettaglio › Come si calcola** (`EXPLAINER` di `monteCarloNarrative.ts:377`): «La simulazione» dice
   «un rendimento casuale da una lognormale con il CAGR e la volatilità dello scenario»; «I limiti» dice
   ancora «rendimenti indipendenti tra le classi» (fino a T2).
@@ -304,7 +319,7 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 2. `lib/utils/monteCarloMarket.ts`: `resolveMonteCarloMarket`, `migrateLegacyScenarios` (R2),
    `describeMarketOrigin` per le due letture.
 3. `lib/utils/monteCarloDraw.ts`: R1, `drawYear` con `C = I`.
-4. `deriveMonteCarloAllocation` → `deriveMonteCarloWeights(byAssetClass)` su otto classi, stessa regola di
+4. `deriveMonteCarloAllocation` → `deriveMonteCarloWeights(byAssetClass)` su sei classi, stessa regola di
    arrotondamento (residuo sulla classe più piccola, anche a valore zero), `null` se tutto è zero. Resta
    **l'unico** normalizzatore, chiamato da `MonteCarloTab` e da `FireCalculatorTab`.
 5. `monteCarloService.ts`: `runSingleSimulation` e `runAccumulationSimulation` leggono `weights` e
@@ -314,6 +329,8 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
    Impostazioni); `MonteCarloRunInputs` confronta il mercato **risolto** nel `haveRunInputsChanged`,
    così un salvataggio in Impostazioni rende stantia l'ultima esecuzione (The Stale-Run Rule).
 7. `FireCalculatorTab.tsx:465`: `settings?.monteCarloScenarios?.base` → `resolveMonteCarloMarket(settings).scenarios.base`.
+   Il Ventaglio parte da `K` (RK), non più dal patrimonio FIRE intero: la sua lettura dice che Immobili e
+   crypto sono fuori, e la linea deterministica del Calcolatore resta quella di oggi (altro modello, § 1.3).
 8. Tab «Simulazioni» in `app/dashboard/settings/page.tsx` + `describeMonteCarloMarket` in
    `settingsNarrative.ts` (nessun verdetto: è Impostazioni).
 
@@ -335,7 +352,8 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 - `monteCarloDraw.test.ts`: A1–A3, A5 (seme fisso), A6; nessun `r ≤ −100%` su 10⁶ estrazioni con σa = 200%.
 - `monteCarloMarket.test.ts`: A4; le tre origini; un salvato parziale (classe mancante) si completa
   con il default della classe.
-- `monteCarloParams.test.ts`: A7; residuo dell'arrotondamento su otto classi; Trend e Carry dalle gambe.
+- `monteCarloParams.test.ts`: A7, A7b; residuo dell'arrotondamento su sei classi; Trend e Carry dalle gambe;
+  un composito con una gamba immobiliare porta nel capitale solo le gambe delle sei classi.
 - `monteCarloService.test.ts`: il test di coerenza a volatilità zero del Ventaglio resta verde **senza
   modificarlo nella sostanza** (cambia solo la forma dei parametri).
 - `settingsRoundTrip.test.ts`: `monteCarloMarket` nel fixture, round-trip e cancellazione.
@@ -348,7 +366,7 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 ### 6.1 Cosa vede l'utente
 
 - **Impostazioni › Simulazioni**, secondo tile «Correlazioni». Lettura: «Valori predefiniti da <fonte>,
-  <periodo>» / «modificate 4 coppie su 28». Sotto, un elenco per classe: «Azioni con…» apre sette righe
+  <periodo>» / «modificate 4 coppie su 15». Sotto, un elenco per classe: «Azioni con…» apre cinque righe
   (le classi successive nell'ordine, così ogni coppia compare una volta); le classi che il portafoglio
   detiene vengono prima, le altre chiuse. Un campo per riga, da −1,00 a 1,00, passo 0,05.
 - Se la matrice salvata non è valida, al «Salva» viene corretta (R5): le coppie cambiate restano
@@ -363,10 +381,10 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 
 1. `lib/utils/correlationMatrix.ts` (nuovo, puro): `expandUpperTriangle(values, n)`,
    `isPositiveSemiDefinite(C)`, `nearestCorrelation(C)` (R5, iterazioni massime 200, tolleranza 1e-9),
-   `cholesky(C)`. Serve un'autodecomposizione simmetrica: Jacobi ciclico su 8×8, scritto nel modulo,
+   `cholesky(C)`. Serve un'autodecomposizione simmetrica: Jacobi ciclico su 6×6, scritto nel modulo,
    nessuna dipendenza nuova.
 2. `buildDrawPlan` riceve la matrice risolta e calcola `L` **una volta** per esecuzione; `drawYear`
-   moltiplica `L·ε` (64 moltiplicazioni l'anno: 10.000 percorsi × 3 scenari × 50 anni restano sotto il
+   moltiplica `L·ε` (36 moltiplicazioni l'anno: 10.000 percorsi × 3 scenari × 50 anni restano sotto il
    mezzo secondo; misuralo e scrivilo nella guida).
 3. `resolveMonteCarloMarket` restituisce anche `correlations` (salvate o default) e `correlationOrigin`.
 4. La correzione avviene **al salvataggio** in Impostazioni e di nuovo, silenziosa, in `buildDrawPlan`
@@ -393,7 +411,7 @@ chiamano `drawYear`; `randomNormal` resta solo come primitiva interna.
 
 ### 7.1 Cosa vede l'utente
 
-- **Tile Parametri**: gli otto pesi si seminano dai **target effettivi di Allocazione** (R6). Sopra i
+- **Tile Parametri**: i sei pesi si seminano dai **target effettivi di Allocazione** (R6). Sopra i
   pesi, la somma: «Totale 150% · leva 1,5×»; sotto 100% l'esecuzione resta bloccata come oggi, sopra
   300% anche («leva oltre 3×»). Il pulsante **«Importa il portafoglio di oggi»** sostituisce i pesi con
   il nozionale detenuto e dice da dove vengono («dal portafoglio di oggi, leva 1,32×»); «Usa i target»
@@ -462,7 +480,7 @@ euro e soglia di mantenimento» passando una regola del debito diversa allo stes
 
 - `doc/guide/fire-monte-carlo.md`: regole nuove e blind spots (seme da T3, correlazioni fisse, rovina da
   leva).
-- `doc/guide/fire.md` § FIRE, What If and Goals: `deriveMonteCarloAllocation` → otto classi; il Ventaglio
+- `doc/guide/fire.md` § FIRE, What If and Goals: `deriveMonteCarloAllocation` → sei classi; il Ventaglio
   legge il mercato risolto.
 - `doc/guide/impostazioni.md`: la tab «Simulazioni», le sedi del nuovo campo.
 - `doc/guide/fork-scelte-ui.md` e `CLAUDE.md` (riga «Solo fork» e «Latest»): il motore Monte Carlo del
