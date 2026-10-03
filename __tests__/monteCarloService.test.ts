@@ -182,6 +182,21 @@ describe('runAccumulationSimulation — Ventaglio engine', () => {
     expect(Math.round(result.paths[0][1].value)).toBe(Math.round(2_000_000 * 1.07));
   });
 
+  it('indexed savings (RP7): at zero volatility the paths still collapse onto the indexed deterministic projection', () => {
+    // Same capital, same rate, same indexed saving: the fan and the Calcolatore's curve are one walk.
+    const scenarios = { bear: { growthRate: 7, inflationRate: 2.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 7, inflationRate: 2.5 } };
+    const projection = calculateFIREProjection(100_000, 30_000, 20_000, 4, scenarios, 50, undefined, undefined, true);
+    const years = Math.min(projection.yearlyData.length, 40);
+    const result = runAccumulationSimulation(makeAccumulationParams({ years, savingsInflationRate: 2.5 }));
+    for (const path of result.paths) {
+      for (let year = 1; year <= years; year++) {
+        expect(Math.round(path[year].value)).toBe(projection.yearlyData[year - 1].baseNetWorth);
+      }
+    }
+    // And it is a different walk from the constant one: the saving of year 2 is 20.500, not 20.000.
+    expect(Math.round(result.paths[0][2].value)).toBe(Math.round(Math.round(result.paths[0][1].value) * 1.07 + 20_500));
+  });
+
   it('at zero volatility every path collapses onto the deterministic base projection', () => {
     // Same rates as the engine fixture: base scenario 7% growth / 2.5% inflation.
     const projection = calculateFIREProjection(

@@ -7,6 +7,9 @@
 - **The weights are seeded from `useFireAssumptions`** (2026-10-03, doc/fire-ipotesi/README.md L1): the page's ONE reading of RP4 (Allocazione targets, else the
   portfolio held, else 60/40) — the same the Calcolatore's Ventaglio now simulates. The two buttons «Importa dai target / dal portafoglio di oggi» keep their own seeds.
   The «Ipotesi usate» line above the verdict says the weights' origin; it does not follow a hand edit (the Parametri tile says «a mano»).
+  **Since L2** it also carries the plan's expenses and `K` (the same string as the other tabs), the withdrawal is seeded with the plan's expenses
+  (`resolvePlanExpenses`, the 30.000 € fallback only while there are none) and the withdrawal-tax basis is `K`'s (`assumptions.capital.taxProfile`).
+  The tab waits for the Cashflow read too: a failed read is the tab's `ErrorNotice`.
 
 - The tab answers «quanto è probabile?» and computes nothing: `runMonteCarloSimulation` runs, `monteCarloSummary.ts` reads the run (the base
   scenario's horizon dated in years and in age, the first year the 10th percentile touches zero, the final percentiles of ALL simulations, the

@@ -310,3 +310,25 @@ describe('calculateWhatIfImpact — projections and the pension bridge', () => {
     expect(zeroValue.projections.before?.yearlyData).toEqual(plain.projections.before?.yearlyData)
   })
 })
+
+describe('plan expenses and the indexed saving (doc/fire-ipotesi/README.md D5, D6)', () => {
+  it('the household income of a job loss is the Cashflow\'s, not the plan\'s expenses plus the savings', () => {
+    // Plan expenses 20.000, Cashflow expenses 24.000, savings 12.000: the income is 36.000, and one year without it costs 36.000.
+    const baseline = makeBaseline({ annualExpenses: 20_000, annualIncome: 36_000 })
+    expect(applyScenarioToBaseline(baseline, { eventType: 'jobLoss', monthsWithoutIncome: 12 }).netWorth).toBe(200_000 - 36_000)
+    // Without the field the sum is used, as before.
+    expect(applyScenarioToBaseline(makeBaseline(), { eventType: 'jobLoss', monthsWithoutIncome: 12 }).netWorth).toBe(200_000 - 36_000)
+    expect(applyScenarioToBaseline(makeBaseline({ annualExpenses: 20_000 }), { eventType: 'jobLoss', monthsWithoutIncome: 12 }).netWorth).toBe(200_000 - 32_000)
+  })
+
+  it('the baseline walk saves with the inflation of the scenario when asked, and so does the Calcolatore\'s', () => {
+    const constant = calculateWhatIfImpact(makeBaseline(), { eventType: 'windfall', lumpSumAmount: 0 })
+    const indexed = calculateWhatIfImpact(makeBaseline({ indexSavings: true }), { eventType: 'windfall', lumpSumAmount: 0 })
+    const before = constant.projections.before
+    const after = indexed.projections.before
+    expect(before && after).toBeTruthy()
+    // Year 1 is identical (the saving of the first year is S); from year 2 the indexed walk is ahead.
+    expect(after!.yearlyData[0].baseNetWorth).toBe(before!.yearlyData[0].baseNetWorth)
+    expect(after!.yearlyData[1].baseNetWorth).toBeGreaterThan(before!.yearlyData[1].baseNetWorth)
+  })
+})

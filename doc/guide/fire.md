@@ -21,8 +21,20 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   settings plumbing stay: they are upstream's), and `getDefaultScenarios()` survives only for tests and as the loading
   placeholder. The «Ipotesi usate» line (`FireAssumptionsRow` + `describeFireAssumptions`) is the same string in the four
   tabs; the Parametri «Scenari» tile only DECLARES the rates (rendimento, reale, inflazione, media, volatilità).
-  **Still open until L2/L3**: the deterministic curves start from the FIRE net worth while the fan and the Monte Carlo
-  start from `K`; the Goals keep `GOAL_CLASS_RETURNS`; the savings are nominal in the Calcolatore.
+  **L2 (2026-10-03, D4–D6)** adds the other three: **RP5** the capital is `K` (`computeSimulatedCapital`, the closed pension funds out) in
+  EVERY tab — `resolveFireCapital` returns it with its liquid part, what stays outside (Immobili incl. the residence, Crypto, said in
+  the «Ipotesi usate» line) and the cost basis behind it (`taxProfile`: crypto and real estate out of the basis, a composite asset
+  scaled by `simulatedShare`), so the Calcolatore's old `basisScale` is gone; **RP6** `resolvePlanExpenses` — `plannedAnnualExpenses` typed in
+  Calcolatore › Parametri («Spesa del piano», empty = from the Cashflow), else `getAnnualCashflowData` — one figure for the four tabs,
+  the Monte Carlo seeding its withdrawal with it (30.000 € only while there is none anywhere); **RP7** the saving of year t is
+  `S·(1+π)^(t−1)`: `calculateFIREProjection(…, indexSavings)` (each scenario with its own π), `calculateFIRESensitivityMatrix(…, indexSavings)`,
+  `WhatIfBaseline.indexSavings`, `runAccumulationSimulation({ savingsInflationRate })` — all default to the constant saving, so upstream's calls and
+  the older tests are byte-identical. `useFireAssumptions(lockedIds, { withCashflow: true })` is what the tabs call (the Settings tile does not
+  read the Cashflow). The residence switch left Parametri: the FIRE capital never holds real estate; `includePrimaryResidenceInFIRE`
+  (Impostazioni › Generale) now moves only the runway history, the PDF and the dashboard. The Coast «spesa personalizzata» is gone: its value
+  stands in as the plan's expenses until a save moves it (`coastFireCustomExpenses` is no longer written; the stores clear it with `deleteField`).
+  What If's job-loss income stays the Cashflow's (`WhatIfBaseline.annualIncome`), not plan expenses + savings.
+  **Still open until L3**: the Goals keep `GOAL_CLASS_RETURNS`.
 - **What If = perturbation + diff, no new projection math**: every v1 life event is a year-0 perturbation, then
   `fireService` is re-run on baseline vs adjusted and diffed. Do NOT add timed mid-projection cash events. **Keep the
   pure layer category-agnostic** — the selection of lost income sources and its sum live in the UI
@@ -64,8 +76,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   weights. **Oro** is the commodity sub-category named in Impostazioni › Simulazioni (rule RG), everything else of
   `commodity` is Materie prime. `null` means "keep the previous allocation"; the rounding residual lands on the
   smallest class, even a zero-value one, and is taken off the largest instead if it would turn a class negative.
-  The Ventaglio draws with the same correlation matrix as the Monte Carlo (T2: `resolveMonteCarloMarket(...).correlations`, one source, no copy). It now starts from `K`, not from the whole FIRE net worth, and carries the withdrawal-tax cost basis over
-  in proportion (`K / currentNetWorth`) so the gain share stays. **The market both engines draw from is ONE read**:
+  The Ventaglio draws with the same correlation matrix as the Monte Carlo (T2: `resolveMonteCarloMarket(...).correlations`, one source, no copy). It starts from `K` — as every tab does since L2 — and its withdrawal-tax cost basis is `K`'s own (`resolveFireCapital`). **The market both engines draw from is ONE read**:
   `resolveMonteCarloMarketForPortfolio(settings, assets)` (`lib/utils/monteCarloMarket.ts`) — saved
   `monteCarloMarket`, else the legacy `monteCarloScenarios` migrated (R2), else the defaults. Nobody reads the two
   settings fields directly.

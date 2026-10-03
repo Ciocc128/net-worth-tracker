@@ -6,6 +6,8 @@
 
 - **Same hypotheses as the Calcolatore** (2026-10-03, doc/fire-ipotesi/README.md L1): `scenarios` come from `useFireAssumptions` (target portfolio, Impostazioni ›
   Simulazioni), the Coast baseline's `realReturnRate` is Fisher (`realReturn`), and the «Ipotesi usate» line sits above the verdict.
+  **Since L2** the net worth is `K`, the expenses are the plan's (Coast's too: its own «spesa personalizzata» is gone), the baseline walk and the Sensibilità
+  save with the indexed saving (`indexSavings`), and `annualIncome` (Cashflow expenses + savings) keeps the job loss on the real income.
 
 - The tab answers «cosa cambia se…?» and computes nothing: `calculateWhatIfImpact` (service) perturbs and diffs, `whatIfSummary.ts`
   turns the impact into the event as stated, the before/after pairs, the merged series, the divergence and the sensitivity reading,

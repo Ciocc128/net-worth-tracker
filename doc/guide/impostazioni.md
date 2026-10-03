@@ -102,6 +102,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Simulazioni shows what the typed numbers do to the portfolio** (2026-10-03, doc/fire-ipotesi/README.md L1): `MonteCarloMarketTile` takes `portfolio`
   (the weights of `useFireAssumptions`, from the SAVED targets) and prints «Il portafoglio target rende (composto): Orso · Base · Toro» with
   `portfolioCompoundReturn` over the DRAFT, so a typed CAGR moves it at once. Read-only: it saves nothing.
+- **`plannedAnnualExpenses` is the plan's expenses and CLEARABLE** (2026-10-03, doc/fire-ipotesi/README.md D5): typed in FIRE › Calcolatore › Parametri («Spesa del piano»,
+  empty = from the Cashflow), never from Impostazioni (the «Parametri del piano» tile only declares it). Both `setSettings` chains guard it with
+  `'plannedAnnualExpenses' in settings` (`delete docData.…` in the `targets` chain, `deleteField()` in the merge one), and so for the legacy
+  `coastFireCustomExpenses` (also fixed in the merge chain, where `delete` kept the stale value); `settingsRoundTrip` carries both in `STORED_SETTINGS`.
+
 - **Third worked example, a nested object saved ONLY when its tab is dirty** (2026-10-03, Monte Carlo T1): `monteCarloMarket`
   (`MonteCarloMarketSettings`, doc/montecarlo/README.md § 4.2) — type, `getSettings`, both `setSettings` branches
   (`'monteCarloMarket' in settings`: `delete docData.…` / `deleteField()`), the page's `marketDraft` + origin + baseline

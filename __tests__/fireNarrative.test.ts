@@ -413,23 +413,23 @@ const honest = (overrides: Partial<FireTargetHonest> = {}): FireTargetHonest => 
 });
 
 describe('describeBase with the honest inputs', () => {
-  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, includesResidence: false };
+  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, outsideCapital: { realestate: 0, crypto: 0 }, planExpensesOrigin: 'cashflow' as const };
 
   it('names the pension and the tax inside the number', () => {
     expect(plain(describeBase({ ...base, honest: honest() }))).toBe(
-      "Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; nel numero anche la pensione statale dal 2060, 13.000 € netti l'anno e le tasse sui prelievi (26% sulla plusvalenza).",
+      "Calcolato su 412.500 € di capitale, spese di 27.600 € l'anno e un SWR del 4%; nel numero anche la pensione statale dal 2060, 13.000 € netti l'anno e le tasse sui prelievi (26% sulla plusvalenza).",
     );
     expect(plain(describeBase({ ...base, honest: honest({ pensionCount: 2 }) }))).toContain("le pensioni statali, 13.000 € netti l'anno dall'ultima nel 2060");
     expect(plain(describeBase({ ...base, honest: honest({ taxConsidered: false, taxSkipped: 'no-basis' }) }))).toBe(
-      "Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; nel numero anche la pensione statale dal 2060, 13.000 € netti l'anno.",
+      "Calcolato su 412.500 € di capitale, spese di 27.600 € l'anno e un SWR del 4%; nel numero anche la pensione statale dal 2060, 13.000 € netti l'anno.",
     );
   });
 
   it('says a pension left out for a missing age, and nothing about none saved (the row does)', () => {
     expect(plain(describeBase({ ...base, honest: honest({ pensionsConsidered: false, pensionsSkipped: 'no-age', taxConsidered: false }) }))).toBe(
-      "Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; le pensioni statali restano fuori: manca l'età in Coast FIRE.",
+      "Calcolato su 412.500 € di capitale, spese di 27.600 € l'anno e un SWR del 4%; le pensioni statali restano fuori: manca l'età in Coast FIRE.",
     );
-    expect(plain(describeBase({ ...base, honest: NO_HONEST }))).toBe("Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%.");
+    expect(plain(describeBase({ ...base, honest: NO_HONEST }))).toBe("Calcolato su 412.500 € di capitale, spese di 27.600 € l'anno e un SWR del 4%.");
   });
 });
 
@@ -469,10 +469,10 @@ describe('the honest clauses on the Traguardo and the verdict', () => {
 });
 
 describe('describeBase', () => {
-  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, includesResidence: false };
+  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, outsideCapital: { realestate: 0, crypto: 0 }, planExpensesOrigin: 'cashflow' as const };
 
   it('reads the three inputs of the number', () => {
-    expect(plain(describeBase(base))).toBe('Calcolato su 412.500 € di patrimonio, spese di 27.600 € l\'anno e un SWR del 4%.');
+    expect(plain(describeBase(base))).toBe('Calcolato su 412.500 € di capitale, spese di 27.600 € l\'anno e un SWR del 4%.');
   });
 
   it('names the cashflow year in the aside, and whether it is annualized', () => {
@@ -481,9 +481,8 @@ describe('describeBase', () => {
     expect(describeBaseAside({ ...base, referenceYear: null })).toBeNull();
   });
 
-  it('footer: the residence rule and where the settings live', () => {
-    expect(plain(describeBaseFooter(false))).toBe('Casa di abitazione esclusa; SWR, casa e regola RITA si modificano in Parametri.');
-    expect(plain(describeBaseFooter(true))).toBe('Casa di abitazione inclusa; SWR, casa e regola RITA si modificano in Parametri.');
+  it('footer: where the capital comes from and where the settings live (D4, D5)', () => {
+    expect(plain(describeBaseFooter())).toBe('Il capitale è quello delle sette classi di Impostazioni › Simulazioni; SWR, spesa del piano e regola RITA si modificano in Parametri.');
   });
 });
 
@@ -569,11 +568,11 @@ describe('describeScenarios', () => {
 
 describe('the disclosures', () => {
   it('describe Parametri with the saved settings and the three scenarios', () => {
-    expect(describeParametri({ swr: 4, includesResidence: false, lockActive: true, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 5, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 9, inflationRate: 2 } } })).toBe(
-      'SWR 4% · casa di abitazione esclusa · fondo pensione bloccato (INPS 67, RITA a 62) · crescita orso 5%, base 7%, toro 9%',
+    expect(describeParametri({ swr: 4, plannedExpenses: 28_000, lockActive: true, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 5, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 9, inflationRate: 2 } } })).toBe(
+      'SWR 4% · spesa del piano 28.000\u00a0€ · fondo pensione bloccato (INPS 67, RITA a 62) · crescita orso 5%, base 7%, toro 9%',
     );
-    expect(describeParametri({ swr: 3.5, includesResidence: true, lockActive: false, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 4, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 10, inflationRate: 1.5 } } })).toBe(
-      'SWR 3,5% · casa di abitazione inclusa · fondo pensione non vincolato · crescita orso 4%, base 7%, toro 10%',
+    expect(describeParametri({ swr: 3.5, plannedExpenses: null, lockActive: false, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 4, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 10, inflationRate: 1.5 } } })).toBe(
+      'SWR 3,5% · spesa dal Cashflow · fondo pensione non vincolato · crescita orso 4%, base 7%, toro 10%',
     );
   });
 

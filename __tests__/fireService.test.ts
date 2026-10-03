@@ -793,6 +793,36 @@ describe('calculateFireBridgeNumber', () => {
   })
 })
 
+describe('calculateFIREProjection — savings indexed to inflation (RP7, A11)', () => {
+  // Expenses far above what is reachable, so no scenario retires and the savings are added every year.
+  const flat = { bear: { growthRate: 5, inflationRate: 2 }, base: { growthRate: 5, inflationRate: 2 }, bull: { growthRate: 5, inflationRate: 2 } }
+
+  it('A11: year 1 saves S, year 2 saves S·(1+π)', () => {
+    const result = calculateFIREProjection(100000, 1000000, 10000, 4, flat, 2, undefined, undefined, true)
+    // 100000·1,05 + 10000 = 115000;  115000·1,05 + 10000·1,02 = 120750 + 10200 = 130950
+    expect(result.yearlyData[0].baseNetWorth).toBe(115000)
+    expect(result.yearlyData[1].baseNetWorth).toBe(130950)
+  })
+
+  it('a one-year horizon is identical to the constant saving', () => {
+    const indexed = calculateFIREProjection(100000, 1000000, 10000, 4, flat, 1, undefined, undefined, true)
+    const constant = calculateFIREProjection(100000, 1000000, 10000, 4, flat, 1)
+    expect(indexed.yearlyData[0].baseNetWorth).toBe(constant.yearlyData[0].baseNetWorth)
+  })
+
+  it('without the flag the walk is the constant nominal one (upstream and the older tests)', () => {
+    const result = calculateFIREProjection(100000, 1000000, 10000, 4, flat, 2)
+    expect(result.yearlyData[1].baseNetWorth).toBe(Math.round(115000 * 1.05 + 10000))
+  })
+
+  it('each scenario indexes with its own inflation', () => {
+    const scenarios = { bear: { growthRate: 5, inflationRate: 5 }, base: { growthRate: 5, inflationRate: 2 }, bull: { growthRate: 5, inflationRate: 0 } }
+    const result = calculateFIREProjection(100000, 1000000, 10000, 4, scenarios, 2, undefined, undefined, true)
+    expect(result.yearlyData[1].bearNetWorth).toBe(Math.round(115000 * 1.05 + 10500))
+    expect(result.yearlyData[1].bullNetWorth).toBe(Math.round(115000 * 1.05 + 10000))
+  })
+})
+
 describe('calculateFIREProjection — pension bridge', () => {
   const scenarios = getDefaultScenarios()
 
