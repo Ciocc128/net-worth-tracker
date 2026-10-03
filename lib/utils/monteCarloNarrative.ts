@@ -75,6 +75,29 @@ export interface MonteCarloVerdictInput {
   run: MonteCarloRun | null;
   scenarios: ScenarioComparison | null;
   lock: FireLock;
+  /** With leverage above 1: the Base run again without it, on the same shocks (D11); null otherwise. */
+  unleveragedSuccessRate?: number | null;
+}
+
+/** «1,5×» / «1,32×»: the leverage as the page prints it, two decimals at most. */
+export function formatLeverage(value: number): string {
+  return `${value.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}×`;
+}
+
+/** « Con leva 1,5× il piano regge nell'87% delle simulazioni; senza leva, sugli stessi rendimenti, nel 94%.» — a comparison carries no tone of its own. */
+function leverageSentence(run: MonteCarloRun, unleveragedSuccessRate: number | null | undefined): Narrative {
+  if (run.leverage <= 1 || unleveragedSuccessRate === null || unleveragedSuccessRate === undefined) return [];
+  return [
+    prose(' Con leva '),
+    figure(formatLeverage(run.leverage)),
+    prose(' il piano regge '),
+    prose(inThePercent(run.successRate)),
+    figure(ratePct(run.successRate)),
+    prose(' delle simulazioni; senza leva, sugli stessi rendimenti, '),
+    prose(inThePercent(unleveragedSuccessRate)),
+    figure(ratePct(unleveragedSuccessRate)),
+    prose('.'),
+  ];
 }
 
 /** «fino a 81 anni (2061)» with a saved age, «per 35 anni (fino al 2061)» without. */
@@ -143,7 +166,7 @@ export function buildMonteCarloVerdict(input: MonteCarloVerdictInput): PageVerdi
   return {
     headline,
     tone: resolveSuccessTone(run.successRate),
-    sentence: [...opening, ...horizonClause(run), prose('; '), ...outcomesClause(run), prose('.'), ...scenariosSentence(input.scenarios), ...bridgeSentence(input.lock)],
+    sentence: [...opening, ...horizonClause(run), prose('; '), ...outcomesClause(run), prose('.'), ...leverageSentence(run, input.unleveragedSuccessRate), ...scenariosSentence(input.scenarios), ...bridgeSentence(input.lock)],
   };
 }
 
@@ -190,6 +213,18 @@ export function describeProbabilitaFooter(run: MonteCarloRun, lock: FireLock): N
     out.push(prose(' Il gradino nel '), year(lock.unlockCalendarYear), prose(' è il fondo pensione che entra, al valore di oggi.'));
   }
   out.push(prose(" Valori nominali: il prelievo cresce con l'inflazione."));
+  // R4: with leverage, the failures split by cause; the sentence is absent when none is leverage ruin.
+  if (run.leverageFailureCount > 0) {
+    out.push(
+      prose(' Dei '),
+      count(run.failureCount),
+      prose(' fallimenti, '),
+      count(run.leverageFailureCount),
+      prose(' per rovina da leva (una perdita annua oltre il capitale), '),
+      count(run.failureCount - run.leverageFailureCount),
+      prose(' per prelievi.'),
+    );
+  }
   return out;
 }
 
@@ -260,6 +295,7 @@ export function describeEsaurimentoFooter(run: MonteCarloRun): Narrative {
     prose(`${perBin} tra il primo e l'ultimo esaurimento; la classe con il bordo contiene la mediana dei fallimenti, le quote sono sul totale delle `),
     count(run.simulations),
     prose(' simulazioni. Scenario base.'),
+    ...(run.leverageFailureCount > 0 ? [prose(' La parte in colore è la rovina da leva (una perdita annua oltre il capitale), il resto sono prelievi.')] : []),
   ];
 }
 
@@ -316,12 +352,63 @@ export function describeParametri(plan: MonteCarloPlan): Narrative {
   return out;
 }
 
+export type AllocationTotalState = 'below' | 'plain' | 'leveraged' | 'above';
+
+/** The most leverage the form accepts, as a weights sum in percent («leva oltre 3×»). */
+export const MAX_WEIGHTS_SUM = 300;
+
+/** What the sum of the weights means for the run: under 100 it cannot run, above 300 neither, in between it is a plain or a leveraged portfolio. */
+export function resolveAllocationTotalState(sum: number): AllocationTotalState {
+  if (sum < 100 - 0.01) return 'below';
+  if (sum > MAX_WEIGHTS_SUM + 0.01) return 'above';
+  return sum > 100.01 ? 'leveraged' : 'plain';
+}
+
+/** «Totale 150% · leva 1,5×» / «Totale 100%» / «Totale 85%: deve arrivare ad almeno 100%» / «Totale 340%: leva oltre 3×». */
+export function describeAllocationTotal(sum: number): Narrative {
+  const total = (value: number) => figure(`Totale ${value.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%`);
+  switch (resolveAllocationTotalState(sum)) {
+    case 'below':
+      return [total(sum), prose(': deve arrivare ad almeno 100%')];
+    case 'above':
+      return [total(sum), prose(': '), figure('leva oltre 3×')];
+    case 'leveraged':
+      return [total(sum), prose(' · leva '), figure(formatLeverage(sum / 100))];
+    default:
+      return [total(sum)];
+  }
+}
+
+export type WeightsOrigin = 'targets' | 'holdings' | 'edited';
+
+export interface WeightsSourceInput {
+  origin: WeightsOrigin;
+  /** The leverage of the weights as they stand (`Σw / 100`). */
+  leverage: number;
+  /** Allocazione has targets on the modelled classes: «Usa i target» has something to load. */
+  hasTargets: boolean;
+}
+
+/** Where the weights come from, in one line (R6): the targets, the portfolio of today, or typed by hand. */
+export function describeWeightsSource({ origin, leverage, hasTargets }: WeightsSourceInput): Narrative {
+  const leverageClause: Narrative = leverage > 1.0005 ? [prose(', leva '), figure(formatLeverage(leverage))] : [];
+  if (origin === 'targets') return [prose('Dai target di Allocazione'), ...leverageClause, prose('.')];
+  if (origin === 'holdings') {
+    return hasTargets ? [prose('Dal portafoglio di oggi'), ...leverageClause, prose('.')] : [prose('Nessun target configurato in Allocazione: parti dal portafoglio di oggi'), ...leverageClause, prose('.')];
+  }
+  return [prose('Pesi modificati a mano'), ...leverageClause, prose('.')];
+}
+
 /** The Declaration-Tile line: where the market assumptions come from (they are edited in Impostazioni, never here). */
-export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'> & Partial<Pick<ResolvedMonteCarloMarket, 'correlations' | 'correlationOrigin'>>): Narrative {
+export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'> & Partial<Pick<ResolvedMonteCarloMarket, 'correlations' | 'correlationOrigin' | 'leverageSpread'>>, leverage = 1): Narrative {
   const out = describeMarketOrigin(market);
   // T2: the correlations are declared on the same line («correlazioni predefinite» / «personalizzate»).
   if (market.correlationOrigin) {
     out.push(prose(' Correlazioni '), figure(market.correlationOrigin === 'saved' ? 'personalizzate' : 'predefinite'), prose('.'));
+  }
+  // R4/D9: the debt's price is declared on the same line, only when there is debt.
+  if (leverage > 1 && market.leverageSpread !== undefined) {
+    out.push(prose(' Il debito costa la liquidità dell’anno più '), figure(`${market.leverageSpread.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`), prose('.'));
   }
   return out;
 }
@@ -408,6 +495,10 @@ export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La simulazione',
     body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale per ciascuna delle sette classi, estratto da una lognormale con il CAGR e la volatilità dello scenario (il CAGR è la crescita composta mediana, la media aritmetica è un po’ più alta), poi preleva la spesa annua indicizzata. Immobili e crypto non entrano nel capitale simulato. Se il capitale scende a zero la traiettoria fallisce.',
+  },
+  {
+    title: 'La leva',
+    body: "Con pesi che sommano oltre il 100% il portafoglio è a leva: ogni anno il rendimento è la somma dei pesi per i rendimenti delle classi, meno il debito (la leva meno uno) che costa il rendimento della liquidità estratto quell'anno più lo spread di Impostazioni. La leva si ribilancia ogni anno, come un ETF a leva; un conto a margine con debito fisso non è modellato. Se in un anno la perdita supera il capitale la traiettoria fallisce per rovina da leva, contata a parte dai prelievi. Con la leva il Base gira anche senza, sugli stessi rendimenti, per mostrare cosa cambia. Il seme è fisso: due esecuzioni con gli stessi parametri danno lo stesso risultato.",
   },
   {
     title: 'La probabilità',

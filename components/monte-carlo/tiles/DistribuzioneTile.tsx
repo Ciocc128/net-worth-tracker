@@ -99,6 +99,7 @@ export function DistribuzioneTile({ reading, aside, run, view, onViewChange, foo
           <YearBars
             bins={run.failureYearBins}
             subject="simulazioni"
+            segmentLabel="rovina da leva"
             referenceLabel="mediana dei fallimenti"
             ariaLabel={`Anno di esaurimento del capitale nelle ${run.failureCount.toLocaleString('it-IT')} simulazioni che falliscono, ${run.failureYearBinWidth === 1 ? 'una classe per anno' : `una classe ogni ${run.failureYearBinWidth} anni`}.`}
             className="mt-4 flex-1"

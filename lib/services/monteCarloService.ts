@@ -64,6 +64,14 @@ function runSingleSimulation(
   let basis = (tax?.basisToday ?? 0) + inflows.reduce((sum, inflow) => (inflow.year <= 0 ? sum + inflow.amount : sum), 0);
 
   const path: { year: number; value: number }[] = [{ year: 0, value: portfolio }];
+  // A failed path keeps DRAWING to the end of the horizon (the draws are discarded): every path
+  // consumes the same number of uniforms whatever happens to it, so two runs on one seed — with and
+  // without leverage, or the three scenarios — meet the same shocks in the same years (A13).
+  const failRun = (failureYear: number, failureCause: 'withdrawals' | 'leverage'): SingleSimulationResult => {
+    for (let year = failureYear + 1; year <= params.retirementYears; year++) drawYear(plan, random);
+    return { simulationId, success: false, failureYear, failureCause, finalValue: 0, path };
+  };
+  const spread = params.leverageSpread ?? 0;
 
   for (let year = 1; year <= params.retirementYears; year++) {
     // Add the inflows landing this year BEFORE applying the market return
@@ -74,11 +82,15 @@ function runSingleSimulation(
       }
     }
 
-    // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3).
-    const yearReturn = portfolioReturn(weights, drawYear(plan, random));
+    // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3), the debt
+    // of a leveraged portfolio taken off it at the drawn Liquidità return plus the spread (R4).
+    const yearReturn = portfolioReturn(weights, drawYear(plan, random), spread);
 
     // Apply return to portfolio
     portfolio *= 1 + yearReturn;
+
+    // A year's loss above the capital wipes it out (R4): ruin by leverage, whatever the withdrawal.
+    if (portfolio <= 0) return failRun(year, 'leverage');
 
     // Calculate withdrawal (adjusted for inflation if needed), net of the pensions active this
     // year (indexed the same way), then grossed up for the tax on the sale that funds it.
@@ -104,15 +116,7 @@ function runSingleSimulation(
     portfolio -= withdrawal;
 
     // Check for failure
-    if (portfolio <= 0) {
-      return {
-        simulationId,
-        success: false,
-        failureYear: year,
-        finalValue: 0,
-        path,
-      };
-    }
+    if (portfolio <= 0) return failRun(year, 'withdrawals');
 
     path.push({ year, value: portfolio });
   }
@@ -268,6 +272,7 @@ export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloRes
     successRate,
     successCount: successfulSims.length,
     failureCount: failedSims.length,
+    leverageFailureCount: failedSims.filter((sim) => sim.failureCause === 'leverage').length,
     medianFinalValue,
     percentiles,
     failureAnalysis,
@@ -295,6 +300,8 @@ export interface AccumulationSimulationParams {
   market: MonteCarloMarketScenario;
   /** Correlations of the log-returns (upper triangle, 21 values); absent = independent classes. */
   correlations?: number[];
+  /** Percent added to the Liquidità return to price the debt of a leveraged portfolio (weights summing above 100, R4). */
+  leverageSpread?: number;
 
   numberOfSimulations: number;
 
@@ -392,6 +399,7 @@ export function runAccumulationSimulation(
   const random = params.random ?? Math.random;
   const plan = buildDrawPlan(params.market, params.correlations);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
+  const spread = params.leverageSpread ?? 0;
   const horizon = Math.max(params.years, Math.floor(params.retirementHorizonYears ?? params.years));
   const inflows = params.capitalInflows ?? [];
   const startingInflow = inflows
@@ -427,7 +435,10 @@ export function runAccumulationSimulation(
     let basis = (retirementTax?.basisToday ?? 0) + startingInflow;
 
     for (let year = 1; year <= horizon; year++) {
-      const growth = 1 + portfolioReturn(weights, drawYear(plan, random));
+      // R4: a leveraged year can lose more than the capital. The fan floors the growth at zero
+      // (a path never fails here); the retirement ledger below counts it as ruin.
+      const rawGrowth = 1 + portfolioReturn(weights, drawYear(plan, random), spread);
+      const growth = Math.max(0, rawGrowth);
       const inflowThisYear = inflows.reduce((sum, inflow) => (inflow.year === year ? sum + inflow.amount : sum), 0);
 
       // The accumulation ledger, inside the fan's horizon only.
@@ -456,6 +467,11 @@ export function runAccumulationSimulation(
         retirementCapital += inflowThisYear;
         basis += inflowThisYear;
         retirementCapital *= growth;
+        if (rawGrowth <= 0) {
+          retirementCapital = 0;
+          ruinYear = year;
+          continue;
+        }
         const netNeed = Math.max(0, expensesByYear[year] - activeAnnualInflows(params.retirement?.statePensions, year, params.expenseInflationRate));
         if (retirementTax) {
           const sale = withdrawGross(retirementCapital, basis, netNeed, retirementTax.rate);

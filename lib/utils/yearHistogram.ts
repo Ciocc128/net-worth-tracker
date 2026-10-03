@@ -20,6 +20,8 @@ export interface YearHistogramBin {
   sharePct: number;
   /** The bin the reference year falls in — outlined on the chart. */
   isReference: boolean;
+  /** Of `count`, the years given as `leverageYears` (a second cause, drawn as a segment); absent when none were given. */
+  leverageCount?: number;
 }
 
 export interface YearHistogram {
@@ -36,6 +38,8 @@ export interface BinYearsOptions {
   maxBins?: number;
   /** The last bin never runs past this year (the simulation's horizon); defaults to the largest year given. */
   ceilingYear?: number;
+  /** A subset of `years` (the Monte Carlo's ruin by leverage) counted apart inside each bin. */
+  leverageYears?: number[];
 }
 
 const BIN_WIDTHS = [1, 2, 3, 5, 10] as const;
@@ -65,12 +69,14 @@ export function binYears(years: number[], options: BinYearsOptions = {}): YearHi
     const fromYear = minYear + index * width;
     const toYear = Math.min(fromYear + width - 1, ceilingYear);
     const count = years.filter((year) => year >= fromYear && year <= toYear).length;
+    const leverageCount = options.leverageYears ? options.leverageYears.filter((year) => year >= fromYear && year <= toYear).length : undefined;
     bins.push({
       fromYear,
       toYear,
       count,
       sharePct: total > 0 ? (count / total) * 100 : 0,
       isReference: reference !== null && reference >= fromYear && reference <= toYear,
+      ...(leverageCount !== undefined ? { leverageCount } : {}),
     });
   }
   return { bins, binWidthYears: width };

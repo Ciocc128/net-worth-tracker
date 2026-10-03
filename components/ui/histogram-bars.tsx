@@ -32,6 +32,8 @@ export interface HistogramBar {
   hoverDetail: string;
   /** Outlined: the bar the page is about. */
   outlined?: boolean;
+  /** Of `count`, the part drawn as a bottom segment in the Orso's slot colour (a second cause, never a sign). */
+  segmentCount?: number;
   /** Muted ink: a bar that is not a value of the quantity charted. */
   neutral?: boolean;
 }
@@ -94,6 +96,9 @@ export function HistogramBars({ bars, ariaLabel, minHeight = 120, className }: H
                   strokeWidth={1.5}
                   vectorEffect="non-scaling-stroke"
                 />
+                {bar.segmentCount !== undefined && bar.segmentCount > 0 && (
+                  <rect x={i * slot + (slot - barWidth) / 2} y={VIEW_H - heightOf(bar.segmentCount)} width={barWidth} height={heightOf(bar.segmentCount)} fill="var(--scenario-bear)" />
+                )}
               </g>
             );
           })}

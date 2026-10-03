@@ -26,6 +26,8 @@ interface YearBarsProps {
   beyond?: BeyondBar | null;
   /** The plural noun the figures count («percorsi», «simulazioni»). */
   subject: string;
+  /** What the bars' lower segment is («rovina da leva»); named in the hover tip when a bin has one. */
+  segmentLabel?: string;
   /** What the outlined bin is («anno del base», «mediana»), for the hover tip. */
   referenceLabel: string;
   ariaLabel: string;
@@ -33,17 +35,18 @@ interface YearBarsProps {
   className?: string;
 }
 
-export function YearBars({ bins, beyond, subject, referenceLabel, ariaLabel, minHeight = 120, className }: YearBarsProps) {
+export function YearBars({ bins, beyond, subject, segmentLabel, referenceLabel, ariaLabel, minHeight = 120, className }: YearBarsProps) {
   const bars: HistogramBar[] = bins.map((bin) => {
     const share = formatPercentage(bin.sharePct, 1);
     return {
       key: String(bin.fromYear),
       axisLabel: String(bin.fromYear),
       caption: bin.toYear > bin.fromYear ? `${bin.fromYear}–${bin.toYear}` : String(bin.fromYear),
-      figures: `${bin.count.toLocaleString('it-IT')} ${subject} (${share})`,
+      figures: `${bin.count.toLocaleString('it-IT')} ${subject} (${share})${segmentLabel && bin.leverageCount ? `, di cui ${bin.leverageCount.toLocaleString('it-IT')} per ${segmentLabel}` : ''}`,
       count: bin.count,
-      hoverDetail: `${share} dei ${subject}${bin.isReference ? ` · ${referenceLabel}` : ''}`,
+      hoverDetail: `${share} dei ${subject}${segmentLabel && bin.leverageCount ? ` · ${bin.leverageCount.toLocaleString('it-IT')} per ${segmentLabel}` : ''}${bin.isReference ? ` · ${referenceLabel}` : ''}`,
       outlined: bin.isReference,
+      segmentCount: bin.leverageCount,
     };
   });
   if (beyond && beyond.count > 0) {

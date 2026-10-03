@@ -58,3 +58,12 @@ describe('binYears', () => {
     expect(binYears([], { referenceYear: 2030 })).toEqual({ bins: [], binWidthYears: 1 });
   });
 });
+
+describe('binYears — leverage segment', () => {
+  it('counts the leverage years apart inside each bin, and omits the field without them', () => {
+    const years = [2031, 2031, 2032, 2035];
+    const { bins } = binYears(years, { leverageYears: [2031, 2035] });
+    expect(bins.map((bin) => bin.leverageCount)).toEqual([1, 0, 0, 0, 1]);
+    expect(binYears(years).bins[0]).not.toHaveProperty('leverageCount');
+  });
+});

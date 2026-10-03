@@ -113,6 +113,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   first) edits it. `handleSave` runs `correctUpperTriangle` (rule R5) and writes `correlations` only when they differ from the
   defaults; the pairs it moved (`changedPairs`) stay marked «scritto → usato» in `correlationCorrections` until the next Save
   or until the field is edited, and a toast says how many were adapted. Out-of-range pairs are refused BEFORE R5, by name.
+  **T3 added the spread of the leverage** (2026-10-03): `marketDraft.leverageSpread` (a number, % — the resolver fills the 2,0%
+  default), a row at the foot of `MonteCarloMarketTile`, in the SAME snapshot key; `toMonteCarloMarketSettings` writes
+  `leverageSpread` only when it differs from `MONTE_CARLO_DEFAULT_LEVERAGE_SPREAD`, like the correlations, and
+  `findMonteCarloMarketProblems` bounds it to 0–20%. No new top-level key: it lives inside `monteCarloMarket`, so no new place.
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`. **The bug this
   prevents is invisible until a hard refresh**: the write succeeds, the toast says «salvate», the form still shows the

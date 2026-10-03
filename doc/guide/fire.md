@@ -41,8 +41,10 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   volatility every path collapses float-for-float onto `calculateFIREProjection`'s base scenario — the coherence test
   pins that identity WITHOUT inflows, because the deterministic bridge grows the pension compartment while a Monte
   Carlo run injects inflows at today's value. Do not "fix" the test to include them: the divergence IS the model.
-- **The capital and its weights are ONE pair of functions** (`computeSimulatedCapital` + `deriveMonteCarloWeights` in
-  `lib/utils/monteCarloParams.ts`, since T1 of the Monte Carlo epic, doc/montecarlo/README.md § 5): MonteCarloTab's
+- **The capital and its weights are ONE pair of functions** (`computeSimulatedCapital` in `lib/utils/monteCarloParams.ts` +
+  `weightsFromHoldings` / `seedWeightsFromTargets` in `lib/utils/monteCarloWeights.ts` (T3: the Ventaglio projects the portfolio HELD,
+  so its weights are the notional held, leverage included, and it reads `leverageSpread` from the same resolved market; `deriveMonteCarloWeights`
+  stays the integer normaliser inside them), since T1 of the Monte Carlo epic, doc/montecarlo/README.md § 5): MonteCarloTab's
   auto-fill and the FIRE Ventaglio consume them and must never re-inline them. SEVEN classes (Azioni, Obbligazioni,
   Oro, Materie prime, Liquidità, Trend, Carry — cash is now simulated); crypto and real estate (and the legs of a
   composite in those classes) are OUTSIDE the capital `K` in BOTH engines, reported in a read-only row under the

@@ -20,7 +20,16 @@ import type { Narrative } from '@/lib/utils/narrative';
 import type { MonteCarloPlan } from '@/lib/utils/monteCarloSummary';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
 import { formatInputAmount } from '@/lib/utils/monteCarloSummary';
-import { describeExcludedRow, describePensionInflowRow, describeStatePensionRow, describeWithdrawalTaxRow } from '@/lib/utils/monteCarloNarrative';
+import {
+  describeAllocationTotal,
+  describeExcludedRow,
+  describePensionInflowRow,
+  describeStatePensionRow,
+  describeWeightsSource,
+  describeWithdrawalTaxRow,
+  resolveAllocationTotalState,
+  type WeightsOrigin,
+} from '@/lib/utils/monteCarloNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -44,8 +53,15 @@ interface ParametriTileProps {
   plan: MonteCarloPlan;
   form: MonteCarloForm;
   onFormChange: (patch: Partial<MonteCarloForm>) => void;
-  /** Sum of the seven weight fields as typed — the tile prints it and flags a sum off 100. */
+  /** Sum of the seven weight fields as typed — the tile prints it; above 100% it is leverage, off 100–300% the run is blocked. */
   allocationSum: number;
+  /** Where the weights come from (R6) and the leverage they state, for the one-line reading under them. */
+  weightsOrigin: WeightsOrigin;
+  leverage: number;
+  /** Allocazione has targets on the modelled classes: «Usa i target» is offered. */
+  hasTargets: boolean;
+  onUseTargets?: () => void;
+  onImportHoldings?: () => void;
   totalNetWorth: number;
   liquidNetWorth: number;
   /** Where the market assumptions come from (`describeMarketDeclaration`). */
@@ -72,6 +88,11 @@ export function ParametriTile({
   form,
   onFormChange,
   allocationSum,
+  weightsOrigin,
+  leverage,
+  hasTargets,
+  onUseTargets,
+  onImportHoldings,
   totalNetWorth,
   liquidNetWorth,
   marketDeclaration,
@@ -83,7 +104,8 @@ export function ParametriTile({
   stale,
   className,
 }: ParametriTileProps) {
-  const allocationOff = Math.abs(allocationSum - 100) > 0.01;
+  const totalState = resolveAllocationTotalState(allocationSum);
+  const allocationOff = totalState === 'below' || totalState === 'above';
 
   const excludedRow = describeExcludedRow(excluded);
 
@@ -162,10 +184,25 @@ export function ParametriTile({
         <div className="flex min-w-0 flex-col gap-4 desktop:col-span-5">
           <div>
             <div className="flex items-baseline justify-between gap-3">
-              <p className={TILE_SUB_EYEBROW_CLASS}>Allocazione · dal portafoglio</p>
-              <span className={cn('font-mono text-[11px] font-medium tabular-nums', allocationOff ? 'text-destructive' : 'text-foreground')}>
-                {allocationOff ? `${allocationSum.toLocaleString('it-IT', { maximumFractionDigits: 1 })}% — deve fare 100%` : '100%'}
-              </span>
+              <p className={TILE_SUB_EYEBROW_CLASS}>Allocazione</p>
+              <NarrativeText
+                segments={describeAllocationTotal(allocationSum)}
+                className={cn('text-[11px] font-medium tabular-nums', allocationOff ? 'text-destructive' : 'text-foreground')}
+                figureClassName="font-medium"
+              />
+            </div>
+            <NarrativeText segments={describeWeightsSource({ origin: weightsOrigin, leverage, hasTargets })} className="mt-1 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {onUseTargets && (
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={onUseTargets} disabled={weightsOrigin === 'targets'}>
+                  Usa i target
+                </Button>
+              )}
+              {onImportHoldings && (
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={onImportHoldings} disabled={weightsOrigin === 'holdings'}>
+                  Importa il portafoglio di oggi
+                </Button>
+              )}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {MONTE_CARLO_CLASSES.map((cls) => (
@@ -178,8 +215,8 @@ export function ParametriTile({
                     type="number"
                     inputMode="decimal"
                     min="0"
-                    max="100"
-                    step="5"
+                    max="300"
+                    step="any"
                     value={form.weights[cls]}
                     onChange={(e) => onFormChange({ weights: { ...form.weights, [cls]: e.target.value } })}
                     className={CONTROL_CLASS}

@@ -15,6 +15,7 @@
 
 import type { MonteCarloCapitalInflow, MonteCarloMarketSettings, MonteCarloParams, MonteCarloResults, PercentilesData } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import type { VerdictTone } from '@/lib/utils/narrative';
 import { binYears, type YearHistogramBin } from '@/lib/utils/yearHistogram';
 
@@ -50,6 +51,10 @@ export interface MonteCarloRun {
   successRate: number;
   successCount: number;
   failureCount: number;
+  /** Of the failures, those a year's loss above the capital caused (leverage ruin, R4). */
+  leverageFailureCount: number;
+  /** The leverage of the weights, `Σw / 100`; 1 without. */
+  leverage: number;
   simulations: number;
   years: number;
   endCalendarYear: number;
@@ -122,10 +127,11 @@ export function summarizeMonteCarloRun(results: MonteCarloResults, params: Monte
   const failureAverageYear = results.failureAnalysis ? Math.round(results.failureAnalysis.averageFailureYear) : null;
   const failureMedianYear = results.failureAnalysis ? Math.round(results.failureAnalysis.medianFailureYear) : null;
   const histogram = buildHistogram(results, finalPercentiles.p50);
-  const failureCalendarYears = results.simulations
-    .filter((simulation) => !simulation.success && simulation.failureYear !== undefined)
-    .map((simulation) => ctx.startCalendarYear + (simulation.failureYear as number));
+  const failed = results.simulations.filter((simulation) => !simulation.success && simulation.failureYear !== undefined);
+  const failureCalendarYears = failed.map((simulation) => ctx.startCalendarYear + (simulation.failureYear as number));
+  const leverageCalendarYears = failed.filter((simulation) => simulation.failureCause === 'leverage').map((simulation) => ctx.startCalendarYear + (simulation.failureYear as number));
   const failureYears = binYears(failureCalendarYears, {
+    leverageYears: leverageCalendarYears.length > 0 ? leverageCalendarYears : undefined,
     total: params.numberOfSimulations,
     referenceYear: calendarOf(failureMedianYear, ctx),
     ceilingYear: ctx.startCalendarYear + years,
@@ -135,6 +141,8 @@ export function summarizeMonteCarloRun(results: MonteCarloResults, params: Monte
     successRate: results.successRate,
     successCount: results.successCount,
     failureCount: results.failureCount,
+    leverageFailureCount: results.leverageFailureCount,
+    leverage: weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => params.weights[cls])),
     simulations: params.numberOfSimulations,
     years,
     endCalendarYear: ctx.startCalendarYear + years,
@@ -166,6 +174,8 @@ export interface ScenarioResults {
   bear: MonteCarloResults;
   base: MonteCarloResults;
   bull: MonteCarloResults;
+  /** With leverage above 1: the Base run again with the weights scaled to 100, on the same shocks (D11). */
+  unleveragedBase?: MonteCarloResults;
 }
 
 export interface ScenarioRunSummary {
@@ -324,6 +334,7 @@ const PLAN_FIELDS: (keyof MonteCarloParams)[] = [
   'annualWithdrawal',
   'withdrawalAdjustment',
   'numberOfSimulations',
+  'leverageSpread',
 ];
 
 /**

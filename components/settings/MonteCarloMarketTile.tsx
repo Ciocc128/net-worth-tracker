@@ -37,6 +37,8 @@ export interface MonteCarloMarketDraft {
   goldSubCategory: string | null | undefined;
   /** The 21 correlations (upper triangle), as typed; full precision after a correction. */
   correlations: number[];
+  /** Percent added to the Liquidità return to price the leverage's debt (R4). */
+  leverageSpread: number;
 }
 
 interface MonteCarloMarketTileProps {
@@ -223,6 +225,28 @@ export function MonteCarloMarketTile({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="min-w-0">
+          <Label htmlFor="mc-market-spread" className="text-[13px]">
+            Spread della leva %
+          </Label>
+          <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+            Il debito costa la liquidità dell&apos;anno più{' '}
+            <span className="font-mono tabular-nums">{draft.leverageSpread.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%</span>. Conta solo se i pesi del Monte Carlo sommano oltre il 100%.
+          </p>
+        </div>
+        <NumberField
+          value={draft.leverageSpread}
+          onCommit={(value) => onDraftChange({ ...draft, leverageSpread: value })}
+          ariaLabel="Spread della leva (%)"
+          disabled={disabled}
+          className="w-20"
+          step={0.1}
+          min={0}
+          max={20}
+        />
       </div>
     </Tile>
   );

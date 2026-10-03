@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDrawPlan, cagrFromArithmeticMean, drawYear, portfolioReturn, toLogNormal } from '@/lib/utils/monteCarloDraw';
+import { buildDrawPlan, cagrFromArithmeticMean, drawYear, portfolioReturn, toLogNormal, weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { monteCarloClassRecord, MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_DEFAULT_CORRELATIONS } from '@/lib/constants/monteCarloMarketDefaults';
@@ -176,5 +176,26 @@ describe('correlated draws (T2)', () => {
   it('zero volatility still returns exactly the CAGR with correlations on', () => {
     const returns = drawYear(buildDrawPlan(marketOf(4, 0), MONTE_CARLO_DEFAULT_CORRELATIONS), createSeededRandom(5));
     for (const value of returns) expect(value).toBeCloseTo(0.04, 12);
+  });
+});
+
+describe('portfolioReturn — rule R4 (dossier A10, A11)', () => {
+  const weights = (named: Record<string, number>) => MONTE_CARLO_CLASSES.map((cls) => named[cls] ?? 0);
+  const returns = (named: Record<string, number>) => MONTE_CARLO_CLASSES.map((cls) => named[cls] ?? 0);
+
+  it('A10: equity 150%, cash 2% + 1% spread, equity 7% → 9,0%', () => {
+    expect(portfolioReturn(weights({ equity: 150 }), returns({ equity: 0.07, cash: 0.02 }), 1)).toBeCloseTo(0.09, 12);
+  });
+
+  it('A11: equity −60% at leverage 2,5 and a 4% debt → 1 + r_p = −0,56', () => {
+    expect(1 + portfolioReturn(weights({ equity: 250 }), returns({ equity: -0.6, cash: 0.04 }), 0)).toBeCloseTo(-0.56, 12);
+  });
+
+  it('A12: the debt term does not exist at leverage 1 or below — the spread changes nothing, float for float', () => {
+    const w = weights({ equity: 60, bonds: 40 });
+    const r = returns({ equity: 0.1, bonds: 0.02, cash: 0.03 });
+    expect(portfolioReturn(w, r, 9)).toBe(portfolioReturn(w, r));
+    expect(weightsLeverage(w)).toBe(1);
+    expect(weightsLeverage(weights({ equity: 90, bonds: 60 }))).toBeCloseTo(1.5, 12);
   });
 });
