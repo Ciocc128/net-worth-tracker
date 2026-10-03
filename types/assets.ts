@@ -537,6 +537,8 @@ export interface MonthlySnapshot {
 
 // Monte Carlo Simulation Types
 type PortfolioSource = 'total' | 'liquid' | 'custom';
+// 'percentage' is declared but NOT implemented: the engine treats it as 'fixed' and the Monte Carlo tab forces 'inflation'.
+// Kept (upstream's type) and reserved for dynamic withdrawals (doc/fire-ipotesi/README.md § 3, P3).
 type WithdrawalAdjustment = 'inflation' | 'fixed' | 'percentage';
 export interface MonteCarloParams {
   // Portfolio settings

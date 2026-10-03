@@ -39,6 +39,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, calculateFIRENetWorth, calculateIlliquidFIRENetWorth, calculateLiquidFIRENetWorth, filterFireEligibleAssets, getAllAssets } from '@/lib/services/assetService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
+import { realReturn } from '@/lib/utils/realReturn';
 import { resolvePortfolioTaxProfile } from '@/lib/utils/withdrawalTax';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import {
@@ -81,6 +82,8 @@ import type { Settings } from '@/types/settings';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -172,6 +175,12 @@ export function WhatIfAnalysisTab() {
     );
   }, [respectPensionLockIn, assets, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+
+  // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
+  // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
+  const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
+  const { assumptions } = useFireAssumptions(assumptionLockedIds);
+  const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ yearsFromNow: inflow.yearsFromNow, amountToday: inflow.amount })),
     [pensionLockState],
@@ -211,7 +220,6 @@ export function WhatIfAnalysisTab() {
   const withdrawalRate = settings?.withdrawalRate ?? 4;
   const annualExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
   const annualSavings = cashflowData?.annualSavings ?? 0;
-  const scenarios = useMemo(() => settings?.fireProjectionScenarios ?? getDefaultScenarios(), [settings?.fireProjectionScenarios]);
 
   // ─── Income sources for the job-loss picker (UI-only) ────────────────────────
   const incomeSources = useMemo(() => cashflowData?.incomeSources ?? [], [cashflowData]);
@@ -283,7 +291,7 @@ export function WhatIfAnalysisTab() {
               currentAge,
               retirementAge,
               annualExpenses: coastExpenses,
-              realReturnRate: scenarios.base.growthRate - scenarios.base.inflationRate,
+              realReturnRate: realReturn(scenarios.base.growthRate, scenarios.base.inflationRate),
               inflationRate: scenarios.base.inflationRate,
               pensions: normalizeCoastFirePensions(settings?.coastFirePensions),
               taxBrackets: normalizeCoastFireTaxBrackets(settings?.coastFireTaxBrackets),
@@ -382,7 +390,8 @@ export function WhatIfAnalysisTab() {
     return (
       <div className="space-y-4">
         <div className="pt-1">
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
+          <FireAssumptionsRow assumptions={assumptions} />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
         </div>
       </div>
     );
@@ -396,6 +405,7 @@ export function WhatIfAnalysisTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
+        <FireAssumptionsRow assumptions={assumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
       </div>
 

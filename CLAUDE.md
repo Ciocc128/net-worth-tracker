@@ -14,7 +14,9 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **222 files / 5226 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-10-03, fork): **Monte Carlo T3** (`doc/montecarlo/README.md`) — leverage: weights above 100% seeded from the Allocazione targets, debt at the drawn Liquidità return plus a spread, ruin by leverage counted apart, the tab seeded; after T2 (one correlation matrix) and T1 (seven classes, lognormal on CAGR). The epic is complete.
+- Latest (2026-10-03, fork): **FIRE ipotesi L1** (`doc/fire-ipotesi/README.md`) — Calcolatore, Coast, What If and Monte Carlo read the target
+  portfolio's compound return per scenario (`resolveFireAssumptions`), real return by Fisher, an «Ipotesi usate» line in four tabs;
+  L2 (capital, expenses, savings) and L3 (Obiettivi) follow. Before it: **Monte Carlo T3** (`doc/montecarlo/README.md`) — leverage: weights above 100% seeded from the Allocazione targets, debt at the drawn Liquidità return plus a spread, ruin by leverage counted apart, the tab seeded; after T2 (one correlation matrix) and T1 (seven classes, lognormal on CAGR). The epic is complete.
 - Prima (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
   `WIKI_EXPORT_UID`, `npm run vault:export`; doc/guide/email-pdf.md § The vault's `dati/`); principles by interview.
 - Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).

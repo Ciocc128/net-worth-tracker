@@ -79,7 +79,6 @@ import {
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { computeSimulatedCapital } from '@/lib/utils/monteCarloParams';
-import { weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
 import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
@@ -122,6 +121,8 @@ import type { Settings } from '@/types/settings';
 import type { FIREProjectionScenarios } from '@/types/assets';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
@@ -207,7 +208,6 @@ export function FireCalculatorTab() {
   const [form, setForm] = useState<FireSettingsForm>(() => settingsForm(null));
   const [respectPensionLockIn, setRespectPensionLockIn] = useState<boolean>(false);
   const [parametriOpen, setParametriOpen] = useState<boolean>(false);
-  const [scenarios, setScenarios] = useState<FIREProjectionScenarios>(getDefaultScenarios());
   const [view, setView] = useState<ProjectionView>('scenari');
 
   const onFormChange = useCallback((patch: Partial<FireSettingsForm>) => setForm((prev) => ({ ...prev, ...patch })), []);
@@ -237,15 +237,6 @@ export function FireCalculatorTab() {
   const projectionAnnualExpenses = cashflowData?.annualExpensesFromCashflow ?? 0;
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
-
-  // Sync scenario params from Firestore when settings load. Deferred so the effect body itself
-  // sets no state (react-hooks/set-state-in-effect).
-  const savedScenarios = settings?.fireProjectionScenarios;
-  useEffect(() => {
-    if (!savedScenarios) return;
-    const timer = setTimeout(() => setScenarios(savedScenarios), 0);
-    return () => clearTimeout(timer);
-  }, [savedScenarios]);
 
   // Sync form state when settings load or change (runs once data has loaded — even when the user
   // has no settings doc yet — so temp state always settles to the saved-or-default values). The
@@ -290,6 +281,13 @@ export function FireCalculatorTab() {
     );
   }, [respectPensionLockIn, assets, userAge, previewInpsRetirementAge, ritaLongUnemployment]);
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+
+  // The page's hypotheses (doc/fire-ipotesi/README.md): the three scenarios are the target portfolio's
+  // rates on the per-class assumptions of Impostazioni › Simulazioni — never typed here. While the
+  // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
+  const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
+  const { assumptions } = useFireAssumptions(assumptionLockedIds);
+  const scenarios = useMemo<FIREProjectionScenarios>(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
 
   // Bridge model inputs. Funds with different unlock years are aggregated on the LATEST year —
   // conservative when the floor binds, and neutral otherwise because the fund grows and is
@@ -456,9 +454,8 @@ export function FireCalculatorTab() {
     );
   }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, pensionBridgeValueToday, pensionBridgeYearsToUnlock, honest]);
 
-  // Fan (Ventaglio) inputs: market exposure from the REAL portfolio via the shared normalizer
-  // (identical to the Monte Carlo tab's), market params from the saved MC base scenario or the
-  // defaults, expenses inflated with the SAME base-scenario inflation as the deterministic
+  // Fan (Ventaglio) inputs: the weights and the Base market of the page's assumptions (the Monte
+  // Carlo tab's too), expenses inflated with the SAME base-scenario inflation as the deterministic
   // target line. Inflows at TODAY's value, per the MC convention (doc/guide/fire.md § FIRE, What If and Goals).
   const pensionCapitalInflows = useMemo(
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ year: inflow.yearsFromNow, amount: inflow.amount })),
@@ -472,12 +469,10 @@ export function FireCalculatorTab() {
     return computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: monteCarloMarket.goldSubCategory });
   }, [assets, pensionLockState, monteCarloMarket.goldSubCategory]);
   const fanInputs = useMemo<FanSimulationInputs | null>(() => {
-    if (!assets || assets.length === 0 || !fanCapital) return null;
+    if (!assets || assets.length === 0 || !fanCapital || !assumptions) return null;
     if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    // T3: the fan projects the portfolio HELD, so its weights are the notional held today, leverage
-    // included (`weightsFromHoldings`, the Monte Carlo tab's «Importa il portafoglio di oggi»).
-    const lockedAssetIds = new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id));
-    const weights = weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: monteCarloMarket.goldSubCategory })?.weights;
+    // D1: the fan simulates the TARGET portfolio (else the one held, else 60/40), the page's one reading of the weights.
+    const weights = assumptions?.weights;
     if (!weights) return null;
     return {
       // Rule RK: the fan starts from the capital the seven classes cover; real estate and crypto stay out.
@@ -493,7 +488,7 @@ export function FireCalculatorTab() {
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
-  }, [assets, fanCapital, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, monteCarloMarket.correlations, monteCarloMarket.leverageSpread, monteCarloMarket.goldSubCategory, pensionLockState, pensionCapitalInflows]);
+  }, [assets, fanCapital, assumptions, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, monteCarloMarket.correlations, monteCarloMarket.leverageSpread, pensionCapitalInflows]);
 
   // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
   // Keyed on the same inputs that change the deterministic projection, so an edited parameter
@@ -677,29 +672,6 @@ export function FireCalculatorTab() {
     },
   });
 
-  const scenarioSaveMutation = useMutation({
-    mutationFn: () =>
-      setSettings(ownerId!, {
-        ...settings,
-        targets: settings?.targets || getDefaultTargets(),
-        respectPensionLockInFire: respectPensionLockIn,
-        fireProjectionScenarios: scenarios,
-      }),
-    onSuccess: () => {
-      toast.success('Parametri scenari salvati con successo');
-      queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
-    },
-    onError: (error) => {
-      console.error('Error saving scenario parameters:', error);
-      toast.error('Errore nel salvataggio dei parametri scenari');
-    },
-  });
-
-  const handleResetScenarios = () => {
-    setScenarios(getDefaultScenarios());
-    toast.success('Parametri ripristinati ai valori predefiniti');
-  };
-
   const handleSaveSettings = () => {
     const newWR = parseFloat(form.withdrawalRate);
     if (Number.isNaN(newWR) || newWR <= 0 || newWR > 100) {
@@ -763,11 +735,7 @@ export function FireCalculatorTab() {
         unlockCalendarYear: userAge !== undefined && ritaUnlockAge > userAge ? currentYear + (ritaUnlockAge - userAge) : null,
         alreadyUnlockable: userAge !== undefined && ritaUnlockAge <= userAge,
       })}
-      scenarios={scenarios}
-      onScenariosChange={setScenarios}
-      onSaveScenarios={() => scenarioSaveMutation.mutate()}
-      onResetScenarios={handleResetScenarios}
-      isSavingScenarios={scenarioSaveMutation.isPending}
+      assumptions={assumptions}
     />
   );
 
@@ -808,6 +776,7 @@ export function FireCalculatorTab() {
     return (
       <div className="space-y-4">
         <div className="pt-1">
+          <FireAssumptionsRow assumptions={assumptions} />
           <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
         </div>
         <div className={GRID_CLASS}>
@@ -875,6 +844,7 @@ export function FireCalculatorTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
+        <FireAssumptionsRow assumptions={assumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul FIRE" />
       </div>
 

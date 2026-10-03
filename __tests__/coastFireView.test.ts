@@ -328,7 +328,7 @@ describe('coastFireView — the Traguardo tile', () => {
   it('should caption the chip with the liquid read and what the number discounts', () => {
     const { target, base } = buildTarget();
     expect(plain(describeCoastTargetCaption(target))).toBe(
-      `${formatPercentage(target.liquidProgressPct, 1)} con i soli liquidi · ${euro(base.retirementCapitalRequired)} richiesti a 60 anni, scontati al 4,5% reale`
+      `${formatPercentage(target.liquidProgressPct, 1)} con i soli liquidi · ${euro(base.retirementCapitalRequired)} richiesti a 60 anni, scontati al 4,39% reale`
     );
     expect(plain(describeCoastTargetCaption({ ...target, liquidNetWorth: 0 }))).not.toContain('liquidi');
   });

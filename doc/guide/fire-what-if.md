@@ -4,6 +4,9 @@
 
 ## FIRE › What If — a verdict over tiles (`components/fire-simulations/WhatIfAnalysisTab.tsx`, `components/fire-simulations/whatif/*`, `lib/utils/{whatIfSummary,whatIfNarrative}.ts`)
 
+- **Same hypotheses as the Calcolatore** (2026-10-03, doc/fire-ipotesi/README.md L1): `scenarios` come from `useFireAssumptions` (target portfolio, Impostazioni ›
+  Simulazioni), the Coast baseline's `realReturnRate` is Fisher (`realReturn`), and the «Ipotesi usate» line sits above the verdict.
+
 - The tab answers «cosa cambia se…?» and computes nothing: `calculateWhatIfImpact` (service) perturbs and diffs, `whatIfSummary.ts`
   turns the impact into the event as stated, the before/after pairs, the merged series, the divergence and the sensitivity reading,
   `whatIfNarrative.ts` puts them into words. The service now RETURNS the two base-scenario walks it runs (`projections`), so the

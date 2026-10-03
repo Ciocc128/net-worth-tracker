@@ -87,6 +87,8 @@ import type { Settings } from '@/types/settings';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
@@ -162,7 +164,6 @@ export function CoastFireTab() {
 
   const includePrimaryResidence = settings?.includePrimaryResidenceInFIRE ?? false;
   const liquidNetWorth = assets ? calculateLiquidFIRENetWorth(assets, includePrimaryResidence) : 0;
-  const scenarios = settings?.fireProjectionScenarios ?? getDefaultScenarios();
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
   const currentAge = draft.currentAge;
   const retirementAge = draft.parsedRetirementAge;
@@ -185,6 +186,12 @@ export function CoastFireTab() {
     );
   }, [respectPensionLockIn, assets, currentAge, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
   const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
+
+  // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
+  // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
+  const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
+  const { assumptions } = useFireAssumptions(assumptionLockedIds);
+  const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ yearsFromNow: inflow.yearsFromNow, amountToday: inflow.amount })),
     [pensionLockState],
@@ -372,7 +379,8 @@ export function CoastFireTab() {
     return (
       <div className="space-y-4">
         <div className="pt-1">
-          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
+          <FireAssumptionsRow assumptions={assumptions} />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
         </div>
         <div className={GRID_CLASS}>
           <div className={TRAGUARDO_CELL}>
@@ -401,6 +409,7 @@ export function CoastFireTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
+        <FireAssumptionsRow assumptions={assumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
       </div>
 

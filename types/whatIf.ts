@@ -51,7 +51,7 @@ interface WhatIfCoastBaseline {
   currentAge: number;
   retirementAge: number;
   annualExpenses: number; // Coast retirement expenses (custom override or actual)
-  realReturnRate: number; // base scenario: growthRate − inflationRate
+  realReturnRate: number; // base scenario, Fisher: (1 + growthRate) / (1 + inflationRate) − 1
   inflationRate: number; // base scenario inflation
   pensions: CoastFirePensionInput[];
   taxBrackets: CoastFireTaxBracket[];

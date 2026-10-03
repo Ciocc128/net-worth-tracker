@@ -104,6 +104,7 @@ import { Switch } from '@/components/ui/switch';
 import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { Asset } from '@/types/assets';
 import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { MonteCarloMarketTile, type MonteCarloMarketDraft } from '@/components/settings/MonteCarloMarketTile';
 import { MonteCarloCorrelationsTile, type CorrectionsByIndex } from '@/components/settings/MonteCarloCorrelationsTile';
 import { changedPairs, correctUpperTriangle } from '@/lib/utils/correlationMatrix';
@@ -763,6 +764,8 @@ export default function SettingsPage() {
     enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
+  // The weights the FIRE page simulates, for the «Il portafoglio target rende» line of Simulazioni (saved targets).
+  const { assumptions: fireAssumptions } = useFireAssumptions();
   const [deleteDialogOrigin, setDeleteDialogOrigin] = useState<string | undefined>(
     undefined
   );
@@ -4140,6 +4143,7 @@ export default function SettingsPage() {
                   onDraftChange={setMarketDraft}
                   commoditySubCategories={commoditySubCategories}
                   effectiveGoldSubCategory={effectiveGoldSubCategory}
+                  portfolio={fireAssumptions ? { weights: fireAssumptions.weights, origin: fireAssumptions.weightsOrigin } : null}
                   disabled={isDemo}
                 />
               </div>

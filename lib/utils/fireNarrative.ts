@@ -797,7 +797,7 @@ export function describeImpostazioni(hasUnsavedChanges: boolean): Narrative {
 }
 
 export function describeScenarioParams(): Narrative {
-  return [prose('Tre ipotesi di mercato: il verdetto usa il base, il grafico del Traguardo le disegna tutte e tre.')];
+  return [prose('Tre ipotesi dal portafoglio target: il verdetto usa il Base, il grafico del Traguardo le disegna tutte e tre. Si cambiano in Impostazioni › Simulazioni.')];
 }
 
 /**
