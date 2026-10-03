@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { buildDrawPlan, cagrFromArithmeticMean, drawYear, portfolioReturn, toLogNormal } from '@/lib/utils/monteCarloDraw';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { monteCarloClassRecord, MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
+import { MONTE_CARLO_DEFAULT_CORRELATIONS } from '@/lib/constants/monteCarloMarketDefaults';
+import { pairIndices } from '@/lib/utils/correlationMatrix';
 import type { MonteCarloMarketScenario } from '@/types/assets';
 
 const marketOf = (cagr: number, volatility: number): MonteCarloMarketScenario => ({
@@ -97,5 +99,82 @@ describe('drawYear', () => {
 describe('portfolioReturn — rule R3', () => {
   it('weights the (1 + r) of the classes', () => {
     expect(portfolioReturn([50, 50, 0], [0.1, -0.2, 0.9])).toBeCloseTo(-0.05, 12);
+  });
+});
+
+describe('correlated draws (T2)', () => {
+  const sampleCorrelation = (a: number[], b: number[]) => {
+    const n = a.length;
+    const ma = a.reduce((x, y) => x + y, 0) / n;
+    const mb = b.reduce((x, y) => x + y, 0) / n;
+    let sab = 0;
+    let saa = 0;
+    let sbb = 0;
+    for (let i = 0; i < n; i++) {
+      sab += (a[i] - ma) * (b[i] - mb);
+      saa += (a[i] - ma) ** 2;
+      sbb += (b[i] - mb) ** 2;
+    }
+    return sab / Math.sqrt(saa * sbb);
+  };
+
+  it('A8: ρ = 0,5 between two classes → sample correlation of the log-returns 0,50 ± 0,01 on 200.000 draws', () => {
+    const correlations = new Array(21).fill(0);
+    correlations[0] = 0.5; // Azioni–Obbligazioni
+    const plan = buildDrawPlan(marketOf(7, 18), correlations);
+    const random = createSeededRandom(2026);
+    const first: number[] = [];
+    const second: number[] = [];
+    for (let i = 0; i < 200_000; i++) {
+      const year = drawYear(plan, random);
+      first.push(Math.log(1 + year[0]));
+      second.push(Math.log(1 + year[1]));
+    }
+    expect(Math.abs(sampleCorrelation(first, second) - 0.5)).toBeLessThan(0.01);
+  });
+
+  it('draws the default matrix: every sampled pair is within 0,02 of the typed one', () => {
+    const plan = buildDrawPlan(marketOf(5, 15), MONTE_CARLO_DEFAULT_CORRELATIONS);
+    const random = createSeededRandom(7);
+    const logs = MONTE_CARLO_CLASSES.map(() => [] as number[]);
+    for (let i = 0; i < 100_000; i++) drawYear(plan, random).forEach((value, k) => logs[k].push(Math.log(1 + value)));
+    pairIndices(MONTE_CARLO_CLASSES.length).forEach(([i, j], index) => {
+      expect(Math.abs(sampleCorrelation(logs[i], logs[j]) - MONTE_CARLO_DEFAULT_CORRELATIONS[index])).toBeLessThan(0.02);
+    });
+  });
+
+  it('with the identity (no matrix, or all zeros) the draws are identical to the independent ones with the same seed', () => {
+    const market = marketOf(6, 20);
+    const independent = buildDrawPlan(market);
+    const zeros = buildDrawPlan(market, new Array(21).fill(0));
+    expect(independent.cholesky).toBeNull();
+    expect(zeros.cholesky).toBeNull();
+    const a = createSeededRandom(11);
+    const b = createSeededRandom(11);
+    for (let year = 0; year < 50; year++) expect(drawYear(zeros, b)).toEqual(drawYear(independent, a));
+  });
+
+  it('consumes the same uniforms with and without correlations', () => {
+    const market = marketOf(6, 20);
+    let withCount = 0;
+    let withoutCount = 0;
+    drawYear(buildDrawPlan(market, MONTE_CARLO_DEFAULT_CORRELATIONS), () => (withCount++, 0.5));
+    drawYear(buildDrawPlan(market), () => (withoutCount++, 0.5));
+    expect(withCount).toBe(withoutCount);
+  });
+
+  it('a matrix that is not valid never fails a run: it is corrected silently', () => {
+    const plan = buildDrawPlan(marketOf(5, 15), new Array(21).fill(-0.9));
+    expect(plan.cholesky).not.toBeNull();
+    for (const value of drawYear(plan, createSeededRandom(3))) expect(Number.isFinite(value)).toBe(true);
+  });
+
+  it('a matrix of the wrong length is ignored (independent classes)', () => {
+    expect(buildDrawPlan(marketOf(5, 15), [0.3, 0.2]).cholesky).toBeNull();
+  });
+
+  it('zero volatility still returns exactly the CAGR with correlations on', () => {
+    const returns = drawYear(buildDrawPlan(marketOf(4, 0), MONTE_CARLO_DEFAULT_CORRELATIONS), createSeededRandom(5));
+    for (const value of returns) expect(value).toBeCloseTo(0.04, 12);
   });
 });

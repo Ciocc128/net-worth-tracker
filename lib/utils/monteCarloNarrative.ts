@@ -317,7 +317,16 @@ export function describeParametri(plan: MonteCarloPlan): Narrative {
 }
 
 /** The Declaration-Tile line: where the market assumptions come from (they are edited in Impostazioni, never here). */
-export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'>): Narrative {
+export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'> & Partial<Pick<ResolvedMonteCarloMarket, 'correlations' | 'correlationOrigin'>>): Narrative {
+  const out = describeMarketOrigin(market);
+  // T2: the correlations are declared on the same line («correlazioni predefinite» / «personalizzate»).
+  if (market.correlationOrigin) {
+    out.push(prose(' Correlazioni '), figure(market.correlationOrigin === 'saved' ? 'personalizzate' : 'predefinite'), prose('.'));
+  }
+  return out;
+}
+
+function describeMarketOrigin(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'>): Narrative {
   if (market.origin === 'default') return [prose('Ipotesi di mercato: '), figure('valori predefiniti'), prose(', storici di lungo periodo in dollari.')];
   if (market.origin === 'migrated') {
     return [prose('Ipotesi di mercato: '), figure('migrate dai parametri salvati prima'), prose(' (da media aritmetica a CAGR): rileggile in Impostazioni.')];
@@ -406,6 +415,6 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'I limiti',
-    body: 'Rendimenti indipendenti anno per anno e tra le classi, nessuna sequenza di crisi forzata, fondo pensione al valore di oggi: la simulazione misura la dispersione, non predice il futuro. Con la stessa allocazione il Ventaglio del Calcolatore mostra la fase di accumulo.',
+    body: 'Rendimenti indipendenti anno per anno, classi correlate con una matrice unica per i tre scenari (le correlazioni nelle crisi tendono a salire e qui non salgono), nessuna sequenza di crisi forzata, fondo pensione al valore di oggi: la simulazione misura la dispersione, non predice il futuro. Con la stessa allocazione il Ventaglio del Calcolatore mostra la fase di accumulo.',
   },
 ];

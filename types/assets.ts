@@ -555,6 +555,8 @@ export interface MonteCarloParams {
 
   // Market assumptions of the scenario the run reads (CAGR + volatility per class, inflation).
   market: MonteCarloMarketScenario;
+  // T2: correlations of the log-returns, 21 values (upper triangle in MONTE_CARLO_CLASSES order); absent = independent classes.
+  correlations?: number[];
 
   // Simulation settings
   numberOfSimulations: number;

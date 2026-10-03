@@ -105,7 +105,11 @@ import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expen
 import { Asset } from '@/types/assets';
 import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
 import { MonteCarloMarketTile, type MonteCarloMarketDraft } from '@/components/settings/MonteCarloMarketTile';
-import { collectCommoditySubCategories, countEditedClasses, findDefaultGoldSubCategory, resolveMonteCarloMarket, toMonteCarloMarketSettings, type MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
+import { MonteCarloCorrelationsTile, type CorrectionsByIndex } from '@/components/settings/MonteCarloCorrelationsTile';
+import { changedPairs, correctUpperTriangle } from '@/lib/utils/correlationMatrix';
+import { MONTE_CARLO_CLASSES, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { computeSimulatedCapital } from '@/lib/utils/monteCarloParams';
+import { collectCommoditySubCategories, countEditedClasses, countEditedCorrelations, findDefaultGoldSubCategory, resolveMonteCarloMarket, toMonteCarloMarketSettings, type MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 import { findMonteCarloMarketProblems } from '@/lib/utils/monteCarloMarketValidation';
 import { getAllCategories, deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
 import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory, TransferBoundaryError } from '@/lib/services/expenseService';
@@ -145,6 +149,7 @@ import {
   describeFamily,
   describeFireToggles,
   describeMonteCarloMarket,
+  describeMonteCarloCorrelations,
   describePerformanceBase,
   describePlanParameters,
   describeTargetProblem,
@@ -324,7 +329,7 @@ function idealAllocationSnapshotValue(settings: IdealAllocationSettings) {
 // Dirty-state value of the Simulazioni draft: the three scenarios as typed and the Oro choice
 // (`undefined` = never chosen, kept apart from an explicit «Nessuna» = null).
 function marketSnapshotKey(draft: MonteCarloMarketDraft | null): string {
-  return draft ? JSON.stringify({ scenarios: draft.scenarios, goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory }) : '';
+  return draft ? JSON.stringify({ scenarios: draft.scenarios, goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory, correlations: draft.correlations }) : '';
 }
 
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
@@ -749,6 +754,8 @@ export default function SettingsPage() {
   const [marketDraft, setMarketDraft] = useState<MonteCarloMarketDraft | null>(null);
   const [marketOrigin, setMarketOrigin] = useState<MonteCarloMarketOrigin>('default');
   const [marketBaselineKey, setMarketBaselineKey] = useState('');
+  // The pairs the last Save adapted to keep the correlation matrix valid (R5), marked until the next Save.
+  const [correlationCorrections, setCorrelationCorrections] = useState<CorrectionsByIndex>({});
   // The portfolio's commodity sub-categories (shared cache with every page that reads the assets): the choices for «Oro».
   const { data: portfolioAssets } = useQuery({
     queryKey: ['assets', ownerId],
@@ -887,6 +894,7 @@ export default function SettingsPage() {
       const loadedMarketDraft: MonteCarloMarketDraft = {
         scenarios: resolvedMarket.scenarios,
         goldSubCategory: settingsData?.monteCarloMarket ? settingsData.monteCarloMarket.goldSubCategory : undefined,
+        correlations: resolvedMarket.correlations,
       };
       setMarketDraft(loadedMarketDraft);
       setMarketOrigin(resolvedMarket.origin);
@@ -1563,9 +1571,14 @@ export default function SettingsPage() {
     // Simulazioni: written only when the tab holds edits, so a Save elsewhere never turns the
     // defaults (or a migrated legacy field) into a saved market behind the reader's back.
     let marketPayload: ReturnType<typeof toMonteCarloMarketSettings> | null = null;
+    let correctedCorrelations: number[] | null = null;
     if (marketDirty && marketDraft) {
-      marketPayload = toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory);
-      const marketProblems = findMonteCarloMarketProblems(marketPayload);
+      // Out-of-range pairs are reported by name before R5 gets to hide them by correcting.
+      const rangeProblems = findMonteCarloMarketProblems({ ...toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory), correlations: marketDraft.correlations });
+      // R5: a matrix that is not valid is replaced by the nearest valid one, at full precision.
+      correctedCorrelations = correctUpperTriangle(marketDraft.correlations, MONTE_CARLO_CLASSES.length);
+      marketPayload = toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory, correctedCorrelations);
+      const marketProblems = rangeProblems;
       if (marketProblems.length > 0) {
         handleTabChange('simulazioni');
         toast.error(`Ipotesi di mercato fuori intervallo — ${marketProblems[0].message}${marketProblems.length > 1 ? ` (+${marketProblems.length - 1})` : ''}`);
@@ -1669,9 +1682,14 @@ export default function SettingsPage() {
         ...(marketPayload ? { monteCarloMarket: marketPayload } : {}),
       });
       toast.success('Impostazioni salvate');
+      if (marketPayload && marketDraft && correctedCorrelations) {
+        const adapted = changedPairs(marketDraft.correlations, correctedCorrelations);
+        setCorrelationCorrections(Object.fromEntries(adapted.map((pair) => [pair.index, pair])));
+        if (adapted.length > 0) toast.warning(`Correlazioni corrette: ${adapted.length} ${adapted.length === 1 ? 'coppia adattata' : 'coppie adattate'} per renderle coerenti`);
+      }
       if (marketPayload && marketDraft) {
         // The Oro choice is now explicit in the document: the draft says so, and stays clean.
-        const writtenMarketDraft: MonteCarloMarketDraft = { scenarios: marketDraft.scenarios, goldSubCategory: marketPayload.goldSubCategory };
+        const writtenMarketDraft: MonteCarloMarketDraft = { scenarios: marketDraft.scenarios, goldSubCategory: marketPayload.goldSubCategory, correlations: correctedCorrelations ?? marketDraft.correlations };
         setMarketDraft(writtenMarketDraft);
         setMarketBaselineKey(marketSnapshotKey(writtenMarketDraft));
         setMarketOrigin('saved');
@@ -2000,6 +2018,12 @@ export default function SettingsPage() {
       ? findDefaultGoldSubCategory(commoditySubCategories)
       : marketDraft.goldSubCategory
     : null;
+  // The classes the portfolio holds (their correlation lists open first).
+  const heldMarketClasses: MonteCarloClass[] = (() => {
+    if (!portfolioAssets) return [];
+    const { byClass } = computeSimulatedCapital(portfolioAssets, calculateAssetValue, { goldSubCategory: effectiveGoldSubCategory });
+    return MONTE_CARLO_CLASSES.filter((cls) => byClass[cls] > 0);
+  })();
   const marketDirty = marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey;
 
   // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
@@ -4118,7 +4142,20 @@ export default function SettingsPage() {
                   disabled={isDemo}
                 />
               </div>
-              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-8')}>
+                <MonteCarloCorrelationsTile
+                  reading={describeMonteCarloCorrelations({
+                    editedPairCount: countEditedCorrelations(marketDraft.correlations),
+                    correctedPairCount: Object.keys(correlationCorrections).length,
+                  })}
+                  correlations={marketDraft.correlations}
+                  onChange={(correlations) => setMarketDraft({ ...marketDraft, correlations })}
+                  heldClasses={heldMarketClasses}
+                  corrections={correlationCorrections}
+                  disabled={isDemo}
+                />
+              </div>
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4 desktop:col-start-9 desktop:row-start-1')}>
                 <Tile
                   eyebrow="Dove si usano"
                   reading={[{ text: 'Il Monte Carlo e il Ventaglio del Calcolatore leggono gli stessi numeri: nessuno dei due ne ha una copia propria.' }]}

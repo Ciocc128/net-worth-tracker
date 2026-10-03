@@ -35,6 +35,8 @@ import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 export interface MonteCarloMarketDraft {
   scenarios: Record<MonteCarloScenarioKey, MonteCarloMarketScenario>;
   goldSubCategory: string | null | undefined;
+  /** The 21 correlations (upper triangle), as typed; full precision after a correction. */
+  correlations: number[];
 }
 
 interface MonteCarloMarketTileProps {
@@ -60,7 +62,29 @@ const NONE_VALUE = '__none__';
 const formatForInput = (value: number): string => String(Number.parseFloat(value.toFixed(4))).replace('.', ',');
 
 /** A numeric text field that keeps what is typed («5,», «-») and commits every complete number. */
-function NumberField({ value, onCommit, ariaLabel, disabled, className }: { value: number; onCommit: (value: number) => void; ariaLabel: string; disabled?: boolean; className?: string }) {
+export function NumberField({
+  value,
+  onCommit,
+  ariaLabel,
+  disabled,
+  className,
+  decimals,
+  step,
+  min,
+  max,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+  ariaLabel: string;
+  disabled?: boolean;
+  className?: string;
+  /** Fixed decimals shown (a correlation shows two; the saved value keeps its full precision). */
+  decimals?: number;
+  /** Arrow-key step, clamped to `min`/`max`. */
+  step?: number;
+  min?: number;
+  max?: number;
+}) {
   const [text, setText] = useState<string | null>(null);
   return (
     <Input
@@ -68,7 +92,19 @@ function NumberField({ value, onCommit, ariaLabel, disabled, className }: { valu
       inputMode="decimal"
       aria-label={ariaLabel}
       disabled={disabled}
-      value={text ?? formatForInput(value)}
+      value={text ?? (decimals === undefined ? formatForInput(value) : value.toFixed(decimals).replace('.', ','))}
+      onKeyDown={
+        step === undefined
+          ? undefined
+          : (event) => {
+              if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+              event.preventDefault();
+              const raw = value + (event.key === 'ArrowUp' ? step : -step);
+              const snapped = Math.round(raw / step) * step;
+              onCommit(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, Number(snapped.toFixed(6)))));
+              setText(null);
+            }
+      }
       onChange={(event) => {
         setText(event.target.value);
         const parsed = Number.parseFloat(event.target.value.replace(',', '.'));

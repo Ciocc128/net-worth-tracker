@@ -108,6 +108,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   market behind the reader's back; it validates with `findMonteCarloMarketProblems` (bounds named by class and scenario) and
   writes the Oro sub-category EXPLICITLY (`undefined` in the draft = «never chosen, the default rule applies»; `null` =
   «Nessuna»). Consumers never read the field: `resolveMonteCarloMarketForPortfolio` (Monte Carlo tab, Ventaglio, this tab).
+  **T2 added the correlations to the same draft** (2026-10-03): `marketDraft.correlations` (21 values) lives in the SAME
+  snapshot, so the «Simulazioni» dot covers both tiles; `MonteCarloCorrelationsTile` (lists per class, the held classes open
+  first) edits it. `handleSave` runs `correctUpperTriangle` (rule R5) and writes `correlations` only when they differ from the
+  defaults; the pairs it moved (`changedPairs`) stay marked «scritto → usato» in `correlationCorrections` until the next Save
+  or until the field is edited, and a toast says how many were adapted. Out-of-range pairs are refused BEFORE R5, by name.
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`. **The bug this
   prevents is invisible until a hard refresh**: the write succeeds, the toast says «salvate», the form still shows the

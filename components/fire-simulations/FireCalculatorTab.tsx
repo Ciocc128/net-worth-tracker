@@ -484,10 +484,11 @@ export function FireCalculatorTab() {
       expenseInflationRate: scenarios.base.inflationRate,
       weights,
       market: monteCarloMarket.scenarios.base,
+      correlations: monteCarloMarket.correlations,
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
-  }, [assets, fanCapital, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, pensionCapitalInflows]);
+  }, [assets, fanCapital, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, monteCarloMarket.scenarios.base, monteCarloMarket.correlations, pensionCapitalInflows]);
 
   // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
   // Keyed on the same inputs that change the deterministic projection, so an edited parameter

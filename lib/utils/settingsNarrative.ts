@@ -973,3 +973,29 @@ export function describeMonteCarloMarket({ origin, editedClassCount, dirty, gold
   }
   return out;
 }
+
+export interface MonteCarloCorrelationsInput {
+  /** Pairs (of 21) whose value differs from the defaults, in the draft. */
+  editedPairCount: number;
+  /** Pairs the last Save adapted to keep the matrix valid (R5), still shown. */
+  correctedPairCount: number;
+}
+
+/**
+ * «Correlazioni» — where the 21 pairs come from, in one line: the defaults' source, or how many
+ * pairs were edited; after a correction, how many the Save adapted. No verdict (it is Impostazioni).
+ */
+export function describeMonteCarloCorrelations({ editedPairCount, correctedPairCount }: MonteCarloCorrelationsInput): Narrative {
+  const out: Narrative = [];
+  if (editedPairCount === 0) {
+    out.push({ text: 'Valori predefiniti: log-rendimenti annui, ' }, { text: '1928–2025', mono: true }, { text: ', ogni coppia sul periodo comune più lungo (Damodaran, testfolio).' });
+  } else {
+    out.push({ text: 'Modificate ' }, { text: `${editedPairCount} coppie su 21`, mono: true }, { text: ' rispetto ai valori predefiniti.' });
+  }
+  if (correctedPairCount > 0) {
+    out.push({ text: ' Il salvataggio ne ha adattate ' }, { text: String(correctedPairCount), mono: true }, { text: ' per rendere la matrice coerente.' });
+  } else {
+    out.push({ text: ' Una matrice unica per i tre scenari; nelle crisi le correlazioni tendono a salire e qui non salgono.' });
+  }
+  return out;
+}

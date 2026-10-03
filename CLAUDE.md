@@ -14,7 +14,7 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **222 files / 5226 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-10-03, fork): **Monte Carlo T1** (`doc/montecarlo/README.md`) — seven classes, lognormal on CAGR, assumptions in Impostazioni › Simulazioni; T2/T3 follow.
+- Latest (2026-10-03, fork): **Monte Carlo T2** (`doc/montecarlo/README.md`) — the seven classes drawn through one correlation matrix (21 pairs in Impostazioni › Simulazioni, corrected to the nearest valid one on Save); after T1 (seven classes, lognormal on CAGR); T3 (leverage) follows.
 - Prima (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
   `WIKI_EXPORT_UID`, `npm run vault:export`; doc/guide/email-pdf.md § The vault's `dati/`); principles by interview.
 - Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
@@ -60,7 +60,7 @@ One line per area: the question it answers, then where it is described. *What th
   ideale**; nel tile anche **«Con vendite mirate»**, tetto di tasse) — doc/guide/ottimizzatore.md; **import CSV** delle spese; **alias dei ticker** (`getAssetDisplayTicker`);
   la **guardia sulla prima operazione** del registro; il tema **Lime Frost** (una palette di ruoli) e i **ruoli
   50/30/20** nel Flusso di Analisi — doc/guide/temi.md, doc/guide/cashflow.md; il **motore Monte Carlo a sette classi**
-  (lognormale su CAGR, ipotesi in Impostazioni › Simulazioni) — doc/guide/fire-monte-carlo.md.
+  (lognormale su CAGR, ipotesi e matrice di correlazione in Impostazioni › Simulazioni) — doc/guide/fire-monte-carlo.md.
 - **Themes**: fourteen theme blocks (twelve + Lime Frost light/dark, solo fork) × nine chart slots through `useChartColors`, every block held to the distinctness floor by `__tests__/chartPaletteDistinctness.test.ts`. doc/guide/temi.md.
 
 ## Testing

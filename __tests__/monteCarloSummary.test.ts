@@ -302,6 +302,8 @@ describe('haveRunInputsChanged', () => {
     scenarios.bear.classes.equity.cagr = 3;
     expect(haveRunInputsChanged(a, { ...inputs(), scenarios })).toBe(true);
     expect(haveRunInputsChanged(a, { ...inputs(), inflows: [] })).toBe(true);
+    // T2: a saved correlation matrix makes the last run stale too.
+    expect(haveRunInputsChanged(a, { ...inputs(), params: makeParams({ correlations: new Array(21).fill(0.1) }) })).toBe(true);
     // The pensions and the tax ride on the params (2026-09-24): a change is a new plan.
     expect(haveRunInputsChanged(a, { ...inputs(), params: makeParams({ annualInflows: [{ fromYear: 34, annualNetToday: 13000 }] }) })).toBe(true);
     expect(haveRunInputsChanged(a, { ...inputs(), params: makeParams({ withdrawalTax: { basisToday: 300000, rate: 26 } }) })).toBe(true);

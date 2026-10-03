@@ -5,6 +5,7 @@
  */
 import type { MonteCarloMarketSettings } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
+import { pairIndices } from './correlationMatrix';
 
 export const MONTE_CARLO_BOUNDS = {
   cagr: { min: -50, max: 100 },
@@ -70,7 +71,12 @@ export function findMonteCarloMarketProblems(market: MonteCarloMarketSettings): 
   }
   (market.correlations ?? []).forEach((value, index) => {
     const result = outside(value, MONTE_CARLO_BOUNDS.correlation);
-    if (result) problems.push({ where: `Correlazione ${index + 1}`, field: 'correlation', message: `Correlazione ${index + 1}: fuori da −1 e 1` });
+    if (result) {
+      // «Azioni–Obbligazioni»: the pair, by name (the index is the upper-triangle slot).
+      const pair = pairIndices(MONTE_CARLO_CLASSES.length)[index];
+      const where = pair ? `Correlazione ${MONTE_CARLO_CLASS_LABELS[MONTE_CARLO_CLASSES[pair[0]]]}–${MONTE_CARLO_CLASS_LABELS[MONTE_CARLO_CLASSES[pair[1]]]}` : `Correlazione ${index + 1}`;
+      problems.push({ where, field: 'correlation', message: `${where}: fuori da −1 e 1` });
+    }
   });
   if (market.leverageSpread !== undefined) {
     const spread = outside(market.leverageSpread, MONTE_CARLO_BOUNDS.spread);

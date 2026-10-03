@@ -7,7 +7,8 @@ import {
   migrateLegacyScenarios,
   resolveMonteCarloMarket,
 } from '@/lib/utils/monteCarloMarket';
-import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { getDefaultMonteCarloMarket, MONTE_CARLO_DEFAULT_CORRELATIONS } from '@/lib/constants/monteCarloMarketDefaults';
+import { countEditedCorrelations, toMonteCarloMarketSettings } from '@/lib/utils/monteCarloMarket';
 import { toLogNormal } from '@/lib/utils/monteCarloDraw';
 import type { MonteCarloScenarios } from '@/types/assets';
 
@@ -103,5 +104,32 @@ describe('countEditedClasses / migrateLegacyScenarios', () => {
     const migrated = migrateLegacyScenarios(LEGACY);
     expect(migrated.version).toBe(1);
     expect(migrated.scenarios.bull.classes.bonds.volatility).toBe(5);
+  });
+});
+
+describe('correlations (T2)', () => {
+  it('resolves to the research defaults when nothing is saved, and says so', () => {
+    const resolved = resolveMonteCarloMarket({}, []);
+    expect(resolved.correlations).toEqual([...MONTE_CARLO_DEFAULT_CORRELATIONS]);
+    expect(resolved.correlations).toHaveLength(21);
+    expect(resolved.correlationOrigin).toBe('default');
+  });
+
+  it('takes the saved matrix, and ignores one of the wrong length or with a non-number', () => {
+    const custom = new Array(21).fill(0.2);
+    const base = getDefaultMonteCarloMarket();
+    expect(resolveMonteCarloMarket({ monteCarloMarket: { ...base, correlations: custom } }, [])).toMatchObject({ correlations: custom, correlationOrigin: 'saved' });
+    expect(resolveMonteCarloMarket({ monteCarloMarket: { ...base, correlations: [0.1, 0.2] } }, []).correlationOrigin).toBe('default');
+    expect(resolveMonteCarloMarket({ monteCarloMarket: { ...base, correlations: [...custom.slice(1), Number.NaN] } }, []).correlationOrigin).toBe('default');
+  });
+
+  it('writes the matrix only when it differs from the defaults', () => {
+    const scenarios = getDefaultMonteCarloMarket().scenarios;
+    expect(toMonteCarloMarketSettings(scenarios, null, [...MONTE_CARLO_DEFAULT_CORRELATIONS])).not.toHaveProperty('correlations');
+    const edited = [...MONTE_CARLO_DEFAULT_CORRELATIONS];
+    edited[0] = 0.5;
+    expect(toMonteCarloMarketSettings(scenarios, null, edited).correlations).toEqual(edited);
+    expect(countEditedCorrelations(edited)).toBe(1);
+    expect(countEditedCorrelations(MONTE_CARLO_DEFAULT_CORRELATIONS)).toBe(0);
   });
 });

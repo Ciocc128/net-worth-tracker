@@ -34,9 +34,19 @@
 - **The draw is lognormal on CAGR and volatility** (rule R1, `lib/utils/monteCarloDraw.ts`): the typed return is the median
   compound growth, the volatility the std of SIMPLE annual returns; `ln(1+r) = m + s·z`, every `r > −100%`, zero volatility
   returns the CAGR exactly (the Ventaglio's coherence test relies on it). The arithmetic mean (shown read-only in
-  Impostazioni) is higher than the CAGR. Classes are drawn INDEPENDENTLY until T2 (correlations); the number of draws per year
+  Impostazioni) is higher than the CAGR. The number of draws per year
   is fixed (7 classes × 2 uniforms) so T3's shared shocks hold. Defaults: `lib/constants/monteCarloMarketDefaults.ts`, the ONLY
   file the research numbers (R0) enter the code in, with a `source` per class.
+- **The classes move together through ONE correlation matrix** (T2, 2026-10-03; README § 6): 21 pairs of log-returns, the
+  same for Orso, Base and Toro (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
+  defaults (`MONTE_CARLO_DEFAULT_CORRELATIONS`), so an improved default reaches whoever never touched them. `buildDrawPlan`
+  takes the Cholesky factor `L` once per run and `drawYear` multiplies `z = L·ε` (identity ⇒ `z = ε`, float for float, and the
+  same uniforms are consumed). The matrix is corrected (rule R5, `lib/utils/correlationMatrix.ts`: Higham + Dykstra, then
+  eigenvalues ≥ 1e-6) at the Save in Impostazioni AND silently in `buildCorrelationFactor`, so a document written elsewhere
+  can never fail a run. The Parametri declaration adds «Correlazioni predefinite / personalizzate»; the correlations ride on
+  the shared params, so `haveRunInputsChanged` marks a saved matrix as stale. Measured 2026-10-03 (cloud container, 10.000
+  paths × 3 scenarios × 50 years): ≈1,48 s without correlations, ≈1,51 s with them — the matrix costs about 2%; the dossier's
+  «under half a second» estimate was not met, the cost is the draw itself (Box-Muller on 7 classes), not the matrix.
 - **A legacy `monteCarloScenarios` is migrated at read, never rewritten** (R2): arithmetic mean → CAGR with the same mean and
   variance of `1+r`, the real-estate pair dropped, the classes the old field never knew take the defaults. The field stays in
   the document (upstream still writes it); `monteCarloMarket` wins as soon as it is saved. The Simulazioni tile says
@@ -78,5 +88,10 @@
   (edit → warning footer → Esegui → «Ultima esecuzione con questi parametri»), never a rate.
 
 ## Per-page blind spots
+
+- **FIRE › Monte Carlo, correlations (T2)**: they are annual and FIXED across the three scenarios, so a crisis does not raise
+  them (in a real one they rise); on MONTHLY data Materie prime–Carry is about −0,58 against the −0,23 annual that the model
+  uses. A matrix the reader types can be impossible (three classes all at −0,9): the Save adapts it and says which pairs
+  moved, and the Monte Carlo reads the adapted one.
 
 - **FIRE › Monte Carlo**: the weights come from the portfolio today, so a portfolio with a lot of cash now simulates it at the Liquidità CAGR (3,37% default) instead of at the mix's return; real estate and crypto never enter, and the tile says so. No Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point — unlike the Calcolatore's fan, seeded since 2026-09-24) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); the «Esaurimento» view disappears with the toggle when a re-run fails nothing, and its shares are of all simulations, so its bars are short by construction on a plan that holds; `results.medianFinalValue` has no surface.
