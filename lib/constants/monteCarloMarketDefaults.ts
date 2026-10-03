@@ -1,0 +1,100 @@
+/**
+ * Default market assumptions of the Monte Carlo — the ONLY file the research numbers enter the
+ * code in (doc/montecarlo/README.md § 2; research R0, delivered 2026-10-03,
+ * /mnt/project-files/montecarlo/R0-valori-predefiniti.md § 11).
+ *
+ * CAGR / volatility in percent. Volatility is the standard deviation of SIMPLE annual returns
+ * (the `σa` of rule R1). The series are in USD and the returns are those of the long-run
+ * history; one inflation (3,04%, US CPI 1928–2025) in the three scenarios.
+ *
+ * Bear and Bull follow a two-branch rule (README § 2.2): series of 60+ years take the 10th/90th
+ * percentile of the REAL 30-year-window CAGR (branch 1); shorter series take the percentile of
+ * the Base lognormal over 30 years, `exp(m ± 1,2816·s/√30) − 1` (branch 2).
+ */
+import type { MonteCarloClass } from './monteCarloClasses';
+import type { MonteCarloMarketScenario, MonteCarloMarketSettings } from '@/types/assets';
+
+export interface MonteCarloClassSource {
+  /** Short source id, as in the research (F1 = Damodaran, F9 = testfolio simulations …). */
+  id: string;
+  /** What the series is. */
+  series: string;
+  /** Years covered. */
+  period: string;
+  /** Date of the download. */
+  asOf: string;
+  /** Which Bear/Bull branch produced the scenarios (README § 2.2). */
+  branch: 1 | 2;
+  /** One sentence that the tile can print as it is. */
+  note?: string;
+}
+
+const DAMODARAN_AS_OF = '01/01/2026';
+const DOWNLOAD_AS_OF = '03/10/2026';
+
+export const MONTE_CARLO_CLASS_SOURCES: Record<MonteCarloClass, MonteCarloClassSource> = {
+  equity: { id: 'F1', series: 'S&P 500 con dividendi (Damodaran)', period: '1928–2025', asOf: DAMODARAN_AS_OF, branch: 1 },
+  bonds: { id: 'F1', series: 'Treasury 10 anni (Damodaran)', period: '1928–2025', asOf: DAMODARAN_AS_OF, branch: 1 },
+  gold: { id: 'F1', series: 'Oro (Damodaran), confermato da GLDSIM', period: '1972–2025', asOf: DAMODARAN_AS_OF, branch: 2 },
+  commodity: {
+    id: 'F9',
+    series: 'S&P GSCI (GSGSIM, testfolio)',
+    period: '1980–2025',
+    asOf: DOWNLOAD_AS_OF,
+    branch: 2,
+    note: 'In 46 anni ha reso meno dell’inflazione: il default lo dice.',
+  },
+  cash: { id: 'F1', series: 'T-bill 3 mesi (Damodaran)', period: '1928–2025', asOf: DAMODARAN_AS_OF, branch: 1 },
+  trendFollowing: {
+    id: 'F9',
+    series: 'DBMFSIM (testfolio)',
+    period: '2000–2025',
+    asOf: DOWNLOAD_AS_OF,
+    branch: 2,
+    note: 'Serie investibile, al netto dei costi: non il fattore accademico lordo.',
+  },
+  carry: {
+    id: 'F9',
+    series: 'UEQCSIM (testfolio), meno 1% annuo di costi',
+    period: 'rendimento 2015–2025, volatilità 2025–2026',
+    asOf: DOWNLOAD_AS_OF,
+    branch: 2,
+    note: 'Rendimento e rischio vengono da due tratti diversi: scelta di giudizio, vedi il dossier.',
+  },
+};
+
+/** Inflation, the same in the three scenarios (README § 2.1). */
+export const MONTE_CARLO_DEFAULT_INFLATION = 3.04;
+
+type Triple = { bear: [number, number]; base: [number, number]; bull: [number, number] };
+
+/** CAGR / volatility per class and scenario, percent (README § 2.3). */
+const DEFAULT_TABLE: Record<MonteCarloClass, Triple> = {
+  equity: { bear: [8.01, 17.02], base: [10.02, 19.4], bull: [12.19, 21.33] },
+  bonds: { bear: [2.08, 5.69], base: [4.53, 7.9], bull: [8.01, 11.05] },
+  gold: { bear: [2.94, 27.31], base: [8.89, 27.31], bull: [15.19, 27.31] },
+  commodity: { bear: [-1.98, 22.46], base: [2.98, 22.46], bull: [8.19, 22.46] },
+  cash: { bear: [1.81, 4.1], base: [3.37, 3.04], bull: [4.8, 2.38] },
+  trendFollowing: { bear: [4.64, 7.9], base: [6.46, 7.9], bull: [8.32, 7.9] },
+  carry: { bear: [1.47, 18.41], base: [5.6, 18.41], bull: [9.9, 18.41] },
+};
+
+function buildScenario(key: 'bear' | 'base' | 'bull'): MonteCarloMarketScenario {
+  const classes = {} as MonteCarloMarketScenario['classes'];
+  for (const cls of Object.keys(DEFAULT_TABLE) as MonteCarloClass[]) {
+    const [cagr, volatility] = DEFAULT_TABLE[cls][key];
+    classes[cls] = { cagr, volatility };
+  }
+  return { classes, inflationRate: MONTE_CARLO_DEFAULT_INFLATION };
+}
+
+/** A fresh copy every call — the caller may edit it. */
+export function getDefaultMonteCarloMarket(): MonteCarloMarketSettings {
+  return {
+    version: 1,
+    scenarios: { bear: buildScenario('bear'), base: buildScenario('base'), bull: buildScenario('bull') },
+  };
+}
+
+/** The date the numbers were collected, for the tile's reading («valori storici fino al …»). */
+export const MONTE_CARLO_DEFAULTS_LAST_YEAR = 2025;

@@ -1,4 +1,5 @@
 import type { PensionFundDetails } from './pension';
+import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 
 // AssetType: Granular classification used in UI (stock, ETF, bond, crypto, etc.)
 // AssetClass: Broad financial categories for allocation analysis (equity, bonds, etc.)
@@ -363,7 +364,8 @@ export interface AssetAllocationSettings {
   // straight from the settings doc by `dividendIncomeService`.
   dividendCashAssetId?: string;
   fireProjectionScenarios?: FIREProjectionScenarios; // Custom scenario parameters for FIRE projections (Bear/Base/Bull)
-  monteCarloScenarios?: MonteCarloScenarios; // Custom scenario parameters for Monte Carlo simulations (Bear/Base/Bull)
+  monteCarloScenarios?: MonteCarloScenarios; // LEGACY (arithmetic means, four classes): read only to migrate into `monteCarloMarket`, no longer written
+  monteCarloMarket?: MonteCarloMarketSettings; // Market assumptions of the Monte Carlo engines (CAGR + volatility per class, Bear/Base/Bull) — Impostazioni › Simulazioni
   goalBasedInvestingEnabled?: boolean; // Toggle to enable goal-based investing feature (mental allocation of portfolio to financial goals)
   goalDrivenAllocationEnabled?: boolean; // When true AND goalBasedInvestingEnabled, derive allocation targets from goal recommended allocations instead of manual Settings targets
   autoCalculateEquityBonds?: boolean; // When true, equity and bond targets are auto-computed via the "125 − age − (rate × 5)" formula; stored explicitly so disabling persists across reloads
@@ -544,29 +546,20 @@ export interface MonteCarloParams {
   // Retirement duration
   retirementYears: number;
 
-  // Asset allocation (all 4 must sum to 100%)
-  equityPercentage: number;
-  bondsPercentage: number;
-  realEstatePercentage: number;
-  commoditiesPercentage: number;
+  // Weights per Monte Carlo class, percent (T1-T2: they sum to 100).
+  weights: Record<MonteCarloClass, number>;
 
   // Withdrawal settings
   annualWithdrawal: number;
   withdrawalAdjustment: WithdrawalAdjustment;
 
-  // Market parameters
-  equityReturn: number;
-  equityVolatility: number;
-  bondsReturn: number;
-  bondsVolatility: number;
-  realEstateReturn: number;
-  realEstateVolatility: number;
-  commoditiesReturn: number;
-  commoditiesVolatility: number;
-  inflationRate: number;
+  // Market assumptions of the scenario the run reads (CAGR + volatility per class, inflation).
+  market: MonteCarloMarketScenario;
 
   // Simulation settings
   numberOfSimulations: number;
+  // The uniform source of the draws, `Math.random` by default; a seeded one makes the run reproducible.
+  random?: () => number;
 
   // One-off capital arrivals during the simulated horizon (a pension fund unlocking).
   // Applied at the START of their year, before that year's market return and withdrawal;
@@ -642,6 +635,27 @@ export interface MonteCarloScenarioParams {
   commoditiesReturn: number;
   commoditiesVolatility: number;
   inflationRate: number;
+}
+
+// Market assumptions of the Monte Carlo (doc/montecarlo/README.md § 4.2). The return is a CAGR (the
+// median compound growth), the volatility the standard deviation of simple annual returns: the
+// engines turn them into lognormal parameters with rule R1 (lib/utils/monteCarloDraw.ts).
+export interface MonteCarloClassParams {
+  cagr: number;       // percent
+  volatility: number; // percent
+}
+
+export interface MonteCarloMarketScenario {
+  classes: Record<MonteCarloClass, MonteCarloClassParams>;
+  inflationRate: number; // percent
+}
+
+export interface MonteCarloMarketSettings {
+  version: 1;
+  scenarios: { bear: MonteCarloMarketScenario; base: MonteCarloMarketScenario; bull: MonteCarloMarketScenario };
+  correlations?: number[];          // T2: 21 values, upper triangle in MONTE_CARLO_CLASSES order; absent = defaults
+  leverageSpread?: number;          // T3: percent; absent = default
+  goldSubCategory?: string | null;  // RG: the commodity sub-category simulated as Oro; null = none; absent = /^(gold|oro)$/i
 }
 
 export interface MonteCarloScenarios {

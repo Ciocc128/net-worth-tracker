@@ -21,9 +21,26 @@
 - **The form is strings, the run is numbers**: the tab owns `MonteCarloForm` (as FireParametri's form) and derives `MonteCarloParams` with
   `parseItalianNumber` (it-IT amounts, plain numbers, a hand-typed «12.5») and `formatInputAmount`; the «Totale / Liquido» shortcuts write the
   string. The seed happens ONCE (`didSeedRef`) from the portfolio net of the locked funds, `plannedAnnualExpenses` and
-  `deriveMonteCarloAllocation` (the ONE normalizer, shared with the Ventaglio; 60/40 when the four classes hold nothing) — a refetch never
+  `computeSimulatedCapital` + `deriveMonteCarloWeights` (the ONE normalizer, shared with the Ventaglio; 60/40 when the seven classes hold nothing) — a refetch never
   clobbers a typed value. Until the seeded plan has run once the tab shows the `TileGridSkeleton`; a plan that cannot run shows the verdict
   («Monte Carlo non calcolabile.») over the Parametri tile alone.
+- **The market assumptions are DECLARED here, edited in Impostazioni › Simulazioni** (T1, 2026-10-03; The Declaration-Tile
+  Rule): the Parametri tile prints where they come from (`describeMarketDeclaration`: valori predefiniti · salvate · migrate)
+  with a link to `/dashboard/settings?tab=simulazioni`, and the tab holds no scenario state and no Save. The run's inputs
+  carry the RESOLVED scenarios, so a save in Impostazioni makes the last run stale (The Stale-Run Rule) — pinned in
+  `haveRunInputsChanged`. Seven weight fields (Σ = 100) replace the four; «Totale» is `K` (the seven classes net of the closed
+  pension funds) and «Liquido» its liquid part. «Fuori dalla simulazione: Immobili …, Crypto …» is read-only and absent when
+  nothing is left out.
+- **The draw is lognormal on CAGR and volatility** (rule R1, `lib/utils/monteCarloDraw.ts`): the typed return is the median
+  compound growth, the volatility the std of SIMPLE annual returns; `ln(1+r) = m + s·z`, every `r > −100%`, zero volatility
+  returns the CAGR exactly (the Ventaglio's coherence test relies on it). The arithmetic mean (shown read-only in
+  Impostazioni) is higher than the CAGR. Classes are drawn INDEPENDENTLY until T2 (correlations); the number of draws per year
+  is fixed (7 classes × 2 uniforms) so T3's shared shocks hold. Defaults: `lib/constants/monteCarloMarketDefaults.ts`, the ONLY
+  file the research numbers (R0) enter the code in, with a `source` per class.
+- **A legacy `monteCarloScenarios` is migrated at read, never rewritten** (R2): arithmetic mean → CAGR with the same mean and
+  variance of `1+r`, the real-estate pair dropped, the classes the old field never knew take the defaults. The field stays in
+  the document (upstream still writes it); `monteCarloMarket` wins as soon as it is saved. The Simulazioni tile says
+  «migrate … rileggile e salva» until the reader edits.
 - **The pension lock rides as inflows at today's value** (`resolvePensionLockState` → `capitalInflows`; order inflow → return → withdrawal in the
   service): the starting capital is net of the locked total, the read-only row under the amount field names each inflow, the fan draws a dashed
   muted guide at the unlock year when it is on the plot and the Probabilità footer names the step.
@@ -62,4 +79,4 @@
 
 ## Per-page blind spots
 
-- **FIRE › Monte Carlo**: no Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point — unlike the Calcolatore's fan, seeded since 2026-09-24) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); the «Esaurimento» view disappears with the toggle when a re-run fails nothing, and its shares are of all simulations, so its bars are short by construction on a plan that holds; `results.medianFinalValue` has no surface.
+- **FIRE › Monte Carlo**: the weights come from the portfolio today, so a portfolio with a lot of cash now simulates it at the Liquidità CAGR (3,37% default) instead of at the mix's return; real estate and crypto never enter, and the tile says so. No Playwright spec; the paths are unseeded draws (two runs differ by tenths of a point — unlike the Calcolatore's fan, seeded since 2026-09-24) and the figures are the last run's until «Esegui» (an edited parameter only flags the Parametri footer); the plan is ephemeral, seeded once per mount; the withdrawal is always inflation-indexed; «fino a 81 anni» needs the Coast FIRE age; the histogram's last bin takes the tail past the 95th percentile (said in the footer); the «Esaurimento» view disappears with the toggle when a re-run fails nothing, and its shares are of all simulations, so its bars are short by construction on a plan that holds; `results.medianFinalValue` has no surface.

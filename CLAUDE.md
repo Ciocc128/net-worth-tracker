@@ -14,9 +14,9 @@ Next.js app for Italian investors: net worth, assets, cashflow, dividends, perfo
 ## Current Status
 - Stack: Next.js 16, React 19, TypeScript 5, Tailwind v4, Firebase, Vitest, Framer Motion, Recharts, Yahoo Finance, Borsa Italiana scraping, Anthropic.
 - `tsc` clean; **222 files / 5226 tests** green in the machine timezone and under `Europe/Rome` + **41 Playwright spec files** (152 tests, incl. 6 auth setups; last full run 2026-09-27, fork, ninth upstream merge, 4,4 min: 152 green). Run Vitest under `TZ=Europe/Rome` too — every date fixture sits at noon, which structurally hides timezone bugs.
-- Latest (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
+- Latest (2026-10-03, fork): **Monte Carlo T1** (`doc/montecarlo/README.md`) — seven classes, lognormal on CAGR, assumptions in Impostazioni › Simulazioni; T2/T3 follow.
+- Prima (2026-09-30, fork): **F4** — the monthly email's data block as the vault's `dati/` (cron phase 10,
   `WIKI_EXPORT_UID`, `npm run vault:export`; doc/guide/email-pdf.md § The vault's `dati/`); principles by interview.
-- Prima (2026-09-28): F3 vault + TheBull; F2 keeps **GLM 5.3 Flash** (provisional until F6); F1b; F1 `lib/server/llm`.
 - Latest upstream (2026-09-27): #402 → PERF-00; dossiers `doc/perf/README.md` and `doc/mobile/README.md` (decisions in § 9).
 
 ## Architecture Snapshot
@@ -48,7 +48,7 @@ One line per area: the question it answers, then where it is described. *What th
 - **FIRE**: Calcolatore, Coast FIRE, What If, Monte Carlo and Obiettivi, one verdict each. doc/guide/fire.md (+ fire-coast, fire-what-if, fire-monte-carlo, fire-obiettivi).
 - **Assistente AI**: the verdict IS the context; SSE streaming, memory, goal proposals; flag `NEXT_PUBLIC_ASSISTANT_AI_ENABLED`, blocked in demo. doc/guide/assistente.md.
 - **Hall of Fame**: «quali sono stati i mesi e gli anni migliori?», no axis. doc/guide/hall-of-fame.md.
-- **Impostazioni**: six tabs, no verdict, one Save per page with the save state per tab (a dot, a bottom bar, «Annulla modifiche»); the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
+- **Impostazioni**: seven tabs (Simulazioni since 2026-10-03), no verdict, one Save per page with the save state per tab (a dot, a bottom bar, «Annulla modifiche»); the write fan-out in doc/guide/impostazioni.md § Settings — the FIVE places.
 - **States**: loading · nothing recorded · measured zero · failed read, on 20 surfaces. doc/guide/stati.md; DESIGN → The Absence-Has-Three-Names Rule.
 - **Dialogs and forms**: 40 modals on one vocabulary in `ResponsiveModal`; row deletes arm in the row. doc/guide/dialog.md; DESIGN → The Modal-Is-A-Tile Rule.
 - **Periodic emails · budget email · PDF export**: rule-generated verdict first, AI comment second; every hex from `printTokens.ts`. doc/guide/email-pdf.md; DESIGN → The Out-Of-DOM Token Rule.
@@ -59,7 +59,8 @@ One line per area: the question it answers, then where it is described. *What th
   convesso, secondo livello delle sottocategorie, due ingressi: il passo Target del PAC e il tile **Composizione
   ideale**; nel tile anche **«Con vendite mirate»**, tetto di tasse) — doc/guide/ottimizzatore.md; **import CSV** delle spese; **alias dei ticker** (`getAssetDisplayTicker`);
   la **guardia sulla prima operazione** del registro; il tema **Lime Frost** (una palette di ruoli) e i **ruoli
-  50/30/20** nel Flusso di Analisi — doc/guide/temi.md, doc/guide/cashflow.md.
+  50/30/20** nel Flusso di Analisi — doc/guide/temi.md, doc/guide/cashflow.md; il **motore Monte Carlo a sette classi**
+  (lognormale su CAGR, ipotesi in Impostazioni › Simulazioni) — doc/guide/fire-monte-carlo.md.
 - **Themes**: fourteen theme blocks (twelve + Lime Frost light/dark, solo fork) × nine chart slots through `useChartColors`, every block held to the distinctness floor by `__tests__/chartPaletteDistinctness.test.ts`. doc/guide/temi.md.
 
 ## Testing

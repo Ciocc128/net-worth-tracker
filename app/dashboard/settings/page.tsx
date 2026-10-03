@@ -76,7 +76,7 @@ import {
 import { DEFAULT_IDEAL_ALLOCATION, findSecondLevelGaps } from '@/lib/utils/weightOptimizer';
 import { resolveAllocationRole } from '@/lib/utils/allocationUtils';
 import { IdealAllocationTile } from '@/components/settings/IdealAllocationTile';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatNumber, formatPercentage } from '@/lib/services/chartService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,7 +91,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Save, RotateCcw, Plus, Trash2, ChevronDown, Edit, Receipt, FlaskConical, Coins, ArrowRightLeft, Settings, PieChart, Palette, X, Send, Users, Sun, Moon, Monitor } from 'lucide-react';
+import { Save, RotateCcw, Plus, Trash2, ChevronDown, Edit, Receipt, FlaskConical, Coins, ArrowRightLeft, Settings, PieChart, Palette, X, Send, Users, Sun, Moon, Monitor, Dices } from 'lucide-react';
 import { AccountSharingSection } from '@/components/settings/AccountSharingSection';
 import ExpenseImportSection from '@/components/settings/ExpenseImportSection';
 import { queryKeys } from '@/lib/query/queryKeys';
@@ -104,6 +104,9 @@ import { Switch } from '@/components/ui/switch';
 import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
 import { Asset } from '@/types/assets';
 import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
+import { MonteCarloMarketTile, type MonteCarloMarketDraft } from '@/components/settings/MonteCarloMarketTile';
+import { collectCommoditySubCategories, countEditedClasses, findDefaultGoldSubCategory, resolveMonteCarloMarket, toMonteCarloMarketSettings, type MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
+import { findMonteCarloMarketProblems } from '@/lib/utils/monteCarloMarketValidation';
 import { getAllCategories, deleteCategory, getCategoryById } from '@/lib/services/expenseCategoryService';
 import { getExpenseCountByCategoryId, reassignExpensesCategory, clearExpensesCategoryAssignment, moveExpensesToCategory, TransferBoundaryError } from '@/lib/services/expenseService';
 import { CategoryManagementDialog, invalidateCategoryCaches } from '@/components/expenses/CategoryManagementDialog';
@@ -141,6 +144,7 @@ import {
   describeEmails,
   describeFamily,
   describeFireToggles,
+  describeMonteCarloMarket,
   describePerformanceBase,
   describePlanParameters,
   describeTargetProblem,
@@ -317,12 +321,19 @@ function idealAllocationSnapshotValue(settings: IdealAllocationSettings) {
   };
 }
 
+// Dirty-state value of the Simulazioni draft: the three scenarios as typed and the Oro choice
+// (`undefined` = never chosen, kept apart from an explicit «Nessuna» = null).
+function marketSnapshotKey(draft: MonteCarloMarketDraft | null): string {
+  return draft ? JSON.stringify({ scenarios: draft.scenarios, goldSubCategory: draft.goldSubCategory === undefined ? '__auto__' : draft.goldSubCategory }) : '';
+}
+
 // Module-level tab definitions drive both the mobile pill and the desktop underline tabs.
 const SETTINGS_TABS: TabDef[] = [
   { value: 'allocazione', label: 'Allocazione', icon: PieChart },
   { value: 'generale',    label: 'Preferenze',  icon: Settings },
   { value: 'spese',       label: 'Spese',       icon: Receipt  },
   { value: 'dividendi',   label: 'Dividendi',   icon: Coins    },
+  { value: 'simulazioni', label: 'Simulazioni', icon: Dices    },
   { value: 'condivisione', label: 'Condivisione', icon: Users   },
   { value: 'aspetto',     label: 'Aspetto',     icon: Palette  },
 ];
@@ -715,8 +726,8 @@ export default function SettingsPage() {
   const enableTestSnapshots = process.env.NEXT_PUBLIC_ENABLE_TEST_SNAPSHOTS === 'true';
 
   // Tab navigation — lazy-loading pattern (same as Assets/Cashflow pages)
-  type SettingsTabId = 'generale' | 'allocazione' | 'spese' | 'dividendi' | 'condivisione' | 'aspetto';
-  const VALID_TABS: SettingsTabId[] = ['generale', 'allocazione', 'spese', 'dividendi', 'condivisione', 'aspetto'];
+  type SettingsTabId = 'generale' | 'allocazione' | 'spese' | 'dividendi' | 'simulazioni' | 'condivisione' | 'aspetto';
+  const VALID_TABS: SettingsTabId[] = ['generale', 'allocazione', 'spese', 'dividendi', 'simulazioni', 'condivisione', 'aspetto'];
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -734,6 +745,17 @@ export default function SettingsPage() {
   const [familyMemberDrafts, setFamilyMemberDrafts] = useState<FamilyMemberDraft[]>([]);
   const [dividendBaselineKey, setDividendBaselineKey] = useState('');
   const [speseBaselineKey, setSpeseBaselineKey] = useState('');
+  // Simulazioni (Monte Carlo market assumptions): the draft, the origin of the loaded numbers and the dirty baseline.
+  const [marketDraft, setMarketDraft] = useState<MonteCarloMarketDraft | null>(null);
+  const [marketOrigin, setMarketOrigin] = useState<MonteCarloMarketOrigin>('default');
+  const [marketBaselineKey, setMarketBaselineKey] = useState('');
+  // The portfolio's commodity sub-categories (shared cache with every page that reads the assets): the choices for «Oro».
+  const { data: portfolioAssets } = useQuery({
+    queryKey: ['assets', ownerId],
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
+    staleTime: 300000,
+  });
   const [deleteDialogOrigin, setDeleteDialogOrigin] = useState<string | undefined>(
     undefined
   );
@@ -859,6 +881,16 @@ export default function SettingsPage() {
           macroContextEnabled: settingsData.assistantMacroContextEnabled,
         });
       }
+
+      // Simulazioni: the market assumptions as the Monte Carlo and the Ventaglio will read them.
+      const resolvedMarket = resolveMonteCarloMarket(settingsData, []);
+      const loadedMarketDraft: MonteCarloMarketDraft = {
+        scenarios: resolvedMarket.scenarios,
+        goldSubCategory: settingsData?.monteCarloMarket ? settingsData.monteCarloMarket.goldSubCategory : undefined,
+      };
+      setMarketDraft(loadedMarketDraft);
+      setMarketOrigin(resolvedMarket.origin);
+      setMarketBaselineKey(marketSnapshotKey(loadedMarketDraft));
 
       // Load cash fixed amount settings if available
       const cashTargetData = targets['cash'];
@@ -1528,6 +1560,19 @@ export default function SettingsPage() {
       }
     }
 
+    // Simulazioni: written only when the tab holds edits, so a Save elsewhere never turns the
+    // defaults (or a migrated legacy field) into a saved market behind the reader's back.
+    let marketPayload: ReturnType<typeof toMonteCarloMarketSettings> | null = null;
+    if (marketDirty && marketDraft) {
+      marketPayload = toMonteCarloMarketSettings(marketDraft.scenarios, effectiveGoldSubCategory);
+      const marketProblems = findMonteCarloMarketProblems(marketPayload);
+      if (marketProblems.length > 0) {
+        handleTabChange('simulazioni');
+        toast.error(`Ipotesi di mercato fuori intervallo — ${marketProblems[0].message}${marketProblems.length > 1 ? ` (+${marketProblems.length - 1})` : ''}`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
 
@@ -1621,8 +1666,16 @@ export default function SettingsPage() {
         monthlyEmailRecipients,
         familyMembers: parseFamilyMemberDrafts(familyMemberDrafts),
         idealAllocation,
+        ...(marketPayload ? { monteCarloMarket: marketPayload } : {}),
       });
       toast.success('Impostazioni salvate');
+      if (marketPayload && marketDraft) {
+        // The Oro choice is now explicit in the document: the draft says so, and stays clean.
+        const writtenMarketDraft: MonteCarloMarketDraft = { scenarios: marketDraft.scenarios, goldSubCategory: marketPayload.goldSubCategory };
+        setMarketDraft(writtenMarketDraft);
+        setMarketBaselineKey(marketSnapshotKey(writtenMarketDraft));
+        setMarketOrigin('saved');
+      }
       // The allocation baseline is captured from what was WRITTEN (the cleaned tree), so a
       // dropped empty row does not leave the tab marked as unsaved.
       setAllocationBaselineKey(buildAllocationSnapshotKey(cleanedStates));
@@ -1936,6 +1989,19 @@ export default function SettingsPage() {
         spendingRolesEnabled,
       });
 
+  // Simulazioni: the sub-categories that can be named «Oro» (targets as configured NOW, the portfolio, the app's
+  // defaults) and the one in force — the draft's choice, else the default rule (doc/montecarlo/README.md, RG).
+  const commoditySubCategories = (() => {
+    const fromTargets = (assetClassStates.commodity?.subTargets ?? []).map((target) => target.name.trim()).filter(Boolean);
+    return Array.from(new Set([...fromTargets, ...collectCommoditySubCategories(portfolioAssets, null)]));
+  })();
+  const effectiveGoldSubCategory = marketDraft
+    ? marketDraft.goldSubCategory === undefined
+      ? findDefaultGoldSubCategory(commoditySubCategories)
+      : marketDraft.goldSubCategory
+    : null;
+  const marketDirty = marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey;
+
   // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
   // the tab that EDITS them (doc/guide/impostazioni.md § Settings — the FIVE places).
   const unsavedByTab: Partial<Record<SettingsTabId, boolean>> = {
@@ -1943,6 +2009,7 @@ export default function SettingsPage() {
     generale: generalBaselineKey.length > 0 && generalSnapshotKey !== generalBaselineKey,
     spese: speseBaselineKey.length > 0 && speseSnapshotKey !== speseBaselineKey,
     dividendi: dividendBaselineKey.length > 0 && dividendSnapshotKey !== dividendBaselineKey,
+    simulazioni: marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey,
   };
   const settingsTabs = SETTINGS_TABS.map((tab) => ({ ...tab, unsaved: unsavedByTab[tab.value as SettingsTabId] ?? false }));
   const unsavedSentence = describeUnsavedChanges(settingsTabs.filter((tab) => tab.unsaved).map((tab) => tab.label));
@@ -4020,6 +4087,56 @@ export default function SettingsPage() {
                 </Tile>
               </div>
 
+            </div>
+          </TabsContent>
+        )}
+
+        {/* Tab: Simulazioni (lazy) — the market assumptions both Monte Carlo engines read (saved by the page's Save) */}
+        {mountedTabs.has('simulazioni') && marketDraft && (
+          <TabsContent
+          value="simulazioni"
+          id={pageTabPanelId('settings-tab-pill', 'simulazioni')}
+          aria-label="Simulazioni"
+          // Radix names a Content after ITS trigger; these triggers are plain buttons, so the
+          // generated reference points at nothing. The name is the label above.
+          aria-labelledby={undefined}
+          className="mt-4"
+        >
+            <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-8')}>
+                <MonteCarloMarketTile
+                  reading={describeMonteCarloMarket({
+                    origin: marketOrigin,
+                    editedClassCount: countEditedClasses(marketDraft.scenarios).length,
+                    dirty: marketDirty,
+                    goldSubCategory: effectiveGoldSubCategory,
+                  })}
+                  draft={marketDraft}
+                  onDraftChange={setMarketDraft}
+                  commoditySubCategories={commoditySubCategories}
+                  effectiveGoldSubCategory={effectiveGoldSubCategory}
+                  disabled={isDemo}
+                />
+              </div>
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
+                <Tile
+                  eyebrow="Dove si usano"
+                  reading={[{ text: 'Il Monte Carlo e il Ventaglio del Calcolatore leggono gli stessi numeri: nessuno dei due ne ha una copia propria.' }]}
+                >
+                  <div className="mt-1 flex flex-col divide-y divide-border">
+                    <DeclarationRow label="Rendimento" value="CAGR: la crescita composta mediana" mono={false} />
+                    <DeclarationRow label="Volatilità" value="dev. std dei rendimenti annui" mono={false} />
+                    <DeclarationRow label="Fuori dalla simulazione" value="Immobili e crypto" mono={false} />
+                  </div>
+                  <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
+                    Il piano (capitale, prelievo, pesi) si imposta in{' '}
+                    <Link href="/dashboard/fire-simulations?tab=montecarlo" className={TILE_FOOTER_ACTION_CLASS}>
+                      FIRE › Monte Carlo
+                    </Link>
+                    . Qui salvi solo le ipotesi di mercato, con il «Salva» della pagina.
+                  </div>
+                </Tile>
+              </div>
             </div>
           </TabsContent>
         )}

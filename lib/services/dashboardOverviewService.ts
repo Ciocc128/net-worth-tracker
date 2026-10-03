@@ -146,6 +146,7 @@ async function getSettingsForUser(userId: string): Promise<AssetAllocationSettin
     dividendIncomeSubCategoryId: data.dividendIncomeSubCategoryId,
     fireProjectionScenarios: data.fireProjectionScenarios,
     monteCarloScenarios: data.monteCarloScenarios,
+    monteCarloMarket: data.monteCarloMarket,
     goalBasedInvestingEnabled: data.goalBasedInvestingEnabled,
     goalDrivenAllocationEnabled: data.goalDrivenAllocationEnabled,
     defaultDebitCashAssetId: data.defaultDebitCashAssetId,

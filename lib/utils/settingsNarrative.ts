@@ -28,6 +28,8 @@ import type { AssetClass, IdealAllocationSettings, ObjectivePriority } from '@/t
 import { ASSET_CLASS_LABELS } from '@/lib/utils/allocationUtils';
 import { INDEX_PROFILES } from '@/lib/constants/instrumentProfiles';
 import type { TargetProblem } from '@/lib/utils/allocationTargetValidation';
+import { MONTE_CARLO_DEFAULTS_LAST_YEAR } from '@/lib/constants/monteCarloMarketDefaults';
+import type { MonteCarloMarketOrigin } from '@/lib/utils/monteCarloMarket';
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
 
@@ -936,4 +938,38 @@ export function describeThemeMode(mode: ThemeMode | undefined): Narrative | null
 /** Tema colori — the active palette, synced on the account. */
 export function describeColorTheme(themeName: string): Narrative {
   return [prose(`${themeName} attivo, sincronizzato su tutti i dispositivi.`)];
+}
+
+// ─── Simulazioni ──────────────────────────────────────────────────────────────
+
+export interface MonteCarloMarketInput {
+  /** Where the loaded numbers came from. */
+  origin: MonteCarloMarketOrigin;
+  /** Classes whose numbers now differ from the defaults, in the draft. */
+  editedClassCount: number;
+  /** The draft differs from what was loaded (a migrated market stops being «da rileggere» once edited). */
+  dirty: boolean;
+  /** The commodity sub-category read as Oro; null = none. */
+  goldSubCategory: string | null;
+}
+
+/**
+ * «Ipotesi di mercato» — what the Monte Carlo and the Ventaglio will read, in one line: the
+ * numbers' origin, then what «Oro» means. No verdict (it is Impostazioni): the effect downstream.
+ */
+export function describeMonteCarloMarket({ origin, editedClassCount, dirty, goldSubCategory }: MonteCarloMarketInput): Narrative {
+  const out: Narrative = [];
+  if (origin === 'migrated' && !dirty) {
+    out.push({ text: 'Migrate dai parametri salvati prima (da media aritmetica a CAGR, immobili tolti): ' }, { text: 'rileggile', mono: true }, { text: ' e salva.' });
+  } else if (editedClassCount > 0) {
+    out.push({ text: 'Sette classi, ' }, { text: `modificate in ${editedClassCount}`, mono: true }, { text: ' rispetto ai valori storici in dollari.' });
+  } else {
+    out.push({ text: 'Sette classi, valori storici in dollari fino al ' }, { text: String(MONTE_CARLO_DEFAULTS_LAST_YEAR), mono: true }, { text: ' (Damodaran, testfolio).' });
+  }
+  if (goldSubCategory) {
+    out.push({ text: ' Oro = sottocategoria ' }, { text: `«${goldSubCategory}»`, mono: true }, { text: '.' });
+  } else {
+    out.push({ text: " Nessuna sottocategoria dell'oro: tutte le materie prime restano Materie prime." });
+  }
+  return out;
 }

@@ -32,7 +32,12 @@ import {
   summarizeScenarios,
   type MonteCarloRunInputs,
 } from '@/lib/utils/monteCarloSummary';
-import { getDefaultMonteCarloScenarios } from '@/lib/services/monteCarloService';
+import { getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
+import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
+
+const defaultScenarios = () => getDefaultMonteCarloMarket().scenarios;
+/** Weights: the named classes, every other at 0. */
+const weightsOf = (named: Partial<Record<'equity' | 'bonds' | 'gold' | 'commodity' | 'cash' | 'trendFollowing' | 'carry', number>>) => monteCarloClassRecord((cls) => named[cls] ?? 0);
 
 const CTX = { startCalendarYear: 2026, currentAge: 46 };
 
@@ -41,21 +46,10 @@ function makeParams(overrides: Partial<MonteCarloParams> = {}): MonteCarloParams
     portfolioSource: 'total',
     initialPortfolio: 488600,
     retirementYears: 35,
-    equityPercentage: 58,
-    bondsPercentage: 27,
-    realEstatePercentage: 10,
-    commoditiesPercentage: 5,
+    weights: weightsOf({ equity: 58, bonds: 27, cash: 10, commodity: 5 }),
     annualWithdrawal: 22000,
     withdrawalAdjustment: 'inflation',
-    equityReturn: 7,
-    equityVolatility: 18,
-    bondsReturn: 3,
-    bondsVolatility: 6,
-    realEstateReturn: 5,
-    realEstateVolatility: 12,
-    commoditiesReturn: 3.5,
-    commoditiesVolatility: 20,
-    inflationRate: 2.5,
+    market: defaultScenarios().base,
     numberOfSimulations: 10000,
     ...overrides,
   };
@@ -264,8 +258,8 @@ describe('summarizeMonteCarloPlan', () => {
     expect(plan.allocation).toEqual([
       { key: 'equity', label: 'azioni', pct: 58 },
       { key: 'bonds', label: 'obbligazioni', pct: 27 },
-      { key: 'realEstate', label: 'immobili', pct: 10 },
-      { key: 'commodities', label: 'materie prime', pct: 5 },
+      { key: 'commodity', label: 'materie prime', pct: 5 },
+      { key: 'cash', label: 'liquidità', pct: 10 },
     ]);
     expect(plan.inflows).toEqual([{ yearOffset: 19, calendarYear: 2045, amount: 31400 }]);
   });
@@ -284,7 +278,7 @@ describe('summarizeMonteCarloPlan', () => {
     ]);
     expect(honest.withdrawalTax?.rate).toBe(26);
     expect(honest.withdrawalTax?.gainSharePct).toBeCloseTo(40);
-    const plan = summarizeMonteCarloPlan(makeParams({ realEstatePercentage: 0, commoditiesPercentage: 0, equityPercentage: 60, bondsPercentage: 40, withdrawalAdjustment: 'fixed' }), [], 0, CTX);
+    const plan = summarizeMonteCarloPlan(makeParams({ weights: weightsOf({ equity: 60, bonds: 40 }), withdrawalAdjustment: 'fixed' }), [], 0, CTX);
     expect(plan.statePensions).toEqual([]);
     expect(plan.withdrawalTax).toBeNull();
     expect(plan.allocation.map((a) => a.key)).toEqual(['equity', 'bonds']);
@@ -295,7 +289,7 @@ describe('summarizeMonteCarloPlan', () => {
 });
 
 describe('haveRunInputsChanged', () => {
-  const inputs = (): MonteCarloRunInputs => ({ params: makeParams(), scenarios: getDefaultMonteCarloScenarios(), inflows: [{ year: 19, amount: 31400 }] });
+  const inputs = (): MonteCarloRunInputs => ({ params: makeParams(), scenarios: defaultScenarios(), inflows: [{ year: 19, amount: 31400 }] });
 
   it('is false for identical inputs', () => {
     expect(haveRunInputsChanged(inputs(), inputs())).toBe(false);
@@ -304,8 +298,8 @@ describe('haveRunInputsChanged', () => {
   it('is true when a plan parameter, a scenario parameter or an inflow changes', () => {
     const a = inputs();
     expect(haveRunInputsChanged(a, { ...inputs(), params: makeParams({ annualWithdrawal: 23000 }) })).toBe(true);
-    const scenarios = getDefaultMonteCarloScenarios();
-    scenarios.bear.equityReturn = 3;
+    const scenarios = defaultScenarios();
+    scenarios.bear.classes.equity.cagr = 3;
     expect(haveRunInputsChanged(a, { ...inputs(), scenarios })).toBe(true);
     expect(haveRunInputsChanged(a, { ...inputs(), inflows: [] })).toBe(true);
     // The pensions and the tax ride on the params (2026-09-24): a change is a new plan.
@@ -315,8 +309,20 @@ describe('haveRunInputsChanged', () => {
     expect(haveRunInputsChanged(withTax, { ...inputs(), params: makeParams({ withdrawalTax: { basisToday: 300000, rate: 26 } }) })).toBe(false);
   });
 
-  it('ignores the market fields of the single form (the scenarios carry them)', () => {
-    expect(haveRunInputsChanged(inputs(), { ...inputs(), params: makeParams({ equityReturn: 9 }) })).toBe(false);
+  it('ignores the market on the shared params (the scenarios carry it)', () => {
+    const other = defaultScenarios().base;
+    other.classes.equity.cagr = 9;
+    expect(haveRunInputsChanged(inputs(), { ...inputs(), params: makeParams({ market: other }) })).toBe(false);
+  });
+
+  it('is true when a weight changes, or a saved market makes the last run stale', () => {
+    expect(haveRunInputsChanged(inputs(), { ...inputs(), params: makeParams({ weights: weightsOf({ equity: 60, bonds: 25, cash: 10, commodity: 5 }) }) })).toBe(true);
+    const saved = defaultScenarios();
+    saved.base.classes.carry.volatility = 12;
+    expect(haveRunInputsChanged(inputs(), { ...inputs(), scenarios: saved })).toBe(true);
+    const inflation = defaultScenarios();
+    inflation.bull.inflationRate = 2;
+    expect(haveRunInputsChanged(inputs(), { ...inputs(), scenarios: inflation })).toBe(true);
   });
 });
 

@@ -19,6 +19,8 @@ import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent, startsWithVowel } from '@/lib/utils/patrimonioNarrative';
 import type { FireLock } from '@/lib/utils/fireSummary';
+import type { ResolvedMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
+import { MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
 import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type PlanStatePension, type PlanWithdrawalTax, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
 
@@ -296,7 +298,7 @@ export function scenarioLabel(key: ScenarioRunSummary['key']): string {
 
 // ─── Parametri ────────────────────────────────────────────────────────────────
 
-export const PARAMETRI_ASIDE = 'esplorazione, non salvati · gli scenari si salvano nel profilo';
+export const PARAMETRI_ASIDE = 'esplorazione, non salvata · le ipotesi di mercato stanno in Impostazioni';
 
 /**
  * «Parti da 488.600 € — il patrimonio senza i 31.400 € del fondo pensione bloccato — e prelevi
@@ -312,6 +314,25 @@ export function describeParametri(plan: MonteCarloPlan): Narrative {
   }
   out.push(prose('.'));
   return out;
+}
+
+/** The Declaration-Tile line: where the market assumptions come from (they are edited in Impostazioni, never here). */
+export function describeMarketDeclaration(market: Pick<ResolvedMonteCarloMarket, 'origin' | 'editedClasses'>): Narrative {
+  if (market.origin === 'default') return [prose('Ipotesi di mercato: '), figure('valori predefiniti'), prose(', storici di lungo periodo in dollari.')];
+  if (market.origin === 'migrated') {
+    return [prose('Ipotesi di mercato: '), figure('migrate dai parametri salvati prima'), prose(' (da media aritmetica a CAGR): rileggile in Impostazioni.')];
+  }
+  const edited = market.editedClasses.length;
+  if (edited === 0) return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', uguali ai valori predefiniti.')];
+  return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', modificate in '), figure(String(edited)), prose(edited === 1 ? ' classe.' : ' classi.')];
+}
+
+/** «Fuori dalla simulazione: Immobili 250.000 €, Crypto 5.000 €.» — null when nothing is left out. */
+export function describeExcludedRow(excluded: Record<MonteCarloExcludedClass, number> | null): Narrative | null {
+  if (!excluded) return null;
+  const left = MONTE_CARLO_EXCLUDED_CLASSES.filter((cls) => excluded[cls] > 0);
+  if (left.length === 0) return null;
+  return [prose('Fuori dalla simulazione: '), ...joinList(left.map((cls) => [prose(`${MONTE_CARLO_EXCLUDED_LABELS[cls]} `), amount(excluded[cls])])), prose('.')];
 }
 
 /** «Fondo pensione: +31.400 € aggiunti da soli nell'anno 19 (2045), al valore di oggi.» */
@@ -377,7 +398,7 @@ export function describePercentili(run: MonteCarloRun): Narrative {
 export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La simulazione',
-    body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale estratto da una normale con la media e la volatilità dello scenario, poi preleva la spesa annua indicizzata. Se il capitale scende a zero la traiettoria fallisce.',
+    body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale per ciascuna delle sette classi, estratto da una lognormale con il CAGR e la volatilità dello scenario (il CAGR è la crescita composta mediana, la media aritmetica è un po’ più alta), poi preleva la spesa annua indicizzata. Immobili e crypto non entrano nel capitale simulato. Se il capitale scende a zero la traiettoria fallisce.',
   },
   {
     title: 'La probabilità',
@@ -385,6 +406,6 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'I limiti',
-    body: 'Rendimenti indipendenti anno per anno, nessuna sequenza di crisi forzata, fondo pensione al valore di oggi: la simulazione misura la dispersione, non predice il futuro. Con la stessa allocazione il Ventaglio del Calcolatore mostra la fase di accumulo.',
+    body: 'Rendimenti indipendenti anno per anno e tra le classi, nessuna sequenza di crisi forzata, fondo pensione al valore di oggi: la simulazione misura la dispersione, non predice il futuro. Con la stessa allocazione il Ventaglio del Calcolatore mostra la fase di accumulo.',
   },
 ];

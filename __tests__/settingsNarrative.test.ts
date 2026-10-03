@@ -49,6 +49,7 @@ import {
   describeSpendingRolesSetting,
   describeUnsavedChanges,
   summarizeExpenseCategories,
+  describeMonteCarloMarket,
 } from '@/lib/utils/settingsNarrative';
 
 const plain = (n: Narrative | null) => (n ? narrativeToText(n).replace(/ /g, ' ') : null);
@@ -1008,5 +1009,27 @@ describe('describeThemeMode', () => {
 describe('describeColorTheme', () => {
   it('names the active theme and its sync scope', () => {
     expect(plain(describeColorTheme('Solar Dusk'))).toBe('Solar Dusk attivo, sincronizzato su tutti i dispositivi.');
+  });
+});
+
+describe('describeMonteCarloMarket', () => {
+  it('reads the defaults with their source and what Oro means', () => {
+    expect(plain(describeMonteCarloMarket({ origin: 'default', editedClassCount: 0, dirty: false, goldSubCategory: 'Gold' }))).toBe(
+      'Sette classi, valori storici in dollari fino al 2025 (Damodaran, testfolio). Oro = sottocategoria «Gold».'
+    );
+  });
+
+  it('counts the edited classes and says when no sub-category is Oro', () => {
+    expect(plain(describeMonteCarloMarket({ origin: 'saved', editedClassCount: 3, dirty: false, goldSubCategory: null }))).toBe(
+      "Sette classi, modificate in 3 rispetto ai valori storici in dollari. Nessuna sottocategoria dell'oro: tutte le materie prime restano Materie prime."
+    );
+  });
+
+  it('asks to re-read a migrated market until the reader edits it', () => {
+    const migrated = { origin: 'migrated' as const, editedClassCount: 2, goldSubCategory: 'Gold' };
+    expect(plain(describeMonteCarloMarket({ ...migrated, dirty: false }))).toBe(
+      'Migrate dai parametri salvati prima (da media aritmetica a CAGR, immobili tolti): rileggile e salva. Oro = sottocategoria «Gold».'
+    );
+    expect(plain(describeMonteCarloMarket({ ...migrated, dirty: true }))).toContain('modificate in 2');
   });
 });

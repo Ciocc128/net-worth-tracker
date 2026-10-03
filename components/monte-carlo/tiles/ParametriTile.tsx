@@ -5,24 +5,23 @@
  * its desktop position: the answer tiles come first because the plan is auto-filled from the
  * portfolio and the page is answered before anything is typed). Two blocks: the Piano (starting
  * capital with the two «Usa» shortcuts and the read-only pension row, the horizon, the
- * withdrawal, the simulation count, the four-class allocation with its sum) and the three market
- * scenarios as Muted Sub-tile Variant B — bordered, dense — the one place the spec keeps that
- * variant for. One action row: Esegui, Salva scenari, Ripristina default, and the footer that
- * says whether the figures above still match what is typed (`describeParametriFooter`).
+ * withdrawal, the simulation count) and the Allocazione (seven class weights with their sum, what
+ * stays outside the simulation, and the DECLARATION of the market assumptions: they are edited in
+ * Impostazioni › Simulazioni, never here — The Declaration-Tile Rule). One action row: Esegui, and
+ * the footer that says whether the figures above still match what is typed (`describeParametriFooter`).
  *
  * The form is owned by the tab as strings (`MonteCarloForm`), the way FireParametri's is: a
  * numeric field that keeps a string lets the user type «22.» without the value snapping back.
- * The scenarios stay numbers and clamp on change, as the old ScenarioParameterCards did.
  */
 
-import { RotateCcw, Save, Target, TrendingDown, TrendingUp } from 'lucide-react';
-import type { MonteCarloScenarioParams, MonteCarloScenarios } from '@/types/assets';
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { MonteCarloPlan, ScenarioKey } from '@/lib/utils/monteCarloSummary';
+import type { MonteCarloPlan } from '@/lib/utils/monteCarloSummary';
+import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
 import { formatInputAmount } from '@/lib/utils/monteCarloSummary';
-import { describePensionInflowRow, describeStatePensionRow, describeWithdrawalTaxRow } from '@/lib/utils/monteCarloNarrative';
+import { describeExcludedRow, describePensionInflowRow, describeStatePensionRow, describeWithdrawalTaxRow } from '@/lib/utils/monteCarloNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,10 +34,8 @@ export interface MonteCarloForm {
   retirementYears: string;
   annualWithdrawal: string;
   numberOfSimulations: string;
-  equityPercentage: string;
-  bondsPercentage: string;
-  realEstatePercentage: string;
-  commoditiesPercentage: string;
+  /** The seven class weights, percent, as typed. */
+  weights: Record<MonteCarloClass, string>;
 }
 
 interface ParametriTileProps {
@@ -47,19 +44,17 @@ interface ParametriTileProps {
   plan: MonteCarloPlan;
   form: MonteCarloForm;
   onFormChange: (patch: Partial<MonteCarloForm>) => void;
-  /** Sum of the four allocation fields as typed — the tile prints it and flags a sum off 100. */
+  /** Sum of the seven weight fields as typed — the tile prints it and flags a sum off 100. */
   allocationSum: number;
   totalNetWorth: number;
   liquidNetWorth: number;
-  scenarios: MonteCarloScenarios;
-  onScenariosChange: (scenarios: MonteCarloScenarios) => void;
+  /** Where the market assumptions come from (`describeMarketDeclaration`). */
+  marketDeclaration: Narrative;
+  /** EUR of real estate and crypto, left outside the simulated capital; null while unread. */
+  excluded: Record<MonteCarloExcludedClass, number> | null;
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
-  onSaveScenarios: () => void;
-  onResetScenarios: () => void;
-  isSavingScenarios: boolean;
-  isDemo: boolean;
   footer: Narrative;
   /** The footer says the results are stale — printed in the warning tone. */
   stale: boolean;
@@ -68,25 +63,7 @@ interface ParametriTileProps {
 
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 
-const SCENARIO_META: { key: ScenarioKey; label: string; icon: typeof Target }[] = [
-  { key: 'bear', label: 'Scenario Orso', icon: TrendingDown },
-  { key: 'base', label: 'Scenario Base', icon: Target },
-  { key: 'bull', label: 'Scenario Toro', icon: TrendingUp },
-];
-
-const ASSET_CLASS_FIELDS: { label: string; returnKey: keyof MonteCarloScenarioParams; volatilityKey: keyof MonteCarloScenarioParams }[] = [
-  { label: 'Azioni', returnKey: 'equityReturn', volatilityKey: 'equityVolatility' },
-  { label: 'Obbligazioni', returnKey: 'bondsReturn', volatilityKey: 'bondsVolatility' },
-  { label: 'Immobili', returnKey: 'realEstateReturn', volatilityKey: 'realEstateVolatility' },
-  { label: 'Materie prime', returnKey: 'commoditiesReturn', volatilityKey: 'commoditiesVolatility' },
-];
-
-const ALLOCATION_FIELDS: { key: keyof MonteCarloForm; label: string }[] = [
-  { key: 'equityPercentage', label: 'Azioni %' },
-  { key: 'bondsPercentage', label: 'Obbligazioni %' },
-  { key: 'realEstatePercentage', label: 'Immobili %' },
-  { key: 'commoditiesPercentage', label: 'Materie prime %' },
-];
+const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
 
 export function ParametriTile({
   reading,
@@ -97,35 +74,24 @@ export function ParametriTile({
   allocationSum,
   totalNetWorth,
   liquidNetWorth,
-  scenarios,
-  onScenariosChange,
+  marketDeclaration,
+  excluded,
   onRun,
   canRun,
   isRunning,
-  onSaveScenarios,
-  onResetScenarios,
-  isSavingScenarios,
-  isDemo,
   footer,
   stale,
   className,
 }: ParametriTileProps) {
   const allocationOff = Math.abs(allocationSum - 100) > 0.01;
 
-  const updateScenario = (key: ScenarioKey, field: keyof MonteCarloScenarioParams, value: string) => {
-    const numValue = Number.parseFloat(value);
-    if (Number.isNaN(numValue)) return;
-    // Clamp: returns and inflation −20..+30, volatility 0..100 — the old cards' bounds.
-    if ((field.includes('Return') || field === 'inflationRate') && (numValue < -20 || numValue > 30)) return;
-    if (field.includes('Volatility') && (numValue < 0 || numValue > 100)) return;
-    onScenariosChange({ ...scenarios, [key]: { ...scenarios[key], [field]: numValue } });
-  };
+  const excludedRow = describeExcludedRow(excluded);
 
   return (
     <Tile eyebrow="Parametri" aside={aside} reading={reading} ariaLabel="Parametri della simulazione" className={className}>
       <div className="mt-3.5 grid grid-cols-1 gap-5 desktop:grid-cols-12">
-        {/* Piano (5) */}
-        <div className="flex min-w-0 flex-col gap-4 desktop:col-span-5">
+        {/* Piano (7) */}
+        <div className="flex min-w-0 flex-col gap-4 desktop:col-span-7">
           <p className={TILE_SUB_EYEBROW_CLASS}>Piano</p>
 
           <div>
@@ -190,6 +156,10 @@ export function ParametriTile({
             <NarrativeText segments={describeWithdrawalTaxRow(plan.withdrawalTax)} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
           </div>
 
+        </div>
+
+        {/* Allocazione (5) and the declaration of the market */}
+        <div className="flex min-w-0 flex-col gap-4 desktop:col-span-5">
           <div>
             <div className="flex items-baseline justify-between gap-3">
               <p className={TILE_SUB_EYEBROW_CLASS}>Allocazione · dal portafoglio</p>
@@ -198,80 +168,36 @@ export function ParametriTile({
               </span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {ALLOCATION_FIELDS.map((field) => (
-                <div key={field.key}>
-                  <Label htmlFor={`mc-${field.key}`} className="text-[13px]">
-                    {field.label}
+              {MONTE_CARLO_CLASSES.map((cls) => (
+                <div key={cls}>
+                  <Label htmlFor={`mc-weight-${cls}`} className="text-[13px]">
+                    {MONTE_CARLO_CLASS_LABELS[cls]} %
                   </Label>
-                  <Input id={`mc-${field.key}`} type="number" inputMode="decimal" min="0" max="100" step="5" value={form[field.key]} onChange={(e) => onFormChange({ [field.key]: e.target.value })} className={CONTROL_CLASS} />
+                  <Input
+                    id={`mc-weight-${cls}`}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={form.weights[cls]}
+                    onChange={(e) => onFormChange({ weights: { ...form.weights, [cls]: e.target.value } })}
+                    className={CONTROL_CLASS}
+                  />
                 </div>
               ))}
             </div>
+            {excludedRow && <NarrativeText segments={excludedRow} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />}
           </div>
-        </div>
 
-        {/* Scenari di mercato (7) */}
-        <div className="flex min-w-0 flex-col gap-4 desktop:col-span-7">
-          <p className={TILE_SUB_EYEBROW_CLASS}>Scenari di mercato · rendimento e volatilità annui, %</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {SCENARIO_META.map(({ key, label, icon: Icon }) => {
-              const scenario = scenarios[key];
-              return (
-                <div key={key} className="flex flex-col gap-3 rounded-xl border border-border bg-muted p-3.5">
-                  {/* A chart slot is not a text colour: the slot is the swatch, the label stays muted. */}
-                  <p className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
-                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                    {label}
-                  </p>
-                  <div className="grid grid-cols-[minmax(0,1.3fr)_1fr_1fr] items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <span />
-                    <span className="text-center">Rend.</span>
-                    <span className="text-center">Vol.</span>
-                  </div>
-                  {ASSET_CLASS_FIELDS.map((field) => (
-                    <div key={field.returnKey} className="grid grid-cols-[minmax(0,1.3fr)_1fr_1fr] items-center gap-1.5">
-                      <Label className="truncate text-[11px] text-muted-foreground" htmlFor={`mc-${key}-${field.returnKey}`}>
-                        {field.label}
-                      </Label>
-                      <Input
-                        id={`mc-${key}-${field.returnKey}`}
-                        aria-label={`${label}, rendimento ${field.label} (%)`}
-                        type="number"
-                        inputMode="decimal"
-                        step="0.5"
-                        value={scenario[field.returnKey]}
-                        onChange={(e) => updateScenario(key, field.returnKey, e.target.value)}
-                        className="h-8 px-1 text-center font-mono text-[12px] tabular-nums"
-                      />
-                      <Input
-                        aria-label={`${label}, volatilità ${field.label} (%)`}
-                        type="number"
-                        inputMode="decimal"
-                        step="0.5"
-                        value={scenario[field.volatilityKey]}
-                        onChange={(e) => updateScenario(key, field.volatilityKey, e.target.value)}
-                        className="h-8 px-1 text-center font-mono text-[12px] tabular-nums"
-                      />
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
-                    <Label className="text-[11px] text-muted-foreground" htmlFor={`mc-${key}-inflation`}>
-                      Inflazione %
-                    </Label>
-                    <Input
-                      id={`mc-${key}-inflation`}
-                      type="number"
-                      inputMode="decimal"
-                      step="0.5"
-                      value={scenario.inflationRate}
-                      onChange={(e) => updateScenario(key, 'inflationRate', e.target.value)}
-                      className="h-8 w-20 px-1 text-center font-mono text-[12px] tabular-nums"
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          {/* Market assumptions: DECLARED here, edited in Impostazioni › Simulazioni (The Declaration-Tile Rule). */}
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted p-3.5">
+            <p className={TILE_SUB_EYEBROW_CLASS}>Ipotesi di mercato</p>
+            <NarrativeText segments={marketDeclaration} className="text-[12px] leading-[1.5] text-muted-foreground" figureClassName="font-medium text-foreground" />
+            <Link href={MARKET_SETTINGS_HREF} className="inline-flex w-fit items-center gap-1 text-[12px] font-medium text-primary underline-offset-4 hover:underline">
+              Modifica in Impostazioni
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
           </div>
         </div>
       </div>
@@ -280,15 +206,6 @@ export function ParametriTile({
         <Button type="button" onClick={onRun} disabled={!canRun || isRunning} className="h-9 w-full sm:w-auto">
           {isRunning ? 'Simulazione in corso…' : 'Esegui simulazione'}
         </Button>
-        <Button type="button" variant="outline" onClick={onSaveScenarios} disabled={isDemo || isSavingScenarios} className="h-9 w-full sm:w-auto">
-          <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-          {isSavingScenarios ? 'Salvataggio…' : 'Salva scenari'}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onResetScenarios} className="h-9 w-full sm:w-auto">
-          <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-          Ripristina default
-        </Button>
-        {isDemo && <span className="text-[11px] text-muted-foreground">scenari non salvabili in demo</span>}
         <NarrativeText segments={footer} className={cn('text-[11px] leading-[1.4] sm:ml-auto sm:text-right', stale ? 'text-warning-foreground' : 'text-muted-foreground')} figureClassName="font-medium" />
       </div>
     </Tile>

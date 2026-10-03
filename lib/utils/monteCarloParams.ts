@@ -1,19 +1,29 @@
 /**
- * Normalization of the real portfolio allocation onto the 4 Monte Carlo asset classes.
+ * The capital the Monte Carlo simulates and the weights it simulates it with
+ * (doc/montecarlo/README.md § 1.5 rules RK and RG, § 5.2).
  *
- * Extracted verbatim from the effect that lived inline in MonteCarloTab.tsx so the FIRE
- * Ventaglio view can derive its market exposure from the SAME rule — two call sites
- * that must stay identical, because the divergent copy is the one the user sees
- * (AGENTS.md → Quick-Fix Reference).
+ * Two call sites must stay identical, because the divergent copy is the one the user sees
+ * (AGENTS.md → Quick-Fix Reference): the Monte Carlo tab seeds its form from this and the FIRE
+ * Ventaglio derives its exposure from it. Both go through `computeSimulatedCapital` and
+ * `deriveMonteCarloWeights`.
  *
- * Model decisions inherited from the MC tab, unchanged:
- *   - only equity / bonds / realestate / commodity enter the simulation; crypto and cash are
- *     deliberately outside the 4-class model;
- *   - per-class percentages are rounded, classes sorted descending by value, and the rounding
- *     residual goes to the smallest class so the four always sum to exactly 100;
- *   - a portfolio holding none of the 4 classes returns null, meaning "keep whatever
- *     allocation you already had" (the MC tab's effect simply skips the update).
+ * Model decisions:
+ *   - SEVEN classes: Azioni, Obbligazioni, Oro, Materie prime, Liquidità, Trend, Carry. Crypto and
+ *     real estate (and the legs of a composite asset in those classes) are OUTSIDE the simulated
+ *     capital `K`; they are reported, never simulated.
+ *   - Oro is the part of the `commodity` class whose sub-category is the one named in
+ *     Impostazioni › Simulazioni (RG); everything else of that class is Materie prime.
+ *   - a pension fund the lock keeps closed is not in `K` (it re-enters as a capital inflow).
  */
+import type { Asset } from '@/types/assets';
+import {
+  MONTE_CARLO_CLASSES,
+  MONTE_CARLO_EXCLUDED_CLASSES,
+  monteCarloClassRecord,
+  type MonteCarloClass,
+  type MonteCarloExcludedClass,
+} from '@/lib/constants/monteCarloClasses';
+import { suggestIsLiquid } from './assetLiquidity';
 
 /**
  * Paths a single Monte Carlo scenario is run with by default. A run is three scenarios
@@ -26,52 +36,96 @@
  */
 export const DEFAULT_MONTE_CARLO_SIMULATIONS = 10000;
 
-export interface MonteCarloAllocationPercentages {
-  equityPercentage: number;
-  bondsPercentage: number;
-  realEstatePercentage: number;
-  commoditiesPercentage: number;
+export interface SimulatedCapital {
+  /** EUR per Monte Carlo class. */
+  byClass: Record<MonteCarloClass, number>;
+  /** `K`: the sum of the seven classes. */
+  total: number;
+  /** The part of `K` held in liquid assets (same predicate as `calculateLiquidNetWorth`). */
+  liquid: number;
+  /** EUR that stay outside the simulation, per excluded class. */
+  excluded: Record<MonteCarloExcludedClass, number>;
+}
+
+export interface SimulatedCapitalOptions {
+  /** Funds the pension lock keeps closed: they are not part of `K`. */
+  lockedAssetIds?: ReadonlySet<string>;
+  /** The commodity sub-category simulated as Oro (RG); null/undefined = none. */
+  goldSubCategory?: string | null;
+}
+
+const MODELLED = new Set<string>(MONTE_CARLO_CLASSES.filter((cls) => cls !== 'gold'));
+
+/**
+ * RK + RG: splits the portfolio into the seven simulated classes plus what stays outside.
+ * `valueOf` is `calculateAssetValue` (injected, so this module stays free of the Firestore-coupled service).
+ */
+export function computeSimulatedCapital(
+  assets: readonly Asset[],
+  valueOf: (asset: Asset) => number,
+  options: SimulatedCapitalOptions = {},
+): SimulatedCapital {
+  const byClass = monteCarloClassRecord(() => 0);
+  const excluded = {} as Record<MonteCarloExcludedClass, number>;
+  for (const cls of MONTE_CARLO_EXCLUDED_CLASSES) excluded[cls] = 0;
+  let liquid = 0;
+
+  for (const asset of assets) {
+    if (options.lockedAssetIds?.has(asset.id)) continue;
+    const value = valueOf(asset);
+    const isLiquid = asset.isLiquid !== undefined ? asset.isLiquid === true : suggestIsLiquid(asset.type, asset.subCategory);
+    const legs =
+      asset.composition && asset.composition.length > 0
+        ? asset.composition.map((leg) => ({ assetClass: leg.assetClass, subCategory: leg.subCategory, share: leg.percentage / 100 }))
+        : [{ assetClass: asset.assetClass, subCategory: asset.subCategory, share: 1 }];
+
+    for (const leg of legs) {
+      const legValue = value * leg.share;
+      if (leg.assetClass === 'realestate' || leg.assetClass === 'crypto') {
+        excluded[leg.assetClass] += legValue;
+        continue;
+      }
+      if (!MODELLED.has(leg.assetClass)) continue;
+      const cls: MonteCarloClass =
+        leg.assetClass === 'commodity' && options.goldSubCategory && leg.subCategory === options.goldSubCategory ? 'gold' : (leg.assetClass as MonteCarloClass);
+      byClass[cls] += legValue;
+      if (isLiquid) liquid += legValue;
+    }
+  }
+
+  const total = MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + byClass[cls], 0);
+  return { byClass, total, liquid, excluded };
 }
 
 /**
- * Derive the 4-class MC allocation from `calculateCurrentAllocation(assets).byAssetClass`.
+ * Normalises EUR per class onto percentages summing to exactly 100: each class is rounded, classes
+ * sorted descending by value, and the rounding residual goes to the smallest class (even at zero
+ * value) — the rule the four-class version always had. When that residual would make the smallest
+ * class negative (many tiny classes rounding up), it is taken off the largest instead.
  *
- * @param byAssetClass - EUR value per asset class (any classes; only the 4 MC ones are read)
- * @returns Percentages summing to exactly 100, or null when the 4 MC classes hold no value
+ * @returns null when the seven classes hold no value, meaning «keep whatever you already had».
  */
-export function deriveMonteCarloAllocation(byAssetClass: {
-  [assetClass: string]: number;
-}): MonteCarloAllocationPercentages | null {
-  const equity = byAssetClass['equity'] || 0;
-  const bonds = byAssetClass['bonds'] || 0;
-  const realEstate = byAssetClass['realestate'] || 0;
-  const commodities = byAssetClass['commodity'] || 0;
-  const total = equity + bonds + realEstate + commodities;
-
+export function deriveMonteCarloWeights(byClass: Partial<Record<MonteCarloClass, number>>): Record<MonteCarloClass, number> | null {
+  const values = MONTE_CARLO_CLASSES.map((key) => ({ key, value: Math.max(0, byClass[key] ?? 0) }));
+  const total = values.reduce((sum, entry) => sum + entry.value, 0);
   if (total <= 0) return null;
 
-  // Sort descending so the rounding residual goes to the smallest class.
-  const classes = [
-    { key: 'equityPercentage' as const, value: equity },
-    { key: 'bondsPercentage' as const, value: bonds },
-    { key: 'realEstatePercentage' as const, value: realEstate },
-    { key: 'commoditiesPercentage' as const, value: commodities },
-  ].sort((a, b) => b.value - a.value);
-
-  const result: MonteCarloAllocationPercentages = {
-    equityPercentage: 0,
-    bondsPercentage: 0,
-    realEstatePercentage: 0,
-    commoditiesPercentage: 0,
-  };
+  // Stable sort: ties keep the model's order.
+  const sorted = [...values].sort((a, b) => b.value - a.value);
+  const result = monteCarloClassRecord(() => 0);
 
   let allocated = 0;
-  for (let i = 0; i < classes.length - 1; i++) {
-    const pct = Math.round((classes[i].value / total) * 100);
-    result[classes[i].key] = pct;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const pct = Math.round((sorted[i].value / total) * 100);
+    result[sorted[i].key] = pct;
     allocated += pct;
   }
-  result[classes[classes.length - 1].key] = 100 - allocated;
-
+  const smallest = sorted[sorted.length - 1].key;
+  const residual = 100 - allocated;
+  if (residual >= 0) {
+    result[smallest] = residual;
+  } else {
+    result[sorted[0].key] += residual;
+  }
   return result;
 }

@@ -133,6 +133,7 @@ export async function getSettings(
       transferFeeSubCategoryId: data.transferFeeSubCategoryId,
       fireProjectionScenarios: data.fireProjectionScenarios,
       monteCarloScenarios: data.monteCarloScenarios,
+      monteCarloMarket: data.monteCarloMarket,
       goalBasedInvestingEnabled: data.goalBasedInvestingEnabled,
       goalDrivenAllocationEnabled: data.goalDrivenAllocationEnabled,
       autoCalculateEquityBonds: data.autoCalculateEquityBonds,
@@ -419,6 +420,16 @@ export async function setSettings(
         }
       }
 
+      // The Monte Carlo market assumptions (Impostazioni › Simulazioni): same shape as idealAllocation
+      // above — this branch writes WITHOUT merge, so a caller that omits the key must not have it dropped.
+      if ('monteCarloMarket' in settings) {
+        if (settings.monteCarloMarket !== undefined) {
+          docData.monteCarloMarket = settings.monteCarloMarket;
+        } else {
+          delete docData.monteCarloMarket;
+        }
+      }
+
       // Use setDoc WITHOUT merge to completely replace targets
       await setDoc(targetRef, docData);
     } else {
@@ -607,6 +618,13 @@ export async function setSettings(
           settings.idealAllocation !== undefined
             ? serializeIdealAllocation(settings.idealAllocation)
             : deleteField();
+      }
+
+      // Same shape as idealAllocation above — this branch merges, so omitting the key would leave a
+      // stale monteCarloMarket in place; an explicit deleteField() is required.
+      if ('monteCarloMarket' in settings) {
+        docData.monteCarloMarket =
+          settings.monteCarloMarket !== undefined ? settings.monteCarloMarket : deleteField();
       }
 
       // Use merge: true to preserve existing fields

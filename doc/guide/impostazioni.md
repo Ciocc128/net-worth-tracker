@@ -6,7 +6,7 @@
 
 Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
-- **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`, `CategoryRow`, `SyncDividendsButton`, `targetFieldId`), `components/settings/{ExpenseImportSection,AccountSharingSection}.tsx`, pure `lib/utils/{settingsNarrative,spendingRoles,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile,.roles}.spec.ts`
+- **Impostazioni**: `app/dashboard/settings/page.tsx` (`COLOR_THEME_SWATCHES`, `THEME_MODES`, `DeclarationRow`, `CategoryRow`, `SyncDividendsButton`, `targetFieldId`), `components/settings/{ExpenseImportSection,AccountSharingSection,MonteCarloMarketTile}.tsx`, pure `lib/utils/{settingsNarrative,spendingRoles,equityBondsAutoTargets,allocationTargetValidation}.ts`, `lib/services/assetAllocationService.ts` (`getSettings`/`setSettings`, the FIVE places); browser `e2e/settings{,.mobile,.roles}.spec.ts`
 
 ## Impostazioni — tessere senza verdetto (`app/dashboard/settings/page.tsx`, `lib/utils/settingsNarrative.ts`)
 
@@ -33,7 +33,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   save that never happens. The Modalità reading is `null` before hydration (`useSyncExternalStore`, the ThemePicker
   guard): the mode genuinely does not exist server-side, and guessing it is a hydration mismatch.
 - **One «Salva», so the SAVE STATE is per tab** (critique of 2026-09-22). Each tab «Salva» writes has its own dirty
-  snapshot (`allocazione`, `generale`, `spese`, `dividendi`); a tab holding edits carries a dot (`TabDef.unsaved` in
+  snapshot (`allocazione`, `generale`, `spese`, `dividendi`, `simulazioni`); a tab holding edits carries a dot (`TabDef.unsaved` in
   `PageTabBar`, also in its accessible name) and a bar sticky to the bottom of `<main>` names them
   (`describeUnsavedChanges`) with «Annulla modifiche» beside «Salva». «Annulla» RE-READS the saved settings
   (`loadTargets({ quiet: true })`) instead of keeping a second copy, so a co-owner's save comes back too. A reload or a
@@ -99,6 +99,15 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `OptimizerPanel` (the PAC's Ottimizzato view) receive it as a prop from `app/dashboard/allocation/page.tsx`'s own
   `getSettings` call — a second independent load, same shape as the dashboard-overview/email sixth-and-seventh places
   above, because the Allocazione page already loads `settings` for `targets` and would otherwise fetch it twice.
+- **Third worked example, a nested object saved ONLY when its tab is dirty** (2026-10-03, Monte Carlo T1): `monteCarloMarket`
+  (`MonteCarloMarketSettings`, doc/montecarlo/README.md § 4.2) — type, `getSettings`, both `setSettings` branches
+  (`'monteCarloMarket' in settings`: `delete docData.…` / `deleteField()`), the page's `marketDraft` + origin + baseline
+  (`marketSnapshotKey`, the seventh tab «Simulazioni», `?tab=simulazioni`), `MonteCarloMarketTile`, `describeMonteCarloMarket`,
+  the dashboard-overview mapper (SIXTH place), the `STORED_SETTINGS` fixture. `handleSave` adds the key ONLY when the tab holds
+  edits (`marketDirty`), so a Save in another tab never turns the defaults — or a legacy `monteCarloScenarios` — into a saved
+  market behind the reader's back; it validates with `findMonteCarloMarketProblems` (bounds named by class and scenario) and
+  writes the Oro sub-category EXPLICITLY (`undefined` in the draft = «never chosen, the default rule applies»; `null` =
+  «Nessuna»). Consumers never read the field: `resolveMonteCarloMarketForPortfolio` (Monte Carlo tab, Ventaglio, this tab).
 - **A user-clearable field needs a different shape per branch**: `delete docData.x` in the no-merge branch,
   `deleteField()` in the merge branch — and the guard is `'x' in settings`, not `x !== undefined`. **The bug this
   prevents is invisible until a hard refresh**: the write succeeds, the toast says «salvate», the form still shows the

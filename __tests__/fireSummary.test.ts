@@ -276,6 +276,6 @@ describe('resolveFanVerdict', () => {
 
 describe('formatAllocationLabel', () => {
   it('lists the non-zero classes in order', () => {
-    expect(formatAllocationLabel({ equityPercentage: 62, bondsPercentage: 28, realEstatePercentage: 10, commoditiesPercentage: 0 })).toBe('62% azioni, 28% obbligazioni, 10% immobili');
+    expect(formatAllocationLabel({ equity: 62, bonds: 28, gold: 0, commodity: 10, cash: 0, trendFollowing: 0, carry: 0 })).toBe('62% azioni, 28% obbligazioni, 10% materie prime');
   });
 });
