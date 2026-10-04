@@ -139,6 +139,8 @@
 
 ## Per-page blind spots
 
+- **FIRE › Monte Carlo, dated flows (F2, 2026-10-04, doc/guide/fire.md § F2)**: the plan reads the SAVED flows as «if I stop today» — a flow anchored to the FIRE opens in year 1 + its delay, so a flow typed «dal FIRE» in the Calcolatore does not wait for the Base's FIRE year here; the flows are the same in every path; the typed withdrawal replaces the plan's expenses in RF4, so a flow already in the Cashflow that the plan's expenses contain is taken out of the need (as in the Calcolatore); the personal SWR (Calcolatore) stays pure, without flows or pensions.
+
 - **FIRE › Monte Carlo, Spesa sostenibile (S1)**: the withdrawal is a FIXED amount indexed with the inflation, not a rule that adapts to the market (that is P3,
   out of scope): it is the figure a plan that never changes course can afford, so a reader who would cut spending after a bad year can afford more. The
   figure is STABLE, not exact: the seed is fixed and with 10.000 paths another seed would move it by ~1–2% (±800 € on 43.300 €); it is rounded DOWN to 100 €
