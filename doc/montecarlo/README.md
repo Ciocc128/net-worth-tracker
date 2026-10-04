@@ -10,7 +10,7 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; testo UI in italiano.
 >
-> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3. Ogni task parte da sola da `main` dopo il merge della
+> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026). Ogni task parte da sola da `main` dopo il merge della
 > precedente; nessuna richiede codice non ancora scritto da una task successiva.
 
 ---
@@ -589,7 +589,272 @@ aggiornate.
 | 1 | T1 classi complete e ipotesi in Impostazioni | R0 | A1–A7c, A14, A16 verdi; tab «Simulazioni» salva e ricarica (hard refresh); Ventaglio e Monte Carlo leggono gli stessi numeri |
 | 2 | T2 correlazioni | T1 unita | A8, A9, A15 verdi; i default sono una matrice valida; tempi misurati |
 | 3 | T3 leva | T2 unita | A10–A13 verdi; verdetto e footer con e senza leva; tab seminato |
+| 4 | T4 Proiezione (§ 11) | T3 unita, FIRE ipotesi L1–L3 unite | P1–P12 verdi; sesta scheda; tempi misurati nella guida |
 
 **Collaudo**: dopo ciascuna PR, su anteprima Vercel, una fase per messaggio con l'esito scritto prima
 (WORKFLOW.md § 2). Le verifiche sugli emulatori o sul mirror dei dati di produzione si fanno in un thread
 sul computer del proprietario, non nel cloud.
+
+---
+
+## 11. T4 — Proiezione: quanto può valere il portafoglio tra N anni (spec del 04/10/2026)
+
+> Origine: domanda di Giorgio nella conversazione di progetto (04/10/2026): «dato il capitale di partenza, con gli
+> scenari delle varie classi, il ventaglio dei valori finali del portafoglio tra 20/30/50 anni, e con che
+> probabilità». Primo pezzo della proposta **P7** dell'analisi
+> `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` (§ 2.4, § 5). Base di codice analizzata: commit
+> `70a3231` (04/10/2026, `main` del fork, merge della PR #43, FIRE ipotesi L3). Le ipotesi della pagina sono quelle
+> di `doc/fire-ipotesi/README.md` (RP1–RP7): questa task le **legge**, non ne scrive di nuove.
+>
+> Letture obbligatorie, oltre a § 0: `doc/fire-ipotesi/README.md` § 1.5 e § 4.1; `doc/guide/fire.md` § FIRE, What If
+> and Goals (il motore del Ventaglio, `runAccumulationSimulation`); DESIGN.md: The Verdict-First Rule, The Stale-Run
+> Rule, The Declaration-Tile Rule, The Input Tile Rule, The Risk-vs-Fact Rule, «The two capital figures of a verdict
+> are on ONE basis», «The median of a run is the median of ALL its paths», The Comma Rule.
+
+### 11.1 Obiettivo
+
+Rispondere a «**quanto potrebbe valere il mio portafoglio tra N anni, e con che probabilità?**» con le stesse ipotesi
+del resto della pagina (classi, correlazioni, leva, inflazione di Impostazioni › Simulazioni; pesi, capitale e
+risparmio di FIRE ipotesi): il ventaglio dei valori anno per anno, i percentili a un orizzonte scelto e a tappe
+fisse, la probabilità di superare una soglia. Oggi nessuna scheda lo dice: il Monte Carlo simula il decumulo «se
+smetto oggi», il Ventaglio del Calcolatore dice **in che anno** si arriva al FIRE, non quanto vale il portafoglio a
+20, 30 o 50 anni.
+
+### 11.2 Stato di partenza (verificato nel codice, 04/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| Il motore dell'accumulo esiste: percorsi anno per anno con le sette classi, le correlazioni e la leva (R1–R4), afflussi dei fondi pensione, risparmio indicizzato (RP7), seme | `lib/services/monteCarloService.ts` (`runAccumulationSimulation`) |
+| Con `withdrawalRate: 0` nessun percorso raggiunge il FIRE: il risparmio si versa ogni anno dell'orizzonte e i percentili sono quelli del capitale | `runAccumulationSimulation`, test `wrDecimal > 0` |
+| Il motore floora a zero un anno a leva che brucia il capitale (il percorso non fallisce) e non conta questi anni | stesso file, `Math.max(0, rawGrowth)` |
+| Il motore conserva **ogni** percorso (`paths`, un oggetto per anno): a 10.000 percorsi × 3 scenari × 60 anni sono 1,8 milioni di oggetti | stesso file |
+| I percentili per anno sono *floor(n × p)*, quelli del Ventaglio | stesso file |
+| Le ipotesi della pagina sono una lettura sola (`useFireAssumptions` → pesi RP4, capitale `K` RP5, spesa RP6, scenari RP1) | `lib/hooks/useFireAssumptions.ts`, `lib/utils/fireAssumptions.ts` |
+| Il risparmio annuo del Calcolatore è `getAnnualCashflowData().annualSavings` (entrate − spese dell'ultimo anno intero, o dell'anno in corso annualizzato, mai negativo) | `lib/services/fireService.ts` (`getAnnualCashflowData`), `FireCalculatorTab.tsx` |
+| Cinque schede in FIRE e Simulazioni | `app/dashboard/fire-simulations/page.tsx:38-44` |
+| Il grafico a ventaglio del Monte Carlo disegna la linea tratteggiata dello zero (`--destructive`) | `components/monte-carlo/MonteCarloFanChart.tsx` |
+
+### 11.3 Perimetro
+
+**Incluso**
+- Una **sesta scheda «Proiezione»** in FIRE e Simulazioni (V1), dopo «Monte Carlo», `?tab=proiezione`.
+- Capitale di partenza `K` (RP5), versamenti annui indicizzati all'inflazione per un numero di anni scelto (V2),
+  fondi pensione bloccati come afflussi allo sblocco al valore di oggi (come il Ventaglio).
+- Tre scenari in una esecuzione sullo stesso seme (V6), cifre in euro di oggi con il nominale accanto (V3).
+- Un orizzonte scelto (verdetto, distribuzione) e una tabella a tappe fisse (V4); la probabilità di superare una
+  soglia e di finire sotto il capitale di partenza (V5).
+- Leva con R4 e la quota di percorsi azzerati da un anno a leva (V7).
+
+**Escluso**
+- Prelievi e decumulo: restano del Monte Carlo. Accumulo **seguito** da decumulo con un anno di uscita scelto è il
+  resto di P7, una task successiva che riuserà questa (§ 11.10).
+- Tasse sulla plusvalenza alla vendita, TER, bollo e costi di transazione: il valore è **lordo** e la scheda lo
+  dice (V8).
+- Bootstrap storico (D3 di FIRE ipotesi), code grasse, correlazioni per scenario: come nel resto del Monte Carlo.
+- Crypto e immobili: fuori da `K` come in tutte le schede (RP5), dichiarati nella riga «Ipotesi usate».
+- Spec Playwright: nessuna, come per il Monte Carlo (§ 9); la verifica a occhio è nel collaudo.
+
+### 11.4 Casi d'uso
+
+1. **Solo il capitale di oggi.** 100.000 € al 100% azioni, versamenti a 0, scenario Base: tra 30 anni il portafoglio
+   vale in euro di oggi 714.000 € in mediana, più di 213.000 € in nove simulazioni su dieci, più di 2,4 milioni in una
+   su dieci (A1).
+2. **Con i versamenti di oggi.** Il Calcolatore dice 12.000 € di risparmio l'anno: la scheda li semina, cresciuti con
+   l'inflazione, per tutti gli anni dell'orizzonte; l'utente li ferma dopo 15 anni scrivendo «15» in «per quanti
+   anni».
+3. **Le tappe.** «Tra 20, 30 e 50 anni?»: la tabella Tappe dà per ciascuna 10°, 50° e 90° percentile e la probabilità
+   di superare la soglia, senza cambiare l'orizzonte.
+4. **Una soglia.** «Che probabilità ho di avere un milione (di oggi) tra 30 anni?»: l'utente scrive 1.000.000 nella
+   soglia; di default la soglia è il numero FIRE di oggi (spesa del piano ÷ SWR), così la scheda dice anche «entro N
+   anni il portafoglio copre il FIRE in X simulazioni su cento».
+5. **A leva.** Target che sommano 150%: i percorsi includono il costo del debito (R4); se in un anno la perdita supera
+   il capitale il percorso si azzera e riparte dai versamenti, e la scheda dice in quante simulazioni è successo.
+
+### 11.5 Regole di calcolo
+
+**RV1 — Il percorso** (per scenario, per percorso; anni `t = 1 … H`, `H` = orizzonte massimo, § 11.7):
+
+```
+V_0 = K + Σ afflussi con anno ≤ 0
+V_t = (V_{t−1} + A_t) · max(0, 1 + r_p,t) + S_t
+S_t = S · (1 + π)^(t−1)   se t ≤ N_v,   altrimenti 0        // RP7; N_v = anni di versamento
+```
+
+`A_t` = afflussi dei fondi pensione che si sbloccano nell'anno `t` (valore di oggi, come il Ventaglio); `r_p,t` = R3
+o R4 con `drawYear` e il fattore di Cholesky della matrice di Impostazioni; `π` = inflazione dello scenario (RP3).
+È l'ordine di `runAccumulationSimulation` (afflusso → rendimento → versamento) con `withdrawalRate: 0`.
+
+**RV2 — Azzeramento da leva**: se `1 + r_p,t ≤ 0` il percorso vale `S_t` a fine anno (il capitale si azzera, il
+versamento dell'anno entra). Il percorso è **contato** come azzerato (una volta, anche se capita in più anni).
+Senza leva (`W ≤ 1`) non può accadere per costruzione (R1).
+
+**RV3 — Euro di oggi**: `V_t^reale = V_t / (1 + π)^t`, con la `π` dello scenario. Percentili e probabilità si
+calcolano sui valori reali; il nominale si mostra accanto (stesso percentile: la divisione è monotona, quindi il
+percentile reale è il nominale diviso per lo stesso fattore).
+
+**RV4 — Percentili**: 10°, 25°, 50°, 75°, 90° di **tutti** i percorsi all'anno `t` (azzerati compresi), indice
+*floor(n × p)* sui valori ordinati, come il Ventaglio e il Monte Carlo.
+
+**RV5 — Probabilità**: `P(V_t^reale ≥ X) = #{percorsi con V_t^reale ≥ X} / n`, con `X` la soglia in euro di oggi.
+`P(V_t^reale < K)` = probabilità di finire sotto il capitale di partenza in potere d'acquisto. Con versamenti
+la seconda resta su `K`, non su `K + versato` (lo dice il footer).
+
+**RV6 — Soglia di default**: il numero FIRE di oggi, `spesa del piano (RP6) ÷ SWR` (`settings.withdrawalRate`, 4%
+se assente), in euro di oggi. Se la spesa non c'è (né Impostazioni né Cashflow), nessuna soglia di default: il
+campo resta vuoto, la riga della probabilità sparisce e il tile Parametri dice «scrivi una soglia».
+
+**RV7 — Seme**: `MONTE_CARLO_SEED`, un generatore nuovo per scenario (come il Monte Carlo, T3): Orso, Base e Toro
+vedono gli stessi `ε`; due «Esegui» uguali danno le stesse cifre. Ogni percorso consuma `7 × 2 × H` uniformi
+qualunque cosa accada, così cambiare orizzonte o soglia **non** cambia i percorsi se `H` resta lo stesso.
+
+### 11.6 Cosa vede l'utente
+
+Pagina a verdetto sopra una griglia di tile, come il Monte Carlo. Sopra il verdetto la riga «Ipotesi usate»
+(`FireAssumptionsRow`, la stessa stringa delle altre schede, A18 di FIRE ipotesi).
+
+- **Verdetto** (scenario Base, orizzonte scelto, euro di oggi): «Tra 30 anni il portafoglio vale 714.000 € di oggi
+  in mediana; più di 213.000 € in nove simulazioni su dieci. Supera il numero FIRE di 800.000 € nel 45% delle
+  simulazioni.» Con leva e percorsi azzerati, una frase in più: «Con leva 1,5× il 3% delle simulazioni azzera il
+  capitale almeno una volta.» Tono: nessuno sulla cifra (è una proiezione, non un fatto: The Risk-vs-Fact Rule); il
+  tono della probabilità della soglia segue `resolveSuccessTone` solo quando la soglia è il numero FIRE di default.
+- **Ventaglio** (desktop 5 colonne): bande 10–90 e 25–75 e mediana in euro di oggi, anno 0 → `H`; la soglia come
+  linea tratteggiata neutra (`--muted-foreground`), non la linea dello zero; l'orizzonte scelto marcato. Footer: «Euro
+  di oggi, inflazione 3,0% (Impostazioni › Simulazioni). Valori lordi: niente tasse sulla vendita, TER né bollo.»
+- **Distribuzione a N anni** (4 colonne): istogramma dei valori reali all'orizzonte (`FinalValueBars`, la regola dei
+  bin di `createDistribution`: larghezza uguale fino al 95° percentile, l'ultimo prende la coda), il bin della
+  mediana evidenziato. Lettura: «Metà delle simulazioni tra 378.000 € e 1.351.000 €» (25°–75°).
+- **Scenari a confronto** (3 colonne): per Orso, Base e Toro la mediana reale all'orizzonte e la probabilità della
+  soglia («Orso 411.000 € · 22%»). Colori di `SCENARIO_SLOT`.
+- **Tappe** (12 colonne): una riga per 10, 20, 30, 40, 50 anni (solo quelle ≤ `H`, più l'orizzonte scelto se non è
+  tra queste), colonne: anno di calendario (ed età se nota), 10° · mediana · 90° in euro di oggi, nominale della
+  mediana in piccolo, probabilità della soglia. Scenario Base; un selettore Orso · Base · Toro (`segmented-pill`)
+  come scope del tile.
+- **Parametri** (12 colonne, The Input Tile Rule): capitale (scorciatoie «Totale / Liquido» su `K` come il Monte
+  Carlo), **versamento annuo** (seminato con `annualSavings` del Cashflow, «dal Cashflow 2025»), **per quanti anni**
+  (default = orizzonte), **orizzonte** (default 30, da 1 a 60), **soglia** (default RV6, «il tuo numero FIRE»),
+  simulazioni (1.000–50.000, default 10.000), i sette pesi con «Usa i target» / «Importa il portafoglio di oggi» e la
+  somma con la leva (lo stesso blocco del Monte Carlo), la dichiarazione delle ipotesi di mercato con il link a
+  Impostazioni, «Fuori dalla simulazione: …». Bottone «Esegui».
+- **Dettaglio › Come si calcola**: RV1–RV5 a parole; «il seme è fisso, quindi le cifre non cambiano tra un'apertura e
+  l'altra»; i limiti: lordo, correlazioni fisse, lognormale senza code grasse, fondo pensione al valore di oggi,
+  versamenti cresciuti con l'inflazione e non con lo stipendio.
+
+Mobile (1 colonna): verdetto → Ventaglio → Tappe → Distribuzione → Scenari → Parametri. Tablet: ogni tile a tutta
+larghezza nell'ordine del telefono, come il Monte Carlo.
+
+**Esecuzione** (The Stale-Run Rule, come il Monte Carlo): una volta da sola appena il piano seminato è pronto, poi
+solo con «Esegui»; finché gli input differiscono dall'ultima esecuzione il footer di Parametri lo dice e le cifre
+restano quelle. **Eccezione dichiarata**: cambiare **soglia** o **orizzonte** entro `H` non richiede una nuova
+esecuzione — sono letture degli stessi percorsi (RV7) e si aggiornano subito.
+
+### 11.7 Dettagli tecnici
+
+1. **Motore** — `runAccumulationSimulation` riceve tre parametri opzionali, neutri per il Calcolatore e per i test
+   esistenti (nessun cambio di comportamento se assenti):
+   - `savingsYears?: number` — il versamento dell'anno `t` entra solo se `t ≤ savingsYears` (RV1); assente = tutti.
+   - `collectPaths?: boolean` (default `true`) — con `false` `paths` resta vuoto e il motore tiene solo i valori
+     degli anni in `snapshotYears`.
+   - `snapshotYears?: number[]` — restituisce `snapshots: Record<number, Float64Array>` (valori **nominali** ordinati
+     in modo crescente, uno per percorso) per quegli anni; più `leverageZeroedCount` (RV2: percorsi con almeno un
+     anno `1 + r_p ≤ 0` entro `years`).
+   Con `withdrawalRate: 0` non serve altro: niente obiettivo FIRE, il registro del pensionamento resta vuoto.
+   **Nessun motore nuovo.**
+2. **Orizzonte di calcolo** `H = max(50, orizzonte scelto)` (al massimo 60): una sola esecuzione serve verdetto,
+   tappe e ventaglio; `snapshotYears` = tutti gli anni 1…H (60 `Float64Array` da 10.000 valori: 4,8 MB per
+   scenario). Cambiare l'orizzonte entro `H` legge gli snapshot; oltre `H` (oltre 50 con un'esecuzione a 50) rende
+   stantia l'esecuzione.
+3. **Riepilogo puro** — `lib/utils/projectionSummary.ts` (nuovo): `summarizeProjection(results, { inflationRate,
+   horizon, threshold, startingCapital, ctx })` → percentili reali e nominali per anno (RV3, RV4), probabilità (RV5),
+   righe Tappe, bin della distribuzione (riusa la regola di `createDistribution`, da estrarre in un helper puro
+   condiviso se oggi è privata del servizio), confronto scenari. `resolveProjectionThreshold(expenses, swr)` (RV6).
+4. **Parole** — `lib/utils/projectionNarrative.ts` (nuovo): `buildProjectionVerdict`, `describe*` per ogni tile,
+   `PROJECTION_EXPLAINER`. Elisione davanti alle percentuali con `startsWithVowel` («nell'11%»).
+5. **Scheda** — `components/fire-simulations/ProjectionTab.tsx` (orchestratore, non calcola), tile in
+   `components/projection/tiles/{VentaglioTile,DistribuzioneTile,ScenariTile,TappeTile,ParametriTile}.tsx`.
+   **Riuso**: il blocco dei pesi del `ParametriTile` del Monte Carlo si estrae in un componente condiviso
+   (`components/monte-carlo/WeightsFields.tsx`) usato da entrambi; `MonteCarloFanChart` riceve una prop opzionale
+   `referenceLine?: { value: number; label: string }` e `zeroLine?: boolean` (default `true`, il Monte Carlo non
+   cambia); `FinalValueBars` così com'è.
+6. **Seme dei pesi e delle ipotesi**: `useFireAssumptions(lockedAssetIds, { withCashflow: true })` come il Monte
+   Carlo; il risparmio da `getAnnualCashflowData` con la stessa chiave `['annualCashflowData', ownerId]` (cache
+   condivisa).
+7. **Pagina** — `app/dashboard/fire-simulations/page.tsx`: la sesta voce `{ value: 'proiezione', label: 'Proiezione',
+   icon: TrendingUp }` dopo `montecarlo`. La scheda si monta solo quando è aperta (come le altre).
+8. **Prestazioni**: misura e scrivi nella guida il tempo di 10.000 percorsi × 3 scenari × 50 anni con
+   `collectPaths: false` (stima: come il Monte Carlo, ≈1,5–2 s); se supera 3 s, abbassa il default a 5.000.
+
+### 11.8 Decisioni (prese con il proprietario il 04/10/2026)
+
+| # | Decisione | Alternative scartate e motivo |
+| --- | --- | --- |
+| V1 | Una **sesta scheda «Proiezione»** dopo Monte Carlo: una scheda, una domanda. | Modalità del Monte Carlo (verdetto, probabilità e scenari parlano di prelievi: due domande in un tile); allungare il Ventaglio del Calcolatore (risponde a «quando», si ferma all'anno FIRE e a 40 anni). |
+| V2 | **Versamenti seminati dal risparmio del Calcolatore** (Cashflow), indicizzati all'inflazione (RP7), modificabili, con «per quanti anni» (default = orizzonte); 0 = solo il capitale di oggi. | Solo il capitale di oggi (non risponde a chi versa); versamenti fino all'anno FIRE del percorso (lega la scheda al Calcolatore e cambia i percorsi da un piano all'altro). |
+| V3 | **Euro di oggi** come cifra principale, il nominale accanto in piccolo. | Solo nominali (a 50 anni l'inflazione al 3,04% moltiplica per 4,5: cifre gonfiate); interruttore (due stati per ogni frase). |
+| V4 | **Un orizzonte scelto** (default 30, da 1 a 60) per verdetto e distribuzione, più la tabella **Tappe** a 10/20/30/40/50 anni. | Un orizzonte solo (la domanda nomina tre orizzonti); solo tappe fisse (nessun verdetto su un anno preciso). |
+| V5 | **Soglia** con default il numero FIRE di oggi (RV6), modificabile; più la probabilità di finire sotto il capitale di partenza in euro di oggi. | Nessuna soglia (manca «con che probabilità»); soglia senza default (scheda muta finché non si scrive). |
+| V6 | **Tre scenari** in una esecuzione sullo stesso seme, Base nel verdetto, come il Monte Carlo. | Solo Base (la differenza tra scenari è la domanda «e se va male?»). |
+| V7 | **Leva**: pesi dai target (RP4) ritoccabili; un anno che brucia il capitale **azzera** il percorso, che riparte dai versamenti, e la quota di percorsi azzerati è dichiarata (RV2). | Percorso fermo a zero per sempre (con versamenti in corso non è ciò che succede a chi continua a investire); ignorare la rovina (ottimista). |
+| V8 | Valore **lordo**: niente tassa sulla plusvalenza, TER, bollo; dichiarato nel footer e nel Dettaglio. | Netto «se vendessi tutto» col profilo fiscale di `K` (una seconda cifra per ogni percentile; la vendita totale non è un piano). |
+
+**Scelte di default prese dall'agente** (dichiarate, accettate dal proprietario con V1–V8 il 04/10/2026):
+- **Nome della scheda** «Proiezione», `?tab=proiezione`, icona `TrendingUp`.
+- **Soglia e orizzonte si leggono senza rieseguire** (§ 11.6): sono letture degli stessi percorsi.
+- **`H` = 50 anni** (o l'orizzonte scelto se maggiore): la tabella Tappe arriva a 50 senza una seconda esecuzione.
+- **La probabilità «sotto il capitale di partenza»** confronta con `K`, non con `K` più il versato: risponde a «perdo
+  potere d'acquisto rispetto a oggi?»; il footer lo dice.
+
+### 11.9 Criteri di accettazione (valori di riferimento verificabili)
+
+Default di Impostazioni salvo dove indicato (Azioni Base g = 10,02%, σa = 19,40% ⇒ m = 0,0954920, s = 0,1724395 da
+R1; inflazione 3,04%). Formule chiuse per una classe sola senza versamenti: percentile `p` reale all'anno `t` =
+`K · exp(t·m + z_p·s·√t) / (1+π)^t`; `P(V_t^reale ≥ X) = 1 − Φ((ln(X·(1+π)^t / K) − t·m) / (s·√t))`.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| P1 | Formula chiusa, K = 100.000 €, Azioni 100%, Base, t = 30, nessun versamento | reali: 10° 212.960 €, 25° 377.839 €, 50° 714.453 €, 75° 1.350.954 €, 90° 2.396.896 €; nominale mediano 1.754.483 € |
+| P2 | Come P1, t = 10 / 20 / 50 | mediana reale 192.601 € / 370.950 € / 2.650.266 €; 10° reale 95.754 € / 138.071 € / 555.451 € |
+| P3 | Come P1, soglie reali | `P(≥ 500.000 €)` = 64,72%; `P(≥ 1.000.000 €)` = 36,09%; `P(< 100.000 €)` (sotto il capitale) = 1,87% |
+| P4 | Come P1, tre scenari, soglia 800.000 € di oggi | mediana reale Orso 410.907 € / Base 714.453 € / Toro 1.283.657 €; `P(≥ soglia)` 21,60% / 45,23% / 67,94% |
+| P5 | Simulazione seminata di P1 (200.000 percorsi) | ogni percentile entro ± 1,5% del valore di P1; `P(≥ 1.000.000 €)` entro ± 0,5 punti |
+| P6 | Volatilità 0, Azioni 150%, Liquidità g = 2%, spread 1%, Azioni g = 7% (r_p = 9,0%, A10), K = 100.000 €, S = 10.000 €, π = 2%, `savingsYears` = 2 | nominale anno 1: 119.000 €; anno 2: 139.910 €; anno 3: 152.501,90 €; reale anno 3: 143.705,95 € |
+| P7 | Un anno con Azioni −60%, leva 2,5, c = 4% (A11), S = 10.000 € | a fine anno il percorso vale 10.000 € (`S_t`), `leverageZeroedCount` = 1; senza versamenti vale 0 € |
+| P8 | Coerenza: `collectPaths: false` e `true` con lo stesso seme | snapshot e percentili identici, float per float |
+| P9 | Regressione: Calcolatore senza i parametri nuovi | i test di `runAccumulationSimulation` e il test di coerenza del Ventaglio verdi senza modifiche |
+| P10 | RV6: spesa del piano 32.000 €, SWR 4% | soglia di default 800.000 €; senza spesa nessuna soglia e la riga della probabilità assente |
+| P11 | Cambio di soglia o di orizzonte (≤ `H`) dopo un'esecuzione | cifre aggiornate senza nuova esecuzione e senza il footer «stantio»; orizzonte 55 dopo un'esecuzione a `H` = 50 ⇒ footer «stantio» |
+| P12 | Riga «Ipotesi usate» | la stessa stringa delle altre schede (A18 di FIRE ipotesi) |
+
+I valori P1–P4 e P6 sono calcolati in forma chiusa (Python, `statistics.NormalDist`); P5 si verifica nel test con il
+seme fisso.
+
+### 11.10 Coerenza con il resto di P7
+
+La task successiva («smetto nell'anno X e poi prelevo») parte dai percorsi di questa (RV1 fino all'anno X) e
+continua con il ciclo di prelievo del Monte Carlo sugli stessi shock (seme comune, numero fisso di estrazioni per
+anno). Nulla qui la anticipa: `savingsYears` e gli snapshot restano validi.
+
+### 11.11 File
+
+**Nuovi**: `lib/utils/projectionSummary.ts`, `lib/utils/projectionNarrative.ts`,
+`components/fire-simulations/ProjectionTab.tsx`, `components/projection/tiles/*.tsx`,
+`components/monte-carlo/WeightsFields.tsx`, test `__tests__/{projectionSummary,projectionNarrative}.test.ts`.
+**Modificati**: `lib/services/monteCarloService.ts` (tre parametri opzionali, § 11.7.1),
+`components/monte-carlo/{MonteCarloFanChart,tiles/ParametriTile}.tsx`, `app/dashboard/fire-simulations/page.tsx`,
+`__tests__/monteCarloService.test.ts` (P6–P9). Se `createDistribution` diventa un helper condiviso:
+`lib/utils/valueHistogram.ts` (nuovo) e il servizio lo importa.
+
+### 11.12 Test
+
+- `monteCarloService.test.ts`: P5 (seme fisso), P6, P7, P8, P9.
+- `projectionSummary.test.ts`: P1–P4 su snapshot costruiti a mano dove serve una cifra esatta (percentili e
+  probabilità sono funzioni pure dei valori ordinati) e con la formula chiusa; RV3 (nominale ↔ reale); P10, P11.
+- `projectionNarrative.test.ts`: il verdetto con e senza soglia, con leva e percorsi azzerati, l'elisione.
+
+### 11.13 Documentazione e fine
+
+- Nuova guida `doc/guide/fire-proiezione.md` (regole della scheda, blind spots: lordo, versamenti indicizzati
+  all'inflazione e non allo stipendio, fondo pensione al valore di oggi, soglia e orizzonte letti senza rieseguire);
+  `doc/guide/fire.md` (sei schede, il motore con i parametri nuovi); `fire-monte-carlo.md` (il blocco dei pesi
+  condiviso); `CLAUDE.md` riga «FIRE»; `doc/guide/fork-scelte-ui.md`; `Draft Release Temp.md`.
+- Fine: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`, `TZ=Europe/Rome npx vitest
+  run` verdi; tempi misurati nella guida. Collaudo su anteprima Vercel, una fase per messaggio (WORKFLOW.md § 2).
