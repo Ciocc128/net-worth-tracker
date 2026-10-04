@@ -26,11 +26,11 @@ import {
   GoalPriority,
 } from '@/types/goals';
 import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
-import { portfolioCompoundReturn, type FireAssumptions } from '@/lib/utils/fireAssumptions';
+import { portfolioCompoundReturn, type FireAssumptions, type PortfolioReturn } from '@/lib/utils/fireAssumptions';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 
 /** The slice of the page's hypotheses a goal needs: the market of Impostazioni › Simulazioni and the target portfolio's scenarios. */
-export type GoalAssumptions = Pick<FireAssumptions, 'scenarios' | 'market'> & Partial<Pick<FireAssumptions, 'costs'>>;
+export type GoalAssumptions = Pick<FireAssumptions, 'scenarios' | 'market'> & Partial<Pick<FireAssumptions, 'costs' | 'weights'>>;
 
 // Priority multipliers for the cross-goal contribution split. Mirrors the
 // weighting used by deriveTargetAllocationFromGoals so the two planners agree.
@@ -108,7 +108,17 @@ export function goalAnnualReturn(
   assumptions: GoalAssumptions
 ): GoalReturn {
   const portfolio: GoalReturn = { rate: assumptions.scenarios.base.growthRate, origin: 'portfolio', outside: [] };
-  if (!allocation) return portfolio;
+  const own = goalAllocationWeights(allocation);
+  if (!own) return portfolio;
+  const { market } = assumptions;
+  // RC5: the costs of the goal's own weights, on the same per-class costs as the page; none = gross.
+  const { cagr } = portfolioCompoundReturn(own.weights, market.scenarios.base, market.correlations, market.leverageSpread, portfolioCost(own.weights, assumptions.costs).total);
+  return { rate: cagr, origin: 'allocation', outside: own.outside };
+}
+
+/** A goal's recommended allocation as Monte Carlo weights (crypto and real estate out, the rest rescaled to 100); null without a usable one. */
+function goalAllocationWeights(allocation: Partial<Record<AssetClass, number>> | undefined): { weights: Record<MonteCarloClass, number>; outside: GoalReturn['outside'] } | null {
+  if (!allocation) return null;
   const weights = monteCarloClassRecord<number>(() => 0);
   let total = 0;
   for (const cls of GOAL_SIMULATED_CLASSES) {
@@ -116,13 +126,29 @@ export function goalAnnualReturn(
     weights[cls as MonteCarloClass] = pct;
     total += pct;
   }
-  if (total <= 0) return portfolio;
+  if (total <= 0) return null;
   for (const cls of GOAL_SIMULATED_CLASSES) weights[cls as MonteCarloClass] = (weights[cls as MonteCarloClass] * 100) / total;
-  const outside = GOAL_OUTSIDE_CLASSES.filter((cls) => (allocation[cls] || 0) > 0);
+  return { weights, outside: GOAL_OUTSIDE_CLASSES.filter((cls) => (allocation[cls] || 0) > 0) };
+}
+
+/**
+ * RO4: the Base-scenario moments of the portfolio a goal invests in — the goal's own weights (D8), else
+ * the target portfolio's — net of the recurring costs like `goalAnnualReturn`. Null when the page holds no weights.
+ */
+export function goalPortfolioMoments(
+  allocation: Partial<Record<AssetClass, number>> | undefined,
+  assumptions: GoalAssumptions
+): PortfolioReturn | null {
+  const own = goalAllocationWeights(allocation);
+  const weights = own?.weights ?? assumptions.weights;
+  if (!weights) return null;
   const { market } = assumptions;
-  // RC5: the costs of the goal's own weights, on the same per-class costs as the page; none = gross.
-  const { cagr } = portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread, portfolioCost(weights, assumptions.costs).total);
-  return { rate: cagr, origin: 'allocation', outside };
+  return portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread, portfolioCost(weights, assumptions.costs).total);
+}
+
+/** The date a number of months from `now`, on the same 30,44-day month the projected dates use. */
+export function addGoalMonths(now: Date, months: number): Date {
+  return new Date(now.getTime() + months * MS_PER_MONTH);
 }
 
 function monthsBetween(from: Date, to: Date): number {
@@ -130,8 +156,16 @@ function monthsBetween(from: Date, to: Date): number {
 }
 
 /**
+ * RO3 (D-G6): the monthly rate that compounds to the declared annual return over twelve months
+ * (6% → 0,4868%/month, so a year earns exactly 6%, not the 6,17% of R/12). `annualReturn` in percent.
+ */
+export function monthlyRate(annualReturn: number): number {
+  return Math.pow(1 + annualReturn / 100, 1 / 12) - 1;
+}
+
+/**
  * Future value of a starting balance plus a fixed monthly contribution,
- * compounded monthly. Handles the zero-rate case.
+ * compounded monthly at the equivalent monthly rate. Handles the zero-rate case.
  */
 export function futureValue(
   presentValue: number,
@@ -140,7 +174,7 @@ export function futureValue(
   months: number
 ): number {
   if (months <= 0) return presentValue;
-  const r = annualReturn / 100 / 12;
+  const r = monthlyRate(annualReturn);
   if (r === 0) return presentValue + monthlyContribution * months;
   const growth = Math.pow(1 + r, months);
   return presentValue * growth + monthlyContribution * ((growth - 1) / r);
@@ -158,7 +192,7 @@ export function requiredMonthlyContribution(
   months: number
 ): number {
   const n = Math.max(1, months);
-  const r = annualReturn / 100 / 12;
+  const r = monthlyRate(annualReturn);
   if (r === 0) {
     return Math.max(0, (target - presentValue) / n);
   }
@@ -179,7 +213,7 @@ export function monthsToReach(
   annualReturn: number
 ): number | null {
   if (presentValue >= target) return 0;
-  const r = annualReturn / 100 / 12;
+  const r = monthlyRate(annualReturn);
   if (r === 0) {
     if (monthlyContribution <= 0) return null;
     return Math.ceil((target - presentValue) / monthlyContribution);
@@ -271,6 +305,12 @@ export interface GoalProjectionPoint {
   timestamp: number;
   value: number;
   target: number;
+  /** RO5: the simulated 10th, 50th and 90th percentile at this month, set by the Traiettoria once the simulation ran. */
+  p10?: number;
+  p50?: number;
+  p90?: number;
+  /** `[p10, p90]`: what the chart fills as the band. */
+  band?: [number, number];
 }
 
 export function buildGoalProjectionSeries(

@@ -13,7 +13,7 @@
 'use client';
 
 import { useId } from 'react';
-import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, CartesianGrid, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { GoalProjectionPoint } from '@/lib/utils/goalTrajectory';
 import { formatCurrency, formatCurrencyCompact } from '@/lib/services/chartService';
 
@@ -27,6 +27,8 @@ interface GoalProjectionChartProps {
   ariaLabel: string;
 }
 
+const TOOLTIP_LABELS: Record<string, string> = { target: 'Target', value: 'Proiezione', p90: '90° percentile', p50: '50° percentile', p10: '10° percentile' };
+
 /** «giu 2029» — the axis and tooltip label. */
 function formatShortMonthYear(date: Date): string {
   return date.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' });
@@ -35,6 +37,8 @@ function formatShortMonthYear(date: Date): string {
 export function GoalProjectionChart({ series, deadlineTs, color, height = '100%', ariaLabel }: GoalProjectionChartProps) {
   const gradientId = useId();
   if (series.length < 2) return null;
+  // RO5: the simulated band exists only for a dated goal once the simulation ran.
+  const hasBand = series.some((point) => point.band !== undefined);
 
   return (
     <div role="img" aria-label={ariaLabel} className="h-full w-full">
@@ -67,7 +71,7 @@ export function GoalProjectionChart({ series, deadlineTs, color, height = '100%'
             tickLine={false}
           />
           <Tooltip
-            formatter={(value, name) => [formatCurrency(value as number), name === 'target' ? 'Target' : 'Proiezione']}
+            formatter={(value, name) => [formatCurrency(value as number), TOOLTIP_LABELS[String(name)] ?? 'Proiezione']}
             labelFormatter={(ts) => formatShortMonthYear(new Date(ts as number))}
             contentStyle={{
               backgroundColor: 'var(--popover)',
@@ -77,7 +81,12 @@ export function GoalProjectionChart({ series, deadlineTs, color, height = '100%'
               fontSize: 12,
             }}
           />
+          {hasBand && <Area type="monotone" dataKey="band" stroke="none" fill={color} fillOpacity={0.14} tooltipType="none" isAnimationActive={false} />}
           <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} animationDuration={600} animationEasing="ease-out" />
+          {/* Invisible lines carry the three percentiles into the tooltip. */}
+          {hasBand && <Line type="monotone" dataKey="p90" stroke="none" dot={false} activeDot={false} isAnimationActive={false} />}
+          {hasBand && <Line type="monotone" dataKey="p50" stroke="none" dot={false} activeDot={false} isAnimationActive={false} />}
+          {hasBand && <Line type="monotone" dataKey="p10" stroke="none" dot={false} activeDot={false} isAnimationActive={false} />}
           <ReferenceLine y={series[0].target} stroke="var(--muted-foreground)" strokeDasharray="6 4" strokeWidth={1.25} />
           {deadlineTs !== null && <ReferenceLine x={deadlineTs} stroke="var(--muted-foreground)" strokeDasharray="3 3" strokeWidth={1.25} />}
         </AreaChart>

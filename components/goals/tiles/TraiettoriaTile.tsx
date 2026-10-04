@@ -28,6 +28,8 @@ interface TraiettoriaTileProps {
   hero: { label: string; value: string } | null;
   chips: TraiettoriaChip[];
   notes: string | null;
+  /** § 13.7, RO5–RO7: the simulated reading, one line each (probability, contribution for 9 cases in 10, arrival months). */
+  uncertainty?: Narrative[];
   chart: ReactNode | null;
   footer: Narrative;
   /** § 13.7: «Effetto sul FIRE», one generated line, with «Conta nel FIRE» when the goal is not counted yet. Null = nothing to say. */
@@ -84,7 +86,7 @@ function DeleteButton({ onDelete, disabled }: { onDelete: () => void; disabled: 
   );
 }
 
-export function TraiettoriaTile({ reading, name, hero, chips, notes, chart, footer, fireEffect, onEdit, onDelete, isDemo, className }: TraiettoriaTileProps) {
+export function TraiettoriaTile({ reading, name, hero, chips, notes, uncertainty, chart, footer, fireEffect, onEdit, onDelete, isDemo, className }: TraiettoriaTileProps) {
   return (
     <Tile
       eyebrow="Traiettoria"
@@ -122,6 +124,14 @@ export function TraiettoriaTile({ reading, name, hero, chips, notes, chart, foot
           <Chip key={chip.caption} chip={chip} />
         ))}
       </div>
+
+      {uncertainty && uncertainty.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1" data-testid="goal-uncertainty">
+          {uncertainty.map((line, index) => (
+            <NarrativeText key={index} segments={line} className="text-[13px] leading-[1.45] text-muted-foreground" figureClassName="font-medium text-foreground" />
+          ))}
+        </div>
+      )}
 
       {fireEffect && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">

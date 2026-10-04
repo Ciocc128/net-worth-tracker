@@ -30,6 +30,7 @@ import {
 } from '@/lib/utils/goalTrajectory';
 import { ASSET_CLASS_LABELS, assetClassSequenceIndex } from '@/lib/utils/allocationUtils';
 import { getAssetDisplayTicker } from '@/lib/utils/assetDisplay';
+import type { GoalUncertainty } from '@/lib/utils/goalUncertainty';
 
 // ─── Dates ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,8 @@ export interface GoalLine {
   /** When the target is reached at the current pace, null when never or not applicable. */
   projectedDate: GoalDate | null;
   monthsToTarget: number | null;
+  /** RO5: the share (0–1) of simulated paths that reach the target by the deadline; null where no reading applies. The verdict stays deterministic (D-G8). */
+  probability: number | null;
 }
 
 export interface GoalCounts {
@@ -93,7 +96,7 @@ export interface GoalsOverview {
   plannedMonthlyTotal: number;
 }
 
-function toGoalLine({ goal, progress, trajectory }: GoalRow): GoalLine {
+function toGoalLine({ goal, progress, trajectory }: GoalRow, probability: number | null): GoalLine {
   const targetAmount = goal.targetAmount != null && goal.targetAmount > 0 ? goal.targetAmount : null;
   return {
     id: goal.id,
@@ -111,6 +114,7 @@ function toGoalLine({ goal, progress, trajectory }: GoalRow): GoalLine {
     requiredMonthly: trajectory.requiredMonthlyContribution,
     projectedDate: trajectory.projectedDate ? goalDateFromDate(trajectory.projectedDate) : null,
     monthsToTarget: trajectory.monthsToTarget,
+    probability,
   };
 }
 
@@ -121,8 +125,8 @@ const isDated = (line: GoalLine): boolean => line.verdict === 'onTrack' || line.
  * tile reads. `portfolioTotal` is the sum of the asset values (`sumAssetValues`), the same basis
  * as every quota, so the assigned share never mixes two valuations.
  */
-export function summarizeGoals(rows: GoalRow[], portfolioTotal: number): GoalsOverview {
-  const goals = sortGoalRowsByUrgency(rows).map(toGoalLine);
+export function summarizeGoals(rows: GoalRow[], portfolioTotal: number, probabilities?: ReadonlyMap<string, number>): GoalsOverview {
+  const goals = sortGoalRowsByUrgency(rows).map((row) => toGoalLine(row, probabilities?.get(row.goal.id) ?? null));
   const count = (verdict: GoalVerdict) => goals.filter((g) => g.verdict === verdict).length;
   const dated = goals.filter(isDated);
   const allocatedTotal = goals.reduce((sum, g) => sum + g.currentValue, 0);
@@ -184,6 +188,8 @@ export interface TrajectoryView {
   allocation: TrajectoryAllocationShare[];
   /** The glide path the chart draws, empty without a target. */
   series: GoalProjectionPoint[];
+  /** RO5–RO7: the simulated reading, null until it ran or where none applies. */
+  uncertainty: GoalUncertainty | null;
 }
 
 /** What the Traiettoria tile shows of one goal, with the series its chart draws. */
@@ -231,7 +237,20 @@ export function summarizeTrajectory({ goal, progress, trajectory }: GoalRow, now
     monthsToTarget: trajectory.monthsToTarget,
     allocation,
     series,
+    uncertainty: null,
   };
+}
+
+/** The same view with the simulation laid over it: the band of the chart's points and the reading the tile words. */
+export function withUncertainty(view: TrajectoryView, uncertainty: GoalUncertainty | null): TrajectoryView {
+  if (!uncertainty) return view;
+  if (uncertainty.kind !== 'dated' || !uncertainty.detail) return { ...view, uncertainty };
+  const byMonth = new Map(uncertainty.detail.percentiles.map((p) => [p.monthIndex, p]));
+  const series = view.series.map((point) => {
+    const p = byMonth.get(point.monthIndex);
+    return p ? { ...point, p10: Math.round(p.p10), p50: Math.round(p.p50), p90: Math.round(p.p90), band: [Math.round(p.p10), Math.round(p.p90)] as [number, number] } : point;
+  });
+  return { ...view, series, uncertainty };
 }
 
 // ─── Milestones ───────────────────────────────────────────────────────────────
