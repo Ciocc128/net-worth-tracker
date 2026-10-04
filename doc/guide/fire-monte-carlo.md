@@ -27,6 +27,31 @@
   `haveRunInputsChanged` compares the PLAN fields, the scenarios and the inflows — never the single form's market fields — so the Parametri footer
   says «I risultati sopra usano i parametri dell'ultima esecuzione» in the warning tone while every tile keeps the last run. A 30.000-path run on
   every keystroke was one alternative; a silent re-run that changed the verdict under the reader's eyes was the other.
+- **Spesa sostenibile (S1, 2026-10-04, doc/fire-ipotesi/README.md § 10)** — the sixth tile, «Quanto posso prelevare?»: the largest annual withdrawal
+  (today's euros, multiples of 100 €) that lasts the horizon in 80 / 90 / 95% of the paths, for Orso, Base and Toro; the hero is Base 90% with its monthly
+  and its share of the capital, and the verdict gains one sentence in three forms (typed withdrawal ≤ W90 «Per restare al 90% potresti prelevare fino a…»,
+  above it «Per tornare al 90% il prelievo dovrebbe scendere a…», no withdrawal at all «Con questa leva nessun prelievo arriva al 90%…»), no tone of its own.
+  Grid: desktop Probabilità 5 · Distribuzione 4 · Scenari 3, then **Spesa sostenibile 12** (hero left, 3 × 3 table right on a container query), then Parametri;
+  phone/tablet Probabilità → Spesa sostenibile → Distribuzione → Scenari → Parametri. Locator: `role=region`, `aria-label` «Spesa sostenibile».
+  - **The factors are drawn once, the withdrawal is replayed** (RS1–RS2): `monteCarloService.ts` splits the old `runSingleSimulation` into `drawPathFactors`
+    (`1 + portfolioReturn` of every year, ALL years drawn even after a failure, so the uniform order is unchanged) and `runWithdrawalLedger` (inflow → return →
+    withdrawal). `runMonteCarloSimulation(params, { keepFactors: true })` returns `factors` (`n × N` Float64Array, row per path); `countSuccesses(factors, n,
+    params, W)` replays a withdrawal without drawing, so `success(W)` equals a fresh run's `successCount` at that `W` EXACTLY (S5, pinned in
+    `monteCarloService.test.ts`) and the seeded run is the same float for float as before the split (S10, `monteCarloSeededRegression.test.ts`, a snapshot taken
+    on the code before the refactoring, leverage ruin included). The tab asks for `keepFactors` on the three scenario runs, NOT on the unleveraged Base.
+  - **The figures are the LAST run's** (The Stale-Run Rule): `summarizeSustainableSpending` runs inside `runScenarios` (so the running state covers it), lives in
+    `MonteCarloRunState.sustainable`, and the factors are dropped from the results right after (`n × N × 8` bytes a scenario: 2,4 MB at 10.000 × 30, 4 MB at
+    10.000 × 50, ~12 MB for the three at 50 years, held only for the instant of the solve).
+  - **RS3** (`lib/utils/sustainableWithdrawal.ts`, pure): bisection over the multiples of 100 € between 0 and a bracket doubled from the capital until
+    `success < p`, then the printed figure is re-verified and lowered while it misses the threshold. `success(0) < p` (leverage ruin above `1 − p`) = «nessun
+    prelievo» in that cell. The pure replay caches the plan's yearly schedule (inflation index, pensions, inflows) in a `WeakMap` keyed by the `params` object:
+    **do not mutate a `params` after its first replay**.
+  - **Measured (2026-10-04, Node, 10.000 paths, tax + 2 asset classes, the cloud container)**: the three bisections of ONE scenario take ~0,40 s at 30 years and
+    ~0,67 s at 50, so the nine figures ~1,2 s and ~2,0 s on top of a run that takes ~0,36 s (30 y) / ~0,58 s (50 y) per scenario. The first version (bisection on
+    euros, `Math.pow` and the pensions recomputed every step) took 1,7 s per scenario — the integer bisection and the cached schedule are what bring it under 0,5.
+    The spec's estimate («decine di ms») was wrong by two orders of magnitude: each `success(W)` is a full replay of `n × N` ledger steps, ~14 of them per level.
+    Not yet moved off the main thread; if the Esegui ever feels slow, the per-path-threshold variant (one bisection per path, the three quantiles read at once) is ~3× cheaper.
+
 - **The form is strings, the run is numbers**: the tab owns `MonteCarloForm` (as FireParametri's form) and derives `MonteCarloParams` with
   `parseItalianNumber` (it-IT amounts, plain numbers, a hand-typed «12.5») and `formatInputAmount`; the «Totale / Liquido» shortcuts write the
   string. The seed happens ONCE (`didSeedRef`) from the portfolio net of the locked funds, `plannedAnnualExpenses` and
@@ -113,6 +138,12 @@
   (edit → warning footer → Esegui → «Ultima esecuzione con questi parametri»), never a rate.
 
 ## Per-page blind spots
+
+- **FIRE › Monte Carlo, Spesa sostenibile (S1)**: the withdrawal is a FIXED amount indexed with the inflation, not a rule that adapts to the market (that is P3,
+  out of scope): it is the figure a plan that never changes course can afford, so a reader who would cut spending after a bad year can afford more. The
+  figure is STABLE, not exact: the seed is fixed and with 10.000 paths another seed would move it by ~1–2% (±800 € on 43.300 €); it is rounded DOWN to 100 €
+  and re-verified, so the plan at that figure holds in at least p of THESE paths. The cells belong to the last run: a plan edited and not re-run keeps the
+  old figures, as every tile of the tab does. With the tax on, the figure counts the gain share of the plan's basis, so it is lower than the same plan without.
 
 - **FIRE › Monte Carlo, leverage (T3)**: the leverage is CONSTANT and rebalanced every year (an ETF's, not a margin account's: a fixed
   debt with maintenance margin is not modelled, README § 7.4), so a bad year cannot be «waited out» — a loss above the capital is

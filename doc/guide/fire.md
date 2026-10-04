@@ -125,6 +125,11 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   the same doc), the goals already stored and `assignments` pass through **verbatim**, and the colour is picked INSIDE
   the transaction (`pickNextGoalColor`), or two goals created concurrently come out the same hue.
 
+- **Monte Carlo decumulation engine, factors apart (S1, 2026-10-04)**: `runSingleSimulation` is «draw the path's factors (`drawPathFactors`), then play the
+  withdrawal ledger (`runWithdrawalLedger`)»; `runMonteCarloSimulation(params, { keepFactors: true })` returns the `n × N` factors and `countSuccesses`
+  replays any withdrawal on them (doc/guide/fire-monte-carlo.md, Spesa sostenibile). The default call is unchanged (upstream and the Ventaglio never pass the
+  option); `runAccumulationSimulation` is untouched.
+
 ## FIRE › Calcolatore — a verdict over tiles (`components/fire-simulations/FireCalculatorTab.tsx`, `components/fire-simulations/tiles/*`, `lib/utils/{fireSummary,fireNarrative}.ts`)
 
 - The tab owns three states — `view` (Scenari | Ventaglio | Distribuzione, the Traguardo tile's aside), the pension-lock switch
