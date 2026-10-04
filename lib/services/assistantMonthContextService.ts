@@ -44,6 +44,7 @@ import { GoalBasedInvestingData } from '@/types/goals';
 import { buildCashflowBreakdown } from '@/lib/utils/expenseBreakdown';
 import { calculateGoalProgress, deriveTargetAllocationFromGoals } from '@/lib/utils/goalMath';
 import { computeGoalTrajectory } from '@/lib/utils/goalTrajectory';
+import { resolveFireAssumptions } from '@/lib/utils/fireAssumptions';
 import { getGoalDataAdmin } from '@/lib/server/goalData';
 
 const MAX_ALLOCATION_CHANGES = 5;
@@ -367,6 +368,10 @@ function buildGoalFields(
     };
   }
 
+  // The same pure resolution the Obiettivi tab runs (D8), on the data already read: a goal's assumed
+  // return is RP1 on the Base scenario, so the assistant quotes the figure the page shows.
+  const assumptions = resolveFireAssumptions({ settings, assets, goalData: isGoalDriven ? goalData : null });
+
   const items = goalData.goals.map((goal) => {
     const progress = calculateGoalProgress(goal, goalData.assignments, assets);
     const trajectory = computeGoalTrajectory({
@@ -375,6 +380,7 @@ function buildGoalFields(
       targetDate: goal.targetDate,
       monthlyContribution: goal.monthlyContribution,
       recommendedAllocation: goal.recommendedAllocation,
+      assumptions,
       now,
     });
 

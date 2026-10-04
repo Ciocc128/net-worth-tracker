@@ -283,6 +283,8 @@ function trajectory(overrides: Partial<TrajectoryView>): TrajectoryView {
     requiredMonthly: 970,
     extraMonthly: 270,
     annualReturn: 3.25,
+    returnOrigin: 'allocation',
+    returnOutside: [],
     deadline: { year: 2029, month: 6 },
     monthsToDeadline: 34,
     projectedAtDeadline: 110_400,
@@ -357,12 +359,16 @@ describe('resolveTraiettoriaHero and buildTraiettoriaChips', () => {
 });
 
 describe('describeTraiettoriaFooter', () => {
-  it('names the allocation the return comes from and the two dashed lines', () => {
-    expect(plain(describeTraiettoriaFooter(trajectory({})))).toBe('Rendimento nominale dall\'allocazione consigliata (70% obbligazioni, 20% azioni, 10% liquidità): una stima, non un consiglio. Tratteggiata orizzontale: il target; verticale: la scadenza.');
+  it('names the allocation the return comes from, the scenario and the two dashed lines', () => {
+    expect(plain(describeTraiettoriaFooter(trajectory({})))).toBe('Rendimento nominale dall\'allocazione dell\'obiettivo (70% obbligazioni, 20% azioni, 10% liquidità) sulle ipotesi dello scenario Base di Impostazioni › Simulazioni: una stima, non un consiglio. Tratteggiata orizzontale: il target; verticale: la scadenza.');
   });
 
-  it('without a recommended allocation the default return is named, and without a deadline the vertical line is not', () => {
-    expect(plain(describeTraiettoriaFooter(trajectory({ allocation: [], annualReturn: 4, deadline: null })))).toBe('Rendimento nominale del 4% l\'anno, il valore predefinito senza un\'allocazione consigliata: una stima, non un consiglio. Tratteggiata orizzontale: il target.');
+  it('declares what the hypotheses leave out (crypto, real estate)', () => {
+    expect(plain(describeTraiettoriaFooter(trajectory({ returnOutside: ['crypto'] })))).toContain('; Crypto fuori dalle ipotesi, il resto riscalato a 100: una stima');
+  });
+
+  it('without a usable allocation the target portfolio\'s Base return is named, and without a deadline the vertical line is not', () => {
+    expect(plain(describeTraiettoriaFooter(trajectory({ allocation: [], returnOrigin: 'portfolio', annualReturn: 4, deadline: null })))).toBe('Rendimento nominale del 4% l\'anno, quello dello scenario Base del portafoglio target, perché l\'obiettivo non ha un\'allocazione consigliata utilizzabile: una stima, non un consiglio. Tratteggiata orizzontale: il target.');
   });
 });
 

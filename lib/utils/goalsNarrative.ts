@@ -21,6 +21,7 @@
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { formatPercentage } from '@/lib/services/chartService';
 import { MONTH_NAMES } from '@/lib/constants/months';
+import { MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
 import { articleForPercent, atThePercent, monthWithPrepositionA, ofThePercent } from '@/lib/utils/patrimonioNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { GoalContributionSlice } from '@/lib/utils/goalTrajectory';
@@ -356,15 +357,20 @@ export function buildTraiettoriaChips(t: TrajectoryView): TraiettoriaChip[] {
 /** Where the return comes from, and what the dashed lines are. */
 export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
   const out: Narrative = [];
-  if (t.allocation.length > 0) {
-    out.push(prose("Rendimento nominale dall'allocazione consigliata ("));
+  if (t.returnOrigin === 'allocation') {
+    out.push(prose("Rendimento nominale dall'allocazione dell'obiettivo ("));
     t.allocation.forEach((share, index) => {
       if (index > 0) out.push(prose(', '));
       out.push(pct(share.pct), prose(` ${share.label.toLowerCase()}`));
     });
-    out.push(prose('): una stima, non un consiglio.'));
+    out.push(prose(`) sulle ipotesi dello scenario Base di Impostazioni › Simulazioni`));
+    if (t.returnOutside.length > 0) {
+      const labels = t.returnOutside.map((cls) => MONTE_CARLO_EXCLUDED_LABELS[cls]).join(' e ');
+      out.push(prose(`; ${labels} fuori dalle ipotesi, il resto riscalato a 100`));
+    }
+    out.push(prose(': una stima, non un consiglio.'));
   } else {
-    out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, il valore predefinito senza un'allocazione consigliata: una stima, non un consiglio."));
+    out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, quello dello scenario Base del portafoglio target, perché l'obiettivo non ha un'allocazione consigliata utilizzabile: una stima, non un consiglio."));
   }
   out.push(prose(t.deadline ? ' Tratteggiata orizzontale: il target; verticale: la scadenza.' : ' Tratteggiata orizzontale: il target.'));
   return out;

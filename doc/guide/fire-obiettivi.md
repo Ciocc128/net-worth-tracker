@@ -16,6 +16,10 @@
 - **The selection is a row** (`selectedGoalId`, falling back to the most urgent, following a deletion, session-only); the Traiettoria's actions (Modifica,
   Elimina through `useArmedDelete`, the disarm announced by a `role="status"` span) sit in its aside — the Scheda's ghost buttons from `desktop:`, 44px
   targets below. In demo the aside says «non modificabile in demo» and the Assegnazioni footer «In demo le quote non si modificano».
+- **The return is the page's common hypotheses (D8)**: `computeGoalTrajectory` takes `assumptions` (`resolveFireAssumptions`, read by the tab through
+  `useFireAssumptions`) and derives the return with `goalAnnualReturn` — RP1 on the Base scenario of Impostazioni › Simulazioni, from the goal's own allocation
+  (crypto and real estate out, the rest rescaled to 100, said in the Traiettoria footer) or, with none usable, the target portfolio's Base return. The tab
+  shows the «Ipotesi usate» row above the verdict, the same string as the other four tabs. Typical amounts are nominal, with no inflation.
 - **The goal's hex is identity** (dot, track, milestone, projection, the Panoramica's ObiettivoTile); the classes of Allocazione derivata take
   `ASSET_CLASS_CHART_INDEX` through `useChartColors` — the deleted `AllocationComparisonBar` carried a map of its own. Its «assigned» bar aggregates
   every goal's quotas by euro (reached included) while the derived target excludes the reached goals: the footer says the reached do not weigh.
@@ -31,5 +35,7 @@
   (`goalBasedInvesting/{uid}` + the two settings flags with `merge: true`) and removes it.
 
 ## Per-page blind spots
+
+- **FIRE › Obiettivi, return**: the allocation of a goal has no gold level, so a commodity share is simulated as Materie prime; a goal's return is the Base scenario only (no Orso/Toro view); the Assistant's figure ignores the pension lock.
 
 - **FIRE › Obiettivi**: no Playwright spec; ONE `now` per mount; with three goals the Obiettivi tile leaves air under the rows; a goal past its deadline gets no pace; free shares under 0,5% / 0,50 € are not listed; the selection is session-only; the «assigned» bar counts the reached goals, the derived target does not; the two dialogs keep their old chrome and two pre-existing `react-hooks` errors.

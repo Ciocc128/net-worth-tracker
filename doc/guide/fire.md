@@ -34,7 +34,12 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   (Impostazioni › Generale) now moves only the runway history, the PDF and the dashboard. The Coast «spesa personalizzata» is gone: its value
   stands in as the plan's expenses until a save moves it (`coastFireCustomExpenses` is no longer written; the stores clear it with `deleteField`).
   What If's job-loss income stays the Cashflow's (`WhatIfBaseline.annualIncome`), not plan expenses + savings.
-  **Still open until L3**: the Goals keep `GOAL_CLASS_RETURNS`.
+  **L3 (Obiettivi, D8)**: a goal's return is `goalAnnualReturn(allocation, assumptions)` (`goalTrajectory.ts`) — RP1 on the BASE scenario, the goal's
+  recommended allocation with crypto and real estate taken out and the rest rescaled to 100 (declared in the Traiettoria footer), else the target
+  portfolio's own Base return; `GOAL_CLASS_RETURNS`, `DEFAULT_GOAL_RETURN` and `expectedAnnualReturn` are gone. The tab reads the page's hypotheses
+  through `useFireAssumptions` (the same pension-locked ids as the other tabs) and prints the «Ipotesi usate» line; the Assistant's month context
+  runs the same pure `resolveFireAssumptions` on the data it already reads (no pension lock there: only the weights could differ). Goal amounts
+  stay nominal, no inflation.
 - **What If = perturbation + diff, no new projection math**: every v1 life event is a year-0 perturbation, then
   `fireService` is re-run on baseline vs adjusted and diffed. Do NOT add timed mid-projection cash events. **Keep the
   pure layer category-agnostic** — the selection of lost income sources and its sum live in the UI

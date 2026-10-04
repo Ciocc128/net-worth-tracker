@@ -22,6 +22,7 @@ import { calculateAssetValue } from '@/lib/services/assetService';
 import { calculateGoalProgress, deriveTargetAllocationFromGoals } from '@/lib/utils/goalMath';
 import {
   buildGoalProjectionSeries,
+  type GoalTrajectory,
   sortGoalRowsByUrgency,
   type GoalProjectionPoint,
   type GoalRow,
@@ -179,6 +180,10 @@ export interface TrajectoryView {
   extraMonthly: number | null;
   /** The nominal annual return the projection compounds at, in percent. */
   annualReturn: number;
+  /** Where the return comes from (D8): the goal's own allocation, or the target portfolio. */
+  returnOrigin: GoalTrajectory['returnOrigin'];
+  /** Classes of the allocation the return leaves out (crypto, real estate). */
+  returnOutside: GoalTrajectory['returnOutside'];
   deadline: GoalDate | null;
   monthsToDeadline: number | null;
   /** The value the current pace lands on at the deadline. */
@@ -228,6 +233,8 @@ export function summarizeTrajectory({ goal, progress, trajectory }: GoalRow, now
     requiredMonthly: required,
     extraMonthly: required !== null ? Math.max(0, required - trajectory.currentMonthlyContribution) : null,
     annualReturn: trajectory.annualReturn,
+    returnOrigin: trajectory.returnOrigin,
+    returnOutside: trajectory.returnOutside,
     deadline: goal.targetDate ? goalDateFromIso(goal.targetDate) : null,
     monthsToDeadline: trajectory.monthsToDeadline,
     projectedAtDeadline,

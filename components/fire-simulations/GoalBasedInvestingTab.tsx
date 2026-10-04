@@ -43,6 +43,10 @@ import { getAllAssets } from '@/lib/services/assetService';
 import { calculateGoalProgress, cleanOrphanedAssignments, getGoalData, saveGoalData } from '@/lib/services/goalService';
 import type { GoalAssetAssignment, GoalBasedInvestingData, InvestmentGoal } from '@/types/goals';
 import { computeGoalTrajectory, type GoalRow } from '@/lib/utils/goalTrajectory';
+import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
+import { calculateAssetValue } from '@/lib/services/assetService';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { buildMilestones, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues } from '@/lib/utils/goalsSummary';
 import {
   ALLOCAZIONE_DERIVATA_ASIDE,
@@ -142,12 +146,31 @@ export function GoalBasedInvestingTab() {
   const cleanedAssignments = useMemo(() => cleanOrphanedAssignments(assignments, assets), [assignments, assets]);
   const goalProgressList = useMemo(() => goals.map((g) => calculateGoalProgress(g, cleanedAssignments, assets)), [goals, cleanedAssignments, assets]);
 
+  // The page's common hypotheses (doc/fire-ipotesi/README.md, D8): a goal's return is RP1 on the Base scenario.
+  // The pension lock reads like the other FIRE tabs, so the «Ipotesi usate» line is the same string.
+  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
+  const assumptionLockedIds = useMemo(() => {
+    if (!respectPensionLockIn || assets.length === 0) return new Set<string>();
+    const lock = resolvePensionLockState(
+      assets,
+      {
+        userAge: settings?.userAge,
+        pensionInpsRetirementAge: settings?.pensionInpsRetirementAge,
+        pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment,
+      },
+      new Date(),
+      calculateAssetValue,
+    );
+    return new Set(lock.funds.filter((info) => info.isLocked).map((info) => info.fund.id));
+  }, [respectPensionLockIn, assets, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
+  const { assumptions, isLoading: loadingAssumptions, isError: assumptionsError } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
+
   // One "now" per mount so trajectories, ordering and the chart's axis stay stable.
   const now = useMemo(() => new Date(), []);
 
   const goalRows = useMemo<GoalRow[]>(
     () =>
-      goals
+      !assumptions ? [] : goals
         .map((goal) => {
           const progress = goalProgressList.find((p) => p.goalId === goal.id);
           if (!progress) return null;
@@ -157,12 +180,13 @@ export function GoalBasedInvestingTab() {
             targetDate: goal.targetDate,
             monthlyContribution: goal.monthlyContribution,
             recommendedAllocation: goal.recommendedAllocation,
+            assumptions,
             now,
           });
           return { goal, progress, trajectory };
         })
         .filter((r): r is GoalRow => r != null),
-    [goals, goalProgressList, now],
+    [goals, goalProgressList, assumptions, now],
   );
 
   const portfolioTotal = useMemo(() => sumAssetValues(assets), [assets]);
@@ -228,7 +252,7 @@ export function GoalBasedInvestingTab() {
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  if (resolveSurfaceState({ loading: loadingSettings || loadingAssets || loadingGoals, failed: settingsError || assetsError || goalsError }) === 'failed') {
+  if (resolveSurfaceState({ loading: loadingSettings || loadingAssets || loadingGoals || loadingAssumptions, failed: settingsError || assetsError || goalsError || assumptionsError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
@@ -240,7 +264,7 @@ export function GoalBasedInvestingTab() {
     );
   }
 
-  if (loadingSettings || loadingAssets || loadingGoals) {
+  if (loadingSettings || loadingAssets || loadingGoals || loadingAssumptions) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
@@ -283,6 +307,7 @@ export function GoalBasedInvestingTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
+        <FireAssumptionsRow assumptions={assumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sugli obiettivi" />
       </div>
 

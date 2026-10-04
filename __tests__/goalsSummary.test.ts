@@ -14,6 +14,7 @@ vi.mock('@/lib/services/assetService', () => ({
   calculateAssetValue: (asset: { quantity: number; currentPrice: number }) => asset.quantity * asset.currentPrice,
 }));
 
+import { GOAL_TEST_ASSUMPTIONS as ASSUMPTIONS } from './goalAssumptionsFixture';
 import type { Asset } from '@/types/assets';
 import type { GoalAssetAssignment, InvestmentGoal } from '@/types/goals';
 import { computeGoalTrajectory, type GoalRow, type GoalTrajectory } from '@/lib/utils/goalTrajectory';
@@ -68,6 +69,8 @@ function row(goalDef: InvestmentGoal, currentValue: number, trajectory: Partial<
     trajectory: {
       verdict: 'onTrack',
       annualReturn: 4,
+      returnOrigin: 'allocation',
+      returnOutside: [],
       monthsToDeadline: null,
       requiredMonthlyContribution: null,
       currentMonthlyContribution: 0,
@@ -168,7 +171,7 @@ describe('summarizeTrajectory', () => {
   it('reads the dated goal at zero return: the shortfall at the deadline and the extra monthly pace', () => {
     // 35 months (ceil of 1038.6 days / 30.44) at 0%: 78.000 + 700 × 35 = 102.500 at the deadline;
     // required = 42.000 / 35.
-    const trajectory = computeGoalTrajectory({ currentValue: 78_000, targetAmount: 120_000, targetDate: '2029-06-30', monthlyContribution: 700, annualReturn: 0, now: NOW });
+    const trajectory = computeGoalTrajectory({ assumptions: ASSUMPTIONS, currentValue: 78_000, targetAmount: 120_000, targetDate: '2029-06-30', monthlyContribution: 700, annualReturn: 0, now: NOW });
     const view = summarizeTrajectory({ goal: CASA, progress: calculateGoalProgress(CASA, ASSIGNMENTS, ASSETS), trajectory }, NOW);
 
     expect(view.monthsToDeadline).toBe(35);
@@ -181,7 +184,7 @@ describe('summarizeTrajectory', () => {
   });
 
   it('lists the recommended allocation largest first and draws a series up to the deadline', () => {
-    const trajectory = computeGoalTrajectory({ currentValue: 78_000, targetAmount: 120_000, targetDate: '2029-06-30', monthlyContribution: 700, annualReturn: 0, now: NOW });
+    const trajectory = computeGoalTrajectory({ assumptions: ASSUMPTIONS, currentValue: 78_000, targetAmount: 120_000, targetDate: '2029-06-30', monthlyContribution: 700, annualReturn: 0, now: NOW });
     const view = summarizeTrajectory({ goal: CASA, progress: calculateGoalProgress(CASA, ASSIGNMENTS, ASSETS), trajectory }, NOW);
 
     expect(view.allocation.map((a) => [a.label, a.pct])).toEqual([['Obbligazioni', 70], ['Azioni', 20], ['Liquidità', 10]]);
@@ -191,7 +194,7 @@ describe('summarizeTrajectory', () => {
 
   it('an on-track goal has no extra pace and a surplus at the deadline', () => {
     // 20 months at 0%: 11.500 + 350 × 20 = 18.500 ≥ 18.000.
-    const trajectory = computeGoalTrajectory({ currentValue: 11_500, targetAmount: 18_000, targetDate: '2028-03-31', monthlyContribution: 350, annualReturn: 0, now: NOW });
+    const trajectory = computeGoalTrajectory({ assumptions: ASSUMPTIONS, currentValue: 11_500, targetAmount: 18_000, targetDate: '2028-03-31', monthlyContribution: 350, annualReturn: 0, now: NOW });
     const view = summarizeTrajectory({ goal: AUTO, progress: calculateGoalProgress(AUTO, ASSIGNMENTS, ASSETS), trajectory }, NOW);
 
     expect(view.verdict).toBe('onTrack');
@@ -202,7 +205,7 @@ describe('summarizeTrajectory', () => {
 
   it('an open goal has no target, no series and no allocation to explain', () => {
     const open = goal('figli', 'Figli');
-    const trajectory = computeGoalTrajectory({ currentValue: 4_000, now: NOW });
+    const trajectory = computeGoalTrajectory({ assumptions: ASSUMPTIONS, currentValue: 4_000, now: NOW });
     const view = summarizeTrajectory({ goal: open, progress: calculateGoalProgress(open, [], ASSETS), trajectory }, NOW);
 
     expect(view.targetAmount).toBeNull();
