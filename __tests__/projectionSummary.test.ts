@@ -211,6 +211,14 @@ describe('haveProjectionInputsChanged (P11)', () => {
     expect(haveProjectionInputsChanged(inputs(), inputs({ horizon: 10 }))).toBe(false);
   });
 
+  it('§ 12: the dated flows make it stale when they change', () => {
+    const lump = { id: 'l', label: 'Eredità', kind: 'lumpIn' as const, sigma: 0 as const, indexed: false, amount: 50_000, anchor: 'fixed' as const, start: 5, durationYears: null, inCashflowToday: false };
+    const flows = (amount: number) => ({ resolved: [{ ...lump, amount }], planExpensesFromCashflow: true });
+    expect(haveProjectionInputsChanged(inputs(), inputs({ datedFlows: flows(50_000) }))).toBe(true);
+    expect(haveProjectionInputsChanged(inputs({ datedFlows: flows(50_000) }), inputs({ datedFlows: flows(50_000) }))).toBe(false);
+    expect(haveProjectionInputsChanged(inputs({ datedFlows: flows(50_000) }), inputs({ datedFlows: flows(60_000) }))).toBe(true);
+  });
+
   it('a horizon past the run\'s years is stale', () => {
     expect(haveProjectionInputsChanged(inputs(), inputs({ horizon: 55, years: 55 }))).toBe(true);
   });

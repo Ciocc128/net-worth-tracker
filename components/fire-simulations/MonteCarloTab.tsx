@@ -99,6 +99,9 @@ import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
+import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
+import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -193,6 +196,15 @@ export function MonteCarloTab() {
   const { assumptions, isLoading: isLoadingAssumptions, isError: assumptionsError } = useFireAssumptions(lockedAssetIds, { withCashflow: true });
   // K1 (RK7): the capital and the two seeds of the weights are the page's own reading — this tab never recomputes them.
   const capital = assumptions?.capital ?? null;
+  // § 12 (RF8): the saved dated flows, read as «if I stop today» — a FIRE-anchored one opens in year 1 + its delay. The plan's
+  // expenses come from the Cashflow unless typed in Impostazioni (D-F6): that decides whether a flow «already in the Cashflow» is inside them.
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows();
+  const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
+  const datedFlows = useMemo<DatedFlowsInput | undefined>(
+    () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
+    [resolvedFlows, planExpensesFromCashflow],
+  );
+  const assumptionsWithFlows = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
   const targetSeed = assumptions?.weightSeeds?.targets ?? null;
   const holdingsSeed = assumptions?.weightSeeds?.holdings ?? null;
   const totalNetWorth = Math.max(0, capital?.total ?? 0);
@@ -291,8 +303,9 @@ export function MonteCarloTab() {
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
       // The typed capital keeps the portfolio's gain share: basis = capital × (1 − gain share).
       withdrawalTax: taxProfile ? { basisToday: initialPortfolio * (1 - taxProfile.gainShare), rate: taxProfile.rate } : undefined,
+      flows: datedFlows,
     };
-  }, [form, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, statePensionInflows, taxProfile]);
+  }, [form, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, statePensionInflows, taxProfile, datedFlows]);
 
   const allocationSum = params ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + params.weights[cls], 0) : 0;
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;
@@ -350,11 +363,12 @@ export function MonteCarloTab() {
   // Auto-run once, when the seeded plan can run — the page opens answered, like the Ventaglio.
   const didAutoRunRef = useRef(false);
   useEffect(() => {
-    if (didAutoRunRef.current || !currentInputs || !canRun) return;
+    // The flows are part of the plan: the first run waits for the mortgage linked in Patrimonio to be read.
+    if (didAutoRunRef.current || !currentInputs || !canRun || isLoadingFlows) return;
     didAutoRunRef.current = true;
     const timer = setTimeout(() => runScenarios(currentInputs), 0);
     return () => clearTimeout(timer);
-  }, [currentInputs, canRun, runScenarios]);
+  }, [currentInputs, canRun, runScenarios, isLoadingFlows]);
 
   const handleRun = useCallback(() => {
     if (currentInputs && canRun) runScenarios(currentInputs);
@@ -398,7 +412,7 @@ export function MonteCarloTab() {
     );
   }
 
-  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || !form || !params || !typedPlan || awaitingFirstRun) {
+  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || isLoadingFlows || !form || !params || !typedPlan || awaitingFirstRun) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
@@ -408,7 +422,7 @@ export function MonteCarloTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <FireAssumptionsRow assumptions={assumptions} />
+        <FireAssumptionsRow assumptions={assumptionsWithFlows} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Monte Carlo" />
       </div>
 
@@ -481,6 +495,7 @@ export function MonteCarloTab() {
             liquidNetWorth={liquidNetWorth}
             marketDeclaration={describeMarketDeclaration(market, leverage)}
             capital={capital}
+            flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'monteCarlo' })}
             onRun={handleRun}
             canRun={canRun}
             isRunning={isRunning}

@@ -166,6 +166,8 @@ export interface FlowSchedule {
   savingsDelta(t: number): number;
   /** The net lump of year `s` (inflows +, outflows −), nominal. */
   lump(s: number): number;
+  /** The lumps of year `s` apart (both ≥ 0, nominal): RF8's ledger takes the inflows in after the return and the outflows out with the withdrawal. */
+  lumpParts(s: number): { inflow: number; outflow: number };
   /** RF4: the change of the need in year `s > T`, nominal, retiring at the end of year `T`. */
   needDelta(s: number, retirementYear: number): number;
   /** Years after `T` of the last start or end of any flow (0 when none is ahead). */
@@ -203,6 +205,16 @@ export function buildFlowSchedule(resolved: readonly ResolvedFlow[], options: Fl
         total += (flow.kind === 'lumpIn' ? 1 : -1) * nominalAmount(flow, s, pi, 'need');
       }
       return total;
+    },
+    lumpParts(s) {
+      let inflow = 0;
+      let outflow = 0;
+      for (const flow of lumps) {
+        if (!isActive(flow, s, null)) continue;
+        if (flow.kind === 'lumpIn') inflow += nominalAmount(flow, s, pi, 'need');
+        else outflow += nominalAmount(flow, s, pi, 'need');
+      }
+      return { inflow, outflow };
     },
     needDelta(s, retirementYear) {
       let need = 0;
@@ -289,4 +301,61 @@ export function lumpMarkersOf(resolved: readonly ResolvedFlow[], currentYear: nu
   return resolved
     .filter((flow) => isLump(flow.kind) && flow.anchor === 'fixed' && flow.start >= 1)
     .map((flow) => ({ calendarYear: currentYear + flow.start, label: flow.label, direction: flow.kind === 'lumpIn' ? ('in' as const) : ('out' as const) }));
+}
+
+/**
+ * What the stochastic engines read of the flows (RF7, RF8, RF10): the resolved list and where the plan's expenses come
+ * from (D-F6). Each engine builds the schedule from ITS scenario's inflation, so one list serves the three scenarios.
+ */
+export interface DatedFlowsInput {
+  resolved: readonly ResolvedFlow[];
+  planExpensesFromCashflow: boolean;
+}
+
+/** The per-year tables of a schedule, computed once per run: a stochastic run reads them thousands of times (index = year `s`, 0…`years`). */
+export interface FlowYearTables {
+  /** RF3: the change of the year-`s` saving (index 0 unused: 0). */
+  savingsDelta: Float64Array;
+  /** The net lump of year `s` — exactly `schedule.lump(s)`, so a path sums the same floats the deterministic walk does. */
+  lumpNet: Float64Array;
+  lumpInflow: Float64Array;
+  lumpOutflow: Float64Array;
+  /** RF4: the change of the need in year `s > T` when retiring at the end of year `T`; memoised per `T`. */
+  needFor(retirementYear: number): Float64Array;
+}
+
+export function buildFlowYearTables(schedule: FlowSchedule, years: number): FlowYearTables {
+  const savingsDelta = new Float64Array(years + 1);
+  const lumpNet = new Float64Array(years + 1);
+  const lumpInflow = new Float64Array(years + 1);
+  const lumpOutflow = new Float64Array(years + 1);
+  for (let year = 0; year <= years; year++) {
+    if (year >= 1) savingsDelta[year] = schedule.savingsDelta(year);
+    lumpNet[year] = schedule.lump(year);
+    const parts = schedule.lumpParts(year);
+    lumpInflow[year] = parts.inflow;
+    lumpOutflow[year] = parts.outflow;
+  }
+  const needs = new Map<number, Float64Array>();
+  return {
+    savingsDelta,
+    lumpNet,
+    lumpInflow,
+    lumpOutflow,
+    needFor(retirementYear) {
+      let need = needs.get(retirementYear);
+      if (!need) {
+        need = new Float64Array(years + 1);
+        for (let year = retirementYear + 1; year <= years; year++) need[year] = schedule.needDelta(year, retirementYear);
+        needs.set(retirementYear, need);
+      }
+      return need;
+    },
+  };
+}
+
+/** A string that is equal for two lists exactly when they read the same (the mortgage's `Map` does not survive `JSON.stringify`): the stale-run check of the tabs. */
+export function datedFlowsSignature(flows: DatedFlowsInput | undefined): string {
+  if (!flows || flows.resolved.length === 0) return '';
+  return JSON.stringify([flows.planExpensesFromCashflow, flows.resolved.map((flow) => ({ ...flow, yearly: flow.yearly ? [...flow.yearly.entries()] : undefined }))]);
 }

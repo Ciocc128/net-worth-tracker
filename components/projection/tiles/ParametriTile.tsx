@@ -62,6 +62,8 @@ interface ParametriTileProps {
   marketDeclaration: Narrative;
   /** K1 (§ 11.6): the page's capital, for the line under «Capitale iniziale»; null while unread. */
   capital: FireCapital | null;
+  /** § 12: the dated flows the run reads, one read-only line under the capital (`describeSimulationFlowsRow`); edited in the Calcolatore. */
+  flowsNote: string;
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
@@ -74,6 +76,7 @@ interface ParametriTileProps {
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 const HINT_CLASS = 'mt-1 text-[11px] leading-[1.4] text-muted-foreground';
 const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
+const FLOWS_HREF = '/dashboard/fire-simulations?tab=fire';
 
 export function ParametriTile({
   reading,
@@ -92,6 +95,7 @@ export function ParametriTile({
   thresholdHint,
   marketDeclaration,
   capital,
+  flowsNote,
   onRun,
   canRun,
   isRunning,
@@ -120,6 +124,10 @@ export function ParametriTile({
               </Button>
             </div>
             {capital && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
+            <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">{flowsNote}.</p>
+            <Link href={FLOWS_HREF} className="inline-flex min-h-11 items-center text-[11px] text-foreground underline underline-offset-2 desktop:min-h-0">
+              Modifica nel Calcolatore › Parametri
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -541,8 +541,10 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       annualCostRate: assumptions.cost?.total,
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
+      // RF7 (§ 12): the paths read the same flows the walk does — the accumulation's Δs and lumps, the retirement ledger's need from each path's own FIRE year.
+      flows: flowsInput,
     } satisfies FanSimulationInputs;
-  }, [assets, capital, assumptions, monteCarloMarket, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, pensionCapitalInflows]);
+  }, [assets, capital, assumptions, monteCarloMarket, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios.base.inflationRate, pensionCapitalInflows, flowsInput]);
 
   // The fan only pays its CPU cost while one of its two views is open (Ventaglio, Distribuzione).
   // Keyed on the same inputs that change the deterministic projection, so an edited parameter
