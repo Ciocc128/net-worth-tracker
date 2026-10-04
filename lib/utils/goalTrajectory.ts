@@ -7,7 +7,7 @@
  *   - an on-track / off-track / reached verdict.
  *
  * Plus the derivations for the redesign's new features:
- *   - expectedAnnualReturn() from a goal's recommended allocation (B1),
+ *   - goalAnnualReturn() from a goal's recommended allocation on the page's common hypotheses (B1, D8),
  *   - buildGoalProjectionSeries() glide-path points for the mini chart (B2),
  *   - allocateContributionAcrossGoals() weighted split of new cash (B3),
  *   - sortGoalRowsByUrgency() for the list order (the page summary lives in goalsSummary.ts).
@@ -25,21 +25,11 @@ import {
   GoalProgress,
   GoalPriority,
 } from '@/types/goals';
+import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import { portfolioCompoundReturn, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 
-// Nominal annual return assumptions per asset class (%). Deliberately conservative.
-export const GOAL_CLASS_RETURNS: Record<AssetClass, number> = {
-  equity: 7,
-  bonds: 2.5,
-  cash: 1,
-  crypto: 12,
-  realestate: 4,
-  commodity: 3,
-  trendFollowing: 5,
-  carry: 4,
-};
-
-// Used when a goal has no recommended allocation to weight the return.
-export const DEFAULT_GOAL_RETURN = 4;
+/** The slice of the page's hypotheses a goal needs: the market of Impostazioni › Simulazioni and the target portfolio's scenarios. */
+export type GoalAssumptions = Pick<FireAssumptions, 'scenarios' | 'market'>;
 
 // Priority multipliers for the cross-goal contribution split. Mirrors the
 // weighting used by deriveTargetAllocationFromGoals so the two planners agree.
@@ -62,6 +52,10 @@ export interface GoalTrajectory {
   verdict: GoalVerdict;
   /** Expected nominal annual return used for this goal (%). */
   annualReturn: number;
+  /** Where that return comes from (D8): the goal's own allocation or the target portfolio. */
+  returnOrigin: GoalReturn['origin'];
+  /** Classes of the goal's allocation left out of the return (crypto, real estate). */
+  returnOutside: GoalReturn['outside'];
   /** Months from `now` to the target date (>= 0), null if no date. */
   monthsToDeadline: number | null;
   /** Monthly contribution needed to hit the target by its date, null if not computable. */
@@ -84,25 +78,48 @@ export interface GoalTrajectoryInput {
   /** Override the derived return (mainly for tests). */
   annualReturn?: number;
   recommendedAllocation?: Partial<Record<AssetClass, number>>;
+  /** The page's common hypotheses (`resolveFireAssumptions`): the return is derived from them. */
+  assumptions: GoalAssumptions;
   now?: Date;
 }
 
+/** The `AssetClass` values the Monte Carlo classes are made of (gold is a commodity sub-category, a goal's allocation has no such level). */
+const GOAL_SIMULATED_CLASSES: readonly AssetClass[] = ['equity', 'bonds', 'cash', 'commodity', 'trendFollowing', 'carry'];
+const GOAL_OUTSIDE_CLASSES = ['crypto', 'realestate'] as const;
+
+export interface GoalReturn {
+  /** Nominal compound annual return, percent. */
+  rate: number;
+  /** `allocation`: the goal's own recommended allocation; `portfolio`: the target portfolio's Base scenario. */
+  origin: 'allocation' | 'portfolio';
+  /** Classes of the allocation the hypotheses do not simulate (crypto, real estate): taken out, the rest rescaled to 100. */
+  outside: (typeof GOAL_OUTSIDE_CLASSES)[number][];
+}
+
 /**
- * Weighted nominal annual return implied by a goal's recommended allocation.
- * Falls back to DEFAULT_GOAL_RETURN when no usable allocation is given.
+ * D8: the return of a goal is RP1 on the Base scenario of Impostazioni › Simulazioni. With a
+ * recommended allocation, that allocation (crypto and real estate out, the rest rescaled to 100);
+ * without a usable one, the target portfolio's own Base return — the figure every other FIRE tab uses.
  */
-export function expectedAnnualReturn(
-  allocation?: Partial<Record<AssetClass, number>>
-): number {
-  if (!allocation) return DEFAULT_GOAL_RETURN;
-  const entries = Object.entries(allocation) as [AssetClass, number][];
-  const total = entries.reduce((s, [, pct]) => s + (pct || 0), 0);
-  if (total <= 0) return DEFAULT_GOAL_RETURN;
-  const weighted = entries.reduce(
-    (s, [cls, pct]) => s + (GOAL_CLASS_RETURNS[cls] ?? DEFAULT_GOAL_RETURN) * (pct || 0),
-    0
-  );
-  return weighted / total;
+export function goalAnnualReturn(
+  allocation: Partial<Record<AssetClass, number>> | undefined,
+  assumptions: GoalAssumptions
+): GoalReturn {
+  const portfolio: GoalReturn = { rate: assumptions.scenarios.base.growthRate, origin: 'portfolio', outside: [] };
+  if (!allocation) return portfolio;
+  const weights = monteCarloClassRecord<number>(() => 0);
+  let total = 0;
+  for (const cls of GOAL_SIMULATED_CLASSES) {
+    const pct = Math.max(0, allocation[cls] || 0);
+    weights[cls as MonteCarloClass] = pct;
+    total += pct;
+  }
+  if (total <= 0) return portfolio;
+  for (const cls of GOAL_SIMULATED_CLASSES) weights[cls as MonteCarloClass] = (weights[cls as MonteCarloClass] * 100) / total;
+  const outside = GOAL_OUTSIDE_CLASSES.filter((cls) => (allocation[cls] || 0) > 0);
+  const { market } = assumptions;
+  const { cagr } = portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread);
+  return { rate: cagr, origin: 'allocation', outside };
 }
 
 function monthsBetween(from: Date, to: Date): number {
@@ -176,8 +193,8 @@ export function monthsToReach(
 
 export function computeGoalTrajectory(input: GoalTrajectoryInput): GoalTrajectory {
   const now = input.now ?? new Date();
-  const annualReturn =
-    input.annualReturn ?? expectedAnnualReturn(input.recommendedAllocation);
+  const derived = goalAnnualReturn(input.recommendedAllocation, input.assumptions);
+  const annualReturn = input.annualReturn ?? derived.rate;
   const currentMonthlyContribution = Math.max(0, input.monthlyContribution ?? 0);
   const currentValue = Math.max(0, input.currentValue);
   const hasTarget = input.targetAmount != null && input.targetAmount > 0;
@@ -228,6 +245,8 @@ export function computeGoalTrajectory(input: GoalTrajectoryInput): GoalTrajector
   return {
     verdict,
     annualReturn,
+    returnOrigin: derived.origin,
+    returnOutside: derived.outside,
     monthsToDeadline,
     requiredMonthlyContribution: required,
     currentMonthlyContribution,
@@ -252,12 +271,11 @@ export interface GoalProjectionPoint {
 }
 
 export function buildGoalProjectionSeries(
-  input: GoalTrajectoryInput & { targetAmount: number },
+  input: Omit<GoalTrajectoryInput, 'assumptions' | 'recommendedAllocation' | 'annualReturn'> & { targetAmount: number; annualReturn: number },
   maxPoints = 48
 ): GoalProjectionPoint[] {
   const now = input.now ?? new Date();
-  const annualReturn =
-    input.annualReturn ?? expectedAnnualReturn(input.recommendedAllocation);
+  const annualReturn = input.annualReturn;
   const contribution = Math.max(0, input.monthlyContribution ?? 0);
   const currentValue = Math.max(0, input.currentValue);
   const target = input.targetAmount;

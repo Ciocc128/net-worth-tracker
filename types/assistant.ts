@@ -267,7 +267,7 @@ export interface AssistantMonthContextBundle {
       // can say what they rest on. Without it the other two are unfalsifiable.
       requiredMonthlyContribution?: number;
       projectedValueAtDeadline?: number;
-      assumedAnnualReturn?: number; // % nominal, derived from recommendedAllocation
+      assumedAnnualReturn?: number; // % nominal, RP1 on the Base scenario (the goal's allocation, else the target portfolio)
     }[];
   } | null;
   // Full category/subcategory taxonomy configured by the user (Settings → Categorie),

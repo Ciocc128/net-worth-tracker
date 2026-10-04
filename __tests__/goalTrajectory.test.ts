@@ -3,11 +3,16 @@
  * Pure math + derivation — no Firebase, no React. Time is injected via `now`.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@/lib/firebase/config', () => ({ db: {} }));
+vi.mock('@/lib/services/assetService', () => ({
+  calculateAssetValue: (asset: { quantity: number; currentPrice: number }) => asset.quantity * asset.currentPrice,
+}));
+
+import { GOAL_TEST_ASSUMPTIONS as ASSUMPTIONS } from './goalAssumptionsFixture';
 import {
-  GOAL_CLASS_RETURNS,
-  DEFAULT_GOAL_RETURN,
-  expectedAnnualReturn,
+  goalAnnualReturn,
   futureValue,
   requiredMonthlyContribution,
   monthsToReach,
@@ -24,27 +29,44 @@ const NOW = new Date('2026-01-01T00:00:00Z');
 const dateInMonths = (months: number) =>
   new Date(NOW.getTime() + months * 1000 * 60 * 60 * 24 * 30.44).toISOString();
 
-// ==================== expectedAnnualReturn ====================
+// ==================== goalAnnualReturn (D8, A14–A16) ====================
 
-describe('expectedAnnualReturn', () => {
-  it('falls back to the default with no allocation', () => {
-    expect(expectedAnnualReturn(undefined)).toBe(DEFAULT_GOAL_RETURN);
-    expect(expectedAnnualReturn({})).toBe(DEFAULT_GOAL_RETURN);
+describe('goalAnnualReturn', () => {
+  it('without an allocation it is the target portfolio\'s Base return (A3: 60/40 → 8,2623%)', () => {
+    const r = goalAnnualReturn(undefined, ASSUMPTIONS);
+    expect(r.origin).toBe('portfolio');
+    expect(r.rate).toBeCloseTo(8.2623, 3);
+    expect(goalAnnualReturn({}, ASSUMPTIONS).origin).toBe('portfolio');
   });
 
-  it('returns the pure class rate for a single-class allocation', () => {
-    expect(expectedAnnualReturn({ equity: 100 })).toBeCloseTo(GOAL_CLASS_RETURNS.equity, 5);
-    expect(expectedAnnualReturn({ cash: 100 })).toBeCloseTo(GOAL_CLASS_RETURNS.cash, 5);
+  it('a single class returns exactly its Base CAGR (A1)', () => {
+    expect(goalAnnualReturn({ equity: 100 }, ASSUMPTIONS).rate).toBeCloseTo(10.02, 4);
   });
 
-  it('weights a mixed allocation', () => {
-    // 50/50 equity(7)/bonds(2.5) = 4.75
-    expect(expectedAnnualReturn({ equity: 50, bonds: 50 })).toBeCloseTo(4.75, 5);
+  it('A14: 80% equity + 20% bonds, Base → 9,2079%', () => {
+    const r = goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS);
+    expect(r.origin).toBe('allocation');
+    expect(r.rate).toBeCloseTo(9.2079, 3);
   });
 
-  it('normalises when weights do not sum to 100', () => {
-    // weights 20/20 → still 50/50 → 4.75
-    expect(expectedAnnualReturn({ equity: 20, bonds: 20 })).toBeCloseTo(4.75, 5);
+  it('A15: 20% equity + 70% bonds + 10% cash, Base → 5,8300%', () => {
+    expect(goalAnnualReturn({ equity: 20, bonds: 70, cash: 10 }, ASSUMPTIONS).rate).toBeCloseTo(5.83, 3);
+  });
+
+  it('A16: 90% equity + 10% crypto → equity rescaled to 100 (10,0200%), crypto declared outside', () => {
+    const r = goalAnnualReturn({ equity: 90, crypto: 10 }, ASSUMPTIONS);
+    expect(r.rate).toBeCloseTo(10.02, 4);
+    expect(r.outside).toEqual(['crypto']);
+  });
+
+  it('normalises weights that do not sum to 100', () => {
+    expect(goalAnnualReturn({ equity: 40, bonds: 10 }, ASSUMPTIONS).rate).toBeCloseTo(goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS).rate, 8);
+  });
+
+  it('an allocation made only of crypto and real estate falls back to the portfolio', () => {
+    const r = goalAnnualReturn({ crypto: 60, realestate: 40 }, ASSUMPTIONS);
+    expect(r.origin).toBe('portfolio');
+    expect(r.rate).toBeCloseTo(8.2623, 3);
   });
 });
 
@@ -118,13 +140,13 @@ describe('monthsToReach', () => {
 
 describe('computeGoalTrajectory', () => {
   it('open-ended goal → noTarget verdict', () => {
-    const t = computeGoalTrajectory({ currentValue: 5000, now: NOW });
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS, currentValue: 5000, now: NOW });
     expect(t.verdict).toBe('noTarget');
     expect(t.requiredMonthlyContribution).toBeNull();
   });
 
   it('reached when current value meets the target', () => {
-    const t = computeGoalTrajectory({
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS,
       currentValue: 12000,
       targetAmount: 10000,
       targetDate: dateInMonths(24),
@@ -134,7 +156,7 @@ describe('computeGoalTrajectory', () => {
   });
 
   it('target without a date → noDeadline', () => {
-    const t = computeGoalTrajectory({
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS,
       currentValue: 1000,
       targetAmount: 10000,
       now: NOW,
@@ -144,7 +166,7 @@ describe('computeGoalTrajectory', () => {
   });
 
   it('off track when contribution is too low for the deadline', () => {
-    const t = computeGoalTrajectory({
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS,
       currentValue: 0,
       targetAmount: 12000,
       targetDate: dateInMonths(12),
@@ -157,7 +179,7 @@ describe('computeGoalTrajectory', () => {
   });
 
   it('on track when contribution meets the required pace', () => {
-    const t = computeGoalTrajectory({
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS,
       currentValue: 0,
       targetAmount: 12000,
       targetDate: dateInMonths(12),
@@ -170,17 +192,18 @@ describe('computeGoalTrajectory', () => {
   });
 
   it('derives the return from the recommended allocation when not overridden', () => {
-    const t = computeGoalTrajectory({
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS,
       currentValue: 0,
       targetAmount: 10000,
       recommendedAllocation: { equity: 100 },
       now: NOW,
     });
-    expect(t.annualReturn).toBeCloseTo(GOAL_CLASS_RETURNS.equity, 5);
+    expect(t.annualReturn).toBeCloseTo(10.02, 4);
+    expect(t.returnOrigin).toBe('allocation');
   });
 
   it('produces a projected date when a contribution is set', () => {
-    const t = computeGoalTrajectory({
+    const t = computeGoalTrajectory({ assumptions: ASSUMPTIONS,
       currentValue: 0,
       targetAmount: 1200,
       monthlyContribution: 100,
@@ -298,6 +321,8 @@ function mkRow(
     trajectory: {
       verdict,
       annualReturn: 5,
+      returnOrigin: 'portfolio',
+      returnOutside: [],
       monthsToDeadline,
       requiredMonthlyContribution: required,
       currentMonthlyContribution: 0,

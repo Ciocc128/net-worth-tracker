@@ -779,8 +779,10 @@ describe('goals block', () => {
     // number the reader cannot audit.
     expect(item.requiredMonthlyContribution).toBeGreaterThan(500);
     expect(item.projectedValueAtDeadline).toBeGreaterThan(10_000);
-    // bonds 70 / equity 30 → 0.7×2.5 + 0.3×7 = 3.85%
-    expect(item.assumedAnnualReturn).toBeCloseTo(3.85, 2);
+    // D8: RP1 on the Base scenario with the default market, bonds 70 / equity 30 → 6,5720%
+    // (the weighted CAGR 0,7·4,53 + 0,3·10,02 = 6,177% plus the diversification gain of the
+    // rebalanced portfolio; computed with portfolioCompoundReturn, as the Obiettivi tab does).
+    expect(item.assumedAnnualReturn).toBeCloseTo(6.572, 3);
   });
 
   it('leaves the trajectory numbers out of a goal that has nothing to project', async () => {
