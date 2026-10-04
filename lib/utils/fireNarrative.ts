@@ -25,6 +25,8 @@ import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/
 import type { FIREProjectionScenarios } from '@/types/assets';
 import type { FanVerdict, FireLock, FireTarget, FireTargetHonest, FireTimeline, PassiveIncome, ScenarioRow } from '@/lib/utils/fireSummary';
 import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
+import type { TargetAgeSummary } from '@/lib/utils/fireTargetAge';
+import type { PersonalSwr } from '@/lib/utils/sustainableWithdrawal';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -251,6 +253,7 @@ export interface FireEmptyTiles {
   /** Null when the Reddito passivo tile can still answer (a net worth exists, only the expenses are missing). */
   passiveIncome: string | null;
   scenarios: string;
+  targetAge: string;
   /** The ONE action of the page, owned by the Traguardo: the surface that owns the missing thing. */
   action: { label: string; href: string };
 }
@@ -267,6 +270,7 @@ export function describeEmptyTiles(kind: FireEmptyKind): FireEmptyTiles {
       base: 'La base è patrimonio, spese e SWR: manca il patrimonio.',
       passiveIncome: 'Il reddito passivo è il SWR del patrimonio: senza patrimonio non c\'è un prelievo da stimare.',
       scenarios: 'Gli scenari proiettano il patrimonio anno per anno: senza patrimonio non c\'è nulla da proiettare.',
+      targetAge: 'L\'età obiettivo si misura contro il numero FIRE: senza patrimonio non c\'è un traguardo da raggiungere.',
       action: { label: 'Aggiungi il primo asset', href: '/dashboard/assets' },
     };
   }
@@ -275,6 +279,7 @@ export function describeEmptyTiles(kind: FireEmptyKind): FireEmptyTiles {
     base: 'Il patrimonio c\'è; mancano le spese dell\'ultimo anno, che danno il numero FIRE e il ritmo.',
     passiveIncome: null,
     scenarios: 'Gli scenari partono dalle spese: senza spese non c\'è un numero FIRE da raggiungere.',
+    targetAge: 'Per sapere cosa serve a quell\'età servono le spese registrate: senza non c\'è un numero FIRE.',
     action: { label: 'Registra le spese nel Cashflow', href: '/dashboard/cashflow' },
   };
 }
@@ -860,4 +865,76 @@ export function describeRunway(input: RunwayReadingInput): Narrative {
   }
   out.push(...tail, prose('.'));
   return out;
+}
+
+// ─── Età obiettivo (E1) and the personal SWR ──────────────────────────────────
+
+/** The `figures` branch of the summary, which the tile and the words share. */
+export type TargetAgeFigures = Extract<TargetAgeSummary, { kind: 'figures' }>;
+
+/**
+ * The Età obiettivo tile's reading (§ 10.4, use cases 6–8): the saving the Base needs, the saving that lets
+ * nine paths in ten arrive, and the plan's expenses today's saving allows. Without the age, or with the
+ * age behind, the sentence says what is missing and no figure follows.
+ */
+export function describeTargetAge(summary: TargetAgeSummary): Narrative {
+  switch (summary.kind) {
+    case 'no-age':
+      return [prose("Serve la tua età: scrivila in Coast FIRE › Ipotesi.")];
+    case 'passed':
+      return [prose("Età obiettivo già raggiunta o passata: scrivine una più avanti nei Parametri.")];
+    case 'already-fire':
+      return [prose("Sei già FIRE: l'età obiettivo non serve.")];
+    case 'figures':
+      break;
+  }
+  const { targetAge, calendarYear, required, tail, maxExpenses, onTrack, baseCalendarYear, annualSavings } = summary;
+  const age = figure(String(targetAge));
+  const out: Narrative = [];
+  if (required.amount === 0) {
+    out.push(prose('Il capitale di oggi basta: anche senza risparmiare arrivi al FIRE a '), age, prose(' anni (è il tuo Coast FIRE).'));
+  } else if (required.amount === null) {
+    out.push(prose('Per smettere a '), age, prose(' anni, nel '), year(calendarYear), prose(' non bastano nemmeno '), amount(required.cap), prose(" l'anno di risparmio."));
+  } else if (onTrack && baseCalendarYear !== null) {
+    out.push(prose('Ci arrivi già nel '), year(baseCalendarYear), prose('; per smettere a '), age, prose(' anni basterebbero '), amount(required.amount), prose(" l'anno."));
+  } else {
+    out.push(prose('Per smettere a '), age, prose(' anni, nel '), year(calendarYear), prose(' servono '), amount(required.amount), prose(" di risparmio l'anno (oggi "), amount(annualSavings), prose(')'));
+    if (tail.kind === 'total') out.push(prose('; perché ci arrivino 9 percorsi su 10, '), amount(tail.amount));
+    else if (tail.kind === 'unreachable') out.push(prose('; per 9 percorsi su 10 nemmeno '), amount(annualSavings + tail.cap), prose(' bastano'));
+    out.push(prose('.'));
+  }
+  if (maxExpenses !== null && maxExpenses > 0) {
+    out.push(prose(' Con il risparmio di oggi la spesa del piano potrebbe essere al massimo '), amount(maxExpenses), prose('.'));
+  }
+  return out;
+}
+
+/** The tile's footer line: what the three figures are. */
+export function describeTargetAgeFooter(): Narrative {
+  return [prose("Cammino del Base e Ventaglio sullo stesso numero FIRE; il risparmio cresce con l'inflazione, le cifre sono in euro di oggi.")];
+}
+
+/** «Come si calcola»: RS6–RS9 in words, one paragraph each. */
+export function describeTargetAgeMethod(): string[] {
+  return [
+    "Gli anni all'età obiettivo sono la differenza tra l'età obiettivo e la tua età (Coast FIRE › Ipotesi): senza la tua età non c'è cifra.",
+    "Il risparmio nel base è il più piccolo importo, arrotondato per eccesso a 100 €, con cui il cammino del Base raggiunge lo stesso numero FIRE del verdetto entro quell'età: il risparmio cresce ogni anno con l'inflazione, quindi la cifra è in euro di oggi.",
+    "Per 9 percorsi su 10 è il risparmio con cui il Ventaglio (stessi percorsi, stesso seme) porta il 90% delle simulazioni al FIRE entro l'età obiettivo. Non scende sotto il risparmio di oggi: cerca solo un extra.",
+    "La spesa massima del piano è la più alta, arrotondata per difetto a 100 €, con cui il Base arriva al FIRE entro l'età obiettivo tenendo il risparmio di oggi; è la spesa da pensionato, non quella del Cashflow di oggi.",
+  ];
+}
+
+/**
+ * The line under the SWR field (D-S4, RS5): the personal rate, in words. It is proposed, never
+ * imposed — «Usa» is the tile's button, the number the Calcolatore runs on changes only with it.
+ */
+export function describePersonalSwr(swr: PersonalSwr): Narrative {
+  if (swr.rate === null) {
+    return [prose('SWR personale: con questa leva nessun prelievo arriva al 90%, perché in più di una simulazione su dieci la leva azzera il capitale da sola.')];
+  }
+  return [
+    prose('SWR personale '),
+    rate(swr.rate),
+    prose(`: 9 simulazioni su 10 reggono ${integer(swr.horizonYears)} anni di prelievi (portafoglio target, scenario Base, costi compresi).`),
+  ];
 }

@@ -47,7 +47,7 @@ import {
 import type { CoastFirePensionInput, CoastFireTaxBracket } from '@/types/assets';
 import type { Settings } from '@/types/settings';
 
-const DEFAULT_COAST_RETIREMENT_AGE = 60;
+export const DEFAULT_COAST_RETIREMENT_AGE = 60;
 
 interface DraftState {
   userAge: string;
