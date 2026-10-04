@@ -790,3 +790,33 @@ describe('runAccumulationSimulation — Proiezione (T4)', () => {
     expect(Math.abs(share - 0.3609)).toBeLessThan(0.005);
   }, 60_000);
 });
+
+describe('annualCostRate (RC4, doc/fire-ipotesi § 9)', () => {
+  it('C9: zero volatility, Azioni 100% (Base 10,02), cost 0,40%, 100.000 €, one year → 109.579,92 €', () => {
+    const result = runAccumulationSimulation(
+      makeAccumulationParams({ initialPortfolio: 100_000, annualSavings: 0, years: 1, market: flatMarket(10.02), annualCostRate: 0.4, numberOfSimulations: 2 }),
+    );
+    expect(result.paths[0][1].value).toBeCloseTo(100_000 * 1.1002 * 0.996, 2);
+  });
+
+  it('C9 on the decumulation engine: the cost comes off after the return, before the withdrawal', () => {
+    const result = runMonteCarloSimulation(makeDeterministicParams({ retirementYears: 1, annualWithdrawal: 0, annualCostRate: 1, market: flatMarket(5), numberOfSimulations: 2 }));
+    expect(pathValues(result)[1]).toBeCloseTo(1_000_000 * 1.05 * 0.99, 2);
+  });
+
+  it('C11: an absent rate and a zero rate give the numbers of before, on one seed', () => {
+    const params = makeAccumulationParams({ market: flatMarket(7, 15), numberOfSimulations: 50, random: createSeededRandom(7) });
+    const gross = runAccumulationSimulation(params);
+    const zero = runAccumulationSimulation({ ...params, annualCostRate: 0, random: createSeededRandom(7) });
+    const again = runAccumulationSimulation({ ...makeAccumulationParams({ market: flatMarket(7, 15), numberOfSimulations: 50 }), random: createSeededRandom(7) });
+    expect(zero.paths).toEqual(again.paths);
+    expect(gross.paths.length).toBe(zero.paths.length);
+  });
+
+  it('a cost lowers every path on the same shocks', () => {
+    const base = makeAccumulationParams({ market: flatMarket(7, 15), numberOfSimulations: 20 });
+    const gross = runAccumulationSimulation({ ...base, random: createSeededRandom(3) });
+    const net = runAccumulationSimulation({ ...base, annualCostRate: 0.5, random: createSeededRandom(3) });
+    gross.paths.forEach((path, index) => expect(net.paths[index][10].value).toBeLessThan(path[10].value));
+  });
+});

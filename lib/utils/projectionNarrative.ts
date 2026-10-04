@@ -136,13 +136,16 @@ export function describeVentaglio(summary: ProjectionSummary, startValue: number
   ];
 }
 
-export function describeVentaglioFooter(inflationPct: number, threshold: number | null): Narrative {
+/** `costPct`: the yearly TER and stamp duty of the run's weights (RC3), taken off every year (D-C6); 0 = none found. */
+export function describeVentaglioFooter(inflationPct: number, threshold: number | null, costPct = 0): Narrative {
   return [
     prose('Euro di oggi, inflazione '),
     figure(`${inflationPct.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`),
     prose(' (Impostazioni › Simulazioni). Bande 10°–90° e 25°–75° percentile, linea piena la mediana'),
     prose(threshold !== null ? '; la linea tratteggiata è la soglia.' : '.'),
-    prose(' Valori lordi: niente tasse sulla vendita, TER né bollo.'),
+    ...(costPct > 0
+      ? [prose(' Al netto di TER e bollo ('), figure(`${costPct.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`), prose(" l'anno); lordi della tassa sulla vendita.")]
+      : [prose(' Nessun costo ricorrente rilevato (TER non inseriti, bollo non attivo); lordi della tassa sulla vendita.')]),
   ];
 }
 
@@ -285,6 +288,6 @@ export const PROJECTION_EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'I limiti',
-    body: 'Valori lordi: niente tassa sulla plusvalenza alla vendita, TER, bollo né costi di transazione. Correlazioni fisse, lognormale senza code grasse, fondo pensione al valore di oggi, versamenti cresciuti con l’inflazione e non con lo stipendio. Crypto e immobili restano fuori dal capitale simulato.',
+    body: 'Al netto di TER e bollo, come li dichiara la riga «Ipotesi usate» (ogni anno, dopo il rendimento, si toglie la loro quota del capitale); lordi della tassa sulla plusvalenza alla vendita, senza costi di transazione. Correlazioni fisse, lognormale senza code grasse, fondo pensione al valore di oggi, versamenti cresciuti con l’inflazione e non con lo stipendio. Crypto e immobili restano fuori dal capitale simulato.',
   },
 ];

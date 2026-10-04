@@ -7,7 +7,7 @@
  */
 import Link from 'next/link';
 import type { FireAssumptions } from '@/lib/utils/fireAssumptions';
-import { describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
+import { costsLackStampDuty, describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
 import { NarrativeText } from '@/components/ui/narrative-text';
 
 export function FireAssumptionsRow({ assumptions }: { assumptions: FireAssumptions | null }) {
@@ -19,6 +19,11 @@ export function FireAssumptionsRow({ assumptions }: { assumptions: FireAssumptio
       <Link href="/dashboard/settings?tab=simulazioni" className="inline-flex min-h-11 items-center text-foreground underline underline-offset-2 desktop:min-h-0">
         Modifica in Impostazioni
       </Link>
+      {costsLackStampDuty(assumptions) ? (
+        <Link href="/dashboard/settings?tab=allocazione" className="inline-flex min-h-11 items-center text-foreground underline underline-offset-2 desktop:min-h-0">
+          Attiva il bollo
+        </Link>
+      ) : null}
     </div>
   );
 }

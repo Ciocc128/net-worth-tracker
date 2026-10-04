@@ -18,7 +18,7 @@
 
 ## Per-page blind spots
 
-- **The value is gross**: no tax on the gain at sale, no TER, no stamp duty, no transaction costs (V8). The footer of the Ventaglio and the Dettaglio say so.
+- **The value is net of TER and stamp duty, gross of the tax at sale** (V8, changed by P6/D-C6, doc/fire-ipotesi § 9): the run's `annualCostRate` is `portfolioCost(run weights)`; no transaction costs. The footer of the Ventaglio says «Al netto di TER e bollo (0,36% l'anno); lordi della tassa sulla vendita» (or «Nessun costo ricorrente rilevato…» with the duty off and no TER), the Dettaglio says the same.
 - **The saving grows with inflation, not with the salary**; the pension funds enter at today's value. Crypto and real estate are outside `K`.
 - **A new threshold does not re-run** and does not make the footer say «stantio»; a new capital, saving, weight or market assumption does.
 - **The Tappe scenario selector is a view**: it changes the rows only, never the verdict (always Base).

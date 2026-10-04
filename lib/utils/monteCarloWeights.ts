@@ -48,6 +48,12 @@ interface Leg {
   role: ReturnType<typeof resolveAllocationRole>;
 }
 
+/** The simulated class of one leg of an asset (RG on the gold split), null for crypto and real estate: outside `K`. */
+export function legMonteCarloClass(component: { assetClass: string; subCategory?: string }, options: MonteCarloWeightsOptions): MonteCarloClass | null {
+  if (!MODELLED.has(component.assetClass)) return null;
+  return component.assetClass === 'commodity' && options.goldSubCategory && component.subCategory === options.goldSubCategory ? 'gold' : (component.assetClass as MonteCarloClass);
+}
+
 /** The modelled legs of every asset in `K`, with the gold split of RG applied. */
 function collectLegs(assets: readonly Asset[], options: MonteCarloWeightsOptions): Leg[] {
   const legs: Leg[] = [];
@@ -55,9 +61,8 @@ function collectLegs(assets: readonly Asset[], options: MonteCarloWeightsOptions
     if (options.lockedAssetIds?.has(asset.id)) continue;
     const role = resolveAllocationRole(asset);
     for (const component of expandAssetExposure(asset)) {
-      if (!MODELLED.has(component.assetClass)) continue;
-      const cls: MonteCarloClass =
-        component.assetClass === 'commodity' && options.goldSubCategory && component.subCategory === options.goldSubCategory ? 'gold' : (component.assetClass as MonteCarloClass);
+      const cls = legMonteCarloClass(component, options);
+      if (!cls) continue;
       legs.push({ cls, market: component.marketValue, notional: component.notionalValue, role });
     }
   }

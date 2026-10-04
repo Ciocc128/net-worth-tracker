@@ -5,7 +5,7 @@
 ## FIRE › What If — a verdict over tiles (`components/fire-simulations/WhatIfAnalysisTab.tsx`, `components/fire-simulations/whatif/*`, `lib/utils/{whatIfSummary,whatIfNarrative}.ts`)
 
 - **Same hypotheses as the Calcolatore** (2026-10-03, doc/fire-ipotesi/README.md L1): `scenarios` come from `useFireAssumptions` (target portfolio, Impostazioni ›
-  Simulazioni), the Coast baseline's `realReturnRate` is Fisher (`realReturn`), and the «Ipotesi usate» line sits above the verdict.
+  Simulazioni), the Coast baseline's `realReturnRate` is Fisher (`realReturn`), and the «Ipotesi usate» line sits above the verdict; the scenario rates, and so the sensitivity matrix, are net of TER and stamp duty (doc/guide/fire.md).
   **Since L2** the net worth is `K`, the expenses are the plan's (Coast's too: its own «spesa personalizzata» is gone), the baseline walk and the Sensibilità
   save with the indexed saving (`indexSavings`), and `annualIncome` (Cashflow expenses + savings) keeps the job loss on the real income.
 

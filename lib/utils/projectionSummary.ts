@@ -268,6 +268,8 @@ export interface ProjectionRunInputs {
   scenarios: MonteCarloMarketSettings['scenarios'];
   correlations: number[] | undefined;
   leverageSpread: number | undefined;
+  /** RC3 on the run's weights: percent a year of TER and stamp duty (absent = 0). */
+  costRate?: number;
   inflows: MonteCarloCapitalInflow[];
 }
 
@@ -278,7 +280,7 @@ export interface ProjectionRunInputs {
 export function haveProjectionInputsChanged(last: ProjectionRunInputs, current: ProjectionRunInputs): boolean {
   if (current.horizon > last.years) return true;
   if (last.initialPortfolio !== current.initialPortfolio || last.annualSavings !== current.annualSavings || last.savingsYears !== current.savingsYears) return true;
-  if (last.simulations !== current.simulations || last.leverageSpread !== current.leverageSpread) return true;
+  if (last.simulations !== current.simulations || last.leverageSpread !== current.leverageSpread || (last.costRate ?? 0) !== (current.costRate ?? 0)) return true;
   if (MONTE_CARLO_CLASSES.some((cls) => last.weights[cls] !== current.weights[cls])) return true;
   for (const key of SCENARIO_KEYS) {
     const a = last.scenarios[key];

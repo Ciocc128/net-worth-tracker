@@ -19,7 +19,7 @@
 - **The return is the page's common hypotheses (D8)**: `computeGoalTrajectory` takes `assumptions` (`resolveFireAssumptions`, read by the tab through
   `useFireAssumptions`) and derives the return with `goalAnnualReturn` — RP1 on the Base scenario of Impostazioni › Simulazioni, from the goal's own allocation
   (crypto and real estate out, the rest rescaled to 100, said in the Traiettoria footer) or, with none usable, the target portfolio's Base return. The tab
-  shows the «Ipotesi usate» row above the verdict, the same string as the other four tabs. Typical amounts are nominal, with no inflation.
+  shows the «Ipotesi usate» row above the verdict, the same string as the other four tabs; a goal's return is net of the costs of ITS allocation (RC5, `goalAnnualReturn`: 80/20 → 8,79% against 9,21% gross). Typical amounts are nominal, with no inflation.
 - **The goal's hex is identity** (dot, track, milestone, projection, the Panoramica's ObiettivoTile); the classes of Allocazione derivata take
   `ASSET_CLASS_CHART_INDEX` through `useChartColors` — the deleted `AllocationComparisonBar` carried a map of its own. Its «assigned» bar aggregates
   every goal's quotas by euro (reached included) while the derived target excludes the reached goals: the footer says the reached do not weigh.

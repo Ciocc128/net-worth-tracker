@@ -109,7 +109,8 @@ describe('tile readings', () => {
     expect(narrativeToText(describeProjectionFooter({ stale: false, simulations: 10_000 }))).toContain('30.000 traiettorie');
     const footer = narrativeToText(describeVentaglioFooter(3.04, 800_000));
     expect(footer).toContain('3,04%');
-    expect(footer).toContain('Valori lordi');
+    expect(footer).toContain('Nessun costo ricorrente');
+    expect(narrativeToText(describeVentaglioFooter(3.04, 800_000, 0.36))).toContain("Al netto di TER e bollo (0,36% l'anno)");
     expect(footer).toContain('soglia');
   });
 });

@@ -545,7 +545,7 @@ export function describeFireDistributionMethod(binWidthYears: number, honest?: F
   const pensionPart = honest?.pensionsConsidered ? 'meno le pensioni statali dal loro avvio' : 'nessuna pensione statale (non ne risulta una datata in Coast FIRE)';
   const taxPart = honest?.taxConsidered ? 'ogni prelievo vende quanto serve a pagare la tassa sulla plusvalenza' : 'nessuna tassa sui prelievi (nessun PMC in euro da cui stimarla)';
   return [
-    "Ogni percorso è una sequenza di rendimenti annui estratti a caso con l'allocazione attuale; il suo anno FIRE è il primo in cui il patrimonio supera quanto serve in quell'anno — lo stesso requisito del verdetto, anno per anno.",
+    "Ogni percorso è una sequenza di rendimenti annui estratti a caso con l'allocazione attuale, al netto ogni anno di TER e bollo (la riga «Ipotesi usate»); il suo anno FIRE è il primo in cui il patrimonio supera quanto serve in quell'anno — lo stesso requisito del verdetto, anno per anno.",
     `Le classi raccolgono i percorsi per anno FIRE, ${perBin} per classe; l'ultima, in grigio, quelli che non ci arrivano entro l'orizzonte della simulazione. I percentili sono anni: il 90° è l'anno entro cui nove percorsi su dieci sono FIRE.`,
     "La leva ripete la simulazione con più risparmio, sugli stessi rendimenti estratti, finché anche nove percorsi su dieci sono FIRE entro l'anno del base; la cifra è arrotondata ai 100 € l'anno. Il seme è fisso, quindi la distribuzione non cambia tra un'apertura e l'altra.",
     `Dal FIRE in poi: dal suo anno FIRE ogni percorso smette di risparmiare e preleva le spese, che continuano a crescere con l'inflazione, con gli stessi rendimenti; ${pensionPart}; ${taxPart}.`,

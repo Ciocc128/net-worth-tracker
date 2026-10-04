@@ -4143,7 +4143,7 @@ export default function SettingsPage() {
                   onDraftChange={setMarketDraft}
                   commoditySubCategories={commoditySubCategories}
                   effectiveGoldSubCategory={effectiveGoldSubCategory}
-                  portfolio={fireAssumptions ? { weights: fireAssumptions.weights, origin: fireAssumptions.weightsOrigin } : null}
+                  portfolio={fireAssumptions ? { weights: fireAssumptions.weights, origin: fireAssumptions.weightsOrigin, costPct: fireAssumptions.cost?.total } : null}
                   disabled={isDemo}
                 />
               </div>

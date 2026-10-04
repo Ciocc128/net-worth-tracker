@@ -10,6 +10,23 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## FIRE, What If and Goals
 
+- **The recurring costs are ONE reading too** (2026-10-04, doc/fire-ipotesi/README.md § 9, task C1): every rate the page
+  prints is NET of TER and stamp duty, from `lib/utils/fireCosts.ts`. **RC1** `resolveClassCosts`: per class, on the legs of
+  the instruments of `K` (`expandAssetExposure`, the same read as the weights) weighted on the MARKET value (never the
+  notional), `TER_i` from `Asset.totalExpenseRatio` (none = 0; **Trend and Carry always 0**, their default CAGRs are already
+  net, D-C2) and `bollo_i = stampDutyRate · quota soggetta` when `stampDutyEnabled` (Impostazioni › Allocazione › Costi,
+  default OFF) — a checking account (`isCheckingAccount`, the rule `calculateStampDuty` shares) counts in the denominator but
+  pays nothing here (its 34,20 € flat fee is outside the model, D-C4). **RC2** a class with no instrument takes the average TER
+  of `K` and the full duty. **RC3** `portfolioCost`: weights brought to 100, so leverage never multiplies the costs (D-C3).
+  **RC4** the cost comes off once a year AFTER the return: `portfolioReturn(…, costPct)` for the stochastic engines
+  (`annualCostRate` in `MonteCarloParams`/`AccumulationSimulationParams`), `portfolioCompoundReturn(…, costPct)` for RP1
+  (`g_net = (1 + g_p)(1 − c) − 1`, exact; the real return is Fisher on the net one). **RC5** `goalAnnualReturn` uses the
+  goal allocation's own weights on the same per-class costs. **«Costs are ONE reading»**: no engine that calls
+  `portfolioReturn` or `portfolioCompoundReturn` may skip the cost — pass `assumptions.cost.total` (page weights) or
+  `portfolioCost(runWeights, assumptions.costs).total` (a run whose weights the user can move). The «Ipotesi usate» line says
+  «costi 0,36% (TER 0,16%, bollo 0,20%)», «solo TER; bollo non attivo…», «solo bollo; TER non inseriti…» and links the Costi
+  tile when the duty is off. `resolveFireAssumptions` computes `costs`/`cost` only with `assetValue` (like `capital`): the
+  Assistant passes it, so it quotes the page's net figure. Not modelled: transaction costs, spreads, IVAFE.
 - **The page's hypotheses are ONE reading** (2026-10-03, doc/fire-ipotesi/README.md, task L1): Calcolatore, Coast, What If and
   Monte Carlo read `resolveFireAssumptions` (`lib/utils/fireAssumptions.ts`, hook `useFireAssumptions`), never their own
   rates. The three scenarios are the TARGET portfolio's: **RP1** `portfolioCompoundReturn` is R2 applied to the portfolio

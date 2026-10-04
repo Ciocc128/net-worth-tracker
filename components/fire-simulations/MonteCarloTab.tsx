@@ -44,6 +44,7 @@ import { getGoalData } from '@/lib/services/goalService';
 import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
 import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { portfolioCost } from '@/lib/utils/fireCosts';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
@@ -297,13 +298,15 @@ export function MonteCarloTab() {
       correlations: market.correlations,
       // R4: the debt of a leveraged portfolio costs the Liquidità return plus this (Impostazioni › Simulazioni).
       leverageSpread: market.leverageSpread,
+      // RC3/RC4: the costs of the weights of THIS run (the user may have moved them), on the page's per-class costs.
+      annualCostRate: portfolioCost(monteCarloClassRecord((cls) => parseFloatField(form.weights[cls])), assumptions?.costs).total,
       numberOfSimulations: Math.min(50000, Math.max(1000, parseIntField(form.numberOfSimulations, DEFAULT_SIMULATIONS))),
       capitalInflows: pensionInflows.length > 0 ? pensionInflows : undefined,
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
       // The typed capital keeps the portfolio's gain share: basis = capital × (1 − gain share).
       withdrawalTax: taxProfile ? { basisToday: initialPortfolio * (1 - taxProfile.gainShare), rate: taxProfile.rate } : undefined,
     };
-  }, [form, scenarios, market.correlations, market.leverageSpread, pensionInflows, statePensionInflows, taxProfile]);
+  }, [form, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, statePensionInflows, taxProfile]);
 
   const allocationSum = params ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + params.weights[cls], 0) : 0;
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;
