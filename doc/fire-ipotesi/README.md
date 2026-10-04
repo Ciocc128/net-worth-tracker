@@ -1258,3 +1258,395 @@ usate» e il capitale cambiano per ogni account con strumenti esclusi.
 | `allocationRole` usato ora fuori da Allocazione cambia anche Coast e What If. | È lo scopo (D-P2); la guida di `types/assets.ts` sui tre ruoli si aggiorna («FIRE: excluded è fuori dal portafoglio»). |
 | Merge con upstream su `monteCarloWeights.ts` e sulle schede. | Funzione nuova accanto a `seedWeightsFromTargets`, che resta; voce in `fork-scelte-ui.md`. |
 | Due capitali di nuovo, se una scheda ricalcola. | RK7 e K11: le schede leggono solo `assumptions.capital`. |
+
+---
+
+## 12. P4 + P5 — Flussi datati: eventi nel tempo e reddito dopo il FIRE (task F1, F2, F3)
+
+> Aggiunta il 04/10/2026 (thread «spec», via del proprietario nella conversazione di progetto). Decisioni D-F1–D-F12
+> proposte nel piano `/mnt/project-files/fire-simulazioni/piano-p4-p5.md` e confermate dal proprietario nel thread lo
+> stesso giorno. Base di codice: commit `6eaecdf` (`main` del fork, merge della PR #51). **Parte dal capitale di
+> § 11 (K1)**: le task F1–F3 si implementano dopo il merge di K1 e leggono `assumptions.capital` come lo definisce RK4.
+> Valgono RP1–RP7, RC1–RC6, RS1–RS9 e RK1–RK8: questa sezione le **legge** e aggiunge solo le regole dei flussi.
+> Valori di riferimento: `/mnt/project-files/fire-simulazioni/p4p5-controllo.py`.
+>
+> Letture obbligatorie, oltre a § 0: `doc/guide/fire.md` § FIRE, What If and Goals («The bridge model reuses the Coast
+> walk», «Year 0 is a year», «The Ventaglio engine mirrors the deterministic walk», «THE ONE RULE of the requirement»);
+> `doc/guide/fire-what-if.md`; `doc/guide/fire-proiezione.md`; `doc/guide/patrimonio.md` § Mutuo;
+> `doc/guide/impostazioni.md` § Settings — the FIVE places; DESIGN.md: The Declaration-Tile Rule, The Input Tile Rule,
+> The Modal-Is-A-Tile Rule, The Narrative Honesty Rule, The Comma Rule.
+
+### 12.1 Obiettivo
+
+Oggi il tempo delle simulazioni è piatto: spesa costante in termini reali per sempre, risparmio indicizzato, nessun
+evento oltre l'anno 0, nessun reddito dopo il FIRE salvo le pensioni di Stato. Due famiglie di domande restano senza
+risposta:
+
+- **P4, eventi datati.** «Il mutuo finisce nel 2034: quanto anticipa?», «un figlio nel 2028», «un'eredità tra dieci
+  anni», «compro casa nel 2030», «dopo i 75 anni spendo meno».
+- **P5, reddito dopo il FIRE.** «Se dopo il FIRE guadagno 800 € al mese per 10 anni, quando posso smettere?» (Barista
+  FIRE), «l'affitto dell'appartamento continua anche dopo».
+
+Le due famiglie sono la stessa cosa: un importo che entra o esce **da un anno, per un certo numero di anni**. Questa
+sezione definisce un solo modello, i **flussi datati**, letto da tutte le schede che simulano un piano (Calcolatore,
+Coast, What If, Monte Carlo, Proiezione). Gli Obiettivi (P8) vi si agganceranno in una spec successiva.
+
+### 12.2 Stato di partenza (verificato nel codice, 04/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| Il cammino del Calcolatore: crescita, risparmio `S·(1+π)^(t−1)` finché non è FIRE, test contro il requisito dell'anno; l'unico evento datato è il fondo pensione che si sblocca | `lib/services/fireService.ts:1590-1745` (`calculateFIREProjection`) |
+| Il requisito dell'anno t: la camminata all'indietro di Coast (spesa ÷ SWR a regime, anni del ponte finanziati al rendimento reale, entrate di capitale scontate), con il moltiplicatore della tassa sulla parte finanziata dal portafoglio | `fireService.ts:1008-1135` (`buildCoastFIRERetirementNeeds`), `:1541` (`resolveFireRequirement`) |
+| Le pensioni di Stato sono già un flusso datato: entrata netta (IRPEF), da una data, per sempre, in euro di oggi | `types/assets.ts:311` (`CoastFirePensionInput`), `monteCarloService.ts:17` (`AnnualInflow`) |
+| Ventaglio e Monte Carlo accettano entrate di capitale per anno (`capitalInflows`) e pensioni annue (`annualInflows`, `retirement.statePensions`); ordine entrata → rendimento → prelievo | `monteCarloService.ts:80-170`, `:477-620` |
+| What If: ogni evento accade all'anno 0 e la guida vieta gli eventi datati («Do NOT add timed mid-projection cash events») | `types/whatIf.ts:10-20`, `lib/services/whatIfService.ts:65-105`, `doc/guide/fire.md:61` |
+| La rata del mutuo è una spesa `debt` del Cashflow, conteggiata intera (interessi e capitale) nella spesa e quindi nel risparmio di oggi | `lib/services/expenseService.ts:828-840` (`isCountableExpense`) |
+| Patrimonio proietta la fine del mutuo dalla rata collegata, dal debito e dal TAN (`projectPayoff`, esiti `date` / `never` / `repaid`); le rate si leggono con `useMortgageInstalments` | `lib/utils/mortgageSummary.ts:104,141`, `lib/hooks/useMortgageInstalments.ts:15` |
+| Nessun motore FIRE legge il mutuo, i figli, un'eredità futura o un reddito dopo il FIRE | `fireService.ts`, `monteCarloService.ts`, `whatIfService.ts` |
+| Una camminata all'indietro allungata **abbassa** il requisito quando il rendimento reale supera l'SWR (con 7%/2% e SWR 4%: un anno di spesa finanziato al 4,90% costa meno della sua quota di perpetuità al 4%) | verificato con lo script; la guida lo dichiara per il ponte («beyond it the extra discounted years change the baseline too») |
+
+### 12.3 Perimetro
+
+**Incluso**
+- Il modello `DatedFlow` (§ 12.5): spesa ricorrente, entrata ricorrente, una tantum; ancorato a un anno, a un'età o
+  al FIRE; in euro di oggi o fisso nominale; salvato in `fireDatedFlows` nelle impostazioni.
+- Il **mutuo collegato** a Patrimonio (D-F5): rata e fine lette dal tile Mutuo a ogni apertura.
+- Le regole RF1–RF11: traduzione in tabelle per anno, requisito FIRE, cammino deterministico, Ventaglio, Monte Carlo
+  (con Spesa sostenibile), Coast, Proiezione, What If.
+- La sezione «Flussi nel tempo» nei Parametri del Calcolatore, la riga della Base di calcolo con l'effetto sull'anno
+  FIRE, i segni delle una tantum nel grafico Scenari, la clausola nella riga «Ipotesi usate», la riga in Impostazioni ›
+  Parametri del piano.
+- What If con un campo «Quando» (D-F9); la regola della guida che lo vietava si riscrive.
+
+**Escluso**
+- **P8, Obiettivi come uscite datate**: il tipo riserva la sorgente `goal`, nessuna scheda la legge in questa sezione.
+- Le **pensioni di Stato** restano dove sono (D-F4): non migrano a flussi.
+- Tasse sui redditi (IRPEF, cedolare): gli importi sono netti, scritti dall'utente (D-F8).
+- Flussi **incerti** (un'eredità con probabilità, un reddito che varia con i mercati): i flussi sono deterministici,
+  uguali in tutti i percorsi.
+- Fasi della spesa in percentuale («−20% dopo i 75»): si scrive l'importo in euro.
+- Precisione sotto l'anno, salvo l'ultimo anno del mutuo collegato (RF1).
+- Salvare uno scenario What If come flusso (P14).
+- Spec Playwright nuove: nessuna; le spec esistenti di FIRE si rieseguono sul computer del proprietario.
+
+### 12.4 Casi d'uso
+
+Esempio comune (valori di § 12.9): capitale 400.000 €, spesa del piano 30.000 € dal Cashflow, risparmio 20.000 €
+indicizzato, rendimento 7%, inflazione 2%, SWR 4%, nessuna pensione né tassa. Senza flussi: requisito di oggi
+750.000 €, FIRE all'anno 8.
+
+1. **Il mutuo finisce.** La rata di 800 € al mese è dentro la spesa di 30.000 € e il piano la conta per sempre.
+   L'utente collega il mutuo di Casa (ultima rata nel 2034): fino al 2034 il risparmio cresce perché la rata è fissa,
+   dopo cresce di tutta la rata; la spesa da pensionato scende a 20.400 €. Requisito di oggi 581.371 €, FIRE
+   all'anno 4.
+2. **Un figlio.** 6.000 € l'anno di oggi dal 2028 per 20 anni: il risparmio scende in quegli anni e il requisito sale
+   del valore attuale degli anni che cadono dopo il FIRE. Requisito di oggi 821.875 €, FIRE all'anno 10.
+3. **Un'eredità.** 100.000 € nel 2036: il capitale sale in quell'anno; se il FIRE arriva prima, il requisito scende del
+   suo valore attuale. Requisito di oggi 699.165 €, FIRE all'anno 7.
+4. **Barista FIRE.** Un part-time da 800 € al mese per 10 anni dopo il FIRE: non tocca l'accumulo, abbassa il
+   requisito del valore attuale dei dieci anni. Requisito di oggi 675.517 €, FIRE all'anno 7.
+5. **Affitti.** Un affitto netto di 6.000 € l'anno, già nel Cashflow, per sempre: il risparmio non cambia, la spesa da
+   coprire col portafoglio scende a 24.000 €. Requisito di oggi 600.000 €, FIRE all'anno 5.
+6. **Coast.** Età 35, obiettivo 50: l'eredità a 45 anni abbassa il numero Coast di oggi da 365.853 a 315.019 €; il
+   figlio conta solo per gli anni dopo i 50.
+7. **Se smetto oggi.** Monte Carlo con un part-time di 10.000 € l'anno per i primi 10 anni: la spesa sostenibile
+   sale; a volatilità zero il prelievo massimo passa da 50.632 a 54.964 € (§ 12.9, F13).
+8. **What If datato.** «Perdo il lavoro per 6 mesi nel 2029» invece che oggi: la stessa perdita all'anno 3, con il
+   capitale che nel frattempo è cresciuto.
+
+### 12.5 Il modello
+
+```ts
+// types/assets.ts (accanto a CoastFirePensionInput)
+export type DatedFlowKind = 'expense' | 'income' | 'lumpIn' | 'lumpOut';
+export type DatedFlowStart =
+  | { anchor: 'year'; year: number }        // anno di calendario
+  | { anchor: 'age'; age: number }          // età (serve userAge)
+  | { anchor: 'fire'; afterYears: number }; // anni dopo l'anno FIRE (0 = dal primo anno da pensionato); solo ricorrenti
+export interface DatedFlow {
+  id: string;
+  label: string;                  // ≤ 60 caratteri
+  kind: DatedFlowKind;
+  amount: number;                 // annuo per expense/income (expense anche < 0: una spesa che scende), importo per lump (> 0)
+  indexed: boolean;               // true = euro di oggi rivalutati con π; false = euro nominali fissi (serve una fine)
+  start: DatedFlowStart;
+  durationYears: number | null;   // solo ricorrenti: anni ≥ 1; null = per sempre
+  inCashflowToday?: boolean;      // solo ricorrenti attivi oggi (RF1): già nel risparmio e nella spesa di oggi
+  source?: { kind: 'mortgage'; propertyId: string } | { kind: 'goal'; goalId: string }; // 'goal' riservato a P8
+}
+// AssetAllocationSettings
+fireDatedFlows?: DatedFlow[];     // assente = nessun flusso; al massimo 20
+```
+
+**Validazione** (`lib/utils/datedFlowValidation.ts`, condivisa da dialogo e salvataggio): importo finito e diverso da
+zero (positivo per `income` e per le una tantum); `durationYears` intero ≥ 1 o `null`; `indexed: false` richiede una
+fine; `anchor: 'fire'` solo per `expense` e `income`; anno tra l'anno in corso − 50 e + 100; età tra 0 e 120;
+`afterYears` intero tra 0 e 50. Un flusso con `source.kind = 'mortgage'` ignora `amount`, `indexed`, `start` e
+`durationYears` salvati: li deriva RF1.
+
+### 12.6 Regole di calcolo
+
+Notazione: anno `t` = anni da oggi (l'anno di calendario in corso è `t = 0`, come in `calculateFIREProjection`); π e
+il rendimento nominale `g` dello scenario (RP1 netto di costi, RC4); `r = (1+g)/(1+π) − 1` (RP2); `σ = +1` per una
+spesa, `−1` per un'entrata. Tutti i flussi di un anno arrivano **alla fine dell'anno**, come il risparmio e il
+prelievo.
+
+**RF1 — Finestra di un flusso.** Inizio `s₀`: `year − annoInCorso`; `age − userAge` (senza `userAge` il flusso è
+**escluso e dichiarato**, come le pensioni); per l'ancora `fire`, ritirandosi alla fine dell'anno `T`:
+`T + 1 + afterYears`. Una ricorrente è attiva negli anni `s₀ … s₀ + durationYears − 1` (per sempre se `null`); una
+una tantum solo in `s₀`. Gli anni `s < 0` sono passati e non contano; una una tantum con `s₀ = 0` è capitale di
+partenza; una ricorrente attiva in `s ≤ 0` può avere `inCashflowToday` (default `true`). Un flusso ancorato al FIRE non
+esiste prima del FIRE.
+**Mutuo collegato**: rata = l'ultima rata collegata (`summarizeMortgage(...).next.amount`, o la rata di
+`projectPayoff`), fine = `payoff.date`; importo dell'anno `s ≥ 1` = rata × numero di rate mensili con data in quell'anno
+di calendario, dalla prossima rata non saldata alla fine; `indexed: false`, `inCashflowToday: true`. `payoff = never`
+→ flusso escluso, «la rata non copre gli interessi: il mutuo non finisce»; `repaid` o nessuna rata collegata → escluso,
+«nessuna rata collegata al mutuo di Casa: collegala in Cashflow o scrivi il flusso a mano».
+
+**RF2 — Importo nominale all'anno s.** Fisso: `A`. Indicizzato: `A·(1+π)^s` dove modifica la **spesa** (requisito,
+prelievi, una tantum), `A·(1+π)^(s−1)` dove modifica il **risparmio** (RF3), così un flusso indicizzato «già nel
+Cashflow» e ancora attivo non sposta nulla, come il risparmio di RP7.
+
+**RF3 — Variazione del risparmio** (accumulo, solo ricorrenti ad anno o età):
+
+```
+Δs_t = Σ_f  −σ_f · ( a_f^ris(t)·[attivo in t]  −  [inCashflowToday]·A_f·(1+π)^(t−1) )
+```
+
+Il secondo termine toglie ciò che il risparmio di oggi già contiene. Il risparmio dell'anno è `S·(1+π)^(t−1) + Δs_t` e
+può essere negativo (si preleva dal capitale per pagarlo).
+
+**RF4 — Variazione del bisogno** (dopo il FIRE, ritirandosi alla fine dell'anno T, anno `s > T`, euro nominali):
+
+```
+n_s = Σ_f  σ_f · ( a_f^spesa(s)·[attivo in s]  −  [inCashflowToday ∧ spesa ∧ spesa del piano dal Cashflow]·A_f·(1+π)^s )
+```
+
+Una spesa «già nel Cashflow» è dentro la spesa del piano solo se questa viene dal Cashflow (RP6): se è scritta a mano,
+i flussi si aggiungono sopra (D-F6). Un'entrata non è mai dentro la spesa, quindi riduce sempre il bisogno per intero.
+
+**RF5 — Requisito FIRE con i flussi** (sostituisce nulla: si **somma** a `resolveFireRequirement`). Alla fine
+dell'anno T, in euro dell'anno T, con `E_T` la spesa dell'anno T, `P_j` le pensioni nette attive all'anno `T + j` in
+euro dell'anno T (0 se non considerate), `m` il moltiplicatore della tassa:
+
+```
+n'_j  = n_{T+j} / (1+π)^j                                       // euro dell'anno T
+δ_j   = max(0, E_T − P_j + n'_j) − max(0, E_T − P_j)            // l'eccedenza di un anno non si reinveste (D-F8)
+L'_k  = una tantum nette all'anno T + k, in euro dell'anno T    // entrate +, uscite −
+J     = ultimo anno (da T) in cui un flusso o una pensione inizia o finisce
+R_T   = max(0, R_T^base + m·Σ_{j=1..J} δ_j/(1+r)^j + m·δ_{J+1}/SWR/(1+r)^J − Σ_{k=1..J} c_k·L'_k/(1+r)^k)
+        con c_k = 1 per un'entrata, m per un'uscita
+```
+
+`R_T^base` è il requisito di oggi (`resolveFireRequirement`, invariato). Le parti temporanee si finanziano al
+rendimento reale, la parte permanente (`δ_{J+1}`, uguale per tutti gli anni dopo J) all'SWR, come la spesa. **Senza
+flussi `R_T = R_T^base` identico** (F1). Proprietà: una spesa in più non abbassa mai il requisito (D-F7).
+
+**RF6 — Cammino deterministico** (`calculateFIREProjection`, ogni scenario con i suoi g e π):
+
+```
+NW_0 = K + L_0                                                   // una tantum dell'anno in corso nel capitale di partenza
+NW_t = NW_{t−1}·(1+g) [+ fondo allo sblocco] + [non ancora FIRE]·(S·(1+π)^(t−1) + Δs_t) + L_t
+FIRE all'anno t se NW_t ≥ R_t (RF5); il test dell'anno 0 resta («Year 0 is a year»)
+```
+
+Le una tantum entrano anche dopo il FIRE (come il fondo che si sblocca); il risparmio e Δs no. La base fiscale
+cresce con ogni euro che entra (risparmio, una tantum in entrata); un'uscita o un risparmio negativo vende alla quota
+di plusvalenza del portafoglio (`basis × (1 − uscita/NW)`), senza tassa nell'accumulo (dichiarato). Il capitale può
+scendere sotto zero: il cammino continua, la riga lo mostra.
+
+**RF7 — Ventaglio** (`runAccumulationSimulation`): nell'accumulo di ogni percorso, per anno, rendimento → risparmio
+`+ Δs_t` (finché il percorso non è FIRE) `+ L_t` (sempre), come RF6; i bersagli sono le righe di RF6
+(`resolveFanFireTargets`, invariato). Nel registro «dal FIRE in poi», dall'anno dopo il FIRE del percorso (`T` = il
+suo anno FIRE): rendimento → `+ L⁺_s` (entrate, anche nella base) → prelievo di `max(0, E_s − P_s + n_s) + L⁻_s`,
+lordo della tassa (`withdrawGross`). Le ancore `fire` partono dal FIRE **di ogni percorso**. A volatilità zero ogni
+percorso coincide con la curva Base di RF6 (F18).
+
+**RF8 — Monte Carlo** «se smetto oggi» (`runWithdrawalLedger`, `T = 0`, le ancore `fire` dall'anno `1 + afterYears`),
+anno s: entrate di capitale di oggi (fondo) → rendimento → `+ L⁺_s` → prelievo di
+`max(0, W·(1+π)^s + n_s − P_s) + L⁻_s`, lordo della tassa. Il prelievo `W` prende il posto della spesa del piano in
+RF4. La Spesa sostenibile (RS1–RS4) risolve `W` sullo stesso registro: i flussi sono parte del piano e la coerenza S5
+resta. L'**SWR personale** (RS5) resta puro, senza flussi (come senza pensioni). La corsa senza leva di confronto
+legge gli stessi flussi.
+
+**RF9 — Coast** (età obiettivo, `T` anni): il requisito all'età obiettivo è RF5 con `T` = l'età obiettivo (le ancore
+`fire` partono da lì); nel tratto da oggi all'età obiettivo contano **solo le una tantum** (D-F11):
+
+```
+CoastOggi = R_T^reale / (1+r)^T − Σ_{s=1..T} L^reale_s / (1+r)^s
+```
+
+Le ricorrenti prima dell'età obiettivo non contano: per definizione di Coast le copre il lavoro. L'anno «al ritmo
+attuale» di Coast usa RF3 e RF6 come il Calcolatore.
+
+**RF10 — Proiezione** (accumulo, euro di oggi): `+ L_t` in ogni anno, `+ Δs_t` solo mentre si versa (`t ≤
+savingsYears`); le ancore `fire` non esistono (D-F10).
+
+**RF11 — What If datato.** Ogni evento prende un anno `y = Quando − annoInCorso` (default 0). Con `y = 0` il calcolo
+è **identico a oggi** (perturbazione dell'anno 0, `applyScenarioToBaseline`). Con `y ≥ 1` l'evento diventa un flusso
+non salvato, aggiunto ai flussi salvati solo nel lato «dopo» del confronto:
+- perdita di lavoro → una tantum in uscita di `reddito perso × mesi / 12`, indicizzata, all'anno y;
+- acquisto importante → una tantum in uscita all'anno y; entrata straordinaria → una tantum in entrata all'anno y;
+- variazione di cashflow → `ΔS·(1+π)^(t−1)` sul risparmio dagli anni `t ≥ y` (RF3) e una spesa ricorrente `ΔE`
+  indicizzata da `y` per sempre nel bisogno (RF4), senza toccare il risparmio una seconda volta.
+Il lato «prima» è il piano con i flussi salvati. La matrice di Sensibilità varia spesa e risparmio di base, non i
+flussi (dichiarato).
+
+### 12.7 Cosa vede l'utente
+
+**Calcolatore › Parametri** — una sezione **«Flussi nel tempo»** dopo «Spesa del piano» e «Liquidità da investire»:
+- la lista dei flussi, una riga ciascuno: «Mutuo Casa · spesa · 800 €/mese fissi · fino a marzo 2034 · già nel
+  Cashflow», «Part-time · entrata · 9.600 €/anno · 10 anni dal FIRE», «Eredità · entrata una tantum · 100.000 € ·
+  2036»; un flusso escluso dice perché (RF1) in tono di avviso;
+- le **pensioni di Stato** in coda, in sola lettura: «Pensione INPS · dal 2058 · si modifica in Coast FIRE › Ipotesi»
+  (collegamento) (D-F4);
+- **«Aggiungi un flusso»** apre un `ResponsiveModal` (The Modal-Is-A-Tile Rule) con: Nome; Tipo (Spesa ricorrente,
+  Entrata ricorrente, Una tantum in entrata, Una tantum in uscita); Importo (€/anno o €); «Importo fisso, non
+  rivalutato» (spento di default; aiuto: «per una rata a tasso fisso»); Inizio (Anno, Età, Dal FIRE + anni dopo);
+  Durata (anni, o «per sempre»); «Già nel Cashflow di oggi» (solo se attivo oggi). Errori in italiano da
+  `datedFlowValidation`;
+- **«Collega un mutuo»**, se Patrimonio ha immobili con una rata collegata: un elenco degli immobili con la fine
+  prevista; sceglierne uno crea il flusso con `source.mortgage`;
+- anteprima fino a «Salva» come gli altri campi (`hasUnsavedChanges`); l'aiuto di «Spesa del piano» aggiunge: «Se la
+  scrivi a mano, scrivila senza il mutuo e le altre voci che hai tra i flussi: le aggiungono loro».
+
+**Calcolatore › Base di calcolo** — una riga «Flussi nel tempo»: «4 · spostano il FIRE dal 2034 al 2029» (anno Base
+senza flussi contro anno Base con flussi: il cammino RF6 rieseguito con la lista vuota); «4 · non spostano l'anno
+FIRE» se uguale; senza flussi «nessuno: aggiungili nei Parametri». Gli esclusi: «1 escluso: manca l'età».
+
+**Calcolatore › Scenari** — un segno per ogni una tantum sull'asse degli anni, con il nome nel tooltip; nessun segno per
+le ricorrenti (la riga della Base di calcolo le dichiara).
+
+**Riga «Ipotesi usate»** (`describeFireAssumptions`): «· 4 flussi datati» in Calcolatore, Coast, What If, Monte Carlo
+e Proiezione; gli Obiettivi non leggono i flussi e la clausola non c'è.
+
+**Monte Carlo e Proiezione › Parametri** — una riga in sola lettura sotto «Capitale iniziale»: «Flussi nel tempo: 4
+(quelli dal FIRE partono dal primo anno)» / «(quelli dal FIRE non valgono nella Proiezione)», con il collegamento ai
+Parametri del Calcolatore.
+
+**What If** — il form dell'evento aggiunge **«Quando»** (anno, default l'anno in corso, «oggi»); il verdetto nomina
+l'anno quando non è oggi («Se perdi il lavoro per 6 mesi nel 2029, il FIRE slitta di un anno»).
+
+**Impostazioni › Parametri del piano** — riga «Flussi nel tempo» «4» (o «nessuno»), sola lettura, collegamento al
+Calcolatore (The Declaration-Tile Rule).
+
+### 12.8 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-F1 | **Presa** (04/10/2026) | **Un solo modello di flussi datati** per P4 e P5, tre forme (spesa ricorrente, entrata ricorrente, una tantum); P8 si aggancerà come sorgente `goal`. | Eventi (P4) e redditi (P5) separati: due liste e due regole per la stessa cosa. |
+| D-F2 | **Presa** (04/10/2026) | **Ancora anno, età o FIRE**, durata in anni o per sempre; l'ancora FIRE solo per le ricorrenti. | Solo anni di calendario: il part-time «dopo il FIRE» non si potrebbe dire, perché l'anno FIRE è un risultato. |
+| D-F3 | **Presa** (04/10/2026) | **Sezione «Flussi nel tempo» nei Parametri del Calcolatore**, salvata in `fireDatedFlows`, letta da tutte le schede. | Coast › Ipotesi accanto alle pensioni (la spesa del piano sta già nel Calcolatore); un documento Firestore a parte (più codice, nessun vantaggio a 20 voci). |
+| D-F4 | **Presa** (04/10/2026) | **Le pensioni di Stato restano in Coast › Ipotesi** con l'IRPEF; i motori le sommano ai flussi; la sezione le elenca in sola lettura. | Migrarle a flussi: migrazione dei dati salvati e IRPEF riscritta per un caso solo. |
+| D-F5 | **Presa** (04/10/2026) | **Mutuo collegato a Patrimonio**: rata e fine lette dalla proiezione del tile Mutuo a ogni apertura; rata fissa, già nel Cashflow. Senza rata collegata si scrive a mano. | Una copia a mano: la data di fine invecchia a ogni estinzione anticipata o cambio di rata. |
+| D-F6 | **Presa** (04/10/2026) | **«Già nel Cashflow di oggi»** per i flussi attivi oggi (sì di default): il risparmio lo contiene, e la spesa del piano quando viene dal Cashflow. Se la spesa del piano è scritta a mano, i flussi si aggiungono sopra. | Chiedere per ogni flusso a quale delle due cifre appartiene: una domanda in più a cui pochi sanno rispondere. |
+| D-F7 | **Presa** (04/10/2026) | **Requisito di oggi + valore attuale dei flussi** (RF5): temporanei al rendimento reale, permanenti all'SWR. Senza flussi nulla cambia. | Allungare la camminata all'indietro fino all'ultimo flusso: con rendimento reale sopra l'SWR il requisito scende da solo, e un figlio da 6.000 €/anno lo porterebbe da 750.000 a 732.000 € invece che a 821.875 €. |
+| D-F8 | **Presa** (04/10/2026) | **Importi netti**, scritti dall'utente; l'eccedenza di un anno in cui le entrate superano la spesa **non si reinveste**, come per le pensioni. | IRPEF sui redditi (servirebbe sommarli alle pensioni per lo scaglione); reinvestire l'eccedenza (cambia la regola delle pensioni). |
+| D-F9 | **Presa** (04/10/2026) | **What If con «Quando»**, default oggi (identico a ora); l'evento si somma ai flussi salvati. La regola «Do NOT add timed mid-projection cash events» della guida si riscrive. | What If solo «da oggi», con i flussi solo nel Calcolatore. |
+| D-F10 | **Presa** (04/10/2026) | **Proiezione**: una tantum sempre, ricorrenti di calendario mentre si versa, ancore FIRE no. | Nessun flusso: la Proiezione resterebbe senza la vita intorno. |
+| D-F11 | **Presa** (04/10/2026) | **Coast**: le una tantum prima dell'età obiettivo contano, le ricorrenti no (le copre il lavoro). | Contare anche le ricorrenti: Coast smetterebbe di rispondere a «posso smettere di versare?». |
+| D-F12 | **Presa** (04/10/2026) | **Effetto nella Base di calcolo** («spostano il FIRE dal 2034 al 2029»), segni delle una tantum nel grafico, clausola nella riga «Ipotesi usate». | Un tile nuovo: la Base di calcolo è già il posto in cui si dice da dove vengono i numeri. |
+
+**Scelte di default prese dall'agente** (dichiarate nel piano, accettate con le decisioni il 04/10/2026):
+- **Fine anno** per ogni flusso, come il risparmio e il prelievo; l'anno in corso è l'anno 0 (una tantum = capitale di
+  partenza, ricorrenti dall'anno prossimo).
+- Un flusso **fisso** in euro nominali deve avere una fine.
+- Nel Monte Carlo le ancore FIRE partono dal primo anno; la Spesa sostenibile considera i flussi, l'SWR personale no.
+- Nei motori stocastici i flussi sono uguali in tutti i percorsi; nel Ventaglio le ancore FIRE seguono il FIRE di ogni
+  percorso.
+- Nessuna tassa sulle vendite dell'accumulo (risparmio negativo, una tantum in uscita prima del FIRE), come oggi per
+  le spese dell'accumulo; dopo il FIRE le uscite pagano la tassa come i prelievi.
+- Al massimo 20 flussi.
+- La sorgente `goal` è nel tipo ma nessuna scheda la legge fino a P8.
+
+### 12.9 Criteri di accettazione (valori di riferimento verificabili)
+
+Esempio comune salvo dove indicato: `K` = 400.000 €, spesa del piano 30.000 € dal Cashflow, risparmio 20.000 €
+indicizzato (RP7), un solo scenario g = 7%, π = 2% (r = 4,901961%), SWR 4%, nessuna pensione, ponte, tassa o costo.
+Anni da oggi. Tolleranza ± 0,01 €.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| F1 | Nessun flusso | requisito di oggi 750.000,00 €, FIRE all'anno 8; ogni test esistente di `calculateFIREProjection`, `runAccumulationSimulation`, `runMonteCarloSimulation`, Coast e What If **identico** senza `fireDatedFlows` |
+| F2 | Eredità 100.000 € fissi all'anno 10 | requisito di oggi 699.165,07 € (= 750.000 − 100.000/1,02^10/(1+r)^10), FIRE all'anno 7 |
+| F3 | Part-time 9.600 € indicizzati, 10 anni dal FIRE | 675.517,14 € (= 750.000 − Σ_{j=1..10} 9.600/(1+r)^j), FIRE all'anno 7 |
+| F4 | Figlio 6.000 € indicizzati, anni 2–21 | 821.875,46 € (= 750.000 + Σ_{j=2..21} 6.000/(1+r)^j), FIRE all'anno 10 |
+| F5 | Mutuo 9.600 € fissi, già nel Cashflow, ultimo anno 8 | 581.371,04 € (= 750.000 + Σ_{j=1..8}(9.600/1,02^j − 9.600)/(1+r)^j − 9.600/0,04/(1+r)^8), FIRE all'anno 4 |
+| F6 | Affitto 6.000 € indicizzati, per sempre, già nel Cashflow | 600.000,00 € (= 24.000/0,04), FIRE all'anno 5; risparmio di ogni anno invariato |
+| F7 | F5 con la spesa del piano **scritta a mano** (30.000 €) | 807.324,47 € (= 750.000 + Σ_{j=1..8} 9.600/1,02^j/(1+r)^j), FIRE all'anno 8 |
+| F8 | Part-time 40.000 € indicizzati, 5 anni dal FIRE (più della spesa) | 619.762,94 € (= 750.000 − Σ_{j=1..5} 30.000/(1+r)^j: l'eccedenza non si reinveste), FIRE all'anno 6 |
+| F9 | Auto 30.000 € indicizzati, una tantum in uscita all'anno 3 | 775.987,86 € (= 750.000 + 30.000/(1+r)^3), FIRE all'anno 9 |
+| F10 | F2 + F3 + F4 + F5 insieme | 541.877,22 €, FIRE all'anno 3 |
+| F11 | RF3 con il mutuo di F5 | risparmio anno 5: 22.439,99 € (= 20.000·1,02^4 + 9.600·(1,02^4 − 1)); anno 9: 34.681,12 € (= 29.600·1,02^8) |
+| F12 | RF6 con l'auto di F9 | capitale all'anno 3: 523.714,96 € contro 555.551,20 € senza (differenza 31.836,24 = 30.000·1,02^3) |
+| F13 | RF8, volatilità 0, Azioni g = 5%, π = 2%, K = 1.000.000 €, N = 30, part-time 10.000 € indicizzati dal FIRE per 10 anni | prelievo massimo esatto 54.964,10 € = (K + 10.000·A_10)/A_30 con A_n = Σ_{s=1..n}(1,02/1,05)^s (senza flussi 50.632,09 €); RS3 stampa 54.900 € |
+| F14 | RF8 come F13 con un'eredità di 200.000 € fissi all'anno 15 al posto del part-time | 55.503,07 € = (K + 200.000/1,05^15)/A_30; RS3 stampa 55.500 € |
+| F15 | RF9, età 35, obiettivo 50, r di 7%/2%, spesa 30.000 €, SWR 4% | numero Coast di oggi 365.853,47 € senza flussi; con l'eredità di F2 315.018,54 €; con il figlio di F4 (contano solo gli anni 16–21) 380.755,83 € |
+| F16 | RF5 con pensioni: `P_j` = 10.000 € dall'anno 12, part-time 40.000 € dal FIRE per 15 anni, T = 0 | `δ_j` = −30.000 negli anni 1–11 e −20.000 negli anni 12–15 (l'eccedenza si calcola dopo la pensione) |
+| F17 | RF1 mutuo collegato: rata 800 €, prossima rata gennaio 2027, fine marzo 2034, anno in corso 2026 | importi 9.600 € l'anno dal 2027 al 2033, 2.400 € nel 2034, nulla dopo; `payoff = never` → escluso con il motivo |
+| F18 | Coerenza A17 con flussi: volatilità 0, F10 | il Ventaglio coincide, float per float, con la curva Base di RF6, e la Distribuzione mette tutti i percorsi all'anno 3 |
+| F19 | RS1–RS4 con flussi: S5 (§ 10.8) con il part-time di F13 seminato | `success(W)` rigiocato = `successRate` di «Esegui» a `W`, esattamente |
+| F20 | What If, perdita di lavoro 6 mesi, reddito perso 40.000 €: Quando = oggi / Quando = anno 3 | oggi: risultato identico a prima della task; anno 3: il lato «dopo» è il cammino con una tantum in uscita di 20.000·1,02^3 = 21.224,16 € all'anno 3 |
+| F21 | RF10 Proiezione, volatilità 0, K = 100.000 €, g = 5%, nessun risparmio, eredità 50.000 € fissi all'anno 5, N = 10 | valore nominale all'anno 10: 100.000·1,05^10 + 50.000·1,05^5 = 226.703,54 € |
+| F22 | Round-trip e validazione | `fireDatedFlows` attraversa le cinque sedi (`settingsRoundTrip`); assente = nessun flusso; rifiutati: fisso senza fine, ancora FIRE su una tantum, importo 0, entrata negativa, durata 0, più di 20 flussi |
+| F23 | Età mancante | un flusso ad età senza `userAge` è escluso dai motori e la Base di calcolo dice «1 escluso: manca l'età» |
+
+F2–F15 e F21 sono calcolati con `/mnt/project-files/fire-simulazioni/p4p5-controllo.py` (cammino, requisito e forme
+chiuse concordano al centesimo).
+
+### 12.10 Task
+
+Tre PR in sequenza, tutte dopo il merge di K1, branch da `main`, bozza verso `Ciocc128/net-worth-tracker:main`.
+
+**F1 — Modello, requisito e Calcolatore (thread «impl», Sonnet 5.5)**
+- `types/assets.ts`: `DatedFlow` e `fireDatedFlows`; le cinque sedi (`doc/guide/impostazioni.md`); riga in
+  `describePlanParameters`.
+- `lib/utils/datedFlows.ts` (nuovo, puro): `resolveDatedFlows(flows, { currentYear, userAge, mortgages })` → flussi
+  risolti con finestre e motivi di esclusione (RF1); `buildFlowSchedule(resolved, { inflationRate, horizon,
+  planExpensesOrigin })` → `savingsDelta(t)` (RF3), `lump(t)`, `needDelta(s, T)` (RF4); `flowsRequirementAdjustment(…)`
+  (RF5). `lib/utils/datedFlowValidation.ts` (nuovo). Il mutuo: una funzione pura `mortgageFlowSchedule(summary, now)`
+  accanto a `mortgageSummary.ts`.
+- `fireService.ts`: `calculateFIREProjection(…, flows?: FlowSchedule)` (nono parametro, assente = identico),
+  `resolveFireRequirement` con `flows`; `calculateCoastFIREProjection` con RF9; `calculateFIRESensitivityMatrix` passa
+  i flussi.
+- `useFireAssumptions`: aggiunge i flussi risolti (legge `useMortgageInstalments` per gli immobili collegati) e
+  l'origine della spesa; `describeFireAssumptions` la clausola.
+- `FireParametri.tsx` + un dialogo `DatedFlowDialog.tsx`; `BaseDiCalcoloTile` (riga e parole in `fireNarrative.ts`);
+  `FIREProjectionChart` (segni delle una tantum); Età obiettivo e leva leggono il cammino con i flussi senza modifiche
+  oltre agli argomenti.
+- Test: `__tests__/datedFlows.test.ts` (F2–F12, F15–F17, F22, F23), `fireService.test.ts` (F1 regressione),
+  `fireNarrative.test.ts`, `settingsRoundTrip.test.ts`.
+
+**F2 — Motori stocastici (thread «impl», Sonnet 5.5) — dopo F1**
+- `runAccumulationSimulation` (`flows?` nei parametri: RF7, accumulo e registro), `runWithdrawalLedger` /
+  `ledgerSchedule` (RF8: le tabelle si calcolano una volta per `params`, come oggi), Proiezione (RF10).
+- `MonteCarloTab.tsx`, `ProjectionTab.tsx`: la riga nei Parametri; la Spesa sostenibile senza modifiche oltre ai
+  parametri.
+- Test: F13, F14, F18, F19, F21; S10 e i test esistenti identici senza flussi.
+
+**F3 — What If datato (thread «impl», Sonnet 5.5) — dopo F1**
+- `types/whatIf.ts` (`whenYear?`), `whatIfService.ts` (RF11: `y = 0` invariato, `y ≥ 1` come flusso sovrapposto),
+  il form e il verdetto (`whatIfNarrative.ts`).
+- Test: F20, i test esistenti di What If identici.
+
+**Documentazione** (ogni task per la sua parte): `doc/guide/fire.md` (i flussi, RF5 «una spesa in più non abbassa
+mai il requisito», la regola sugli eventi datati riscritta; blind spots: flussi deterministici, eccedenza non
+reinvestita, nessuna tassa nell'accumulo, mutuo collegato che cambia con le rate), `fire-coast.md` (RF9),
+`fire-what-if.md` (Quando), `fire-monte-carlo.md` e `fire-proiezione.md` (la riga, RF8, RF10),
+`doc/guide/impostazioni.md`, `CLAUDE.md`, `doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`.
+
+**Criterio di fine** di ogni task: i suoi criteri verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e
+scripts __tests__`, `TZ=Europe/Rome npx vitest run`. Le spec Playwright di FIRE (`e2e/fire*.spec.ts`,
+`e2e/coast*.spec.ts`) e la verifica sui dati reali (`npm run mirror:seed`, con il mutuo collegato del proprietario) si
+fanno in un thread sul computer del proprietario. Collaudo su anteprima Vercel: un flusso per forma, il mutuo
+collegato, la riga della Base di calcolo, What If con Quando.
+
+### 12.11 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Un utente con la spesa del piano scritta a mano che **include** il mutuo lo conta due volte. | L'aiuto del campo lo dice (D-F6); la riga del mutuo nei Parametri ricorda «si aggiunge alla spesa del piano scritta a mano». |
+| Il mutuo collegato cambia da solo l'anno FIRE quando si salda una rata o cambia il TAN. | È lo scopo (D-F5); la riga del flusso mostra la fine prevista di oggi. |
+| Il requisito con flussi diverge dal registro «dal FIRE in poi» per la stessa ragione per cui diverge oggi (SWR contro rendimento reale). | RF5 non aggiunge divergenza: senza flussi è identico; dichiarato nella guida. |
+| Le firme di `calculateFIREProjection` e dei motori crescono ancora. | Parametri opzionali con default neutro; la logica nuova in moduli nuovi; voce in `fork-scelte-ui.md`. |
+| Conflitti con K1 su `fireAssumptions.ts` e le schede. | Implementazione dopo il merge di K1 (§ 11). |
