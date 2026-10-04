@@ -102,3 +102,29 @@ export function describeFlowsRow(effect: FlowsEffect): { value: string | null; c
 export function describeFlowsDeclaration(count: number): string {
   return count > 0 ? String(count) : 'nessuno';
 }
+
+/**
+ * Monte Carlo and Proiezione › Parametri, under the capital (§ 12.7): the flows the run reads, read-only; they are edited in the
+ * Calcolatore. A flow anchored to the FIRE says what it means here: «if I stop today» starts it in year 1, the Proiezione has no FIRE.
+ */
+export function describeSimulationFlowsRow(input: {
+  count: number;
+  excluded: readonly ExcludedFlow[];
+  /** How many of the `count` are anchored to the FIRE. */
+  fireAnchored: number;
+  view: 'monteCarlo' | 'projection';
+}): string {
+  const excluded = input.excluded.length > 0 ? ` · ${plural(input.excluded.length, 'escluso', 'esclusi')}: ${input.excluded.map((flow) => flow.reason).join('; ')}` : '';
+  if (input.count === 0) return `Flussi nel tempo: nessuno${excluded}`;
+  const anchored =
+    input.fireAnchored === 0
+      ? ''
+      : input.view === 'monteCarlo'
+        ? input.fireAnchored === input.count
+          ? ' (dal FIRE: partono dal primo anno)'
+          : ` (${input.fireAnchored === 1 ? 'quello dal FIRE parte' : 'quelli dal FIRE partono'} dal primo anno)`
+        : input.fireAnchored === input.count
+          ? ' (dal FIRE: non valgono nella Proiezione)'
+          : ` (${input.fireAnchored === 1 ? 'quello dal FIRE non vale' : 'quelli dal FIRE non valgono'} nella Proiezione)`;
+  return `Flussi nel tempo: ${input.count}${anchored}${excluded}`;
+}

@@ -12,7 +12,7 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 import { getItalyMonth, getItalyMonthYear, getItalyYear } from '@/lib/utils/dateHelpers';
 import { realReturn } from '@/lib/utils/realReturn';
 import { resolveGainShare, resolveTaxMultiplier } from '@/lib/utils/withdrawalTax';
-import { buildFlowSchedule, flowsRequirementAdjustment, type FlowSchedule, type ResolvedFlow } from '@/lib/utils/datedFlows';
+import { buildFlowSchedule, flowsRequirementAdjustment, type DatedFlowsInput, type FlowSchedule } from '@/lib/utils/datedFlows';
 import { calculateTotalExpenses, calculateTotalIncome, getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 
@@ -1547,10 +1547,7 @@ export interface FireHonestInputs {
  * The dated flows an engine reads (doc/fire-ipotesi/README.md § 12): the resolved list and where the plan's
  * expenses come from (D-F6). The per-scenario schedule is built inside, from each scenario's own inflation.
  */
-export interface FireFlowsInput {
-  resolved: readonly ResolvedFlow[];
-  planExpensesFromCashflow: boolean;
-}
+export type FireFlowsInput = DatedFlowsInput;
 
 function scheduleFor(flows: FireFlowsInput | undefined, inflationRate: number): FlowSchedule | undefined {
   return flows && flows.resolved.length > 0 ? buildFlowSchedule(flows.resolved, { inflationRate, planExpensesFromCashflow: flows.planExpensesFromCashflow }) : undefined;

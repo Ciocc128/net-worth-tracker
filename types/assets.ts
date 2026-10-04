@@ -1,5 +1,6 @@
 import type { PensionFundDetails } from './pension';
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
+import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
 
 // AssetType: Granular classification used in UI (stock, ETF, bond, crypto, etc.)
 // AssetClass: Broad financial categories for allocation analysis (equity, bonds, etc.)
@@ -608,6 +609,9 @@ export interface MonteCarloParams {
   // The tax on withdrawals (lib/utils/withdrawalTax.ts): today's cost basis and the rate, in
   // percent. Absent = every withdrawn euro is a euro sold.
   withdrawalTax?: { basisToday: number; rate: number };
+  // § 12 (RF8): the dated flows of the plan, read as «if I stop today» (a FIRE anchor starts in year 1 + afterYears).
+  // The schedule is built from THIS scenario's inflation (the pensions' rule), so one list serves the three scenarios.
+  flows?: DatedFlowsInput;
 }
 
 export interface MonteCarloCapitalInflow {

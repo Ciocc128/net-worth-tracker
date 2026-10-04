@@ -12,6 +12,7 @@ import { buildDrawPlan, drawYear, portfolioReturn, type DrawPlan } from '@/lib/u
 import { formatCurrencyCompact } from './chartService';
 import { withdrawGross } from '@/lib/utils/withdrawalTax';
 import { binSortedValues } from '@/lib/utils/valueHistogram';
+import { buildFlowSchedule, buildFlowYearTables, type DatedFlowsInput, type FlowYearTables } from '@/lib/utils/datedFlows';
 
 /** A net annual amount that arrives every year from `fromYear` on, at today's value. */
 export interface AnnualInflow {
@@ -73,6 +74,14 @@ interface LedgerSchedule {
   pensions: Float64Array;
   /** The capital inflows of each year in their given order (separate additions keep the floats identical); index = year. */
   inflowsByYear: number[][];
+  /** RF8: the dated flows' tables (the need's change, the lumps), built from this scenario's inflation; absent without flows, and then the ledger is the one of before. */
+  flows?: { need: Float64Array; lumpIn: Float64Array; lumpOut: Float64Array; start: number };
+}
+
+/** The schedule a stochastic engine reads of the dated flows: this scenario's inflation, `null` when there are none. */
+function flowTablesFor(flows: DatedFlowsInput | undefined, inflationRate: number, years: number): FlowYearTables | null {
+  if (!flows || flows.resolved.length === 0) return null;
+  return buildFlowYearTables(buildFlowSchedule(flows.resolved, { inflationRate, planExpensesFromCashflow: flows.planExpensesFromCashflow }), years);
 }
 
 const scheduleCache = new WeakMap<MonteCarloParams, LedgerSchedule>();
@@ -92,7 +101,11 @@ function ledgerSchedule(params: MonteCarloParams): LedgerSchedule {
   for (const inflow of params.capitalInflows ?? []) {
     if (inflow.year >= 1 && inflow.year <= years) inflowsByYear[inflow.year].push(inflow.amount);
   }
-  const schedule = { withdrawalIndex, pensions, inflowsByYear };
+  const schedule: LedgerSchedule = { withdrawalIndex, pensions, inflowsByYear };
+  // RF8: «if I stop today» — T = 0, so a FIRE anchor opens in year 1 + afterYears. The flows move with the plan's own indexing
+  // (the pensions' rule): a plan that does not adjust for inflation sees them at 0%.
+  const tables = flowTablesFor(params.flows, adjusts ? params.market.inflationRate : 0, years);
+  if (tables) schedule.flows = { need: tables.needFor(0), lumpIn: tables.lumpInflow, lumpOut: tables.lumpOutflow, start: tables.lumpNet[0] };
   scheduleCache.set(params, schedule);
   return schedule;
 }
@@ -118,6 +131,7 @@ function runWithdrawalLedger(
   annualWithdrawal: number,
   path?: { year: number; value: number }[]
 ): LedgerOutcome {
+  const schedule = ledgerSchedule(params);
   let portfolio = params.initialPortfolio;
   const inflows = params.capitalInflows ?? [];
   for (const inflow of inflows) {
@@ -126,9 +140,14 @@ function runWithdrawalLedger(
   // The cost basis the withdrawal tax reads (2026-09-24): today's, plus every inflow as it lands.
   const tax = params.withdrawalTax;
   let basis = (tax?.basisToday ?? 0) + inflows.reduce((sum, inflow) => (inflow.year <= 0 ? sum + inflow.amount : sum), 0);
+  // RF6/RF8: the lumps of the running year are part of the starting capital (the walk's own rule: an inflow is basis, an outflow leaves it as it is).
+  const flows = schedule.flows;
+  if (flows && flows.start !== 0) {
+    portfolio += flows.start;
+    basis += Math.max(0, flows.start);
+  }
   path?.push({ year: 0, value: portfolio });
 
-  const schedule = ledgerSchedule(params);
   const taxRate = tax?.rate ?? 0;
 
   for (let year = 1; year <= params.retirementYears; year++) {
@@ -144,10 +163,19 @@ function runWithdrawalLedger(
     // A year's loss above the capital wipes it out (R4): ruin by leverage, whatever the withdrawal.
     if (portfolio <= 0) return { success: false, failureYear: year, failureCause: 'leverage', finalValue: 0 };
 
+    // RF8: the lumps coming in land after the return (and are basis); the ones going out leave with the withdrawal below.
+    if (flows && flows.lumpIn[year] !== 0) {
+      portfolio += flows.lumpIn[year];
+      basis += flows.lumpIn[year];
+    }
+
     // Calculate withdrawal (adjusted for inflation if needed), net of the pensions active this
     // year (indexed the same way), then grossed up for the tax on the sale that funds it.
     let withdrawal = annualWithdrawal * schedule.withdrawalIndex[year];
-    const netWithdrawal = Math.max(0, withdrawal - schedule.pensions[year]);
+    // RF8: the withdrawal replaces the plan's expenses in RF4, so the flows change the NEED around it; a lump out is added after the floor.
+    const netWithdrawal = flows
+      ? Math.max(0, withdrawal + flows.need[year] - schedule.pensions[year]) + flows.lumpOut[year]
+      : Math.max(0, withdrawal - schedule.pensions[year]);
     if (tax) {
       const sale = withdrawGross(portfolio, basis, netWithdrawal, taxRate);
       withdrawal = sale.gross;
@@ -418,6 +446,13 @@ export interface AccumulationSimulationParams {
    * Only read with `collectPaths: false`.
    */
   snapshotYears?: number[];
+  /**
+   * § 12 — the dated flows (RF7, RF10). In the accumulation each path adds `Δs_t` to the saving (while it saves) and the
+   * lumps `L_t` (always); in the retirement ledger a FIRE-anchored flow starts from THAT path's FIRE year, the lumps coming
+   * in land after the return and the ones going out leave with the withdrawal. The schedule is built from `expenseInflationRate`.
+   * Absent (or empty) → the engine of before, float for float.
+   */
+  flows?: DatedFlowsInput;
 }
 
 export interface AccumulationPercentilePoint extends PercentilesData {
@@ -503,6 +538,9 @@ export function runAccumulationSimulation(
   // RP7: the saving of year t, indexed (1 + π)^(t−1) when asked; the same figure for every path.
   const savingsGrowth = 1 + (params.savingsInflationRate ?? 0) / 100;
   const savingsByYear = [0, ...Array.from({ length: horizon }, (_, index) => params.annualSavings * Math.pow(savingsGrowth, index))];
+  // RF7: the flows' tables, once for all paths; the lumps of the running year join the starting capital (RF6).
+  const flowTables = flowTablesFor(params.flows, params.expenseInflationRate, horizon);
+  const startingLump = flowTables ? flowTables.lumpNet[0] : 0;
 
   const paths: { year: number; value: number }[][] = [];
   const fireYears: (number | null)[] = [];
@@ -515,7 +553,7 @@ export function runAccumulationSimulation(
   let leverageZeroedCount = 0;
 
   for (let sim = 0; sim < params.numberOfSimulations; sim++) {
-    let portfolio = params.initialPortfolio + startingInflow;
+    let portfolio = params.initialPortfolio + startingInflow + startingLump;
     const path: { year: number; value: number }[] = collectPaths ? [{ year: 0, value: portfolio }] : [];
     if (!collectPaths) byYear[0][sim] = portfolio;
     let zeroed = false;
@@ -527,7 +565,7 @@ export function runAccumulationSimulation(
     let ruinYear: number | null = null;
     // The basis behind it: today's, every euro saved, every inflow — consumed by the sales.
     const retirementTax = params.retirement?.withdrawalTax;
-    let basis = (retirementTax?.basisToday ?? 0) + startingInflow;
+    let basis = (retirementTax?.basisToday ?? 0) + startingInflow + Math.max(0, startingLump);
 
     for (let year = 1; year <= horizon; year++) {
       // R4: a leveraged year can lose more than the capital. The fan floors the growth at zero
@@ -543,7 +581,18 @@ export function runAccumulationSimulation(
         portfolio *= growth;
 
         // Savings stop once the path retires — same rule as the deterministic projection.
-        if (fireYear === null && year <= savingsYears) {
+        if (flowTables) {
+          // RF7: ONE move per year, summed the way the deterministic walk sums it (saving + Δs, then the lump), so at zero
+          // volatility the path is that walk's float chain. The lumps come in every year; the retirement ledger's basis
+          // follows only while it still shares the accumulation (fireYear unset).
+          const saving = fireYear === null && year <= savingsYears ? savingsByYear[year] + flowTables.savingsDelta[year] : 0;
+          const move = saving + flowTables.lumpNet[year];
+          if (move !== 0) {
+            const before = portfolio;
+            portfolio += move;
+            if (fireYear === null) basis = move >= 0 ? basis + move : before > 0 ? basis * Math.max(0, 1 - -move / before) : basis;
+          }
+        } else if (fireYear === null && year <= savingsYears) {
           const savings = savingsByYear[year];
           portfolio += savings;
           basis += savings;
@@ -570,7 +619,15 @@ export function runAccumulationSimulation(
           ruinYear = year;
           continue;
         }
-        const netNeed = Math.max(0, expensesByYear[year] - activeAnnualInflows(params.retirement?.statePensions, year, params.expenseInflationRate));
+        // RF7: a lump coming in lands after the return (and is basis); the need moves with the flows from THIS path's FIRE year, a lump out is added after the floor.
+        if (flowTables && flowTables.lumpInflow[year] !== 0) {
+          retirementCapital += flowTables.lumpInflow[year];
+          basis += flowTables.lumpInflow[year];
+        }
+        const pensionNow = activeAnnualInflows(params.retirement?.statePensions, year, params.expenseInflationRate);
+        const netNeed = flowTables
+          ? Math.max(0, expensesByYear[year] - pensionNow + flowTables.needFor(fireYear)[year]) + flowTables.lumpOutflow[year]
+          : Math.max(0, expensesByYear[year] - pensionNow);
         if (retirementTax) {
           const sale = withdrawGross(retirementCapital, basis, netNeed, retirementTax.rate);
           retirementCapital -= sale.gross;

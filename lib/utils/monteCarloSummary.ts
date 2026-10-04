@@ -16,6 +16,7 @@
 import type { MonteCarloCapitalInflow, MonteCarloMarketSettings, MonteCarloParams, MonteCarloResults, PercentilesData } from '@/types/assets';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
+import { datedFlowsSignature } from '@/lib/utils/datedFlows';
 import type { VerdictTone } from '@/lib/utils/narrative';
 import { binYears, type YearHistogramBin } from '@/lib/utils/yearHistogram';
 
@@ -362,6 +363,8 @@ export function haveRunInputsChanged(last: MonteCarloRunInputs, current: MonteCa
   const currentPensions = current.params.annualInflows ?? [];
   if (lastPensions.length !== currentPensions.length) return true;
   if (lastPensions.some((pension, index) => pension.fromYear !== currentPensions[index].fromYear || pension.annualNetToday !== currentPensions[index].annualNetToday)) return true;
+  // § 12: the dated flows ride on the params too — a saved flow (or a mortgage that ended) is a new plan.
+  if (datedFlowsSignature(last.params.flows) !== datedFlowsSignature(current.params.flows)) return true;
   const lastTax = last.params.withdrawalTax;
   const currentTax = current.params.withdrawalTax;
   if (!!lastTax !== !!currentTax) return true;

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { DatedFlow } from '@/types/assets';
-import { describeFlowRow, describeFlowsDeclaration, describeFlowsRow, describeMortgageOption } from '@/lib/utils/datedFlowsNarrative';
+import { describeFlowRow, describeFlowsDeclaration, describeFlowsRow, describeMortgageOption, describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
 import { buildFlowSchedule, lumpMarkersOf, resolveDatedFlows } from '@/lib/utils/datedFlows';
 import { resolveCoastPace } from '@/lib/utils/coastFireView';
@@ -112,5 +112,21 @@ describe('buildFlowSchedule.horizon', () => {
   it('should reach the last year a flow starts or ends', () => {
     const { resolved } = resolveDatedFlows([{ ...base, id: 'c', label: 'Figlio', kind: 'expense', amount: 6000, start: { anchor: 'year', year: 2028 }, durationYears: 20 }], { currentYear: 2026 });
     expect(buildFlowSchedule(resolved, { inflationRate: 2, planExpensesFromCashflow: true }).horizon(0)).toBe(21);
+  });
+});
+
+describe('describeSimulationFlowsRow (Monte Carlo and Proiezione › Parametri)', () => {
+  const excluded = [{ id: 'a', label: 'Bonus', reason: "manca l'età" }];
+  it('should say none, the count, and what the FIRE anchor means in each view', () => {
+    expect(describeSimulationFlowsRow({ count: 0, excluded: [], fireAnchored: 0, view: 'monteCarlo' })).toBe('Flussi nel tempo: nessuno');
+    expect(describeSimulationFlowsRow({ count: 4, excluded: [], fireAnchored: 0, view: 'monteCarlo' })).toBe('Flussi nel tempo: 4');
+    expect(describeSimulationFlowsRow({ count: 4, excluded: [], fireAnchored: 2, view: 'monteCarlo' })).toBe('Flussi nel tempo: 4 (quelli dal FIRE partono dal primo anno)');
+    expect(describeSimulationFlowsRow({ count: 1, excluded: [], fireAnchored: 1, view: 'monteCarlo' })).toBe('Flussi nel tempo: 1 (dal FIRE: partono dal primo anno)');
+    expect(describeSimulationFlowsRow({ count: 4, excluded: [], fireAnchored: 1, view: 'projection' })).toBe('Flussi nel tempo: 4 (quello dal FIRE non vale nella Proiezione)');
+    expect(describeSimulationFlowsRow({ count: 2, excluded: [], fireAnchored: 2, view: 'projection' })).toBe('Flussi nel tempo: 2 (dal FIRE: non valgono nella Proiezione)');
+  });
+  it('should name what was left out', () => {
+    expect(describeSimulationFlowsRow({ count: 3, excluded, fireAnchored: 0, view: 'projection' })).toBe("Flussi nel tempo: 3 · 1 escluso: manca l'età");
+    expect(describeSimulationFlowsRow({ count: 0, excluded, fireAnchored: 0, view: 'monteCarlo' })).toBe("Flussi nel tempo: nessuno · 1 escluso: manca l'età");
   });
 });

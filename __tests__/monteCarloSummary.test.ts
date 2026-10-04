@@ -312,6 +312,15 @@ describe('haveRunInputsChanged', () => {
     expect(haveRunInputsChanged(withTax, { ...inputs(), params: makeParams({ withdrawalTax: { basisToday: 300000, rate: 26 } }) })).toBe(false);
   });
 
+  it('§ 12: a saved dated flow, or a different list, makes the last run stale', () => {
+    const lump = { id: 'l', label: 'Eredità', kind: 'lumpIn' as const, sigma: 0 as const, indexed: false, amount: 100000, anchor: 'fixed' as const, start: 10, durationYears: null, inCashflowToday: false };
+    const withFlow = (amount: number) => ({ ...inputs(), params: makeParams({ flows: { resolved: [{ ...lump, amount }], planExpensesFromCashflow: true } }) });
+    expect(haveRunInputsChanged(inputs(), withFlow(100000))).toBe(true);
+    expect(haveRunInputsChanged(withFlow(100000), withFlow(100000))).toBe(false);
+    expect(haveRunInputsChanged(withFlow(100000), withFlow(120000))).toBe(true);
+    expect(haveRunInputsChanged(inputs(), { ...inputs(), params: makeParams({ flows: { resolved: [], planExpensesFromCashflow: true } }) })).toBe(false);
+  });
+
   it('ignores the market on the shared params (the scenarios carry it)', () => {
     const other = defaultScenarios().base;
     other.classes.equity.cagr = 9;

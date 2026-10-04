@@ -82,6 +82,9 @@ import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
+import { buildFlowSchedule, type DatedFlowsInput } from '@/lib/utils/datedFlows';
+import { describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { TILE_CELL_CLASS } from '@/components/ui/tile';
 import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
 import { ErrorNotice } from '@/components/ui/error-notice';
@@ -175,6 +178,15 @@ export function ProjectionTab() {
   const { assumptions, isLoading: isLoadingAssumptions, isError: assumptionsError } = useFireAssumptions(lockedAssetIds, { withCashflow: true });
   // K1 (RK7): the capital and the two seeds of the weights are the page's own reading — this tab never recomputes them.
   const capital = assumptions?.capital ?? null;
+  // § 12 (RF10): the saved dated flows. The Proiezione has no FIRE: a flow anchored to it does not exist here, the recurring ones
+  // change the saving while it is paid, the lumps land every year.
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows();
+  const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
+  const datedFlows = useMemo<DatedFlowsInput | undefined>(
+    () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
+    [resolvedFlows, planExpensesFromCashflow],
+  );
+  const assumptionsWithFlows = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
   const targetSeed = assumptions?.weightSeeds?.targets ?? null;
   const holdingsSeed = assumptions?.weightSeeds?.holdings ?? null;
   const totalNetWorth = Math.max(0, capital?.total ?? 0);
@@ -261,9 +273,10 @@ export function ProjectionTab() {
             // RC3/RC4: the costs of the weights of THIS run, on the page's per-class costs.
             costRate: portfolioCost(typed.weights, assumptions?.costs).total,
             inflows: pensionInflows,
+            datedFlows,
           }
         : null,
-    [typed, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows],
+    [typed, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, datedFlows],
   );
 
   // ─── The run: the three scenarios in one go ──────────────────────────────────
@@ -278,7 +291,9 @@ export function ProjectionTab() {
       try {
         const years = inputs.years;
         const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
-        const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0);
+        // The lumps of the running year are part of the starting capital (RF6), whatever the scenario's inflation.
+        const startingLump = inputs.datedFlows ? buildFlowSchedule(inputs.datedFlows.resolved, { inflationRate: 0, planExpensesFromCashflow: inputs.datedFlows.planExpensesFromCashflow }).lump(0) : 0;
+        const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0) + startingLump;
         const data: ProjectionRunData = {
           scenarios: {} as ProjectionRunData['scenarios'],
           inflation: { bear: 0, base: 0, bull: 0 },
@@ -305,6 +320,7 @@ export function ProjectionTab() {
             annualCostRate: inputs.costRate,
             numberOfSimulations: inputs.simulations,
             capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
+            flows: inputs.datedFlows,
             collectPaths: false,
             snapshotYears,
             random: createSeededRandom(MONTE_CARLO_SEED),
@@ -325,11 +341,12 @@ export function ProjectionTab() {
   // Auto-run once, when the seeded plan can run — the page opens answered.
   const didAutoRunRef = useRef(false);
   useEffect(() => {
-    if (didAutoRunRef.current || !currentInputs || !canRun) return;
+    // The flows are part of the plan: the first run waits for the mortgage linked in Patrimonio to be read.
+    if (didAutoRunRef.current || !currentInputs || !canRun || isLoadingFlows) return;
     didAutoRunRef.current = true;
     const timer = setTimeout(() => runProjection(currentInputs), 0);
     return () => clearTimeout(timer);
-  }, [currentInputs, canRun, runProjection]);
+  }, [currentInputs, canRun, runProjection, isLoadingFlows]);
 
   const handleRun = useCallback(() => {
     if (currentInputs && canRun) runProjection(currentInputs);
@@ -381,7 +398,7 @@ export function ProjectionTab() {
     );
   }
 
-  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || isLoadingCashflow || !form || !typed || !typedPlan || awaitingFirstRun) {
+  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || isLoadingCashflow || isLoadingFlows || !form || !typed || !typedPlan || awaitingFirstRun) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
@@ -394,7 +411,7 @@ export function ProjectionTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <FireAssumptionsRow assumptions={assumptions} />
+        <FireAssumptionsRow assumptions={assumptionsWithFlows} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" />
       </div>
 
@@ -483,6 +500,7 @@ export function ProjectionTab() {
             thresholdHint={defaultThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIRE : PROJECTION_THRESHOLD_HINT_EMPTY}
             marketDeclaration={describeMarketDeclaration(market, leverage)}
             capital={capital}
+            flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'projection' })}
             onRun={handleRun}
             canRun={canRun}
             isRunning={isRunning}

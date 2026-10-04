@@ -12,6 +12,7 @@ import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloCapitalInflow, MonteCarloMarketSettings } from '@/types/assets';
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { binSortedValues } from '@/lib/utils/valueHistogram';
+import { datedFlowsSignature, type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { SCENARIO_KEYS, type HistogramBin, type MonteCarloContext, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
 
 export type { ScenarioKey };
@@ -271,6 +272,8 @@ export interface ProjectionRunInputs {
   /** RC3 on the run's weights: percent a year of TER and stamp duty (absent = 0). */
   costRate?: number;
   inflows: MonteCarloCapitalInflow[];
+  /** § 12 (RF10): the dated flows the run read; absent = none. */
+  datedFlows?: DatedFlowsInput;
 }
 
 /**
@@ -292,5 +295,6 @@ export function haveProjectionInputsChanged(last: ProjectionRunInputs, current: 
   const currentCorrelations = current.correlations ?? [];
   if (lastCorrelations.length !== currentCorrelations.length || lastCorrelations.some((value, index) => value !== currentCorrelations[index])) return true;
   if (last.inflows.length !== current.inflows.length) return true;
+  if (datedFlowsSignature(last.datedFlows) !== datedFlowsSignature(current.datedFlows)) return true;
   return last.inflows.some((inflow, index) => inflow.year !== current.inflows[index].year || inflow.amount !== current.inflows[index].amount);
 }
