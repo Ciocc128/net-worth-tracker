@@ -44,7 +44,7 @@
  * Celebration Badge), and its five hexes were the tab's only colours outside the theme.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -72,6 +72,10 @@ import {
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { solvePersonalSwr, resolvePersonalSwrHorizon } from '@/lib/utils/sustainableWithdrawal';
+import { summarizeTargetAge, yearsToTargetAge, type FireWalk } from '@/lib/utils/fireTargetAge';
+import { isValidAge, parseOptionalInteger } from '@/lib/utils/coastFireView';
+import { DEFAULT_COAST_RETIREMENT_AGE } from '@/lib/hooks/useCoastFireSettingsDraft';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
   formatAllocationLabel,
@@ -102,6 +106,8 @@ import {
   describeScenarios,
   describeScenariosFooter,
   describeTailLever,
+  describeTargetAge,
+  describeTargetAgeMethod,
   describeTarget,
   describeTargetCaption,
   describeTargetFooter,
@@ -125,6 +131,7 @@ import { TraguardoTile } from '@/components/fire-simulations/tiles/TraguardoTile
 import { BaseDiCalcoloTile } from '@/components/fire-simulations/tiles/BaseDiCalcoloTile';
 import { RedditoPassivoTile } from '@/components/fire-simulations/tiles/RedditoPassivoTile';
 import { ScenariTile } from '@/components/fire-simulations/tiles/ScenariTile';
+import { EtaObiettivoTile } from '@/components/fire-simulations/tiles/EtaObiettivoTile';
 import { FireParametri, type FireSettingsForm } from '@/components/fire-simulations/FireParametri';
 import { FireDettaglio } from '@/components/fire-simulations/FireDettaglio';
 import { FIREProjectionChart } from '@/components/fire-simulations/FIREProjectionChart';
@@ -159,14 +166,17 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 7, lines: 5 },
   { span: 4, lines: 5 },
   { span: 3, lines: 4 },
+  { span: 12, lines: 4 },
 ];
 
-/** The four cells of the grid: one class per tile, shared by the data and the empty branches. */
+/** The five cells of the grid: one class per tile, shared by the data and the empty branches. */
 const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
 const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
-const BASE_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-3 desktop:order-none desktop:col-span-4');
+const BASE_CELL = cn(TILE_CELL_CLASS, 'order-5 tablet:order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 desktop:order-none desktop:col-span-4');
 const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-3');
+// E1: the third row. A phone reads it after the scenarios; a tablet keeps Reddito beside Scenari and puts it last.
+const ETA_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12');
 
 /** The one action of the empty state: a link the size of a touch target, in the tile's own ink. */
 const EMPTY_ACTION_CLASS =
@@ -184,6 +194,8 @@ function calculateDisplayedRunwayDelta(latestValue: number | null | undefined, c
 function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
   return {
     withdrawalRate: (settings?.withdrawalRate ?? 4.0).toString(),
+    // D-E1: the one target age of the page, Coast FIRE's.
+    targetAge: String(settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE),
     // The Coast FIRE «spesa personalizzata» of before D5 shows here until the next save moves it.
     plannedExpenses: (settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses)?.toString() ?? '',
     inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
@@ -191,7 +203,7 @@ function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
   };
 }
 
-export function FireCalculatorTab() {
+export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } = {}) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -358,6 +370,7 @@ export function FireCalculatorTab() {
     Number.isFinite(parsedPreviewWithdrawalRate) && parsedPreviewWithdrawalRate > 0 ? parsedPreviewWithdrawalRate : withdrawalRate;
   const hasUnsavedChanges =
     form.withdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
+    form.targetAge !== settingsForm(settings).targetAge ||
     form.plannedExpenses !== settingsForm(settings).plannedExpenses ||
     form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
     ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
@@ -441,6 +454,10 @@ export function FireCalculatorTab() {
     };
   }, [requirementToday, userAge, currentYearForFan, honest.pensions.length, taxProfile, gainShareToday]);
 
+  const projectionBridge = useMemo<FireProjectionPensionBridge | undefined>(
+    () => (pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined),
+    [pensionBridgeValueToday, pensionBridgeYearsToUnlock],
+  );
   // The deterministic projection — the verdict, the Traguardo and the Scenari share it.
   const projection = useMemo(() => {
     if (currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
@@ -451,12 +468,12 @@ export function FireCalculatorTab() {
       previewWithdrawalRate,
       scenarios,
       PROJECTION_HORIZON_YEARS,
-      pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { valueToday: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined,
+      projectionBridge,
       honest,
       // RP7 (D6): the saving grows with the scenario's inflation, the pace Coast already keeps.
       true,
     );
-  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, pensionBridgeValueToday, pensionBridgeYearsToUnlock, honest]);
+  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, projectionBridge, honest]);
 
   // Fan (Ventaglio) inputs: the weights and the Base market of the page's assumptions (the Monte
   // Carlo tab's too), expenses inflated with the SAME base-scenario inflation as the deterministic
@@ -556,6 +573,86 @@ export function FireCalculatorTab() {
   const retirementSurvival = useMemo(
     () => (fireYearDistribution && fanResult ? summarizeRetirementSurvival(fanResult, currentYearForFan, userAge) : null),
     [fireYearDistribution, fanResult, currentYearForFan, userAge],
+  );
+
+  // ─── Età obiettivo (E1) ──────────────────────────────────────────────────────
+  // The age is PREVIEWED from the typed field until saved, like the SWR: a typed age that is not valid
+  // (not above today's age, past 100) falls back to the saved one. RS7/RS9 re-walk the SAME deterministic
+  // projection the verdict names, changing only the saving or the plan's expenses.
+  const parsedTypedTargetAge = parseOptionalInteger(form.targetAge);
+  const previewTargetAge =
+    isValidAge(parsedTypedTargetAge) && (userAge === undefined || parsedTypedTargetAge > userAge)
+      ? parsedTypedTargetAge
+      : (settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE);
+  const fireWalk = useCallback<FireWalk>(
+    (savings, planExpenses) =>
+      calculateFIREProjection(currentNetWorth, planExpenses, savings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true).baseYearsToFIRE,
+    [currentNetWorth, previewWithdrawalRate, scenarios, projectionBridge, honest],
+  );
+  // RS8: the Ventaglio's lever aimed at the target age. The fan only exists in its own views, so the base run is
+  // made here when the Traguardo shows the scenarios; the target must lie within the fan's horizon. ~14 runs of the
+  // fan (measured 2026-10-04: ≈0,4 s on the cloud container), so the whole summary is computed from a DEFERRED
+  // request: an edit paints at once and the tile follows, the three figures always from one request.
+  const targetAgeRequest = useMemo(
+    () =>
+      projection
+        ? { projection, userAge, targetAge: previewTargetAge, currentYear: currentYearForFan, annualSavings, planExpenses: projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan }
+        : null,
+    [projection, userAge, previewTargetAge, currentYearForFan, annualSavings, projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan],
+  );
+  const deferredTargetAgeRequest = useDeferredValue(targetAgeRequest);
+  const targetAgeSummary = useMemo(() => {
+    const request = deferredTargetAgeRequest;
+    if (!request) return null;
+    const span = yearsToTargetAge(request.targetAge, request.userAge);
+    const baseYearsToFire = request.projection.baseYearsToFIRE;
+    const { fanInputs: inputs, fanResult: shownFan, runFan: run } = request;
+    const tail =
+      span.kind === 'years' && inputs && baseYearsToFire !== 0 && span.years <= request.fanYears
+        ? solveSavingsForTail({
+            baseResult: shownFan ?? run(inputs),
+            run: (savings) => run(inputs, savings),
+            baseAnnualSavings: inputs.annualSavings,
+            targetYears: span.years,
+            extraCap: resolveLeverCap(inputs.annualSavings, inputs.annualExpenses),
+          })
+        : null;
+    return summarizeTargetAge({
+      userAge: request.userAge,
+      targetAge: request.targetAge,
+      currentYear: request.currentYear,
+      annualSavings: request.annualSavings,
+      planExpenses: request.planExpenses,
+      baseYearsToFire,
+      walk: request.fireWalk,
+      tail,
+    });
+  }, [deferredTargetAgeRequest]);
+
+  // RS5: the personal SWR, only while the Parametri are open, from a deferred request (≈0,4 s at 30 years, ≈0,65 s at
+  // 60 on the cloud container): the panel paints first and the figure lands after, and typing the age does not stall.
+  const savedMarket = savedAssumptions?.market;
+  const savedWeights = savedAssumptions?.weights;
+  const savedCostPct = savedAssumptions?.cost?.total;
+  const personalSwrHorizon = resolvePersonalSwrHorizon(previewTargetAge);
+  const personalSwrRequest = useMemo(
+    () => (parametriOpen && savedMarket && savedWeights ? { market: savedMarket, weights: savedWeights, costPct: savedCostPct, horizonYears: personalSwrHorizon } : null),
+    [parametriOpen, savedMarket, savedWeights, savedCostPct, personalSwrHorizon],
+  );
+  const deferredPersonalSwrRequest = useDeferredValue(personalSwrRequest);
+  const personalSwr = useMemo(
+    () =>
+      deferredPersonalSwrRequest
+        ? solvePersonalSwr({
+            weights: deferredPersonalSwrRequest.weights,
+            market: deferredPersonalSwrRequest.market.scenarios.base,
+            correlations: deferredPersonalSwrRequest.market.correlations,
+            leverageSpread: deferredPersonalSwrRequest.market.leverageSpread,
+            costPct: deferredPersonalSwrRequest.costPct,
+            horizonYears: deferredPersonalSwrRequest.horizonYears,
+          })
+        : null,
+    [deferredPersonalSwrRequest],
   );
 
   const displayedRunwayData = useMemo(() => {
@@ -690,8 +787,14 @@ export function FireCalculatorTab() {
       toast.error('Inserisci una spesa del piano sopra 0, o lasciala vuota per leggerla dal Cashflow');
       return;
     }
+    const newTargetAge = parseOptionalInteger(form.targetAge);
+    if (!isValidAge(newTargetAge) || (userAge !== undefined && newTargetAge <= userAge)) {
+      toast.error(userAge !== undefined ? `Inserisci un'età obiettivo sopra la tua (${userAge}) e fino a 100` : "Inserisci un'età obiettivo tra 18 e 100");
+      return;
+    }
     settingsMutation.mutate({
       withdrawalRate: newWR,
+      coastFireRetirementAge: newTargetAge,
       // Undefined removes the field (empty = from the Cashflow); the Coast FIRE «spesa personalizzata» of before D5
       // is moved into this field by the form's seed, so it is dropped here.
       plannedAnnualExpenses: newPlannedExpenses,
@@ -746,6 +849,8 @@ export function FireCalculatorTab() {
         alreadyUnlockable: userAge !== undefined && ritaUnlockAge <= userAge,
       })}
       assumptions={assumptions}
+      userAge={userAge}
+      personalSwr={personalSwr}
     />
   );
 
@@ -812,6 +917,11 @@ export function FireCalculatorTab() {
           <div className={SCENARI_CELL}>
             <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato">
               <EmptyState className="mt-2" message={empty.scenarios} />
+            </Tile>
+          </div>
+          <div className={ETA_CELL}>
+            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
+              <EmptyState className="mt-2" message={empty.targetAge} />
             </Tile>
           </div>
         </div>
@@ -915,6 +1025,16 @@ export function FireCalculatorTab() {
             // guarantees; this is the belt to those braces, and it says so instead of an empty cell.
             <Tile eyebrow="Scenari" ariaLabel="Scenari di mercato">
               <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').scenarios} />
+            </Tile>
+          )}
+        </div>
+
+        <div className={ETA_CELL}>
+          {targetAgeSummary ? (
+            <EtaObiettivoTile reading={describeTargetAge(targetAgeSummary)} summary={targetAgeSummary} method={describeTargetAgeMethod()} onOpenCoast={onOpenCoast} />
+          ) : (
+            <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
+              <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').targetAge} />
             </Tile>
           )}
         </div>

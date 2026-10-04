@@ -25,7 +25,9 @@ import { ChevronDown, HelpCircle, Target, TrendingDown, TrendingUp } from 'lucid
 import type { FireAssumptions, FireScenarioKey } from '@/lib/utils/fireAssumptions';
 import { formatPercentage } from '@/lib/services/chartService';
 import type { Narrative } from '@/lib/utils/narrative';
-import { describeImpostazioni, describeScenarioParams } from '@/lib/utils/fireNarrative';
+import { describeImpostazioni, describePersonalSwr, describeScenarioParams, formatRate } from '@/lib/utils/fireNarrative';
+import { isValidAge, parseOptionalInteger } from '@/lib/utils/coastFireView';
+import type { PersonalSwr } from '@/lib/utils/sustainableWithdrawal';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,6 +45,8 @@ const CONTROL_CLASS =
 
 export interface FireSettingsForm {
   withdrawalRate: string;
+  /** The page's one target age (`coastFireRetirementAge`, shared with Coast FIRE and What If), typed. */
+  targetAge: string;
   /** The plan's yearly expenses, typed; empty = read from the Cashflow (doc/fire-ipotesi/README.md D5). */
   plannedExpenses: string;
   inpsRetirementAge: string;
@@ -65,6 +69,10 @@ interface FireParametriProps {
   ritaPreview: Narrative;
   /** The page's hypotheses (read-only): the three scenarios of the target portfolio. */
   assumptions: FireAssumptions | null;
+  /** Today's age (Coast › Ipotesi), the lower bound of the target age; undefined when never written. */
+  userAge: number | undefined;
+  /** RS5: the personal SWR; null while it is not computed (the panel closed, no assumptions). */
+  personalSwr: PersonalSwr | null;
 }
 
 type ScenarioKey = FireScenarioKey;
@@ -88,12 +96,19 @@ export function FireParametri({
   onReset,
   ritaPreview,
   assumptions,
+  userAge,
+  personalSwr,
 }: FireParametriProps) {
 
   // The same bounds `handleSaveSettings` enforces, said AT the field while typing: a toast on
   // «Salva» names the problem after the fact, `aria-invalid` names it where it is (2026-09-22).
   const parsedSwr = Number.parseFloat(form.withdrawalRate);
   const swrInvalid = form.withdrawalRate.trim() !== '' && !(Number.isFinite(parsedSwr) && parsedSwr > 0 && parsedSwr <= 100);
+  const parsedTargetAge = parseOptionalInteger(form.targetAge);
+  const targetAgeInvalid = form.targetAge.trim() !== '' && !(isValidAge(parsedTargetAge) && (userAge === undefined || parsedTargetAge > userAge));
+  const personalRate = personalSwr?.rate ?? null;
+  // «Usa» is absent when the typed SWR already is the proposal.
+  const canUsePersonalSwr = personalRate !== null && !(Number.isFinite(parsedSwr) && Math.abs(parsedSwr - personalRate) < 1e-9);
   const parsedPlannedExpenses = Number.parseFloat(form.plannedExpenses.replace(',', '.'));
   const plannedExpensesInvalid = form.plannedExpenses.trim() !== '' && !(Number.isFinite(parsedPlannedExpenses) && parsedPlannedExpenses > 0);
   const parsedInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
@@ -161,6 +176,42 @@ export function FireParametri({
                   />
                   <p id="withdrawalRate-help" className={cn('mt-1 text-[11px] leading-[1.4]', swrInvalid ? 'text-destructive' : 'text-muted-foreground')}>
                     {swrInvalid ? 'Serve un valore sopra 0 e fino a 100.' : 'Tipicamente 4% secondo la regola del 4% (Trinity Study).'}
+                  </p>
+                  {personalSwr && (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <NarrativeText segments={describePersonalSwr(personalSwr)} className="min-w-0 flex-1 basis-[220px] text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
+                      {canUsePersonalSwr && personalRate !== null && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onFormChange({ withdrawalRate: String(personalRate) })} className="h-11 desktop:h-8">
+                          Usa {formatRate(personalRate)}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-border pt-3.5">
+                  <Label htmlFor="targetAge" className="text-[13px]">
+                    Età obiettivo
+                  </Label>
+                  <Input
+                    id="targetAge"
+                    type="number"
+                    inputMode="numeric"
+                    min="18"
+                    max="100"
+                    step="1"
+                    value={form.targetAge}
+                    onChange={(e) => onFormChange({ targetAge: e.target.value })}
+                    aria-invalid={targetAgeInvalid || undefined}
+                    aria-describedby="targetAge-help"
+                    className={cn(CONTROL_CLASS, 'w-[160px]')}
+                  />
+                  <p id="targetAge-help" className={cn('mt-1 text-[11px] leading-[1.4]', targetAgeInvalid ? 'text-destructive' : 'text-muted-foreground')}>
+                    {targetAgeInvalid
+                      ? userAge !== undefined
+                        ? `Serve un'età sopra la tua (${userAge}) e fino a 100.`
+                        : "Serve un'età tra 18 e 100."
+                      : 'La stessa di Coast FIRE: a che età vuoi smettere.'}
                   </p>
                 </div>
 

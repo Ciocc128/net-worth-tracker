@@ -4,6 +4,7 @@
 
 ## FIRE › Coast FIRE — a verdict over tiles (`components/fire-simulations/CoastFireTab.tsx`, `components/fire-simulations/coast/*`, `lib/utils/coastFireView.ts`)
 
+- **The target age is the page's** (2026-10-04, E1): `coastFireRetirementAge` is also written by the Calcolatore's Parametri («Età obiettivo»), which feeds its «Età obiettivo» tile; saving there moves this tab's age and saving here moves the tile. One field, no second age (`doc/guide/fire.md § FIRE › Calcolatore`).
 - **The scenarios are the page's** (2026-10-03, doc/fire-ipotesi/README.md L1): the tab reads `useFireAssumptions` (the target portfolio's compound
   return per scenario, never the saved `fireProjectionScenarios`), prints the «Ipotesi usate» line above the verdict (with the recurring costs, the rates being net of TER and stamp duty: doc/guide/fire.md) and discounts at the Fisher
   real return `(1 + g) / (1 + π) − 1` — the old subtraction overstated it by 0,1–0,3 points. **Since L2 (D4, D5)** the capital is `K` (crypto and

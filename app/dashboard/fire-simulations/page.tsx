@@ -76,7 +76,7 @@ export default function FireSimulationsPage() {
             aria-labelledby={undefined}
             className="mt-0"
           >
-            {tab.value === 'fire'       && <FireCalculatorTab />}
+            {tab.value === 'fire'       && <FireCalculatorTab onOpenCoast={() => setActiveTab('coast')} />}
             {tab.value === 'coast'      && <CoastFireTab onOpenCalculator={() => setActiveTab('fire')} />}
             {tab.value === 'whatif'     && <WhatIfAnalysisTab />}
             {tab.value === 'montecarlo' && <MonteCarloTab />}

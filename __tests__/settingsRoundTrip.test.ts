@@ -290,6 +290,24 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
   });
 });
 
+// E6 (doc/fire-ipotesi/README.md § 10.8): the Calcolatore's «Età obiettivo» and Coast FIRE's are ONE field.
+describe('coastFireRetirementAge — una sola età obiettivo per la pagina', () => {
+  it('is written by the Calcolatore\'s save in both branches and read back by getSettings', async () => {
+    await setSettings('user-1', { targets: TARGETS, coastFireRetirementAge: 52 } as AssetAllocationSettings);
+    expect(writtenPayload().coastFireRetirementAge).toBe(52);
+
+    vi.mocked(setDoc).mockClear();
+    await setSettings('user-1', { coastFireRetirementAge: 52 } as AssetAllocationSettings);
+    expect(writtenPayload().coastFireRetirementAge).toBe(52);
+
+    vi.mocked(getDoc).mockResolvedValue({
+      exists: () => true,
+      data: () => ({ coastFireRetirementAge: 52 }),
+    } as never);
+    expect((await getSettings('user-1'))?.coastFireRetirementAge).toBe(52);
+  });
+});
+
 describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
   it('writes the performance-base and pension-return settings', async () => {
     await setSettings('user-1', {

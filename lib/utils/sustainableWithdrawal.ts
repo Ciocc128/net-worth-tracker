@@ -6,9 +6,12 @@
  * (`countSuccesses` on the factors of a run, so the figure replays the run on screen without
  * drawing again).
  */
-import { countSuccesses } from '@/lib/services/monteCarloService';
+import { countSuccesses, runMonteCarloSimulation } from '@/lib/services/monteCarloService';
+import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { createSeededRandom } from '@/lib/utils/seededRandom';
 import type { MonteCarloScenarioKey } from '@/lib/utils/monteCarloMarket';
-import type { MonteCarloParams } from '@/types/assets';
+import type { MonteCarloMarketScenario, MonteCarloParams } from '@/types/assets';
+import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 
 /** The three confidence levels of the tile (D-S2); the verdict reads the middle one. */
 export const SUSTAINABLE_PROBABILITIES = [0.8, 0.9, 0.95] as const;
@@ -113,4 +116,71 @@ export function summarizeSustainableSpending(runs: Record<MonteCarloScenarioKey,
       bull: solveForRun(runs.bull, probability),
     })),
   };
+}
+
+// ─── The personal SWR (E1, RS5) ───────────────────────────────────────────────
+
+/** RS5: the personal SWR is the 90% level, on the Base market, on a pure plan. */
+export const PERSONAL_SWR_PROBABILITY = SUSTAINABLE_VERDICT_PROBABILITY;
+/** RS5: the personal SWR runs on this many paths (the Monte Carlo tab's default). */
+export const PERSONAL_SWR_SIMULATIONS = 10_000;
+/** RS5: a rate in the horizon's own bounds — 90 minus the target age, between ten and sixty years. */
+export const PERSONAL_SWR_MIN_YEARS = 10;
+export const PERSONAL_SWR_MAX_YEARS = 60;
+/** The age the plan ends at (RS5). */
+export const PERSONAL_SWR_HORIZON_AGE = 90;
+
+/** RS5's horizon: `clamp(90 − target age, 10, 60)`. */
+export function resolvePersonalSwrHorizon(targetAge: number): number {
+  return Math.min(PERSONAL_SWR_MAX_YEARS, Math.max(PERSONAL_SWR_MIN_YEARS, PERSONAL_SWR_HORIZON_AGE - targetAge));
+}
+
+export interface PersonalSwrInput {
+  weights: Record<MonteCarloClass, number>;
+  /** The Base scenario's market (CAGR + volatility per class). */
+  market: MonteCarloMarketScenario;
+  correlations?: number[];
+  leverageSpread?: number;
+  /** RC4: the portfolio's cost, percent a year (`assumptions.cost.total`). */
+  costPct?: number;
+  horizonYears: number;
+  numberOfSimulations?: number;
+}
+
+export interface PersonalSwr {
+  /** Percent, rounded down to 0,1 points; null = not even a zero withdrawal reaches 90% (ruin by leverage above 10%). */
+  rate: number | null;
+  horizonYears: number;
+}
+
+/**
+ * RS5: RS1–RS3 on a PURE plan — capital 1, no inflows, no pensions, no tax (the FIRE number counts
+ * those apart; putting them here would count them twice). Without inflows or tax `success` depends
+ * on `W/K` alone, so `K = 1` gives the plan's rate for any capital. The bisection steps by 0,001
+ * (0,1 points), which is also the rounding down.
+ */
+export function solvePersonalSwr(input: PersonalSwrInput): PersonalSwr {
+  const n = input.numberOfSimulations ?? PERSONAL_SWR_SIMULATIONS;
+  const params: MonteCarloParams = {
+    portfolioSource: 'custom',
+    initialPortfolio: 1,
+    retirementYears: input.horizonYears,
+    weights: input.weights,
+    leverageSpread: input.leverageSpread,
+    annualCostRate: input.costPct,
+    annualWithdrawal: 0,
+    withdrawalAdjustment: 'inflation',
+    market: input.market,
+    correlations: input.correlations,
+    numberOfSimulations: n,
+    random: createSeededRandom(MONTE_CARLO_SEED),
+  };
+  const { factors } = runMonteCarloSimulation(params, { keepFactors: true });
+  const solved = solveSustainableWithdrawal({
+    success: (withdrawal) => countSuccesses(factors!, n, params, withdrawal) / n,
+    capital: 1,
+    probability: PERSONAL_SWR_PROBABILITY,
+    step: 0.001,
+  });
+  return { rate: solved.withdrawal === null ? null : Math.round(solved.withdrawal * 1000) / 10, horizonYears: input.horizonYears };
 }
