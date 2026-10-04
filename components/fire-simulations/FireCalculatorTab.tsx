@@ -584,59 +584,76 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     isValidAge(parsedTypedTargetAge) && (userAge === undefined || parsedTypedTargetAge > userAge)
       ? parsedTypedTargetAge
       : (settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE);
-  const targetAgeYears = yearsToTargetAge(previewTargetAge, userAge);
   const fireWalk = useCallback<FireWalk>(
     (savings, planExpenses) =>
       calculateFIREProjection(currentNetWorth, planExpenses, savings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true).baseYearsToFIRE,
     [currentNetWorth, previewWithdrawalRate, scenarios, projectionBridge, honest],
   );
   // RS8: the Ventaglio's lever aimed at the target age. The fan only exists in its own views, so the base run is
-  // made here when the Traguardo shows the scenarios; the target must lie within the fan's horizon.
-  const targetTail = useMemo(() => {
-    if (targetAgeYears.kind !== 'years' || !fanInputs || !projection || projection.baseYearsToFIRE === 0) return null;
-    if (targetAgeYears.years > fanYears) return null;
-    return solveSavingsForTail({
-      baseResult: fanResult ?? runFan(fanInputs),
-      run: (savings) => runFan(fanInputs, savings),
-      baseAnnualSavings: fanInputs.annualSavings,
-      targetYears: targetAgeYears.years,
-      extraCap: resolveLeverCap(fanInputs.annualSavings, fanInputs.annualExpenses),
-    });
-  }, [targetAgeYears, fanInputs, projection, fanYears, fanResult, runFan]);
-  const targetAgeSummary = useMemo(
+  // made here when the Traguardo shows the scenarios; the target must lie within the fan's horizon. ~14 runs of the
+  // fan (measured 2026-10-04: ≈0,4 s on the cloud container), so the whole summary is computed from a DEFERRED
+  // request: an edit paints at once and the tile follows, the three figures always from one request.
+  const targetAgeRequest = useMemo(
     () =>
       projection
-        ? summarizeTargetAge({
-            userAge,
-            targetAge: previewTargetAge,
-            currentYear: currentYearForFan,
-            annualSavings,
-            planExpenses: projectionAnnualExpenses,
-            baseYearsToFire: projection.baseYearsToFIRE,
-            walk: fireWalk,
-            tail: targetTail,
-          })
+        ? { projection, userAge, targetAge: previewTargetAge, currentYear: currentYearForFan, annualSavings, planExpenses: projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan }
         : null,
-    [projection, userAge, previewTargetAge, currentYearForFan, annualSavings, projectionAnnualExpenses, fireWalk, targetTail],
+    [projection, userAge, previewTargetAge, currentYearForFan, annualSavings, projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan],
   );
+  const deferredTargetAgeRequest = useDeferredValue(targetAgeRequest);
+  const targetAgeSummary = useMemo(() => {
+    const request = deferredTargetAgeRequest;
+    if (!request) return null;
+    const span = yearsToTargetAge(request.targetAge, request.userAge);
+    const baseYearsToFire = request.projection.baseYearsToFIRE;
+    const { fanInputs: inputs, fanResult: shownFan, runFan: run } = request;
+    const tail =
+      span.kind === 'years' && inputs && baseYearsToFire !== 0 && span.years <= request.fanYears
+        ? solveSavingsForTail({
+            baseResult: shownFan ?? run(inputs),
+            run: (savings) => run(inputs, savings),
+            baseAnnualSavings: inputs.annualSavings,
+            targetYears: span.years,
+            extraCap: resolveLeverCap(inputs.annualSavings, inputs.annualExpenses),
+          })
+        : null;
+    return summarizeTargetAge({
+      userAge: request.userAge,
+      targetAge: request.targetAge,
+      currentYear: request.currentYear,
+      annualSavings: request.annualSavings,
+      planExpenses: request.planExpenses,
+      baseYearsToFire,
+      walk: request.fireWalk,
+      tail,
+    });
+  }, [deferredTargetAgeRequest]);
 
-  // RS5: the personal SWR, only while the Parametri are open (deferred: the panel paints first, the figure lands after).
-  const personalSwrWanted = useDeferredValue(parametriOpen);
+  // RS5: the personal SWR, only while the Parametri are open, from a deferred request (≈0,4 s at 30 years, ≈0,65 s at
+  // 60 on the cloud container): the panel paints first and the figure lands after, and typing the age does not stall.
   const savedMarket = savedAssumptions?.market;
   const savedWeights = savedAssumptions?.weights;
   const savedCostPct = savedAssumptions?.cost?.total;
   const personalSwrHorizon = resolvePersonalSwrHorizon(previewTargetAge);
-  const personalSwr = useMemo(() => {
-    if (!personalSwrWanted || !savedMarket || !savedWeights) return null;
-    return solvePersonalSwr({
-      weights: savedWeights,
-      market: savedMarket.scenarios.base,
-      correlations: savedMarket.correlations,
-      leverageSpread: savedMarket.leverageSpread,
-      costPct: savedCostPct,
-      horizonYears: personalSwrHorizon,
-    });
-  }, [personalSwrWanted, savedMarket, savedWeights, savedCostPct, personalSwrHorizon]);
+  const personalSwrRequest = useMemo(
+    () => (parametriOpen && savedMarket && savedWeights ? { market: savedMarket, weights: savedWeights, costPct: savedCostPct, horizonYears: personalSwrHorizon } : null),
+    [parametriOpen, savedMarket, savedWeights, savedCostPct, personalSwrHorizon],
+  );
+  const deferredPersonalSwrRequest = useDeferredValue(personalSwrRequest);
+  const personalSwr = useMemo(
+    () =>
+      deferredPersonalSwrRequest
+        ? solvePersonalSwr({
+            weights: deferredPersonalSwrRequest.weights,
+            market: deferredPersonalSwrRequest.market.scenarios.base,
+            correlations: deferredPersonalSwrRequest.market.correlations,
+            leverageSpread: deferredPersonalSwrRequest.market.leverageSpread,
+            costPct: deferredPersonalSwrRequest.costPct,
+            horizonYears: deferredPersonalSwrRequest.horizonYears,
+          })
+        : null,
+    [deferredPersonalSwrRequest],
+  );
 
   const displayedRunwayData = useMemo(() => {
     const targetYearsOfExpenses = previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null;

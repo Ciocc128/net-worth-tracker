@@ -894,11 +894,11 @@ export function describeTargetAge(summary: TargetAgeSummary): Narrative {
   if (required.amount === 0) {
     out.push(prose('Il capitale di oggi basta: anche senza risparmiare arrivi al FIRE a '), age, prose(' anni (è il tuo Coast FIRE).'));
   } else if (required.amount === null) {
-    out.push(prose('Per smettere a '), age, prose(' anni, nel '), year(calendarYear), prose(' non bastano nemmeno '), amount(required.cap), prose(" l'anno di risparmio."));
+    out.push(prose('Per smettere a '), age, prose(' anni, nel '), year(calendarYear), prose(', non bastano nemmeno '), amount(required.cap), prose(" l'anno di risparmio."));
   } else if (onTrack && baseCalendarYear !== null) {
     out.push(prose('Ci arrivi già nel '), year(baseCalendarYear), prose('; per smettere a '), age, prose(' anni basterebbero '), amount(required.amount), prose(" l'anno."));
   } else {
-    out.push(prose('Per smettere a '), age, prose(' anni, nel '), year(calendarYear), prose(' servono '), amount(required.amount), prose(" di risparmio l'anno (oggi "), amount(annualSavings), prose(')'));
+    out.push(prose('Per smettere a '), age, prose(' anni, nel '), year(calendarYear), prose(', servono '), amount(required.amount), prose(" di risparmio l'anno (oggi "), amount(annualSavings), prose(')'));
     if (tail.kind === 'total') out.push(prose('; perché ci arrivino 9 percorsi su 10, '), amount(tail.amount));
     else if (tail.kind === 'unreachable') out.push(prose('; per 9 percorsi su 10 nemmeno '), amount(annualSavings + tail.cap), prose(' bastano'));
     out.push(prose('.'));

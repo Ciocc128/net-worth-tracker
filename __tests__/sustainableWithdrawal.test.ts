@@ -5,7 +5,10 @@ vi.mock('@/lib/services/chartService', () => ({
 }));
 
 import { countSuccesses, runMonteCarloSimulation } from '@/lib/services/monteCarloService';
-import { solveSustainableWithdrawal, solveForRun, SUSTAINABLE_PROBABILITIES } from '@/lib/utils/sustainableWithdrawal';
+import { solveSustainableWithdrawal, solveForRun, solvePersonalSwr, resolvePersonalSwrHorizon, SUSTAINABLE_PROBABILITIES } from '@/lib/utils/sustainableWithdrawal';
+import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from '@/lib/constants/monteCarloMarketDefaults';
+import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloMarketScenario, MonteCarloParams } from '@/types/assets';
 
@@ -129,5 +132,61 @@ describe('S9 — leverage ruin', () => {
     expect(solveSustainableWithdrawal({ success, capital: 1_000_000, probability: 0.9 }).withdrawal).toBeNull();
     expect(solveSustainableWithdrawal({ success, capital: 1_000_000, probability: 0.95 }).withdrawal).toBeNull();
     expect(solveSustainableWithdrawal({ success, capital: 1_000_000, probability: 0.8 }).withdrawal).toBeGreaterThan(0);
+  });
+});
+
+describe('RS5 — the personal SWR (E1)', () => {
+  const sixtyForty = monteCarloClassRecord((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0));
+
+  it('horizon: 90 minus the target age, between 10 and 60 years', () => {
+    expect(resolvePersonalSwrHorizon(60)).toBe(30);
+    expect(resolvePersonalSwrHorizon(35)).toBe(55);
+    expect(resolvePersonalSwrHorizon(20)).toBe(60);
+    expect(resolvePersonalSwrHorizon(85)).toBe(10);
+  });
+
+  it('S11: volatility 0, 60/40 (g = 7,824%), 30 years → exact 6,2427%, proposed 6,2%', () => {
+    const market: MonteCarloMarketScenario = {
+      classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? 10.02 : cls === 'bonds' ? 4.53 : 0, volatility: 0 })),
+      inflationRate: 3.04,
+    };
+    const solved = solvePersonalSwr({ weights: sixtyForty, market, horizonYears: 30, numberOfSimulations: 20 });
+    expect(solved).toEqual({ rate: 6.2, horizonYears: 30 });
+  });
+
+  it('S12: seeded 60/40, Base, 30 years → 4,3%; the rate does not depend on a capital', { timeout: 60_000 }, () => {
+    const defaults = getDefaultMonteCarloMarket();
+    const solved = solvePersonalSwr({
+      weights: sixtyForty,
+      market: defaults.scenarios.base,
+      correlations: getDefaultMonteCarloCorrelations(),
+      horizonYears: 30,
+    });
+    expect(solved.rate).toBe(4.3);
+    // The same rate as the MC run on 500.000 € or 1.000.000 € at the withdrawal it implies (K-independence, no inflows or tax).
+    for (const capital of [500_000, 1_000_000]) {
+      const params: MonteCarloParams = {
+        portfolioSource: 'custom', initialPortfolio: capital, retirementYears: 30, weights: sixtyForty, annualWithdrawal: capital * 0.043,
+        withdrawalAdjustment: 'inflation', market: defaults.scenarios.base, correlations: getDefaultMonteCarloCorrelations(), numberOfSimulations: 10_000,
+        random: createSeededRandom(MONTE_CARLO_SEED),
+      };
+      expect(runMonteCarloSimulation(params).successRate).toBeGreaterThanOrEqual(90);
+    }
+  });
+
+  it('null when leverage ruins more than one path in ten on its own', () => {
+    // A handwritten ruinous market: 300% in an equity class at −20% CAGR and 60% volatility.
+    const market: MonteCarloMarketScenario = {
+      classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? -20 : 0, volatility: cls === 'equity' ? 60 : 0 })),
+      inflationRate: 2,
+    };
+    const solved = solvePersonalSwr({
+      weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 300 : 0)),
+      market,
+      leverageSpread: 2,
+      horizonYears: 30,
+      numberOfSimulations: 500,
+    });
+    expect(solved.rate).toBeNull();
   });
 });

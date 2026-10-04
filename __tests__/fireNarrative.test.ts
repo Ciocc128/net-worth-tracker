@@ -24,6 +24,9 @@ import {
   describeBaseFooter,
   describeDettaglio,
   describeEmptyTiles,
+  describePersonalSwr,
+  describeTargetAge,
+  describeTargetAgeMethod,
   describeImpostazioni,
   describeLock,
   describeParametri,
@@ -602,5 +605,63 @@ describe('the disclosures', () => {
     expect(plain(describeRunway({ years: null, liquidYears: null, delta: null, targetYears: 25, monthLabel: null, pointCount: 0 }))).toBe('Servono almeno 12 snapshot mensili per la runway storica.');
     // Points exist but the trailing twelve months had no expenses: a different absence, said as such.
     expect(plain(describeRunway({ years: null, liquidYears: null, delta: null, targetYears: 25, monthLabel: 'luglio 2026', pointCount: 14 }))).toBe('Nessuna spesa negli ultimi 12 mesi: la runway non è misurabile.');
+  });
+});
+
+describe('describeTargetAge (E1)', () => {
+  const figures = {
+    kind: 'figures' as const,
+    targetAge: 50,
+    years: 15,
+    calendarYear: 2041,
+    baseCalendarYear: 2046,
+    onTrack: false,
+    annualSavings: 18_000,
+    required: { amount: 26_000, cap: 600_000 },
+    tail: { kind: 'total' as const, amount: 34_500, extra: 16_500 },
+    planExpenses: 32_000,
+    maxExpenses: 21_100,
+  };
+
+  it('use case 6: the saving, today\'s, the nine paths in ten and the maximum expenses', () => {
+    expect(plain(describeTargetAge(figures))).toBe(
+      'Per smettere a 50 anni, nel 2041, servono 26.000 € di risparmio l\'anno (oggi 18.000 €); perché ci arrivino 9 percorsi su 10, 34.500 €. Con il risparmio di oggi la spesa del piano potrebbe essere al massimo 21.100 €.',
+    );
+  });
+  it('use case 7: already on track', () => {
+    expect(plain(describeTargetAge({ ...figures, onTrack: true, baseCalendarYear: 2038, required: { amount: 14_000, cap: 600_000 }, maxExpenses: null }))).toBe(
+      'Ci arrivi già nel 2038; per smettere a 50 anni basterebbero 14.000 € l\'anno.',
+    );
+  });
+  it('use case 8: Coast', () => {
+    expect(plain(describeTargetAge({ ...figures, onTrack: true, required: { amount: 0, cap: 600_000 }, maxExpenses: null }))).toBe(
+      'Il capitale di oggi basta: anche senza risparmiare arrivi al FIRE a 50 anni (è il tuo Coast FIRE).',
+    );
+  });
+  it('the saving beyond the cap and the Ventaglio\'s ceiling are said, never a made-up figure', () => {
+    expect(plain(describeTargetAge({ ...figures, required: { amount: null, cap: 600_000 }, maxExpenses: null }))).toBe(
+      'Per smettere a 50 anni, nel 2041, non bastano nemmeno 600.000 € l\'anno di risparmio.',
+    );
+    expect(plain(describeTargetAge({ ...figures, tail: { kind: 'unreachable', cap: 54_000 }, maxExpenses: null }))).toContain('per 9 percorsi su 10 nemmeno 72.000 € bastano');
+    expect(plain(describeTargetAge({ ...figures, tail: { kind: 'unavailable' }, maxExpenses: null }))).not.toContain('9 percorsi su 10');
+  });
+  it('the states without figures', () => {
+    expect(plain(describeTargetAge({ kind: 'no-age' }))).toBe('Serve la tua età: scrivila in Coast FIRE › Ipotesi.');
+    expect(plain(describeTargetAge({ kind: 'passed', targetAge: 40 }))).toContain('già raggiunta o passata');
+    expect(plain(describeTargetAge({ kind: 'already-fire' }))).toBe('Sei già FIRE: l\'età obiettivo non serve.');
+  });
+  it('the method has one paragraph per rule', () => {
+    expect(describeTargetAgeMethod()).toHaveLength(4);
+  });
+});
+
+describe('describePersonalSwr (E1)', () => {
+  it('names the rate, the horizon and what it is computed on', () => {
+    expect(plain(describePersonalSwr({ rate: 4.3, horizonYears: 30 }))).toBe(
+      'SWR personale 4,3%: 9 simulazioni su 10 reggono 30 anni di prelievi (portafoglio target, scenario Base, costi compresi).',
+    );
+  });
+  it('says leverage ruin when no rate reaches 90%', () => {
+    expect(plain(describePersonalSwr({ rate: null, horizonYears: 30 }))).toContain('nessun prelievo arriva al 90%');
   });
 });
