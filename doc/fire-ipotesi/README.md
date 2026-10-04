@@ -12,7 +12,8 @@
 > Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` (§ 4, «Incoerenze tra le
 > schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
 > della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026, la § 10 (P1 spesa sostenibile e P2 età
-> obiettivo, task S1 ed E1) lo stesso giorno, la § 11 (patrimonio e portafoglio, task K1) lo stesso giorno: sostituisce RP5.
+> obiettivo, task S1 ed E1) lo stesso giorno, la § 11 (patrimonio e portafoglio, task K1) lo stesso giorno: sostituisce RP5; la § 12 (P4 + P5, flussi datati, task
+> F1–F3) e la § 13 (P8, obiettivi nel FIRE e con incertezza, task O1 e O2) lo stesso giorno.
 
 ---
 
@@ -1656,3 +1657,304 @@ collegato, la riga della Base di calcolo, What If con Quando.
 | Il requisito con flussi diverge dal registro «dal FIRE in poi» per la stessa ragione per cui diverge oggi (SWR contro rendimento reale). | RF5 non aggiunge divergenza: senza flussi è identico; dichiarato nella guida. |
 | Le firme di `calculateFIREProjection` e dei motori crescono ancora. | Parametri opzionali con default neutro; la logica nuova in moduli nuovi; voce in `fork-scelte-ui.md`. |
 | Conflitti con K1 su `fireAssumptions.ts` e le schede. | Implementazione dopo il merge di K1 (§ 11). |
+
+---
+
+## 13. P8 — Obiettivi dentro il FIRE, e con incertezza (task O1, O2)
+
+> Aggiunta il 04/10/2026 (thread «spec», via del proprietario nella conversazione di progetto). Decisioni D-G1–D-G8
+> proposte nel piano `/mnt/project-files/fire-simulazioni/piano-p8.md` e confermate dal proprietario nel thread lo
+> stesso giorno. Base di codice: commit `33fd7b6` (`main` del fork, merge della PR #56, F3). Valgono D8, RC5, RK1–RK8 e
+> RF1–RF11: questa sezione accende la sorgente `goal` dei flussi datati (§ 12.5) e aggiunge le regole RO1–RO7.
+> Valori di riferimento: `/mnt/project-files/fire-simulazioni/p8-controllo.py` (riusa le funzioni di
+> `p4p5-controllo.py`).
+>
+> Letture obbligatorie, oltre a § 0 e § 12: `doc/guide/fire-obiettivi.md` (le date `{ year, month }`, `monthsBetween`,
+> la selezione, il verdetto); `doc/guide/fire.md` § FIRE, What If and Goals; `doc/guide/fire-what-if.md`; DESIGN.md:
+> The Narrative Honesty Rule, The Risk-vs-Fact Rule, The Modal-Is-A-Tile Rule, The Comma Rule.
+
+### 13.1 Obiettivo
+
+Gli Obiettivi e il piano FIRE vivono separati, e la Traiettoria di un obiettivo è una sola curva senza rischio. Due
+domande restano senza risposta:
+
+- **«Comprare casa nel 2029 quanto ritarda il FIRE?»** Nessuna scheda FIRE legge gli Obiettivi.
+- **«Che probabilità ho di avere 50.000 € a giugno 2029?»** La Traiettoria usa il rendimento Base composto, senza
+  volatilità: dice «in rotta» o «in ritardo», mai «con che probabilità».
+
+La prima si risolve con il modello di § 12: un obiettivo che si spende è un'**una tantum in uscita** del piano, e tutte
+le schede la leggono già. La seconda con una simulazione **mensile** del portafoglio dell'obiettivo, sulle stesse
+ipotesi della pagina.
+
+### 13.2 Stato di partenza (verificato nel codice, 04/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| Un obiettivo ha importo e scadenza facoltativi, versamento mensile, allocazione consigliata; vive in `goalBasedInvesting/{uid}` (query `['goalData', ownerId]`), non nelle impostazioni | `types/goals.ts:14`, `components/fire-simulations/GoalBasedInvestingTab.tsx:128` |
+| Il valore di un obiettivo = Σ valore dello strumento × quota assegnata, strumenti di ogni ruolo e classe | `lib/utils/goalMath.ts:50` (`calculateGoalProgress`) |
+| Rendimento: RP1 Base sui pesi dell'obiettivo (crypto e immobili tolti, riscalati) o sul portafoglio target, netto dei costi | `lib/utils/goalTrajectory.ts` (`goalAnnualReturn`, D8, RC5) |
+| Le tre formule mensili capitalizzano a `R/12`: con R = 6% un anno rende 6,1678%, non il 6% dichiarato | `goalTrajectory.ts` (`futureValue`, `requiredMonthlyContribution`, `monthsToReach`) |
+| `portfolioCompoundReturn` dà media aritmetica, volatilità e CAGR del portafoglio con correlazioni, leva e costi (lognormale per momenti) | `lib/utils/fireAssumptions.ts:108` |
+| Il tipo dei flussi riserva `source: { kind: 'goal'; goalId }`; `resolveDatedFlows` lo salta | `types/assets.ts:343`, `lib/utils/datedFlows.ts` (`if (flow.source?.kind === 'goal') continue`) |
+| Ogni scheda che simula legge i flussi da `useFireDatedFlows` (Calcolatore, Coast, What If, Monte Carlo, Proiezione) | `lib/hooks/useFireDatedFlows.ts` |
+| Il capitale di K1 sa quale quota di ogni gamba di ogni strumento è dentro (`legShare`) | `lib/utils/fireCapital.ts` (`resolveFireCapitalDetail`) |
+| What If assembla in linea il piano di oggi (`WhatIfBaseline`) e confronta l'anno FIRE prima e dopo un acquisto a un anno dato | `components/fire-simulations/WhatIfAnalysisTab.tsx:281`, `lib/services/whatIfService.ts` |
+| Generatore seminato e normale standard condivisi dai motori | `lib/utils/seededRandom.ts` (`createSeededRandom`), `lib/utils/monteCarloDraw.ts:98` (`standardNormal`), `lib/utils/monteCarloParams.ts:44` (`MONTE_CARLO_SEED`) |
+
+### 13.3 Perimetro
+
+**Incluso**
+- Un interruttore sull'obiettivo, `countsInFire` (D-G1, D-G2), e la sua risoluzione come flusso datato con sorgente
+  `goal` (RO1), letta da tutte le schede che leggono i flussi.
+- L'importo al netto della parte che oggi è fuori dal capitale FIRE (RO1, D-G3).
+- La riga «Effetto sul FIRE» nella Traiettoria dell'obiettivo, per ogni obiettivo con importo e scadenza (RO2, D-G4);
+  le righe in sola lettura nel Calcolatore › Parametri › «Flussi nel tempo».
+- Il tasso mensile equivalente nelle formule deterministiche (RO3, D-G6).
+- La simulazione mensile dell'obiettivo (RO4, D-G5) e le sue letture: probabilità, banda, versamento per 9 casi su 10,
+  mese d'arrivo (RO5–RO7, D-G7); il verdetto resta deterministico (D-G8).
+
+**Escluso**
+- Obiettivi **ricorrenti** (una spesa annua «per i figli»): si scrivono come flussi in «Flussi nel tempo».
+- Le conseguenze di un acquisto oltre l'esborso (un mutuo nuovo, l'affitto che non si paga più): flussi a parte.
+- Tre scenari per l'obiettivo: resta il Base (D8).
+- Leva e azzeramento nel modello dell'obiettivo (RO4).
+- Il legame tra il versamento dell'obiettivo e il risparmio del Cashflow: il versamento è già dentro il risparmio, non si
+  sottrae né si aggiunge (dichiarato).
+- L'Assistente: legge `computeGoalTrajectory` come oggi (cambia solo il tasso, RO3), nessuna cifra nuova nel prompt.
+- Spec Playwright nuove: nessuna (la scheda non ne ha); collaudo sull'anteprima Vercel.
+
+### 13.4 Casi d'uso
+
+Esempio comune di § 12.4 (capitale 400.000 €, spesa del piano 30.000 € dal Cashflow, risparmio 20.000 € indicizzato,
+7% / 2%, SWR 4%; senza flussi requisito di oggi 750.000 €, FIRE nel 2034); anno in corso 2026.
+
+1. **La casa.** Obiettivo «Acquisto Casa», 50.000 € a giugno 2029, conta nel FIRE. Il requisito di oggi sale a
+   790.814,89 €, il FIRE passa al 2035. La Traiettoria dice «Con questa spesa il FIRE è nel 2035 invece che nel 2034».
+2. **Accantonata fuori dal portafoglio.** Come 1, ma 20.000 € della casa sono su un conto escluso dall'allocazione:
+   escono dal capitale solo 30.000 €, requisito 774.488,94 €, FIRE 2035.
+3. **Il fondo emergenza.** Non si spende: l'interruttore resta spento, nessuna scheda FIRE cambia. La Traiettoria dice
+   «Se lo contassi nel FIRE: 2035 invece che 2034».
+4. **Con che probabilità.** Un obiettivo da 50.000 € a 36 mesi, 40.000 € accantonati, nessun versamento, portafoglio con
+   media aritmetica 6% e volatilità 10%: «Probabilità di arrivarci entro ottobre 2029: 35%», valore a scadenza tra
+   38.147 € e 57.936 € in 8 casi su 10.
+5. **Cosa fare.** 20.000 € accantonati, 600 € al mese, 5% senza volatilità: a scadenza 46.366 €; «In 9 casi su 10
+   bastano 700 € al mese (oggi 600 €)».
+6. **Senza scadenza.** L'obiettivo di 5 senza data, con un portafoglio volatile: «Ci arrivi a marzo 2031 nella metà
+   dei casi, a ottobre 2032 in 9 su 10.» (a volatilità zero i due mesi coincidono: marzo 2030, 41 mesi).
+
+### 13.5 Il modello
+
+```ts
+// types/goals.ts — InvestmentGoal
+countsInFire?: boolean;  // «Alla scadenza lo spendo»: l'obiettivo esce dal capitale FIRE alla scadenza (RO1); assente = no
+```
+
+Nessun campo nuovo nelle impostazioni: gli obiettivi **non** entrano in `fireDatedFlows` (D-G1) e non contano nel tetto
+di 20 flussi salvati. La sorgente `goal` di `DatedFlow['source']` resta nel tipo e viene usata da `ResolvedFlow.source`
+per i flussi generati dagli obiettivi.
+
+### 13.6 Regole di calcolo
+
+Notazione di § 12.6; `annoInCorso` = anno di calendario italiano di oggi; la scadenza di un obiettivo è
+`goalDateFromIso(targetDate)` (`{ year, month }`, mai un `Date`).
+
+**RO1 — Obiettivo come flusso** (`resolveGoalFlows`, in `datedFlows.ts` accanto a `resolveDatedFlows`). Per ogni
+obiettivo con `countsInFire === true`:
+- senza `targetAmount > 0` → escluso, «manca l'importo»; senza `targetDate` → escluso, «manca la scadenza»;
+- `s₀ = year(scadenza) − annoInCorso`; `s₀ < 0` → escluso, «scadenza passata»;
+- altrimenti un flusso risolto `{ kind: 'lumpOut', sigma: 0, indexed: false, anchor: 'fixed', start: s₀,
+  durationYears: null, inCashflowToday: false, source: { kind: 'goal', goalId } }`, etichetta = nome dell'obiettivo,
+  importo
+
+```
+A = max(0, targetAmount − Out)
+Out = Σ_assegnazioni  valore(a) · quota/100 · (1 − dentro(a))
+dentro(a) = Σ_gambe  mercato(a, gamba) · legShare(a, gamba) / valore(a)      // RK6, 0 se valore(a) ≤ 0
+```
+
+Out è la parte dell'obiettivo che oggi sta **fuori** dal capitale FIRE (strumenti `excluded`, liquidità non investita,
+crypto, immobili, fondi pensione bloccati), al valore di oggi, senza crescita (D-G3). `A = 0` → escluso, «tutto fuori dal
+capitale FIRE». Un obiettivo raggiunto che conta esce comunque alla scadenza. Fine anno come ogni flusso: giugno 2029
+esce alla fine del 2029 (RF1, precisione annua). `s₀ = 0` → capitale di partenza (RF6: `NW_0 = K + L_0`).
+
+Da lì valgono senza modifiche RF5 (requisito), RF6 (cammino), RF7 (Ventaglio), RF8 (Monte Carlo e Spesa sostenibile),
+RF9 (Coast: una tantum prima dell'età obiettivo), RF10 (Proiezione), RF11 (What If, lato «prima» e «dopo»).
+
+**RO2 — Effetto sul FIRE di un obiettivo** (`goalFireEffect`, puro, in `lib/utils/goalFire.ts`). Per ogni obiettivo
+con importo e scadenza non passata, contato o no: `F` = i flussi del piano (salvati più gli obiettivi che contano),
+`g` = il flusso dell'obiettivo costruito con RO1 come se contasse.
+
+```
+annoCon   = annoInCorso + baseYearsToFIRE( calculateFIREProjection(…, F ∪ {g}) )
+annoSenza = annoInCorso + baseYearsToFIRE( calculateFIREProjection(…, F \ {g}) )
+```
+
+sul piano di oggi **salvato** (lo stesso `WhatIfBaseline` del What If: capitale K1, spesa del piano, risparmio
+indicizzato, SWR, ponte, pensioni e tassa), scenario Base, orizzonte `WHAT_IF_HORIZON_YEARS`. Un anno oltre l'orizzonte
+= `null`. Senza piano (capitale, spesa o SWR a zero) nessuna cifra.
+
+**RO3 — Tasso mensile equivalente** (D-G6). In `futureValue`, `requiredMonthlyContribution`, `monthsToReach`,
+`buildGoalProjectionSeries`: `i = (1 + R/100)^(1/12) − 1` al posto di `R/100/12`; `R = 0` invariato. Dodici mesi
+rendono esattamente R.
+
+**RO4 — Simulazione dell'obiettivo** (`simulateGoal`, puro, in `lib/utils/goalUncertainty.ts`). I pesi sono quelli di
+D8 (allocazione dell'obiettivo riscalata, altrimenti i pesi del portafoglio target), lo scenario il Base, i costi RC5:
+`portfolioCompoundReturn(pesi, market.scenarios.base, correlazioni, spread, costo)` dà `m = 1 + media aritmetica` e
+`V = volatilità²`. Lognormale del portafoglio per momenti:
+
+```
+s² = ln(1 + V/m²)        μ = ln m − s²/2  ( = ln(1 + CAGR) )
+mese k:  V_k = V_{k−1} · exp(μ/12 + (s/√12)·z_k) + c        z_k = standardNormal(random)
+V_0 = valore di oggi dell'obiettivo (calculateGoalProgress), c = versamento mensile ≥ 0
+```
+
+`n = 10.000` percorsi, `random = createSeededRandom(MONTE_CARLO_SEED)` **nuovo per ogni obiettivo e per ogni
+valutazione** (gli stessi `z` a ogni passo del risolutore di RO6: numeri casuali comuni, nessun array di percorsi in
+memoria). Mesi `M = monthsToDeadline` (la funzione esistente, mai a mano). A volatilità zero ogni percorso coincide con
+`futureValue` di RO3. Nessuna leva: una media aritmetica ≤ 0 (`cagr = −100`) → nessuna lettura, «rendimento non
+definito per questi pesi».
+
+**RO5 — Letture di un obiettivo datato** (importo, scadenza futura, non raggiunto):
+- **probabilità** `P(c)` = quota dei percorsi con `V_M ≥ 0,999 · target` (la tolleranza del verdetto, così a volatilità
+  zero `P = 100%` ⇔ `onTrack`); mostrata intera, arrotondata;
+- **banda**: 10°, 50°, 90° percentile di `V_m` per i mesi del grafico (gli stessi `monthIndex` di
+  `buildGoalProjectionSeries`), `floor(n·p)` sui valori ordinati come RV4;
+- il grafico e le letture usano il versamento di oggi.
+
+**RO6 — Versamento per 9 casi su 10.** Il più piccolo `c*` su una griglia di 10 € con `P(c*) ≥ 90%`. Bisezione su
+`[0, hi]`, `hi` raddoppiato da `max(10, requiredMonthlyContribution)` finché `P(hi) ≥ 90%`, al massimo 1.000.000 €
+(oltre: «oltre 1.000.000 € al mese», nessuna cifra). `P` cresce con `c` percorso per percorso (stessi `z`), quindi la
+bisezione è esatta sulla griglia. `P(c_oggi) ≥ 90%` → nessun risolutore, «Al ritmo di oggi ci arrivi in 9 casi su 10».
+
+**RO7 — Obiettivo con importo e senza scadenza.** Per ogni percorso il primo mese con `V_k ≥ target` (al massimo 600,
+oltre = mai). Mese d'arrivo **nella metà dei casi** = 50° percentile, **in 9 su 10** = 90° percentile dei mesi
+(`floor(n·p)`, i «mai» in coda); oltre 600 → «non entro 50 anni». A volatilità zero coincidono con `monthsToReach`
+(RO3). Aperti (senza importo) e raggiunti: nessuna lettura.
+
+### 13.7 Cosa vede l'utente
+
+**Dialogo dell'obiettivo** (`GoalFormDialog`): uno `Switch` «Alla scadenza lo spendo» con l'aiuto «Conta nel piano FIRE
+come uscita nell'anno della scadenza»; visibile sempre, utile solo con importo e scadenza (l'aiuto lo dice quando
+mancano). Spento per un obiettivo nuovo, acceso dai modelli «Acquisto Casa» e «Auto» (`GoalTemplate.countsInFire`,
+D-G2). In demo non si salva, come il resto del dialogo.
+
+**Obiettivi › Traiettoria** (`TraiettoriaTile`, obiettivo selezionato):
+- **Effetto sul FIRE** (RO2), una riga: contato e sposta → «Con questa spesa il FIRE è nel 2035 invece che nel 2034
+  (scenario Base).»; contato e non sposta → «Questa spesa non sposta l'anno FIRE (2034, scenario Base).»; non contato →
+  «Se la contassi nel FIRE: 2035 invece che 2034.» con il pulsante «Conta nel FIRE» (scrive `countsInFire`, come
+  Modifica; disabilitato in demo); escluso → il motivo di RO1; senza piano → «Per l'effetto sul FIRE servono spesa e
+  SWR nel Calcolatore.»; anno oltre l'orizzonte → «oltre il 2076».
+- **Incertezza** (RO5–RO7): «Probabilità di arrivarci entro giugno 2029: 72%»; «In 9 casi su 10 bastano 700 € al mese
+  (oggi 600 €).» o «Al ritmo di oggi ci arrivi in 9 casi su 10.»; senza scadenza «Ci arrivi a marzo 2031 nella metà dei
+  casi, a ottobre 2032 in 9 su 10.». Tono neutro: è una stima (The Risk-vs-Fact Rule).
+- **Grafico** (`GoalProjectionChart`): la banda 10°–90° sotto la curva deterministica, nello stesso colore
+  dell'obiettivo a bassa opacità; tooltip con i tre percentili.
+- **Nota di metodo** nel footer: «10.000 simulazioni mensili sullo scenario Base: rendimento 5,5% composto, volatilità
+  10% l'anno, al netto dei costi.»
+
+**Obiettivi › elenco** (`ObiettiviTile`): per un obiettivo datato non raggiunto, la probabilità accanto alla spia
+(«In ritardo · 35%»), in `text-muted-foreground`. Il verdetto e il suo tono restano quelli di oggi (D-G8).
+
+**Calcolatore › Parametri › Flussi nel tempo**: gli obiettivi che contano in coda, in sola lettura come le pensioni:
+«Acquisto Casa · obiettivo · 50.000 € · 2029 · si modifica in Obiettivi» (testo, come `describePensionFlowRow`); un
+escluso dice perché. La riga della Base di calcolo e la clausola «· N flussi datati» li contano.
+
+**Monte Carlo, Proiezione, Coast, What If**: nessuna modifica di interfaccia; leggono i flussi degli obiettivi come gli
+altri (la riga «Flussi nel tempo: N» e la clausola li contano).
+
+### 13.8 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-G1 | **Presa** (04/10/2026) | **Interruttore sull'obiettivo** (`countsInFire`, «Alla scadenza lo spendo»); i flussi lo leggono dagli Obiettivi con sorgente `goal`, come il mutuo da Patrimonio. | Una voce in `fireDatedFlows` collegata all'obiettivo: due posti da cui scrivere e voci orfane quando l'obiettivo si cancella. Tutti gli obiettivi datati: «Pensione» e «Fondo emergenza» non si spendono. |
+| D-G2 | **Presa** (04/10/2026) | **Spento** sugli obiettivi esistenti e su quelli nuovi; acceso dai modelli «Acquisto Casa» e «Auto». | Acceso per ogni obiettivo con importo e scadenza: sposterebbe l'anno FIRE di chi ha già obiettivi senza che l'abbia chiesto. |
+| D-G3 | **Presa** (04/10/2026) | **Esce dal capitale l'importo meno la parte che oggi è fuori** (RO1), al valore di oggi. | L'importo intero: chi accantona su un conto escluso la conterebbe due volte. Solo quanto manca: anche il già accantonato dentro il capitale ne esce. |
+| D-G4 | **Presa** (04/10/2026) | **Effetto nella Traiettoria** per ogni obiettivo con importo e scadenza, contato o no, con l'interruttore accanto; nel Calcolatore righe in sola lettura. | Solo nel Calcolatore: la domanda nasce negli Obiettivi. |
+| D-G5 | **Presa** (04/10/2026) | **Lognormale mensile a livello di portafoglio** dai momenti di `portfolioCompoundReturn` (pesi D8, Base, costi); 10.000 percorsi, seme fisso. | Il motore annuo a sette classi della Proiezione: passi di un anno contro obiettivi a 2–3 anni con scadenza a metà anno. Tre scenari: D8 ha scelto il Base. |
+| D-G6 | **Presa** (04/10/2026) | **Tasso mensile equivalente** `(1+R)^(1/12) − 1` nelle formule deterministiche. | `R/12`: il rendimento dichiarato e quello usato restano diversi (6% → 6,17%) e la coerenza a volatilità zero salta. |
+| D-G7 | **Presa** (04/10/2026) | Datato: **probabilità, banda 10°–90°, versamento per 9 casi su 10**; senza scadenza: **mese d'arrivo** nella metà dei casi e in 9 su 10. | Solo la probabilità: non dice cosa fare. |
+| D-G8 | **Presa** (04/10/2026) | **Il verdetto resta deterministico**; la probabilità si aggiunge in Traiettoria ed elenco. | Verdetto per probabilità: cambia il significato della pagina, della Milestone e del riquadro Panoramica. |
+
+**Scelte di default prese dall'agente** (dichiarate nel piano, accettate con le decisioni il 04/10/2026):
+- Uscita alla **fine dell'anno** della scadenza (RF1); scadenza passata, importo o scadenza mancanti → esclusi e detti.
+- Gli obiettivi non contano nel tetto di 20 flussi; contano nella clausola «· N flussi datati».
+- Nessuna leva nel modello dell'obiettivo (un percorso non si azzera).
+- Il versamento dell'obiettivo è già nel risparmio del Cashflow: nessun doppio conto, nessun legame.
+- Un obiettivo raggiunto che conta esce comunque alla scadenza.
+
+### 13.9 Criteri di accettazione (valori di riferimento verificabili)
+
+G1–G7: esempio comune di § 12.9 (`K` = 400.000 €, spesa 30.000 € dal Cashflow, risparmio 20.000 € indicizzato, g = 7%,
+π = 2%, r = 4,901961%, SWR 4%, niente pensioni, ponte, tassa o costi), anno in corso 2026. Tolleranza ± 0,01 €.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| G1 | Nessun obiettivo che conta (o `countsInFire` assente) | ogni test esistente di `datedFlows`, `calculateFIREProjection`, motori, Coast e What If **identico**; requisito 750.000,00 €, FIRE 2034 |
+| G2 | Casa 50.000 € a giugno 2029, tutto nel capitale | flusso `lumpOut` 50.000 fissi all'anno 3; requisito di oggi 790.814,89 € (= 750.000 + 50.000/1,07³); FIRE 2035; RO2: `annoCon` 2035, `annoSenza` 2034 |
+| G3 | Come G2 con 20.000 € oggi fuori dal capitale (`legShare` = 0) | A = 30.000; requisito 774.488,94 €; FIRE 2035 |
+| G4 | Casa 50.000 € con scadenza nel 2026 | capitale di partenza 350.000 €; requisito 750.000,00 €; FIRE 2035 |
+| G5 | Auto 30.000 € nel 2028 + Casa 50.000 € nel 2029 | requisito 817.018,06 € (= 750.000 + 30.000/1,07² + 50.000/1,07³); FIRE 2036 |
+| G6 | RO1 esclusioni | scadenza 2025 → «scadenza passata»; senza data → «manca la scadenza»; senza importo → «manca l'importo»; tutto fuori → «tutto fuori dal capitale FIRE»; `countsInFire` spento → nessun flusso |
+| G7 | Coast (età 35, obiettivo 50) con la casa di G2 | numero di oggi da 365.853,47 € a 406.668,36 € |
+| G8 | Monte Carlo RF8 a volatilità 0, K 1.000.000 €, g 5%, π 2%, N 30, casa 50.000 € all'anno 3 | prelievo massimo 48.445,19 € = (K − 50.000/1,05³)/A₃₀ (senza: 50.632,09 €) |
+| G9 | RO3 | `futureValue(10.000, 0, 6, 12)` = 10.600,00 (oggi 10.616,78); `futureValue(20.000, 600, 5, 36)` = 46.366,08 (oggi 46.481,45); `requiredMonthlyContribution(20.000, 50.000, 5, 36)` = 693,93; `monthsToReach(20.000, 50.000, 600, 5)` = 41 |
+| G10 | RO4 momenti: m = 1,06, volatilità 10% | s = 0,0941307; μ = 0,0538386 = ln(1,0553143) |
+| G11 | RO5 senza versamento: V₀ 40.000, target 50.000, M = 36, m 1,06, vol 10% | P = 35,50% in forma chiusa Φ((ln(40.000/49.950) + 3μ)/(s√3)); la simulazione seminata entro ± 1,5 punti; percentili a scadenza 38.147 / 47.012 / 57.936 € entro ± 1% |
+| G12 | RO4–RO6 a volatilità 0 (V = 0): V₀ 20.000, c 600, R 5%, M 36, target 50.000 | ogni percorso = 46.366,08 €; P = 0%; `c*` = 700 € (griglia sopra 693,93); con c = 700 P = 100% e nessun risolutore |
+| G13 | RO7 a volatilità 0, come G12 senza scadenza | mese d'arrivo 41 nella metà dei casi e in 9 su 10 (= `monthsToReach`) |
+| G14 | Riproducibilità | due chiamate di `simulateGoal` con gli stessi input danno gli stessi numeri; un obiettivo non cambia se se ne aggiunge un altro |
+| G15 | Giro dei dati | `countsInFire` attraversa salvataggio e lettura di `goalBasedInvesting` (anche `false`); un documento senza il campo si legge come spento |
+
+G2–G5, G7–G13 sono calcolati con `/mnt/project-files/fire-simulazioni/p8-controllo.py`.
+
+### 13.10 Task
+
+Due PR indipendenti, branch da `main`, bozza verso `Ciocc128/net-worth-tracker:main`; O1 prima (risponde alla prima
+domanda), O2 può partire in parallelo solo se O1 non tocca ancora `TraiettoriaTile.tsx` (stesso file: meglio in coda).
+
+**O1 — Obiettivi nel FIRE (thread «impl», Sonnet 5.5)** — D-G1–D-G4, RO1, RO2
+- `types/goals.ts`: `countsInFire?` su `InvestmentGoal` e `GoalTemplate` (Casa e Auto `true`); `GoalFormDialog`: lo
+  `Switch`; `goalService` lo salva (G15).
+- `lib/utils/datedFlows.ts`: `resolveGoalFlows(goals, assignments, { currentYear, insideShare })` → `{ resolved,
+  excluded }` (RO1), `insideShare(assetId)` costruita da `resolveFireCapitalDetail(...).legShare`.
+- `lib/hooks/useFireDatedFlows.ts`: legge `['goalData', ownerId]` e il capitale della pagina; unisce i flussi degli
+  obiettivi a quelli salvati (`resolved`, `excluded`), espone `goalFlows` per le righe in sola lettura.
+  `datedFlowsSignature` li include già (lavora sui risolti).
+- `FireDatedFlowsSection.tsx`: le righe degli obiettivi in coda, sola lettura, testo come le pensioni
+  (`describeGoalFlowRow` accanto a `describePensionFlowRow`).
+- `lib/hooks/useWhatIfBaseline.ts` (nuovo): il `WhatIfBaseline` estratto da `WhatIfAnalysisTab.tsx` (stesse query, stesso
+  calcolo, What If lo usa senza cambiare risultato). `lib/utils/goalFire.ts` (nuovo, puro): `goalFireEffect` (RO2) e le
+  parole (`goalFireNarrative`).
+- `GoalBasedInvestingTab.tsx` + `TraiettoriaTile.tsx`: la riga «Effetto sul FIRE» e il pulsante «Conta nel FIRE».
+- Test: `__tests__/goalFire.test.ts` (G2–G7), `datedFlowsEngines.test.ts` (G8), `datedFlows.test.ts` (G1, G6),
+  `goalService`/round-trip (G15), What If identico con il baseline estratto.
+
+**O2 — Obiettivi con incertezza (thread «impl», Sonnet 5.5)** — D-G5–D-G8, RO3–RO7
+- `goalTrajectory.ts`: RO3 nelle quattro funzioni; i test esistenti ricalcolati dalla funzione (G9).
+- `lib/utils/goalUncertainty.ts` (nuovo, puro): `goalLogNormal(weights, assumptions)` (RO4, G10), `simulateGoal(...)` →
+  probabilità, percentili per mese, mesi d'arrivo (RO5, RO7), `solveGoalContribution(...)` (RO6).
+- `goalsSummary.ts` / `goalsNarrative.ts`: le frasi di § 13.7; `GoalProjectionChart.tsx`: la banda;
+  `TraiettoriaTile.tsx`, `ObiettiviTile.tsx`: le righe e la probabilità nell'elenco. Calcolo in `useMemo` per obiettivo,
+  il risolutore solo per l'obiettivo selezionato.
+- Test: `__tests__/goalUncertainty.test.ts` (G10–G14), `goalTrajectory.test.ts` (G9), `goalsNarrative.test.ts`.
+- Tempo misurato nella PR (10 obiettivi, uno selezionato con il risolutore); soglia: sotto 200 ms nel container.
+
+**Documentazione** (ogni task per la sua parte): `doc/guide/fire-obiettivi.md` (RO1–RO7, il verdetto resta
+deterministico; blind spots: fine anno della scadenza, Out al valore di oggi, nessuna leva, solo Base),
+`doc/guide/fire.md` (la sorgente `goal` dei flussi), `fire-what-if.md` (il baseline estratto), `CLAUDE.md`,
+`doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`.
+
+**Criterio di fine** di ogni task: i suoi criteri verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e
+scripts __tests__`, `TZ=Europe/Rome npx vitest run`. Le spec Playwright di FIRE e la verifica sul mirror (con gli
+obiettivi reali del proprietario) si fanno sul computer del proprietario. Collaudo su anteprima Vercel: un obiettivo
+contato e uno no, l'effetto sul FIRE, la banda, il versamento per 9 casi su 10, un obiettivo senza scadenza.
+
+### 13.11 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| RO3 cambia le cifre di ogni Traiettoria esistente (poco: −0,25% su tre anni al 5%). | Dichiarato nella PR e nel collaudo; è la correzione di un rendimento dichiarato e non usato. |
+| La probabilità e il verdetto deterministico dicono cose che sembrano diverse («in rotta», 55%). | La riga dice «probabilità», il verdetto resta il percorso centrale; la guida lo spiega (D-G8). |
+| Un obiettivo contato e un flusso scritto a mano per la stessa spesa la contano due volte. | La riga dell'obiettivo in «Flussi nel tempo» lo rende visibile accanto agli altri. |
+| `useFireDatedFlows` legge una query in più su ogni scheda FIRE. | La stessa chiave della scheda Obiettivi (`['goalData', ownerId]`), in cache di React Query. |
+| L'estrazione del baseline del What If cambia un risultato. | Test di What If identici prima e dopo (O1). |
