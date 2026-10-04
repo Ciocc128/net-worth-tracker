@@ -10,7 +10,7 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; testo UI in italiano.
 >
-> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3. Ogni task parte da sola da `main` dopo il merge della
+> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026). Ogni task parte da sola da `main` dopo il merge della
 > precedente; nessuna richiede codice non ancora scritto da una task successiva.
 
 ---
@@ -589,6 +589,7 @@ aggiornate.
 | 1 | T1 classi complete e ipotesi in Impostazioni | R0 | A1–A7c, A14, A16 verdi; tab «Simulazioni» salva e ricarica (hard refresh); Ventaglio e Monte Carlo leggono gli stessi numeri |
 | 2 | T2 correlazioni | T1 unita | A8, A9, A15 verdi; i default sono una matrice valida; tempi misurati |
 | 3 | T3 leva | T2 unita | A10–A13 verdi; verdetto e footer con e senza leva; tab seminato |
+| 4 | T4 Proiezione (§ 11) | T3 unita, FIRE ipotesi L1–L3 unite | P1–P12 verdi; sesta scheda; tempi misurati nella guida |
 
 **Collaudo**: dopo ciascuna PR, su anteprima Vercel, una fase per messaggio con l'esito scritto prima
 (WORKFLOW.md § 2). Le verifiche sugli emulatori o sul mirror dei dati di produzione si fanno in un thread
@@ -782,7 +783,7 @@ esecuzione — sono letture degli stessi percorsi (RV7) e si aggiornano subito.
 8. **Prestazioni**: misura e scrivi nella guida il tempo di 10.000 percorsi × 3 scenari × 50 anni con
    `collectPaths: false` (stima: come il Monte Carlo, ≈1,5–2 s); se supera 3 s, abbassa il default a 5.000.
 
-### 11.8 Decisioni (proposte il 04/10/2026, **in attesa di conferma** del proprietario)
+### 11.8 Decisioni (prese con il proprietario il 04/10/2026)
 
 | # | Decisione | Alternative scartate e motivo |
 | --- | --- | --- |
@@ -795,7 +796,7 @@ esecuzione — sono letture degli stessi percorsi (RV7) e si aggiornano subito.
 | V7 | **Leva**: pesi dai target (RP4) ritoccabili; un anno che brucia il capitale **azzera** il percorso, che riparte dai versamenti, e la quota di percorsi azzerati è dichiarata (RV2). | Percorso fermo a zero per sempre (con versamenti in corso non è ciò che succede a chi continua a investire); ignorare la rovina (ottimista). |
 | V8 | Valore **lordo**: niente tassa sulla plusvalenza, TER, bollo; dichiarato nel footer e nel Dettaglio. | Netto «se vendessi tutto» col profilo fiscale di `K` (una seconda cifra per ogni percentile; la vendita totale non è un piano). |
 
-**Scelte di default prese dall'agente** (dichiarate, il proprietario può rovesciarle):
+**Scelte di default prese dall'agente** (dichiarate, accettate dal proprietario con V1–V8 il 04/10/2026):
 - **Nome della scheda** «Proiezione», `?tab=proiezione`, icona `TrendingUp`.
 - **Soglia e orizzonte si leggono senza rieseguire** (§ 11.6): sono letture degli stessi percorsi.
 - **`H` = 50 anni** (o l'orizzonte scelto se maggiore): la tabella Tappe arriva a 50 senza una seconda esecuzione.
