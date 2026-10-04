@@ -1617,6 +1617,8 @@ Tre PR in sequenza, tutte dopo il merge di K1, branch da `main`, bozza verso `Ci
 - Test: `__tests__/datedFlows.test.ts` (F2–F12, F15–F17, F22, F23), `fireService.test.ts` (F1 regressione),
   `fireNarrative.test.ts`, `settingsRoundTrip.test.ts`.
 
+**Esito di F1 (04/10/2026)** — fatto come da spec; scostamenti dichiarati: `mortgageFlowSchedule(summary)` non prende `now` (il mese è già nella proiezione del tile) e `MortgageSummary` guadagna `instalment` (la rata su cui gira `payoff`); i `Δs` si applicano a ogni camminata che riceve i flussi (anche con `indexSavings = false`, che nessuna scheda usa con i flussi); le clausole «· N flussi datati» e la riga della Base di calcolo ci sono in Calcolatore e Coast, **non** in What If, Monte Carlo e Proiezione finché F2/F3 non li fanno leggere i flussi (la clausola direbbe il falso); il Ventaglio punta ai bersagli del cammino (che includono i flussi) ma i suoi percorsi non li ricevono fino a F2. Criteri F1–F12, F15–F17, F22 (validazione e giro delle impostazioni) e F23 in `__tests__/datedFlows.test.ts`, `datedFlowsNarrative.test.ts`, `settingsRoundTrip.test.ts`; non toccati e quindi non eseguiti: F13, F14, F18, F19, F20, F21 (F2/F3).
+
 **F2 — Motori stocastici (thread «impl», Sonnet 5.5) — dopo F1**
 - `runAccumulationSimulation` (`flows?` nei parametri: RF7, accumulo e registro), `runWithdrawalLedger` /
   `ledgerSchedule` (RF8: le tabelle si calcolano una volta per `params`, come oggi), Proiezione (RF10).

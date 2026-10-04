@@ -67,6 +67,7 @@ import {
   prepareRunwaySummaryLabel,
   resolveFanFireTargets,
   resolveFireRequirement,
+  type FireFlowsInput,
   type FireHonestInputs,
   type FireProjectionPensionBridge,
 } from '@/lib/services/fireService';
@@ -116,6 +117,10 @@ import {
 } from '@/lib/utils/fireNarrative';
 import type { Settings } from '@/types/settings';
 import type { FIREProjectionScenarios } from '@/types/assets';
+import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
+import { buildFlowSchedule, lumpMarkersOf } from '@/lib/utils/datedFlows';
+import { validateDatedFlows } from '@/lib/utils/datedFlowValidation';
+import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
@@ -200,6 +205,8 @@ function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
     plannedExpenses: (settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses)?.toString() ?? '',
     // K1 (RK4): the share of the cash outside the portfolio the tabs invest; absent = 0.
     cashToInvestPct: String(settings?.fireCashToInvestPct ?? 0),
+    // § 12 (F1): the dated flows, edited as a preview in Parametri.
+    datedFlows: settings?.fireDatedFlows ?? [],
     inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
     ritaLongUnemployment: settings?.pensionRitaLongUnemployment ?? false,
   };
@@ -310,7 +317,16 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     [formSettled, previewPlannedExpenses, settings?.plannedAnnualExpenses, settings?.coastFireCustomExpenses],
   );
   const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(planSource, cashflowData) : null), [cashflowData, planSource]);
-  const assumptions = useMemo<FireAssumptions | null>(() => (savedAssumptions ? { ...savedAssumptions, expenses: expenses ?? undefined } : null), [savedAssumptions, expenses]);
+  // § 12 (F1): the dated flows, PREVIEWED from the form until saved, placed on the calendar with the age and the linked mortgages.
+  const { resolved: resolvedFlows, excluded: excludedFlows, mortgages: mortgageOptions } = useFireDatedFlows(formSettled ? form.datedFlows : undefined);
+  const flowsInput = useMemo<FireFlowsInput | undefined>(
+    () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
+    [resolvedFlows, expenses?.origin],
+  );
+  const assumptions = useMemo<FireAssumptions | null>(
+    () => (savedAssumptions ? { ...savedAssumptions, expenses: expenses ?? undefined, datedFlowsCount: resolvedFlows.length } : null),
+    [savedAssumptions, expenses, resolvedFlows.length],
+  );
   const projectionAnnualExpenses = expenses?.annual ?? 0;
   // RP5 (D4): ONE capital for every tab — `K`, net of the closed pension funds; real estate and crypto stay out, declared in the line.
   const capital = assumptions?.capital ?? null;
@@ -378,6 +394,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     form.targetAge !== settingsForm(settings).targetAge ||
     form.plannedExpenses !== settingsForm(settings).plannedExpenses ||
     form.cashToInvestPct !== settingsForm(settings).cashToInvestPct ||
+    JSON.stringify(form.datedFlows) !== JSON.stringify(settingsForm(settings).datedFlows) ||
     form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
     ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
 
@@ -423,10 +440,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // «senza il vincolo sarebbe».
   const requirementToday = useMemo(() => {
     if (!cashflowData || currentNetWorth <= 0 || projectionAnnualExpenses <= 0 || previewWithdrawalRate <= 0) return null;
-    const shared = { annualExpenses: projectionAnnualExpenses, withdrawalRate: previewWithdrawalRate, scenario: scenarios.base, yearsElapsed: 0, honest, gainShare: gainShareToday };
+    const flows = flowsInput ? buildFlowSchedule(flowsInput.resolved, { inflationRate: scenarios.base.inflationRate, planExpensesFromCashflow: flowsInput.planExpensesFromCashflow }) : undefined;
+    const shared = { annualExpenses: projectionAnnualExpenses, withdrawalRate: previewWithdrawalRate, scenario: scenarios.base, yearsElapsed: 0, honest, gainShare: gainShareToday, flows };
     const bridge = pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { compartmentValue: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined;
     return { withBridge: resolveFireRequirement({ ...shared, bridge }), withoutBridge: resolveFireRequirement(shared) };
-  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base, honest, gainShareToday, pensionBridgeValueToday, pensionBridgeYearsToUnlock]);
+  }, [cashflowData, currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base, honest, gainShareToday, pensionBridgeValueToday, pensionBridgeYearsToUnlock, flowsInput]);
 
   const displayedFireMetrics = useMemo(() => {
     if (!cashflowData || currentNetWorth <= 0) return null;
@@ -478,8 +496,19 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       honest,
       // RP7 (D6): the saving grows with the scenario's inflation, the pace Coast already keeps.
       true,
+      flowsInput,
     );
-  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, projectionBridge, honest]);
+  }, [currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, projectionBridge, honest, flowsInput]);
+  // D-F12: the same walk with the list empty — the Base di calcolo says how far the flows move the FIRE year.
+  const flowsEffect = useMemo<FlowsEffect>(() => {
+    const yearOf = (years: number | null | undefined): number | null => (years === null || years === undefined ? null : currentYearForFan + years);
+    const without =
+      flowsInput && currentNetWorth > 0 && projectionAnnualExpenses > 0 && previewWithdrawalRate > 0
+        ? calculateFIREProjection(currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true).baseYearsToFIRE
+        : null;
+    return { count: resolvedFlows.length, excluded: excludedFlows, yearWithout: yearOf(without), yearWith: yearOf(projection?.baseYearsToFIRE) };
+  }, [flowsInput, resolvedFlows.length, excludedFlows, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, projectionBridge, honest, projection, currentYearForFan]);
+  const lumpMarkers = useMemo(() => lumpMarkersOf(resolvedFlows, currentYearForFan), [resolvedFlows, currentYearForFan]);
 
   // Fan (Ventaglio) inputs: the weights and the Base market of the page's assumptions (the Monte
   // Carlo tab's too), expenses inflated with the SAME base-scenario inflation as the deterministic
@@ -592,8 +621,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       : (settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE);
   const fireWalk = useCallback<FireWalk>(
     (savings, planExpenses) =>
-      calculateFIREProjection(currentNetWorth, planExpenses, savings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true).baseYearsToFIRE,
-    [currentNetWorth, previewWithdrawalRate, scenarios, projectionBridge, honest],
+      calculateFIREProjection(currentNetWorth, planExpenses, savings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true, flowsInput).baseYearsToFIRE,
+    [currentNetWorth, previewWithdrawalRate, scenarios, projectionBridge, honest, flowsInput],
   );
   // RS8: the Ventaglio's lever aimed at the target age. The fan only exists in its own views, so the base run is
   // made here when the Traguardo shows the scenarios; the target must lie within the fan's horizon. ~14 runs of the
@@ -718,6 +747,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         outsideCapital: capital?.outside ?? { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 },
         planExpensesOrigin: expenses?.origin ?? 'cashflow',
         honest: honestSummary,
+        flows: flowsEffect,
       }
     : null;
 
@@ -803,6 +833,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       toast.error(userAge !== undefined ? `Inserisci un'età obiettivo sopra la tua (${userAge}) e fino a 100` : "Inserisci un'età obiettivo tra 18 e 100");
       return;
     }
+    const flowsProblem = validateDatedFlows(form.datedFlows, currentYearForFan);
+    if (flowsProblem) {
+      toast.error(flowsProblem);
+      return;
+    }
     settingsMutation.mutate({
       withdrawalRate: newWR,
       coastFireRetirementAge: newTargetAge,
@@ -810,6 +845,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       // is moved into this field by the form's seed, so it is dropped here.
       plannedAnnualExpenses: newPlannedExpenses,
       fireCashToInvestPct: newCashToInvestPct,
+      fireDatedFlows: form.datedFlows,
       coastFireCustomExpenses: undefined,
       pensionInpsRetirementAge: newInpsAge,
       pensionRitaLongUnemployment: ritaLongUnemployment,
@@ -863,6 +899,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       assumptions={assumptions}
       userAge={userAge}
       personalSwr={personalSwr}
+      flows={{ excluded: excludedFlows, mortgages: mortgageOptions, pensions: honest.pensions, currentYear: currentYearForFan }}
     />
   );
 
@@ -958,6 +995,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       height="100%"
       marginLeft={0}
       pensionUnlockCalendarYear={pensionBridge ? currentYear + pensionUnlockYears : null}
+      lumpMarkers={lumpMarkers}
     />
   ) : view === 'distribuzione' ? (
     fireYearDistribution ? (

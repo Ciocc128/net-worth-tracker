@@ -57,6 +57,11 @@ const STORED_MONTE_CARLO_MARKET = (() => {
   return { ...market, goldSubCategory: null, correlations: [0.3, ...new Array(20).fill(-0.05)] };
 })();
 
+const STORED_DATED_FLOWS = [
+  { id: 'f1', label: 'Eredità', kind: 'lumpIn', amount: 100_000, indexed: false, start: { anchor: 'year', year: 2036 }, durationYears: null },
+  { id: 'f2', label: 'Part-time', kind: 'income', amount: 9_600, indexed: true, start: { anchor: 'fire', afterYears: 0 }, durationYears: 10 },
+];
+
 /** Ogni valore è scelto per essere DIVERSO dal default, così un campo perso si vede. */
 const STORED_SETTINGS = {
   targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } },
@@ -80,6 +85,7 @@ const STORED_SETTINGS = {
   transferFeeSubCategoryId: 'sub-fee',
   plannedAnnualExpenses: 31_000,
   fireCashToInvestPct: 35,
+  fireDatedFlows: STORED_DATED_FLOWS,
   coastFireCustomExpenses: 29_000,
 };
 
@@ -162,6 +168,7 @@ describe('getSettings — lettura', () => {
     const settings = await getSettings('user-1');
 
     expect(settings?.fireCashToInvestPct).toBe(35);
+    expect(settings?.fireDatedFlows).toEqual(STORED_DATED_FLOWS);
   });
 
   it('returns idealAllocation instead of dropping it', async () => {
@@ -285,6 +292,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['transferFeeSubCategoryId', 'sub-fee'],
     ['plannedAnnualExpenses', 31_000],
     ['fireCashToInvestPct', 35],
+    ['fireDatedFlows', STORED_DATED_FLOWS],
     ['coastFireCustomExpenses', 29_000],
   ])('leaves an untouched %s alone when the key is absent from the update', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
@@ -307,6 +315,18 @@ describe('fireCashToInvestPct — la quota di liquidità da investire', () => {
     vi.mocked(setDoc).mockClear();
     await setSettings('user-1', { fireCashToInvestPct: value } as AssetAllocationSettings);
     expect(writtenPayload().fireCashToInvestPct).toBe(value);
+  });
+});
+
+// F22 (doc/fire-ipotesi/README.md § 12.9): the dated flows are written by the Calcolatore's save in both branches; an empty list is a value (the user removed them all).
+describe('fireDatedFlows — i flussi nel tempo', () => {
+  it.each([[STORED_DATED_FLOWS], [[]]])('is written as %j in both branches', async (value) => {
+    await setSettings('user-1', { targets: TARGETS, fireDatedFlows: value } as AssetAllocationSettings);
+    expect(writtenPayload().fireDatedFlows).toEqual(value);
+
+    vi.mocked(setDoc).mockClear();
+    await setSettings('user-1', { fireDatedFlows: value } as AssetAllocationSettings);
+    expect(writtenPayload().fireDatedFlows).toEqual(value);
   });
 });
 

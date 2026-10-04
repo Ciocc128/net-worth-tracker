@@ -14,6 +14,8 @@
 
 - FIRE › Calcolatore › Parametri has a «Liquidità da investire» field: the share of the cash you keep outside your portfolio (an emergency fund, an account excluded from Allocazione) that the FIRE tabs count as invested on your target weights, from 0% to 100%. Calcolatore, Coast FIRE, What If, Monte Carlo and Proiezione now start from the portfolio instead of from the whole net worth, and every tab says it in one line, for example «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €)». With the share at 0% (the default) the cash outside the portfolio is not in the simulations: the year FIRE can move away for who keeps a large excluded account, and the line says where that money is.
 
+- FIRE › Calcolatore › Parametri has a «Flussi nel tempo» section: money that enters or leaves the plan from a year, an age or the FIRE year, for a number of years or forever — a mortgage that ends (linked to the one in Patrimonio, so the end date follows your instalments), a child, an inheritance, a part-time job after FIRE, a rent. The FIRE number is today's plus the present value of those flows, the Calcolatore's projection and Coast FIRE read them, and the Base di calcolo says how far they move the year, for example «4 · spostano il FIRE dal 2034 al 2029». Monte Carlo, Proiezione and What If do not read them yet.
+
 ## 🐛 Bug Fixes
 
 - Fixed the FIRE simulations diluting the portfolio weights with accounts excluded from Allocazione: a 70/30 target is now simulated as 70/30, not as 63/27 plus 10% of cash that the plan does not hold.

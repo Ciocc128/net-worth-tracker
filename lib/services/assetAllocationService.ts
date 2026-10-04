@@ -119,6 +119,7 @@ export async function getSettings(
       withdrawalRate: data.withdrawalRate,
       plannedAnnualExpenses: data.plannedAnnualExpenses,
       fireCashToInvestPct: data.fireCashToInvestPct,
+      fireDatedFlows: data.fireDatedFlows,
       coastFireRetirementAge: data.coastFireRetirementAge,
       coastFireCustomExpenses: data.coastFireCustomExpenses,
       coastFirePensions: data.coastFirePensions,
@@ -242,6 +243,9 @@ export async function setSettings(
       }
       if (settings.fireCashToInvestPct !== undefined) {
         docData.fireCashToInvestPct = settings.fireCashToInvestPct;
+      }
+      if (settings.fireDatedFlows !== undefined) {
+        docData.fireDatedFlows = settings.fireDatedFlows;
       }
       if (settings.coastFireRetirementAge !== undefined) {
         docData.coastFireRetirementAge = settings.coastFireRetirementAge;
@@ -470,6 +474,9 @@ export async function setSettings(
       }
       if (settings.fireCashToInvestPct !== undefined) {
         docData.fireCashToInvestPct = settings.fireCashToInvestPct;
+      }
+      if (settings.fireDatedFlows !== undefined) {
+        docData.fireDatedFlows = settings.fireDatedFlows;
       }
       if (settings.coastFireRetirementAge !== undefined) {
         docData.coastFireRetirementAge = settings.coastFireRetirementAge;

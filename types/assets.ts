@@ -320,6 +320,28 @@ export interface CoastFirePensionInput {
   startAge?: number; // Legacy fallback kept for backward compatibility with previously saved rows
 }
 
+/**
+ * A dated flow of the FIRE plan (doc/fire-ipotesi/README.md § 12): an amount that enters or leaves
+ * from a year, for a number of years. One model for the events (a child, a mortgage ending, an
+ * inheritance) and for the income after FIRE (a part-time job, a rent).
+ */
+export type DatedFlowKind = 'expense' | 'income' | 'lumpIn' | 'lumpOut';
+export type DatedFlowStart =
+  | { anchor: 'year'; year: number } // calendar year
+  | { anchor: 'age'; age: number } // the user's age (needs userAge)
+  | { anchor: 'fire'; afterYears: number }; // years after the FIRE year (0 = the first year of retirement); recurring only
+export interface DatedFlow {
+  id: string;
+  label: string; // ≤ 60 characters
+  kind: DatedFlowKind;
+  amount: number; // yearly for expense/income (an expense may be < 0: a cost that falls), the amount for a lump (> 0)
+  indexed: boolean; // true = today's euro revalued with inflation; false = fixed nominal euro (needs an end)
+  start: DatedFlowStart;
+  durationYears: number | null; // recurring only: whole years ≥ 1; null = forever
+  inCashflowToday?: boolean; // recurring and active today: already in today's saving and expenses (default true)
+  source?: { kind: 'mortgage'; propertyId: string } | { kind: 'goal'; goalId: string }; // 'goal' reserved for P8
+}
+
 export interface CoastFireTaxBracket {
   id: string;
   upTo: number | null; // Null = no upper bound (top bracket)
@@ -351,6 +373,7 @@ export interface AssetAllocationSettings {
   riskFreeRate?: number;
   withdrawalRate?: number; // Safe withdrawal rate for FIRE calculations (e.g., 4.0 for 4%)
   plannedAnnualExpenses?: number; // Planned annual expenses for FIRE projections
+  fireDatedFlows?: DatedFlow[]; // Dated flows of the FIRE plan (§ 12), at most 20; absent = none
   fireCashToInvestPct?: number; // Share (0–100) of the cash outside the portfolio the FIRE tabs invest at year 0 on the target weights; absent = 0
   coastFireRetirementAge?: number; // Target age at which Coast FIRE should mature into the full FIRE number
   coastFireCustomExpenses?: number; // User-defined annual retirement expenses for Coast FIRE; undefined = derive from last complete year

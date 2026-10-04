@@ -333,6 +333,7 @@ describe('describeMortgage — the «Mutuo» tile\'s reading', () => {
     byYear: [{ year: 2026, interest: 38.57, principal: 518.73, instalments: 1, partialFrom: new Date(2026, 8, 28, 12) }],
     next: { date: new Date(2026, 9, 28, 12), amount: 557.3, principal: 519.03, interest: 38.27 },
     payoff: { kind: 'date', months: 122, date: new Date(2036, 10, 28, 12) },
+    instalment: 557.3,
   };
 
   it('should say what the year\'s instalments paid in interest and repaid, then where the plan ends', () => {

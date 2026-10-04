@@ -27,6 +27,7 @@ import type { FireCapital } from '@/lib/utils/fireCapital';
 import type { FanVerdict, FireLock, FireTarget, FireTargetHonest, FireTimeline, PassiveIncome, ScenarioRow } from '@/lib/utils/fireSummary';
 import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
 import type { TargetAgeSummary } from '@/lib/utils/fireTargetAge';
+import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import type { PersonalSwr } from '@/lib/utils/sustainableWithdrawal';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -575,6 +576,8 @@ export interface FireBase {
   planExpensesOrigin: 'settings' | 'cashflow';
   /** The pensions and the tax, considered or declared absent — the tile's two last rows. */
   honest?: FireTargetHonest;
+  /** § 12 (D-F12): the dated flows in use and how far they move the Base FIRE year — the tile's «Flussi nel tempo» row. */
+  flows?: FlowsEffect;
 }
 
 /**

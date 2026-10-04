@@ -75,6 +75,8 @@ export interface FireAssumptions {
   expenses?: FireExpenses;
   /** RC1–RC2: the cost per class, present when `resolveFireAssumptions` was given the value function (like `capital`). */
   costs?: FireCosts;
+  /** § 12: how many dated flows the tab's numbers run on; set by the tab that reads them (Calcolatore, Coast FIRE), absent elsewhere. */
+  datedFlowsCount?: number;
   /** RC3: the cost of THIS page's weights, percent a year; the rates in `scenarios` are already net of it. */
   cost?: PortfolioCost;
 }

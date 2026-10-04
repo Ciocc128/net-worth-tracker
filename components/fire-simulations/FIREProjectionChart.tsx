@@ -51,6 +51,15 @@ interface FIREProjectionChartProps {
   marginLeft?: number;
   /** Calendar year the pension fund unlocks — the tooltip names the step. */
   pensionUnlockCalendarYear?: number | null;
+  /** § 12 (D-F12): a sign on the years axis for each lump of the dated flows; the tooltip names it. */
+  lumpMarkers?: FlowLumpMarker[];
+}
+
+/** A lump of the dated flows on the years axis: «Eredità» in 2036, an inflow (+) or an outflow (−). */
+export interface FlowLumpMarker {
+  calendarYear: number;
+  label: string;
+  direction: 'in' | 'out';
 }
 
 interface ScenarioTooltipProps {
@@ -58,6 +67,7 @@ interface ScenarioTooltipProps {
   payload?: { payload?: FIREProjectionYearData; color?: string }[];
   label?: string | number;
   pensionUnlockCalendarYear?: number | null;
+  lumpMarkers?: FlowLumpMarker[];
   colors: { bear: string; base: string; bull: string };
 }
 
@@ -71,6 +81,7 @@ function ScenarioTooltip({
   payload,
   label,
   pensionUnlockCalendarYear,
+  lumpMarkers,
   colors,
 }: ScenarioTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
@@ -94,6 +105,13 @@ function ScenarioTooltip({
             nelle serie).
           </p>
         )}
+      {(lumpMarkers ?? [])
+        .filter((marker) => marker.calendarYear === row.calendarYear)
+        .map((marker) => (
+          <p key={`${marker.label}-${marker.direction}`} className="mt-1 text-xs text-muted-foreground">
+            {marker.direction === 'in' ? 'Entra' : 'Esce'}: {marker.label}
+          </p>
+        ))}
       <div className="mt-2 space-y-1.5">
         {scenarioRows.map((scenario) => (
           <div key={scenario.name} className="flex items-baseline gap-2 text-xs">
@@ -158,6 +176,7 @@ export function FIREProjectionChart({
   height = 400,
   marginLeft = 50,
   pensionUnlockCalendarYear = null,
+  lumpMarkers = [],
 }: FIREProjectionChartProps) {
   const { bear: bearColor, base: baseColor, bull: bullColor } = SCENARIO_COLOR;
 
@@ -186,7 +205,7 @@ export function FIREProjectionChart({
             data={yearlyData}
             margin={{ top: 12, left: marginLeft, bottom: 4 }}
             role="img"
-            aria-label="Grafico proiezione scenari: patrimonio anno per anno negli scenari Orso, Base e Toro, con la linea tratteggiata del numero FIRE dello scenario base e una linea verticale nell'anno in cui ogni scenario lo raggiunge; i target Orso e Toro sono nel tooltip"
+            aria-label={`Grafico proiezione scenari: patrimonio anno per anno negli scenari Orso, Base e Toro, con la linea tratteggiata del numero FIRE dello scenario base e una linea verticale nell'anno in cui ogni scenario lo raggiunge${lumpMarkers.length > 0 ? ', un segno per ogni entrata o uscita una tantum dei flussi' : ''}; i target Orso e Toro sono nel tooltip`}
             accessibilityLayer={false}
           >
             <CartesianGrid strokeDasharray="3 3" />
@@ -200,6 +219,7 @@ export function FIREProjectionChart({
               content={
                 <ScenarioTooltip
                   pensionUnlockCalendarYear={pensionUnlockCalendarYear}
+                  lumpMarkers={lumpMarkers}
                   colors={{ bear: bearColor, base: baseColor, bull: bullColor }}
                 />
               }
@@ -246,6 +266,19 @@ export function FIREProjectionChart({
               animationDuration={800}
               animationEasing="ease-out"
             />
+            {/* A sign for each lump of the dated flows (D-F12): neutral ink, dotted, the name in the tooltip. */}
+            {lumpMarkers
+              .filter((marker) => marker.calendarYear >= yearlyData[0].calendarYear && marker.calendarYear <= yearlyData[yearlyData.length - 1].calendarYear)
+              .map((marker) => (
+                <ReferenceLine
+                  key={`lump-${marker.calendarYear}-${marker.label}`}
+                  x={marker.calendarYear}
+                  stroke="var(--muted-foreground)"
+                  strokeWidth={1}
+                  strokeDasharray="1 4"
+                  label={{ value: marker.direction === 'in' ? '+' : '−', position: 'insideBottom', fill: 'var(--muted-foreground)', fontSize: 11 }}
+                />
+              ))}
             {/* One vertical line per distinct FIRE year; the label sits inside the plot, under
                 the top margin, so it is never clipped. */}
             {markers.map((marker) => (
