@@ -42,20 +42,51 @@ function mean(values: number[]): number {
 }
 
 /**
- * Run a single Monte Carlo simulation
+ * RS1 — the gross factor of the capital in each year of ONE path (`1 + portfolioReturn`, before
+ * inflows and withdrawals), written to `out[offset … offset + retirementYears − 1]`. A factor ≤ 0 is
+ * ruin by leverage. Every year is drawn whatever the ledger later does to the path, so two runs on
+ * one seed — with and without leverage, or the three scenarios — meet the same shocks in the same
+ * years (A13), and the factors do not depend on the withdrawal: a withdrawal can be replayed on them.
  */
-function runSingleSimulation(
+function drawPathFactors(
   params: MonteCarloParams,
   plan: DrawPlan,
   weights: number[],
-  simulationId: number
-): SingleSimulationResult {
-  const random = params.random ?? Math.random;
-  let portfolio = params.initialPortfolio;
+  random: () => number,
+  out: Float64Array,
+  offset: number
+): void {
+  const spread = params.leverageSpread ?? 0;
+  const costRate = params.annualCostRate ?? 0;
+  // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3), the debt
+  // of a leveraged portfolio taken off it at the drawn Liquidità return plus the spread (R4).
+  for (let year = 0; year < params.retirementYears; year++) {
+    out[offset + year] = 1 + portfolioReturn(weights, drawYear(plan, random), spread, costRate);
+  }
+}
 
-  // Capital inflows: defined order is inflow → market return → withdrawal, so an
-  // inflow earns its own year's return before that year's withdrawal. Inflows at year <= 0
-  // are simply part of the starting portfolio.
+interface LedgerOutcome {
+  success: boolean;
+  failureYear?: number;
+  failureCause?: 'withdrawals' | 'leverage';
+  finalValue: number;
+}
+
+/**
+ * RS2 — the withdrawal ledger of one path on its factors (`factors[offset + year − 1]`), for an
+ * annual withdrawal of `annualWithdrawal` (today's euros when the plan adjusts for inflation).
+ * Defined order: inflow → market return → withdrawal, so an inflow earns its own year's return
+ * before that year's withdrawal. Inflows at year <= 0 are simply part of the starting portfolio.
+ * `path`, when given, receives the capital at the end of every year the path survives.
+ */
+function runWithdrawalLedger(
+  factors: ArrayLike<number>,
+  offset: number,
+  params: MonteCarloParams,
+  annualWithdrawal: number,
+  path?: { year: number; value: number }[]
+): LedgerOutcome {
+  let portfolio = params.initialPortfolio;
   const inflows = params.capitalInflows ?? [];
   for (const inflow of inflows) {
     if (inflow.year <= 0) portfolio += inflow.amount;
@@ -63,17 +94,7 @@ function runSingleSimulation(
   // The cost basis the withdrawal tax reads (2026-09-24): today's, plus every inflow as it lands.
   const tax = params.withdrawalTax;
   let basis = (tax?.basisToday ?? 0) + inflows.reduce((sum, inflow) => (inflow.year <= 0 ? sum + inflow.amount : sum), 0);
-
-  const path: { year: number; value: number }[] = [{ year: 0, value: portfolio }];
-  // A failed path keeps DRAWING to the end of the horizon (the draws are discarded): every path
-  // consumes the same number of uniforms whatever happens to it, so two runs on one seed — with and
-  // without leverage, or the three scenarios — meet the same shocks in the same years (A13).
-  const failRun = (failureYear: number, failureCause: 'withdrawals' | 'leverage'): SingleSimulationResult => {
-    for (let year = failureYear + 1; year <= params.retirementYears; year++) drawYear(plan, random);
-    return { simulationId, success: false, failureYear, failureCause, finalValue: 0, path };
-  };
-  const spread = params.leverageSpread ?? 0;
-  const costRate = params.annualCostRate ?? 0;
+  path?.push({ year: 0, value: portfolio });
 
   for (let year = 1; year <= params.retirementYears; year++) {
     // Add the inflows landing this year BEFORE applying the market return
@@ -84,19 +105,15 @@ function runSingleSimulation(
       }
     }
 
-    // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3), the debt
-    // of a leveraged portfolio taken off it at the drawn Liquidità return plus the spread (R4).
-    const yearReturn = portfolioReturn(weights, drawYear(plan, random), spread, costRate);
-
     // Apply return to portfolio
-    portfolio *= 1 + yearReturn;
+    portfolio *= factors[offset + year - 1];
 
     // A year's loss above the capital wipes it out (R4): ruin by leverage, whatever the withdrawal.
-    if (portfolio <= 0) return failRun(year, 'leverage');
+    if (portfolio <= 0) return { success: false, failureYear: year, failureCause: 'leverage', finalValue: 0 };
 
     // Calculate withdrawal (adjusted for inflation if needed), net of the pensions active this
     // year (indexed the same way), then grossed up for the tax on the sale that funds it.
-    let withdrawal = params.annualWithdrawal;
+    let withdrawal = annualWithdrawal;
     if (params.withdrawalAdjustment === 'inflation') {
       withdrawal *= Math.pow(1 + params.market.inflationRate / 100, year);
     }
@@ -118,17 +135,50 @@ function runSingleSimulation(
     portfolio -= withdrawal;
 
     // Check for failure
-    if (portfolio <= 0) return failRun(year, 'withdrawals');
+    if (portfolio <= 0) return { success: false, failureYear: year, failureCause: 'withdrawals', finalValue: 0 };
 
-    path.push({ year, value: portfolio });
+    path?.push({ year, value: portfolio });
   }
 
-  return {
-    simulationId,
-    success: true,
-    finalValue: portfolio,
-    path,
-  };
+  return { success: true, finalValue: portfolio };
+}
+
+/**
+ * How many of the `n` paths in `factors` (row per path, `retirementYears` columns) reach the end of
+ * the horizon when `annualWithdrawal` is drawn — RS2 without recording the paths. The count of an
+ * `runMonteCarloSimulation` at that withdrawal on the same seed, exactly.
+ */
+export function countSuccesses(
+  factors: Float64Array,
+  n: number,
+  params: MonteCarloParams,
+  annualWithdrawal: number
+): number {
+  let successes = 0;
+  for (let i = 0; i < n; i++) {
+    if (runWithdrawalLedger(factors, i * params.retirementYears, params, annualWithdrawal).success) successes++;
+  }
+  return successes;
+}
+
+/**
+ * Run a single Monte Carlo simulation: draw the path's factors, then play the withdrawal ledger on them.
+ */
+function runSingleSimulation(
+  params: MonteCarloParams,
+  plan: DrawPlan,
+  weights: number[],
+  simulationId: number,
+  factors: Float64Array,
+  offset: number
+): SingleSimulationResult {
+  drawPathFactors(params, plan, weights, params.random ?? Math.random, factors, offset);
+  const path: { year: number; value: number }[] = [];
+  const outcome = runWithdrawalLedger(factors, offset, params, params.annualWithdrawal, path);
+  if (!outcome.success) {
+    return { simulationId, success: false, failureYear: outcome.failureYear, failureCause: outcome.failureCause, finalValue: 0, path };
+  }
+  return { simulationId, success: true, finalValue: outcome.finalValue, path };
 }
 
 /**
@@ -203,14 +253,19 @@ function createDistribution(
  * @param params - Simulation parameters (portfolio size, allocation, withdrawal, returns, etc.)
  * @returns Aggregated results with success rate, percentiles, and distribution
  */
-export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloResults {
+export function runMonteCarloSimulation(
+  params: MonteCarloParams,
+  options: { keepFactors?: boolean } = {}
+): MonteCarloResults {
   const simulations: SingleSimulationResult[] = [];
+  // RS1: the factors of every path, row per path — `n × N × 8` bytes, kept only when asked (S1).
+  const factors = new Float64Array(params.numberOfSimulations * params.retirementYears);
   const plan = buildDrawPlan(params.market, params.correlations);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
 
   // Run all simulations
   for (let i = 0; i < params.numberOfSimulations; i++) {
-    simulations.push(runSingleSimulation(params, plan, weights, i));
+    simulations.push(runSingleSimulation(params, plan, weights, i, factors, i * params.retirementYears));
   }
 
   // Analyze results
@@ -256,6 +311,7 @@ export function runMonteCarloSimulation(params: MonteCarloParams): MonteCarloRes
     failureAnalysis,
     distribution,
     simulations,
+    ...(options.keepFactors ? { factors } : {}),
   };
 }
 
