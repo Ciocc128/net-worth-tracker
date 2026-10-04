@@ -11,7 +11,8 @@
 >
 > Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` (§ 4, «Incoerenze tra le
 > schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
-> della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026.
+> della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026, la § 10 (P1 spesa sostenibile e P2 età
+> obiettivo, task S1 ed E1) lo stesso giorno.
 
 ---
 
@@ -72,7 +73,8 @@ le righe delle cinque schede coincidono.
 **Escluso**
 - Nuove domande (spesa sostenibile, età obiettivo, prelievi dinamici, eventi datati, reddito dopo il FIRE, costi
   ricorrenti): proposte P1–P16 dell'analisi, epic separate che erediteranno questa lingua. I costi ricorrenti (P6)
-  sono poi entrati in questo dossier come § 9 (task C1, 04/10/2026).
+  sono poi entrati in questo dossier come § 9 (task C1, 04/10/2026); spesa sostenibile ed età obiettivo (P1, P2) come
+  § 10 (task S1, E1).
 - Cambiare le ipotesi per classe, le correlazioni o la regola Orso/Toro di R0: restano quelle del dossier Monte Carlo.
 - Lo storico del runway e lo storico cashflow del Dettaglio del Calcolatore: sono fatti, non ipotesi; restano sul
   patrimonio FIRE come oggi.
@@ -422,6 +424,8 @@ Alla fine di ogni task: `npx tsc --noEmit`, `npx eslint app components lib types
 | 3 | L3 Obiettivi | L1 unita | A14–A16 verdi; nessun lettore di `GOAL_CLASS_RETURNS` |
 | — | B0 ricerca bootstrap | — (in parallelo) | file in Library con fonti e licenze |
 | 4 | C1 costi ricorrenti (§ 9) | L1–L3 unite | C1–C12 verdi (§ 9.9) |
+| 5 | S1 spesa sostenibile nel Monte Carlo (§ 10.9) | C1 unita | S1–S10 verdi (§ 10.8) |
+| 6 | E1 età obiettivo e SWR personale nel Calcolatore (§ 10.10) | S1 unita | E1–E6, S11, S12 verdi (§ 10.8) |
 
 **Collaudo**: dopo ciascuna PR, su anteprima Vercel, una fase per messaggio con l'esito scritto prima
 (WORKFLOW.md § 2). Le verifiche sugli emulatori o sul mirror dei dati di produzione si fanno in un thread sul
@@ -690,3 +694,336 @@ dei costi in sei schede, il Base che scende, la Proiezione che non dice più «l
 | Merge con upstream su `monteCarloDraw.ts`, `monteCarloService.ts`, `types/assets.ts`. | parametri opzionali con default neutro (C11); logica nuova in `fireCosts.ts`. |
 | Chi ha il bollo spento (default) non vede differenza e pensa che non ci sia. | La riga lo dice e rimanda al tile Costi (C12). |
 | TER mancanti sugli strumenti sottostimano i costi. | La riga dice «TER non inseriti negli strumenti» quando nessuno strumento ne ha. |
+
+---
+
+## 10. P1 + P2 — Quanto posso spendere, e cosa serve per smettere a un'età scelta (task S1, E1)
+
+> Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` § 5 (P1, P2) e § 6 (sequenza).
+> Spec scritta il 04/10/2026 su `main` al commit `be21551` (merge della PR #47, C1 costi ricorrenti); decisioni
+> D-S1–D-S4 e D-E1–D-E3 confermate dal proprietario nel thread della spec lo stesso giorno (piano:
+> `/mnt/project-files/fire-simulazioni/piano-p1-p2.md`). Valgono RP1–RP7 (§ 1.5) e RC1–RC6 (§ 9.6): questa sezione
+> le **legge**, non ne scrive di nuove. Valori di riferimento: `/mnt/project-files/fire-simulazioni/p1p2-controllo.py`.
+>
+> Letture obbligatorie, oltre a § 0: `doc/guide/fire.md` § FIRE, What If and Goals (il motore del Ventaglio, la leva
+> sul risparmio `solveSavingsForTail`, «Year 0 is a year») e § Calcolatore; `doc/guide/fire-monte-carlo.md` per
+> intero (seme, `failRun`, Stale-Run); DESIGN.md: The Verdict-First Rule, The Stale-Run Rule, The Narrative Honesty
+> Rule, The Risk-vs-Fact Rule, The Input Tile Rule, The Comma Rule.
+
+### 10.1 Obiettivo
+
+Due domande che oggi nessuna scheda risolve, entrambe l'**inverso** di una domanda a cui la pagina già risponde:
+
+- **P1, «quanto posso spendere?»** Il Monte Carlo dice «con questo prelievo, in quante simulazioni su cento i soldi
+  durano». Dopo S1 dice anche «per durare in 9 simulazioni su 10, puoi prelevare al massimo X € l'anno di oggi», e il
+  Calcolatore propone un **SWR personale** al posto del 4% convenzionale.
+- **P2, «voglio smettere a 50 anni: cosa serve?»** Il Calcolatore dice in che anno si arriva al FIRE. Dopo E1 dice,
+  per un'età scelta, quanto risparmio serve (nel Base e in 9 percorsi su 10) e quanto si potrà spendere al massimo con
+  il risparmio di oggi.
+
+### 10.2 Stato di partenza (verificato nel codice, 04/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| Il Monte Carlo prende il prelievo come input (seminato con la spesa del piano, RP6) e restituisce la probabilità di successo | `MonteCarloTab.tsx:254`, `lib/services/monteCarloService.ts:206` (`runMonteCarloSimulation`) |
+| Per ogni percorso e anno: afflusso → rendimento (`portfolioReturn` con leva e costi) → prelievo indicizzato, netto delle pensioni, lordo della tassa (`withdrawGross`); il percorso fallisce se il capitale va a ≤ 0 dopo il rendimento (leva) o dopo il prelievo | `monteCarloService.ts:47-135` (`runSingleSimulation`) |
+| **Il fattore di rendimento di un percorso in un anno non dipende dal prelievo**: dipende solo dal seme, dai pesi, dal mercato, dallo spread e dal costo | stesso file, `drawYear` + `portfolioReturn` prima del prelievo |
+| Un percorso fallito continua a estrarre fino all'orizzonte (`failRun`): ogni percorso consuma `7 × 2 × anni` uniformi | stesso file, `failRun` |
+| Il prelievo del primo anno è già rivalutato: anno `t` = `W · (1 + π)^t`, con `t` da 1 | stesso file, `withdrawal *= Math.pow(1 + π, year)` |
+| La leva sul risparmio è una bisezione su esecuzioni seminate del Ventaglio, generica sull'anno bersaglio (`targetYears`), oggi sempre l'anno del base | `lib/utils/fireDistribution.ts:167` (`solveSavingsForTail`), `FireCalculatorTab.tsx:545-555` |
+| Un'età obiettivo esiste: `coastFireRetirementAge` (default 60), scritta da Coast › Ipotesi e letta anche da What If; l'età attuale `userAge` si scrive in Coast › Ipotesi | `types/assets.ts:351`, `lib/hooks/useCoastFireSettingsDraft.ts:50,73-74,284`, `WhatIfAnalysisTab.tsx:267` |
+| L'SWR è un input dei Parametri del Calcolatore (`settings.withdrawalRate`, 4% di default), un'anteprima fino a «Salva» | `components/fire-simulations/FireParametri.tsx:95-160` |
+| Il cammino deterministico: `NW_t = NW_{t−1}·(1 + g) + S·(1 + π)^{t−1}` (RP7), FIRE all'anno `t` se `NW_t ≥ requisito_t` (`resolveFireRequirement`: spesa inflazionata ÷ SWR, ponte, pensioni, tassa); l'anno 0 è un anno | `lib/services/fireService.ts:1590-1720` |
+| Griglia del Calcolatore: Traguardo 5×2 · Base di calcolo 7 · Reddito passivo 4 · Scenari 3; del Monte Carlo: Probabilità 5 · Distribuzione 4 · Scenari 3 · Parametri 12 | `FireCalculatorTab.tsx:166-169`, `MonteCarloTab.tsx:415-461` |
+
+### 10.3 Perimetro
+
+**Incluso**
+- **S1 (Monte Carlo)**: la spesa sostenibile a 80, 90 e 95% per Orso, Base e Toro, sugli **stessi percorsi**
+  dell'esecuzione mostrata (stesso piano: capitale, orizzonte, pesi, leva, costi, fondi pensione, pensioni di Stato,
+  tassa sul prelievo); un tile nuovo «Spesa sostenibile» e una frase nel verdetto (D-S1–D-S3).
+- **S1 (motore)**: l'estrazione dei fattori separata dal registro dei prelievi, così il prelievo si **rigioca** senza
+  rieseguire l'estrazione (RS1, RS2), e un risolutore puro (RS3).
+- **E1 (Calcolatore)**: un tile nuovo «Età obiettivo» con tre cifre (D-E2, D-E3), il campo «Età obiettivo» nei
+  Parametri (D-E1), l'**SWR personale** proposto accanto all'SWR con un bottone «Usa» (D-S4, RS5).
+
+**Escluso**
+- Accumulo **seguito** da decumulo nello stesso Monte Carlo («smetto a 50 anni e prelevo fino a 90»): è il resto di
+  P7 (§ 11.10 del dossier Monte Carlo). P2 qui risponde con il cammino deterministico e con il Ventaglio, che si
+  ferma all'anno FIRE di ogni percorso.
+- Prelievi dinamici (P3): la spesa sostenibile resta un importo fisso rivalutato con l'inflazione.
+- Una probabilità scritta dall'utente (D-S2): i tre livelli sono fissi.
+- Sostituire l'SWR in automatico (D-S4).
+- Due età (famiglia, P11): resta una sola età obiettivo.
+- Cambiare la leva sul risparmio della Distribuzione: continua a mirare all'anno del base.
+- Spec Playwright: nessuna nuova; si aggiornano solo i locator se una spec esistente conta i tile.
+
+### 10.4 Casi d'uso
+
+1. **Quanto posso prelevare.** Un milione in un 60/40, 30 anni, ipotesi di default: il Monte Carlo, oltre alla
+   probabilità del prelievo scritto, dice «Per restare al 90% puoi prelevare fino a 43.300 € l'anno di oggi, il 4,3%
+   del capitale» (Base, senza costi; valore indicativo di § 10.8, S4).
+2. **Prelievo troppo alto.** Con 50.000 € scritti la probabilità è sotto il 90%: il verdetto aggiunge «Per tornare al
+   90% il prelievo dovrebbe scendere a 43.300 €».
+3. **Scenari e prudenza.** Il tile mostra le nove cifre (Orso, Base, Toro × 80, 90, 95%): chi vuole il 95% nell'Orso
+   legge 30.100 €.
+4. **Leva che rovina.** Con una leva tale che più del 10% dei percorsi si azzeri per la leva, al 90% nessun prelievo
+   basta: la cella dice «nessun prelievo» e la frase lo spiega (la rovina da leva non dipende dal prelievo).
+5. **SWR personale.** Nei Parametri del Calcolatore, sotto l'SWR 4%: «SWR personale 4,3%: 9 simulazioni su 10
+   reggono 30 anni di prelievi (portafoglio target, scenario Base, costi compresi). Usa». «Usa» scrive 4,3 nel campo
+   (anteprima, poi «Salva»).
+6. **Smettere a 50 anni.** Età 35, età obiettivo 50 (2041): il tile «Età obiettivo» dice «Per smettere a 50 anni,
+   nel 2041, servono 26.000 € di risparmio l'anno (oggi 18.000 €); perché ci arrivino 9 percorsi su 10, 34.500 €. Con
+   il risparmio di oggi la spesa del piano potrebbe essere al massimo 21.100 €.» (cifre di esempio).
+7. **Già in rotta.** Al ritmo di oggi il FIRE è nel 2038, prima dell'età obiettivo: «Ci arrivi già nel 2038; per
+   smettere a 50 anni basterebbero 14.000 € l'anno.»
+8. **Coast.** Il capitale di oggi basta da solo: «Il capitale di oggi basta: anche senza risparmiare arrivi al FIRE a
+   50 anni (è il tuo Coast FIRE).»
+
+### 10.5 Regole di calcolo
+
+**RS1 — I fattori del piano** (S1). Per uno scenario e un piano, la matrice `f[i][t]` (percorso `i = 1…n`, anno
+`t = 1…N`) è il fattore lordo del capitale nell'anno, **prima** di afflussi e prelievi:
+
+```
+f[i][t] = 1 + portfolioReturn(pesi, drawYear(plan, random), spread, costo)      // R3/R4 e RC4, come oggi
+```
+
+con lo stesso seme (`MONTE_CARLO_SEED`, un generatore nuovo per scenario), nello **stesso ordine** di estrazione di
+oggi (percorso per percorso, anno per anno, tutti gli anni anche dopo un fallimento). `f ≤ 0` = rovina da leva.
+
+**RS2 — Il registro dei prelievi** (S1). Per un prelievo `W` (euro di oggi), sul percorso `i`:
+
+```
+V_0 = K + Σ afflussi con anno ≤ 0;           B_0 = base fiscale di oggi + Σ afflussi con anno ≤ 0
+per t = 1…N:
+  V += afflussi dell'anno t;  B += afflussi dell'anno t
+  V *= f[i][t];                               se V ≤ 0: fallito (leva)
+  netto = max(0, W·(1+π)^t − P_t)             // P_t = pensioni di Stato attive, indicizzate come oggi
+  lordo = tassa ? withdrawGross(V, B, netto, τ) : netto   (B aggiornata)
+  V -= lordo;                                 se V ≤ 0: fallito (prelievi)
+```
+
+È **esattamente** il ciclo di `runSingleSimulation`. Si estrae in una funzione sola che `runSingleSimulation` stessa
+chiama dopo aver estratto i fattori del percorso (RS1): così il conteggio dei successi rigiocato a `W` coincide float
+per float con `runMonteCarloSimulation` a `W` sullo stesso seme (criterio S5). `success(W)` = percorsi che arrivano a
+`N` / `n`.
+
+**RS3 — Spesa sostenibile a probabilità `p`** (S1). `W_p` = il più grande multiplo di 100 € con `success(W) ≥ p`:
+- se `success(0) < p` (rovina da leva oltre `1 − p`): **nessun prelievo** basta, `W_p = null`;
+- altrimenti bisezione su `[0, W_alto]`, con `W_alto` raddoppiato da `K` finché `success(W_alto) < p`; si ferma a un
+  intervallo ≤ 1 €, arrotonda **per difetto** a 100 € e **riverifica** (scende di 100 € finché `success < p`): la
+  cifra stampata rispetta la soglia.
+- **SWR del piano** = `W_p / K`, con `K` il capitale di partenza della corsa (il campo «Capitale»).
+- `success(W)` è non crescente in `W` (più prelievo non salva nessun percorso: senza tassa è vero per induzione su
+  RS2; con la tassa la quota di plusvalenza non dipende dal prelievo salvo gli afflussi, scarto trascurabile) e la
+  riverifica protegge la cifra stampata anche dove la monotonia vacillasse.
+- **Forma chiusa di controllo** (solo test, senza tassa, pensioni e afflussi): `W_i* = K / Σ_{s=1…N} (1+π)^s / Π_{u≤s} f[i][u]`
+  (0 se il percorso ha un `f ≤ 0`); il percorso regge `W` se e solo se `W < W_i*`.
+
+**RS4 — Le nove cifre** (S1). `p ∈ {80%, 90%, 95%}` × Orso, Base, Toro, sulle tre matrici della corsa. Il verdetto e
+l'eroe del tile leggono Base 90%. Le cifre appartengono all'**ultima esecuzione** (The Stale-Run Rule): un piano
+modificato non le ricalcola finché non si preme «Esegui». La corsa senza leva di confronto (`unleveragedBase`) non ha
+spesa sostenibile.
+
+**RS5 — SWR personale del Calcolatore** (E1, D-S4). RS1–RS3 su un piano **puro**: `K = 1`, nessun afflusso, nessuna
+pensione, nessuna tassa (il numero FIRE li conta già a parte: metterli qui li conterebbe due volte), pesi
+`assumptions.weights` (RP4), mercato Base, correlazioni e spread di Impostazioni, costo `assumptions.cost.total` (RC4),
+`n = 10.000`, `MONTE_CARLO_SEED`, `p = 90%`, orizzonte `N = clamp(90 − età obiettivo, 10, 60)` (età obiettivo
+salvata o 60 di default). Il risultato è un **tasso**: senza afflussi né tasse `success` dipende solo da `W/K`, quindi
+`K = 1` dà l'SWR del piano per qualunque capitale. Si arrotonda **per difetto a 0,1 punti** (RS3 con passo 0,001 su
+`K = 1`).
+
+**RS6 — Anni all'età obiettivo** (E1). `T = età obiettivo − userAge` (interi, come l'età in Coast). Senza `userAge`
+nessuna cifra (il tile dice dove si scrive); con `T ≤ 0` «età obiettivo già raggiunta o passata», nessuna cifra. Anno
+di calendario = anno di oggi + `T`.
+
+**RS7 — Risparmio richiesto nel Base** (E1). `S_req` = il più piccolo multiplo di 100 € con
+`calculateFIREProjection(K, spesa, S, SWR, scenari, 50, ponte, honest, true).baseYearsToFIRE ≤ T` (gli stessi
+argomenti del Calcolatore, solo il risparmio cambia). Bisezione su `[0, S_max]`, `S_max = 20 × spesa del piano`;
+arrotondamento **per eccesso** e riverifica. Casi: `baseYearsToFIRE ≤ T` già con `S = 0` → `S_req = 0` («il capitale di
+oggi basta», Coast); oltre `S_max` → `null` («più di X € l'anno»). `S_req` può essere minore del risparmio di oggi
+(caso d'uso 7). Il risparmio dell'anno `t` è `S_req·(1+π)^{t−1}` (RP7), quindi `S_req` è in euro di oggi.
+
+**RS8 — Risparmio perché 9 percorsi su 10 arrivino** (E1). `solveSavingsForTail` **così com'è**, con
+`targetYears = T`, `percentile = 0,9`, `extraCap = resolveLeverCap(…)`, lo stesso `runFan` della Distribuzione (stesso
+seme, stessi obiettivi `fireTargets`). Risultato = risparmio di oggi + `extraAnnualSavings`; `0` extra = «9 percorsi su
+10 ci arrivano già con il risparmio di oggi»; `null` = «nemmeno con +X € l'anno». Non scende sotto il risparmio di oggi
+(la leva cerca solo extra positivi; dichiarato).
+
+**RS9 — Spesa del piano massima** (E1). `E_max` = il più grande multiplo di 100 € con `baseYearsToFIRE ≤ T` nel
+cammino di RS7 a risparmio di oggi, cambiando **solo** la spesa (il risparmio resta quello del Cashflow: la spesa del
+piano è quella da pensionati, RP6). Bisezione su `[0, E_alto]` con `E_alto` raddoppiato dalla spesa del piano finché
+non è raggiungibile; arrotondamento **per difetto** e riverifica. In euro di oggi.
+
+### 10.6 Cosa vede l'utente
+
+**Monte Carlo (S1)**
+- **Verdetto**: dopo la frase sulla probabilità, una frase sulla spesa sostenibile Base 90%, nella forma che serve:
+  - prelievo scritto ≤ `W_90`: «Per restare al 90% potresti prelevare fino a 43.300 € l'anno di oggi (3.608 € al
+    mese), il 4,3% del capitale.»
+  - prelievo scritto > `W_90`: «Per tornare al 90% il prelievo dovrebbe scendere a 43.300 € l'anno di oggi (il 4,3%
+    del capitale).»
+  - `W_90 = null`: «Con questa leva nessun prelievo arriva al 90%: in più di una simulazione su dieci la leva azzera il
+    capitale da sola.»
+  Nessun tono sulla frase (è una proposta, non un giudizio: il tono resta quello della probabilità).
+- **Tile «Spesa sostenibile»** (`ariaLabel` «Spesa sostenibile»): eroe = `W_90` Base l'anno, con il mensile e l'SWR
+  del piano accanto; sotto, una tabella 3 × 3 (righe 80 / 90 / 95%, colonne Orso / Base / Toro con lo swatch di
+  `SCENARIO_SLOT`), cifre in euro di oggi l'anno, «nessun prelievo» dove `null`. Lettura: «In 9 simulazioni su 10 il
+  capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nell'orso 33.700 €.» Footer: «Prelievo fisso
+  rivalutato con l'inflazione, sugli stessi percorsi della simulazione: capitale, pesi, pensioni e tasse del piano.»
+  «Come si calcola» (`TileMethodNote`): RS1–RS3 a parole, il seme fisso («la cifra è stabile, non esatta: con 10.000
+  simulazioni un altro seme la sposterebbe di circa l'1–2%»), l'arrotondamento per difetto a 100 €.
+- **Griglia**: desktop Probabilità 5 · Distribuzione 4 · Scenari 3, poi **Spesa sostenibile 12** (eroe a sinistra,
+  tabella a destra con una container query; a telefono una sotto l'altra), poi Parametri 12. Telefono e tablet:
+  Probabilità → Spesa sostenibile → Distribuzione → Scenari → Parametri. Lo skeleton aggiunge la cella.
+
+**Calcolatore (E1)**
+- **Parametri › Impostazioni**: il campo **«Età obiettivo»** (scrive `coastFireRetirementAge`, la stessa di Coast e
+  What If, con la stessa validazione di Coast: intero, maggiore dell'età attuale, al massimo 100), anteprima fino a
+  «Salva» come gli altri campi; help: «La stessa di Coast FIRE: a che età vuoi smettere».
+- **Parametri › SWR personale** (sotto il campo SWR): «SWR personale 4,3%: 9 simulazioni su 10 reggono 30 anni di
+  prelievi (portafoglio target, scenario Base, costi compresi).» e il bottone **«Usa 4,3%»**, che scrive il valore nel
+  campo SWR (anteprima). Assente se l'SWR digitato è già uguale. Calcolato solo quando i Parametri sono aperti (come il
+  Ventaglio solo quando è aperto), memoizzato su pesi, mercato, costo e orizzonte.
+- **Tile «Età obiettivo»** (`ariaLabel` «Età obiettivo»), desktop una terza riga a 12 colonne con le tre cifre
+  affiancate (RS7, RS8, RS9), ognuna con la sua didascalia («nel base», «9 percorsi su 10», «spesa massima del piano»)
+  e il riferimento di oggi («oggi 18.000 €», «oggi 32.000 €»). Lettura come nei casi d'uso 6–8; senza età: «Serve la
+  tua età: scrivila in Coast FIRE › Ipotesi.» (link `?tab=coast`); FIRE già raggiunto oggi: «Sei già FIRE: l'età
+  obiettivo non serve.» e nessuna cifra. La cifra RS8 costa ~14 esecuzioni del Ventaglio (< 100 ms, come la leva): si
+  calcola con il tile, memoizzata sugli input del Ventaglio; se misurata sopra 150 ms, si calcola su `useDeferredValue`
+  degli input (la misura va nella guida). Telefono: Traguardo → Scenari → Età obiettivo → Reddito → Base.
+  «Come si calcola»: RS6–RS9 a parole (cammino del Base, stesso numero FIRE, risparmio che cresce con l'inflazione,
+  arrotondamenti).
+
+### 10.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-S1 | **Presa** (04/10/2026) | **Spesa sostenibile in un tile nuovo del Monte Carlo**, sugli stessi percorsi dell'esecuzione, più una frase nel verdetto. | Una modalità «quanto posso spendere» del Monte Carlo: due domande nello stesso verdetto. Una scheda nuova: duplicherebbe tutto il piano. |
+| D-S2 | **Presa** (04/10/2026) | **Tre livelli fissi, 80 / 90 / 95%**, verdetto sul 90% (la soglia del tono positivo, `resolveSuccessTone`). | Un campo libero: un input in più e un verdetto che cambia con un numero scritto. Solo il 90%: nasconde quanto costa la prudenza. |
+| D-S3 | **Presa** (04/10/2026) | **Orso, Base e Toro** nel tile, Base nel verdetto. | Solo Base: «e se va male?» è la domanda di chi decide quanto spendere. |
+| D-S4 | **Presa** (04/10/2026) | **SWR personale proposto, non imposto**: accanto all'SWR del Calcolatore con «Usa»; SWR **puro** (senza pensioni e tasse), pesi della pagina, Base, orizzonte 90 − età obiettivo (RS5). | Solo nel Monte Carlo: il Calcolatore resterebbe sul 4% convenzionale. Sostituire il 4% in automatico: il numero FIRE cambierebbe da solo a ogni ritocco delle ipotesi, senza che l'utente l'abbia scelto. |
+| D-E1 | **Presa** (04/10/2026) | **Età obiettivo = `coastFireRetirementAge`**, una sola per la pagina, scrivibile anche dai Parametri del Calcolatore. | Un campo nuovo solo per il Calcolatore: due età obiettivo sulla stessa pagina. |
+| D-E2 | **Presa** (04/10/2026) | **Tre cifre**: risparmio richiesto nel Base (RS7), risparmio perché 9 percorsi su 10 arrivino (RS8), spesa del piano massima ai risparmi di oggi (RS9). | Solo il risparmio: non risponde a «quanto potrò spendere se smetto a 50 anni». |
+| D-E3 | **Presa** (04/10/2026) | **Un tile nuovo «Età obiettivo» nel Calcolatore.** | Dentro il Traguardo (già pieno, tre viste). In Coast: risponde a un'altra domanda, «posso smettere di versare?». |
+
+**Scelte di default prese dall'agente** (dichiarate nel piano, accettate con le decisioni il 04/10/2026):
+- **Estrarre una volta e rigiocare il prelievo** (RS1–RS2) invece di rieseguire il Monte Carlo per ogni passo della
+  bisezione: le nove cifre costano meno di un «Esegui» e coincidono per costruzione con l'esecuzione mostrata.
+- **Arrotondamenti**: spesa sostenibile e spesa massima per difetto a 100 €, risparmio richiesto per eccesso a 100 €,
+  SWR personale per difetto a 0,1 punti; ogni cifra riverificata dopo l'arrotondamento.
+- **La leva della Distribuzione resta sull'anno del base**: la versione «all'età scelta» è RS8 nel tile nuovo.
+- **Senza età** il tile «Età obiettivo» rimanda a Coast › Ipotesi, come le pensioni; l'SWR personale usa 60 anni di
+  età obiettivo di default (orizzonte 30).
+- **Rovina da leva oltre `1 − p`** = «nessun prelievo» in quella cella, spiegato nel verdetto.
+- Spec nel dossier `doc/fire-ipotesi/` (§ 10): entrambe leggono `resolveFireAssumptions`; il motore toccato è del
+  Monte Carlo, ma senza regole nuove di estrazione.
+
+### 10.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Default di Impostazioni › Simulazioni (dossier Monte Carlo § 2.3, inflazione 3,04%), costo 0, nessuna pensione, tassa,
+afflusso, salvo dove indicato. «Volatilità 0» = tutte le classi con volatilità 0 (R1 restituisce il CAGR esatto).
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| S1 | RS3, volatilità 0, Azioni 100% (g = 10,02%), K = 1.000.000 €, N = 30 | `W*` = K / Σ_{s=1}^{30} (1,0304/1,1002)^s = 78.765,23 €; `W_p` = 78.700 € per ogni `p`; `success(78.700)` = 100%, `success(78.800)` = 0% |
+| S2 | S1 con costo 0,40% (RC4) | `W*` = 75.366,34 €; `W_p` = 75.300 € |
+| S3 | S1 con N = 40 | `W*` = 73.049,34 €; `W_p` = 73.000 € |
+| S4 | RS3 seminato (10.000 percorsi, `MONTE_CARLO_SEED`), K = 1.000.000 €, N = 30; Azioni 60% + Obbligazioni 40% | Base 80 / 90 / 95%: 49.800 / 43.300 / 38.500 €; Orso 38.500 / 33.700 / 30.100 €; Toro 66.100 / 57.500 / 51.100 € — ogni cifra entro ± 2% (riferimento a 400.000 percorsi; a 10.000 l'errore di campionamento misurato è ± 800 € sul Base 90%) |
+| S5 | Coerenza: per S4 Base 90%, `runMonteCarloSimulation` con `annualWithdrawal = W_90` e con `W_90 + 100`, stesso seme | successo ≥ 90% e < 90% rispettivamente; e `success(W)` rigiocato = `successRate` dell'esecuzione per ogni `W` provato, esattamente |
+| S6 | Forma chiusa: matrice `f` scritta a mano (10 percorsi × 5 anni, nessun `f ≤ 0`), K = 1.000 € | `success(W)` = quota dei percorsi con `W < W_i*` di RS3, per una griglia di `W` |
+| S7 | Pensioni, volatilità 0: Azioni g = 5%, π = 2%, K = 500.000 €, N = 30, pensione netta 10.000 € l'anno di oggi da `fromYear` 11 | `W_p` = 30.900 € (esatto 30.984,03); senza pensione 25.300 € (esatto 25.316,04) |
+| S8 | Tassa, volatilità 0: come S7 senza pensione, base fiscale 250.000 € (plusvalenza 50%), τ = 26% | `W_p` = 20.500 € (esatto 20.569,57) |
+| S9 | Leva: matrice `f` con 2 percorsi su 10 che hanno un `f ≤ 0` | `success(0)` = 80%: `W_90` = `W_95` = null, `W_80` calcolato sugli 8 percorsi |
+| S10 | Regressione: i test esistenti di `runMonteCarloSimulation` (anche con leva, tassa, pensioni, afflussi) | verdi senza modifiche; un'esecuzione seminata dà gli stessi risultati float per float prima e dopo il refactoring (RS2) |
+| S11 | RS5, volatilità 0, Azioni 60% + Obbligazioni 40% (g = 7,824%, A2), N = 30 | SWR esatto 6,2427%, proposto «6,2%» |
+| S12 | RS5 seminato, 60/40, Base, N = 30 | «4,3%» (esatto ≈ 4,33%); con K = 500.000 € o 1.000.000 € il tasso non cambia |
+| E1 | RS7 con scenari scritti a mano: g = 7%, π = 2%, K = 100.000 €, spesa 30.000 €, SWR 4%, nessun ponte, pensione o tassa | T = 15: `S_req` = 26.000 € (esatto 25.952,35; con 25.900 € il FIRE è a 16 anni); T = 10: 48.000 €; T = 20: 15.300 € |
+| E2 | RS9, come E1, T = 15, risparmio 24.000 € | `E_max` = 28.300 € (esatto 28.360,02); con 28.400 € il FIRE è a 16 anni |
+| E3 | RS7, come E1, T = 15, K = 370.000 € | `S_req` = 0 («il capitale di oggi basta»): la soglia esatta è K = 30.000 · (1,02/1,07)^15 / 0,04 = 365.853,47 € |
+| E4 | Coerenza RS7/RS8: volatilità 0, nessuna pensione e tassa, risparmio di oggi multiplo di 100 € e sotto `S_req` | risparmio di oggi + extra di RS8 = `S_req` di RS7 (tutti i percorsi coincidono con il Base, A17) |
+| E5 | RS6: senza `userAge`; età obiettivo ≤ età | nessuna cifra; il tile dice rispettivamente dove scrivere l'età e «età obiettivo già raggiunta» |
+| E6 | Età obiettivo scritta nei Parametri del Calcolatore e salvata | Coast › Ipotesi e What If leggono la stessa età (un solo campo `coastFireRetirementAge`) |
+
+I valori S1–S4, S7, S8, S11, S12 ed E1–E3 sono calcolati con
+`/mnt/project-files/fire-simulazioni/p1p2-controllo.py` (forma chiusa e simulazione numpy con la stessa R1 e la stessa
+matrice); S4 e S12 sono statistici: il test li verifica con il seme fisso entro la tolleranza indicata.
+
+### 10.9 Task S1 — Spesa sostenibile nel Monte Carlo (thread «impl», Sonnet 5.5)
+
+Branch da `main`, PR in bozza verso `Ciocc128/net-worth-tracker:main`.
+
+**Dettagli tecnici**
+1. `lib/services/monteCarloService.ts`:
+   - `drawPathFactors(params, plan, weights, random): Float64Array` (RS1, `N` fattori di un percorso, `f ≤ 0`
+     compreso) e `runWithdrawalLedger(factors, params, annualWithdrawal, recordPath)` (RS2) estratte da
+     `runSingleSimulation`, che diventa «estrai i fattori del percorso, poi il registro». L'ordine delle uniformi non
+     cambia (S10).
+   - `runMonteCarloSimulation(params, options?: { keepFactors?: boolean })`: con `keepFactors` il risultato porta
+     `factors: Float64Array` (`n × N`, riga per percorso). Assente = comportamento di oggi (upstream e test).
+   - `countSuccesses(factors, n, params, annualWithdrawal): number` — RS2 senza registrare i percorsi.
+2. `lib/utils/sustainableWithdrawal.ts` (nuovo, puro): `solveSustainableWithdrawal({ success: (w) => number,
+   capital, probability, step = 100 }): { withdrawal: number | null; successRate; rate }` (RS3) e
+   `SUSTAINABLE_PROBABILITIES = [0.8, 0.9, 0.95]`; `summarizeSustainableSpending(results, params)` → le nove cifre
+   (RS4).
+3. `MonteCarloTab.tsx`: le tre corse con `keepFactors: true`; le nove cifre in un `useMemo` su `lastRun` (mai sugli
+   input digitati: Stale-Run). La corsa senza leva non le chiede.
+4. `lib/utils/monteCarloNarrative.ts`: la frase del verdetto (tre forme, § 10.6), `describeSpesaSostenibile`,
+   footer e metodo. `components/monte-carlo/tiles/SpesaSostenibileTile.tsx` (nuovo); griglia e skeleton.
+5. Prestazioni: misura e scrivi in `doc/guide/fire-monte-carlo.md` il tempo delle nove bisezioni su 10.000 percorsi ×
+   30 e × 50 anni (stima: decine di ms) e il costo di `keepFactors` (memoria: `n × N × 8` byte per scenario).
+
+**Test** — `__tests__/sustainableWithdrawal.test.ts`: S1–S3, S6, S7, S8, S9 (fattori iniettati o volatilità 0); S4 e S5
+in `monteCarloService.test.ts` con il seme fisso; S10 (esecuzione seminata identica prima e dopo, con leva, tassa,
+pensioni e afflussi); `monteCarloNarrative.test.ts`: le tre forme della frase, il «nessun prelievo», l'elisione.
+
+**Documentazione** (stessa PR): `doc/guide/fire-monte-carlo.md` (il tile, RS1–RS4, «i fattori si estraggono una volta»,
+blind spots: prelievo fisso rivalutato, cifra stabile non esatta, ultima esecuzione); `doc/guide/fire.md` (il motore
+con `keepFactors`); `CLAUDE.md` («Latest», riga FIRE); `doc/guide/fork-scelte-ui.md`; `Draft Release Temp.md`.
+
+**Criterio di fine**: S1–S10 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+`TZ=Europe/Rome npx vitest run` verdi; tempi misurati nella guida. Collaudo su anteprima Vercel (WORKFLOW.md § 2):
+il tile, la frase del verdetto nelle due forme (prelievo sotto e sopra `W_90`), le cifre che restano dell'ultima
+esecuzione finché non si preme «Esegui».
+
+### 10.10 Task E1 — Età obiettivo e SWR personale nel Calcolatore (thread «impl», Sonnet 5.5) — dopo S1
+
+**Dettagli tecnici**
+1. `lib/utils/fireTargetAge.ts` (nuovo, puro): `yearsToTargetAge(targetAge, userAge)` (RS6),
+   `solveSavingsForTargetYear(walk, targetYears, cap)` (RS7) e `solveMaxPlanExpenses(walk, targetYears)` (RS9), dove
+   `walk(savings, expenses)` è una chiusura su `calculateFIREProjection` con gli stessi argomenti del Calcolatore;
+   `summarizeTargetAge(...)` per il tile.
+2. RS8: `solveSavingsForTail` invariata, chiamata con `targetYears = T` e il `runFan` esistente.
+3. RS5: `solvePersonalSwr({ weights, market, correlations, leverageSpread, costPct, horizonYears })` in
+   `lib/utils/sustainableWithdrawal.ts`, su `runMonteCarloSimulation(..., { keepFactors: true })` con `K = 1`,
+   1 € di prelievo come unità (RS3 con `step = 0,001`), arrotondata per difetto a 0,1 punti.
+4. `FireParametri.tsx`: campo «Età obiettivo» (nella forma, in `hasUnsavedChanges`, salvata con gli altri come
+   `coastFireRetirementAge`; validazione condivisa con `useCoastFireSettingsDraft`, da estrarre se serve) e la riga
+   dell'SWR personale con «Usa».
+5. `components/fire-simulations/tiles/EtaObiettivoTile.tsx` (nuovo), cella `ETA_CELL` nella griglia e nello skeleton;
+   parole in `lib/utils/fireNarrative.ts` (`describeTargetAge*`).
+
+**Test** — `__tests__/fireTargetAge.test.ts`: E1–E3, E5; E4 con il Ventaglio a volatilità 0; S11, S12 in
+`sustainableWithdrawal.test.ts`; `fireNarrative.test.ts`: le letture dei casi d'uso 6–8 e dei due stati senza cifre;
+E6 in `settingsRoundTrip.test.ts` (o nel test della forma).
+
+**Documentazione** (stessa PR): `doc/guide/fire.md` § Calcolatore (il tile, RS5–RS9, l'età obiettivo è UNA per la
+pagina, blind spots: cammino deterministico, RS8 non scende sotto il risparmio di oggi, SWR personale puro e solo
+proposto); `doc/guide/fire-coast.md` e `fire-what-if.md` (l'età si scrive anche dal Calcolatore); `CLAUDE.md`,
+`doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`.
+
+**Criterio di fine**: E1–E6, S11, S12 verdi; tsc, eslint e vitest come sopra; tempo di RS8 e RS5 misurato nella guida;
+le spec Playwright del Calcolatore (`e2e/fire*.spec.ts`) si eseguono in un thread sul computer del proprietario se il
+tile nuovo cambia una misura (la guardia a 390 px). Collaudo su anteprima Vercel: il tile nei tre casi (serve
+risparmio, già in rotta, Coast), «Usa» che cambia l'SWR in anteprima, l'età salvata letta da Coast.
+
+### 10.11 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Il refactoring di `runSingleSimulation` cambia i numeri di oggi. | S10: esecuzione seminata identica float per float prima e dopo; i test esistenti senza modifiche. |
+| Merge con upstream su `monteCarloService.ts`, `FireParametri.tsx`, `FireCalculatorTab.tsx`. | Opzione `keepFactors` con default neutro; logica nuova in moduli nuovi (`sustainableWithdrawal.ts`, `fireTargetAge.ts`); voce in `fork-scelte-ui.md`. |
+| La cifra della spesa sostenibile sembra esatta. | «Come si calcola» dichiara il seme e l'errore di campionamento (S4); arrotondamento per difetto. |
+| L'SWR personale cambia il numero FIRE in modo inatteso. | Solo proposto (D-S4): cambia solo con «Usa» e «Salva». |
+| Memoria di `keepFactors` (10.000 × 50 × 3 × 8 byte = 12 MB). | Misurata nella guida; i fattori vivono solo nell'ultima esecuzione. |
