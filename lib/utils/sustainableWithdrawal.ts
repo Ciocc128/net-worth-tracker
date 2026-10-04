@@ -38,35 +38,46 @@ export interface SolveSustainableWithdrawalInput {
   step?: number;
 }
 
-/** RS3: bisection on `[0, hi]`, rounded down to `step`, then verified (and lowered) so the printed figure meets the threshold. */
+/**
+ * RS3: bisection over the multiples of `step` (the figure is rounded down to one anyway, so there is
+ * nothing finer to look for), then a check that the printed figure meets the threshold, lowering it
+ * if the success curve was not monotone there. Every `success(w)` is evaluated once.
+ */
 export function solveSustainableWithdrawal({
-  success,
+  success: rawSuccess,
   capital,
   probability,
   step = DEFAULT_STEP,
 }: SolveSustainableWithdrawalInput): SustainableWithdrawal {
   const none: SustainableWithdrawal = { withdrawal: null, successRate: 0, rate: null };
+  const memo = new Map<number, number>();
+  const success = (steps: number): number => {
+    let value = memo.get(steps);
+    if (value === undefined) {
+      value = rawSuccess(steps * step);
+      memo.set(steps, value);
+    }
+    return value;
+  };
   if (!(capital > 0) || success(0) < probability) return none;
 
   // Bracket: double from the capital until the threshold is missed.
-  let high = capital;
+  let high = Math.max(1, Math.ceil(capital / step));
   let doublings = 0;
   while (success(high) >= probability) {
     high *= 2;
     if (++doublings > MAX_DOUBLINGS) return none;
   }
   let low = 0;
-  const tolerance = step / 100;
-  while (high - low > tolerance) {
-    const middle = (low + high) / 2;
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
     if (success(middle) >= probability) low = middle;
     else high = middle;
   }
+  while (low > 0 && success(low) < probability) low--;
 
-  let steps = Math.floor(low / step + 1e-9);
-  while (steps > 0 && success(steps * step) < probability) steps--;
-  const withdrawal = steps * step;
-  return { withdrawal, successRate: success(withdrawal), rate: withdrawal / capital };
+  const withdrawal = low * step;
+  return { withdrawal, successRate: success(low), rate: withdrawal / capital };
 }
 
 /** What `summarizeSustainableSpending` reads of one scenario's last run. */

@@ -50,7 +50,7 @@ import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from 
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
-import { summarizeSustainableSpending, SUSTAINABLE_VERDICT_PROBABILITY } from '@/lib/utils/sustainableWithdrawal';
+import { summarizeSustainableSpending, SUSTAINABLE_VERDICT_PROBABILITY, type SustainableSpendingSummary } from '@/lib/utils/sustainableWithdrawal';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
@@ -131,6 +131,8 @@ const DEFAULT_WITHDRAWAL = 30000;
 interface MonteCarloRunState {
   results: ScenarioResults;
   inputs: MonteCarloRunInputs;
+  /** S1: the withdrawal replayed on the run's own factors, inside the run (the running state covers it). */
+  sustainable: SustainableSpendingSummary;
 }
 
 function parseIntField(value: string, fallback: number): number {
@@ -349,7 +351,15 @@ export function MonteCarloTab() {
         if (runLeverage > 1) {
           results.unleveragedBase = run('base', { ...inputs.params, weights: monteCarloClassRecord((cls) => inputs.params.weights[cls] / runLeverage), leverageSpread: 0 }, false);
         }
-        setLastRun({ results, inputs });
+        // S1: the nine sustainable figures replay the withdrawal on the three runs' factors; the factors
+        // (n × N × 8 bytes a scenario) are dropped afterwards, the results keep what the tiles read.
+        const sustainable = summarizeSustainableSpending({
+          bear: { factors: results.bear.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bear) },
+          base: { factors: results.base.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.base) },
+          bull: { factors: results.bull.factors!, params: buildScenarioParams(inputs.params, inputs.scenarios.bull) },
+        });
+        for (const key of ['bear', 'base', 'bull'] as const) results[key] = { ...results[key], factors: undefined };
+        setLastRun({ results, inputs, sustainable });
       } catch (error) {
         console.error('Error running the Monte Carlo scenarios:', error);
         toast.error('Errore durante la simulazione');
@@ -383,18 +393,8 @@ export function MonteCarloTab() {
   const runPlan = useMemo(() => (runParams && lastRun ? summarizeMonteCarloPlan(runParams, lastRun.inputs.inflows, pensionLockedValue, ctx) : null), [runParams, lastRun, pensionLockedValue, ctx]);
   const stale = !!lastRun && !!currentInputs && haveRunInputsChanged(lastRun.inputs, currentInputs);
 
-  // S1: the nine figures replay the withdrawal on the LAST run's factors — never on the typed inputs (Stale-Run).
-  const sustainable = useMemo(() => {
-    if (!lastRun || !runParams) return null;
-    const factorsOf = (key: 'bear' | 'base' | 'bull') => {
-      const factors = lastRun.results[key].factors;
-      return factors ? { factors, params: buildScenarioParams(runParams, lastRun.inputs.scenarios[key]) } : null;
-    };
-    const bear = factorsOf('bear');
-    const base = factorsOf('base');
-    const bull = factorsOf('bull');
-    return bear && base && bull ? summarizeSustainableSpending({ bear, base, bull }) : null;
-  }, [lastRun, runParams]);
+  // S1: the nine figures were computed with the run (on its own factors), so they are the LAST run's — never the typed inputs' (Stale-Run).
+  const sustainable = lastRun?.sustainable ?? null;
   const sustainableVerdictInput = useMemo(() => {
     const base90 = sustainable?.rows.find((row) => row.probability === SUSTAINABLE_VERDICT_PROBABILITY)?.base;
     return sustainable && base90 && runParams ? { base90, capital: sustainable.capital, typedWithdrawal: runParams.annualWithdrawal } : null;

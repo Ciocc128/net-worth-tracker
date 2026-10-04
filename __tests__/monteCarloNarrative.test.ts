@@ -43,11 +43,15 @@ import {
   describeProbabilitaFooter,
   describeScenari,
   describeScenarioNote,
+  describeSpesaSostenibile,
+  describeSpesaCell,
+  describeSpesaHeroAside,
   describeTraiettorie,
   PARAMETRI_ASIDE,
   SCENARI_ASIDE,
   SCENARI_FOOTER,
 } from '@/lib/utils/monteCarloNarrative';
+import type { SustainableSpendingSummary, SustainableWithdrawal } from '@/lib/utils/sustainableWithdrawal';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 import { INACTIVE_LOCK, type FireLock } from '@/lib/utils/fireSummary';
 import type { MonteCarloPlan, MonteCarloRun, ScenarioComparison, ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
@@ -373,5 +377,67 @@ describe('leverage (T3)', () => {
     const market = { origin: 'default' as const, editedClasses: [], leverageSpread: 2 };
     expect(plain(describeMarketDeclaration(market, 1.5))).toContain('Il debito costa la liquidità dell’anno più 2%.');
     expect(plain(describeMarketDeclaration(market, 1))).not.toContain('debito');
+  });
+});
+
+// ─── S1: spesa sostenibile ────────────────────────────────────────────────────
+
+const cell = (withdrawal: number | null, capital = 1_000_000): SustainableWithdrawal =>
+  withdrawal === null ? { withdrawal: null, successRate: 0, rate: null } : { withdrawal, successRate: 0.9, rate: withdrawal / capital };
+
+function makeSummary(base90: number | null, bear90: number | null = 33_700): SustainableSpendingSummary {
+  return {
+    capital: 1_000_000,
+    rows: [
+      { probability: 0.8, bear: cell(38_500), base: cell(49_800), bull: cell(66_100) },
+      { probability: 0.9, bear: cell(bear90), base: cell(base90), bull: cell(57_500) },
+      { probability: 0.95, bear: cell(30_100), base: cell(38_500), bull: cell(51_100) },
+    ],
+  };
+}
+
+describe('the verdict’s sustainable-spending sentence', () => {
+  const verdictWith = (base90: SustainableWithdrawal, typedWithdrawal: number) =>
+    plain(buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK, sustainable: { base90, capital: 1_000_000, typedWithdrawal } }).sentence);
+
+  it('a typed withdrawal at or under W90: the plan could withdraw up to it', () => {
+    expect(verdictWith(cell(43_300), 30_000)).toContain("Per restare al 90% potresti prelevare fino a 43.300 € l'anno di oggi (3608 € al mese), il 4,3% del capitale.");
+    expect(verdictWith(cell(43_300), 43_300)).toContain('Per restare al 90%');
+  });
+  it('a typed withdrawal over W90: it should come down to it', () => {
+    expect(verdictWith(cell(43_300), 50_000)).toContain("Per tornare al 90% il prelievo dovrebbe scendere a 43.300 € l'anno di oggi (il 4,3% del capitale).");
+  });
+  it('null: no withdrawal reaches 90% — the leverage ruins the capital alone', () => {
+    expect(verdictWith(cell(null), 30_000)).toContain('Con questa leva nessun prelievo arriva al 90%: in più di una simulazione su dieci la leva azzera il capitale da sola.');
+  });
+  it('a zero figure says so instead of «fino a 0 €»', () => {
+    const text = verdictWith({ withdrawal: 0, successRate: 0.9, rate: 0 }, 30_000);
+    expect(text).toContain('Nemmeno un prelievo di 100 €');
+    expect(text).not.toContain('fino a 0');
+  });
+  it('without the figures the sentence is absent and the tone is the probability’s', () => {
+    const verdict = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK });
+    expect(plain(verdict.sentence)).not.toContain('al 90%');
+    const withFigures = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK, sustainable: { base90: cell(43_300), capital: 1_000_000, typedWithdrawal: 30_000 } });
+    expect(withFigures.tone).toBe(verdict.tone);
+  });
+});
+
+describe('the Spesa sostenibile tile’s words', () => {
+  it('the reading: nine in ten hold the horizon at the Base figure, the bear beside it', () => {
+    expect(plain(describeSpesaSostenibile(makeSummary(43_300), 30))).toBe("In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nell'orso 33.700 €.");
+    expect(plain(describeSpesaSostenibile(makeSummary(43_300), 1))).toContain('regge 1 anno ');
+  });
+  it('a bear cell with no withdrawal says it', () => {
+    expect(plain(describeSpesaSostenibile(makeSummary(43_300, null), 30))).toContain("nell'orso nessun prelievo basta");
+  });
+  it('a Base cell with no withdrawal reads the leverage', () => {
+    expect(plain(describeSpesaSostenibile(makeSummary(null), 30))).toContain('la leva azzera il capitale da sola');
+  });
+  it('the cells and the hero aside', () => {
+    expect(describeSpesaCell(cell(43_300)).replace(/\u00a0/g, ' ')).toBe('43.300 €');
+    expect(describeSpesaCell(cell(null))).toBe('nessun prelievo');
+    expect(describeSpesaHeroAside(cell(43_300))?.replace(/\u00a0/g, ' ')).toBe('3608 € al mese · 4,3% del capitale');
+    expect(describeSpesaHeroAside(cell(null))).toBeNull();
   });
 });

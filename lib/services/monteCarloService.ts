@@ -65,6 +65,38 @@ function drawPathFactors(
   }
 }
 
+/** What the ledger reads of the plan for each year, computed once per `params` object: the replay runs it thousands of times. */
+interface LedgerSchedule {
+  /** `(1 + π)^year` for an inflation-adjusted withdrawal, 1 for a fixed one; index = year. */
+  withdrawalIndex: Float64Array;
+  /** The net pensions active in the year, indexed as `activeAnnualInflows` does; index = year. */
+  pensions: Float64Array;
+  /** The capital inflows of each year in their given order (separate additions keep the floats identical); index = year. */
+  inflowsByYear: number[][];
+}
+
+const scheduleCache = new WeakMap<MonteCarloParams, LedgerSchedule>();
+
+function ledgerSchedule(params: MonteCarloParams): LedgerSchedule {
+  const cached = scheduleCache.get(params);
+  if (cached) return cached;
+  const years = params.retirementYears;
+  const adjusts = params.withdrawalAdjustment === 'inflation';
+  const withdrawalIndex = new Float64Array(years + 1).fill(1);
+  const pensions = new Float64Array(years + 1);
+  const inflowsByYear: number[][] = Array.from({ length: years + 1 }, () => []);
+  for (let year = 1; year <= years; year++) {
+    if (adjusts) withdrawalIndex[year] = Math.pow(1 + params.market.inflationRate / 100, year);
+    pensions[year] = activeAnnualInflows(params.annualInflows, year, adjusts ? params.market.inflationRate : 0);
+  }
+  for (const inflow of params.capitalInflows ?? []) {
+    if (inflow.year >= 1 && inflow.year <= years) inflowsByYear[inflow.year].push(inflow.amount);
+  }
+  const schedule = { withdrawalIndex, pensions, inflowsByYear };
+  scheduleCache.set(params, schedule);
+  return schedule;
+}
+
 interface LedgerOutcome {
   success: boolean;
   failureYear?: number;
@@ -96,13 +128,14 @@ function runWithdrawalLedger(
   let basis = (tax?.basisToday ?? 0) + inflows.reduce((sum, inflow) => (inflow.year <= 0 ? sum + inflow.amount : sum), 0);
   path?.push({ year: 0, value: portfolio });
 
+  const schedule = ledgerSchedule(params);
+  const taxRate = tax?.rate ?? 0;
+
   for (let year = 1; year <= params.retirementYears; year++) {
     // Add the inflows landing this year BEFORE applying the market return
-    for (const inflow of inflows) {
-      if (inflow.year === year) {
-        portfolio += inflow.amount;
-        basis += inflow.amount;
-      }
+    for (const amount of schedule.inflowsByYear[year]) {
+      portfolio += amount;
+      basis += amount;
     }
 
     // Apply return to portfolio
@@ -113,18 +146,10 @@ function runWithdrawalLedger(
 
     // Calculate withdrawal (adjusted for inflation if needed), net of the pensions active this
     // year (indexed the same way), then grossed up for the tax on the sale that funds it.
-    let withdrawal = annualWithdrawal;
-    if (params.withdrawalAdjustment === 'inflation') {
-      withdrawal *= Math.pow(1 + params.market.inflationRate / 100, year);
-    }
-    const pensionsThisYear = activeAnnualInflows(
-      params.annualInflows,
-      year,
-      params.withdrawalAdjustment === 'inflation' ? params.market.inflationRate : 0
-    );
-    const netWithdrawal = Math.max(0, withdrawal - pensionsThisYear);
+    let withdrawal = annualWithdrawal * schedule.withdrawalIndex[year];
+    const netWithdrawal = Math.max(0, withdrawal - schedule.pensions[year]);
     if (tax) {
-      const sale = withdrawGross(portfolio, basis, netWithdrawal, tax.rate);
+      const sale = withdrawGross(portfolio, basis, netWithdrawal, taxRate);
       withdrawal = sale.gross;
       basis = sale.basisAfter;
     } else {
