@@ -34,6 +34,13 @@
   disclosure by `/^Dettaglio/`, the split by the list «Ripartizione del versamento». The base account has no goals: a spec plants its own fixture
   (`goalBasedInvesting/{uid}` + the two settings flags with `merge: true`) and removes it.
 
+## O1 — obiettivi dentro il FIRE (2026-10-04, doc/fire-ipotesi/README.md § 13, RO1–RO2, D-G1–D-G4)
+
+- **`countsInFire`** (`InvestmentGoal`, «Alla scadenza lo spendo» in `GoalFormDialog`): spento di default, acceso dai modelli «Acquisto Casa» e «Auto». Lives in `goalBasedInvesting/{uid}`, NOT in `fireDatedFlows`: a goal is never a saved flow, so it cannot orphan and does not count in the 20-flow cap. `serializeGoalForFirestore` writes `false` too (a value, not an absence).
+- **RO1** `resolveGoalFlows` (`lib/utils/datedFlows.ts`): a goal that counts becomes a fixed `lumpOut` at year `year(deadline) − currentYear`, source `goal`, amount = target minus what sits OUTSIDE the capital today (`assetInsideShare` over `FireAssumptions.legShare`, the K1 shares; value of today, no growth). End of the deadline's year (RF1). Missing amount/deadline, a past deadline or «tutto fuori dal capitale FIRE» → excluded with the reason. `useFireDatedFlows` merges the goal flows after the saved ones for every tab (it now takes `{ lockedAssetIds, cashToInvestPct }` so the capital matches the tab's) and exposes `goalFlows` for the read-only rows of Calcolatore › Parametri › «Flussi nel tempo» (`describeGoalFlowRow`).
+- **RO2** `goalFireEffect` / `goalFireNarrative` (`lib/utils/goalFire.ts`): the Base FIRE year of the What If's baseline (`useWhatIfBaseline`, extracted from the What If tab, same plan) with and without the goal's flow (`baseYearsToFIREWithFlows`). `Traiettoria` shows the «Effetto sul FIRE» line for the selected goal and «Conta nel FIRE» (one-field write) when it does not count yet. The verdict, the trajectory and the Assistant do NOT read the switch.
+- **Blind spots**: the double count of a counted goal and a hand-written flow for the same spend is visible in the Parametri row, not prevented; the goal's monthly contribution is already inside the Cashflow saving and is neither added nor subtracted; the line is absent while the plan loads or fails, and says «servono spesa e SWR nel Calcolatore» without a plan.
+
 ## Per-page blind spots
 
 - **FIRE › Obiettivi, return**: the allocation of a goal has no gold level, so a commodity share is simulated as Materie prime; a goal's return is the Base scenario only (no Orso/Toro view); the Assistant's figure ignores the pension lock.

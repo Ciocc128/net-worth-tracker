@@ -30,6 +30,8 @@ interface TraiettoriaTileProps {
   notes: string | null;
   chart: ReactNode | null;
   footer: Narrative;
+  /** § 13.7: «Effetto sul FIRE», one generated line, with «Conta nel FIRE» when the goal is not counted yet. Null = nothing to say. */
+  fireEffect?: { text: string; action?: { label: string; onClick: () => void; disabled: boolean } } | null;
   onEdit: () => void;
   onDelete: () => void;
   isDemo: boolean;
@@ -82,7 +84,7 @@ function DeleteButton({ onDelete, disabled }: { onDelete: () => void; disabled: 
   );
 }
 
-export function TraiettoriaTile({ reading, name, hero, chips, notes, chart, footer, onEdit, onDelete, isDemo, className }: TraiettoriaTileProps) {
+export function TraiettoriaTile({ reading, name, hero, chips, notes, chart, footer, fireEffect, onEdit, onDelete, isDemo, className }: TraiettoriaTileProps) {
   return (
     <Tile
       eyebrow="Traiettoria"
@@ -120,6 +122,19 @@ export function TraiettoriaTile({ reading, name, hero, chips, notes, chart, foot
           <Chip key={chip.caption} chip={chip} />
         ))}
       </div>
+
+      {fireEffect && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="min-w-0 flex-1 basis-[240px] text-[13px] leading-[1.45] text-muted-foreground" data-testid="goal-fire-effect">
+            <span className="font-medium text-foreground">Effetto sul FIRE</span> · {fireEffect.text}
+          </p>
+          {fireEffect.action && (
+            <button type="button" onClick={fireEffect.action.onClick} disabled={fireEffect.action.disabled} className={cn(ACTION_CLASS, 'border desktop:border desktop:px-2.5')}>
+              {fireEffect.action.label}
+            </button>
+          )}
+        </div>
+      )}
 
       {chart && (
         // The chart stretches with the tile's free height: the SVG's 100% height resolves against

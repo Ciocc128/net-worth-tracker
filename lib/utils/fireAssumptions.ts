@@ -71,6 +71,8 @@ export interface FireAssumptions {
   market: ResolvedMonteCarloMarket;
   /** RP5, present when `resolveFireAssumptions` was given the value function. */
   capital?: FireCapital;
+  /** RK6: the share (0–1) of an instrument's leg inside `capital`, present with it; the goals' flows read what lies outside (doc/fire-ipotesi/README.md § 13, RO1). */
+  legShare?: FireCapitalDetail['legShare'];
   /** RP6, present when the Cashflow was read or the plan's expenses are typed. */
   expenses?: FireExpenses;
   /** RC1–RC2: the cost per class, present when `resolveFireAssumptions` was given the value function (like `capital`). */
@@ -250,5 +252,5 @@ export function resolveFireAssumptions(input: ResolveFireAssumptionsInput): Fire
     ? resolveClassCosts(input.assets!, input.settings, { lockedAssetIds: input.lockedAssetIds, goldSubCategory: market.goldSubCategory, legShare: detail.legShare })
     : undefined;
   const cost = costs ? portfolioCost(weights, costs) : undefined;
-  return { scenarios: buildPortfolioScenarios(weights, market, cost?.total ?? 0), weights, weightsOrigin: origin, weightSeeds: seeds, leverage, market, capital, expenses, costs, cost };
+  return { scenarios: buildPortfolioScenarios(weights, market, cost?.total ?? 0), weights, weightsOrigin: origin, weightSeeds: seeds, leverage, market, capital, legShare: detail?.legShare, expenses, costs, cost };
 }

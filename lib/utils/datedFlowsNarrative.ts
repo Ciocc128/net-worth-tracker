@@ -67,6 +67,16 @@ export function describePensionFlowRow(label: string, startYear: number | null):
   return `${label} · ${startYear === null ? 'data da stimare' : `dal ${startYear}`} · si modifica in Coast FIRE › Ipotesi`;
 }
 
+/**
+ * «Acquisto Casa · obiettivo · 50.000 € · 2029 · si modifica in Obiettivi»; a goal that counts and cannot be placed says why
+ * («Acquisto Casa · obiettivo · escluso: scadenza passata · si modifica in Obiettivi»). Read-only, like the pensions (§ 13.7).
+ */
+export function describeGoalFlowRow(label: string, outcome: { amount: number; year: number } | { reason: string }): string {
+  const tail = 'si modifica in Obiettivi';
+  if ('reason' in outcome) return `${label} · obiettivo · escluso: ${outcome.reason} · ${tail}`;
+  return `${label} · obiettivo · ${eur(outcome.amount)} · ${outcome.year} · ${tail}`;
+}
+
 export interface FlowsEffect {
   /** Flows the engines read. */
   count: number;

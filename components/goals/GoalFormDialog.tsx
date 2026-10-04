@@ -18,6 +18,7 @@ import { ResponsiveModal } from '@/components/ui/responsive-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -66,6 +67,7 @@ export function GoalFormDialog({
   const [priority, setPriority] = useState<GoalPriority>('media');
   const [color, setColor] = useState(GOAL_COLORS[0]);
   const [notes, setNotes] = useState('');
+  const [countsInFire, setCountsInFire] = useState(false);
   const [allocation, setAllocation] = useState<Partial<Record<AssetClass, number>>>({});
   const [saving, setSaving] = useState(false);
 
@@ -87,6 +89,7 @@ export function GoalFormDialog({
         setPriority(goal.priority);
         setColor(goal.color);
         setNotes(goal.notes || '');
+        setCountsInFire(goal.countsInFire === true);
         setAllocation(goal.recommendedAllocation || {});
       } else {
         setName('');
@@ -96,6 +99,7 @@ export function GoalFormDialog({
         setPriority('media');
         setColor(GOAL_COLORS[0]);
         setNotes('');
+        setCountsInFire(false);
         setAllocation({});
       }
     }
@@ -108,6 +112,7 @@ export function GoalFormDialog({
     setPriority(template.priority);
     setColor(template.color);
     setAllocation(template.recommendedAllocation || {});
+    setCountsInFire(template.countsInFire === true);
   };
 
   const handleAllocationChange = (cls: AssetClass, value: string) => {
@@ -153,6 +158,7 @@ export function GoalFormDialog({
         recommendedAllocation:
           Object.keys(allocation).length > 0 ? allocation : undefined,
         notes: notes.trim() || undefined,
+        countsInFire,
         createdAt: goal?.createdAt ?? now,
         updatedAt: now,
       };
@@ -274,6 +280,18 @@ export function GoalFormDialog({
               Quanto pensi di versare ogni mese: serve a stimare quando raggiungerai
               l&apos;obiettivo.
             </p>
+          </div>
+
+          {/* Counts in the FIRE plan (RO1) */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="goalCountsInFire">Alla scadenza lo spendo</Label>
+              <p className="text-xs text-muted-foreground">
+                Conta nel piano FIRE come uscita nell&apos;anno della scadenza
+                {parseFloat(targetAmount) > 0 && targetDate ? '.' : ': serve un importo e una scadenza.'}
+              </p>
+            </div>
+            <Switch id="goalCountsInFire" checked={countsInFire} onCheckedChange={setCountsInFire} />
           </div>
 
           {/* Priority */}

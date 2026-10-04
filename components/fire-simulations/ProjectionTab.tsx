@@ -180,7 +180,7 @@ export function ProjectionTab() {
   const capital = assumptions?.capital ?? null;
   // § 12 (RF10): the saved dated flows. The Proiezione has no FIRE: a flow anchored to it does not exist here, the recurring ones
   // change the saving while it is paid, the lumps land every year.
-  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows();
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows(undefined, { lockedAssetIds: lockedAssetIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),

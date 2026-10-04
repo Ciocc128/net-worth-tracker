@@ -284,6 +284,18 @@ function resolveYearsToFIRE(metrics: FIREMetrics, projection: FIREProjectionResu
 }
 
 /**
+ * The Base FIRE year (years from today) of the baseline's plan run on `flows` instead of its own: the walk and the
+ * requirement are the very ones `calculateWhatIfImpact` reads, so the figure agrees with the What If's «prima». 0 = already
+ * independent, null = never within the horizon or the plan cannot run. The Obiettivi's «Effetto sul FIRE» (RO2) calls it twice.
+ */
+export function baseYearsToFIREWithFlows(baseline: WhatIfBaseline, flows: DatedFlowsInput | undefined): number | null {
+  const used = flows && flows.resolved.length > 0 ? flows : undefined;
+  const metrics = resolveFireMetrics(baseline, baseline.netWorth, baseline.annualExpenses, used);
+  const projection = runBaseProjection(baseline, baseline.netWorth, baseline.annualExpenses, baseline.annualSavings, used);
+  return resolveYearsToFIRE(metrics, projection, !!used);
+}
+
+/**
  * Compute the before/after impact of a scenario on the traditional FIRE plan and, when
  * Coast FIRE is configured, on the Coast FIRE plan. The two walks it runs are returned as
  * `projections`, so the chart draws the same series the years were read from.

@@ -11,7 +11,7 @@ vi.mock('@/lib/services/snapshotService', () => ({}));
 
 import { countSuccesses, runAccumulationSimulation, runMonteCarloSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { calculateFIREProjection, resolveFanFireTargets, resolveFireRequirement } from '@/lib/services/fireService';
-import { buildFlowSchedule, buildFlowYearTables, datedFlowsSignature, resolveDatedFlows, type DatedFlowsInput } from '@/lib/utils/datedFlows';
+import { buildFlowSchedule, buildFlowYearTables, datedFlowsSignature, resolveDatedFlows, resolveGoalFlows, type DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { solveForRun } from '@/lib/utils/sustainableWithdrawal';
 import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
@@ -326,3 +326,34 @@ describe('the year tables of a schedule', () => {
   });
 });
 
+
+describe('G8 — Monte Carlo reads a goal that counts (doc/fire-ipotesi/README.md § 13, O1)', () => {
+  // K = 1.000.000 €, g = 5% with zero volatility, π = 2%, N = 30, the house of 50.000 € in 2029 (year 3) as a fixed lump out.
+  const house = resolveGoalFlows(
+    [{ id: 'house', name: 'Acquisto Casa', priority: 'alta', color: '#3B82F6', countsInFire: true, targetAmount: 50_000, targetDate: '2029-06-30', createdAt: new Date(), updatedAt: new Date() }],
+    [],
+    { currentYear: YEAR, assetValue: () => null },
+  ).resolved;
+  const succeeds = (withdrawal: number, flows: typeof house) =>
+    runMonteCarloSimulation({
+      portfolioSource: 'custom',
+      initialPortfolio: 1_000_000,
+      retirementYears: 30,
+      weights: allIn('equity'),
+      annualWithdrawal: withdrawal,
+      withdrawalAdjustment: 'inflation',
+      market: flatMarket(5, 0, 2),
+      numberOfSimulations: 10,
+      flows: flows.length > 0 ? { resolved: flows, planExpensesFromCashflow: true } : undefined,
+    }).successRate === 100;
+
+  it('should lower the largest withdrawal from 50.632,09 to 48.445,19 €', () => {
+    let annuity = 0;
+    for (let s = 1; s <= 30; s++) annuity += (1.02 / 1.05) ** s;
+    const exact = (1_000_000 - 50_000 / 1.05 ** 3) / annuity;
+    expect(exact).toBeCloseTo(48_445.19, 2);
+    expect(succeeds(exact - 0.5, house)).toBe(true);
+    expect(succeeds(exact + 0.5, house)).toBe(false);
+    expect(succeeds(1_000_000 / annuity - 0.5, [])).toBe(true);
+  });
+});

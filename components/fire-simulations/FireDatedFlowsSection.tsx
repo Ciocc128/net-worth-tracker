@@ -9,10 +9,10 @@
 import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { CoastFirePensionInput, DatedFlow } from '@/types/assets';
-import type { ExcludedFlow } from '@/lib/utils/datedFlows';
+import type { ExcludedFlow, ResolvedFlow } from '@/lib/utils/datedFlows';
 import type { MortgageOption } from '@/lib/hooks/useFireDatedFlows';
 import { MAX_DATED_FLOWS } from '@/lib/utils/datedFlowValidation';
-import { describeFlowRow, describeMortgageOption, describePensionFlowRow } from '@/lib/utils/datedFlowsNarrative';
+import { describeFlowRow, describeGoalFlowRow, describeMortgageOption, describePensionFlowRow } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { DatedFlowDialog } from '@/components/fire-simulations/DatedFlowDialog';
@@ -23,6 +23,8 @@ interface FireDatedFlowsSectionProps {
   excluded: readonly ExcludedFlow[];
   mortgages: readonly MortgageOption[];
   pensions: readonly CoastFirePensionInput[];
+  /** The goals that count in the FIRE plan (§ 13, RO1): read-only rows after the pensions. */
+  goalFlows: { resolved: readonly ResolvedFlow[]; excluded: readonly ExcludedFlow[] };
   currentYear: number;
   userAge: number | undefined;
   isDemo: boolean;
@@ -39,7 +41,7 @@ function pensionStartYear(pension: CoastFirePensionInput, currentYear: number, u
 
 const ROW_BUTTON_CLASS = 'inline-flex min-h-11 items-center px-1 text-[13px] text-foreground underline underline-offset-2 desktop:min-h-0';
 
-export function FireDatedFlowsSection({ flows, onChange, excluded, mortgages, pensions, currentYear, userAge, isDemo }: FireDatedFlowsSectionProps) {
+export function FireDatedFlowsSection({ flows, onChange, excluded, mortgages, pensions, goalFlows, currentYear, userAge, isDemo }: FireDatedFlowsSectionProps) {
   const [dialog, setDialog] = useState<{ flow: DatedFlow | null } | null>(null);
   const [linking, setLinking] = useState(false);
   const addRef = useRef<HTMLButtonElement>(null);
@@ -77,7 +79,7 @@ export function FireDatedFlowsSection({ flows, onChange, excluded, mortgages, pe
         le aggiungono loro.
       </p>
 
-      {flows.length === 0 && pensions.length === 0 ? (
+      {flows.length === 0 && pensions.length === 0 && goalFlows.resolved.length === 0 && goalFlows.excluded.length === 0 ? (
         <p className="mt-2 text-[13px] text-muted-foreground">Nessun flusso.</p>
       ) : (
         <ul className="mt-2 flex flex-col divide-y divide-border" data-testid="fire-dated-flows">
@@ -104,6 +106,16 @@ export function FireDatedFlowsSection({ flows, onChange, excluded, mortgages, pe
           {pensions.map((pension) => (
             <li key={pension.id} className="py-2 text-[13px] leading-[1.4] text-muted-foreground">
               {describePensionFlowRow(pension.label, pensionStartYear(pension, currentYear, userAge))}
+            </li>
+          ))}
+          {goalFlows.resolved.map((goal) => (
+            <li key={`goal-${goal.id}`} className="py-2 text-[13px] leading-[1.4] text-muted-foreground">
+              {describeGoalFlowRow(goal.label, { amount: goal.amount, year: currentYear + goal.start })}
+            </li>
+          ))}
+          {goalFlows.excluded.map((goal) => (
+            <li key={`goal-${goal.id}`} className="py-2 text-[13px] leading-[1.4] text-muted-foreground">
+              {describeGoalFlowRow(goal.label, { reason: goal.reason })}
             </li>
           ))}
         </ul>

@@ -318,7 +318,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   );
   const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(planSource, cashflowData) : null), [cashflowData, planSource]);
   // § 12 (F1): the dated flows, PREVIEWED from the form until saved, placed on the calendar with the age and the linked mortgages.
-  const { resolved: resolvedFlows, excluded: excludedFlows, mortgages: mortgageOptions } = useFireDatedFlows(formSettled ? form.datedFlows : undefined);
+  const { resolved: resolvedFlows, excluded: excludedFlows, goalFlows, mortgages: mortgageOptions } = useFireDatedFlows(formSettled ? form.datedFlows : undefined, { lockedAssetIds: assumptionLockedIds, cashToInvestPct: previewCashToInvestPct });
   const flowsInput = useMemo<FireFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
     [resolvedFlows, expenses?.origin],
@@ -901,7 +901,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       assumptions={assumptions}
       userAge={userAge}
       personalSwr={personalSwr}
-      flows={{ excluded: excludedFlows, mortgages: mortgageOptions, pensions: honest.pensions, currentYear: currentYearForFan }}
+      flows={{ excluded: excludedFlows, mortgages: mortgageOptions, pensions: honest.pensions, goalFlows, currentYear: currentYearForFan }}
     />
   );
 
