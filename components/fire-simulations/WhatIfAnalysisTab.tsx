@@ -51,7 +51,9 @@ import {
   type IncomeSourceCategory,
   type PensionCapitalInflowToday,
 } from '@/lib/services/fireService';
-import { calculateWhatIfImpact, WHAT_IF_HORIZON_YEARS } from '@/lib/services/whatIfService';
+import { calculateWhatIfImpact, maxEventYear, parseWhenYear, WHAT_IF_HORIZON_YEARS } from '@/lib/services/whatIfService';
+import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
+import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import {
@@ -109,6 +111,7 @@ const EMPTY_FORM: WhatIfEventForm = {
   savingsDelta: '',
   expensesDelta: '',
   windfallAmount: '',
+  whenYear: '',
 };
 
 function parseAmount(value: string): number {
@@ -177,6 +180,15 @@ export function WhatIfAnalysisTab() {
   // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
   const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
+  // § 12: the SAVED dated flows are the plan both sides run on («prima» = the Calcolatore's); an event of a later year is laid over them.
+  const { resolved: resolvedFlows, isLoading: isLoadingFlows } = useFireDatedFlows();
+  const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
+  const datedFlows = useMemo<DatedFlowsInput | undefined>(
+    () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
+    [resolvedFlows, planExpensesFromCashflow],
+  );
+  const assumptionsWithFlows = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
+  const currentYear = getItalyYear();
   const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(
     () => (pensionLockState?.inflows ?? []).map((inflow) => ({ yearsFromNow: inflow.yearsFromNow, amountToday: inflow.amount })),
@@ -279,6 +291,8 @@ export function WhatIfAnalysisTab() {
       scenarios,
       pensionBridge,
       honest,
+      flows: datedFlows,
+      currentYear,
       coast:
         currentAge !== null
           ? {
@@ -305,6 +319,8 @@ export function WhatIfAnalysisTab() {
     scenarios,
     pensionBridge,
     honest,
+    datedFlows,
+    currentYear,
     currentAge,
     retirementAge,
     pensionInflowsToday,
@@ -312,35 +328,37 @@ export function WhatIfAnalysisTab() {
     settings?.coastFireTaxBrackets,
   ]);
 
+  const whenYear = parseWhenYear(form.whenYear, currentYear) ?? undefined;
+
   const scenario = useMemo<WhatIfScenario>(() => {
     switch (eventType) {
       case 'jobLoss':
         return {
           eventType,
+          whenYear,
           monthsWithoutIncome: parseAmount(form.monthsWithoutIncome),
           // Only constrain the lost income when we actually have categorised sources to select.
           lostAnnualIncome: hasIncomeSources ? selectedAnnualIncome : undefined,
         };
       case 'majorPurchase':
-        return { eventType, lumpSumAmount: parseAmount(form.purchaseAmount), isPrimaryResidence: form.isPrimaryResidence };
+        return { eventType, whenYear, lumpSumAmount: parseAmount(form.purchaseAmount), isPrimaryResidence: form.isPrimaryResidence };
       case 'cashflowChange':
-        return { eventType, annualSavingsDelta: parseAmount(form.savingsDelta), annualExpensesDelta: parseAmount(form.expensesDelta) };
+        return { eventType, whenYear, annualSavingsDelta: parseAmount(form.savingsDelta), annualExpensesDelta: parseAmount(form.expensesDelta) };
       case 'windfall':
-        return { eventType, lumpSumAmount: parseAmount(form.windfallAmount) };
+        return { eventType, whenYear, lumpSumAmount: parseAmount(form.windfallAmount) };
     }
-  }, [eventType, form, hasIncomeSources, selectedAnnualIncome]);
+  }, [eventType, form, whenYear, hasIncomeSources, selectedAnnualIncome]);
 
   const hasBaseline = netWorth > 0 && annualExpenses > 0 && withdrawalRate > 0;
 
   // ─── The numbers (pure layer over the service) ───────────────────────────────
-  const currentYear = getItalyYear();
   const impact = useMemo(() => (hasBaseline ? calculateWhatIfImpact(baseline, scenario) : null), [hasBaseline, baseline, scenario]);
   const event = useMemo(() => (impact ? summarizeWhatIfEvent(scenario, baseline, impact.adjusted) : null), [impact, scenario, baseline]);
   const summary = useMemo(() => (impact ? summarizeWhatIf(impact, baseline, currentYear, WHAT_IF_HORIZON_YEARS) : null), [impact, baseline, currentYear]);
   const series = useMemo(() => (impact ? buildWhatIfComparisonSeries(impact.projections.before, impact.projections.after) : []), [impact]);
   const divergence = useMemo(() => (summary ? summarizeDivergence(series, summary.timeline) : null), [series, summary]);
   const jobLossHit = useMemo(
-    () => (event && event.kind === 'jobLoss' && !event.isEmpty ? decomposeJobLossHit({ annualSavings, annualExpenses: cashflowExpenses, lostAnnualIncome: event.lostAnnualIncome, months: event.months }) : null),
+    () => (event && event.kind === 'jobLoss' && !event.isEmpty && event.calendarYear === null ? decomposeJobLossHit({ annualSavings, annualExpenses: cashflowExpenses, lostAnnualIncome: event.lostAnnualIncome, months: event.months }) : null),
     [event, annualSavings, cashflowExpenses],
   );
 
@@ -353,8 +371,8 @@ export function WhatIfAnalysisTab() {
   const sensitivityExpenses = Number.isFinite(parsedSensitivityBaseline) && parsedSensitivityBaseline > 0 ? parsedSensitivityBaseline : annualExpenses;
   const sensitivityMatrix = useMemo(() => {
     if (netWorth <= 0 || sensitivityExpenses <= 0 || withdrawalRate <= 0) return null;
-    return calculateFIRESensitivityMatrix(netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios, true);
-  }, [netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios]);
+    return calculateFIRESensitivityMatrix(netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios, true, datedFlows);
+  }, [netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios, datedFlows]);
   const sensitivityReading = useMemo(() => (sensitivityMatrix ? summarizeSensitivity(sensitivityMatrix) : null), [sensitivityMatrix]);
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
@@ -363,7 +381,7 @@ export function WhatIfAnalysisTab() {
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  if (resolveSurfaceState({ loading: isLoadingSettings || isLoadingAssets || isLoadingCashflow, failed: settingsError || assetsError || cashflowError }) === 'failed') {
+  if (resolveSurfaceState({ loading: isLoadingSettings || isLoadingAssets || isLoadingCashflow || isLoadingFlows, failed: settingsError || assetsError || cashflowError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
@@ -375,7 +393,7 @@ export function WhatIfAnalysisTab() {
     );
   }
 
-  if (isLoadingSettings || isLoadingAssets || isLoadingCashflow) {
+  if (isLoadingSettings || isLoadingAssets || isLoadingCashflow || isLoadingFlows) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
@@ -384,7 +402,7 @@ export function WhatIfAnalysisTab() {
     return (
       <div className="space-y-4">
         <div className="pt-1">
-          <FireAssumptionsRow assumptions={assumptions} />
+          <FireAssumptionsRow assumptions={assumptionsWithFlows} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
         </div>
       </div>
@@ -393,13 +411,13 @@ export function WhatIfAnalysisTab() {
 
   const targetsDiffer = Math.abs(summary.fireNumber.delta) >= 0.5;
   const lastProjectedYear = series.length > 0 ? series[series.length - 1].calendarYear : null;
-  const eventFooterInput = { kind: eventType, referenceYear: cashflowData?.referenceYear ?? null, isAnnualized: cashflowData?.isAnnualized ?? false };
+  const eventFooterInput = { kind: eventType, calendarYear: event.calendarYear, referenceYear: cashflowData?.referenceYear ?? null, isAnnualized: cashflowData?.isAnnualized ?? false };
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <FireAssumptionsRow assumptions={assumptions} />
+        <FireAssumptionsRow assumptions={assumptionsWithFlows} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
       </div>
 
@@ -420,7 +438,7 @@ export function WhatIfAnalysisTab() {
               />
             }
             targetsDiffer={targetsDiffer}
-            footer={describeBeforeAfterFooter({ isBridge: summary.isBridge, unlockCalendarYear: lock.unlockCalendarYear, lastProjectedYear })}
+            footer={describeBeforeAfterFooter({ eventCalendarYear: event.calendarYear, isBridge: summary.isBridge, unlockCalendarYear: lock.unlockCalendarYear, lastProjectedYear })}
           />
         </div>
 
@@ -449,6 +467,8 @@ export function WhatIfAnalysisTab() {
                 : null
             }
             jobLossHit={jobLossHit}
+            currentYear={currentYear}
+            maxYear={maxEventYear(currentYear)}
             annualSavings={annualSavings}
             annualExpenses={annualExpenses}
             footer={describeEventFooter(eventFooterInput)}

@@ -91,7 +91,12 @@ const EVENT_LABELS: Record<WhatIfEventType, string> = {
 
 // ─── The event, in the pure layer's terms ─────────────────────────────────────
 
-/** «12 mesi senza 31.800 € l'anno di entrate (il 64% del reddito)» / «una spesa una tantum di 30.000 €» / … */
+/** «dal 2029» for what goes on, «nel 2029» for what happens once; empty for an event of today. */
+function whenSuffix(event: WhatIfEvent, preposition: 'nel' | 'dal'): string {
+  return event.calendarYear === null ? '' : ` ${preposition} ${event.calendarYear}`;
+}
+
+/** «12 mesi senza 31.800 € l'anno di entrate (il 64% del reddito)» / «una spesa una tantum di 30.000 €» / … — with «nel 2029» for a later event (RF11). */
 function eventClause(event: WhatIfEvent): Narrative {
   switch (event.kind) {
     case 'jobLoss': {
@@ -99,17 +104,17 @@ function eventClause(event: WhatIfEvent): Narrative {
         event.lostShareOfIncomePct !== null
           ? [prose(` (${articleForPercent(event.lostShareOfIncomePct, 0)}`), figure(formatPercentage(event.lostShareOfIncomePct, 0)), prose(' del reddito)')]
           : [];
-      return [figure(months(event.months)), prose(' senza '), amount(event.lostAnnualIncome), prose(" l'anno di entrate"), ...share];
+      return [figure(months(event.months)), prose(' senza '), amount(event.lostAnnualIncome), prose(" l'anno di entrate"), ...share, prose(whenSuffix(event, 'nel'))];
     }
     case 'majorPurchase':
-      return [prose('una spesa una tantum di '), amount(event.lumpSum)];
+      return [prose('una spesa una tantum di '), amount(event.lumpSum), prose(whenSuffix(event, 'nel'))];
     case 'windfall':
-      return [prose("un'entrata una tantum di "), amount(event.lumpSum)];
+      return [prose("un'entrata una tantum di "), amount(event.lumpSum), prose(whenSuffix(event, 'nel'))];
     case 'cashflowChange': {
       const parts: Narrative[] = [];
       if (event.savingsDelta !== 0) parts.push([amount(event.savingsDelta), prose(` l'anno di risparmio in ${event.savingsDelta < 0 ? 'meno' : 'più'}`)]);
       if (event.expensesDelta !== 0) parts.push([amount(event.expensesDelta), prose(` di spese in ${event.expensesDelta > 0 ? 'più' : 'meno'}`)]);
-      return joinClauses(parts);
+      return [...joinClauses(parts), prose(whenSuffix(event, 'dal'))];
     }
   }
 }
@@ -335,6 +340,8 @@ export function describeBeforeAfterAside(base: { growthRate: number; inflationRa
 export interface BeforeAfterFooterInput {
   isBridge: boolean;
   unlockCalendarYear: number | null;
+  /** The calendar year of an event that lands later; null/absent = today. */
+  eventCalendarYear?: number | null;
   /** The last calendar year the chart draws — the step is named only when it is on the plot. */
   lastProjectedYear: number | null;
 }
@@ -345,7 +352,7 @@ export function describeBeforeAfterFooter(input: BeforeAfterFooterInput): Narrat
     input.isBridge && input.unlockCalendarYear !== null && input.lastProjectedYear !== null && input.unlockCalendarYear <= input.lastProjectedYear;
   return [
     prose(
-      "Entrambe le traiettorie corrono sullo scenario base e fermano il risparmio al FIRE; la linea tratteggiata è il numero FIRE, che cresce con l'inflazione. L'evento è applicato oggi, poi il piano è lo stesso.",
+      `Entrambe le traiettorie corrono sullo scenario base e fermano il risparmio al FIRE; la linea tratteggiata è il numero FIRE, che cresce con l'inflazione. L'evento è applicato ${input.eventCalendarYear != null ? `nel ${input.eventCalendarYear}` : 'oggi'}, poi il piano è lo stesso.`,
     ),
     ...(stepOnPlot ? [prose(' Il gradino nel '), year(input.unlockCalendarYear as number), prose(' è il fondo pensione che rientra.')] : []),
   ];
@@ -463,6 +470,7 @@ export function buildDeltaRows(summary: WhatIfSummary): { fire: DeltaRow[]; coas
 /** The event tile's reading: what is typed, in the pure layer's terms, and what it does to the plan. */
 export function describeEvent(event: WhatIfEvent): Narrative {
   const label = EVENT_LABELS[event.kind];
+  if (event.calendarYear !== null && !event.isEmpty) return describeLaterEvent(event, label);
   switch (event.kind) {
     case 'jobLoss': {
       if (event.isEmpty) return [prose(`${label}: indica i mesi senza reddito e le entrate che vengono a mancare.`)];
@@ -505,8 +513,39 @@ export function describeEvent(event: WhatIfEvent): Narrative {
   }
 }
 
+/** RF11: the reading of an event that lands in a later year — the capital of today does not move, the amounts are today's euro revalued by inflation. */
+function describeLaterEvent(event: WhatIfEvent, label: string): Narrative {
+  const when = event.calendarYear as number;
+  switch (event.kind) {
+    case 'jobLoss':
+      return [
+        prose(`${label} nel ${when}: `),
+        figure(months(event.months)),
+        prose(' senza '),
+        amount(event.lostAnnualIncome),
+        prose(" l'anno di entrate, "),
+        amount(event.hitToday),
+        prose(' di oggi: il colpo arriva al patrimonio nel '),
+        year(when),
+        prose(', rivalutato con l\'inflazione.'),
+      ];
+    case 'majorPurchase':
+      return [prose(`${label} nel ${when}: `), amount(event.lumpSum), prose(' di oggi escono dal patrimonio in quell\'anno, rivalutati con l\'inflazione.')];
+    case 'windfall':
+      return [prose(`${label} nel ${when}: `), amount(event.lumpSum), prose(' di oggi entrano nel patrimonio in quell\'anno, rivalutati con l\'inflazione.')];
+    case 'cashflowChange': {
+      const parts: Narrative[] = [];
+      if (event.savingsDelta !== 0) parts.push([prose('risparmi '), amount(event.savingsDelta), prose(` l'anno in ${event.savingsDelta < 0 ? 'meno' : 'più'}`)]);
+      if (event.expensesDelta !== 0) parts.push([prose('spendi '), amount(event.expensesDelta), prose(`${parts.length === 0 ? " l'anno" : ''} in ${event.expensesDelta > 0 ? 'più' : 'meno'}`)]);
+      return [prose(`Dal ${when} `), ...joinClauses(parts), prose(" (euro di oggi, rivalutati con l'inflazione): fino ad allora il piano non cambia.")];
+    }
+  }
+}
+
 export interface EventFooterInput {
   kind: WhatIfEventType;
+  /** The calendar year of an event that lands later; null/absent = today. */
+  calendarYear?: number | null;
   referenceYear: number | null;
   isAnnualized: boolean;
 }
@@ -516,7 +555,7 @@ export function describeEventFooter(input: EventFooterInput): Narrative {
   const head =
     input.kind === 'jobLoss'
       ? 'Il reddito che resta copre prima le spese: dal portafoglio esce solo la parte scoperta.'
-      : "L'evento è applicato oggi e non viene salvato: è un'esplorazione.";
+      : `L'evento è applicato ${input.calendarYear != null ? `nel ${input.calendarYear}` : 'oggi'} e non viene salvato: è un'esplorazione.`;
   const data = input.referenceYear !== null ? ` Dati del cashflow ${input.referenceYear}${input.isAnnualized ? ', annualizzati' : ''}.` : '';
   return [prose(`${head}${data}`)];
 }

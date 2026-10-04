@@ -1633,6 +1633,8 @@ Tre PR in sequenza, tutte dopo il merge di K1, branch da `main`, bozza verso `Ci
   il form e il verdetto (`whatIfNarrative.ts`).
 - Test: F20, i test esistenti di What If identici.
 
+**Esito di F3 (04/10/2026)** — fatto come da spec; criterio F20 (e F4/F9/F12 passati dal What If) in `__tests__/whatIfWhen.test.ts`, i test esistenti di What If identici. Scostamenti dichiarati: `ResolvedFlow` guadagna `scope?: 'saving' | 'need'` (la variazione di cashflow è DUE flussi indipendenti, uno sul risparmio e uno sul bisogno, così la spesa non tocca il risparmio due volte; ogni flusso salvato resta senza `scope` e tocca entrambi); `WhatIfBaseline` guadagna `flows` e `currentYear`, `WhatIfImpact` `yearsAhead`, `WhatIfEvent` `calendarYear` e `hitToday`; «prima» corre sui flussi SALVATI (come il Calcolatore) e la matrice di Sensibilità li legge; con i flussi l'anno FIRE di oggi lo decide il test dell'anno 0 della camminata (parte dal capitale più le una tantum dell'anno in corso); un anno oltre l'orizzonte di 50 anni è tenuto all'orizzonte e un anno passato vale «oggi», con l'avviso nel campo; la scomposizione del colpo della perdita di lavoro si disegna solo per un evento di oggi. Non eseguiti qui: le spec Playwright e la verifica sul mirror (sul computer del proprietario).
+
 **Documentazione** (ogni task per la sua parte): `doc/guide/fire.md` (i flussi, RF5 «una spesa in più non abbassa
 mai il requisito», la regola sugli eventi datati riscritta; blind spots: flussi deterministici, eccedenza non
 reinvestita, nessuna tassa nell'accumulo, mutuo collegato che cambia con le rate), `fire-coast.md` (RF9),

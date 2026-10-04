@@ -71,6 +71,8 @@ function makeSummary(overrides: Partial<WhatIfSummary> = {}): WhatIfSummary {
 function makeEvent(overrides: Partial<WhatIfEvent> = {}): WhatIfEvent {
   return {
     kind: 'jobLoss',
+    calendarYear: null,
+    hitToday: 31_800,
     isEmpty: false,
     months: 12,
     lostAnnualIncome: 31_800,
