@@ -130,3 +130,11 @@ describe('describeSimulationFlowsRow (Monte Carlo and Proiezione › Parametri)'
     expect(describeSimulationFlowsRow({ count: 0, excluded, fireAnchored: 0, view: 'monteCarlo' })).toBe("Flussi nel tempo: nessuno · 1 escluso: manca l'età");
   });
 });
+
+describe('describeGoalFlowRow (doc/fire-ipotesi/README.md § 13.7)', () => {
+  it('should write the amount and the year of a goal that counts, and the reason of one left out', async () => {
+    const { describeGoalFlowRow } = await import('@/lib/utils/datedFlowsNarrative');
+    expect(describeGoalFlowRow('Acquisto Casa', { amount: 50_000, year: 2029 })).toMatch(/^Acquisto Casa · obiettivo · 50\.000\s€ · 2029 · si modifica in Obiettivi$/);
+    expect(describeGoalFlowRow('Auto', { reason: 'scadenza passata' })).toBe('Auto · obiettivo · escluso: scadenza passata · si modifica in Obiettivi');
+  });
+});

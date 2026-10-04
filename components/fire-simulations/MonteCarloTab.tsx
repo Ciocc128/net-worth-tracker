@@ -198,7 +198,7 @@ export function MonteCarloTab() {
   const capital = assumptions?.capital ?? null;
   // § 12 (RF8): the saved dated flows, read as «if I stop today» — a FIRE-anchored one opens in year 1 + its delay. The plan's
   // expenses come from the Cashflow unless typed in Impostazioni (D-F6): that decides whether a flow «already in the Cashflow» is inside them.
-  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows();
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows(undefined, { lockedAssetIds: lockedAssetIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),

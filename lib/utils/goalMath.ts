@@ -228,5 +228,7 @@ export function serializeGoalForFirestore(goal: InvestmentGoal): Record<string, 
     ...(goal.monthlyContribution != null ? { monthlyContribution: goal.monthlyContribution } : {}),
     ...(goal.recommendedAllocation != null ? { recommendedAllocation: goal.recommendedAllocation } : {}),
     ...(goal.notes != null ? { notes: goal.notes } : {}),
+    // `false` is a value, not an absence (G15): it survives the round trip like a zero contribution.
+    ...(goal.countsInFire != null ? { countsInFire: goal.countsInFire } : {}),
   };
 }

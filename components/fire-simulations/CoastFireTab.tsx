@@ -202,7 +202,7 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
 
   // § 12 (RF9): the dated flows SAVED in the Calcolatore's Parametri. Before the target age only the lumps count (D-F11); the
   // requirement at the target age is RF5 with the FIRE-anchored flows starting there.
-  const { resolved: resolvedFlows } = useFireDatedFlows();
+  const { resolved: resolvedFlows } = useFireDatedFlows(undefined, { lockedAssetIds: assumptionLockedIds });
   const flowsInput = useMemo<FireFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
     [resolvedFlows, assumptions?.expenses?.origin],

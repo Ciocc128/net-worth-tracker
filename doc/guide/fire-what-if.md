@@ -56,3 +56,7 @@
 - **The age it reads is the page's** (E1, 2026-10-04): the Coast block's target age (`coastFireRetirementAge`) can now also be written from the Calcolatore's Parametri; nothing changes here, the field is the same.
 
 - **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation unless «Quando» puts it in a later year (then it is dated flows on the «dopo» side, `doc/guide/fire.md` § F3), nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; the Sensibilità reference expenses are session-only; `isPrimaryResidence` is informational.
+
+## O1 — the baseline is a hook (2026-10-04)
+
+`WhatIfAnalysisTab` no longer assembles the `WhatIfBaseline`: `lib/hooks/useWhatIfBaseline.ts` does (same queries, same assembly, extracted verbatim) and Obiettivi's «Effetto sul FIRE» reads the same one (`goalFireEffect`). Change the baseline in the hook, never in a tab.

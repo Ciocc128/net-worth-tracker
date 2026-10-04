@@ -12,9 +12,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
+import { calculateAssetValue } from '@/lib/services/assetService';
+import { getGoalData } from '@/lib/services/goalService';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useMortgageInstalments } from '@/lib/hooks/useMortgageInstalments';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
-import { resolveDatedFlows, type ExcludedFlow, type MortgageFlowSource, type ResolvedFlow } from '@/lib/utils/datedFlows';
+import { assetInsideShare, resolveDatedFlows, resolveGoalFlows, type ExcludedFlow, type MortgageFlowSource, type ResolvedFlow } from '@/lib/utils/datedFlows';
 import { mortgageFlowSchedule, summarizeMortgage } from '@/lib/utils/mortgageSummary';
 import type { DatedFlow } from '@/types/assets';
 
@@ -28,13 +31,24 @@ export interface MortgageOption {
 export interface UseFireDatedFlowsResult {
   /** The list in use: the draft if given, else the saved one. */
   flows: DatedFlow[];
+  /** The saved flows resolved, then the goals' (RO1). */
   resolved: ResolvedFlow[];
+  /** What the saved list left out, then the goals that count and cannot be placed. */
   excluded: ExcludedFlow[];
+  /** The goals' own flows and exclusions, for the read-only rows of Parametri. */
+  goalFlows: { resolved: ResolvedFlow[]; excluded: ExcludedFlow[] };
   mortgages: MortgageOption[];
   isLoading: boolean;
 }
 
-export function useFireDatedFlows(draft?: readonly DatedFlow[]): UseFireDatedFlowsResult {
+export interface UseFireDatedFlowsOptions {
+  /** The funds the pension lock keeps closed, like the tab's `useFireAssumptions` (memoised by the caller): the goals' capital reads them. */
+  lockedAssetIds?: ReadonlySet<string>;
+  /** The Calcolatore's unsaved share of the cash to invest (K1), a preview like `draft`. */
+  cashToInvestPct?: number;
+}
+
+export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds, cashToInvestPct }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const settingsQuery = useQuery({
@@ -50,6 +64,15 @@ export function useFireDatedFlows(draft?: readonly DatedFlow[]): UseFireDatedFlo
     staleTime: 300000,
   });
   const assets = assetsQuery.data;
+  const goalsEnabled = !!settingsQuery.data?.goalBasedInvestingEnabled;
+  const goalQuery = useQuery({
+    queryKey: ['goalData', ownerId],
+    queryFn: () => getGoalData(ownerId!),
+    enabled: !!user && !!ownerId && goalsEnabled,
+    staleTime: 300000,
+  });
+  const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds, { cashToInvestPct });
+  const legShare = assumptions?.legShare;
   const propertyIds = useMemo(() => (assets ?? []).filter((asset) => asset.type === 'realestate' && asset.assetClass === 'realestate').map((asset) => asset.id), [assets]);
   const instalmentsQuery = useMortgageInstalments(ownerId, propertyIds);
   const instalments = instalmentsQuery.data;
@@ -75,11 +98,34 @@ export function useFireDatedFlows(draft?: readonly DatedFlow[]): UseFireDatedFlo
     return resolveDatedFlows(flows, { currentYear: getItalyYear(), userAge, mortgages: map });
   }, [flows, userAge, mortgages]);
 
+  const goalData = goalQuery.data;
+  const goalFlows = useMemo(() => {
+    if (!goalsEnabled || !goalData || !assets) return { resolved: [], excluded: [] };
+    const byId = new Map(assets.map((asset) => [asset.id, asset]));
+    return resolveGoalFlows(goalData.goals, goalData.assignments, {
+      currentYear: getItalyYear(),
+      assetValue: (assetId) => {
+        const asset = byId.get(assetId);
+        return asset ? calculateAssetValue(asset) : null;
+      },
+      insideShare: legShare
+        ? (assetId) => {
+            const asset = byId.get(assetId);
+            return asset ? assetInsideShare(asset, calculateAssetValue(asset), legShare) : 0;
+          }
+        : undefined,
+    });
+  }, [goalsEnabled, goalData, assets, legShare]);
+
+  const allResolved = useMemo(() => (goalFlows.resolved.length > 0 ? [...resolved, ...goalFlows.resolved] : resolved), [resolved, goalFlows]);
+  const allExcluded = useMemo(() => (goalFlows.excluded.length > 0 ? [...excluded, ...goalFlows.excluded] : excluded), [excluded, goalFlows]);
+
   return {
     flows,
-    resolved,
-    excluded,
+    resolved: allResolved,
+    excluded: allExcluded,
+    goalFlows,
     mortgages,
-    isLoading: settingsQuery.isLoading || assetsQuery.isLoading || instalmentsQuery.isLoading,
+    isLoading: settingsQuery.isLoading || assetsQuery.isLoading || instalmentsQuery.isLoading || (goalsEnabled && goalQuery.isLoading) || assumptionsLoading,
   };
 }

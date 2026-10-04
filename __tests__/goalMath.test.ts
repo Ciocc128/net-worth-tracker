@@ -320,6 +320,12 @@ describe('serializeGoalForFirestore', () => {
     });
   });
 
+  it('G15: should keep countsInFire, false included, and write nothing when it is absent', () => {
+    expect(serializeGoalForFirestore(makeGoal({ countsInFire: true })).countsInFire).toBe(true);
+    expect(serializeGoalForFirestore(makeGoal({ countsInFire: false }))).toHaveProperty('countsInFire', false);
+    expect(serializeGoalForFirestore(makeGoal({ countsInFire: undefined }))).not.toHaveProperty('countsInFire');
+  });
+
   it('should keep a zero contribution, which is a value and not an absence', () => {
     const result = serializeGoalForFirestore(makeGoal({ monthlyContribution: 0 }));
 

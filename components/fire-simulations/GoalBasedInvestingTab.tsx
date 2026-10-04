@@ -46,6 +46,9 @@ import { computeGoalTrajectory, type GoalRow } from '@/lib/utils/goalTrajectory'
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
+import { goalFireEffect, goalFireNarrative } from '@/lib/utils/goalFire';
+import { assetInsideShare } from '@/lib/utils/datedFlows';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { buildMilestones, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues } from '@/lib/utils/goalsSummary';
 import {
@@ -197,6 +200,37 @@ export function GoalBasedInvestingTab() {
   const selectedRow = useMemo(() => goalRows.find((r) => r.goal.id === effectiveSelectedId) ?? null, [goalRows, effectiveSelectedId]);
   const trajectory = useMemo(() => (selectedRow ? summarizeTrajectory(selectedRow, now) : null), [selectedRow, now]);
 
+  // § 13, RO2: the selected goal's effect on the FIRE year, on the plan of today (the What If's baseline). Absent while that plan loads or fails.
+  const { baseline: fireBaseline, hasBaseline: hasFirePlan, assumptions: fireAssumptions, currentYear: fireYear, isLoadingSettings: fbLoadS, isLoadingAssets: fbLoadA, isLoadingCashflow: fbLoadC, isLoadingFlows: fbLoadF, settingsError: fbErrS, assetsError: fbErrA, cashflowError: fbErrC } = useWhatIfBaseline();
+  const fireEffectLine = useMemo(() => {
+    const goal = selectedRow?.goal;
+    if (!goal || !isEnabled) return null;
+    if (fbLoadS || fbLoadA || fbLoadC || fbLoadF) return null;
+    if (fbErrS || fbErrA || fbErrC) return null;
+    const byId = new Map(assets.map((asset) => [asset.id, asset]));
+    const legShare = fireAssumptions?.legShare;
+    const effect = goalFireEffect({
+      goal,
+      assignments: cleanedAssignments,
+      goalContext: {
+        currentYear: fireYear,
+        assetValue: (assetId) => {
+          const asset = byId.get(assetId);
+          return asset ? calculateAssetValue(asset) : null;
+        },
+        insideShare: legShare
+          ? (assetId) => {
+              const asset = byId.get(assetId);
+              return asset ? assetInsideShare(asset, calculateAssetValue(asset), legShare) : 0;
+            }
+          : undefined,
+      },
+      baseline: fireBaseline,
+      hasPlan: hasFirePlan,
+    });
+    return effect ? { effect, text: goalFireNarrative(effect) } : null;
+  }, [selectedRow, isEnabled, assets, cleanedAssignments, fireBaseline, hasFirePlan, fireAssumptions, fireYear, fbLoadS, fbLoadA, fbLoadC, fbLoadF, fbErrS, fbErrA, fbErrC]);
+
   const milestones = useMemo(() => buildMilestones(goalRows), [goalRows]);
   const orderedGoals = useMemo(() => overview.goals.map((line) => goals.find((g) => g.id === line.id)).filter((g): g is InvestmentGoal => g != null), [overview.goals, goals]);
   const derivedAllocation = useMemo(() => (isGoalDriven ? summarizeDerivedAllocation(orderedGoals, cleanedAssignments, assets) : null), [isGoalDriven, orderedGoals, cleanedAssignments, assets]);
@@ -226,6 +260,12 @@ export function GoalBasedInvestingTab() {
     setEditingGoal(null);
     if (!isEditing) setSelectedGoalId(goal.id);
     toast.success(isEditing ? 'Obiettivo aggiornato' : 'Obiettivo creato');
+  };
+
+  // «Conta nel FIRE» (the same write as Modifica, one field).
+  const handleCountInFire = async (goal: InvestmentGoal) => {
+    await saveMutation.mutateAsync({ goals: goals.map((g) => (g.id === goal.id ? { ...g, countsInFire: true, updatedAt: new Date() } : g)), assignments: cleanedAssignments });
+    toast.success('L’obiettivo conta nel FIRE');
   };
 
   const handleDeleteGoal = async (goalId: string) => {
@@ -345,6 +385,17 @@ export function GoalBasedInvestingTab() {
                 ) : null
               }
               footer={describeTraiettoriaFooter(trajectory)}
+              fireEffect={
+                fireEffectLine
+                  ? {
+                      text: fireEffectLine.text,
+                      action:
+                        fireEffectLine.effect.kind === 'effect' && !fireEffectLine.effect.counted
+                          ? { label: 'Conta nel FIRE', onClick: () => handleCountInFire(selectedRow.goal), disabled: isDemo || saveMutation.isPending }
+                          : undefined,
+                    }
+                  : null
+              }
               onEdit={() => handleEditGoal(selectedRow.goal)}
               onDelete={() => handleDeleteGoal(selectedRow.goal.id)}
               isDemo={isDemo}

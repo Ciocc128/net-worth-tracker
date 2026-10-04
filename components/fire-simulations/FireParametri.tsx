@@ -23,7 +23,7 @@
 import Link from 'next/link';
 import { ChevronDown, HelpCircle, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import type { CoastFirePensionInput, DatedFlow } from '@/types/assets';
-import type { ExcludedFlow } from '@/lib/utils/datedFlows';
+import type { ExcludedFlow, ResolvedFlow } from '@/lib/utils/datedFlows';
 import type { MortgageOption } from '@/lib/hooks/useFireDatedFlows';
 import { FireDatedFlowsSection } from '@/components/fire-simulations/FireDatedFlowsSection';
 import type { FireAssumptions, FireScenarioKey } from '@/lib/utils/fireAssumptions';
@@ -83,7 +83,7 @@ interface FireParametriProps {
   /** RS5: the personal SWR; null while it is not computed (the panel closed, no assumptions). */
   personalSwr: PersonalSwr | null;
   /** § 12: what the flows section needs besides the list in `form`. */
-  flows: { excluded: readonly ExcludedFlow[]; mortgages: readonly MortgageOption[]; pensions: readonly CoastFirePensionInput[]; currentYear: number };
+  flows: { excluded: readonly ExcludedFlow[]; mortgages: readonly MortgageOption[]; pensions: readonly CoastFirePensionInput[]; goalFlows: { resolved: readonly ResolvedFlow[]; excluded: readonly ExcludedFlow[] }; currentYear: number };
 }
 
 type ScenarioKey = FireScenarioKey;
@@ -289,6 +289,7 @@ export function FireParametri({
                   excluded={flows.excluded}
                   mortgages={flows.mortgages}
                   pensions={flows.pensions}
+                  goalFlows={flows.goalFlows}
                   currentYear={flows.currentYear}
                   userAge={userAge}
                   isDemo={isDemo}

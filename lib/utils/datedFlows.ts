@@ -7,7 +7,9 @@
  * year, like the saving and the withdrawal. Pure: `resolveDatedFlows` turns what the user saved into windows and
  * reasons for exclusion; `buildFlowSchedule` reads them per scenario; `flowsRequirementAdjustment` is RF5.
  */
-import type { DatedFlow, DatedFlowKind } from '@/types/assets';
+import type { Asset, DatedFlow, DatedFlowKind } from '@/types/assets';
+import type { GoalAssetAssignment, InvestmentGoal } from '@/types/goals';
+import { goalDateFromIso } from './goalDate';
 import type { MortgageFlowSchedule } from './mortgageSummary';
 
 /** What the resolution needs about the user's mortgages, by property id (Patrimonio's «Mutuo» tile, D-F5). */
@@ -133,6 +135,69 @@ export function resolveDatedFlows(flows: readonly DatedFlow[] | undefined, conte
       durationYears: lump ? null : flow.durationYears,
       inCashflowToday: activeToday && flow.inCashflowToday !== false,
     });
+  }
+  return { resolved, excluded };
+}
+
+export interface ResolveGoalFlowsContext {
+  /** The Italian calendar year of today. */
+  currentYear: number;
+  /** The share (0–1) of an instrument's value that is inside the FIRE capital today; absent = all of it. */
+  insideShare?: (assetId: string) => number;
+  /** The value of an instrument in EUR (`calculateAssetValue`); orphaned assignments are skipped. */
+  assetValue: (assetId: string) => number | null;
+}
+
+/**
+ * The share (0–1) of an instrument inside the FIRE capital: `Σ_legs share · legShare` (RO1, RK6) — a leg outside the
+ * capital (real estate, crypto, an excluded instrument, a locked fund) has `legShare` 0. 0 for a worthless instrument.
+ */
+export function assetInsideShare(asset: Asset, value: number, legShare: (asset: Asset, legIndex: number) => number): number {
+  if (!(value > 0)) return 0;
+  const legs = asset.composition && asset.composition.length > 0 ? asset.composition.map((leg) => leg.percentage / 100) : [1];
+  return legs.reduce((sum, share, index) => sum + share * legShare(asset, index), 0);
+}
+
+/**
+ * RO1: a goal that counts in the FIRE plan ({@link InvestmentGoal.countsInFire}) as a fixed lump out of the year of its
+ * deadline, net of what already sits OUTSIDE the capital today (D-G3). A goal that cannot be placed is left out and says why.
+ * Goals that do not count produce nothing.
+ */
+export function resolveGoalFlows(goals: readonly InvestmentGoal[] | undefined, assignments: readonly GoalAssetAssignment[] | undefined, context: ResolveGoalFlowsContext): ResolvedDatedFlows {
+  const resolved: ResolvedFlow[] = [];
+  const excluded: ExcludedFlow[] = [];
+  for (const goal of goals ?? []) {
+    if (goal.countsInFire !== true) continue;
+    const base = { id: goal.id, label: goal.name, source: { kind: 'goal', goalId: goal.id } as const };
+    const target = goal.targetAmount;
+    if (target == null || !(target > 0)) {
+      excluded.push({ ...base, reason: 'manca l\'importo' });
+      continue;
+    }
+    const deadline = goal.targetDate ? goalDateFromIso(goal.targetDate) : null;
+    if (!deadline) {
+      excluded.push({ ...base, reason: 'manca la scadenza' });
+      continue;
+    }
+    const start = deadline.year - context.currentYear;
+    if (start < 0) {
+      excluded.push({ ...base, reason: 'scadenza passata' });
+      continue;
+    }
+    let outside = 0;
+    for (const assignment of assignments ?? []) {
+      if (assignment.goalId !== goal.id) continue;
+      const value = context.assetValue(assignment.assetId);
+      if (value === null || !(value > 0)) continue;
+      const inside = Math.min(1, Math.max(0, context.insideShare ? context.insideShare(assignment.assetId) : 1));
+      outside += ((value * assignment.percentage) / 100) * (1 - inside);
+    }
+    const amount = Math.max(0, target - outside);
+    if (!(amount > 0)) {
+      excluded.push({ ...base, reason: 'tutto fuori dal capitale FIRE' });
+      continue;
+    }
+    resolved.push({ ...base, kind: 'lumpOut', sigma: 0, indexed: false, amount, anchor: 'fixed', start, durationYears: null, inCashflowToday: false });
   }
   return { resolved, excluded };
 }

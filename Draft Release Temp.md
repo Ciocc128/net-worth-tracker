@@ -18,6 +18,8 @@
 
 - FIRE › What If has a «Quando» field on the event: leave it empty for today (nothing changes), or type a later year — a job loss in 2029, a purchase in 2031, a cashflow change from 2030 — and the plan keeps its course until then. The «prima» side now includes the dated flows of the Calcolatore, so both tabs agree, and the verdict names the year.
 
+- FIRE › Obiettivi: a goal has an «Alla scadenza lo spendo» switch (on by default for the «Acquisto Casa» and «Auto» templates). A goal that is spent counts in the FIRE plan as an outflow in the year of its deadline, net of what you already hold outside the portfolio, and every FIRE tab reads it (Calcolatore › Parametri › «Flussi nel tempo» lists it, read-only). The goal's Traiettoria says what it does to the FIRE year, counted or not, for example «Con questa spesa il FIRE è nel 2035 invece che nel 2034 (scenario Base).», with a «Conta nel FIRE» button when it is not counted yet.
+
 ## 🐛 Bug Fixes
 
 - Fixed the FIRE simulations diluting the portfolio weights with accounts excluded from Allocazione: a 70/30 target is now simulated as 70/30, not as 63/27 plus 10% of cash that the plan does not hold.

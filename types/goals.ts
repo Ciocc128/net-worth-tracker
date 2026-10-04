@@ -21,6 +21,7 @@ export interface InvestmentGoal {
   monthlyContribution?: number;    // Planned monthly contribution (EUR) — drives projection/required-pace (read-compatible, no migration)
   recommendedAllocation?: Partial<Record<AssetClass, number>>; // Suggested asset class mix, values sum to 100
   notes?: string;                  // Free-text notes (max 500 chars)
+  countsInFire?: boolean;          // «Alla scadenza lo spendo»: the goal leaves the FIRE capital at its deadline (doc/fire-ipotesi/README.md § 13, RO1); absent = no
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +58,7 @@ export interface GoalTemplate {
   color: string;
   priority: GoalPriority;
   recommendedAllocation?: Partial<Record<AssetClass, number>>;
+  countsInFire?: boolean; // D-G2: on for the goals that are spent (house, car), absent = off
 }
 
 export const GOAL_TEMPLATES: GoalTemplate[] = [
@@ -65,6 +67,7 @@ export const GOAL_TEMPLATES: GoalTemplate[] = [
     color: '#3B82F6', // blue
     priority: 'alta',
     recommendedAllocation: { bonds: 70, equity: 20, cash: 10 },
+    countsInFire: true,
   },
   {
     name: 'Pensione',
@@ -77,6 +80,7 @@ export const GOAL_TEMPLATES: GoalTemplate[] = [
     color: '#F97316', // orange
     priority: 'media',
     recommendedAllocation: { bonds: 80, cash: 20 },
+    countsInFire: true,
   },
   {
     name: 'Fondo Emergenza',
