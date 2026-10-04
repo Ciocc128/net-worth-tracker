@@ -526,16 +526,23 @@ export function resolveCoastPace(
   projectionData: CoastFIREProjectionPoint[],
   annualSavings: number | undefined,
   realReturnRate: number,
-  reachedToday: boolean
+  reachedToday: boolean,
+  // § 12 (RF9): the change the dated flows make to the saving of year `t`, in today's euro; absent = the pace of before.
+  savingsDeltaReal?: (yearOffset: number) => number
 ): CoastPace | null {
   if (annualSavings === undefined || annualSavings <= 0 || projectionData.length < 2 || reachedToday) return null;
   const lastOffset = projectionData.length - 1;
   const rate = realReturnRate / 100;
+  const savedAt = (years: number): number => {
+    let total = compoundedSavings(annualSavings, realReturnRate, years);
+    if (savingsDeltaReal) for (let year = 1; year <= years; year++) total += savingsDeltaReal(year) * Math.pow(1 + rate, years - year);
+    return total;
+  };
 
   let reached: CoastPaceReached | null = null;
   for (const point of projectionData) {
     if (point.yearOffset === 0) continue;
-    const capital = point.basePortfolioValue + compoundedSavings(annualSavings, realReturnRate, point.yearOffset);
+    const capital = point.basePortfolioValue + savedAt(point.yearOffset);
     const coastNumberThatYear = point.fireNumberTarget / Math.pow(1 + rate, lastOffset - point.yearOffset);
     if (capital >= coastNumberThatYear) {
       reached = { yearOffset: point.yearOffset, calendarYear: point.calendarYear, age: point.age };
@@ -546,9 +553,9 @@ export function resolveCoastPace(
   const savingsUntil = reached?.yearOffset ?? lastOffset;
   const series = projectionData.map((point) => {
     if (point.yearOffset <= savingsUntil) {
-      return point.basePortfolioValue + compoundedSavings(annualSavings, realReturnRate, point.yearOffset);
+      return point.basePortfolioValue + savedAt(point.yearOffset);
     }
-    const savedAtStop = compoundedSavings(annualSavings, realReturnRate, savingsUntil);
+    const savedAtStop = savedAt(savingsUntil);
     return point.basePortfolioValue + savedAtStop * Math.pow(1 + rate, point.yearOffset - savingsUntil);
   });
 

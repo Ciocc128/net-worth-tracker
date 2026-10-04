@@ -20,6 +20,7 @@ import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { FireLock } from '@/lib/utils/fireSummary';
 import { describePensionRow, describeTaxRow, formatRate, type FireBase } from '@/lib/utils/fireNarrative';
+import { describeFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { NO_HONEST } from '@/lib/utils/fireSummary';
 import { describeOutsideCapital } from '@/lib/utils/fireAssumptionsNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
@@ -65,6 +66,7 @@ export function BaseDiCalcoloTile({ reading, aside, base, lock, lockCaption, onL
   const honest = base.honest ?? NO_HONEST;
   const pensionRow = describePensionRow(honest, currentYear);
   const taxRow = describeTaxRow(honest);
+  const flowsRow = base.flows ? describeFlowsRow(base.flows) : null;
   const outside = describeOutsideCapital(base.outsideCapital);
   const netWorthCaption = [
     outside ? `fuori: ${outside}` : 'portafoglio, non patrimonio',
@@ -93,6 +95,8 @@ export function BaseDiCalcoloTile({ reading, aside, base, lock, lockCaption, onL
               or declared out with its reason — never silently assumed. */}
           <Row label="Pensioni statali" caption={pensionRow.caption} value={pensionRow.value} />
           <Row label="Tasse sui prelievi" caption={taxRow.caption} value={taxRow.value} />
+          {/* § 12 (D-F12): the dated flows in use, and how far they move the FIRE year. */}
+          {flowsRow && <Row label="Flussi nel tempo" caption={flowsRow.caption} value={flowsRow.value} />}
         </div>
 
         <div className="mt-3.5 flex items-start justify-between gap-3 border-t border-border pt-3.5 @[560px]:mt-2.5 @[560px]:border-t-0 @[560px]:border-l @[560px]:py-[9px] @[560px]:pl-6">

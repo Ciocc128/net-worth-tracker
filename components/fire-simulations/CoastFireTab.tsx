@@ -44,8 +44,11 @@ import {
   calculateCoastFIREProjection,
   getAnnualCashflowData,
   getDefaultScenarios,
+  type FireFlowsInput,
   type PensionCapitalInflowToday,
 } from '@/lib/services/fireService';
+import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
+import { buildFlowSchedule } from '@/lib/utils/datedFlows';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
@@ -197,6 +200,15 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
 
   const effectiveAnnualExpenses = assumptions?.expenses?.annual;
 
+  // § 12 (RF9): the dated flows SAVED in the Calcolatore's Parametri. Before the target age only the lumps count (D-F11); the
+  // requirement at the target age is RF5 with the FIRE-anchored flows starting there.
+  const { resolved: resolvedFlows } = useFireDatedFlows();
+  const flowsInput = useMemo<FireFlowsInput | undefined>(
+    () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
+    [resolvedFlows, assumptions?.expenses?.origin],
+  );
+  const flowAssumptions = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
+
   // ─── The projection (fireService, unchanged) ─────────────────────────────────
   const { previewPensions, previewTaxBrackets } = draft;
   const coastProjection = useMemo(() => {
@@ -215,8 +227,9 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
       undefined, // currentDate: keep the function's own default
       pensionInflowsToday,
       withdrawalTax,
+      flowsInput,
     );
-  }, [effectiveAnnualExpenses, currentAge, currentNetWorth, pensionInflowsToday, previewPensions, previewTaxBrackets, retirementAge, scenarios, withdrawalRate, withdrawalTax]);
+  }, [effectiveAnnualExpenses, currentAge, currentNetWorth, pensionInflowsToday, previewPensions, previewTaxBrackets, retirementAge, scenarios, withdrawalRate, withdrawalTax, flowsInput]);
 
   // ─── The numbers (pure layer over the projection) ────────────────────────────
   const currentYear = getItalyYear();
@@ -235,8 +248,14 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
   );
   const annualSavings = cashflowData?.annualSavings;
   const pace = useMemo(
-    () => (coastProjection && baseScenario && target ? resolveCoastPace(coastProjection.projectionData, annualSavings, baseScenario.realReturnRate, target.reached) : null),
-    [coastProjection, baseScenario, target, annualSavings],
+    () => {
+      if (!coastProjection || !baseScenario || !target) return null;
+      const baseInflation = scenarios.base.inflationRate;
+      const schedule = flowsInput ? buildFlowSchedule(flowsInput.resolved, { inflationRate: baseInflation, planExpensesFromCashflow: flowsInput.planExpensesFromCashflow }) : undefined;
+      const savingsDeltaReal = schedule ? (year: number) => schedule.savingsDelta(year) / Math.pow(1 + baseInflation / 100, year) : undefined;
+      return resolveCoastPace(coastProjection.projectionData, annualSavings, baseScenario.realReturnRate, target.reached, savingsDeltaReal);
+    },
+    [coastProjection, baseScenario, target, annualSavings, flowsInput, scenarios.base.inflationRate],
   );
   const pensions = useMemo(
     () => (baseScenario ? summarizeCoastPensions(baseScenario, currentYear) : { count: 0, entries: [], annualNetReal: 0, monthlyNetReal: 0, annualNetRealAtRetirement: 0 }),
@@ -366,7 +385,7 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
     return (
       <div className="space-y-4">
         <div className="pt-1">
-          <FireAssumptionsRow assumptions={assumptions} />
+          <FireAssumptionsRow assumptions={flowAssumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
         </div>
         <div className={GRID_CLASS}>
@@ -396,7 +415,7 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <FireAssumptionsRow assumptions={assumptions} />
+        <FireAssumptionsRow assumptions={flowAssumptions} />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Coast FIRE" />
       </div>
 

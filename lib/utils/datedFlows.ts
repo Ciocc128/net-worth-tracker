@@ -93,7 +93,7 @@ export function resolveDatedFlows(flows: readonly DatedFlow[] | undefined, conte
       });
       continue;
     }
-    if (flow.kind === 'goal' as string) continue;
+    if (flow.source?.kind === 'goal') continue;
     const lump = isLump(flow.kind);
     let start: number;
     if (flow.start.anchor === 'year') {
@@ -282,4 +282,11 @@ export function flowsRequirementAdjustment(input: FlowsRequirementInput): number
   }
   adjustment += (m * delta(J + 1)) / swr / Math.pow(1 + r, J);
   return adjustment;
+}
+
+/** A sign on the years axis for each lump from next year on (the running year's lump is the starting capital). */
+export function lumpMarkersOf(resolved: readonly ResolvedFlow[], currentYear: number): Array<{ calendarYear: number; label: string; direction: 'in' | 'out' }> {
+  return resolved
+    .filter((flow) => isLump(flow.kind) && flow.anchor === 'fixed' && flow.start >= 1)
+    .map((flow) => ({ calendarYear: currentYear + flow.start, label: flow.label, direction: flow.kind === 'lumpIn' ? ('in' as const) : ('out' as const) }));
 }

@@ -159,6 +159,7 @@ import {
   summarizeExpenseCategories,
   type ThemeMode,
 } from '@/lib/utils/settingsNarrative';
+import { describeFlowsDeclaration } from '@/lib/utils/datedFlowsNarrative';
 import { summarizeCategoryClassification } from '@/lib/utils/spendingRoles';
 
 interface SubTarget {
@@ -652,10 +653,11 @@ export default function SettingsPage() {
     withdrawalRate?: number;
     plannedAnnualExpenses?: number;
     fireCashToInvestPct?: number;
+    fireDatedFlowsCount: number;
     pensionInpsRetirementAge?: number;
     pensionRitaLongUnemployment: boolean;
     respectPensionLockInFire: boolean;
-  }>({ pensionRitaLongUnemployment: false, respectPensionLockInFire: false });
+  }>({ fireDatedFlowsCount: 0, pensionRitaLongUnemployment: false, respectPensionLockInFire: false });
   const [assistantPrefs, setAssistantPrefs] = useState<{
     responseStyle?: 'balanced' | 'concise' | 'deep';
     memoryEnabled?: boolean;
@@ -883,6 +885,7 @@ export default function SettingsPage() {
           withdrawalRate: settingsData.withdrawalRate,
           plannedAnnualExpenses: settingsData.plannedAnnualExpenses,
           fireCashToInvestPct: settingsData.fireCashToInvestPct,
+          fireDatedFlowsCount: settingsData.fireDatedFlows?.length ?? 0,
           pensionInpsRetirementAge: settingsData.pensionInpsRetirementAge,
           pensionRitaLongUnemployment: settingsData.pensionRitaLongUnemployment ?? false,
           respectPensionLockInFire: settingsData.respectPensionLockInFire ?? false,
@@ -1656,6 +1659,7 @@ export default function SettingsPage() {
         withdrawalRate: settingsData?.withdrawalRate,
         plannedAnnualExpenses: settingsData?.plannedAnnualExpenses,
         fireCashToInvestPct: settingsData?.fireCashToInvestPct,
+        fireDatedFlows: settingsData?.fireDatedFlows,
         targets,
         dividendIncomeCategoryId: dividendIncomeCategoryId || undefined,
         dividendIncomeSubCategoryId: dividendIncomeSubCategoryId || undefined,
@@ -2888,6 +2892,7 @@ export default function SettingsPage() {
                       label="Liquidità da investire"
                       value={`${pctLabel(planParams.fireCashToInvestPct ?? 0)}${planParams.fireCashToInvestPct === undefined ? ' · predefinita' : ''}`}
                     />
+                    <DeclarationRow label="Flussi nel tempo" value={describeFlowsDeclaration(planParams.fireDatedFlowsCount)} mono={planParams.fireDatedFlowsCount > 0} />
                     <DeclarationRow
                       label="Età pensione INPS"
                       value={`${inpsAgeShown} anni${planParams.pensionInpsRetirementAge === undefined ? ' · predefinita' : ''}`}

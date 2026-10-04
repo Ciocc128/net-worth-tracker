@@ -123,5 +123,8 @@ export function describeFireAssumptions(assumptions: FireAssumptions): Narrative
   // L2: the expenses and the capital, once the tab has them (RP5, RP6).
   if (assumptions.expenses) out.push(...describeExpenses(assumptions.expenses));
   if (assumptions.capital) out.push(...describeCapital(assumptions.capital));
+  // § 12: the dated flows the numbers run on.
+  const flowsCount = assumptions.datedFlowsCount ?? 0;
+  if (flowsCount > 0) out.push(prose(' · '), figure(String(flowsCount)), prose(flowsCount === 1 ? ' flusso datato' : ' flussi datati'));
   return out;
 }
