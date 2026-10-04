@@ -3,7 +3,8 @@ import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from '@/
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions, resolveFireCapital, resolvePlanExpenses } from '@/lib/utils/fireAssumptions';
 import { portfolioCost, resolveClassCosts } from '@/lib/utils/fireCosts';
-import { describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
+import { weightsForFireCapital } from '@/lib/utils/monteCarloWeights';
+import { describeCashToInvest, describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
 import { narrativeToText } from '@/lib/utils/narrative';
 import { calculateFIREProjection } from '@/lib/services/fireService';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
@@ -137,12 +138,12 @@ describe('resolveFireCapital (RP5, A12)', () => {
   it('A12: the capital is the seven classes; crypto and real estate are declared outside', () => {
     const capital = resolveFireCapital(portfolio, valueOf, {});
     expect(capital.total).toBe(300_000);
-    expect(capital.outside).toEqual({ realestate: 200_000, crypto: 50_000 });
+    expect(capital.outside).toEqual({ realestate: 200_000, crypto: 50_000, cash: 0, otherExcluded: 0 });
   });
 
   it('A12: the line says it, Immobili first', () => {
     const line = text({ settings: null, assets: portfolio, assetValue: valueOf });
-    expect(line).toContain(' · capitale 300.000 € (fuori: Immobili 200.000 €, Crypto 50.000 €)');
+    expect(line).toContain(' · capitale 300.000 € (portafoglio; fuori: Immobili 200.000 €, Crypto 50.000 €)');
   });
 
   it('a closed pension fund is not capital', () => {
@@ -207,7 +208,7 @@ describe('A18: one line for every tab', () => {
     const settings = { plannedAnnualExpenses: 28_000 } as never;
     const forTab = (locked: string[]) => text({ settings, assets, assetValue: valueOf, cashflowData: cashflow, lockedAssetIds: new Set(locked) });
     expect(forTab(['fund'])).toBe(forTab(['fund']));
-    expect(forTab(['fund'])).toContain('capitale 300.000 € (fuori: Immobili 200.000 €)');
+    expect(forTab(['fund'])).toContain('capitale 300.000 € (portafoglio; fuori: Immobili 200.000 €)');
     expect(forTab([])).toContain('capitale 320.000 €');
   });
 });
@@ -329,5 +330,180 @@ describe('recurring costs in the rates (RC4)', () => {
     expect(text({ ...base, settings: { ...settings, stampDutyEnabled: false } })).toContain('costi 0,16% (solo TER; bollo non attivo in Impostazioni › Allocazione)');
     const noTer = costPortfolio.map((a) => ({ ...a, totalExpenseRatio: undefined }));
     expect(text({ assets: noTer, assetValue: valueOf, settings })).toContain('TER non inseriti negli strumenti');
+  });
+});
+
+
+// ─── K1: patrimonio e portafoglio (doc/fire-ipotesi/README.md § 11) ──────────────────────────
+
+describe('K1: the portfolio, the cash to invest and the capital of the tabs', () => {
+  const noTargets = { targets: {} } as never;
+  const targets7030 = { targets: { equity: { targetPercentage: 70 }, bonds: { targetPercentage: 30 }, cash: { targetPercentage: 0 } } };
+  const cash = (id: string, value: number, extra: Partial<Asset> = {}) => asset(id, 'cash', value, { type: 'cash', ...extra });
+  const example = (extra: Asset[] = []): Asset[] => [
+    asset('azioni', 'equity', 280_000, { averageCost: 200_000 }),
+    asset('obbl', 'bonds', 120_000, { averageCost: 110_000 }),
+    cash('conto', 15_000),
+    cash('deposito', 45_000, { allocationRole: 'excluded' }),
+    asset('btc', 'crypto', 10_000),
+    asset('casa', 'realestate', 250_000, { allocationRole: 'excluded' }),
+    ...extra,
+  ];
+  const resolve = (pct: number | undefined, settings: Record<string, unknown> = targets7030, assets: Asset[] = example()) =>
+    resolveFireAssumptions({ settings: { ...settings, fireCashToInvestPct: pct } as never, assets, assetValue: valueOf });
+
+  it('K2: N, C, C_in, P, X, E, L', () => {
+    const { capital } = resolve(0);
+    expect(capital!.portfolio).toBeCloseTo(400_000, 2);
+    expect(capital!.cashToInvest.overTarget).toBeCloseTo(15_000, 2);
+    expect(capital!.cashToInvest.excludedAccounts).toBeCloseTo(45_000, 2);
+    expect(capital!.cashToInvest.total).toBeCloseTo(60_000, 2);
+  });
+
+  it('K3: the capital is P + q·L for q = 0 / 50 / 100', () => {
+    expect(resolve(0).capital!.total).toBeCloseTo(400_000, 2);
+    expect(resolve(50).capital!.total).toBeCloseTo(430_000, 2);
+    expect(resolve(100).capital!.total).toBeCloseTo(460_000, 2);
+    expect(resolve(undefined).capital!.total).toBeCloseTo(400_000, 2);
+    // out of [0, 100] is clamped, never read as a bigger capital
+    expect(resolve(250).capital!.total).toBeCloseTo(460_000, 2);
+    expect(resolve(-5).capital!.total).toBeCloseTo(400_000, 2);
+  });
+
+  it('K4: the weights are the pure targets whatever q (no dilution), and the rates follow', () => {
+    for (const q of [0, 50, 100]) {
+      const result = resolve(q);
+      expect(result.weights).toEqual(weights({ equity: 70, bonds: 30 }));
+      expect(result.weightsOrigin).toBe('targets');
+      near(result.scenarios.bear.growthRate, 6.5158);
+      near(result.scenarios.base.growthRate, 8.7525);
+      near(result.scenarios.bull.growthRate, 11.4278);
+      near(result.scenarios.base.realReturnRate, 5.5439);
+    }
+  });
+
+  it('K5: a Liquidità target of 10% keeps 10% of the portfolio as cash, the rest of the included account is excess', () => {
+    const assets = [asset('azioni', 'equity', 280_000), asset('obbl', 'bonds', 120_000), cash('conto', 60_000)];
+    const result = resolve(0, { targets: { equity: { targetPercentage: 63 }, bonds: { targetPercentage: 27 }, cash: { targetPercentage: 10 } } }, assets);
+    expect(result.capital!.portfolio).toBeCloseTo(444_444.44, 2);
+    expect(result.capital!.cashToInvest.overTarget).toBeCloseTo(15_555.56, 2);
+    expect(result.capital!.cashToInvest.total).toBeCloseTo(15_555.56, 2);
+  });
+
+  it('K6: a fixed-amount Liquidità target', () => {
+    const assets = [asset('azioni', 'equity', 280_000), asset('obbl', 'bonds', 120_000), cash('conto', 60_000)];
+    const settings = { targets: { equity: { targetPercentage: 70 }, bonds: { targetPercentage: 30 }, cash: { targetPercentage: 0, useFixedAmount: true, fixedAmount: 20_000 } } };
+    const result = resolve(100, settings, assets);
+    expect(result.capital!.portfolio).toBeCloseTo(420_000, 2);
+    expect(result.capital!.cashToInvest.overTarget).toBeCloseTo(40_000, 2);
+    expect(result.capital!.total).toBeCloseTo(460_000, 2);
+    // w_cash = 20.000 / 460.000 = 4,3478%, Azioni 66,9565%, Obbligazioni 28,6957% — before the integer normaliser
+    const direct = weightsForFireCapital(
+      settings.targets,
+      { capital: 460_000, cashIn: 20_000, cashToInvest: 40_000, legs: [] },
+    );
+    expect(direct?.weights.cash).toBe(4);
+    expect(direct?.weights.equity).toBe(67);
+    expect(direct?.weights.bonds).toBe(29);
+  });
+
+  it('K7: a negative balance excluded (a credit card) lowers the cash to invest', () => {
+    const { capital } = resolve(0, targets7030, example([cash('carta', -2_000, { allocationRole: 'excluded' })]));
+    expect(capital!.cashToInvest.excludedAccounts).toBeCloseTo(43_000, 2);
+    expect(capital!.cashToInvest.total).toBeCloseTo(58_000, 2);
+  });
+
+  it('K8: the tax profile of the capital with q = 50', () => {
+    const profile = resolve(50).capital!.taxProfile!;
+    expect(profile.basisToday).toBeCloseTo(340_000, 2);
+    expect(1 - profile.basisToday / 430_000).toBeCloseTo(90_000 / 430_000, 6);
+  });
+
+  it('K9: the liquid part with q = 50', () => {
+    expect(resolve(50).capital!.liquid).toBeCloseTo(430_000, 2);
+  });
+
+  it('K10: with no targets the holdings are the weights, the included account is in and the deposit is out', () => {
+    const result = resolve(0, noTargets);
+    expect(result.capital!.total).toBeCloseTo(415_000, 2);
+    expect(result.weightsOrigin).toBe('holdings');
+    // 280/415, 120/415, 15/415 → 67,47 / 28,92 / 3,61 before the normaliser (67 / 29 / 4 after it)
+    expect(result.weights).toEqual(weights({ equity: 67, bonds: 29, cash: 4 }));
+  });
+
+  it('with no targets and no instrument, the cash that enters has no weights to take: the 60/40 default is declared', () => {
+    const result = resolve(100, noTargets, [cash('deposito', 45_000, { allocationRole: 'excluded' })]);
+    expect(result.capital!.total).toBeCloseTo(45_000, 2);
+    expect(result.weightsOrigin).toBe('default');
+  });
+
+  it('RK8: a locked pension fund is not portfolio, the net worth keeps it', () => {
+    const result = resolveFireAssumptions({
+      settings: targets7030 as never,
+      assets: example([asset('fondo', 'equity', 20_000)]),
+      assetValue: valueOf,
+      lockedAssetIds: new Set(['fondo']),
+    });
+    expect(result.capital!.portfolio).toBeCloseTo(400_000, 2);
+    expect(result.capital!.netWorth).toBeCloseTo(740_000, 2);
+  });
+
+  it('K12: the line is the same in every tab and says portfolio, cash used and what is outside', () => {
+    expect(text({ settings: { ...targets7030, fireCashToInvestPct: 50 } as never, assets: example(), assetValue: valueOf })).toContain(
+      ' · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+    );
+    expect(text({ settings: { ...targets7030, fireCashToInvestPct: 0 } as never, assets: example(), assetValue: valueOf })).toContain(
+      ' · capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+    );
+  });
+
+  it('other excluded instruments (not Liquidità) stay out and are declared, never invested', () => {
+    const result = resolve(100, targets7030, example([asset('azione-fuori', 'equity', 5_000, { allocationRole: 'excluded' })]));
+    expect(result.capital!.total).toBeCloseTo(460_000, 2);
+    expect(result.capital!.outside.otherExcluded).toBeCloseTo(5_000, 2);
+    expect(text({ settings: { ...targets7030, fireCashToInvestPct: 100 } as never, assets: example([asset('azione-fuori', 'equity', 5_000, { allocationRole: 'excluded' })]), assetValue: valueOf })).toContain('Altri strumenti esclusi 5000 €');
+  });
+
+  it('describeCashToInvest says where the cash comes from', () => {
+    expect(describeCashToInvest(resolve(50).capital!.cashToInvest).replace(/\u00a0/g, ' ')).toBe(
+      '60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): ne entrano 30.000 € nei pesi target.',
+    );
+  });
+
+  it('RK6: the recurring costs read the shares — an excluded cash account pays no duty at q = 0, and does at q = 100', () => {
+    const settings = { ...targets7030, stampDutyEnabled: true, stampDutyRate: 0.2 };
+    // Only the ETFs pay at q = 0 (the included account is excess, the deposit is out): the cash class is not held.
+    const q0 = resolve(0, settings).costs!.byClass;
+    expect(q0.cash.held).toBe(false);
+    expect(resolve(100, settings).costs!.byClass.cash.held).toBe(true);
+  });
+
+  it('K14: at zero volatility the Ventaglio is the Base curve, starting from the capital of RK4', () => {
+    const result = resolve(50);
+    const base = zeroVol(result.market.scenarios.base);
+    const w = result.weights;
+    const g = portfolioCompoundReturn(w, base, correlations, 2);
+    const inflation = base.inflationRate;
+    const scenario = { growthRate: g.cagr, inflationRate: inflation };
+    const capital = Math.round(result.capital!.total);
+    const projection = calculateFIREProjection(capital, 30_000, 12_000, 4, { bear: scenario, base: scenario, bull: scenario }, 50, undefined, undefined, true);
+    const years = Math.min(projection.yearlyData.length, 40);
+    const fan = runAccumulationSimulation({
+      initialPortfolio: capital,
+      annualSavings: 12_000,
+      savingsInflationRate: inflation,
+      annualExpenses: 30_000,
+      withdrawalRate: 4,
+      expenseInflationRate: inflation,
+      years,
+      weights: w,
+      market: base,
+      correlations: [...correlations],
+      leverageSpread: 2,
+      numberOfSimulations: 3,
+    });
+    for (const path of fan.paths) {
+      for (let year = 1; year <= years; year++) expect(Math.round(path[year].value)).toBe(projection.yearlyData[year - 1].baseNetWorth);
+    }
   });
 });

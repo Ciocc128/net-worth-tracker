@@ -54,7 +54,12 @@ const DEFAULT_STAMP_DUTY_RATE = 0.2;
 export function resolveClassCosts(
   assets: readonly Asset[],
   settings: FireCostSettings | null | undefined,
-  options: { lockedAssetIds?: ReadonlySet<string>; goldSubCategory?: string | null } = {},
+  options: {
+    lockedAssetIds?: ReadonlySet<string>;
+    goldSubCategory?: string | null;
+    /** K1 (RK6): the share of a leg's market value that is in the capital; absent = every leg counts whole. A leg with no share (the excluded ones) is out. */
+    legShare?: (asset: Asset, legIndex: number) => number;
+  } = {},
 ): FireCosts {
   const enabled = !!settings?.stampDutyEnabled;
   const rate = enabled ? (Number.isFinite(settings?.stampDutyRate) ? (settings!.stampDutyRate as number) : DEFAULT_STAMP_DUTY_RATE) : 0;
@@ -66,13 +71,15 @@ export function resolveClassCosts(
     if (options.lockedAssetIds?.has(asset.id) || asset.quantity <= 0) continue;
     const ter = asset.totalExpenseRatio && asset.totalExpenseRatio > 0 ? asset.totalExpenseRatio : 0;
     const subjectToDuty = !asset.stampDutyExempt && !isCheckingAccount(asset, settings?.checkingAccountSubCategory);
-    for (const leg of expandAssetExposure(asset)) {
+    expandAssetExposure(asset).forEach((leg, index) => {
       const cls = legMonteCarloClass(leg, options);
-      if (!cls || !(leg.marketValue > 0)) continue;
-      market[cls] += leg.marketValue;
-      terWeighted[cls] += leg.marketValue * ter;
-      if (subjectToDuty) subject[cls] += leg.marketValue;
-    }
+      if (!cls || !(leg.marketValue > 0)) return;
+      const value = leg.marketValue * (options.legShare ? options.legShare(asset, index) : 1);
+      if (!(value > 0)) return;
+      market[cls] += value;
+      terWeighted[cls] += value * ter;
+      if (subjectToDuty) subject[cls] += value;
+    });
   }
 
   // RC2: the average TER of `K`, Trend and Carry (the 'trendFollowing' and 'carry' classes) out of numerator and denominator.

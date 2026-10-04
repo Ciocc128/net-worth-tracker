@@ -117,6 +117,37 @@ function goldShareOfCommodityTarget(target: AssetAllocationTarget[string] | unde
   return held > 0 ? heldGold / held : 0;
 }
 
+export interface ModelledClassTargets {
+  /** Percent per class, rescaled when crypto and real estate carry a target; `gold` is not split out here (RG). */
+  classTarget: Record<MonteCarloClass, number>;
+  /** EUR of a fixed-amount Liquidità target, 0 when the target is a percentage. */
+  cashFixed: number;
+  /** False when no modelled class has a target (the caller seeds from the holdings). */
+  anyTarget: boolean;
+}
+
+/**
+ * The modelled part of the effective targets: percent per class rescaled by `100 / (100 − t_crypto − t_realestate)`
+ * (R6), the fixed Liquidità amount apart. Shared by the R6 seed and the FIRE capital (K1, RK2 and RK5).
+ */
+export function modelledClassTargets(targets: AssetAllocationTarget): ModelledClassTargets {
+  const percentOf = (assetClass: string): number => Math.max(0, targets[assetClass]?.targetPercentage || 0);
+  const outsidePct = percentOf('crypto') + percentOf('realestate');
+  const rescale = outsidePct < 100 ? 100 / (100 - outsidePct) : 1;
+
+  const cashFixed = targets.cash?.useFixedAmount ? Math.max(0, targets.cash.fixedAmount || 0) : 0;
+  const classTarget = monteCarloClassRecord<number>(() => 0);
+  let anyTarget = cashFixed > 0;
+  for (const cls of MONTE_CARLO_CLASSES) {
+    if (cls === 'gold') continue;
+    if (cls === 'cash' && targets.cash?.useFixedAmount) continue;
+    const pct = percentOf(cls) * rescale;
+    if (pct > 0) anyTarget = true;
+    classTarget[cls] = pct;
+  }
+  return { classTarget, cashFixed, anyTarget };
+}
+
 /**
  * R6: `w_c = (t_c·B + E_c) / K` over the capital `K` of the simulation, where `t_c` is the effective
  * target of the class (a % of the investable capital), `B` the market value of the investable capital
@@ -140,20 +171,7 @@ export function seedWeightsFromTargets(targets: AssetAllocationTarget | null | u
   const heldMarket = monteCarloClassRecord<number>(() => 0);
   for (const leg of legs) heldMarket[leg.cls] += leg.market;
 
-  const percentOf = (assetClass: string): number => Math.max(0, targets[assetClass]?.targetPercentage || 0);
-  const outsidePct = percentOf('crypto') + percentOf('realestate');
-  const rescale = outsidePct < 100 ? 100 / (100 - outsidePct) : 1;
-
-  const cashFixed = targets.cash?.useFixedAmount ? Math.max(0, targets.cash.fixedAmount || 0) : 0;
-  const classTarget = monteCarloClassRecord<number>(() => 0);
-  let anyTarget = cashFixed > 0;
-  for (const cls of MONTE_CARLO_CLASSES) {
-    if (cls === 'gold') continue;
-    if (cls === 'cash' && targets.cash?.useFixedAmount) continue;
-    const pct = percentOf(cls) * rescale;
-    if (pct > 0) anyTarget = true;
-    classTarget[cls] = pct;
-  }
+  const { classTarget, cashFixed, anyTarget } = modelledClassTargets(targets);
   if (!anyTarget) return null;
 
   // RG on the target: the commodity target splits between Oro and Materie prime.
@@ -165,4 +183,66 @@ export function seedWeightsFromTargets(targets: AssetAllocationTarget | null | u
   for (const cls of MONTE_CARLO_CLASSES) percent[cls] = (((classTarget[cls] / 100) * investable + excludedNotional[cls]) / capital) * 100;
   percent.cash += (cashFixed / capital) * 100;
   return normalise(percent);
+}
+
+/** One modelled leg of the PORTFOLIO (RK1): an included or frozen instrument, with the gold split of RG applied. */
+export interface FirePortfolioLeg {
+  cls: MonteCarloClass;
+  market: number;
+  notional: number;
+}
+
+export interface FireCapitalWeightsInput {
+  /** The capital of the tabs (RK4): `P + q·L`. */
+  capital: number;
+  /** `C_in` (RK2): the Liquidità that sits in the portfolio. */
+  cashIn: number;
+  /** `q·L` (RK4): the cash entering at year 0 on the target weights. */
+  cashToInvest: number;
+  /** The legs of the portfolio, Liquidità included. */
+  legs: readonly FirePortfolioLeg[];
+}
+
+export interface FireCapitalWeights extends SeededWeights {
+  origin: 'targets' | 'holdings';
+}
+
+/**
+ * K1 (RK5): the weights on the capital of the FIRE tabs. With targets on the modelled classes
+ * `w_c = t_c` — no `E_c` term any more: what is excluded is not in the capital; a fixed-amount Liquidità
+ * target takes `C_in / capital` and the other classes share the rest. Without targets, the notional held
+ * by the portfolio over the capital, plus `q·L` as Liquidità. Null when the capital is empty, or when
+ * no instrument is held and there are no targets (the caller declares the default).
+ */
+export function weightsForFireCapital(targets: AssetAllocationTarget | null | undefined, input: FireCapitalWeightsInput, options: MonteCarloWeightsOptions = {}): FireCapitalWeights | null {
+  const { capital, cashIn, cashToInvest, legs } = input;
+  if (!(capital > 0)) return null;
+
+  const info = targets ? modelledClassTargets(targets) : null;
+  if (targets && info?.anyTarget) {
+    const { classTarget } = info;
+    const heldMarket = monteCarloClassRecord<number>(() => 0);
+    for (const leg of legs) heldMarket[leg.cls] += leg.market;
+    const goldShare = goldShareOfCommodityTarget(targets.commodity, options.goldSubCategory, heldMarket.gold, heldMarket.commodity);
+    classTarget.gold = classTarget.commodity * goldShare;
+    classTarget.commodity = classTarget.commodity * (1 - goldShare);
+
+    const percent = monteCarloClassRecord<number>(() => 0);
+    if (targets.cash?.useFixedAmount) {
+      const cashShare = cashIn / capital;
+      for (const cls of MONTE_CARLO_CLASSES) percent[cls] = classTarget[cls] * (1 - cashShare);
+      percent.cash += cashShare * 100;
+    } else {
+      for (const cls of MONTE_CARLO_CLASSES) percent[cls] = classTarget[cls];
+    }
+    const seeded = normalise(percent);
+    return seeded ? { ...seeded, origin: 'targets' } : null;
+  }
+
+  if (legs.length === 0) return null;
+  const percent = monteCarloClassRecord<number>(() => 0);
+  for (const leg of legs) percent[leg.cls] += (leg.notional / capital) * 100;
+  percent.cash += (cashToInvest / capital) * 100;
+  const seeded = normalise(percent);
+  return seeded ? { ...seeded, origin: 'holdings' } : null;
 }

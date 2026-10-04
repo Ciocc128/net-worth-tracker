@@ -18,12 +18,14 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { MonteCarloPlan } from '@/lib/utils/monteCarloSummary';
-import { type MonteCarloClass, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
+import { type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { formatInputAmount } from '@/lib/utils/monteCarloSummary';
 import { describePensionInflowRow, describeStatePensionRow, describeWithdrawalTaxRow, type WeightsOrigin } from '@/lib/utils/monteCarloNarrative';
 import { WeightsFields } from '@/components/monte-carlo/WeightsFields';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
+import type { FireCapital } from '@/lib/utils/fireCapital';
+import { describeCapitalBreakdown } from '@/lib/utils/fireAssumptionsNarrative';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,8 +60,8 @@ interface ParametriTileProps {
   liquidNetWorth: number;
   /** Where the market assumptions come from (`describeMarketDeclaration`). */
   marketDeclaration: Narrative;
-  /** EUR of real estate and crypto, left outside the simulated capital; null while unread. */
-  excluded: Record<MonteCarloExcludedClass, number> | null;
+  /** K1 (§ 11.6): the page's capital, for the line under «Capitale iniziale» that says what is in and what stays out; null while unread. */
+  capital: FireCapital | null;
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
@@ -88,7 +90,7 @@ export function ParametriTile({
   totalNetWorth,
   liquidNetWorth,
   marketDeclaration,
-  excluded,
+  capital,
   onRun,
   canRun,
   isRunning,
@@ -123,6 +125,7 @@ export function ParametriTile({
                 Liquido · {cachedFormatCurrencyEUR(liquidNetWorth, true)}
               </Button>
             </div>
+            {capital && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
             {plan.inflows.map((inflow) => (
               <NarrativeText key={inflow.yearOffset} segments={describePensionInflowRow(inflow)} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
             ))}
@@ -178,7 +181,6 @@ export function ParametriTile({
             hasTargets={hasTargets}
             onUseTargets={onUseTargets}
             onImportHoldings={onImportHoldings}
-            excluded={excluded}
           />
 
           {/* Market assumptions: DECLARED here, edited in Impostazioni › Simulazioni (The Declaration-Tile Rule). */}

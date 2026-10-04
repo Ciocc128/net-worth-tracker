@@ -29,10 +29,16 @@ function describeWeights(assumptions: FireAssumptions): Narrative {
 
 const euro = (value: number): string => cachedFormatCurrencyEUR(Math.round(value), true);
 
-/** «Immobili 250.000 €, Crypto 5.000 €» — what the plan's capital leaves out; null when nothing is left out (RP5). */
+/**
+ * «Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €» — what the plan's capital leaves out (RK8); null when
+ * nothing is left out. The cash not invested and the other excluded instruments come first: they are the owner's to decide.
+ */
 export function describeOutsideCapital(outside: FireCapital['outside']): string | null {
-  const left = MONTE_CARLO_EXCLUDED_CLASSES.filter((cls) => outside[cls] > 0);
-  return left.length > 0 ? left.map((cls) => `${MONTE_CARLO_EXCLUDED_LABELS[cls]} ${euro(outside[cls])}`).join(', ') : null;
+  const parts: string[] = [];
+  if (Math.round(outside.cash) > 0) parts.push(`Liquidità ${euro(outside.cash)}`);
+  if (Math.round(outside.otherExcluded) > 0) parts.push(`Altri strumenti esclusi ${euro(outside.otherExcluded)}`);
+  for (const cls of MONTE_CARLO_EXCLUDED_CLASSES) if (outside[cls] > 0) parts.push(`${MONTE_CARLO_EXCLUDED_LABELS[cls]} ${euro(outside[cls])}`);
+  return parts.length > 0 ? parts.join(', ') : null;
 }
 
 /** «spesa 32.000 € dal Cashflow 2025» / «… da Impostazioni» / «… dal Cashflow 2026, annualizzato»; a Cashflow with no expenses says so. */
@@ -62,15 +68,36 @@ export function costsLackStampDuty(assumptions: FireAssumptions): boolean {
   return !!assumptions.costs && !assumptions.costs.stampDutyEnabled;
 }
 
-/** «capitale 410.000 € (fuori: Immobili 250.000 €)». */
-function describeCapital(capital: FireCapital): Narrative {
+/**
+ * K1 (§ 11.6): «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €)».
+ * With nothing of the cash entering: «capitale 400.000 € (portafoglio; fuori: …)». Shared by the six tabs and the two Parametri tiles.
+ */
+export function describeCapitalBreakdown(capital: FireCapital): string {
   const outside = describeOutsideCapital(capital.outside);
-  return [prose(' · capitale '), figure(euro(capital.total)), ...(outside ? [prose(` (fuori: ${outside})`)] : [])];
+  const used = Math.round(capital.cashToInvest.used) > 0 ? ` ${euro(capital.portfolio)} + ${euro(capital.cashToInvest.used)} di liquidità da investire` : '';
+  const head = used ? `portafoglio${used}` : 'portafoglio';
+  return `(${head}${outside ? `; fuori: ${outside}` : ''})`;
+}
+
+/**
+ * K1 (§ 11.6), under the «Liquidità da investire» field: «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €):
+ * ne entrano 30.000 € nei pesi target». The parts that are zero are left out.
+ */
+export function describeCashToInvest(cash: FireCapital['cashToInvest']): string {
+  const parts: string[] = [];
+  if (Math.round(cash.excludedAccounts) !== 0) parts.push(`conti esclusi ${euro(cash.excludedAccounts)}`);
+  if (Math.round(cash.overTarget) > 0) parts.push(`oltre il target ${euro(cash.overTarget)}`);
+  const where = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+  return `${euro(cash.total)} fuori dal portafoglio${where}: ne entrano ${euro(cash.used)} nei pesi target.`;
+}
+
+function describeCapital(capital: FireCapital): Narrative {
+  return [prose(' · capitale '), figure(euro(capital.total)), prose(` ${describeCapitalBreakdown(capital)}`)];
 }
 
 /**
  * «Portafoglio target · Base 8,3% (reale 5,1%), Orso 6,0%, Toro 11,1% · inflazione 3,0%», with «· leva 1,5×» when the weights
- * sum above 100%, then «· costi 0,36% (TER 0,16%, bollo 0,20%)» (the rates above are net of them), then «· spesa 32.000 € dal Cashflow 2025 · capitale 410.000 € (fuori: Immobili 250.000 €)».
+ * sum above 100%, then «· costi 0,36% (TER 0,16%, bollo 0,20%)» (the rates above are net of them), then «· spesa 32.000 € dal Cashflow 2025 · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €)».
  */
 export function describeFireAssumptions(assumptions: FireAssumptions): Narrative {
   const { bear, base, bull } = assumptions.scenarios;

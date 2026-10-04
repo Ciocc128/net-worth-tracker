@@ -67,7 +67,7 @@ export function BaseDiCalcoloTile({ reading, aside, base, lock, lockCaption, onL
   const taxRow = describeTaxRow(honest);
   const outside = describeOutsideCapital(base.outsideCapital);
   const netWorthCaption = [
-    outside ? `fuori: ${outside}` : 'sette classi di Impostazioni › Simulazioni',
+    outside ? `fuori: ${outside}` : 'portafoglio, non patrimonio',
     lock.active && lock.lockedValue > 0 ? 'fondo pensione bloccato escluso' : null,
   ]
     .filter((part): part is string => part !== null)

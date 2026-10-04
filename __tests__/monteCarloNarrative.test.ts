@@ -32,7 +32,6 @@ import {
   describeEsaurimentoFooter,
   describeParametri,
   describeMarketDeclaration,
-  describeExcludedRow,
   describeParametriFooter,
   describePensionInflowRow,
   describePercentili,
@@ -322,13 +321,6 @@ describe('Ipotesi di mercato nel tile Parametri', () => {
     expect(plain(describeMarketDeclaration({ origin: 'default', editedClasses: [], correlationOrigin: 'default' }))).toBe('Ipotesi di mercato: valori predefiniti, storici di lungo periodo in dollari. Correlazioni predefinite.');
     expect(plain(describeMarketDeclaration({ origin: 'saved', editedClasses: ['equity'], correlationOrigin: 'saved' }))).toBe('Ipotesi di mercato: salvate, modificate in 1 classe. Correlazioni personalizzate.');
     expect(plain(describeMarketDeclaration({ origin: 'migrated', editedClasses: [] }))).toBe('Ipotesi di mercato: migrate dai parametri salvati prima (da media aritmetica a CAGR): rileggile in Impostazioni.');
-  });
-
-  it('A7b: names what stays outside the simulated capital, and is absent when nothing does', () => {
-    expect(plain(describeExcludedRow({ realestate: 250000, crypto: 5000 })!)).toBe('Fuori dalla simulazione: Immobili 250.000 € e Crypto 5000 €.');
-    expect(plain(describeExcludedRow({ realestate: 0, crypto: 5000 })!)).toBe('Fuori dalla simulazione: Crypto 5000 €.');
-    expect(describeExcludedRow({ realestate: 0, crypto: 0 })).toBeNull();
-    expect(describeExcludedRow(null)).toBeNull();
   });
 });
 

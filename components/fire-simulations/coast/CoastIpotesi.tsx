@@ -201,7 +201,7 @@ export function CoastIpotesi({
                 <Row
                   label="Capitale del piano"
                   caption={[
-                    outside ? `fuori: ${outside}` : 'sette classi di Impostazioni › Simulazioni',
+                    outside ? `fuori: ${outside}` : 'portafoglio, non patrimonio',
                     lockSubtracted ? 'fondo pensione bloccato escluso' : null,
                     `liquidi ${compact(liquidNetWorth)}`,
                   ].filter((part): part is string => part !== null).join(' · ')}

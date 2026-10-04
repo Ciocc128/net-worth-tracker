@@ -651,6 +651,7 @@ export default function SettingsPage() {
   const [planParams, setPlanParams] = useState<{
     withdrawalRate?: number;
     plannedAnnualExpenses?: number;
+    fireCashToInvestPct?: number;
     pensionInpsRetirementAge?: number;
     pensionRitaLongUnemployment: boolean;
     respectPensionLockInFire: boolean;
@@ -881,6 +882,7 @@ export default function SettingsPage() {
         setPlanParams({
           withdrawalRate: settingsData.withdrawalRate,
           plannedAnnualExpenses: settingsData.plannedAnnualExpenses,
+          fireCashToInvestPct: settingsData.fireCashToInvestPct,
           pensionInpsRetirementAge: settingsData.pensionInpsRetirementAge,
           pensionRitaLongUnemployment: settingsData.pensionRitaLongUnemployment ?? false,
           respectPensionLockInFire: settingsData.respectPensionLockInFire ?? false,
@@ -1653,6 +1655,7 @@ export default function SettingsPage() {
         goalDrivenAllocationEnabled,
         withdrawalRate: settingsData?.withdrawalRate,
         plannedAnnualExpenses: settingsData?.plannedAnnualExpenses,
+        fireCashToInvestPct: settingsData?.fireCashToInvestPct,
         targets,
         dividendIncomeCategoryId: dividendIncomeCategoryId || undefined,
         dividendIncomeSubCategoryId: dividendIncomeSubCategoryId || undefined,
@@ -2881,6 +2884,10 @@ export default function SettingsPage() {
                         value={`${cachedFormatCurrencyEUR(planParams.plannedAnnualExpenses, true)}/anno`}
                       />
                     )}
+                    <DeclarationRow
+                      label="Liquidità da investire"
+                      value={`${pctLabel(planParams.fireCashToInvestPct ?? 0)}${planParams.fireCashToInvestPct === undefined ? ' · predefinita' : ''}`}
+                    />
                     <DeclarationRow
                       label="Età pensione INPS"
                       value={`${inpsAgeShown} anni${planParams.pensionInpsRetirementAge === undefined ? ' · predefinita' : ''}`}

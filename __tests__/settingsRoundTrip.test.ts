@@ -79,6 +79,7 @@ const STORED_SETTINGS = {
   transferFeeCategoryId: 'cat-fee',
   transferFeeSubCategoryId: 'sub-fee',
   plannedAnnualExpenses: 31_000,
+  fireCashToInvestPct: 35,
   coastFireCustomExpenses: 29_000,
 };
 
@@ -155,6 +156,12 @@ describe('getSettings — lettura', () => {
 
     expect(settings?.plannedAnnualExpenses).toBe(31_000);
     expect(settings?.coastFireCustomExpenses).toBe(29_000);
+  });
+
+  it('K13: returns the share of the cash to invest instead of dropping it', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.fireCashToInvestPct).toBe(35);
   });
 
   it('returns idealAllocation instead of dropping it', async () => {
@@ -277,6 +284,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['transferFeeCategoryId', 'cat-fee'],
     ['transferFeeSubCategoryId', 'sub-fee'],
     ['plannedAnnualExpenses', 31_000],
+    ['fireCashToInvestPct', 35],
     ['coastFireCustomExpenses', 29_000],
   ])('leaves an untouched %s alone when the key is absent from the update', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
@@ -287,6 +295,18 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     await setSettings('user-1', { targets: TARGETS } as AssetAllocationSettings);
 
     expect(writtenPayload()[field]).toBe(stored);
+  });
+});
+
+// K13 (doc/fire-ipotesi/README.md § 11.8): the share is written by the Calcolatore's save in both branches; 0 and 100 are values, not absences.
+describe('fireCashToInvestPct — la quota di liquidità da investire', () => {
+  it.each([0, 50, 100])('is written as %s in both branches', async (value) => {
+    await setSettings('user-1', { targets: TARGETS, fireCashToInvestPct: value } as AssetAllocationSettings);
+    expect(writtenPayload().fireCashToInvestPct).toBe(value);
+
+    vi.mocked(setDoc).mockClear();
+    await setSettings('user-1', { fireCashToInvestPct: value } as AssetAllocationSettings);
+    expect(writtenPayload().fireCashToInvestPct).toBe(value);
   });
 });
 

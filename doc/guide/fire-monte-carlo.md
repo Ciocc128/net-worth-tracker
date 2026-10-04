@@ -63,7 +63,7 @@
   with a link to `/dashboard/settings?tab=simulazioni`, and the tab holds no scenario state and no Save. The run's inputs
   carry the RESOLVED scenarios, so a save in Impostazioni makes the last run stale (The Stale-Run Rule) — pinned in
   `haveRunInputsChanged`. Seven weight fields (Σ = 100) replace the four; «Totale» is `K` (the seven classes net of the closed
-  pension funds) and «Liquido» its liquid part. «Fuori dalla simulazione: Immobili …, Crypto …» is read-only and absent when
+  pension funds) and «Liquido» its liquid part — **since K1 (2026-10-04) «Totale» is the page's capital, the PORTFOLIO plus the share of the cash to invest (`assumptions.capital`, never recomputed in the tab), and the line under «Capitale iniziale» is `describeCapitalBreakdown`** (the old «Fuori dalla simulazione» row and `describeExcludedRow` are gone). «Fuori dalla simulazione: Immobili …, Crypto …» is read-only and absent when
   nothing is left out.
 - **The draw is lognormal on CAGR and volatility** (rule R1, `lib/utils/monteCarloDraw.ts`): the typed return is the median
   compound growth, the volatility the std of SIMPLE annual returns; `ln(1+r) = m + s·z`, every `r > −100%`, zero volatility

@@ -28,15 +28,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
-import { getGoalData } from '@/lib/services/goalService';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
-import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
-import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
-import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
@@ -139,13 +136,6 @@ export function ProjectionTab() {
     enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
-  const goalDriven = !!settings?.goalBasedInvestingEnabled && !!settings?.goalDrivenAllocationEnabled;
-  const { data: goalData } = useQuery({
-    queryKey: ['goalData', ownerId],
-    queryFn: () => getGoalData(ownerId!),
-    enabled: !!user && !!ownerId && goalDriven,
-    staleTime: 300000,
-  });
   // The Cashflow, for the yearly saving (the Calcolatore's `annualSavings`): the SAME key `useFireAssumptions` reads.
   const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
     queryKey: ['annualCashflowData', ownerId],
@@ -180,22 +170,15 @@ export function ProjectionTab() {
   const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
   const scenarios = market.scenarios;
 
-  // The capital the simulation covers (RK): the seven classes, net of the closed pension funds.
   const lockedAssetIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const capital = useMemo(
-    () => (assets ? computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null),
-    [assets, lockedAssetIds, market.goldSubCategory],
-  );
-  const targetSeed = useMemo(() => {
-    if (!assets) return null;
-    const { targets } = resolveEffectiveTargets({ settings, goalData: goalDriven ? goalData : null, assets });
-    return seedWeightsFromTargets(targets, assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory });
-  }, [assets, settings, goalData, goalDriven, lockedAssetIds, market.goldSubCategory]);
-  const holdingsSeed = useMemo(() => (assets ? weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null), [assets, lockedAssetIds, market.goldSubCategory]);
   // The page's hypotheses: weights, capital `K` and the plan's expenses from the SAME reading as the other tabs.
   const { assumptions, isLoading: isLoadingAssumptions, isError: assumptionsError } = useFireAssumptions(lockedAssetIds, { withCashflow: true });
-  const totalNetWorth = Math.max(0, assumptions?.capital?.total ?? capital?.total ?? 0);
-  const liquidNetWorth = Math.max(0, assumptions?.capital?.liquid ?? capital?.liquid ?? 0);
+  // K1 (RK7): the capital and the two seeds of the weights are the page's own reading — this tab never recomputes them.
+  const capital = assumptions?.capital ?? null;
+  const targetSeed = assumptions?.weightSeeds?.targets ?? null;
+  const holdingsSeed = assumptions?.weightSeeds?.holdings ?? null;
+  const totalNetWorth = Math.max(0, capital?.total ?? 0);
+  const liquidNetWorth = Math.max(0, capital?.liquid ?? 0);
 
   const currentYear = getItalyYear();
   const currentAge = settings?.userAge ?? null;
@@ -499,7 +482,7 @@ export function ProjectionTab() {
             savingsHint={describeSavingsSource(savingsSource)}
             thresholdHint={defaultThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIRE : PROJECTION_THRESHOLD_HINT_EMPTY}
             marketDeclaration={describeMarketDeclaration(market, leverage)}
-            excluded={capital?.excluded ?? null}
+            capital={capital}
             onRun={handleRun}
             canRun={canRun}
             isRunning={isRunning}

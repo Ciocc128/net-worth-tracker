@@ -198,6 +198,8 @@ function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
     targetAge: String(settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE),
     // The Coast FIRE «spesa personalizzata» of before D5 shows here until the next save moves it.
     plannedExpenses: (settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses)?.toString() ?? '',
+    // K1 (RK4): the share of the cash outside the portfolio the tabs invest; absent = 0.
+    cashToInvestPct: String(settings?.fireCashToInvestPct ?? 0),
     inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
     ritaLongUnemployment: settings?.pensionRitaLongUnemployment ?? false,
   };
@@ -293,7 +295,10 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // rates on the per-class assumptions of Impostazioni › Simulazioni — never typed here. While the
   // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
+  // K1: the share of the cash to invest is PREVIEWED from the typed field until saved, like the SWR and the expenses.
+  const parsedCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
+  const previewCashToInvestPct = formSettled && Number.isFinite(parsedCashToInvestPct) && parsedCashToInvestPct >= 0 && parsedCashToInvestPct <= 100 ? parsedCashToInvestPct : undefined;
+  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true, cashToInvestPct: previewCashToInvestPct });
   const scenarios = useMemo<FIREProjectionScenarios>(() => savedAssumptions?.scenarios ?? getDefaultScenarios(), [savedAssumptions]);
 
   // RP6: the plan's expenses, PREVIEWED from the typed field until saved (empty = from the Cashflow) like the SWR is;
@@ -372,6 +377,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     form.withdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
     form.targetAge !== settingsForm(settings).targetAge ||
     form.plannedExpenses !== settingsForm(settings).plannedExpenses ||
+    form.cashToInvestPct !== settingsForm(settings).cashToInvestPct ||
     form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
     ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
 
@@ -709,7 +715,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         swr: previewWithdrawalRate,
         referenceYear: cashflowData?.referenceYear ?? null,
         isAnnualized: cashflowData?.isAnnualized ?? false,
-        outsideCapital: capital?.outside ?? { realestate: 0, crypto: 0 },
+        outsideCapital: capital?.outside ?? { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 },
         planExpensesOrigin: expenses?.origin ?? 'cashflow',
         honest: honestSummary,
       }
@@ -787,6 +793,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       toast.error('Inserisci una spesa del piano sopra 0, o lasciala vuota per leggerla dal Cashflow');
       return;
     }
+    const newCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
+    if (!(Number.isFinite(newCashToInvestPct) && newCashToInvestPct >= 0 && newCashToInvestPct <= 100)) {
+      toast.error('Inserisci una quota di liquidità da investire tra 0 e 100');
+      return;
+    }
     const newTargetAge = parseOptionalInteger(form.targetAge);
     if (!isValidAge(newTargetAge) || (userAge !== undefined && newTargetAge <= userAge)) {
       toast.error(userAge !== undefined ? `Inserisci un'età obiettivo sopra la tua (${userAge}) e fino a 100` : "Inserisci un'età obiettivo tra 18 e 100");
@@ -798,6 +809,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       // Undefined removes the field (empty = from the Cashflow); the Coast FIRE «spesa personalizzata» of before D5
       // is moved into this field by the form's seed, so it is dropped here.
       plannedAnnualExpenses: newPlannedExpenses,
+      fireCashToInvestPct: newCashToInvestPct,
       coastFireCustomExpenses: undefined,
       pensionInpsRetirementAge: newInpsAge,
       pensionRitaLongUnemployment: ritaLongUnemployment,

@@ -142,7 +142,7 @@ di correlazione più vicina in norma di Frobenius (algoritmo di Higham 2002, pro
 correzione di Dykstra), poi autovalori portati ad almeno `ε = 1e-6` e diagonale rinormalizzata a 1.
 Si salva la matrice corretta a piena precisione; la UI mostra due decimali.
 
-**R6 — Pesi seminati dai target** (T3): sul capitale `K` della simulazione (patrimonio al netto dei fondi
+**R6 — Pesi seminati dai target** (T3; **dal 04/10/2026 le schede di FIRE e Simulazioni non usano più il termine `E_c`**: partono dal portafoglio, `w_c = t_c`, vedi `doc/fire-ipotesi/README.md` § 11, RK5; `seedWeightsFromTargets` resta per i suoi test): sul capitale `K` della simulazione (patrimonio al netto dei fondi
 pensione bloccati, come oggi, RK): `w_c = (t_c · B + E_c) / K`, dove `t_c` è il target effettivo della classe
 (% del capitale investibile, come in Allocazione; la liquidità a importo fisso entra come importo), `B`
 il valore di mercato del capitale investibile (`allocationRole` ∈ {tradable, frozen}), `E_c` il

@@ -24,6 +24,7 @@ import Link from 'next/link';
 import { ChevronDown, HelpCircle, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import type { FireAssumptions, FireScenarioKey } from '@/lib/utils/fireAssumptions';
 import { formatPercentage } from '@/lib/services/chartService';
+import { describeCashToInvest } from '@/lib/utils/fireAssumptionsNarrative';
 import type { Narrative } from '@/lib/utils/narrative';
 import { describeImpostazioni, describePersonalSwr, describeScenarioParams, formatRate } from '@/lib/utils/fireNarrative';
 import { isValidAge, parseOptionalInteger } from '@/lib/utils/coastFireView';
@@ -49,6 +50,8 @@ export interface FireSettingsForm {
   targetAge: string;
   /** The plan's yearly expenses, typed; empty = read from the Cashflow (doc/fire-ipotesi/README.md D5). */
   plannedExpenses: string;
+  /** K1: the share (0–100) of the cash outside the portfolio that enters the capital, typed; absent saved = 0. */
+  cashToInvestPct: string;
   inpsRetirementAge: string;
   ritaLongUnemployment: boolean;
 }
@@ -111,6 +114,9 @@ export function FireParametri({
   const canUsePersonalSwr = personalRate !== null && !(Number.isFinite(parsedSwr) && Math.abs(parsedSwr - personalRate) < 1e-9);
   const parsedPlannedExpenses = Number.parseFloat(form.plannedExpenses.replace(',', '.'));
   const plannedExpensesInvalid = form.plannedExpenses.trim() !== '' && !(Number.isFinite(parsedPlannedExpenses) && parsedPlannedExpenses > 0);
+  const cashToInvest = assumptions?.capital?.cashToInvest ?? null;
+  const parsedCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
+  const cashToInvestInvalid = form.cashToInvestPct.trim() === '' || !(Number.isFinite(parsedCashToInvestPct) && parsedCashToInvestPct >= 0 && parsedCashToInvestPct <= 100);
   const parsedInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
   const inpsAgeInvalid = form.inpsRetirementAge.trim() !== '' && !(Number.isFinite(parsedInpsAge) && parsedInpsAge >= 60 && parsedInpsAge <= 75);
 
@@ -237,6 +243,35 @@ export function FireParametri({
                       ? 'Serve un importo sopra 0, oppure lascia vuoto.'
                       : 'Usata da tutte le simulazioni (Calcolatore, Coast FIRE, What If, Monte Carlo); vuota = l\'ultimo anno del Cashflow.'}
                   </p>
+                </div>
+
+                {/* K1 (§ 11.6): only when some cash sits outside the portfolio; otherwise the line says there is none. */}
+                <div className="border-t border-border pt-3.5">
+                  {cashToInvest && cashToInvest.total > 0 ? (
+                    <>
+                      <Label htmlFor="cashToInvestPct" className="text-[13px]">
+                        Liquidità da investire (%)
+                      </Label>
+                      <Input
+                        id="cashToInvestPct"
+                        type="number"
+                        inputMode="decimal"
+                        step="5"
+                        min="0"
+                        max="100"
+                        value={form.cashToInvestPct}
+                        onChange={(e) => onFormChange({ cashToInvestPct: e.target.value })}
+                        aria-invalid={cashToInvestInvalid || undefined}
+                        aria-describedby="cashToInvestPct-help"
+                        className={cn(CONTROL_CLASS, 'w-[160px]')}
+                      />
+                      <p id="cashToInvestPct-help" className={cn('mt-1 text-[11px] leading-[1.4]', cashToInvestInvalid ? 'text-destructive' : 'text-muted-foreground')}>
+                        {cashToInvestInvalid ? 'Serve una quota tra 0 e 100.' : describeCashToInvest(cashToInvest)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[13px] text-muted-foreground">Nessuna liquidità fuori dal portafoglio.</p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-border pt-3.5">

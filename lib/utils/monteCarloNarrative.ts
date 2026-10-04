@@ -20,7 +20,6 @@ import { formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent, startsWithVowel } from '@/lib/utils/patrimonioNarrative';
 import type { FireLock } from '@/lib/utils/fireSummary';
 import type { ResolvedMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
-import { MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
 import type { SustainableSpendingSummary, SustainableWithdrawal } from '@/lib/utils/sustainableWithdrawal';
 import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type PlanStatePension, type PlanWithdrawalTax, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
@@ -491,14 +490,6 @@ function describeMarketOrigin(market: Pick<ResolvedMonteCarloMarket, 'origin' | 
   const edited = market.editedClasses.length;
   if (edited === 0) return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', uguali ai valori predefiniti.')];
   return [prose('Ipotesi di mercato: '), figure('salvate'), prose(', modificate in '), figure(String(edited)), prose(edited === 1 ? ' classe.' : ' classi.')];
-}
-
-/** «Fuori dalla simulazione: Immobili 250.000 €, Crypto 5.000 €.» — null when nothing is left out. */
-export function describeExcludedRow(excluded: Record<MonteCarloExcludedClass, number> | null): Narrative | null {
-  if (!excluded) return null;
-  const left = MONTE_CARLO_EXCLUDED_CLASSES.filter((cls) => excluded[cls] > 0);
-  if (left.length === 0) return null;
-  return [prose('Fuori dalla simulazione: '), ...joinList(left.map((cls) => [prose(`${MONTE_CARLO_EXCLUDED_LABELS[cls]} `), amount(excluded[cls])])), prose('.')];
 }
 
 /** «Fondo pensione: +31.400 € aggiunti da soli nell'anno 19 (2045), al valore di oggi.» */

@@ -23,6 +23,7 @@ import { formatPercentage } from '@/lib/services/chartService';
 import { articleForPercent } from '@/lib/utils/patrimonioNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
 import type { FIREProjectionScenarios } from '@/types/assets';
+import type { FireCapital } from '@/lib/utils/fireCapital';
 import type { FanVerdict, FireLock, FireTarget, FireTargetHonest, FireTimeline, PassiveIncome, ScenarioRow } from '@/lib/utils/fireSummary';
 import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
 import type { TargetAgeSummary } from '@/lib/utils/fireTargetAge';
@@ -569,7 +570,7 @@ export interface FireBase {
   referenceYear: number | null;
   isAnnualized: boolean;
   /** RP5: what stays outside the plan's capital, EUR — real estate (the residence included) and crypto. */
-  outsideCapital: { realestate: number; crypto: number };
+  outsideCapital: FireCapital['outside'];
   /** RP6: where the expenses come from — typed in Parametri (`settings`) or read off the Cashflow. */
   planExpensesOrigin: 'settings' | 'cashflow';
   /** The pensions and the tax, considered or declared absent — the tile's two last rows. */
@@ -637,7 +638,7 @@ export function describeBaseAside(base: Pick<FireBase, 'referenceYear' | 'isAnnu
 }
 
 export function describeBaseFooter(): Narrative {
-  return [prose('Il capitale è quello delle sette classi di Impostazioni › Simulazioni; SWR, spesa del piano e regola RITA si modificano in Parametri.')];
+  return [prose('Il capitale è il portafoglio più la liquidità da investire che scegli in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.')];
 }
 
 /** The caption under the pension-lock switch: what is locked, until when, and by which rule. */

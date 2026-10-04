@@ -102,6 +102,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **Simulazioni shows what the typed numbers do to the portfolio** (2026-10-03, doc/fire-ipotesi/README.md L1): `MonteCarloMarketTile` takes `portfolio`
   (the weights of `useFireAssumptions`, from the SAVED targets) and prints «Il portafoglio target rende (composto): Orso · Base · Toro» with
   `portfolioCompoundReturn` over the DRAFT, so a typed CAGR moves it at once. Read-only: it saves nothing.
+- **`fireCashToInvestPct`** (K1, 2026-10-04, doc/fire-ipotesi/README.md § 11): the share (0–100) of the cash outside the portfolio the FIRE tabs invest at year 0; typed in FIRE › Calcolatore › Parametri, saved by its «Salva», declared read-only in «Parametri del piano» («Liquidità da investire»: «0% · predefinita» until a value is saved). NOT clearable: `0` is a value (plain write in both `setSettings` chains, like `withdrawalRate`); `settingsRoundTrip` carries it in `STORED_SETTINGS`.
 - **`plannedAnnualExpenses` is the plan's expenses and CLEARABLE** (2026-10-03, doc/fire-ipotesi/README.md D5): typed in FIRE › Calcolatore › Parametri («Spesa del piano»,
   empty = from the Cashflow), never from Impostazioni (the «Parametri del piano» tile only declares it). Both `setSettings` chains guard it with
   `'plannedAnnualExpenses' in settings` (`delete docData.…` in the `targets` chain, `deleteField()` in the merge one), and so for the legacy
