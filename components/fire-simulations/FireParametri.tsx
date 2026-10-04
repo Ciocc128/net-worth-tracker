@@ -2,7 +2,7 @@
 
 /**
  * «Parametri», below the grid behind a disclosure: the settings the calculator runs on — the
- * SWR, the residence rule, the RITA details of the pension lock — and the three scenarios'
+ * SWR, the plan's expenses (empty = from the Cashflow), the RITA details of the pension lock — and the three scenarios'
  * market assumptions, as two tiles (Impostazioni 6 · Scenari 6). The scenarios are DECLARED here, never typed:
  * they are the target portfolio's rates computed from Impostazioni › Simulazioni (doc/fire-ipotesi/README.md D1). Configuration, not a reading
  * of the plan, so it does not earn a place in the grid (the Budget «Impostazioni» precedent).
@@ -43,7 +43,8 @@ const CONTROL_CLASS =
 
 export interface FireSettingsForm {
   withdrawalRate: string;
-  includePrimaryResidence: boolean;
+  /** The plan's yearly expenses, typed; empty = read from the Cashflow (doc/fire-ipotesi/README.md D5). */
+  plannedExpenses: string;
   inpsRetirementAge: string;
   ritaLongUnemployment: boolean;
 }
@@ -93,6 +94,8 @@ export function FireParametri({
   // «Salva» names the problem after the fact, `aria-invalid` names it where it is (2026-09-22).
   const parsedSwr = Number.parseFloat(form.withdrawalRate);
   const swrInvalid = form.withdrawalRate.trim() !== '' && !(Number.isFinite(parsedSwr) && parsedSwr > 0 && parsedSwr <= 100);
+  const parsedPlannedExpenses = Number.parseFloat(form.plannedExpenses.replace(',', '.'));
+  const plannedExpensesInvalid = form.plannedExpenses.trim() !== '' && !(Number.isFinite(parsedPlannedExpenses) && parsedPlannedExpenses > 0);
   const parsedInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
   const inpsAgeInvalid = form.inpsRetirementAge.trim() !== '' && !(Number.isFinite(parsedInpsAge) && parsedInpsAge >= 60 && parsedInpsAge <= 75);
 
@@ -161,21 +164,28 @@ export function FireParametri({
                   </p>
                 </div>
 
-                <div className="flex items-start justify-between gap-4 border-t border-border pt-3.5">
-                  <div className="min-w-0">
-                    <Label htmlFor="includePrimaryResidence" className="text-[13px] leading-normal">
-                      Includi casa di abitazione nel FIRE
-                    </Label>
-                    <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
-                      Se disattivo, gli immobili di abitazione sono esclusi (metodologia FIRE standard).
-                    </p>
-                  </div>
-                  <Switch
-                    id="includePrimaryResidence"
-                    checked={form.includePrimaryResidence}
-                    onCheckedChange={(checked) => onFormChange({ includePrimaryResidence: checked })}
-                    className="mt-0.5 shrink-0"
+                <div className="border-t border-border pt-3.5">
+                  <Label htmlFor="plannedExpenses" className="text-[13px]">
+                    Spesa del piano (€ l&apos;anno)
+                  </Label>
+                  <Input
+                    id="plannedExpenses"
+                    type="number"
+                    inputMode="decimal"
+                    step="100"
+                    min="0"
+                    placeholder="dal Cashflow"
+                    value={form.plannedExpenses}
+                    onChange={(e) => onFormChange({ plannedExpenses: e.target.value })}
+                    aria-invalid={plannedExpensesInvalid || undefined}
+                    aria-describedby="plannedExpenses-help"
+                    className={cn(CONTROL_CLASS, 'w-[160px]')}
                   />
+                  <p id="plannedExpenses-help" className={cn('mt-1 text-[11px] leading-[1.4]', plannedExpensesInvalid ? 'text-destructive' : 'text-muted-foreground')}>
+                    {plannedExpensesInvalid
+                      ? 'Serve un importo sopra 0, oppure lascia vuoto.'
+                      : 'Usata da tutte le simulazioni (Calcolatore, Coast FIRE, What If, Monte Carlo); vuota = l\'ultimo anno del Cashflow.'}
+                  </p>
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-border pt-3.5">

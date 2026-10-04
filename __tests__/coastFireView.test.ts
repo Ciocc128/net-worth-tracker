@@ -303,7 +303,7 @@ describe('coastFireView — nothing recorded', () => {
     const noNetWorth = describeCoastEmptyTiles('no-net-worth');
     expect(noNetWorth.action).toEqual({ label: 'Aggiungi il primo asset', href: '/dashboard/assets' });
     // What the form owns is reached in the form: the action names the field's own id.
-    expect(describeCoastEmptyTiles('no-expenses').action).toEqual({ label: 'Indica le spese nelle Ipotesi', fieldId: 'coastUseCustomExpenses' });
+    expect(describeCoastEmptyTiles('no-expenses').action).toEqual({ label: 'Indica la spesa nei Parametri del Calcolatore', tab: 'fire' });
     expect(describeCoastEmptyTiles('no-age').action).toEqual({ label: "Inserisci l'età nelle Ipotesi", fieldId: 'coastCurrentAge' });
     expect(describeCoastEmptyTiles('no-retirement-age').action).toEqual({ label: "Inserisci l'età target nelle Ipotesi", fieldId: 'coastRetirementAge' });
     // Every tile says why it cannot answer, and none prints a figure.
@@ -417,7 +417,7 @@ describe('coastFireView — the Ipotesi disclosure', () => {
       currentAge: 35,
       retirementAge: 60,
       annualExpenses: 30_000,
-      usesCustomExpenses: true,
+      expensesOrigin: 'settings' as const,
       withdrawalRate: 4,
       baseRealReturn: 4.5,
       respectPensionLockIn: true,
@@ -427,17 +427,17 @@ describe('coastFireView — the Ipotesi disclosure', () => {
 
     expect(parts.map((part) => part.replace(/ /g, ' '))).toEqual([
       '35 anni → target 60',
-      `spese ${euro(30_000)} (personalizzate)`,
+      `spese ${euro(30_000)} (del piano)`,
       'SWR 4%',
       'rendimento reale base 4,5%',
       'fondo pensione bloccato fino al 2048',
       '2 pensioni statali',
     ]);
-    expect(describeIpotesi({ currentAge: 35, retirementAge: 60, annualExpenses: 30_000, usesCustomExpenses: true, withdrawalRate: 4, baseRealReturn: 4.5, respectPensionLockIn: true, pensionUnlockCalendarYear: 2048, pensionCount: 2 })).toBe(parts.join(' · '));
+    expect(describeIpotesi({ currentAge: 35, retirementAge: 60, annualExpenses: 30_000, expensesOrigin: 'settings' as const, withdrawalRate: 4, baseRealReturn: 4.5, respectPensionLockIn: true, pensionUnlockCalendarYear: 2048, pensionCount: 2 })).toBe(parts.join(' · '));
   });
 
   it('declares the tax on withdrawals, in the number or out with its reason (2026-09-24)', () => {
-    const common = { currentAge: 35, retirementAge: 60, annualExpenses: 30_000, usesCustomExpenses: false, withdrawalRate: 4, baseRealReturn: 4.5, respectPensionLockIn: false, pensionUnlockCalendarYear: null, pensionCount: 0 };
+    const common = { currentAge: 35, retirementAge: 60, annualExpenses: 30_000, expensesOrigin: 'cashflow' as const, withdrawalRate: 4, baseRealReturn: 4.5, respectPensionLockIn: false, pensionUnlockCalendarYear: null, pensionCount: 0 };
     expect(buildCoastBasisParts({ ...common, withdrawalTaxRate: 26 }).at(-1)).toBe('tasse sui prelievi comprese (26% sulla plusvalenza)');
     expect(buildCoastBasisParts({ ...common, withdrawalTaxRate: null }).at(-1)).toBe('tasse sui prelievi non stimate (nessun PMC in euro)');
     // Absent altogether (a caller that does not know): no part, the line of before.
@@ -449,7 +449,7 @@ describe('coastFireView — the Ipotesi disclosure', () => {
       currentAge: 35,
       retirementAge: 60,
       annualExpenses: 30_000,
-      usesCustomExpenses: false,
+      expensesOrigin: 'cashflow' as const,
       withdrawalRate: 4,
       baseRealReturn: null,
       pensionUnlockCalendarYear: null,
@@ -462,12 +462,12 @@ describe('coastFireView — the Ipotesi disclosure', () => {
     expect(buildCoastBasisParts({ ...common, respectPensionLockIn: false, pensionCount: 1 })).toContain('1 pensione statale');
   });
 
-  it('should say the expenses are the detected ones when no custom figure is used', () => {
+  it('should say the expenses are the Cashflow\'s when none is typed', () => {
     const parts = buildCoastBasisParts({
       currentAge: null,
       retirementAge: null,
       annualExpenses: 24_000,
-      usesCustomExpenses: false,
+      expensesOrigin: 'cashflow' as const,
       withdrawalRate: 3.5,
       baseRealReturn: null,
       respectPensionLockIn: false,
@@ -476,7 +476,7 @@ describe('coastFireView — the Ipotesi disclosure', () => {
     });
 
     expect(parts[0]).toBe('età da impostare');
-    expect(parts[1].replace(/ /g, ' ')).toBe(`spese ${euro(24_000)} (ultimo anno completo)`);
+    expect(parts[1].replace(/ /g, ' ')).toBe(`spese ${euro(24_000)} (dal Cashflow)`);
   });
 
   it('should read the pensions tile by count and name the incomplete rows', () => {

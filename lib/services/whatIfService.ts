@@ -75,7 +75,7 @@ export function applyScenarioToBaseline(
       const months = clampNonNegative(scenario.monthsWithoutIncome ?? 0);
       // Default to the whole household income when no specific sources are selected.
       const lostAnnualIncome = clampNonNegative(
-        scenario.lostAnnualIncome ?? baseline.annualExpenses + baseline.annualSavings
+        scenario.lostAnnualIncome ?? baseline.annualIncome ?? baseline.annualExpenses + baseline.annualSavings
       );
       netWorthDelta = -(lostAnnualIncome * months) / 12;
       break;
@@ -177,7 +177,8 @@ function runBaseProjection(
     baseline.scenarios,
     WHAT_IF_HORIZON_YEARS,
     resolveBridge(baseline),
-    honestFor(baseline, netWorth)
+    honestFor(baseline, netWorth),
+    baseline.indexSavings ?? false
   );
 }
 

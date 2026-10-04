@@ -74,7 +74,7 @@ export default function FireSimulationsPage() {
             className="mt-0"
           >
             {tab.value === 'fire'       && <FireCalculatorTab />}
-            {tab.value === 'coast'      && <CoastFireTab />}
+            {tab.value === 'coast'      && <CoastFireTab onOpenCalculator={() => setActiveTab('fire')} />}
             {tab.value === 'whatif'     && <WhatIfAnalysisTab />}
             {tab.value === 'montecarlo' && <MonteCarloTab />}
             {tab.value === 'goals'      && <GoalBasedInvestingTab />}

@@ -78,6 +78,8 @@ const STORED_SETTINGS = {
   dividendCashAssetId: 'cash-1',
   transferFeeCategoryId: 'cat-fee',
   transferFeeSubCategoryId: 'sub-fee',
+  plannedAnnualExpenses: 31_000,
+  coastFireCustomExpenses: 29_000,
 };
 
 const TARGETS = { equity: { targetPercentage: 100 } } as unknown as AssetAllocationTarget;
@@ -146,6 +148,13 @@ describe('getSettings — lettura', () => {
     const settings = await getSettings('user-1');
 
     expect(settings?.monteCarloMarket).toEqual(STORED_MONTE_CARLO_MARKET);
+  });
+
+  it('returns the plan expenses and the Coast FIRE custom ones the migration still reads', async () => {
+    const settings = await getSettings('user-1');
+
+    expect(settings?.plannedAnnualExpenses).toBe(31_000);
+    expect(settings?.coastFireCustomExpenses).toBe(29_000);
   });
 
   it('returns idealAllocation instead of dropping it', async () => {
@@ -240,6 +249,9 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['dividendCashAssetId', 'cash-1'],
     ['transferFeeCategoryId', 'cat-fee'],
     ['transferFeeSubCategoryId', 'sub-fee'],
+    // D5: the plan's expenses are cleared by an empty field (= «dal Cashflow»), the legacy Coast figure by the migration.
+    ['plannedAnnualExpenses', 31_000],
+    ['coastFireCustomExpenses', 29_000],
   ])('drops %s from the payload when it is cleared', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,
@@ -264,6 +276,8 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['dividendCashAssetId', 'cash-1'],
     ['transferFeeCategoryId', 'cat-fee'],
     ['transferFeeSubCategoryId', 'sub-fee'],
+    ['plannedAnnualExpenses', 31_000],
+    ['coastFireCustomExpenses', 29_000],
   ])('leaves an untouched %s alone when the key is absent from the update', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
       exists: () => true,
@@ -303,6 +317,12 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
       pensionInpsRetirementAge: 70,
       pensionRitaLongUnemployment: true,
     });
+  });
+
+  it.each(['plannedAnnualExpenses', 'coastFireCustomExpenses'])('uses deleteField to clear %s, since omitting the key would keep it', async (field) => {
+    await setSettings('user-1', { [field]: undefined } as unknown as AssetAllocationSettings);
+
+    expect(writtenPayload()[field]).toBe(DELETE_SENTINEL);
   });
 
   it('uses deleteField to clear the start month, since omitting the key would keep it', async () => {

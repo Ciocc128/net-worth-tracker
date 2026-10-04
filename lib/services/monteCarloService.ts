@@ -287,6 +287,8 @@ export interface AccumulationSimulationParams {
   initialPortfolio: number;
   /** Added each year until that path reaches FIRE — same rule as calculateFIREProjection. */
   annualSavings: number;
+  /** RP7: % a year the saving grows by — year t saves `annualSavings · (1 + rate)^(t−1)`. Absent/0 = constant, as before. */
+  savingsInflationRate?: number;
   /** Today's annual expenses; inflated each year to build the moving FIRE target. */
   annualExpenses: number;
   withdrawalRate: number; // %
@@ -417,6 +419,10 @@ export function runAccumulationSimulation(
     fireTargets.push(givenTargets[year] ?? (wrDecimal > 0 ? expenses / wrDecimal : 0));
   }
 
+  // RP7: the saving of year t, indexed (1 + π)^(t−1) when asked; the same figure for every path.
+  const savingsGrowth = 1 + (params.savingsInflationRate ?? 0) / 100;
+  const savingsByYear = [0, ...Array.from({ length: horizon }, (_, index) => params.annualSavings * Math.pow(savingsGrowth, index))];
+
   const paths: { year: number; value: number }[][] = [];
   const fireYears: (number | null)[] = [];
   const retirements: (RetirementOutcome | null)[] = [];
@@ -448,8 +454,9 @@ export function runAccumulationSimulation(
 
         // Savings stop once the path retires — same rule as the deterministic projection.
         if (fireYear === null) {
-          portfolio += params.annualSavings;
-          basis += params.annualSavings;
+          const savings = savingsByYear[year];
+          portfolio += savings;
+          basis += savings;
         }
 
         if (fireYear === null && wrDecimal > 0 && portfolio >= fireTargets[year]) {

@@ -46,6 +46,11 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
   await expect(traguardo.locator('p:has-text("Numero FIRE") + span')).toHaveText(EURO_AMOUNT);
   await expect(traguardo.getByRole('progressbar', { name: 'Progresso verso il numero FIRE' })).toBeVisible();
 
+  // The «Ipotesi usate» line carries the plan's expenses and the capital (D4, D5), the same on every FIRE tab.
+  const assumptions = page.getByTestId('fire-assumptions-row');
+  await expect(assumptions).toContainText(/spesa .* (da Impostazioni|dal Cashflow|non rilevata)/);
+  await expect(assumptions).toContainText(/capitale/);
+
   // Four tiles, one question each.
   for (const name of ['Base di calcolo del FIRE', 'Reddito passivo sostenibile', 'Scenari di mercato']) {
     await expect(page.getByRole('region', { name })).toBeVisible();
@@ -121,6 +126,9 @@ test('the Parametri disclosure opens and closes, measured by height', async ({ p
   await expect.poll(measuredHeight).toBeGreaterThan(100);
   // Open panel really contains the SWR input and the scenario parameters.
   await expect(page.getByLabel('Safe Withdrawal Rate (%)')).toBeVisible();
+  // D5: the plan's expenses are typed here (empty = from the Cashflow); the residence switch is gone (D4).
+  await expect(page.getByLabel(/Spesa del piano/)).toBeVisible();
+  await expect(page.getByLabel('Includi casa di abitazione nel FIRE')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Parametri degli scenari' })).toBeVisible();
 
   // Close: the content collapses to (near) zero height or unmounts entirely.

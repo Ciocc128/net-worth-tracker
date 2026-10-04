@@ -67,6 +67,12 @@ export interface WhatIfBaseline {
   illiquidNetWorth: number;
   annualExpenses: number; // from cashflow (last completed year)
   annualSavings: number;
+  // The household income, when it is not `annualExpenses + annualSavings`: the plan's expenses
+  // (doc/fire-ipotesi/README.md D5) can differ from the Cashflow's, and the income lost in a job
+  // loss is a fact of the Cashflow. Absent → the sum, as before.
+  annualIncome?: number;
+  // RP7: the savings grow with the scenario's inflation in the walk (the Calcolatore's rule). Absent → constant.
+  indexSavings?: boolean;
   withdrawalRate: number;
   scenarios: FIREProjectionScenarios;
   coast: WhatIfCoastBaseline | null;

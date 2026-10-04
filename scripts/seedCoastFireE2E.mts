@@ -9,10 +9,11 @@
  * *settings*, on the same `assetAllocationTargets/test-user-1` document, with `merge: true` so
  * neither fixture can wipe the other's fields.
  *
- * WHY CUSTOM EXPENSES AND NOT THE CASHFLOW FALLBACK
- * `getAnnualExpenses` reads the LAST COMPLETE year, and the base seed writes current-month
- * expenses only — so without an explicit figure the Coast projection is null and the tab renders
- * its empty state. `coastFireCustomExpenses` also removes the run-month dependency the FIRE tab
+ * WHY PLANNED EXPENSES AND NOT THE CASHFLOW FALLBACK
+ * The Cashflow fallback reads the LAST COMPLETE year (or the running one, annualised), and the base seed writes
+ * current-month expenses only — so without an explicit figure the expenses side of every figure moves with the
+ * run date. `plannedAnnualExpenses` (the plan's expenses, doc/fire-ipotesi/README.md D5; it was
+ * `coastFireCustomExpenses` before) also removes the run-month dependency the FIRE tab
  * has (doc/guide/e2e-emulatori.md § Browser-Driven E2E (Playwright)): the expenses side of every Coast figure is then fixed.
  *
  * WHAT STAYS RUN-DATE DEPENDENT (deliberately, hence structural assertions in the spec)
@@ -58,7 +59,7 @@ async function seedCoastFireSettings(): Promise<void> {
         withdrawalRate: 4,
         includePrimaryResidenceInFIRE: false,
         coastFireRetirementAge: COAST_RETIREMENT_AGE,
-        coastFireCustomExpenses: ANNUAL_EXPENSES,
+        plannedAnnualExpenses: ANNUAL_EXPENSES,
         coastFirePensions: [
           {
             id: 'e2e-coast-pension-inps',

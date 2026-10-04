@@ -63,6 +63,22 @@ export interface SimulatedCapitalOptions {
 
 const MODELLED = new Set<string>(MONTE_CARLO_CLASSES.filter((cls) => cls !== 'gold'));
 
+/** An asset's legs: the composition when it has one, else the asset itself as a single leg. */
+function legsOf(asset: Asset): { assetClass: string; subCategory?: string; share: number }[] {
+  return asset.composition && asset.composition.length > 0
+    ? asset.composition.map((leg) => ({ assetClass: leg.assetClass, subCategory: leg.subCategory, share: leg.percentage / 100 }))
+    : [{ assetClass: asset.assetClass, subCategory: asset.subCategory, share: 1 }];
+}
+
+/**
+ * The fraction (0–1) of an asset's value that sits inside `K`: 1 for a plain asset of the seven
+ * classes, 0 for real estate and crypto, the sum of the modelled legs for a composite one. The tax
+ * profile of the plan's capital scales its basis by it (doc/fire-ipotesi/README.md RP5).
+ */
+export function simulatedShare(asset: Asset): number {
+  return legsOf(asset).reduce((sum, leg) => (MODELLED.has(leg.assetClass) ? sum + leg.share : sum), 0);
+}
+
 /**
  * RK + RG: splits the portfolio into the seven simulated classes plus what stays outside.
  * `valueOf` is `calculateAssetValue` (injected, so this module stays free of the Firestore-coupled service).
@@ -81,12 +97,7 @@ export function computeSimulatedCapital(
     if (options.lockedAssetIds?.has(asset.id)) continue;
     const value = valueOf(asset);
     const isLiquid = asset.isLiquid !== undefined ? asset.isLiquid === true : suggestIsLiquid(asset.type, asset.subCategory);
-    const legs =
-      asset.composition && asset.composition.length > 0
-        ? asset.composition.map((leg) => ({ assetClass: leg.assetClass, subCategory: leg.subCategory, share: leg.percentage / 100 }))
-        : [{ assetClass: asset.assetClass, subCategory: asset.subCategory, share: 1 }];
-
-    for (const leg of legs) {
+    for (const leg of legsOf(asset)) {
       const legValue = value * leg.share;
       if (leg.assetClass === 'realestate' || leg.assetClass === 'crypto') {
         excluded[leg.assetClass] += legValue;

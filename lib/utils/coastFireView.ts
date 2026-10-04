@@ -956,7 +956,8 @@ export interface CoastBasisInput {
   currentAge: number | null;
   retirementAge: number | null;
   annualExpenses: number | undefined;
-  usesCustomExpenses: boolean;
+  /** RP6: typed as the plan's expenses (`settings`) or read off the Cashflow. */
+  expensesOrigin: 'settings' | 'cashflow';
   withdrawalRate: number;
   baseRealReturn: number | null;
   respectPensionLockIn: boolean;
@@ -978,7 +979,7 @@ export function buildCoastBasisParts(input: CoastBasisInput): string[] {
 
   parts.push(
     input.annualExpenses !== undefined && input.annualExpenses > 0
-      ? `spese ${formatAmount(input.annualExpenses)} ${input.usesCustomExpenses ? '(personalizzate)' : '(ultimo anno completo)'}`
+      ? `spese ${formatAmount(input.annualExpenses)} ${input.expensesOrigin === 'settings' ? '(del piano)' : '(dal Cashflow)'}`
       : 'spese non disponibili'
   );
 
@@ -1244,7 +1245,8 @@ export function resolveCoastIncompleteReason(
 }
 
 /** The ONE action of the empty state: a page that records the missing thing, or a field of the Ipotesi. */
-export type CoastEmptyAction = { label: string; href: string } | { label: string; fieldId: string };
+/** `tab`: the action lives on another tab of the page (the plan expense is typed in Calcolatore › Parametri). */
+export type CoastEmptyAction = { label: string; href: string } | { label: string; fieldId: string } | { label: string; tab: 'fire' };
 
 export interface CoastEmptyTiles {
   traguardo: string;
@@ -1273,7 +1275,7 @@ export function describeCoastEmptyTiles(kind: CoastEmptyKind): CoastEmptyTiles {
         traguardo: 'Il numero Coast FIRE parte dalle spese annue: nell\'ultimo anno completo non ce ne sono, e nessuna cifra personalizzata le sostituisce.',
         afflussi: 'Gli afflussi riducono le spese che il portafoglio deve coprire: senza spese non c\'è un fabbisogno da ridurre.',
         scenari: 'Ogni scenario sconta le spese al suo rendimento reale: senza spese non c\'è un numero Coast FIRE.',
-        action: { label: 'Indica le spese nelle Ipotesi', fieldId: 'coastUseCustomExpenses' },
+        action: { label: 'Indica la spesa nei Parametri del Calcolatore', tab: 'fire' },
       };
     case 'no-age':
       return {

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
-import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions } from '@/lib/utils/fireAssumptions';
+import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions, resolveFireCapital, resolvePlanExpenses } from '@/lib/utils/fireAssumptions';
+import { describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
+import { narrativeToText } from '@/lib/utils/narrative';
+import { calculateFIREProjection } from '@/lib/services/fireService';
+import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
+import type { Asset, AssetClass } from '@/types/assets';
 import { resolveMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
 import { buildDrawPlan, drawYear, portfolioReturn } from '@/lib/utils/monteCarloDraw';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
@@ -113,5 +118,128 @@ describe('resolveFireAssumptions (RP4)', () => {
     expect(result.weights.equity).toBe(60);
     expect(result.leverage).toBe(1);
     near(result.scenarios.base.growthRate, 8.2623);
+  });
+});
+
+
+// ─── L2: capital, expenses, savings (doc/fire-ipotesi/README.md D4, D5, D6) ──────────────────
+
+function asset(id: string, assetClass: AssetClass, value: number, extra: Partial<Asset> = {}): Asset {
+  return { id, name: id, type: 'etf', assetClass, currentPrice: value, quantity: 1, ...extra } as Asset;
+}
+const valueOf = (a: Asset) => a.currentPrice * a.quantity;
+const text = (input: Parameters<typeof resolveFireAssumptions>[0]) => narrativeToText(describeFireAssumptions(resolveFireAssumptions(input))).replace(/\u00a0/g, ' ');
+
+describe('resolveFireCapital (RP5, A12)', () => {
+  const portfolio = [asset('etf', 'equity', 300_000), asset('btc', 'crypto', 50_000), asset('casa2', 'realestate', 200_000)];
+
+  it('A12: the capital is the seven classes; crypto and real estate are declared outside', () => {
+    const capital = resolveFireCapital(portfolio, valueOf, {});
+    expect(capital.total).toBe(300_000);
+    expect(capital.outside).toEqual({ realestate: 200_000, crypto: 50_000 });
+  });
+
+  it('A12: the line says it, Immobili first', () => {
+    const line = text({ settings: null, assets: portfolio, assetValue: valueOf });
+    expect(line).toContain(' · capitale 300.000 € (fuori: Immobili 200.000 €, Crypto 50.000 €)');
+  });
+
+  it('a closed pension fund is not capital', () => {
+    const capital = resolveFireCapital([...portfolio, asset('fund', 'equity', 40_000)], valueOf, { lockedAssetIds: new Set(['fund']) });
+    expect(capital.total).toBe(300_000);
+  });
+
+  it('the cost basis is the one behind K: real estate and crypto stay out of it, a composite counts for its share', () => {
+    const withBasis = (id: string, assetClass: AssetClass, value: number, basis: number, extra: Partial<Asset> = {}) =>
+      asset(id, assetClass, value, { averageCost: basis, ...extra });
+    const plain = resolveFireCapital([withBasis('etf', 'equity', 100_000, 60_000)], valueOf, {}).taxProfile;
+    const mixed = resolveFireCapital([withBasis('etf', 'equity', 100_000, 60_000), withBasis('btc', 'crypto', 50_000, 10_000)], valueOf, {}).taxProfile;
+    expect(plain).not.toBeNull();
+    // The crypto position (value 50.000, basis 10.000) is not in K, so it moves neither the basis nor the gain share.
+    expect(mixed?.basisToday).toBeCloseTo(plain!.basisToday, 6);
+    expect(mixed?.gainShare).toBeCloseTo(plain!.gainShare, 6);
+  });
+
+  it('no assets, no capital (the line carries none)', () => {
+    expect(resolveFireAssumptions({ settings: null, assets: [] }).capital).toBeUndefined();
+    expect(resolveFireAssumptions({ settings: null, assets: [], assetValue: valueOf }).capital?.total).toBe(0);
+  });
+});
+
+describe('resolvePlanExpenses (RP6, A13)', () => {
+  const cashflow = { annualExpensesFromCashflow: 31_500, referenceYear: 2025, isAnnualized: false };
+
+  it('A13: planned expenses win, said «da Impostazioni»', () => {
+    expect(resolvePlanExpenses({ plannedAnnualExpenses: 28_000 }, cashflow)).toEqual({ annual: 28_000, origin: 'settings' });
+    expect(text({ settings: { plannedAnnualExpenses: 28_000 } as never, assets: [], cashflowData: cashflow })).toContain(' · spesa 28.000 € da Impostazioni');
+  });
+
+  it('A13: without them the Cashflow, with its year', () => {
+    expect(resolvePlanExpenses({}, cashflow)).toEqual({ annual: 31_500, origin: 'cashflow', referenceYear: 2025, isAnnualized: false });
+    expect(text({ settings: null, assets: [], cashflowData: cashflow })).toContain(' · spesa 31.500 € dal Cashflow 2025');
+    expect(text({ settings: null, assets: [], cashflowData: { ...cashflow, referenceYear: 2026, isAnnualized: true } })).toContain('dal Cashflow 2026, annualizzato');
+  });
+
+  it('the Coast FIRE custom expenses of before D5 stand in until the next save moves them', () => {
+    expect(resolvePlanExpenses({ coastFireCustomExpenses: 26_000 }, cashflow)).toEqual({ annual: 26_000, origin: 'settings' });
+    expect(resolvePlanExpenses({ plannedAnnualExpenses: 28_000, coastFireCustomExpenses: 26_000 }, cashflow)?.annual).toBe(28_000);
+  });
+
+  it('a Cashflow with no expenses is said, not printed as 0 €', () => {
+    expect(text({ settings: null, assets: [], cashflowData: { ...cashflow, annualExpensesFromCashflow: 0 } })).toContain('spesa non rilevata (nessuna spesa nel Cashflow)');
+  });
+
+  it('while the Cashflow is unread and nothing is typed there are no expenses (the line does not guess)', () => {
+    expect(resolvePlanExpenses({}, undefined)).toBeNull();
+    expect(resolveFireAssumptions({ settings: null, assets: [] }).expenses).toBeUndefined();
+  });
+
+  it('a typed zero or a negative is not an amount', () => {
+    expect(resolvePlanExpenses({ plannedAnnualExpenses: 0 }, cashflow)?.origin).toBe('cashflow');
+  });
+});
+
+describe('A18: one line for every tab', () => {
+  it('the same data give the same string whichever tab asks (and in whatever order the locked set is built)', () => {
+    const assets = [asset('etf', 'equity', 300_000), asset('fund', 'equity', 20_000), asset('casa', 'realestate', 200_000)];
+    const cashflow = { annualExpensesFromCashflow: 31_500, referenceYear: 2025, isAnnualized: false };
+    const settings = { plannedAnnualExpenses: 28_000 } as never;
+    const forTab = (locked: string[]) => text({ settings, assets, assetValue: valueOf, cashflowData: cashflow, lockedAssetIds: new Set(locked) });
+    expect(forTab(['fund'])).toBe(forTab(['fund']));
+    expect(forTab(['fund'])).toContain('capitale 300.000 € (fuori: Immobili 200.000 €)');
+    expect(forTab([])).toContain('capitale 320.000 €');
+  });
+});
+
+describe('A17: at zero volatility the Ventaglio is the Calcolatore\'s Base curve', () => {
+  it('same capital, same g_p, same indexed saving', () => {
+    const base = zeroVol(market.scenarios.base);
+    const w = weights({ equity: 60, bonds: 40 });
+    const result = portfolioCompoundReturn(w, base, correlations, 2);
+    const inflation = base.inflationRate;
+    const scenario = { growthRate: result.cagr, inflationRate: inflation };
+    const projection = calculateFIREProjection(250_000, 30_000, 12_000, 4, { bear: scenario, base: scenario, bull: scenario }, 50, undefined, undefined, true);
+    const years = Math.min(projection.yearlyData.length, 40);
+    const fan = runAccumulationSimulation({
+      initialPortfolio: 250_000,
+      annualSavings: 12_000,
+      savingsInflationRate: inflation,
+      annualExpenses: 30_000,
+      withdrawalRate: 4,
+      expenseInflationRate: inflation,
+      years,
+      weights: w,
+      market: base,
+      correlations: [...correlations],
+      leverageSpread: 2,
+      numberOfSimulations: 3,
+    });
+    for (const path of fan.paths) {
+      for (let year = 1; year <= years; year++) {
+        expect(Math.round(path[year].value)).toBe(projection.yearlyData[year - 1].baseNetWorth);
+      }
+    }
+    expect(projection.baseYearsToFIRE).not.toBeNull();
+    for (const fireYear of fan.fireYears) expect(fireYear).toBe(projection.baseYearsToFIRE);
   });
 });

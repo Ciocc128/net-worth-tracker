@@ -210,7 +210,7 @@ export function CoastDettaglio({
                   dovrebbe bastare, per capitalizzazione composta, a coprire il capitale richiesto al target.
                 </p>
                 <p>
-                  <strong className="font-semibold text-foreground">Spese usate.</strong> Il target si basa sulle spese reali dell&apos;ultimo anno completo, salvo un importo personalizzato nelle Ipotesi.
+                  <strong className="font-semibold text-foreground">Spese usate.</strong> Il target si basa sulla spesa del piano (Parametri del Calcolatore) o, se vuota, sulle spese del Cashflow.
                 </p>
                 <p>
                   <strong className="font-semibold text-foreground">Pensione statale.</strong> Ogni importo è un lordo mensile nominale futuro, deflazionato con l&apos;inflazione dello scenario e convertito in

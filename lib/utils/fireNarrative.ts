@@ -563,13 +563,16 @@ export interface FireBase {
   swr: number;
   referenceYear: number | null;
   isAnnualized: boolean;
-  includesResidence: boolean;
+  /** RP5: what stays outside the plan's capital, EUR — real estate (the residence included) and crypto. */
+  outsideCapital: { realestate: number; crypto: number };
+  /** RP6: where the expenses come from — typed in Parametri (`settings`) or read off the Cashflow. */
+  planExpensesOrigin: 'settings' | 'cashflow';
   /** The pensions and the tax, considered or declared absent — the tile's two last rows. */
   honest?: FireTargetHonest;
 }
 
 /**
- * «Calcolato su 412.500 € di patrimonio, spese di 27.600 € l'anno e un SWR del 4%; nel numero
+ * «Calcolato su 412.500 € di capitale, spese di 27.600 € l'anno e un SWR del 4%; nel numero
  * anche la pensione statale dal 2060, 13.000 € netti l'anno, e le tasse sui prelievi (26% sulla
  * plusvalenza).» A pension left out for a missing age is said; none saved is the row's business.
  */
@@ -577,7 +580,7 @@ export function describeBase(base: FireBase): Narrative {
   const out: Narrative = [
     prose('Calcolato su '),
     amount(base.netWorth),
-    prose(' di patrimonio, spese di '),
+    prose(' di capitale, spese di '),
     amount(base.annualExpenses),
     prose(" l'anno e un SWR del "),
     rate(base.swr),
@@ -628,8 +631,8 @@ export function describeBaseAside(base: Pick<FireBase, 'referenceYear' | 'isAnnu
   return `cashflow ${base.referenceYear}${base.isAnnualized ? ', annualizzato' : ''}`;
 }
 
-export function describeBaseFooter(includesResidence: boolean): Narrative {
-  return [prose(`Casa di abitazione ${includesResidence ? 'inclusa' : 'esclusa'}; SWR, casa e regola RITA si modificano in Parametri.`)];
+export function describeBaseFooter(): Narrative {
+  return [prose('Il capitale è quello delle sette classi di Impostazioni › Simulazioni; SWR, spesa del piano e regola RITA si modificano in Parametri.')];
 }
 
 /** The caption under the pension-lock switch: what is locked, until when, and by which rule. */
@@ -744,7 +747,8 @@ export function describeScenariosFooter(): Narrative {
 
 export interface ParametriDescriptionInput {
   swr: number;
-  includesResidence: boolean;
+  /** The plan's typed expenses, or null = read from the Cashflow. */
+  plannedExpenses: number | null;
   lockActive: boolean;
   inpsRetirementAge: number;
   ritaUnlockAge: number;
@@ -759,7 +763,7 @@ export interface ParametriDescriptionInput {
 export function describeParametri(input: ParametriDescriptionInput): string {
   return [
     `SWR ${formatRate(input.swr)}`,
-    `casa di abitazione ${input.includesResidence ? 'inclusa' : 'esclusa'}`,
+    input.plannedExpenses !== null ? `spesa del piano ${cachedFormatCurrencyEUR(Math.round(input.plannedExpenses), true)}` : 'spesa dal Cashflow',
     input.lockActive ? `fondo pensione bloccato (INPS ${input.inpsRetirementAge}, RITA a ${input.ritaUnlockAge})` : 'fondo pensione non vincolato',
     `crescita orso ${formatRate(input.scenarios.bear.growthRate)}, base ${formatRate(input.scenarios.base.growthRate)}, toro ${formatRate(input.scenarios.bull.growthRate)}`,
   ].join(' · ');

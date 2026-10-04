@@ -21,6 +21,7 @@ import type { Narrative } from '@/lib/utils/narrative';
 import type { FireLock } from '@/lib/utils/fireSummary';
 import { describePensionRow, describeTaxRow, formatRate, type FireBase } from '@/lib/utils/fireNarrative';
 import { NO_HONEST } from '@/lib/utils/fireSummary';
+import { describeOutsideCapital } from '@/lib/utils/fireAssumptionsNarrative';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
@@ -64,10 +65,14 @@ export function BaseDiCalcoloTile({ reading, aside, base, lock, lockCaption, onL
   const honest = base.honest ?? NO_HONEST;
   const pensionRow = describePensionRow(honest, currentYear);
   const taxRow = describeTaxRow(honest);
+  const outside = describeOutsideCapital(base.outsideCapital);
   const netWorthCaption = [
-    `casa di abitazione ${base.includesResidence ? 'inclusa' : 'esclusa'}`,
+    outside ? `fuori: ${outside}` : 'sette classi di Impostazioni › Simulazioni',
     lock.active && lock.lockedValue > 0 ? 'fondo pensione bloccato escluso' : null,
   ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+  const expensesCaption = [`${cachedFormatCurrencyEUR(base.monthlyExpenses, true)} al mese`, base.planExpensesOrigin === 'settings' ? 'spesa del piano, da Parametri' : null]
     .filter((part): part is string => part !== null)
     .join(' · ');
 
@@ -80,8 +85,8 @@ export function BaseDiCalcoloTile({ reading, aside, base, lock, lockCaption, onL
           full-width card on a phone and a half on a tablet (AGENTS → Tailwind Breakpoints). */}
       <div className="grid grid-cols-1 gap-x-6 @[560px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="mt-2.5 flex flex-col divide-y divide-border">
-          <Row label="Patrimonio FIRE" caption={netWorthCaption} value={cachedFormatCurrencyEUR(base.netWorth, true)} />
-          <Row label="Spese annue" caption={`${cachedFormatCurrencyEUR(base.monthlyExpenses, true)} al mese`} value={cachedFormatCurrencyEUR(base.annualExpenses, true)} />
+          <Row label="Capitale del piano" caption={netWorthCaption} value={cachedFormatCurrencyEUR(base.netWorth, true)} />
+          <Row label="Spese annue" caption={expensesCaption} value={cachedFormatCurrencyEUR(base.annualExpenses, true)} />
           <Row label="Risparmio annuo" caption={`${cachedFormatCurrencyEUR(base.monthlySavings, true)} al mese`} value={cachedFormatCurrencyEUR(base.annualSavings, true)} />
           <Row label="Safe Withdrawal Rate" caption="numero FIRE = spese ÷ SWR" value={formatRate(base.swr)} />
           {/* The two rows that make the number honest (2026-09-24): each is either in the number
