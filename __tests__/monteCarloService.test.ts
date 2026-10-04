@@ -696,3 +696,97 @@ describe('leverage (T3, rule R4)', () => {
     expect(result.retirements[0]?.ruinYear).toBe(1);
   });
 });
+
+// ─── T4 · Proiezione: the engine without paths, with a saving horizon and snapshots ───────────
+
+describe('runAccumulationSimulation — Proiezione (T4)', () => {
+  /** A market where equity, cash and nothing else move; volatility 0 makes every path deterministic. */
+  function leveredMarket(equityCagr: number, cashCagr: number, inflationRate = 0): MonteCarloMarketScenario {
+    return {
+      classes: monteCarloClassRecord((cls) => ({ cagr: cls === 'equity' ? equityCagr : cls === 'cash' ? cashCagr : 0, volatility: 0 })),
+      inflationRate,
+    };
+  }
+  const project = (overrides: Partial<AccumulationSimulationParams>): AccumulationSimulationParams =>
+    makeAccumulationParams({ withdrawalRate: 0, annualExpenses: 0, numberOfSimulations: 1, collectPaths: false, ...overrides });
+
+  it('P6: leveraged deterministic path, savings indexed and stopped after savingsYears', () => {
+    const result = runAccumulationSimulation(
+      project({
+        initialPortfolio: 100_000,
+        annualSavings: 10_000,
+        savingsInflationRate: 2,
+        savingsYears: 2,
+        years: 3,
+        weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 150 : 0)),
+        market: leveredMarket(7, 2, 2),
+        leverageSpread: 1,
+        snapshotYears: [1, 2, 3],
+      })
+    );
+    expect(result.snapshots?.[1][0]).toBeCloseTo(119_000, 6);
+    expect(result.snapshots?.[2][0]).toBeCloseTo(139_910, 6);
+    expect(result.snapshots?.[3][0]).toBeCloseTo(152_501.9, 6);
+    expect((result.snapshots?.[3][0] ?? 0) / Math.pow(1.02, 3)).toBeCloseTo(143_705.95, 2);
+    expect(result.leverageZeroedCount).toBe(0);
+  });
+
+  it('P7: a leveraged year that burns the capital leaves the year\'s saving and counts the path once', () => {
+    const params = {
+      initialPortfolio: 100_000,
+      years: 2,
+      weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 250 : 0)),
+      market: leveredMarket(-60, 3),
+      leverageSpread: 1,
+      snapshotYears: [1, 2],
+    };
+    const withSavings = runAccumulationSimulation(project({ ...params, annualSavings: 10_000 }));
+    expect(withSavings.snapshots?.[1][0]).toBe(10_000);
+    expect(withSavings.leverageZeroedCount).toBe(1);
+    const without = runAccumulationSimulation(project({ ...params, annualSavings: 0 }));
+    expect(without.snapshots?.[1][0]).toBe(0);
+    expect(without.leverageZeroedCount).toBe(1);
+  });
+
+  it('P8: collectPaths false and true share the same draws, percentiles and values', () => {
+    const base = { market: flatMarket(7, 18), years: 12, numberOfSimulations: 300, annualSavings: 5_000, withdrawalRate: 0, annualExpenses: 0 };
+    const kept = runAccumulationSimulation(makeAccumulationParams({ ...base, random: createSeededRandom(11) }));
+    const lean = runAccumulationSimulation(makeAccumulationParams({ ...base, collectPaths: false, snapshotYears: [12], random: createSeededRandom(11) }));
+    expect(lean.paths).toHaveLength(0);
+    expect(lean.percentiles).toEqual(kept.percentiles);
+    const final = kept.paths.map((path) => path[12].value).sort((a, b) => a - b);
+    expect(Array.from(lean.snapshots?.[12] ?? [])).toEqual(final);
+  });
+
+  it('P9: without the new parameters the result is the old one (every year saves, paths kept)', () => {
+    const result = runAccumulationSimulation(makeAccumulationParams({ market: flatMarket(0), withdrawalRate: 0, annualExpenses: 0, years: 3, annualSavings: 1_000 }));
+    expect(result.paths).toHaveLength(10);
+    expect(result.paths[0].map((point) => point.value)).toEqual([100_000, 101_000, 102_000, 103_000]);
+    expect(result.leverageZeroedCount).toBe(0);
+  });
+
+  it('P5: 200.000 seeded paths reproduce the closed-form percentiles (K 100.000, equity 100%, 30 years)', () => {
+    const years = 30;
+    const result = runAccumulationSimulation(
+      project({
+        initialPortfolio: 100_000,
+        annualSavings: 0,
+        years,
+        numberOfSimulations: 200_000,
+        market: flatMarket(10.02, 19.4, 3.04),
+        weights: allIn('equity'),
+        snapshotYears: [years],
+        random: createSeededRandom(20261003),
+      })
+    );
+    const sorted = result.snapshots?.[years] ?? new Float64Array();
+    const real = (p: number) => sorted[Math.floor(sorted.length * p)] / Math.pow(1.0304, years);
+    // P1 (closed form, R0 § R1): 10° 212.960 · 25° 377.839 · 50° 714.453 · 75° 1.350.954 · 90° 2.396.896
+    const expected: [number, number][] = [[0.1, 212_960], [0.25, 377_839], [0.5, 714_453], [0.75, 1_350_954], [0.9, 2_396_896]];
+    for (const [p, value] of expected) expect(Math.abs(real(p) / value - 1)).toBeLessThan(0.015);
+    // P3: P(≥ 1.000.000 € di oggi) = 36,09%
+    const threshold = 1_000_000 * Math.pow(1.0304, years);
+    const share = Array.from(sorted).filter((value) => value >= threshold).length / sorted.length;
+    expect(Math.abs(share - 0.3609)).toBeLessThan(0.005);
+  }, 60_000);
+});

@@ -2,6 +2,8 @@
 
 > **When to open this guide** — you are touching `components/fire-simulations/MonteCarloTab.tsx`, `components/monte-carlo/*` (`tiles/*`, `MonteCarloFanChart`, `FinalValueBars`, `ScenarioOverlayChart`, `MonteCarloDettaglio`), `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts` or `lib/services/monteCarloService.ts`. The page-wide rules — the pension unlock, `respectPensionLockInFire`, the bridge model, the config-first collapse, the Ventaglio engine, `deriveMonteCarloAllocation`, the goal math — live in `doc/guide/fire.md § FIRE, What If and Goals` and are not repeated here. In `AGENTS.md` only the stub with the essentials remains (§ FIRE, What If and Goals); modules and files: `doc/guide/fire.md` § *Files*. No Playwright spec covers this tab.
 
+> **Shared with Proiezione** (T4, 2026-10-04): the Allocazione block of the Parametri tile is `components/monte-carlo/WeightsFields.tsx` (ids `mc-weight-*` kept), `MonteCarloFanChart` takes optional `zeroLine` / `referenceLine` / `markedCalendarYear` (the Monte Carlo passes none: unchanged), and the final-value binning is `lib/utils/valueHistogram.ts` (`createDistribution` calls it). The accumulation-only tab is `doc/guide/fire-proiezione.md`.
+
 ## FIRE › Monte Carlo — a verdict over tiles (`components/fire-simulations/MonteCarloTab.tsx`, `components/monte-carlo/*`, `lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`)
 
 - **The weights are seeded from `useFireAssumptions`** (2026-10-03, doc/fire-ipotesi/README.md L1): the page's ONE reading of RP4 (Allocazione targets, else the

@@ -8,6 +8,7 @@
  * - Coast FIRE: Measure whether current FIRE patrimonio can compound to the full target
  * - What If: Simulate life events and their impact on FIRE and Coast FIRE
  * - Monte Carlo: Probabilistic portfolio simulations
+ * - Proiezione: what the portfolio may be worth in N years, and with what probability
  * - Obiettivi: Goal-based investing (mental allocation of portfolio to financial goals)
  *
  * Mobile/tablet pattern (< 1440px): PageTabBar renders a centered segmented pill (icon-only
@@ -21,12 +22,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Flame, Dices, Mountain, Target, Lightbulb } from 'lucide-react';
+import { Flame, Dices, Mountain, Target, Lightbulb, TrendingUp } from 'lucide-react';
 import { TabsContent } from '@/components/ui/tabs';
 import { FireCalculatorTab } from '@/components/fire-simulations/FireCalculatorTab';
 import { CoastFireTab } from '@/components/fire-simulations/CoastFireTab';
 import { WhatIfAnalysisTab } from '@/components/fire-simulations/WhatIfAnalysisTab';
 import { MonteCarloTab } from '@/components/fire-simulations/MonteCarloTab';
+import { ProjectionTab } from '@/components/fire-simulations/ProjectionTab';
 import { GoalBasedInvestingTab } from '@/components/fire-simulations/GoalBasedInvestingTab';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -34,13 +36,14 @@ import { PageTabs } from '@/components/layout/PageTabs';
 import { pageTabPanelId } from '@/components/layout/PageTabBar';
 import type { TabDef } from '@/components/layout/PageTabs';
 
-type TabValue = 'fire' | 'coast' | 'whatif' | 'montecarlo' | 'goals';
+type TabValue = 'fire' | 'coast' | 'whatif' | 'montecarlo' | 'proiezione' | 'goals';
 
 const TABS: TabDef[] = [
   { value: 'fire',       label: 'Calcolatore FIRE', icon: Flame     },
   { value: 'coast',      label: 'Coast FIRE',       icon: Mountain  },
   { value: 'whatif',     label: 'What If',          icon: Lightbulb },
   { value: 'montecarlo', label: 'Monte Carlo',      icon: Dices     },
+  { value: 'proiezione', label: 'Proiezione',       icon: TrendingUp },
   { value: 'goals',      label: 'Obiettivi',        icon: Target    },
 ];
 
@@ -77,6 +80,7 @@ export default function FireSimulationsPage() {
             {tab.value === 'coast'      && <CoastFireTab onOpenCalculator={() => setActiveTab('fire')} />}
             {tab.value === 'whatif'     && <WhatIfAnalysisTab />}
             {tab.value === 'montecarlo' && <MonteCarloTab />}
+            {tab.value === 'proiezione' && <ProjectionTab />}
             {tab.value === 'goals'      && <GoalBasedInvestingTab />}
           </TabsContent>
         ))}

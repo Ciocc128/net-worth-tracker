@@ -11,6 +11,7 @@ import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import { buildDrawPlan, drawYear, portfolioReturn, type DrawPlan } from '@/lib/utils/monteCarloDraw';
 import { formatCurrencyCompact } from './chartService';
 import { withdrawGross } from '@/lib/utils/withdrawalTax';
+import { binSortedValues } from '@/lib/utils/valueHistogram';
 
 /** A net annual amount that arrives every year from `fromYear` on, at today's value. */
 export interface AnnualInflow {
@@ -178,38 +179,14 @@ function createDistribution(
   simulations: SingleSimulationResult[],
   bins: number = 10
 ): MonteCarloResults['distribution'] {
-  const finalValues = simulations.map((sim) => sim.finalValue);
-  const sorted = [...finalValues].sort((a, b) => a - b);
-  const maxValue = sorted[sorted.length - 1];
-  const minValue = sorted[0];
-  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
-  const cap = p95 > minValue ? p95 : maxValue;
-  // A flat distribution (every path identical) still needs a positive width.
-  const binSize = cap > minValue ? (cap - minValue) / bins : 1;
-
-  const distribution: MonteCarloResults['distribution'] = [];
-
-  for (let i = 0; i < bins; i++) {
-    const isLast = i === bins - 1;
-    const rangeStart = minValue + i * binSize;
-    const rangeEnd = isLast ? Math.max(maxValue, minValue + bins * binSize) : minValue + (i + 1) * binSize;
-    const count = finalValues.filter((val) => val >= rangeStart && (isLast ? val <= rangeEnd : val < rangeEnd)).length;
-
-    const rangeLabel =
-      rangeStart === 0 && rangeEnd === 0
-        ? '€0'
-        : `${formatCurrencyCompact(rangeStart)}-${formatCurrencyCompact(rangeEnd)}`;
-
-    distribution.push({
-      range: rangeLabel,
-      count,
-      percentage: (count / simulations.length) * 100,
-      from: rangeStart,
-      to: rangeEnd,
-    });
-  }
-
-  return distribution;
+  const sorted = simulations.map((sim) => sim.finalValue).sort((a, b) => a - b);
+  return binSortedValues(sorted, bins).map(({ from, to, count }) => ({
+    range: from === 0 && to === 0 ? '€0' : `${formatCurrencyCompact(from)}-${formatCurrencyCompact(to)}`,
+    count,
+    percentage: (count / simulations.length) * 100,
+    from,
+    to,
+  }));
 }
 
 /**
@@ -342,6 +319,21 @@ export interface AccumulationSimulationParams {
     statePensions?: AnnualInflow[];
     withdrawalTax?: WithdrawalTaxInput;
   };
+  /**
+   * T4 (Proiezione, RV1): the saving of year t enters only while `t ≤ savingsYears`. Absent = every year of
+   * the horizon, as before — the Calcolatore never passes it.
+   */
+  savingsYears?: number;
+  /**
+   * T4: `false` keeps no path objects (`paths` stays empty) — a 10.000 × 60 run would hold 600.000 of them. The
+   * percentiles and `snapshots` are then built from one typed array per year. Default `true`.
+   */
+  collectPaths?: boolean;
+  /**
+   * T4: the years (1…`years`) whose nominal values come back sorted ascending, one per path, in `snapshots`.
+   * Only read with `collectPaths: false`.
+   */
+  snapshotYears?: number[];
 }
 
 export interface AccumulationPercentilePoint extends PercentilesData {
@@ -371,6 +363,10 @@ export interface AccumulationSimulationResult {
   retirements: (RetirementOutcome | null)[];
   /** The retirement ledger's horizon, in years from today. */
   retirementHorizonYears: number;
+  /** T4: the nominal values of the `snapshotYears`, sorted ascending (RV4: the index is floor(n × p)). */
+  snapshots?: Record<number, Float64Array>;
+  /** T4 (RV2): the paths with at least one year whose return wiped the capital out (`1 + r ≤ 0`), within `years`. */
+  leverageZeroedCount?: number;
 }
 
 /**
@@ -427,9 +423,17 @@ export function runAccumulationSimulation(
   const fireYears: (number | null)[] = [];
   const retirements: (RetirementOutcome | null)[] = [];
 
+  // T4: without path objects, one typed array per year (index = the simulation).
+  const collectPaths = params.collectPaths ?? true;
+  const savingsYears = params.savingsYears ?? Infinity;
+  const byYear: Float64Array[] = collectPaths ? [] : Array.from({ length: params.years + 1 }, () => new Float64Array(params.numberOfSimulations));
+  let leverageZeroedCount = 0;
+
   for (let sim = 0; sim < params.numberOfSimulations; sim++) {
     let portfolio = params.initialPortfolio + startingInflow;
-    const path: { year: number; value: number }[] = [{ year: 0, value: portfolio }];
+    const path: { year: number; value: number }[] = collectPaths ? [{ year: 0, value: portfolio }] : [];
+    if (!collectPaths) byYear[0][sim] = portfolio;
+    let zeroed = false;
     // Year 0 is tested like every other year (mirrors calculateFIREProjection): a portfolio
     // already past today's target is FIRE at year 0 in every path, and saves nothing from year 1.
     let fireYear: number | null = wrDecimal > 0 && portfolio >= fireTargets[0] ? 0 : null;
@@ -445,6 +449,7 @@ export function runAccumulationSimulation(
       // (a path never fails here); the retirement ledger below counts it as ruin.
       const rawGrowth = 1 + portfolioReturn(weights, drawYear(plan, random), spread);
       const growth = Math.max(0, rawGrowth);
+      if (rawGrowth <= 0 && year <= params.years) zeroed = true;
       const inflowThisYear = inflows.reduce((sum, inflow) => (inflow.year === year ? sum + inflow.amount : sum), 0);
 
       // The accumulation ledger, inside the fan's horizon only.
@@ -453,7 +458,7 @@ export function runAccumulationSimulation(
         portfolio *= growth;
 
         // Savings stop once the path retires — same rule as the deterministic projection.
-        if (fireYear === null) {
+        if (fireYear === null && year <= savingsYears) {
           const savings = savingsByYear[year];
           portfolio += savings;
           basis += savings;
@@ -463,7 +468,8 @@ export function runAccumulationSimulation(
           fireYear = year;
         }
 
-        path.push({ year, value: portfolio });
+        if (collectPaths) path.push({ year, value: portfolio });
+        else byYear[year][sim] = portfolio;
       }
 
       // The retirement ledger: the same capital until the FIRE year (savings included), then
@@ -497,7 +503,8 @@ export function runAccumulationSimulation(
       }
     }
 
-    paths.push(path);
+    if (zeroed) leverageZeroedCount++;
+    if (collectPaths) paths.push(path);
     fireYears.push(fireYear);
     retirements.push(fireYear !== null ? { fireYear, ruinYear, finalValue: retirementCapital } : null);
   }
@@ -505,8 +512,18 @@ export function runAccumulationSimulation(
   // Percentiles per year. Every path has full length, so the values array is always complete
   // and the sort makes p10 ≤ p25 ≤ p50 ≤ p75 ≤ p90 hold by construction.
   const percentiles: AccumulationPercentilePoint[] = [];
+  const snapshots: Record<number, Float64Array> = {};
+  const wanted = new Set(params.snapshotYears ?? []);
+  const simulationCount = params.numberOfSimulations;
   for (let year = 0; year <= params.years; year++) {
-    const valuesAtYear = paths.map((path) => path[year].value).sort((a, b) => a - b);
+    let valuesAtYear: ArrayLike<number>;
+    if (collectPaths) {
+      valuesAtYear = paths.map((path) => path[year].value).sort((a, b) => a - b);
+    } else {
+      byYear[year].sort();
+      valuesAtYear = byYear[year];
+      if (wanted.has(year)) snapshots[year] = byYear[year];
+    }
     const at = (fraction: number) => valuesAtYear[Math.floor(valuesAtYear.length * fraction)];
     const reachedCount = fireYears.filter(
       (fireYear) => fireYear !== null && fireYear <= year
@@ -520,11 +537,11 @@ export function runAccumulationSimulation(
       p75: at(0.75),
       p90: at(0.9),
       fireTarget: fireTargets[year],
-      fireProbability: (reachedCount / paths.length) * 100,
+      fireProbability: (reachedCount / simulationCount) * 100,
     });
   }
 
-  return { paths, percentiles, fireYears, retirements, retirementHorizonYears: horizon };
+  return { paths, percentiles, fireYears, retirements, retirementHorizonYears: horizon, snapshots, leverageZeroedCount };
 }
 
 /**

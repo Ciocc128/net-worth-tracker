@@ -599,6 +599,8 @@ sul computer del proprietario, non nel cloud.
 
 ## 11. T4 — Proiezione: quanto può valere il portafoglio tra N anni (spec del 04/10/2026)
 
+> **Stato**: implementata il 04/10/2026 (guida `doc/guide/fire-proiezione.md`). Scostamenti dalla spec: il selettore degli scenari di Tappe è un `AsideToggle` (lo scope di tile del repo) e non un `segmented-pill`; `createDistribution` e la scheda condividono `lib/utils/valueHistogram.ts`; `snapshots` e `leverageZeroedCount` sono opzionali nel tipo del risultato (così i test e i chiamanti esistenti non cambiano).
+
 > Origine: domanda di Giorgio nella conversazione di progetto (04/10/2026): «dato il capitale di partenza, con gli
 > scenari delle varie classi, il ventaglio dei valori finali del portafoglio tra 20/30/50 anni, e con che
 > probabilità». Primo pezzo della proposta **P7** dell'analisi
