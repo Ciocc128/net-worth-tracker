@@ -13,6 +13,8 @@
  */
 
 import type { FIRESensitivityMatrix } from '@/lib/services/fireService';
+import { resolveEventYearsAhead } from '@/lib/services/whatIfService';
+import { getItalyYear } from '@/lib/utils/dateHelpers';
 import type { FIREProjectionResult } from '@/types/assets';
 import type { WhatIfAdjustedInputs, WhatIfBaseline, WhatIfEventType, WhatIfImpact, WhatIfScenario } from '@/types/whatIf';
 
@@ -20,6 +22,8 @@ import type { WhatIfAdjustedInputs, WhatIfBaseline, WhatIfEventType, WhatIfImpac
 
 export interface WhatIfEvent {
   kind: WhatIfEventType;
+  /** The calendar year of an event that lands later (RF11); null = today, the year-0 perturbation. */
+  calendarYear: number | null;
   /** True when the perturbation is zero — nothing to simulate, the page says so. */
   isEmpty: boolean;
   /** jobLoss: the window without the lost income. */
@@ -38,6 +42,8 @@ export interface WhatIfEvent {
   netWorthAfter: number;
   savingsAfter: number;
   expensesAfter: number;
+  /** jobLoss / majorPurchase / windfall: the one-off hit in today's euro (`lost × months / 12`, or the amount). */
+  hitToday: number;
 }
 
 /** The event as the page states it, from the scenario the UI built and the inputs it produced. */
@@ -48,6 +54,8 @@ export function summarizeWhatIfEvent(scenario: WhatIfScenario, baseline: WhatIfB
   const lumpSum = Math.max(0, scenario.lumpSumAmount ?? 0);
   const savingsDelta = scenario.annualSavingsDelta ?? 0;
   const expensesDelta = scenario.annualExpensesDelta ?? 0;
+  const currentYear = baseline.currentYear ?? getItalyYear();
+  const yearsAhead = resolveEventYearsAhead(scenario, currentYear);
 
   const isEmpty = (() => {
     switch (scenario.eventType) {
@@ -63,6 +71,7 @@ export function summarizeWhatIfEvent(scenario: WhatIfScenario, baseline: WhatIfB
 
   return {
     kind: scenario.eventType,
+    calendarYear: yearsAhead >= 1 ? currentYear + yearsAhead : null,
     isEmpty,
     months,
     lostAnnualIncome,
@@ -74,6 +83,7 @@ export function summarizeWhatIfEvent(scenario: WhatIfScenario, baseline: WhatIfB
     netWorthAfter: adjusted.netWorth,
     savingsAfter: adjusted.annualSavings,
     expensesAfter: adjusted.annualExpenses,
+    hitToday: scenario.eventType === 'jobLoss' ? (lostAnnualIncome * months) / 12 : scenario.eventType === 'cashflowChange' ? 0 : lumpSum,
   };
 }
 

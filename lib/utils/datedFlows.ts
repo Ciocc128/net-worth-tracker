@@ -43,6 +43,12 @@ export interface ResolvedFlow {
   /** Already inside today's saving (and, from the Cashflow, the plan's expenses). */
   inCashflowToday: boolean;
   source?: DatedFlow['source'];
+  /**
+   * What a recurring flow touches: absent = both the saving (RF3) and the need (RF4), as every saved flow does. The What
+   * If's «Quando» (RF11) overlays a cashflow change as two independent flows — a yearly saving delta (`saving`) and a
+   * yearly expense delta (`need`) — so that neither moves the other figure a second time.
+   */
+  scope?: 'saving' | 'need';
 }
 
 export interface ExcludedFlow {
@@ -191,7 +197,7 @@ export function buildFlowSchedule(resolved: readonly ResolvedFlow[], options: Fl
     savingsDelta(t) {
       let delta = 0;
       for (const flow of recurring) {
-        if (flow.anchor === 'fire') continue;
+        if (flow.anchor === 'fire' || flow.scope === 'need') continue;
         const active = isActive(flow, t, null) ? nominalAmount(flow, t, pi, 'saving') : 0;
         const inside = flow.inCashflowToday ? flow.amount * Math.pow(1 + pi, t - 1) : 0;
         delta += -flow.sigma * (active - inside);
@@ -219,6 +225,7 @@ export function buildFlowSchedule(resolved: readonly ResolvedFlow[], options: Fl
     needDelta(s, retirementYear) {
       let need = 0;
       for (const flow of recurring) {
+        if (flow.scope === 'saving') continue;
         const active = isActive(flow, s, retirementYear) ? nominalAmount(flow, s, pi, 'need') : 0;
         const inside = flow.inCashflowToday && flow.sigma === 1 && options.planExpensesFromCashflow ? flow.amount * Math.pow(1 + pi, s) : 0;
         need += flow.sigma * (active - inside);

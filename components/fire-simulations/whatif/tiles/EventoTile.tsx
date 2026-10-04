@@ -53,6 +53,8 @@ export interface WhatIfEventForm {
   savingsDelta: string;
   expensesDelta: string;
   windfallAmount: string;
+  /** «Quando»: a calendar year as typed; blank = today (RF11). */
+  whenYear: string;
 }
 
 export interface IncomeSelectionProps {
@@ -76,6 +78,10 @@ interface EventoTileProps {
   incomeSelection: IncomeSelectionProps | null;
   /** `decomposeJobLossHit(...)`; null unless a job loss with months and lost income is typed. */
   jobLossHit: JobLossHit | null;
+  /** The running calendar year: the «Quando» default and floor. */
+  currentYear: number;
+  /** The last year an event can be placed in (the walk's horizon). */
+  maxYear: number;
   /** The baseline figures the cashflow inputs are applied to. */
   annualSavings: number;
   annualExpenses: number;
@@ -187,9 +193,19 @@ function AmountField({ id, label, value, onChange, placeholder, step, hint, min 
   );
 }
 
-export function EventoTile({ reading, event, eventType, onEventTypeChange, form, onFormChange, incomeSelection, jobLossHit, annualSavings, annualExpenses, footer, className }: EventoTileProps) {
+export function EventoTile({ reading, event, eventType, onEventTypeChange, form, onFormChange, incomeSelection, jobLossHit, currentYear, maxYear, annualSavings, annualExpenses, footer, className }: EventoTileProps) {
+  const later = event.calendarYear !== null;
+  const typedYear = Number.parseInt(form.whenYear, 10);
+  const whenHint =
+    form.whenYear.trim() !== '' && Number.isFinite(typedYear) && typedYear > maxYear
+      ? `Oltre l'orizzonte del piano: l'evento è messo nel ${maxYear}.`
+      : form.whenYear.trim() !== '' && (!Number.isFinite(typedYear) || typedYear < currentYear)
+        ? `Un anno passato non vale: l'evento resta oggi, nel ${currentYear}.`
+        : later
+          ? "Fino ad allora il piano non cambia; gli importi sono euro di oggi, rivalutati con l'inflazione."
+          : "Vuoto = oggi. Un anno futuro sposta l'evento in avanti: il piano di prima resta com'è.";
   return (
-    <Tile eyebrow="Evento" aside="applicato oggi, all'anno 0" reading={reading} ariaLabel="Evento simulato" className={className}>
+    <Tile eyebrow="Evento" aside={later ? `applicato nel ${event.calendarYear}` : "applicato oggi, all'anno 0"} reading={reading} ariaLabel="Evento simulato" className={className}>
       <div role="group" aria-label="Tipo di evento" className="mt-3.5 grid grid-cols-2 gap-2">
         {EVENTS.map(({ type, label, icon: Icon }) => {
           const active = type === eventType;
@@ -211,6 +227,25 @@ export function EventoTile({ reading, event, eventType, onEventTypeChange, form,
             </button>
           );
         })}
+      </div>
+
+      <div className="mt-4 max-w-[160px]">
+        <Label htmlFor="whatIfWhenYear" className="text-[13px]">
+          Quando (anno)
+        </Label>
+        <Input
+          id="whatIfWhenYear"
+          type="number"
+          step="1"
+          min={currentYear}
+          max={maxYear}
+          inputMode="numeric"
+          value={form.whenYear}
+          onChange={(e) => onFormChange({ whenYear: e.target.value })}
+          placeholder={`Oggi, ${currentYear}`}
+          className={CONTROL_CLASS}
+        />
+        <p className="mt-1 text-[11px] leading-[1.4] text-muted-foreground">{whenHint}</p>
       </div>
 
       {eventType === 'jobLoss' && (

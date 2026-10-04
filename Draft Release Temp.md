@@ -16,6 +16,8 @@
 
 - FIRE › Calcolatore › Parametri has a «Flussi nel tempo» section: money that enters or leaves the plan from a year, an age or the FIRE year, for a number of years or forever — a mortgage that ends (linked to the one in Patrimonio, so the end date follows your instalments), a child, an inheritance, a part-time job after FIRE, a rent. The FIRE number is today's plus the present value of those flows, the Calcolatore's projection and Coast FIRE read them, and the Base di calcolo says how far they move the year, for example «4 · spostano il FIRE dal 2034 al 2029». Monte Carlo (including Spesa sostenibile), Proiezione and the Ventaglio read them too, the same in every simulated path; What If does not yet.
 
+- FIRE › What If has a «Quando» field on the event: leave it empty for today (nothing changes), or type a later year — a job loss in 2029, a purchase in 2031, a cashflow change from 2030 — and the plan keeps its course until then. The «prima» side now includes the dated flows of the Calcolatore, so both tabs agree, and the verdict names the year.
+
 ## 🐛 Bug Fixes
 
 - Fixed the FIRE simulations diluting the portfolio weights with accounts excluded from Allocazione: a 70/30 target is now simulated as 70/30, not as 63/27 plus 10% of cash that the plan does not hold.
