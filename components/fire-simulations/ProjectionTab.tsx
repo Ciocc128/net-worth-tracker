@@ -33,6 +33,7 @@ import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
 import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { portfolioCost } from '@/lib/utils/fireCosts';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
@@ -274,10 +275,12 @@ export function ProjectionTab() {
             scenarios,
             correlations: market.correlations,
             leverageSpread: market.leverageSpread,
+            // RC3/RC4: the costs of the weights of THIS run, on the page's per-class costs.
+            costRate: portfolioCost(typed.weights, assumptions?.costs).total,
             inflows: pensionInflows,
           }
         : null,
-    [typed, scenarios, market.correlations, market.leverageSpread, pensionInflows],
+    [typed, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows],
   );
 
   // ─── The run: the three scenarios in one go ──────────────────────────────────
@@ -316,6 +319,7 @@ export function ProjectionTab() {
             market: scenario,
             correlations: inputs.correlations,
             leverageSpread: inputs.leverageSpread,
+            annualCostRate: inputs.costRate,
             numberOfSimulations: inputs.simulations,
             capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
             collectPaths: false,
@@ -435,7 +439,7 @@ export function ProjectionTab() {
                     ariaLabel={`Ventaglio del portafoglio, scenario base, in euro di oggi: bande dei percentili 10–90 e 25–75 e mediana delle ${summary.simulations.toLocaleString('it-IT')} simulazioni fino al ${ctx.startCalendarYear + lastRun.data.years}.`}
                   />
                 }
-                footer={describeVentaglioFooter(baseInflation, summary.threshold)}
+                footer={describeVentaglioFooter(baseInflation, summary.threshold, lastRun?.inputs.costRate ?? 0)}
               />
             </div>
 

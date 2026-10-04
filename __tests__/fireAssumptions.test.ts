@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getDefaultMonteCarloCorrelations, getDefaultMonteCarloMarket } from '@/lib/constants/monteCarloMarketDefaults';
 import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions, resolveFireCapital, resolvePlanExpenses } from '@/lib/utils/fireAssumptions';
+import { portfolioCost, resolveClassCosts } from '@/lib/utils/fireCosts';
 import { describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
 import { narrativeToText } from '@/lib/utils/narrative';
 import { calculateFIREProjection } from '@/lib/services/fireService';
@@ -241,5 +242,92 @@ describe('A17: at zero volatility the Ventaglio is the Calcolatore\'s Base curve
     }
     expect(projection.baseYearsToFIRE).not.toBeNull();
     for (const fireYear of fan.fireYears) expect(fireYear).toBe(projection.baseYearsToFIRE);
+  });
+});
+
+// ─── P6: recurring costs (doc/fire-ipotesi/README.md § 9, C3–C11) ─────────────────────────────
+
+describe('recurring costs in the rates (RC4)', () => {
+  const costPortfolio = [
+    asset('azionario', 'equity', 100_000, { totalExpenseRatio: 0.2 }),
+    asset('obbligazionario', 'bonds', 50_000, { totalExpenseRatio: 0.1 }),
+    asset('corrente', 'cash', 20_000, { type: 'cash', subCategory: 'Conto corrente' }),
+    asset('deposito', 'cash', 10_000, { type: 'cash', subCategory: 'Conto deposito' }),
+  ];
+  const settings = { stampDutyEnabled: true, stampDutyRate: 0.2, checkingAccountSubCategory: 'Conto corrente', targets: { equity: { targetPercentage: 60 }, bonds: { targetPercentage: 40 } } };
+  const w6040 = weights({ equity: 60, bonds: 40 });
+  const costs = resolveClassCosts(costPortfolio, settings);
+
+  it('C3: 60/40 Orso, Base, Toro net of 0,36% — 5,5854 / 7,8726 / 10,6856 (gross A3: 5,9669 / 8,2623 / 11,0855)', () => {
+    const net = (key: 'bear' | 'base' | 'bull') => portfolioCompoundReturn(w6040, market.scenarios[key], correlations, 2, portfolioCost(w6040, costs).total).cagr;
+    near(net('bear'), 5.5854);
+    near(net('base'), 7.8726);
+    near(net('bull'), 10.6856);
+  });
+
+  it('C4: the real return is Fisher on the net one (π = 3,04%)', () => {
+    const scenarios = buildPortfolioScenarios(w6040, resolveMonteCarloMarket(null), 0.36);
+    near(scenarios.bear.realReturnRate, 2.4703);
+    near(scenarios.base.realReturnRate, 4.69);
+    near(scenarios.bull.realReturnRate, 7.42);
+  });
+
+  it('C5: the duty off, the 60/40 Base is 8,0891%', () => {
+    const net = portfolioCompoundReturn(w6040, market.scenarios.base, correlations, 2, portfolioCost(w6040, resolveClassCosts(costPortfolio, { ...settings, stampDutyEnabled: false })).total).cagr;
+    near(net, 8.0891);
+  });
+
+  it('C6: leverage 1,5× (A6 weights) with the costs of P → Base 8,8366%', () => {
+    const w = weights({ equity: 90, bonds: 60 });
+    near(portfolioCompoundReturn(w, market.scenarios.base, correlations, 2, portfolioCost(w, costs).total).cagr, 8.8366);
+  });
+
+  it('a zero cost is the gross return, float for float (C11)', () => {
+    expect(portfolioCompoundReturn(w6040, market.scenarios.base, correlations, 2, 0)).toEqual(portfolioCompoundReturn(w6040, market.scenarios.base, correlations, 2));
+  });
+
+  it('C8: at zero volatility g_net = (1,07824 · 0,9964) − 1 = 7,4358% and the Ventaglio is still the Base curve (A17 with the costs)', () => {
+    const base = zeroVol(market.scenarios.base);
+    const result = portfolioCompoundReturn(w6040, base, correlations, 2, 0.36);
+    near(result.cagr, 7.4358);
+    const scenario = { growthRate: result.cagr, inflationRate: base.inflationRate };
+    const projection = calculateFIREProjection(250_000, 30_000, 12_000, 4, { bear: scenario, base: scenario, bull: scenario }, 50, undefined, undefined, true);
+    const years = Math.min(projection.yearlyData.length, 40);
+    const fan = runAccumulationSimulation({
+      initialPortfolio: 250_000,
+      annualSavings: 12_000,
+      savingsInflationRate: base.inflationRate,
+      annualExpenses: 30_000,
+      withdrawalRate: 4,
+      expenseInflationRate: base.inflationRate,
+      years,
+      weights: w6040,
+      market: base,
+      correlations: [...correlations],
+      leverageSpread: 2,
+      annualCostRate: 0.36,
+      numberOfSimulations: 3,
+    });
+    for (const path of fan.paths) {
+      for (let year = 1; year <= years; year++) expect(Math.round(path[year].value)).toBe(projection.yearlyData[year - 1].baseNetWorth);
+    }
+    for (const fireYear of fan.fireYears) expect(fireYear).toBe(projection.baseYearsToFIRE);
+  });
+
+  it('resolveFireAssumptions carries the costs and the net rates when it has the values; without them the rates stay gross', () => {
+    const withValues = resolveFireAssumptions({ settings, assets: costPortfolio, assetValue: valueOf });
+    near(withValues.cost!.total, 0.36);
+    near(withValues.scenarios.base.growthRate, 7.8726);
+    const without = resolveFireAssumptions({ settings, assets: costPortfolio });
+    expect(without.cost).toBeUndefined();
+    near(without.scenarios.base.growthRate, 8.2623);
+  });
+
+  it('C12: the line says the costs, the three readings', () => {
+    const base = { assets: costPortfolio, assetValue: valueOf };
+    expect(text({ ...base, settings })).toContain('costi 0,36% (TER 0,16%, bollo 0,20%)');
+    expect(text({ ...base, settings: { ...settings, stampDutyEnabled: false } })).toContain('costi 0,16% (solo TER; bollo non attivo in Impostazioni › Allocazione)');
+    const noTer = costPortfolio.map((a) => ({ ...a, totalExpenseRatio: undefined }));
+    expect(text({ assets: noTer, assetValue: valueOf, settings })).toContain('TER non inseriti negli strumenti');
   });
 });

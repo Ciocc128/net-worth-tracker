@@ -139,12 +139,15 @@ export function weightsLeverage(weightsPct: readonly number[]): number {
  * R3 + R4: `1 + r_p = Σ w_i·(1 + r_i) − (W − 1)·(1 + c)` with the weights in percent, `W = Σw/100` and
  * `c` the Liquidità return drawn this year plus `leverageSpreadPct` (percent). The debt term exists only
  * when `W > 1`: at `W ≤ 1` the result is the plain weighted return, float for float (A12).
+ * RC4 (doc/fire-ipotesi § 9): `costPct` (percent, TER and stamp duty on the capital) is taken off the year's
+ * result, AFTER the return: `(1 + r_p)(1 − c/100) − 1`. Zero = the plain return, float for float (C11).
  * Returns `r_p` as a decimal; `−1` or less means the capital is wiped out (the engines call it «leva»).
  */
-export function portfolioReturn(weightsPct: number[], returns: number[], leverageSpreadPct = 0): number {
+export function portfolioReturn(weightsPct: number[], returns: number[], leverageSpreadPct = 0, costPct = 0): number {
   let growth = 0;
   for (let i = 0; i < returns.length; i++) growth += (weightsPct[i] / 100) * (1 + returns[i]);
   const leverage = weightsLeverage(weightsPct);
   if (leverage > 1) growth -= (leverage - 1) * (1 + returns[CASH_INDEX] + leverageSpreadPct / 100);
+  if (costPct) growth *= 1 - costPct / 100;
   return growth - 1;
 }

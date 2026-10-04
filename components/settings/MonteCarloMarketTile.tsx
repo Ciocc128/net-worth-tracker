@@ -52,7 +52,7 @@ interface MonteCarloMarketTileProps {
   /** The sub-category in force: the draft's, or the one the default rule finds. */
   effectiveGoldSubCategory: string | null;
   /** The weights the FIRE page simulates (targets of Allocazione, else the portfolio held): the tile shows what they return on the typed numbers. */
-  portfolio?: { weights: Record<MonteCarloClass, number>; origin: FireWeightsOrigin } | null;
+  portfolio?: { weights: Record<MonteCarloClass, number>; origin: FireWeightsOrigin; /** Percent a year of TER and stamp duty (RC3); the rates shown are net of it. */ costPct?: number } | null;
   disabled?: boolean;
   className?: string;
 }
@@ -174,7 +174,7 @@ export function MonteCarloMarketTile({
         <p className="mt-3 text-[13px] text-muted-foreground" data-testid="mc-market-portfolio-return">
           {PORTFOLIO_SUBJECT[portfolio.origin]} (composto):{' '}
           {SCENARIO_OPTIONS.map((option, index) => {
-            const { cagr } = portfolioCompoundReturn(portfolio.weights, draft.scenarios[option.value], draft.correlations, draft.leverageSpread);
+            const { cagr } = portfolioCompoundReturn(portfolio.weights, draft.scenarios[option.value], draft.correlations, draft.leverageSpread, portfolio.costPct ?? 0);
             return (
               <span key={option.value}>
                 {index > 0 ? ' · ' : ''}
@@ -182,6 +182,7 @@ export function MonteCarloMarketTile({
               </span>
             );
           })}
+          {portfolio.costPct ? <span> · al netto di costi {formatPercentageIt(Math.round(portfolio.costPct * 100) / 100, 2)}</span> : null}
         </p>
       ) : null}
 

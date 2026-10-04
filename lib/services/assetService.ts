@@ -17,7 +17,7 @@ import { removeUndefinedDeep as removeUndefinedFields } from '@/lib/utils/firest
 import { authenticatedFetch } from '@/lib/utils/authFetch';
 import { suggestIsLiquid } from '@/lib/utils/assetLiquidity';
 import { costBasisPerUnitEur, unitPriceEur } from '@/lib/utils/costBasisEur';
-import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR } from '@/lib/constants/stampDuty';
+import { CHECKING_ACCOUNT_STAMP_DUTY_EUR, CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR, isCheckingAccount } from '@/lib/constants/stampDuty';
 import { invalidateDashboardOverviewSummary } from '@/lib/services/dashboardOverviewInvalidation';
 import { Asset, AssetFormData, BondDetails } from '@/types/assets';
 
@@ -857,17 +857,8 @@ export function calculateStampDuty(
     .reduce((total, asset) => {
       const value = calculateAssetValue(asset);
       // Conti correnti: the flat-fee rule (34,20€ above 5.000€) is a checking-account tax rule,
-      // not a "cash-class asset" one — a money-market ETF (e.g. XEON) can carry `assetClass: 'cash'`
-      // for allocation purposes while remaining a security for tax purposes (0,2% like any other
-      // instrument). Strict convention: `type === 'cash' && assetClass === 'cash'` (spec
-      // 6-asset-class-selection.md decision 4; same rule as the cash-account pickers in AGENTS.md's
-      // 2026-07-26 hardening note).
-      if (
-        asset.type === 'cash' &&
-        asset.assetClass === 'cash' &&
-        checkingAccountSubCategory &&
-        asset.subCategory === checkingAccountSubCategory
-      ) {
+      // not a "cash-class asset" one — see `isCheckingAccount` for the strict convention.
+      if (isCheckingAccount(asset, checkingAccountSubCategory)) {
         return value > CHECKING_ACCOUNT_STAMP_DUTY_THRESHOLD_EUR ? total + CHECKING_ACCOUNT_STAMP_DUTY_EUR : total;
       }
       return total + value * (stampDutyRate / 100);

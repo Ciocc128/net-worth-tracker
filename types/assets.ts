@@ -553,6 +553,8 @@ export interface MonteCarloParams {
   weights: Record<MonteCarloClass, number>;
   // T3: percent added to the Liquidità return to price the debt; absent = no spread.
   leverageSpread?: number;
+  // RC4: percent of the capital taken off every year after the return (TER and stamp duty); absent = 0 = gross.
+  annualCostRate?: number;
 
   // Withdrawal settings
   annualWithdrawal: number;

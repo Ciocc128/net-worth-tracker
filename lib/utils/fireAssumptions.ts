@@ -12,6 +12,8 @@
  *   RP4  the weights: the effective targets of Allocazione (R6), else the portfolio held today.
  *   RP5  the capital: `K` of the seven classes (RK), crypto and real estate declared as «fuori» (L2, D4).
  *   RP6  the expenses: the plan's (`plannedAnnualExpenses`), else the Cashflow's (L2, D5).
+ *   RC   the recurring costs (TER, stamp duty) taken off the capital every year after the return, in every
+ *        rate this module returns (`fireCosts.ts`, doc/fire-ipotesi § 9).
  *
  * Pure: every collaborator is another pure module (`toLogNormal`, the correlation matrix, the weights seeds).
  */
@@ -27,6 +29,7 @@ import { resolvePortfolioTaxProfile, type WithdrawalTaxProfile } from './withdra
 import { resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
 import { realReturn } from './realReturn';
 import { seedWeightsFromTargets, weightsFromHoldings } from './monteCarloWeights';
+import { portfolioCost, resolveClassCosts, type FireCosts, type PortfolioCost } from './fireCosts';
 
 export type FireScenarioKey = 'bear' | 'base' | 'bull';
 
@@ -79,6 +82,10 @@ export interface FireAssumptions {
   capital?: FireCapital;
   /** RP6, present when the Cashflow was read or the plan's expenses are typed. */
   expenses?: FireExpenses;
+  /** RC1–RC2: the cost per class, present when `resolveFireAssumptions` was given the value function (like `capital`). */
+  costs?: FireCosts;
+  /** RC3: the cost of THIS page's weights, percent a year; the rates in `scenarios` are already net of it. */
+  cost?: PortfolioCost;
 }
 
 export interface PortfolioReturn {
@@ -101,12 +108,16 @@ export const DEFAULT_FIRE_WEIGHTS: Readonly<Record<MonteCarloClass, number>> = m
  *   M = Σ v_i·G_i − max(W−1, 0)·sp         G_i = 1 + μa_i, the arithmetic mean of the factor (R1)
  *   V = Σ_ij v_i·v_j·G_i·G_j·(exp(ρ_ij·s_i·s_j) − 1)
  *   g_p = M / √(1 + V/M²) − 1               R2 on M and √V
+ *
+ * RC4: `costPct` (percent) scales the factor of every year by `f = 1 − c/100`, so `M` and `√V` both scale by
+ * `f` and `g_net = (1 + g_p)·f − 1` exactly. Zero = gross, float for float.
  */
 export function portfolioCompoundReturn(
   weightsPct: Readonly<Record<MonteCarloClass, number>>,
   scenario: MonteCarloMarketScenario,
   correlations?: readonly number[],
   leverageSpreadPct = 0,
+  costPct = 0,
 ): PortfolioReturn {
   const n = MONTE_CARLO_CLASSES.length;
   const logNormals = MONTE_CARLO_CLASSES.map((cls) => toLogNormal(scenario.classes[cls]));
@@ -130,6 +141,11 @@ export function portfolioCompoundReturn(
       variance += v[i] * v[j] * growth[i] * growth[j] * (Math.exp(matrix[i][j] * logNormals[i].s * logNormals[j].s) - 1);
     }
   }
+  if (costPct) {
+    const factor = 1 - costPct / 100;
+    mean *= factor;
+    variance *= factor * factor;
+  }
   // A portfolio that cannot be positive on average has no compound return to speak of.
   if (!(mean > 0)) return { cagr: -100, arithmeticMean: (mean - 1) * 100, volatility: Math.sqrt(Math.max(variance, 0)) * 100 };
   const cagr = mean / Math.sqrt(1 + variance / (mean * mean)) - 1;
@@ -140,7 +156,7 @@ export function portfolioCompoundReturn(
 export { realReturn };
 
 export interface ResolveFireAssumptionsInput {
-  settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled' | 'plannedAnnualExpenses' | 'coastFireCustomExpenses'> | null | undefined;
+  settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled' | 'plannedAnnualExpenses' | 'coastFireCustomExpenses' | 'stampDutyEnabled' | 'stampDutyRate' | 'checkingAccountSubCategory'> | null | undefined;
   assets: readonly Asset[] | null | undefined;
   /** The funds the pension lock keeps closed: outside the weights' base (RK). */
   lockedAssetIds?: ReadonlySet<string>;
@@ -224,10 +240,10 @@ export function resolveFireWeights(
 }
 
 /** The three scenarios of the page, from the weights and the resolved market. */
-export function buildPortfolioScenarios(weights: Readonly<Record<MonteCarloClass, number>>, market: ResolvedMonteCarloMarket): Record<FireScenarioKey, PortfolioScenario> {
+export function buildPortfolioScenarios(weights: Readonly<Record<MonteCarloClass, number>>, market: ResolvedMonteCarloMarket, costPct = 0): Record<FireScenarioKey, PortfolioScenario> {
   const one = (key: FireScenarioKey): PortfolioScenario => {
     const scenario = market.scenarios[key];
-    const result = portfolioCompoundReturn(weights, scenario, market.correlations, market.leverageSpread);
+    const result = portfolioCompoundReturn(weights, scenario, market.correlations, market.leverageSpread, costPct);
     return {
       growthRate: result.cagr,
       inflationRate: scenario.inflationRate,
@@ -245,5 +261,8 @@ export function resolveFireAssumptions(input: ResolveFireAssumptionsInput): Fire
   const { weights, origin, leverage } = resolveFireWeights(input, market.goldSubCategory);
   const capital = input.assetValue && input.assets ? resolveFireCapital(input.assets, input.assetValue, { lockedAssetIds: input.lockedAssetIds, goldSubCategory: market.goldSubCategory }) : undefined;
   const expenses = resolvePlanExpenses(input.settings, input.cashflowData) ?? undefined;
-  return { scenarios: buildPortfolioScenarios(weights, market), weights, weightsOrigin: origin, leverage, market, capital, expenses };
+  // RC1–RC3: the costs need the instruments' values like the capital does; without them the rates stay gross.
+  const costs = input.assetValue && input.assets ? resolveClassCosts(input.assets, input.settings, { lockedAssetIds: input.lockedAssetIds, goldSubCategory: market.goldSubCategory }) : undefined;
+  const cost = costs ? portfolioCost(weights, costs) : undefined;
+  return { scenarios: buildPortfolioScenarios(weights, market, cost?.total ?? 0), weights, weightsOrigin: origin, leverage, market, capital, expenses, costs, cost };
 }

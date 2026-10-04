@@ -27,9 +27,10 @@ import {
 } from '@/types/goals';
 import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { portfolioCompoundReturn, type FireAssumptions } from '@/lib/utils/fireAssumptions';
+import { portfolioCost } from '@/lib/utils/fireCosts';
 
 /** The slice of the page's hypotheses a goal needs: the market of Impostazioni › Simulazioni and the target portfolio's scenarios. */
-export type GoalAssumptions = Pick<FireAssumptions, 'scenarios' | 'market'>;
+export type GoalAssumptions = Pick<FireAssumptions, 'scenarios' | 'market'> & Partial<Pick<FireAssumptions, 'costs'>>;
 
 // Priority multipliers for the cross-goal contribution split. Mirrors the
 // weighting used by deriveTargetAllocationFromGoals so the two planners agree.
@@ -100,6 +101,7 @@ export interface GoalReturn {
  * D8: the return of a goal is RP1 on the Base scenario of Impostazioni › Simulazioni. With a
  * recommended allocation, that allocation (crypto and real estate out, the rest rescaled to 100);
  * without a usable one, the target portfolio's own Base return — the figure every other FIRE tab uses.
+ * Both are net of the recurring costs (TER, stamp duty) when `assumptions.costs` is there (RC5).
  */
 export function goalAnnualReturn(
   allocation: Partial<Record<AssetClass, number>> | undefined,
@@ -118,7 +120,8 @@ export function goalAnnualReturn(
   for (const cls of GOAL_SIMULATED_CLASSES) weights[cls as MonteCarloClass] = (weights[cls as MonteCarloClass] * 100) / total;
   const outside = GOAL_OUTSIDE_CLASSES.filter((cls) => (allocation[cls] || 0) > 0);
   const { market } = assumptions;
-  const { cagr } = portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread);
+  // RC5: the costs of the goal's own weights, on the same per-class costs as the page; none = gross.
+  const { cagr } = portfolioCompoundReturn(weights, market.scenarios.base, market.correlations, market.leverageSpread, portfolioCost(weights, assumptions.costs).total);
   return { rate: cagr, origin: 'allocation', outside };
 }
 

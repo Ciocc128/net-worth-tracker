@@ -22,6 +22,8 @@ import {
   sortGoalRowsByUrgency,
   type GoalRow,
 } from '@/lib/utils/goalTrajectory';
+import { resolveClassCosts } from '@/lib/utils/fireCosts';
+import type { Asset } from '@/types/assets';
 import { InvestmentGoal, GoalProgress } from '@/types/goals';
 
 const NOW = new Date('2026-01-01T00:00:00Z');
@@ -343,5 +345,25 @@ describe('sortGoalRowsByUrgency', () => {
     ];
     const sorted = sortGoalRowsByUrgency(rows).map((r) => r.goal.id);
     expect(sorted).toEqual(['offTrackNear', 'offTrackFar', 'onTrackFar', 'reached']);
+  });
+});
+
+describe('goalAnnualReturn — recurring costs (RC5, C10)', () => {
+  const costs = resolveClassCosts(
+    [
+      { id: 'e', name: 'e', type: 'etf', assetClass: 'equity', currentPrice: 100_000, quantity: 1, totalExpenseRatio: 0.2 },
+      { id: 'b', name: 'b', type: 'etf', assetClass: 'bonds', currentPrice: 50_000, quantity: 1, totalExpenseRatio: 0.1 },
+      { id: 'cc', name: 'cc', type: 'cash', assetClass: 'cash', subCategory: 'Conto corrente', currentPrice: 20_000, quantity: 1 },
+      { id: 'cd', name: 'cd', type: 'cash', assetClass: 'cash', subCategory: 'Conto deposito', currentPrice: 10_000, quantity: 1 },
+    ] as Asset[],
+    { stampDutyEnabled: true, stampDutyRate: 0.2, checkingAccountSubCategory: 'Conto corrente' },
+  );
+
+  it('C10: 80% equity + 20% bonds → c 0,38%, Base (1,092079 · 0,9962) − 1 = 8,7929% (gross 9,2079%)', () => {
+    expect(goalAnnualReturn({ equity: 80, bonds: 20 }, { ...ASSUMPTIONS, costs }).rate).toBeCloseTo(8.7929, 3);
+  });
+
+  it('without costs the return is the gross one (A14)', () => {
+    expect(goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS).rate).toBeCloseTo(9.2079, 3);
   });
 });

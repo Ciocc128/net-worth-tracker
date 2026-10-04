@@ -1455,8 +1455,9 @@ export function calculateCoastFIREProjection(
  *
  * Each scenario applies its own growth rate and inflation rate yearly.
  * Expenses grow with each scenario's inflation, making the FIRE Number
- * a moving target. Annual savings are added nominally (not inflation-adjusted)
- * as a conservative assumption.
+ * a moving target. Annual savings are added at a fixed nominal amount by default
+ * (`indexSavings = false`, the conservative reading); with `indexSavings = true` the saving
+ * of year t grows with the scenario's inflation (RP7) — what the FIRE page passes.
  *
  * Algorithm per year per scenario:
  *   1. Apply growth:    portfolio *= (1 + growthRate)

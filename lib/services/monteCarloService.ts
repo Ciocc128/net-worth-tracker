@@ -73,6 +73,7 @@ function runSingleSimulation(
     return { simulationId, success: false, failureYear, failureCause, finalValue: 0, path };
   };
   const spread = params.leverageSpread ?? 0;
+  const costRate = params.annualCostRate ?? 0;
 
   for (let year = 1; year <= params.retirementYears; year++) {
     // Add the inflows landing this year BEFORE applying the market return
@@ -85,7 +86,7 @@ function runSingleSimulation(
 
     // One lognormal draw per class (rule R1), weighted into the portfolio's return (R3), the debt
     // of a leveraged portfolio taken off it at the drawn Liquidità return plus the spread (R4).
-    const yearReturn = portfolioReturn(weights, drawYear(plan, random), spread);
+    const yearReturn = portfolioReturn(weights, drawYear(plan, random), spread, costRate);
 
     // Apply return to portfolio
     portfolio *= 1 + yearReturn;
@@ -281,6 +282,8 @@ export interface AccumulationSimulationParams {
   correlations?: number[];
   /** Percent added to the Liquidità return to price the debt of a leveraged portfolio (weights summing above 100, R4). */
   leverageSpread?: number;
+  /** Percent of the capital taken off every year after the return: TER and stamp duty (RC4); absent = 0 = gross. */
+  annualCostRate?: number;
 
   numberOfSimulations: number;
 
@@ -398,6 +401,7 @@ export function runAccumulationSimulation(
   const plan = buildDrawPlan(params.market, params.correlations);
   const weights = MONTE_CARLO_CLASSES.map((cls) => params.weights[cls]);
   const spread = params.leverageSpread ?? 0;
+  const costRate = params.annualCostRate ?? 0;
   const horizon = Math.max(params.years, Math.floor(params.retirementHorizonYears ?? params.years));
   const inflows = params.capitalInflows ?? [];
   const startingInflow = inflows
@@ -447,7 +451,7 @@ export function runAccumulationSimulation(
     for (let year = 1; year <= horizon; year++) {
       // R4: a leveraged year can lose more than the capital. The fan floors the growth at zero
       // (a path never fails here); the retirement ledger below counts it as ruin.
-      const rawGrowth = 1 + portfolioReturn(weights, drawYear(plan, random), spread);
+      const rawGrowth = 1 + portfolioReturn(weights, drawYear(plan, random), spread, costRate);
       const growth = Math.max(0, rawGrowth);
       if (rawGrowth <= 0 && year <= params.years) zeroed = true;
       const inflowThisYear = inflows.reduce((sum, inflow) => (inflow.year === year ? sum + inflow.amount : sum), 0);

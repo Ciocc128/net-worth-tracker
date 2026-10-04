@@ -485,6 +485,8 @@ export function FireCalculatorTab() {
       market: monteCarloMarket.scenarios.base,
       correlations: monteCarloMarket.correlations,
       leverageSpread: monteCarloMarket.leverageSpread,
+      // RC4: the fan takes the target portfolio's costs off every year, like the deterministic Base.
+      annualCostRate: assumptions.cost?.total,
       numberOfSimulations: FAN_SIMULATION_COUNT,
       capitalInflows: pensionCapitalInflows.length > 0 ? pensionCapitalInflows : undefined,
     } satisfies FanSimulationInputs;
