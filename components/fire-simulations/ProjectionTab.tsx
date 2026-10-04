@@ -1,0 +1,515 @@
+'use client';
+
+/**
+ * FIRE › PROIEZIONE — «quanto può valere il portafoglio tra N anni, e con che probabilità?»
+ * (doc/montecarlo/README.md § 11, doc/guide/fire-proiezione.md). A rule-generated verdict over a
+ * 12-column grid of tiles, on the same hypotheses as the rest of the page (`useFireAssumptions`):
+ *
+ *   Desktop (12 col): Ventaglio(5) | Distribuzione(4) | Scenari(3)
+ *                     Tappe(12)
+ *                     Parametri(12)
+ *   Mobile (1 col):   Ventaglio → Tappe → Distribuzione → Scenari → Parametri
+ *
+ * ONE run = the three scenarios on the same seed (`runAccumulationSimulation` without paths, one
+ * sorted snapshot per year). The run is automatic once the seeded plan is ready and explicit
+ * afterwards (The Stale-Run Rule). The declared exception: the threshold and the horizon (within the
+ * years the run kept) are READINGS of the same snapshots and update at once.
+ *
+ * This file is the ORCHESTRATOR and computes nothing: the numbers come from
+ * lib/utils/projectionSummary.ts, the words from lib/utils/projectionNarrative.ts. The form is
+ * ephemeral local state (strings). The market assumptions are NOT edited here: they live in
+ * Impostazioni › Simulazioni and the Parametri tile declares them.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { useActiveAccount } from '@/contexts/ActiveAccountContext';
+import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
+import { getSettings } from '@/lib/services/assetAllocationService';
+import { getGoalData } from '@/lib/services/goalService';
+import { getAnnualCashflowData } from '@/lib/services/fireService';
+import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
+import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
+import { createSeededRandom } from '@/lib/utils/seededRandom';
+import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
+import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
+import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
+import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
+import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, monteCarloClassRecord } from '@/lib/constants/monteCarloClasses';
+import { getItalyYear } from '@/lib/utils/dateHelpers';
+import { formatInputAmount, parseItalianNumber, SCENARIO_KEYS, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
+import {
+  describeMarketDeclaration,
+  resolveAllocationTotalState,
+  type WeightsOrigin,
+} from '@/lib/utils/monteCarloNarrative';
+import {
+  DEFAULT_PROJECTION_HORIZON,
+  haveProjectionInputsChanged,
+  PROJECTION_MAX_YEARS,
+  resolveProjectionThreshold,
+  resolveRunYears,
+  summarizeProjection,
+  type ProjectionRunData,
+  type ProjectionRunInputs,
+} from '@/lib/utils/projectionSummary';
+import {
+  buildProjectionVerdict,
+  describeDistribuzione,
+  describeDistribuzioneAside,
+  describeDistribuzioneFooter,
+  describeProjectionFooter,
+  describeProjectionParametri,
+  describeProjectionScenari,
+  describeProjectionScenarioNote,
+  describeSavingsSource,
+  describeTappe,
+  describeVentaglio,
+  describeVentaglioFooter,
+  PROJECTION_PARAMETRI_ASIDE,
+  PROJECTION_SCENARI_ASIDE,
+  PROJECTION_THRESHOLD_HINT_EMPTY,
+  PROJECTION_THRESHOLD_HINT_FIRE,
+  projectionScenariFooter,
+  projectionScenarioLabel,
+  TAPPE_FOOTER,
+  VENTAGLIO_ASIDE,
+} from '@/lib/utils/projectionNarrative';
+import type { MonteCarloCapitalInflow } from '@/types/assets';
+import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
+import { cn } from '@/lib/utils';
+import { PageVerdict } from '@/components/ui/page-verdict';
+import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
+import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { TILE_CELL_CLASS } from '@/components/ui/tile';
+import { TileGridSkeleton } from '@/components/ui/tile-grid-skeleton';
+import { ErrorNotice } from '@/components/ui/error-notice';
+import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
+import { MonteCarloFanChart } from '@/components/monte-carlo/MonteCarloFanChart';
+import { VentaglioTile } from '@/components/projection/tiles/VentaglioTile';
+import { DistribuzioneTile } from '@/components/projection/tiles/DistribuzioneTile';
+import { ScenariTile } from '@/components/projection/tiles/ScenariTile';
+import { TappeTile } from '@/components/projection/tiles/TappeTile';
+import { ParametriTile, type ProjectionForm } from '@/components/projection/tiles/ParametriTile';
+import { ProjectionDettaglio } from '@/components/projection/ProjectionDettaglio';
+
+/** The grid's geometry, for the skeleton: the same spans as the tiles below. */
+const SKELETON_CELLS: TileSkeletonCell[] = [
+  { span: 5, lines: 14 },
+  { span: 4, lines: 10 },
+  { span: 3, lines: 9 },
+  { span: 12, lines: 8 },
+  { span: 12, lines: 10 },
+];
+
+/** A run keeps the inputs it was made with, and the data its figures read. */
+interface ProjectionRunState {
+  data: ProjectionRunData;
+  inputs: ProjectionRunInputs;
+}
+
+function parseIntField(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseFloatField(value: string): number {
+  const parsed = Number.parseFloat(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function ProjectionTab() {
+  const { user } = useAuth();
+  const { ownerId } = useActiveAccount();
+
+  // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
+  const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
+    queryKey: ['assets', ownerId],
+    queryFn: () => getAllAssets(ownerId!),
+    enabled: !!user && !!ownerId,
+    staleTime: 300000,
+  });
+  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery({
+    queryKey: ['settings', ownerId],
+    queryFn: () => getSettings(ownerId!),
+    enabled: !!user && !!ownerId,
+    staleTime: 300000,
+  });
+  const goalDriven = !!settings?.goalBasedInvestingEnabled && !!settings?.goalDrivenAllocationEnabled;
+  const { data: goalData } = useQuery({
+    queryKey: ['goalData', ownerId],
+    queryFn: () => getGoalData(ownerId!),
+    enabled: !!user && !!ownerId && goalDriven,
+    staleTime: 300000,
+  });
+  // The Cashflow, for the yearly saving (the Calcolatore's `annualSavings`): the SAME key `useFireAssumptions` reads.
+  const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
+    queryKey: ['annualCashflowData', ownerId],
+    queryFn: () => getAnnualCashflowData(ownerId!),
+    enabled: !!user && !!ownerId,
+    staleTime: 300000,
+  });
+
+  // ─── The pension lock (governs the whole FIRE page) ──────────────────────────
+  // With the lock on, the locked funds leave the starting capital and re-enter as capital inflows at
+  // their unlock year, at TODAY's value (doc/guide/fire.md § FIRE, What If and Goals).
+  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
+  const pensionLockState = useMemo(() => {
+    if (!respectPensionLockIn || !assets) return null;
+    return resolvePensionLockState(
+      assets,
+      {
+        userAge: settings?.userAge,
+        pensionInpsRetirementAge: settings?.pensionInpsRetirementAge,
+        pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment,
+      },
+      new Date(),
+      calculateAssetValue,
+    );
+  }, [respectPensionLockIn, assets, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
+  const pensionInflows = useMemo<MonteCarloCapitalInflow[]>(
+    () => (pensionLockState?.inflows ?? []).map((inflow) => ({ year: inflow.yearsFromNow, amount: inflow.amount })),
+    [pensionLockState],
+  );
+
+  // The market assumptions, saved in Impostazioni › Simulazioni (the legacy field migrated, else the defaults).
+  const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
+  const scenarios = market.scenarios;
+
+  // The capital the simulation covers (RK): the seven classes, net of the closed pension funds.
+  const lockedAssetIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
+  const capital = useMemo(
+    () => (assets ? computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null),
+    [assets, lockedAssetIds, market.goldSubCategory],
+  );
+  const targetSeed = useMemo(() => {
+    if (!assets) return null;
+    const { targets } = resolveEffectiveTargets({ settings, goalData: goalDriven ? goalData : null, assets });
+    return seedWeightsFromTargets(targets, assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory });
+  }, [assets, settings, goalData, goalDriven, lockedAssetIds, market.goldSubCategory]);
+  const holdingsSeed = useMemo(() => (assets ? weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null), [assets, lockedAssetIds, market.goldSubCategory]);
+  // The page's hypotheses: weights, capital `K` and the plan's expenses from the SAME reading as the other tabs.
+  const { assumptions, isLoading: isLoadingAssumptions, isError: assumptionsError } = useFireAssumptions(lockedAssetIds, { withCashflow: true });
+  const totalNetWorth = Math.max(0, assumptions?.capital?.total ?? capital?.total ?? 0);
+  const liquidNetWorth = Math.max(0, assumptions?.capital?.liquid ?? capital?.liquid ?? 0);
+
+  const currentYear = getItalyYear();
+  const currentAge = settings?.userAge ?? null;
+  const ctx = useMemo(() => ({ startCalendarYear: currentYear, currentAge }), [currentYear, currentAge]);
+
+  // RV6: today's FIRE number, the threshold's default.
+  const defaultThreshold = useMemo(() => {
+    const value = resolveProjectionThreshold(assumptions?.expenses?.annual, settings?.withdrawalRate);
+    return value === null ? null : Math.round(value);
+  }, [assumptions?.expenses?.annual, settings?.withdrawalRate]);
+
+  // ─── The form (ephemeral) ────────────────────────────────────────────────────
+  const [form, setForm] = useState<ProjectionForm | null>(null);
+  const [weightsOrigin, setWeightsOrigin] = useState<WeightsOrigin>('targets');
+  const onFormChange = useCallback((patch: Partial<ProjectionForm>) => {
+    if (patch.weights) setWeightsOrigin('edited');
+    setForm((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+  const applySeed = useCallback((seed: typeof targetSeed, origin: WeightsOrigin) => {
+    if (!seed) return;
+    setWeightsOrigin(origin);
+    setForm((prev) => (prev ? { ...prev, weights: monteCarloClassRecord((cls) => String(seed.weights[cls])) } : prev));
+  }, []);
+
+  // Seed the form ONCE, after the data has loaded: the capital K, the Cashflow's saving, the FIRE number as the threshold.
+  // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
+  const didSeedRef = useRef(false);
+  useEffect(() => {
+    if (didSeedRef.current || isLoadingAssets || isLoadingSettings || isLoadingCashflow || !assets || !assumptions) return;
+    const timer = setTimeout(() => {
+      didSeedRef.current = true;
+      setWeightsOrigin(assumptions.weightsOrigin === 'targets' ? 'targets' : 'holdings');
+      setForm({
+        initialPortfolio: formatInputAmount(totalNetWorth),
+        annualSavings: String(Math.round(cashflowData?.annualSavings ?? 0)),
+        savingsYears: String(DEFAULT_PROJECTION_HORIZON),
+        horizon: String(DEFAULT_PROJECTION_HORIZON),
+        threshold: defaultThreshold !== null ? formatInputAmount(defaultThreshold) : '',
+        numberOfSimulations: String(DEFAULT_MONTE_CARLO_SIMULATIONS),
+        weights: monteCarloClassRecord((cls) => String(assumptions.weights[cls])),
+      });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isLoadingAssets, isLoadingSettings, isLoadingCashflow, assets, assumptions, totalNetWorth, cashflowData, defaultThreshold]);
+
+  // ─── What the run reads (numbers from the strings) ───────────────────────────
+  const typed = useMemo(() => {
+    if (!form) return null;
+    const horizon = Math.min(PROJECTION_MAX_YEARS, Math.max(1, parseIntField(form.horizon, DEFAULT_PROJECTION_HORIZON)));
+    return {
+      initialPortfolio: Math.round(parseItalianNumber(form.initialPortfolio) ?? 0),
+      annualSavings: Math.max(0, Math.round(parseFloatField(form.annualSavings))),
+      savingsYears: Math.min(PROJECTION_MAX_YEARS, Math.max(0, parseIntField(form.savingsYears, 0))),
+      horizon,
+      simulations: Math.min(50000, Math.max(1000, parseIntField(form.numberOfSimulations, DEFAULT_MONTE_CARLO_SIMULATIONS))),
+      weights: monteCarloClassRecord((cls) => parseFloatField(form.weights[cls])),
+      threshold: parseItalianNumber(form.threshold),
+    };
+  }, [form]);
+
+  const allocationSum = typed ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + typed.weights[cls], 0) : 0;
+  const totalState = resolveAllocationTotalState(allocationSum);
+  const leverage = weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => (typed ? typed.weights[cls] : 0)));
+  const canRun = !!typed && typed.initialPortfolio > 0 && (totalState === 'plain' || totalState === 'leveraged');
+
+  const currentInputs = useMemo<ProjectionRunInputs | null>(
+    () =>
+      typed
+        ? {
+            initialPortfolio: typed.initialPortfolio,
+            annualSavings: typed.annualSavings,
+            savingsYears: typed.savingsYears,
+            simulations: typed.simulations,
+            horizon: typed.horizon,
+            years: resolveRunYears(typed.horizon),
+            weights: typed.weights,
+            scenarios,
+            correlations: market.correlations,
+            leverageSpread: market.leverageSpread,
+            inflows: pensionInflows,
+          }
+        : null,
+    [typed, scenarios, market.correlations, market.leverageSpread, pensionInflows],
+  );
+
+  // ─── The run: the three scenarios in one go ──────────────────────────────────
+  const [lastRun, setLastRun] = useState<ProjectionRunState | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [tappeScenario, setTappeScenario] = useState<ScenarioKey>('base');
+
+  const runProjection = useCallback((inputs: ProjectionRunInputs) => {
+    setIsRunning(true);
+    // The run is CPU-bound and blocks the main thread: the delay lets the browser paint the running state first.
+    window.setTimeout(() => {
+      try {
+        const years = inputs.years;
+        const snapshotYears = Array.from({ length: years }, (_, index) => index + 1);
+        const startValue = inputs.initialPortfolio + inputs.inflows.filter((inflow) => inflow.year <= 0).reduce((sum, inflow) => sum + inflow.amount, 0);
+        const data: ProjectionRunData = {
+          scenarios: {} as ProjectionRunData['scenarios'],
+          inflation: { bear: 0, base: 0, bull: 0 },
+          startValue,
+          simulations: inputs.simulations,
+          years,
+        };
+        for (const key of SCENARIO_KEYS) {
+          const scenario = inputs.scenarios[key];
+          // RV7: a fresh generator on the SAME seed per scenario, so Orso, Base and Toro meet the same shocks.
+          const result = runAccumulationSimulation({
+            initialPortfolio: inputs.initialPortfolio,
+            annualSavings: inputs.annualSavings,
+            savingsInflationRate: scenario.inflationRate,
+            savingsYears: inputs.savingsYears,
+            annualExpenses: 0,
+            withdrawalRate: 0,
+            expenseInflationRate: scenario.inflationRate,
+            years,
+            weights: inputs.weights,
+            market: scenario,
+            correlations: inputs.correlations,
+            leverageSpread: inputs.leverageSpread,
+            numberOfSimulations: inputs.simulations,
+            capitalInflows: inputs.inflows.length > 0 ? inputs.inflows : undefined,
+            collectPaths: false,
+            snapshotYears,
+            random: createSeededRandom(MONTE_CARLO_SEED),
+          });
+          data.scenarios[key] = { snapshots: result.snapshots ?? {}, leverageZeroedCount: result.leverageZeroedCount ?? 0 };
+          data.inflation[key] = scenario.inflationRate;
+        }
+        setLastRun({ data, inputs });
+      } catch (error) {
+        console.error('Error running the projection:', error);
+        toast.error('Errore durante la simulazione');
+      } finally {
+        setIsRunning(false);
+      }
+    }, 60);
+  }, []);
+
+  // Auto-run once, when the seeded plan can run — the page opens answered.
+  const didAutoRunRef = useRef(false);
+  useEffect(() => {
+    if (didAutoRunRef.current || !currentInputs || !canRun) return;
+    didAutoRunRef.current = true;
+    const timer = setTimeout(() => runProjection(currentInputs), 0);
+    return () => clearTimeout(timer);
+  }, [currentInputs, canRun, runProjection]);
+
+  const handleRun = useCallback(() => {
+    if (currentInputs && canRun) runProjection(currentInputs);
+  }, [currentInputs, canRun, runProjection]);
+
+  // ─── The numbers (pure layer over the snapshots) ─────────────────────────────
+  // Threshold and horizon are READINGS of the run (§ 11.6): they follow the typed values at once,
+  // the horizon capped at the years the run kept.
+  const threshold = typed?.threshold && typed.threshold > 0 ? typed.threshold : null;
+  const summary = useMemo(
+    () => (lastRun && typed ? summarizeProjection(lastRun.data, { horizon: typed.horizon, threshold, startingCapital: lastRun.inputs.initialPortfolio, ctx }) : null),
+    [lastRun, typed, threshold, ctx],
+  );
+  const stale = !!lastRun && !!currentInputs && haveProjectionInputsChanged(lastRun.inputs, currentInputs);
+  const thresholdIsFireNumber = threshold !== null && threshold === defaultThreshold;
+  const runLeverage = lastRun ? weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => lastRun.inputs.weights[cls])) : 1;
+
+  // ─── The words (pure layer) ───────────────────────────────────────────────────
+  const runnable = !!typed && typed.initialPortfolio > 0;
+  const verdict = useMemo(() => buildProjectionVerdict({ runnable, summary, thresholdIsFireNumber, leverage: runLeverage }), [runnable, summary, thresholdIsFireNumber, runLeverage]);
+
+  const typedPlan = useMemo(
+    () =>
+      typed
+        ? {
+            initialPortfolio: typed.initialPortfolio,
+            annualSavings: typed.annualSavings,
+            savingsYears: typed.savingsYears,
+            horizon: typed.horizon,
+            simulations: typed.simulations,
+            allocation: MONTE_CARLO_CLASSES.map((key) => ({ key, label: MONTE_CARLO_CLASS_NOUNS[key], pct: typed.weights[key] })).filter((entry) => entry.pct > 0),
+          }
+        : null,
+    [typed],
+  );
+
+  // ─── Loading: until the seeded plan has run once ─────────────────────────────
+  const awaitingFirstRun = runnable && canRun && !lastRun;
+  // A failed read comes BEFORE the wait: a plan built on a base that was never read is a number with nothing behind it.
+  if (resolveSurfaceState({ loading: isLoadingAssets || isLoadingSettings || isLoadingAssumptions, failed: assetsError || settingsError || assumptionsError }) === 'failed') {
+    return (
+      <ErrorNotice
+        className="max-w-[920px]"
+        notice={describeReadFailure({
+          consequence: 'Patrimonio e ipotesi non sono stati letti: la proiezione girerebbe su una base che non esiste.',
+          untouched: 'Le ipotesi salvate non sono state toccate.',
+        })}
+      />
+    );
+  }
+
+  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || isLoadingCashflow || !form || !typed || !typedPlan || awaitingFirstRun) {
+    return <TileGridSkeleton cells={SKELETON_CELLS} />;
+  }
+
+  const base = summary?.scenarios.base;
+  const savingsSource = cashflowData ? { year: cashflowData.referenceYear, annualized: cashflowData.isAnnualized } : null;
+  const baseInflation = lastRun?.data.inflation.base ?? scenarios.base.inflationRate;
+  const plotThreshold = summary && summary.threshold !== null ? { value: summary.threshold, label: thresholdIsFireNumber ? 'numero FIRE' : 'soglia' } : undefined;
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-4">
+      <div className="pt-1">
+        <FireAssumptionsRow assumptions={assumptions} />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto sulla proiezione" />
+      </div>
+
+      {/* Tablet (768-1439): every tile full width, in the phone's order. */}
+      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+        {summary && base && lastRun && (
+          <>
+            <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5')}>
+              <VentaglioTile
+                reading={describeVentaglio(summary, lastRun.data.startValue)}
+                aside={VENTAGLIO_ASIDE}
+                p10={base.atHorizon.p10}
+                p50={base.atHorizon.p50}
+                p90={base.atHorizon.p90}
+                horizonLabel={`${summary.horizon} ${summary.horizon === 1 ? 'anno' : 'anni'}`}
+                chart={
+                  <MonteCarloFanChart
+                    percentiles={base.series}
+                    startCalendarYear={ctx.startCalendarYear}
+                    unlockCalendarYear={null}
+                    zeroLine={false}
+                    referenceLine={plotThreshold}
+                    markedCalendarYear={summary.endCalendarYear}
+                    height="100%"
+                    ariaLabel={`Ventaglio del portafoglio, scenario base, in euro di oggi: bande dei percentili 10–90 e 25–75 e mediana delle ${summary.simulations.toLocaleString('it-IT')} simulazioni fino al ${ctx.startCalendarYear + lastRun.data.years}.`}
+                  />
+                }
+                footer={describeVentaglioFooter(baseInflation, summary.threshold)}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
+              <DistribuzioneTile
+                reading={describeDistribuzione(summary)}
+                aside={describeDistribuzioneAside(summary)}
+                p10={base.atHorizon.p10}
+                p50={base.atHorizon.p50}
+                p90={base.atHorizon.p90}
+                bins={summary.histogram}
+                calendarYear={summary.endCalendarYear}
+                footer={describeDistribuzioneFooter(summary)}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-3')}>
+              <ScenariTile
+                reading={describeProjectionScenari(summary)}
+                aside={PROJECTION_SCENARI_ASIDE}
+                rows={SCENARIO_KEYS.map((key) => {
+                  const figures = summary.scenarios[key].atHorizon;
+                  return { key, label: projectionScenarioLabel(key), median: figures.p50, note: describeProjectionScenarioNote(figures, summary.threshold !== null), fillPct: figures.probabilityAtLeast };
+                })}
+                footer={projectionScenariFooter(summary.threshold)}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+              <TappeTile
+                reading={describeTappe(summary.scenarios[tappeScenario].milestones)}
+                rows={summary.scenarios[tappeScenario].milestones}
+                scenario={tappeScenario}
+                onScenarioChange={setTappeScenario}
+                horizon={summary.horizon}
+                hasThreshold={summary.threshold !== null}
+                footer={TAPPE_FOOTER}
+              />
+            </div>
+          </>
+        )}
+
+        <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+          <ParametriTile
+            reading={describeProjectionParametri(typedPlan)}
+            aside={PROJECTION_PARAMETRI_ASIDE}
+            form={form}
+            onFormChange={onFormChange}
+            allocationSum={allocationSum}
+            weightsOrigin={weightsOrigin}
+            leverage={leverage}
+            hasTargets={targetSeed !== null}
+            onUseTargets={targetSeed ? () => applySeed(targetSeed, 'targets') : undefined}
+            onImportHoldings={holdingsSeed ? () => applySeed(holdingsSeed, 'holdings') : undefined}
+            totalNetWorth={totalNetWorth}
+            liquidNetWorth={liquidNetWorth}
+            savingsHint={describeSavingsSource(savingsSource)}
+            thresholdHint={defaultThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIRE : PROJECTION_THRESHOLD_HINT_EMPTY}
+            marketDeclaration={describeMarketDeclaration(market, leverage)}
+            excluded={capital?.excluded ?? null}
+            onRun={handleRun}
+            canRun={canRun}
+            isRunning={isRunning}
+            footer={
+              lastRun
+                ? describeProjectionFooter({ stale, simulations: lastRun.inputs.simulations })
+                : [{ text: canRun ? 'Premi Esegui per lanciare i tre scenari.' : 'Completa il piano: capitale maggiore di zero e allocazione tra 100% e 300%.' }]
+            }
+            stale={stale}
+          />
+        </div>
+      </div>
+
+      <ProjectionDettaglio />
+    </div>
+  );
+}

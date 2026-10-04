@@ -26,6 +26,12 @@ interface MonteCarloFanChartProps {
   unlockCalendarYear: number | null;
   height: number | `${number}%`;
   ariaLabel: string;
+  /** Draw the dashed destructive line at zero (the capital exhausted). Default true: the Monte Carlo's. */
+  zeroLine?: boolean;
+  /** A neutral dashed line at a value (Proiezione's threshold) — a target, not a loss, so never the destructive token. */
+  referenceLine?: { value: number; label: string };
+  /** The calendar year the tab's horizon sits at: a faint vertical guide. */
+  markedCalendarYear?: number | null;
 }
 
 interface FanRow {
@@ -73,7 +79,7 @@ function FanTooltip({ active, payload, label }: FanTooltipProps) {
   );
 }
 
-export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel }: MonteCarloFanChartProps) {
+export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel, zeroLine = true, referenceLine, markedCalendarYear = null }: MonteCarloFanChartProps) {
   const fanColor = SCENARIO_COLOR.base;
 
   const rows = useMemo<FanRow[]>(
@@ -101,9 +107,13 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
         <Area dataKey="band1090" name="10°–90° percentile" stroke="none" fill={fanColor} fillOpacity={0.1} isAnimationActive={false} activeDot={false} />
         <Area dataKey="band2575" name="25°–75° percentile" stroke="none" fill={fanColor} fillOpacity={0.18} isAnimationActive={false} activeDot={false} />
         {unlockCalendarYear !== null && <ReferenceLine x={unlockCalendarYear} stroke="var(--muted-foreground)" strokeOpacity={0.6} strokeDasharray="2 3" />}
+        {markedCalendarYear !== null && <ReferenceLine x={markedCalendarYear} stroke="var(--muted-foreground)" strokeOpacity={0.35} />}
         <Line dataKey="p50" name="Mediana" stroke={fanColor} strokeWidth={2.5} dot={false} animationDuration={800} animationEasing="ease-out" />
         {/* The capital exhausted: a fact with a sign, so the loss token is the one honest colour here. */}
-        <ReferenceLine y={0} stroke="var(--destructive)" strokeDasharray="3 3" />
+        {zeroLine && <ReferenceLine y={0} stroke="var(--destructive)" strokeDasharray="3 3" />}
+        {referenceLine && (
+          <ReferenceLine y={referenceLine.value} ifOverflow="extendDomain" stroke="var(--muted-foreground)" strokeDasharray="4 3" label={{ value: referenceLine.label, position: 'insideTopLeft', fill: 'var(--muted-foreground)', fontSize: 11 }} />
+        )}
       </ComposedChart>
     </ResponsiveContainer>
   );

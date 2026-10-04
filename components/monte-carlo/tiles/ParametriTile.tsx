@@ -18,18 +18,10 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { MonteCarloPlan } from '@/lib/utils/monteCarloSummary';
-import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS, type MonteCarloClass, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
+import { type MonteCarloClass, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
 import { formatInputAmount } from '@/lib/utils/monteCarloSummary';
-import {
-  describeAllocationTotal,
-  describeExcludedRow,
-  describePensionInflowRow,
-  describeStatePensionRow,
-  describeWeightsSource,
-  describeWithdrawalTaxRow,
-  resolveAllocationTotalState,
-  type WeightsOrigin,
-} from '@/lib/utils/monteCarloNarrative';
+import { describePensionInflowRow, describeStatePensionRow, describeWithdrawalTaxRow, type WeightsOrigin } from '@/lib/utils/monteCarloNarrative';
+import { WeightsFields } from '@/components/monte-carlo/WeightsFields';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -104,11 +96,6 @@ export function ParametriTile({
   stale,
   className,
 }: ParametriTileProps) {
-  const totalState = resolveAllocationTotalState(allocationSum);
-  const allocationOff = totalState === 'below' || totalState === 'above';
-
-  const excludedRow = describeExcludedRow(excluded);
-
   return (
     <Tile eyebrow="Parametri" aside={aside} reading={reading} ariaLabel="Parametri della simulazione" className={className}>
       <div className="mt-3.5 grid grid-cols-1 gap-5 desktop:grid-cols-12">
@@ -182,50 +169,17 @@ export function ParametriTile({
 
         {/* Allocazione (5) and the declaration of the market */}
         <div className="flex min-w-0 flex-col gap-4 desktop:col-span-5">
-          <div>
-            <div className="flex items-baseline justify-between gap-3">
-              <p className={TILE_SUB_EYEBROW_CLASS}>Allocazione</p>
-              <NarrativeText
-                segments={describeAllocationTotal(allocationSum)}
-                className={cn('text-[11px] font-medium tabular-nums', allocationOff ? 'text-destructive' : 'text-foreground')}
-                figureClassName="font-medium"
-              />
-            </div>
-            <NarrativeText segments={describeWeightsSource({ origin: weightsOrigin, leverage, hasTargets })} className="mt-1 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {onUseTargets && (
-                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={onUseTargets} disabled={weightsOrigin === 'targets'}>
-                  Usa i target
-                </Button>
-              )}
-              {onImportHoldings && (
-                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={onImportHoldings} disabled={weightsOrigin === 'holdings'}>
-                  Importa il portafoglio di oggi
-                </Button>
-              )}
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {MONTE_CARLO_CLASSES.map((cls) => (
-                <div key={cls}>
-                  <Label htmlFor={`mc-weight-${cls}`} className="text-[13px]">
-                    {MONTE_CARLO_CLASS_LABELS[cls]} %
-                  </Label>
-                  <Input
-                    id={`mc-weight-${cls}`}
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    max="300"
-                    step="any"
-                    value={form.weights[cls]}
-                    onChange={(e) => onFormChange({ weights: { ...form.weights, [cls]: e.target.value } })}
-                    className={CONTROL_CLASS}
-                  />
-                </div>
-              ))}
-            </div>
-            {excludedRow && <NarrativeText segments={excludedRow} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />}
-          </div>
+          <WeightsFields
+            weights={form.weights}
+            onWeightsChange={(weights) => onFormChange({ weights })}
+            allocationSum={allocationSum}
+            weightsOrigin={weightsOrigin}
+            leverage={leverage}
+            hasTargets={hasTargets}
+            onUseTargets={onUseTargets}
+            onImportHoldings={onImportHoldings}
+            excluded={excluded}
+          />
 
           {/* Market assumptions: DECLARED here, edited in Impostazioni › Simulazioni (The Declaration-Tile Rule). */}
           <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted p-3.5">
