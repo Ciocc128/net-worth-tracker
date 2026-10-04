@@ -120,7 +120,7 @@ const EMPTY_ACTION_CLASS =
 /** How long the Collapsible takes to mount its content before a field inside it can take focus. */
 const IPOTESI_OPEN_FOCUS_DELAY_MS = 60;
 
-export function CoastFireTab() {
+export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => void } = {}) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const isDemo = useDemoMode();
@@ -355,7 +355,11 @@ export function CoastFireTab() {
           {emptyAction.label}
         </Link>
       ) : (
-        <button type="button" onClick={() => openIpotesiAt(emptyAction.fieldId)} className={EMPTY_ACTION_CLASS}>
+        <button
+          type="button"
+          onClick={() => ('tab' in emptyAction ? onOpenCalculator?.() : openIpotesiAt(emptyAction.fieldId))}
+          className={EMPTY_ACTION_CLASS}
+        >
           {emptyAction.label}
         </button>
       );

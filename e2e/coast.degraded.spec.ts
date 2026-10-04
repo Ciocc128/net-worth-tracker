@@ -48,6 +48,13 @@ test('without a projection the three tiles keep their question and only the Trag
     return;
   }
 
+  // The plan expense is typed in the Calcolatore: the button switches tab (L2, D5).
+  if (/Parametri del Calcolatore/.test((await action.textContent()) ?? '')) {
+    await action.click();
+    await expect(page.getByRole('tab', { name: /Calcolatore FIRE/ })).toHaveAttribute('aria-selected', 'true');
+    return;
+  }
+
   // A button into the form: the disclosure opens and the field it names takes the focus, so the
   // reader lands on the input and not on a panel to search.
   const ipotesi = page.getByRole('button', { name: /^Ipotesi/ }).first();
