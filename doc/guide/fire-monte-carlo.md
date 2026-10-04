@@ -8,7 +8,7 @@
 
 - **The weights are seeded from `useFireAssumptions`** (2026-10-03, doc/fire-ipotesi/README.md L1): the page's ONE reading of RP4 (Allocazione targets, else the
   portfolio held, else 60/40) — the same the Calcolatore's Ventaglio now simulates. The two buttons «Importa dai target / dal portafoglio di oggi» keep their own seeds.
-  The «Ipotesi usate» line above the verdict says the weights' origin; it does not follow a hand edit (the Parametri tile says «a mano»).
+  The cost of every run is `portfolioCost(the run's weights)` (`annualCostRate`, taken off after the return, before the withdrawal; the unleveraged Base keeps it, the weights being brought to 100): moving the weights re-prices it (doc/guide/fire.md, RC1–RC5). The «Ipotesi usate» line above the verdict says the weights' origin; it does not follow a hand edit (the Parametri tile says «a mano»).
   **Since L2** it also carries the plan's expenses and `K` (the same string as the other tabs), the withdrawal is seeded with the plan's expenses
   (`resolvePlanExpenses`, the 30.000 € fallback only while there are none) and the withdrawal-tax basis is `K`'s (`assumptions.capital.taxProfile`).
   The tab waits for the Cashflow read too: a failed read is the tab's `ErrorNotice`.

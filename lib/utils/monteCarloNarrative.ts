@@ -494,7 +494,7 @@ export function describePercentili(run: MonteCarloRun): Narrative {
 export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La simulazione',
-    body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale per ciascuna delle sette classi, estratto da una lognormale con il CAGR e la volatilità dello scenario (il CAGR è la crescita composta mediana, la media aritmetica è un po’ più alta), poi preleva la spesa annua indicizzata. Immobili e crypto non entrano nel capitale simulato. Se il capitale scende a zero la traiettoria fallisce.',
+    body: 'Ogni traiettoria parte dal patrimonio iniziale e, anno per anno, incassa gli afflussi previsti, applica un rendimento casuale per ciascuna delle sette classi, estratto da una lognormale con il CAGR e la volatilità dello scenario (il CAGR è la crescita composta mediana, la media aritmetica è un po’ più alta), si toglie la quota di TER e bollo della riga «Ipotesi usate» (dopo il rendimento, prima del prelievo) e poi preleva la spesa annua indicizzata. Immobili e crypto non entrano nel capitale simulato. Se il capitale scende a zero la traiettoria fallisce.',
   },
   {
     title: 'La leva',

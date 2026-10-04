@@ -721,7 +721,7 @@ Pagina a verdetto sopra una griglia di tile, come il Monte Carlo. Sopra il verde
   tono della probabilità della soglia segue `resolveSuccessTone` solo quando la soglia è il numero FIRE di default.
 - **Ventaglio** (desktop 5 colonne): bande 10–90 e 25–75 e mediana in euro di oggi, anno 0 → `H`; la soglia come
   linea tratteggiata neutra (`--muted-foreground`), non la linea dello zero; l'orizzonte scelto marcato. Footer: «Euro
-  di oggi, inflazione 3,0% (Impostazioni › Simulazioni). Valori lordi: niente tasse sulla vendita, TER né bollo.»
+  di oggi, inflazione 3,0% (Impostazioni › Simulazioni). Valori lordi: niente tasse sulla vendita, TER né bollo.» (testo cambiato da P6: «Al netto di TER e bollo (0,36% l'anno); lordi della tassa sulla vendita.»)
 - **Distribuzione a N anni** (4 colonne): istogramma dei valori reali all'orizzonte (`FinalValueBars`, la regola dei
   bin di `createDistribution`: larghezza uguale fino al 95° percentile, l'ultimo prende la coda), il bin della
   mediana evidenziato. Lettura: «Metà delle simulazioni tra 378.000 € e 1.351.000 €» (25°–75°).
@@ -796,7 +796,7 @@ esecuzione — sono letture degli stessi percorsi (RV7) e si aggiornano subito.
 | V5 | **Soglia** con default il numero FIRE di oggi (RV6), modificabile; più la probabilità di finire sotto il capitale di partenza in euro di oggi. | Nessuna soglia (manca «con che probabilità»); soglia senza default (scheda muta finché non si scrive). |
 | V6 | **Tre scenari** in una esecuzione sullo stesso seme, Base nel verdetto, come il Monte Carlo. | Solo Base (la differenza tra scenari è la domanda «e se va male?»). |
 | V7 | **Leva**: pesi dai target (RP4) ritoccabili; un anno che brucia il capitale **azzera** il percorso, che riparte dai versamenti, e la quota di percorsi azzerati è dichiarata (RV2). | Percorso fermo a zero per sempre (con versamenti in corso non è ciò che succede a chi continua a investire); ignorare la rovina (ottimista). |
-| V8 | Valore **lordo**: niente tassa sulla plusvalenza, TER, bollo; dichiarato nel footer e nel Dettaglio. | Netto «se vendessi tutto» col profilo fiscale di `K` (una seconda cifra per ogni percentile; la vendita totale non è un piano). |
+| V8 | ~~Valore lordo: niente tassa sulla plusvalenza, TER, bollo~~ **Cambiata da P6 (doc/fire-ipotesi § 9, D-C6): valore netto di TER e bollo, lordo della tassa sulla plusvalenza**; dichiarato nel footer e nel Dettaglio. | Netto «se vendessi tutto» col profilo fiscale di `K` (una seconda cifra per ogni percentile; la vendita totale non è un piano). |
 
 **Scelte di default prese dall'agente** (dichiarate, accettate dal proprietario con V1–V8 il 04/10/2026):
 - **Nome della scheda** «Proiezione», `?tab=proiezione`, icona `TrendingUp`.
