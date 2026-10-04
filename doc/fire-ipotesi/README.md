@@ -11,7 +11,7 @@
 >
 > Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` (§ 4, «Incoerenze tra le
 > schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
-> della spec lo stesso giorno.
+> della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026.
 
 ---
 
@@ -71,7 +71,8 @@ le righe delle cinque schede coincidono.
 
 **Escluso**
 - Nuove domande (spesa sostenibile, età obiettivo, prelievi dinamici, eventi datati, reddito dopo il FIRE, costi
-  ricorrenti): proposte P1–P16 dell'analisi, epic separate che erediteranno questa lingua.
+  ricorrenti): proposte P1–P16 dell'analisi, epic separate che erediteranno questa lingua. I costi ricorrenti (P6)
+  sono poi entrati in questo dossier come § 9 (task C1, 04/10/2026).
 - Cambiare le ipotesi per classe, le correlazioni o la regola Orso/Toro di R0: restano quelle del dossier Monte Carlo.
 - Lo storico del runway e lo storico cashflow del Dettaglio del Calcolatore: sono fatti, non ipotesi; restano sul
   patrimonio FIRE come oggi.
@@ -420,7 +421,272 @@ Alla fine di ogni task: `npx tsc --noEmit`, `npx eslint app components lib types
 | 2 | L2 capitale, spesa, risparmio | L1 unita | A11–A13, A17, A18 verdi |
 | 3 | L3 Obiettivi | L1 unita | A14–A16 verdi; nessun lettore di `GOAL_CLASS_RETURNS` |
 | — | B0 ricerca bootstrap | — (in parallelo) | file in Library con fonti e licenze |
+| 4 | C1 costi ricorrenti (§ 9) | L1–L3 unite | C1–C12 verdi (§ 9.9) |
 
 **Collaudo**: dopo ciascuna PR, su anteprima Vercel, una fase per messaggio con l'esito scritto prima
 (WORKFLOW.md § 2). Le verifiche sugli emulatori o sul mirror dei dati di produzione si fanno in un thread sul
 computer del proprietario, non nel cloud.
+
+---
+
+## 9. P6 — Costi ricorrenti: bollo e TER in tutti i motori (task C1)
+
+> Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` § 5 (P6) e § 4 (resto di P0).
+> Spec scritta il 04/10/2026 su `main` al commit `e63fce1` (merge della PR #45, T4 «Proiezione»); decisioni
+> D-C1–D-C6 confermate dal proprietario nel thread della spec lo stesso giorno. Valgono le regole RP1–RP7 di § 1.5:
+> questa sezione le **estende**, non le sostituisce.
+
+### 9.1 Obiettivo
+
+Ogni scheda di FIRE e Simulazioni parla di rendimenti **lordi**: nessun motore toglie il TER dei fondi né l'imposta
+di bollo, che l'app già conosce (Panoramica › Costi). Per un investitore italiano sono circa 0,3–0,5 punti l'anno,
+che su 30 anni spostano l'anno FIRE, la probabilità del Monte Carlo e la Proiezione in modo visibile. Dopo C1 tutte
+le schede usano il rendimento **netto di TER e bollo**, calcolato da una regola sola, e la riga «Ipotesi usate» dice
+quanto pesano i costi.
+
+### 9.2 Stato di partenza (verificato nel codice, 04/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| TER per strumento (`Asset.totalExpenseRatio`, percentuale), letto solo dalla Panoramica (`calculatePortfolioWeightedTER`, media sui soli strumenti che ce l'hanno) | `types/assets.ts:170`, `lib/services/assetService.ts:785-838`, `lib/utils/dashboardOverviewUtils.ts:241` |
+| Bollo: `stampDutyEnabled` (default **false**) e `stampDutyRate` (default 0,2) nelle impostazioni, tile «Costi» di Impostazioni › Allocazione; `stampDutyExempt` per strumento; conto corrente (sottocategoria `checkingAccountSubCategory`) a forfait di 34,20 € sopra 5.000 € | `types/assets.ts:171,374-376`, `lib/services/assetService.ts:841-875`, `lib/constants/stampDuty.ts`, `app/dashboard/settings/page.tsx:2363` |
+| Nessun motore FIRE legge TER o bollo | `fireAssumptions.ts`, `monteCarloDraw.ts`, `monteCarloService.ts`, `fireService.ts`, `goalTrajectory.ts` |
+| Due punti di strozzatura coprono tutte le schede: `portfolioCompoundReturn`/`buildPortfolioScenarios` (Calcolatore, Coast, What If e matrice, Obiettivi via `goalAnnualReturn`) e `portfolioReturn` (Monte Carlo, Ventaglio, Proiezione) | `lib/utils/fireAssumptions.ts:105,227`, `lib/utils/goalTrajectory.ts:121`, `lib/utils/monteCarloDraw.ts:144` |
+| I default per classe sono lordi di costi del fondo, tranne **Trend** (DBMFSIM, già netto del TER di DBMF, 0,85%) e **Carry** (UEQCSIM meno l'1% di costi, scelta del proprietario) | `doc/montecarlo/README.md` § 2.3 |
+| La Proiezione dichiara il valore lordo (V8) | `doc/montecarlo/README.md` § 11 (V8), `doc/guide/fire-proiezione.md:21` |
+| **Resto di P0.** Tutto il resto è chiuso da L1–L3 (riga «Ipotesi usate», prelievo del Monte Carlo = spesa del piano, guida su «dal FIRE in poi», `'percentage'` commentato, risparmio indicizzato). Unico residuo: il commento di `calculateFIREProjection` dice ancora «Annual savings are added nominally (not inflation-adjusted)», mentre le schede passano `indexSavings = true` | `lib/services/fireService.ts:1458` |
+
+### 9.3 Fonti (norme e dati, consultate il 04/10/2026)
+
+| Fatto | Fonte |
+| --- | --- |
+| Bollo sulle comunicazioni relative ai prodotti finanziari: **0,20% annuo**, art. 13 c. 2-ter della Tariffa, parte prima, allegata al DPR 642/1972; **invariato nel 2026** (la legge di bilancio 2026 tocca il bollo solo su piccoli finanziamenti, commi 145–146) | [QuiFinanza, bollo e IVAFE 2026](https://quifinanza.it/fisco-tasse/imposta-bollo-ivafe-prodotti-finanziari-2026/1005389/); [Money.it, conto deposito](https://www.money.it/imposta-di-bollo-sul-conto-deposito-quanto-si-paga-e-come-si-calcola) |
+| Base: **valore di mercato** dei prodotti alla data di fine rendicontazione (in mancanza, nominale o di rimborso), rapportato al periodo (pro rata temporis); per le **persone fisiche nessun tetto** (il massimo di 14.000 € vale per gli altri soggetti) e nessuna franchigia | [Facile.it, bollo sugli investimenti](https://www.facile.it/investimenti/guida/imposta-di-bollo-sugli-investimenti.html); [Directa, FAQ bolli](https://www.directa.it/pub2/it/faq/bolli.html); circolare AdE 48/E del 21/12/2012 |
+| Conto deposito 0,20%; conto corrente 34,20 € fissi sopra 5.000 € di giacenza media (già nell'app) | come sopra; `lib/constants/stampDuty.ts` |
+| DBMFSIM: SG CTA Index + 2,5% fino al 2019, poi l'ETF DBMF, con TER dello **0,85%** già tolto | [Risk Parity Chronicles, tre backtester](https://riskparitychronicles.substack.com/p/three-portfolio-backtesters-every); [testfolio, Help](https://testfol.io/help/) |
+
+**Limite dichiarato**: dal cloud i siti dell'Agenzia delle Entrate e di testfolio sono bloccati dalla rete; le cifre
+vengono da fonti secondarie concordi trovate con la ricerca web. Chi implementa non cambia i valori; se una fonte
+primaria li contraddice, si ferma e chiede.
+
+### 9.4 Perimetro
+
+**Incluso**
+- Un costo annuo **per classe** (TER + bollo) ricavato dagli strumenti di `K` e dalle Impostazioni (RC1–RC3).
+- Il costo del portafoglio applicato **ogni anno, dopo il rendimento**, in tutti i motori: rendimento composto RP1
+  (quindi Calcolatore, Coast, What If, matrice di sensibilità, Obiettivi), Monte Carlo, Ventaglio, Proiezione (RC4, RC5).
+- La riga «Ipotesi usate» e la riga «Il portafoglio target rende» di Impostazioni › Simulazioni dicono i costi.
+- La Proiezione passa da lorda a **netta di TER e bollo** (D-C6), resta lorda della tassa sulla vendita.
+- Il residuo di P0 (il commento di `fireService.ts:1458`).
+
+**Escluso**
+- Costi di transazione, spread denaro-lettera, commissioni del broker, IVAFE sugli strumenti detenuti all'estero
+  (stessa aliquota dello 0,2%, ma l'app non sa dove sono depositati: dichiarato nel «Come si calcola»).
+- Il forfait di 34,20 € dei conti correnti (D-C4): fuori dal modello, dichiarato.
+- Il bollo e i costi di crypto e immobili: sono fuori da `K` (RP5).
+- Un interruttore lordo/netto nelle schede (D-C5).
+- Cambiare i default per classe o il TER degli strumenti: il TER si scrive nel dialogo dello strumento, come oggi.
+
+### 9.5 Casi d'uso
+
+1. **Il numero si abbassa, e la pagina dice perché.** Con un 60/40 di ETF (TER 0,20% e 0,10%) e il bollo attivo,
+   la riga «Ipotesi usate» dice «… · costi 0,36% (TER 0,16%, bollo 0,20%)» e il Base del Calcolatore passa
+   dall'8,26% al 7,87% (C3).
+2. **Bollo spento in Impostazioni.** Chi non ha attivato il bollo nel tile Costi vede solo il TER, e la riga lo dice:
+   «costi 0,16% (solo TER; bollo non attivo in Impostazioni › Allocazione)».
+3. **Nessun TER inserito.** Un portafoglio senza TER sugli strumenti, con il bollo attivo, paga solo il bollo; la
+   riga dice «TER non inseriti negli strumenti».
+4. **Un target su una classe che non ho.** Target 10% di Oro senza strumenti d'oro: la classe prende il TER medio
+   degli strumenti di `K` e il bollo pieno (RC2).
+5. **Un fondo trend-following.** DBMF con TER 0,85%: la classe Trend paga solo il bollo, perché il suo default è già
+   netto del TER (D-C2).
+6. **Pesi ritoccati nel Monte Carlo.** L'utente porta le azioni all'80%: il costo del portafoglio si ricalcola sugli
+   stessi costi per classe e sui pesi della corsa.
+
+### 9.6 Regole di calcolo
+
+Tutte le percentuali sono annue. `K`, le classi e i pesi sono quelli di RK, RP4 e RP5.
+
+**RC1 — Costo di una classe dagli strumenti** (D-C1, D-C2, D-C4). Per ogni classe `i` delle sette, sulle gambe
+(`expandAssetExposure`, la stessa lettura di `weightsFromHoldings`) degli strumenti di `K` con quantità > 0, pesate
+sul **valore di mercato** della gamba `m` (non sul nozionale: TER e bollo si pagano su ciò che si possiede):
+
+```
+TER_i   = Σ m · TER_strumento / Σ m        (strumento senza TER = 0)
+          0 per Trend e Carry               (D-C2: i default sono già netti)
+quota_i = Σ m soggetta / Σ m               (soggetta = non stampDutyExempt e non conto corrente)
+bollo_i = stampDutyEnabled ? stampDutyRate · quota_i : 0
+c_i     = TER_i + bollo_i
+```
+
+Un conto corrente è la regola di `calculateStampDuty`: `type === 'cash' && assetClass === 'cash' &&
+subCategory === checkingAccountSubCategory`; resta fuori dalla quota soggetta (il forfait non entra, D-C4) ma
+**dentro** il denominatore.
+
+**RC2 — Classe senza strumenti.** Se `Σ m = 0` per la classe `i` (un target su una classe non detenuta, o i pesi
+del Monte Carlo ritoccati a mano): `TER_i` = TER medio degli strumenti di `K` pesato sul valore, Trend e Carry
+esclusi dal numeratore e dal denominatore (0 se `K` ha solo Trend e Carry o è vuoto, e per Trend e Carry sempre 0);
+`quota_i = 1`, quindi `bollo_i = stampDutyRate` se attivo. Senza strumenti affatto (`K` vuoto, pesi 60/40 di
+ripiego): TER 0, bollo pieno se attivo.
+
+**RC3 — Costo del portafoglio** (D-C3, sul capitale). Con i pesi `w_i` in percentuale (che con la leva sommano
+`W·100`, `W > 1`):
+
+```
+c = Σ_i (w_i / Σ_j w_j) · c_i        // pesi riportati a 100: la leva non moltiplica i costi
+```
+
+Il costo del debito resta lo spread di R4 (che per un ETF 2x già include il suo TER, R0 § 2.3).
+
+**RC4 — Dove si applica** (tutti i motori, una volta l'anno, **dopo** il rendimento e prima di risparmio o
+prelievo): `fattore netto = (1 + r) · (1 − c/100)`.
+- Nei motori stocastici: `portfolioReturn(weights, returns, spread, costPct)` restituisce
+  `(1 + r_lordo)(1 − c/100) − 1`; `MonteCarloParams` e `AccumulationSimulationParams` ricevono `annualCostRate`
+  (percento, assente = 0 = comportamento di oggi per upstream e per i test esistenti).
+- In RP1: `portfolioCompoundReturn(…, costPct)` scala per `(1 − c/100)` la media `M` (quindi `g_p`), e la
+  volatilità `√V` con lo stesso fattore; `g_netto = (1 + g_p)(1 − c/100) − 1` esatto. Il reale RP2 si calcola sul
+  netto.
+- Il pro rata del bollo e il TER che matura ogni giorno sono approssimati da un prelievo a fine anno: lo scarto su
+  un anno è il prodotto `r · c`, sotto 0,04 punti con i default.
+- **Coerenza**: a volatilità zero `g_netto = (Σ v_i·g_i − leva·sp + 1)(1 − c) − 1`, lo stesso fattore che il
+  Ventaglio applica a ogni anno; il test A17 resta valido con i costi accesi (C8).
+
+**RC5 — Obiettivi.** `goalAnnualReturn` usa i costi per classe di RC1–RC2 con i pesi dell'allocazione
+dell'obiettivo (riscalati come in D8), quindi RC3 su quei pesi; senza allocazione propria il rendimento è quello
+netto del portafoglio target (Base).
+
+**RC6 — Resto di P0.** Il commento di `calculateFIREProjection` descrive il parametro `indexSavings` (default
+`false` = risparmio nominale costante, `true` = RP7) invece di «added nominally».
+
+### 9.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-C1 | **Presa** (04/10/2026) | **TER per classe dagli strumenti di `K`**, pesato sul valore di mercato, applicato ai pesi della scheda (target, o quelli della corsa nel Monte Carlo); una classe senza strumenti prende il TER medio del portafoglio (RC2). | (a) Un TER unico del portafoglio: ignora che i target possono differire da ciò che si ha. (c) Un campo TER per classe in Impostazioni › Simulazioni: un input in più da tenere allineato con i TER già scritti negli strumenti. |
+| D-C2 | **Presa** (04/10/2026) | **Trend e Carry hanno TER 0 nel modello**: i loro CAGR di default sono già netti (DBMFSIM dello 0,85%, Carry dell'1%). Pagano il bollo. | Togliere il TER anche lì: lo conterebbe due volte. |
+| D-C3 | **Presa** (04/10/2026) | **Costi sul capitale** (pesi riportati a 100, RC3), non sull'esposizione. | Sull'esposizione lorda: con un ETF 2x pagherebbe due volte il TER della leva, già dentro lo spread del 2,0%, e il bollo di un ETF 2x si paga sul suo valore, cioè sul capitale. |
+| D-C4 | **Presa** (04/10/2026) | **Bollo dalle Impostazioni esistenti** (`stampDutyEnabled`, `stampDutyRate`, `stampDutyExempt`, conto corrente), sulla quota soggetta della classe (RC1); il forfait del conto corrente resta fuori, dichiarato. | Un'aliquota separata per le simulazioni: due fonti per lo stesso fatto. Modellare il forfait: 34,20 € l'anno, trascurabile e legato alla giacenza, non a un rendimento. |
+| D-C5 | **Presa** (04/10/2026) | **Costi sempre attivi**, dichiarati nella riga «Ipotesi usate». Chi vuole il lordo spegne il bollo in Impostazioni o non inserisce i TER. | Un interruttore lordo/netto nelle schede: una seconda lettura di ogni numero, e la tentazione di guardare quella più bella. |
+| D-C6 | **Presa** (04/10/2026) | **La Proiezione diventa netta di TER e bollo**, resta lorda della tassa sulla vendita: V8 del dossier Monte Carlo § 11 cambia di conseguenza. | Lasciarla lorda: sarebbe l'unica scheda senza costi, con la stessa riga «Ipotesi usate» delle altre. |
+
+**Scelte di default prese dall'agente** (dichiarate, il proprietario può rovesciarle):
+- **Prelievo a fine anno, moltiplicativo** (RC4) invece di `r − c`: è la forma esatta per un'imposta sul valore di
+  fine periodo e tiene A17 vero per costruzione.
+- **Pesatura sul valore di mercato** delle gambe, non sul nozionale (RC1).
+- **Nessun campo nuovo** nelle impostazioni: tutto viene da TER degli strumenti e tile Costi.
+- Spec nel dossier `doc/fire-ipotesi/` (sezione 9) e non in un dossier a parte: i costi sono un'ipotesi comune a
+  tutte le schede, letta da `resolveFireAssumptions`.
+
+### 9.8 Punti aperti
+
+- Nessuno sulle regole. Da ricordare nel testo: chi non ha attivato il bollo (il default di `stampDutyEnabled` è
+  `false`) non vede bollo nelle simulazioni; la riga lo dice e rimanda al tile Costi (caso d'uso 2).
+
+### 9.9 Criteri di accettazione (valori di riferimento verificabili)
+
+Default di Impostazioni › Simulazioni (dossier Monte Carlo § 2.3), bollo attivo allo 0,2% salvo dove indicato.
+Tolleranza delle formule chiuse: ± 0,0001 punti percentuali. Portafoglio di prova **P**: ETF azionario 100.000 €
+(TER 0,20%), ETF obbligazionario 50.000 € (TER 0,10%), conto corrente 20.000 € (sottocategoria dei conti correnti),
+conto deposito 10.000 € (cash, altra sottocategoria, nessun TER).
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| C1 | RC1 su P | Azioni 0,40% (0,20 + 0,20); Obbligazioni 0,30% (0,10 + 0,20); Liquidità 0,066667% (TER 0; quota soggetta 10.000/30.000 → 0,2·⅓) |
+| C2 | RC2 su P, classe Oro senza strumenti | TER medio (100.000·0,20 + 50.000·0,10 + 30.000·0)/180.000 = 0,138889%; costo Oro 0,338889% |
+| C3 | RC3 + RC4 su P, pesi 60/40 (A3) | c = 0,36%; Orso 5,5854%, Base 7,8726%, Toro 10,6856% (lordi A3: 5,9669 / 8,2623 / 11,0855) |
+| C4 | RP2 su C3 (π = 3,04%) | reale Orso 2,4703%, Base 4,6900%, Toro 7,4200% |
+| C5 | C3 con il bollo spento | c = 0,6·0,20 + 0,4·0,10 = 0,16%; Base 8,0891% |
+| C6 | Leva, pesi A6 (Azioni 90%, Obbligazioni 60%), costi di P | c = 0,36% (pesi riportati a 60/40, D-C3); Base (1,092298 · 0,9964) − 1 = 8,8366% |
+| C7 | Trend: strumento DBMF 20.000 € con TER 0,85% | costo Trend 0,20% (solo bollo, D-C2) |
+| C8 | Coerenza: volatilità 0, target A2 (60/40), costi di P | `g_netto` = (1,07824 · 0,9964) − 1 = 7,4358%; il Ventaglio coincide, float per float, con la curva Base di `calculateFIREProjection` (A17 con i costi) |
+| C9 | Monte Carlo, volatilità 0, Azioni 100% (Base), costo 0,40%, capitale 100.000 €, nessun prelievo, 1 anno | 100.000 · 1,1002 · 0,996 = 109.579,92 € |
+| C10 | Obiettivo con allocazione Azioni 80% + Obbligazioni 20%, costi di P | c = 0,8·0,40 + 0,2·0,30 = 0,38%; rendimento (1,092079 · 0,9962) − 1 = 8,7929% (lordo A14: 9,2079%) |
+| C11 | `annualCostRate` assente | ogni motore dà gli stessi numeri di oggi (i test esistenti restano verdi senza modifiche) |
+| C12 | Riga «Ipotesi usate» su P | contiene «costi 0,36% (TER 0,16%, bollo 0,20%)»; bollo spento: «costi 0,16% (solo TER; bollo non attivo in Impostazioni › Allocazione)»; nessun TER: «TER non inseriti negli strumenti» |
+
+I TER e i bolli «del portafoglio» della riga sono le somme pesate di RC3 separate per componente:
+`TER = Σ u_i·TER_i`, `bollo = Σ u_i·bollo_i` (su P con 60/40: 0,16% e 0,20%).
+
+### 9.10 Task C1 — Costi ricorrenti in tutti i motori (thread «impl», Sonnet 5.5)
+
+Branch da `main`, PR in bozza verso `Ciocc128/net-worth-tracker:main`.
+
+**Cosa vede l'utente**
+- La riga «Ipotesi usate» di Calcolatore, Coast, What If, Monte Carlo, Proiezione e Obiettivi aggiunge i costi
+  (C12), con il link al tile Costi quando il bollo è spento.
+- I tassi di Orso, Base e Toro (Parametri del Calcolatore, Scenari, Coast, What If) sono netti di costi; il «Come si
+  calcola» del Calcolatore e del Monte Carlo dice la regola in una frase («ogni anno, dopo il rendimento, si toglie lo
+  0,36% del capitale: TER degli strumenti e bollo»).
+- Impostazioni › Simulazioni: la riga «Il portafoglio target rende» mostra i tassi netti e dice «al netto di costi
+  0,36%».
+- Proiezione: il footer del Ventaglio e il Dettaglio passano da «Valori lordi: niente tasse sulla vendita, TER né
+  bollo» a «Al netto di TER e bollo (0,36% l'anno); lordi della tassa sulla vendita».
+
+**Dettagli tecnici**
+1. Nuovo modulo puro `lib/utils/fireCosts.ts`:
+   ```ts
+   export interface ClassCost { ter: number; stampDuty: number; total: number; held: boolean } // percent
+   export interface FireCosts {
+     byClass: Record<MonteCarloClass, ClassCost>;
+     stampDutyEnabled: boolean;
+     stampDutyRate: number;
+     anyTer: boolean;          // at least one instrument of K carries a TER
+   }
+   export function resolveClassCosts(assets, valueOf, settings: Pick<AssetAllocationSettings,'stampDutyEnabled'|'stampDutyRate'|'checkingAccountSubCategory'>, options: { lockedAssetIds?; goldSubCategory? }): FireCosts // RC1, RC2
+   export function portfolioCost(weightsPct, costs: FireCosts): { total: number; ter: number; stampDuty: number } // RC3
+   ```
+   Le gambe con `expandAssetExposure` e la regola RG dell'oro, come `collectLegs` di `monteCarloWeights.ts` (se
+   serve, esportare quella funzione invece di copiarla). La regola del conto corrente riusa la stessa condizione di
+   `calculateStampDuty`: estrarla in una funzione `isCheckingAccount(asset, subCategory)` in
+   `lib/constants/stampDuty.ts` o accanto, e usarla da entrambi.
+2. `lib/utils/monteCarloDraw.ts`: `portfolioReturn(weightsPct, returns, leverageSpreadPct = 0, costPct = 0)` (RC4).
+3. `lib/services/monteCarloService.ts`: `annualCostRate?: number` in `MonteCarloParams` (`types/assets.ts`) e in
+   `AccumulationSimulationParams`, passato a `portfolioReturn` (C9, C11).
+4. `lib/utils/fireAssumptions.ts`: `portfolioCompoundReturn(…, costPct = 0)`; `FireAssumptions.costs?: FireCosts` e
+   `cost?: { total; ter; stampDuty }` (dei pesi della pagina); `buildPortfolioScenarios` applica il costo;
+   `resolveFireAssumptions` riceve `stampDutyEnabled`, `stampDutyRate`, `checkingAccountSubCategory` nelle
+   `settings` e calcola i costi solo quando ha `assetValue` (come `capital`).
+5. Le schede passano il costo ai motori stocastici: `FireCalculatorTab.tsx` (Ventaglio, `annualCostRate:
+   assumptions.cost.total`), `MonteCarloTab.tsx` (il costo dei pesi **della corsa**: `portfolioCost(params.weights,
+   assumptions.costs)`, ricalcolato quando l'utente li ritocca), `ProjectionTab.tsx` (idem sui pesi della corsa).
+   Calcolatore, Coast, What If e matrice prendono già `assumptions.scenarios`: nessuna modifica oltre alla riga.
+6. `lib/utils/goalTrajectory.ts`: `GoalAssumptions` include `costs`; `goalAnnualReturn` applica RC5 (C10).
+   Il server dell'Assistente, che calcola le ipotesi con la stessa funzione, passa gli stessi campi.
+7. `lib/utils/fireAssumptionsNarrative.ts`: il segmento dei costi (C12); `components/settings/MonteCarloMarketTile.tsx`:
+   la riga netta (riceve le impostazioni del bollo dalla pagina).
+8. Proiezione: il testo «Valori lordi…» di `lib/utils/projectionNarrative.ts` (footer e Dettaglio).
+9. RC6: il commento di `fireService.ts:1458`.
+
+**File** — Nuovi: `lib/utils/fireCosts.ts`, `__tests__/fireCosts.test.ts`. Modificati: `lib/utils/monteCarloDraw.ts`,
+`lib/services/monteCarloService.ts`, `types/assets.ts`, `lib/utils/fireAssumptions.ts`,
+`lib/utils/fireAssumptionsNarrative.ts`, `lib/hooks/useFireAssumptions.ts`, `lib/utils/goalTrajectory.ts`,
+`components/fire-simulations/{FireCalculatorTab,MonteCarloTab,ProjectionTab}.tsx`,
+`components/settings/MonteCarloMarketTile.tsx`, `lib/services/assetService.ts` (solo l'estrazione di
+`isCheckingAccount`), `lib/services/fireService.ts` (commento), i consumatori server delle ipotesi se cambiano firma.
+
+**Test**
+- `fireCosts.test.ts`: C1, C2, C5 (solo TER), C7, RC2 con `K` vuoto, un composito (gambe pesate), un ETF a leva
+  (pesato sul valore di mercato, non sul nozionale).
+- `fireAssumptions.test.ts`: C3, C4, C6, C8 (forma chiusa); A1–A10 invariati con costo 0.
+- `monteCarloService.test.ts`: C9; C8 come coerenza Ventaglio = curva Base con i costi; C11 (stessi numeri senza
+  `annualCostRate`, stesso seme).
+- `goalTrajectory.test.ts`: C10. `fireAssumptionsNarrative.test.ts`: le tre letture di C12.
+
+**Documentazione** (stessa PR): `doc/guide/fire.md` § FIRE, What If and Goals (RC1–RC6, «i costi sono UNA lettura»),
+`fire-monte-carlo.md`, `fire-proiezione.md` (V8 cambia: netto di TER e bollo), `fire-coast.md`, `fire-what-if.md`,
+`fire-obiettivi.md` per la riga; `doc/montecarlo/README.md` § 11 V8 e il testo del footer (una nota «cambiata da
+P6, doc/fire-ipotesi § 9»); `doc/guide/impostazioni.md` (il tile Costi è letto anche dalle simulazioni);
+`doc/guide/fork-scelte-ui.md`, `CLAUDE.md` («Latest», riga FIRE), `Draft Release Temp.md` (WORKFLOW.md § Where
+things are recorded).
+
+**Criterio di fine**: C1–C12 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+`TZ=Europe/Rome npx vitest run` verdi; nessun motore che chiama `portfolioReturn` o `portfolioCompoundReturn` senza
+passare il costo, salvo i test e i chiamanti di upstream. Collaudo sull'anteprima Vercel (WORKFLOW.md § 2): la riga
+dei costi in sei schede, il Base che scende, la Proiezione che non dice più «lordi».
+
+**Rischi**
+| Rischio | Mitigazione |
+| --- | --- |
+| Merge con upstream su `monteCarloDraw.ts`, `monteCarloService.ts`, `types/assets.ts`. | parametri opzionali con default neutro (C11); logica nuova in `fireCosts.ts`. |
+| Chi ha il bollo spento (default) non vede differenza e pensa che non ci sia. | La riga lo dice e rimanda al tile Costi (C12). |
+| TER mancanti sugli strumenti sottostimano i costi. | La riga dice «TER non inseriti negli strumenti» quando nessuno strumento ne ha. |
