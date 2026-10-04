@@ -12,6 +12,7 @@ import { MONTH_NAMES } from '@/lib/constants/months';
 import { getItalyMonth, getItalyMonthYear, getItalyYear } from '@/lib/utils/dateHelpers';
 import { realReturn } from '@/lib/utils/realReturn';
 import { resolveGainShare, resolveTaxMultiplier } from '@/lib/utils/withdrawalTax';
+import { buildFlowSchedule, flowsRequirementAdjustment, type FlowSchedule, type ResolvedFlow } from '@/lib/utils/datedFlows';
 import { calculateTotalExpenses, calculateTotalIncome, getExpensesByDateRange } from './expenseService';
 import { getUserSnapshots } from './snapshotService';
 
@@ -1151,7 +1152,10 @@ export function calculateCoastFIREMetrics(
   capitalInflowsToday?: PensionCapitalInflowToday[],
   // The tax on withdrawals (2026-09-24): the gross-up of the portfolio-funded need at the target
   // age, read on the capital grown there with no new contributions (a coaster adds no basis).
-  withdrawalTax?: { basisToday: number; rate: number }
+  withdrawalTax?: { basisToday: number; rate: number },
+  // RF9 (§ 12): the dated flows. The requirement at the target age is RF5 with `T` = the target (FIRE-anchored flows
+  // start there); BEFORE the target only the lumps count (D-F11), discounted to today. Absent → identical.
+  flows?: FireFlowsInput
 ): CoastFIREMetrics {
   const yearsToRetirement = Math.max(retirementAge - currentAge, 0);
   const capitalAtRetirement = growValueByRealReturn(currentNetWorth, realReturnRate, yearsToRetirement);
@@ -1169,9 +1173,32 @@ export function calculateCoastFIREMetrics(
     toRetirementWalkInflows(capitalInflowsToday, yearsToRetirement, realReturnRate),
     portfolioNeedMultiplier
   );
-  const fireNumberAtRetirement = retirementNeeds.retirementCapitalRequired;
-  const coastFireNumberToday =
-    yearsToRetirement === 0
+  const schedule = scheduleFor(flows, inflationRate);
+  let flowsAdjustment = 0;
+  let lumpsBeforeTarget = 0;
+  if (schedule) {
+    const target = Math.round(yearsToRetirement);
+    const retirementDate = addYearsToDate(currentDate, target);
+    const pensions = pensionNetSchedule(retirementNeeds.pensionBreakdown, retirementAge, retirementDate);
+    flowsAdjustment = flowsRequirementAdjustment({
+      schedule,
+      retirementYear: target,
+      expensesAtRetirement: annualExpenses,
+      realReturnRate,
+      withdrawalRate,
+      taxMultiplier: portfolioNeedMultiplier,
+      pensionNetAt: pensions.netAt,
+      pensionHorizon: pensions.horizon,
+      scale: Math.pow(1 + inflationRate / 100, -target),
+    });
+    for (let year = 1; year <= target; year++) {
+      lumpsBeforeTarget += schedule.lump(year) / Math.pow(1 + inflationRate / 100, year) / Math.pow(1 + realReturnRate / 100, year);
+    }
+  }
+  const fireNumberAtRetirement = schedule ? Math.max(0, retirementNeeds.retirementCapitalRequired + flowsAdjustment) : retirementNeeds.retirementCapitalRequired;
+  const coastFireNumberToday = schedule
+    ? Math.max(0, fireNumberAtRetirement / Math.pow(1 + realReturnRate / 100, yearsToRetirement) - lumpsBeforeTarget)
+    : yearsToRetirement === 0
       ? fireNumberAtRetirement
       : fireNumberAtRetirement / Math.pow(1 + (realReturnRate / 100), yearsToRetirement);
   const futureValueAtRetirementWithoutNewContributions = growValueByRealReturn(
@@ -1190,7 +1217,7 @@ export function calculateCoastFIREMetrics(
     progressToCoastFI,
     gapToCoastFI,
     futureValueAtRetirementWithoutNewContributions,
-    retirementCapitalRequired: retirementNeeds.retirementCapitalRequired,
+    retirementCapitalRequired: fireNumberAtRetirement,
     steadyStatePortfolioNeed: retirementNeeds.steadyStatePortfolioNeed,
     totalNetAnnualPensionAtRetirement: retirementNeeds.totalNetAnnualPensionAtRetirement,
     totalNetAnnualPensionAtSteadyState: retirementNeeds.totalNetAnnualPensionAtSteadyState,
@@ -1287,7 +1314,9 @@ export function calculateCoastFIREProjection(
   capitalInflowsToday?: PensionCapitalInflowToday[],
   // The tax on withdrawals (2026-09-24), the Calcolatore's: each scenario reads the gain share
   // on the capital grown to the target at its own real return (a coaster adds no basis).
-  withdrawalTax?: { basisToday: number; rate: number }
+  withdrawalTax?: { basisToday: number; rate: number },
+  // RF9 (§ 12): the dated flows; absent → identical.
+  flows?: FireFlowsInput
 ): CoastFIREProjectionResult {
   const currentYear = getItalyYear();
   const bearRealReturn = realReturn(scenarios.bear.growthRate, scenarios.bear.inflationRate);
@@ -1358,7 +1387,8 @@ export function calculateCoastFIREProjection(
         normalizedTaxBrackets,
         currentDate,
         capitalInflowsToday,
-        withdrawalTax
+        withdrawalTax,
+        flows
       ),
       pensionBreakdown: bearNeeds.pensionBreakdown,
     },
@@ -1378,7 +1408,8 @@ export function calculateCoastFIREProjection(
         normalizedTaxBrackets,
         currentDate,
         capitalInflowsToday,
-        withdrawalTax
+        withdrawalTax,
+        flows
       ),
       pensionBreakdown: baseNeeds.pensionBreakdown,
     },
@@ -1398,7 +1429,8 @@ export function calculateCoastFIREProjection(
         normalizedTaxBrackets,
         currentDate,
         capitalInflowsToday,
-        withdrawalTax
+        withdrawalTax,
+        flows
       ),
       pensionBreakdown: bullNeeds.pensionBreakdown,
     },
@@ -1426,15 +1458,25 @@ export function calculateCoastFIREProjection(
       (sum, inflow) => sum + inflow.amountToday * Math.pow(1 + baseRealReturn / 100, maxYears),
       0
     );
+  // RF9: a lump before the target lands in the portfolio of its year, in today's euro, and grows with the real return.
+  const lumpsGrownTo = (scenario: FIREScenarioParams, realReturnRate: number, index: number): number => {
+    const schedule = scheduleFor(flows, scenario.inflationRate);
+    if (!schedule) return 0;
+    let total = 0;
+    for (let year = 1; year <= index; year++) {
+      total += (schedule.lump(year) / Math.pow(1 + scenario.inflationRate / 100, year)) * Math.pow(1 + realReturnRate / 100, index - year);
+    }
+    return total;
+  };
   const projectionData: CoastFIREProjectionPoint[] = Array.from(
     { length: maxYears + 1 },
     (_, index) => ({
       yearOffset: index,
       calendarYear: currentYear + index,
       age: currentAge + index,
-      bearPortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), bearRealReturn, index),
-      basePortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), baseRealReturn, index),
-      bullPortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), bullRealReturn, index),
+      bearPortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), bearRealReturn, index) + lumpsGrownTo(scenarios.bear, bearRealReturn, index),
+      basePortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), baseRealReturn, index) + lumpsGrownTo(scenarios.base, baseRealReturn, index),
+      bullPortfolioValue: growValueByRealReturn(currentNetWorth + unlockedCapitalAtYear(index), bullRealReturn, index) + lumpsGrownTo(scenarios.bull, bullRealReturn, index),
       fireNumberTarget: baseRequirement + fundValueAtRetirement(index),
     })
   );
@@ -1501,6 +1543,43 @@ export interface FireHonestInputs {
   now: Date;
 }
 
+/**
+ * The dated flows an engine reads (doc/fire-ipotesi/README.md § 12): the resolved list and where the plan's
+ * expenses come from (D-F6). The per-scenario schedule is built inside, from each scenario's own inflation.
+ */
+export interface FireFlowsInput {
+  resolved: readonly ResolvedFlow[];
+  planExpensesFromCashflow: boolean;
+}
+
+function scheduleFor(flows: FireFlowsInput | undefined, inflationRate: number): FlowSchedule | undefined {
+  return flows && flows.resolved.length > 0 ? buildFlowSchedule(flows.resolved, { inflationRate, planExpensesFromCashflow: flows.planExpensesFromCashflow }) : undefined;
+}
+
+/** A euro entering (+) or leaving (−) the portfolio: an inflow is basis, an outflow sells at the portfolio's gain share. */
+function applyCashMove(netWorth: number, basis: number, amount: number): { netWorth: number; basis: number } {
+  if (amount >= 0) return { netWorth: netWorth + amount, basis: basis + amount };
+  const out = -amount;
+  return { netWorth: netWorth - out, basis: netWorth > 0 ? basis * Math.max(0, 1 - out / netWorth) : basis };
+}
+
+/** The net state pension active `yearsAfter` years after the retirement day, by the SAME rule the Coast walk uses per step. */
+function pensionNetSchedule(
+  breakdown: readonly CoastFIREPensionBreakdown[],
+  age: number,
+  retirementDate: Date
+): { netAt: (yearsAfter: number) => number; horizon: number } {
+  const activeAt = (pension: CoastFIREPensionBreakdown, step: number): boolean => {
+    const start = parseIsoDate(pension.startDate ?? undefined);
+    return start ? start <= addYearsToDate(retirementDate, step) : pension.startAge <= age + step;
+  };
+  const netAt = (yearsAfter: number): number =>
+    breakdown.filter((pension) => activeAt(pension, yearsAfter)).reduce((sum, pension) => sum + pension.netAnnualRealAtStart, 0);
+  let horizon = 0;
+  while (horizon < 120 && breakdown.some((pension) => !activeAt(pension, horizon))) horizon += 1;
+  return { netAt, horizon };
+}
+
 export interface FireRequirementInput {
   /** The expenses of the year the requirement is read at, in that year's euro. */
   annualExpenses: number;
@@ -1513,6 +1592,8 @@ export interface FireRequirementInput {
   bridge?: { compartmentValue: number; yearsToUnlock: number };
   /** The share of the portfolio that is unrealised gain at that year (0..1); read only with `honest.withdrawalTax`. */
   gainShare?: number;
+  /** RF5: the dated flows of THIS scenario; absent = the requirement of before, identical. */
+  flows?: FlowSchedule;
 }
 
 export interface FireRequirement {
@@ -1528,6 +1609,8 @@ export interface FireRequirement {
   /** The age the LATEST considered pension starts at; null when none is considered. */
   pensionLatestStartAge: number | null;
   pensionCount: number;
+  /** RF5: what the dated flows added to (or took off) the requirement; present only when flows were given. */
+  flowsAdjustment?: number;
 }
 
 /**
@@ -1558,7 +1641,22 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
 
   const bare = { standardRequirement, pensionNetAnnual: 0, taxMultiplier, pensionsConsidered, pensionLatestStartAge: null, pensionCount: 0 };
   if (wrDecimal <= 0) return { requirement: 0, ...bare };
-  if (!pensionsConsidered && inflows.length === 0) return { requirement: standardRequirement * taxMultiplier, ...bare };
+  // RF5: the flows are SUMMED to the base rule's requirement, floored at 0; no flows = the base, untouched.
+  const withFlows = (requirement: number, pensions: { netAt: (yearsAfter: number) => number; horizon: number }): { requirement: number; flowsAdjustment?: number } => {
+    if (!input.flows || input.flows.flows.length === 0) return { requirement };
+    const flowsAdjustment = flowsRequirementAdjustment({
+      schedule: input.flows,
+      retirementYear: input.yearsElapsed,
+      expensesAtRetirement: input.annualExpenses,
+      realReturnRate,
+      withdrawalRate: input.withdrawalRate,
+      taxMultiplier,
+      pensionNetAt: pensions.netAt,
+      pensionHorizon: pensions.horizon,
+    });
+    return { requirement: Math.max(0, requirement + flowsAdjustment), flowsAdjustment };
+  };
+  if (!pensionsConsidered && inflows.length === 0) return { ...withFlows(standardRequirement * taxMultiplier, { netAt: () => 0, horizon: 0 }), ...bare };
 
   const ageAtYear = pensionsConsidered ? (age as number) + input.yearsElapsed : 0;
   const dateAtYear = input.honest ? addYearsToDate(input.honest.now, input.yearsElapsed) : FIRE_BRIDGE_REFERENCE_DATE;
@@ -1576,7 +1674,7 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
     taxMultiplier
   );
   return {
-    requirement: needs.retirementCapitalRequired,
+    ...withFlows(needs.retirementCapitalRequired, pensionNetSchedule(needs.pensionBreakdown, ageAtYear, dateAtYear)),
     standardRequirement,
     pensionNetAnnual: pensionsConsidered ? needs.totalNetAnnualPensionAtSteadyState : 0,
     taxMultiplier,
@@ -1600,7 +1698,9 @@ export function calculateFIREProjection(
   // RP7 (doc/fire-ipotesi/README.md): the saving of year t is `annualSavings · (1 + π)^(t−1)`, π the
   // scenario's own inflation, so the first year stays `annualSavings`. Default false = a constant
   // nominal saving, the walk of before (upstream and the existing tests).
-  indexSavings: boolean = false
+  indexSavings: boolean = false,
+  // § 12 (F1): the dated flows. Absent (or an empty list) → the walk of before, byte-identical.
+  flows?: FireFlowsInput
 ): FIREProjectionResult {
   const wrDecimal = withdrawalRate / 100;
   const currentYear = getItalyYear();
@@ -1610,9 +1710,14 @@ export function calculateFIREProjection(
   let baseYearsToFIRE: number | null = null;
   let bullYearsToFIRE: number | null = null;
 
-  let bearNW = initialNetWorth;
-  let baseNW = initialNetWorth;
-  let bullNW = initialNetWorth;
+  // RF6: one schedule per scenario (its own π); the lumps of the running year are part of the starting capital.
+  const bearFlows = scheduleFor(flows, scenarios.bear.inflationRate);
+  const baseFlows = scheduleFor(flows, scenarios.base.inflationRate);
+  const bullFlows = scheduleFor(flows, scenarios.bull.inflationRate);
+  const startNetWorth = (schedule: FlowSchedule | undefined): number => initialNetWorth + (schedule?.lump(0) ?? 0);
+  let bearNW = startNetWorth(bearFlows);
+  let baseNW = startNetWorth(baseFlows);
+  let bullNW = startNetWorth(bullFlows);
   let bearExpenses = annualExpenses;
   let baseExpenses = annualExpenses;
   let bullExpenses = annualExpenses;
@@ -1629,9 +1734,10 @@ export function calculateFIREProjection(
   // with the market, the basis does not — that is the gain share the gross-up reads.
   const taxModelled = honest?.withdrawalTax !== undefined;
   const basisToday = honest?.withdrawalTax?.basisToday ?? 0;
-  let bearBasis = basisToday;
-  let baseBasis = basisToday;
-  let bullBasis = basisToday;
+  const startBasis = (schedule: FlowSchedule | undefined): number => basisToday + Math.max(0, schedule?.lump(0) ?? 0);
+  let bearBasis = startBasis(bearFlows);
+  let baseBasis = startBasis(baseFlows);
+  let bullBasis = startBasis(bullFlows);
 
   // ONE requirement per scenario per year (`resolveFireRequirement`): the bridge while the
   // unlock is ahead, the pensions from their start, the tax on what the portfolio funds.
@@ -1641,7 +1747,8 @@ export function calculateFIREProjection(
     compartmentValue: number,
     year: number,
     netWorth: number,
-    basis: number
+    basis: number,
+    schedule?: FlowSchedule
   ): number =>
     resolveFireRequirement({
       annualExpenses: inflatedExpenses,
@@ -1651,6 +1758,7 @@ export function calculateFIREProjection(
       honest,
       bridge: bridgeActive && year < unlockYear ? { compartmentValue, yearsToUnlock: unlockYear - year } : undefined,
       gainShare: taxModelled ? resolveGainShare(netWorth, basis) : 0,
+      flows: schedule,
     }).requirement;
 
   // Year 0 is a year too: a portfolio already past its target today is FIRE NOW, not «in one
@@ -1659,9 +1767,9 @@ export function calculateFIREProjection(
   // same one the loop runs, on the starting values; a scenario reached here receives no savings
   // from year 1 on, like any other reached scenario.
   if (wrDecimal > 0) {
-    if (initialNetWorth >= requirementOf(scenarios.bear, annualExpenses, bearPension, 0, initialNetWorth, bearBasis)) bearYearsToFIRE = 0;
-    if (initialNetWorth >= requirementOf(scenarios.base, annualExpenses, basePension, 0, initialNetWorth, baseBasis)) baseYearsToFIRE = 0;
-    if (initialNetWorth >= requirementOf(scenarios.bull, annualExpenses, bullPension, 0, initialNetWorth, bullBasis)) bullYearsToFIRE = 0;
+    if (bearNW >= requirementOf(scenarios.bear, annualExpenses, bearPension, 0, bearNW, bearBasis, bearFlows)) bearYearsToFIRE = 0;
+    if (baseNW >= requirementOf(scenarios.base, annualExpenses, basePension, 0, baseNW, baseBasis, baseFlows)) baseYearsToFIRE = 0;
+    if (bullNW >= requirementOf(scenarios.bull, annualExpenses, bullPension, 0, bullNW, bullBasis, bullFlows)) bullYearsToFIRE = 0;
   }
 
   for (let year = 1; year <= maxYears; year++) {
@@ -1686,21 +1794,20 @@ export function calculateFIREProjection(
 
     const savingsOf = (scenario: FIREScenarioParams): number =>
       indexSavings ? annualSavings * Math.pow(1 + scenario.inflationRate / 100, year - 1) : annualSavings;
-    if (bearYearsToFIRE === null) {
-      const savings = savingsOf(scenarios.bear);
-      bearNW += savings;
-      bearBasis += savings;
-    }
-    if (baseYearsToFIRE === null) {
-      const savings = savingsOf(scenarios.base);
-      baseNW += savings;
-      baseBasis += savings;
-    }
-    if (bullYearsToFIRE === null) {
-      const savings = savingsOf(scenarios.bull);
-      bullNW += savings;
-      bullBasis += savings;
-    }
+    // The money that enters the portfolio this year: the saving (until FIRE) with RF3's change, and the lumps (always).
+    // Without flows this is the saving alone, added as basis exactly as before.
+    const addCash = (netWorth: number, basis: number, reached: boolean, scenario: FIREScenarioParams, schedule: FlowSchedule | undefined) => {
+      if (!schedule) {
+        if (reached) return { netWorth, basis };
+        const savings = savingsOf(scenario);
+        return { netWorth: netWorth + savings, basis: basis + savings };
+      }
+      const move = (reached ? 0 : savingsOf(scenario) + schedule.savingsDelta(year)) + schedule.lump(year);
+      return applyCashMove(netWorth, basis, move);
+    };
+    ({ netWorth: bearNW, basis: bearBasis } = addCash(bearNW, bearBasis, bearYearsToFIRE !== null, scenarios.bear, bearFlows));
+    ({ netWorth: baseNW, basis: baseBasis } = addCash(baseNW, baseBasis, baseYearsToFIRE !== null, scenarios.base, baseFlows));
+    ({ netWorth: bullNW, basis: bullBasis } = addCash(bullNW, bullBasis, bullYearsToFIRE !== null, scenarios.bull, bullFlows));
 
     bearExpenses *= (1 + scenarios.bear.inflationRate / 100);
     baseExpenses *= (1 + scenarios.base.inflationRate / 100);
@@ -1708,9 +1815,9 @@ export function calculateFIREProjection(
 
     // The requirement of the year IS the FIRE number the row carries (the chart's dashed line):
     // until 2026-09-24 the row printed expenses ÷ SWR while the test ran on the bridge figure.
-    const bearFireNumber = wrDecimal > 0 ? requirementOf(scenarios.bear, bearExpenses, bearPension, year, bearNW, bearBasis) : 0;
-    const baseFireNumber = wrDecimal > 0 ? requirementOf(scenarios.base, baseExpenses, basePension, year, baseNW, baseBasis) : 0;
-    const bullFireNumber = wrDecimal > 0 ? requirementOf(scenarios.bull, bullExpenses, bullPension, year, bullNW, bullBasis) : 0;
+    const bearFireNumber = wrDecimal > 0 ? requirementOf(scenarios.bear, bearExpenses, bearPension, year, bearNW, bearBasis, bearFlows) : 0;
+    const baseFireNumber = wrDecimal > 0 ? requirementOf(scenarios.base, baseExpenses, basePension, year, baseNW, baseBasis, baseFlows) : 0;
+    const bullFireNumber = wrDecimal > 0 ? requirementOf(scenarios.bull, bullExpenses, bullPension, year, bullNW, bullBasis, bullFlows) : 0;
 
     const bearReached = wrDecimal > 0 && bearNW >= bearFireNumber;
     const baseReached = wrDecimal > 0 && baseNW >= baseFireNumber;
@@ -1772,7 +1879,9 @@ export function calculateFIRESensitivityMatrix(
   withdrawalRate: number,
   scenarios: FIREProjectionScenarios,
   // RP7: the same indexed saving the Calcolatore walks (default false = constant nominal, as before).
-  indexSavings: boolean = false
+  indexSavings: boolean = false,
+  // § 12: the dated flows, the same list the Calcolatore walks (the matrix varies the expenses and the saving, not the flows).
+  flows?: FireFlowsInput
 ): FIRESensitivityMatrix {
   const baselineProjection =
     initialNetWorth > 0 && baselineAnnualExpenses > 0 && withdrawalRate > 0
@@ -1785,7 +1894,8 @@ export function calculateFIRESensitivityMatrix(
           undefined,
           undefined,
           undefined,
-          indexSavings
+          indexSavings,
+          flows
         )
       : null;
   const baselineYearsToFIRE = baselineProjection?.baseYearsToFIRE ?? null;
@@ -1820,7 +1930,8 @@ export function calculateFIRESensitivityMatrix(
               undefined,
               undefined,
               undefined,
-              indexSavings
+              indexSavings,
+              flows
             )
           : null;
       const yearsToFIRE = projection?.baseYearsToFIRE ?? null;

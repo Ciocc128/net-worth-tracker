@@ -69,6 +69,8 @@ export interface MortgageSummary {
   next: { date: Date; amount: number; principal: number; interest: number } | null;
   /** Projection of the end, on the latest linked instalment; null without an instalment to project on. */
   payoff: MortgagePayoff | null;
+  /** The instalment the projection runs on (the next one, else the last paid); null when none is linked. */
+  instalment: number | null;
 }
 
 const toCents = (value: number) => Math.round(value * 100) / 100;
@@ -168,5 +170,30 @@ export function summarizeMortgage(property: MortgageProperty, rows: MortgageRow[
     byYear: [...years.values()].sort((a, b) => b.year - a.year),
     next,
     payoff,
+    instalment: projectionRow ? Math.abs(projectionRow.amount) : null,
   };
+}
+
+/**
+ * The mortgage as a dated flow of the FIRE plan (doc/fire-ipotesi/README.md § 12, RF1): the instalment times the
+ * number of monthly instalments that fall in each calendar year, from the next one to the projected end.
+ * `never` = the instalment does not cover the interest (the mortgage does not end); `none` = repaid, or no
+ * instalment linked to project on. Pure: the caller maps a calendar year to its offset from today.
+ */
+export type MortgageFlowSchedule =
+  | { kind: 'schedule'; instalment: number; months: number; endDate: Date; byYear: ReadonlyMap<number, number> }
+  | { kind: 'never' }
+  | { kind: 'none' };
+
+export function mortgageFlowSchedule(summary: Pick<MortgageSummary, 'payoff' | 'instalment'>): MortgageFlowSchedule {
+  const { payoff, instalment } = summary;
+  if (!payoff || payoff.kind === 'repaid' || instalment === null || instalment <= 0) return { kind: 'none' };
+  if (payoff.kind === 'never') return { kind: 'never' };
+  const endIndex = payoff.date.getFullYear() * 12 + payoff.date.getMonth();
+  const byYear = new Map<number, number>();
+  for (let k = 0; k < payoff.months; k++) {
+    const year = Math.floor((endIndex - k) / 12);
+    byYear.set(year, toCents((byYear.get(year) ?? 0) + instalment));
+  }
+  return { kind: 'schedule', instalment, months: payoff.months, endDate: payoff.date, byYear };
 }
