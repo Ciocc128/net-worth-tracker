@@ -12,7 +12,7 @@
 > Origine: analisi `/mnt/project-files/fire-simulazioni/analisi-fire-simulazioni.md` (§ 4, «Incoerenze tra le
 > schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
 > della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026, la § 10 (P1 spesa sostenibile e P2 età
-> obiettivo, task S1 ed E1) lo stesso giorno.
+> obiettivo, task S1 ed E1) lo stesso giorno, la § 11 (patrimonio e portafoglio, task K1) lo stesso giorno: sostituisce RP5.
 
 ---
 
@@ -135,7 +135,7 @@ Allocazione ha target; altrimenti `weightsFromHoldings` (il portafoglio di oggi)
 quale dei due. **Un solo punto** li calcola per la pagina (§ 4.1); nessuna scheda chiama le due funzioni da sola.
 Il Monte Carlo resta l'unica scheda in cui i pesi si possono ritoccare per un'esecuzione (il seme è RP4).
 
-**RP5 — Capitale** (D4): `K` di RK (`computeSimulatedCapital`), al netto dei fondi pensione bloccati, per
+**RP5 — Capitale** (D4; **sostituita da RK1–RK4, § 11**): `K` di RK (`computeSimulatedCapital`), al netto dei fondi pensione bloccati, per
 **tutte** le schede. Crypto e immobili (residenza compresa) restano fuori, dichiarati nella riga «Ipotesi usate»
 come oggi nel tile Parametri del Monte Carlo: «Fuori: Immobili 250.000 €, Crypto 5.000 €».
 
@@ -1033,3 +1033,228 @@ risparmio, già in rotta, Coast), «Usa» che cambia l'SWR in anteprima, l'età 
 | La cifra della spesa sostenibile sembra esatta. | «Come si calcola» dichiara il seme e l'errore di campionamento (S4); arrotondamento per difetto. |
 | L'SWR personale cambia il numero FIRE in modo inatteso. | Solo proposto (D-S4): cambia solo con «Usa» e «Salva». |
 | Memoria di `keepFactors` (10.000 × 50 × 3 × 8 byte = 12 MB). | Misurata nella guida; i fattori vivono solo nell'ultima esecuzione. |
+
+---
+
+## 11. Patrimonio e portafoglio — da quale capitale partono le schede (task K1)
+
+> Aggiunta il 04/10/2026 (thread «spec», richiesta del proprietario nella conversazione di progetto). D-P1 e D-P2
+> proposte dal coordinatore e confermate nel thread; D-P3 decisa dal proprietario («versamento iniziale nei pesi
+> target di una certa quantità della liquidità, anche 100% o meno»). **Sostituisce RP5 (§ 1.5) e il termine `E_c`
+> di R6** (`doc/montecarlo/README.md`) per le schede di FIRE e Simulazioni. Base di codice: commit `65d26cb`
+> (`main` del fork, merge della PR #50).
+
+### 11.1 Obiettivo
+
+Per l'utente **patrimonio** e **portafoglio** sono due cose diverse. Il patrimonio è tutto ciò che possiede; il
+portafoglio è ciò che ha messo nei pesi target di Allocazione. Le schede che simulano un rendimento (Calcolatore,
+Coast, What If, Monte Carlo, Proiezione) devono partire dal **portafoglio**, perché le loro ipotesi (RP1) sono
+calcolate proprio sui pesi target. La liquidità che l'utente tiene fuori dal portafoglio ma intende investire entra
+come **versamento iniziale nei pesi target**, per la quota che sceglie lui (0–100%). Il patrimonio resta come
+contesto: ciò che è fuori si dichiara, non si simula.
+
+### 11.2 Stato di partenza (verificato nel codice, 04/10/2026)
+
+| Scheda | Capitale di partenza | Pesi | Dove |
+| --- | --- | --- | --- |
+| Calcolatore (anno FIRE, requisito, Ventaglio, Età obiettivo, SWR personale) | `K` = le sette classi di **tutti** gli strumenti, qualunque `allocationRole`, meno i fondi pensione bloccati | RP4 → `seedWeightsFromTargets` (R6) | `FireCalculatorTab.tsx:311,331,495` via `useFireAssumptions` → `resolveFireCapital` (`fireAssumptions.ts:197`) → `computeSimulatedCapital` (`monteCarloParams.ts:86`) |
+| Coast FIRE | stesso `K` (e la sua parte liquida per il ponte) | RP4 | `CoastFireTab.tsx:185-195` |
+| What If | stesso `K` | RP4 | `WhatIfAnalysisTab.tsx:193-211` |
+| Monte Carlo (+ Spesa sostenibile) | `K` calcolato **di nuovo** nella scheda, seminato nel campo «Capitale iniziale» (modificabile) | seme RP4; pulsanti «dai target» e «di oggi» ricalcolati nella scheda | `MonteCarloTab.tsx:206-217,220,281` |
+| Proiezione | `K` ricalcolato nella scheda (con ripiego su `assumptions.capital`) | come il Monte Carlo | `ProjectionTab.tsx:185-198` |
+| Obiettivi | il valore degli **strumenti assegnati** a ciascun obiettivo, non `K` | RP1 Base sull'allocazione dell'obiettivo o sui pesi target (D8) | `GoalBasedInvestingTab.tsx:146,173-189` |
+| Storico runway del Calcolatore | gli snapshot del patrimonio FIRE (fatti, non ipotesi) | — | `fireService.ts:771` (`getFIREData`) |
+
+Il difetto, sul caso del proprietario (conti di liquidità con «Escludi dall'allocazione», target Liquidità 0%):
+
+- quei conti **sono in `K`**, perché `computeSimulatedCapital` non guarda `allocationRole`;
+- R6 li aggiunge ai pesi come `E_cash / K` (`monteCarloWeights.ts:162-167`): la Liquidità riceve un peso che il
+  target non ha e le altre classi si **diluiscono** (70/30 diventa 63/27/10 nell'esempio di § 11.8);
+- la liquidità **inclusa** oltre il target, invece, è oggi simulata come già investita nei pesi target (entra in `B`).
+
+Le due liquidità fuori dal piano finiscono quindi nel capitale per due strade diverse, e nessuna delle due è una
+scelta dell'utente.
+
+### 11.3 Perimetro
+
+**Incluso**
+- La definizione di portafoglio e di liquidità da investire (RK1–RK3), letta da **una** funzione per la pagina.
+- La quota di liquidità da investire (RK4), salvata nelle impostazioni, impostata nei Parametri del Calcolatore.
+- I pesi sul nuovo capitale (RK5): i target, senza il termine `E_c` degli strumenti esclusi.
+- Costo fiscale, parte liquida e costi ricorrenti sul nuovo capitale (RK6).
+- Monte Carlo e Proiezione leggono il capitale dalla pagina e non lo ricalcolano più (RK7).
+- La riga «Ipotesi usate», il tile Parametri del Monte Carlo e della Proiezione e «Parametri del piano» in
+  Impostazioni dicono portafoglio, liquidità usata e ciò che resta fuori (§ 11.6).
+
+**Escluso**
+- **Obiettivi**: il capitale di un obiettivo resta quello degli strumenti assegnati (è già un sottoinsieme scelto
+  dall'utente); cambiano solo i pesi del portafoglio target che legge in ripiego (RK5), come tutte le schede.
+- Lo storico runway e lo storico cashflow del Dettaglio del Calcolatore: fatti, restano sul patrimonio FIRE.
+- La pagina Allocazione: definizioni e piani invariati. RK2 legge i suoi target, non li cambia.
+- Una quota diversa per scheda; una data del versamento diversa da oggi (il versamento è all'anno 0).
+- Il reddito dopo il FIRE (P5), in coda dopo questa task.
+
+### 11.4 Casi d'uso
+
+1. **Liquidità esclusa da investire** (il caso del proprietario). Conti di liquidità esclusi dall'allocazione per
+   60.000 €, target 70/30 senza Liquidità. Con quota 0% le schede partono dal solo portafoglio e simulano 70/30;
+   portando la quota a 50%, 30.000 € entrano nel capitale, investiti 70/30, e l'anno FIRE si avvicina.
+2. **Liquidità inclusa oltre il target.** Un conto incluso con target Liquidità 0% (o più basso di quanto si ha):
+   l'eccedenza è liquidità da investire come quella esclusa, con la stessa quota.
+3. **Liquidità con un peso target.** Target Liquidità 10%: il 10% del portafoglio resta Liquidità nel piano e rende
+   come Liquidità; solo il di più è da investire.
+4. **Tutto dentro.** Quota 100%: il capitale torna alla cifra di oggi, ma con i pesi target puri, senza la
+   diluizione di R6.
+5. **Il fondo emergenze resta fuori.** Con quota 0% un conto escluso non entra mai; la riga «Ipotesi usate» lo
+   dichiara tra ciò che è fuori, così l'utente vede dove sono finiti i soldi.
+
+### 11.5 Regole di calcolo
+
+Notazione: per ogni strumento non bloccato e per ogni gamba (`legsOf`, la composizione se c'è) nelle sette classi,
+`m` = valore di mercato della gamba (`calculateAssetValue × quota`), `role` = `resolveAllocationRole(asset)`.
+Crypto e immobili restano fuori come oggi (RK di `doc/montecarlo/`).
+
+**RK1 — Portafoglio lordo.** `N` = Σ `m` delle gambe **non Liquidità** con `role ∈ {tradable, frozen}`;
+`C` = Σ `m` delle gambe Liquidità (`assetClass === 'cash'`, conti e fondi monetari) con lo stesso ruolo. Gli
+strumenti `excluded` non sono portafoglio.
+
+**RK2 — Liquidità nel portafoglio** (dal target effettivo di Allocazione, `resolveEffectiveTargets`):
+
+```
+target a importo fisso F (useFixedAmount):  C_in = min(C, F)
+target in percentuale t (0 ≤ t < 100):      C_in = min(C, t/(100 − t) · N)      // la Liquidità è t% del portafoglio
+nessun target sulle classi (pesi RP4 'holdings' o 'default'):  C_in = C
+P = N + C_in                                                                    // il PORTAFOGLIO
+X = C − C_in                                                                    // eccedenza inclusa, ≥ 0
+```
+
+Con `t` riscalato come in R6 quando crypto e immobili hanno un target (`100 / (100 − t_crypto − t_realestate)`).
+Con la leva (target sopra 100%) la formula non cambia: `t` è la quota di mercato, come in Allocazione.
+
+**RK3 — Liquidità da investire.** `L = max(0, X + E)`, dove `E` = Σ `m` delle gambe Liquidità degli strumenti
+`excluded` (un saldo negativo, la carta di credito esclusa, la riduce). Gli strumenti `excluded` **non Liquidità**
+(per esempio un'azione tenuta fuori dal piano) restano fuori e si dichiarano, mai investiti.
+
+**RK4 — Capitale delle schede.** Quota `q` ∈ [0, 100] salvata in `fireCashToInvestPct` (assente = 0):
+
+```
+capitale = P + q/100 · L
+```
+
+La parte `q·L` è un versamento all'anno 0 nei pesi target: nei motori è capitale iniziale come il resto (nessun
+flusso nuovo). Senza strumenti nel portafoglio (`P = 0`) e con `q·L > 0` il capitale è `q·L` e i pesi sono RP4.
+
+**RK5 — Pesi sul capitale.** Con target sulle classi: `w_c = t_c` (riscalati come in R6, Oro da RG), **senza** il
+termine `E_c`; con target Liquidità a importo fisso `F`: `w_cash = C_in / capitale · 100` e
+`w_c = t_c · (1 − C_in / capitale)` per le altre. Senza target: i pesi detenuti (`weightsFromHoldings`) delle sole
+gambe del portafoglio, più `q·L` in Liquidità. Leva invariata: la somma dei target. Normalizzazione invariata
+(`normalise` di `monteCarloWeights.ts`).
+
+**RK6 — Costo fiscale, liquidità, costi.** Ogni strumento entra nel capitale con una quota `s_a` ∈ [0, 1]: 1 per gli
+strumenti del portafoglio non Liquidità; per le gambe Liquidità incluse `1 − X/C` (l'eccedenza si toglie in
+proporzione) più la sua parte di `q·L`; per le gambe Liquidità escluse la sua parte di `q·L` (in proporzione a
+`m / (X + E)`); 0 per il resto. Il **profilo fiscale** (`resolvePortfolioTaxProfile`) usa valore e costo scalati da
+`s_a`; la **parte liquida** è Σ `s_a · m` delle gambe liquide; i **costi ricorrenti** (`resolveClassCosts`, § 9)
+leggono gli stessi strumenti con lo stesso `s_a` (gli `excluded` non Liquidità non ci sono più).
+
+**RK7 — Una sola lettura.** `resolveFireCapital` calcola RK1–RK6 e `resolveFireAssumptions` restituisce capitale e
+pesi coerenti. Monte Carlo e Proiezione non chiamano più `computeSimulatedCapital`, `seedWeightsFromTargets` né
+`weightsFromHoldings`: il seme del campo «Capitale iniziale» è `assumptions.capital.total`, il pulsante «dai target»
+è `assumptions.weights`, quello «di oggi» è RK5 senza target. `computeSimulatedCapital` resta per Impostazioni
+(le classi detenute) e come mattone interno.
+
+**RK8 — Patrimonio di contesto.** `patrimonio` = `calculateTotalValue(assets)` (il totale della pagina Patrimonio).
+`fuori` = Immobili, Crypto, liquidità da investire non usata `(1 − q/100)·L`, altri esclusi; più i fondi pensione
+bloccati, dichiarati come oggi dal vincolo.
+
+### 11.6 Cosa vede l'utente
+
+- **Parametri del Calcolatore**: un campo «Liquidità da investire» in percentuale accanto a «Spesa del piano»,
+  anteprima fino a «Salva» come la spesa. Sotto: «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il
+  target 15.000 €): ne entrano 30.000 € nei pesi target». Con `L = 0` il campo non c'è e la riga dice «Nessuna
+  liquidità fuori dal portafoglio».
+- **Riga «Ipotesi usate»** (le sei schede): «· capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da
+  investire; fuori: Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €)». Con `q = 0`: «capitale 400.000 €
+  (portafoglio; fuori: …)». Il patrimonio totale si legge nel tooltip «Come si calcola» della riga, non nel testo.
+- **Monte Carlo e Proiezione**, tile Parametri: la stessa scomposizione sotto «Capitale iniziale» al posto
+  dell'elenco «Fuori» di oggi.
+- **Impostazioni › Parametri del piano**: riga «Liquidità da investire» «50%» (o «0% · predefinita»), sola lettura,
+  il collegamento al Calcolatore come le altre.
+
+### 11.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-P1 | **Presa** (04/10/2026) | **Portafoglio** = gli strumenti inclusi o bloccati in Allocazione nelle sette classi, con la Liquidità fino al suo target (RK1–RK2). **Patrimonio** = tutto. | Esclusioni a mano scheda per scheda (un secondo posto dove dire cosa è portafoglio); `K` di oggi (ignora `allocationRole`, il difetto). |
+| D-P2 | **Presa** (04/10/2026) | Calcolatore, Coast, What If, Monte Carlo (con Spesa sostenibile) e Proiezione partono dal capitale di RK4; il patrimonio è dichiarato, mai simulato. Obiettivi tiene gli strumenti assegnati. | Patrimonio intero (simula soldi fermi come investiti, o diluisce i pesi); solo portafoglio senza quota (la liquidità che si sta per investire sparisce e l'anno FIRE si allontana). |
+| D-P3 | **Presa** (04/10/2026, proprietario) | La liquidità fuori dal portafoglio entra come **versamento iniziale nei pesi target** per una quota `q` da 0% a 100% scelta dall'utente. | Esclusa del tutto; un importo in euro invece di una percentuale (va riscritto a ogni movimento del conto). |
+| D-P4 | **Presa** (04/10/2026, proprietario) | **Liquidità da investire** = conti esclusi dall'allocazione **più** l'eccedenza oltre il target sui conti inclusi (RK3). Gli esclusi non Liquidità restano fuori. | Solo l'eccedenza dei conti inclusi (il caso del proprietario, conti esclusi, resterebbe fuori senza rimedio). |
+| D-P5 | Default dell'agente (04/10/2026) | **Quota predefinita 0%**: senza scelta conta il solo portafoglio, la liquidità esclusa si dichiara. | 100% (riproduce la cifra di oggi, cioè il difetto, finché l'utente non se ne accorge). |
+| D-P6 | Default dell'agente (04/10/2026) | **Dove**: nei Parametri del Calcolatore, salvata in `fireCashToInvestPct` (impostazioni), letta da tutte le schede; dichiarata in Impostazioni › Parametri del piano. | Impostazioni › Simulazioni (è un'ipotesi del piano come la spesa, non del mercato). |
+| D-P7 | Default dell'agente (04/10/2026) | Il versamento è all'**anno 0**, nei pesi target come il resto del capitale; nessun flusso dedicato nei motori. | Un ingresso di capitale datato (come i fondi pensione): più codice, e la data non è chiesta. |
+
+D-P5 e D-P6 sono le opzioni consigliate nel thread; il proprietario può rovesciarle prima dell'implementazione.
+
+### 11.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Esempio comune: ETF azionario 280.000 € (costo 200.000 €), ETF obbligazionario 120.000 € (costo 110.000 €),
+conto corrente incluso 15.000 €, conto deposito **escluso** 45.000 €, crypto 10.000 €, casa di residenza esclusa
+250.000 €. Target Azioni 70, Obbligazioni 30, Liquidità 0. Impostazioni di default, nessun costo (TER assenti,
+bollo spento), nessun fondo bloccato. Tolleranza: ± 0,01 € sugli importi, ± 0,0001 punti sulle percentuali.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| K1 | Oggi (prima della task), per confronto | capitale 460.000 €, pesi 63/27/10 (Azioni/Obbligazioni/Liquidità), Base 8,2891% |
+| K2 | RK1–RK3 | `N` = 400.000, `C` = 15.000, `C_in` = 0, `P` = 400.000, `X` = 15.000, `E` = 45.000, `L` = 60.000 |
+| K3 | RK4, `q` = 0 / 50 / 100 | capitale 400.000 / 430.000 / 460.000 € |
+| K4 | RK5, ogni `q` | pesi 70/30; RP1 Orso 6,5158%, Base 8,7525%, Toro 11,4278% (reale Base 5,5439%) |
+| K5 | RK2, target Liquidità 10%, conto incluso 60.000 €, niente conti esclusi | `C_in` = 44.444,44, `P` = 444.444,44, `X` = 15.555,56 |
+| K6 | RK2, Liquidità a importo fisso 20.000 €, conto incluso 60.000 € | `C_in` = 20.000, `P` = 420.000, `X` = 40.000; con `q` = 100: capitale 460.000, `w_cash` = 4,3478%, Azioni 66,9565%, Obbligazioni 28,6957% (prima di `normalise`) |
+| K7 | RK3, carta di credito esclusa −2.000 € oltre al conto deposito | `E` = 43.000, `L` = 58.000 |
+| K8 | RK6, `q` = 50 | costo fiscale 340.000 €, quota plusvalenze 90.000 / 430.000 = 20,93% (oggi 90.000 / 460.000 = 19,57%) |
+| K9 | RK6, parte liquida, `q` = 50 (ETF e conti liquidi) | 430.000 € |
+| K10 | Senza target (pesi «di oggi»), `q` = 0 | capitale 415.000 € (conto incluso dentro, deposito escluso fuori), pesi 67,47/28,92/3,61 prima di `normalise` |
+| K11 | RK7 | Monte Carlo e Proiezione seminano «Capitale iniziale» con la stessa cifra della riga «Ipotesi usate»; nessuna chiamata a `computeSimulatedCapital` nelle due schede |
+| K12 | RK8 e § 11.6, `q` = 50 | riga: «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €)», uguale nelle sei schede |
+| K13 | Round-trip | `fireCashToInvestPct` attraversa le cinque sedi (`settingsRoundTrip`); assente = 0; 0 e 100 accettati, fuori da [0, 100] rifiutato con un messaggio nei Parametri |
+| K14 | Coerenza A17 (§ 1.6) | a volatilità 0 il Ventaglio coincide con la curva Base partendo dal capitale di RK4 |
+
+I valori RP1 di K1 e K4 vengono da `/mnt/project-files/fire-simulazioni/rp1-controllo.py` (`pg`).
+
+### 11.9 Task K1 — Portafoglio e liquidità da investire (thread «impl», Sonnet 5.5)
+
+**Moduli**
+- `lib/utils/fireAssumptions.ts`: `resolveFireCapital` diventa RK1–RK6 e riceve target effettivi e `q`; `FireCapital`
+  aggiunge `portfolio` (`P`), `cashToInvest` (`{ total: L, used: q·L, pct: q, excludedAccounts: E, overTarget: X }`),
+  `netWorth` (RK8), `outside.cash` e `outside.otherExcluded`. `resolveFireWeights` usa RK5 (una funzione nuova in
+  `monteCarloWeights.ts`, per esempio `weightsForFireCapital`; `seedWeightsFromTargets` resta per i suoi test e per
+  Impostazioni se servisse). `resolveClassCosts` riceve le quote `s_a`.
+- `lib/utils/fireAssumptionsNarrative.ts`: `describeCapital` come § 11.6.
+- `components/fire-simulations/FireParametri.tsx` + `FireCalculatorTab.tsx`: il campo, anteprima e «Salva» come
+  `plannedExpenses`.
+- `MonteCarloTab.tsx`, `ProjectionTab.tsx`: RK7, il tile Parametri come § 11.6.
+- Impostazioni: `fireCashToInvestPct` nelle cinque sedi (`doc/guide/impostazioni.md` § Settings — the FIVE places),
+  riga in «Parametri del piano» (`describePlanParameters`).
+
+**Test** — `__tests__/fireAssumptions.test.ts`: K2–K10, K14; `fireAssumptionsNarrative.test.ts`: K12;
+`settingsRoundTrip.test.ts`: K13; i test esistenti di Monte Carlo, Proiezione e Calcolatore che fissano un capitale
+con strumenti esclusi si aggiornano dichiarandolo nella PR.
+
+**Documentazione** (stessa PR): `doc/guide/fire.md` (capitale e quota, blind spot: la liquidità esclusa non conta a
+0%), `fire-monte-carlo.md`, `fire-proiezione.md`, `doc/guide/impostazioni.md` (la riga nuova), `doc/montecarlo/README.md`
+(nota su R6: `E_c` non si usa più nelle schede FIRE), `CLAUDE.md`, `doc/guide/fork-scelte-ui.md`,
+`Draft Release Temp.md`.
+
+**Criterio di fine**: K1–K14 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+`TZ=Europe/Rome npx vitest run`. Le spec Playwright di FIRE (`e2e/fire*.spec.ts`, Monte Carlo, Proiezione) e la
+verifica sui dati reali (`npm run mirror:seed`) si fanno in un thread sul computer del proprietario: la riga «Ipotesi
+usate» e il capitale cambiano per ogni account con strumenti esclusi.
+
+### 11.10 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Con quota 0% l'anno FIRE si allontana di colpo per chi ha liquidità esclusa. | La riga dichiara la liquidità fuori e il campo è nei Parametri; nota nelle note di rilascio. |
+| `allocationRole` usato ora fuori da Allocazione cambia anche Coast e What If. | È lo scopo (D-P2); la guida di `types/assets.ts` sui tre ruoli si aggiorna («FIRE: excluded è fuori dal portafoglio»). |
+| Merge con upstream su `monteCarloWeights.ts` e sulle schede. | Funzione nuova accanto a `seedWeightsFromTargets`, che resta; voce in `fork-scelte-ui.md`. |
+| Due capitali di nuovo, se una scheda ricalcola. | RK7 e K11: le schede leggono solo `assumptions.capital`. |
