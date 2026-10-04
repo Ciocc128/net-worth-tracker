@@ -22,6 +22,7 @@ import type { FireLock } from '@/lib/utils/fireSummary';
 import type { ResolvedMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
 import { MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS, type MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
+import type { SustainableSpendingSummary, SustainableWithdrawal } from '@/lib/utils/sustainableWithdrawal';
 import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type PlanStatePension, type PlanWithdrawalTax, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ export interface MonteCarloVerdictInput {
   lock: FireLock;
   /** With leverage above 1: the Base run again without it, on the same shocks (D11); null otherwise. */
   unleveragedSuccessRate?: number | null;
+  /** S1: the Base 90% sustainable withdrawal of the last run and the withdrawal that run was typed with; null = not computed. */
+  sustainable?: { base90: SustainableWithdrawal; capital: number; typedWithdrawal: number } | null;
 }
 
 /** «1,5×» / «1,32×»: the leverage as the page prints it, two decimals at most. */
@@ -125,6 +128,28 @@ function outcomesClause(run: MonteCarloRun): Narrative {
   return [...median, prose(', e anche nel 10% peggiore chiudi con almeno '), amount(run.finalPercentiles.p10)];
 }
 
+/**
+ * S1, three forms and no tone (a proposal, not a judgement): the withdrawal that keeps the plan at 90%.
+ *  ≤ W90 → « Per restare al 90% potresti prelevare fino a 43.300 € l'anno di oggi (3.608 € al mese), il 4,3% del capitale.»
+ *  > W90 → « Per tornare al 90% il prelievo dovrebbe scendere a 43.300 € l'anno di oggi (il 4,3% del capitale).»
+ *  null  → « Con questa leva nessun prelievo arriva al 90%: ...»
+ */
+function sustainableSentence(input: MonteCarloVerdictInput['sustainable']): Narrative {
+  if (!input) return [];
+  const { base90, typedWithdrawal } = input;
+  if (base90.withdrawal === null || base90.rate === null) {
+    return [prose(' Con questa leva nessun prelievo arriva al 90%: in più di una simulazione su dieci la leva azzera il capitale da sola.')];
+  }
+  if (base90.withdrawal === 0) {
+    return [prose(' Nemmeno un prelievo di '), amount(100), prose(" l'anno di oggi arriva al 90%.")];
+  }
+  const rate: Narrative = [figure(ratePct(base90.rate * 100))];
+  if (typedWithdrawal <= base90.withdrawal) {
+    return [prose(" Per restare al 90% potresti prelevare fino a "), amount(base90.withdrawal), prose(" l'anno di oggi ("), amount(base90.withdrawal / 12), prose(' al mese), il '), ...rate, prose(' del capitale.')];
+  }
+  return [prose(' Per tornare al 90% il prelievo dovrebbe scendere a '), amount(base90.withdrawal), prose(" l'anno di oggi (il "), ...rate, prose(' del capitale).')];
+}
+
 /** « Nello scenario orso regge nel 61,5% dei casi, nel toro nel 96,8%.» */
 function scenariosSentence(scenarios: ScenarioComparison | null): Narrative {
   if (!scenarios) return [];
@@ -166,7 +191,7 @@ export function buildMonteCarloVerdict(input: MonteCarloVerdictInput): PageVerdi
   return {
     headline,
     tone: resolveSuccessTone(run.successRate),
-    sentence: [...opening, ...horizonClause(run), prose('; '), ...outcomesClause(run), prose('.'), ...leverageSentence(run, input.unleveragedSuccessRate), ...scenariosSentence(input.scenarios), ...bridgeSentence(input.lock)],
+    sentence: [...opening, ...horizonClause(run), prose('; '), ...outcomesClause(run), prose('.'), ...leverageSentence(run, input.unleveragedSuccessRate), ...sustainableSentence(input.sustainable), ...scenariosSentence(input.scenarios), ...bridgeSentence(input.lock)],
   };
 }
 
@@ -330,6 +355,51 @@ export function describeScenarioNote(row: ScenarioRunSummary): Narrative {
 export function scenarioLabel(key: ScenarioRunSummary['key']): string {
   const name = SCENARIO_NAMES[key];
   return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+// ─── Spesa sostenibile (S1) ───────────────────────────────────────────────────
+
+export const SPESA_ASIDE = "euro di oggi, l'anno";
+
+/** «In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nell'orso 33.700 €.» */
+export function describeSpesaSostenibile(summary: SustainableSpendingSummary, horizonYears: number): Narrative {
+  const row = summary.rows.find((candidate) => candidate.probability === 0.9);
+  if (!row) return [];
+  if (row.base.withdrawal === null) {
+    return [prose('Con questa leva nessun prelievo fa reggere il piano in 9 simulazioni su 10: la leva azzera il capitale da sola.')];
+  }
+  const bear: Narrative = row.bear.withdrawal === null ? [prose("nell'orso nessun prelievo basta")] : [prose("nell'orso "), amount(row.bear.withdrawal)];
+  return [
+    prose('In 9 simulazioni su 10 il capitale regge '),
+    figure(years(horizonYears)),
+    prose(' prelevando fino a '),
+    amount(row.base.withdrawal),
+    prose(" l'anno di oggi; "),
+    ...bear,
+    prose('.'),
+  ];
+}
+
+export const SPESA_FOOTER: Narrative = [
+  prose('Prelievo fisso rivalutato con l\'inflazione, sugli stessi percorsi della simulazione: capitale, pesi, pensioni e tasse del piano.'),
+];
+
+/** The «Come si calcola» paragraphs. */
+export const SPESA_METHOD: string[] = [
+  'Per ogni scenario i rendimenti dei percorsi sono quelli della simulazione, estratti una volta: per ogni prelievo provato si rifà solo il conto dei prelievi, anno per anno, con inflazione, pensioni di Stato e tassa del piano.',
+  'La cifra è il prelievo più alto, a multipli di 100 €, con cui il capitale arriva alla fine in almeno l\'80, il 90 o il 95% dei percorsi. Il seme è fisso: la cifra è stabile, non esatta, perché con 10.000 simulazioni un altro seme la sposterebbe di circa l\'1–2%.',
+  'Se la leva azzera il capitale in più di una simulazione su cinque (all\'80%), dieci (al 90%) o venti (al 95%), nessun prelievo basta per quel livello e la cella dice «nessun prelievo».',
+];
+
+/** A cell of the table: «43.300 €» / «nessun prelievo». */
+export function describeSpesaCell(cell: SustainableWithdrawal): string {
+  return cell.withdrawal === null ? 'nessun prelievo' : formatAmount(cell.withdrawal);
+}
+
+/** «3.608 € al mese · 4,3% del capitale» next to the hero. */
+export function describeSpesaHeroAside(cell: SustainableWithdrawal): string | null {
+  if (cell.withdrawal === null || cell.rate === null) return null;
+  return `${formatAmount(cell.withdrawal / 12)} al mese · ${ratePct(cell.rate * 100)} del capitale`;
 }
 
 // ─── Parametri ────────────────────────────────────────────────────────────────

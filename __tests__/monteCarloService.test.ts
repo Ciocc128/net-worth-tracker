@@ -14,9 +14,13 @@ vi.mock('@/lib/services/snapshotService', () => ({}));
 import {
   runMonteCarloSimulation,
   runAccumulationSimulation,
+  countSuccesses,
   type AccumulationSimulationParams,
 } from '@/lib/services/monteCarloService';
 import { calculateFIREProjection, getDefaultScenarios, resolveFanFireTargets, resolveFireRequirement } from '@/lib/services/fireService';
+import { solveForRun, SUSTAINABLE_PROBABILITIES } from '@/lib/utils/sustainableWithdrawal';
+import { getDefaultMonteCarloMarket, getDefaultMonteCarloCorrelations } from '@/lib/constants/monteCarloMarketDefaults';
+import { MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import type { MonteCarloMarketScenario, MonteCarloParams } from '@/types/assets';
 import { monteCarloClassRecord, type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
@@ -818,5 +822,50 @@ describe('annualCostRate (RC4, doc/fire-ipotesi § 9)', () => {
     const gross = runAccumulationSimulation({ ...base, random: createSeededRandom(3) });
     const net = runAccumulationSimulation({ ...base, annualCostRate: 0.5, random: createSeededRandom(3) });
     gross.paths.forEach((path, index) => expect(net.paths[index][10].value).toBeLessThan(path[10].value));
+  });
+});
+
+describe('S4–S5 — the sustainable withdrawal on the seeded default plan', () => {
+  // Default Impostazioni › Simulazioni, 60/40, 1.000.000 €, 30 years, 10.000 paths, MONTE_CARLO_SEED, no costs.
+  const defaults = getDefaultMonteCarloMarket();
+  const plan = (key: 'bear' | 'base' | 'bull', annualWithdrawal = 0): MonteCarloParams => ({
+    portfolioSource: 'custom',
+    initialPortfolio: 1_000_000,
+    retirementYears: 30,
+    weights: monteCarloClassRecord((cls) => (cls === 'equity' ? 60 : cls === 'bonds' ? 40 : 0)),
+    annualWithdrawal,
+    withdrawalAdjustment: 'inflation',
+    market: defaults.scenarios[key],
+    correlations: getDefaultMonteCarloCorrelations(),
+    numberOfSimulations: 10_000,
+    random: createSeededRandom(MONTE_CARLO_SEED),
+  });
+  const reference = {
+    bear: [38_500, 33_700, 30_100],
+    base: [49_800, 43_300, 38_500],
+    bull: [66_100, 57_500, 51_100],
+  } as const;
+
+  it('S4: the nine figures sit within ±2% of the 400.000-path reference', { timeout: 60_000 }, () => {
+    for (const key of ['bear', 'base', 'bull'] as const) {
+      const params = plan(key);
+      const result = runMonteCarloSimulation(params, { keepFactors: true });
+      SUSTAINABLE_PROBABILITIES.forEach((probability, index) => {
+        const solved = solveForRun({ factors: result.factors!, params }, probability);
+        // ±2% is the spec's band; at 10.000 paths the measured sampling error on Base 90% is ±800 €.
+        expect(Math.abs(solved.withdrawal! - reference[key][index]) / reference[key][index]).toBeLessThan(0.02);
+      });
+    }
+  });
+
+  it('S5: Base 90% holds at W and fails at W + 100, and the replay equals a fresh run for any W', { timeout: 60_000 }, () => {
+    const params = plan('base');
+    const result = runMonteCarloSimulation(params, { keepFactors: true });
+    const { withdrawal } = solveForRun({ factors: result.factors!, params }, 0.9);
+    expect(runMonteCarloSimulation({ ...plan('base', withdrawal!) }).successRate).toBeGreaterThanOrEqual(90);
+    expect(runMonteCarloSimulation({ ...plan('base', withdrawal! + 100) }).successRate).toBeLessThan(90);
+    for (const w of [0, 20_000, 43_300, 60_000, 120_000]) {
+      expect(countSuccesses(result.factors!, 10_000, params, w)).toBe(runMonteCarloSimulation(plan('base', w)).successCount);
+    }
   });
 });

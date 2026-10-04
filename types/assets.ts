@@ -633,6 +633,8 @@ export interface MonteCarloResults {
     to: number;
   }[];
   simulations: SingleSimulationResult[];
+  /** RS1: the gross capital factor of every path and year (`numberOfSimulations × retirementYears`, row per path), only with `keepFactors`. */
+  factors?: Float64Array;
 }
 
 // Monte Carlo Scenario Types
