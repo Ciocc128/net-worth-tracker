@@ -416,7 +416,7 @@ const honest = (overrides: Partial<FireTargetHonest> = {}): FireTargetHonest => 
 });
 
 describe('describeBase with the honest inputs', () => {
-  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, outsideCapital: { realestate: 0, crypto: 0 }, planExpensesOrigin: 'cashflow' as const };
+  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, outsideCapital: { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 }, planExpensesOrigin: 'cashflow' as const };
 
   it('names the pension and the tax inside the number', () => {
     expect(plain(describeBase({ ...base, honest: honest() }))).toBe(
@@ -472,7 +472,7 @@ describe('the honest clauses on the Traguardo and the verdict', () => {
 });
 
 describe('describeBase', () => {
-  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, outsideCapital: { realestate: 0, crypto: 0 }, planExpensesOrigin: 'cashflow' as const };
+  const base = { netWorth: 412_500, annualExpenses: 27_600, monthlyExpenses: 2_300, annualSavings: 22_200, monthlySavings: 1_850, swr: 4, referenceYear: 2025, isAnnualized: false, outsideCapital: { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 }, planExpensesOrigin: 'cashflow' as const };
 
   it('reads the three inputs of the number', () => {
     expect(plain(describeBase(base))).toBe('Calcolato su 412.500 € di capitale, spese di 27.600 € l\'anno e un SWR del 4%.');
@@ -485,7 +485,7 @@ describe('describeBase', () => {
   });
 
   it('footer: where the capital comes from and where the settings live (D4, D5)', () => {
-    expect(plain(describeBaseFooter())).toBe('Il capitale è quello delle sette classi di Impostazioni › Simulazioni; SWR, spesa del piano e regola RITA si modificano in Parametri.');
+    expect(plain(describeBaseFooter())).toBe('Il capitale è il portafoglio più la liquidità da investire che scegli in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.');
   });
 });
 

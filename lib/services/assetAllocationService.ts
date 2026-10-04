@@ -88,7 +88,7 @@ function serializeIdealAllocation(
 /**
  * Get allocation settings for a user
  *
- * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses,
+ * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses, fireCashToInvestPct,
  * coastFireRetirementAge, coastFirePensions, coastFireTaxBrackets,
  * includePrimaryResidenceInFIRE, dividendIncomeCategoryId, dividendIncomeSubCategoryId,
  * transferFeeCategoryId, transferFeeSubCategoryId
@@ -118,6 +118,7 @@ export async function getSettings(
       riskFreeRate: data.riskFreeRate,
       withdrawalRate: data.withdrawalRate,
       plannedAnnualExpenses: data.plannedAnnualExpenses,
+      fireCashToInvestPct: data.fireCashToInvestPct,
       coastFireRetirementAge: data.coastFireRetirementAge,
       coastFireCustomExpenses: data.coastFireCustomExpenses,
       coastFirePensions: data.coastFirePensions,
@@ -238,6 +239,9 @@ export async function setSettings(
         } else {
           delete docData.plannedAnnualExpenses;
         }
+      }
+      if (settings.fireCashToInvestPct !== undefined) {
+        docData.fireCashToInvestPct = settings.fireCashToInvestPct;
       }
       if (settings.coastFireRetirementAge !== undefined) {
         docData.coastFireRetirementAge = settings.coastFireRetirementAge;
@@ -463,6 +467,9 @@ export async function setSettings(
       if ('plannedAnnualExpenses' in settings) {
         docData.plannedAnnualExpenses =
           settings.plannedAnnualExpenses !== undefined ? settings.plannedAnnualExpenses : deleteField();
+      }
+      if (settings.fireCashToInvestPct !== undefined) {
+        docData.fireCashToInvestPct = settings.fireCashToInvestPct;
       }
       if (settings.coastFireRetirementAge !== undefined) {
         docData.coastFireRetirementAge = settings.coastFireRetirementAge;

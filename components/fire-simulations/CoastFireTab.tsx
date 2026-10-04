@@ -336,7 +336,7 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
       withdrawalRate={withdrawalRate}
       currentNetWorth={currentNetWorth}
       liquidNetWorth={liquidNetWorth}
-      outsideCapital={capital?.outside ?? { realestate: 0, crypto: 0 }}
+      outsideCapital={capital?.outside ?? { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 }}
       lockSubtracted={pensionLockedValue > 0}
     />
   );

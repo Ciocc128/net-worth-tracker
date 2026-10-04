@@ -3,14 +3,13 @@
 /**
  * The Allocazione block shared by the Monte Carlo and the Proiezione Parametri tiles: the sum of
  * the seven weights (leverage above 100%), where they come from (R6), the two seeds
- * («Usa i target», «Importa il portafoglio di oggi»), the seven fields and what stays outside the
- * simulated capital. Controlled: the owning tab keeps the form as strings, so a field can hold «22.»
+ * («Usa i target», «Importa il portafoglio di oggi»), the seven fields. Controlled: the owning tab keeps the form as strings, so a field can hold «22.»
  * while typing.
  */
 
-import type { MonteCarloClass, MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
+import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
-import { describeAllocationTotal, describeExcludedRow, describeWeightsSource, resolveAllocationTotalState, type WeightsOrigin } from '@/lib/utils/monteCarloNarrative';
+import { describeAllocationTotal, describeWeightsSource, resolveAllocationTotalState, type WeightsOrigin } from '@/lib/utils/monteCarloNarrative';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,18 +29,15 @@ interface WeightsFieldsProps {
   hasTargets: boolean;
   onUseTargets?: () => void;
   onImportHoldings?: () => void;
-  /** EUR of real estate and crypto, left outside the simulated capital; null while unread. */
-  excluded: Record<MonteCarloExcludedClass, number> | null;
   /** Prefix of the fields' ids («mc-weight» keeps the Monte Carlo's). */
   idPrefix?: string;
 }
 
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 
-export function WeightsFields({ weights, onWeightsChange, allocationSum, weightsOrigin, leverage, hasTargets, onUseTargets, onImportHoldings, excluded, idPrefix = 'mc-weight' }: WeightsFieldsProps) {
+export function WeightsFields({ weights, onWeightsChange, allocationSum, weightsOrigin, leverage, hasTargets, onUseTargets, onImportHoldings, idPrefix = 'mc-weight' }: WeightsFieldsProps) {
   const totalState = resolveAllocationTotalState(allocationSum);
   const allocationOff = totalState === 'below' || totalState === 'above';
-  const excludedRow = describeExcludedRow(excluded);
 
   return (
     <div>
@@ -86,7 +82,6 @@ export function WeightsFields({ weights, onWeightsChange, allocationSum, weights
           </div>
         ))}
       </div>
-      {excludedRow && <NarrativeText segments={excludedRow} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />}
     </div>
   );
 }

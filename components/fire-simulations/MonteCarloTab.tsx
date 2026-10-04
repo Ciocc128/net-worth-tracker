@@ -41,15 +41,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getSettings } from '@/lib/services/assetAllocationService';
-import { getGoalData } from '@/lib/services/goalService';
-import { resolveEffectiveTargets } from '@/lib/utils/allocationComparison';
-import { seedWeightsFromTargets, weightsFromHoldings } from '@/lib/utils/monteCarloWeights';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
 import { calculateCoastFireNetRealAnnualPension, normalizeCoastFirePensions, normalizeCoastFireTaxBrackets } from '@/lib/services/fireService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import { computeSimulatedCapital, DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
+import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { summarizeSustainableSpending, SUSTAINABLE_VERDICT_PROBABILITY, type SustainableSpendingSummary } from '@/lib/utils/sustainableWithdrawal';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { resolveMonteCarloMarketForPortfolio } from '@/lib/utils/monteCarloMarket';
@@ -164,15 +161,6 @@ export function MonteCarloTab() {
     staleTime: 300000,
   });
 
-  // The goal-driven targets (when that mode is on) are part of the effective targets the weights are seeded from.
-  const goalDriven = !!settings?.goalBasedInvestingEnabled && !!settings?.goalDrivenAllocationEnabled;
-  const { data: goalData } = useQuery({
-    queryKey: ['goalData', ownerId],
-    queryFn: () => getGoalData(ownerId!),
-    enabled: !!user && !!ownerId && goalDriven,
-    staleTime: 300000,
-  });
-
   // ─── The pension lock (governs the whole FIRE page) ──────────────────────────
   // With the lock on, the locked funds leave the starting portfolio and re-enter the simulation
   // as capital inflows at their unlock year, at TODAY's value (doc/guide/fire.md § FIRE, What If and Goals).
@@ -200,23 +188,13 @@ export function MonteCarloTab() {
   const market = useMemo(() => resolveMonteCarloMarketForPortfolio(settings, assets), [settings, assets]);
   const scenarios = market.scenarios;
 
-  // The capital the simulation covers (rule RK): the seven classes, net of the closed pension
-  // funds; real estate and crypto stay outside and are declared under the weights.
   const lockedAssetIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  const capital = useMemo(
-    () => (assets ? computeSimulatedCapital(assets, calculateAssetValue, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null),
-    [assets, lockedAssetIds, market.goldSubCategory],
-  );
-  // The two seeds of the weights (R6): the effective targets of Allocazione (Σ above 100 = leverage), and the
-  // portfolio held today (notional, leverage included). With no targets on the modelled classes the first is null.
-  const targetSeed = useMemo(() => {
-    if (!assets) return null;
-    const { targets } = resolveEffectiveTargets({ settings, goalData: goalDriven ? goalData : null, assets });
-    return seedWeightsFromTargets(targets, assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory });
-  }, [assets, settings, goalData, goalDriven, lockedAssetIds, market.goldSubCategory]);
-  const holdingsSeed = useMemo(() => (assets ? weightsFromHoldings(assets, { lockedAssetIds, goldSubCategory: market.goldSubCategory }) : null), [assets, lockedAssetIds, market.goldSubCategory]);
   // The page's hypotheses: the weights seed the form from the SAME reading as the other tabs (D1).
   const { assumptions, isLoading: isLoadingAssumptions, isError: assumptionsError } = useFireAssumptions(lockedAssetIds, { withCashflow: true });
+  // K1 (RK7): the capital and the two seeds of the weights are the page's own reading — this tab never recomputes them.
+  const capital = assumptions?.capital ?? null;
+  const targetSeed = assumptions?.weightSeeds?.targets ?? null;
+  const holdingsSeed = assumptions?.weightSeeds?.holdings ?? null;
   const totalNetWorth = Math.max(0, capital?.total ?? 0);
   const liquidNetWorth = Math.max(0, capital?.liquid ?? 0);
 
@@ -502,7 +480,7 @@ export function MonteCarloTab() {
             totalNetWorth={totalNetWorth}
             liquidNetWorth={liquidNetWorth}
             marketDeclaration={describeMarketDeclaration(market, leverage)}
-            excluded={capital?.excluded ?? null}
+            capital={capital}
             onRun={handleRun}
             canRun={canRun}
             isRunning={isRunning}

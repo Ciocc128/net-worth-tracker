@@ -10,7 +10,8 @@
  *   RP2  `realReturn`: Fisher, `(1 + g) / (1 + π) − 1`, never the subtraction.
  *   RP3  the inflation of the scenario is the one of Impostazioni › Simulazioni.
  *   RP4  the weights: the effective targets of Allocazione (R6), else the portfolio held today.
- *   RP5  the capital: `K` of the seven classes (RK), crypto and real estate declared as «fuori» (L2, D4).
+ *   RP5  the capital: the PORTFOLIO plus the share of the cash to invest the user chose (K1, `fireCapital.ts`);
+ *        the net worth is declared, what stays out is declared, never simulated (replaces `K` of L2, D4).
  *   RP6  the expenses: the plan's (`plannedAnnualExpenses`), else the Cashflow's (L2, D5).
  *   RC   the recurring costs (TER, stamp duty) taken off the capital every year after the return, in every
  *        rate this module returns (`fireCosts.ts`, doc/fire-ipotesi § 9).
@@ -24,11 +25,10 @@ import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from
 import { resolveEffectiveTargets } from './allocationComparison';
 import { expandUpperTriangle, identityMatrix, nearestCorrelation, pairCount } from './correlationMatrix';
 import { toLogNormal } from './monteCarloDraw';
-import { computeSimulatedCapital, simulatedShare } from './monteCarloParams';
-import { resolvePortfolioTaxProfile, type WithdrawalTaxProfile } from './withdrawalTax';
+import { resolveFireCapitalDetail, type FireCapital, type FireCapitalDetail } from './fireCapital';
 import { resolveMonteCarloMarketForPortfolio, type ResolvedMonteCarloMarket } from './monteCarloMarket';
 import { realReturn } from './realReturn';
-import { seedWeightsFromTargets, weightsFromHoldings } from './monteCarloWeights';
+import { seedWeightsFromTargets, weightsForFireCapital, weightsFromHoldings, type SeededWeights } from './monteCarloWeights';
 import { portfolioCost, resolveClassCosts, type FireCosts, type PortfolioCost } from './fireCosts';
 
 export type FireScenarioKey = 'bear' | 'base' | 'bull';
@@ -43,21 +43,10 @@ export interface PortfolioScenario extends FIREScenarioParams {
   volatility: number;
 }
 
-export type FireWeightsOrigin = 'targets' | 'holdings' | 'default';
+export type { FireCapital, FireCashToInvest } from './fireCapital';
+export { resolveFireCapital } from './fireCapital';
 
-/** RP5: the capital every tab starts from. */
-export interface FireCapital {
-  /** `K`: the seven classes, the locked pension funds out. */
-  total: number;
-  /** The part of `K` held in liquid assets. */
-  liquid: number;
-  /** `K` minus its liquid part. */
-  illiquid: number;
-  /** What the plan does not count: real estate (the residence included) and crypto, EUR. */
-  outside: { realestate: number; crypto: number };
-  /** The cost basis behind `K`, for the tax on the sales; null when no instrument has one. */
-  taxProfile: WithdrawalTaxProfile | null;
-}
+export type FireWeightsOrigin = 'targets' | 'holdings' | 'default';
 
 /** RP6: the yearly spending of the plan and where the figure comes from. */
 export interface FireExpenses {
@@ -75,6 +64,8 @@ export interface FireAssumptions {
   /** Percent per class; they sum to `leverage × 100`. */
   weights: Record<MonteCarloClass, number>;
   weightsOrigin: FireWeightsOrigin;
+  /** K1 (RK7): the two seeds of the Monte Carlo and Proiezione buttons — the targets of Allocazione and the portfolio held today, both on the page's capital. Null = not available. */
+  weightSeeds?: { targets: SeededWeights | null; holdings: SeededWeights | null };
   /** `Σ weights / 100`, 1 when the weights sum to 100. */
   leverage: number;
   market: ResolvedMonteCarloMarket;
@@ -156,7 +147,7 @@ export function portfolioCompoundReturn(
 export { realReturn };
 
 export interface ResolveFireAssumptionsInput {
-  settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled' | 'plannedAnnualExpenses' | 'coastFireCustomExpenses' | 'stampDutyEnabled' | 'stampDutyRate' | 'checkingAccountSubCategory'> | null | undefined;
+  settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled' | 'plannedAnnualExpenses' | 'coastFireCustomExpenses' | 'stampDutyEnabled' | 'stampDutyRate' | 'checkingAccountSubCategory' | 'fireCashToInvestPct'> | null | undefined;
   assets: readonly Asset[] | null | undefined;
   /** The funds the pension lock keeps closed: outside the weights' base (RK). */
   lockedAssetIds?: ReadonlySet<string>;
@@ -190,53 +181,33 @@ export function resolvePlanExpenses(
 }
 
 /**
- * RP5: `K`, what stays outside it, and the cost basis behind it. A composite asset counts for the
- * share of its legs inside `K`, so its basis is scaled by the same share and the gain share stays.
+ * RP4: the weights of the page. With the capital's detail (K1, RK5): the targets of Allocazione on the portfolio, else the
+ * portfolio held today, else 60/40. Without it (no value function): the R6 seeds on the instruments held.
  */
-export function resolveFireCapital(
-  assets: readonly Asset[],
-  valueOf: (asset: Asset) => number,
-  options: { lockedAssetIds?: ReadonlySet<string>; goldSubCategory?: string | null },
-): FireCapital {
-  const simulated = computeSimulatedCapital(assets, valueOf, options);
-  const included: Asset[] = [];
-  let includedValue = 0;
-  let insideValue = 0;
-  for (const asset of assets) {
-    if (options.lockedAssetIds?.has(asset.id) || asset.quantity <= 0) continue;
-    const value = valueOf(asset);
-    const share = simulatedShare(asset);
-    if (value <= 0 || share <= 0) continue;
-    included.push(asset);
-    includedValue += value;
-    insideValue += value * share;
-  }
-  const profile = resolvePortfolioTaxProfile(included, valueOf);
-  const scale = includedValue > 0 ? insideValue / includedValue : 1;
-  return {
-    total: simulated.total,
-    liquid: simulated.liquid,
-    illiquid: Math.max(0, simulated.total - simulated.liquid),
-    outside: { realestate: simulated.excluded.realestate, crypto: simulated.excluded.crypto },
-    taxProfile: profile ? { ...profile, basisToday: profile.basisToday * scale } : null,
-  };
-}
-
-/** RP4: the weights of the page. Targets of Allocazione (R6) when they exist, else the portfolio held today, else 60/40. */
 export function resolveFireWeights(
   input: ResolveFireAssumptionsInput,
   goldSubCategory: string | null,
-): { weights: Record<MonteCarloClass, number>; origin: FireWeightsOrigin; leverage: number } {
+  detail?: FireCapitalDetail,
+): { weights: Record<MonteCarloClass, number>; origin: FireWeightsOrigin; leverage: number; seeds?: { targets: SeededWeights | null; holdings: SeededWeights | null } } {
   const assets = input.assets ?? [];
-  if (assets.length > 0) {
-    const options = { lockedAssetIds: input.lockedAssetIds, goldSubCategory };
-    const { targets } = resolveEffectiveTargets({ settings: input.settings, goalData: input.goalData, assets: [...assets] });
-    const fromTargets = seedWeightsFromTargets(targets, assets, options);
-    if (fromTargets) return { ...fromTargets, origin: 'targets' };
-    const fromHoldings = weightsFromHoldings(assets, options);
-    if (fromHoldings) return { ...fromHoldings, origin: 'holdings' };
+  const fallback = { weights: { ...DEFAULT_FIRE_WEIGHTS }, origin: 'default' as const, leverage: 1 };
+  if (assets.length === 0) return fallback;
+  const options = { lockedAssetIds: input.lockedAssetIds, goldSubCategory };
+  const { targets } = resolveEffectiveTargets({ settings: input.settings, goalData: input.goalData, assets: [...assets] });
+  if (detail) {
+    const fromTargets = weightsForFireCapital(targets, detail.weightsInput, options);
+    const targetSeed = fromTargets?.origin === 'targets' ? fromTargets : null;
+    const holdingsSeed = weightsForFireCapital(null, detail.weightsInput, options);
+    const seeds = { targets: targetSeed, holdings: holdingsSeed };
+    if (targetSeed) return { ...targetSeed, origin: 'targets', seeds };
+    if (holdingsSeed) return { ...holdingsSeed, origin: 'holdings', seeds };
+    return { ...fallback, seeds };
   }
-  return { weights: { ...DEFAULT_FIRE_WEIGHTS }, origin: 'default', leverage: 1 };
+  const fromTargets = seedWeightsFromTargets(targets, assets, options);
+  if (fromTargets) return { ...fromTargets, origin: 'targets' };
+  const fromHoldings = weightsFromHoldings(assets, options);
+  if (fromHoldings) return { ...fromHoldings, origin: 'holdings' };
+  return fallback;
 }
 
 /** The three scenarios of the page, from the weights and the resolved market. */
@@ -258,11 +229,24 @@ export function buildPortfolioScenarios(weights: Readonly<Record<MonteCarloClass
 /** The ONE call every tab of the FIRE page makes. */
 export function resolveFireAssumptions(input: ResolveFireAssumptionsInput): FireAssumptions {
   const market = resolveMonteCarloMarketForPortfolio(input.settings, input.assets ? [...input.assets] : undefined);
-  const { weights, origin, leverage } = resolveFireWeights(input, market.goldSubCategory);
-  const capital = input.assetValue && input.assets ? resolveFireCapital(input.assets, input.assetValue, { lockedAssetIds: input.lockedAssetIds, goldSubCategory: market.goldSubCategory }) : undefined;
+  const hasValues = !!input.assetValue && !!input.assets;
+  // K1: the capital reads the effective targets (RK2), so they are resolved once and shared with the weights.
+  const targets = hasValues && input.assets!.length > 0 ? resolveEffectiveTargets({ settings: input.settings, goalData: input.goalData, assets: [...input.assets!] }).targets : null;
+  const detail = hasValues
+    ? resolveFireCapitalDetail(input.assets!, input.assetValue!, {
+        lockedAssetIds: input.lockedAssetIds,
+        goldSubCategory: market.goldSubCategory,
+        targets,
+        cashToInvestPct: input.settings?.fireCashToInvestPct,
+      })
+    : undefined;
+  const { weights, origin, leverage, seeds } = resolveFireWeights(input, market.goldSubCategory, detail);
+  const capital = detail?.capital;
   const expenses = resolvePlanExpenses(input.settings, input.cashflowData) ?? undefined;
-  // RC1–RC3: the costs need the instruments' values like the capital does; without them the rates stay gross.
-  const costs = input.assetValue && input.assets ? resolveClassCosts(input.assets, input.settings, { lockedAssetIds: input.lockedAssetIds, goldSubCategory: market.goldSubCategory }) : undefined;
+  // RC1–RC3: the costs need the instruments' values like the capital does (and its shares, RK6); without them the rates stay gross.
+  const costs = detail
+    ? resolveClassCosts(input.assets!, input.settings, { lockedAssetIds: input.lockedAssetIds, goldSubCategory: market.goldSubCategory, legShare: detail.legShare })
+    : undefined;
   const cost = costs ? portfolioCost(weights, costs) : undefined;
-  return { scenarios: buildPortfolioScenarios(weights, market, cost?.total ?? 0), weights, weightsOrigin: origin, leverage, market, capital, expenses, costs, cost };
+  return { scenarios: buildPortfolioScenarios(weights, market, cost?.total ?? 0), weights, weightsOrigin: origin, weightSeeds: seeds, leverage, market, capital, expenses, costs, cost };
 }

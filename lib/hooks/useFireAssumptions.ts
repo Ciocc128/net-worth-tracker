@@ -25,8 +25,10 @@ export interface UseFireAssumptionsResult {
  * `lockedAssetIds`: the funds the pension lock keeps closed (memoise it in the caller: its identity keys the result).
  * `withCashflow`: also read the Cashflow (the SAME `['annualCashflowData', ownerId]` query the tabs make), so
  * the result carries the plan's `expenses` (RP6) — the tabs that run a plan ask for it, the Settings tile does not.
+ * `cashToInvestPct`: a PREVIEW of the share of the cash to invest (K1, RK4) typed in the Calcolatore's Parametri and not saved yet;
+ * absent = the saved one.
  */
-export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false }: { withCashflow?: boolean } = {}): UseFireAssumptionsResult {
+export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false, cashToInvestPct }: { withCashflow?: boolean; cashToInvestPct?: number } = {}): UseFireAssumptionsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
@@ -63,8 +65,8 @@ export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withC
   const cashflowData = withCashflow ? cashflowQuery.data : undefined;
   const ready = settingsQuery.isSuccess && assetsQuery.isSuccess && (!withCashflow || cashflowQuery.isSuccess);
   const assumptions = useMemo(
-    () => (ready ? resolveFireAssumptions({ settings, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
-    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData],
+    () => (ready ? resolveFireAssumptions({ settings: cashToInvestPct === undefined || !settings ? settings : { ...settings, fireCashToInvestPct: cashToInvestPct }, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
+    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData, cashToInvestPct],
   );
   return {
     assumptions,

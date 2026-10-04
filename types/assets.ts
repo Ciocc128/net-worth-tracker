@@ -124,6 +124,9 @@ export interface BondDetails {
  *  - `excluded`  — no / no. Not an investment at all: the home you live in. Out of the Allocazione
  *                  page entirely, denominator included — keeping it in would peg the realestate
  *                  class permanently off-target against an impossible-to-execute trade.
+ *                  FIRE: `excluded` is outside the portfolio the simulations start from; the cash of
+ *                  an excluded ACCOUNT is the «liquidità da investire» the user can bring in
+ *                  (`fireCashToInvestPct`, doc/fire-ipotesi/README.md § 11).
  *
  * Orthogonal to `isLiquid` (liquid vs illiquid net-worth split) and `isPrimaryResidence` (FIRE net
  * worth). Everywhere outside Allocazione — Panoramica, Storico, snapshots, FIRE, Patrimonio — all
@@ -348,6 +351,7 @@ export interface AssetAllocationSettings {
   riskFreeRate?: number;
   withdrawalRate?: number; // Safe withdrawal rate for FIRE calculations (e.g., 4.0 for 4%)
   plannedAnnualExpenses?: number; // Planned annual expenses for FIRE projections
+  fireCashToInvestPct?: number; // Share (0–100) of the cash outside the portfolio the FIRE tabs invest at year 0 on the target weights; absent = 0
   coastFireRetirementAge?: number; // Target age at which Coast FIRE should mature into the full FIRE number
   coastFireCustomExpenses?: number; // User-defined annual retirement expenses for Coast FIRE; undefined = derive from last complete year
   coastFirePensions?: CoastFirePensionInput[]; // Optional state-pension inputs used only by the Coast FIRE tab

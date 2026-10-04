@@ -16,12 +16,14 @@
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { MonteCarloClass, MonteCarloExcludedClass } from '@/lib/constants/monteCarloClasses';
+import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { formatInputAmount } from '@/lib/utils/monteCarloSummary';
 import type { WeightsOrigin } from '@/lib/utils/monteCarloNarrative';
 import { PROJECTION_MAX_YEARS } from '@/lib/utils/projectionSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
+import type { FireCapital } from '@/lib/utils/fireCapital';
+import { describeCapitalBreakdown } from '@/lib/utils/fireAssumptionsNarrative';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,7 +60,8 @@ interface ParametriTileProps {
   /** Under the threshold field. */
   thresholdHint: string;
   marketDeclaration: Narrative;
-  excluded: Record<MonteCarloExcludedClass, number> | null;
+  /** K1 (§ 11.6): the page's capital, for the line under «Capitale iniziale»; null while unread. */
+  capital: FireCapital | null;
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
@@ -88,7 +91,7 @@ export function ParametriTile({
   savingsHint,
   thresholdHint,
   marketDeclaration,
-  excluded,
+  capital,
   onRun,
   canRun,
   isRunning,
@@ -116,6 +119,7 @@ export function ParametriTile({
                 Liquido · {cachedFormatCurrencyEUR(liquidNetWorth, true)}
               </Button>
             </div>
+            {capital && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -171,7 +175,6 @@ export function ParametriTile({
             hasTargets={hasTargets}
             onUseTargets={onUseTargets}
             onImportHoldings={onImportHoldings}
-            excluded={excluded}
             idPrefix="pr-weight"
           />
 
