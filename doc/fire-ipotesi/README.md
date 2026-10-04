@@ -1018,6 +1018,12 @@ le spec Playwright del Calcolatore (`e2e/fire*.spec.ts`) si eseguono in un threa
 tile nuovo cambia una misura (la guardia a 390 px). Collaudo su anteprima Vercel: il tile nei tre casi (serve
 risparmio, già in rotta, Coast), «Usa» che cambia l'SWR in anteprima, l'età salvata letta da Coast.
 
+**Esito E1 (04/10/2026, thread «impl»)** — Implementata come da spec; scelte di default dell'agente:
+- Il tile «Età obiettivo» e l'SWR personale leggono l'età **digitata** nei Parametri (anteprima fino a «Salva», un'età non valida ricade sulla salvata), come SWR e spesa del piano; la spec diceva «salvata» solo per l'SWR personale.
+- Tempi misurati sul container cloud: RS8 ≈ 0,4 s (1.000 percorsi, 30 anni, ~14 esecuzioni), RS5 ≈ 0,4 s a 30 anni e ≈ 0,65 s a 60: oltre i 150 ms della spec, quindi entrambi su `useDeferredValue` (il pannello e il campo si aggiornano subito, le cifre seguono).
+- RS8 richiede l'età obiettivo entro l'orizzonte del Ventaglio (40 anni): oltre, la cifra è «—».
+- Senza `onOpenCoast` (la pagina lo passa) il tile senza età non offre il collegamento; la scheda Coast si apre con lo stato locale della pagina, non con un `?tab=`.
+
 ### 10.11 Rischi
 
 | Rischio | Mitigazione |

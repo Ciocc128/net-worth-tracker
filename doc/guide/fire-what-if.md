@@ -51,4 +51,6 @@
 
 ## Per-page blind spots
 
+- **The age it reads is the page's** (E1, 2026-10-04): the Coast block's target age (`coastFireRetirementAge`) can now also be written from the Calcolatore's Parametri; nothing changes here, the field is the same.
+
 - **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation, nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; the Sensibilità reference expenses are session-only; `isPrimaryResidence` is informational.
