@@ -14,6 +14,7 @@ import { GOAL_TEST_ASSUMPTIONS as ASSUMPTIONS } from './goalAssumptionsFixture';
 import {
   goalAnnualReturn,
   futureValue,
+  monthlyRate,
   requiredMonthlyContribution,
   monthsToReach,
   computeGoalTrajectory,
@@ -84,9 +85,10 @@ describe('futureValue', () => {
   });
 
   it('compounds the starting balance and contributions', () => {
-    // PV 10000 @ 6%/yr for 12 months, no contribution → 10000 * 1.005^12
-    const expected = 10000 * Math.pow(1.005, 12);
+    // PV 10000 @ 6%/yr for 12 months, no contribution → exactly 6% (RO3, the equivalent monthly rate).
+    const expected = 10000 * Math.pow(1 + monthlyRate(6), 12);
     expect(futureValue(10000, 0, 6, 12)).toBeCloseTo(expected, 4);
+    expect(expected).toBeCloseTo(10600, 6);
   });
 });
 
@@ -365,5 +367,35 @@ describe('goalAnnualReturn — recurring costs (RC5, C10)', () => {
 
   it('without costs the return is the gross one (A14)', () => {
     expect(goalAnnualReturn({ equity: 80, bonds: 20 }, ASSUMPTIONS).rate).toBeCloseTo(9.2079, 3);
+  });
+});
+
+// ==================== RO3: the equivalent monthly rate (G9) ====================
+
+describe('RO3 — tasso mensile equivalente (G9)', () => {
+  it('twelve months earn exactly the declared annual return', () => {
+    expect(futureValue(10_000, 0, 6, 12)).toBeCloseTo(10_600, 2);
+  });
+
+  it('futureValue(20.000, 600, 5%, 36) = 46.366,08', () => {
+    expect(futureValue(20_000, 600, 5, 36)).toBeCloseTo(46_366.08, 2);
+  });
+
+  it('requiredMonthlyContribution(20.000 → 50.000, 5%, 36) = 693,93', () => {
+    expect(requiredMonthlyContribution(20_000, 50_000, 5, 36)).toBeCloseTo(693.93, 2);
+  });
+
+  it('monthsToReach(20.000 → 50.000, 600, 5%) = 41', () => {
+    expect(monthsToReach(20_000, 50_000, 600, 5)).toBe(41);
+  });
+
+  it('a zero return is unchanged', () => {
+    expect(futureValue(1_000, 100, 0, 10)).toBe(2_000);
+    expect(requiredMonthlyContribution(1_000, 2_000, 0, 10)).toBe(100);
+  });
+
+  it('the chart series and the future value agree', () => {
+    const series = buildGoalProjectionSeries({ currentValue: 20_000, targetAmount: 50_000, monthlyContribution: 600, annualReturn: 5, targetDate: dateInMonths(36), now: NOW });
+    expect(series[series.length - 1].value).toBe(Math.round(futureValue(20_000, 600, 5, series[series.length - 1].monthIndex)));
   });
 });

@@ -28,7 +28,10 @@ import {
   describeAssegnazioniAside,
   describeAssegnazioniFooter,
   describeGoalCaption,
+  describeGoalProbability,
   describeGoalStatus,
+  describeIncertezza,
+  describeIncertezzaMetodo,
   describeMilestone,
   describeMilestoneNote,
   describeObiettivi,
@@ -61,6 +64,7 @@ function line(overrides: Partial<GoalLine>): GoalLine {
     requiredMonthly: null,
     projectedDate: null,
     monthsToTarget: null,
+    probability: null,
     ...overrides,
   };
 }
@@ -297,6 +301,7 @@ function trajectory(overrides: Partial<TrajectoryView>): TrajectoryView {
       { assetClass: 'cash', label: 'Liquidità', pct: 10 },
     ],
     series: [],
+    uncertainty: null,
     ...overrides,
   };
 }
@@ -478,5 +483,52 @@ describe('describeVersamento', () => {
   it('asks for an amount, or says that nothing is left to fill', () => {
     expect(plain(describeVersamento([], 0))).toBe('Inserisci un importo per vedere come ripartirlo tra gli obiettivi sotto target.');
     expect(plain(describeVersamento([], 500))).toBe('Nessun obiettivo con un importo ancora da colmare: i 500 € non hanno una destinazione.');
+  });
+});
+
+// ─── Incertezza (RO5–RO7, § 13.7) ─────────────────────────────────────────────
+
+const METHOD = { paths: 10_000, cagr: 5.5, volatility: 10, netOfCosts: true };
+const dateOf = (months: number) => ({ year: 2026 + Math.floor((9 + months) / 12), month: ((9 + months) % 12) + 1 });
+const lines = (t: TrajectoryView) => describeIncertezza(t, dateOf).map((l) => plain(l));
+
+describe('describeIncertezza', () => {
+  const dated = (detail: NonNullable<Extract<NonNullable<TrajectoryView['uncertainty']>, { kind: 'dated' }>['detail']>['contribution'] | null, probability = 0.72) =>
+    trajectory({
+      uncertainty: { kind: 'dated', probability, method: METHOD, detail: detail ? { percentiles: [], atDeadline: null, contribution: detail } : null },
+    });
+
+  it('the probability of arriving by the deadline, whole', () => {
+    expect(lines(dated(null))).toEqual(['Probabilità di arrivarci entro giugno 2029: 72%']);
+    expect(lines(dated(null, 0.3550))).toEqual(['Probabilità di arrivarci entro giugno 2029: 36%']);
+  });
+
+  it('what it takes for 9 cases in 10', () => {
+    expect(lines(dated({ kind: 'amount', value: 700 }))[1]).toBe('In 9 casi su 10 bastano 700 € al mese (oggi 700 €).');
+    expect(lines({ ...dated({ kind: 'amount', value: 700 }), plannedMonthly: 600 })[1]).toBe('In 9 casi su 10 bastano 700 € al mese (oggi 600 €).');
+    expect(lines({ ...dated({ kind: 'amount', value: 700 }), plannedMonthly: 0 })[1]).toBe('In 9 casi su 10 bastano 700 € al mese (oggi non versi nulla).');
+    expect(lines(dated({ kind: 'enough' }))[1]).toBe('Al ritmo di oggi ci arrivi in 9 casi su 10.');
+    expect(lines(dated({ kind: 'over' }))[1]).toBe('Per arrivarci in 9 casi su 10 servono oltre 1.000.000 € al mese.');
+  });
+
+  it('without a deadline: the arrival months', () => {
+    const arrival = (medianMonths: number | null, p90Months: number | null) => trajectory({ deadline: null, monthsToDeadline: null, uncertainty: { kind: 'arrival', arrival: { medianMonths, p90Months }, method: METHOD } });
+    expect(lines(arrival(53, 72))).toEqual(['Ci arrivi a marzo 2031 nella metà dei casi, ad ottobre 2032 in 9 su 10.']);
+    expect(lines(arrival(41, 41))).toEqual(['Ci arrivi a marzo 2030 nella metà dei casi e in 9 su 10.']);
+    expect(lines(arrival(53, null))).toEqual(['Ci arrivi a marzo 2031 nella metà dei casi, ma non entro 50 anni in 9 su 10.']);
+    expect(lines(arrival(null, null))).toEqual(['Non ci arrivi entro 50 anni nemmeno nella metà dei casi.']);
+  });
+
+  it('a portfolio with no defined return says so, and nothing applies without a reading', () => {
+    expect(lines(trajectory({ uncertainty: { kind: 'unavailable' } }))).toEqual(['Rendimento non definito per questi pesi: nessuna stima di probabilità.']);
+    expect(lines(trajectory({}))).toEqual([]);
+  });
+
+  it('the method note and the row probability', () => {
+    expect(plain(describeIncertezzaMetodo(METHOD))).toBe('10.000 simulazioni mensili sullo scenario Base: rendimento 5,5% composto, volatilità 10% l\'anno, al netto dei costi.');
+    expect(plain(describeIncertezzaMetodo({ ...METHOD, netOfCosts: false }))).toBe('10.000 simulazioni mensili sullo scenario Base: rendimento 5,5% composto, volatilità 10% l\'anno.');
+    expect(describeGoalProbability(line({ probability: 0.355 }))).toBe('36%');
+    expect(describeGoalProbability(line({ probability: null }))).toBeNull();
+    expect(plain(describeTraiettoriaFooter(dated(null)))).toContain('10.000 simulazioni mensili');
   });
 });

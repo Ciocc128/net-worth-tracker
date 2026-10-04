@@ -25,6 +25,8 @@ export interface ObiettiviRow {
   line: GoalLine;
   caption: Narrative;
   status: Narrative | null;
+  /** RO5: «35%», the probability of reaching the target by the deadline; null where no reading applies. */
+  probability?: string | null;
 }
 
 interface ObiettiviTileProps {
@@ -83,6 +85,12 @@ function GoalRow({ row, featured, selected, onSelect }: { row: ObiettiviRow; fea
         <NarrativeText segments={row.caption} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-[1.4] text-muted-foreground">
           <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-[1.3]', verdict.chipClass)}>{verdict.label}</span>
+          {row.probability && (
+            <span className="text-muted-foreground" title="Probabilità di arrivarci entro la scadenza">
+              · <span className="font-mono font-medium tabular-nums">{row.probability}</span>
+              <span className="sr-only"> di probabilità di arrivarci entro la scadenza</span>
+            </span>
+          )}
           {row.status && <NarrativeText segments={row.status} className="inline" figureClassName="font-medium" />}
         </span>
       </button>

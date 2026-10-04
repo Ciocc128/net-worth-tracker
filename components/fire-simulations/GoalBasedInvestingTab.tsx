@@ -42,7 +42,8 @@ import { getSettings } from '@/lib/services/assetAllocationService';
 import { getAllAssets } from '@/lib/services/assetService';
 import { calculateGoalProgress, cleanOrphanedAssignments, getGoalData, saveGoalData } from '@/lib/services/goalService';
 import type { GoalAssetAssignment, GoalBasedInvestingData, InvestmentGoal } from '@/types/goals';
-import { computeGoalTrajectory, type GoalRow } from '@/lib/utils/goalTrajectory';
+import { addGoalMonths, computeGoalTrajectory, type GoalRow } from '@/lib/utils/goalTrajectory';
+import { computeGoalUncertainty } from '@/lib/utils/goalUncertainty';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
@@ -50,7 +51,7 @@ import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { goalFireEffect, goalFireNarrative } from '@/lib/utils/goalFire';
 import { assetInsideShare } from '@/lib/utils/datedFlows';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
-import { buildMilestones, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues } from '@/lib/utils/goalsSummary';
+import { buildMilestones, summarizeAssignments, summarizeDerivedAllocation, summarizeGoals, summarizeTrajectory, sumAssetValues, goalDateFromDate, withUncertainty } from '@/lib/utils/goalsSummary';
 import {
   ALLOCAZIONE_DERIVATA_ASIDE,
   ALLOCAZIONE_DERIVATA_FOOTER,
@@ -61,6 +62,8 @@ import {
   describeAssegnazioniAside,
   describeAssegnazioniFooter,
   describeGoalCaption,
+  describeGoalProbability,
+  describeIncertezza,
   describeGoalStatus,
   describeMilestone,
   describeMilestoneNote,
@@ -192,13 +195,50 @@ export function GoalBasedInvestingTab() {
     [goals, goalProgressList, assumptions, now],
   );
 
+  // § 13, RO5: the probability of every dated goal (a light reading: no band, no solver) — it does not depend on the selection.
+  const goalProbabilities = useMemo(() => {
+    const out = new Map<string, number>();
+    if (!assumptions) return out;
+    for (const { goal, progress, trajectory: t } of goalRows) {
+      if (t.verdict !== 'onTrack' && t.verdict !== 'offTrack') continue;
+      const reading = computeGoalUncertainty({
+        allocation: goal.recommendedAllocation,
+        assumptions,
+        currentValue: progress.currentValue,
+        target: goal.targetAmount ?? 0,
+        monthsToDeadline: t.monthsToDeadline,
+        contribution: t.currentMonthlyContribution,
+        requiredMonthly: t.requiredMonthlyContribution,
+      });
+      if (reading?.kind === 'dated') out.set(goal.id, reading.probability);
+    }
+    return out;
+  }, [goalRows, assumptions]);
+
   const portfolioTotal = useMemo(() => sumAssetValues(assets), [assets]);
-  const overview = useMemo(() => summarizeGoals(goalRows, portfolioTotal), [goalRows, portfolioTotal]);
+  const overview = useMemo(() => summarizeGoals(goalRows, portfolioTotal, goalProbabilities), [goalRows, portfolioTotal, goalProbabilities]);
 
   // The selection falls back to the most urgent goal, and follows a deletion.
   const effectiveSelectedId = overview.goals.some((g) => g.id === selectedGoalId) ? selectedGoalId : (overview.goals[0]?.id ?? null);
   const selectedRow = useMemo(() => goalRows.find((r) => r.goal.id === effectiveSelectedId) ?? null, [goalRows, effectiveSelectedId]);
-  const trajectory = useMemo(() => (selectedRow ? summarizeTrajectory(selectedRow, now) : null), [selectedRow, now]);
+  const baseTrajectory = useMemo(() => (selectedRow ? summarizeTrajectory(selectedRow, now) : null), [selectedRow, now]);
+  // § 13, RO5–RO7: the selected goal alone gets the full reading — the band on the chart's own months, the contribution for 9 cases in 10, the arrival months.
+  const trajectory = useMemo(() => {
+    if (!baseTrajectory || !selectedRow || !assumptions) return baseTrajectory;
+    const { goal, progress, trajectory: t } = selectedRow;
+    const uncertainty = computeGoalUncertainty({
+      allocation: goal.recommendedAllocation,
+      assumptions,
+      currentValue: progress.currentValue,
+      target: goal.targetAmount ?? 0,
+      monthsToDeadline: t.monthsToDeadline,
+      contribution: t.currentMonthlyContribution,
+      requiredMonthly: t.requiredMonthlyContribution,
+      sampleMonths: baseTrajectory.series.map((point) => point.monthIndex),
+    });
+    return withUncertainty(baseTrajectory, uncertainty);
+  }, [baseTrajectory, selectedRow, assumptions]);
+  const uncertaintyLines = useMemo(() => (trajectory ? describeIncertezza(trajectory, (months) => goalDateFromDate(addGoalMonths(now, months))) : []), [trajectory, now]);
 
   // § 13, RO2: the selected goal's effect on the FIRE year, on the plan of today (the What If's baseline). Absent while that plan loads or fails.
   const { baseline: fireBaseline, hasBaseline: hasFirePlan, assumptions: fireAssumptions, currentYear: fireYear, isLoadingSettings: fbLoadS, isLoadingAssets: fbLoadA, isLoadingCashflow: fbLoadC, isLoadingFlows: fbLoadF, settingsError: fbErrS, assetsError: fbErrA, cashflowError: fbErrC } = useWhatIfBaseline();
@@ -238,7 +278,7 @@ export function GoalBasedInvestingTab() {
 
   // ─── The words ───────────────────────────────────────────────────────────────
   const verdict = useMemo(() => buildGoalsVerdict({ enabled: isEnabled, overview: isEnabled ? overview : null }), [isEnabled, overview]);
-  const obiettiviRows = useMemo(() => overview.goals.map((line) => ({ line, caption: describeGoalCaption(line), status: describeGoalStatus(line) })), [overview.goals]);
+  const obiettiviRows = useMemo(() => overview.goals.map((line) => ({ line, caption: describeGoalCaption(line), status: describeGoalStatus(line), probability: describeGoalProbability(line) })), [overview.goals]);
   const milestoneRows = useMemo(() => milestones.map((entry) => ({ entry, note: describeMilestoneNote(entry) })), [milestones]);
 
   // ─── Goal CRUD ───────────────────────────────────────────────────────────────
@@ -373,6 +413,7 @@ export function GoalBasedInvestingTab() {
               hero={resolveTraiettoriaHero(trajectory)}
               chips={buildTraiettoriaChips(trajectory)}
               notes={trajectory.notes}
+              uncertainty={uncertaintyLines}
               chart={
                 trajectory.series.length >= 2 ? (
                   <GoalProjectionChart

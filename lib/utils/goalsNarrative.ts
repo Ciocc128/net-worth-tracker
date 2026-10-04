@@ -25,6 +25,7 @@ import { MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
 import { articleForPercent, atThePercent, monthWithPrepositionA, ofThePercent } from '@/lib/utils/patrimonioNarrative';
 import type { Narrative, NarrativeSegment, PageVerdictModel, VerdictTone } from '@/lib/utils/narrative';
 import type { GoalContributionSlice } from '@/lib/utils/goalTrajectory';
+import type { GoalMethod } from '@/lib/utils/goalUncertainty';
 import type { AssignmentsView, DerivedAllocationView, GoalDate, GoalLine, GoalsOverview, MilestoneEntry, TrajectoryView } from '@/lib/utils/goalsSummary';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -373,7 +374,59 @@ export function describeTraiettoriaFooter(t: TrajectoryView): Narrative {
     out.push(prose(`Rendimento nominale ${ofThePercent(t.annualReturn, pctDecimals(t.annualReturn))}`), pct(t.annualReturn), prose(" l'anno, quello dello scenario Base del portafoglio target, perché l'obiettivo non ha un'allocazione consigliata utilizzabile: una stima, non un consiglio."));
   }
   out.push(prose(t.deadline ? ' Tratteggiata orizzontale: il target; verticale: la scadenza.' : ' Tratteggiata orizzontale: il target.'));
+  const band = t.uncertainty?.kind === 'dated' && t.uncertainty.detail != null;
+  if (band) out.push(prose(' La fascia chiara è tra il 10° e il 90° percentile delle simulazioni.'));
+  if (t.uncertainty && t.uncertainty.kind !== 'unavailable') out.push(prose(' '), ...describeIncertezzaMetodo(t.uncertainty.method));
   return out;
+}
+
+// ─── Incertezza (RO5–RO7) ─────────────────────────────────────────────────────
+
+const wholePct = (probability: number): string => formatPercentage(Math.round(probability * 100), 0);
+
+/** «35%» — the probability a row shows after its verdict chip, null where no reading applies. */
+export function describeGoalProbability(goal: GoalLine): string | null {
+  return goal.probability === null ? null : wholePct(goal.probability);
+}
+
+/** «10.000 simulazioni mensili sullo scenario Base: rendimento 5,5% composto, volatilità 10% l'anno, al netto dei costi.» */
+export function describeIncertezzaMetodo(method: GoalMethod): Narrative {
+  const out: Narrative = [figure(method.paths.toLocaleString('it-IT')), prose(' simulazioni mensili sullo scenario Base: rendimento '), pct(method.cagr), prose(' composto, volatilità '), pct(method.volatility), prose(` l'anno${method.netOfCosts ? ', al netto dei costi' : ''}.`)];
+  return out;
+}
+
+/** «Ci arrivi a marzo 2031 nella metà dei casi, a ottobre 2032 in 9 su 10.» */
+function describeArrival(arrival: { medianMonths: number | null; p90Months: number | null }, dateOf: (months: number) => GoalDate): Narrative {
+  const { medianMonths, p90Months } = arrival;
+  if (medianMonths === null) return [prose('Non ci arrivi entro 50 anni nemmeno nella metà dei casi.')];
+  const median = dateOf(medianMonths);
+  if (p90Months === null) return [prose(`Ci arrivi ${atDate(median)} nella metà dei casi, ma non entro 50 anni in 9 su 10.`)];
+  const p90 = dateOf(p90Months);
+  if (p90Months === medianMonths) return [prose(`Ci arrivi ${atDate(median)} nella metà dei casi e in 9 su 10.`)];
+  return [prose(`Ci arrivi ${atDate(median)} nella metà dei casi, ${atDate(p90)} in 9 su 10.`)];
+}
+
+/**
+ * The lines the Traiettoria tile adds under its chips (RO5–RO7): the probability of reaching the target by the
+ * deadline and what it takes for 9 cases in 10, or the arrival months of a goal without a deadline. Neutral in
+ * tone — an estimate, not a fact (DESIGN.md → The Risk-vs-Fact Rule); the verdict stays deterministic (D-G8).
+ * `dateOf` turns a month count into the calendar month it lands in.
+ */
+export function describeIncertezza(t: TrajectoryView, dateOf: (months: number) => GoalDate): Narrative[] {
+  const u = t.uncertainty;
+  if (!u) return [];
+  if (u.kind === 'unavailable') return [[prose('Rendimento non definito per questi pesi: nessuna stima di probabilità.')]];
+  if (u.kind === 'arrival') return [describeArrival(u.arrival, dateOf)];
+
+  const lines: Narrative[] = [[prose(`Probabilità di arrivarci${t.deadline ? ` entro ${formatGoalDate(t.deadline)}` : ''}: `), figure(wholePct(u.probability))]];
+  const reading = u.detail?.contribution;
+  if (reading) {
+    const today: Narrative = t.plannedMonthly > 0 ? [prose(' (oggi '), amount(t.plannedMonthly), prose(')')] : [prose(' (oggi non versi nulla)')];
+    if (reading.kind === 'enough') lines.push([prose('Al ritmo di oggi ci arrivi in 9 casi su 10.')]);
+    else if (reading.kind === 'over') lines.push([prose('Per arrivarci in 9 casi su 10 servono oltre '), amount(1_000_000), prose(' al mese.')]);
+    else lines.push([prose('In 9 casi su 10 '), prose(reading.value === 0 ? 'non serve versare nulla' : 'bastano '), ...(reading.value === 0 ? [] : [amount(reading.value), prose(' al mese')]), ...today, prose('.')]);
+  }
+  return lines;
 }
 
 // ─── Milestone ────────────────────────────────────────────────────────────────
