@@ -2,7 +2,7 @@
  * Coast FIRE — layout a 390px.
  *
  * Stessa guardia di `fire.mobile.spec.ts`: il tab è una griglia di tessere dal 2026-08-25, e
- * il grafico Recharts dentro il Traguardo, la rotaia degli Afflussi e le due disclosure (Ipotesi
+ * il grafico Recharts dentro il Traguardo, la rotaia degli Afflussi e le due disclosure (Il mio piano
  * con il form delle pensioni, Dettaglio con la tabella dell'impatto) sono contenuto che l'owner
  * aprirà su un telefono, quindi contenuto da misurare.
  *
@@ -14,7 +14,7 @@
 
 import { test, expect } from '@playwright/test';
 
-const DISCLOSURES = [/^Ipotesi/, /^Dettaglio/] as const;
+const DISCLOSURES = [/^Il mio piano/, /^Dettaglio/] as const;
 
 test('il tab Coast FIRE non scorre in orizzontale a 390px', async ({ page }) => {
   await page.goto('/dashboard/fire-simulations', { waitUntil: 'load' });

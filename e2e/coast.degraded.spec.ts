@@ -2,12 +2,12 @@
  * Coast FIRE — the «nothing recorded» state keeps its three tiles and offers ONE action.
  *
  * WHY THIS SPEC: until 2026-09-23 an account whose projection could not run saw the verdict, the
- * Ipotesi disclosure and NO tile — the verdict said «Servono le spese annue…» and nothing led
+ * plan block and NO tile — the verdict said «Servono le spese annue…» and nothing led
  * anywhere. The base fixture has data, so the branch was never rendered by a spec; the degraded
  * account has no cashflow rows, so it lands here on every run whatever else the Previdenza specs
  * left behind. The spec asserts STRUCTURE (three regions, exactly one action on the Traguardo,
  * where it goes), never a figure: which input is the missing one depends on the account's assets
- * and saved settings, so the action is a link to Patrimonio OR a button into the Ipotesi.
+ * and saved settings, so the action is a link to Patrimonio OR a button into «Il mio piano».
  *
  * Falsified 2026-09-23 by rendering the old branch (no tiles): «Traguardo Coast FIRE» not found.
  */
@@ -29,7 +29,7 @@ test('without a projection the three tiles keep their question and only the Trag
   await expect(scenari).toBeVisible();
 
   // ONE action, on the tile that owns the missing thing: a link to the page that records it, or
-  // a button that opens the Ipotesi on the field that does.
+  // a button that opens «Il mio piano» on the field that does.
   const actions = traguardo.getByRole('link').or(traguardo.getByRole('button'));
   await expect(actions).toHaveCount(1);
   await expect(afflussi.getByRole('link').or(afflussi.getByRole('button'))).toHaveCount(0);
@@ -48,18 +48,11 @@ test('without a projection the three tiles keep their question and only the Trag
     return;
   }
 
-  // The plan expense is typed in the Calcolatore: the button switches tab (L2, D5).
-  if (/Parametri del Calcolatore/.test((await action.textContent()) ?? '')) {
-    await action.click();
-    await expect(page.getByRole('tab', { name: /Calcolatore FIRE/ })).toHaveAttribute('aria-selected', 'true');
-    return;
-  }
-
-  // A button into the form: the disclosure opens and the field it names takes the focus, so the
-  // reader lands on the input and not on a panel to search.
-  const ipotesi = page.getByRole('button', { name: /^Ipotesi/ }).first();
-  await expect(ipotesi).toBeVisible();
+  // A button into the plan: «Il mio piano» opens and the field it names takes the focus, so the reader lands on the
+  // input and not on a panel to search (§ 15 RP6, RP10).
+  const plan = page.getByRole('button', { name: /^Il mio piano/ }).first();
+  await expect(plan).toBeVisible();
   await action.click();
-  await expect(ipotesi).toHaveAttribute('data-state', 'open');
-  await expect.poll(() => page.evaluate(() => document.activeElement?.id ?? '')).toMatch(/^coast(UseCustomExpenses|CurrentAge|RetirementAge)$/);
+  await expect(plan).toHaveAttribute('data-state', 'open');
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id ?? '')).toMatch(/^(coastCurrentAge|targetAge|plannedExpenses)$/);
 });
