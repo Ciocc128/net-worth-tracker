@@ -25,23 +25,40 @@ export interface AiModelRoute {
   provider: LlmProvider;
   /** The provider's own id: `claude-sonnet-5` on Anthropic, `z-ai/glm-5.3-flash` on OpenRouter. */
   model: string;
+  /**
+   * OpenRouter only: `'off'` sends `reasoning: { enabled: false }` instead of a reasoning ceiling.
+   * DeepSeek V4.1 Flash ignores the ceiling and spends the whole output budget reasoning, so the
+   * answer is truncated (probe of 2026-09-30); switched off it answered 50 compilations out of 50.
+   */
+  reasoning?: 'off';
+  /**
+   * OpenRouter only: the quantizations a provider may serve the model at (`provider.quantizations`,
+   * an allow-list — an endpoint that declares none is left out too). GLM's fp4 hosts answered with
+   * a handful of items and broken quotes in the probe of 2026-09-30.
+   */
+  quantizations?: readonly string[];
 }
+
+/** GLM without its fp4 hosts (the probe's `glm-nofp4`). */
+const GLM_QUANTIZATIONS = ['fp8', 'bf16', 'fp16'] as const;
 
 /**
  * Every AI surface of the app. The first three go through `lib/server/llm`; the last three call
  * the Anthropic SDK directly and read only their `model` (the SDK is their provider by code).
  *
- * The open model is GLM 5.3 Flash, chosen by the quick eval (F2) on 2026-09-28 and provisional
- * until the full eval (F6), which picks the definitive one per task (§ 7.2). THEBULL_COMPILE only
- * follows it: F6 decides that task on its own.
+ * The emails run on GLM 5.3 Flash, chosen by the quick eval (F2) on 2026-09-28, on fp8/bf16/fp16
+ * hosts only; TheBull's compilation on DeepSeek V4.1 Flash with the reasoning off, chosen by the
+ * owner on 2026-10-05 after the probe (GLM failed one compilation in five, DeepSeek none in 50;
+ * doc/ai-open-models-wiki.md § 7.3). Both stay provisional until the full eval (F6), which picks
+ * the definitive model per task (§ 7).
  */
 export const AI_MODELS = {
   /** The comment of the periodic emails (monthly, quarterly, semiannual, yearly). */
-  EMAIL_PERIODIC: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+  EMAIL_PERIODIC: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash', quantizations: GLM_QUANTIZATIONS },
   /** The two sentences of the weekly budget email. */
-  EMAIL_WEEKLY_BUDGET: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+  EMAIL_WEEKLY_BUDGET: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash', quantizations: GLM_QUANTIZATIONS },
   /** TheBull's weekly macro page (F3): structured extraction, every item with its quote. */
-  THEBULL_COMPILE: { provider: 'openrouter', model: 'z-ai/glm-5.3-flash' },
+  THEBULL_COMPILE: { provider: 'openrouter', model: 'deepseek/deepseek-v4.1-flash', reasoning: 'off' },
   /** The performance report of Rendimenti → «Analizza con AI». */
   PERFORMANCE_ANALYSIS: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
   /** The conversational assistant. */

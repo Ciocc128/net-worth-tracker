@@ -132,7 +132,7 @@ describe('ingestTheBull', () => {
     expect(june).toContain('settimane:\n  - 2026-W24\n  - 2026-W25\n');
     expect(files.get('wiki/macro/mesi/2026-07.md')).toContain('settimane:\n  - 2026-W27\n');
     const record = JSON.parse(files.get('wiki/macro/settimane/2026-W25.json')!) as MacroWeekRecord;
-    expect(record).toMatchObject({ week: '2026-W25', date: '2026-06-21', issue: 8, model: 'z-ai/glm-5.3-flash' });
+    expect(record).toMatchObject({ week: '2026-W25', date: '2026-06-21', issue: 8, model: 'deepseek/deepseek-v4.1-flash' });
   });
 });
 

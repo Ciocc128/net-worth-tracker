@@ -91,7 +91,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The email AI comment goes through the provider layer** (`lib/server/llm`, since 2026-09-28 — F1 of
   doc/ai-open-models-wiki.md), not the assistant pipeline: `generateText('EMAIL_PERIODIC' | 'EMAIL_WEEKLY_BUDGET', …)`,
   and `lib/constants/aiModels.ts` says which provider and model answer — today an OPEN model on OpenRouter
-  (`OPENROUTER_API_KEY`): GLM 5.3 Flash, chosen by the quick eval (F2, 2026-09-28) and provisional until F6. The Anthropic adapter keeps the old call (adaptive thinking,
+  (`OPENROUTER_API_KEY`): GLM 5.3 Flash, chosen by the quick eval (F2, 2026-09-28) and provisional until F6, served only
+  by fp8/bf16/fp16 hosts (the route's `quantizations`, 2026-10-05: the fp4 hosts answered thin in the TheBull probe). The Anthropic adapter keeps the old call (adaptive thinking,
   `effort: high`) for whoever routes a surface back to it. AI and comparison failures are both non-blocking — and so
   is the context bundle, built inside the same `try`; without the provider's key the periodic email skips the bundle
   too (its Firestore reads would feed a call that cannot happen).
@@ -170,6 +171,10 @@ Not an email yet — F5 puts its month pages in the periodic prompt — but the 
   `__tests__/{thebullParse,wikiMacro,thebullCompiler,githubVault,wikiIngestRoute}.test.ts` on a SYNTHETIC newsletter
   (`__tests__/thebullFixture.ts`) — a real issue never enters the repo: the text is TheBull's and its links carry the
   subscriber's id.
+- **The model is not the emails'.** `THEBULL_COMPILE` runs on DeepSeek V4.1 Flash with the reasoning OFF (the route's
+  `reasoning: 'off'` → `reasoning: { enabled: false }`): given a reasoning ceiling, DeepSeek ignores it, spends the
+  whole budget reasoning and truncates. Chosen 2026-10-05 after a probe where GLM failed one compilation in five and
+  DeepSeek none in 50 (spec § 7.3).
 - **The model reads one section.** Only «Il punto della settimana» goes to `THEBULL_COMPILE`; the index table, the
   readings and the episodes are parsed, so their figures never pass through a model. The sponsor never reaches it.
 - **Every item holds to a quote, by code.** The quote must be in the text (whitespace, apostrophes and quotes
