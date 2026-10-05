@@ -2794,7 +2794,7 @@ Tolleranza ± 0,01 €.
 | CO6 | CO1 con il fondo bloccato di 40.000 € che si sblocca a 25 anni da oggi (`capitalInflowsToday`) | `C` = 245.306,37, `R_T` = 502.878,33 (nessun cambiamento rispetto a `main`); `H` = 17 |
 | CO7 | Nessuna pensione, nessun fondo, nessun flusso | `H` = 0: due tappe (oggi, al target); la tessera Afflussi non c'è; il piede del Traguardo chiude con la frase di RCO7; griglia RCO8 |
 | CO8 | `T` = 0 e `H` = 0 | nessuna striscia |
-| CO9 | RCO5, flussi di CO4 + CO5 + un figlio di 6.000 € dal 2028 per 20 anni + un'auto di 30.000 € nel 2029 | eventi: Eredità 2036 +82.034,83 € una tantum; Auto 2029 −28.269,00 € (`30.000/1,02³`); Figlio dal 2042 −6.000 € l'anno «conta da 51 anni», fino al 2047; Affitto dal 2042 +6.000 € l'anno, per sempre; occhiello «Afflussi e uscite» |
+| CO9 | RCO5, flussi di CO4 + CO5 + un figlio di 6.000 € dal 2028 per 20 anni + un'auto di 30.000 € fissi nel 2029 | eventi: Eredità 2036 +82.034,83 € una tantum; Auto 2029 −28.269,67 € (`30.000/1,02³`); Figlio dal 2042 −6.000 € l'anno «conta da 51 anni», fino al 2047; Affitto dal 2042 +6.000 € l'anno, per sempre; occhiello «Afflussi e uscite» |
 | CO10 | RCO5, un mutuo che finisce nel 2034 (prima del target) | non compare tra gli eventi |
 | CO11 | Senza flussi datati | `buildCoastFIRERetirementNeeds`, `calculateCoastFIREMetrics` e `calculateCoastFIREProjection`: ogni campo esistente identico a `main` (i test di Coast e del ponte del Calcolatore non cambiano) |
 
