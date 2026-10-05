@@ -112,7 +112,7 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
                   </tbody>
                 </table>
               </div>
-              <p className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">Un trattino è un percentile a zero: il capitale è esaurito in almeno quella quota di simulazioni. Cifre in euro di oggi; la mediana nominale è quella degli euro dell'anno.</p>
+              <p className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">Un trattino è un percentile a zero: il capitale è esaurito in almeno quella quota di simulazioni. Cifre in euro di oggi; la mediana nominale è quella degli euro dell&apos;anno.</p>
             </Tile>
           </div>
 

@@ -24,6 +24,8 @@
 
 - FIRE › Obiettivi: a goal has an «Alla scadenza lo spendo» switch (on by default for the «Acquisto Casa» and «Auto» templates). A goal that is spent counts in the FIRE plan as an outflow in the year of its deadline, net of what you already hold outside the portfolio, and every FIRE tab reads it (Calcolatore › Parametri › «Flussi nel tempo» lists it, read-only). The goal's Traiettoria says what it does to the FIRE year, counted or not, for example «Con questa spesa il FIRE è nel 2035 invece che nel 2034 (scenario Base).», with a «Conta nel FIRE» button when it is not counted yet.
 
+- FIRE › Monte Carlo is now «Dopo il FIRE» and answers «after the FIRE, does the capital hold, and how much can I withdraw?»: it starts, by default, at the FIRE year of the Calcolatore (on the saved plan, Base scenario) with the capital the Base has that year, or from today with the «Oggi» switch in Parametri; the verdict says it («Smettendo nel 2031 (a 45 anni) con 812.000 € di oggi, nel 63% delle 10.000 simulazioni il capitale regge fino a 90 anni…»), pensions, pension-fund unlocks and dated flows are read from that year, and the horizon runs by default to 90 years of age. Every figure is in today's euros (the nominal median stays as a column of the Dettaglio), Spesa sostenibile is the first tile, and the Distribuzione tile is gone: the mean year of depletion is in Probabilità and the percentiles every five years in the Dettaglio.
+
 ## 🐛 Bug Fixes
 
 - Fixed the FIRE simulations diluting the portfolio weights with accounts excluded from Allocazione: a 70/30 target is now simulated as 70/30, not as 63/27 plus 10% of cash that the plan does not hold.
