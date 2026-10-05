@@ -42,7 +42,7 @@ const TABS: TabDef[] = [
   { value: 'fire',       label: 'Calcolatore FIRE', icon: Flame     },
   { value: 'coast',      label: 'Coast FIRE',       icon: Mountain  },
   { value: 'whatif',     label: 'What If',          icon: Lightbulb },
-  { value: 'montecarlo', label: 'Monte Carlo',      icon: Dices     },
+  { value: 'montecarlo', label: 'Dopo il FIRE',      icon: Dices     },
   { value: 'proiezione', label: 'Proiezione',       icon: TrendingUp },
   { value: 'goals',      label: 'Obiettivi',        icon: Target    },
 ];

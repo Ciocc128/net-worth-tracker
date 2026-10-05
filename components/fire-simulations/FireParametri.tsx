@@ -255,7 +255,7 @@ export function FireParametri({
                   <p id="plannedExpenses-help" className={cn('mt-1 text-[11px] leading-[1.4]', plannedExpensesInvalid ? 'text-destructive' : 'text-muted-foreground')}>
                     {plannedExpensesInvalid
                       ? 'Serve un importo sopra 0, oppure lascia vuoto.'
-                      : 'Usata da tutte le simulazioni (Calcolatore, Coast FIRE, What If, Monte Carlo); vuota = l\'ultimo anno del Cashflow.'}
+                      : 'Usata da tutte le simulazioni (Calcolatore, Coast FIRE, What If, Dopo il FIRE); vuota = l\'ultimo anno del Cashflow.'}
                   </p>
                 </div>
 

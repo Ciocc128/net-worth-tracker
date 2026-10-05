@@ -31,6 +31,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
+import { SegmentedPill, type SegmentedPillOption } from '@/components/ui/segmented-pill';
+import type { StartMode } from '@/lib/utils/monteCarloNarrative';
 
 export interface MonteCarloForm {
   initialPortfolio: string;
@@ -64,6 +66,17 @@ interface ParametriTileProps {
   capital: FireCapital | null;
   /** § 12: the dated flows the run reads, one read-only line under the capital (`describeSimulationFlowsRow`); edited in the Calcolatore. */
   flowsNote: string;
+  /**
+   * T5 (§ 12.6, DF2): «Quando smetto». `selector` is absent when the Calcolatore has no FIRE year (DF6: the run starts today and `note`
+   * says why); `fireCapital` is the Base capital at the FIRE year in today's euros — the shortcut of the capital field in «Al FIRE» mode.
+   */
+  start: {
+    mode: StartMode;
+    options: ReadonlyArray<SegmentedPillOption<StartMode>> | null;
+    onModeChange: (mode: StartMode) => void;
+    note: Narrative;
+    fireCapital: number | null;
+  };
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
@@ -95,6 +108,7 @@ export function ParametriTile({
   marketDeclaration,
   capital,
   flowsNote,
+  start,
   onRun,
   canRun,
   isRunning,
@@ -110,8 +124,16 @@ export function ParametriTile({
           <p className={TILE_SUB_EYEBROW_CLASS}>Piano</p>
 
           <div>
+            <p className="text-[13px] font-medium text-foreground">Quando smetto</p>
+            {start.options && (
+              <SegmentedPill options={start.options} value={start.mode} onChange={start.onModeChange} layoutId="mc-start-mode" ariaLabel="Quando smetto" semantics="radio" className="mt-1.5" optionClassName="min-h-11 desktop:min-h-0" />
+            )}
+            <NarrativeText segments={start.note} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
+          </div>
+
+          <div>
             <Label htmlFor="mc-initialPortfolio" className="text-[13px]">
-              Patrimonio iniziale (€)
+              Capitale iniziale (€)
             </Label>
             <Input
               id="mc-initialPortfolio"
@@ -122,14 +144,22 @@ export function ParametriTile({
               className={CONTROL_CLASS}
             />
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(totalNetWorth) })}>
-                Totale · {cachedFormatCurrencyEUR(totalNetWorth, true)}
-              </Button>
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(liquidNetWorth) })}>
-                Liquido · {cachedFormatCurrencyEUR(liquidNetWorth, true)}
-              </Button>
+              {start.mode === 'fire' && start.fireCapital !== null ? (
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(start.fireCapital as number) })}>
+                  Al FIRE · {cachedFormatCurrencyEUR(start.fireCapital, true)}
+                </Button>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(totalNetWorth) })}>
+                    Totale · {cachedFormatCurrencyEUR(totalNetWorth, true)}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(liquidNetWorth) })}>
+                    Liquido · {cachedFormatCurrencyEUR(liquidNetWorth, true)}
+                  </Button>
+                </>
+              )}
             </div>
-            {capital && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
+            {capital && !(start.mode === 'fire' && start.fireCapital !== null) && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
             <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">{flowsNote}.</p>
             <Link href={FLOWS_HREF} className="inline-flex min-h-11 items-center text-[11px] text-foreground underline underline-offset-2 desktop:min-h-0">
               Modifica nel Calcolatore › Parametri

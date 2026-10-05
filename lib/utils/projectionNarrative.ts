@@ -276,7 +276,7 @@ export const PROJECTION_DETTAGLIO_DESCRIPTION = 'Come si calcola, e cosa la proi
 export const PROJECTION_EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La proiezione',
-    body: 'Ogni traiettoria parte dal capitale scritto in Parametri (più i fondi pensione già sbloccati) e, anno per anno, incassa gli afflussi che si sbloccano, applica un rendimento casuale per ciascuna delle sette classi (lognormale con il CAGR e la volatilità dello scenario) e aggiunge il versamento dell’anno, cresciuto con l’inflazione, finché dura. Nessun prelievo: quello è il Monte Carlo. Il seme è fisso, quindi le cifre non cambiano tra un’apertura e l’altra.',
+    body: 'Ogni traiettoria parte dal capitale scritto in Parametri (più i fondi pensione già sbloccati) e, anno per anno, incassa gli afflussi che si sbloccano, applica un rendimento casuale per ciascuna delle sette classi (lognormale con il CAGR e la volatilità dello scenario) e aggiunge il versamento dell’anno, cresciuto con l’inflazione, finché dura. Nessun prelievo: quello è Dopo il FIRE. Il seme è fisso, quindi le cifre non cambiano tra un’apertura e l’altra.',
   },
   {
     title: 'Percentili e probabilità',

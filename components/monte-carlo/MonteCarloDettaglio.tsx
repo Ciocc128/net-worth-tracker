@@ -31,7 +31,7 @@ interface MonteCarloDettaglioProps {
   percentileRows: PercentileRow[];
 }
 
-const PERCENTILE_COLUMNS: { key: keyof Omit<PercentileRow, 'calendarYear'>; label: string; median?: boolean }[] = [
+const PERCENTILE_COLUMNS: { key: keyof Omit<PercentileRow, 'calendarYear' | 'p50Nominal'>; label: string; median?: boolean }[] = [
   { key: 'p10', label: '10°' },
   { key: 'p25', label: '25°' },
   { key: 'p50', label: 'Mediana', median: true },
@@ -74,7 +74,7 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
           </div>
 
           <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-6')}>
-            <Tile eyebrow="Percentili" aside="scenario base · ogni 5 anni" reading={percentiliReading} ariaLabel="Percentili nel tempo">
+            <Tile eyebrow="Percentili" aside="scenario base · euro di oggi · ogni 5 anni" reading={percentiliReading} ariaLabel="Percentili nel tempo">
               <div className="-mx-5 mt-3.5 overflow-x-auto px-5">
                 <table className="w-full text-[13px]">
                   <thead>
@@ -87,6 +87,9 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
                           {column.label}
                         </th>
                       ))}
+                      <th scope="col" className={cn(TILE_SUB_EYEBROW_CLASS, 'pb-2 text-right text-[10px] font-normal')}>
+                        Mediana nominale
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -103,12 +106,13 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
                             </td>
                           );
                         })}
+                        <td className={cn('py-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground')}>{row.p50Nominal > 0 ? formatCurrencyCompact(row.p50Nominal) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">Un trattino è un percentile a zero: il capitale è esaurito in almeno quella quota di simulazioni.</p>
+              <p className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground">Un trattino è un percentile a zero: il capitale è esaurito in almeno quella quota di simulazioni. Cifre in euro di oggi; la mediana nominale è quella degli euro dell&apos;anno.</p>
             </Tile>
           </div>
 

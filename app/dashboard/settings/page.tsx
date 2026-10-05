@@ -4189,7 +4189,7 @@ export default function SettingsPage() {
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
                     Il piano (capitale, prelievo, pesi) si imposta in{' '}
                     <Link href="/dashboard/fire-simulations?tab=montecarlo" className={TILE_FOOTER_ACTION_CLASS}>
-                      FIRE › Monte Carlo
+                      FIRE › Dopo il FIRE
                     </Link>
                     . Qui salvi solo le ipotesi di mercato, con il «Salva» della pagina.
                   </div>

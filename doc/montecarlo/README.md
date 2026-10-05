@@ -865,7 +865,7 @@ anno). Nulla qui la anticipa: `savingsYears` e gli snapshot restano validi.
 
 ## 12. T5 — «Dopo il FIRE»: la scheda parte dal FIRE previsto (spec del 05/10/2026)
 
-> **Stato**: spec scritta il 05/10/2026, decisioni DF1–DF9 prese con il proprietario lo stesso giorno (§ 12.8).
+> **Stato**: spec scritta il 05/10/2026, decisioni DF1–DF9 prese con il proprietario lo stesso giorno (§ 12.8). **Implementata il 05/10/2026** (impl T5, una PR per le quattro card); i test del motore stanno in `__tests__/monteCarloStartYear.test.ts` (A-T1…A-T6) e quelli di `fireStart` in `__tests__/fireStart.test.ts` (A-T7…A-T9, A-T11), non in `monteCarloService.test.ts`/`fireService.test.ts` come previsto in § 12.13. Tempi misurati nella guida `doc/guide/fire-monte-carlo.md`: ≈ 3,2 s all'orizzonte di default di 45 anni (sopra i 3 s di § 12.7.7), nulla cambiato.
 >
 > Origine: quattro card «FEAT FIRE» nate dal Tour della pagina FIRE e Simulazioni (05/10/2026), passo 2 dell'ordine
 > approvato (`/mnt/project-files/fire-simulazioni/ordine-feat-fire.md`): «Monte Carlo diventa «Dopo il FIRE», con

@@ -28,10 +28,11 @@ export interface WithdrawalTaxInput {
 }
 
 /** The net pensions active at `year`, indexed with `inflationRate` from today (nominal at that year). */
-function activeAnnualInflows(inflows: AnnualInflow[] | undefined, year: number, inflationRate: number): number {
+function activeAnnualInflows(inflows: AnnualInflow[] | undefined, year: number, inflationRate: number, startYear = 0): number {
   if (!inflows || inflows.length === 0) return 0;
   const index = Math.pow(1 + inflationRate / 100, year);
-  return inflows.reduce((sum, inflow) => (inflow.fromYear <= year ? sum + inflow.annualNetToday * index : sum), 0);
+  // RD4: the clock restarts at the FIRE year `startYear`, a pension dated `fromYear` from today being active from the withdrawal year `fromYear − startYear` (the amount keeps indexing from the FIRE year).
+  return inflows.reduce((sum, inflow) => (inflow.fromYear <= startYear + year ? sum + inflow.annualNetToday * index : sum), 0);
 }
 
 /**
@@ -74,6 +75,8 @@ interface LedgerSchedule {
   pensions: Float64Array;
   /** The capital inflows of each year in their given order (separate additions keep the floats identical); index = year. */
   inflowsByYear: number[][];
+  /** The inflows already available at the start (year <= 0, in their given order): none once the run starts at the FIRE year (they are in its capital). */
+  startInflows: number[];
   /** RF8: the dated flows' tables (the need's change, the lumps), built from this scenario's inflation; absent without flows, and then the ledger is the one of before. */
   flows?: { need: Float64Array; lumpIn: Float64Array; lumpOut: Float64Array; start: number };
 }
@@ -94,18 +97,37 @@ function ledgerSchedule(params: MonteCarloParams): LedgerSchedule {
   const withdrawalIndex = new Float64Array(years + 1).fill(1);
   const pensions = new Float64Array(years + 1);
   const inflowsByYear: number[][] = Array.from({ length: years + 1 }, () => []);
+  // RD1/RD4: with `startYear` T > 0 the run starts at the FIRE year, in today's euros: every amount the engine read at year `y` from today it reads at `T + s` and divides by `(1 + π)^T`.
+  const startYear = params.startYear && params.startYear > 0 ? Math.floor(params.startYear) : 0;
+  const inflationRate = adjusts ? params.market.inflationRate : 0;
+  const rebase = startYear > 0 ? Math.pow(1 + inflationRate / 100, startYear) : 1;
   for (let year = 1; year <= years; year++) {
     if (adjusts) withdrawalIndex[year] = Math.pow(1 + params.market.inflationRate / 100, year);
-    pensions[year] = activeAnnualInflows(params.annualInflows, year, adjusts ? params.market.inflationRate : 0);
+    pensions[year] = activeAnnualInflows(params.annualInflows, year, inflationRate, startYear);
   }
+  const startInflows: number[] = [];
   for (const inflow of params.capitalInflows ?? []) {
-    if (inflow.year >= 1 && inflow.year <= years) inflowsByYear[inflow.year].push(inflow.amount);
+    if (startYear === 0) {
+      if (inflow.year <= 0) startInflows.push(inflow.amount);
+      else if (inflow.year <= years) inflowsByYear[inflow.year].push(inflow.amount);
+    } else {
+      // An unlock at or before the FIRE year is already inside the capital the run starts from.
+      const year = inflow.year - startYear;
+      if (year >= 1 && year <= years) inflowsByYear[year].push(inflow.amount / rebase);
+    }
   }
-  const schedule: LedgerSchedule = { withdrawalIndex, pensions, inflowsByYear };
-  // RF8: «if I stop today» — T = 0, so a FIRE anchor opens in year 1 + afterYears. The flows move with the plan's own indexing
+  const schedule: LedgerSchedule = { withdrawalIndex, pensions, inflowsByYear, startInflows };
+  // RF8: «if I stop at T» — a FIRE anchor opens in year 1 + afterYears from T. The flows move with the plan's own indexing
   // (the pensions' rule): a plan that does not adjust for inflation sees them at 0%.
-  const tables = flowTablesFor(params.flows, adjusts ? params.market.inflationRate : 0, years);
-  if (tables) schedule.flows = { need: tables.needFor(0), lumpIn: tables.lumpInflow, lumpOut: tables.lumpOutflow, start: tables.lumpNet[0] };
+  const tables = flowTablesFor(params.flows, inflationRate, startYear + years);
+  if (tables && startYear === 0) {
+    schedule.flows = { need: tables.needFor(0), lumpIn: tables.lumpInflow, lumpOut: tables.lumpOutflow, start: tables.lumpNet[0] };
+  } else if (tables) {
+    // RD4: the tables are read at `T + s` and brought to today's euros; the lumps up to the FIRE year are in the capital (no `start`).
+    const need = tables.needFor(startYear);
+    const shift = (table: Float64Array) => Float64Array.from({ length: years + 1 }, (_, year) => (year === 0 ? 0 : table[startYear + year] / rebase));
+    schedule.flows = { need: shift(need), lumpIn: shift(tables.lumpInflow), lumpOut: shift(tables.lumpOutflow), start: 0 };
+  }
   scheduleCache.set(params, schedule);
   return schedule;
 }
@@ -133,13 +155,10 @@ function runWithdrawalLedger(
 ): LedgerOutcome {
   const schedule = ledgerSchedule(params);
   let portfolio = params.initialPortfolio;
-  const inflows = params.capitalInflows ?? [];
-  for (const inflow of inflows) {
-    if (inflow.year <= 0) portfolio += inflow.amount;
-  }
+  for (const amount of schedule.startInflows) portfolio += amount;
   // The cost basis the withdrawal tax reads (2026-09-24): today's, plus every inflow as it lands.
   const tax = params.withdrawalTax;
-  let basis = (tax?.basisToday ?? 0) + inflows.reduce((sum, inflow) => (inflow.year <= 0 ? sum + inflow.amount : sum), 0);
+  let basis = (tax?.basisToday ?? 0) + schedule.startInflows.reduce((sum, amount) => sum + amount, 0);
   // RF6/RF8: the lumps of the running year are part of the starting capital (the walk's own rule: an inflow is basis, an outflow leaves it as it is).
   const flows = schedule.flows;
   if (flows && flows.start !== 0) {

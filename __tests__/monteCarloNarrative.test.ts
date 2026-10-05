@@ -25,11 +25,7 @@ import {
   describeWeightsSource,
   formatLeverage,
   resolveAllocationTotalState,
-  describeDistribuzione,
-  describeDistribuzioneAside,
-  describeDistribuzioneFooter,
-  describeEsaurimento,
-  describeEsaurimentoFooter,
+  describeFireStartRow,
   describeParametri,
   describeMarketDeclaration,
   describeParametriFooter,
@@ -78,27 +74,19 @@ function makeRun(overrides: Partial<MonteCarloRun> = {}): MonteCarloRun {
     failureAverageCalendarYear: 2050,
     failureMedianYear: 26,
     failureMedianCalendarYear: 2052,
-    histogram: Array.from({ length: 10 }, (_, index) => ({ from: index * 420000, to: (index + 1) * 420000, count: index === 0 ? 1579 : 936, sharePct: index === 0 ? 15.79 : 9.36, containsMedian: index === 1 })),
-    histogramCap: 3780000,
-    histogramMax: 4200000,
-    failureYearBins: [
-      { fromYear: 2041, toYear: 2045, count: 300, sharePct: 3, isReference: false },
-      { fromYear: 2046, toYear: 2050, count: 500, sharePct: 5, isReference: false },
-      { fromYear: 2051, toYear: 2055, count: 600, sharePct: 6, isReference: true },
-      { fromYear: 2056, toYear: 2060, count: 179, sharePct: 1.79, isReference: false },
-    ],
-    failureYearBinWidth: 5,
-    failureFirstCalendarYear: 2041,
-    failureLastCalendarYear: 2060,
+    todayEuros: false,
+    inflationRate: null,
+    startCalendarYear: 2026,
+    startYears: 0,
     ...overrides,
   };
 }
 
 function makeScenarioRow(key: ScenarioRunSummary['key'], overrides: Partial<ScenarioRunSummary> = {}): ScenarioRunSummary {
   const defaults: Record<ScenarioRunSummary['key'], ScenarioRunSummary> = {
-    bear: { key: 'bear', successRate: 61.5, successCount: 6150, failureCount: 3850, medianFinal: 198000, p10DepletionCalendarYear: 2045 },
-    base: { key: 'base', successRate: 84.21, successCount: 8421, failureCount: 1579, medianFinal: 612400, p10DepletionCalendarYear: 2053 },
-    bull: { key: 'bull', successRate: 96.8, successCount: 9680, failureCount: 320, medianFinal: 1420000, p10DepletionCalendarYear: null },
+    bear: { key: 'bear', successRate: 61.5, successCount: 6150, failureCount: 3850, medianFinal: 198000, p10DepletionCalendarYear: 2045, todayEuros: false },
+    base: { key: 'base', successRate: 84.21, successCount: 8421, failureCount: 1579, medianFinal: 612400, p10DepletionCalendarYear: 2053, todayEuros: false },
+    bull: { key: 'bull', successRate: 96.8, successCount: 9680, failureCount: 320, medianFinal: 1420000, p10DepletionCalendarYear: null, todayEuros: false },
   };
   return { ...defaults[key], ...overrides };
 }
@@ -196,58 +184,11 @@ describe('Probabilità', () => {
   });
 
   it('names the scope in the aside and the legend in the footer, with the step only when a fund enters', () => {
-    expect(describeProbabilitaAside(makeRun())).toBe('scenario base · 10.000 simulazioni · 35 anni');
+    expect(describeProbabilitaAside(makeRun())).toBe('scenario base · 10.000 simulazioni Monte Carlo · 35 anni');
     expect(plain(describeProbabilitaFooter(makeRun(), ACTIVE_LOCK))).toBe(
       'La linea è la mediana delle 10.000 traiettorie, le bande il 25–75 e il 10–90; la tratteggiata in basso è il capitale esaurito. Il gradino nel 2045 è il fondo pensione che entra, al valore di oggi. Valori nominali: il prelievo cresce con l\'inflazione.',
     );
     expect(plain(describeProbabilitaFooter(makeRun(), INACTIVE_LOCK))).not.toContain('gradino');
-  });
-});
-
-describe('Distribuzione', () => {
-  it('reads the three quartile bounds of the final values', () => {
-    expect(plain(describeDistribuzione(makeRun()))).toBe('Metà delle simulazioni chiude sopra 612.400 €, un quarto sopra 1.310.000 € e un quarto sotto 118.000 €, zero compreso.');
-  });
-
-  it('says a quarter runs out when the 25th percentile is zero, and more than half when the median is', () => {
-    expect(plain(describeDistribuzione(makeRun({ finalPercentiles: { p10: 0, p25: 0, p50: 612400, p75: 1310000, p90: 2096000 } })))).toBe('Metà delle simulazioni chiude sopra 612.400 €, un quarto sopra 1.310.000 € e almeno un quarto finisce i soldi.');
-    expect(plain(describeDistribuzione(makeRun({ medianFinal: 0, finalPercentiles: { p10: 0, p25: 0, p50: 0, p75: 200000, p90: 700000 } })))).toBe('Più di metà delle simulazioni finisce i soldi; un quarto chiude sopra 200.000 €.');
-  });
-
-  it('names the window and the bins', () => {
-    expect(describeDistribuzioneAside(makeRun())).toBe('valori finali nel 2061 · scenario base');
-    expect(plain(describeDistribuzioneFooter(makeRun()))).toBe(
-      "Dieci classi di uguale ampiezza fino al 95° percentile (3.780.000 €); l'ultima raccoglie anche gli esiti oltre, fino a 4.200.000 €, la prima le simulazioni finite a zero; la classe con il bordo contiene la mediana. Valori nominali del 2061, scenario base.",
-    );
-  });
-});
-
-describe('describeEsaurimento', () => {
-  it('dates the failed simulations: first, last and the median', () => {
-    // Four digits print ungrouped in it-IT («1579»), five grouped («10.000»).
-    expect(plain(describeEsaurimento(makeRun()))).toBe('Le 1579 simulazioni che falliscono esauriscono il capitale tra il 2041 e il 2060, la metà entro il 2052.');
-  });
-
-  it('says none fail, and names the horizon', () => {
-    expect(plain(describeEsaurimento(makeRun({ failureCount: 0, failureFirstCalendarYear: null, failureLastCalendarYear: null })))).toBe(
-      'Nessuna simulazione esaurisce il capitale entro il 2061.',
-    );
-  });
-
-  it('reads a single failure in the singular, and one shared year as «tutte»', () => {
-    expect(plain(describeEsaurimento(makeRun({ failureCount: 1, failureFirstCalendarYear: 2050, failureLastCalendarYear: 2050 })))).toBe(
-      "L'unica simulazione che fallisce esaurisce il capitale nel 2050.",
-    );
-    expect(plain(describeEsaurimento(makeRun({ failureCount: 3, failureFirstCalendarYear: 2050, failureLastCalendarYear: 2050 })))).toBe(
-      'Le 3 simulazioni che falliscono esauriscono il capitale tutte nel 2050.',
-    );
-  });
-
-  it('names the bin width and the denominator in the footer', () => {
-    expect(plain(describeEsaurimentoFooter(makeRun()))).toBe(
-      "Una classe ogni 5 anni tra il primo e l'ultimo esaurimento; la classe con il bordo contiene la mediana dei fallimenti, le quote sono sul totale delle 10.000 simulazioni. Scenario base.",
-    );
-    expect(plain(describeEsaurimentoFooter(makeRun({ failureYearBinWidth: 1 })))).toContain('Una classe per anno');
   });
 });
 
@@ -308,7 +249,7 @@ describe('Dettaglio', () => {
   it('dates the 10th percentile at zero, or names its floor', () => {
     expect(plain(describePercentili(makeRun()))).toBe('Il 10° percentile scende a zero dal 2053: da lì in poi almeno una simulazione su dieci ha finito i soldi.');
     expect(plain(describePercentili(makeRun({ p10DepletionCalendarYear: null, finalPercentiles: { p10: 118000, p25: 300000, p50: 612400, p75: 1310000, p90: 2096000 } })))).toBe('Nessun percentile tocca zero: anche il 10° chiude il 2061 con 118.000 €.');
-    expect(DETTAGLIO_DESCRIPTION).toBe('Traiettorie dei tre scenari, percentili a passi di 5 anni, come funziona');
+    expect(DETTAGLIO_DESCRIPTION).toBe('Traiettorie dei tre scenari in euro di oggi, percentili a passi di 5 anni, come funziona');
   });
 });
 
@@ -341,11 +282,6 @@ describe('leverage (T3)', () => {
     const withLeverage = plain(describeProbabilitaFooter(makeRun({ failureCount: 1300, leverageFailureCount: 420 }), INACTIVE_LOCK));
     expect(withLeverage).toContain('Dei 1300 fallimenti, 420 per rovina da leva (una perdita annua oltre il capitale), 880 per prelievi.');
     expect(plain(describeProbabilitaFooter(makeRun(), INACTIVE_LOCK))).not.toContain('rovina da leva');
-  });
-
-  it('the Esaurimento footer names the colour of the leverage segment only when there is one', () => {
-    expect(plain(describeEsaurimentoFooter(makeRun({ leverageFailureCount: 3 })))).toContain('rovina da leva');
-    expect(plain(describeEsaurimentoFooter(makeRun()))).not.toContain('leva');
   });
 
   it('the total of the weights reads leverage above 100% and blocks under 100% and over 300%', () => {
@@ -431,5 +367,60 @@ describe('the Spesa sostenibile tile’s words', () => {
     expect(describeSpesaCell(cell(null))).toBe('nessun prelievo');
     expect(describeSpesaHeroAside(cell(43_300))?.replace(/\u00a0/g, ' ')).toBe('3608 € al mese · 4,3% del capitale');
     expect(describeSpesaHeroAside(cell(null))).toBeNull();
+  });
+});
+
+
+describe('T5 — Dopo il FIRE: partenza, euro di oggi, righe di Parametri', () => {
+  const sustainable = { base90: { withdrawal: 27300, rate: 0.0336 }, capital: 812000, typedWithdrawal: 20000 } as unknown as Parameters<typeof buildMonteCarloVerdict>[0]['sustainable'];
+  const REAL = { todayEuros: true, inflationRate: 3.04, startYears: 5, startCalendarYear: 2031, endCalendarYear: 2076, endAge: 90, years: 45, medianFinal: 640000, finalPercentiles: { p10: 0, p25: 100000, p50: 640000, p75: 1200000, p90: 2000000 }, successRate: 63, p10DepletionCalendarYear: 2058, p10DepletionAge: 72 };
+
+  it('names the start before the probability, the euros are «di oggi», the sustainable sentence follows at once', () => {
+    const verdict = buildMonteCarloVerdict({
+      runnable: true,
+      run: makeRun(REAL),
+      scenarios: makeComparison(),
+      lock: INACTIVE_LOCK,
+      sustainable,
+      start: { atFire: true, calendarYear: 2031, age: 45, capital: 812000 },
+    });
+    expect(plain(verdict.sentence)).toContain(
+      'Smettendo nel 2031 (a 45 anni) con 812.000 € di oggi, nel 63% delle 10.000 simulazioni il capitale regge fino a 90 anni (2076); nel caso mediano chiudi con 640.000 € di oggi, nel 10% peggiore i soldi finiscono entro il 2058 (72 anni). Per restare al 90% potresti prelevare fino a 27.300 € l\'anno di oggi',
+    );
+    expect(plain(verdict.sentence).indexOf('Per restare al 90%')).toBeLessThan(plain(verdict.sentence).indexOf('Nello scenario orso'));
+  });
+
+  it('from today the start is «Smettendo oggi con 700.000 €»; without a start the sentence is the one of before', () => {
+    const today = buildMonteCarloVerdict({ runnable: true, run: makeRun({ ...REAL, startYears: 0, startCalendarYear: 2026 }), scenarios: null, lock: INACTIVE_LOCK, start: { atFire: false, calendarYear: 2026, age: 40, capital: 700000 } });
+    expect(plain(today.sentence).startsWith('Smettendo oggi con 700.000 €, nel 63% delle')).toBe(true);
+    const before = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK });
+    expect(plain(before.sentence).startsWith('Nell\'84,2% delle 10.000 simulazioni')).toBe(true);
+    expect(plain(before.sentence)).not.toContain('di oggi');
+  });
+
+  it('the Probabilità footer says the euros are today\'s and the inflation, not «Valori nominali»', () => {
+    const footer = plain(describeProbabilitaFooter(makeRun(REAL), INACTIVE_LOCK));
+    expect(footer).toContain("Euro di oggi, inflazione 3,04% (Impostazioni › Simulazioni): il prelievo resta costante in potere d'acquisto.");
+    expect(footer).not.toContain('Valori nominali');
+  });
+
+  it('a fund that unlocks before the FIRE year makes no step on the plot', () => {
+    // ACTIVE_LOCK unlocks in 2045; the run starts in 2031 and ends in 2076, so the step stays; with a start in 2046 it goes.
+    expect(plain(describeProbabilitaFooter(makeRun(REAL), ACTIVE_LOCK))).toContain('Il gradino nel 2045');
+    expect(plain(describeProbabilitaFooter(makeRun({ ...REAL, startCalendarYear: 2046 }), ACTIVE_LOCK))).not.toContain('gradino');
+  });
+
+  it('the Parametri line: the FIRE year and the Base capital, or why the run starts today (DF6)', () => {
+    const fire = { kind: 'fire' as const, years: 5, calendarYear: 2031, ageAtFire: 45, capitalNominal: 943000, capitalToday: 812000, gainShare: null };
+    expect(plain(describeFireStartRow(fire, 'fire', 2026))).toContain('Capitale al FIRE: 812.000 € di oggi (943.000 € nel 2031).');
+    expect(plain(describeFireStartRow(fire, 'today', 2026))).toContain('il Calcolatore dice FIRE nel 2031');
+    expect(plain(describeFireStartRow({ kind: 'today', reason: 'already' }, 'today', 2026))).toBe('Sei già FIRE: la simulazione parte da oggi.');
+    expect(plain(describeFireStartRow({ kind: 'today', reason: 'never' }, 'today', 2026))).toBe('Il Calcolatore non trova un anno FIRE entro il 2076: la simulazione parte da oggi.');
+    expect(plain(describeFireStartRow({ kind: 'today', reason: 'no-plan' }, 'today', 2026))).toBe('Il Calcolatore non ha spesa o SWR: la simulazione parte da oggi.');
+  });
+
+  it('the scenario note and the percentile line say «di oggi» only for real euros', () => {
+    expect(plain(describeScenarioNote(makeScenarioRow('bear', { todayEuros: true })))).toContain('mediana finale 198.000 € di oggi');
+    expect(plain(describePercentili(makeRun({ todayEuros: true, p10DepletionCalendarYear: null })))).toContain('con 0 € di oggi');
   });
 });
