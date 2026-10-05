@@ -80,6 +80,7 @@ import type { MonteCarloCapitalInflow } from '@/types/assets';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
@@ -182,7 +183,7 @@ export function ProjectionTab() {
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
     [resolvedFlows, planExpensesFromCashflow],
   );
-  const assumptionsWithFlows = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
+  const assumptionsWithFlows = useMemo(() => (assumptions ? withFlowsDetail(assumptions, resolvedFlows, excludedFlows) : null), [assumptions, resolvedFlows, excludedFlows]);
   const targetSeed = assumptions?.weightSeeds?.targets ?? null;
   const holdingsSeed = assumptions?.weightSeeds?.holdings ?? null;
   const totalNetWorth = Math.max(0, capital?.total ?? 0);

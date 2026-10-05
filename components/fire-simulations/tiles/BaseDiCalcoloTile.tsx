@@ -1,24 +1,21 @@
 'use client';
 
 /**
- * BASE DI CALCOLO — «su cosa è calcolato?»: the inputs of the FIRE number as flat rows (the net
- * worth the page runs on, the expenses, the savings, the SWR, the pensions, the tax, the flows, the
- * locked pension fund — each with the window or the rule it comes from as a caption).
+ * BASE DI CALCOLO — «come si arriva al numero FIRE?»: the number as a sum of steps in a fixed order (doc/fire-ipotesi/README.md § 15,
+ * RB1–RB3, D-T9): spending ÷ SWR, the withdrawal tax, the state pensions, the locked pension fund, the dated flows, then the FIRE number,
+ * every row to the euro and adding up to it. The capital, the spending and the SWR are not repeated here: they are in «Ipotesi usate».
  *
- * The tile is a READING. The pension-lock switch that lived here until 2026-10-05 is «Il mio piano»'s
- * (doc/fire-ipotesi/README.md § 15, D-T4): the field acts on six tabs, and the page's one place to
- * write it is the plan block above the tabs. The lock's row says what it does to the number.
- *
- * The tile computes nothing: the rows read `FireBase`, the caption reads `describeLock(lock)`.
+ * The tile is a READING and computes nothing: the steps come from `buildFireLedger` (the same `resolveFireRequirement` the Calcolatore
+ * runs), the captions from `describeTaxRow`, `describePensionRow`, `describeLock` and `describeFlowsRow`. The steps are terms of a
+ * calculation, not gains or losses of the user: they take no sign colour. An ingredient that does not enter prints «—» and its reason.
  */
 
 import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { FireLock } from '@/lib/utils/fireSummary';
 import { describePensionRow, describeTaxRow, formatRate, type FireBase } from '@/lib/utils/fireNarrative';
 import { describeFlowsRow } from '@/lib/utils/datedFlowsNarrative';
 import { NO_HONEST } from '@/lib/utils/fireSummary';
-import { describeOutsideCapital } from '@/lib/utils/fireAssumptionsNarrative';
+import type { FireLedgerStepKey } from '@/lib/utils/fireBaseLedger';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
@@ -28,7 +25,6 @@ interface BaseDiCalcoloTileProps {
   reading: Narrative;
   aside: string | null;
   base: FireBase;
-  lock: FireLock;
   /** `describeLock(lock)`. */
   lockCaption: Narrative;
   footer: Narrative;
@@ -37,56 +33,59 @@ interface BaseDiCalcoloTileProps {
   className?: string;
 }
 
-function Row({ label, caption, value }: { label: string; caption?: ReactNode; value: ReactNode }) {
+function Row({ label, caption, value, strong }: { label: string; caption?: ReactNode; value: ReactNode; strong?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3 py-[9px]">
       <span className="min-w-0">
-        <span className="block text-[13px] text-muted-foreground">{label}</span>
+        <span className={cn('block text-[13px]', strong ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{label}</span>
         {/* A caption is a fact (the window, the rule), so it takes the full muted ink: at /70 it
             measured 2,60:1 in light (2026-09-22). */}
         {caption && <span className="block text-[11px] leading-[1.4] text-muted-foreground">{caption}</span>}
       </span>
       {/* An absence prints «—» in the muted ink: a state, never a figure of 0. */}
-      <span className={cn('shrink-0 font-mono text-[14px] tabular-nums', value === null ? 'text-muted-foreground' : 'text-foreground')}>{value ?? '—'}</span>
+      <span className={cn('shrink-0 font-mono text-[14px] tabular-nums', value === null ? 'text-muted-foreground' : 'text-foreground', strong && 'font-semibold')}>{value ?? '—'}</span>
     </div>
   );
 }
 
-export function BaseDiCalcoloTile({ reading, aside, base, lock, lockCaption, footer, currentYear, className }: BaseDiCalcoloTileProps) {
+/** «+41.139 €» / «−169.304 €»: the sign is part of the figure, the colour is not. */
+function signedEuro(value: number | null): string | null {
+  if (value === null) return null;
+  const text = cachedFormatCurrencyEUR(Math.abs(value), true);
+  return value < 0 ? `−${text}` : `+${text}`;
+}
+
+export function BaseDiCalcoloTile({ reading, aside, base, lockCaption, footer, currentYear, className }: BaseDiCalcoloTileProps) {
   const honest = base.honest ?? NO_HONEST;
+  const ledger = base.ledger ?? null;
+  const step = (key: FireLedgerStepKey): number | null => ledger?.steps.find((candidate) => candidate.key === key)?.amount ?? null;
   const pensionRow = describePensionRow(honest, currentYear);
   const taxRow = describeTaxRow(honest);
   const flowsRow = base.flows ? describeFlowsRow(base.flows) : null;
-  const outside = describeOutsideCapital(base.outsideCapital);
-  const netWorthCaption = [
-    outside ? `fuori: ${outside}` : 'portafoglio, non patrimonio',
-    lock.active && lock.lockedValue > 0 ? 'fondo pensione bloccato escluso' : null,
-  ]
-    .filter((part): part is string => part !== null)
-    .join(' · ');
-  const expensesCaption = [`${cachedFormatCurrencyEUR(base.monthlyExpenses, true)} al mese`, base.planExpensesOrigin === 'settings' ? 'spesa del piano, da Parametri' : null]
-    .filter((part): part is string => part !== null)
-    .join(' · ');
+  const taxCaption = honest.taxConsidered ? `${formatRate(honest.taxRate)} sulla plusvalenza, ${formatRate(Math.round(honest.gainSharePct))} del portafoglio` : taxRow.caption;
 
   return (
     <Tile eyebrow="Base di calcolo" aside={aside ?? undefined} reading={reading} ariaLabel="Base di calcolo del FIRE" className={cn('@container', className)}>
-      <div className="mt-2.5 flex flex-col divide-y divide-border">
-        <Row label="Capitale del piano" caption={netWorthCaption} value={cachedFormatCurrencyEUR(base.netWorth, true)} />
-        <Row label="Spese annue" caption={expensesCaption} value={cachedFormatCurrencyEUR(base.annualExpenses, true)} />
-        <Row label="Risparmio annuo" caption={`${cachedFormatCurrencyEUR(base.monthlySavings, true)} al mese`} value={cachedFormatCurrencyEUR(base.annualSavings, true)} />
-        <Row label="Safe Withdrawal Rate" caption="numero FIRE = spese ÷ SWR" value={formatRate(base.swr)} />
+      <p className="mt-2.5 text-[11px] leading-[1.4] text-muted-foreground">Capitale e spesa: vedi Ipotesi usate.</p>
+      <div className="mt-1 flex flex-col divide-y divide-border">
+        <Row label="Spesa ÷ SWR" caption={`${cachedFormatCurrencyEUR(base.annualExpenses, true)} l'anno ÷ ${formatRate(base.swr)}`} value={ledger ? cachedFormatCurrencyEUR(ledger.base, true) : null} />
         {/* The two rows that make the number honest (2026-09-24): each is either in the number
             or declared out with its reason — never silently assumed. */}
-        <Row label="Pensioni statali" caption={pensionRow.caption} value={pensionRow.value} />
-        <Row label="Tasse sui prelievi" caption={taxRow.caption} value={taxRow.value} />
-        {/* § 12 (D-F12): the dated flows in use, and how far they move the FIRE year. */}
-        {flowsRow && <Row label="Flussi nel tempo" caption={flowsRow.caption} value={flowsRow.value} />}
-        {/* The lock is written in «Il mio piano»; here only what it does (an absence prints «—»). */}
+        <Row label="Tasse sui prelievi" caption={taxCaption} value={signedEuro(step('tax'))} />
+        <Row label="Pensioni statali" caption={pensionRow.caption} value={signedEuro(step('pensions'))} />
+        {/* The lock is written in «Il mio piano»; here only what it does to the number. */}
         <Row
           label="Fondo pensione bloccato"
           caption={<NarrativeText segments={lockCaption} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />}
-          value={lock.active && lock.lockedValue > 0 ? cachedFormatCurrencyEUR(lock.lockedValue, true) : null}
+          value={signedEuro(step('bridge'))}
         />
+        {/* § 12 (D-F12): the dated flows in use, and how far they move the FIRE year. */}
+        <Row label="Flussi nel tempo" caption={flowsRow?.caption ?? 'nessuno in Il mio piano'} value={signedEuro(step('flows'))} />
+        <Row label="Numero FIRE" value={ledger ? cachedFormatCurrencyEUR(ledger.total, true) : null} strong />
+      </div>
+      {/* The saving moves the YEAR, not the number: below the total, apart. */}
+      <div className="mt-1 border-t border-border">
+        <Row label="Risparmio annuo" caption={`${cachedFormatCurrencyEUR(base.monthlySavings, true)} al mese · non entra nel numero`} value={cachedFormatCurrencyEUR(base.annualSavings, true)} />
       </div>
 
       <NarrativeText segments={footer} className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground" />

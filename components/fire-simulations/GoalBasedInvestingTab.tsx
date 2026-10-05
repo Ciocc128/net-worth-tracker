@@ -384,7 +384,7 @@ export function GoalBasedInvestingTab() {
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <FireAssumptionsRow assumptions={assumptions} />
+        <FireAssumptionsRow assumptions={assumptions} view="goals" />
         <PageVerdict verdict={verdict} ariaLabel="Verdetto sugli obiettivi" />
       </div>
 

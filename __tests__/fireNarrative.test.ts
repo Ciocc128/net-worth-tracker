@@ -20,6 +20,7 @@ vi.mock('firebase/firestore', () => ({
 import {
   buildFireVerdict,
   describeBase,
+  describeLedgerReading,
   describeBaseAside,
   describeBaseFooter,
   describeDettaglio,
@@ -47,6 +48,7 @@ import {
   describeTaxRow,
   type FireVerdictInput,
 } from '@/lib/utils/fireNarrative';
+import type { FireLedger } from '@/lib/utils/fireBaseLedger';
 import { NO_HONEST, type FanVerdict, type FireLock, type FireTarget, type FireTargetHonest, type FireTimeline, type PassiveIncome, type ScenarioRow } from '@/lib/utils/fireSummary';
 import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
 import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
@@ -485,7 +487,7 @@ describe('describeBase', () => {
   });
 
   it('footer: where the capital comes from and where the settings live (D4, D5)', () => {
-    expect(plain(describeBaseFooter())).toBe('Il capitale è il portafoglio più la liquidità che resta oltre il fondo di emergenza che indichi in Il mio piano; SWR, spesa del piano e regola RITA si modificano lì.');
+    expect(plain(describeBaseFooter())).toBe("I passi si sommano in quest'ordine: ogni cifra è l'effetto dell'ingrediente, dati quelli già messi sopra. Capitale, spesa, SWR e regola RITA si leggono in Ipotesi usate e si modificano in Il mio piano.");
   });
 });
 
@@ -663,5 +665,28 @@ describe('describePersonalSwr (E1)', () => {
   });
   it('says leverage ruin when no rate reaches 90%', () => {
     expect(plain(describePersonalSwr({ rate: null, horizonYears: 30 }))).toContain('nessun prelievo arriva al 90%');
+  });
+});
+
+describe('describeLedgerReading (RB4)', () => {
+  const ledger = (amounts: [number | null, number | null, number | null, number | null], base = 720_000): FireLedger => ({
+    base,
+    steps: [
+      { key: 'tax', amount: amounts[0] },
+      { key: 'pensions', amount: amounts[1] },
+      { key: 'bridge', amount: amounts[2] },
+      { key: 'flows', amount: amounts[3] },
+    ],
+    total: base + amounts.reduce<number>((sum, value) => sum + (value ?? 0), 0),
+    cumulative: [0, 0, 0, 0, 0],
+  });
+
+  it('names only the steps that moved the number', () => {
+    expect(plain(describeLedgerReading(ledger([40_000, -100_000, null, -53_039])))).toBe('Il numero FIRE parte da 720.000 € (spesa ÷ SWR); tasse, pensioni e flussi lo portano a 606.961 €.');
+    expect(plain(describeLedgerReading(ledger([null, null, -50_000, null])))).toBe('Il numero FIRE parte da 720.000 € (spesa ÷ SWR); fondo bloccato lo porta a 670.000 €.');
+  });
+
+  it('says it when no ingredient entered', () => {
+    expect(plain(describeLedgerReading(ledger([null, null, null, null], 750_000)))).toBe('Il numero FIRE è 750.000 € (spesa ÷ SWR), senza altri ingredienti.');
   });
 });

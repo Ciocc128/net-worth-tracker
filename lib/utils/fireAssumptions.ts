@@ -79,6 +79,8 @@ export interface FireAssumptions {
   costs?: FireCosts;
   /** § 12: how many dated flows the tab's numbers run on; set by the tab that reads them (Calcolatore, Coast FIRE), absent elsewhere. */
   datedFlowsCount?: number;
+  /** The Flussi chip's popover: the flows in use as sentences and the excluded ones with the reason (`withFlowsDetail`). */
+  datedFlowsDetail?: { lines: string[]; excluded: string[] };
   /** RC3: the cost of THIS page's weights, percent a year; the rates in `scenarios` are already net of it. */
   cost?: PortfolioCost;
 }

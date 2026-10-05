@@ -1,29 +1,40 @@
 /**
- * The «Ipotesi usate» line of the FIRE page (doc/fire-ipotesi/README.md § 4.2): one sentence, the
- * same in every tab, saying which hypotheses the numbers below run on. Pure; the component only
- * adds the link to Impostazioni › Simulazioni.
+ * The «Ipotesi usate» row of the FIRE page (doc/fire-ipotesi/README.md §§ 4.2 and 15, RC1–RC3): the capital line and four chips
+ * (Rendimenti · Costi · Spesa · Flussi), each with the sentence of its popover. The same strings in every tab for the same data. Pure;
+ * the component only adds the popovers and the links.
  */
 import { formatPercentage } from '@/lib/services/chartService';
 import { formatLeverage } from '@/lib/utils/monteCarloNarrative';
+import { FLOW_KIND_LABEL } from '@/lib/utils/datedFlowsNarrative';
+import type { ResolvedFlow, ExcludedFlow } from '@/lib/utils/datedFlows';
 import { MONTE_CARLO_EXCLUDED_CLASSES, MONTE_CARLO_EXCLUDED_LABELS } from '@/lib/constants/monteCarloClasses';
+import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import type { FireAssumptions, FireCapital, FireExpenses } from '@/lib/utils/fireAssumptions';
-import type { Narrative, NarrativeSegment } from '@/lib/utils/narrative';
+import type { FireAssumptions, FireCapital } from '@/lib/utils/fireAssumptions';
 
-const prose = (text: string): NarrativeSegment => ({ text });
-const figure = (text: string): NarrativeSegment => ({ text, mono: true });
 
 /** One decimal, Italian comma: «8,3%». */
 const pct = (value: number): string => formatPercentage(Math.round(value * 10) / 10, 1);
 
-function describeWeights(assumptions: FireAssumptions): Narrative {
+/** What a chip is: its label, the sentences of its popover and where the figure is changed (RC2). */
+export interface FireChip {
+  id: 'returns' | 'costs' | 'expenses' | 'flows';
+  label: string;
+  lines: string[];
+  links: FireChipLink[];
+}
+
+/** `plan` = a field of «Il mio piano» (the row opens the block on it); `href` = another page. */
+export type FireChipLink = { text: string; href: string } | { text: string; planField: 'spesa' | 'flussi' };
+
+function describeWeights(assumptions: FireAssumptions): string {
   switch (assumptions.weightsOrigin) {
     case 'targets':
-      return [prose('Portafoglio target')];
+      return 'Portafoglio target';
     case 'holdings':
-      return [prose('Portafoglio di oggi (nessun target in Allocazione)')];
+      return 'Portafoglio di oggi (nessun target in Allocazione)';
     default:
-      return [prose('Portafoglio 60/40 predefinito (nessun asset in elenco)')];
+      return 'Portafoglio 60/40 predefinito (nessun asset in elenco)';
   }
 }
 
@@ -41,27 +52,8 @@ export function describeOutsideCapital(outside: FireCapital['outside']): string 
   return parts.length > 0 ? parts.join(', ') : null;
 }
 
-/** «spesa 32.000 € dal Cashflow 2025» / «… da Impostazioni» / «… dal Cashflow 2026, annualizzato»; a Cashflow with no expenses says so. */
-function describeExpenses(expenses: FireExpenses): Narrative {
-  if (expenses.origin === 'settings') return [prose(' · spesa '), figure(euro(expenses.annual)), prose(' da Impostazioni')];
-  if (!(expenses.annual > 0)) return [prose(' · spesa '), figure('non rilevata'), prose(' (nessuna spesa nel Cashflow)')];
-  return [prose(' · spesa '), figure(euro(expenses.annual)), prose(` dal Cashflow ${expenses.referenceYear ?? ''}${expenses.isAnnualized ? ', annualizzato' : ''}`.trimEnd())];
-}
-
 /** Two decimals, Italian comma: «0,36%» — the costs are a fraction of a point, one decimal would erase them. */
 const pct2 = (value: number): string => formatPercentage(Math.round(value * 100) / 100, 2);
-
-/** The three readings of the costs (doc/fire-ipotesi § 9, C12): TER and duty, TER only, duty only, or none. Null when the costs were not computed. */
-function describeCosts(assumptions: FireAssumptions): Narrative | null {
-  const { costs, cost } = assumptions;
-  if (!costs || !cost) return null;
-  const stampOff = 'bollo non attivo in Impostazioni › Allocazione';
-  const terMissing = 'TER non inseriti negli strumenti';
-  if (!costs.anyTer && !costs.stampDutyEnabled) return [prose(' · nessun costo ('), prose(`${terMissing}; ${stampOff})`)];
-  if (!costs.anyTer) return [prose(' · costi '), figure(pct2(cost.total)), prose(` (solo bollo; ${terMissing})`)];
-  if (!costs.stampDutyEnabled) return [prose(' · costi '), figure(pct2(cost.total)), prose(` (solo TER; ${stampOff})`)];
-  return [prose(' · costi '), figure(pct2(cost.total)), prose(' (TER '), figure(pct2(cost.ter)), prose(', bollo '), figure(pct2(cost.stampDuty)), prose(')')];
-}
 
 /** True when the costs ignore the stamp duty because Impostazioni › Allocazione has it off: the row links the tile (C12). */
 export function costsLackStampDuty(assumptions: FireAssumptions): boolean {
@@ -117,40 +109,83 @@ const monthsClause = (fund: number, annualExpense: number | null | undefined): s
   return months ? `, pari a ${months} della spesa del piano` : '';
 };
 
-function describeCapital(capital: FireCapital): Narrative {
-  return [prose(' · capitale '), figure(euro(capital.total)), prose(` ${describeCapitalBreakdown(capital)}`)];
+
+/** RC1: the capital row, «Capitale 430.000 €» and its breakdown in a smaller body; null until the tab has the capital. */
+export function describeCapitalRow(assumptions: FireAssumptions): { figure: string; breakdown: string } | null {
+  if (!assumptions.capital) return null;
+  return { figure: euro(assumptions.capital.total), breakdown: describeCapitalBreakdown(assumptions.capital).slice(1, -1) };
+}
+
+/** RC3, Rendimenti: «Rendimento Base 8,3% · reale 5,1%»; the popover says where the weights come from, Bear and Bull, the inflation and the leverage. */
+export function describeReturnsChip(assumptions: FireAssumptions): FireChip {
+  const { bear, base, bull } = assumptions.scenarios;
+  const lines = [describeWeights(assumptions), `Bear ${pct(bear.growthRate)}, Bull ${pct(bull.growthRate)}`, `Inflazione ${pct(base.inflationRate)}`];
+  if (assumptions.leverage > 1) lines.push(`Leva ${formatLeverage(assumptions.leverage)}`);
+  return {
+    id: 'returns',
+    label: `Rendimento Base ${pct(base.growthRate)} · reale ${pct(base.realReturnRate)}`,
+    lines,
+    links: [{ text: 'Modifica in Impostazioni › Simulazioni', href: '/dashboard/settings?tab=simulazioni' }],
+  };
+}
+
+/** RC3, Costi: the three readings of the costs (doc/fire-ipotesi § 9, C12); null when the costs were not computed. */
+export function describeCostsChip(assumptions: FireAssumptions): FireChip | null {
+  const { costs, cost } = assumptions;
+  if (!costs || !cost) return null;
+  const stampOff = 'bollo non attivo in Impostazioni › Allocazione';
+  const terMissing = 'TER non inseriti negli strumenti';
+  const href = '/dashboard/settings?tab=allocazione';
+  const link: FireChipLink = { text: costsLackStampDuty(assumptions) ? 'Attiva il bollo' : 'Impostazioni › Allocazione', href };
+  if (!costs.anyTer && !costs.stampDutyEnabled) return { id: 'costs', label: 'Nessun costo', lines: [`${terMissing}; ${stampOff}`], links: [link] };
+  if (!costs.anyTer) return { id: 'costs', label: `Costi ${pct2(cost.total)}`, lines: [`Solo bollo; ${terMissing}`], links: [link] };
+  if (!costs.stampDutyEnabled) return { id: 'costs', label: `Costi ${pct2(cost.total)}`, lines: [`Solo TER; ${stampOff}`], links: [link] };
+  return { id: 'costs', label: `Costi ${pct2(cost.total)}`, lines: [`TER ${pct2(cost.ter)}, bollo ${pct2(cost.stampDuty)}`, 'I rendimenti sono già al netto.'], links: [link] };
+}
+
+/** RC3, Spesa: «Spesa 25.200 €» and where it comes from; null until the tab has the expenses. */
+export function describeExpensesChip(assumptions: FireAssumptions): FireChip | null {
+  const expenses = assumptions.expenses;
+  if (!expenses) return null;
+  const link: FireChipLink = { text: 'Il mio piano', planField: 'spesa' };
+  if (expenses.origin === 'settings') return { id: 'expenses', label: `Spesa ${euro(expenses.annual)}`, lines: ['Spesa del piano, da Il mio piano'], links: [link] };
+  if (!(expenses.annual > 0)) return { id: 'expenses', label: 'Spesa non rilevata', lines: ['Nessuna spesa nel Cashflow'], links: [link] };
+  return { id: 'expenses', label: `Spesa ${euro(expenses.annual)}`, lines: [`Dal Cashflow ${expenses.referenceYear ?? ''}${expenses.isAnnualized ? ', annualizzato' : ''}`.trimEnd()], links: [link] };
+}
+
+/** One line of the Flussi popover: «Eredità · una tantum · 100.000 € · 2036»; the year is the calendar one, or «dal FIRE». */
+function describeFlowLine(flow: ResolvedFlow, currentYear: number): string {
+  const recurring = flow.kind === 'expense' || flow.kind === 'income';
+  const amount = `${euro(flow.amount)}${recurring ? '/anno' : ''}`;
+  const when = flow.anchor === 'fire' ? (flow.start > 0 ? `${flow.start} anni dopo il FIRE` : 'dal FIRE') : String(currentYear + flow.start);
+  return `${flow.label} · ${FLOW_KIND_LABEL[flow.kind]} · ${amount} · ${when}`;
 }
 
 /**
- * «Portafoglio target · Base 8,3% (reale 5,1%), Bear 6,0%, Bull 11,1% · inflazione 3,0%», with «· leva 1,5×» when the weights
- * sum above 100%, then «· costi 0,36% (TER 0,16%, bollo 0,20%)» (the rates above are net of them), then «· spesa 32.000 € dal Cashflow 2025 · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €)».
+ * The flows a tab runs on, for the popover: the lines of the resolved flows and the excluded ones with the reason. The tabs lay it on
+ * `FireAssumptions` once, next to the count (`withFlowsDetail`).
  */
-export function describeFireAssumptions(assumptions: FireAssumptions): Narrative {
-  const { bear, base, bull } = assumptions.scenarios;
-  const out: Narrative = [
-    ...describeWeights(assumptions),
-    prose(' · Base '),
-    figure(pct(base.growthRate)),
-    prose(' (reale '),
-    figure(pct(base.realReturnRate)),
-    prose('), Bear '),
-    figure(pct(bear.growthRate)),
-    prose(', Bull '),
-    figure(pct(bull.growthRate)),
-    prose(' · inflazione '),
-    figure(pct(base.inflationRate)),
-  ];
-  if (assumptions.leverage > 1) {
-    out.push(prose(' · leva '), figure(formatLeverage(assumptions.leverage)));
-  }
-  // RC: the yearly costs the rates are net of.
-  const costs = describeCosts(assumptions);
-  if (costs) out.push(...costs);
-  // L2: the expenses and the capital, once the tab has them (RP5, RP6).
-  if (assumptions.expenses) out.push(...describeExpenses(assumptions.expenses));
-  if (assumptions.capital) out.push(...describeCapital(assumptions.capital));
-  // § 12: the dated flows the numbers run on.
-  const flowsCount = assumptions.datedFlowsCount ?? 0;
-  if (flowsCount > 0) out.push(prose(' · '), figure(String(flowsCount)), prose(flowsCount === 1 ? ' flusso datato' : ' flussi datati'));
-  return out;
+export function withFlowsDetail(assumptions: FireAssumptions, resolved: readonly ResolvedFlow[], excluded: readonly ExcludedFlow[], currentYear: number = getItalyYear()): FireAssumptions {
+  return {
+    ...assumptions,
+    datedFlowsCount: resolved.length,
+    datedFlowsDetail: { lines: resolved.map((flow) => describeFlowLine(flow, currentYear)), excluded: excluded.map((flow) => `${flow.label}: ${flow.reason}`) },
+  };
+}
+
+/** RC3, Flussi: «Flussi 4» / «Flussi: nessuno»; the Obiettivi read none of them, and say so. Null until a tab has set the count. */
+export function describeFlowsChip(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): FireChip | null {
+  const link: FireChipLink = { text: 'Il mio piano', planField: 'flussi' };
+  if (view === 'goals') return { id: 'flows', label: "Flussi: solo nell'Effetto sul FIRE", lines: ['Gli obiettivi non leggono i flussi datati: li usa solo l\'effetto sul FIRE.'], links: [link] };
+  if (assumptions.datedFlowsCount === undefined) return null;
+  const count = assumptions.datedFlowsCount;
+  const detail = assumptions.datedFlowsDetail;
+  const excluded = detail?.excluded.length ? [`Esclusi: ${detail.excluded.join('; ')}`] : [];
+  if (count === 0) return { id: 'flows', label: 'Flussi: nessuno', lines: excluded.length > 0 ? excluded : ['Nessun flusso nel piano.'], links: [link] };
+  return { id: 'flows', label: `Flussi ${count}`, lines: [...(detail?.lines ?? []), ...excluded], links: [link] };
+}
+
+/** The chips in the order of RC1; a chip with nothing to say (no costs computed yet, no expenses) is left out, never a «—» (RC5). */
+export function describeFireChips(assumptions: FireAssumptions, view: 'goals' | 'default' = 'default'): FireChip[] {
+  return [describeReturnsChip(assumptions), describeCostsChip(assumptions), describeExpensesChip(assumptions), describeFlowsChip(assumptions, view)].filter((chip): chip is FireChip => chip !== null);
 }
