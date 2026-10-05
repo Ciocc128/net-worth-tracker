@@ -2584,7 +2584,7 @@ verifica Runway) sono in un'unica PR.
 > Aggiunta il 05/10/2026 (thread «spec», card Todoist «FEAT FIRE: Coast › Afflussi, mostrare i flussi datati e sparire
 > quando è vuota» e «FEAT FIRE: Coast › Traguardo, striscia a tre tappe (oggi, al target, a regime)», passo 7
 > dell'ordine delle card FEAT FIRE). Le due idee sono approvate dal proprietario nelle card (05/10); le decisioni
-> D-CO1–D-CO8 sono proposte dal thread. **Solo presentazione**: nessuna formula del numero Coast cambia; tre cifre
+> D-CO1–D-CO8, proposte dal thread, sono confermate dal proprietario lo stesso giorno. **Solo presentazione**: nessuna formula del numero Coast cambia; tre cifre
 > nuove sono letture della camminata che esiste già (RCO1–RCO3). Base di codice: commit `540835c` (`main` del fork,
 > merge della PR #73).
 
@@ -2769,12 +2769,12 @@ settimo segno «+N», l'elenco intero nella lettura.
 | --- | --- | --- | --- |
 | D-CO1 | **Presa** (05/10/2026, proprietario) | Ogni tappa mostra **servono, ne avrai (ne hai) ed esito**; l'eroe resta il numero di oggi (card approvata). | Solo «servono» (il percorso del requisito senza il confronto: il lettore non vede il buco crescere); servono e mancano senza «ne avrai» (toglie la cifra che il verdetto cita). |
 | D-CO2 | **Presa** (05/10/2026, proprietario) | **Nessuna seconda frase nel verdetto**: le tre tappe hanno un margine solo (§ 17.2), «a regime mancano N €» con il sì in testa non può comparire. Il verdetto tiene la frase sul capitale al target (lo dice in prosa, la striscia è il posto delle cifre, come D-W4). | Seconda frase quando una tappa non regge (codice che non scatta mai); togliere dal verdetto la frase sul capitale al target (resterebbe il buco senza la data). |
-| D-CO3 | **Proposta** (05/10/2026) | **«Ne avrai» per margine** (RCO2, RCO3): `servono + M·(1+r)^t`, calcolato in `fireService`. | Una seconda camminata in avanti (una formula in più che con i flussi datati non coincide con RF5, e l'esito delle tappe potrebbe contraddire il numero di oggi). |
-| D-CO4 | **Proposta** (05/10/2026) | Etichetta «**A regime · dal {anno}**» con la riga del metodo che dice in cosa differisce dal numero FIRE del Calcolatore (tutte le pensioni, un'altra data). Il nome definitivo lo fissa il glossario (passo 9). | «Numero FIRE a regime» (quinto «numero FIRE», il problema della card del numero unico); nessuna riga (880.121 € accanto ai 606.961 € del Calcolatore senza spiegazione). |
+| D-CO3 | **Presa** (05/10/2026, proprietario) | **«Ne avrai» per margine** (RCO2, RCO3): `servono + M·(1+r)^t`, calcolato in `fireService`. | Una seconda camminata in avanti (una formula in più che con i flussi datati non coincide con RF5, e l'esito delle tappe potrebbe contraddire il numero di oggi). |
+| D-CO4 | **Presa** (05/10/2026, proprietario) | Etichetta «**A regime · dal {anno}**» con la riga del metodo che dice in cosa differisce dal numero FIRE del Calcolatore (tutte le pensioni, un'altra data). Il nome definitivo lo fissa il glossario (passo 9). | «Numero FIRE a regime» (quinto «numero FIRE», il problema della card del numero unico); nessuna riga (880.121 € accanto ai 606.961 € del Calcolatore senza spiegazione). |
 | D-CO5 | **Presa** (05/10/2026, proprietario) | Afflussi mostra **entrate e uscite** che il numero conta (RCO5), occhiello «Afflussi e uscite» quando c'è un'uscita. | Solo entrate (il mutuo dopo il target o la casa di un obiettivo alzano il numero senza comparire). |
 | D-CO6 | **Presa** (05/10/2026, proprietario) | Senza eventi la tessera **sparisce** (card approvata) e la riga va nel **piede del Traguardo** (RCO7). | Chip «Flussi» della riga Ipotesi usate (parla dei flussi datati, non di pensioni e fondo; e la riga è un fatto sul numero, non un'ipotesi); una riga a sé nella griglia (una tessera vuota con un altro nome). |
-| D-CO7 | **Proposta** (05/10/2026) | Sul telefono le **tre tappe impilate**, tutte visibili. | Solo la tappa che non regge o l'ultima (proposta della card): con l'esito sempre uguale non c'è una tappa che non regge da sola, e l'ultima da sola nasconde l'unica cifra che il verdetto cita. |
-| D-CO8 | **Proposta** (05/10/2026) | Il verdetto usa `Y_T` (RCO2): una cifra sola per «ne avrai al target» tra verdetto, tappa e grafico. | Lasciare `futureValueAtRetirement` (con un'una tantum il verdetto dice 410.000 € e grafico e tappa 514.212 €). |
+| D-CO7 | **Presa** (05/10/2026, proprietario) | Sul telefono le **tre tappe impilate**, tutte visibili. | Solo la tappa che non regge o l'ultima (proposta della card): con l'esito sempre uguale non c'è una tappa che non regge da sola, e l'ultima da sola nasconde l'unica cifra che il verdetto cita. |
+| D-CO8 | **Presa** (05/10/2026, proprietario) | Il verdetto usa `Y_T` (RCO2): una cifra sola per «ne avrai al target» tra verdetto, tappa e grafico. | Lasciare `futureValueAtRetirement` (con un'una tantum il verdetto dice 410.000 € e grafico e tappa 514.212 €). |
 
 ### 17.8 Criteri di accettazione (valori di riferimento verificabili)
 
