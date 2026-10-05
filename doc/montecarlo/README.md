@@ -1149,8 +1149,8 @@ non più importato).
 
 ## 13. T6 — Proiezione: la soglia è il numero FIRE del Calcolatore, Tappe prima, via la Distribuzione (spec del 05/10/2026)
 
-> **Stato**: spec scritta il 05/10/2026; decisioni DN1–DN5 in § 13.8 (da confermare con il proprietario nel thread
-> della spec). Non ancora implementata.
+> **Stato**: spec scritta il 05/10/2026; decisioni DN1–DN5 prese con il proprietario lo stesso giorno (§ 13.8: DN1
+> scelta da lui tra le tre opzioni della card, DN2–DN5 accettate come proposte). Non ancora implementata.
 >
 > Origine: passo 6 dell'ordine approvato (`/mnt/project-files/fire-simulazioni/ordine-feat-fire.md`), card Todoist
 > della scheda Proiezione: «FIRE: soglia della Proiezione vs numero FIRE del Calcolatore (da verificare, soluzione da
@@ -1317,7 +1317,7 @@ Ventaglio → Scenari → Parametri. Lo scheletro (`SKELETON_CELLS`) segue la st
    `histogram`/`histogramCap` del riepilogo; `valueHistogram.ts` resta se `monteCarloService.createDistribution` lo
    importa ancora, `FinalValueBars` esce se nessuno lo importa più.
 
-### 13.8 Decisioni
+### 13.8 Decisioni (prese con il proprietario il 05/10/2026)
 
 | # | Decisione | Alternative scartate e motivo |
 | --- | --- | --- |
