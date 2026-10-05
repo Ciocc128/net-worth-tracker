@@ -11,9 +11,8 @@
 import { MONTE_CARLO_CLASSES } from '@/lib/constants/monteCarloClasses';
 import type { MonteCarloCapitalInflow, MonteCarloMarketSettings } from '@/types/assets';
 import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
-import { binSortedValues } from '@/lib/utils/valueHistogram';
 import { datedFlowsSignature, type DatedFlowsInput } from '@/lib/utils/datedFlows';
-import { SCENARIO_KEYS, type HistogramBin, type MonteCarloContext, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
+import { SCENARIO_KEYS, type MonteCarloContext, type ScenarioKey } from '@/lib/utils/monteCarloSummary';
 
 export type { ScenarioKey };
 
@@ -71,11 +70,34 @@ export function inflationFactor(inflationPct: number, years: number): number {
   return Math.pow(1 + inflationPct / 100, years);
 }
 
-/** RV6: today's FIRE number, `expenses ÷ SWR`; null when there are no expenses (the field stays empty). */
-export function resolveProjectionThreshold(annualExpenses: number | null | undefined, swrPct: number | null | undefined): number | null {
-  if (!annualExpenses || !(annualExpenses > 0)) return null;
-  const swr = swrPct && swrPct > 0 ? swrPct : 4;
-  return annualExpenses / (swr / 100);
+// ─── The threshold (§ 13, RN1–RN4) ────────────────────────────────────────────
+
+/**
+ * RN1–RN4: either the FIRE number of the Calcolatore year by year in today's euros (`series[t]`, t = 0…H) or a typed
+ * figure, a straight line in today's euros. Null = no threshold (no plan that runs, nothing typed).
+ */
+export type ProjectionThreshold = { kind: 'fire'; series: readonly number[] } | { kind: 'fixed'; value: number } | null;
+
+/** The threshold of year `t` in today's euros; null with no threshold or past the end of a series. */
+export function thresholdAtYear(threshold: ProjectionThreshold, year: number): number | null {
+  if (threshold === null) return null;
+  if (threshold.kind === 'fixed') return threshold.value;
+  const value = threshold.series[year];
+  return value === undefined ? null : value;
+}
+
+/**
+ * RN1–RN2: the Calcolatore's FIRE number of every year in today's euros. `fireNumberToday` is year 0, `yearlyNominal[t − 1]`
+ * the Base row's `baseFireNumber` of year t (nominal of that year, the very series of the Ventaglio's «Target FIRE»), each
+ * divided by `(1 + π_b)^t`. Rows the walk did not reach repeat the last one's real value (a walk of `years` rows has none missing).
+ */
+export function buildFireThresholdSeries(fireNumberToday: number, yearlyNominal: readonly number[], inflationPct: number, years: number): number[] {
+  const series = [fireNumberToday];
+  for (let year = 1; year <= years; year++) {
+    const nominal = yearlyNominal[year - 1];
+    series.push(nominal === undefined ? series[year - 1] : nominal / inflationFactor(inflationPct, year));
+  }
+  return series;
 }
 
 // ─── The summary ──────────────────────────────────────────────────────────────
@@ -101,7 +123,9 @@ export interface ProjectionFigures extends ProjectionPercentiles {
   calendarYear: number;
   age: number | null;
   p50Nominal: number;
-  /** RV5: share (0–100) of paths at or above the threshold in today's euros; null with no threshold. */
+  /** The threshold of THIS row's year in today's euros (RN3); null with no threshold. */
+  threshold: number | null;
+  /** RN3: share (0–100) of paths at or above `threshold` in today's euros; null with no threshold. */
   probabilityAtLeast: number | null;
   /** RV5: share (0–100) of paths below the starting capital in today's purchasing power. */
   probabilityBelowStart: number;
@@ -123,19 +147,15 @@ export interface ProjectionSummary {
   endCalendarYear: number;
   endAge: number | null;
   simulations: number;
+  /** The threshold at the horizon, in today's euros; null with none. */
   threshold: number | null;
   startingCapital: number;
   scenarios: Record<ScenarioKey, ScenarioProjection>;
-  /** The base scenario's real values at the horizon, in the Monte Carlo's bins (the shared rule). */
-  histogram: HistogramBin[];
-  /** Upper bound of the equal-width range / of the last bin, as the footer of the tile says. */
-  histogramCap: number;
-  histogramMax: number;
 }
 
 export interface SummarizeProjectionOptions {
   horizon: number;
-  threshold: number | null;
+  threshold: ProjectionThreshold;
   /** `K`: the capital RV5's «below the start» compares with (not `K` plus what is saved). */
   startingCapital: number;
   ctx: MonteCarloContext;
@@ -154,7 +174,8 @@ function figuresAt(
   const factor = inflationFactor(inflationPct, year);
   const real = (p: number) => percentileOf(snapshot, p) / factor;
   const n = snapshot.length;
-  const atLeast = options.threshold !== null && n > 0 ? (countAtLeast(snapshot, options.threshold * factor) / n) * 100 : null;
+  const threshold = thresholdAtYear(options.threshold, year);
+  const atLeast = threshold !== null && n > 0 ? (countAtLeast(snapshot, threshold * factor) / n) * 100 : null;
   const belowStart = n > 0 ? ((n - countAtLeast(snapshot, options.startingCapital * factor)) / n) * 100 : 0;
   return {
     year,
@@ -166,6 +187,7 @@ function figuresAt(
     p75: real(0.75),
     p90: real(0.9),
     p50Nominal: percentileOf(snapshot, 0.5),
+    threshold,
     probabilityAtLeast: atLeast,
     probabilityBelowStart: belowStart,
   };
@@ -223,32 +245,14 @@ export function summarizeProjection(data: ProjectionRunData, options: SummarizeP
     };
   }
 
-  // The histogram of the base scenario's values in today's euros: dividing by one factor keeps them sorted.
-  const baseSnapshot = data.scenarios.base.snapshots[horizon];
-  const baseFactor = inflationFactor(data.inflation.base, horizon);
-  const realValues = Float64Array.from(baseSnapshot, (value) => value / baseFactor);
-  const median = percentileOf(realValues, 0.5);
-  const bins = binSortedValues(realValues, 10);
-  const last = bins.length - 1;
-  const histogram: HistogramBin[] = bins.map((bin, index) => ({
-    from: bin.from,
-    to: bin.to,
-    count: bin.count,
-    sharePct: (bin.count / realValues.length) * 100,
-    containsMedian: index === last ? median >= bin.from && median <= bin.to : median >= bin.from && median < bin.to,
-  }));
-
   return {
     horizon,
     endCalendarYear: options.ctx.startCalendarYear + horizon,
     endAge: ageAt(horizon, options.ctx),
     simulations: data.simulations,
-    threshold: options.threshold,
+    threshold: thresholdAtYear(options.threshold, horizon),
     startingCapital: options.startingCapital,
     scenarios,
-    histogram,
-    histogramCap: histogram.length > 1 ? histogram[histogram.length - 2].to : histogram.length === 1 ? histogram[0].to : 0,
-    histogramMax: histogram.length > 0 ? histogram[histogram.length - 1].to : 0,
   };
 }
 

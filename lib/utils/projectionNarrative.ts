@@ -48,17 +48,19 @@ export interface ProjectionVerdictInput {
   /** A positive starting capital exists. */
   runnable: boolean;
   summary: ProjectionSummary | null;
-  /** The threshold is today's FIRE number (RV6), not a figure the user typed. */
+  /** The threshold is the Calcolatore's FIRE number year by year (RN1), not a figure the user typed. */
   thresholdIsFireNumber: boolean;
   /** `Σ weights / 100`, 1 without leverage. */
   leverage: number;
 }
 
-/** «Supera il numero FIRE di 800.000 € nel 45% delle simulazioni.» / «Supera 1.000.000 € di oggi nel 36% …». */
+/** «Supera il tuo numero FIRE di quell'anno (826.000 € di oggi) nel 45% …» / «Supera la soglia di 1.000.000 € di oggi nel 36% …». */
 function thresholdSentence(summary: ProjectionSummary, isFireNumber: boolean): Narrative {
   const probability = summary.scenarios.base.atHorizon.probabilityAtLeast;
   if (summary.threshold === null || probability === null) return [];
-  const subject: Narrative = isFireNumber ? [prose(' Supera il numero FIRE di '), amount(summary.threshold)] : [prose(' Supera '), amount(summary.threshold), prose(' di oggi')];
+  const subject: Narrative = isFireNumber
+    ? [prose(" Supera il tuo numero FIRE di quell'anno ("), amount(summary.threshold), prose(' di oggi)')]
+    : [prose(' Supera la soglia di '), amount(summary.threshold), prose(' di oggi')];
   return [...subject, prose(' '), prose(inThePercent(probability)), figure(ratePct(probability)), prose(' delle simulazioni.')];
 }
 
@@ -137,37 +139,17 @@ export function describeVentaglio(summary: ProjectionSummary, startValue: number
 }
 
 /** `costPct`: the yearly TER and stamp duty of the run's weights (RC3), taken off every year (D-C6); 0 = none found. */
-export function describeVentaglioFooter(inflationPct: number, threshold: number | null, costPct = 0): Narrative {
+export type VentaglioThresholdKind = 'fire' | 'fixed' | 'none';
+
+export function describeVentaglioFooter(inflationPct: number, threshold: VentaglioThresholdKind, costPct = 0): Narrative {
   return [
     prose('Euro di oggi, inflazione '),
     figure(`${inflationPct.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`),
     prose(' (Impostazioni › Simulazioni). Bande 10°–90° e 25°–75° percentile, linea piena la mediana'),
-    prose(threshold !== null ? '; la linea tratteggiata è la soglia.' : '.'),
+    prose(threshold === 'fire' ? '; la linea tratteggiata è il tuo numero FIRE anno per anno (Calcolatore).' : threshold === 'fixed' ? '; la linea tratteggiata è la soglia.' : '.'),
     ...(costPct > 0
       ? [prose(' Al netto di TER e bollo ('), figure(`${costPct.toLocaleString('it-IT', { maximumFractionDigits: 2 })}%`), prose(" l'anno); lordi della tassa sulla vendita.")]
       : [prose(' Nessun costo ricorrente rilevato (TER non inseriti, bollo non attivo); lordi della tassa sulla vendita.')]),
-  ];
-}
-
-// ─── Distribuzione ────────────────────────────────────────────────────────────
-
-/** «Metà delle simulazioni tra 378.000 € e 1.351.000 €.» */
-export function describeDistribuzione(summary: ProjectionSummary): Narrative {
-  const base = summary.scenarios.base.atHorizon;
-  return [prose('Metà delle simulazioni tra '), amount(base.p25), prose(' e '), amount(base.p75), prose('.')];
-}
-
-export function describeDistribuzioneAside(summary: ProjectionSummary): string {
-  return `${years(summary.horizon)} · ${summary.simulations.toLocaleString('it-IT')} simulazioni`;
-}
-
-export function describeDistribuzioneFooter(summary: ProjectionSummary): Narrative {
-  return [
-    prose('Barre di larghezza uguale fino al 95° percentile ('),
-    amount(summary.histogramCap),
-    prose('); l’ultima prende la coda fino al massimo simulato ('),
-    amount(summary.histogramMax),
-    prose('). Contorno: la barra con la mediana.'),
   ];
 }
 
@@ -192,10 +174,10 @@ export function describeProjectionScenarioNote(figures: ProjectionFigures, hasTh
   return out;
 }
 
-export function projectionScenariFooter(threshold: number | null): Narrative {
+export function projectionScenariFooter(threshold: VentaglioThresholdKind): Narrative {
   return [
     prose(
-      threshold !== null
+      threshold !== 'none'
         ? 'Mediana in euro di oggi e probabilità di superare la soglia, per ciascuno scenario. Le tre esecuzioni condividono capitale, versamenti, orizzonte e pesi; cambiano rendimenti, volatilità e inflazione.'
         : 'Mediana in euro di oggi per ciascuno scenario. Le tre esecuzioni condividono capitale, versamenti, orizzonte e pesi; cambiano rendimenti, volatilità e inflazione.',
     ),
@@ -215,7 +197,13 @@ export function describeTappe(rows: ProjectionFigures[]): Narrative {
   return [prose('Tra '), figure(years(first.year)), prose(' la mediana è '), amount(first.p50), prose(', tra '), figure(years(last.year)), prose(' '), amount(last.p50), prose('; il 10° percentile a '), figure(years(last.year)), prose(' è '), amount(last.p10), prose('.')];
 }
 
-export const TAPPE_FOOTER: Narrative = [prose('Anno di calendario ed età (se nota in Impostazioni). In piccolo la mediana nominale, cioè in euro di quell’anno.')];
+/** `threshold`: 'fire' says the row's own figure sits under each percentage; 'fixed' says the one figure for all rows. */
+export function describeTappeFooter(threshold: VentaglioThresholdKind, fixedValue: number | null = null): Narrative {
+  const base = 'Anno di calendario ed età (se nota in Impostazioni). In piccolo la mediana nominale, cioè in euro di quell’anno.';
+  if (threshold === 'fire') return [prose(`${base} Sotto la percentuale, il numero FIRE di quell’anno in euro di oggi.`)];
+  if (threshold === 'fixed' && fixedValue !== null) return [prose(`${base} La soglia è la stessa per ogni riga: `), amount(fixedValue), prose(' di oggi.')];
+  return [prose(base)];
+}
 
 // ─── Parametri ────────────────────────────────────────────────────────────────
 
@@ -266,8 +254,13 @@ export function describeSavingsSource(source: { year: number; annualized: boolea
   return `dal Cashflow ${source.year}${source.annualized ? ', annualizzato' : ''} · cresce con l'inflazione`;
 }
 
-export const PROJECTION_THRESHOLD_HINT_FIRE = 'il tuo numero FIRE, in euro di oggi';
+export const PROJECTION_THRESHOLD_HINT_FIRE = 'il numero FIRE del Calcolatore, anno per anno, in euro di oggi: non segue il capitale e il versamento scritti qui';
+export const PROJECTION_THRESHOLD_HINT_FIXED = 'una cifra fissa in euro di oggi';
 export const PROJECTION_THRESHOLD_HINT_EMPTY = 'scrivi una soglia in euro di oggi per vedere la probabilità';
+/** The seed's placeholder in the empty field: «oggi 606.961 €, poi anno per anno». */
+export function describeFireThresholdPlaceholder(todayFireNumber: number): string {
+  return `oggi ${cachedFormatCurrencyEUR(Math.round(todayFireNumber), true)}, poi anno per anno`;
+}
 
 // ─── Dettaglio ────────────────────────────────────────────────────────────────
 
@@ -280,7 +273,11 @@ export const PROJECTION_EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'Percentili e probabilità',
-    body: 'Il 10°, il 25°, la mediana, il 75° e il 90° sono i valori di tutte le traiettorie a quell’anno, azzerate comprese. Le cifre sono in euro di oggi (il valore dell’anno diviso per l’inflazione cumulata dello scenario); la probabilità è la quota di traiettorie a o sopra la soglia, o sotto il capitale di partenza in potere d’acquisto. Cambiare soglia o orizzonte (entro quello simulato) non richiede una nuova esecuzione.',
+    body: 'Il 10°, il 25°, la mediana, il 75° e il 90° sono i valori di tutte le traiettorie a quell’anno, azzerate comprese. Le cifre sono in euro di oggi (il valore dell’anno diviso per l’inflazione cumulata dello scenario); la probabilità è la quota di traiettorie a o sopra la soglia di quell’anno, o sotto il capitale di partenza in potere d’acquisto. Cambiare soglia o orizzonte (entro quello simulato) non richiede una nuova esecuzione.',
+  },
+  {
+    title: 'La soglia',
+    body: 'La soglia è il numero FIRE del Calcolatore ricalcolato ogni anno, in euro di oggi: flussi datati, pensioni, tassa sul prelievo e fondo bloccato lo spostano, e una sola serie vale per i tre scenari. Qui il versamento continua anche dopo il FIRE, nel Calcolatore si ferma. Non segue il capitale, il versamento e i pesi scritti in Parametri: è il numero del piano salvato (o della bozza di «Il mio piano»). Una cifra scritta nel campo è invece una retta, uguale in ogni anno.',
   },
   {
     title: 'La leva',

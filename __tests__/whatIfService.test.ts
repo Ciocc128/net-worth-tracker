@@ -5,7 +5,8 @@ vi.mock('@/lib/services/expenseService', () => ({}))
 vi.mock('@/lib/services/snapshotService', () => ({}))
 
 import { calculateCoastFIREMetrics, getDefaultScenarios } from '@/lib/services/fireService'
-import { applyScenarioToBaseline, calculateWhatIfImpact } from '@/lib/services/whatIfService'
+import { applyScenarioToBaseline, calculateWhatIfImpact, resolveProjectionFireSeries, runBaselineProjection } from '@/lib/services/whatIfService'
+import type { ResolvedFlow } from '@/lib/utils/datedFlows'
 import type { WhatIfBaseline, WhatIfScenario } from '@/types/whatIf'
 
 function makeBaseline(overrides: Partial<WhatIfBaseline> = {}): WhatIfBaseline {
@@ -349,4 +350,78 @@ describe('plan expenses and the indexed saving (doc/fire-ipotesi/README.md D5, D
     expect(after!.yearlyData[0].baseNetWorth).toBe(before!.yearlyData[0].baseNetWorth)
     expect(after!.yearlyData[1].baseNetWorth).toBeGreaterThan(before!.yearlyData[1].baseNetWorth)
   })
+})
+
+// ─── T6 (doc/montecarlo/README.md § 13.9): the Proiezione's threshold series ────────────────────────────────────────────
+
+describe('runBaselineProjection / resolveProjectionFireSeries — T6', () => {
+  // The criteria's plan: spesa 32.000 €, SWR 4%, Base g 7% / π 2%, no tax, pensions or locked fund, expenses typed (not from the Cashflow).
+  const scenarios = { ...getDefaultScenarios(), base: { growthRate: 7, inflationRate: 2 } }
+  const plan = (flows?: ResolvedFlow[]) =>
+    makeBaseline({ netWorth: 100_000, annualExpenses: 32_000, annualSavings: 12_000, scenarios, indexSavings: true, flows: flows ? { resolved: flows, planExpensesFromCashflow: false } : undefined })
+  const expense = (amount: number, start: number, durationYears: number): ResolvedFlow => ({ id: 'e', label: 'Spesa', kind: 'expense', sigma: 1, indexed: true, amount, anchor: 'fixed', start, durationYears, inCashflowToday: false })
+  const lumpIn = (amount: number, start: number): ResolvedFlow => ({ id: 'l', label: 'Eredità', kind: 'lumpIn', sigma: 0, indexed: true, amount, anchor: 'fixed', start, durationYears: null, inCashflowToday: false })
+  const near = (actual: number | undefined, expected: number) => expect(Math.abs((actual ?? NaN) - expected)).toBeLessThan(1)
+
+  it('A-N1: with no flow, tax or pension the series is the straight line spesa ÷ SWR', () => {
+    const series = resolveProjectionFireSeries(plan(), 30)
+    expect(series).toHaveLength(31)
+    for (const t of [0, 10, 30]) near(series?.[t], 800_000)
+  })
+
+  it('A-N2: an indexed expense of 6.000 € a year, years 1–10', () => {
+    const series = resolveProjectionFireSeries(plan([expense(6_000, 1, 10)]), 30)
+    near(series?.[0], 846_552)
+    near(series?.[1], 842_834)
+    near(series?.[5], 826_047)
+    near(series?.[9], 805_720)
+    near(series?.[10], 800_000)
+    near(series?.[20], 800_000)
+    // The nominal figure of year 5 is the Calcolatore's own row.
+    near((series?.[5] ?? 0) * Math.pow(1.02, 5), 912_023)
+  })
+
+  it('A-N3: a lump of 100.000 € of today arriving in year 5', () => {
+    const series = resolveProjectionFireSeries(plan([lumpIn(100_000, 5)]), 30)
+    near(series?.[0], 721_281)
+    near(series?.[1], 717_422)
+    near(series?.[4], 704_673)
+    near(series?.[5], 800_000)
+    near(series?.[10], 800_000)
+  })
+
+  it('A-N4: S_0 is the FIRE number the Calcolatore and the What If show (the same requirement of today)', () => {
+    const baseline = plan([expense(6_000, 1, 10)])
+    const { fireNumberToday } = runBaselineProjection(baseline)
+    expect(resolveProjectionFireSeries(baseline, 30)?.[0]).toBe(fireNumberToday)
+    expect(calculateWhatIfImpact(baseline, { eventType: 'windfall', lumpSumAmount: 0 }).fire.fireNumber.before).toBe(fireNumberToday)
+  })
+
+  it('A-N5: S_t · (1+π)^t is the Base row\'s baseFireNumber, up to 60 years — past the 5 years after the FIRE', () => {
+    const baseline = plan([expense(6_000, 1, 10)])
+    const { projection } = runBaselineProjection(baseline, { years: 60 })
+    const series = resolveProjectionFireSeries(baseline, 60)
+    expect(projection?.yearlyData).toHaveLength(60)
+    expect(series).toHaveLength(61)
+    projection?.yearlyData.forEach((row, index) => expect(Math.abs((series?.[index + 1] ?? NaN) * Math.pow(1.02, index + 1) - row.baseFireNumber)).toBeLessThan(1e-6))
+  })
+
+  it('A-N8: a plan that cannot run (no expenses) has no series', () => {
+    expect(resolveProjectionFireSeries(plan_noExpenses(), 30)).toBeNull()
+  })
+
+  it('A-N9: without `years` the walk is the one of before, and the fireNumberToday rides along', () => {
+    const baseline = plan()
+    const before = runBaselineProjection(baseline)
+    expect(before.projection?.yearlyData.length).toBeLessThanOrEqual(50)
+    expect(before.fireNumberToday).toBe(800_000)
+    // `years` only lengthens the walk: the rows both runs share are identical.
+    const long = runBaselineProjection(baseline, { years: 60 })
+    expect(long.projection?.yearlyData.slice(0, before.projection?.yearlyData.length)).toEqual(before.projection?.yearlyData)
+    expect(long.yearsToFIRE).toBe(before.yearsToFIRE)
+  })
+
+  function plan_noExpenses() {
+    return makeBaseline({ annualExpenses: 0, scenarios })
+  }
 })

@@ -4,6 +4,8 @@
 
 ## ✨ New Features
 
+- FIRE › Proiezione: the «numero FIRE» it compares the portfolio with is now the very figure of the Calcolatore, recomputed every year (flows over time, pensions, tax and the locked fund move it), drawn as a dashed line that follows the plan; each row of Tappe says the figure it was compared with. A figure typed in the field stays a straight line, and the new «Numero FIRE» button takes the field back to the plan's number. Tappe now comes right after the verdict, and the Distribuzione tile is gone (its sentence was already in the Ventaglio).
+
 - FIRE: the «Ipotesi usate» line above every tab is now a capital line and four chips — Rendimento, Costi, Spesa, Flussi — each opening a short explanation and a link to where it is changed (the Obiettivi say their flows count only in the effect on the FIRE). The Base di calcolo of the Calcolatore is a ledger: expenses ÷ SWR, then tax on withdrawals, state pensions, locked pension fund and dated flows, each row adding or taking off, adding up to the FIRE number to the euro.
 
 - FIRE has a «Il mio piano» block at the head of the page: age, target age, yearly expense, SWR, emergency fund, flows over time, pensions, the pension lock and the IRPEF brackets are typed once, saved with one «Salva il piano» and previewed in all six tabs before saving (and taken back by «Annulla modifiche»). It opens by itself while the plan is unwritten, and an empty tab points at the missing field. It replaces the Calcolatore's Parametri and Coast FIRE's Ipotesi; the age is no longer in Impostazioni.

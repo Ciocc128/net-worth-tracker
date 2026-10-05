@@ -5,15 +5,17 @@
  * (doc/montecarlo/README.md § 11, doc/guide/fire-proiezione.md). A rule-generated verdict over a
  * 12-column grid of tiles, on the same hypotheses as the rest of the page (`useFireAssumptions`):
  *
- *   Desktop (12 col): Ventaglio(5) | Distribuzione(4) | Scenari(3)
- *                     Tappe(12)
+ *   Desktop (12 col): Tappe(12)
+ *                     Ventaglio(8) | Scenari(4)
  *                     Parametri(12)
- *   Mobile (1 col):   Ventaglio → Tappe → Distribuzione → Scenari → Parametri
+ *   Mobile (1 col):   Tappe → Ventaglio → Scenari → Parametri (the DOM order; T6, § 13)
  *
  * ONE run = the three scenarios on the same seed (`runAccumulationSimulation` without paths, one
  * sorted snapshot per year). The run is automatic once the seeded plan is ready and explicit
  * afterwards (The Stale-Run Rule). The declared exception: the threshold and the horizon (within the
- * years the run kept) are READINGS of the same snapshots and update at once.
+ * years the run kept) are READINGS of the same snapshots and update at once. The default threshold is
+ * the Calcolatore's FIRE number year by year (T6, doc/montecarlo/README.md § 13): a series read from the
+ * saved plan's Base walk (`useWhatIfBaseline`), not from the run.
  *
  * This file is the ORCHESTRATOR and computes nothing: the numbers come from
  * lib/utils/projectionSummary.ts, the words from lib/utils/projectionNarrative.ts. The form is
@@ -32,6 +34,8 @@ import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
+import { resolveProjectionFireSeries } from '@/lib/services/whatIfService';
+import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { DEFAULT_MONTE_CARLO_SIMULATIONS, MONTE_CARLO_SEED } from '@/lib/utils/monteCarloParams';
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
@@ -48,17 +52,16 @@ import {
   DEFAULT_PROJECTION_HORIZON,
   haveProjectionInputsChanged,
   PROJECTION_MAX_YEARS,
-  resolveProjectionThreshold,
   resolveRunYears,
   summarizeProjection,
   type ProjectionRunData,
   type ProjectionRunInputs,
+  type ProjectionThreshold,
 } from '@/lib/utils/projectionSummary';
 import {
   buildProjectionVerdict,
-  describeDistribuzione,
-  describeDistribuzioneAside,
-  describeDistribuzioneFooter,
+  describeFireThresholdPlaceholder,
+  describeTappeFooter,
   describeProjectionFooter,
   describeProjectionParametri,
   describeProjectionScenari,
@@ -71,9 +74,9 @@ import {
   PROJECTION_SCENARI_ASIDE,
   PROJECTION_THRESHOLD_HINT_EMPTY,
   PROJECTION_THRESHOLD_HINT_FIRE,
+  PROJECTION_THRESHOLD_HINT_FIXED,
   projectionScenariFooter,
   projectionScenarioLabel,
-  TAPPE_FOOTER,
   VENTAGLIO_ASIDE,
 } from '@/lib/utils/projectionNarrative';
 import type { MonteCarloCapitalInflow } from '@/types/assets';
@@ -92,7 +95,6 @@ import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import { MonteCarloFanChart } from '@/components/monte-carlo/MonteCarloFanChart';
 import { VentaglioTile } from '@/components/projection/tiles/VentaglioTile';
-import { DistribuzioneTile } from '@/components/projection/tiles/DistribuzioneTile';
 import { ScenariTile } from '@/components/projection/tiles/ScenariTile';
 import { TappeTile } from '@/components/projection/tiles/TappeTile';
 import { ParametriTile, type ProjectionForm } from '@/components/projection/tiles/ParametriTile';
@@ -100,10 +102,9 @@ import { ProjectionDettaglio } from '@/components/projection/ProjectionDettaglio
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 5, lines: 14 },
-  { span: 4, lines: 10 },
-  { span: 3, lines: 9 },
   { span: 12, lines: 8 },
+  { span: 8, lines: 14 },
+  { span: 4, lines: 9 },
   { span: 12, lines: 10 },
 ];
 
@@ -193,17 +194,22 @@ export function ProjectionTab() {
   const currentAge = settings?.userAge ?? null;
   const ctx = useMemo(() => ({ startCalendarYear: currentYear, currentAge }), [currentYear, currentAge]);
 
-  // RV6: today's FIRE number, the threshold's default.
-  const defaultThreshold = useMemo(() => {
-    const value = resolveProjectionThreshold(assumptions?.expenses?.annual, settings?.withdrawalRate);
-    return value === null ? null : Math.round(value);
-  }, [assumptions?.expenses?.annual, settings?.withdrawalRate]);
+  // T6 (RN1–RN2, RN6): the Calcolatore's FIRE number year by year in today's euros, read from the saved plan's Base walk
+  // (the same `WhatIfBaseline` as the What If and «Dopo il FIRE»; shared query keys, no extra read). Always walked to the
+  // longest horizon: the series is a reading of the plan, so it does not change with the horizon typed here (RN5).
+  const { baseline, isLoadingSettings: baselineSettingsLoading, isLoadingAssets: baselineAssetsLoading, isLoadingCashflow: baselineCashflowLoading, isLoadingFlows: baselineFlowsLoading } = useWhatIfBaseline();
+  const baselineLoading = baselineSettingsLoading || baselineAssetsLoading || baselineCashflowLoading || baselineFlowsLoading;
+  const fireSeries = useMemo(() => (baselineLoading ? null : resolveProjectionFireSeries(baseline, PROJECTION_MAX_YEARS)), [baselineLoading, baseline]);
+  // The threshold is the FIRE number until a figure is typed (RN4); without a plan that runs there is no FIRE number.
+  const [thresholdMode, setThresholdMode] = useState<'fire' | 'fixed'>('fire');
 
   // ─── The form (ephemeral) ────────────────────────────────────────────────────
   const [form, setForm] = useState<ProjectionForm | null>(null);
   const [weightsOrigin, setWeightsOrigin] = useState<WeightsOrigin>('targets');
   const onFormChange = useCallback((patch: Partial<ProjectionForm>) => {
     if (patch.weights) setWeightsOrigin('edited');
+    // Typing in the threshold field makes it a figure of the user's; the «Numero FIRE» seed takes it back.
+    if (patch.threshold !== undefined) setThresholdMode('fixed');
     setForm((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
   const applySeed = useCallback((seed: typeof targetSeed, origin: WeightsOrigin) => {
@@ -212,7 +218,7 @@ export function ProjectionTab() {
     setForm((prev) => (prev ? { ...prev, weights: monteCarloClassRecord((cls) => String(seed.weights[cls])) } : prev));
   }, []);
 
-  // Seed the form ONCE, after the data has loaded: the capital K, the Cashflow's saving, the FIRE number as the threshold.
+  // Seed the form ONCE, after the data has loaded: the capital K and the Cashflow's saving (the threshold is the FIRE number: no text to seed).
   // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
   const didSeedRef = useRef(false);
   useEffect(() => {
@@ -225,13 +231,13 @@ export function ProjectionTab() {
         annualSavings: String(Math.round(cashflowData?.annualSavings ?? 0)),
         savingsYears: String(DEFAULT_PROJECTION_HORIZON),
         horizon: String(DEFAULT_PROJECTION_HORIZON),
-        threshold: defaultThreshold !== null ? formatInputAmount(defaultThreshold) : '',
+        threshold: '',
         numberOfSimulations: String(DEFAULT_MONTE_CARLO_SIMULATIONS),
         weights: monteCarloClassRecord((cls) => String(assumptions.weights[cls])),
       });
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoadingAssets, isLoadingSettings, isLoadingCashflow, assets, assumptions, totalNetWorth, cashflowData, defaultThreshold]);
+  }, [isLoadingAssets, isLoadingSettings, isLoadingCashflow, assets, assumptions, totalNetWorth, cashflowData]);
 
   // ─── What the run reads (numbers from the strings) ───────────────────────────
   const typed = useMemo(() => {
@@ -352,13 +358,21 @@ export function ProjectionTab() {
   // ─── The numbers (pure layer over the snapshots) ─────────────────────────────
   // Threshold and horizon are READINGS of the run (§ 11.6): they follow the typed values at once,
   // the horizon capped at the years the run kept.
-  const threshold = typed?.threshold && typed.threshold > 0 ? typed.threshold : null;
+  const typedThreshold = typed?.threshold && typed.threshold > 0 ? typed.threshold : null;
+  const thresholdIsFireNumber = thresholdMode === 'fire' && fireSeries !== null;
+  const threshold = useMemo<ProjectionThreshold>(
+    () => (thresholdIsFireNumber && fireSeries ? { kind: 'fire', series: fireSeries } : typedThreshold !== null ? { kind: 'fixed', value: typedThreshold } : null),
+    [thresholdIsFireNumber, fireSeries, typedThreshold],
+  );
   const summary = useMemo(
     () => (lastRun && typed ? summarizeProjection(lastRun.data, { horizon: typed.horizon, threshold, startingCapital: lastRun.inputs.initialPortfolio, ctx }) : null),
     [lastRun, typed, threshold, ctx],
   );
+  const useFireThreshold = useCallback(() => {
+    setThresholdMode('fire');
+    setForm((prev) => (prev ? { ...prev, threshold: '' } : prev));
+  }, []);
   const stale = !!lastRun && !!currentInputs && haveProjectionInputsChanged(lastRun.inputs, currentInputs);
-  const thresholdIsFireNumber = threshold !== null && threshold === defaultThreshold;
   const runLeverage = lastRun ? weightsLeverage(MONTE_CARLO_CLASSES.map((cls) => lastRun.inputs.weights[cls])) : 1;
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
@@ -402,7 +416,10 @@ export function ProjectionTab() {
   const base = summary?.scenarios.base;
   const savingsSource = cashflowData ? { year: cashflowData.referenceYear, annualized: cashflowData.isAnnualized } : null;
   const baseInflation = lastRun?.data.inflation.base ?? scenarios.base.inflationRate;
-  const plotThreshold = summary && summary.threshold !== null ? { value: summary.threshold, label: thresholdIsFireNumber ? 'numero FIRE' : 'soglia' } : undefined;
+  // RN1/RN4: the FIRE number is a dashed SERIES that follows the plan, a typed figure a straight line.
+  const thresholdKind = threshold === null ? 'none' : threshold.kind;
+  const plotSeries = threshold?.kind === 'fire' ? { values: threshold.series, label: 'numero FIRE' } : undefined;
+  const plotLine = threshold?.kind === 'fixed' ? { value: threshold.value, label: 'soglia' } : undefined;
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -416,7 +433,20 @@ export function ProjectionTab() {
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
         {summary && base && lastRun && (
           <>
-            <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5')}>
+            <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+              <TappeTile
+                reading={describeTappe(summary.scenarios[tappeScenario].milestones)}
+                rows={summary.scenarios[tappeScenario].milestones}
+                scenario={tappeScenario}
+                onScenarioChange={setTappeScenario}
+                horizon={summary.horizon}
+                hasThreshold={summary.threshold !== null}
+                showRowThreshold={thresholdKind === 'fire'}
+                footer={describeTappeFooter(thresholdKind, threshold?.kind === 'fixed' ? threshold.value : null)}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-8')}>
               <VentaglioTile
                 reading={describeVentaglio(summary, lastRun.data.startValue)}
                 aside={VENTAGLIO_ASIDE}
@@ -430,30 +460,18 @@ export function ProjectionTab() {
                     startCalendarYear={ctx.startCalendarYear}
                     unlockCalendarYear={null}
                     zeroLine={false}
-                    referenceLine={plotThreshold}
+                    referenceLine={plotLine}
+                    referenceSeries={plotSeries}
                     markedCalendarYear={summary.endCalendarYear}
                     height="100%"
                     ariaLabel={`Ventaglio del portafoglio, scenario base, in euro di oggi: bande dei percentili 10–90 e 25–75 e mediana delle ${summary.simulations.toLocaleString('it-IT')} simulazioni fino al ${ctx.startCalendarYear + lastRun.data.years}.`}
                   />
                 }
-                footer={describeVentaglioFooter(baseInflation, summary.threshold, lastRun?.inputs.costRate ?? 0)}
+                footer={describeVentaglioFooter(baseInflation, thresholdKind, lastRun?.inputs.costRate ?? 0)}
               />
             </div>
 
-            <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
-              <DistribuzioneTile
-                reading={describeDistribuzione(summary)}
-                aside={describeDistribuzioneAside(summary)}
-                p10={base.atHorizon.p10}
-                p50={base.atHorizon.p50}
-                p90={base.atHorizon.p90}
-                bins={summary.histogram}
-                calendarYear={summary.endCalendarYear}
-                footer={describeDistribuzioneFooter(summary)}
-              />
-            </div>
-
-            <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-3')}>
+            <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-4')}>
               <ScenariTile
                 reading={describeProjectionScenari(summary)}
                 aside={PROJECTION_SCENARI_ASIDE}
@@ -461,25 +479,13 @@ export function ProjectionTab() {
                   const figures = summary.scenarios[key].atHorizon;
                   return { key, label: projectionScenarioLabel(key), median: figures.p50, note: describeProjectionScenarioNote(figures, summary.threshold !== null), fillPct: figures.probabilityAtLeast };
                 })}
-                footer={projectionScenariFooter(summary.threshold)}
-              />
-            </div>
-
-            <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
-              <TappeTile
-                reading={describeTappe(summary.scenarios[tappeScenario].milestones)}
-                rows={summary.scenarios[tappeScenario].milestones}
-                scenario={tappeScenario}
-                onScenarioChange={setTappeScenario}
-                horizon={summary.horizon}
-                hasThreshold={summary.threshold !== null}
-                footer={TAPPE_FOOTER}
+                footer={projectionScenariFooter(thresholdKind)}
               />
             </div>
           </>
         )}
 
-        <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+        <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
           <ParametriTile
             reading={describeProjectionParametri(typedPlan)}
             aside={PROJECTION_PARAMETRI_ASIDE}
@@ -494,7 +500,10 @@ export function ProjectionTab() {
             totalNetWorth={totalNetWorth}
             liquidNetWorth={liquidNetWorth}
             savingsHint={describeSavingsSource(savingsSource)}
-            thresholdHint={defaultThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIRE : PROJECTION_THRESHOLD_HINT_EMPTY}
+            thresholdHint={thresholdIsFireNumber ? PROJECTION_THRESHOLD_HINT_FIRE : typedThreshold !== null ? PROJECTION_THRESHOLD_HINT_FIXED : PROJECTION_THRESHOLD_HINT_EMPTY}
+            thresholdIsFire={thresholdIsFireNumber}
+            fireThresholdPlaceholder={fireSeries ? describeFireThresholdPlaceholder(fireSeries[0]) : null}
+            onUseFireThreshold={useFireThreshold}
             marketDeclaration={describeMarketDeclaration(market, leverage)}
             capital={capital}
             flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'projection' })}

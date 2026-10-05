@@ -5,7 +5,8 @@ import {
   inflationFactor,
   percentileOf,
   resolveMilestoneYears,
-  resolveProjectionThreshold,
+  buildFireThresholdSeries,
+  thresholdAtYear,
   resolveRunYears,
   summarizeProjection,
   type ProjectionRunData,
@@ -59,7 +60,7 @@ const near = (actual: number, expected: number, tolerance = 0.003) => expect(Mat
 
 describe('summarizeProjection — closed-form reference values (P1–P4)', () => {
   const data = baseData();
-  const summary = summarizeProjection(data, { horizon: 30, threshold: 800_000, startingCapital: 100_000, ctx });
+  const summary = summarizeProjection(data, { horizon: 30, threshold: { kind: 'fixed', value: 800_000 }, startingCapital: 100_000, ctx });
 
   it('P1: percentiles at 30 years in today\'s euros, and the nominal median', () => {
     const at = summary.scenarios.base.atHorizon;
@@ -88,7 +89,7 @@ describe('summarizeProjection — closed-form reference values (P1–P4)', () =>
   });
 
   it('P3: probability above a threshold and below the starting capital', () => {
-    const threshold = (x: number) => summarizeProjection(data, { horizon: 30, threshold: x, startingCapital: 100_000, ctx }).scenarios.base.atHorizon.probabilityAtLeast ?? NaN;
+    const threshold = (x: number) => summarizeProjection(data, { horizon: 30, threshold: { kind: 'fixed', value: x }, startingCapital: 100_000, ctx }).scenarios.base.atHorizon.probabilityAtLeast ?? NaN;
     expect(threshold(500_000)).toBeCloseTo(64.72, 0);
     expect(threshold(1_000_000)).toBeCloseTo(36.09, 0);
     expect(summary.scenarios.base.atHorizon.probabilityBelowStart).toBeCloseTo(1.87, 0);
@@ -110,7 +111,7 @@ describe('summarizeProjection — closed-form reference values (P1–P4)', () =>
       simulations: N_PATHS,
       years,
     };
-    const result = summarizeProjection(three, { horizon: 30, threshold: 800_000, startingCapital: 100_000, ctx });
+    const result = summarizeProjection(three, { horizon: 30, threshold: { kind: 'fixed', value: 800_000 }, startingCapital: 100_000, ctx });
     near(result.scenarios.bear.atHorizon.p50, 410_907);
     near(result.scenarios.bull.atHorizon.p50, 1_283_657);
     expect(result.scenarios.bear.atHorizon.probabilityAtLeast).toBeCloseTo(21.6, 0);
@@ -143,13 +144,6 @@ describe('summarizeProjection — shape', () => {
     expect(resolveMilestoneYears(55, 55)).toEqual([10, 20, 30, 40, 50, 55]);
   });
 
-  it('the histogram bins the real values and outlines the median\'s bin', () => {
-    const { histogram } = summarizeProjection(data, { horizon: 30, threshold: null, startingCapital: 100_000, ctx });
-    expect(histogram).toHaveLength(10);
-    expect(histogram.reduce((sum, bin) => sum + bin.count, 0)).toBe(N_PATHS);
-    expect(histogram.filter((bin) => bin.containsMedian)).toHaveLength(1);
-  });
-
   it('reports the leveraged wipe-out share', () => {
     const run = { ...data, scenarios: { ...data.scenarios, base: { ...data.scenarios.base, leverageZeroedCount: 3_000 } } };
     const summary = summarizeProjection(run, { horizon: 30, threshold: null, startingCapital: 100_000, ctx });
@@ -173,12 +167,47 @@ describe('readings', () => {
     expect(countAtLeast(values, 0)).toBe(5);
   });
 
-  it('P10: the default threshold is the plan\'s expenses over the SWR', () => {
-    expect(resolveProjectionThreshold(32_000, 4)).toBe(800_000);
-    expect(resolveProjectionThreshold(32_000, undefined)).toBe(800_000);
-    expect(resolveProjectionThreshold(30_000, 3)).toBeCloseTo(1_000_000, 6);
-    expect(resolveProjectionThreshold(null, 4)).toBeNull();
-    expect(resolveProjectionThreshold(0, 4)).toBeNull();
+  it('A-N6: RN3 on hand-built snapshots — 10 real paths 100…1.000 at year 5, S_5 = 550 → 50%, fixed or moving', () => {
+    const values = Float64Array.from({ length: 10 }, (_, index) => (index + 1) * 100);
+    const run = { snapshots: { 5: values }, leverageZeroedCount: 0 };
+    const data: ProjectionRunData = { scenarios: { bear: run, base: run, bull: run }, inflation: { bear: 0, base: 0, bull: 0 }, startValue: 100, simulations: 10, years: 5 };
+    const series = [0, 0, 0, 0, 0, 550];
+    const fire = summarizeProjection(data, { horizon: 5, threshold: { kind: 'fire', series }, startingCapital: 100, ctx });
+    const fixed = summarizeProjection(data, { horizon: 5, threshold: { kind: 'fixed', value: 550 }, startingCapital: 100, ctx });
+    expect(fire.scenarios.base.atHorizon.probabilityAtLeast).toBe(50);
+    expect(fixed.scenarios.base.atHorizon.probabilityAtLeast).toBe(50);
+    expect(fire.threshold).toBe(550);
+    expect(fire.scenarios.base.atHorizon.threshold).toBe(550);
+  });
+
+  it('RN3: each Tappe row reads the threshold of its own year; a typed one is the same on every row', () => {
+    const moving = { kind: 'fire' as const, series: Array.from({ length: 51 }, (_, year) => 800_000 - year * 1_000) };
+    const rows = summarizeProjection(baseData(), { horizon: 30, threshold: moving, startingCapital: 100_000, ctx }).scenarios.base.milestones;
+    expect(rows.map((row) => row.threshold)).toEqual([790_000, 780_000, 770_000, 760_000, 750_000]);
+    const typed = summarizeProjection(baseData(), { horizon: 30, threshold: { kind: 'fixed', value: 1_000_000 }, startingCapital: 100_000, ctx }).scenarios.base.milestones;
+    expect(new Set(typed.map((row) => row.threshold))).toEqual(new Set([1_000_000]));
+  });
+
+  it('A-N1 on the run: a flat series at 800.000 gives the figures of the straight line (P4)', () => {
+    const flat = summarizeProjection(baseData(), { horizon: 30, threshold: { kind: 'fire', series: Array(51).fill(800_000) }, startingCapital: 100_000, ctx });
+    const line = summarizeProjection(baseData(), { horizon: 30, threshold: { kind: 'fixed', value: 800_000 }, startingCapital: 100_000, ctx });
+    expect(flat.scenarios.base.milestones.map((row) => row.probabilityAtLeast)).toEqual(line.scenarios.base.milestones.map((row) => row.probabilityAtLeast));
+  });
+
+  it('thresholdAtYear: null with none, the value of a line, the entry of a series (null past its end)', () => {
+    expect(thresholdAtYear(null, 3)).toBeNull();
+    expect(thresholdAtYear({ kind: 'fixed', value: 5 }, 40)).toBe(5);
+    expect(thresholdAtYear({ kind: 'fire', series: [10, 9] }, 1)).toBe(9);
+    expect(thresholdAtYear({ kind: 'fire', series: [10, 9] }, 2)).toBeNull();
+  });
+
+  it('buildFireThresholdSeries: year 0 as is, the nominal rows over (1+π)^t; a missing row repeats the last real value', () => {
+    const series = buildFireThresholdSeries(100, [102, 104.04], 2, 3);
+    expect(series).toHaveLength(4);
+    expect(series[0]).toBe(100);
+    expect(series[1]).toBeCloseTo(100, 9);
+    expect(series[2]).toBeCloseTo(100, 9);
+    expect(series[3]).toBeCloseTo(100, 9);
   });
 
   it('the run keeps at least 50 years, at most 60', () => {

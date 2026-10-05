@@ -30,13 +30,15 @@ interface TappeTileProps {
   /** The chosen horizon: its row is the one the verdict reads. */
   horizon: number;
   hasThreshold: boolean;
+  /** RN3: the threshold moves with the year, so each row says its own figure under the percentage; a typed one is the footer's. */
+  showRowThreshold: boolean;
   footer: Narrative;
   className?: string;
 }
 
 const compact = (value: number) => cachedFormatCurrencyEUR(value, true);
 
-export function TappeTile({ reading, rows, scenario, onScenarioChange, horizon, hasThreshold, footer, className }: TappeTileProps) {
+export function TappeTile({ reading, rows, scenario, onScenarioChange, horizon, hasThreshold, showRowThreshold, footer, className }: TappeTileProps) {
   return (
     <Tile
       eyebrow="Tappe"
@@ -92,6 +94,7 @@ export function TappeTile({ reading, rows, scenario, onScenarioChange, horizon, 
                   {hasThreshold && (
                     <td className="py-2 text-right font-mono tabular-nums text-foreground">
                       {row.probabilityAtLeast !== null ? formatPercentage(row.probabilityAtLeast, Number.isInteger(Math.round(row.probabilityAtLeast * 10) / 10) ? 0 : 1) : '—'}
+                      {showRowThreshold && row.threshold !== null && <span className="block text-[10px] font-normal text-muted-foreground">di {compact(row.threshold)}</span>}
                     </td>
                   )}
                 </tr>
