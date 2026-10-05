@@ -1150,7 +1150,11 @@ non più importato).
 ## 13. T6 — Proiezione: la soglia è il numero FIRE del Calcolatore, Tappe prima, via la Distribuzione (spec del 05/10/2026)
 
 > **Stato**: spec scritta il 05/10/2026; decisioni DN1–DN5 prese con il proprietario lo stesso giorno (§ 13.8: DN1
-> scelta da lui tra le tre opzioni della card, DN2–DN5 accettate come proposte). Non ancora implementata.
+> scelta da lui tra le tre opzioni della card, DN2–DN5 accettate come proposte). **Implementata il 05/10/2026** (branch
+> `claude/impl-fire-proiezione-t6-xg1ymd`): una differenza dalla spec, dichiarata — la serie si cammina sempre a 60 anni
+> (`resolveProjectionFireSeries(baseline, 60)`, stesse cifre di `H` per ogni anno ≤ `H`), così non si ricalcola cambiando
+> l'orizzonte; la FIX dello stato premuto è il nuovo seme «Numero FIRE» con le classi di `AsideToggle` (il confronto in codice
+> con «Dopo il FIRE» non ha trovato altre differenze: «Totale / Liquido», Prova e le intestazioni sono già gli stessi).
 >
 > Origine: passo 6 dell'ordine approvato (`/mnt/project-files/fire-simulazioni/ordine-feat-fire.md`), card Todoist
 > della scheda Proiezione: «FIRE: soglia della Proiezione vs numero FIRE del Calcolatore (da verificare, soluzione da
@@ -1356,8 +1360,7 @@ fondo bloccato, `planExpensesFromCashflow` falso. Valori calcolati con
 `components/projection/{ProjectionDettaglio,tiles/TappeTile,tiles/ParametriTile,tiles/VentaglioTile,tiles/ScenariTile}.tsx`,
 `components/monte-carlo/MonteCarloFanChart.tsx` (`referenceSeries`); test
 `__tests__/{projectionSummary,projectionNarrative,whatIfService}.test.ts`.
-**Rimossi**: `components/projection/tiles/DistribuzioneTile.tsx` (e `FinalValueBars`/`valueHistogram` solo se nessun
-altro li importa).
+**Rimossi**: `components/projection/tiles/DistribuzioneTile.tsx` e `components/monte-carlo/FinalValueBars.tsx` (nessun altro lo importava); `valueHistogram.ts` resta (lo importa `monteCarloService.createDistribution`).
 
 ### 13.11 Test
 

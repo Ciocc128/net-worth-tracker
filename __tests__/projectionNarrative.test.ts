@@ -5,7 +5,19 @@ vi.mock('@/lib/services/chartService', () => ({
   formatPercentage: (value: number, decimals = 1) => `${value.toLocaleString('it-IT', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}%`,
 }));
 
-import { buildProjectionVerdict, describeProjectionParametri, describeProjectionFooter, describeTappe, describeVentaglioFooter } from '@/lib/utils/projectionNarrative';
+import {
+  buildProjectionVerdict,
+  describeFireThresholdPlaceholder,
+  describeProjectionParametri,
+  describeProjectionFooter,
+  describeTappe,
+  describeTappeFooter,
+  describeVentaglioFooter,
+  PROJECTION_THRESHOLD_HINT_EMPTY,
+  PROJECTION_THRESHOLD_HINT_FIRE,
+  PROJECTION_THRESHOLD_HINT_FIXED,
+  projectionScenariFooter,
+} from '@/lib/utils/projectionNarrative';
 import { narrativeToText } from '@/lib/utils/narrative';
 import type { ProjectionFigures, ProjectionSummary, ScenarioProjection } from '@/lib/utils/projectionSummary';
 
@@ -19,6 +31,7 @@ const figures = (overrides: Partial<ProjectionFigures> = {}): ProjectionFigures 
   p75: 1_351_000,
   p90: 2_397_000,
   p50Nominal: 1_754_000,
+  threshold: 800_000,
   probabilityAtLeast: 45.2,
   probabilityBelowStart: 1.9,
   ...overrides,
@@ -35,9 +48,6 @@ function summaryWith(base: Partial<ProjectionFigures> = {}, zeroedShare = 0, thr
     threshold,
     startingCapital: 100_000,
     scenarios: { bear: scenario('bear'), base: scenario('base'), bull: scenario('bull') },
-    histogram: [],
-    histogramCap: 0,
-    histogramMax: 0,
   };
 }
 
@@ -51,7 +61,7 @@ describe('buildProjectionVerdict', () => {
     const { verdict, sentence } = text(summaryWith());
     expect(verdict.headline.replace(/ /g, ' ')).toBe('Tra 30 anni, 714.000 € di oggi in mediana.');
     expect(sentence).toBe(
-      'Tra 30 anni (nel 2056) il portafoglio vale 714.000 € di oggi in mediana; più di 213.000 € in nove simulazioni su dieci, più di 2.397.000 € in una su dieci. Supera il numero FIRE di 800.000 € nel 45,2% delle simulazioni.',
+      'Tra 30 anni (nel 2056) il portafoglio vale 714.000 € di oggi in mediana; più di 213.000 € in nove simulazioni su dieci, più di 2.397.000 € in una su dieci. Supera il tuo numero FIRE di quell\'anno (800.000 € di oggi) nel 45,2% delle simulazioni.',
     );
     // 45% is below the 80% floor: the FIRE-number probability reads as a negative tone, like the success rate.
     expect(verdict.tone).toBe('negative');
@@ -60,7 +70,7 @@ describe('buildProjectionVerdict', () => {
   it('a typed threshold carries no tone, and names «di oggi»', () => {
     const { verdict, sentence } = text(summaryWith({ probabilityAtLeast: 36.1 }, 0, 1_000_000), { thresholdIsFireNumber: false });
     expect(verdict.tone).toBe('neutral');
-    expect(sentence).toContain('Supera 1.000.000 € di oggi nel 36,1% delle simulazioni.');
+    expect(sentence).toContain('Supera la soglia di 1.000.000 € di oggi nel 36,1% delle simulazioni.');
     expect(sentence).not.toContain('numero FIRE');
   });
 
@@ -107,10 +117,38 @@ describe('tile readings', () => {
   it('footers: stale vs fresh, gross values and the threshold line', () => {
     expect(narrativeToText(describeProjectionFooter({ stale: true, simulations: 10_000 }))).toContain('premi Prova per aggiornarli');
     expect(narrativeToText(describeProjectionFooter({ stale: false, simulations: 10_000 }))).toContain('30.000 traiettorie');
-    const footer = narrativeToText(describeVentaglioFooter(3.04, 800_000));
+    const footer = narrativeToText(describeVentaglioFooter(3.04, 'fixed'));
     expect(footer).toContain('3,04%');
     expect(footer).toContain('Nessun costo ricorrente');
-    expect(narrativeToText(describeVentaglioFooter(3.04, 800_000, 0.36))).toContain("Al netto di TER e bollo (0,36% l'anno)");
+    expect(narrativeToText(describeVentaglioFooter(3.04, 'fixed', 0.36))).toContain("Al netto di TER e bollo (0,36% l'anno)");
     expect(footer).toContain('soglia');
   });
 });
+
+describe('T6 — the threshold in words', () => {
+  it('Ventaglio footer: the dashed line is the FIRE number year by year, a typed threshold, or absent', () => {
+    expect(narrativeToText(describeVentaglioFooter(3.04, 'fire'))).toContain('la linea tratteggiata è il tuo numero FIRE anno per anno (Calcolatore)');
+    expect(narrativeToText(describeVentaglioFooter(3.04, 'fixed'))).toContain('la linea tratteggiata è la soglia.');
+    expect(narrativeToText(describeVentaglioFooter(3.04, 'none'))).not.toContain('tratteggiata');
+  });
+
+  it('Tappe footer: the row figure under the percentage (fire), the one figure for all rows (fixed), nothing (none)', () => {
+    expect(narrativeToText(describeTappeFooter('fire'))).toContain('Sotto la percentuale, il numero FIRE di quell’anno');
+    expect(narrativeToText(describeTappeFooter('fixed', 1_000_000)).replace(/\s/g, " ")).toContain('La soglia è la stessa per ogni riga: 1.000.000 € di oggi.');
+    expect(narrativeToText(describeTappeFooter('none'))).not.toContain('soglia');
+  });
+
+  it('Scenari footer names the threshold only when there is one', () => {
+    expect(narrativeToText(projectionScenariFooter('fire'))).toContain('probabilità di superare la soglia');
+    expect(narrativeToText(projectionScenariFooter('none'))).not.toContain('soglia');
+  });
+
+  it('the field hint has three states and the seed placeholder says today, then year by year', () => {
+    expect(PROJECTION_THRESHOLD_HINT_FIRE).toContain('numero FIRE del Calcolatore, anno per anno');
+    expect(PROJECTION_THRESHOLD_HINT_FIRE).toContain('non segue il capitale e il versamento');
+    expect(PROJECTION_THRESHOLD_HINT_FIXED).toBe('una cifra fissa in euro di oggi');
+    expect(PROJECTION_THRESHOLD_HINT_EMPTY).toContain('scrivi una soglia');
+    expect(describeFireThresholdPlaceholder(606_961).replace(/\s/g, " ")).toBe('oggi 606.961 €, poi anno per anno');
+  });
+});
+
