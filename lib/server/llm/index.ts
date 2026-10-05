@@ -16,7 +16,15 @@ import 'server-only';
 import { AI_MODELS, type AiModelRoute, type AiSurface, type LlmProvider } from '@/lib/constants/aiModels';
 import { anthropicAdapter } from './anthropic';
 import { openRouterAdapter } from './openrouter';
-import type { AdapterResponse, ExtractStructuredRequest, GenerateTextRequest, LlmAdapter, LlmResult, LlmUsage } from './types';
+import type {
+  AdapterResponse,
+  ExtractStructuredRequest,
+  GenerateTextRequest,
+  LlmAdapter,
+  LlmResult,
+  LlmUsage,
+  RouteOptions,
+} from './types';
 
 export type { ExtractStructuredRequest, GenerateTextRequest, LlmResult, LlmUsage } from './types';
 
@@ -68,10 +76,10 @@ function logUsage(
  */
 async function run<V, R>(
   surface: AiSurface,
-  call: (adapter: LlmAdapter, model: string, apiKey: string) => Promise<AdapterResponse<V>>,
+  call: (adapter: LlmAdapter, model: string, apiKey: string, options: RouteOptions) => Promise<AdapterResponse<V>>,
   accept: (value: V | undefined) => { outcome: Outcome; result?: R }
 ): Promise<{ result: R; response: AdapterResponse<V> } | null> {
-  const route = AI_MODELS[surface];
+  const route: AiModelRoute = AI_MODELS[surface];
   const apiKey = process.env[API_KEY_ENV[route.provider]];
   if (!apiKey) {
     console.warn(`[ai] ${surface} skipped: ${API_KEY_ENV[route.provider]} is not set`);
@@ -80,7 +88,10 @@ async function run<V, R>(
 
   let response: AdapterResponse<V>;
   try {
-    response = await call(ADAPTERS[route.provider], route.model, apiKey);
+    response = await call(ADAPTERS[route.provider], route.model, apiKey, {
+      ...(route.reasoning ? { reasoning: route.reasoning } : {}),
+      ...(route.quantizations ? { quantizations: route.quantizations } : {}),
+    });
   } catch (error) {
     logUsage(surface, route, null, 'error');
     console.error(`[ai] ${surface} failed on ${route.provider}/${route.model}:`, error);
@@ -103,7 +114,7 @@ export async function generateText(surface: AiSurface, request: GenerateTextRequ
   const route = AI_MODELS[surface];
   const done = await run(
     surface,
-    (adapter, model, apiKey) => adapter.generateText(model, request, apiKey),
+    (adapter, model, apiKey, options) => adapter.generateText(model, request, apiKey, options),
     (value: string | undefined) => {
       const text = value?.trim();
       return text ? { outcome: 'ok', result: text } : { outcome: 'empty' };
@@ -128,7 +139,8 @@ export async function extractStructured<T>(
 ): Promise<T | null> {
   const done = await run(
     surface,
-    (adapter, model, apiKey) => adapter.extractJson(model, { system, user, jsonSchema, name, maxTokens, reasoningMaxTokens }, apiKey),
+    (adapter, model, apiKey, options) =>
+      adapter.extractJson(model, { system, user, jsonSchema, name, maxTokens, reasoningMaxTokens }, apiKey, options),
     (value: unknown) => {
       if (value === undefined) return { outcome: 'empty' };
       const parsed = schema.safeParse(value);

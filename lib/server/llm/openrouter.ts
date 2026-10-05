@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import type { AdapterResponse, LlmAdapter } from './types';
+import type { AdapterResponse, LlmAdapter, RouteOptions } from './types';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -69,7 +69,8 @@ export function createOpenRouterAdapter({
   async function complete(
     model: string,
     apiKey: string,
-    body: Record<string, unknown>
+    body: Record<string, unknown>,
+    options: RouteOptions = {}
   ): Promise<AdapterResponse<string>> {
     if (model.endsWith(':free')) {
       throw new Error(`[openrouter] refused ${model}: free variants may log and train on prompts`);
@@ -80,12 +81,17 @@ export function createOpenRouterAdapter({
       model,
       ...rest,
       // Reasoning tokens still count against max_tokens, but their text stays out of `content`;
-      // a ceiling of their own keeps them from eating the text's share (`outputBudget`).
-      reasoning: { exclude: true, ...(typeof reasoningMaxTokens === 'number' ? { max_tokens: reasoningMaxTokens } : {}) },
+      // a ceiling of their own keeps them from eating the text's share (`outputBudget`). A route
+      // whose model ignores the ceiling switches the reasoning off instead (`AiModelRoute`).
+      reasoning:
+        options.reasoning === 'off'
+          ? { enabled: false }
+          : { exclude: true, ...(typeof reasoningMaxTokens === 'number' ? { max_tokens: reasoningMaxTokens } : {}) },
       provider: {
         data_collection: 'deny',
         zdr: true,
         ...(body.response_format ? { require_parameters: true } : {}),
+        ...(options.quantizations ? { quantizations: [...options.quantizations] } : {}),
       },
     });
 
@@ -131,7 +137,7 @@ export function createOpenRouterAdapter({
   }
 
   return {
-    generateText(model, { system, user, maxTokens, reasoningMaxTokens }, apiKey) {
+    generateText(model, { system, user, maxTokens, reasoningMaxTokens }, apiKey, options) {
       return complete(model, apiKey, {
         messages: [
           { role: 'system', content: system },
@@ -139,10 +145,10 @@ export function createOpenRouterAdapter({
         ],
         max_tokens: maxTokens,
         ...(reasoningMaxTokens !== undefined ? { reasoningMaxTokens } : {}),
-      });
+      }, options);
     },
 
-    async extractJson(model, { system, user, jsonSchema, name, maxTokens, reasoningMaxTokens }, apiKey) {
+    async extractJson(model, { system, user, jsonSchema, name, maxTokens, reasoningMaxTokens }, apiKey, options) {
       const response = await complete(model, apiKey, {
         messages: [
           { role: 'system', content: system },
@@ -154,7 +160,7 @@ export function createOpenRouterAdapter({
           json_schema: { name, strict: true, schema: jsonSchema },
         },
         ...(reasoningMaxTokens !== undefined ? { reasoningMaxTokens } : {}),
-      });
+      }, options);
       return {
         ...response,
         value: response.value === undefined ? undefined : parseJsonContent(response.value),

@@ -34,7 +34,7 @@ nessuno storico di consumo. Non si migra: si sceglie con che cosa accenderle.
 | D5 | La newsletter domenicale di **TheBull** arriva con un **Google Apps Script** nell'account Gmail del proprietario: niente OAuth nell'app. |
 | D6 | La pagina settimanale macro la compila **il server con un modello open**. Le pagine **Principi** si compilano **in sessione Claude Code**. |
 | D7 | I dati dell'app arrivano al vault per **export markdown** (§6.1); un **server MCP in sola lettura** è una fase facoltativa successiva (§6.3). |
-| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). |
+| D8 | Gateway: **OpenRouter**, costo contato a parte (§4.3). I candidati si **preselezionano su Artificial Analysis** (§7.1) e li decide l'eval. Rosa di F2, riletta il 2026-09-28 (§7.1): candidati **GLM 5.3 Flash**, **MiniMax-M3**, **MiMo-V2.6-Pro**; controlli dichiarati **MiMo-V2.6-Flash** e **DeepSeek V4.1 Flash**; riferimenti **Sonnet 5 `medium`** e **Haiku 4.5** (serviti anche da OpenRouter: una sola chiave). **Qwen3.8-Flash-Next** escluso: nessun endpoint ZDR. Dopo i voti, su richiesta del proprietario, **GPT-5.6 Luna** e **GPT-6 Luna** (chiusi, con ZDR). **Esito di F2: GLM 5.3 Flash** (§7.2). **TheBull dal 2026-10-05: DeepSeek V4.1 Flash** con il ragionamento spento, dopo la sonda (§7.3). |
 
 Fuori perimetro: più utenti sulla Wiki (è del solo proprietario; account condiviso e demo non la
 vedono), database vettoriali ed embedding, self-hosting dei modelli, ridistribuzione dei contenuti di
@@ -88,7 +88,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F1 — Provider** ✔ | `lib/server/llm/` con due operazioni (§4), adattatore OpenRouter, le due email ci passano sopra; Assistente e Rendimenti nascosti quando non c'è un provider per loro. |
 | **F1b — Email allineate all'app** ✔ | Prima di F2 (§4.4): verdetto, tile e prompt leggono il Driver dello Storico, l'Allocazione sulla base allocata (regola 5/25), mercato e acquisti per classe, le operazioni e il TWR di Rendimenti. Budget di uscita dal contratto, con il ragionamento a parte (§4.5). |
 | **F2 — Eval rapido** ✔ | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione — **GLM 5.3 Flash**, 2026-09-28 (§7.2). |
-| **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). |
+| **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). Il 2026-09-28 GLM ha fallito 9 compilazioni su 13; dopo la sonda la compilazione passa a DeepSeek V4.1 Flash (2026-10-05, §7.3) e le 9 settimane si ricompilano. |
 | **F4 — Il vault interrogabile** | Export dei dati (✔ 2026-09-30, §6.1), `CLAUDE.md` del vault (✔ § 3.1 «I dati»), prime pagine Principi in sessione per intervista (✔ `allocazione-e-leva`, 2026-09-30; restano costi e fiscalità, comportamento, FIRE e obiettivi, liquidità e risparmio). Da qui il canale dell'abbonamento è completo. |
 | **F5 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4). |
 | **F6 — Eval completo** | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull. Sceglie il modello definitivo; se cambia, si ricompilano le pagine macro dai grezzi. |
@@ -290,6 +290,9 @@ normalizzati) e ogni numero della sintesi sta nella citazione; una citazione gi�
 senza fatti, o con più di un terzo delle voci fallite, è rifiutata (`pending`), mai pubblicata magra. Il server rende
 il markdown (`lib/utils/wikiMacro.ts`) con le voci scartate in fondo; il mese si ricostruisce dai `.json` delle sue
 settimane, scelte per **data** del numero. **Nessun numero del portafoglio** entra in questa chiamata.
+
+**Modello** (2026-10-05, §7.3): `deepseek/deepseek-v4.1-flash` con `reasoning: { enabled: false }` — la rotta lo dice
+(`AiModelRoute.reasoning: 'off'`), perché DeepSeek ignora il tetto al ragionamento e con un tetto tronca.
 
 Primo giro reale (n. 23, 2026-09-27, GLM 5.3 Flash): 16 fatti, 8 tesi, 3 spunti, 2 scartate (un «dal 1981» dedotto
 da «da allora»), **0,002 $**. Il primo prompt, senza tetti, dava 27/24/4 con doppioni: i tetti e la regola del
@@ -502,6 +505,33 @@ GLM 5.3 Flash** per `EMAIL_PERIODIC` ed `EMAIL_WEEKLY_BUDGET`, provvisorio fino 
   MiMo-V2.6-Flash due timeout a 120 s; MiniMax-M3 tronca le settimanali sfondando il tetto di ragionamento.
 - **Dati e strumenti fuori da git** (`scratchpad/ai-eval/`): bundle, esecuzioni, chiave, voti, note del giudice e
   `review.html`, la pagina che mostra ogni email con costo, controlli e i due voti; restano per F6.
+
+### 7.3 La sonda di TheBull e la scelta del 2026-10-05
+
+**Perché:** il 2026-09-28 GLM 5.3 Flash ha fallito 9 compilazioni su 13 (timeout a 120 s, risposte scartate, una
+settimana rifiutata dalla verifica delle citazioni). **Sonda** (script usa-e-getta fuori dal repo, 2026-09-30 → 10-04):
+le stesse tre newsletter compilate a secco tre volte al giorno, 300 s di timeout e nessun ritentativo; 13 timeout del
+01–02/10 esclusi, dovuti allo sleep del Mac. Poi un **giro di qualità** (2026-10-05, 0,06 $) sulle 10 settimane da
+recuperare, con i testi salvati e letti affiancati.
+
+| Variante | Sonda ok | Qualità ok | Latenza mediana · peggiore | Costo / settimana | Cifre tenute nella sintesi |
+| --- | --- | --- | --- | --- | --- |
+| **DeepSeek V4.1 Flash, ragionamento spento** | **40/40** | **10/10** | 11–13 s · 44 s | 0,0020–0,0027 $ | **100%** |
+| GPT-6 Luna (Azure) | 38/40 (2 vuote) | 10/10 | 20 s · 166 s | 0,0024 $ | 85% |
+| GLM 5.3 Flash senza fp4 | 34/41 | 6/10 | 19–34 s · 220 s | 0,0016 $ | 100% |
+| GLM 5.3 Flash (rotta di allora) | 33/41 | — | 32 s · 259 s | 0,0018 $ | — |
+
+- **Nessuna dipendenza dall'orario** dopo la correzione dello sleep: i fallimenti di GLM vengono dai provider (JSON
+  rotto da Phala e NextBit, area fuori elenco, 429), non dall'ora.
+- **DeepSeek copia, Luna parafrasa, GLM racconta.** Luna toglie le cifre dal 15% delle sintesi dei fatti («crescita in
+  rallentamento» al posto di «4%, in discesa dal 6,2%»); GLM è il più ricco di nomi e collegamenti ma a volte aggiunge
+  un giudizio o scrive frasi confuse; DeepSeek tiene una voce per frase e tutte le cifre.
+- **La non-allucinazione 0,04 di DeepSeek** (§7.1) qui pesa poco: ogni voce cita una frase che il codice ritrova, e una
+  cifra della sintesi assente dalla citazione fa scartare la voce. Sulle email, senza citazioni, pesa di più.
+- **Scelta del proprietario:** `THEBULL_COMPILE` su DeepSeek V4.1 Flash con il ragionamento spento; le email restano
+  su GLM 5.3 Flash, solo su host fp8/bf16/fp16 (`AiModelRoute.quantizations`: sulla sonda gli host fp4 rispondevano
+  con poche voci e citazioni rotte). Entrambe provvisorie fino a F6, dove DeepSeek entra tra i candidati delle email
+  (nei voti alla cieca di F2: 3,9 · 3,9 contro 3,4 · 3,7 di GLM), con il ragionamento acceso e spento.
 
 ---
 

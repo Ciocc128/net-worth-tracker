@@ -140,7 +140,7 @@ describe('generateText on OpenRouter', () => {
       { role: 'user', content: 'Commenta il mese.' },
     ]);
     expect(body.max_tokens).toBe(6000);
-    expect(body.provider).toEqual({ data_collection: 'deny', zdr: true });
+    expect(body.provider).toEqual({ data_collection: 'deny', zdr: true, quantizations: ['fp8', 'bf16', 'fp16'] });
     expect(body.reasoning).toEqual({ exclude: true });
     expect(body.response_format).toBeUndefined();
   });
@@ -235,6 +235,15 @@ describe('the OpenRouter adapter', () => {
     expect(adapterFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('sends a route\'s quantizations as the provider allow-list, and nothing when the route has none', async () => {
+    adapterFetch.mockImplementation(async () => completion('Ok.'));
+    await adapter.generateText('z-ai/glm-5.3-flash', REQUEST, 'k', { quantizations: ['fp8'] });
+    await adapter.generateText('z-ai/glm-5.3-flash', REQUEST, 'k');
+    const [first, second] = adapterFetch.mock.calls.map((call) => JSON.parse(call[1].body));
+    expect(first.provider).toEqual({ data_collection: 'deny', zdr: true, quantizations: ['fp8'] });
+    expect(second.provider).toEqual({ data_collection: 'deny', zdr: true });
+  });
+
   it('refuses a :free model before sending anything', async () => {
     await expect(adapter.generateText('qwen/qwen3.8-27b:free', REQUEST, 'k')).rejects.toThrow(':free');
     expect(adapterFetch).not.toHaveBeenCalled();
@@ -255,6 +264,17 @@ describe('extractStructured on OpenRouter', () => {
     });
     expect(body.provider).toEqual({ data_collection: 'deny', zdr: true, require_parameters: true });
     expect(body.max_tokens).toBe(4096);
+  });
+
+  it('switches the reasoning off on a route that says so, even when the caller sets a ceiling', async () => {
+    fetchMock.mockResolvedValue(completion(JSON.stringify(VALID)));
+    await extractStructured('THEBULL_COMPILE', { ...REQ, maxTokens: 8000, reasoningMaxTokens: 2000 });
+    const body = sentBody();
+    expect(body.model).toBe('deepseek/deepseek-v4.1-flash');
+    // DeepSeek ignores reasoning.max_tokens and truncates: the ceiling must not reach it.
+    expect(body.reasoning).toEqual({ enabled: false });
+    expect(body.max_tokens).toBe(8000);
+    expect(body.reasoningMaxTokens).toBeUndefined();
   });
 
   it('accepts JSON wrapped in a markdown fence', async () => {

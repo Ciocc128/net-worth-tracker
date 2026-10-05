@@ -8,7 +8,7 @@
  */
 
 import type { z } from 'zod';
-import type { LlmProvider } from '@/lib/constants/aiModels';
+import type { AiModelRoute, LlmProvider } from '@/lib/constants/aiModels';
 
 export interface LlmUsage {
   input: number;
@@ -70,8 +70,11 @@ export interface AdapterResponse<V> {
   usage: LlmUsage | null;
 }
 
+/** The route's per-provider options (OpenRouter reads them; the Anthropic adapter has none). */
+export type RouteOptions = Pick<AiModelRoute, 'reasoning' | 'quantizations'>;
+
 export interface LlmAdapter {
-  generateText(model: string, request: GenerateTextRequest, apiKey: string): Promise<AdapterResponse<string>>;
+  generateText(model: string, request: GenerateTextRequest, apiKey: string, options?: RouteOptions): Promise<AdapterResponse<string>>;
   extractJson(
     model: string,
     request: {
@@ -82,6 +85,7 @@ export interface LlmAdapter {
       maxTokens: number;
       reasoningMaxTokens?: number;
     },
-    apiKey: string
+    apiKey: string,
+    options?: RouteOptions
   ): Promise<AdapterResponse<unknown>>;
 }
