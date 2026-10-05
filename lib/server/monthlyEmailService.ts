@@ -84,7 +84,10 @@ import type { PeriodComparison, MetricDelta, ComparisonSet } from '@/lib/server/
 import { evaluateBudgetAlerts } from '@/lib/utils/budgetUtils';
 import { DEFAULT_ALERT_THRESHOLDS } from '@/types/budget';
 import type { BudgetAlert, BudgetItem } from '@/types/budget';
-import { type Expense, type ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { type Expense, type ExpenseCategory, type ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expenses';
+import { summarizeSpendingByRole, summarizeSpendingRoles, type SpendingByRoleRow } from '@/lib/utils/spendingRoles';
+import { buildWikiSystemBlock, formatMacroForPrompt, type EmailWikiContext } from '@/lib/utils/emailWiki';
+import { loadEmailWiki } from '@/lib/server/wiki/wikiReader';
 import { summarizeExpenseSplit, type ExpenseSplitSummary } from '@/lib/utils/expenseSplitSummary';
 import { summarizePeriodSales, type PeriodSalesSummary } from '@/lib/utils/periodSales';
 import { getAssetTransactionsAdmin, getPensionContributionsAdmin, getUserAssetsAdmin } from '@/lib/server/assetAdminRepository';
@@ -155,6 +158,10 @@ export interface MonthlyEmailData {
   topIndividualExpenses: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top transactions (5, or 10 for yearly)
   topIndividualIncome: Array<{ description: string; categoryName: string; subCategoryName?: string; amount: number }>; // top income transactions (used only in the yearly report)
   expensesByType: Array<{ type: ExpenseType; label: string; amount: number }>; // Fisse/Variabili/Debiti, sorted desc
+  // The same outflows by 50/30/20 role, only with `spendingRolesEnabled` (owner's call, 2026-10-05):
+  // when present it REPLACES the type split in the expense tile's footer and in the prompt.
+  // null = roles off or unreadable; undefined on data built before the field existed.
+  expensesByRole?: SpendingByRoleRow[] | null;
   dividendTotal: number; // gross EUR
   dividendCount: number;
   // Hall of Fame standing of this period's net-worth change — only for monthly/yearly
@@ -817,7 +824,7 @@ export function buildEmailDataSections(
 ): string[] {
   const label = periodTitle(emailData);
   return [
-    formatBundleForPrompt(bundle, label, { omitAllocation: true }),
+    formatBundleForPrompt(bundle, label, { omitAllocation: true, spendingRoles: emailData.expensesByRole ?? undefined }),
     ...formatDriversForPrompt(emailData),
     ...formatPeriodReturnForPrompt(emailData),
     ...formatCompositionForPrompt(emailData),
@@ -863,19 +870,26 @@ export function buildEmailPortfolioSections(emailData: MonthlyEmailData): string
  * The largest single expenses are deliberately NOT re-listed: the bundle already carries
  * them, with their date, in `--- SPESE SINGOLE PIU' GRANDI ---`.
  *
+ * The Wiki (F5, doc/ai-open-models-wiki.md § 5.4), when it applies: its rules and the Principles
+ * digest close the system block, the window's macro pages close the user message — AFTER the
+ * period's data, which stays the first thing read and the only source of the portfolio's figures.
+ * NOT in `buildEmailDataSections`: the vault's `dati/` is the data alone.
+ *
  * Exported for the prompt tests, and for the guided verification that reads the generated
  * userContent without sending anything.
  *
  * @returns { system, userContent }. `system` (role, domain, guardrails, period format
  *          contract) is byte-identical for every user and every run of a given period
- *          type; `userContent` carries everything per-request.
+ *          type — plus, for the vault's owner, the Wiki's rules and digest, which change only
+ *          when the digest does; `userContent` carries everything per-request.
  */
 export function buildEmailAiPrompt(
   emailData: MonthlyEmailData,
   comparison: PeriodComparison,
   bundle: AssistantMonthContextBundle,
   preferences: AssistantPreferences,
-  memoryItems: AssistantMemoryItem[]
+  memoryItems: AssistantMemoryItem[],
+  wiki: EmailWikiContext | null = null
 ): AssistantPromptParts {
   const label = periodTitle(emailData);
 
@@ -891,10 +905,12 @@ export function buildEmailAiPrompt(
     'Di seguito i dati del periodo, estratti in modo affidabile dal sistema. Le variazioni sono già calcolate: non ricalcolarle e non inventare numeri.',
     '',
     ...buildEmailDataSections(emailData, comparison, bundle),
+    ...(wiki ? formatMacroForPrompt(wiki) : []),
   ].join('\n');
 
+  const wikiSystem = buildWikiSystemBlock(wiki);
   return {
-    system: `${ASSISTANT_SYSTEM_CORE}\n\n${buildEmailPeriodicFormatContract(emailData.periodType)}`,
+    system: [ASSISTANT_SYSTEM_CORE, buildEmailPeriodicFormatContract(emailData.periodType), ...(wikiSystem ? [wikiSystem] : [])].join('\n\n'),
     userContent,
   };
 }
@@ -923,9 +939,10 @@ export function emailAiOutputBudget(periodType: EmailPeriodType): OutputBudget {
  *
  * The comment interprets the same exhaustive bundle the in-app assistant reads, plus the
  * deterministic email-only sections (Driver, return, allocation, class moves, trades,
- * comparisons, category deltas, budget alerts, Hall of Fame). There is no web search since 2026-09-28: the layer has no tools, and
- * the macro context arrives from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4) — until
- * then `includeMacroContext` only changes the prompt's wording, not what the model can do.
+ * comparisons, category deltas, budget alerts, Hall of Fame). There is no web search since 2026-09-28: the layer has no tools.
+ * The macro context and the Principles come from the vault (F5, doc/ai-open-models-wiki.md § 5.4),
+ * for the vault's owner only (`loadEmailWiki`); a vault that does not answer costs the block, never
+ * the comment. `includeMacroContext` (the assistant's web-search switch) plays no part here.
  *
  * No prompt caching: a cron run sending a handful of emails never fills a cache's TTL. The
  * `system` block is still built to be byte-identical per period type, so turning it on would
@@ -960,19 +977,32 @@ export async function generateEmailAiComment(
       // Memory load is non-critical — proceed with defaults
     }
 
-    // The same context pipeline the assistant uses, over the email's own window.
-    const bundle = await buildAssistantPeriodRangeContext(
-      userId,
-      resolveEmailPeriodRange(emailData),
-      preferences.includeDummySnapshots
-    );
+    // The same context pipeline the assistant uses, over the email's own window; the vault's pages
+    // for that window beside it (never throws: an unreadable page is an absent page).
+    const range = resolveEmailPeriodRange(emailData);
+    const [bundle, wiki] = await Promise.all([
+      buildAssistantPeriodRangeContext(userId, range, preferences.includeDummySnapshots),
+      loadEmailWiki(userId, {
+        periodType: emailData.periodType,
+        year: range.year,
+        startMonth: range.startMonth,
+        endMonth: range.endMonth,
+      }).catch(() => null),
+    ]);
+    if (wiki) {
+      // What reached the prompt, never its text: the months with and without a page, the digest.
+      console.log(
+        `[emailWiki] ${JSON.stringify({ months: wiki.months.map((m) => m.month), missing: wiki.missingMonths, principles: wiki.principles !== null, depth: wiki.depth })}`
+      );
+    }
 
     const { system, userContent } = buildEmailAiPrompt(
       emailData,
       comparison,
       bundle,
       preferences,
-      memoryItems
+      memoryItems,
+      wiki
     );
 
     const result = await generateText('EMAIL_PERIODIC', {
@@ -1012,6 +1042,8 @@ export async function getSettingsAdmin(
     // simply absent server-side, with no type error to catch it.
     expenseSplitEnabled: data.expenseSplitEnabled,
     familyMembers: data.familyMembers ?? [],
+    // The expense tile's footer and the prompt split the outflows by 50/30/20 role when on.
+    spendingRolesEnabled: data.spendingRolesEnabled,
     laborIncomeCategoryIds: data.laborIncomeCategoryIds ?? [],
     targets: data.targets,
     // The portfolio section (F1b): the Allocazione page's effective targets, Storico's pension
@@ -1386,6 +1418,7 @@ export async function buildPeriodEmailData(
   const hallOfFameRank = await computeHallOfFameRank(userId, periodType, year, month);
 
   const expenseSplit = await buildExpenseSplitForPeriod(userId, expensesSnap.docs, new Date());
+  const expensesByRole = await buildExpensesByRoleForPeriod(userId, expensesSnap.docs, totalExpenses);
   const portfolio = await buildEmailPortfolio({
     userId,
     year,
@@ -1418,6 +1451,7 @@ export async function buildPeriodEmailData(
     topIndividualExpenses,
     topIndividualIncome,
     expensesByType,
+    expensesByRole,
     dividendTotal,
     dividendCount,
     hallOfFameRank,
@@ -1557,6 +1591,32 @@ async function buildEmailPortfolio(input: {
  * Returns undefined — never an empty summary — when the feature is off or the household has
  * fewer than two people: the section is then absent instead of rendering a box with no answer.
  */
+/**
+ * The window's outflows by 50/30/20 role, or null when the roles are off (`spendingRolesEnabled`)
+ * or a read fails — the tile and the prompt then keep the type split, as before. The role of a row
+ * is resolved from TODAY's categories, as Analisi's Flusso does.
+ */
+async function buildExpensesByRoleForPeriod(
+  userId: string,
+  expenseDocs: FirebaseFirestore.QueryDocumentSnapshot[],
+  totalExpenses: number
+): Promise<SpendingByRoleRow[] | null> {
+  try {
+    const settings = await getSettingsAdmin(userId);
+    if (!settings?.spendingRolesEnabled) return null;
+    const categoriesSnap = await adminDb.collection('expenseCategories').where('userId', '==', userId).get();
+    const categories = categoriesSnap.docs.map((doc) => {
+      const data = doc.data();
+      return { id: doc.id, ...data, subCategories: data.subCategories ?? [] } as ExpenseCategory;
+    });
+    const expenses = expenseDocs.map((doc) => ({ ...doc.data(), id: doc.id }) as Expense);
+    return summarizeSpendingByRole(summarizeSpendingRoles(expenses, categories), totalExpenses);
+  } catch (error) {
+    console.error('Failed to build the spending by role', { userId, error });
+    return null;
+  }
+}
+
 async function buildExpenseSplitForPeriod(
   userId: string,
   expenseDocs: FirebaseFirestore.QueryDocumentSnapshot[],
@@ -2034,10 +2094,13 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
     // Legacy and imported rows can carry no expense type, and `aggregateExpenses` counts them
     // in totalExpenses while leaving them out of expensesByType — so the typed rows stopped
     // short of 100% with nothing explaining the gap. The residual keeps its own name.
+    // With the 50/30/20 roles on, the roles replace the types (their own residual is already in
+    // «Da classificare», lib/utils/spendingRoles.ts).
     const typedTotal = data.expensesByType.reduce((sum, entry) => sum + entry.amount, 0);
     const unclassified = data.totalExpenses - typedTotal;
     const types = [...data.expensesByType.map((entry) => ({ label: entry.label, amount: entry.amount }))];
     if (unclassified > 0.005) types.push({ label: 'Non classificate', amount: unclassified });
+    const split = data.expensesByRole && data.expensesByRole.length > 0 ? data.expensesByRole : types;
 
     tiles.push(
       emailTile({
@@ -2045,7 +2108,7 @@ export function generateEmailHtml(data: MonthlyEmailData, comparisonData?: Perio
         scope: `${data.topExpenseCategories.length} categorie`,
         reading: describeExpenseCategoriesTile(data.topExpenseCategories, RANKED_ROWS_SHOWN),
         body: emailRankedRows(expenseRows),
-        footer: describeExpenseTypes(types),
+        footer: describeExpenseTypes(split),
       }),
     );
   }

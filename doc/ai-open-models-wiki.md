@@ -90,7 +90,7 @@ La Wiki (§5) lo aggiunge; la ricerca web non entra nel nuovo disegno.
 | **F2 — Eval rapido** ✔ | Sulle email di oggi, senza Wiki (§7, primo giro): scarta chi non regge l'italiano o inventa cifre e sceglie il **modello provvisorio** di produzione — **GLM 5.3 Flash**, 2026-09-28 (§7.2). |
 | **F3 — Vault e TheBull** | Repo privato `finance-wiki` con lo schema (✔ 2026-09-28), struttura (§5.1), operazioni (§5.5), ingestione e compilazione (✔ codice 2026-09-28, §5.2–5.3), Apps Script, endpoint di ingestione, compilazione col modello provvisorio, **recupero delle newsletter passate** (§5.2). Il 2026-09-28 GLM ha fallito 9 compilazioni su 13; dopo la sonda la compilazione passa a DeepSeek V4.1 Flash (2026-10-05, §7.3) e le 9 settimane si ricompilano. |
 | **F4 — Il vault interrogabile** | Export dei dati (✔ 2026-09-30, §6.1), `CLAUDE.md` del vault (✔ § 3.1 «I dati»), prime pagine Principi in sessione per intervista (✔ `allocazione-e-leva`, 2026-09-30; restano costi e fiscalità, comportamento, FIRE e obiettivi, liquidità e risparmio). Da qui il canale dell'abbonamento è completo. |
-| **F5 — La Wiki nelle email** | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4). |
+| **F5 — La Wiki nelle email** ✔ | Blocco macro per periodo e digest dei Principi nei prompt delle email (§5.4, 2026-10-05), e nella stessa sessione le spese per ruolo 50/30/20 nelle email. |
 | **F6 — Eval completo** | Due compiti (§7, secondo giro): email con la Wiki, compilazione di TheBull. Sceglie il modello definitivo; se cambia, si ricompilano le pagine macro dai grezzi. |
 | **F7 — MCP (facoltativa)** | Server MCP in sola lettura (§6.3), solo se l'export risulta troppo vecchio nell'uso. |
 
@@ -306,15 +306,48 @@ tre ritentativi → `failed` e il cron non lo tocca più, ricompilazione a mano 
 ingerito e rivisto dal proprietario in Obsidian (F). Resta fuori, per costruzione: l'Apps Script e l'HTTP reale da
 Gmail, che arrivano con il deploy.
 
-### 5.4 Lettura nelle email (F5)
+### 5.4 Lettura nelle email (F5) ✔ 2026-10-05
 
-Recupero **deterministico per data**: l'email mensile riceve `macro/mesi/<mese>.md`, le trimestrali,
-semestrali e annuali i riassunti dei mesi della finestra, tutte `principi/_digest.md` nel blocco di
-sistema. Guardrail aggiunti al contratto: i Principi orientano il **giudizio**, non i **numeri**; un
-insight che poggia su un principio lo nomina; quando i dati contraddicono un principio, lo si dice.
+Recupero **deterministico per data**, mai una ricerca (`lib/utils/emailWiki.ts`, `lib/server/wiki/wikiReader.ts`):
+l'email mensile riceve `wiki/macro/mesi/<mese>.md`, le trimestrali, semestrali e annuali le pagine dei mesi della
+finestra, tutte `wiki/principi/_digest.md`. Il digest e le regole chiudono il **blocco di sistema**, le pagine macro
+chiudono il **messaggio**, DOPO i dati del periodo (che restano la sola fonte delle cifre del portafoglio); non entrano
+in `buildEmailDataSections`, quindi `dati/` del vault resta il solo blocco dati. Le pagine arrivano senza frontmatter,
+titolo, preambolo ed elenco delle settimane, con i link di Obsidian ridotti a testo e i titoli scalati sotto
+«## Macro di <mese>».
 
-Lettura del vault via GitHub API con token in sola lettura e `ETag`; limite 5.000 richieste/ora,
-un'email ne fa al più una manciata.
+**Decisioni del proprietario (2026-10-05):**
+
+| # | Decisione |
+| --- | --- |
+| W1 | **Token:** le email riusano `WIKI_GITHUB_TOKEN`. Un token in sola lettura accanto a quello in scrittura, nello stesso runtime, non proteggerebbe nulla. |
+| W2 | **Nessuna cache né `ETag`:** un'email fa da 2 (mensile) a 13 (annuale) letture contro le 5.000/ora di GitHub, e una funzione Vercel non tiene memoria tra due esecuzioni del cron. |
+| W3 | **Profondità:** pagine intere fino al trimestre; da semestrale in su, per mese e **per codice**, i 2 fatti più recenti per area, le 8 tesi più recenti e la tabella degli indici (`MACRO_DEPTH`, `reduceMacroMonthPage`). Mai un riassunto scritto da un modello. |
+| W4 | **Chi:** solo l'utente `WIKI_EXPORT_UID`, lo stesso proprietario dell'export F4: il digest è personale. Le email degli altri utenti restano come prima e non leggono il vault. |
+| W5 | **Le regole**, presenti solo con il blocco che governano (senza macro niente regole macro, senza digest niente regole sui Principi): i fatti sono accaduti, le tesi sono opinioni dell'autore; il macro spiega il MERCATO, mai entrate e spese; nessuna cifra del portafoglio dal macro e nessuna cifra macro presentata come del portafoglio, citata con il suo soggetto; i Principi orientano il GIUDIZIO, non i NUMERI; un'osservazione che poggia su un principio lo nomina; se i dati contraddicono un principio, lo si dice. |
+| W6 | **Contratto:** la sezione 2 aggiunge «se ricevi il contesto macro, collega il mercato del periodo a uno o due fatti del periodo, citandoli» (condizionale, così il contratto resta identico per tipo di periodo). |
+| W7 | **Assenza:** un mese senza pagina è nominato («Nessuna pagina macro per luglio 2026»); nessuna pagina, o il vault che non risponde, toglie blocco e regole: il prompt non promette nulla. Ogni lettura fallita vale «manca», mai un errore dell'email. |
+| W8 | **Spese per ruolo** (stessa sessione): con `spendingRolesEnabled` il footer della tile «Spese per categoria» e il blocco del prompt dividono le USCITE per ruolo (Necessità · Desideri · Da classificare · Risparmi, `summarizeSpendingByRole`) al posto dei tipi; Risparmi sono le righe classificate risparmio, mai l'avanzo; una riga senza tipo va in «Da classificare». Solo sul percorso email: l'Assistente (di upstream, spento) non lo vede. Lo stesso blocco arriva in `dati/` del vault, che è il blocco dati dell'email. |
+
+**Misura sul mirror (2026-10-05, branch usa-e-getta `collaudo-f5` del vault):**
+
+| Email | Ingresso senza Wiki (stima) | Con la Wiki (stima) | Token veri (GLM 5.3 Flash) | Uscita · ragionamento | Costo |
+| --- | --- | --- | --- | --- | --- |
+| Settembre 2026 | 6.296 | 9.715 (macro 2.934, sistema 484) | **10.953** | 1.017 · 226 | 0,0012 $ |
+| Q3 2026 | 6.461 | 16.753 (macro 9.808) | **19.063** | 1.427 · 98 | 0,0020 $ |
+| H1 2026 (nessuna pagina) | 6.379 | 6.724 (solo Principi) | — | — | — |
+| Anno 2026, 4 mesi con pagina | — | macro 4.328 ridotta · 10.892 intera | — | — | — |
+
+Il tokenizer vero conta ~13% in più della stima a 3,5 caratteri/token. Un'annuale con 12 mesi di pagine starà intorno
+a 13k token di macro ridotta (~33k intera), quindi ~22k in tutto, poco sopra il trimestrale di oggi (19k). `outputBudget` **non cambia**: il ragionamento resta a 98–226 token su tetti di 4.000–6.000.
+
+**Collaudo** (WORKFLOW § 2): parole-esca nel digest («ornitorinco», una regola) e nella pagina di settembre
+(«fenicottero», un fatto con il 3,7%) sul branch `collaudo-f5`, poi cancellato. Il digest arriva solo nel sistema, la
+pagina solo nel messaggio, i ruoli al posto dei tipi (B, C, D sul percorso vero `generateEmailAiComment`); un altro
+utente non legge il vault, il proprietario sì, con lo stesso vault (E). Il Q3 **nomina** la regola-esca come principio.
+**Per F6:** lo stesso Q3 ha citato il fatto-esca come «Bloomberg Euro momentum su +3,7%», fondendolo con il nome di
+altri fatti: cifra macro e non del portafoglio, ma con un soggetto inventato. È il controllo «ogni fatto macro citato
+esiste nella pagina macro» del secondo giro (§7).
 
 ### 5.5 Le tre operazioni della Wiki (modello di Karpathy)
 
@@ -557,7 +590,7 @@ recuperare, con i testi salvati e letti affiancati.
 | F6 | `scripts/aiEval.mts` con i controlli del secondo giro (fatti macro, principi) |
 | F3 ✔ | `app/api/wiki/ingest/route.ts`, `lib/server/wiki/{githubVault,thebullCompiler}.ts`, `lib/utils/{thebullParse,wikiMacro}.ts`, la fase 9 del cron, `scripts/wikiCompile.mts` (`npm run wiki:compile`), l'Apps Script `scripts/wiki/thebullIngest.gs`; test su una newsletter sintetica (`__tests__/thebullFixture.ts`); guida in `doc/guide/email-pdf.md` |
 | F4 ✔ | `lib/server/wiki/vaultExport.ts`, `lib/utils/vaultMarkdown.ts`, `buildEmailDataSections`/`buildEmailPortfolioSections` in `monthlyEmailService.ts`, la fase 10 del cron, `scripts/vaultExport.mts` (`npm run vault:export`), `CLAUDE.md` del vault |
-| F5 | `lib/server/wiki/wikiReader.ts`, i prompt in `monthlyEmailService.ts` e `weeklyBudgetEmailService.ts` |
+| F5 ✔ | `lib/utils/emailWiki.ts`, `lib/server/wiki/wikiReader.ts`, `buildEmailAiPrompt` e `generateEmailAiComment` in `monthlyEmailService.ts`, il contratto e `formatBundleForPrompt({ spendingRoles })` in `prompts.ts`, `summarizeSpendingByRole` in `spendingRoles.ts`; test `__tests__/{emailWiki,wikiReader}.test.ts` (pagine rese da `renderMonthPage`, `__tests__/emailWikiFixture.ts`). L'email budget settimanale resta senza Wiki: il proprietario non la usa (F2). |
 | Ogni fase | `doc/guide/email-pdf.md`, `CLAUDE.md` (Current Status, Data & Integrations), `SETUP.md` (`OPENROUTER_API_KEY`, `WIKI_INGEST_SECRET`, `WIKI_GITHUB_TOKEN`, `WIKI_GITHUB_REPO`) |
 
 ---

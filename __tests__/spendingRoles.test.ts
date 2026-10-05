@@ -9,6 +9,7 @@ import {
   SPENDING_EXPENSE_TYPES,
   SPENDING_ROLE_FLOW_ORDER,
   summarizeCategoryClassification,
+  summarizeSpendingByRole,
   summarizeSpendingRoles,
   summarizeSpendingRoleShares,
   type SpendingRoleSource,
@@ -494,5 +495,37 @@ describe('categoryRoleColor', () => {
     // Fork: `--flow-in`, a type marker (upstream: `--positive`) — doc/guide/fork-scelte-ui.md § 1.
     expect(categoryRoleColor({ type: 'income', spendingRole: 'need' }, true)).toBe('var(--flow-in)');
     expect(categoryRoleColor({ type: 'transfer', spendingRole: 'want' }, true)).toBeNull();
+  });
+});
+
+describe('summarizeSpendingByRole — the periodic email split (F5, owner 2026-10-05)', () => {
+  const expenses = [
+    makeExpense({ type: 'income', amount: 3000, categoryId: 'cat-stipendio' }),
+    makeExpense({ type: 'fixed', amount: -800, categoryId: 'cat-casa' }),
+    makeExpense({ type: 'fixed', amount: -30, categoryId: 'cat-abbonamenti', subCategoryId: 'sub-wifi' }),
+    makeExpense({ type: 'fixed', amount: -20, categoryId: 'cat-abbonamenti', subCategoryId: 'sub-streaming' }),
+    makeExpense({ type: 'variable', amount: -200, categoryId: 'cat-pac' }),
+    makeExpense({ type: 'variable', amount: -100, categoryId: 'cat-altro' }),
+  ];
+  const summary = summarizeSpendingRoles(expenses, CATEGORIES);
+
+  it('splits the OUTFLOWS by role in the Flusso order; Risparmi is the saving rows, never the surplus', () => {
+    expect(summarizeSpendingByRole(summary)).toEqual([
+      { bucket: 'need', label: 'Necessità', amount: 830 },
+      { bucket: 'want', label: 'Desideri', amount: 20 },
+      { bucket: 'unclassified', label: 'Da classificare', amount: 100 },
+      { bucket: 'saving', label: 'Risparmi', amount: 200 },
+    ]);
+  });
+
+  it("puts the caller's untyped outflows in «Da classificare», so the rows reach the total", () => {
+    const rows = summarizeSpendingByRole(summary, 1250);
+    expect(rows.find((row) => row.bucket === 'unclassified')!.amount).toBe(200);
+    expect(rows.reduce((sum, row) => sum + row.amount, 0)).toBe(1250);
+  });
+
+  it('leaves out an empty bucket', () => {
+    const onlyNeeds = summarizeSpendingRoles([makeExpense({ type: 'fixed', amount: -50, categoryId: 'cat-casa' })], CATEGORIES);
+    expect(summarizeSpendingByRole(onlyNeeds).map((row) => row.bucket)).toEqual(['need']);
   });
 });

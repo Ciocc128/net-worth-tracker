@@ -606,7 +606,10 @@ export function describeIncomeCategoriesTile(
   ]);
 }
 
-/** Spese per tipo — the Fisse/Variabili/Debiti split, as the expense tile's footer. */
+/**
+ * Spese per tipo — the Fisse/Variabili/Debiti split, as the expense tile's footer; with the 50/30/20
+ * roles on, the same footer over the roles (Necessità · Desideri · Da classificare · Risparmi).
+ */
 export function describeExpenseTypes(
   types: Array<{ label: string; amount: number }>,
 ): Narrative | null {
