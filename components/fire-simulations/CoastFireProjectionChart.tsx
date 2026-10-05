@@ -89,9 +89,9 @@ function CoastTooltip({
   if (!row) return null;
 
   const rows = [
-    { name: 'Patrimonio Orso', value: row.bearPortfolioValue, color: colors.bear },
+    { name: 'Patrimonio Bear', value: row.bearPortfolioValue, color: colors.bear },
     { name: 'Patrimonio Base', value: row.basePortfolioValue, color: colors.base },
-    { name: 'Patrimonio Toro', value: row.bullPortfolioValue, color: colors.bull },
+    { name: 'Patrimonio Bull', value: row.bullPortfolioValue, color: colors.bull },
     ...(row.paceValue !== undefined
       ? [{ name: paceUntilYear !== null && paceUntilYear !== undefined ? `Base con il risparmio fino al ${paceUntilYear}` : 'Base con il risparmio', value: row.paceValue, color: colors.base }]
       : []),
@@ -163,8 +163,8 @@ export function CoastFireProjectionChart({
             role="img"
             aria-label={
               pace
-                ? "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Orso, Base e Toro, la linea punteggiata del base con il risparmio attuale e la linea tratteggiata del capitale richiesto al target"
-                : "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Orso, Base e Toro, con la linea tratteggiata del capitale richiesto al target"
+                ? "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, la linea punteggiata del base con il risparmio attuale e la linea tratteggiata del capitale richiesto al target"
+                : "Grafico proiezione Coast FIRE: il patrimonio che cresce senza nuovi versamenti negli scenari Bear, Base e Bull, con la linea tratteggiata del capitale richiesto al target"
             }
             accessibilityLayer={false}
           >
@@ -189,7 +189,7 @@ export function CoastFireProjectionChart({
               dataKey="bearPortfolioValue"
               stroke={bearColor}
               strokeWidth={2}
-              name="Patrimonio Orso"
+              name="Patrimonio Bear"
               dot={false}
               animationDuration={800}
               animationEasing="ease-out"
@@ -209,7 +209,7 @@ export function CoastFireProjectionChart({
               dataKey="bullPortfolioValue"
               stroke={bullColor}
               strokeWidth={2}
-              name="Patrimonio Toro"
+              name="Patrimonio Bull"
               dot={false}
               animationDuration={800}
               animationEasing="ease-out"
@@ -254,9 +254,9 @@ export function CoastFireProjectionChart({
       <SeriesLegend
         className="mt-1.5 justify-center"
         items={[
-          { label: 'Patrimonio Orso', colors: [bearColor] },
+          { label: 'Patrimonio Bear', colors: [bearColor] },
           { label: 'Patrimonio Base', colors: [baseColor] },
-          { label: 'Patrimonio Toro', colors: [bullColor] },
+          { label: 'Patrimonio Bull', colors: [bullColor] },
           ...(pace ? [{ label: 'Base con il risparmio attuale', colors: [baseColor] }] : []),
           { label: 'Capitale richiesto al target', colors: [TARGET_INK] },
         ]}

@@ -2,7 +2,7 @@
 
 /**
  * IMPOSTAZIONI › SIMULAZIONI — «Ipotesi di mercato»: the CAGR and the volatility of the seven classes
- * the Monte Carlo simulates, scenario by scenario (Orso · Base · Toro), plus the inflation and the
+ * the Monte Carlo simulates, scenario by scenario (Bear · Base · Bull), plus the inflation and the
  * commodity sub-category read as Oro (doc/montecarlo/README.md § 5.1).
  *
  * A controlled tile: the page owns the draft, the dirty snapshot and the single «Salva» (one Save
@@ -64,9 +64,9 @@ const PORTFOLIO_SUBJECT: Record<FireWeightsOrigin, string> = {
 };
 
 const SCENARIO_OPTIONS: { value: MonteCarloScenarioKey; label: string }[] = [
-  { value: 'bear', label: 'Orso' },
+  { value: 'bear', label: 'Bear' },
   { value: 'base', label: 'Base' },
-  { value: 'bull', label: 'Toro' },
+  { value: 'bull', label: 'Bull' },
 ];
 
 const NONE_VALUE = '__none__';

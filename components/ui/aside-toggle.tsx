@@ -22,8 +22,8 @@ interface AsideToggleProps<T extends string> {
  * colour. `--aside-toggle-on` defaults to `--muted`, so a theme that does not name it keeps the
  * quiet grey this switch always had instead of the filled primary.
  */
-const ASIDE_TOGGLE_ON_CLASS = 'border-border bg-aside-toggle-on text-aside-toggle-on-foreground';
-const ASIDE_TOGGLE_OFF_CLASS = 'border-border bg-outline-surface text-muted-foreground hover:bg-accent hover:text-accent-foreground';
+export const ASIDE_TOGGLE_ON_CLASS = 'border-border bg-aside-toggle-on text-aside-toggle-on-foreground';
+export const ASIDE_TOGGLE_OFF_CLASS = 'border-border bg-outline-surface text-muted-foreground hover:bg-accent hover:text-accent-foreground';
 
 /**
  * The view switch that lives in a tile's aside (the Strumenti form: 11px outline buttons,

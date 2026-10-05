@@ -66,7 +66,7 @@ function joinList(items: Narrative[]): Narrative {
   return out;
 }
 
-const SCENARIO_NAMES: Record<ScenarioRunSummary['key'], string> = { bear: 'orso', base: 'base', bull: 'toro' };
+const SCENARIO_NAMES: Record<ScenarioRunSummary['key'], string> = { bear: 'bear', base: 'base', bull: 'bull' };
 
 // ─── Verdict ──────────────────────────────────────────────────────────────────
 
@@ -166,13 +166,13 @@ function sustainableSentence(input: MonteCarloVerdictInput['sustainable']): Narr
   return [prose(' Per tornare al 90% il prelievo dovrebbe scendere a '), amount(base90.withdrawal), prose(" l'anno di oggi (il "), ...rate, prose(' del capitale).')];
 }
 
-/** « Nello scenario orso regge nel 61,5% dei casi, nel toro nel 96,8%.» */
+/** « Nello scenario bear regge nel 61,5% dei casi, nel bull nel 96,8%.» */
 function scenariosSentence(scenarios: ScenarioComparison | null): Narrative {
   if (!scenarios) return [];
   const bear = scenarios.rows.find((row) => row.key === 'bear');
   const bull = scenarios.rows.find((row) => row.key === 'bull');
   if (!bear || !bull) return [];
-  return [prose(' Nello scenario orso regge '), prose(inThePercent(bear.successRate)), figure(ratePct(bear.successRate)), prose(' dei casi, nel toro '), prose(inThePercent(bull.successRate)), figure(ratePct(bull.successRate)), prose('.')];
+  return [prose(' Nello scenario bear regge '), prose(inThePercent(bear.successRate)), figure(ratePct(bear.successRate)), prose(' dei casi, nel bull '), prose(inThePercent(bull.successRate)), figure(ratePct(bull.successRate)), prose('.')];
 }
 
 /** « Numeri con il modello ponte: i 31.400 € del fondo pensione entrano nel 2045 al valore di oggi.» */
@@ -300,14 +300,14 @@ export const SCENARI_FOOTER: Narrative = [
   ),
 ];
 
-/** «Lo scenario orso regge nel 61,5% dei casi, il toro nel 96,8%: 35 punti di distanza attorno al base.» */
+/** «Lo scenario bear regge nel 61,5% dei casi, il bull nel 96,8%: 35 punti di distanza attorno al base.» */
 export function describeScenari(comparison: ScenarioComparison): Narrative {
   const bear = comparison.rows.find((row) => row.key === 'bear');
   const bull = comparison.rows.find((row) => row.key === 'bull');
   if (!bear || !bull) return [];
   const spread = Math.round(comparison.spreadPoints);
   const tail: Narrative = Math.abs(comparison.spreadPoints) < 0.5 ? [prose('i tre scenari non si distinguono.')] : [figure(`${spread} ${Math.abs(spread) === 1 ? 'punto' : 'punti'}`), prose(' di distanza attorno al base.')];
-  return [prose('Lo scenario orso regge '), prose(inThePercent(bear.successRate)), figure(ratePct(bear.successRate)), prose(' dei casi, il toro '), prose(inThePercent(bull.successRate)), figure(ratePct(bull.successRate)), prose(': '), ...tail];
+  return [prose('Lo scenario bear regge '), prose(inThePercent(bear.successRate)), figure(ratePct(bear.successRate)), prose(' dei casi, il bull '), prose(inThePercent(bull.successRate)), figure(ratePct(bull.successRate)), prose(': '), ...tail];
 }
 
 /** «mediana finale 198.000 € · nel 10% peggiore esaurito nel 2045» */
@@ -317,7 +317,7 @@ export function describeScenarioNote(row: ScenarioRunSummary): Narrative {
   return [...median, prose(' · '), ...worst];
 }
 
-/** The scenario's name as the tiles print it («Orso»). */
+/** The scenario's name as the tiles print it («Bear»). */
 export function scenarioLabel(key: ScenarioRunSummary['key']): string {
   const name = SCENARIO_NAMES[key];
   return name.charAt(0).toUpperCase() + name.slice(1);
@@ -327,14 +327,14 @@ export function scenarioLabel(key: ScenarioRunSummary['key']): string {
 
 export const SPESA_ASIDE = "euro di oggi, l'anno";
 
-/** «In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nell'orso 33.700 €.» */
+/** «In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nel bear 33.700 €.» */
 export function describeSpesaSostenibile(summary: SustainableSpendingSummary, horizonYears: number): Narrative {
   const row = summary.rows.find((candidate) => candidate.probability === 0.9);
   if (!row) return [];
   if (row.base.withdrawal === null) {
     return [prose('Con questa leva nessun prelievo fa reggere il piano in 9 simulazioni su 10: la leva azzera il capitale da sola.')];
   }
-  const bear: Narrative = row.bear.withdrawal === null ? [prose("nell'orso nessun prelievo basta")] : [prose("nell'orso "), amount(row.bear.withdrawal)];
+  const bear: Narrative = row.bear.withdrawal === null ? [prose("nel bear nessun prelievo basta")] : [prose("nel bear "), amount(row.bear.withdrawal)];
   return [
     prose('In 9 simulazioni su 10 il capitale regge '),
     figure(years(horizonYears)),
@@ -528,13 +528,13 @@ export function describeParametriFooter(input: ParametriFooterInput): Narrative 
 
 export const DETTAGLIO_DESCRIPTION = 'Traiettorie dei tre scenari in euro di oggi, percentili a passi di 5 anni, come funziona';
 
-/** «Le tre mediane partono dagli stessi 488.600 €; nel 2061 l'orso chiude a 198.000 €, il base a 612.400 €, il toro a 1.420.000 €.» */
+/** «Le tre mediane partono dagli stessi 488.600 €; nel 2061 il bear chiude a 198.000 €, il base a 612.400 €, il bull a 1.420.000 €.» */
 export function describeTraiettorie(comparison: ScenarioComparison, plan: MonteCarloPlan): Narrative {
   const out: Narrative = [prose('Le tre mediane partono dagli stessi '), amount(plan.initialPortfolio), prose('; nel '), year(plan.endCalendarYear), prose(' ')];
   // «chiude a» is said once, by the first scenario that closes with money; the next ones read «a».
   let closeSaid = false;
   comparison.rows.forEach((row, index) => {
-    const article = row.key === 'bear' ? "l'orso" : `il ${SCENARIO_NAMES[row.key]}`;
+    const article = `il ${SCENARIO_NAMES[row.key]}`;
     if (index > 0) out.push(prose(', '));
     out.push(prose(article));
     if (row.medianFinal <= 0) {
@@ -567,7 +567,7 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'La partenza',
-    body: "La simulazione parte dall'anno in cui il Calcolatore, sul piano salvato e nello scenario Base, dice che si arriva al FIRE, con il capitale che il Base ha quell'anno in euro di oggi; con «Oggi» parte dal capitale di oggi. Orso, base e toro partono dallo stesso capitale e dallo stesso anno: gli scenari differiscono solo dopo il FIRE, quindi la probabilità non dice cosa succede se al FIRE si arriva con più o con meno. Pensioni, fondo pensione e flussi sono letti dall'anno FIRE; tutte le cifre sono in euro di oggi, il nominale solo nella colonna «Mediana nominale».",
+    body: "La simulazione parte dall'anno in cui il Calcolatore, sul piano salvato e nello scenario Base, dice che si arriva al FIRE, con il capitale che il Base ha quell'anno in euro di oggi; con «Oggi» parte dal capitale di oggi. Bear, Base e Bull partono dallo stesso capitale e dallo stesso anno: gli scenari differiscono solo dopo il FIRE, quindi la probabilità non dice cosa succede se al FIRE si arriva con più o con meno. Pensioni, fondo pensione e flussi sono letti dall'anno FIRE; tutte le cifre sono in euro di oggi, il nominale solo nella colonna «Mediana nominale».",
   },
   {
     title: 'La probabilità',

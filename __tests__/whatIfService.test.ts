@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('@/lib/services/expenseService', () => ({}))
 vi.mock('@/lib/services/snapshotService', () => ({}))
 
-import { getDefaultScenarios } from '@/lib/services/fireService'
+import { calculateCoastFIREMetrics, getDefaultScenarios } from '@/lib/services/fireService'
 import { applyScenarioToBaseline, calculateWhatIfImpact } from '@/lib/services/whatIfService'
 import type { WhatIfBaseline, WhatIfScenario } from '@/types/whatIf'
 
@@ -55,6 +55,24 @@ describe('calculateWhatIfImpact — honest baseline (2026-09-24)', () => {
       { eventType: 'windfall', lumpSumAmount: 0 },
     )
     expect(withPension.fire.fireNumber.before as number).toBeLessThan(600_000)
+  })
+})
+
+describe('calculateWhatIfImpact — the Coast number carries the withdrawal tax (collaudo 2026-10-05)', () => {
+  const tax = { basisToday: 100_000, rate: 26 }
+  const baseline = makeBaseline({ honest: { pensions: [], taxBrackets: [], withdrawalTax: tax, now: new Date('2026-04-12T00:00:00') } })
+
+  it('«prima» is the Coast tab\'s own number: the same function with the same tax', () => {
+    const impact = calculateWhatIfImpact(baseline, { eventType: 'windfall', lumpSumAmount: 0 })
+    const c = baseline.coast!
+    const coastTab = calculateCoastFIREMetrics(baseline.netWorth, c.annualExpenses, baseline.withdrawalRate, c.currentAge, c.retirementAge, c.realReturnRate, c.inflationRate, c.pensions, c.taxBrackets, undefined, undefined, tax)
+    expect(impact.coast!.coastFireNumberToday.before).toBeCloseTo(coastTab.coastFireNumberToday, 6)
+  })
+
+  it('without the tax the number is lower: the tax is what the What If was missing', () => {
+    const taxed = calculateWhatIfImpact(baseline, { eventType: 'windfall', lumpSumAmount: 0 })
+    const plain = calculateWhatIfImpact(makeBaseline(), { eventType: 'windfall', lumpSumAmount: 0 })
+    expect(taxed.coast!.coastFireNumberToday.before as number).toBeGreaterThan(plain.coast!.coastFireNumberToday.before as number)
   })
 })
 

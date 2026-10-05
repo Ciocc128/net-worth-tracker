@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * SCENARI — «e se il mercato va diversamente?»: the three scenarios as rows — Orso · Base ·
- * Toro, each with its growth and inflation as a caption and its FIRE year with the distance in
+ * SCENARI — «e se il mercato va diversamente?»: the three scenarios as rows — Bear · Base ·
+ * Bull, each with its growth and inflation as a caption and its FIRE year with the distance in
  * years — and a footer that says the model in words. The base row is set semibold: it is the
  * scenario the verdict and the Traguardo run on.
  *

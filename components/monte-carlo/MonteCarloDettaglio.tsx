@@ -58,14 +58,14 @@ export function MonteCarloDettaglio({ description, traiettorieReading, overlay, 
             <Tile eyebrow="Traiettorie a confronto" aside="mediane · banda 10–90 del base" reading={traiettorieReading} ariaLabel="Traiettorie a confronto">
               <div className="relative mt-4 min-h-[220px] flex-1">
                 <div className="absolute inset-0">
-                  <ScenarioOverlayChart series={overlay} height="100%" ariaLabel="Mediane dei tre scenari, orso base e toro, con la banda 10–90 dello scenario base; la linea tratteggiata è il capitale esaurito." />
+                  <ScenarioOverlayChart series={overlay} height="100%" ariaLabel="Mediane dei tre scenari, bear base e bull, con la banda 10–90 dello scenario base; la linea tratteggiata è il capitale esaurito." />
                 </div>
               </div>
               <div className="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3.5 text-[11px] text-muted-foreground">
                 {(['bear', 'base', 'bull'] as const).map((key) => (
                   <span key={key} className="flex items-center gap-1.5">
                     <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: SCENARIO_COLOR[key] }} aria-hidden="true" />
-                    {key === 'bear' ? 'Orso' : key === 'base' ? 'Base' : 'Toro'}
+                    {key === 'bear' ? 'Bear' : key === 'base' ? 'Base' : 'Bull'}
                   </span>
                 ))}
                 <span className="ml-auto">tratteggiata: capitale esaurito</span>

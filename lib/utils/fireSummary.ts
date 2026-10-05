@@ -143,14 +143,14 @@ export type ScenarioKey = 'bear' | 'base' | 'bull';
 
 export interface ScenarioRow {
   key: ScenarioKey;
-  label: 'Orso' | 'Base' | 'Toro';
+  label: 'Bear' | 'Base' | 'Bull';
   yearsToFire: number | null;
   calendarYear: number | null;
   growthRate: number;
   inflationRate: number;
 }
 
-const SCENARIO_LABELS: Record<ScenarioKey, ScenarioRow['label']> = { bear: 'Orso', base: 'Base', bull: 'Toro' };
+const SCENARIO_LABELS: Record<ScenarioKey, ScenarioRow['label']> = { bear: 'Bear', base: 'Base', bull: 'Bull' };
 
 /** The three scenarios as rows, bear · base · bull, each with its year and its parameters. */
 export function summarizeScenarios(projection: FIREProjectionResult, currentYear: number): ScenarioRow[] {

@@ -26,7 +26,7 @@
   histogram with the median's bin, the three scenarios, the Dettaglio's overlay and percentile rows, the plan as typed), `monteCarloNarrative.ts`
   puts it into words. **The median the page reads is the last percentile row's p50** — `results.medianFinalValue` is the median of the SURVIVORS
   only and overstates a plan that fails often; it stays in the payload, no surface prints it.
-- **ONE run = the three scenarios** (Orso · Base · Toro, `buildParamsFromScenario` over the shared plan): the verdict, Probabilità and
+- **ONE run = the three scenarios** (Bear · Base · Bull, `buildParamsFromScenario` over the shared plan): the verdict, Probabilità and
   Distribuzione read Base, the Scenari tile reads all three. The «Simulazione singola | Confronto scenari» toggle went with the mode it switched;
   the single form's market fields ARE the Base scenario's, and the plan's `params` carry `getDefaultMarketParameters()` only as a placeholder
   every run overrides.
@@ -36,7 +36,7 @@
   says «I risultati sopra usano i parametri dell'ultima esecuzione» in the warning tone while every tile keeps the last run. A 30.000-path run on
   every keystroke was one alternative; a silent re-run that changed the verdict under the reader's eyes was the other.
 - **Spesa sostenibile (S1, 2026-10-04, doc/fire-ipotesi/README.md § 10)** — the sixth tile, «Quanto posso prelevare?»: the largest annual withdrawal
-  (today's euros, multiples of 100 €) that lasts the horizon in 80 / 90 / 95% of the paths, for Orso, Base and Toro; the hero is Base 90% with its monthly
+  (today's euros, multiples of 100 €) that lasts the horizon in 80 / 90 / 95% of the paths, for Bear, Base and Bull; the hero is Base 90% with its monthly
   and its share of the capital, and the verdict gains one sentence in three forms (typed withdrawal ≤ W90 «Per restare al 90% potresti prelevare fino a…»,
   above it «Per tornare al 90% il prelievo dovrebbe scendere a…», no withdrawal at all «Con questa leva nessun prelievo arriva al 90%…»), no tone of its own.
   Grid: desktop Probabilità 5 · Distribuzione 4 · Scenari 3, then **Spesa sostenibile 12** (hero left, 3 × 3 table right on a container query), then Parametri;
@@ -80,7 +80,7 @@
   is fixed (7 classes × 2 uniforms) so T3's shared shocks hold. Defaults: `lib/constants/monteCarloMarketDefaults.ts`, the ONLY
   file the research numbers (R0) enter the code in, with a `source` per class.
 - **The classes move together through ONE correlation matrix** (T2, 2026-10-03; README § 6): 21 pairs of log-returns, the
-  same for Orso, Base and Toro (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
+  same for Bear, Base and Bull (D6), saved in `monteCarloMarket.correlations` ONLY when they differ from the research
   defaults (`MONTE_CARLO_DEFAULT_CORRELATIONS`), so an improved default reaches whoever never touched them. `buildDrawPlan`
   takes the Cholesky factor `L` once per run and `drawYear` multiplies `z = L·ε` (identity ⇒ `z = ε`, float for float, and the
   same uniforms are consumed). The matrix is corrected (rule R5, `lib/utils/correlationMatrix.ts`: Higham + Dykstra, then

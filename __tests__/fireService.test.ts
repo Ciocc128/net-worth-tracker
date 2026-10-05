@@ -22,7 +22,8 @@ import {
   resolveFireRequirement,
   type FireHonestInputs,
 } from '@/lib/services/fireService'
-import type { MonthlySnapshot } from '@/types/assets'
+import type { DatedFlow, MonthlySnapshot } from '@/types/assets'
+import { resolveDatedFlows } from '@/lib/utils/datedFlows'
 import { realReturn } from '@/lib/utils/realReturn'
 
 function makeSnapshot(
@@ -1195,5 +1196,62 @@ describe('calculateCoastFIREMetrics — tax on withdrawals', () => {
     const grown = 200000 * Math.pow(1.045, 25)
     const share = 1 - 200000 / grown
     expect(taxed.retirementCapitalRequired).toBeCloseTo(bare.retirementCapitalRequired / (1 - share * 0.26), 4)
+  })
+})
+
+describe('calculateFIREProjection — minYears (E1, RS8 past the walk\'s stop)', () => {
+  const scenarios = getDefaultScenarios()
+  // FIRE already within reach: every scenario retires within a few years, so the walk stops early.
+  const args = [800000, 30000, 20000, 4, scenarios, 50] as const
+
+  it('absent: the walk stops 5 years after the last FIRE, as before', () => {
+    const plain = calculateFIREProjection(...args)
+    const explicit = calculateFIREProjection(...args, undefined, undefined, false, undefined, undefined)
+    expect(explicit).toEqual(plain)
+    expect(plain.yearlyData.length).toBeLessThan(20)
+  })
+
+  it('a target past the stop: the walk reaches it, the years before it are unchanged', () => {
+    const plain = calculateFIREProjection(...args)
+    const long = calculateFIREProjection(...args, undefined, undefined, false, undefined, 20)
+    expect(long.yearlyData.length).toBe(20)
+    expect(long.yearlyData.slice(0, plain.yearlyData.length)).toEqual(plain.yearlyData)
+    expect(long.baseYearsToFIRE).toBe(plain.baseYearsToFIRE)
+  })
+})
+
+describe('RF5 at one rate: the flows are valued at the Base\'s real return in every scenario (owner, 2026-10-05)', () => {
+  // The collaudo fixture: a child, an inheritance, a rent from the FIRE, a boat at 50 and a house goal. At each
+  // scenario's own rate the bear valued the inheritance and the rent more than the base and reached FIRE first
+  // (2030 against 2031): a bear market that brings FIRE forward.
+  const Y = 2026
+  const flows: DatedFlow[] = [
+    { id: 'q', label: 'Figlio', kind: 'expense', amount: 6000, indexed: true, start: { anchor: 'year', year: Y + 2 }, durationYears: 10, inCashflowToday: false },
+    { id: 't', label: 'Eredità', kind: 'lumpIn', amount: 80000, indexed: true, start: { anchor: 'year', year: Y + 14 }, durationYears: null },
+    { id: 'l', label: 'Affitto', kind: 'income', amount: 9000, indexed: true, start: { anchor: 'fire', afterYears: 0 }, durationYears: null, inCashflowToday: false },
+    { id: 'n', label: 'Barca', kind: 'lumpOut', amount: 40000, indexed: true, start: { anchor: 'age', age: 50 }, durationYears: null },
+    { id: 'o', label: 'Casa', kind: 'lumpOut', amount: 60000, indexed: false, start: { anchor: 'year', year: Y + 4 }, durationYears: null },
+  ]
+  const { resolved } = resolveDatedFlows(flows, { currentYear: Y, userAge: 40, mortgages: new Map() })
+  const input = { resolved, planExpensesFromCashflow: true }
+  const scenarios = { bear: { growthRate: 6.1, inflationRate: 3.04 }, base: { growthRate: 8.28, inflationRate: 3.04 }, bull: { growthRate: 10.83, inflationRate: 3.04 } }
+  const now = new Date('2026-10-05T12:00:00')
+  const honest: FireHonestInputs = { userAge: 40, pensions: [], taxBrackets: [], withdrawalTax: { basisToday: 340_200, rate: 26 }, now }
+  const walk = () => calculateFIREProjection(420_000, 25_200, 28_800, 3.5, scenarios, 50, undefined, honest, true, input)
+
+  it('the bear never reaches FIRE before the base, the bull never after', () => {
+    const p = walk()
+    expect(p.bearYearsToFIRE as number).toBeGreaterThanOrEqual(p.baseYearsToFIRE as number)
+    expect(p.bullYearsToFIRE as number).toBeLessThanOrEqual(p.baseYearsToFIRE as number)
+  })
+
+  it('the Coast number of the bear discounts the flows at the Base too: absent, the scenario\'s own rate', () => {
+    const coast = (realRate: number, flowsRate?: number) =>
+      calculateCoastFIREMetrics(420_000, 25_200, 3.5, 40, 60, realRate, 3.04, [], undefined, now, undefined, undefined, input, flowsRate)
+    const base = coast(realReturn(8.28, 3.04))
+    const bearOwn = coast(realReturn(6.1, 3.04))
+    const bearAtBase = coast(realReturn(6.1, 3.04), realReturn(8.28, 3.04))
+    expect(bearAtBase.fireNumberAtRetirement).not.toBeCloseTo(bearOwn.fireNumberAtRetirement, 0)
+    expect(bearAtBase.fireNumberAtRetirement).toBeCloseTo(base.fireNumberAtRetirement, 0)
   })
 })

@@ -52,6 +52,6 @@
 
 ## Per-page blind spots
 
-- **FIRE › Obiettivi, return**: the allocation of a goal has no gold level, so a commodity share is simulated as Materie prime; a goal's return is the Base scenario only (no Orso/Toro view); the Assistant's figure ignores the pension lock.
+- **FIRE › Obiettivi, return**: the allocation of a goal has no gold level, so a commodity share is simulated as Materie prime; a goal's return is the Base scenario only (no Bear/Bull view); the Assistant's figure ignores the pension lock.
 
 - **FIRE › Obiettivi**: no Playwright spec; ONE `now` per mount; with three goals the Obiettivi tile leaves air under the rows; a goal past its deadline gets no pace; free shares under 0,5% / 0,50 € are not listed; the selection is session-only; the «assigned» bar counts the reached goals, the derived target does not; the two dialogs keep their old chrome and two pre-existing `react-hooks` errors.

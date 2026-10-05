@@ -15,7 +15,7 @@
  * `<Legend>` paints each label in its series colour, which measured 3,11:1 and 3,77:1 here.
  *
  * The year each scenario reaches FIRE is a vertical reference line. Scenarios that reach it in
- * the SAME year share one line and one label («FIRE Base · Toro»): three labels stacked on one
+ * the SAME year share one line and one label («FIRE Base · Bull»): three labels stacked on one
  * x overlapped and clipped each other. A scenario reached at year 0 has no line — its year is
  * before the plot, and the Scenari tile says «già raggiunto».
  *
@@ -89,9 +89,9 @@ function ScenarioTooltip({
   if (!row) return null;
 
   const scenarioRows = [
-    { name: 'Orso', netWorth: row.bearNetWorth, fireNumber: row.bearFireNumber, color: colors.bear },
+    { name: 'Bear', netWorth: row.bearNetWorth, fireNumber: row.bearFireNumber, color: colors.bear },
     { name: 'Base', netWorth: row.baseNetWorth, fireNumber: row.baseFireNumber, color: colors.base },
-    { name: 'Toro', netWorth: row.bullNetWorth, fireNumber: row.bullFireNumber, color: colors.bull },
+    { name: 'Bull', netWorth: row.bullNetWorth, fireNumber: row.bullFireNumber, color: colors.bull },
   ];
 
   return (
@@ -132,7 +132,7 @@ function ScenarioTooltip({
 
 interface FireYearMarker {
   calendarYear: number;
-  /** «FIRE Base · Toro» when two scenarios share the year. */
+  /** «FIRE Base · Bull» when two scenarios share the year. */
   label: string;
   color: string;
 }
@@ -190,9 +190,9 @@ export function FIREProjectionChart({
 
   const markers = buildFireYearMarkers(
     [
-      { name: 'Orso', years: bearYearsToFIRE, color: bearColor, isBase: false },
+      { name: 'Bear', years: bearYearsToFIRE, color: bearColor, isBase: false },
       { name: 'Base', years: baseYearsToFIRE, color: baseColor, isBase: true },
-      { name: 'Toro', years: bullYearsToFIRE, color: bullColor, isBase: false },
+      { name: 'Bull', years: bullYearsToFIRE, color: bullColor, isBase: false },
     ],
     yearlyData[0].calendarYear,
   );
@@ -205,7 +205,7 @@ export function FIREProjectionChart({
             data={yearlyData}
             margin={{ top: 12, left: marginLeft, bottom: 4 }}
             role="img"
-            aria-label={`Grafico proiezione scenari: patrimonio anno per anno negli scenari Orso, Base e Toro, con la linea tratteggiata del numero FIRE dello scenario base e una linea verticale nell'anno in cui ogni scenario lo raggiunge${lumpMarkers.length > 0 ? ', un segno per ogni entrata o uscita una tantum dei flussi' : ''}; i target Orso e Toro sono nel tooltip`}
+            aria-label={`Grafico proiezione scenari: patrimonio anno per anno negli scenari Bear, Base e Bull, con la linea tratteggiata del numero FIRE dello scenario base e una linea verticale nell'anno in cui ogni scenario lo raggiunge${lumpMarkers.length > 0 ? ', un segno per ogni entrata o uscita una tantum dei flussi' : ''}; i target Bear e Bull sono nel tooltip`}
             accessibilityLayer={false}
           >
             <CartesianGrid strokeDasharray="3 3" />
@@ -229,7 +229,7 @@ export function FIREProjectionChart({
               dataKey="bearNetWorth"
               stroke={bearColor}
               strokeWidth={2}
-              name="Scenario Orso"
+              name="Scenario Bear"
               dot={false}
               animationDuration={800}
               animationEasing="ease-out"
@@ -249,7 +249,7 @@ export function FIREProjectionChart({
               dataKey="bullNetWorth"
               stroke={bullColor}
               strokeWidth={2}
-              name="Scenario Toro"
+              name="Scenario Bull"
               dot={false}
               animationDuration={800}
               animationEasing="ease-out"
@@ -297,9 +297,9 @@ export function FIREProjectionChart({
       <SeriesLegend
         className="mt-1.5 justify-center"
         items={[
-          { label: 'Scenario Orso', colors: [bearColor] },
+          { label: 'Scenario Bear', colors: [bearColor] },
           { label: 'Scenario Base', colors: [baseColor] },
-          { label: 'Scenario Toro', colors: [bullColor] },
+          { label: 'Scenario Bull', colors: [bullColor] },
           { label: 'Numero FIRE (base)', colors: ['var(--muted-foreground)'] },
         ]}
       />

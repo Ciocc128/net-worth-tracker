@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * SCENARI — «e se il mercato rende diversamente?»: Orso · Base · Toro as rows, each with its
+ * SCENARI — «e se il mercato rende diversamente?»: Bear · Base · Bull as rows, each with its
  * real return as a caption — and the two parameters it is the difference of, as the Calcolatore
  * prints them — and its own Coast number today, with the progress and the gap (or the surplus)
  * under it. The base row is set semibold: it is the scenario the verdict and the Traguardo run on.

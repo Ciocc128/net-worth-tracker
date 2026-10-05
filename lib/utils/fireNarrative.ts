@@ -688,7 +688,7 @@ export function describePassiveIncome(income: PassiveIncome): Narrative {
 const HORIZON_YEARS = 50;
 
 /**
- * «Nel base il FIRE arriva nel 2032; l'orso lo sposta al 2036, il toro lo anticipa al 2030.»
+ * «Nel base il FIRE arriva nel 2032; il bear lo sposta al 2036, il bull lo anticipa al 2030.»
  * A scenario at year 0 is «già raggiunto»: the walk tests today before stepping, and a reader
  * who is FIRE must never be told «tra 1 anno» under a verdict that says «Sei già FIRE.».
  */
@@ -712,18 +712,18 @@ export function describeScenarios(rows: ScenarioRow[]): Narrative {
       if (row.calendarYear === null) return [prose(`${subject} non ci arriva entro ${HORIZON_YEARS} anni`)];
       return [prose(`${subject} lo sposta al `), year(row.calendarYear)];
     };
-    return [prose('Nel base il FIRE è già raggiunto; '), ...later(bear, "l'orso"), prose(', '), ...later(bull, 'il toro'), prose('.')];
+    return [prose('Nel base il FIRE è già raggiunto; '), ...later(bear, "il bear"), prose(', '), ...later(bull, 'il bull'), prose('.')];
   }
 
   if (base.calendarYear === null) {
     const out: Narrative = [prose(`Nel base il FIRE non arriva entro ${HORIZON_YEARS} anni; `)];
-    out.push(...(bear.calendarYear === null ? [prose("nemmeno nell'orso")] : [prose("l'orso lo raggiunge nel "), year(bear.calendarYear)]));
-    out.push(...(bull.calendarYear === null ? [prose(', nemmeno il toro.')] : [prose(', il toro lo raggiunge nel '), year(bull.calendarYear), prose('.')]));
+    out.push(...(bear.calendarYear === null ? [prose("nemmeno nel bear")] : [prose("il bear lo raggiunge nel "), year(bear.calendarYear)]));
+    out.push(...(bull.calendarYear === null ? [prose(', nemmeno il bull.')] : [prose(', il bull lo raggiunge nel '), year(bull.calendarYear), prose('.')]));
     return out;
   }
 
   // The verb follows the COMPARISON with the base year, never the scenario's name: the user edits
-  // the parameters, and a «toro» with 8% inflation can land after the base.
+  // the parameters, and a «bull» with 8% inflation can land after the base.
   const baseYear = base.calendarYear;
   const relative = (row: ScenarioRow, subject: string): Narrative => {
     if (row.calendarYear === null) return [prose(`${subject} non ci arriva entro ${HORIZON_YEARS} anni`)];
@@ -737,9 +737,9 @@ export function describeScenarios(rows: ScenarioRow[]): Narrative {
     prose('Nel base il FIRE arriva nel '),
     year(baseYear),
     prose('; '),
-    ...relative(bear, "l'orso"),
+    ...relative(bear, "il bear"),
     prose(', '),
-    ...relative(bull, 'il toro'),
+    ...relative(bull, 'il bull'),
     prose('.'),
   ];
 }
@@ -766,7 +766,7 @@ export interface ParametriDescriptionInput {
 
 /**
  * The Parametri disclosure's description: every saved setting, in one line. The scenarios name
- * their growth in words («crescita orso 4%, base 7%, toro 10%»): «4/3,5 · 7/2,5» was a code the
+ * their growth in words («crescita bear 4%, base 7%, bull 10%»): «4/3,5 · 7/2,5» was a code the
  * reader had to open the panel to decode, and the inflation it carried has its own field there.
  */
 export function describeParametri(input: ParametriDescriptionInput): string {
@@ -774,7 +774,7 @@ export function describeParametri(input: ParametriDescriptionInput): string {
     `SWR ${formatRate(input.swr)}`,
     input.plannedExpenses !== null ? `spesa del piano ${cachedFormatCurrencyEUR(Math.round(input.plannedExpenses), true)}` : 'spesa dal Cashflow',
     input.lockActive ? `fondo pensione bloccato (INPS ${input.inpsRetirementAge}, RITA a ${input.ritaUnlockAge})` : 'fondo pensione non vincolato',
-    `crescita orso ${formatRate(input.scenarios.bear.growthRate)}, base ${formatRate(input.scenarios.base.growthRate)}, toro ${formatRate(input.scenarios.bull.growthRate)}`,
+    `crescita bear ${formatRate(input.scenarios.bear.growthRate)}, base ${formatRate(input.scenarios.base.growthRate)}, bull ${formatRate(input.scenarios.bull.growthRate)}`,
   ].join(' · ');
 }
 

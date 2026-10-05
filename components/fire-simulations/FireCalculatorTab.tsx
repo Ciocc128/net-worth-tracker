@@ -461,14 +461,15 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     // The cost basis is already `K`'s own (`resolveFireCapital`), so the fan carries it as it is.
     return { statePensions, withdrawalTax: honest.withdrawalTax };
   }, [honestSummary.pensionsConsidered, honest, userAge, scenarios.base.inflationRate, now]);
+  // `span` lengthens the run past the shown fan for RS8 (Età obiettivo): its years and the requirement of a walk that reaches them.
   const runFan = useCallback(
-    (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings) =>
+    (inputs: FanSimulationInputs, annualSavings = inputs.annualSavings, span?: { years: number; fireTargets: number[] }) =>
       runAccumulationSimulation({
         ...inputs,
         annualSavings,
-        years: fanYears,
-        retirementHorizonYears,
-        fireTargets: fanFireTargets,
+        years: span?.years ?? fanYears,
+        retirementHorizonYears: Math.max(retirementHorizonYears, span?.years ?? 0),
+        fireTargets: span?.fireTargets ?? fanFireTargets,
         retirement: fanRetirement,
         random: createSeededRandom(FAN_SEED),
       }),
@@ -514,12 +515,22 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // made here when the Traguardo shows the scenarios; the target must lie within the fan's horizon. ~14 runs of the
   // fan (measured 2026-10-04: ≈0,4 s on the cloud container), so the whole summary is computed from a DEFERRED
   // request: an edit paints at once and the tile follows, the three figures always from one request.
+  // The walk stops 5 years after the last FIRE, so a target age past that has no requirement to aim at: RS8 then re-walks
+  // to the target (`minYears`) and runs the paths that long on that walk's requirement — up to the fan's 40 years.
+  const fanSpanFor = useCallback(
+    (years: number) => {
+      if (!displayedFireMetrics) return undefined;
+      const longWalk = calculateFIREProjection(currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true, flowsInput, years);
+      return { years, fireTargets: resolveFanFireTargets(displayedFireMetrics.fireNumber, longWalk) };
+    },
+    [displayedFireMetrics, currentNetWorth, projectionAnnualExpenses, annualSavings, previewWithdrawalRate, scenarios, projectionBridge, honest, flowsInput],
+  );
   const targetAgeRequest = useMemo(
     () =>
       projection
-        ? { projection, userAge, targetAge: previewTargetAge, currentYear: currentYearForFan, annualSavings, planExpenses: projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan }
+        ? { projection, userAge, targetAge: previewTargetAge, currentYear: currentYearForFan, annualSavings, planExpenses: projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan, fanSpanFor }
         : null,
-    [projection, userAge, previewTargetAge, currentYearForFan, annualSavings, projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan],
+    [projection, userAge, previewTargetAge, currentYearForFan, annualSavings, projectionAnnualExpenses, fireWalk, fanInputs, fanYears, fanResult, runFan, fanSpanFor],
   );
   const deferredTargetAgeRequest = useDeferredValue(targetAgeRequest);
   const targetAgeSummary = useMemo(() => {
@@ -528,11 +539,13 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     const span = yearsToTargetAge(request.targetAge, request.userAge);
     const baseYearsToFire = request.projection.baseYearsToFIRE;
     const { fanInputs: inputs, fanResult: shownFan, runFan: run } = request;
+    // Within the shown fan the paths are the fan's own; past it, a longer run on a walk that reaches the target.
+    const longSpan = span.kind === 'years' && span.years > request.fanYears && span.years <= FAN_MAX_YEARS ? request.fanSpanFor(span.years) : undefined;
     const tail =
-      span.kind === 'years' && inputs && baseYearsToFire !== 0 && span.years <= request.fanYears
+      span.kind === 'years' && inputs && baseYearsToFire !== 0 && (span.years <= request.fanYears || longSpan)
         ? solveSavingsForTail({
-            baseResult: shownFan ?? run(inputs),
-            run: (savings) => run(inputs, savings),
+            baseResult: longSpan ? run(inputs, inputs.annualSavings, longSpan) : (shownFan ?? run(inputs)),
+            run: (savings) => run(inputs, savings, longSpan),
             baseAnnualSavings: inputs.annualSavings,
             targetYears: span.years,
             extraCap: resolveLeverCap(inputs.annualSavings, inputs.annualExpenses),

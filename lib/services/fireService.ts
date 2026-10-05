@@ -1155,7 +1155,10 @@ export function calculateCoastFIREMetrics(
   withdrawalTax?: { basisToday: number; rate: number },
   // RF9 (§ 12): the dated flows. The requirement at the target age is RF5 with `T` = the target (FIRE-anchored flows
   // start there); BEFORE the target only the lumps count (D-F11), discounted to today. Absent → identical.
-  flows?: FireFlowsInput
+  flows?: FireFlowsInput,
+  // RF5's discount rate for the flows at the target age, real %; absent = `realReturnRate`. The three scenarios pass the
+  // Base's (owner, 2026-10-05): the flows are valued at ONE rate, like the spending at the SWR (see `flowsRealReturnRate`).
+  flowsRealReturnRate?: number
 ): CoastFIREMetrics {
   const yearsToRetirement = Math.max(retirementAge - currentAge, 0);
   const capitalAtRetirement = growValueByRealReturn(currentNetWorth, realReturnRate, yearsToRetirement);
@@ -1184,7 +1187,7 @@ export function calculateCoastFIREMetrics(
       schedule,
       retirementYear: target,
       expensesAtRetirement: annualExpenses,
-      realReturnRate,
+      realReturnRate: flowsRealReturnRate ?? realReturnRate,
       withdrawalRate,
       taxMultiplier: portfolioNeedMultiplier,
       pensionNetAt: pensions.netAt,
@@ -1373,7 +1376,7 @@ export function calculateCoastFIREProjection(
   const result = {
     bear: {
       scenarioKey: 'bear' as const,
-      label: 'Scenario Orso',
+      label: 'Scenario Bear',
       realReturnRate: bearRealReturn,
       ...calculateCoastFIREMetrics(
         currentNetWorth,
@@ -1388,7 +1391,8 @@ export function calculateCoastFIREProjection(
         currentDate,
         capitalInflowsToday,
         withdrawalTax,
-        flows
+        flows,
+        baseRealReturn
       ),
       pensionBreakdown: bearNeeds.pensionBreakdown,
     },
@@ -1409,13 +1413,14 @@ export function calculateCoastFIREProjection(
         currentDate,
         capitalInflowsToday,
         withdrawalTax,
-        flows
+        flows,
+        baseRealReturn
       ),
       pensionBreakdown: baseNeeds.pensionBreakdown,
     },
     bull: {
       scenarioKey: 'bull' as const,
-      label: 'Scenario Toro',
+      label: 'Scenario Bull',
       realReturnRate: bullRealReturn,
       ...calculateCoastFIREMetrics(
         currentNetWorth,
@@ -1430,7 +1435,8 @@ export function calculateCoastFIREProjection(
         currentDate,
         capitalInflowsToday,
         withdrawalTax,
-        flows
+        flows,
+        baseRealReturn
       ),
       pensionBreakdown: bullNeeds.pensionBreakdown,
     },
@@ -1591,6 +1597,13 @@ export interface FireRequirementInput {
   gainShare?: number;
   /** RF5: the dated flows of THIS scenario; absent = the requirement of before, identical. */
   flows?: FlowSchedule;
+  /**
+   * RF5's discount rate for the flows, real %. Absent = the scenario's own real return. The walk passes the Base's to
+   * all three scenarios (owner, 2026-10-05): at a scenario's own rate a bear valued a future inheritance or rent MORE
+   * than the base and could reach FIRE first — the spending is valued at the SWR, the same in every scenario, so the
+   * flows are too, at one rate. The scenarios then differ in the capital's growth only.
+   */
+  flowsRealReturnRate?: number;
 }
 
 export interface FireRequirement {
@@ -1645,7 +1658,7 @@ export function resolveFireRequirement(input: FireRequirementInput): FireRequire
       schedule: input.flows,
       retirementYear: input.yearsElapsed,
       expensesAtRetirement: input.annualExpenses,
-      realReturnRate,
+      realReturnRate: input.flowsRealReturnRate ?? realReturnRate,
       withdrawalRate: input.withdrawalRate,
       taxMultiplier,
       pensionNetAt: pensions.netAt,
@@ -1697,7 +1710,10 @@ export function calculateFIREProjection(
   // nominal saving, the walk of before (upstream and the existing tests).
   indexSavings: boolean = false,
   // § 12 (F1): the dated flows. Absent (or an empty list) → the walk of before, byte-identical.
-  flows?: FireFlowsInput
+  flows?: FireFlowsInput,
+  // E1 (RS8): walk at least this many years even when the three FIRE years are long past, so the Ventaglio's
+  // requirement reaches a target age set after them. Absent → the walk stops 5 years after the last FIRE, as before.
+  minYears?: number
 ): FIREProjectionResult {
   const wrDecimal = withdrawalRate / 100;
   const currentYear = getItalyYear();
@@ -1711,6 +1727,8 @@ export function calculateFIREProjection(
   const bearFlows = scheduleFor(flows, scenarios.bear.inflationRate);
   const baseFlows = scheduleFor(flows, scenarios.base.inflationRate);
   const bullFlows = scheduleFor(flows, scenarios.bull.inflationRate);
+  // RF5 at ONE rate: the Base's real return values the flows in all three scenarios (see `flowsRealReturnRate`).
+  const flowsDiscountRate = realReturn(scenarios.base.growthRate, scenarios.base.inflationRate);
   const startNetWorth = (schedule: FlowSchedule | undefined): number => initialNetWorth + (schedule?.lump(0) ?? 0);
   let bearNW = startNetWorth(bearFlows);
   let baseNW = startNetWorth(baseFlows);
@@ -1756,6 +1774,7 @@ export function calculateFIREProjection(
       bridge: bridgeActive && year < unlockYear ? { compartmentValue, yearsToUnlock: unlockYear - year } : undefined,
       gainShare: taxModelled ? resolveGainShare(netWorth, basis) : 0,
       flows: schedule,
+      flowsRealReturnRate: schedule ? flowsDiscountRate : undefined,
     }).requirement;
 
   // Year 0 is a year too: a portfolio already past its target today is FIRE NOW, not «in one
@@ -1844,7 +1863,7 @@ export function calculateFIREProjection(
     });
 
     if (bearYearsToFIRE !== null && baseYearsToFIRE !== null && bullYearsToFIRE !== null) {
-      if (year >= Math.max(bearYearsToFIRE, baseYearsToFIRE, bullYearsToFIRE) + 5) break;
+      if (year >= Math.max(bearYearsToFIRE, baseYearsToFIRE, bullYearsToFIRE) + 5 && year >= (minYears ?? 0)) break;
     }
   }
 

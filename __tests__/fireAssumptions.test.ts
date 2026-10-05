@@ -259,7 +259,7 @@ describe('recurring costs in the rates (RC4)', () => {
   const w6040 = weights({ equity: 60, bonds: 40 });
   const costs = resolveClassCosts(costPortfolio, settings);
 
-  it('C3: 60/40 Orso, Base, Toro net of 0,36% — 5,5854 / 7,8726 / 10,6856 (gross A3: 5,9669 / 8,2623 / 11,0855)', () => {
+  it('C3: 60/40 Bear, Base, Bull net of 0,36% — 5,5854 / 7,8726 / 10,6856 (gross A3: 5,9669 / 8,2623 / 11,0855)', () => {
     const net = (key: 'bear' | 'base' | 'bull') => portfolioCompoundReturn(w6040, market.scenarios[key], correlations, 2, portfolioCost(w6040, costs).total).cagr;
     near(net('bear'), 5.5854);
     near(net('base'), 7.8726);

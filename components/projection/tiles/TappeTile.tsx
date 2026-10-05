@@ -17,9 +17,9 @@ import { NarrativeText } from '@/components/ui/narrative-text';
 import { AsideToggle } from '@/components/ui/aside-toggle';
 
 const SCOPE_OPTIONS = [
-  { value: 'bear' as const, label: 'Orso' },
+  { value: 'bear' as const, label: 'Bear' },
   { value: 'base' as const, label: 'Base' },
-  { value: 'bull' as const, label: 'Toro' },
+  { value: 'bull' as const, label: 'Bull' },
 ];
 
 interface TappeTileProps {
