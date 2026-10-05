@@ -28,6 +28,7 @@ import type { FanVerdict, FireLock, FireTarget, FireTargetHonest, FireTimeline, 
 import type { FireYearDistribution, RetirementSurvival, TailLever } from '@/lib/utils/fireDistribution';
 import type { TargetAgeSummary } from '@/lib/utils/fireTargetAge';
 import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
+import type { FireLedger, FireLedgerStepKey } from '@/lib/utils/fireBaseLedger';
 import type { PersonalSwr } from '@/lib/utils/sustainableWithdrawal';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -578,6 +579,8 @@ export interface FireBase {
   honest?: FireTargetHonest;
   /** § 12 (D-F12): the dated flows in use and how far they move the Base FIRE year — the tile's «Flussi nel tempo» row. */
   flows?: FlowsEffect;
+  /** RB1 (D-T9): the FIRE number as a sum of steps; the tile prints it and the reading says it. Absent = the older reading on the inputs. */
+  ledger?: FireLedger | null;
 }
 
 /**
@@ -586,6 +589,7 @@ export interface FireBase {
  * plusvalenza).» A pension left out for a missing age is said; none saved is the row's business.
  */
 export function describeBase(base: FireBase): Narrative {
+  if (base.ledger) return describeLedgerReading(base.ledger);
   const out: Narrative = [
     prose('Calcolato su '),
     amount(base.netWorth),
@@ -616,6 +620,19 @@ export function describeBase(base: FireBase): Narrative {
   return out;
 }
 
+const LEDGER_STEP_WORD: Record<FireLedgerStepKey, string> = { tax: 'tasse', pensions: 'pensioni', bridge: 'fondo bloccato', flows: 'flussi' };
+
+/**
+ * RB4: the reading is a sentence on the calculation, not on the inputs — «Il numero FIRE parte da 720.000 € (spesa ÷ SWR); tasse, pensioni e flussi
+ * lo portano a 606.961 €.» Only the steps that moved the number are named; with none, «Il numero FIRE è 750.000 € (spesa ÷ SWR), senza altri ingredienti.»
+ */
+export function describeLedgerReading(ledger: FireLedger): Narrative {
+  const moved = ledger.steps.filter((step) => step.amount !== null && step.amount !== 0).map((step) => LEDGER_STEP_WORD[step.key]);
+  if (moved.length === 0) return [prose('Il numero FIRE è '), amount(ledger.total), prose(' (spesa ÷ SWR), senza altri ingredienti.')];
+  const names = moved.length === 1 ? moved[0] : `${moved.slice(0, -1).join(', ')} e ${moved[moved.length - 1]}`;
+  return [prose('Il numero FIRE parte da '), amount(ledger.base), prose(` (spesa ÷ SWR); ${names} ${moved.length === 1 ? 'lo porta' : 'lo portano'} a `), amount(ledger.total), prose('.')];
+}
+
 /** The Pensioni statali row: its value and its caption, one of three states. */
 export function describePensionRow(honest: FireTargetHonest, currentYear: number): { value: string | null; caption: string } {
   if (honest.pensionsConsidered && honest.pensionStartCalendarYear !== null) {
@@ -641,7 +658,7 @@ export function describeBaseAside(base: Pick<FireBase, 'referenceYear' | 'isAnnu
 }
 
 export function describeBaseFooter(): Narrative {
-  return [prose('Il capitale è il portafoglio più la liquidità che resta oltre il fondo di emergenza che indichi in Il mio piano; SWR, spesa del piano e regola RITA si modificano lì.')];
+  return [prose('I passi si sommano in quest\'ordine: ogni cifra è l\'effetto dell\'ingrediente, dati quelli già messi sopra. Capitale, spesa, SWR e regola RITA si leggono in Ipotesi usate e si modificano in Il mio piano.')];
 }
 
 /** The caption under the pension-lock switch: what is locked, until when, and by which rule. */

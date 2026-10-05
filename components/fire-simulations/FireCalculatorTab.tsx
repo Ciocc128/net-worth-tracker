@@ -114,6 +114,7 @@ import { buildFlowSchedule, lumpMarkersOf } from '@/lib/utils/datedFlows';
 import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { resolvePlanExpenses, type FireAssumptions } from '@/lib/utils/fireAssumptions';
@@ -124,6 +125,7 @@ import { ErrorNotice } from '@/components/ui/error-notice';
 import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarrative';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { TraguardoTile } from '@/components/fire-simulations/tiles/TraguardoTile';
+import { buildFireLedger } from '@/lib/utils/fireBaseLedger';
 import { BaseDiCalcoloTile } from '@/components/fire-simulations/tiles/BaseDiCalcoloTile';
 import { RedditoPassivoTile } from '@/components/fire-simulations/tiles/RedditoPassivoTile';
 import { ScenariTile } from '@/components/fire-simulations/tiles/ScenariTile';
@@ -253,8 +255,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     [resolvedFlows, expenses?.origin],
   );
   const assumptions = useMemo<FireAssumptions | null>(
-    () => (savedAssumptions ? { ...savedAssumptions, expenses: expenses ?? undefined, datedFlowsCount: resolvedFlows.length } : null),
-    [savedAssumptions, expenses, resolvedFlows.length],
+    () => (savedAssumptions ? { ...withFlowsDetail(savedAssumptions, resolvedFlows, excludedFlows), expenses: expenses ?? undefined } : null),
+    [savedAssumptions, expenses, resolvedFlows, excludedFlows],
   );
   const projectionAnnualExpenses = expenses?.annual ?? 0;
   // RP5 (D4): ONE capital for every tab — `K`, net of the closed pension funds; real estate and crypto stay out, declared in the line.
@@ -331,7 +333,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     const flows = flowsInput ? buildFlowSchedule(flowsInput.resolved, { inflationRate: scenarios.base.inflationRate, planExpensesFromCashflow: flowsInput.planExpensesFromCashflow }) : undefined;
     const shared = { annualExpenses: projectionAnnualExpenses, withdrawalRate: previewWithdrawalRate, scenario: scenarios.base, yearsElapsed: 0, honest, gainShare: gainShareToday, flows };
     const bridge = pensionBridgeValueToday > 0 && pensionBridgeYearsToUnlock > 0 ? { compartmentValue: pensionBridgeValueToday, yearsToUnlock: pensionBridgeYearsToUnlock } : undefined;
-    return { withBridge: resolveFireRequirement({ ...shared, bridge }), withoutBridge: resolveFireRequirement(shared) };
+    return { withBridge: resolveFireRequirement({ ...shared, bridge }), withoutBridge: resolveFireRequirement(shared), flows, bridge };
   }, [cashflowData, currentNetWorth, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base, honest, gainShareToday, pensionBridgeValueToday, pensionBridgeYearsToUnlock, flowsInput]);
 
   const displayedFireMetrics = useMemo(() => {
@@ -607,6 +609,12 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   );
   const allocationLabel = fanInputs ? formatAllocationLabel(fanInputs.weights) : '';
 
+  // RB1: the number as a sum of steps — the same `resolveFireRequirement` inputs as `requirementToday`, one ingredient added at a time.
+  const ledger = useMemo(() => {
+    if (!requirementToday) return null;
+    return buildFireLedger({ annualExpenses: projectionAnnualExpenses, withdrawalRate: previewWithdrawalRate, scenario: scenarios.base, honest, gainShare: gainShareToday, bridge: requirementToday.bridge, flows: requirementToday.flows });
+  }, [requirementToday, projectionAnnualExpenses, previewWithdrawalRate, scenarios.base, honest, gainShareToday]);
+
   const base: FireBase | null = displayedFireMetrics
     ? {
         netWorth: currentNetWorth,
@@ -621,6 +629,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         planExpensesOrigin: expenses?.origin ?? 'cashflow',
         honest: honestSummary,
         flows: flowsEffect,
+        ledger,
       }
     : null;
 
@@ -808,7 +817,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             reading={describeBase(base)}
             aside={describeBaseAside(base)}
             base={base}
-            lock={lock}
             lockCaption={describeLock(lock)}
             footer={describeBaseFooter()}
             currentYear={currentYear}

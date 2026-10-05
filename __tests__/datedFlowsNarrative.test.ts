@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DatedFlow } from '@/types/assets';
 import { describeFlowRow, describeFlowsDeclaration, describeFlowsRow, describeMortgageOption, describeSimulationFlowsRow } from '@/lib/utils/datedFlowsNarrative';
-import { describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
+import { describeFlowsChip, withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { buildFlowSchedule, lumpMarkersOf, resolveDatedFlows } from '@/lib/utils/datedFlows';
 import { resolveCoastPace } from '@/lib/utils/coastFireView';
 import type { FireAssumptions } from '@/lib/utils/fireAssumptions';
@@ -16,7 +16,6 @@ vi.mock('@/lib/services/snapshotService', () => ({}));
 vi.mock('@/lib/firebase/config', () => ({ db: {} }));
 
 const base: Pick<DatedFlow, 'indexed' | 'durationYears'> = { indexed: true, durationYears: null };
-const text = (assumptions: FireAssumptions) => describeFireAssumptions(assumptions).map((segment) => segment.text).join('');
 
 describe('describeFlowRow', () => {
   it('should write each form the way the spec shows it', () => {
@@ -66,11 +65,29 @@ describe('the clause of «Ipotesi usate»', () => {
     leverage: 1,
   } as unknown as FireAssumptions;
 
-  it('should add «4 flussi datati» only when flows are in use', () => {
-    expect(text({ ...assumptions, datedFlowsCount: 4 })).toMatch(/ · 4 flussi datati$/);
-    expect(text({ ...assumptions, datedFlowsCount: 1 })).toMatch(/ · 1 flusso datato$/);
-    expect(text(assumptions)).not.toContain('flussi');
-    expect(text({ ...assumptions, datedFlowsCount: 0 })).not.toContain('flusso');
+  it('should say «Flussi 4» / «Flussi: nessuno», and nothing until a tab has set the count', () => {
+    expect(describeFlowsChip({ ...assumptions, datedFlowsCount: 4 })?.label).toBe('Flussi 4');
+    expect(describeFlowsChip({ ...assumptions, datedFlowsCount: 1 })?.label).toBe('Flussi 1');
+    expect(describeFlowsChip({ ...assumptions, datedFlowsCount: 0 })?.label).toBe('Flussi: nessuno');
+    expect(describeFlowsChip(assumptions)).toBeNull();
+  });
+
+  it('should list the flows in use and the excluded ones in the popover', () => {
+    const { resolved, excluded } = resolveDatedFlows(
+      [
+        { id: 'a', label: 'Eredità', kind: 'lumpIn', amount: 100000, indexed: false, start: { anchor: 'year', year: 2036 }, durationYears: null },
+        { id: 'b', label: 'Figlio', kind: 'expense', amount: 6000, indexed: true, start: { anchor: 'age', age: 30 }, durationYears: 5 },
+      ],
+      { currentYear: 2026, userAge: undefined, mortgages: [] } as never,
+    );
+    const chip = describeFlowsChip(withFlowsDetail(assumptions, resolved, excluded, 2026));
+    expect(chip?.label).toBe(`Flussi ${resolved.length}`);
+    expect(chip?.lines.join(' | ')).toMatch(/Eredità · Una tantum in entrata · 100\.000\s?€ · 2036/);
+    expect(chip?.lines.join(' | ')).toContain('Esclusi: Figlio: ');
+  });
+
+  it('should say in the Obiettivi that the flows are read only by the effect on the FIRE', () => {
+    expect(describeFlowsChip(assumptions, 'goals')?.label).toBe("Flussi: solo nell'Effetto sul FIRE");
   });
 });
 

@@ -59,8 +59,12 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
 
   // The «Ipotesi usate» line carries the plan's expenses and the capital (D4, D5), the same on every FIRE tab.
   const assumptions = page.getByTestId('fire-assumptions-row');
-  await expect(assumptions).toContainText(/spesa .* (da Impostazioni|dal Cashflow|non rilevata)/);
-  await expect(assumptions).toContainText(/capitale/);
+  await expect(assumptions.getByTestId('fire-chip-expenses')).toContainText(/^Spesa /);
+  await expect(assumptions).toContainText(/Capitale/);
+  // The four chips are declarations with a popover (RC2): Rendimenti says where the weights come from and links the settings.
+  await assumptions.getByTestId('fire-chip-returns').click();
+  await expect(page.getByRole('link', { name: 'Modifica in Impostazioni › Simulazioni' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // Four tiles, one question each.
   for (const name of ['Base di calcolo del FIRE', 'Reddito passivo sostenibile', 'Scenari di mercato']) {

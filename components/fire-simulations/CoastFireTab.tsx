@@ -89,6 +89,7 @@ import {
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
+import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { FireAssumptionsRow } from '@/components/fire-simulations/FireAssumptionsRow';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import { Tile, TILE_CELL_CLASS } from '@/components/ui/tile';
@@ -198,12 +199,12 @@ export function CoastFireTab() {
 
   // § 12 (RF9): the dated flows SAVED in the Calcolatore's Parametri. Before the target age only the lumps count (D-F11); the
   // requirement at the target age is RF5 with the FIRE-anchored flows starting there.
-  const { resolved: resolvedFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
+  const { resolved: resolvedFlows, excluded: excludedFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
   const flowsInput = useMemo<FireFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
     [resolvedFlows, assumptions?.expenses?.origin],
   );
-  const flowAssumptions = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
+  const flowAssumptions = useMemo(() => (assumptions ? withFlowsDetail(assumptions, resolvedFlows, excludedFlows) : null), [assumptions, resolvedFlows, excludedFlows]);
 
   // ─── The projection (fireService, unchanged) ─────────────────────────────────
   const coastProjection = useMemo(() => {

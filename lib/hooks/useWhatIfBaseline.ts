@@ -25,6 +25,7 @@ import {
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
+import { withFlowsDetail } from '@/lib/utils/fireAssumptionsNarrative';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import type { WhatIfBaseline } from '@/types/whatIf';
 
@@ -76,13 +77,13 @@ export function useWhatIfBaseline() {
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
   const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   // § 12: the SAVED dated flows are the plan both sides run on («prima» = the Calcolatore's); an event of a later year is laid over them.
-  const { resolved: resolvedFlows, isLoading: isLoadingFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
     [resolvedFlows, planExpensesFromCashflow],
   );
-  const assumptionsWithFlows = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
+  const assumptionsWithFlows = useMemo(() => (assumptions ? withFlowsDetail(assumptions, resolvedFlows, excludedFlows) : null), [assumptions, resolvedFlows, excludedFlows]);
   const currentYear = getItalyYear();
   const scenarios = useMemo(() => assumptions?.scenarios ?? getDefaultScenarios(), [assumptions]);
   const pensionInflowsToday = useMemo<PensionCapitalInflowToday[]>(

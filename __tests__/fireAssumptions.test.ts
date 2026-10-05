@@ -4,8 +4,7 @@ import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from
 import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions, resolveFireCapital, resolvePlanExpenses } from '@/lib/utils/fireAssumptions';
 import { portfolioCost, resolveClassCosts } from '@/lib/utils/fireCosts';
 import { weightsForFireCapital } from '@/lib/utils/monteCarloWeights';
-import { describeEmergencyFund, describeFundMonths, describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
-import { narrativeToText } from '@/lib/utils/narrative';
+import { describeEmergencyFund, describeFundMonths, describeCapitalRow, describeFireChips } from '@/lib/utils/fireAssumptionsNarrative';
 import { calculateFIREProjection } from '@/lib/services/fireService';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
 import type { Asset, AssetClass } from '@/types/assets';
@@ -130,7 +129,13 @@ function asset(id: string, assetClass: AssetClass, value: number, extra: Partial
   return { id, name: id, type: 'etf', assetClass, currentPrice: value, quantity: 1, ...extra } as Asset;
 }
 const valueOf = (a: Asset) => a.currentPrice * a.quantity;
-const text = (input: Parameters<typeof resolveFireAssumptions>[0]) => narrativeToText(describeFireAssumptions(resolveFireAssumptions(input))).replace(/\u00a0/g, ' ');
+// The «Ipotesi usate» row as one string: the capital row, then each chip's label and the sentences of its popover.
+const text = (input: Parameters<typeof resolveFireAssumptions>[0]) => {
+  const assumptions = resolveFireAssumptions(input);
+  const capital = describeCapitalRow(assumptions);
+  const chips = describeFireChips(assumptions).map((chip) => [chip.label, ...chip.lines].join(' · '));
+  return [capital ? `Capitale ${capital.figure} (${capital.breakdown})` : null, ...chips].filter(Boolean).join(' | ').replace(/\u00a0/g, ' ');
+};
 
 describe('resolveFireCapital (RP5, A12)', () => {
   const portfolio = [asset('etf', 'equity', 300_000), asset('btc', 'crypto', 50_000), asset('casa2', 'realestate', 200_000)];
@@ -143,7 +148,7 @@ describe('resolveFireCapital (RP5, A12)', () => {
 
   it('A12: the line says it, Immobili first', () => {
     const line = text({ settings: null, assets: portfolio, assetValue: valueOf });
-    expect(line).toContain(' · capitale 300.000 € (portafoglio; fuori: Immobili 200.000 €, Crypto 50.000 €)');
+    expect(line).toContain('Capitale 300.000 € (portafoglio; fuori: Immobili 200.000 €, Crypto 50.000 €)');
   });
 
   it('a closed pension fund is not capital', () => {
@@ -173,13 +178,13 @@ describe('resolvePlanExpenses (RP6, A13)', () => {
 
   it('A13: planned expenses win, said «da Impostazioni»', () => {
     expect(resolvePlanExpenses({ plannedAnnualExpenses: 28_000 }, cashflow)).toEqual({ annual: 28_000, origin: 'settings' });
-    expect(text({ settings: { plannedAnnualExpenses: 28_000 } as never, assets: [], cashflowData: cashflow })).toContain(' · spesa 28.000 € da Impostazioni');
+    expect(text({ settings: { plannedAnnualExpenses: 28_000 } as never, assets: [], cashflowData: cashflow })).toContain('Spesa 28.000 € · Spesa del piano, da Il mio piano');
   });
 
   it('A13: without them the Cashflow, with its year', () => {
     expect(resolvePlanExpenses({}, cashflow)).toEqual({ annual: 31_500, origin: 'cashflow', referenceYear: 2025, isAnnualized: false });
-    expect(text({ settings: null, assets: [], cashflowData: cashflow })).toContain(' · spesa 31.500 € dal Cashflow 2025');
-    expect(text({ settings: null, assets: [], cashflowData: { ...cashflow, referenceYear: 2026, isAnnualized: true } })).toContain('dal Cashflow 2026, annualizzato');
+    expect(text({ settings: null, assets: [], cashflowData: cashflow })).toContain('Spesa 31.500 € · Dal Cashflow 2025');
+    expect(text({ settings: null, assets: [], cashflowData: { ...cashflow, referenceYear: 2026, isAnnualized: true } })).toContain('Dal Cashflow 2026, annualizzato');
   });
 
   it('the Coast FIRE custom expenses of before D5 stand in until the next save moves them', () => {
@@ -188,7 +193,7 @@ describe('resolvePlanExpenses (RP6, A13)', () => {
   });
 
   it('a Cashflow with no expenses is said, not printed as 0 €', () => {
-    expect(text({ settings: null, assets: [], cashflowData: { ...cashflow, annualExpensesFromCashflow: 0 } })).toContain('spesa non rilevata (nessuna spesa nel Cashflow)');
+    expect(text({ settings: null, assets: [], cashflowData: { ...cashflow, annualExpensesFromCashflow: 0 } })).toContain('Spesa non rilevata · Nessuna spesa nel Cashflow');
   });
 
   it('while the Cashflow is unread and nothing is typed there are no expenses (the line does not guess)', () => {
@@ -208,8 +213,8 @@ describe('A18: one line for every tab', () => {
     const settings = { plannedAnnualExpenses: 28_000 } as never;
     const forTab = (locked: string[]) => text({ settings, assets, assetValue: valueOf, cashflowData: cashflow, lockedAssetIds: new Set(locked) });
     expect(forTab(['fund'])).toBe(forTab(['fund']));
-    expect(forTab(['fund'])).toContain('capitale 300.000 € (portafoglio; fuori: Immobili 200.000 €)');
-    expect(forTab([])).toContain('capitale 320.000 €');
+    expect(forTab(['fund'])).toContain('Capitale 300.000 € (portafoglio; fuori: Immobili 200.000 €)');
+    expect(forTab([])).toContain('Capitale 320.000 €');
   });
 });
 
@@ -326,8 +331,8 @@ describe('recurring costs in the rates (RC4)', () => {
 
   it('C12: the line says the costs, the three readings', () => {
     const base = { assets: costPortfolio, assetValue: valueOf };
-    expect(text({ ...base, settings })).toContain('costi 0,36% (TER 0,16%, bollo 0,20%)');
-    expect(text({ ...base, settings: { ...settings, stampDutyEnabled: false } })).toContain('costi 0,16% (solo TER; bollo non attivo in Impostazioni › Allocazione)');
+    expect(text({ ...base, settings })).toContain('Costi 0,36% · TER 0,16%, bollo 0,20%');
+    expect(text({ ...base, settings: { ...settings, stampDutyEnabled: false } })).toContain('Costi 0,16% · Solo TER; bollo non attivo in Impostazioni › Allocazione');
     const noTer = costPortfolio.map((a) => ({ ...a, totalExpenseRatio: undefined }));
     expect(text({ assets: noTer, assetValue: valueOf, settings })).toContain('TER non inseriti negli strumenti');
   });
@@ -543,14 +548,14 @@ describe('K1 + EF1: the portfolio, the cash outside it, the emergency fund and t
 
   it('K12 / E14 / E15: the line is the same in every tab and says portfolio, cash entering beyond the fund and what is outside', () => {
     expect(text({ settings: { ...targets7030, fireEmergencyFund: 30_000 } as never, assets: example(), assetValue: valueOf })).toContain(
-      ' · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+      'Capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €)',
     );
     expect(text({ settings: targets7030 as never, assets: example(), assetValue: valueOf })).toContain(
-      ' · capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+      'Capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
     );
     // a fund above L: the entry is the cash that is really there
     expect(text({ settings: { ...targets7030, fireEmergencyFund: 80_000 } as never, assets: example(), assetValue: valueOf })).toContain(
-      ' · capitale 400.000 € (portafoglio; fuori: fondo di emergenza 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+      'Capitale 400.000 € (portafoglio; fuori: fondo di emergenza 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
     );
   });
 
