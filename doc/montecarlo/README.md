@@ -865,7 +865,7 @@ anno). Nulla qui la anticipa: `savingsYears` e gli snapshot restano validi.
 
 ## 12. T5 — «Dopo il FIRE»: la scheda parte dal FIRE previsto (spec del 05/10/2026)
 
-> **Stato**: spec scritta il 05/10/2026, decisioni **proposte dall'agente, da confermare** con il proprietario (§ 12.8).
+> **Stato**: spec scritta il 05/10/2026, decisioni DF1–DF9 prese con il proprietario lo stesso giorno (§ 12.8).
 >
 > Origine: quattro card «FEAT FIRE» nate dal Tour della pagina FIRE e Simulazioni (05/10/2026), passo 2 dell'ordine
 > approvato (`/mnt/project-files/fire-simulazioni/ordine-feat-fire.md`): «Monte Carlo diventa «Dopo il FIRE», con
@@ -1061,7 +1061,7 @@ la soglia di fallimento è zero in ogni unità.
    tre scenari + Spesa sostenibile all'orizzonte di default del mirror; se supera 3 s, dillo nel thread prima di
    cambiare qualcosa.
 
-### 12.8 Decisioni (proposte dall'agente il 05/10/2026, da confermare)
+### 12.8 Decisioni (prese con il proprietario il 05/10/2026)
 
 | # | Decisione | Alternative scartate e motivo |
 | --- | --- | --- |
@@ -1075,7 +1075,7 @@ la soglia di fallimento è zero in ogni unità.
 | DF8 | **Via la tessera Distribuzione** con la vista «Esaurimento»; resta l'anno medio di esaurimento nella lettura di Probabilità e i percentili ogni 5 anni nel Dettaglio. | Scenderla nel Dettaglio (ripete la tabella dei percentili all'ultimo anno); tenere solo «Esaurimento» (ripete l'anno medio di Probabilità). |
 | DF9 | **Spesa sostenibile prima tessera**; griglia Spesa 12 · Probabilità 8 \| Scenari 4 · Parametri 12. Il titolo del verdetto resta la probabilità del piano scritto; la frase della spesa sostenibile sale subito dopo la prima. | Titolo sulla spesa sostenibile (il prelievo scritto sparisce dal titolo, che oggi ha il tono); Probabilità e Spesa affiancate 6 \| 6 (la tabella 3 × 3 non sta in 6 colonne sotto 1440px). |
 
-**Scelte di default prese dall'agente** (dichiarate): il selettore sta in Parametri, non sopra il verdetto (The Input
+**Scelte di default prese dall'agente** (dichiarate, accettate con DF1–DF9): il selettore sta in Parametri, non sopra il verdetto (The Input
 Tile Rule: è un input del piano); il primo run automatico è «Al FIRE»; il valore scritto in «Capitale iniziale»
 vince su `K_T` finché non si cambia modalità; icona invariata.
 
