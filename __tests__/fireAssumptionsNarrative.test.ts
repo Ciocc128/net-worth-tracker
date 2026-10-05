@@ -23,8 +23,8 @@ const build = (partial: Partial<FireAssumptions>, weights = monteCarloClassRecor
 });
 
 describe('describeFireAssumptions', () => {
-  it('reads the target portfolio: Base with its real return, Orso, Toro, inflation (A3, A10)', () => {
-    expect(narrativeToText(describeFireAssumptions(build({})))).toBe('Portafoglio target · Base 8,3% (reale 5,1%), Orso 6,0%, Toro 11,1% · inflazione 3,0%');
+  it('reads the target portfolio: Base with its real return, Bear, Bull, inflation (A3, A10)', () => {
+    expect(narrativeToText(describeFireAssumptions(build({})))).toBe('Portafoglio target · Base 8,3% (reale 5,1%), Bear 6,0%, Bull 11,1% · inflazione 3,0%');
   });
 
   it('says it when there is no target and the portfolio held today stands in', () => {
@@ -37,6 +37,6 @@ describe('describeFireAssumptions', () => {
 
   it('names the leverage when the weights sum above 100% (A6)', () => {
     const weights = monteCarloClassRecord<number>((cls) => (cls === 'equity' ? 90 : cls === 'bonds' ? 60 : 0));
-    expect(narrativeToText(describeFireAssumptions(build({ leverage: 1.5 }, weights)))).toBe('Portafoglio target · Base 9,2% (reale 6,0%), Orso 6,6%, Toro 12,7% · inflazione 3,0% · leva 1,5×');
+    expect(narrativeToText(describeFireAssumptions(build({ leverage: 1.5 }, weights)))).toBe('Portafoglio target · Base 9,2% (reale 6,0%), Bear 6,6%, Bull 12,7% · inflazione 3,0% · leva 1,5×');
   });
 });

@@ -38,9 +38,9 @@ function OverlayTooltip({ active, payload, label, colors }: OverlayTooltipProps)
   const row = payload[0]?.payload;
   if (!row) return null;
   const rows: [string, number, string][] = [
-    ['Orso', row.bearP50, colors?.bear ?? SCENARIO_COLOR.bear],
+    ['Bear', row.bearP50, colors?.bear ?? SCENARIO_COLOR.bear],
     ['Base', row.baseP50, colors?.base ?? SCENARIO_COLOR.base],
-    ['Toro', row.bullP50, colors?.bull ?? SCENARIO_COLOR.bull],
+    ['Bull', row.bullP50, colors?.bull ?? SCENARIO_COLOR.bull],
   ];
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
@@ -70,8 +70,8 @@ export function ScenarioOverlayChart({ series, height, ariaLabel }: ScenarioOver
         <YAxis width={64} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
         <Tooltip content={tooltip} />
         <Area dataKey="baseBand" name="10°–90° base" stroke="none" fill={colors.base} fillOpacity={0.1} isAnimationActive={false} activeDot={false} />
-        <Line dataKey="bearP50" name="Orso" stroke={colors.bear} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-out" />
-        <Line dataKey="bullP50" name="Toro" stroke={colors.bull} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-out" />
+        <Line dataKey="bearP50" name="Bear" stroke={colors.bear} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-out" />
+        <Line dataKey="bullP50" name="Bull" stroke={colors.bull} strokeWidth={2} dot={false} animationDuration={800} animationEasing="ease-out" />
         <Line dataKey="baseP50" name="Base" stroke={colors.base} strokeWidth={2.5} dot={false} animationDuration={800} animationEasing="ease-out" />
         <ReferenceLine y={0} stroke="var(--destructive)" strokeDasharray="3 3" />
       </ComposedChart>

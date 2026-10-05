@@ -561,7 +561,12 @@ export const EXPLAINER: { title: string; body: string }[] = [
   },
   {
     title: 'Il rendimento atteso',
-    body: 'È la media, pesata sull\'allocazione consigliata dell\'obiettivo, di rendimenti nominali prudenti per classe (azioni 7%, obbligazioni 2,5%, liquidità 1%, immobili 4%, materie prime 3%, criptovalute 12%); senza un\'allocazione consigliata vale il 4%. È una stima indicativa, non un consiglio finanziario.',
+    // L3 (doc/fire-ipotesi § 8): the same hypotheses as every FIRE tab — this body described the fixed per-class rates of before until 2026-10-05.
+    body: 'È il rendimento composto dello scenario Base di Impostazioni › Simulazioni, al netto di TER e bollo: sull\'allocazione consigliata dell\'obiettivo (cripto e immobili esclusi, il resto riportato a 100) o, senza un\'allocazione utilizzabile, sul portafoglio target, lo stesso delle altre schede FIRE. Si capitalizza al tasso mensile equivalente. È una stima indicativa, non un consiglio finanziario.',
+  },
+  {
+    title: 'La probabilità',
+    body: 'Lo stesso portafoglio simulato 10.000 volte mese per mese, con la volatilità delle ipotesi di mercato: la probabilità è la quota di simulazioni che arriva al target entro la scadenza, la fascia sul grafico va dal 10° al 90° percentile, «in 9 casi su 10» è il versamento con cui ci arriva il 90% delle simulazioni. Il verdetto resta quello del percorso centrale: «in rotta» e una probabilità sotto il 100% non si contraddicono.',
   },
   {
     title: 'Le quote e l\'allocazione derivata',

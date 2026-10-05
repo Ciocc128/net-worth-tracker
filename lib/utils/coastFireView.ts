@@ -458,7 +458,7 @@ export interface CoastScenarioRow {
   reached: boolean;
 }
 
-/** Orso · Base · Toro as rows, in that order — the Scenari tile's list. */
+/** Bear · Base · Bull as rows, in that order — the Scenari tile's list. */
 export function summarizeCoastScenarios(
   scenarios: CoastFIREProjectionResult['scenarios'],
   params: FIREProjectionScenarios,
@@ -920,7 +920,7 @@ export const COAST_INFLOWS_METHOD: readonly string[] = [
 // Scenari
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** «Nel base ti mancano 30.300 €; l'orso alza il numero Coast a 375.000 €, il toro lo abbassa a 61.700 € e lo hai già superato.» */
+/** «Nel base ti mancano 30.300 €; il bear alza il numero Coast a 375.000 €, il bull lo abbassa a 61.700 € e lo hai già superato.» */
 export function describeCoastScenarios(rows: CoastScenarioRow[]): Narrative {
   const bear = rows.find((row) => row.key === 'bear');
   const base = rows.find((row) => row.key === 'base');
@@ -932,10 +932,10 @@ export function describeCoastScenarios(rows: CoastScenarioRow[]): Narrative {
     : [prose('Nel base ti mancano '), amount(base.gap)];
 
   // The verb follows the COMPARISON with the base number, never the scenario's name: the
-  // parameters are the user's, and a «toro» with a high inflation can land above the base.
+  // parameters are the user's, and a «bull» with a high inflation can land above the base.
   const relative = (row: CoastScenarioRow, subject: string, object: string): Narrative => {
     const verb = row.coastNumberToday > base.coastNumberToday ? 'alza' : row.coastNumberToday < base.coastNumberToday ? 'abbassa' : 'lascia';
-    // A pronoun object goes before the verb («il toro lo abbassa a»), a noun after it.
+    // A pronoun object goes before the verb («il bull lo abbassa a»), a noun after it.
     const clause = object === 'lo' ? `${subject} lo ${verb} a ` : `${subject} ${verb} ${object} a `;
     const out: Narrative = [prose(clause), amount(row.coastNumberToday)];
     if (row.reached && !base.reached) out.push(prose(' e lo hai già superato'));
@@ -943,7 +943,7 @@ export function describeCoastScenarios(rows: CoastScenarioRow[]): Narrative {
     return out;
   };
 
-  return [...opening, prose('; '), ...relative(bear, "l'orso", 'il numero Coast FIRE'), prose(', '), ...relative(bull, 'il toro', 'lo'), prose('.')];
+  return [...opening, prose('; '), ...relative(bear, "il bear", 'il numero Coast FIRE'), prose(', '), ...relative(bull, 'il bull', 'lo'), prose('.')];
 }
 
 /** The ONE line that stays on the Scenari tile; the method goes behind «Come si calcola». */

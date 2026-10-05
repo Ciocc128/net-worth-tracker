@@ -148,7 +148,7 @@ describe('summarizeScenarios', () => {
   it('returns the three scenarios in bear · base · bull order with their years', () => {
     const rows = summarizeScenarios(projection(), 2026);
     expect(rows.map((r) => r.key)).toEqual(['bear', 'base', 'bull']);
-    expect(rows.map((r) => r.label)).toEqual(['Orso', 'Base', 'Toro']);
+    expect(rows.map((r) => r.label)).toEqual(['Bear', 'Base', 'Bull']);
     expect(rows.map((r) => r.calendarYear)).toEqual([2036, 2032, 2030]);
     expect(rows[0]).toMatchObject({ yearsToFire: 10, growthRate: 5, inflationRate: 3.5 });
   });

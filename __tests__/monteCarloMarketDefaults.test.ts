@@ -18,7 +18,7 @@ describe('Monte Carlo market defaults (research R0, dossier § 2.3)', () => {
     expect(Math.abs(scenarios.base.classes.equity.cagr - 10.0177)).toBeLessThan(0.005);
   });
 
-  it('A16: Trend (branch 2) — Orso 4,64% and Toro 8,32% from the Base lognormal over 30 years', () => {
+  it('A16: Trend (branch 2) — Bear 4,64% and Bull 8,32% from the Base lognormal over 30 years', () => {
     const { m, s } = toLogNormal(scenarios.base.classes.trendFollowing);
     expect((Math.exp(m - (Z90 * s) / Math.sqrt(30)) - 1) * 100).toBeCloseTo(4.64, 1);
     expect((Math.exp(m + (Z90 * s) / Math.sqrt(30)) - 1) * 100).toBeCloseTo(8.32, 1);
@@ -26,7 +26,7 @@ describe('Monte Carlo market defaults (research R0, dossier § 2.3)', () => {
     expect(Math.abs((Math.exp(m + (Z90 * s) / Math.sqrt(30)) - 1) * 100 - scenarios.bull.classes.trendFollowing.cagr)).toBeLessThan(0.02);
   });
 
-  it.each((['gold', 'commodity', 'carry'] as MonteCarloClass[]))('branch 2 recomputes Orso and Toro of %s from the Base within 0,02 pp', (cls) => {
+  it.each((['gold', 'commodity', 'carry'] as MonteCarloClass[]))('branch 2 recomputes Bear and Bull of %s from the Base within 0,02 pp', (cls) => {
     const { m, s } = toLogNormal(scenarios.base.classes[cls]);
     expect(Math.abs((Math.exp(m - (Z90 * s) / Math.sqrt(30)) - 1) * 100 - scenarios.bear.classes[cls].cagr)).toBeLessThan(0.02);
     expect(Math.abs((Math.exp(m + (Z90 * s) / Math.sqrt(30)) - 1) * 100 - scenarios.bull.classes[cls].cagr)).toBeLessThan(0.02);
@@ -35,7 +35,7 @@ describe('Monte Carlo market defaults (research R0, dossier § 2.3)', () => {
     expect(scenarios.bull.classes[cls].volatility).toBe(scenarios.base.classes[cls].volatility);
   });
 
-  it('keeps Orso < Base < Toro for the CAGR of every class', () => {
+  it('keeps Bear < Base < Bull for the CAGR of every class', () => {
     for (const cls of MONTE_CARLO_CLASSES) {
       expect(scenarios.bear.classes[cls].cagr).toBeLessThan(scenarios.base.classes[cls].cagr);
       expect(scenarios.base.classes[cls].cagr).toBeLessThan(scenarios.bull.classes[cls].cagr);

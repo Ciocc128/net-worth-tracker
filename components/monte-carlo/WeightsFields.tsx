@@ -11,7 +11,7 @@ import type { MonteCarloClass } from '@/lib/constants/monteCarloClasses';
 import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_LABELS } from '@/lib/constants/monteCarloClasses';
 import { describeAllocationTotal, describeWeightsSource, resolveAllocationTotalState, type WeightsOrigin } from '@/lib/utils/monteCarloNarrative';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { ASIDE_TOGGLE_OFF_CLASS, ASIDE_TOGGLE_ON_CLASS } from '@/components/ui/aside-toggle';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -33,6 +33,13 @@ interface WeightsFieldsProps {
   idPrefix?: string;
 }
 
+/**
+ * The two seeds wear the pressed-toggle states of `AsideToggle` (Strumenti, Confronto): the active source is FILLED,
+ * never `disabled` — a disabled button fades and read as «off» exactly when it was the one in use (owner, 2026-10-05).
+ * They stay two buttons, not a toggle group: after an edit the weights are «edited» and neither is pressed.
+ */
+const SEED_CLASS = 'h-11 rounded-md border px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:h-8 desktop:px-2.5';
+
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 
 export function WeightsFields({ weights, onWeightsChange, allocationSum, weightsOrigin, leverage, hasTargets, onUseTargets, onImportHoldings, idPrefix = 'mc-weight' }: WeightsFieldsProps) {
@@ -52,14 +59,14 @@ export function WeightsFields({ weights, onWeightsChange, allocationSum, weights
       <NarrativeText segments={describeWeightsSource({ origin: weightsOrigin, leverage, hasTargets })} className="mt-1 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
       <div className="mt-2 flex flex-wrap gap-2">
         {onUseTargets && (
-          <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={onUseTargets} disabled={weightsOrigin === 'targets'}>
+          <button type="button" className={cn(SEED_CLASS, weightsOrigin === 'targets' ? ASIDE_TOGGLE_ON_CLASS : ASIDE_TOGGLE_OFF_CLASS)} onClick={onUseTargets} aria-pressed={weightsOrigin === 'targets'}>
             Usa i target
-          </Button>
+          </button>
         )}
         {onImportHoldings && (
-          <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={onImportHoldings} disabled={weightsOrigin === 'holdings'}>
+          <button type="button" className={cn(SEED_CLASS, weightsOrigin === 'holdings' ? ASIDE_TOGGLE_ON_CLASS : ASIDE_TOGGLE_OFF_CLASS)} onClick={onImportHoldings} aria-pressed={weightsOrigin === 'holdings'}>
             Importa il portafoglio di oggi
-          </Button>
+          </button>
         )}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">

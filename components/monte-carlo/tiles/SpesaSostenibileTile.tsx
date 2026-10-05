@@ -3,8 +3,8 @@
 /**
  * SPESA SOSTENIBILE — «quanto posso prelevare?»: the largest annual withdrawal (today's euros) that
  * lasts the horizon in 9 simulations out of 10 on the Base scenario as the hero, its monthly and its
- * share of the capital beside it, and a 3 × 3 table of the same figure at 80 / 90 / 95% for Orso,
- * Base and Toro (S1, D-S1–D-S3). The figures belong to the LAST run (The Stale-Run Rule): the tile
+ * share of the capital beside it, and a 3 × 3 table of the same figure at 80 / 90 / 95% for Bear,
+ * Base and Bull (S1, D-S1–D-S3). The figures belong to the LAST run (The Stale-Run Rule): the tile
  * never recomputes on a typed input.
  *
  * Hero left, table right on a wide cell (a container query); one under the other on a phone. A
@@ -28,9 +28,9 @@ interface SpesaSostenibileTileProps {
 }
 
 const COLUMNS = [
-  { key: 'bear', label: 'Orso' },
+  { key: 'bear', label: 'Bear' },
   { key: 'base', label: 'Base' },
-  { key: 'bull', label: 'Toro' },
+  { key: 'bull', label: 'Bull' },
 ] as const;
 
 export function SpesaSostenibileTile({ reading, aside, summary, className }: SpesaSostenibileTileProps) {

@@ -39,7 +39,7 @@ function years(value: number): string {
 }
 
 export function projectionScenarioLabel(key: ScenarioKey): string {
-  return key === 'bear' ? 'Orso' : key === 'base' ? 'Base' : 'Toro';
+  return key === 'bear' ? 'Bear' : key === 'base' ? 'Base' : 'Bull';
 }
 
 // ─── Verdict ──────────────────────────────────────────────────────────────────
@@ -175,12 +175,12 @@ export function describeDistribuzioneFooter(summary: ProjectionSummary): Narrati
 
 export const PROJECTION_SCENARI_ASIDE = 'stesso piano, mercati diversi';
 
-/** «Orso 411.000 € · Base 714.000 € · Toro 1.284.000 €: la mediana cresce di 3,1 volte tra orso e toro.» */
+/** «Bear 411.000 € · Base 714.000 € · Bull 1.284.000 €: la mediana cresce di 3,1 volte tra bear e bull.» */
 export function describeProjectionScenari(summary: ProjectionSummary): Narrative {
   const bear = summary.scenarios.bear.atHorizon.p50;
   const bull = summary.scenarios.bull.atHorizon.p50;
-  const out: Narrative = [prose('Mediana '), prose('orso '), amount(bear), prose(', base '), amount(summary.scenarios.base.atHorizon.p50), prose(', toro '), amount(bull)];
-  if (bear > 0) out.push(prose(': '), figure(`${(bull / bear).toLocaleString('it-IT', { maximumFractionDigits: 1 })}×`), prose(' tra orso e toro.'));
+  const out: Narrative = [prose('Mediana '), prose('bear '), amount(bear), prose(', base '), amount(summary.scenarios.base.atHorizon.p50), prose(', bull '), amount(bull)];
+  if (bear > 0) out.push(prose(': '), figure(`${(bull / bear).toLocaleString('it-IT', { maximumFractionDigits: 1 })}×`), prose(' tra bear e bull.'));
   else out.push(prose('.'));
   return out;
 }

@@ -89,9 +89,9 @@ interface FireParametriProps {
 type ScenarioKey = FireScenarioKey;
 
 const SCENARIO_META: { key: ScenarioKey; label: string; icon: typeof Target }[] = [
-  { key: 'bear', label: 'Scenario Orso', icon: TrendingDown },
+  { key: 'bear', label: 'Scenario Bear', icon: TrendingDown },
   { key: 'base', label: 'Scenario Base', icon: Target },
-  { key: 'bull', label: 'Scenario Toro', icon: TrendingUp },
+  { key: 'bull', label: 'Scenario Bull', icon: TrendingUp },
 ];
 
 export function FireParametri({

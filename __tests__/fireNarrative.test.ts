@@ -108,9 +108,9 @@ const income = (overrides: Partial<PassiveIncome> = {}): PassiveIncome => ({
 });
 
 const scenarios = (overrides: Partial<Record<'bear' | 'base' | 'bull', Partial<ScenarioRow>>> = {}): ScenarioRow[] => [
-  { key: 'bear', label: 'Orso', yearsToFire: 10, calendarYear: 2036, growthRate: 5, inflationRate: 3.5, ...overrides.bear },
+  { key: 'bear', label: 'Bear', yearsToFire: 10, calendarYear: 2036, growthRate: 5, inflationRate: 3.5, ...overrides.bear },
   { key: 'base', label: 'Base', yearsToFire: 6, calendarYear: 2032, growthRate: 7, inflationRate: 2.5, ...overrides.base },
-  { key: 'bull', label: 'Toro', yearsToFire: 4, calendarYear: 2030, growthRate: 9, inflationRate: 2, ...overrides.bull },
+  { key: 'bull', label: 'Bull', yearsToFire: 4, calendarYear: 2030, growthRate: 9, inflationRate: 2, ...overrides.bull },
 ];
 
 function verdictInput(overrides: Partial<FireVerdictInput> = {}): FireVerdictInput {
@@ -536,7 +536,7 @@ describe('describeEmptyTiles', () => {
 
 describe('describeScenarios', () => {
   it('reads the three years around the base', () => {
-    expect(plain(describeScenarios(scenarios()))).toBe('Nel base il FIRE arriva nel 2032; l\'orso lo sposta al 2036, il toro lo anticipa al 2030.');
+    expect(plain(describeScenarios(scenarios()))).toBe('Nel base il FIRE arriva nel 2032; il bear lo sposta al 2036, il bull lo anticipa al 2030.');
   });
 
   it('says «già raggiunto» for a scenario at year 0, never «tra 1 anno» or a calendar year', () => {
@@ -546,21 +546,21 @@ describe('describeScenarios', () => {
     );
     // The base is FIRE today on the bridge, the bear's higher inflation is not.
     expect(plain(describeScenarios(scenarios({ base: today, bull: today, bear: { yearsToFire: 3, calendarYear: 2029 } })))).toBe(
-      'Nel base il FIRE è già raggiunto; l\'orso lo sposta al 2029, il toro concorda.',
+      'Nel base il FIRE è già raggiunto; il bear lo sposta al 2029, il bull concorda.',
     );
     expect(plain(describeScenarios(scenarios({ base: today, bear: { yearsToFire: null, calendarYear: null }, bull: today })))).toBe(
-      'Nel base il FIRE è già raggiunto; l\'orso non ci arriva entro 50 anni, il toro concorda.',
+      'Nel base il FIRE è già raggiunto; il bear non ci arriva entro 50 anni, il bull concorda.',
     );
     // Only the bull is there today.
-    expect(plain(describeScenarios(scenarios({ bull: today })))).toBe('Nel base il FIRE arriva nel 2032; l\'orso lo sposta al 2036, il toro lo dà per raggiunto oggi.');
+    expect(plain(describeScenarios(scenarios({ bull: today })))).toBe('Nel base il FIRE arriva nel 2032; il bear lo sposta al 2036, il bull lo dà per raggiunto oggi.');
   });
 
   it('handles a scenario beyond the horizon and one that does not move the year', () => {
-    expect(plain(describeScenarios(scenarios({ bear: { yearsToFire: null, calendarYear: null } })))).toBe('Nel base il FIRE arriva nel 2032; l\'orso non ci arriva entro 50 anni, il toro lo anticipa al 2030.');
-    expect(plain(describeScenarios(scenarios({ bull: { yearsToFire: 6, calendarYear: 2032 } })))).toBe('Nel base il FIRE arriva nel 2032; l\'orso lo sposta al 2036, il toro lo lascia al 2032.');
-    // The verb follows the comparison: a «toro» the user parametrised to land later is said to move it later.
-    expect(plain(describeScenarios(scenarios({ bull: { yearsToFire: 8, calendarYear: 2034 }, bear: { yearsToFire: 4, calendarYear: 2030 } })))).toBe('Nel base il FIRE arriva nel 2032; l\'orso lo anticipa al 2030, il toro lo sposta al 2034.');
-    expect(plain(describeScenarios(scenarios({ base: { yearsToFire: null, calendarYear: null }, bear: { yearsToFire: null, calendarYear: null } })))).toBe('Nel base il FIRE non arriva entro 50 anni; nemmeno nell\'orso, il toro lo raggiunge nel 2030.');
+    expect(plain(describeScenarios(scenarios({ bear: { yearsToFire: null, calendarYear: null } })))).toBe('Nel base il FIRE arriva nel 2032; il bear non ci arriva entro 50 anni, il bull lo anticipa al 2030.');
+    expect(plain(describeScenarios(scenarios({ bull: { yearsToFire: 6, calendarYear: 2032 } })))).toBe('Nel base il FIRE arriva nel 2032; il bear lo sposta al 2036, il bull lo lascia al 2032.');
+    // The verb follows the comparison: a «bull» the user parametrised to land later is said to move it later.
+    expect(plain(describeScenarios(scenarios({ bull: { yearsToFire: 8, calendarYear: 2034 }, bear: { yearsToFire: 4, calendarYear: 2030 } })))).toBe('Nel base il FIRE arriva nel 2032; il bear lo anticipa al 2030, il bull lo sposta al 2034.');
+    expect(plain(describeScenarios(scenarios({ base: { yearsToFire: null, calendarYear: null }, bear: { yearsToFire: null, calendarYear: null } })))).toBe('Nel base il FIRE non arriva entro 50 anni; nemmeno nel bear, il bull lo raggiunge nel 2030.');
     expect(plain(describeScenarios(scenarios({ base: { yearsToFire: null, calendarYear: null }, bear: { yearsToFire: null, calendarYear: null }, bull: { yearsToFire: null, calendarYear: null } })))).toBe('In nessuno scenario il FIRE arriva entro 50 anni.');
   });
 
@@ -572,10 +572,10 @@ describe('describeScenarios', () => {
 describe('the disclosures', () => {
   it('describe Parametri with the saved settings and the three scenarios', () => {
     expect(describeParametri({ swr: 4, plannedExpenses: 28_000, lockActive: true, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 5, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 9, inflationRate: 2 } } })).toBe(
-      'SWR 4% · spesa del piano 28.000\u00a0€ · fondo pensione bloccato (INPS 67, RITA a 62) · crescita orso 5%, base 7%, toro 9%',
+      'SWR 4% · spesa del piano 28.000\u00a0€ · fondo pensione bloccato (INPS 67, RITA a 62) · crescita bear 5%, base 7%, bull 9%',
     );
     expect(describeParametri({ swr: 3.5, plannedExpenses: null, lockActive: false, inpsRetirementAge: 67, ritaUnlockAge: 62, scenarios: { bear: { growthRate: 4, inflationRate: 3.5 }, base: { growthRate: 7, inflationRate: 2.5 }, bull: { growthRate: 10, inflationRate: 1.5 } } })).toBe(
-      'SWR 3,5% · spesa dal Cashflow · fondo pensione non vincolato · crescita orso 4%, base 7%, toro 10%',
+      'SWR 3,5% · spesa dal Cashflow · fondo pensione non vincolato · crescita bear 4%, base 7%, bull 10%',
     );
   });
 

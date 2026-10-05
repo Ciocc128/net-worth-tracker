@@ -21,6 +21,7 @@ import { narrativeToText, type Narrative } from '@/lib/utils/narrative';
 import type { GoalLine, GoalsOverview, MilestoneEntry, TrajectoryView, DerivedAllocationView, AssignmentsView } from '@/lib/utils/goalsSummary';
 import {
   ALLOCAZIONE_DERIVATA_ASIDE,
+  EXPLAINER,
   buildGoalsVerdict,
   buildTraiettoriaChips,
   describeAllocazioneDerivata,
@@ -530,5 +531,14 @@ describe('describeIncertezza', () => {
     expect(describeGoalProbability(line({ probability: 0.355 }))).toBe('36%');
     expect(describeGoalProbability(line({ probability: null }))).toBeNull();
     expect(plain(describeTraiettoriaFooter(dated(null)))).toContain('10.000 simulazioni mensili');
+  });
+});
+
+describe('EXPLAINER — the return is the common hypotheses (L3), not the fixed rates of before', () => {
+  it('names the Base scenario and the target portfolio, no fixed per-class rate', () => {
+    const body = EXPLAINER.find((entry) => entry.title === 'Il rendimento atteso')?.body ?? '';
+    expect(body).toContain('scenario Base');
+    expect(body).toContain('portafoglio target');
+    expect(body).not.toMatch(/azioni 7%|vale il 4%/);
   });
 });

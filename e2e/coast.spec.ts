@@ -97,10 +97,10 @@ test('the Scenari tile ranks the three Coast numbers, base in the middle', async
   const tile = page.getByRole('region', { name: 'Scenari Coast FIRE' });
   const rows = tile.getByRole('list', { name: 'Numero Coast FIRE per scenario' }).getByRole('listitem');
   await expect(rows).toHaveCount(3);
-  await expect(rows.nth(0)).toContainText('Scenario Orso');
+  await expect(rows.nth(0)).toContainText('Scenario Bear');
   await expect(rows.nth(1)).toContainText('Scenario Base');
-  await expect(rows.nth(2)).toContainText('Scenario Toro');
-  // A higher real return needs less initial capital: Orso > Base > Toro.
+  await expect(rows.nth(2)).toContainText('Scenario Bull');
+  // A higher real return needs less initial capital: Bear > Base > Bull.
   const numbers = await rows.evaluateAll((nodes) =>
     nodes.map((node) => Number((node.querySelector('span.text-right > span')?.textContent ?? '').replace(/[^\d]/g, ''))),
   );

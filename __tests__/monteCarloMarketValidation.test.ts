@@ -16,8 +16,8 @@ describe('findMonteCarloMarketProblems', () => {
     market.scenarios.base.inflationRate = 21;
     const messages = findMonteCarloMarketProblems(market).map((problem) => problem.message);
     expect(messages).toContain('Azioni, Base: CAGR oltre 100%');
-    expect(messages).toContain('Carry, Orso: CAGR sotto -50%');
-    expect(messages).toContain('Trend, Toro: volatilità oltre 200%');
+    expect(messages).toContain('Carry, Bear: CAGR sotto -50%');
+    expect(messages).toContain('Trend, Bull: volatilità oltre 200%');
     expect(messages).toContain('Inflazione, Base: oltre 20%');
   });
 

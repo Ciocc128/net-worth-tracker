@@ -1,6 +1,6 @@
 /**
  * Bounds of the Monte Carlo market assumptions (doc/montecarlo/README.md § 4.2). Returns the
- * fields out of range BY NAME — «Trend, Toro: volatilità oltre 200%» — the way
+ * fields out of range BY NAME — «Trend, Bull: volatilità oltre 200%» — the way
  * `allocationTargetValidation.ts` names a broken target, so the toast and the tile say where.
  */
 import type { MonteCarloMarketSettings } from '@/types/assets';
@@ -15,12 +15,12 @@ export const MONTE_CARLO_BOUNDS = {
   spread: { min: 0, max: 20 },
 } as const;
 
-const SCENARIO_NAMES = { bear: 'Orso', base: 'Base', bull: 'Toro' } as const;
+const SCENARIO_NAMES = { bear: 'Bear', base: 'Base', bull: 'Bull' } as const;
 
 const fmt = (value: number) => value.toLocaleString('it-IT');
 
 export interface MonteCarloMarketProblem {
-  /** «Trend, Toro» — where. */
+  /** «Trend, Bull» — where. */
   where: string;
   field: 'cagr' | 'volatility' | 'inflation' | 'correlation' | 'spread';
   message: string;

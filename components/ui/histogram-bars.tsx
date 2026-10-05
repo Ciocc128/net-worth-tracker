@@ -32,7 +32,7 @@ export interface HistogramBar {
   hoverDetail: string;
   /** Outlined: the bar the page is about. */
   outlined?: boolean;
-  /** Of `count`, the part drawn as a bottom segment in the Orso's slot colour (a second cause, never a sign). */
+  /** Of `count`, the part drawn as a bottom segment in the Bear's slot colour (a second cause, never a sign). */
   segmentCount?: number;
   /** Muted ink: a bar that is not a value of the quantity charted. */
   neutral?: boolean;

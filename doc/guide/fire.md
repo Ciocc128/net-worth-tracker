@@ -10,6 +10,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 ## FIRE, What If and Goals
 
+- **The three scenarios are Bear · Base · Bull, in English, everywhere the user reads them** (owner, 2026-10-05): the terms are born as «bear/bull market» and an Italian reader says «un bull market», never «un mercato toro». Labels capitalised («Scenario Bear», the rows of the tables), prose lowercase with the masculine article («il bear lo sposta al 2036», «nel bull», «tra bear e bull»). The code keys were already `bear`/`base`/`bull`. The dossiers (`doc/fire-ipotesi/`, `doc/montecarlo/`, `doc/mobile/`) keep «Orso/Toro» as the record of their decisions: there they mean Bear/Bull.
+
 - **The recurring costs are ONE reading too** (2026-10-04, doc/fire-ipotesi/README.md § 9, task C1): every rate the page
   prints is NET of TER and stamp duty, from `lib/utils/fireCosts.ts`. **RC1** `resolveClassCosts`: per class, on the legs of
   the instruments of `K` (`expandAssetExposure`, the same read as the weights) weighted on the MARKET value (never the
@@ -217,7 +219,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   every path's starting portfolio — so a target already cleared today is `yearsToFIRE = 0`, never «tra 1 anno». Until
   then the Scenari tile printed «2027 · tra 1 anno» three times and the fan «entro il 2027: 100%» under a verdict
   that said «Sei già FIRE.». Downstream, 0 is a WORD: `ScenariTile` prints «oggi · già raggiunto», `describeScenarios`
-  «Nel base il FIRE è già raggiunto; l'orso lo sposta al 2029, il toro concorda», `FanVerdict.atStart` turns the
+  «Nel base il FIRE è già raggiunto; il bear lo sposta al 2029, il bull concorda», `FanVerdict.atStart` turns the
   footer into «FIRE già raggiunto oggi, quindi in tutti i N percorsi…», and `FIREProjectionChart` draws no marker for
   it (the plot starts at year 1). `summarizeTimeline` reads no row for year 0 (`yearlyData[-1]` is the last row, not
   today). What If's `resolveYearsToFIRE` already patched this downstream; the engine now agrees with it.
@@ -239,9 +241,9 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   `e2e/fire.degraded.spec.ts` (the degraded account has no cashflow rows, whichever pension scenario it holds).
 - **The three charts' legends are `SeriesLegend`, their targets neutral ink dashed, their accessible names hue-free**
   (2026-09-22): bear/base/bull are chart SLOTS (4 / 0 / 1, `SCENARIO_SLOT`), and on a themed palette the bear is not
-  red — the aria-label used to say «Orso (rosso)» while the fixture painted it green. Recharts' `<Legend>` measured
+  red — the aria-label used to say «Bear (rosso)» while the fixture painted it green. Recharts' `<Legend>` measured
   3,11:1 and 3,77:1 on the tile. The FIRE-year markers of the Scenari chart are ONE per distinct year
-  (`buildFireYearMarkers`, «FIRE Base · Toro»): three labels on one x overlapped and clipped. Whole euros in every
+  (`buildFireYearMarkers`, «FIRE Base · Bull»): three labels on one x overlapped and clipped. Whole euros in every
   projection tooltip; the axis ticks read `850k €`, since `formatCurrencyCompact` puts the euro after the figure.
 - **No confetti** (2026-09-22): the one-shot burst inherited from the old FireReachedBanner is gone with its five
   hexes and with `shouldReduceMotion` (`celebrationUtils` keeps only the once-per-milestone record for the savings
@@ -289,7 +291,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 - **The Parametri form says an out-of-range value AT the field** (`aria-invalid` + `aria-describedby` on the SWR and
   the INPS age, the help line turning into the bound in `text-destructive`), and the toast on «Salva» repeats it in
   the product's term (SWR, never «Withdrawal Rate»). The Parametri trigger names the scenarios' growth in words
-  («crescita orso 6%, base 8,3%, toro 11,1%» on a 60/40 with the defaults): «4/3,5 · 7/2,5» was a code. The Traguardo's chip reads «del numero FIRE»
+  («crescita bear 6%, base 8,3%, bull 11,1%» on a 60/40 with the defaults): «4/3,5 · 7/2,5» was a code. The Traguardo's chip reads «del numero FIRE»
   once the target is reached («verso FI» is a direction), and the progressbar's `aria-valuetext` says the true share
   where `aria-valuenow` is capped at 100.
 - **«Età obiettivo» is a tile on a third row, and its three figures are inverses of what the page already computes**
@@ -338,7 +340,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
 
 - **ONE model of dated flows** (`DatedFlow`, `types/assets.ts`; saved in `fireDatedFlows`, at most 20; validation in `lib/utils/datedFlowValidation.ts`, shared by the dialog and the save): recurring expense/income, lump in/out, anchored to a year, an age or the FIRE year (`afterYears`, recurring only), in today's euro or fixed nominal (a fixed one needs an end). The Calcolatore's Parametri carries the section «Flussi nel tempo» (`FireDatedFlowsSection` + `DatedFlowDialog`, a PREVIEW until «Salva», `form.datedFlows`), the state pensions listed read-only after the flows (D-F4: they stay in Coast FIRE › Ipotesi).
 - **`lib/utils/datedFlows.ts` is the ONE reading** (pure): `resolveDatedFlows` (RF1: windows from the year offset, the age needs `userAge`, an excluded flow carries its reason), `buildFlowSchedule` per scenario (its own π: `savingsDelta` RF3, `lump`, `needDelta` RF4, `horizon`), `flowsRequirementAdjustment` (RF5). `useFireDatedFlows(draft?)` is the hook (settings + assets + the instalments of the «Mutuo» tile) the Calcolatore (draft) and Coast (saved list) share.
-- **THE RULE of the requirement with flows (RF5, D-F7)**: the flows are SUMMED to `resolveFireRequirement`'s base figure — temporary parts at the real return, the permanent part (equal for every year after the last start/end `J`) at the SWR, a year's surplus of income over the need is NOT reinvested (`max(0, E − P + n)`), outflows carry the tax multiplier. Never extend the backward walk of `buildCoastFIRERetirementNeeds` to the last flow: with a real return above the SWR that LOWERS the requirement (a child would take it from 750.000 to 732.000 €). Without flows the figure is identical (`flows` absent or empty). A pure extra expense never lowers the requirement.
+- **THE RULE of the requirement with flows (RF5, D-F7)**: the flows are SUMMED to `resolveFireRequirement`'s base figure — temporary parts at the real return, the permanent part (equal for every year after the last start/end `J`) at the SWR, a year's surplus of income over the need is NOT reinvested (`max(0, E − P + n)`), outflows carry the tax multiplier. Never extend the backward walk of `buildCoastFIRERetirementNeeds` to the last flow: with a real return above the SWR that LOWERS the requirement (a child would take it from 750.000 to 732.000 €). Without flows the figure is identical (`flows` absent or empty). A pure extra expense never lowers the requirement. **The flows are discounted at the Base's real return in all three scenarios** (owner, 2026-10-05, `flowsRealReturnRate` on `resolveFireRequirement`, trailing parameter of `calculateCoastFIREMetrics`): at each scenario's own rate a lower return made a future inheritance or rent worth MORE, so with dated inflows the bear reached FIRE before the base (collaudo fixture: 2030 against 2031) — the spending is valued at the SWR, the same in every scenario, and the flows now at one rate too; the scenarios differ in the capital's growth (and Coast in the growth to the target) only. Absent the field, the scenario's own rate: the single-scenario callers (Calcolatore's number, What If, Coast's own tab line on the Base) read the same figure as before.
 - **The deterministic walk (RF6)**: `calculateFIREProjection(…, flows?: FireFlowsInput)` — the year-0 lump is starting capital, the saving of year t gets `Δs_t` until FIRE, lumps enter EVERY year (also after FIRE, like the fund), a negative move sells at the portfolio's gain share (`applyCashMove`, no tax in the accumulation), the capital may go below zero. `calculateFIRESensitivityMatrix` takes the same list (it varies expenses and saving, not the flows). Età obiettivo and the lever read it through `fireWalk`.
 - **«Già nel Cashflow di oggi»** (D-F6): a recurring flow active today is already in the saving, and in the plan's expenses ONLY when those come from the Cashflow (`planExpensesFromCashflow` = `expenses.origin === 'cashflow'`); typed by hand, the flows add on top (the Parametri help says to type it without the mortgage).
 - **The mortgage** is linked, not copied (D-F5): `mortgageFlowSchedule(summary)` (`mortgageSummary.ts`, beside `projectPayoff`; `MortgageSummary.instalment` is the amount the payoff runs on) gives the instalment × the months that fall in each calendar year, from the next one to the projected end; `never` / no instalment → the flow is excluded with its reason.

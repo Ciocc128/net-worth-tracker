@@ -303,7 +303,7 @@ export function ProjectionTab() {
         };
         for (const key of SCENARIO_KEYS) {
           const scenario = inputs.scenarios[key];
-          // RV7: a fresh generator on the SAME seed per scenario, so Orso, Base and Toro meet the same shocks.
+          // RV7: a fresh generator on the SAME seed per scenario, so Bear, Base and Bull meet the same shocks.
           const result = runAccumulationSimulation({
             initialPortfolio: inputs.initialPortfolio,
             annualSavings: inputs.annualSavings,

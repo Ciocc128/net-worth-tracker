@@ -152,7 +152,7 @@ describe('buildMonteCarloVerdict', () => {
     expect(verdict.tone).toBe('warning');
     expect(plain(verdict.sentence)).toBe(
       "Nell'84,2% delle 10.000 simulazioni il capitale regge fino a 81 anni (2061); nel caso mediano chiudi con 612.400 €, nel 10% peggiore i soldi finiscono entro il 2053 (73 anni). " +
-        'Nello scenario orso regge nel 61,5% dei casi, nel toro nel 96,8%. Numeri con il modello ponte: i 31.400 € del fondo pensione entrano nel 2045 al valore di oggi.',
+        'Nello scenario bear regge nel 61,5% dei casi, nel bull nel 96,8%. Numeri con il modello ponte: i 31.400 € del fondo pensione entrano nel 2045 al valore di oggi.',
     );
   });
 
@@ -181,7 +181,7 @@ describe('buildMonteCarloVerdict', () => {
   it('drops the bridge clause without a lock and the scenario clause without a comparison', () => {
     const verdict = buildMonteCarloVerdict({ runnable: true, run: makeRun(), scenarios: null, lock: INACTIVE_LOCK });
     expect(plain(verdict.sentence)).not.toContain('modello ponte');
-    expect(plain(verdict.sentence)).not.toContain('scenario orso');
+    expect(plain(verdict.sentence)).not.toContain('scenario bear');
   });
 });
 
@@ -253,11 +253,11 @@ describe('describeEsaurimento', () => {
 
 describe('Scenari a confronto', () => {
   it('reads bear and bull with the spread in points', () => {
-    expect(plain(describeScenari(makeComparison()))).toBe('Lo scenario orso regge nel 61,5% dei casi, il toro nel 96,8%: 35 punti di distanza attorno al base.');
+    expect(plain(describeScenari(makeComparison()))).toBe('Lo scenario bear regge nel 61,5% dei casi, il bull nel 96,8%: 35 punti di distanza attorno al base.');
   });
 
   it('says the scenarios coincide under half a point', () => {
-    expect(plain(describeScenari(makeComparison({ spreadPoints: 0.2 })))).toBe('Lo scenario orso regge nel 61,5% dei casi, il toro nel 96,8%: i tre scenari non si distinguono.');
+    expect(plain(describeScenari(makeComparison({ spreadPoints: 0.2 })))).toBe('Lo scenario bear regge nel 61,5% dei casi, il bull nel 96,8%: i tre scenari non si distinguono.');
   });
 
   it('writes each row note with the median and the worst tenth', () => {
@@ -299,9 +299,9 @@ describe('Parametri', () => {
 
 describe('Dettaglio', () => {
   it('reads the three medians against the same start', () => {
-    expect(plain(describeTraiettorie(makeComparison(), makePlan()))).toBe("Le tre mediane partono dagli stessi 488.600 €; nel 2061 l'orso chiude a 198.000 €, il base a 612.400 €, il toro a 1.420.000 €.");
+    expect(plain(describeTraiettorie(makeComparison(), makePlan()))).toBe("Le tre mediane partono dagli stessi 488.600 €; nel 2061 il bear chiude a 198.000 €, il base a 612.400 €, il bull a 1.420.000 €.");
     expect(plain(describeTraiettorie(makeComparison({ rows: [makeScenarioRow('bear', { medianFinal: 0 }), makeScenarioRow('base'), makeScenarioRow('bull')] }), makePlan()))).toBe(
-      "Le tre mediane partono dagli stessi 488.600 €; nel 2061 l'orso finisce i soldi, il base chiude a 612.400 €, il toro a 1.420.000 €.",
+      "Le tre mediane partono dagli stessi 488.600 €; nel 2061 il bear finisce i soldi, il base chiude a 612.400 €, il bull a 1.420.000 €.",
     );
   });
 
@@ -417,11 +417,11 @@ describe('the verdict’s sustainable-spending sentence', () => {
 
 describe('the Spesa sostenibile tile’s words', () => {
   it('the reading: nine in ten hold the horizon at the Base figure, the bear beside it', () => {
-    expect(plain(describeSpesaSostenibile(makeSummary(43_300), 30))).toBe("In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nell'orso 33.700 €.");
+    expect(plain(describeSpesaSostenibile(makeSummary(43_300), 30))).toBe("In 9 simulazioni su 10 il capitale regge 30 anni prelevando fino a 43.300 € l'anno di oggi; nel bear 33.700 €.");
     expect(plain(describeSpesaSostenibile(makeSummary(43_300), 1))).toContain('regge 1 anno ');
   });
   it('a bear cell with no withdrawal says it', () => {
-    expect(plain(describeSpesaSostenibile(makeSummary(43_300, null), 30))).toContain("nell'orso nessun prelievo basta");
+    expect(plain(describeSpesaSostenibile(makeSummary(43_300, null), 30))).toContain("nel bear nessun prelievo basta");
   });
   it('a Base cell with no withdrawal reads the leverage', () => {
     expect(plain(describeSpesaSostenibile(makeSummary(null), 30))).toContain('la leva azzera il capitale da sola');

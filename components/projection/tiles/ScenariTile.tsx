@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * SCENARI A CONFRONTO — «e se i mercati vanno diversamente?»: Orso, Base and Toro as rows, each
+ * SCENARI A CONFRONTO — «e se i mercati vanno diversamente?»: Bear, Base and Bull as rows, each
  * with its swatch (the scenario's chart slot), the median at the horizon in today's euros as the
  * row's figure and, with a threshold, its probability. A chart slot is not a text colour: the
  * label stays `text-foreground` beside its 8px swatch.

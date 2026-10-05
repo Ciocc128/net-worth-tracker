@@ -14,7 +14,7 @@
  *                     Parametri(12)
  *   Mobile (1 col):   Probabilità → Spesa sostenibile → Distribuzione → Scenari → Parametri
  *
- * ONE run = the three scenarios (Orso · Base · Toro) with the plan's shared inputs; the verdict,
+ * ONE run = the three scenarios (Bear · Base · Bull) with the plan's shared inputs; the verdict,
  * Probabilità and Distribuzione read Base, the Scenari tile reads all three. The old
  * «Simulazione singola | Confronto scenari» toggle is gone with the mode it switched: the single
  * form's market parameters ARE the Base scenario's. The run is automatic once the auto-filled
@@ -290,7 +290,7 @@ export function MonteCarloTab() {
       annualWithdrawal: Math.round(parseFloatField(form.annualWithdrawal)),
       withdrawalAdjustment: 'inflation',
       // The shared params carry the Base market; each scenario's run overrides it with
-      // `buildScenarioParams`, so this is never what the Orso and Toro runs read.
+      // `buildScenarioParams`, so this is never what the Bear and Bull runs read.
       market: scenarios.base,
       // The classes move together through the matrix saved in Impostazioni (one matrix for the three scenarios).
       correlations: market.correlations,

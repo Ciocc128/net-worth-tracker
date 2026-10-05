@@ -23,5 +23,5 @@
 - **The saving grows with inflation, not with the salary**; the pension funds enter at today's value. Crypto and real estate are outside `K`.
 - **A new threshold does not re-run** and does not make the footer say «stantio»; a new capital, saving, weight or market assumption does.
 - **The Tappe scenario selector is a view**: it changes the rows only, never the verdict (always Base).
-- **Orso and Toro share the Base shocks** (same seed), so the three medians are ordered by construction; that is the point of a comparison, not a coincidence.
+- **Bear and Bull share the Base shocks** (same seed), so the three medians are ordered by construction; that is the point of a comparison, not a coincidence.
 - **The Recharts «width(-1)» log** of the other FIRE charts appears here once on mount too: harmless.

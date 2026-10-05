@@ -22,6 +22,14 @@
 
 ## 🐛 Bug Fixes
 
+- FIRE › Calcolatore and Coast FIRE: with dated flows (an inheritance, a rent after FIRE) the Bear scenario could reach FIRE before the Base, because a lower return made the future inflows worth more today. The flows are now valued at the Base return in all three scenarios: Bear, Base and Bull differ only in how the capital grows, and a worse market can no longer bring FIRE forward.
+
+- FIRE › Calcolatore › Età obiettivo: «Risparmio per 9 percorsi su 10» showed «— · Ventaglio non disponibile» whenever the plan reached FIRE well before the target age; it now runs the simulations up to the target age (within 40 years) and shows the figure.
+
+- FIRE › What If: the «Numero Coast oggi» left out the tax on withdrawals, so it read lower than the same number in the Coast FIRE tab (for example 200.000 € against 240.000 €), and the verdict quoted the lower one; both tabs now show the same figure.
+
+- FIRE › Obiettivi › Come funziona: «Il rendimento atteso» still described fixed per-class rates (7% for equities, 4% without an allocation); it now explains the real rule — the Base scenario of the market assumptions, net of costs, on the goal's allocation or the target portfolio — and a new entry explains the probability and the 10°–90° band.
+
 - Fixed the FIRE simulations diluting the portfolio weights with accounts excluded from Allocazione: a 70/30 target is now simulated as 70/30, not as 63/27 plus 10% of cash that the plan does not hold.
 
 - Fixed the periodic emails reading the portfolio differently from the app: the verdict, the tiles and the AI comment's data now use the pages' own rules. «Mercato» is Storico's Driver, measured instrument by instrument, with savings, sale taxes, mortgage, pension contributions and other changes as rows that add up to the growth, instead of «growth minus savings», which counted a pension contribution as market. The allocation is measured like Allocazione: on the allocated portfolio, with excluded assets out, leverage and the effective targets, and the 5/25 rule. For example «Azioni 70% contro un target del 70%» where the email compared 50% of the whole net worth with the same target. «Andamento per classe» separates what the market did from what you bought, so a month of PAC instalments no longer reads as growth. The comment also receives the period's purchases and sales per instrument, and the period's return (TWR) on Rendimenti's base.
@@ -31,6 +39,10 @@
 - Fixed the smallest categories of the Analisi › Flusso chart being painted black — invisible on a dark theme — when a branch held more than seven categories: a shade now never goes darker than 55% of its colour.
 
 ## 🔧 Improvements
+
+- FIRE and Impostazioni › Simulazioni: the three market scenarios are now called **Bear · Base · Bull** everywhere (labels, charts, tables and verdicts — «il bear lo sposta al 2036»), the way an Italian investor says them, instead of Orso and Toro.
+
+- FIRE › Monte Carlo and Proiezione › Parametri: of «Usa i target» and «Importa il portafoglio di oggi», the source in use is now shown pressed (filled), like the other toggles of the app, instead of greyed out as if it were unavailable.
 
 - The weekly TheBull page in the private vault is now compiled by DeepSeek V4.1 Flash with the reasoning off instead of GLM 5.3 Flash, which failed about one week in five (slow or broken answers); the periodic emails stay on GLM, now only on its full-precision hosts. Every item still has to quote the newsletter word for word. (Fork only.)
 

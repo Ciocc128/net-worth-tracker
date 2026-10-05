@@ -134,7 +134,7 @@ describe('coastFireView — the numbers', () => {
     expect(target.gap).toBe(base.gapToCoastFI);
   });
 
-  it('should list the scenarios as rows in Orso · Base · Toro order with their own Coast numbers', () => {
+  it('should list the scenarios as rows in Bear · Base · Bull order with their own Coast numbers', () => {
     const projection = buildProjection();
     const rows = summarizeCoastScenarios(projection.scenarios, getDefaultScenarios(), NET_WORTH);
 
@@ -392,8 +392,8 @@ describe('coastFireView — the Scenari tile', () => {
     const rows = summarizeCoastScenarios(projection.scenarios, getDefaultScenarios(), NET_WORTH);
     const { bear, base, bull } = projection.scenarios;
     expect(plain(describeCoastScenarios(rows))).toBe(
-      // On this fixture the Toro number is already behind the net worth: the suffix says so.
-      `Nel base ti mancano ${euro(base.gapToCoastFI)}; l'orso alza il numero Coast FIRE a ${euro(bear.coastFireNumberToday)}, il toro lo abbassa a ${euro(bull.coastFireNumberToday)} e lo hai già superato.`
+      // On this fixture the Bull number is already behind the net worth: the suffix says so.
+      `Nel base ti mancano ${euro(base.gapToCoastFI)}; il bear alza il numero Coast FIRE a ${euro(bear.coastFireNumberToday)}, il bull lo abbassa a ${euro(bull.coastFireNumberToday)} e lo hai già superato.`
     );
   });
 
@@ -401,12 +401,12 @@ describe('coastFireView — the Scenari tile', () => {
     const projection = buildProjection();
     const netWorth = projection.scenarios.bull.coastFireNumberToday + 1;
     const rows = summarizeCoastScenarios(buildProjection(netWorth).scenarios, getDefaultScenarios(), netWorth);
-    expect(plain(describeCoastScenarios(rows))).toMatch(/il toro lo abbassa a .* e lo hai già superato\.$/);
+    expect(plain(describeCoastScenarios(rows))).toMatch(/il bull lo abbassa a .* e lo hai già superato\.$/);
 
     const reachedBase = summarizeCoastScenarios(buildProjection(projection.scenarios.base.coastFireNumberToday + 1).scenarios, getDefaultScenarios(), projection.scenarios.base.coastFireNumberToday + 1);
     const text = plain(describeCoastScenarios(reachedBase));
     expect(text).toMatch(/^Nel base hai superato il numero Coast FIRE \(/);
-    expect(text).toContain("l'orso alza il numero Coast FIRE a");
+    expect(text).toContain("il bear alza il numero Coast FIRE a");
     expect(text).toContain('e non ci sei ancora');
   });
 });

@@ -342,7 +342,9 @@ export function calculateWhatIfImpact(
       c.taxBrackets,
       undefined,
       c.capitalInflowsToday,
-      undefined,
+      // The tax on withdrawals, as the Coast tab passes it (fireService.ts, the three scenarios): without it the
+      // «Numero Coast oggi» here read lower than the Coast tab's own (collaudo 2026-10-05).
+      honestFor(baseline, baseline.netWorth)?.withdrawalTax,
       flowsBefore
     );
     const coastAfter = calculateCoastFIREMetrics(
@@ -357,7 +359,7 @@ export function calculateWhatIfImpact(
       c.taxBrackets,
       undefined,
       c.capitalInflowsToday,
-      undefined,
+      honestFor(baseline, adjusted.netWorth)?.withdrawalTax,
       flowsAfter
     );
 

@@ -96,7 +96,7 @@ function describeCapital(capital: FireCapital): Narrative {
 }
 
 /**
- * «Portafoglio target · Base 8,3% (reale 5,1%), Orso 6,0%, Toro 11,1% · inflazione 3,0%», with «· leva 1,5×» when the weights
+ * «Portafoglio target · Base 8,3% (reale 5,1%), Bear 6,0%, Bull 11,1% · inflazione 3,0%», with «· leva 1,5×» when the weights
  * sum above 100%, then «· costi 0,36% (TER 0,16%, bollo 0,20%)» (the rates above are net of them), then «· spesa 32.000 € dal Cashflow 2025 · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €)».
  */
 export function describeFireAssumptions(assumptions: FireAssumptions): Narrative {
@@ -107,9 +107,9 @@ export function describeFireAssumptions(assumptions: FireAssumptions): Narrative
     figure(pct(base.growthRate)),
     prose(' (reale '),
     figure(pct(base.realReturnRate)),
-    prose('), Orso '),
+    prose('), Bear '),
     figure(pct(bear.growthRate)),
-    prose(', Toro '),
+    prose(', Bull '),
     figure(pct(bull.growthRate)),
     prose(' · inflazione '),
     figure(pct(base.inflationRate)),
