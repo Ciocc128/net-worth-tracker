@@ -2576,3 +2576,263 @@ verifica Runway) sono in un'unica PR.
 | La tessera Delta cambia altezza da un evento all'altro. | Ordine fisso; le righe spariscono soltanto. |
 | Gli e2e cercano la Sensibilità nel What If. | Nessuna spec Playwright copre il What If (guida); `fire.spec.ts` del Calcolatore va riletto sul Mac. |
 
+
+---
+
+## 17. Coast — Afflussi con i flussi datati, Traguardo a tre tappe (passo 7 del riallineamento, task CO1)
+
+> Aggiunta il 05/10/2026 (thread «spec», card Todoist «FEAT FIRE: Coast › Afflussi, mostrare i flussi datati e sparire
+> quando è vuota» e «FEAT FIRE: Coast › Traguardo, striscia a tre tappe (oggi, al target, a regime)», passo 7
+> dell'ordine delle card FEAT FIRE). Le due idee sono approvate dal proprietario nelle card (05/10); le decisioni
+> D-CO1–D-CO8 sono proposte dal thread. **Solo presentazione**: nessuna formula del numero Coast cambia; tre cifre
+> nuove sono letture della camminata che esiste già (RCO1–RCO3). Base di codice: commit `540835c` (`main` del fork,
+> merge della PR #73).
+
+### 17.1 Obiettivo
+
+Due cose che il Tour della pagina FIRE ha trovato nella scheda Coast:
+
+1. **Afflussi** elenca solo pensioni di Stato e fondo pensione. I flussi datati (un affitto, un'eredità, il mutuo dopo
+   il target) pesano sul numero Coast da § 12 (RF9) ma non compaiono, e senza afflussi la tessera dice soltanto
+   «nessun afflusso».
+2. **Traguardo** mostra il numero Coast di oggi come eroe e la cifra al target nella didascalia; la cifra **a regime**
+   («A regime servono 880.121 € al 3,5%») sta nel Dettaglio, e nessuno dice che le tre sono lo stesso percorso visto a
+   tre date.
+
+### 17.2 Stato di partenza (verificato nel codice, 05/10/2026)
+
+| Dove | Oggi |
+| --- | --- |
+| `fireService.ts:1008-1147` (`buildCoastFIRERetirementNeeds`) | La camminata parte **dalla cifra a regime** (`steadyStatePortfolioNeed` = fabbisogno a regime ÷ SWR) all'orizzonte `walkYears = max(anni di ponte fino all'ultima pensione, ultimo sblocco del fondo)` e torna all'età obiettivo: `R ← (R + fabbisogno dell'anno)/(1+r) − afflusso dell'anno`. |
+| `fireService.ts:1150-1244` (`calculateCoastFIREMetrics`) | `R_T = retirementCapitalRequired` (+ RF5 dei flussi); numero Coast `C = R_T/(1+r)^T − Σ L_s/(1+r)^s` (D-F11); `futureValueAtRetirementWithoutNewContributions = X·(1+r)^T` **senza** le una tantum. |
+| `fireService.ts:1316-1480` (`calculateCoastFIREProjection`) | Le serie del grafico portano le una tantum cresciute al rendimento dello scenario (§ 12, «the chart agrees with the number»). |
+| `coastFireView.ts:647-664` (`capitalClause`) | Il verdetto dice «arriveresti a 50 anni con `futureValueAtRetirement` … contro `retirementCapitalRequired`»: **con un'una tantum prima del target la prima cifra non è quella del grafico** (esempio di § 17.8: 410.000 € nel verdetto, 514.212 € sulla linea Base). |
+| `coastFireView.ts:844-883` (`buildCoastInflowEvents`) | Eventi = pensioni di Stato (`pensionBreakdown`) + fondo pensione (`pensionInflowsToday`). I flussi datati non ci sono. |
+| `coastFireView.ts:885-907` (`describeCoastInflows`), `AfflussiTile.tsx` | Senza eventi la tessera resta, con la sola lettura «Nessun afflusso dopo il target: il portafoglio deve sostenere per intero le spese anche dopo i 60 anni.» Piede: «Già scontati: per questo il numero Coast FIRE è più basso di un numero FIRE pieno.» |
+| `CoastTraguardoTile.tsx` | Sotto-occhiello, eroe (mancano / oltre), chip del progresso con la didascalia (`describeCoastTargetCaption`: «570.530 € richiesti a 60 anni, scontati al …»), barra, grafico, piede. |
+| `CoastDettaglio.tsx:113-136` | «Al target e a regime»: riga «Capitale a regime» = `steadyStatePortfolioNeed`, etichetta «A regime · dal {anno dell'ultima pensione}». Con i flussi datati la riga **non** li conta (la camminata li somma solo al target, con RF5). |
+| `CoastFireTab.tsx:117-122` | Griglia: Traguardo (5, due righe) · Afflussi (7) · Scenari (7). |
+
+**Proprietà della camminata (verificata, § 17.8 CO1–CO4).** Senza flussi datati, se nessun `max(0, ·)` della
+camminata scatta, il capitale «in rotta» meno il capitale richiesto vale a ogni data `M·(1+r)^t`, con
+`M = X − C` (patrimonio meno numero Coast di oggi, con segno). Un solo margine, che cresce al rendimento reale:
+**le tre tappe dicono sempre sì o sempre no tutte insieme.** La frase della card «Sì, puoi smettere di versare, ma a
+regime mancano N €» non può comparire: la cifra a regime è già dentro il numero di oggi.
+
+### 17.3 Perimetro
+
+**Incluso**
+- Le tre tappe nella tessera Traguardo (RCO1–RCO4), con le cifre nuove calcolate in `fireService` come campi di
+  `CoastFIREMetrics` (la scheda non calcola niente, `doc/guide/fire.md`).
+- La cifra «ne avrai al target» unica: quella del grafico, anche nel verdetto (RCO2).
+- La cifra a regime unica: tappa e riga «Capitale a regime» del Dettaglio (RCO3).
+- I flussi datati che il numero Coast conta tra gli eventi della tessera, entrate e uscite (RCO5–RCO6).
+- La tessera che sparisce quando non c'è nessun evento, con la riga nel piede del Traguardo (RCO7) e la griglia a due
+  tessere (RCO8).
+
+**Escluso**
+- Ogni modifica al numero Coast, al requisito al target o alla regola D-F11.
+- La seconda frase del verdetto (D-CO2).
+- Il nome definitivo delle cifre rispetto al numero FIRE del Calcolatore: lo fissa la card «Un numero FIRE solo»
+  (passo 9, glossario). Qui l'etichetta di «a regime» dice in cosa differisce (D-CO4), il glossario la potrà rinominare.
+- Lo stato «niente registrato» (nessun patrimonio, spesa o età): le tre tessere restano con il loro occhiello, come oggi
+  (la tessera Afflussi sparisce solo quando la proiezione c'è e non ha eventi).
+- Gli scenari Bear e Bull nelle tappe: le tappe sono dello scenario Base, come l'eroe.
+
+### 17.4 Casi d'uso
+
+1. **Non ancora.** 35 anni, obiettivo 50, una pensione dal 2058: il Traguardo dice «Mancano 85.306 €»; sotto, oggi
+   servono 285.306 € e ne hai 200.000 €; a 50 anni (2041) servono 584.878 € e ne avrai 410.000 €; a regime (dal 2058,
+   67 anni, tutte le pensioni) servono 550.816 € e ne avrai 156.307 €. Il lettore vede che il buco cresce con gli anni
+   e che la cifra del Dettaglio è la terza tappa dello stesso percorso.
+2. **Già raggiunto.** Con 300.000 € le tre tappe sono tutte sì: 300.000 su 285.306, 615.000 su 584.878, 618.768 su
+   550.816.
+3. **Un'eredità nel 2036.** La tappa al target dice «ne avrai 514.212 €», come la linea Base del grafico e come il
+   verdetto (che oggi dice 410.000 €).
+4. **Un affitto dopo il target.** La tessera mostra «Affitto · dal 2042 · +6.000 € l'anno»; la tappa a regime chiede
+   402.106 € invece di 550.816 €, come la riga del Dettaglio.
+5. **Nessun afflusso.** Né pensioni, né fondo bloccato, né flussi contati: la tessera Afflussi non c'è, Scenari sta
+   accanto al Traguardo, e il piede del Traguardo chiude con «Nessun afflusso dopo il target: il portafoglio sostiene da
+   solo tutta la spesa anche dopo i 50 anni.»
+6. **Solo uscite.** Un'auto nel 2030 e nessuna pensione: la tessera c'è, si chiama «Afflussi e uscite» e mostra l'auto
+   con il segno meno.
+
+### 17.5 Regole di calcolo
+
+Notazione: `X` patrimonio FIRE (libero, fondo bloccato escluso), `C` numero Coast di oggi, `T` anni all'età obiettivo,
+`r` rendimento reale Base, `R_T` capitale richiesto al target (`retirementCapitalRequired`, con RF5),
+`H = walkYears` orizzonte della camminata dal target, `I_H` afflusso del fondo che atterra a `H`, `M = X − C`.
+Tutte le cifre in euro di oggi, scenario Base.
+
+**RCO1 — Tappa «Oggi».** Servono `C`, ne hai `X`. È il confronto dell'eroe (nessuna cifra nuova).
+
+**RCO2 — Tappa «Al target»** (assente se `T = 0`). Servono `R_T`, ne avrai
+
+```
+Y_T = R_T + M·(1+r)^T            // = X·(1+r)^T + Σ_{s=1..T} L_s·(1+r)^(T−s)
+```
+
+cioè il valore della serie Base del grafico all'età obiettivo (le una tantum comprese). Campo nuovo
+`capitalAtRetirementOnCourse` di `CoastFIREMetrics`. **Il verdetto (`capitalClause`) usa `Y_T` al posto di
+`futureValueAtRetirementWithoutNewContributions`**: senza una tantum le due cifre coincidono, con un'una tantum prima
+del target il verdetto smette di contraddire il grafico. `futureValueAtRetirementWithoutNewContributions` resta per
+chi altro lo legge.
+
+**RCO3 — Tappa «A regime»** (assente se `H = 0`: nessuna pensione e nessuno sblocco dopo il target). Servono
+
+```
+S_H = max(0, steadyStatePortfolioNeed − I_H) + adj_H
+adj_H = flowsRequirementAdjustment(retirementYear = T + H, expensesAtRetirement = spesa,
+        pensionNetAt = pensione netta a regime (tutte attive), pensionHorizon = 0,
+        realReturnRate = tasso dei flussi di RF5, taxMultiplier = quello del requisito, scale = (1+π)^−(T+H))
+        // 0 senza flussi datati
+```
+
+cioè il punto da cui la camminata parte (senza flussi è esattamente `steadyStatePortfolioNeed`), con i flussi che
+restano dopo quell'anno valutati con la stessa RF5 del requisito al target. Ne avrai
+
+```
+Z_H = S_H + M·(1+r)^(T+H)
+```
+
+Campi nuovi `regimeYears` (`H`), `regimeCapitalRequired` (`S_H`), `capitalAtRegimeOnCourse` (`Z_H`);
+`buildCoastFIRERetirementNeeds` restituisce in più `walkYears` e `inflowAtHorizon` (nessun calcolo cambia). Senza flussi
+`Z_H` coincide con il capitale che si ottiene facendo girare in avanti `Y_T` con gli stessi fabbisogni e afflussi della
+camminata (CO2); con i flussi datati la definizione per margine è quella che vale (D-CO3). La riga «Capitale a regime»
+del Dettaglio, la sua lettura (`describeTargetAndSteadyState`) e la tappa leggono `S_H`; l'etichetta «A regime · dal
+{anno}» del Dettaglio prende l'anno `annoCorrente + T + H` (oggi l'anno dell'ultima pensione: diverso solo quando il
+fondo si sblocca dopo l'ultima pensione).
+
+**RCO4 — Esito di ogni tappa.** `ne avrai ≥ servono` (con la tolleranza di mezzo euro dell'eroe) → «basta»; altrimenti
+«mancano N €», `N = servono − ne avrai`. Per RCO2–RCO3 l'esito è lo stesso nelle tre tappe salvo un `max(0, ·)` della
+camminata che scatta; la striscia non lo assume, legge ogni tappa per sé.
+
+**RCO5 — Flussi che la tessera mostra.** Esattamente quelli che il numero Coast conta (D-F11, RF5 al target), dai
+`resolved` di `useFireDatedFlows` (obiettivi con «Alla scadenza lo spendo» compresi):
+- ogni una tantum (`lumpIn`, `lumpOut`) con anno `≥ 1` (prima del target conta con RF9, dopo con RF5);
+- ogni ricorrente (`income`, `expense`, mutuo collegato) **attiva in almeno un anno dopo il target**; compare dal primo
+  anno contato, `max(inizio, T + 1)`, con la nota «conta da {età obiettivo + 1} anni» quando è iniziata prima;
+- non compaiono le ricorrenti che finiscono entro il target (le copre il lavoro, D-F11) né i flussi esclusi (li dice
+  già la riga «Ipotesi usate»).
+
+**RCO6 — Importi in euro di oggi.** Una tantum: indicizzata → l'importo; fissa → `importo / (1+π)^s`. Ricorrente:
+l'importo annuo del primo anno contato, deflazionato allo stesso modo se fisso (il mutuo: la rata annua di quell'anno).
+Segno: `+` entrate (`income`, `lumpIn`), `−` uscite. Pensioni e fondo come oggi.
+
+**RCO7 — Tessera assente.** Nessun evento (pensioni + fondo + flussi di RCO5) → la tessera Afflussi non si disegna e
+il piede del Traguardo (`describeCoastTargetFooter`) aggiunge in coda «Nessun afflusso dopo il target: il portafoglio
+sostiene da solo tutta la spesa anche dopo i {età obiettivo}.»
+
+**RCO8 — Griglia.** Con la tessera: come oggi. Senza: Traguardo `desktop:col-span-5` (una riga), Scenari
+`desktop:col-span-7`; su tablet e telefono l'ordine Traguardo → Scenari. Lo scheletro di caricamento resta a tre celle
+(non sa ancora se ci saranno eventi).
+
+### 17.6 Cosa vede l'utente
+
+**Traguardo** — sotto la barra del progresso e sopra il grafico, la striscia «Tre tappe» (`role="list"`,
+`aria-label="Tappe del Coast FIRE"`), una cella per tappa:
+
+```
+OGGI                     A 50 ANNI · 2041          A REGIME · DAL 2058
+servono 285.306 €        servono 584.878 €         servono 550.816 €
+ne hai 200.000 €         ne avrai 410.000 €        ne avrai 156.307 €
+mancano 85.306 €         mancano 174.878 €         mancano 394.509 €
+```
+
+- Su desktop e tablet tre colonne uguali; sotto i 640px tre righe impilate (le tre tappe restano tutte: nessuna
+  «non regge» da sola, RCO4).
+- Esito: «basta» con l'icona di spunta nel colore positivo; «mancano N €» nell'inchiostro neutro (essere al 76% non è
+  un fatto con un segno, come il chip del progresso).
+- Sotto la terza cella, una riga del metodo: «A regime: spesa meno tutte le pensioni, diviso lo SWR del 4%, nel 2058.
+  Non è il numero FIRE del Calcolatore, che vale all'anno FIRE.» Con i flussi: «… più i flussi datati dopo il 2058.»
+- Con una tappa sola (`T = 0` e `H = 0`) la striscia non c'è: l'eroe dice già tutto.
+- La didascalia accanto al chip perde «570.530 € richiesti a 60 anni, scontati al …» (è la seconda tappa) e tiene la
+  lettura con i soli liquidi.
+- Il verdetto resta di una frase (D-CO2) con `Y_T` (RCO2).
+
+**Afflussi** — occhiello «Afflussi e uscite» quando c'è almeno un'uscita, «Afflussi» altrimenti (D-CO5);
+`aria-label` «Afflussi già considerati» invariato (le spec Playwright lo cercano). La rotaia aggiunge i flussi di RCO5
+in ordine di anno (icona entrata o uscita, titolo = etichetta del flusso, importo con segno, didascalia «una tantum» o
+«l'anno», nota «fino al 2052» / «per sempre» / «conta da 51 anni»). Oltre sei eventi la rotaia ne mostra sei e un
+settimo segno «+N», l'elenco intero nella lettura.
+
+- Lettura (`describeCoastInflows`): conta tutte le voci («5 voci già contate: il fondo pensione rientra nel 2045
+  (31.400 €), poi dal 2058 la Pensione INPS copre 7.967 € netti l'anno; flussi datati: Eredità nel 2036 (+82.035 €),
+  Affitto dal 2042 (+6.000 € l'anno)»).
+- Piede: «Già contati nel numero Coast FIRE: le entrate lo abbassano, le uscite lo alzano.» Il metodo aggiunge un
+  paragrafo: «I flussi datati sono quelli di Il mio piano che il numero conta: le una tantum da qui al target e ogni
+  flusso dopo il target. Le spese ricorrenti prima del target le copre il lavoro.»
+
+### 17.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-CO1 | **Proposta** (05/10/2026) | Ogni tappa mostra **servono, ne avrai (ne hai) ed esito**; l'eroe resta il numero di oggi (card approvata). | Solo «servono» (il percorso del requisito senza il confronto: il lettore non vede il buco crescere); servono e mancano senza «ne avrai» (toglie la cifra che il verdetto cita). |
+| D-CO2 | **Proposta** (05/10/2026) | **Nessuna seconda frase nel verdetto**: le tre tappe hanno un margine solo (§ 17.2), «a regime mancano N €» con il sì in testa non può comparire. Il verdetto tiene la frase sul capitale al target (lo dice in prosa, la striscia è il posto delle cifre, come D-W4). | Seconda frase quando una tappa non regge (codice che non scatta mai); togliere dal verdetto la frase sul capitale al target (resterebbe il buco senza la data). |
+| D-CO3 | **Proposta** (05/10/2026) | **«Ne avrai» per margine** (RCO2, RCO3): `servono + M·(1+r)^t`, calcolato in `fireService`. | Una seconda camminata in avanti (una formula in più che con i flussi datati non coincide con RF5, e l'esito delle tappe potrebbe contraddire il numero di oggi). |
+| D-CO4 | **Proposta** (05/10/2026) | Etichetta «**A regime · dal {anno}**» con la riga del metodo che dice in cosa differisce dal numero FIRE del Calcolatore (tutte le pensioni, un'altra data). Il nome definitivo lo fissa il glossario (passo 9). | «Numero FIRE a regime» (quinto «numero FIRE», il problema della card del numero unico); nessuna riga (880.121 € accanto ai 606.961 € del Calcolatore senza spiegazione). |
+| D-CO5 | **Proposta** (05/10/2026) | Afflussi mostra **entrate e uscite** che il numero conta (RCO5), occhiello «Afflussi e uscite» quando c'è un'uscita. | Solo entrate (il mutuo dopo il target o la casa di un obiettivo alzano il numero senza comparire). |
+| D-CO6 | **Proposta** (05/10/2026) | Senza eventi la tessera **sparisce** (card approvata) e la riga va nel **piede del Traguardo** (RCO7). | Chip «Flussi» della riga Ipotesi usate (parla dei flussi datati, non di pensioni e fondo; e la riga è un fatto sul numero, non un'ipotesi); una riga a sé nella griglia (una tessera vuota con un altro nome). |
+| D-CO7 | **Proposta** (05/10/2026) | Sul telefono le **tre tappe impilate**, tutte visibili. | Solo la tappa che non regge o l'ultima (proposta della card): con l'esito sempre uguale non c'è una tappa che non regge da sola, e l'ultima da sola nasconde l'unica cifra che il verdetto cita. |
+| D-CO8 | **Proposta** (05/10/2026) | Il verdetto usa `Y_T` (RCO2): una cifra sola per «ne avrai al target» tra verdetto, tappa e grafico. | Lasciare `futureValueAtRetirement` (con un'una tantum il verdetto dice 410.000 € e grafico e tappa 514.212 €). |
+
+### 17.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Esempio comune (le ipotesi di F15, § 12.9): 1° gennaio 2026, età 35, obiettivo 50 (`T` = 15), `g` = 7%, `π` = 2%
+(`r` = 4,901961%), spesa 30.000 €, SWR 4%, nessuna tassa; una pensione «Pensione INPS» di 1.500 € lordi × 13 dal
+1° gennaio 2058 (netta reale 7.967,36 € l'anno, `H` = 17, regime a 67 anni), scaglioni IRPEF predefiniti. Valori
+letti dal codice in `main` (`calculateCoastFIREMetrics`, `calculateCoastFIREProjection`, `flowsRequirementAdjustment`).
+Tolleranza ± 0,01 €.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| CO1 | `X` = 200.000, nessun flusso | `C` = 285.306,37; `R_T` = 584.878,37, `Y_T` = 410.000,22 (= `futureValueAtRetirement…` = ultima serie Base del grafico); `S_H` = 550.816,12 (= `steadyStatePortfolioNeed`), `Z_H` = 156.307,16; mancano 85.306,37 / 174.878,16 / 394.508,96 |
+| CO2 | CO1, `Z_H` in avanti | far crescere 410.000,22 € per 17 anni al 4,901961% pagando 30.000 € a fine anno dà 156.307,16 € (= `Z_H`) |
+| CO3 | `X` = 300.000, nessun flusso | `Y_T` = 615.000,32, `Z_H` = 618.768,45; le tre tappe «basta» |
+| CO4 | CO1 con l'eredità di F2 (100.000 € fissi nel 2036) | `C` = 234.471,44; `Y_T` = 514.211,87 (= serie Base del grafico all'anno 15; non più 410.000,22) e il verdetto dice 514.212 €; `S_H` = 550.816,12, `Z_H` = 391.399,03 |
+| CO5 | CO1 con un affitto di 6.000 € indicizzati, ancorato al FIRE (`afterYears` 0), per sempre | `C` = 219.631,02; `R_T` = 450.243,83, `Y_T` = 410.000,22; `S_H` = 402.105,84 (anche nella riga «Capitale a regime» del Dettaglio), `Z_H` = 311.319,96 |
+| CO6 | CO1 con il fondo bloccato di 40.000 € che si sblocca a 25 anni da oggi (`capitalInflowsToday`) | `C` = 245.306,37, `R_T` = 502.878,33 (nessun cambiamento rispetto a `main`); `H` = 17 |
+| CO7 | Nessuna pensione, nessun fondo, nessun flusso | `H` = 0: due tappe (oggi, al target); la tessera Afflussi non c'è; il piede del Traguardo chiude con la frase di RCO7; griglia RCO8 |
+| CO8 | `T` = 0 e `H` = 0 | nessuna striscia |
+| CO9 | RCO5, flussi di CO4 + CO5 + un figlio di 6.000 € dal 2028 per 20 anni + un'auto di 30.000 € nel 2029 | eventi: Eredità 2036 +82.034,83 € una tantum; Auto 2029 −28.269,00 € (`30.000/1,02³`); Figlio dal 2042 −6.000 € l'anno «conta da 51 anni», fino al 2047; Affitto dal 2042 +6.000 € l'anno, per sempre; occhiello «Afflussi e uscite» |
+| CO10 | RCO5, un mutuo che finisce nel 2034 (prima del target) | non compare tra gli eventi |
+| CO11 | Senza flussi datati | `buildCoastFIRERetirementNeeds`, `calculateCoastFIREMetrics` e `calculateCoastFIREProjection`: ogni campo esistente identico a `main` (i test di Coast e del ponte del Calcolatore non cambiano) |
+
+### 17.9 Task CO1 — Coast: tappe e Afflussi (thread «impl», Sonnet 5.5)
+
+**Moduli**
+- `lib/services/fireService.ts`: `buildCoastFIRERetirementNeeds` restituisce `walkYears` e `inflowAtHorizon`;
+  `CoastFIREMetrics` guadagna `capitalAtRetirementOnCourse`, `regimeYears`, `regimeCapitalRequired`,
+  `capitalAtRegimeOnCourse` (RCO2, RCO3), calcolati in `calculateCoastFIREMetrics` con lo stesso `schedule` e lo
+  stesso tasso dei flussi del requisito.
+- `lib/utils/coastFireView.ts`: `CoastTarget` con le tre tappe (`summarizeCoastStages`, o campi in
+  `summarizeCoastTarget`), `capitalClause` su `Y_T`, `describeCoastTargetCaption` senza la cifra al target,
+  `describeCoastTargetFooter` con la frase di RCO7, `buildCoastInflowEvents` con i flussi (nuovo `kind`:
+  `datedIn` / `datedOut`, campo `sign`), `describeCoastInflows`, `COAST_INFLOWS_FOOTER`, `COAST_INFLOWS_METHOD`,
+  `describeTargetAndSteadyState` su `S_H`.
+- `components/fire-simulations/coast/tiles/CoastTraguardoTile.tsx`: la striscia; `AfflussiTile.tsx`: occhiello, icone
+  dei flussi (per esempio `ArrowDownLeft`/`ArrowUpRight`), cap a sei; `CoastFireTab.tsx`: passa `resolvedFlows` e
+  l'inflazione Base a `buildCoastInflowEvents`, RCO7, RCO8; `coast/CoastDettaglio.tsx`: riga e anno di RCO3.
+
+**Test** — `__tests__/coastFireView.test.ts` e il test dei flussi di Coast (`datedFlows.test.ts` § F15 o un nuovo
+`coastStages.test.ts`): CO1–CO11; il test di parità di Coast («every euro printed is one of the projection's own
+numbers») esteso alle tre tappe.
+
+**Documentazione** (stessa PR): `doc/guide/fire-coast.md` (Traguardo, Afflussi, blind spot: «le tre tappe hanno lo
+stesso esito»), `doc/guide/fire.md` § Files se cambia qualcosa, `CLAUDE.md` (Latest), `Draft Release Temp.md`; in
+questo dossier l'esito del task in coda a § 17.9.
+
+**Criterio di fine**: CO1–CO11 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+`TZ=Europe/Rome npx vitest run`. Le spec Playwright `e2e/coast*.spec.ts` (la striscia, la tessera che sparisce con la
+fixture senza pensioni, `coast.mobile.spec.ts` per la striscia impilata) si aggiornano nella PR e si eseguono in un
+thread sul computer del proprietario.
+
+### 17.10 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Tre cifre in più nella tessera più guardata. | Una striscia di tre celle brevi; la didascalia perde la cifra al target (passa nella tappa). |
+| Il lettore si aspetta tappe con esiti diversi. | La regola è scritta nel blind spot della guida; la striscia mostra il buco che cresce, che è l'informazione nuova. |
+| Con i flussi datati «ne avrai a regime» non è una simulazione in avanti. | Definizione per margine dichiarata (D-CO3); senza flussi coincide (CO2). |
+| La tessera Afflussi che sparisce rompe `coast.degraded.spec.ts` / `coast.mobile.spec.ts`. | La tessera sparisce solo con la proiezione; lo stato «niente registrato» la tiene (§ 17.3); le spec si rileggono sul Mac. |
+| Merge con upstream su `fireService.ts` e i file di Coast. | Campi nuovi in coda, nessuna firma cambiata; voce in `doc/guide/fork-scelte-ui.md`. |
