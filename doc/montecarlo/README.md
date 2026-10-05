@@ -10,7 +10,7 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; testo UI in italiano.
 >
-> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026) → T5 («Dopo il FIRE», § 12, aggiunta il 05/10/2026). Ogni task parte da sola da `main` dopo il merge della
+> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026) → T5 («Dopo il FIRE», § 12, aggiunta il 05/10/2026) → T6 (soglia della Proiezione, Tappe prima, via la Distribuzione, § 13, aggiunta il 05/10/2026). Ogni task parte da sola da `main` dopo il merge della
 > precedente; nessuna richiede codice non ancora scritto da una task successiva.
 
 ---
@@ -701,7 +701,7 @@ percentile reale è il nominale diviso per lo stesso fattore).
 `P(V_t^reale < K)` = probabilità di finire sotto il capitale di partenza in potere d'acquisto. Con versamenti
 la seconda resta su `K`, non su `K + versato` (lo dice il footer).
 
-**RV6 — Soglia di default**: il numero FIRE di oggi, `spesa del piano (RP6) ÷ SWR` (`settings.withdrawalRate`, 4%
+**RV6 — Soglia di default** (*sostituita da § 13, RN1–RN4, il 05/10/2026: la soglia di default è il numero FIRE del Calcolatore anno per anno*): il numero FIRE di oggi, `spesa del piano (RP6) ÷ SWR` (`settings.withdrawalRate`, 4%
 se assente), in euro di oggi. Se la spesa non c'è (né Impostazioni né Cashflow), nessuna soglia di default: il
 campo resta vuoto, la riga della probabilità sparisce e il tile Parametri dice «scrivi una soglia».
 
@@ -1142,5 +1142,237 @@ non più importato).
   oggi, griglia nuova, via Distribuzione ed Esaurimento, tempi misurati; blind spot di DF3. `doc/guide/fire.md` (nome
   della scheda, `startYear`, `baseCostBasis`), `doc/guide/fire-proiezione.md` (il testo che nomina la scheda),
   `CLAUDE.md` riga «FIRE» e «Latest», `doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`.
+- Fine: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`, `TZ=Europe/Rome npx vitest
+  run` verdi. Collaudo una fase per messaggio (WORKFLOW.md § 2).
+
+---
+
+## 13. T6 — Proiezione: la soglia è il numero FIRE del Calcolatore, Tappe prima, via la Distribuzione (spec del 05/10/2026)
+
+> **Stato**: spec scritta il 05/10/2026; decisioni DN1–DN5 in § 13.8 (da confermare con il proprietario nel thread
+> della spec). Non ancora implementata.
+>
+> Origine: passo 6 dell'ordine approvato (`/mnt/project-files/fire-simulazioni/ordine-feat-fire.md`), card Todoist
+> della scheda Proiezione: «FIRE: soglia della Proiezione vs numero FIRE del Calcolatore (da verificare, soluzione da
+> discutere)» (la card che chiede questa spec), «FEAT FIRE: Proiezione, tessera Tappe subito dopo il verdetto»,
+> «FEAT FIRE: togliere la tessera Distribuzione dalla Proiezione», «FIX FIRE: riallineare la UI della Proiezione alle
+> altre schede (stato «premuto» dei tasti)». Una spec, **una impl** per le quattro: toccano la stessa scheda.
+> Base di codice analizzata: commit `6d72d70` (05/10/2026, `main` del fork, merge della PR #71, What If). Le ipotesi
+> della pagina sono quelle di `doc/fire-ipotesi/README.md` (RP1–RP7, § 12 RF5, § 15 Base di calcolo): questa task le
+> **legge**, non ne scrive di nuove. **Nessuna matematica nuova**: la soglia è una cifra che il Calcolatore calcola
+> già, anno per anno.
+>
+> Letture obbligatorie, oltre a § 0: § 11 di questo dossier (RV1–RV7, V1–V8) e § 12.7.2 (`runBaselineProjection`);
+> `doc/guide/fire-proiezione.md` per intero; `doc/guide/fire.md` § F1 (RF5 a un tasso, `flowsRealReturnRate`) e § H2
+> (Base di calcolo, `fireBaseLedger`); `doc/fire-ipotesi/README.md` § 12 (RF5, RF10) e § 13 (RO2,
+> `useWhatIfBaseline`). DESIGN.md: The Verdict-First Rule, The Stale-Run Rule, The Input Tile Rule, The Risk-vs-Fact
+> Rule, The Narrative Honesty Rule.
+
+### 13.1 Obiettivo
+
+Che «**il tuo numero FIRE**» nella Proiezione sia **la stessa cifra** del Calcolatore. Oggi la soglia di default della
+Proiezione è spesa ÷ SWR (RV6, nel Tour 720.000 €), mentre il Calcolatore dice 606.961 €: stesso nome, due cifre. Nello
+stesso giro la tessera che risponde (Tappe) sale subito dopo il verdetto e la Distribuzione, che ripete il Ventaglio a
+un anno solo, esce.
+
+### 13.2 Stato di partenza (verificato nel codice, 05/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| La soglia di default è `spesa del piano ÷ SWR` (RV6), una retta in euro di oggi; il form la semina una volta come testo e la scheda la riconosce come «numero FIRE» solo se il testo è uguale a quella cifra (`threshold === defaultThreshold`) | `ProjectionTab.tsx:196-200, 228, 361`, `projectionSummary.ts` (`resolveProjectionThreshold`) |
+| **La Proiezione conta già i flussi datati** nel capitale (F2, RF10: i forfait ogni anno, le spese e le entrate ricorrenti nel versamento finché si versa) e il fondo pensione bloccato come afflusso allo sblocco | `ProjectionTab.tsx:176-183, 270-290`, `doc/guide/fire-proiezione.md` § Dated flows |
+| Il numero FIRE del Calcolatore è `R4` di `buildFireLedger`: spesa ÷ SWR, poi tassa sul prelievo, pensioni statali, fondo bloccato (ponte) e flussi datati (RF5), un passo dopo l'altro | `lib/utils/fireBaseLedger.ts`, `fireService.ts` (`resolveFireRequirement`) |
+| Il Calcolatore ricalcola il requisito **ogni anno** del suo cammino (`baseFireNumber` di ogni riga, **nominale** dell'anno: spesa indicizzata `(1+π)^t`), ed è la linea «Target FIRE» del suo Ventaglio (`resolveFanFireTargets` = `[oggi, baseFireNumber_1…]`) | `fireService.ts` (`calculateFIREProjection`, `resolveFanFireTargets`), `FireFanChart.tsx` (linea tratteggiata `fireTarget`) |
+| Il cammino del Base sul piano salvato esiste già fuori dal Calcolatore: `useWhatIfBaseline` + `runBaselineProjection` (lo usa «Dopo il FIRE», T5); oggi si ferma 5 anni dopo l'ultimo FIRE o a 50 anni (`WHAT_IF_HORIZON_YEARS`) | `lib/hooks/useWhatIfBaseline.ts`, `whatIfService.ts:302` |
+| Il requisito di oggi del What If (`resolveFireMetrics`) è quello del Calcolatore: la stessa `resolveFireRequirement` con `yearsElapsed: 0` | `whatIfService.ts` (`resolveFireMetrics`) |
+| Griglia: desktop Ventaglio 5 \| Distribuzione 4 \| Scenari 3 · Tappe 12 · Parametri 12; mobile Ventaglio → Tappe → Distribuzione → Scenari → Parametri | `ProjectionTab.tsx` (header e `order-*`) |
+| La lettura del Ventaglio dice già «metà delle simulazioni sta tra X e Y» (25°–75°): è la stessa frase della Distribuzione | `projectionNarrative.ts` (`describeVentaglio`, `describeDistribuzione`) |
+| Lo scope di Tappe è un `AsideToggle` (come il Traguardo del Calcolatore); i semi dei pesi hanno lo stato premuto pieno (`WeightsFields`, collaudo #62); «Totale / Liquido» sono `Button variant="outline"` come in «Dopo il FIRE» | `TappeTile.tsx`, `WeightsFields.tsx`, `components/{projection,monte-carlo}/tiles/ParametriTile.tsx` |
+| Nessuna spec Playwright apre la Proiezione (le occorrenze in `e2e/fire.spec.ts` sono il toggle «Vista della proiezione» del Calcolatore) | `e2e/` |
+
+**Esito della verifica chiesta dalla card**: la Proiezione conta i flussi datati alle loro date, quindi la retta a
+spesa ÷ SWR confronta un capitale **con** i flussi con un fabbisogno **senza**. L'opzione 2 della card («rinominare»)
+non basta: la soglia coerente è quella del Calcolatore, anno per anno (opzione 1). La cifra di 606.961 € è il requisito
+di **oggi**, quella di 720.000 € il valore a flussi esauriti senza tassa e pensioni.
+
+### 13.3 Perimetro
+
+**Incluso**
+- Soglia di default = numero FIRE del Calcolatore **anno per anno**, in euro di oggi (RN1–RN3); una soglia scritta a
+  mano resta una retta («soglia», RN4).
+- La linea della soglia nel Ventaglio diventa una serie; Tappe mostra la soglia di ogni riga; verdetto e Scenari
+  leggono la soglia dell'orizzonte.
+- Tappe subito dopo il verdetto, su ogni larghezza (DN3); via la tessera Distribuzione (DN2).
+- Lo stato premuto del nuovo seme «Numero FIRE» con le classi di `AsideToggle`, e un confronto in codice dei
+  controlli della scheda con «Dopo il FIRE» e Calcolatore (card FIX, § 13.7.6).
+
+**Escluso**
+- Nessun cambio al motore (`runAccumulationSimulation`), ai percorsi, al seme: le cifre di P1–P9 non cambiano.
+- La soglia non segue i Parametri della Proiezione (capitale, versamento, pesi scritti qui): è il numero del
+  Calcolatore sul piano (DN4, dichiarato).
+- Il nome della scheda resta «Proiezione» (DN5); il glossario dei «numeri FIRE» tra le schede è il passo 9.
+- Spec Playwright: nessuna, come in § 11.3.
+
+### 13.4 Casi d'uso
+
+1. **Con un mutuo che finisce.** Il piano ha una spesa ricorrente che si chiude tra 10 anni: oggi il numero FIRE è più
+   alto, poi scende verso spesa ÷ SWR. La linea tratteggiata del Ventaglio scende; nella riga «10 anni» di Tappe la
+   probabilità usa la soglia di quell'anno, scritta sotto la percentuale.
+2. **Con un'eredità attesa.** Un forfait in entrata tra 5 anni abbassa il numero FIRE fino al quarto anno (arriverà
+   dopo), poi la soglia torna a spesa ÷ SWR mentre il capitale sale dello stesso forfait: la linea salta insieme ai
+   percorsi.
+3. **Senza flussi, tassa, pensioni né fondo bloccato.** La soglia è la retta di prima (spesa ÷ SWR in euro di oggi):
+   nessuna cifra cambia rispetto a T4.
+4. **«Un milione di oggi».** L'utente scrive 1.000.000: la soglia è una retta, l'etichetta dice «soglia», il tono del
+   verdetto è neutro. Il tasto «Numero FIRE» la riporta a quella del Calcolatore.
+
+### 13.5 Regole di calcolo
+
+**RN1 — La serie del numero FIRE** (nominale, dal piano): il cammino del Base del Calcolatore sul piano salvato
+(`useWhatIfBaseline` → `runBaselineProjection`, lo stesso di «Dopo il FIRE»), portato fino a `H` anni:
+
+```
+F_0     = requisito di oggi (resolveFireMetrics(baseline).fireNumber = il numero FIRE del Calcolatore, R4 della Base di calcolo)
+F_t     = baseFireNumber della riga t del cammino      t = 1 … H        (nominale dell'anno t)
+```
+
+È **la stessa serie** della linea «Target FIRE» del Ventaglio del Calcolatore (`resolveFanFireTargets`), non una
+formula nuova: spesa ÷ SWR, tassa sul prelievo (con la quota di plusvalenza del cammino), pensioni statali attive
+dall'età di ciascuna, ponte del fondo bloccato fino allo sblocco, flussi datati a valore attuale (RF5, al tasso reale
+del Base).
+
+**RN2 — In euro di oggi**: `S_t = F_t / (1 + π_b)^t`, `π_b` = inflazione del Base. Una sola serie per i tre scenari
+(DN1): il numero FIRE del Calcolatore è quello del Base, e senza tassa né pensioni i requisiti di Orso e Toro in euro
+di oggi coincidono con il Base per costruzione (spesa ÷ SWR + flussi a un tasso solo, RF5 di #62).
+
+**RN3 — Probabilità con la soglia mobile**: `P_t = #{percorsi con V_t^reale ≥ S_t} / n` (RV5 con `X = S_t`); la
+riga `t` di Tappe, il verdetto (`t` = orizzonte) e Scenari (`t` = orizzonte, `S_t` uguale per i tre) leggono la
+soglia del proprio anno. Nel Base, confrontare valori reali con `S_t` equivale a confrontare i nominali con `F_t`: è il
+test del Ventaglio del Calcolatore all'anno `t`, con una differenza dichiarata — qui il versamento continua anche dopo
+il FIRE (V2), là si ferma.
+
+**RN4 — Soglia scritta**: un importo scritto nel campo è una retta `S_t = X` in euro di oggi per ogni `t` (RV5 com'è).
+Senza piano calcolabile (nessuna spesa o SWR = 0: `runBaselineProjection` restituisce `projection: null`) non c'è
+soglia di default, come RV6: il campo resta vuoto, le righe della probabilità spariscono.
+
+**RN5 — Lettura, non esecuzione**: la serie viene dal piano, non dai percorsi: cambiarla (piano in bozza, flussi
+salvati) o passare tra «Numero FIRE» e una cifra scritta aggiorna le cifre **senza** nuova esecuzione e senza il
+footer «stantio», come la soglia di T4 (§ 11.6, P11).
+
+**RN6 — Lunghezza**: il cammino gira per `years = H` (`resolveRunYears(orizzonte)`, fino a 60) e non si ferma 5 anni
+dopo il FIRE (`calculateFIREProjection(…, maxYears = H, …, minYears = H)`); la serie ha `H + 1` valori (0…H).
+
+**RV6 è sostituita da RN1–RN4**; `resolveProjectionThreshold` resta solo se un altro chiamante la usa, altrimenti
+esce con il suo test.
+
+### 13.6 Cosa vede l'utente
+
+- **Verdetto** (Base, orizzonte scelto): con il numero FIRE «… Supera il tuo numero FIRE di quell'anno (826.000 € di
+  oggi) nel 45% delle simulazioni.»; con una soglia scritta «… Supera la soglia di 1.000.000 € di oggi nel 36% delle
+  simulazioni.» Il tono segue `resolveSuccessTone` solo con il numero FIRE (come oggi).
+- **Tappe** (prima tessera, 12 colonne su desktop, prima anche su tablet e telefono, tabella intera: al massimo sei
+  righe): la colonna «Sopra la soglia» porta sotto la percentuale, in piccolo come il nominale della mediana, la soglia
+  della riga («di 826.000 €»). Con una soglia scritta la sotto-riga non c'è (è la stessa per tutte, la dice il footer).
+- **Ventaglio** (8 colonne) e **Scenari a confronto** (4 colonne) sulla seconda riga. Nel Ventaglio la soglia è una
+  **linea tratteggiata che segue la serie** (`--muted-foreground`, come il «Target FIRE» del Calcolatore), etichetta
+  «numero FIRE»; con una soglia scritta resta la retta di oggi, etichetta «soglia». Footer: «la linea tratteggiata è
+  il tuo numero FIRE anno per anno (Calcolatore)» oppure «… è la soglia».
+- **Parametri**: accanto al campo «Soglia» un seme **«Numero FIRE»** con lo stato premuto pieno di `WeightsFields`
+  (`ASIDE_TOGGLE_ON_CLASS`/`OFF`, `aria-pressed`). Premuto = soglia del Calcolatore: il campo è vuoto e il suo
+  segnaposto dice «oggi 606.961 €, poi anno per anno». Scrivere un importo spegne il seme (soglia scritta); premerlo
+  svuota il campo e torna al numero FIRE. Suggerimento sotto il campo: «il numero FIRE del Calcolatore, anno per anno,
+  in euro di oggi: non segue il capitale e il versamento scritti qui» oppure, con una cifra scritta, «una cifra fissa
+  in euro di oggi». Senza piano il seme non c'è e resta il suggerimento di oggi («scrivi una soglia…»).
+- **Distribuzione**: non c'è più (DN2). La sua frase (25°–75°) è già nella lettura del Ventaglio.
+- **Dettaglio › Come si calcola**: un paragrafo per RN1–RN3 («la soglia è il numero FIRE del Calcolatore ricalcolato
+  ogni anno: flussi, pensioni, tassa e fondo bloccato lo spostano; qui il versamento continua dopo il FIRE») e il
+  limite DN4.
+
+Griglia: desktop Tappe 12 · Ventaglio 8 \| Scenari 4 · Parametri 12; tablet e telefono in colonna: verdetto → Tappe →
+Ventaglio → Scenari → Parametri. Lo scheletro (`SKELETON_CELLS`) segue la stessa geometria.
+
+### 13.7 Dettagli tecnici
+
+1. **Cammino** — `runBaselineProjection(baseline, options?: { years?: number })`: con `years` passa `maxYears = years`
+   e `minYears = years` a `calculateFIREProjection`; senza, identico a oggi («Dopo il FIRE» e What If non cambiano).
+2. **Serie** — nuovo puro `resolveProjectionFireSeries(baseline, years)` in `lib/utils/projectionSummary.ts` (o
+   accanto, se tira dentro `whatIfService` in modo scomodo per i test): restituisce `number[] | null` di lunghezza
+   `years + 1` in euro di oggi (RN1–RN2), `null` quando il piano non gira (RN4). `F_0` da `resolveFireMetrics`
+   (esportarla, o esporre il requisito di oggi da `runBaselineProjection`).
+3. **Soglia nel riepilogo** — `summarizeProjection(…, { threshold })` riceve
+   `ProjectionThreshold = { kind: 'fire'; series: readonly number[] } | { kind: 'fixed'; value: number } | null`;
+   `ProjectionFigures` guadagna `threshold: number | null` (la `S_t` della riga, per Tappe e verdetto). Con `kind:
+   'fixed'` le cifre sono identiche a oggi (P1–P12 verdi senza modifiche, a parte il tipo dell'argomento).
+4. **Scheda** — `ProjectionTab.tsx`: `useWhatIfBaseline()` (stesse chiavi di React Query, nessuna lettura in più);
+   `thresholdMode: 'fire' | 'fixed'` nello stato del form al posto del confronto `threshold === defaultThreshold`;
+   seme iniziale `'fire'` quando la serie esiste, altrimenti campo vuoto. La serie si ricalcola con `useMemo` su
+   baseline e `resolveRunYears(orizzonte)`, fuori dall'esecuzione (RN5).
+5. **Grafico** — `MonteCarloFanChart` guadagna `referenceSeries?: { values: readonly number[]; label: string }`
+   disegnata come `Line` tratteggiata neutra sulle stesse ascisse dei percentili; `referenceLine` resta per la retta.
+6. **Card FIX (stato premuto)** — il seme «Numero FIRE» nasce con le classi di `AsideToggle`; l'impl confronta in
+   codice i controlli della scheda (scope di Tappe, semi, «Totale / Liquido», bottone Prova, intestazioni ed etichette
+   dei campi) con `components/monte-carlo/tiles/ParametriTile.tsx` e `TraguardoTile.tsx` e allinea ogni differenza che
+   trova; ciò che solo l'occhio vede va nel collaudo sull'anteprima Vercel.
+7. **Distribuzione** — escono `components/projection/tiles/DistribuzioneTile.tsx`, `describeDistribuzione*`,
+   `histogram`/`histogramCap` del riepilogo; `valueHistogram.ts` resta se `monteCarloService.createDistribution` lo
+   importa ancora, `FinalValueBars` esce se nessuno lo importa più.
+
+### 13.8 Decisioni
+
+| # | Decisione | Alternative scartate e motivo |
+| --- | --- | --- |
+| DN1 | **Soglia mobile**: il numero FIRE del Calcolatore anno per anno, in euro di oggi, una serie sola (Base) per i tre scenari; una soglia scritta resta una retta. | Rinominare 720.000 € in «spesa ÷ SWR, senza flussi» (la Proiezione conta i flussi: confronterebbe un capitale con flussi a un fabbisogno senza, e resterebbe un quinto numero); retta a 606.961 € (il requisito di oggi, troppo basso negli anni in cui i flussi sono esauriti); una serie per scenario (tre linee, e la differenza è solo tassa e pensioni). |
+| DN2 | **Via la Distribuzione**, come in «Dopo il FIRE» (DF8). | Scenderla nel Dettaglio (ripete i percentili del Ventaglio a un anno solo; la sua frase è già nella lettura del Ventaglio). |
+| DN3 | **Tappe prima, tabella intera** su ogni larghezza (al massimo sei righe). | Due o tre tappe in testa e il resto richiudibile (un controllo in più per una tabella che sta in uno schermo; la riga dell'orizzonte scelto deve restare visibile). |
+| DN4 | La soglia è **il numero del piano**: non segue capitale, versamento e pesi scritti nei Parametri della Proiezione; lo dice il suggerimento del campo. | Ricalcolarla sugli input della Proiezione (un secondo «numero FIRE» diverso dal Calcolatore, il problema che la card chiude). |
+| DN5 | Il nome della scheda resta **«Proiezione»** (punto aperto 2 di § 12.9 chiuso): risponde a «quanto vale tra N anni» anche oltre il FIRE e con una soglia qualunque. | «Verso il FIRE» (vero solo con il numero FIRE come soglia; la scheda continua a versare dopo il FIRE, V2). |
+
+**Scelte di default prese dall'agente**: il seme «Numero FIRE» sta accanto al campo come i semi dei pesi; nessuna
+colonna nuova in Tappe (la soglia è una sotto-riga); la serie si calcola fuori dall'esecuzione.
+
+### 13.9 Criteri di accettazione (valori di riferimento verificabili)
+
+Caso del piano: spesa 32.000 € di oggi, SWR 4%, Base `g` = 7%, `π` = 2% (reale 4,902%), nessuna tassa, pensione o
+fondo bloccato, `planExpensesFromCashflow` falso. Valori calcolati con
+`/mnt/project-files/fire-simulazioni/soglia-controllo.py` (RF5 in euro di oggi).
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| A-N1 | Nessun flusso | `S_t` = 800.000 € per `t` = 0, 10, 30 (la retta di T4: P4 e P10 invariati) |
+| A-N2 | Spesa indicizzata 6.000 €/anno, anni 1–10, non nel Cashflow | `S_0` 846.552 € · `S_1` 842.834 € · `S_5` 826.047 € · `S_9` 805.720 € · `S_10` 800.000 € · `S_20` 800.000 €; nominale `F_5` = 912.023 € |
+| A-N3 | Forfait in entrata 100.000 € di oggi all'anno 5 | `S_0` 721.281 € · `S_1` 717.422 € · `S_4` 704.673 € · `S_5` 800.000 € · `S_10` 800.000 € |
+| A-N4 | `S_0` = numero FIRE del Calcolatore | uguale all'euro a `buildFireLedger(...).total` e a `resolveFireMetrics(baseline).fireNumber` sullo stesso piano (sul mirror del Tour: 606.961 €) |
+| A-N5 | `S_t · (1+π_b)^t` = `baseFireNumber` della riga `t` del cammino del Calcolatore | per ogni `t` ≤ `H`, anche oltre i 5 anni dopo il FIRE (RN6: la serie ha `H + 1` valori con `H` = 60) |
+| A-N6 | RN3 su snapshot costruiti a mano: 10 percorsi reali 100…1.000 all'anno 5, `S_5` = 550 | probabilità 50%; con `kind: 'fixed'`, `value` = 550, la stessa |
+| A-N7 | RN5 | passare tra «Numero FIRE» e una cifra scritta, o cambiare la bozza del piano, aggiorna verdetto, Tappe e Ventaglio senza footer «stantio» |
+| A-N8 | RN4 | piano senza spesa: nessun seme «Numero FIRE», campo vuoto, nessuna riga di probabilità |
+| A-N9 | Regressione | `runBaselineProjection` senza `years` identico a oggi (test di T5 e What If verdi); P1–P12 verdi |
+| A-N10 | Griglia | desktop: Tappe, poi Ventaglio e Scenari sulla stessa riga, poi Parametri; telefono: Tappe subito dopo il verdetto; nessun `DistribuzioneTile` nel DOM |
+
+### 13.10 File
+
+**Modificati**: `lib/services/whatIfService.ts` (`runBaselineProjection` con `years`, export del requisito di oggi),
+`lib/utils/{projectionSummary,projectionNarrative}.ts`, `components/fire-simulations/ProjectionTab.tsx`,
+`components/projection/{ProjectionDettaglio,tiles/TappeTile,tiles/ParametriTile,tiles/VentaglioTile,tiles/ScenariTile}.tsx`,
+`components/monte-carlo/MonteCarloFanChart.tsx` (`referenceSeries`); test
+`__tests__/{projectionSummary,projectionNarrative,whatIfService}.test.ts`.
+**Rimossi**: `components/projection/tiles/DistribuzioneTile.tsx` (e `FinalValueBars`/`valueHistogram` solo se nessun
+altro li importa).
+
+### 13.11 Test
+
+- `projectionSummary.test.ts`: A-N1–A-N3 (serie da un piano costruito nel test), A-N6, i P esistenti con
+  `{ kind: 'fixed' }`.
+- `whatIfService.test.ts` (o il file dei test di T5): A-N4, A-N5, A-N9.
+- `projectionNarrative.test.ts`: verdetto con numero FIRE e con soglia scritta, sotto-riga di Tappe, footer del
+  Ventaglio nei due modi, suggerimento del campo nei tre stati (fire, scritta, senza piano).
+- Nessuna spec Playwright nuova; collaudo sull'anteprima Vercel e sul mirror (A-N4 con 606.961 €), quando il
+  proprietario è al computer.
+
+### 13.12 Documentazione e fine
+
+- `doc/guide/fire-proiezione.md`: la soglia (RN1–RN6, il blind spot DN4, «il versamento continua dopo il FIRE»), la
+  griglia nuova, via la Distribuzione; `doc/guide/fire.md` (`runBaselineProjection` con `years`); § 11 di questo
+  dossier: rimando a § 13 su RV6; `CLAUDE.md` riga «Latest»; `Draft Release Temp.md`.
 - Fine: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`, `TZ=Europe/Rome npx vitest
   run` verdi. Collaudo una fase per messaggio (WORKFLOW.md § 2).
