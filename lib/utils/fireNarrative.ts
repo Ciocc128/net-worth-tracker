@@ -343,7 +343,8 @@ export function describeTargetCaption(target: FireTarget, annualExpenses: number
   ];
 }
 
-export type ProjectionView = 'scenari' | 'ventaglio' | 'distribuzione';
+/** The Traguardo's two views; the Scenari chart lives in the Scenari tile since 2026-10-05 (FEAT FIRE). */
+export type ProjectionView = 'ventaglio' | 'distribuzione';
 
 export interface TargetFooterInput {
   view: ProjectionView;
@@ -356,14 +357,12 @@ export interface TargetFooterInput {
   lock: FireLock;
   simulationCount: number;
   allocationLabel: string;
-  /** The last calendar year the Scenari chart draws — the step is named only when it is on the plot. */
-  lastProjectedYear: number | null;
   /** What the dashed target carries besides expenses ÷ SWR; absent = nothing. */
   honest?: FireTargetHonest;
 }
 
 /**
- * The Traguardo footer: the chart's legend in words (Scenari), the fan's one number (Ventaglio),
+ * The Traguardo footer: the fan's one number (Ventaglio),
  * or what the bars are (Distribuzione — the method sits behind «Come si calcola»).
  */
 export function describeTargetFooter(input: TargetFooterInput): Narrative | null {
@@ -388,28 +387,6 @@ export function describeTargetFooter(input: TargetFooterInput): Narrative | null
       prose('.'),
       ...inflows,
     ];
-  }
-  if (input.view === 'scenari') {
-    // The walk stops five years after the last scenario reaches FIRE: an unlock beyond that year
-    // is real but not drawn, and a footer that named a step the plot does not show would lie.
-    const stepOnPlot =
-      input.lock.active &&
-      input.lock.lockedValue > 0 &&
-      input.lock.unlockCalendarYear !== null &&
-      input.lastProjectedYear !== null &&
-      input.lock.unlockCalendarYear <= input.lastProjectedYear;
-    const step: Narrative = stepOnPlot
-      ? [prose(' Il gradino nel '), year(input.lock.unlockCalendarYear as number), prose(' è il fondo pensione che rientra.')]
-      : [];
-    // The dashed line is the requirement of each year (2026-09-24): expenses ÷ SWR grown with
-    // the inflation when nothing else is in, less the pensions from their start, tax in, the
-    // bridge until the unlock — the line says what it carries.
-    const carries: string[] = [];
-    if (input.honest?.pensionsConsidered) carries.push('meno le pensioni statali dal loro avvio');
-    if (input.honest?.taxConsidered) carries.push('tasse sui prelievi comprese');
-    if (input.lock.active && input.lock.lockedValue > 0) carries.push('con il ponte fino allo sblocco');
-    const head = carries.length > 0 ? `Linea tratteggiata: quanto serve nello scenario base in ogni anno, ${carries.join(', ')}` : "Linea tratteggiata: il numero FIRE dello scenario base, che cresce con l'inflazione";
-    return [prose(`${head}; il risparmio si ferma al FIRE.`), ...step];
   }
   if (!input.fanAvailable) {
     return [prose("Il ventaglio richiede un'allocazione in azioni, obbligazioni, immobili o materie prime.")];
@@ -759,6 +736,38 @@ export function describeScenarios(rows: ScenarioRow[]): Narrative {
     ...relative(bull, 'il bull'),
     prose('.'),
   ];
+}
+
+export interface ScenariLegendInput {
+  lock: FireLock;
+  /** The last calendar year the Scenari chart draws — the step is named only when it is on the plot. */
+  lastProjectedYear: number | null;
+  /** What the dashed target carries besides expenses ÷ SWR; absent = nothing. */
+  honest?: FireTargetHonest;
+}
+
+/** The Scenari chart's legend in words (it lived in the Traguardo's footer until 2026-10-05). */
+export function describeScenariosChartLegend(input: ScenariLegendInput): Narrative {
+  // The walk stops five years after the last scenario reaches FIRE: an unlock beyond that year
+  // is real but not drawn, and a footer that named a step the plot does not show would lie.
+  const stepOnPlot =
+    input.lock.active &&
+    input.lock.lockedValue > 0 &&
+    input.lock.unlockCalendarYear !== null &&
+    input.lastProjectedYear !== null &&
+    input.lock.unlockCalendarYear <= input.lastProjectedYear;
+  const step: Narrative = stepOnPlot
+    ? [prose(' Il gradino nel '), year(input.lock.unlockCalendarYear as number), prose(' è il fondo pensione che rientra.')]
+    : [];
+  // The dashed line is the requirement of each year (2026-09-24): expenses ÷ SWR grown with
+  // the inflation when nothing else is in, less the pensions from their start, tax in, the
+  // bridge until the unlock — the line says what it carries.
+  const carries: string[] = [];
+  if (input.honest?.pensionsConsidered) carries.push('meno le pensioni statali dal loro avvio');
+  if (input.honest?.taxConsidered) carries.push('tasse sui prelievi comprese');
+  if (input.lock.active && input.lock.lockedValue > 0) carries.push('con il ponte fino allo sblocco');
+  const head = carries.length > 0 ? `Linea tratteggiata: quanto serve nello scenario base in ogni anno, ${carries.join(', ')}` : "Linea tratteggiata: il numero FIRE dello scenario base, che cresce con l'inflazione";
+  return [prose(`${head}; il risparmio si ferma al FIRE.`), ...step];
 }
 
 export function describeScenariosFooter(): Narrative {

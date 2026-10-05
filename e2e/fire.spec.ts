@@ -72,25 +72,25 @@ test('the verdict and the Traguardo render: a rule headline and a well-formed FI
   }
 });
 
-test('the Scenari | Ventaglio | Distribuzione toggle swaps the projection inside the Traguardo', async ({ page }) => {
+test('the Ventaglio | Distribuzione toggle swaps the projection inside the Traguardo, and the Scenari chart lives in its own tile', async ({ page }) => {
   await gotoFire(page);
 
   const traguardo = page.getByRole('region', { name: 'Traguardo FIRE' });
+  const scenariTile = page.getByRole('region', { name: 'Scenari di mercato' });
   const scenariChart = page.locator('[role="img"][aria-label*="proiezione scenari"]');
   const fanChart = page.locator('[role="img"][aria-label*="Ventaglio Monte Carlo"]');
   const distributionChart = page.locator('[role="img"][aria-label*="Distribuzione dell\'anno FIRE"]');
   const toggle = page.getByRole('group', { name: 'Vista della proiezione' });
 
-  // Default view: deterministic scenarios, no fan mounted.
-  await expect(scenariChart).toBeVisible({ timeout: 15_000 });
-  await expect(fanChart).toHaveCount(0);
-  await expect(distributionChart).toHaveCount(0);
+  // The three curves are in the Scenari tile, never in the Traguardo (FEAT FIRE, 2026-10-05).
+  await expect(scenariTile.locator('[role="img"][aria-label*="proiezione scenari"]')).toBeVisible({ timeout: 15_000 });
+  await expect(traguardo.locator('[role="img"][aria-label*="proiezione scenari"]')).toHaveCount(0);
+  await expect(toggle.getByRole('button', { name: 'Scenari' })).toHaveCount(0);
 
-  // Switch to Ventaglio: the fan replaces the scenario chart (same tile, one chart at a time).
-  await toggle.getByRole('button', { name: 'Ventaglio' }).click();
+  // Default view: the Ventaglio.
   await expect(toggle.getByRole('button', { name: 'Ventaglio' })).toHaveAttribute('aria-pressed', 'true');
   await expect(fanChart).toBeVisible({ timeout: 15_000 });
-  await expect(scenariChart).toHaveCount(0);
+  await expect(distributionChart).toHaveCount(0);
 
   // The tile's footer states the cumulative FIRE probability — or, on an account already past
   // its target (the base fixture is, depending on the run month), that every path starts there.
@@ -102,16 +102,22 @@ test('the Scenari | Ventaglio | Distribuzione toggle swaps the projection inside
   await expect(toggle.getByRole('button', { name: 'Distribuzione' })).toHaveAttribute('aria-pressed', 'true');
   await expect(distributionChart).toBeVisible({ timeout: 15_000 });
   await expect(fanChart).toHaveCount(0);
-  await expect(scenariChart).toHaveCount(0);
   await expect(traguardo.getByText('Mediana', { exact: true })).toBeVisible();
   await expect(traguardo.getByText(/Metà dei percorsi è FIRE entro il|Meno di metà dei percorsi è FIRE|FIRE già raggiunto oggi, quindi in tutti/)).toBeVisible();
   await expect(traguardo.getByRole('button', { name: "Come si calcola: Distribuzione dell'anno FIRE" })).toBeVisible();
 
-  // And back.
-  await toggle.getByRole('button', { name: 'Scenari' }).click();
-  await expect(scenariChart).toBeVisible({ timeout: 15_000 });
-  await expect(fanChart).toHaveCount(0);
+  // And back; the Scenari tile never moved.
+  await toggle.getByRole('button', { name: 'Ventaglio' }).click();
+  await expect(fanChart).toBeVisible({ timeout: 15_000 });
   await expect(distributionChart).toHaveCount(0);
+  await expect(scenariChart).toHaveCount(1);
+});
+
+test('Reddito passivo says the distance from full cover in euros a year, not a withdrawal rate', async ({ page }) => {
+  await gotoFire(page);
+  const tile = page.getByRole('region', { name: 'Reddito passivo sostenibile' });
+  await expect(tile.getByText('Prelievo attuale')).toHaveCount(0);
+  await expect(tile.getByText(/Mancano alla copertura piena|Copertura piena/)).toBeVisible();
 });
 
 test('«Il mio piano» opens and closes above the tabs, measured by height, and the Parametri disclosure is gone', async ({ page }) => {

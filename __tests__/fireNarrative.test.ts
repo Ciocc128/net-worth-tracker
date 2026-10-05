@@ -36,6 +36,7 @@ import {
   describeRunway,
   describeScenarioParams,
   describeScenarios,
+  describeScenariosChartLegend,
   describeScenariosFooter,
   describeTailLever,
   describeTarget,
@@ -103,9 +104,10 @@ const income = (overrides: Partial<PassiveIncome> = {}): PassiveIncome => ({
   yearsOfExpenses: 14.946,
   liquidYears: 9.42,
   illiquidYears: 5.53,
-  currentWR: 6.69,
   swr: 4,
-  overSwr: true,
+  annualExpenses: 27_600,
+  shortfallAnnual: 11_100,
+  surplusAnnual: 0,
   ...overrides,
 });
 
@@ -226,44 +228,46 @@ describe('describeTarget', () => {
   });
 });
 
+describe('describeScenariosChartLegend', () => {
+  it('explains the dashed line, and the step only when the plot reaches the unlock year', () => {
+    expect(plain(describeScenariosChartLegend({ lock: lockOff, lastProjectedYear: 2046 }))).toBe(
+      'Linea tratteggiata: il numero FIRE dello scenario base, che cresce con l\'inflazione; il risparmio si ferma al FIRE.',
+    );
+    expect(plain(describeScenariosChartLegend({ lock: lockOn(), lastProjectedYear: 2055 }))).toContain(' Il gradino nel 2050 è il fondo pensione che rientra.');
+    // The walk stopped in 2046: the 2050 step is not on the plot, so the legend does not name it.
+    expect(plain(describeScenariosChartLegend({ lock: lockOn(), lastProjectedYear: 2046 }))).not.toContain('gradino');
+  });
+});
+
 describe('describeTargetFooter', () => {
   const fan: FanVerdict = { calendarYear: 2032, probabilityPct: 71, onHorizon: false, atStart: false };
 
-  it('explains the dashed line in the Scenari view, and the step only when the plot reaches the unlock year', () => {
-    expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).toBe(
-      'Linea tratteggiata: il numero FIRE dello scenario base, che cresce con l\'inflazione; il risparmio si ferma al FIRE.',
-    );
-    expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2055 }))).toContain(' Il gradino nel 2050 è il fondo pensione che rientra.');
-    // The walk stopped in 2046: the 2050 step is not on the plot, so the footer does not name it.
-    expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).not.toContain('gradino');
-  });
-
   it('says the target is cleared today in every path, instead of a 100% «entro il 2026»', () => {
-    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { calendarYear: 2026, probabilityPct: 100, onHorizon: false, atStart: true }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni', lastProjectedYear: 2031 }))).toBe(
+    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { calendarYear: 2026, probabilityPct: 100, onHorizon: false, atStart: true }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni' }))).toBe(
       'FIRE già raggiunto oggi, quindi in tutti i 1000 percorsi con l\'allocazione attuale (100% azioni): il ventaglio mostra come il patrimonio può evolvere da qui.',
     );
   });
 
   it('states the probability in the Ventaglio view, with the allocation and the inflow model', () => {
-    expect(plain(describeTargetFooter({ view: 'ventaglio', fan, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '62% azioni, 28% obbligazioni, 10% immobili', lastProjectedYear: 2046 }))).toBe(
+    expect(plain(describeTargetFooter({ view: 'ventaglio', fan, fanAvailable: true, lock: lockOn(), simulationCount: 1000, allocationLabel: '62% azioni, 28% obbligazioni, 10% immobili' }))).toBe(
       'Probabilità di FIRE entro il 2032: 71% su 1000 percorsi con l\'allocazione attuale (62% azioni, 28% obbligazioni, 10% immobili). Il fondo pensione entra all\'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.',
     );
-    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { ...fan, onHorizon: true, calendarYear: 2066 }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni', lastProjectedYear: 2046 }))).toBe(
+    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: { ...fan, onHorizon: true, calendarYear: 2066 }, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '100% azioni' }))).toBe(
       'Probabilità di FIRE entro il 2066 (orizzonte della simulazione): 71% su 1000 percorsi con l\'allocazione attuale (100% azioni).',
     );
   });
 
   it('says why the fan cannot run', () => {
-    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: null, fanAvailable: false, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).toBe(
+    expect(plain(describeTargetFooter({ view: 'ventaglio', fan: null, fanAvailable: false, lock: lockOff, simulationCount: 1000, allocationLabel: '' }))).toBe(
       'Il ventaglio richiede un\'allocazione in azioni, obbligazioni, immobili o materie prime.',
     );
-    expect(plain(describeTargetFooter({ view: 'distribuzione', fan: null, fanAvailable: false, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046 }))).toBe(
+    expect(plain(describeTargetFooter({ view: 'distribuzione', fan: null, fanAvailable: false, lock: lockOff, simulationCount: 1000, allocationLabel: '' }))).toBe(
       'La distribuzione richiede un\'allocazione in azioni, obbligazioni, immobili o materie prime.',
     );
   });
 
   it('says what the bars are in the Distribuzione view: the shared shocks, the border, the grey bar, the inflows', () => {
-    const base = { view: 'distribuzione' as const, fan: null, fanAvailable: true, simulationCount: 1000, allocationLabel: '100% azioni', lastProjectedYear: 2046 };
+    const base = { view: 'distribuzione' as const, fan: null, fanAvailable: true, simulationCount: 1000, allocationLabel: '100% azioni' };
     expect(plain(describeTargetFooter({ ...base, lock: lockOn(), distribution: distribution() }))).toBe(
       "1000 percorsi con l'allocazione attuale (100% azioni), stessi rendimenti a ogni confronto; il bordo segna la classe dell'anno del base, la classe grigia i percorsi che non ci arrivano entro il 2066. Il fondo pensione entra all'anno di sblocco al valore di oggi; fino ad allora il target è il numero del modello ponte.",
     );
@@ -463,8 +467,8 @@ describe('the honest clauses on the Traguardo and the verdict', () => {
     expect(plain(verdict.sentence)).toContain('copre le tue spese, tasse sui prelievi comprese: 2300 € al mese di oggi, 2667 € del 2032 con l\'inflazione al 2,5%; dal 2060 la pensione statale ne copre 13.000 € l\'anno.');
   });
 
-  it('says what the dashed line carries in the Scenari footer, and what the ledger withdraws', () => {
-    expect(plain(describeTargetFooter({ view: 'scenari', fan: null, fanAvailable: true, lock: lockOff, simulationCount: 1000, allocationLabel: '', lastProjectedYear: 2046, honest: honest() }))).toBe(
+  it('says what the dashed line carries in the Scenari legend, and what the ledger withdraws', () => {
+    expect(plain(describeScenariosChartLegend({ lock: lockOff, lastProjectedYear: 2046, honest: honest() }))).toBe(
       'Linea tratteggiata: quanto serve nello scenario base in ogni anno, meno le pensioni statali dal loro avvio, tasse sui prelievi comprese; il risparmio si ferma al FIRE.',
     );
     expect(plain(describeRetirementSurvival({ retiredCount: 963, survivedCount: 963, ruinedCount: 0, survivedPct: 100, horizonCalendarYear: 2076, horizonAge: 90, p10RuinCalendarYear: null, medianYearsLastedWhenRuined: null }, honest()))).toBe(

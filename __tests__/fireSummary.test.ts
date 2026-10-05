@@ -170,15 +170,24 @@ describe('summarizePassiveIncome', () => {
     expect(income.yearsOfExpenses).toBeCloseTo(14.95, 2);
     expect(income.liquidYears).toBeCloseTo(9.42, 2);
     expect(income.illiquidYears).toBeCloseTo(5.53, 2);
-    expect(income.currentWR).toBeCloseTo(6.69, 2);
     expect(income.swr).toBe(4);
-    expect(income.overSwr).toBe(true);
+    // 27.600 of expenses against 16.500 of allowance: 11.100 a year short, nothing over.
+    expect(income.annualExpenses).toBe(27_600);
+    expect(income.shortfallAnnual).toBe(11_100);
+    expect(income.surplusAnnual).toBe(0);
   });
 
-  it('has no share without expenses and is not over the SWR when the withdrawal is lower', () => {
+  it('has no share and no distance without expenses', () => {
     const income = summarizePassiveIncome(metrics({ annualExpenses: 0, currentWR: 0, yearsOfExpenses: 0 }));
     expect(income.shareOfExpensesPct).toBeNull();
-    expect(income.overSwr).toBe(false);
+    expect(income.shortfallAnnual).toBeNull();
+    expect(income.surplusAnnual).toBeNull();
+  });
+
+  it('reports the surplus, and no shortfall, once the allowance covers the expenses', () => {
+    const income = summarizePassiveIncome(metrics({ annualExpenses: 12_000 }));
+    expect(income.shortfallAnnual).toBe(0);
+    expect(income.surplusAnnual).toBe(4_500);
   });
 });
 

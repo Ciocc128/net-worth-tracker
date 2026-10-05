@@ -6,12 +6,19 @@
  * years — and a footer that says the model in words. The base row is set semibold: it is the
  * scenario the verdict and the Traguardo run on.
  *
+ * Since 2026-10-05 (FEAT FIRE) the tile also draws the three curves, left of the rows, which are
+ * their legend: one tile for «e se il mercato va diversamente?», figures and drawing together. The
+ * chart was a view of the Traguardo's toggle until then, and repeated what these rows say. The
+ * chart is passed in as `chart` (this tile knows nothing about Recharts) and fills an absolutely
+ * positioned box, like the Traguardo's.
+ *
  * The swatch takes the same colour the Scenari chart gives that series (`SCENARIO_COLOR`, theme
  * tokens defaulting to slots 5 / 1 / 2), so a row and its line share a hue on
  * every theme. The old page had the same three numbers as KPI chips above the chart; inside a
  * tile they are rows, so the year and the parameters read as one line each.
  */
 
+import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { ScenarioRow } from '@/lib/utils/fireSummary';
 import { SCENARIO_COLOR } from '@/lib/constants/scenarioColors';
@@ -25,6 +32,9 @@ interface ScenariTileProps {
   rows: ScenarioRow[];
   /** The projection's horizon, for the «oltre N anni» caption. */
   horizonYears: number;
+  /** The deterministic projection (three curves and the target line), or the message that replaces it. */
+  chart: ReactNode;
+  /** The chart's legend in words, then the model: `describeScenariosChartLegend` + `describeScenariosFooter`. */
   footer: Narrative;
   className?: string;
 }
@@ -37,11 +47,15 @@ function distance(years: number | null, horizonYears: number): string {
   return years === 1 ? 'tra 1 anno' : `tra ${years} anni`;
 }
 
-export function ScenariTile({ reading, rows, horizonYears, footer, className }: ScenariTileProps) {
+export function ScenariTile({ reading, rows, horizonYears, chart, footer, className }: ScenariTileProps) {
 
   return (
     <Tile eyebrow="Scenari" aside="crescita · inflazione" reading={reading} ariaLabel="Scenari di mercato" className={className}>
-      <ul className="mt-2.5 flex flex-col divide-y divide-border" aria-label="Anno del FIRE per scenario">
+      <div className="mt-2.5 grid grid-cols-1 gap-x-8 gap-y-3 desktop:grid-cols-[minmax(0,1fr)_minmax(0,19rem)]">
+      <div className="relative order-2 min-h-[240px] desktop:order-1">
+        <div className="absolute inset-0">{chart}</div>
+      </div>
+      <ul className="order-1 flex flex-col divide-y divide-border self-start desktop:order-2" aria-label="Anno del FIRE per scenario">
         {rows.map((row) => {
           const isBase = row.key === 'base';
           return (
@@ -67,8 +81,9 @@ export function ScenariTile({ reading, rows, horizonYears, footer, className }: 
           );
         })}
       </ul>
+      </div>
 
-      <NarrativeText segments={footer} className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground" />
+      <NarrativeText segments={footer} className="mt-3.5 border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground" />
     </Tile>
   );
 }

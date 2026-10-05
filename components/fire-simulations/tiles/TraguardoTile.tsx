@@ -3,7 +3,7 @@
 /**
  * TRAGUARDO — «quanto manca, e come ci arrivo?»: the FIRE number as the hero figure, the
  * progress as a chip and a 3px track under it, then the projection filling the tile's free
- * height in one of three views — the deterministic Scenari chart, the Monte Carlo Ventaglio, or
+ * height in one of two views — the Monte Carlo Ventaglio (the default since 2026-10-05) or
  * the Distribuzione of the FIRE year across the fan's paths (2026-09-24) — switched by the aside
  * (`AsideToggle`: a view switch is the tile's scope, not the page's axis).
  *
@@ -13,8 +13,9 @@
  * so this tile knows nothing about Recharts, fan inputs or memoisation: it is a shell with a
  * reading, a number, a track and a footer, like every other tile. The footer is the chart's
  * legend in words (Scenari), the fan's one number (Ventaglio) or what the bars are, with the
- * method behind «Come si calcola» (Distribuzione) — `describeTargetFooter`. The two Recharts
- * views fill an absolutely positioned box (a percentage height needs a definite parent); the
+ * method behind «Come si calcola» (Distribuzione) — `describeTargetFooter`. The deterministic
+ * Scenari chart is not here: it lives in the Scenari tile, with the three rows that are its legend
+ * (FEAT FIRE, 2026-10-05). The Ventaglio view fills an absolutely positioned box (a percentage height needs a definite parent); the
  * Distribuzione view is text and a hand-written SVG, and flows, so it can never overrun the footer.
  *
  * The track fills to the progress capped at 100%, in `--scenario-base` (the base scenario's hue) and in
@@ -36,7 +37,6 @@ import { resolveHeroValueClass } from '@/components/dashboard/overview/Patrimoni
 import { SettledCurrencyValue, SettledPercentageValue } from '@/components/fire-simulations/SettledValue';
 
 const VIEW_OPTIONS = [
-  { value: 'scenari' as const, label: 'Scenari' },
   { value: 'ventaglio' as const, label: 'Ventaglio' },
   { value: 'distribuzione' as const, label: 'Distribuzione' },
 ];
@@ -49,7 +49,7 @@ interface TraguardoTileProps {
   caption: Narrative;
   view: ProjectionView;
   onViewChange: (view: ProjectionView) => void;
-  /** False hides the switch: without an allocation in the four MC classes there is no fan to show. */
+  /** False hides the switch: without an allocation in the four MC classes there is no fan to show (the chart slot then carries the message). */
   fanAvailable: boolean;
   /** The projection in the selected view, or the message that replaces it. */
   chart: ReactNode;
