@@ -44,11 +44,11 @@ export interface UseFireDatedFlowsResult {
 export interface UseFireDatedFlowsOptions {
   /** The funds the pension lock keeps closed, like the tab's `useFireAssumptions` (memoised by the caller): the goals' capital reads them. */
   lockedAssetIds?: ReadonlySet<string>;
-  /** The Calcolatore's unsaved share of the cash to invest (K1), a preview like `draft`. */
-  cashToInvestPct?: number;
+  /** The Calcolatore's unsaved emergency fund (§ 14; null = emptied), a preview like `draft`. */
+  emergencyFund?: number | null;
 }
 
-export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds, cashToInvestPct }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
+export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds, emergencyFund }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
   const settingsQuery = useQuery({
@@ -71,7 +71,7 @@ export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds
     enabled: !!user && !!ownerId && goalsEnabled,
     staleTime: 300000,
   });
-  const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds, { cashToInvestPct });
+  const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds, { emergencyFund });
   const legShare = assumptions?.legShare;
   const propertyIds = useMemo(() => (assets ?? []).filter((asset) => asset.type === 'realestate' && asset.assetClass === 'realestate').map((asset) => asset.id), [assets]);
   const instalmentsQuery = useMortgageInstalments(ownerId, propertyIds);

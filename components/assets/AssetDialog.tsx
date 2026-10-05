@@ -1737,7 +1737,7 @@ export function AssetDialog({ open, onClose, asset, onRegisterTrade, initialType
               )}
               {selectedType === 'cash' && (
                 <p className="text-xs text-muted-foreground">
-                  Può essere negativo: una carta di credito è un conto in rosso fino all&apos;addebito. Per non contarla come liquidità da investire, escludila dall&apos;allocazione.
+                  Può essere negativo: una carta di credito è un conto in rosso fino all&apos;addebito. Per non contarla nella liquidità fuori dal portafoglio, escludila dall&apos;allocazione.
                 </p>
               )}
               {/* Show hint only in edit mode — in create mode there's no previous quantity to compare.

@@ -485,7 +485,7 @@ describe('describeBase', () => {
   });
 
   it('footer: where the capital comes from and where the settings live (D4, D5)', () => {
-    expect(plain(describeBaseFooter())).toBe('Il capitale è il portafoglio più la liquidità da investire che scegli in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.');
+    expect(plain(describeBaseFooter())).toBe('Il capitale è il portafoglio più la liquidità che resta oltre il fondo di emergenza che indichi in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.');
   });
 });
 
