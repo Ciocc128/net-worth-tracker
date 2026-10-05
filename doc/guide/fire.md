@@ -307,7 +307,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   invalid typed age falls back to the saved one); without `userAge` the tile says where to write it and links to Coast.
   The summary is computed from a `useDeferredValue` request: RS8 is ~14 runs of the fan (≈0,4 s measured on the cloud
   container, 1.000 paths, 30 years), so an edit paints first and the three figures always come from ONE request.
-  Grid: Traguardo 5×2 · Base 7 · Reddito 4 · Scenari 3, then Età obiettivo 12; a phone reads it after Scenari, a tablet
+  Grid: Traguardo 5×2 · Base 7 · Reddito 4 · Scenari 3, then Età obiettivo 12 and, since W1, Sensibilità 12; a phone reads it after Scenari, a tablet
   last (Reddito stays beside Scenari).
 - **The personal SWR is proposed, never imposed** (E1, D-S4, RS5, `solvePersonalSwr` in `sustainableWithdrawal.ts`): under
   the SWR field of the Parametri, «SWR personale 4,3%: 9 simulazioni su 10 reggono 30 anni di prelievi (portafoglio
@@ -384,6 +384,14 @@ The `goal` source of `DatedFlow['source']` is now live, but only on the resolved
 - **What each says**: Rendimenti «Rendimento Base 8,3% · reale 5,1%» (popover: weights origin, Bear/Bull, inflation, leverage if > 1; link to Impostazioni › Simulazioni); Costi «Costi 0,36%» / «Nessun costo» (the three readings of § 9; «Attiva il bollo» when it is off); Spesa «Spesa 25.200 €» (origin: plan, Cashflow year, none); Flussi «Flussi 4» / «Flussi: nessuno» (the flows in use as sentences and the excluded ones with the reason). **Obiettivi** (`view="goals"`) say «Flussi: solo nell'Effetto sul FIRE». The two «Il mio piano» links call `useFirePlan().focusField` (the block opens on the field, the tab stays); outside the page they fall back to `?piano=`.
 - **A chip with nothing to say is left out** (costs not computed yet, no expenses, count not set): never a «—» (RC5). The tabs lay the flows on the assumptions with `withFlowsDetail(assumptions, resolved, excluded)` (count + the popover's lines).
 - **Base di calcolo = a telescopic ledger** (`lib/utils/fireBaseLedger.ts`, `buildFireLedger`): R0 = expenses ÷ SWR → + withdrawal tax → + state pensions → + locked pension fund → + dated flows = R4 = `requirementToday.withBridge.requirement`. Each row is the difference of two successive `resolveFireRequirement` calls with one more ingredient, printed as the difference of the ROUNDED cumulatives, so the printed rows add up to the printed number to the euro. The order is declared (an interaction goes to the step after it); the steps carry a sign and NO colour; an ingredient that does not enter prints «—» and its reason. «Risparmio annuo» sits apart below the total (it moves the year, not the number). The capital, expenses and SWR rows are gone («Capitale e spesa: vedi Ipotesi usate»); the reading is `describeLedgerReading` («Il numero FIRE parte da 720.000 € (spesa ÷ SWR); tasse, pensioni e flussi lo portano a 606.961 €.»).
+
+## W1 — What If and the Sensibilità (2026-10-05, doc/fire-ipotesi/README.md § 16)
+
+- The Calcolatore's grid has a ninth cell: **Sensibilità**, 12 columns under Età obiettivo (a phone reads it after Età obiettivo, a tablet last). It is the What If's tile
+  moved (`whatif/tiles/SensibilitaTile.tsx`) with `calculateFIRESensitivityMatrix(…, flows, pensionBridge, honest)`, so the outlined cell is the year the verdict names.
+  The reference expenses are session-only. Empty state: `describeEmptyTiles().sensitivity`.
+- The Dettaglio's «Reddito passivo» series is rescaled to the plan's PREVIEW SWR (`rescaleMonthlyAllowance`): the history query is keyed on the saved rate. The runway
+  series stays on the real trailing-12-month spending (not the plan's expense) by design; only its target years and progress follow the SWR.
 
 ## Per-page blind spots
 - **Dated flows** (F1): deterministic (the same in every path); amounts are NET and typed by the user; the surplus of a year of income over the need is not reinvested; no tax on what the accumulation sells; a linked mortgage changes the FIRE year by itself when an instalment is settled or the TAN changes (that is the point); a flow anchored to an age is excluded without `userAge`; an age anchor on a typed Coast draft age is not previewed (the saved age counts); the stochastic engines read the SAME deterministic flows in every path (no probability on an inheritance), the Ventaglio's FIRE-anchored flows follow each path's own FIRE year while Monte Carlo starts them in year 1, and the Proiezione ignores them.

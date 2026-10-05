@@ -9,14 +9,15 @@
  * to the capital, the FIRE number, the year, the passive income and the Coast plan, over a
  * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- *   Desktop (12 col): Prima e dopo(5) | Delta(3) | Evento(4)
- *                     Sensibilità(12)
- *   Mobile (1 col):   Evento → Prima e dopo → Delta → Sensibilità
+ *   Desktop (12 col): Evento(4) | the verdict over  Prima e dopo(5) | Delta(3)  (a column of 8)
+ *   Mobile (1 col):   Evento → verdict → Prima e dopo → Delta
  *
- * On a phone the Evento comes first: on this tab the event IS the question, the verdict is about
- * what is typed there. The page has NO period axis — an event is applied today (year 0) — and the
- * one control that moves the verdict, the event form, is a tile of the grid, not a disclosure.
- * The Sensibilità matrix runs on the plan of TODAY, off the event, and says so in its aside.
+ * The Evento comes first at every width, BEFORE the verdict (FEAT FIRE 2026-10-05): on this tab the
+ * event IS the question, the verdict is about what is typed there. The page has NO period axis — an
+ * event is applied today (year 0) unless «Quando» says otherwise — and the one control that moves
+ * the verdict, the event form, is a tile of the grid, not a disclosure. The Sensibilità matrix left
+ * for the Calcolatore (next to Età obiettivo): it asks «cosa cambio io?», not «e se succede?». The
+ * event stays preset (6 months without income): an empty tab would have nothing to say.
  *
  * Data flow:
  * 1. settings + assets + annual cashflow queries (shared React Query keys with the other FIRE
@@ -35,10 +36,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
-import {
-  calculateFIRESensitivityMatrix,
-  type IncomeSourceCategory,
-} from '@/lib/services/fireService';
+import type { IncomeSourceCategory } from '@/lib/services/fireService';
 import { calculateWhatIfImpact, maxEventYear, parseWhenYear, WHAT_IF_HORIZON_YEARS } from '@/lib/services/whatIfService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { summarizeLock } from '@/lib/utils/fireSummary';
@@ -46,12 +44,11 @@ import {
   buildWhatIfComparisonSeries,
   decomposeJobLossHit,
   summarizeDivergence,
-  summarizeSensitivity,
   summarizeWhatIf,
   summarizeWhatIfEvent,
 } from '@/lib/utils/whatIfSummary';
 import {
-  buildDeltaRows,
+  buildDeltaView,
   buildWhatIfVerdict,
   describeBeforeAfter,
   describeBeforeAfterAside,
@@ -60,9 +57,6 @@ import {
   describeDeltaFooter,
   describeEvent,
   describeEventFooter,
-  describeSensitivity,
-  SENSITIVITY_ASIDE,
-  SENSITIVITY_FOOTER,
 } from '@/lib/utils/whatIfNarrative';
 import type { WhatIfEventType, WhatIfScenario } from '@/types/whatIf';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
@@ -78,14 +72,13 @@ import { WhatIfProjectionChart } from '@/components/fire-simulations/whatif/What
 import { PrimaDopoTile } from '@/components/fire-simulations/whatif/tiles/PrimaDopoTile';
 import { DeltaTile } from '@/components/fire-simulations/whatif/tiles/DeltaTile';
 import { EventoTile, type WhatIfEventForm } from '@/components/fire-simulations/whatif/tiles/EventoTile';
-import { SensibilitaTile } from '@/components/fire-simulations/whatif/tiles/SensibilitaTile';
+import { JobLossEffect } from '@/components/fire-simulations/whatif/JobLossEffect';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
+  { span: 4, lines: 10 },
   { span: 5, lines: 12 },
   { span: 3, lines: 9 },
-  { span: 4, lines: 10 },
-  { span: 12, lines: 6 },
 ];
 
 const EMPTY_FORM: WhatIfEventForm = {
@@ -115,15 +108,12 @@ export function WhatIfAnalysisTab() {
     assetsError,
     cashflowError,
     assumptionsWithFlows,
-    datedFlows,
     scenarios,
     currentYear,
     pensionLockState,
-    netWorth,
     annualExpenses,
     annualSavings,
     cashflowExpenses,
-    withdrawalRate,
     baseline,
     hasBaseline,
   } = useWhatIfBaseline();
@@ -135,8 +125,6 @@ export function WhatIfAnalysisTab() {
   // Selected income-source leaves (`categoryId::subCategoryId`) that disappear on job loss.
   const [selectedIncomeLeaves, setSelectedIncomeLeaves] = useState<Set<string>>(new Set());
   const didInitIncomeSelection = useRef(false);
-  // The Sensibilità reference expenses — a local override, empty = the actual expenses.
-  const [sensitivityBaselineInput, setSensitivityBaselineInput] = useState('');
 
   // ─── Income sources for the job-loss picker (UI-only) ────────────────────────
   const incomeSources = useMemo(() => cashflowData?.incomeSources ?? [], [cashflowData]);
@@ -220,16 +208,6 @@ export function WhatIfAnalysisTab() {
   const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: settings?.pensionInpsRetirementAge, pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment });
   const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
 
-  // The Sensibilità runs on the plan of TODAY (the baseline), centred on the actual or the
-  // typed reference expenses — never on the event.
-  const parsedSensitivityBaseline = Number.parseFloat(sensitivityBaselineInput);
-  const sensitivityExpenses = Number.isFinite(parsedSensitivityBaseline) && parsedSensitivityBaseline > 0 ? parsedSensitivityBaseline : annualExpenses;
-  const sensitivityMatrix = useMemo(() => {
-    if (netWorth <= 0 || sensitivityExpenses <= 0 || withdrawalRate <= 0) return null;
-    return calculateFIRESensitivityMatrix(netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios, true, datedFlows);
-  }, [netWorth, sensitivityExpenses, annualSavings, withdrawalRate, scenarios, datedFlows]);
-  const sensitivityReading = useMemo(() => (sensitivityMatrix ? summarizeSensitivity(sensitivityMatrix) : null), [sensitivityMatrix]);
-
   // ─── The words (pure layer) ───────────────────────────────────────────────────
   const verdict = useMemo(() => buildWhatIfVerdict({ hasBaseline, event, summary }), [hasBaseline, event, summary]);
 
@@ -269,39 +247,17 @@ export function WhatIfAnalysisTab() {
   const eventFooterInput = { kind: eventType, calendarYear: event.calendarYear, referenceYear: cashflowData?.referenceYear ?? null, isAnnualized: cashflowData?.isAnnualized ?? false };
 
   // ─── Render ──────────────────────────────────────────────────────────────────
+  const deltaView = buildDeltaView(summary);
   return (
     <div className="space-y-4">
       <div className="pt-1">
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
       </div>
 
-      {/* Tablet (768-1439): every tile full width, in the phone's order. */}
-      <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
-        <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-5')}>
-          <PrimaDopoTile
-            reading={describeBeforeAfter(summary, divergence)}
-            aside={describeBeforeAfterAside(scenarios.base)}
-            chart={
-              <WhatIfProjectionChart
-                series={series}
-                calendarBefore={summary.timeline.reachedBefore ? null : summary.timeline.calendarBefore}
-                calendarAfter={summary.timeline.reachedAfter ? null : summary.timeline.calendarAfter}
-                targetsDiffer={targetsDiffer}
-                height="100%"
-                pensionUnlockCalendarYear={summary.isBridge ? lock.unlockCalendarYear : null}
-              />
-            }
-            targetsDiffer={targetsDiffer}
-            footer={describeBeforeAfterFooter({ eventCalendarYear: event.calendarYear, isBridge: summary.isBridge, unlockCalendarYear: lock.unlockCalendarYear, lastProjectedYear })}
-          />
-        </div>
-
-        <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-3')}>
-          <DeltaTile reading={describeDelta(summary)} rows={buildDeltaRows(summary)} coastRetirementAge={summary.coast?.retirementAge ?? null} footer={describeDeltaFooter(summary.coast !== null)} />
-        </div>
-
-        <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
+      {/* The Evento first on every width, the verdict over the answers beside it on a desktop (a column of 8:
+          Prima e dopo 5 | Delta 3). Below `desktop:` everything is one column, in the phone's order. */}
+      <div className="grid grid-cols-1 gap-3 desktop:grid-cols-12">
+        <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4')}>
           <EventoTile
             reading={describeEvent(event)}
             event={event}
@@ -321,7 +277,6 @@ export function WhatIfAnalysisTab() {
                   }
                 : null
             }
-            jobLossHit={jobLossHit}
             currentYear={currentYear}
             maxYear={maxEventYear(currentYear)}
             annualSavings={annualSavings}
@@ -330,16 +285,39 @@ export function WhatIfAnalysisTab() {
           />
         </div>
 
-        <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
-          <SensibilitaTile
-            reading={sensitivityReading ? describeSensitivity(sensitivityReading, WHAT_IF_HORIZON_YEARS) : [{ text: 'Servono un patrimonio FIRE e spese annue maggiori di zero.' }]}
-            aside={SENSITIVITY_ASIDE}
-            baselineInput={sensitivityBaselineInput}
-            onBaselineInputChange={setSensitivityBaselineInput}
-            actualAnnualExpenses={annualExpenses}
-            matrix={sensitivityMatrix}
-            footer={SENSITIVITY_FOOTER}
-          />
+        <div className="flex min-w-0 flex-col gap-3 desktop:col-span-8">
+          <PageVerdict verdict={verdict} ariaLabel="Verdetto sul What If" />
+
+          <div className="grid grid-cols-1 gap-3 desktop:flex-1 desktop:grid-cols-8">
+            <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-5')}>
+              <PrimaDopoTile
+                reading={describeBeforeAfter(summary, divergence)}
+                aside={describeBeforeAfterAside(scenarios.base)}
+                chart={
+                  <WhatIfProjectionChart
+                    series={series}
+                    calendarBefore={summary.timeline.reachedBefore ? null : summary.timeline.calendarBefore}
+                    calendarAfter={summary.timeline.reachedAfter ? null : summary.timeline.calendarAfter}
+                    targetsDiffer={targetsDiffer}
+                    height="100%"
+                    pensionUnlockCalendarYear={summary.isBridge ? lock.unlockCalendarYear : null}
+                  />
+                }
+                targetsDiffer={targetsDiffer}
+                footer={describeBeforeAfterFooter({ eventCalendarYear: event.calendarYear, isBridge: summary.isBridge, unlockCalendarYear: lock.unlockCalendarYear, lastProjectedYear })}
+              />
+            </div>
+
+            <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-3')}>
+              <DeltaTile
+                reading={describeDelta(summary)}
+                view={deltaView}
+                coastRetirementAge={summary.coast?.retirementAge ?? null}
+                footer={describeDeltaFooter(deltaView.hasCoast)}
+                effect={jobLossHit && event.kind === 'jobLoss' ? <JobLossEffect hit={jobLossHit} months={event.months} annualSavings={annualSavings} lostAnnualIncome={event.lostAnnualIncome} /> : null}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

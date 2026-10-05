@@ -580,6 +580,17 @@ function prepareFIREChartData(
   });
 }
 
+/**
+ * The monthly passive income of the Dettaglio's chart at another SWR (FEAT FIRE 2026-10-05): the series is
+ * `netWorth × SWR ÷ 12` per month, so the plan's UNSAVED SWR is previewed without refetching the history
+ * (its query is keyed on the saved rate). Same formula as `prepareFIREChartData`; income, expenses and net
+ * worth never depend on the rate and come back untouched.
+ */
+export function rescaleMonthlyAllowance(chartData: MonthlyFIREData[], withdrawalRate: number): MonthlyFIREData[] {
+  const wrDecimal = withdrawalRate / 100;
+  return chartData.map((point) => ({ ...point, monthlyAllowance: (point.netWorth * wrDecimal) / 12 }));
+}
+
 export function calculateHistoricalFIRERunway(
   snapshots: MonthlySnapshot[],
   monthlyExpenseBuckets: Map<string, MonthlyExpenseAggregate>,
@@ -1899,7 +1910,11 @@ export function calculateFIRESensitivityMatrix(
   // RP7: the same indexed saving the Calcolatore walks (default false = constant nominal, as before).
   indexSavings: boolean = false,
   // § 12: the dated flows, the same list the Calcolatore walks (the matrix varies the expenses and the saving, not the flows).
-  flows?: FireFlowsInput
+  flows?: FireFlowsInput,
+  // The Calcolatore's own walk (the Sensibilità lives there since 2026-10-05): the pension bridge and the honest inputs, so the
+  // baseline cell is the year the verdict names. Absent → the matrix of before, byte-identical.
+  pensionBridge?: FireProjectionPensionBridge,
+  honest?: FireHonestInputs
 ): FIRESensitivityMatrix {
   const baselineProjection =
     initialNetWorth > 0 && baselineAnnualExpenses > 0 && withdrawalRate > 0
@@ -1910,8 +1925,8 @@ export function calculateFIRESensitivityMatrix(
           withdrawalRate,
           scenarios,
           undefined,
-          undefined,
-          undefined,
+          pensionBridge,
+          honest,
           indexSavings,
           flows
         )
@@ -1946,8 +1961,8 @@ export function calculateFIRESensitivityMatrix(
               withdrawalRate,
               scenarios,
               undefined,
-              undefined,
-              undefined,
+              pensionBridge,
+              honest,
               indexSavings,
               flows
             )

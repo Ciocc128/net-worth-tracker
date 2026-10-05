@@ -16,6 +16,7 @@ import {
   calculateFIREProjection,
   calculateHistoricalFIRERunway,
   calculateFIRESensitivityMatrix,
+  rescaleMonthlyAllowance,
   getDefaultCoastFireTaxBrackets,
   getDefaultScenarios,
   resolveFanFireTargets,
@@ -1063,6 +1064,25 @@ describe('calculateFIRESensitivityMatrix', () => {
     expect(baselineCell?.yearsToFIRE).toBe(baselineProjection.baseYearsToFIRE)
   })
 
+  it('should align the baseline cell with the walk the Calcolatore runs: the bridge, the honest inputs, indexed saving and flows', () => {
+    const honest: FireHonestInputs = {
+      userAge: 40,
+      pensions: [{ id: 'inps', label: 'INPS', grossMonthlyAmount: 1000, monthsPerYear: 13, startAge: 60 }],
+      taxBrackets: getDefaultCoastFireTaxBrackets(),
+      withdrawalTax: { basisToday: 200000, rate: 26 },
+      now: FIXED_CURRENT_DATE,
+    }
+    const bridge = { valueToday: 80000, yearsToUnlock: 10 }
+    const walk = calculateFIREProjection(500000, 30000, 20000, 4, scenarios, 50, bridge, honest, true)
+    const matrix = calculateFIRESensitivityMatrix(500000, 30000, 20000, 4, scenarios, true, undefined, bridge, honest)
+    const baselineCell = matrix.rows.flatMap((row) => row.cells).find((cell) => cell.isBaseline)
+
+    expect(matrix.baselineYearsToFIRE).toBe(walk.baseYearsToFIRE)
+    expect(baselineCell?.yearsToFIRE).toBe(walk.baseYearsToFIRE)
+    // Without them the matrix is the one of before.
+    expect(calculateFIRESensitivityMatrix(500000, 30000, 20000, 4, scenarios, true, undefined, undefined, undefined)).toEqual(calculateFIRESensitivityMatrix(500000, 30000, 20000, 4, scenarios, true))
+  })
+
   it('should improve or hold years-to-fire when annual savings increase', () => {
     const matrix = calculateFIRESensitivityMatrix(500000, 30000, 20000, 4, scenarios)
     const baselineRow = matrix.rows.find((row) => row.multiplier === 1)!
@@ -1253,5 +1273,17 @@ describe('RF5 at one rate: the flows are valued at the Base\'s real return in ev
     const bearAtBase = coast(realReturn(6.1, 3.04), realReturn(8.28, 3.04))
     expect(bearAtBase.fireNumberAtRetirement).not.toBeCloseTo(bearOwn.fireNumberAtRetirement, 0)
     expect(bearAtBase.fireNumberAtRetirement).toBeCloseTo(base.fireNumberAtRetirement, 0)
+  })
+})
+
+describe('rescaleMonthlyAllowance', () => {
+  it('should put the monthly passive income at the previewed SWR and leave every other series alone', () => {
+    const point = { year: 2026, month: 3, monthLabel: '03/2026', income: 3000, expenses: 2000, monthlyAllowance: (420000 * 0.04) / 12, netWorth: 420000 }
+    const [scaled] = rescaleMonthlyAllowance([point], 3.5)
+
+    expect(scaled.monthlyAllowance).toBeCloseTo(1225, 6)
+    expect({ ...scaled, monthlyAllowance: 0 }).toEqual({ ...point, monthlyAllowance: 0 })
+    expect(rescaleMonthlyAllowance([point], 4)[0].monthlyAllowance).toBeCloseTo(point.monthlyAllowance, 9)
+    expect(rescaleMonthlyAllowance([], 3.5)).toEqual([])
   })
 })

@@ -57,6 +57,8 @@ import {
   calculateCoastFireNetRealAnnualPension,
   calculateFIREMetrics,
   calculateFIREProjection,
+  calculateFIRESensitivityMatrix,
+  rescaleMonthlyAllowance,
   getAnnualCashflowData,
   getDefaultScenarios,
   getFIREData,
@@ -111,6 +113,8 @@ import {
   type FireBase,
   type ProjectionView,
 } from '@/lib/utils/fireNarrative';
+import { describeSensitivity, SENSITIVITY_ASIDE, SENSITIVITY_FOOTER } from '@/lib/utils/whatIfNarrative';
+import { summarizeSensitivity } from '@/lib/utils/whatIfSummary';
 import type { FIREProjectionScenarios } from '@/types/assets';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { buildFlowSchedule, lumpMarkersOf } from '@/lib/utils/datedFlows';
@@ -133,6 +137,7 @@ import { BaseDiCalcoloTile } from '@/components/fire-simulations/tiles/BaseDiCal
 import { RedditoPassivoTile } from '@/components/fire-simulations/tiles/RedditoPassivoTile';
 import { ScenariTile } from '@/components/fire-simulations/tiles/ScenariTile';
 import { EtaObiettivoTile } from '@/components/fire-simulations/tiles/EtaObiettivoTile';
+import { SensibilitaTile } from '@/components/fire-simulations/whatif/tiles/SensibilitaTile';
 import { FireDettaglio } from '@/components/fire-simulations/FireDettaglio';
 import { FIREProjectionChart } from '@/components/fire-simulations/FIREProjectionChart';
 import { FireFanChart } from '@/components/fire-simulations/FireFanChart';
@@ -167,16 +172,19 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
   { span: 4, lines: 5 },
   { span: 3, lines: 4 },
   { span: 12, lines: 4 },
+  { span: 12, lines: 6 },
 ];
 
 /** The five cells of the grid: one class per tile, shared by the data and the empty branches. */
 const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
 const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
-const BASE_CELL = cn(TILE_CELL_CLASS, 'order-5 tablet:order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+const BASE_CELL = cn(TILE_CELL_CLASS, 'order-6 tablet:order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-5 tablet:order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
 const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-12');
 // E1: the third row. A phone reads it after the scenarios; a tablet keeps Reddito beside Scenari and puts it last.
 const ETA_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12');
+// FEAT FIRE 2026-10-05: the Sensibilità arrived from the What If, under Età obiettivo (same family: «cosa cambio io?»).
+const SENSIBILITA_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:order-6 tablet:col-span-2 desktop:order-none desktop:col-span-12');
 
 /** The one action of the empty state: a link the size of a touch target, in the tile's own ink. */
 const EMPTY_ACTION_CLASS =
@@ -196,6 +204,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const { ownerId } = useActiveAccount();
 
   const [view, setView] = useState<ProjectionView>('ventaglio');
+  // The Sensibilità's reference expenses — a local override, empty = the plan's expenses.
+  const [sensitivityBaselineInput, setSensitivityBaselineInput] = useState('');
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here, and every figure below
@@ -316,7 +326,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     staleTime: 300000,
     placeholderData: keepPreviousData,
   });
-  const chartData = useMemo(() => fireData?.chartData ?? [], [fireData]);
+  // The history is keyed on the SAVED rate; the Dettaglio's passive income follows the plan's preview like the runway does.
+  const chartData = useMemo(() => rescaleMonthlyAllowance(fireData?.chartData ?? [], previewWithdrawalRate), [fireData, previewWithdrawalRate]);
   const rawRunwayData = useMemo(() => fireData?.runwayData ?? [], [fireData]);
 
   // ─── The numbers (pure layer over the existing engines) ──────────────────────
@@ -652,6 +663,18 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock, honestSummary],
   );
 
+  // ─── Sensibilità (arrived from the What If, FEAT FIRE 2026-10-05) ────────────
+  // The plan of TODAY only — no event here — centred on the plan's expenses or the typed reference ones. It walks
+  // EXACTLY what the verdict walks (bridge, pensions, tax, indexed saving, dated flows), so the outlined cell is the
+  // year the verdict names; the What If's own copy ran without the bridge and the honest inputs.
+  const parsedSensitivityBaseline = Number.parseFloat(sensitivityBaselineInput);
+  const sensitivityExpenses = Number.isFinite(parsedSensitivityBaseline) && parsedSensitivityBaseline > 0 ? parsedSensitivityBaseline : projectionAnnualExpenses;
+  const sensitivityMatrix = useMemo(() => {
+    if (currentNetWorth <= 0 || sensitivityExpenses <= 0 || previewWithdrawalRate <= 0) return null;
+    return calculateFIRESensitivityMatrix(currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, true, flowsInput, projectionBridge, honest);
+  }, [currentNetWorth, sensitivityExpenses, annualSavings, previewWithdrawalRate, scenarios, flowsInput, projectionBridge, honest]);
+  const sensitivityReading = useMemo(() => (sensitivityMatrix ? summarizeSensitivity(sensitivityMatrix) : null), [sensitivityMatrix]);
+
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
@@ -739,6 +762,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
           <div className={ETA_CELL}>
             <Tile eyebrow="Età obiettivo" ariaLabel="Età obiettivo">
               <EmptyState className="mt-2" message={empty.targetAge} />
+            </Tile>
+          </div>
+          <div className={SENSIBILITA_CELL}>
+            <Tile eyebrow="Sensibilità" ariaLabel="Sensibilità degli anni al FIRE">
+              <EmptyState className="mt-2" message={empty.sensitivity} />
             </Tile>
           </div>
         </div>
@@ -868,6 +896,18 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
               <EmptyState className="mt-2" message={describeEmptyTiles('no-expenses').targetAge} />
             </Tile>
           )}
+        </div>
+
+        <div className={SENSIBILITA_CELL}>
+          <SensibilitaTile
+            reading={sensitivityReading ? describeSensitivity(sensitivityReading, PROJECTION_HORIZON_YEARS) : [{ text: 'Servono un patrimonio FIRE e spese annue maggiori di zero.' }]}
+            aside={SENSITIVITY_ASIDE}
+            baselineInput={sensitivityBaselineInput}
+            onBaselineInputChange={setSensitivityBaselineInput}
+            actualAnnualExpenses={projectionAnnualExpenses}
+            matrix={sensitivityMatrix}
+            footer={SENSITIVITY_FOOTER}
+          />
         </div>
       </div>
 

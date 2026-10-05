@@ -9,20 +9,18 @@
  *
  * WHY the form is a tile and not a disclosure (the canvas's proposal, chosen 2026-08-25): on
  * this tab the event IS the question — the verdict is about what is typed here — so it sits in
- * the grid beside the answer, and on a phone it is the first tile after the verdict.
+ * the grid and, since FEAT FIRE 2026-10-05, it comes FIRST on every width, before the verdict.
+ * The job-loss decomposition (a result, not an input) lives in the Delta tile.
  *
  * The income picker is UI-only: the pure layer receives the SUM of the ticked sources
- * (`incomeSelection.ts`), never the categories. The decomposition of the hit — the retained
- * income covers the expenses first, the portfolio pays the uncovered part — is
- * `decomposeJobLossHit` (pure, tested); the formulas printed under each row are filled with the
- * simulation's own figures so the result stays traceable.
+ * (`incomeSelection.ts`), never the categories.
  */
 
 import type { ElementType } from 'react';
 import { ArrowDownUp, Briefcase, Gift, ShoppingBag } from 'lucide-react';
 import type { IncomeSourceCategory } from '@/lib/services/fireService';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { JobLossHit, WhatIfEvent } from '@/lib/utils/whatIfSummary';
+import type { WhatIfEvent } from '@/lib/utils/whatIfSummary';
 import type { WhatIfEventType } from '@/types/whatIf';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils';
@@ -76,8 +74,6 @@ interface EventoTileProps {
   onFormChange: (patch: Partial<WhatIfEventForm>) => void;
   /** The job-loss picker; absent when the cashflow has no categorised income. */
   incomeSelection: IncomeSelectionProps | null;
-  /** `decomposeJobLossHit(...)`; null unless a job loss with months and lost income is typed. */
-  jobLossHit: JobLossHit | null;
   /** The running calendar year: the «Quando» default and floor. */
   currentYear: number;
   /** The last year an event can be placed in (the walk's horizon). */
@@ -148,39 +144,6 @@ function IncomeSourcePicker({ sources, selected, onToggleLeaf, onToggleCategory,
   );
 }
 
-/** The hit decomposed: each effect with its formula filled with the simulation's own figures. */
-function JobLossEffect({ hit, months, annualSavings, lostAnnualIncome }: { hit: JobLossHit; months: number; annualSavings: number; lostAnnualIncome: number }) {
-  return (
-    <div className="mt-4">
-      <p className={TILE_SUB_EYEBROW_CLASS}>Effetto sul patrimonio</p>
-      <dl className="mt-1 flex flex-col divide-y divide-border">
-        <div className="flex items-start justify-between gap-3 py-[9px]">
-          <dt className="min-w-0">
-            <span className="block text-[13px] text-muted-foreground">Mancati risparmi</span>
-            <span className="block font-mono text-[11px] leading-[1.4] tabular-nums text-muted-foreground/70">
-              min({compact(annualSavings)}; {compact(lostAnnualIncome)}) × {months}/12
-            </span>
-          </dt>
-          <dd className="shrink-0 font-mono text-[13px] tabular-nums text-destructive">−{compact(hit.forgoneSavings)}</dd>
-        </div>
-        <div className="flex items-start justify-between gap-3 py-[9px]">
-          <dt className="min-w-0">
-            <span className="block text-[13px] text-muted-foreground">Spese dal portafoglio</span>
-            <span className="block font-mono text-[11px] leading-[1.4] tabular-nums text-muted-foreground/70">
-              max({compact(lostAnnualIncome)} − {compact(annualSavings)}; 0) × {months}/12
-            </span>
-          </dt>
-          <dd className="shrink-0 font-mono text-[13px] tabular-nums text-destructive">−{compact(hit.drawnExpenses)}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-3 py-[9px]">
-          <dt className="text-[13px] font-medium text-foreground">Impatto sul patrimonio</dt>
-          <dd className="shrink-0 font-mono text-[13px] font-semibold tabular-nums text-foreground">−{compact(hit.total)}</dd>
-        </div>
-      </dl>
-    </div>
-  );
-}
-
 function AmountField({ id, label, value, onChange, placeholder, step, hint, min }: { id: string; label: string; value: string; onChange: (value: string) => void; placeholder: string; step: string; hint: string; min?: string }) {
   return (
     <div>
@@ -193,7 +156,7 @@ function AmountField({ id, label, value, onChange, placeholder, step, hint, min 
   );
 }
 
-export function EventoTile({ reading, event, eventType, onEventTypeChange, form, onFormChange, incomeSelection, jobLossHit, currentYear, maxYear, annualSavings, annualExpenses, footer, className }: EventoTileProps) {
+export function EventoTile({ reading, event, eventType, onEventTypeChange, form, onFormChange, incomeSelection, currentYear, maxYear, annualSavings, annualExpenses, footer, className }: EventoTileProps) {
   const later = event.calendarYear !== null;
   const typedYear = Number.parseInt(form.whenYear, 10);
   const whenHint =
@@ -267,7 +230,6 @@ export function EventoTile({ reading, event, eventType, onEventTypeChange, form,
             />
           </div>
           {incomeSelection && <IncomeSourcePicker {...incomeSelection} />}
-          {jobLossHit && <JobLossEffect hit={jobLossHit} months={event.months} annualSavings={annualSavings} lostAnnualIncome={event.lostAnnualIncome} />}
         </>
       )}
 
