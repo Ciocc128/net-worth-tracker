@@ -20,10 +20,11 @@
  * impact, how to read it).
  *
  * The page has NO period axis — a Coast plan is read today — and no control of its own: the
- * pension-lock switch is the Calcolatore's (Base di calcolo) and governs the WHOLE FIRE page.
+ * pension-lock switch is «Il mio piano»'s (the block above the tabs) and governs the WHOLE FIRE page.
  *
  * This file is the ORCHESTRATOR: the four queries, the projection, and the summaries the tiles
- * read. The form lives in `useCoastFireSettingsDraft`, the numbers and the words in
+ * read. The inputs (ages, pensions) are «Il mio piano»'s — read through `useFireSettings`, the saved
+ * ones with the plan's unsaved edits over them; the numbers and the words in
  * `lib/utils/coastFireView.ts`, the math in `fireService` — where it already was, unchanged.
  * The tab computes nothing: a figure that cannot be pointed at inside a `CoastFIREScenarioMetrics`
  * (or the lock state, or the savings pace built on the projection's own series) does not belong
@@ -33,24 +34,26 @@
  * retirement-phase portfolio need, not the classic FIRE tab.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { useCoastFireSettingsDraft } from '@/lib/hooks/useCoastFireSettingsDraft';
+import { useFirePlan } from '@/lib/hooks/useFirePlan';
+import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
 import {
   calculateCoastFIREProjection,
   getAnnualCashflowData,
   getDefaultScenarios,
+  normalizeCoastFirePensions,
+  normalizeCoastFireTaxBrackets,
   type FireFlowsInput,
   type PensionCapitalInflowToday,
 } from '@/lib/services/fireService';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { buildFlowSchedule } from '@/lib/utils/datedFlows';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
-import { getSettings } from '@/lib/services/assetAllocationService';
 import { resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import { summarizeLock } from '@/lib/utils/fireSummary';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
@@ -71,10 +74,9 @@ import {
   describeCoastTargetCaption,
   describeCoastTargetFooter,
   describeCoverage,
-  describeIpotesi,
   describePensionImpact,
   describeTargetAndSteadyState,
-  getPensionConfigurationState,
+  isValidAge,
   resolveCoastBridgeYears,
   resolveCoastEmptyKind,
   resolveCoastIncompleteReason,
@@ -84,7 +86,6 @@ import {
   summarizeCoastScenarios,
   summarizeCoastTarget,
 } from '@/lib/utils/coastFireView';
-import type { Settings } from '@/types/settings';
 import type { TileSkeletonCell } from '@/lib/utils/tileGridSkeleton';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -98,7 +99,6 @@ import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarr
 import { CoastTraguardoTile } from './coast/tiles/CoastTraguardoTile';
 import { AfflussiTile } from './coast/tiles/AfflussiTile';
 import { CoastScenariTile } from './coast/tiles/CoastScenariTile';
-import { CoastIpotesi } from './coast/CoastIpotesi';
 import { CoastDettaglio } from './coast/CoastDettaglio';
 import { CoastFireProjectionChart } from './CoastFireProjectionChart';
 
@@ -120,22 +120,14 @@ const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:orde
 const EMPTY_ACTION_CLASS =
   'inline-flex min-h-8 items-center text-[13px] text-foreground underline underline-offset-2 hover:decoration-2 [@media(pointer:coarse)]:min-h-11';
 
-/** How long the Collapsible takes to mount its content before a field inside it can take focus. */
-const IPOTESI_OPEN_FOCUS_DELAY_MS = 60;
-
-export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => void } = {}) {
+export function CoastFireTab() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
-  const isDemo = useDemoMode();
-  const [ipotesiOpen, setIpotesiOpen] = useState(false);
+  const plan = useFirePlan();
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
-  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery<Settings | null>({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
+  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
   const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
     queryKey: ['assets', ownerId],
@@ -154,11 +146,16 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
     staleTime: 300000,
   });
 
-  const draft = useCoastFireSettingsDraft({ settings, isLoadingSettings, ownerId });
+  // The page's inputs: «Il mio piano»'s ages and pensions, as saved or as previewed (RP3). An age that is not valid stops the projection.
+  const typedAge = settings?.userAge;
+  const currentAge = isValidAge(typedAge ?? null) ? (typedAge as number) : null;
+  const typedRetirementAge = settings?.coastFireRetirementAge ?? DEFAULT_FIRE_TARGET_AGE;
+  const retirementAge = isValidAge(typedRetirementAge) ? typedRetirementAge : null;
+  const previewPensions = useMemo(() => normalizeCoastFirePensions(settings?.coastFirePensions), [settings?.coastFirePensions]);
+  // The IRPEF brackets are a rule of law, edited in Impostazioni › Simulazioni (RP8): always the saved ones.
+  const previewTaxBrackets = useMemo(() => normalizeCoastFireTaxBrackets(settings?.coastFireTaxBrackets), [settings?.coastFireTaxBrackets]);
 
   const withdrawalRate = settings?.withdrawalRate ?? 4.0;
-  const currentAge = draft.currentAge;
-  const retirementAge = draft.parsedRetirementAge;
 
   // ─── Pension lock (the Calcolatore's switch governs the whole page) ──────────
   // When on, locked pension funds leave the Coast starting capital and re-enter the walk as
@@ -177,7 +174,6 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
       calculateAssetValue,
     );
   }, [respectPensionLockIn, assets, currentAge, settings?.userAge, settings?.pensionInpsRetirementAge, settings?.pensionRitaLongUnemployment]);
-  const pensionLockedValue = pensionLockState?.totalLockedToday ?? 0;
 
   // The page's hypotheses (doc/fire-ipotesi/README.md): the scenarios are the target portfolio's rates on the
   // per-class assumptions of Impostazioni › Simulazioni, read through ONE hook in every tab.
@@ -202,7 +198,7 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
 
   // § 12 (RF9): the dated flows SAVED in the Calcolatore's Parametri. Before the target age only the lumps count (D-F11); the
   // requirement at the target age is RF5 with the FIRE-anchored flows starting there.
-  const { resolved: resolvedFlows } = useFireDatedFlows(undefined, { lockedAssetIds: assumptionLockedIds });
+  const { resolved: resolvedFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
   const flowsInput = useMemo<FireFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
     [resolvedFlows, assumptions?.expenses?.origin],
@@ -210,7 +206,6 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
   const flowAssumptions = useMemo(() => (assumptions ? { ...assumptions, datedFlowsCount: resolvedFlows.length } : null), [assumptions, resolvedFlows.length]);
 
   // ─── The projection (fireService, unchanged) ─────────────────────────────────
-  const { previewPensions, previewTaxBrackets } = draft;
   const coastProjection = useMemo(() => {
     if (currentAge === null || retirementAge === null || effectiveAnnualExpenses === undefined || effectiveAnnualExpenses <= 0 || withdrawalRate <= 0 || currentNetWorth <= 0) {
       return null;
@@ -268,62 +263,11 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
     () => buildCoastInflowEvents(sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge),
     [sortedPensionBreakdown, pensionInflowsToday, currentYear, currentAge],
   );
-  const pensionConfigurationState = getPensionConfigurationState(previewPensions, draft.pensionIssues);
   const emptyKind = resolveCoastEmptyKind(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
   const incompleteReason = resolveCoastIncompleteReason(currentNetWorth, effectiveAnnualExpenses, currentAge, retirementAge);
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
   const verdict = useMemo(() => buildCoastVerdict({ target, incompleteReason, pace, lock }), [target, incompleteReason, pace, lock]);
-  const ipotesiDescription = describeIpotesi({
-    currentAge,
-    retirementAge,
-    annualExpenses: effectiveAnnualExpenses,
-    expensesOrigin: assumptions?.expenses?.origin ?? 'cashflow',
-    withdrawalRate,
-    baseRealReturn: baseScenario?.realReturnRate ?? null,
-    respectPensionLockIn,
-    pensionUnlockCalendarYear: lock.unlockCalendarYear,
-    pensionCount: previewPensions.length,
-    withdrawalTaxRate: taxProfile ? taxProfile.rate : null,
-  });
-
-  // ─── Config-first disclosure ─────────────────────────────────────────────────
-  // Decide the initial collapsed/expanded state ONCE, after the form has settled to match saved
-  // settings (hasUnsavedChanges === false ⇒ temp state seeded). Collapsed when the user has already
-  // configured their age (config-first for new users). The flag is set INSIDE the timer: under
-  // StrictMode's double-invoke the first timer is cleared before it fires, and a flag set
-  // synchronously would leave the panel closed for good.
-  const hasSeededConfigRef = useRef(false);
-  const hasUnsavedChanges = draft.hasUnsavedChanges;
-  const savedUserAge = settings?.userAge;
-  useEffect(() => {
-    if (hasSeededConfigRef.current || isLoadingSettings || hasUnsavedChanges) return;
-    if (savedUserAge != null) {
-      hasSeededConfigRef.current = true;
-      return;
-    }
-    const timer = setTimeout(() => {
-      hasSeededConfigRef.current = true;
-      setIpotesiOpen(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [isLoadingSettings, hasUnsavedChanges, savedUserAge]);
-
-  // After seeding, reopen on a genuine unsaved edit or an incomplete pension to fix.
-  // Never auto-close: collapsing after save is disorienting if the user keeps editing.
-  useEffect(() => {
-    if (!hasSeededConfigRef.current) return;
-    if (!hasUnsavedChanges && pensionConfigurationState !== 'incomplete') return;
-    const timer = setTimeout(() => setIpotesiOpen(true), 0);
-    return () => clearTimeout(timer);
-  }, [hasUnsavedChanges, pensionConfigurationState]);
-
-  /** The empty state's action on a field of the Ipotesi: open the disclosure, then focus the field it names. */
-  const openIpotesiAt = (fieldId: string) => {
-    setIpotesiOpen(true);
-    window.setTimeout(() => document.getElementById(fieldId)?.focus(), IPOTESI_OPEN_FOCUS_DELAY_MS);
-  };
-
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
@@ -344,22 +288,6 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
-  const ipotesi = (
-    <CoastIpotesi
-      open={ipotesiOpen}
-      onOpenChange={setIpotesiOpen}
-      description={ipotesiDescription}
-      draft={draft}
-      isDemo={isDemo}
-      expenses={assumptions?.expenses ?? null}
-      withdrawalRate={withdrawalRate}
-      currentNetWorth={currentNetWorth}
-      liquidNetWorth={liquidNetWorth}
-      outsideCapital={capital?.outside ?? { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 }}
-      lockSubtracted={pensionLockedValue > 0}
-    />
-  );
-
   // ─── Nothing recorded: the grid stays, every tile keeps its question ──────────
   // The Absence-Has-Three-Names Rule: the eyebrow must stay visible precisely when the tile
   // cannot answer, and the ONE action belongs to the tile that owns the missing thing (the
@@ -376,7 +304,7 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
       ) : (
         <button
           type="button"
-          onClick={() => ('tab' in emptyAction ? onOpenCalculator?.() : openIpotesiAt(emptyAction.fieldId))}
+          onClick={() => plan?.focusField(emptyAction.piano)}
           className={EMPTY_ACTION_CLASS}
         >
           {emptyAction.label}
@@ -405,7 +333,6 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
             </Tile>
           </div>
         </div>
-        {ipotesi}
       </div>
     );
   }
@@ -458,8 +385,6 @@ export function CoastFireTab({ onOpenCalculator }: { onOpenCalculator?: () => vo
           <CoastScenariTile reading={describeCoastScenarios(scenarioRows)} rows={scenarioRows} footer={COAST_SCENARIOS_FOOTER} method={COAST_SCENARIOS_METHOD} />
         </div>
       </div>
-
-      {ipotesi}
 
       <CoastDettaglio
         description={describeCoastDettaglio({ bridgeYears, pensionCount: pensions.count })}

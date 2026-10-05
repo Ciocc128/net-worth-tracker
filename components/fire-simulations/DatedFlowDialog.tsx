@@ -59,7 +59,7 @@ function fromDraft(draft: Draft, base: DatedFlow | null, currentYear: number, us
   const startNumber = Number(draft.startValue.replace(',', '.'));
   const anchor: Anchor = recurring ? draft.anchor : draft.anchor === 'fire' ? 'year' : draft.anchor;
   if (draft.startValue.trim() === '' || !Number.isFinite(startNumber)) return { problem: anchor === 'year' ? "Scrivi l'anno di inizio." : anchor === 'age' ? "Scrivi l'età di inizio." : 'Scrivi gli anni dopo il FIRE.' };
-  if (anchor === 'age' && userAge === undefined) return { problem: "Per partire a una certa età serve la tua età: scrivila in Coast FIRE › Ipotesi." };
+  if (anchor === 'age' && userAge === undefined) return { problem: "Per partire a una certa età serve la tua età: scrivila in Il mio piano." };
   const amount = Number(draft.amount.replace(',', '.'));
   if (draft.amount.trim() === '' || !Number.isFinite(amount)) return { problem: "Scrivi l'importo." };
   const duration = draft.forever ? null : Number(draft.duration.replace(',', '.'));
@@ -213,7 +213,7 @@ export function DatedFlowDialog({ open, onClose, flow, currentYear, userAge, isD
                 <Input id={`${uid}-start`} type="number" inputMode="numeric" step="1" value={draft.startValue} onChange={(event) => patch({ startValue: event.target.value })} disabled={isDemo} className="font-mono tabular-nums" />
               </div>
             </div>
-            {anchor === 'age' && userAge === undefined && <p className="text-[11px] leading-[1.4] text-muted-foreground">Serve la tua età: scrivila in Coast FIRE › Ipotesi.</p>}
+            {anchor === 'age' && userAge === undefined && <p className="text-[11px] leading-[1.4] text-muted-foreground">Serve la tua età: scrivila in Il mio piano.</p>}
 
             {recurring && (
               <div className="space-y-2">

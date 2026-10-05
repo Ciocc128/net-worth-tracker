@@ -39,10 +39,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
-import { getSettings } from '@/lib/services/assetAllocationService';
 import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
 import { runBaselineProjection } from '@/lib/services/whatIfService';
 import { defaultWithdrawalYears, resolveFireStart } from '@/lib/utils/fireStart';
@@ -158,12 +158,8 @@ export function MonteCarloTab() {
     staleTime: 300000,
   });
 
-  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
+  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
   // T5 (DF2): the saved plan's Base walk — the same «prima» as the What If's and the Obiettivi's «Effetto sul FIRE» — gives the FIRE year.
   const whatIf = useWhatIfBaseline();
@@ -204,7 +200,7 @@ export function MonteCarloTab() {
   const capital = assumptions?.capital ?? null;
   // § 12 (RF8): the saved dated flows, read as «if I stop today» — a FIRE-anchored one opens in year 1 + its delay. The plan's
   // expenses come from the Cashflow unless typed in Impostazioni (D-F6): that decides whether a flow «already in the Cashflow» is inside them.
-  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows(undefined, { lockedAssetIds: lockedAssetIds });
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows({ lockedAssetIds: lockedAssetIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
@@ -565,7 +561,7 @@ export function MonteCarloTab() {
             footer={
               lastRun
                 ? describeParametriFooter({ stale, simulations: lastRun.inputs.params.numberOfSimulations })
-                : [{ text: canRun ? 'Premi Esegui simulazione per lanciare i tre scenari.' : 'Completa il piano: patrimonio e prelievo maggiori di zero, allocazione tra 100% e 300%, da 1 a 60 anni.' }]
+                : [{ text: canRun ? 'Premi Prova per lanciare i tre scenari.' : 'Completa il piano: patrimonio e prelievo maggiori di zero, allocazione tra 100% e 300%, da 1 a 60 anni.' }]
             }
             stale={stale}
           />

@@ -8,12 +8,12 @@
  */
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { resolvePensionLockState } from '@/lib/utils/pensionUnlock';
 import { realReturn } from '@/lib/utils/realReturn';
-import { getSettings } from '@/lib/services/assetAllocationService';
 import {
   getAnnualCashflowData,
   getDefaultScenarios,
@@ -27,19 +27,14 @@ import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
 import type { DatedFlowsInput } from '@/lib/utils/datedFlows';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import type { WhatIfBaseline } from '@/types/whatIf';
-import type { Settings } from '@/types/settings';
 
 export function useWhatIfBaseline() {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
-  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery<Settings | null>({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
+  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
   const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
     queryKey: ['assets', ownerId],
@@ -81,7 +76,7 @@ export function useWhatIfBaseline() {
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
   const { assumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   // § 12: the SAVED dated flows are the plan both sides run on («prima» = the Calcolatore's); an event of a later year is laid over them.
-  const { resolved: resolvedFlows, isLoading: isLoadingFlows } = useFireDatedFlows(undefined, { lockedAssetIds: assumptionLockedIds });
+  const { resolved: resolvedFlows, isLoading: isLoadingFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),

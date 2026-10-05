@@ -131,7 +131,7 @@ describe('buildMonteCarloVerdict', () => {
   it('names a run that has not produced results yet', () => {
     const verdict = buildMonteCarloVerdict({ runnable: true, run: null, scenarios: null, lock: INACTIVE_LOCK });
     expect(verdict.headline).toBe('Simulazione non ancora eseguita.');
-    expect(plain(verdict.sentence)).toBe('Premi Esegui simulazione nella tessera Parametri: i tre scenari girano insieme.');
+    expect(plain(verdict.sentence)).toBe('Premi Prova nella tessera Parametri: i tre scenari girano insieme.');
   });
 
   it('reads the base run: the share that holds to the age, the median, the worst tenth, the scenarios and the bridge', () => {
@@ -233,8 +233,8 @@ describe('Parametri', () => {
     expect(plain(describeWithdrawalTaxRow({ rate: 26, gainSharePct: 40 }))).toBe('Tasse sui prelievi: ogni prelievo vende quanto serve a pagare il 26% sulla plusvalenza (40% del capitale oggi).');
     expect(plain(describeWithdrawalTaxRow(null))).toBe('Tasse sui prelievi: non stimate, nessun PMC in euro nel portafoglio.');
     expect(plain(describeParametriFooter({ stale: false, simulations: 10000 }))).toBe('Ultima esecuzione con questi parametri · 30.000 traiettorie, 10.000 per scenario.');
-    expect(plain(describeParametriFooter({ stale: true, simulations: 10000 }))).toBe("I risultati sopra usano i parametri dell'ultima esecuzione: premi Esegui simulazione per aggiornarli.");
-    expect(PARAMETRI_ASIDE).toBe('esplorazione, non salvata · le ipotesi di mercato stanno in Impostazioni');
+    expect(plain(describeParametriFooter({ stale: true, simulations: 10000 }))).toBe("I risultati sopra usano i parametri dell'ultima esecuzione: premi Prova per aggiornarli.");
+    expect(PARAMETRI_ASIDE).toBe('una prova, non si salva · le ipotesi di mercato stanno in Impostazioni');
   });
 });
 

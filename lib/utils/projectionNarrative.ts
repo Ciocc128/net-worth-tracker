@@ -87,7 +87,7 @@ export function buildProjectionVerdict(input: ProjectionVerdictInput): PageVerdi
     return {
       headline: 'Proiezione non ancora eseguita.',
       tone: 'neutral',
-      sentence: [prose('Premi Esegui nella tessera Parametri: i tre scenari girano insieme.')],
+      sentence: [prose('Premi Prova nella tessera Parametri: i tre scenari girano insieme.')],
     };
   }
 
@@ -219,7 +219,7 @@ export const TAPPE_FOOTER: Narrative = [prose('Anno di calendario ed età (se no
 
 // ─── Parametri ────────────────────────────────────────────────────────────────
 
-export const PROJECTION_PARAMETRI_ASIDE = 'esplorazione, non salvata · le ipotesi di mercato stanno in Impostazioni';
+export const PROJECTION_PARAMETRI_ASIDE = 'una prova, non si salva · le ipotesi di mercato stanno in Impostazioni';
 
 export interface ProjectionPlan {
   initialPortfolio: number;
@@ -256,7 +256,7 @@ export interface ProjectionFooterInput {
 }
 
 export function describeProjectionFooter({ stale, simulations }: ProjectionFooterInput): Narrative {
-  if (stale) return [prose("I risultati sopra usano i parametri dell'ultima esecuzione: premi Esegui per aggiornarli. Soglia e orizzonte, entro quelli simulati, si aggiornano subito.")];
+  if (stale) return [prose("I risultati sopra usano i parametri dell'ultima esecuzione: premi Prova per aggiornarli. Soglia e orizzonte, entro quelli simulati, si aggiornano subito.")];
   return [prose('Ultima esecuzione con questi parametri · '), count(simulations * 3), prose(' traiettorie, '), count(simulations), prose(' per scenario. Il confronto «sotto il capitale di partenza» è con il capitale scritto sopra, non con quanto versi.')];
 }
 

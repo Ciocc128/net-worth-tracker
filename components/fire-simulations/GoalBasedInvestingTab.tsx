@@ -35,10 +35,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Plus, Settings } from 'lucide-react';
 import { toast } from 'sonner';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { useDemoMode } from '@/lib/hooks/useDemoMode';
-import { getSettings } from '@/lib/services/assetAllocationService';
 import { getAllAssets } from '@/lib/services/assetService';
 import { calculateGoalProgress, cleanOrphanedAssignments, getGoalData, saveGoalData } from '@/lib/services/goalService';
 import type { GoalAssetAssignment, GoalBasedInvestingData, InvestmentGoal } from '@/types/goals';
@@ -118,11 +118,8 @@ export function GoalBasedInvestingTab() {
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
 
   // ─── Queries (shared keys with the other FIRE tabs) ──────────────────────────
-  const { data: settings, isLoading: loadingSettings, isError: settingsError } = useQuery({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
+  const { data: settings, isLoading: loadingSettings, isError: settingsError } = useFireSettings();
 
   const { data: assets = [], isLoading: loadingAssets, isError: assetsError } = useQuery({
     queryKey: ['assets', ownerId],

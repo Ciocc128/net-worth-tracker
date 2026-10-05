@@ -303,9 +303,9 @@ describe('coastFireView — nothing recorded', () => {
     const noNetWorth = describeCoastEmptyTiles('no-net-worth');
     expect(noNetWorth.action).toEqual({ label: 'Aggiungi il primo asset', href: '/dashboard/assets' });
     // What the form owns is reached in the form: the action names the field's own id.
-    expect(describeCoastEmptyTiles('no-expenses').action).toEqual({ label: 'Indica la spesa nei Parametri del Calcolatore', tab: 'fire' });
-    expect(describeCoastEmptyTiles('no-age').action).toEqual({ label: "Inserisci l'età nelle Ipotesi", fieldId: 'coastCurrentAge' });
-    expect(describeCoastEmptyTiles('no-retirement-age').action).toEqual({ label: "Inserisci l'età target nelle Ipotesi", fieldId: 'coastRetirementAge' });
+    expect(describeCoastEmptyTiles('no-expenses').action).toEqual({ label: 'Indica la spesa in Il mio piano', piano: 'spesa' });
+    expect(describeCoastEmptyTiles('no-age').action).toEqual({ label: "Inserisci l'età in Il mio piano", piano: 'eta' });
+    expect(describeCoastEmptyTiles('no-retirement-age').action).toEqual({ label: "Inserisci l'età obiettivo in Il mio piano", piano: 'eta-obiettivo' });
     // Every tile says why it cannot answer, and none prints a figure.
     for (const kind of ['no-net-worth', 'no-expenses', 'no-age', 'no-retirement-age'] as const) {
       const tiles = describeCoastEmptyTiles(kind);
