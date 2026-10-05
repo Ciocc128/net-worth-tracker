@@ -204,6 +204,32 @@ export function summarizeSpendingRoles(
   };
 }
 
+export interface SpendingByRoleRow {
+  bucket: SpendingBucket;
+  /** `SPENDING_BUCKET_LABELS[bucket]`. */
+  label: string;
+  amount: number;
+}
+
+/**
+ * The period's SPENDING by role — the periodic email's split when the roles are on (owner's call,
+ * 2026-10-05), in place of the Fisse/Variabili/Debiti one and on the same base: the outflows, not
+ * the Flusso's income (`summarizeSpendingRoleShares`). Risparmi is therefore the rows classified
+ * as saving, never the surplus.
+ *
+ * `totalSpending` is the caller's own outflow total: the email counts a row with no spending type
+ * (legacy, imported) as an outflow, which the roles skip, and that residual joins «Da
+ * classificare» — a row without a type has no role either — so the rows add up to the total.
+ */
+export function summarizeSpendingByRole(summary: SpendingRolesSummary, totalSpending: number = summary.spending): SpendingByRoleRow[] {
+  const residual = Math.max(0, totalSpending - summary.spending);
+  return SPENDING_ROLE_FLOW_ORDER.map((bucket) => ({
+    bucket,
+    label: SPENDING_BUCKET_LABELS[bucket],
+    amount: summary.byBucket[bucket].total + (bucket === 'unclassified' ? residual : 0),
+  })).filter((row) => row.amount > 0.005);
+}
+
 /**
  * ONE bucket's categories under the names a list prints: «Casa» stays «Casa», and two categories
  * that share a name inside the bucket take their type («Casa (Spese Fisse)» / «Casa (Spese
