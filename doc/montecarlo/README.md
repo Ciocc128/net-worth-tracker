@@ -10,7 +10,7 @@
 >
 > Lingua: conversazione in italiano; codice, identificatori e commenti in inglese; testo UI in italiano.
 >
-> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026). Ogni task parte da sola da `main` dopo il merge della
+> **Ordine**: R0 (ricerca, consegnata il 03/10/2026, § 2) → T1 → T2 → T3 → T4 (Proiezione, § 11, aggiunta il 04/10/2026) → T5 («Dopo il FIRE», § 12, aggiunta il 05/10/2026). Ogni task parte da sola da `main` dopo il merge della
 > precedente; nessuna richiede codice non ancora scritto da una task successiva.
 
 ---
@@ -860,3 +860,287 @@ anno). Nulla qui la anticipa: `savingsYears` e gli snapshot restano validi.
   condiviso); `CLAUDE.md` riga «FIRE»; `doc/guide/fork-scelte-ui.md`; `Draft Release Temp.md`.
 - Fine: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`, `TZ=Europe/Rome npx vitest
   run` verdi; tempi misurati nella guida. Collaudo su anteprima Vercel, una fase per messaggio (WORKFLOW.md § 2).
+
+---
+
+## 12. T5 — «Dopo il FIRE»: la scheda parte dal FIRE previsto (spec del 05/10/2026)
+
+> **Stato**: spec scritta il 05/10/2026, decisioni DF1–DF9 prese con il proprietario lo stesso giorno (§ 12.8).
+>
+> Origine: quattro card «FEAT FIRE» nate dal Tour della pagina FIRE e Simulazioni (05/10/2026), passo 2 dell'ordine
+> approvato (`/mnt/project-files/fire-simulazioni/ordine-feat-fire.md`): «Monte Carlo diventa «Dopo il FIRE», con
+> partenza dal FIRE previsto», «Monte Carlo, Spesa sostenibile prima di Probabilità», «togliere la tessera
+> Distribuzione dal Monte Carlo», «Monte Carlo in euro di oggi (ventaglio e distribuzione)». Una spec sola, una impl
+> sola: toccano la stessa scheda. La card «simulazione unica in due fasi» (= P7) resta in Parcheggio (§ 12.10).
+> Base di codice analizzata: commit `0fb1f46` (05/10/2026, `main` del fork, merge della PR #64, EF1 fondo di
+> emergenza). Le ipotesi della pagina sono quelle di `doc/fire-ipotesi/README.md` (RP1–RP7, K1, EF1, §§ 9–14): questa
+> task le **legge**, non ne scrive di nuove. **Nessuna matematica di mercato nuova**: il motore, il seme e le
+> estrazioni sono quelli di T1–T3; cambia da quale anno parte il registro dei prelievi e in che unità si mostra.
+>
+> Letture obbligatorie, oltre a § 0: `doc/guide/fire-monte-carlo.md` per intero; `doc/guide/fire.md` § F1–F2 (flussi
+> datati), § K1 (capitale); `doc/fire-ipotesi/README.md` § 12 (RF4, RF8) e § 13 (RO2, `useWhatIfBaseline`); § 11 di
+> questo dossier (RV3, euro di oggi della Proiezione). DESIGN.md: The Verdict-First Rule, The Stale-Run Rule, The
+> Input Tile Rule, The Declaration-Tile Rule, The Narrative Honesty Rule, «The two capital figures of a verdict are on
+> ONE basis».
+
+### 12.1 Obiettivo
+
+Far rispondere la scheda alla domanda «**dopo il FIRE il capitale regge, e quanto posso prelevare?**» a partire
+dall'anno in cui il Calcolatore dice che si arriva al FIRE, non da oggi. Oggi le due schede non si parlano: il
+Calcolatore dice «FIRE nel 2031», il Monte Carlo simula «smetto oggi» con il capitale di oggi, quindi la sua
+probabilità risponde a un piano che nessuno segue. Insieme: la tessera che risponde (Spesa sostenibile) viene per
+prima, la Distribuzione (lettura da specialisti) esce, e tutte le cifre sono in euro di oggi come nella Proiezione.
+
+### 12.2 Stato di partenza (verificato nel codice, 05/10/2026)
+
+| Fatto | Dove |
+| --- | --- |
+| La scheda si chiama «Monte Carlo» (`value: 'montecarlo'`, icona `Dices`); il tab non è nell'URL (`useState`) | `app/dashboard/fire-simulations/page.tsx:41-48` |
+| Il registro parte da oggi: capitale `K` della pagina (`assumptions.capital.total`), prelievo = spesa del piano in euro di oggi indicizzata `(1+π)^s` dall'anno 1 | `MonteCarloTab.tsx` (seme del form), `monteCarloService.ts` (`ledgerSchedule`, `runWithdrawalLedger`) |
+| Pensioni statali datate da oggi (`fromYear`), fondo pensione bloccato come afflusso all'anno di sblocco al valore di oggi, flussi datati letti «se smetto oggi» (`needFor(0)`, i forfait dell'anno 0 nel capitale) | `monteCarloService.ts:88-110`, `MonteCarloTab.tsx:275-345` |
+| Orizzonte di default 30 anni («fino a 70 anni» a 40 anni d'età); il registro del Calcolatore (Ventaglio) arriva a 90 anni | `MonteCarloTab.tsx:216`, `FireCalculatorTab.tsx:159-163` |
+| L'anno FIRE del piano **salvato** è già calcolato fuori dal Calcolatore: `useWhatIfBaseline` assembla gli stessi input (capitale K, spesa, risparmio indicizzato, ponte, pensioni, tasse, flussi) e `calculateFIREProjection` dà `baseYearsToFIRE` e `yearlyData[].baseNetWorth` (nominale) | `lib/hooks/useWhatIfBaseline.ts`, `lib/services/whatIfService.ts` (`runBaseProjection`), `lib/services/fireService.ts:1685` |
+| Il cammino deterministico tiene la base fiscale dello scenario Base ma non la restituisce | `fireService.ts` (`baseBasis` locale) |
+| Le tabelle dei flussi sanno già leggere il bisogno per un ritiro all'anno `T` (`needFor(T)`), usate dal Ventaglio | `lib/utils/datedFlows.ts` (`buildFlowYearTables`) |
+| Ventaglio, verdetto, Distribuzione, percentili del Dettaglio e sovrapposizione degli scenari sono in euro **nominali** («Valori nominali: il prelievo cresce con l'inflazione.»); la Spesa sostenibile è già in euro di oggi | `monteCarloNarrative.ts` (`describeProbabilitaFooter`), `SpesaSostenibileTile.tsx` |
+| Griglia desktop: Probabilità 5 · Distribuzione 4 · Scenari 3, poi Spesa sostenibile 12, Parametri 12; telefono: Probabilità → Spesa sostenibile → Distribuzione → Scenari → Parametri | `MonteCarloTab.tsx:519-600` |
+| Nessuna spec Playwright copre la scheda; `e2e/fire*.spec.ts` cercano «Ventaglio Monte Carlo», che è il Ventaglio del **Calcolatore** | `e2e/fire.spec.ts:65`, `e2e/fire.mobile.spec.ts:47` |
+| Il nome «Monte Carlo» come scheda compare anche in: Proiezione (Dettaglio «Nessun prelievo: quello è il Monte Carlo.»), landing («Monte Carlo — in quante simulazioni il piano regge»), Impostazioni › Simulazioni («FIRE › Monte Carlo»), Parametri del Calcolatore («Usata da tutte le simulazioni (Calcolatore, Coast FIRE, What If, Monte Carlo)») | `projectionNarrative.ts:279`, `landingNarrative.ts:152`, `app/dashboard/settings/page.tsx:4192`, `FireParametri.tsx:258` |
+
+### 12.3 Perimetro
+
+**Incluso**
+- Nome della scheda «Dopo il FIRE»; «Monte Carlo» resta come nome del **metodo** (DF1).
+- Partenza di default dall'anno FIRE del Base sul piano salvato, con il commutatore «Da oggi» (DF2–DF4, RD1–RD5).
+- Orizzonte di default fino a 90 anni d'età (DF5); i casi senza anno FIRE (DF6).
+- Euro di oggi in tutte le cifre della scheda (DF7, RD6).
+- Via la tessera Distribuzione con la sua vista «Esaurimento» (DF8); Spesa sostenibile prima tessera (DF9).
+- I testi delle altre superfici che nominano la scheda (§ 12.2, ultima riga).
+
+**Escluso**
+- Simulazione in due fasi (accumulo stocastico fino al FIRE, poi prelievo): card in Parcheggio, = P7 (§ 12.10).
+- Prelievi dinamici (P3), stress test (P9), bootstrap storico (D3 di FIRE ipotesi).
+- La Proiezione: resta com'è (la coppia «Verso il FIRE / Dopo il FIRE» è del passo 6 dell'ordine).
+- «Il mio piano» e le chip «Ipotesi usate» (passo 3): la riga `FireAssumptionsRow` resta quella di oggi.
+- L'età obiettivo (E1) come anno di partenza: la card chiede il FIRE previsto (§ 12.9, punto aperto 1).
+- Nessuna modifica a Orso/Toro, correlazioni, leva, costi, tasse: stesse regole, solo lette dall'anno FIRE.
+
+### 12.4 Casi d'uso
+
+1. **Il caso della card.** Il Calcolatore dice «FIRE nel 2031». Aprendo «Dopo il FIRE» la scheda dice: «Smettendo
+   nel 2031 (a 45 anni) con 812.000 € di oggi, nel X% delle 10.000 simulazioni il capitale regge fino a 90 anni
+   (2076)…»; la Spesa sostenibile, in cima, dice quanto si può prelevare l'anno in 9 casi su 10 da quel capitale.
+2. **Se smetto oggi.** L'utente sceglie «Da oggi» in Parametri: la scheda torna esattamente a quella di oggi (stesso
+   capitale, stesse pensioni, stessi flussi, stesse cifre a parità di orizzonte), salvo l'unità (euro di oggi).
+3. **Già FIRE.** Il capitale di oggi copre già il fabbisogno: anno FIRE = oggi, il commutatore non serve e non c'è; la
+   riga sotto «Quando smetto» dice «Sei già FIRE: la simulazione parte da oggi.»
+4. **FIRE mai raggiunto.** Il Calcolatore non trova un anno FIRE entro 50 anni: la scheda parte da oggi e lo dice
+   («Il Calcolatore non trova un anno FIRE entro il 2076: la simulazione parte da oggi.»).
+5. **Fondo pensione bloccato.** Sblocco nel 2045, FIRE nel 2031: il fondo entra nel 2045 come oggi (al valore di oggi),
+   cioè all'anno 14 del prelievo. Sblocco nel 2029, FIRE nel 2031: il fondo è già dentro il capitale al FIRE (il
+   cammino del Calcolatore l'ha fuso nel 2029) e nessun afflusso arriva dopo.
+6. **Pensione statale a 67 anni.** Età 40, FIRE a 45: la pensione toglie dal prelievo dall'anno 22 del prelievo
+   (2053), non dall'anno 27 come «se smetto oggi».
+
+### 12.5 Regole di calcolo
+
+Notazione: `T` = anni da oggi all'anno FIRE (`baseYearsToFIRE` del cammino deterministico sul piano salvato, § 12.7.2);
+`s = 1 … N` gli anni del prelievo; `π` l'inflazione dello scenario del run (Orso, Base o Toro; `π_b` quella del Base).
+
+**RD1 — Anno di partenza.** Modalità «Dal FIRE»: `T = baseYearsToFIRE` quando è un intero ≥ 1. Con `T = 0` (già
+FIRE), `null` (mai entro 50 anni) o piano non calcolabile (`hasBaseline` falso: capitale, spesa o SWR mancanti) la
+scheda usa `T = 0` e dice perché (DF6). Modalità «Da oggi»: `T = 0`. Con `T = 0` ogni regola sotto si riduce
+**esattamente** al motore di oggi (A-T1).
+
+**RD2 — Capitale al FIRE.** `K_T = baseNetWorth_T / (1 + π_b)^T`, in euro di oggi: il capitale nominale del Base
+all'anno `T` (risparmi indicizzati versati fino a `T` compreso, fondo bloccato fuso se lo sblocco è ≤ `T`, forfait dei
+flussi fino a `T` compreso) deflazionato con l'inflazione del Base. Orso, Base e Toro partono **dallo stesso** `K_T`
+e dallo stesso `T` (DF3): gli scenari differiscono solo dopo il FIRE. Il campo «Capitale iniziale» resta
+modificabile; il valore scritto prende il posto di `K_T`.
+
+**RD3 — Base fiscale al FIRE.** Con il profilo fiscale di `K`: `gainShare_T = 1 − basis_T / baseNetWorth_T`, dove
+`basis_T` è la base del cammino del Base all'anno `T` (oggi + ogni euro versato + il fondo fuso + i forfait in
+entrata, meno la quota venduta dai forfait in uscita). `basisToday` del run = `capitale scritto × (1 − gainShare_T)`,
+la regola di oggi con la quota dell'anno `T` al posto di quella di oggi. Con `T = 0`: la quota di oggi, invariata.
+
+**RD4 — Calendario ribasato.** Il run è espresso in euro di oggi con l'orologio dei prezzi che riparte da `T`: ogni
+importo che il motore leggeva all'anno `y` da oggi lo legge all'anno `T + s` e lo divide per `(1 + π)^T`.
+- Prelievo dell'anno `s`: `W · (1 + π)^s` (invariato: `W` è già in euro di oggi).
+- Pensioni statali: attive se `fromYear ≤ T + s`, importo `annualNetToday · (1 + π)^s`.
+- Fondo bloccato (afflusso `X` all'anno `u` da oggi): con `u > T` entra all'anno `s = u − T` per `X / (1 + π)^T`
+  (il valore di oggi, come la convenzione del Monte Carlo); con `u ≤ T` è già in `K_T` e il motore lo ignora.
+- Flussi datati: tabelle costruite su `T + N` anni con la `π` dello scenario; bisogno dell'anno `s` =
+  `needFor(T)[T + s] / (1 + π)^T` (un flusso «dal FIRE» parte dall'anno FIRE, come nel Calcolatore); forfait
+  `lumpIn/lumpOut[T + s] / (1 + π)^T`; i forfait degli anni `≤ T` sono già in `K_T` (nessun `start`).
+- Le estrazioni non cambiano: ogni percorso consuma `7 × 2 × N` uniformi dal seme `MONTE_CARLO_SEED`, il mercato è
+  lo stesso a qualunque `T` (le ipotesi sono stazionarie).
+
+**RD5 — Orizzonte.** Default `N = clamp(90 − (età + T), 1, 60)` con l'età salvata; senza età `N = 30` (il default di
+oggi). Modificabile da 1 a 60 come oggi. Il cambio di modalità ricalcola il default solo se l'utente non ha scritto
+l'orizzonte a mano.
+
+**RD6 — Euro di oggi.** Ogni valore del percorso all'anno `s` si mostra come `V_s / (1 + π)^s` con la `π` dello
+scenario (in RD4 il percorso è già al netto di `(1+π)^T`). Percentili (10°, 25°, 50°, 75°, 90°, indice
+*floor(n × p)*) e mediane si leggono sui valori nominali e si dividono per lo stesso fattore (la divisione è monotona,
+RV3). **Le probabilità, il conteggio dei fallimenti, gli anni di esaurimento e la Spesa sostenibile non cambiano**:
+la soglia di fallimento è zero in ogni unità.
+
+### 12.6 Cosa vede l'utente
+
+- **Nome**: la scheda si chiama «Dopo il FIRE» nella barra delle schede (icona `Dices` invariata), nel verdetto
+  (`ariaLabel` «Verdetto su Dopo il FIRE») e nelle superfici di § 12.2 (ultima riga): Proiezione «Nessun prelievo:
+  quello è Dopo il FIRE.»; landing «Dopo il FIRE — in quante simulazioni il piano regge»; Impostazioni «FIRE › Dopo il
+  FIRE»; Calcolatore «(Calcolatore, Coast FIRE, What If, Dopo il FIRE)». «Monte Carlo» resta il nome del metodo:
+  l'aside di Probabilità «scenario base · 10.000 simulazioni Monte Carlo · 45 anni», il titolo «Dettaglio · Monte
+  Carlo» e le frasi tecniche di Impostazioni › Simulazioni (non cambiano).
+- **Verdetto** (Base, euro di oggi). Titolo invariato nella forma: «Il piano regge nel 63% dei casi.» Frase: la
+  partenza, poi la probabilità, poi la Spesa sostenibile (subito dopo, non in coda), poi leva, scenari e ponte come
+  oggi: «Smettendo nel 2031 (a 45 anni) con 812.000 € di oggi, nel 63% delle 10.000 simulazioni il capitale regge
+  fino a 90 anni (2076); nel caso mediano chiudi con 640.000 € di oggi, nel 10% peggiore i soldi finiscono entro il
+  2058 (72 anni). Per restare al 90% potresti prelevare fino a 27.300 € l'anno di oggi…». Con `T = 0` la partenza
+  diventa «Smettendo oggi con 700.000 €, …». Le cifre di questo esempio sono illustrative.
+- **Griglia** (desktop 12 colonne): **Spesa sostenibile 12** (com'è oggi: eroe a sinistra, tabella 3 × 3 a destra) ·
+  **Probabilità 8 | Scenari a confronto 4** · **Parametri 12**. Telefono e tablet: Spesa sostenibile → Probabilità →
+  Scenari → Parametri. Lo scheletro (`SKELETON_CELLS`) segue.
+- **Probabilità**: il ventaglio parte dall'anno FIRE (asse da `oggi + T` a `oggi + T + N`), in euro di oggi; il
+  gradino del fondo bloccato solo se `u > T`. Footer: «Euro di oggi, inflazione 3,04% (Impostazioni › Simulazioni): il
+  prelievo resta costante in potere d'acquisto.» al posto di «Valori nominali: …». La lettura dice ancora l'anno medio
+  di esaurimento dei percorsi che falliscono (la sola traccia della vista «Esaurimento» che esce).
+- **Scenari a confronto**: invariata (probabilità per scenario); la nota della mediana in euro di oggi.
+- **Spesa sostenibile**: invariata nei numeri; «il X% del capitale» è di `K_T`.
+- **Distribuzione**: **esce**, con la vista «Esaurimento» e il suo `AsideToggle`.
+- **Parametri**: un primo campo **«Quando smetto»**, un selettore a due voci «Al FIRE (2031)» · «Oggi» (il
+  `segmented-pill` del repo, ≥ 44px su touch), con sotto una riga in sola lettura:
+  «Anno FIRE del Calcolatore, scenario Base, sul piano salvato. Capitale al FIRE: 812.000 € di oggi (943.000 € nel
+  2031). Non conta che al FIRE si può arrivare con più o con meno: è la cifra del Base.» Senza anno FIRE il
+  selettore non c'è e la riga dice perché (DF6). «Capitale iniziale» è seminato con `K_T` in modalità «Al FIRE»
+  (scorciatoia «Al FIRE» al posto di «Totale / Liquido»), con il capitale di oggi in modalità «Oggi» (scorciatoie
+  «Totale / Liquido» come oggi). Le righe di pensioni, fondo bloccato, tasse e flussi dicono gli anni **del prelievo**
+  («dall'anno 22 (2053)»). «Anni di prelievo» seminato con RD5.
+- **Dettaglio**: «Dettaglio · Monte Carlo». Sovrapposizione delle mediane e tabella dei percentili ogni 5 anni in
+  euro di oggi, dall'anno FIRE; la tabella aggiunge in coda la colonna «Mediana nominale» (piccola, come le Tappe
+  della Proiezione). La spiegazione dice la partenza dal FIRE e il limite di DF3.
+- **Esecuzione** (The Stale-Run Rule): invariata. Cambiare «Quando smetto» è un input del piano: rende stantio
+  l'ultimo run finché non si preme «Esegui». Il primo run automatico parte in modalità «Al FIRE».
+
+### 12.7 Dettagli tecnici
+
+1. **Motore** (`lib/services/monteCarloService.ts`) — un parametro opzionale `MonteCarloParams.startYear?: number`
+   (default 0). `ledgerSchedule` applica RD4: pensioni a `T + s` divise per `(1+π)^T`, `capitalInflows` spostati di
+   `T` (quelli con `year ≤ T` scartati) e divisi, `flowTablesFor(..., T + years)` con `needFor(T)` e i forfait letti
+   da `T + 1`, nessun `start` se `T > 0`. `drawPathFactors` **non** cambia. `countSuccesses` legge lo stesso schedule,
+   quindi S5 vale anche con `startYear`. Con `startYear` assente o 0 lo schedule è identico, float per float (A-T1).
+2. **Anno e capitale al FIRE** — `lib/utils/fireStart.ts` (nuovo, puro): `resolveFireStart(projection, ctx)` →
+   `{ kind: 'fire', years: T, calendarYear, ageAtFire, capitalNominal, capitalToday, gainShare } | { kind: 'today',
+   reason: 'already' | 'never' | 'no-plan' }`. La scheda lo nutre con `useWhatIfBaseline()` (stesse query, cache
+   condivisa) e la proiezione del Base del piano salvato, cioè la funzione privata `runBaseProjection` di
+   `whatIfService.ts` esportata (o un `runBaselineProjection(baseline)` che la avvolge), così «prima» del What If,
+   «Effetto sul FIRE» degli Obiettivi e «Dopo il FIRE» leggono lo stesso anno.
+3. **Base fiscale** — `calculateFIREProjection` aggiunge a `FIREProjectionYearData` un campo opzionale
+   `baseCostBasis?: number` (arrotondato all'euro), presente solo quando `honest.withdrawalTax` c'è; nessun altro
+   cambiamento del cammino (i test esistenti restano verdi senza modifiche).
+4. **Riepilogo** (`lib/utils/monteCarloSummary.ts`) — `MonteCarloContext` resta `{ startCalendarYear, currentAge }`:
+   la scheda passa `oggi + T` ed `età + T`, così anni ed età di verdetto, ventaglio e righe sono già quelli del
+   prelievo. Un `deflate(value, s, π)` puro per RD6, applicato in `summarizeMonteCarloRun` (percentili finali,
+   mediana), `buildOverlaySeries`, `buildPercentileRows` (più `p50Nominal`) e nei percentili passati al ventaglio
+   (`deflatePercentiles(percentiles, π)`). Escono `buildHistogram`, `histogram*`, `failureYearBins*`,
+   `failureFirst/LastCalendarYear` e le funzioni di `monteCarloNarrative.ts` che li leggono (`describeDistribuzione*`,
+   `describeEsaurimento*`, `DistributionView`). `createDistribution` (servizio) e `binYears` restano: li usano
+   Proiezione e Calcolatore.
+5. **Parole** (`lib/utils/monteCarloNarrative.ts`) — `buildMonteCarloVerdict` riceve `start: { calendarYear, age,
+   capital } | null` e mette la frase S1 subito dopo la prima; `describeFireStartRow(start)` per la riga di
+   Parametri (tre motivi di DF6); footer di Probabilità in euro di oggi.
+6. **Scheda** — `components/fire-simulations/MonteCarloTab.tsx` (nome del file invariato): stato `startMode: 'fire' |
+   'today'` nel form (`MonteCarloForm.startMode`), seme di capitale e orizzonte per modalità, `startYear` nei
+   `params`; `haveRunInputsChanged` lo confronta già (è nei params). Griglia di § 12.6; via `DistribuzioneTile`,
+   `FinalValueBars` (se nessun altro lo importa: la Proiezione ha la sua tessera) e lo stato `distributionView`.
+   `ParametriTile` riceve il selettore e la riga. `app/dashboard/fire-simulations/page.tsx`: `label: 'Dopo il FIRE'`,
+   `value: 'montecarlo'` invariato (non è nell'URL, nessun test lo cerca).
+7. **Prestazioni**: `startYear` non aggiunge estrazioni; le tabelle dei flussi crescono di `T` anni (trascurabile).
+   Il default fino a 90 anni allunga l'orizzonte (45 anni invece di 30 nell'esempio): misura nella guida il tempo dei
+   tre scenari + Spesa sostenibile all'orizzonte di default del mirror; se supera 3 s, dillo nel thread prima di
+   cambiare qualcosa.
+
+### 12.8 Decisioni (prese con il proprietario il 05/10/2026)
+
+| # | Decisione | Alternative scartate e motivo |
+| --- | --- | --- |
+| DF1 | La scheda si chiama **«Dopo il FIRE»**; «Monte Carlo» resta il nome del metodo (aside di Probabilità, titolo del Dettaglio, Impostazioni › Simulazioni). Il `value` interno `montecarlo`, i nomi dei file e degli identificatori non cambiano. | «Prelievo» (non dice da quando); tenere «Monte Carlo» (nome del metodo, che usa anche la Proiezione); rinominare `value` e file (churn senza effetto: il tab non è nell'URL). |
+| DF2 | Di default parte dall'**anno FIRE del Base sul piano salvato** (`useWhatIfBaseline`, lo stesso «prima» del What If), con il selettore **«Al FIRE (anno) · Oggi»** in Parametri. | Anno scritto a mano (un input in più che il Calcolatore sa già); l'anteprima non salvata del Calcolatore (vive in un'altra scheda, che può non essere montata); l'età obiettivo E1 (la card chiede il FIRE previsto, § 12.9). |
+| DF3 | **Capitale del Base all'anno FIRE** (RD2), lo stesso `K_T` e lo stesso `T` per Orso, Base e Toro; il limite è dichiarato nella riga di Parametri e nel Dettaglio. | Capitale e anno propri di ogni scenario (l'Orso può non arrivare al FIRE: tre domande in una tessera); simulazione in due fasi (card in Parcheggio, cambia il motore). |
+| DF4 | **Calendario ribasato** (RD3–RD4): pensioni, fondo bloccato, flussi e base fiscale letti dall'anno FIRE. | Spostare solo le date mostrate (pensioni e flussi sbagliati di `T` anni); ignorare pensioni e flussi in modalità FIRE (piano diverso dal Calcolatore). |
+| DF5 | **Orizzonte fino a 90 anni d'età** (RD5), come il registro del Calcolatore; 30 anni senza età. | 30 anni fissi (dal FIRE a 45 anni finisce a 75: meno prudente del Calcolatore); fino a 100 anni (nessuna scheda lo usa). Conseguenza dichiarata: anche in modalità «Oggi» l'orizzonte di default cambia, quindi la probabilità della fixture (63% a 30 anni) cambia per l'orizzonte, non per l'unità. |
+| DF6 | **Senza anno FIRE parte da oggi e dice perché**: già FIRE («Sei già FIRE»), mai entro 50 anni («Il Calcolatore non trova un anno FIRE entro il 2076»), piano incompleto («Il Calcolatore non ha spesa o SWR»). Il selettore non c'è. | Partire dall'anno 50 (un capitale che non copre la spesa, probabilità senza senso); bloccare la scheda (la domanda «se smetto oggi» resta valida). |
+| DF7 | **Euro di oggi** in ogni cifra (RD6); il nominale solo come colonna «Mediana nominale» nel Dettaglio. Probabilità invariate. | Nominale (oggi: due schede vicine, due unità); interruttore (due stati per ogni frase); nominale accanto a ogni cifra (raddoppia i numeri del verdetto). |
+| DF8 | **Via la tessera Distribuzione** con la vista «Esaurimento»; resta l'anno medio di esaurimento nella lettura di Probabilità e i percentili ogni 5 anni nel Dettaglio. | Scenderla nel Dettaglio (ripete la tabella dei percentili all'ultimo anno); tenere solo «Esaurimento» (ripete l'anno medio di Probabilità). |
+| DF9 | **Spesa sostenibile prima tessera**; griglia Spesa 12 · Probabilità 8 \| Scenari 4 · Parametri 12. Il titolo del verdetto resta la probabilità del piano scritto; la frase della spesa sostenibile sale subito dopo la prima. | Titolo sulla spesa sostenibile (il prelievo scritto sparisce dal titolo, che oggi ha il tono); Probabilità e Spesa affiancate 6 \| 6 (la tabella 3 × 3 non sta in 6 colonne sotto 1440px). |
+
+**Scelte di default prese dall'agente** (dichiarate, accettate con DF1–DF9): il selettore sta in Parametri, non sopra il verdetto (The Input
+Tile Rule: è un input del piano); il primo run automatico è «Al FIRE»; il valore scritto in «Capitale iniziale»
+vince su `K_T` finché non si cambia modalità; icona invariata.
+
+### 12.9 Punti aperti
+
+1. **Età obiettivo come partenza.** Con un'età obiettivo salvata (E1) il proprietario potrebbe volere «smetto a 50
+   anni» come terza voce del selettore. Non in questa task: si rivaluta con «Il mio piano» (passo 3).
+2. **Nome della Proiezione** («Verso il FIRE»): passo 6 dell'ordine, dopo questa.
+3. **Quanto è grossolana DF3**: dopo l'uso si decide se la card in Parcheggio (due fasi) torna in Backlog (§ 12.10).
+
+### 12.10 Coerenza con P7 e con la card in Parcheggio
+
+La versione fedele (ogni percorso arriva al FIRE con il suo capitale) è la simulazione in due fasi di § 11.10. Nulla
+qui la anticipa né la ostacola: `startYear` resta valido per un registro che parte da un capitale per percorso, e le
+estrazioni sono le stesse. Il prezzo della versione semplice è dichiarato in Parametri e nel Dettaglio.
+
+### 12.11 Criteri di accettazione (valori di riferimento verificabili)
+
+Casi del motore a volatilità zero (una classe, Azioni `g` = 5%, `π` = 2%, prelievo `W` = 40.000 € di oggi indicizzato,
+nessuna tassa, nessun costo), `K` = 1.000.000 € nelle unità del run. Valori calcolati a mano (Python) con l'ordine del
+registro: afflusso → rendimento → prelievo.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| A-T1 | Regressione: `startYear` assente e `startYear: 0`, stesso seme (S10, `monteCarloSeededRegression`) | identici float per float, leva compresa; S5 (`countSuccesses` = run fresco) verde |
+| A-T2 | Volatilità zero, `startYear` 5, `N` = 3, nessuna pensione/afflusso/flusso | fine anno 1: 1.009.200,00 €; 2: 1.018.044,00 €; 3: 1.026.497,88 € (uguale a `startYear` 0) |
+| A-T3 | RD6 sul caso A-T2 | anno 3 in euro di oggi: 967.291,88 € (= 1.026.497,88 / 1,02³); percentili reali = nominali / `(1+π)^s` |
+| A-T4 | Come A-T2 con una pensione `fromYear` 7, 10.000 € netti di oggi | `startYear` 5: anno 2: 1.028.448,00 €; anno 3: 1.048.034,16 € (pensione attiva da `s` = 2, 10.404 € e 10.612,08 €); `startYear` 0: come A-T2 (pensione oltre l'orizzonte) |
+| A-T5 | Come A-T2 con due afflussi del fondo da 50.000 € agli anni 6 e 4 da oggi | `startYear` 5: l'anno 6 entra a `s` = 1 per 45.286,54 € (= 50.000 / 1,02⁵), quello dell'anno 4 è ignorato; fine anno 1: 1.056.750,87 €; 2: 1.067.972,41 €; 3: 1.078.922,71 € |
+| A-T6 | Flussi: un'uscita «dal FIRE» di 5.000 € l'anno per 2 anni, `startYear` 5 | il bisogno degli anni `s` = 1, 2 è `needFor(5)[6], [7]` diviso `1,02⁵`; nessun bisogno a `s` = 3; con `startYear` 0 identico ad oggi (`needFor(0)`) |
+| A-T7 | RD2 su un cammino semplice: `K` = 500.000 €, risparmio 30.000 € indicizzato, spesa 30.000 €, SWR 4%, Base `g` = 5%, `π` = 2%, nessuna pensione, tassa o flusso | `baseYearsToFIRE` = 6; `baseNetWorth_6` = 883.981 € nominali; `K_T` = 784.950 € di oggi (fabbisogno 844.622 € nominali, 750.000 € di oggi) |
+| A-T8 | RD1/DF6 | `T = 0` (già FIRE), `null` (mai) e `hasBaseline` falso ⇒ `kind: 'today'` con il motivo; il selettore assente, la riga di Parametri dice il motivo |
+| A-T9 | RD3 | con tassa, `basisToday` del run = capitale scritto × `baseCostBasis_T / baseNetWorth_T`; senza tassa `baseCostBasis` assente e cammino identico ai test esistenti |
+| A-T10 | RD6 non tocca le probabilità | con lo stesso seme e gli stessi input, `successRate`, `failureCount` e le nove cifre di Spesa sostenibile sono uguali prima e dopo il passaggio agli euro di oggi |
+| A-T11 | RD5 | età 40, `T` = 5 ⇒ `N` = 45; età 40, «Oggi» ⇒ `N` = 50; senza età ⇒ 30; età 85, `T` = 10 ⇒ 1 |
+| A-T12 | Nome | la barra delle schede dice «Dopo il FIRE»; nessuna superficie di § 12.2 chiama più la scheda «Monte Carlo» |
+
+### 12.12 File
+
+**Nuovi**: `lib/utils/fireStart.ts`, `__tests__/fireStart.test.ts`.
+**Modificati**: `lib/services/monteCarloService.ts` (`startYear`), `lib/services/fireService.ts` (`baseCostBasis`),
+`types/assets.ts` (i due campi opzionali), `lib/services/whatIfService.ts` (export della proiezione del Base),
+`lib/utils/{monteCarloSummary,monteCarloNarrative}.ts`, `components/fire-simulations/MonteCarloTab.tsx`,
+`components/monte-carlo/{MonteCarloDettaglio,ScenarioOverlayChart,tiles/ParametriTile,tiles/ProbabilitaTile}.tsx`,
+`app/dashboard/fire-simulations/page.tsx`, `lib/utils/{projectionNarrative,landingNarrative}.ts`,
+`app/dashboard/settings/page.tsx`, `components/fire-simulations/FireParametri.tsx`; test
+`__tests__/{monteCarloService,monteCarloSummary,monteCarloNarrative,fireService}.test.ts`.
+**Rimossi**: `components/monte-carlo/tiles/DistribuzioneTile.tsx`, `components/monte-carlo/FinalValueBars.tsx` (se
+non più importato).
+
+### 12.13 Test
+
+- `monteCarloService.test.ts`: A-T1 (regressione seminata), A-T2, A-T4, A-T5, A-T6, S5 con `startYear`.
+- `fireService.test.ts`: A-T7 (anno e capitale), A-T9 (`baseCostBasis` presente solo con la tassa).
+- `fireStart.test.ts`: A-T7 in euro di oggi, A-T8, A-T11.
+- `monteCarloSummary.test.ts`: A-T3, A-T10; il contesto spostato di `T` (anni ed età del verdetto).
+- `monteCarloNarrative.test.ts`: verdetto con partenza al FIRE e da oggi, S1 dopo la prima frase, le tre righe di DF6,
+  footer in euro di oggi.
+- Nessuna spec Playwright nuova (la scheda non ne ha, § 9); collaudo su anteprima Vercel e sul mirror.
+
+### 12.14 Documentazione e fine
+
+- `doc/guide/fire-monte-carlo.md`: titolo «FIRE › Dopo il FIRE (Monte Carlo)», partenza, calendario ribasato, euro di
+  oggi, griglia nuova, via Distribuzione ed Esaurimento, tempi misurati; blind spot di DF3. `doc/guide/fire.md` (nome
+  della scheda, `startYear`, `baseCostBasis`), `doc/guide/fire-proiezione.md` (il testo che nomina la scheda),
+  `CLAUDE.md` riga «FIRE» e «Latest», `doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`.
+- Fine: `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`, `TZ=Europe/Rome npx vitest
+  run` verdi. Collaudo una fase per messaggio (WORKFLOW.md § 2).
