@@ -7,12 +7,14 @@
  * from the direction that is good for that row: a year later is a loss, a lower FIRE number a
  * gain, a bigger Coast gap a loss. An unchanged row says «invariato», muted — never a «+0 €».
  *
- * The old page had the same figures as two peer cards (FIRE / Coast) with five rows each;
- * inside a tile they are one list in two blocks, so the reader compares eight numbers at once.
+ * Only the rows that change are shown (FEAT FIRE 2026-10-05, `buildDeltaView`): the others are one
+ * closing line, and when nothing moves the tile is one sentence. The order never reshuffles, the
+ * rows only disappear. For a job loss of today the decomposed hit sits under the rows (`effect`).
  */
 
+import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
-import type { DeltaRow } from '@/lib/utils/whatIfNarrative';
+import { DELTA_NOTHING_MOVES, type DeltaRow, type DeltaView } from '@/lib/utils/whatIfNarrative';
 import { cn } from '@/lib/utils';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
@@ -20,11 +22,13 @@ import { NarrativeText } from '@/components/ui/narrative-text';
 interface DeltaTileProps {
   /** `describeDelta(summary)`. */
   reading: Narrative;
-  rows: { fire: DeltaRow[]; coast: DeltaRow[] | null };
+  view: DeltaView;
   /** The Coast target age, for the block's label. */
   coastRetirementAge: number | null;
   /** `describeDeltaFooter(hasCoast)`. */
   footer: Narrative;
+  /** The job-loss decomposition, when there is one. */
+  effect?: ReactNode;
   className?: string;
 }
 
@@ -65,18 +69,29 @@ function RowList({ rows, ariaLabel }: { rows: DeltaRow[]; ariaLabel: string }) {
   );
 }
 
-export function DeltaTile({ reading, rows, coastRetirementAge, footer, className }: DeltaTileProps) {
+export function DeltaTile({ reading, view, coastRetirementAge, footer, effect, className }: DeltaTileProps) {
+  if (view.nothingMoves) {
+    return <Tile eyebrow="Delta" aside="prima → dopo" reading={DELTA_NOTHING_MOVES} ariaLabel="Delta dell'evento" className={className}>{null}</Tile>;
+  }
   return (
     <Tile eyebrow="Delta" aside="prima → dopo" reading={reading} ariaLabel="Delta dell'evento" className={className}>
-      <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>FIRE</p>
-      <RowList rows={rows.fire} ariaLabel="Prima e dopo per il FIRE" />
-
-      {rows.coast && (
+      {view.fire.length > 0 && (
         <>
-          <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-4')}>Coast FIRE{coastRetirementAge !== null && ` · a ${coastRetirementAge} anni`}</p>
-          <RowList rows={rows.coast} ariaLabel="Prima e dopo per il Coast FIRE" />
+          <p className={cn(TILE_SUB_EYEBROW_CLASS, 'mt-3.5')}>FIRE</p>
+          <RowList rows={view.fire} ariaLabel="Prima e dopo per il FIRE" />
         </>
       )}
+
+      {view.coast && (
+        <>
+          <p className={cn(TILE_SUB_EYEBROW_CLASS, view.fire.length > 0 ? 'mt-4' : 'mt-3.5')}>Coast FIRE{coastRetirementAge !== null && ` · a ${coastRetirementAge} anni`}</p>
+          <RowList rows={view.coast} ariaLabel="Prima e dopo per il Coast FIRE" />
+        </>
+      )}
+
+      {view.unchangedLine && <p className="mt-3 text-[12px] leading-[1.45] text-muted-foreground">{view.unchangedLine}</p>}
+
+      {effect}
 
       <NarrativeText segments={footer} className="mt-auto border-t border-border pt-3.5 text-[11px] leading-[1.45] text-muted-foreground" />
     </Tile>

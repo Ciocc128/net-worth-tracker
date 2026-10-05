@@ -257,6 +257,7 @@ export interface FireEmptyTiles {
   passiveIncome: string | null;
   scenarios: string;
   targetAge: string;
+  sensitivity: string;
   /** The ONE action of the page, owned by the Traguardo: the surface that owns the missing thing. */
   action: { label: string; href: string };
 }
@@ -274,6 +275,7 @@ export function describeEmptyTiles(kind: FireEmptyKind): FireEmptyTiles {
       passiveIncome: 'Il reddito passivo è il SWR del patrimonio: senza patrimonio non c\'è un prelievo da stimare.',
       scenarios: 'Gli scenari proiettano il patrimonio anno per anno: senza patrimonio non c\'è nulla da proiettare.',
       targetAge: 'L\'età obiettivo si misura contro il numero FIRE: senza patrimonio non c\'è un traguardo da raggiungere.',
+      sensitivity: 'La sensibilità conta gli anni al FIRE al variare di spese e risparmio: senza patrimonio non c\'è nulla da proiettare.',
       action: { label: 'Aggiungi il primo asset', href: '/dashboard/assets' },
     };
   }
@@ -283,6 +285,7 @@ export function describeEmptyTiles(kind: FireEmptyKind): FireEmptyTiles {
     passiveIncome: null,
     scenarios: 'Gli scenari partono dalle spese: senza spese non c\'è un numero FIRE da raggiungere.',
     targetAge: 'Per sapere cosa serve a quell\'età servono le spese registrate: senza non c\'è un numero FIRE.',
+    sensitivity: 'La sensibilità muove le spese attorno a quelle di oggi: senza spese registrate non c\'è un punto di partenza.',
     action: { label: 'Registra le spese nel Cashflow', href: '/dashboard/cashflow' },
   };
 }

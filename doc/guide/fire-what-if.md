@@ -35,15 +35,19 @@
   scenario reaches FIRE, so a purchase lengthens the after side and `connectNulls={false}` leaves the gap). The plan of today is
   `--muted-foreground` (a baseline is neutral), the plan after the event `--chart-1`; the before target is drawn only when the
   event moves the FIRE number (`targetsDiffer`). Reference lines mark the two FIRE years, none for a side reached today.
-- **The Sensibilità matrix runs on the plan of TODAY**, centred on the actual or the typed reference expenses, never on the event —
-  the aside says «piano di oggi», the footer says why. Cells: the baseline outlined (`border-foreground`), better `bg-positive/15`,
+- **The Sensibilità is NOT on this tab any more** (FEAT FIRE 2026-10-05, doc/fire-ipotesi/README.md § 16 D-W5/D-W6): it is the Calcolatore's, under Età obiettivo
+  (`FireCalculatorTab`; the tile, `summarizeSensitivity` and `describeSensitivity` keep their files here). It runs on the plan of TODAY, centred on the plan's or the
+  typed reference expenses, and walks exactly the verdict's path (bridge, pensions, tax, flows). Cells: the baseline outlined (`border-foreground`), better `bg-positive/15`,
   worse `bg-destructive/15` — the sign tokens, not chart slots. Below `desktop:` it is one block per expense level with the savings
   cells in two columns (a cardified matrix needs its own labels). `summarizeSensitivity` reads the −10% row at the baseline column
   and the column right after the baseline (`+25%`, or `€5k` on the zero-savings fallback, whose label starts without `+`).
+- **Layout since 2026-10-05 (D-W1–D-W4)**: the Evento is first at every width, before the verdict; on a desktop it is the left 4 columns and the right 8 hold
+  the verdict over Prima e dopo (5) and Delta (3). The event stays preset (6 months). The Delta shows only the rows that change (`buildDeltaView`: fixed order, an
+  unchanged row leaves, one closing line «Invariati: …», a row with no computable delta stays, and when nothing moves the tile is `DELTA_NOTHING_MOVES`); the
+  job-loss decomposition (`whatif/JobLossEffect.tsx`) lives in the Delta, drawn only for a job loss of today.
 - **Every Delta row is `flex-wrap`**: «Raggiunto → Raggiunto» in a 3-column tile drops under the label, right-aligned, instead of
   splitting «Numero Coast oggi» over three lines (the Per classe row's rule).
-- Playwright locates the tiles by `role=region` + `aria-label` («Prima e dopo l'evento», «Delta dell'evento», «Evento simulato»,
-  «Sensibilità degli anni al FIRE»), the verdict by «Verdetto sul What If» (its sentence is the `p` under the heading — the region's
+- Playwright locates the tiles by `role=region` + `aria-label` («Prima e dopo l'evento», «Delta dell'evento», «Evento simulato»), the verdict by «Verdetto sul What If» (its sentence is the `p` under the heading — the region's
   text starts with the headline), the event switch by `role=group` «Tipo di evento» (`aria-pressed` buttons), the rows by the lists
   «Prima e dopo per il FIRE» / «…per il Coast FIRE», the picker by «Fonti di reddito», the matrix by its `table` (1440) or the
   list «Anni al FIRE per livello di spesa» (390). On the base account the target is REACHED (small expenses), so a spec asserts the
@@ -55,7 +59,7 @@
 
 - **The age it reads is the page's** (E1, 2026-10-04): the Coast block's target age (`coastFireRetirementAge`) can now also be written from the Calcolatore's Parametri; nothing changes here, the field is the same.
 
-- **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation unless «Quando» puts it in a later year (then it is dated flows on the «dopo» side, `doc/guide/fire.md` § F3), nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; the Sensibilità reference expenses are session-only; `isPrimaryResidence` is informational.
+- **FIRE › What If**: no Playwright spec; every event is a year-0 perturbation unless «Quando» puts it in a later year (then it is dated flows on the «dopo» side, `doc/guide/fire.md` § F3), nothing persisted; the Coast block reads the SAVED age and pensions (no age → no block); the job-loss picker seeds from `laborIncomeCategoryIds` once per mount; the «Prima e dopo» walk of today stops five years after its last scenario reaches FIRE (a gap after a big purchase, by design); with the bridge on the FIRE numbers are bridge numbers while the chart reads `baseNetWorth`; `isPrimaryResidence` is informational.
 
 ## O1 — the baseline is a hook (2026-10-04)
 

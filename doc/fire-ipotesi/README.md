@@ -2529,3 +2529,50 @@ fanno in un thread sul computer del proprietario.
 | Lo scalare dipende dall'ordine: un utente legge «pensioni −169.304 €» come effetto assoluto. | L'ordine è fisso e scritto nel Dettaglio (RB1); i passi non sono colorati. |
 | Il blocco aperto spinge in basso il verdetto. | Chiuso di default, si apre da solo solo con il piano vuoto (RP5). |
 | Conflitto con i passi 4–9 dell'ordine, che toccano le stesse schede. | Questi task vanno prima (ordine approvato); le card successive partono dalla testa nuova. |
+
+## 16. What If e Sensibilità (passo 5 del riallineamento, task W1)
+
+Solo presentazione: nessuna formula nuova. Le quattro card Todoist del gruppo (Evento in cima, Delta, Sensibilità,
+verifica Runway) sono in un'unica PR.
+
+### 16.1 Decisioni
+
+| ID | Decisione | Alternative scartate | Motivo |
+| --- | --- | --- | --- |
+| D-W1 | Il What If apre con l'**Evento in cima, prima del verdetto**, a ogni larghezza. Su desktop: Evento (4 colonne) a sinistra; a destra, in una colonna da 8, il verdetto sopra Prima e dopo (5) e Delta (3). | Evento a tutta larghezza sopra il verdetto (un modulo stretto in una riga larga). | Lo schema di prima (5·3·4) resta uguale nelle larghezze; cambia solo l'ordine di lettura. |
+| D-W2 | L'evento resta **preimpostato** (6 mesi senza reddito). | Scheda vuota finché non si sceglie. | Una scheda vuota non avrebbe un verdetto da dire; il verdetto nomina l'evento e la tessera Evento lo ripete. |
+| D-W3 | La **scomposizione dell'effetto** (mancati risparmi, spese dal portafoglio) passa dalla tessera Evento alla tessera **Delta**, sotto le righe. Resta solo per una perdita di lavoro di oggi. | Lasciarla nell'Evento; una tessera a sé. | È un risultato, non un input; spiega la riga «Patrimonio FIRE» del Delta. |
+| D-W4 | Il **Delta mostra solo le righe che cambiano**, nell'ordine fisso (anno, patrimonio, numero FIRE, progresso, reddito passivo; Coast). Le altre in una riga di chiusura («Invariati: numero FIRE, Coast»; Coast è una voce sola se entrambe le sue righe restano ferme). Una riga senza delta calcolabile (un lato non arriva al FIRE) **non** è «invariata» e resta. Se nulla cambia, la tessera è una frase: «L'evento non sposta nessuna cifra del piano.» | Righe sempre visibili. | Card approvata il 05/10; l'ordine fisso limita il costo del confronto a occhio. |
+| D-W5 | La **Sensibilità passa al Calcolatore**, in una tessera a tutta larghezza **sotto Età obiettivo**, sempre aperta (non richiudibile): stessa famiglia di domande («cosa cambio io?»). Legge **solo il piano** (nessun evento), con le spese di riferimento digitabili. Su telefono segue Età obiettivo. | Accanto a Età obiettivo (due tessere di altezza diversa); richiudibile. | Il Calcolatore ha già sette domande: una tessera in più, ma non nascosta, perché è la lettura più utile per decidere. |
+| D-W6 | La matrice del Calcolatore cammina **esattamente** il percorso del verdetto: ponte del fondo pensione, pensioni e tassa (`honest`), risparmio indicizzato, flussi datati. `calculateFIRESensitivityMatrix` prende due parametri opzionali in coda (`pensionBridge`, `honest`); assenti, la matrice è identica a prima. | Lasciare la copia del What If (senza ponte né pensioni). | La cella con il bordo deve essere l'anno che il verdetto dice a due tessere di distanza. |
+
+### 16.2 Verifica «Runway storica e reddito passivo seguono i parametri?» (letta nel codice, 05/10/2026)
+
+- **Runway storica** (`calculateHistoricalFIRERunway`): `patrimonio FIRE del mese ÷ spese reali dei 12 mesi precedenti`.
+  Usa la spesa **reale** di quel mese (fissa), non la «spesa del piano»; non dipende dallo SWR. È voluto: è una serie
+  storica. Seguono lo SWR del piano (in anteprima, `displayedRunwayData`) solo **l'obiettivo in anni** (100 ÷ SWR) e il
+  progresso verso l'indipendenza finanziaria (`fireProgressToFI`).
+- **Reddito passivo per mese** (`prepareFIREChartData`): `patrimonio del mese × SWR ÷ 12`. Era l'unica serie che usava
+  lo SWR **salvato** (la query della storia ha lo SWR salvato nella chiave), quindi non seguiva la bozza del piano di
+  «Il mio piano» finché non si salvava. **Corretto**: `rescaleMonthlyAllowance` la riscala sullo SWR in anteprima, senza
+  rileggere la storia (stessa formula, stessa cifra a SWR salvato).
+- **Cashflow** (entrate, uscite): non dipende da nessun parametro.
+
+### 16.3 Criteri di accettazione
+
+1. Con un evento che non cambia nulla (es. «Entrata straordinaria» a 0 €) il Delta è la sola frase D-W4.
+2. Con una perdita di lavoro di 6 mesi che sposta anno, patrimonio, progresso e reddito passivo, il Delta mostra quelle
+   righe, «Invariati: numero FIRE[, Coast]» e sotto la scomposizione dell'effetto.
+3. Il What If non ha più la Sensibilità; il Calcolatore la ha sotto Età obiettivo e la cella con il bordo dice lo stesso
+   numero di anni del verdetto (test `fireService`: allineamento con ponte, pensioni, tassa e flussi).
+4. Cambiare lo SWR nel piano, senza salvare, sposta la linea «Reddito passivo» del Dettaglio (test
+   `rescaleMonthlyAllowance`: 420.000 € al 3,5% → 1.225 € al mese).
+
+### 16.4 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Il Calcolatore diventa più lungo (otto tessere). | La Sensibilità sta in fondo alla griglia, dopo Età obiettivo; il Dettaglio resta richiudibile. |
+| La tessera Delta cambia altezza da un evento all'altro. | Ordine fisso; le righe spariscono soltanto. |
+| Gli e2e cercano la Sensibilità nel What If. | Nessuna spec Playwright copre il What If (guida); `fire.spec.ts` del Calcolatore va riletto sul Mac. |
+

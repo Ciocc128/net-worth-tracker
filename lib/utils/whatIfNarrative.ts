@@ -465,6 +465,58 @@ export function buildDeltaRows(summary: WhatIfSummary): { fire: DeltaRow[]; coas
   };
 }
 
+/** The Delta tile's whole content when no figure moves (FEAT FIRE 2026-10-05): one sentence, no rows. */
+export const DELTA_NOTHING_MOVES: Narrative = [prose("L'evento non sposta nessuna cifra del piano.")];
+
+export interface DeltaView {
+  /** The FIRE rows that change, in the fixed order — the unchanged ones leave, the rest never reshuffle. */
+  fire: DeltaRow[];
+  /** The Coast rows that change; null when no Coast block is configured or none of its rows moves. */
+  coast: DeltaRow[] | null;
+  /** The closing line naming what stays put («Invariati: numero FIRE, reddito passivo, Coast»); null when every row moves. */
+  unchangedLine: string | null;
+  /** True when no row moves: the tile is `DELTA_NOTHING_MOVES` and nothing else. */
+  nothingMoves: boolean;
+  /** True when a Coast block exists (changed or not), for the footer. */
+  hasCoast: boolean;
+}
+
+const UNCHANGED_LABELS: Record<string, string> = {
+  year: 'anno del FIRE',
+  netWorth: 'patrimonio',
+  fireNumber: 'numero FIRE',
+  progress: 'progresso',
+  monthlyIncome: 'reddito passivo',
+  coastNumber: 'numero Coast',
+  coastGap: 'distanza dal Coast',
+};
+
+/**
+ * The Delta as the tile shows it: only the rows that change, the others in one closing line. A row
+ * with no known delta (`change` empty: a side that never reaches FIRE) is NOT unchanged and stays.
+ */
+export function buildDeltaView(summary: WhatIfSummary): DeltaView {
+  const { fire, coast } = buildDeltaRows(summary);
+  const stays = (row: DeltaRow) => row.change === 'invariato';
+  const movedFire = fire.filter((row) => !stays(row));
+  const movedCoast = coast ? coast.filter((row) => !stays(row)) : [];
+  const unchangedKeys = [...fire, ...(coast ?? [])].filter(stays).map((row) => row.key);
+  const labels: string[] = [];
+  for (const key of unchangedKeys) {
+    if (key === 'coastNumber' && unchangedKeys.includes('coastGap')) labels.push('Coast');
+    else if (key === 'coastGap' && unchangedKeys.includes('coastNumber')) continue;
+    else labels.push(UNCHANGED_LABELS[key] ?? key);
+  }
+  const unchangedLine = labels.length > 0 ? `${labels.length === 1 ? 'Invariato' : 'Invariati'}: ${labels.join(', ')}.` : null;
+  return {
+    fire: movedFire,
+    coast: movedCoast.length > 0 ? movedCoast : null,
+    unchangedLine,
+    nothingMoves: movedFire.length === 0 && movedCoast.length === 0,
+    hasCoast: coast !== null,
+  };
+}
+
 // ─── Evento ───────────────────────────────────────────────────────────────────
 
 /** The event tile's reading: what is typed, in the pure layer's terms, and what it does to the plan. */
@@ -566,7 +618,7 @@ export const SENSITIVITY_ASIDE = 'anni al FIRE · scenario base · piano di oggi
 
 export const SENSITIVITY_FOOTER: Narrative = [
   prose(
-    "Ogni cella è lo scenario base con quelle spese e quel risparmio, dal patrimonio di oggi. La cella con il bordo è il piano di oggi; le tinte dicono se ci arrivi prima o dopo. La matrice non applica l'evento: misura quanto conta un'abitudine, non un colpo.",
+    'Ogni cella è lo scenario base con quelle spese e quel risparmio, dal patrimonio di oggi, con le stesse ipotesi del verdetto. La cella con il bordo è il piano di oggi; le tinte dicono se ci arrivi prima o dopo. Misura quanto conta un\'abitudine, non un colpo.',
   ),
 ];
 

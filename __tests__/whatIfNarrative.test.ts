@@ -20,6 +20,8 @@ vi.mock('firebase/firestore', () => ({
 
 import {
   buildDeltaRows,
+  buildDeltaView,
+  DELTA_NOTHING_MOVES,
   buildWhatIfVerdict,
   describeBeforeAfter,
   describeBeforeAfterAside,
@@ -464,7 +466,50 @@ describe('describeSensitivity', () => {
   it('should keep the aside and the footer as constants', () => {
     expect(SENSITIVITY_ASIDE).toBe('anni al FIRE · scenario base · piano di oggi');
     expect(plain(SENSITIVITY_FOOTER)).toBe(
-      "Ogni cella è lo scenario base con quelle spese e quel risparmio, dal patrimonio di oggi. La cella con il bordo è il piano di oggi; le tinte dicono se ci arrivi prima o dopo. La matrice non applica l'evento: misura quanto conta un'abitudine, non un colpo.",
+      "Ogni cella è lo scenario base con quelle spese e quel risparmio, dal patrimonio di oggi, con le stesse ipotesi del verdetto. La cella con il bordo è il piano di oggi; le tinte dicono se ci arrivi prima o dopo. Misura quanto conta un'abitudine, non un colpo.",
     );
+  });
+});
+
+describe('buildDeltaView (only the rows that change)', () => {
+  it('should drop the unchanged rows, keep the fixed order and close with one line naming what stays', () => {
+    const view = buildDeltaView(makeSummary({ coast: { numberToday: pair(428_000, 428_000), gap: pair(15_500, 15_500), reachedBefore: false, reachedAfter: false, retirementAge: 60 } }));
+
+    expect(view.fire.map((row) => row.key)).toEqual(['year', 'netWorth', 'progress', 'monthlyIncome']);
+    expect(view.coast).toBeNull();
+    expect(view.hasCoast).toBe(true);
+    expect(view.nothingMoves).toBe(false);
+    expect(view.unchangedLine).toBe('Invariati: numero FIRE, Coast.');
+  });
+
+  it('should keep a Coast row that moves and name the other one on its own', () => {
+    const view = buildDeltaView(makeSummary({ coast: { numberToday: pair(428_000, 428_000), gap: pair(15_500, 47_300), reachedBefore: false, reachedAfter: false, retirementAge: 60 } }));
+
+    expect(view.coast?.map((row) => row.key)).toEqual(['coastGap']);
+    expect(view.unchangedLine).toBe('Invariati: numero FIRE, numero Coast.');
+  });
+
+  it('should be one sentence when nothing moves, and use the singular for a single unchanged row', () => {
+    const still = makeSummary({
+      timeline: makeTimeline({ yearsAfter: 7, calendarAfter: 2033, deltaYears: 0 }),
+      netWorth: pair(412_500, 412_500),
+      progressPct: pair(59.78, 59.78),
+      monthlyIncome: pair(1_375, 1_375),
+      coast: null,
+    });
+    const view = buildDeltaView(still);
+
+    expect(view.nothingMoves).toBe(true);
+    expect(view.fire).toEqual([]);
+    expect(plain(DELTA_NOTHING_MOVES)).toBe("L'evento non sposta nessuna cifra del piano.");
+    expect(buildDeltaView({ ...still, fireNumber: pair(690_000, 700_000) }).unchangedLine).toBe('Invariati: anno del FIRE, patrimonio, progresso, reddito passivo.');
+    expect(buildDeltaView(makeSummary({ fireNumber: pair(690_000, 700_000), coast: null })).unchangedLine).toBeNull();
+    expect(buildDeltaView(makeSummary({ coast: null })).unchangedLine).toBe('Invariato: numero FIRE.');
+  });
+
+  it('should not call a row unchanged when its delta is unknowable', () => {
+    const view = buildDeltaView(makeSummary({ timeline: makeTimeline({ yearsAfter: null, calendarAfter: null, deltaYears: null }), coast: null }));
+
+    expect(view.fire.map((row) => row.key)).toContain('year');
   });
 });
