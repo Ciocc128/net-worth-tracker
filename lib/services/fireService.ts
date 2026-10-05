@@ -1830,6 +1830,8 @@ export function calculateFIREProjection(
       bearNetWorth: Math.round(bearNW),
       baseNetWorth: Math.round(baseNW),
       bullNetWorth: Math.round(bullNW),
+      // T5 (RD3): the Base's cost basis, present only when the walk models the withdrawal tax.
+      ...(taxModelled ? { baseCostBasis: Math.round(baseBasis) } : {}),
       bearExpenses: Math.round(bearExpenses),
       baseExpenses: Math.round(baseExpenses),
       bullExpenses: Math.round(bullExpenses),

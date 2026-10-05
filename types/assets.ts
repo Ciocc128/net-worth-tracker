@@ -613,6 +613,10 @@ export interface MonteCarloParams {
   // § 12 (RF8): the dated flows of the plan, read as «if I stop today» (a FIRE anchor starts in year 1 + afterYears).
   // The schedule is built from THIS scenario's inflation (the pensions' rule), so one list serves the three scenarios.
   flows?: DatedFlowsInput;
+  // T5 (§ 12, RD1): years from today to the year the withdrawals start; absent or 0 = «if I stop today». The run is in
+  // today's euros with the price clock restarting at that year: pensions, unlocks and flows are read from it, `initialPortfolio`
+  // and `withdrawalTax.basisToday` are the figures AT that year in today's euros.
+  startYear?: number;
 }
 
 export interface MonteCarloCapitalInflow {
@@ -772,6 +776,7 @@ export interface FIREProjectionYearData {
   bearNetWorth: number;
   baseNetWorth: number;
   bullNetWorth: number;
+  baseCostBasis?: number;  // T5: the Base's cost basis at that year (euro); present only when the withdrawal tax is modelled
   bearExpenses: number;    // Annual expenses inflated with bear scenario inflation
   baseExpenses: number;    // Annual expenses inflated with base scenario inflation
   bullExpenses: number;    // Annual expenses inflated with bull scenario inflation

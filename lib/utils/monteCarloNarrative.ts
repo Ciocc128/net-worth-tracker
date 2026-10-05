@@ -22,6 +22,7 @@ import type { FireLock } from '@/lib/utils/fireSummary';
 import type { ResolvedMonteCarloMarket } from '@/lib/utils/monteCarloMarket';
 import type { Narrative, NarrativeSegment, PageVerdictModel } from '@/lib/utils/narrative';
 import type { SustainableSpendingSummary, SustainableWithdrawal } from '@/lib/utils/sustainableWithdrawal';
+import type { FireStart } from '@/lib/utils/fireStart';
 import { resolveSuccessTone, type MonteCarloPlan, type MonteCarloRun, type PlanInflow, type PlanStatePension, type PlanWithdrawalTax, type ScenarioComparison, type ScenarioRunSummary } from '@/lib/utils/monteCarloSummary';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -79,6 +80,17 @@ export interface MonteCarloVerdictInput {
   unleveragedSuccessRate?: number | null;
   /** S1: the Base 90% sustainable withdrawal of the last run and the withdrawal that run was typed with; null = not computed. */
   sustainable?: { base90: SustainableWithdrawal; capital: number; typedWithdrawal: number } | null;
+  /** T5: where the withdrawals start and with what capital (today's euros); absent/null = the sentence of before, without the start. */
+  start?: MonteCarloVerdictStart | null;
+}
+
+/** T5 (§ 12.6): «Smettendo nel 2031 (a 45 anni) con 812.000 € di oggi» / «Smettendo oggi con 700.000 €». */
+export interface MonteCarloVerdictStart {
+  /** False = the plan starts today. */
+  atFire: boolean;
+  calendarYear: number;
+  age: number | null;
+  capital: number;
 }
 
 /** «1,5×» / «1,32×»: the leverage as the page prints it, two decimals at most. */
@@ -115,16 +127,21 @@ function depletionClause(calendarYear: number, age: number | null): Narrative {
   return out;
 }
 
+/** « di oggi» after a euro figure of a run in today's euros (RD6), nothing for a nominal one. */
+function todaySuffix(run: Pick<MonteCarloRun, 'todayEuros'>): Narrative {
+  return run.todayEuros ? [prose(' di oggi')] : [];
+}
+
 /** The median and the worst tenth, as one clause pair after the semicolon. */
 function outcomesClause(run: MonteCarloRun): Narrative {
   const medianRunsOut = run.medianFinal <= 0;
   const median: Narrative = medianRunsOut
     ? [prose('nel caso mediano i soldi finiscono prima del '), year(run.endCalendarYear)]
-    : [prose('nel caso mediano chiudi con '), amount(run.medianFinal)];
+    : [prose('nel caso mediano chiudi con '), amount(run.medianFinal), ...todaySuffix(run)];
   if (run.p10DepletionCalendarYear !== null) {
     return [...median, prose(medianRunsOut ? ', nel 10% peggiore ' : ', nel 10% peggiore i soldi finiscono '), ...depletionClause(run.p10DepletionCalendarYear, run.p10DepletionAge)];
   }
-  return [...median, prose(', e anche nel 10% peggiore chiudi con almeno '), amount(run.finalPercentiles.p10)];
+  return [...median, prose(', e anche nel 10% peggiore chiudi con almeno '), amount(run.finalPercentiles.p10), ...todaySuffix(run)];
 }
 
 /**
@@ -159,8 +176,12 @@ function scenariosSentence(scenarios: ScenarioComparison | null): Narrative {
 }
 
 /** « Numeri con il modello ponte: i 31.400 € del fondo pensione entrano nel 2045 al valore di oggi.» */
-function bridgeSentence(lock: FireLock): Narrative {
+function bridgeSentence(lock: FireLock, run?: MonteCarloRun): Narrative {
   if (!lock.active || lock.lockedValue <= 0 || lock.unlockCalendarYear === null) return [];
+  // T5 (RD4): a fund that unlocks at or before the FIRE year is already inside the capital the run starts from.
+  if (run && run.startYears > 0 && lock.unlockCalendarYear <= run.startCalendarYear) {
+    return [prose(' Il fondo pensione ('), amount(lock.lockedValue), prose(") si sblocca nel "), year(lock.unlockCalendarYear), prose(', prima di smettere: è già nel capitale.')];
+  }
   return [prose(' Numeri con il modello ponte: i '), amount(lock.lockedValue), prose(' del fondo pensione entrano nel '), year(lock.unlockCalendarYear), prose(' al valore di oggi.')];
 }
 
@@ -183,14 +204,27 @@ export function buildMonteCarloVerdict(input: MonteCarloVerdictInput): PageVerdi
 
   const everySimulation = run.successRate >= 99.95;
   const headline = everySimulation ? 'Il piano regge in ogni simulazione.' : `Il piano regge ${inThePercent(run.successRate)}${ratePct(run.successRate)} dei casi.`;
+  const start = input.start ?? null;
+  const startClause: Narrative = start
+    ? [
+        prose('Smettendo '),
+        ...(start.atFire ? [prose('nel '), year(start.calendarYear), ...(start.age !== null ? [prose(' (a '), figure(years(start.age)), prose(')')] : [])] : [prose('oggi')]),
+        prose(' con '),
+        amount(start.capital),
+        ...(run.todayEuros && start.atFire ? [prose(' di oggi')] : []),
+        prose(', '),
+      ]
+    : [];
+  // With the start named the sentence continues in lower case («…, nel 63% delle 10.000 simulazioni…»).
+  const lead = (text: string): string => (start ? text.replace(/^N/, 'n').replace(/^I/, 'i') : text);
   const opening: Narrative = everySimulation
-    ? [prose('In tutte le '), count(run.simulations), prose(' simulazioni il capitale regge ')]
-    : [prose(inThePercent(run.successRate).replace(/^n/, 'N')), figure(ratePct(run.successRate)), prose(' delle '), count(run.simulations), prose(' simulazioni il capitale regge ')];
+    ? [...startClause, prose(lead('In tutte le ')), count(run.simulations), prose(' simulazioni il capitale regge ')]
+    : [...startClause, prose(lead(inThePercent(run.successRate).replace(/^n/, 'N'))), figure(ratePct(run.successRate)), prose(' delle '), count(run.simulations), prose(' simulazioni il capitale regge ')];
 
   return {
     headline,
     tone: resolveSuccessTone(run.successRate),
-    sentence: [...opening, ...horizonClause(run), prose('; '), ...outcomesClause(run), prose('.'), ...leverageSentence(run, input.unleveragedSuccessRate), ...sustainableSentence(input.sustainable), ...scenariosSentence(input.scenarios), ...bridgeSentence(input.lock)],
+    sentence: [...opening, ...horizonClause(run), prose('; '), ...outcomesClause(run), prose('.'), ...sustainableSentence(input.sustainable), ...leverageSentence(run, input.unleveragedSuccessRate), ...scenariosSentence(input.scenarios), ...bridgeSentence(input.lock, run)],
   };
 }
 
@@ -223,7 +257,7 @@ export function describeProbabilita(run: MonteCarloRun): Narrative {
 
 /** «scenario base · 10.000 simulazioni · 35 anni» */
 export function describeProbabilitaAside(run: MonteCarloRun): string {
-  return `scenario base · ${run.simulations.toLocaleString('it-IT')} simulazioni · ${years(run.years)}`;
+  return `scenario base · ${run.simulations.toLocaleString('it-IT')} simulazioni Monte Carlo · ${years(run.years)}`;
 }
 
 /** The fan's legend in words, the pension step when a fund enters, and what the euros are. */
@@ -233,10 +267,14 @@ export function describeProbabilitaFooter(run: MonteCarloRun, lock: FireLock): N
     figure(run.simulations.toLocaleString('it-IT')),
     prose(' traiettorie, le bande il 25–75 e il 10–90; la tratteggiata in basso è il capitale esaurito.'),
   ];
-  if (lock.active && lock.lockedValue > 0 && lock.unlockCalendarYear !== null && lock.unlockCalendarYear <= run.endCalendarYear) {
+  if (lock.active && lock.lockedValue > 0 && lock.unlockCalendarYear !== null && lock.unlockCalendarYear <= run.endCalendarYear && (run.startYears === 0 || lock.unlockCalendarYear > run.startCalendarYear)) {
     out.push(prose(' Il gradino nel '), year(lock.unlockCalendarYear), prose(' è il fondo pensione che entra, al valore di oggi.'));
   }
-  out.push(prose(" Valori nominali: il prelievo cresce con l'inflazione."));
+  if (run.todayEuros && run.inflationRate !== null) {
+    out.push(prose(' Euro di oggi, inflazione '), figure(formatPercentage(run.inflationRate, 2)), prose(' (Impostazioni › Simulazioni): il prelievo resta costante in potere d\'acquisto.'));
+  } else {
+    out.push(prose(" Valori nominali: il prelievo cresce con l'inflazione."));
+  }
   // R4: with leverage, the failures split by cause; the sentence is absent when none is leverage ruin.
   if (run.leverageFailureCount > 0) {
     out.push(
@@ -250,77 +288,6 @@ export function describeProbabilitaFooter(run: MonteCarloRun, lock: FireLock): N
     );
   }
   return out;
-}
-
-// ─── Distribuzione ────────────────────────────────────────────────────────────
-
-/**
- * «Metà delle simulazioni chiude sopra 612.400 €, un quarto sopra 1.310.000 € e un quarto sotto
- * 118.000 €, zero compreso.»
- */
-export function describeDistribuzione(run: MonteCarloRun): Narrative {
-  const { p25, p50, p75 } = run.finalPercentiles;
-  if (p50 <= 0) {
-    return [prose('Più di metà delle simulazioni finisce i soldi; un quarto chiude sopra '), amount(p75), prose('.')];
-  }
-  const out: Narrative = [prose('Metà delle simulazioni chiude sopra '), amount(p50), prose(', un quarto sopra '), amount(p75)];
-  if (p25 <= 0) return [...out, prose(' e almeno un quarto finisce i soldi.')];
-  return [...out, prose(' e un quarto sotto '), amount(p25), prose(', zero compreso.')];
-}
-
-/** «valori finali nel 2061 · scenario base» */
-export function describeDistribuzioneAside(run: MonteCarloRun): string {
-  return `valori finali nel ${run.endCalendarYear} · scenario base`;
-}
-
-export function describeDistribuzioneFooter(run: MonteCarloRun): Narrative {
-  return [
-    prose(`${run.histogram.length === 10 ? 'Dieci' : run.histogram.length} classi di uguale ampiezza fino al 95° percentile (`),
-    amount(run.histogramCap),
-    prose("); l'ultima raccoglie anche gli esiti oltre, fino a "),
-    amount(run.histogramMax),
-    prose(', la prima le simulazioni finite a zero; la classe con il bordo contiene la mediana. Valori nominali del '),
-    year(run.endCalendarYear),
-    prose(', scenario base.'),
-  ];
-}
-
-// ─── Distribuzione › Esaurimento: when the money runs out ─────────────────────
-
-export type DistributionView = 'finali' | 'esaurimento';
-
-/**
- * «Le 1579 simulazioni che falliscono esauriscono il capitale tra il 2041 e il 2060, la metà
- * entro il 2052.» The failed paths used to vanish into the first bin of the final values; here
- * they are the whole population, dated. With none failing the sentence says so, and the tile
- * does not offer the view.
- */
-export function describeEsaurimento(run: MonteCarloRun): Narrative {
-  if (run.failureCount === 0 || run.failureFirstCalendarYear === null || run.failureLastCalendarYear === null) {
-    return [prose('Nessuna simulazione esaurisce il capitale entro il '), year(run.endCalendarYear), prose('.')];
-  }
-  if (run.failureCount === 1) {
-    return [prose("L'unica simulazione che fallisce esaurisce il capitale nel "), year(run.failureFirstCalendarYear), prose('.')];
-  }
-  const out: Narrative = [prose('Le '), count(run.failureCount), prose(' simulazioni che falliscono esauriscono il capitale ')];
-  if (run.failureFirstCalendarYear === run.failureLastCalendarYear) {
-    out.push(prose('tutte nel '), year(run.failureFirstCalendarYear));
-  } else {
-    out.push(prose('tra il '), year(run.failureFirstCalendarYear), prose(' e il '), year(run.failureLastCalendarYear));
-    if (run.failureMedianCalendarYear !== null) out.push(prose(', la metà entro il '), year(run.failureMedianCalendarYear));
-  }
-  out.push(prose('.'));
-  return out;
-}
-
-export function describeEsaurimentoFooter(run: MonteCarloRun): Narrative {
-  const perBin = run.failureYearBinWidth === 1 ? 'Una classe per anno' : `Una classe ogni ${run.failureYearBinWidth} anni`;
-  return [
-    prose(`${perBin} tra il primo e l'ultimo esaurimento; la classe con il bordo contiene la mediana dei fallimenti, le quote sono sul totale delle `),
-    count(run.simulations),
-    prose(' simulazioni. Scenario base.'),
-    ...(run.leverageFailureCount > 0 ? [prose(' La parte in colore è la rovina da leva (una perdita annua oltre il capitale), il resto sono prelievi.')] : []),
-  ];
 }
 
 // ─── Scenari a confronto ──────────────────────────────────────────────────────
@@ -345,7 +312,7 @@ export function describeScenari(comparison: ScenarioComparison): Narrative {
 
 /** «mediana finale 198.000 € · nel 10% peggiore esaurito nel 2045» */
 export function describeScenarioNote(row: ScenarioRunSummary): Narrative {
-  const median: Narrative = row.medianFinal <= 0 ? [prose('nel caso mediano i soldi finiscono')] : [prose('mediana finale '), amount(row.medianFinal)];
+  const median: Narrative = row.medianFinal <= 0 ? [prose('nel caso mediano i soldi finiscono')] : [prose('mediana finale '), amount(row.medianFinal), ...(row.todayEuros ? [prose(' di oggi')] : [])];
   const worst: Narrative = row.p10DepletionCalendarYear !== null ? [prose('nel 10% peggiore esaurito nel '), year(row.p10DepletionCalendarYear)] : [prose('anche il 10% peggiore regge')];
   return [...median, prose(' · '), ...worst];
 }
@@ -419,6 +386,43 @@ export function describeParametri(plan: MonteCarloPlan): Narrative {
   }
   out.push(prose('.'));
   return out;
+}
+
+/** The two ways the tab can start (§ 12.6): at the Calcolatore's FIRE year, or today. */
+export type StartMode = 'fire' | 'today';
+
+export const START_MODE_LABELS: Record<StartMode, (start: FireStart) => string> = {
+  fire: (start) => (start.kind === 'fire' ? `Al FIRE (${start.calendarYear})` : 'Al FIRE'),
+  today: () => 'Oggi',
+};
+
+/**
+ * The read-only line under «Quando smetto» (T5, DF2/DF3/DF6): the Calcolatore's FIRE year on the saved plan and the Base capital
+ * the run starts from, or why the run starts today. `currentYear` dates the «mai entro 50 anni» case.
+ */
+export function describeFireStartRow(start: FireStart, mode: StartMode, currentYear: number): Narrative {
+  if (start.kind === 'today') {
+    switch (start.reason) {
+      case 'already':
+        return [prose('Sei già FIRE: la simulazione parte da oggi.')];
+      case 'never':
+        return [prose('Il Calcolatore non trova un anno FIRE entro il '), year(currentYear + 50), prose(': la simulazione parte da oggi.')];
+      default:
+        return [prose('Il Calcolatore non ha spesa o SWR: la simulazione parte da oggi.')];
+    }
+  }
+  if (mode === 'today') {
+    return [prose('La simulazione parte da oggi con il capitale di oggi; il Calcolatore dice FIRE nel '), year(start.calendarYear), prose('.')];
+  }
+  return [
+    prose('Anno FIRE del Calcolatore, scenario Base, sul piano salvato. Capitale al FIRE: '),
+    amount(start.capitalToday),
+    prose(' di oggi ('),
+    amount(start.capitalNominal),
+    prose(' nel '),
+    year(start.calendarYear),
+    prose('). Al FIRE si può arrivare con più o con meno: qui conta la cifra del Base, la stessa per orso, base e toro.'),
+  ];
 }
 
 export type AllocationTotalState = 'below' | 'plain' | 'leveraged' | 'above';
@@ -522,7 +526,7 @@ export function describeParametriFooter(input: ParametriFooterInput): Narrative 
 
 // ─── Dettaglio ────────────────────────────────────────────────────────────────
 
-export const DETTAGLIO_DESCRIPTION = 'Traiettorie dei tre scenari, percentili a passi di 5 anni, come funziona';
+export const DETTAGLIO_DESCRIPTION = 'Traiettorie dei tre scenari in euro di oggi, percentili a passi di 5 anni, come funziona';
 
 /** «Le tre mediane partono dagli stessi 488.600 €; nel 2061 l'orso chiude a 198.000 €, il base a 612.400 €, il toro a 1.420.000 €.» */
 export function describeTraiettorie(comparison: ScenarioComparison, plan: MonteCarloPlan): Narrative {
@@ -549,7 +553,7 @@ export function describePercentili(run: MonteCarloRun): Narrative {
   if (run.p10DepletionCalendarYear !== null) {
     return [prose('Il 10° percentile scende a zero dal '), year(run.p10DepletionCalendarYear), prose(': da lì in poi almeno una simulazione su dieci ha finito i soldi.')];
   }
-  return [prose('Nessun percentile tocca zero: anche il 10° chiude il '), year(run.endCalendarYear), prose(' con '), amount(run.finalPercentiles.p10), prose('.')];
+  return [prose('Nessun percentile tocca zero: anche il 10° chiude il '), year(run.endCalendarYear), prose(' con '), amount(run.finalPercentiles.p10), ...todaySuffix(run), prose('.')];
 }
 
 export const EXPLAINER: { title: string; body: string }[] = [
@@ -560,6 +564,10 @@ export const EXPLAINER: { title: string; body: string }[] = [
   {
     title: 'La leva',
     body: "Con pesi che sommano oltre il 100% il portafoglio è a leva: ogni anno il rendimento è la somma dei pesi per i rendimenti delle classi, meno il debito (la leva meno uno) che costa il rendimento della liquidità estratto quell'anno più lo spread di Impostazioni. La leva si ribilancia ogni anno, come un ETF a leva; un conto a margine con debito fisso non è modellato. Se in un anno la perdita supera il capitale la traiettoria fallisce per rovina da leva, contata a parte dai prelievi. Con la leva il Base gira anche senza, sugli stessi rendimenti, per mostrare cosa cambia. Il seme è fisso: due esecuzioni con gli stessi parametri danno lo stesso risultato.",
+  },
+  {
+    title: 'La partenza',
+    body: "La simulazione parte dall'anno in cui il Calcolatore, sul piano salvato e nello scenario Base, dice che si arriva al FIRE, con il capitale che il Base ha quell'anno in euro di oggi; con «Oggi» parte dal capitale di oggi. Orso, base e toro partono dallo stesso capitale e dallo stesso anno: gli scenari differiscono solo dopo il FIRE, quindi la probabilità non dice cosa succede se al FIRE si arriva con più o con meno. Pensioni, fondo pensione e flussi sono letti dall'anno FIRE; tutte le cifre sono in euro di oggi, il nominale solo nella colonna «Mediana nominale».",
   },
   {
     title: 'La probabilità',

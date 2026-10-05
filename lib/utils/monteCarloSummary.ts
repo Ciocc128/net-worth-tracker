@@ -18,7 +18,6 @@ import { MONTE_CARLO_CLASSES, MONTE_CARLO_CLASS_NOUNS, type MonteCarloClass } fr
 import { weightsLeverage } from '@/lib/utils/monteCarloDraw';
 import { datedFlowsSignature } from '@/lib/utils/datedFlows';
 import type { VerdictTone } from '@/lib/utils/narrative';
-import { binYears, type YearHistogramBin } from '@/lib/utils/yearHistogram';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +26,29 @@ export interface MonteCarloContext {
   startCalendarYear: number;
   /** The saved age, if any — names «fino a 81 anni»; null drops the age clauses. */
   currentAge: number | null;
+  /** T5 (RD1): years from today to the year the withdrawals start (`startCalendarYear` and `currentAge` are already those of that year); 0/absent = today. */
+  startYears?: number;
+  /** T5 (RD6): the inflation of the scenario the run read, percent — every euro figure is shown in today's euros; absent = nominal, as before. */
+  inflationRate?: number;
+}
+
+/** RD6: the euros of the year `year` of the run in today's euros (the run is already net of the `(1+π)^T` of the start). Zero stays zero. */
+export function deflate(value: number, year: number, inflationRate: number | undefined): number {
+  if (!inflationRate || year <= 0) return value;
+  return value / Math.pow(1 + inflationRate / 100, year);
+}
+
+/** RD6: the per-year percentile rows in today's euros (the division is monotone, so the order of the percentiles holds). */
+export function deflatePercentiles(percentiles: PercentilesData[], inflationRate: number | undefined): PercentilesData[] {
+  if (!inflationRate) return percentiles;
+  return percentiles.map((row) => ({
+    year: row.year,
+    p10: deflate(row.p10, row.year, inflationRate),
+    p25: deflate(row.p25, row.year, inflationRate),
+    p50: deflate(row.p50, row.year, inflationRate),
+    p75: deflate(row.p75, row.year, inflationRate),
+    p90: deflate(row.p90, row.year, inflationRate),
+  }));
 }
 
 // ─── The base run ─────────────────────────────────────────────────────────────
@@ -39,6 +61,7 @@ export interface FinalPercentiles {
   p90: number;
 }
 
+/** One bin of a final-value histogram; the Proiezione's Distribuzione still draws it (`FinalValueBars`). */
 export interface HistogramBin {
   from: number;
   to: number;
@@ -72,21 +95,13 @@ export interface MonteCarloRun {
   failureAverageCalendarYear: number | null;
   failureMedianYear: number | null;
   failureMedianCalendarYear: number | null;
-  histogram: HistogramBin[];
-  /** Upper bound of the equal-width range — the 95th percentile the service caps the bins at. */
-  histogramCap: number;
-  /** Upper bound of the last bin — the largest final value simulated. */
-  histogramMax: number;
-  /**
-   * The failed simulations by the calendar year their capital ran out (2026-09-24): the tile's
-   * second view. Shares are of ALL simulations, like the final-value bins'; the median failure
-   * year's bin is the reference. Empty when nothing fails.
-   */
-  failureYearBins: YearHistogramBin[];
-  failureYearBinWidth: number;
-  /** The first and the last calendar year a simulation ran out; null when none did. */
-  failureFirstCalendarYear: number | null;
-  failureLastCalendarYear: number | null;
+  /** T5 (RD6): the euros of this run are today's (the context carried an inflation). */
+  todayEuros: boolean;
+  /** The inflation the euros were deflated with, percent; null when they are nominal. */
+  inflationRate: number | null;
+  /** T5: calendar year of withdrawal year 0 and the years from today to it. */
+  startCalendarYear: number;
+  startYears: number;
 }
 
 /**
@@ -106,38 +121,16 @@ function ageAt(year: number | null, ctx: MonteCarloContext): number | null {
   return year === null || ctx.currentAge === null ? null : ctx.currentAge + year;
 }
 
-function buildHistogram(results: MonteCarloResults, median: number): HistogramBin[] {
-  const bins = results.distribution;
-  const last = bins.length - 1;
-  return bins.map((bin, index) => {
-    const from = bin.from ?? 0;
-    const to = bin.to ?? 0;
-    // Half-open bins, the last one closed on its upper bound — the service's own rule.
-    const containsMedian = index === last ? median >= from && median <= to : median >= from && median < to;
-    return { from, to, count: bin.count, sharePct: bin.percentage, containsMedian };
-  });
-}
-
 export function summarizeMonteCarloRun(results: MonteCarloResults, params: MonteCarloParams, ctx: MonteCarloContext): MonteCarloRun {
   const years = params.retirementYears;
   const lastRow = results.percentiles[results.percentiles.length - 1];
-  const finalPercentiles: FinalPercentiles = lastRow
-    ? { p10: lastRow.p10, p25: lastRow.p25, p50: lastRow.p50, p75: lastRow.p75, p90: lastRow.p90 }
+  const finalReal = lastRow ? deflatePercentiles([lastRow], ctx.inflationRate)[0] : null;
+  const finalPercentiles: FinalPercentiles = finalReal
+    ? { p10: finalReal.p10, p25: finalReal.p25, p50: finalReal.p50, p75: finalReal.p75, p90: finalReal.p90 }
     : { p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 };
   const p10DepletionYear = resolveP10DepletionYear(results.percentiles);
   const failureAverageYear = results.failureAnalysis ? Math.round(results.failureAnalysis.averageFailureYear) : null;
   const failureMedianYear = results.failureAnalysis ? Math.round(results.failureAnalysis.medianFailureYear) : null;
-  const histogram = buildHistogram(results, finalPercentiles.p50);
-  const failed = results.simulations.filter((simulation) => !simulation.success && simulation.failureYear !== undefined);
-  const failureCalendarYears = failed.map((simulation) => ctx.startCalendarYear + (simulation.failureYear as number));
-  const leverageCalendarYears = failed.filter((simulation) => simulation.failureCause === 'leverage').map((simulation) => ctx.startCalendarYear + (simulation.failureYear as number));
-  const failureYears = binYears(failureCalendarYears, {
-    leverageYears: leverageCalendarYears.length > 0 ? leverageCalendarYears : undefined,
-    total: params.numberOfSimulations,
-    referenceYear: calendarOf(failureMedianYear, ctx),
-    ceilingYear: ctx.startCalendarYear + years,
-  });
-
   return {
     successRate: results.successRate,
     successCount: results.successCount,
@@ -157,13 +150,10 @@ export function summarizeMonteCarloRun(results: MonteCarloResults, params: Monte
     failureAverageCalendarYear: calendarOf(failureAverageYear, ctx),
     failureMedianYear,
     failureMedianCalendarYear: calendarOf(failureMedianYear, ctx),
-    histogram,
-    histogramCap: histogram.length > 1 ? histogram[histogram.length - 2].to : histogram.length === 1 ? histogram[0].to : 0,
-    histogramMax: histogram.length > 0 ? histogram[histogram.length - 1].to : 0,
-    failureYearBins: failureYears.bins,
-    failureYearBinWidth: failureYears.binWidthYears,
-    failureFirstCalendarYear: failureCalendarYears.length > 0 ? Math.min(...failureCalendarYears) : null,
-    failureLastCalendarYear: failureCalendarYears.length > 0 ? Math.max(...failureCalendarYears) : null,
+    todayEuros: ctx.inflationRate !== undefined,
+    inflationRate: ctx.inflationRate ?? null,
+    startCalendarYear: ctx.startCalendarYear,
+    startYears: ctx.startYears ?? 0,
   };
 }
 
@@ -187,6 +177,8 @@ export interface ScenarioRunSummary {
   /** Median final value of all simulations (the last row's p50). */
   medianFinal: number;
   p10DepletionCalendarYear: number | null;
+  /** The median is in today's euros. */
+  todayEuros: boolean;
 }
 
 export interface ScenarioComparison {
@@ -198,9 +190,12 @@ export interface ScenarioComparison {
 
 export const SCENARIO_KEYS: ScenarioKey[] = ['bear', 'base', 'bull'];
 
-export function summarizeScenarios(results: ScenarioResults, params: MonteCarloParams, ctx: MonteCarloContext): ScenarioComparison {
+/** RD6: the inflation of each scenario, percent — the euros of a row are deflated with its OWN scenario's. */
+export type ScenarioInflation = Record<ScenarioKey, number>;
+
+export function summarizeScenarios(results: ScenarioResults, params: MonteCarloParams, ctx: MonteCarloContext, inflation?: ScenarioInflation): ScenarioComparison {
   const rows = SCENARIO_KEYS.map((key) => {
-    const run = summarizeMonteCarloRun(results[key], params, ctx);
+    const run = summarizeMonteCarloRun(results[key], params, inflation ? { ...ctx, inflationRate: inflation[key] } : ctx);
     return {
       key,
       successRate: run.successRate,
@@ -208,6 +203,7 @@ export function summarizeScenarios(results: ScenarioResults, params: MonteCarloP
       failureCount: run.failureCount,
       medianFinal: run.medianFinal,
       p10DepletionCalendarYear: run.p10DepletionCalendarYear,
+      todayEuros: run.todayEuros,
     };
   });
   return { rows, spreadPoints: rows[2].successRate - rows[0].successRate };
@@ -225,26 +221,40 @@ export interface OverlayPoint {
 }
 
 /** The three medians and the base band on one calendar axis (the base run sets the length). */
-export function buildOverlaySeries(results: ScenarioResults, startCalendarYear: number): OverlayPoint[] {
-  return results.base.percentiles.map((baseRow, index) => ({
-    calendarYear: startCalendarYear + baseRow.year,
-    bearP50: results.bear.percentiles[index]?.p50 ?? 0,
-    baseP50: baseRow.p50,
-    bullP50: results.bull.percentiles[index]?.p50 ?? 0,
-    baseBand: [baseRow.p10, baseRow.p90],
-  }));
+export function buildOverlaySeries(results: ScenarioResults, startCalendarYear: number, inflation?: ScenarioInflation): OverlayPoint[] {
+  return results.base.percentiles.map((baseRow, index) => {
+    const bear = results.bear.percentiles[index];
+    const bull = results.bull.percentiles[index];
+    return {
+      calendarYear: startCalendarYear + baseRow.year,
+      bearP50: bear ? deflate(bear.p50, bear.year, inflation?.bear) : 0,
+      baseP50: deflate(baseRow.p50, baseRow.year, inflation?.base),
+      bullP50: bull ? deflate(bull.p50, bull.year, inflation?.bull) : 0,
+      baseBand: [deflate(baseRow.p10, baseRow.year, inflation?.base), deflate(baseRow.p90, baseRow.year, inflation?.base)],
+    };
+  });
 }
 
 export interface PercentileRow extends FinalPercentiles {
   calendarYear: number;
+  /** RD6: the nominal median of the year, the one column that stays in nominal euros. */
+  p50Nominal: number;
 }
 
-/** Every `step` years from year 0, plus the last year whatever the horizon. */
-export function buildPercentileRows(percentiles: PercentilesData[], startCalendarYear: number, step = 5): PercentileRow[] {
+/** Every `step` years from year 0, plus the last year whatever the horizon; in today's euros when `inflationRate` is given (RD6). */
+export function buildPercentileRows(percentiles: PercentilesData[], startCalendarYear: number, step = 5, inflationRate?: number): PercentileRow[] {
   const lastIndex = percentiles.length - 1;
   return percentiles
     .filter((row, index) => row.year % step === 0 || index === lastIndex)
-    .map((row) => ({ calendarYear: startCalendarYear + row.year, p10: row.p10, p25: row.p25, p50: row.p50, p75: row.p75, p90: row.p90 }));
+    .map((row) => ({
+      calendarYear: startCalendarYear + row.year,
+      p10: deflate(row.p10, row.year, inflationRate),
+      p25: deflate(row.p25, row.year, inflationRate),
+      p50: deflate(row.p50, row.year, inflationRate),
+      p75: deflate(row.p75, row.year, inflationRate),
+      p90: deflate(row.p90, row.year, inflationRate),
+      p50Nominal: row.p50,
+    }));
 }
 
 // ─── The plan as typed ────────────────────────────────────────────────────────
@@ -300,6 +310,8 @@ export interface MonteCarloPlan {
 }
 
 export function summarizeMonteCarloPlan(params: MonteCarloParams, inflows: MonteCarloCapitalInflow[], lockedValue: number, ctx: MonteCarloContext): MonteCarloPlan {
+  // RD4: from the FIRE year `T` the years of a pension or an unlock are the ones OF THE WITHDRAWAL («dall'anno 22»); what is dated at or before `T` is already in the capital.
+  const startYears = ctx.startYears ?? 0;
   return {
     initialPortfolio: params.initialPortfolio,
     lockedValue,
@@ -310,9 +322,14 @@ export function summarizeMonteCarloPlan(params: MonteCarloParams, inflows: Monte
     endCalendarYear: ctx.startCalendarYear + params.retirementYears,
     simulations: params.numberOfSimulations,
     allocation: MONTE_CARLO_CLASSES.map((key) => ({ key, label: MONTE_CARLO_CLASS_NOUNS[key], pct: params.weights[key] })).filter((entry) => entry.pct > 0),
-    inflows: inflows.map((inflow) => ({ yearOffset: inflow.year, calendarYear: ctx.startCalendarYear + inflow.year, amount: inflow.amount })),
+    inflows: inflows
+      .filter((inflow) => startYears === 0 || inflow.year > startYears)
+      .map((inflow) => ({ yearOffset: inflow.year - startYears, calendarYear: ctx.startCalendarYear + inflow.year - startYears, amount: inflow.amount })),
     statePensions: (params.annualInflows ?? [])
-      .map((pension) => ({ yearOffset: pension.fromYear, calendarYear: ctx.startCalendarYear + pension.fromYear, annualNetToday: pension.annualNetToday }))
+      .map((pension) => {
+        const yearOffset = startYears === 0 ? pension.fromYear : Math.max(1, pension.fromYear - startYears);
+        return { yearOffset, calendarYear: ctx.startCalendarYear + yearOffset, annualNetToday: pension.annualNetToday };
+      })
       .sort((a, b) => a.yearOffset - b.yearOffset),
     withdrawalTax: params.withdrawalTax
       ? { rate: params.withdrawalTax.rate, gainSharePct: params.initialPortfolio > 0 ? Math.max(0, 1 - params.withdrawalTax.basisToday / params.initialPortfolio) * 100 : 0 }
@@ -336,6 +353,7 @@ const PLAN_FIELDS: (keyof MonteCarloParams)[] = [
   'withdrawalAdjustment',
   'numberOfSimulations',
   'leverageSpread',
+  'startYear',
 ];
 
 /**

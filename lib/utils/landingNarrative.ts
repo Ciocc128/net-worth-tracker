@@ -149,7 +149,7 @@ export function buildLandingPromises(year: number): LandingPromise[] {
       rows: [
         { label: 'Calcolatore', caption: [prose('l’anno e l’età in cui i soldi bastano')] },
         { label: 'Coast FIRE', caption: [prose('se puoi smettere di versare da oggi')] },
-        { label: 'Monte Carlo', caption: [prose('in quante simulazioni il piano regge')] },
+        { label: 'Dopo il FIRE', caption: [prose('in quante simulazioni il piano regge')] },
         { label: 'What If', caption: [prose('cosa cambia se salta un anno di stipendio')] },
       ],
     },
