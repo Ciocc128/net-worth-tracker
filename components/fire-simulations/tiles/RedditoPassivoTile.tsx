@@ -3,9 +3,10 @@
 /**
  * REDDITO PASSIVO — «quanto potrei prelevare oggi?»: the annual allowance at the SWR as the
  * tile's figure, then the same money per month and per day, the years of expenses the net worth
- * covers (with the liquid and illiquid split inline) and the current withdrawal rate against the
- * safe one — the one row on the page that earns a sign colour, because spending more than the
- * SWR of the net worth IS a loss-shaped fact, where a projection year is not.
+ * covers (with the liquid and illiquid split inline) and the distance from full cover in euros a
+ * year (FEAT FIRE, 2026-10-05: it replaced «Prelievo attuale», a percentage to compare by heart
+ * with the SWR). The distance stays in income and never becomes a missing capital: that would be
+ * a fifth «FIRE number» next to the Traguardo's. No figure here carries a sign colour.
  *
  * The old companion card carried the same rows; what changed is the cadence (eyebrow, reading,
  * figure, flat rows) and the source: every number is `summarizePassiveIncome(metrics)`.
@@ -15,7 +16,7 @@ import type { ReactNode } from 'react';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { PassiveIncome } from '@/lib/utils/fireSummary';
 import { cachedFormatCurrencyEUR } from '@/lib/utils/formatters';
-import { formatCurrency, formatPercentage } from '@/lib/services/chartService';
+import { formatCurrency } from '@/lib/services/chartService';
 import { formatRate } from '@/lib/utils/fireNarrative';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/ui/tile';
@@ -64,12 +65,28 @@ export function RedditoPassivoTile({ reading, income, className }: RedditoPassiv
           caption={split.length > 0 ? split.join(' · ') : undefined}
           value={income.yearsOfExpenses > 0 ? oneDecimal(income.yearsOfExpenses) : '—'}
         />
-        <Row
-          label="Prelievo attuale"
-          caption={`spese ÷ patrimonio, contro un SWR del ${formatRate(income.swr)}`}
-          value={income.currentWR > 0 ? formatPercentage(income.currentWR, 1) : '—'}
-          valueClass={income.overSwr ? 'text-destructive' : undefined}
-        />
+        {income.shortfallAnnual !== null && income.shortfallAnnual > 0 && (
+          <Row
+            label="Mancano alla copertura piena"
+            caption={`${cachedFormatCurrencyEUR(income.shortfallAnnual / 12, true)} al mese, su ${cachedFormatCurrencyEUR(income.annualExpenses, true)} di spese`}
+            value={<>{cachedFormatCurrencyEUR(income.shortfallAnnual, true)} <span className="text-[11px] font-normal text-muted-foreground">all&apos;anno</span></>}
+          />
+        )}
+        {income.shortfallAnnual === 0 && (
+          <Row
+            label="Copertura piena"
+            caption={`le spese sono di ${cachedFormatCurrencyEUR(income.annualExpenses, true)} all'anno`}
+            value={
+              income.surplusAnnual !== null && income.surplusAnnual > 0 ? (
+                <>
+                  {cachedFormatCurrencyEUR(income.surplusAnnual, true)} <span className="text-[11px] font-normal text-muted-foreground">avanzano</span>
+                </>
+              ) : (
+                'esatta'
+              )
+            }
+          />
+        )}
       </div>
     </Tile>
   );

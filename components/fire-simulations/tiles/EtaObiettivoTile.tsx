@@ -57,7 +57,13 @@ export function EtaObiettivoTile({ reading, summary, method, onOpenCoast, classN
           <Figure
             label="Risparmio per 9 percorsi su 10"
             value={summary.tail.kind === 'total' ? money(summary.tail.amount) : summary.tail.kind === 'unreachable' ? `> ${money(summary.annualSavings + summary.tail.cap)}` : '—'}
-            caption={summary.tail.kind === 'unavailable' ? 'Ventaglio non disponibile' : "l'anno, 9 percorsi su 10"}
+            caption={
+              summary.tail.kind === 'unavailable'
+                ? 'Ventaglio non disponibile'
+                : summary.tail.kind === 'total' && summary.tail.extra === 0
+                  ? "l'anno, 9 percorsi su 10 (il tuo risparmio di oggi basta)"
+                  : "l'anno, 9 percorsi su 10"
+            }
             reference={`oggi ${money(summary.annualSavings)}`}
           />
           <Figure

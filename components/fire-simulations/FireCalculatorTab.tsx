@@ -9,14 +9,16 @@
  * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
  *   Desktop (12 col): Traguardo(5, 2 rows) | Base di calcolo(7: rows beside the lock)
- *                                           | Reddito passivo(4) | Scenari(3)
+ *                                           | Reddito passivo(7)
+ *                     Scenari(12: the three curves | the three rows)
  *   Mobile (1 col):   Traguardo → Scenari → Reddito passivo → Base di calcolo
  *
  * A tile shares a row only with tiles of its own height (AGENTS.md → Hierarchy). Base di calcolo
  * took two rows until 2026-09-22 and ended 190px above its own footer (measured); putting it at
  * 3 columns beside Reddito passivo moved the void into Reddito (173px, measured the same day).
  * Base is the tallest tile, so it takes the first row ALONE, wide enough to set its rows beside
- * the rows; Reddito passivo and Scenari are within 30px of each other and share the second.
+ * the rows; Reddito passivo takes the second row beside the Traguardo, and Scenari (the three curves
+ * beside the three rows that are their legend, FEAT FIRE 2026-10-05) a full row of its own.
  * The Traguardo's chart is the one element that can be any height, and it takes the slack.
  *
  * Below the grid, one disclosure: «Dettaglio» (the historical runway, the cashflow history, the
@@ -26,8 +28,8 @@
  *
  * The page has NO period axis — a FIRE plan is read today, on the last full year's cashflow. The tab
  * has no live control of its own: the pension-lock switch is in «Il mio piano» too, and the Base di
- * calcolo tile only reads what it does. The Scenari | Ventaglio switch in the Traguardo's aside is
- * that tile's scope, not an axis.
+ * calcolo tile only reads what it does. The Ventaglio | Distribuzione switch in the Traguardo's aside
+ * is that tile's scope, not an axis.
  *
  * Data flow (unchanged from the previous IA — presentation over the same pure functions):
  * 1. settings + assets + annualCashflowData queries (independent, staleTime 5min);
@@ -98,6 +100,7 @@ import {
   describeRetirementSurvival,
   describeRunway,
   describeScenarios,
+  describeScenariosChartLegend,
   describeScenariosFooter,
   describeTailLever,
   describeTargetAge,
@@ -170,8 +173,8 @@ const SKELETON_CELLS: TileSkeletonCell[] = [
 const GRID_CLASS = 'grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12';
 const TRAGUARDO_CELL = cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5 desktop:row-span-2');
 const BASE_CELL = cn(TILE_CELL_CLASS, 'order-5 tablet:order-4 tablet:col-span-2 desktop:order-none desktop:col-span-7');
-const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 desktop:order-none desktop:col-span-4');
-const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-2 desktop:order-none desktop:col-span-3');
+const REDDITO_CELL = cn(TILE_CELL_CLASS, 'order-4 tablet:order-3 tablet:col-span-2 desktop:order-none desktop:col-span-7');
+const SCENARI_CELL = cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-12');
 // E1: the third row. A phone reads it after the scenarios; a tablet keeps Reddito beside Scenari and puts it last.
 const ETA_CELL = cn(TILE_CELL_CLASS, 'order-3 tablet:order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12');
 
@@ -192,7 +195,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
-  const [view, setView] = useState<ProjectionView>('scenari');
+  const [view, setView] = useState<ProjectionView>('ventaglio');
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
   // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here, and every figure below
@@ -477,7 +480,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       }),
     [fanYears, retirementHorizonYears, fanFireTargets, fanRetirement],
   );
-  const fanResult = useMemo(() => (view === 'scenari' || !fanInputs || fanYears <= 0 ? null : runFan(fanInputs)), [view, fanInputs, fanYears, runFan]);
+  const fanResult = useMemo(() => (!fanInputs || fanYears <= 0 ? null : runFan(fanInputs)), [fanInputs, fanYears, runFan]);
 
   // ─── The Distribuzione view: the FIRE year across the paths, the lever, the retirement ────
   const fireYearDistribution = useMemo(
@@ -746,11 +749,11 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
 
   // ─── The chart in the Traguardo, in the selected view ────────────────────────
   const fanAvailable = fanInputs !== null;
-  const chart = !projection ? (
-    <p className="flex h-full items-center justify-center px-4 text-center text-[13px] text-muted-foreground">
-      Nessun dato per la proiezione: servono spese registrate nel Cashflow e un patrimonio FIRE positivo.
-    </p>
-  ) : view === 'scenari' || !fanAvailable ? (
+  const noChart = (message: string) => <p className="flex h-full items-center justify-center px-4 text-center text-[13px] text-muted-foreground">{message}</p>;
+  // The Scenari tile's chart: the three deterministic curves and the target line.
+  const scenariChart = !projection ? (
+    noChart('Nessun dato per la proiezione: servono spese registrate nel Cashflow e un patrimonio FIRE positivo.')
+  ) : (
     <FIREProjectionChart
       yearlyData={projection.yearlyData}
       bearYearsToFIRE={projection.bearYearsToFIRE}
@@ -761,6 +764,12 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       pensionUnlockCalendarYear={pensionBridge ? currentYear + pensionUnlockYears : null}
       lumpMarkers={lumpMarkers}
     />
+  );
+  // The Traguardo's chart: the Ventaglio or the Distribuzione.
+  const chart = !projection ? (
+    noChart('Nessun dato per la proiezione: servono spese registrate nel Cashflow e un patrimonio FIRE positivo.')
+  ) : !fanAvailable ? (
+    noChart('Senza ventaglio, il grafico dei tre scenari è nella tessera Scenari.')
   ) : view === 'distribuzione' ? (
     fireYearDistribution ? (
       <FireYearDistributionView
@@ -796,14 +805,13 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             footer={
               projection
                 ? describeTargetFooter({
-                    view: fanAvailable ? view : 'scenari',
+                    view,
                     fan: fanVerdict,
                     distribution: fireYearDistribution,
                     fanAvailable,
                     lock,
                     simulationCount: FAN_SIMULATION_COUNT,
                     allocationLabel,
-                    lastProjectedYear: projection.yearlyData[projection.yearlyData.length - 1]?.calendarYear ?? null,
                     honest: honestSummary,
                   })
                 : null
@@ -829,7 +837,20 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
 
         <div className={SCENARI_CELL}>
           {projection ? (
-            <ScenariTile reading={describeScenarios(scenarioRows)} rows={scenarioRows} horizonYears={PROJECTION_HORIZON_YEARS} footer={describeScenariosFooter()} />
+            <ScenariTile
+              reading={describeScenarios(scenarioRows)}
+              rows={scenarioRows}
+              horizonYears={PROJECTION_HORIZON_YEARS}
+              chart={scenariChart}
+              footer={[
+                ...describeScenariosChartLegend({
+                  lock,
+                  lastProjectedYear: projection.yearlyData[projection.yearlyData.length - 1]?.calendarYear ?? null,
+                  honest: honestSummary,
+                }),
+                ...describeScenariosFooter(),
+              ]}
+            />
           ) : (
             // A projection needs expenses and a positive net worth, which the branch above already
             // guarantees; this is the belt to those braces, and it says so instead of an empty cell.

@@ -180,11 +180,17 @@ export interface PassiveIncome {
   yearsOfExpenses: number;
   liquidYears: number;
   illiquidYears: number;
-  /** Expenses ÷ net worth, in %. */
-  currentWR: number;
   swr: number;
-  /** The current withdrawal exceeds the safe rate — the one figure that earns a sign colour. */
-  overSwr: boolean;
+  /** What the plan spends in a year; 0 without expenses. */
+  annualExpenses: number;
+  /**
+   * The distance from full cover, in euros a year (expenses − allowance), never below zero;
+   * null without expenses. It stays in income, not in capital: turning it into a missing capital
+   * would be a fifth «FIRE number» next to the Traguardo's (FEAT FIRE, 2026-10-05).
+   */
+  shortfallAnnual: number | null;
+  /** The allowance above the expenses (allowance − expenses), never below zero; null without expenses. */
+  surplusAnnual: number | null;
 }
 
 /** «Quanto potrei prelevare oggi?» — the allowance at the SWR and what it covers. */
@@ -197,9 +203,10 @@ export function summarizePassiveIncome(metrics: FIREMetrics): PassiveIncome {
     yearsOfExpenses: metrics.yearsOfExpenses,
     liquidYears: metrics.liquidYearsOfExpenses,
     illiquidYears: metrics.illiquidYearsOfExpenses,
-    currentWR: metrics.currentWR,
     swr: metrics.withdrawalRate,
-    overSwr: metrics.annualExpenses > 0 && metrics.currentWR > metrics.withdrawalRate,
+    annualExpenses: metrics.annualExpenses,
+    shortfallAnnual: metrics.annualExpenses > 0 ? Math.max(0, metrics.annualExpenses - metrics.annualAllowance) : null,
+    surplusAnnual: metrics.annualExpenses > 0 ? Math.max(0, metrics.annualAllowance - metrics.annualExpenses) : null,
   };
 }
 
