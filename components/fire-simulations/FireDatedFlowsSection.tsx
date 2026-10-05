@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * «Flussi nel tempo», in Parametri › Impostazioni (doc/fire-ipotesi/README.md § 12.7, D-F3): the list of the dated flows the
+ * «Flussi nel tempo», in «Il mio piano» (doc/fire-ipotesi/README.md § 12.7, D-F3; § 15 RP1): the list of the dated flows the
  * simulating tabs read — a mortgage that ends, a child, an inheritance, a part-time job after FIRE — one row each, a flow
  * left out in warning ink with its reason, the state pensions after them in read-only (D-F4). Every edit is a PREVIEW until
- * the section's «Salva»; the Calcolatore's `form` owns the list, this component only edits it.
+ * «Salva il piano»; the plan's draft (`useFirePlanDraft`) owns the list, this component only edits it.
  */
 import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
@@ -13,6 +13,7 @@ import type { ExcludedFlow, ResolvedFlow } from '@/lib/utils/datedFlows';
 import type { MortgageOption } from '@/lib/hooks/useFireDatedFlows';
 import { MAX_DATED_FLOWS } from '@/lib/utils/datedFlowValidation';
 import { describeFlowRow, describeGoalFlowRow, describeMortgageOption, describePensionFlowRow } from '@/lib/utils/datedFlowsNarrative';
+import { FIRE_PLAN_AFFECTS } from '@/lib/utils/firePlan';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { DatedFlowDialog } from '@/components/fire-simulations/DatedFlowDialog';
@@ -78,6 +79,7 @@ export function FireDatedFlowsSection({ flows, onChange, excluded, mortgages, pe
         Un mutuo che finisce, un figlio, un&apos;eredità, un lavoro part-time dopo il FIRE: importi netti, da un anno per un certo numero di anni. Se scrivi a mano la spesa del piano, scrivila senza il mutuo e le altre voci che hai qui:
         le aggiungono loro.
       </p>
+      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">{FIRE_PLAN_AFFECTS.flows}</p>
 
       {flows.length === 0 && pensions.length === 0 && goalFlows.resolved.length === 0 && goalFlows.excluded.length === 0 ? (
         <p className="mt-2 text-[13px] text-muted-foreground">Nessun flusso.</p>
@@ -122,7 +124,7 @@ export function FireDatedFlowsSection({ flows, onChange, excluded, mortgages, pe
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button ref={addRef} type="button" variant="outline" size="sm" onClick={() => setDialog({ flow: null })} disabled={isDemo || full} className="h-11 desktop:h-8">
+        <Button ref={addRef} id="plan-add-flow" type="button" variant="outline" size="sm" onClick={() => setDialog({ flow: null })} disabled={isDemo || full} className="h-11 desktop:h-8">
           <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
           Aggiungi un flusso
         </Button>

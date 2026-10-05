@@ -44,7 +44,7 @@ describe('describeFlowsRow — the Base di calcolo', () => {
   });
 
   it('should say "none" with no flows, and F23 what was left out', () => {
-    expect(describeFlowsRow({ count: 0, excluded: [], yearWithout: null, yearWith: null })).toEqual({ value: null, caption: 'nessuno: aggiungili nei Parametri' });
+    expect(describeFlowsRow({ count: 0, excluded: [], yearWithout: null, yearWith: null })).toEqual({ value: null, caption: 'nessuno: aggiungili in Il mio piano' });
     const row = describeFlowsRow({ count: 3, excluded: [{ id: 'x', label: 'x', reason: "manca l'età" }], yearWithout: 2034, yearWith: 2034 });
     expect(row.caption).toBe("non spostano l'anno FIRE · 1 escluso: manca l'età");
   });

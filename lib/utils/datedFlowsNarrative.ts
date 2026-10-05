@@ -62,9 +62,9 @@ export function describeFlowRow(flow: DatedFlow, mortgage?: MortgageFlowSchedule
   return `${flow.label} · ${KIND_SHORT[flow.kind]} · ${amount} · ${describeStart(flow)}${duration}${inside}`;
 }
 
-/** «Pensione INPS · dal 2058 · si modifica in Coast FIRE › Ipotesi»: the pensions are shown, never edited here (D-F4). */
+/** «Pensione INPS · dal 2058 · si modifica in Il mio piano»: the pensions are shown, never edited here (D-F4). */
 export function describePensionFlowRow(label: string, startYear: number | null): string {
-  return `${label} · ${startYear === null ? 'data da stimare' : `dal ${startYear}`} · si modifica in Coast FIRE › Ipotesi`;
+  return `${label} · ${startYear === null ? 'data da stimare' : `dal ${startYear}`} · si modifica in Il mio piano`;
 }
 
 /**
@@ -88,12 +88,12 @@ export interface FlowsEffect {
 
 /**
  * The Base di calcolo's «Flussi nel tempo» row: «4» and «spostano il FIRE dal 2034 al 2029», «non spostano l'anno FIRE»,
- * or «nessuno: aggiungili nei Parametri»; what was left out is said after («1 escluso: manca l'età»).
+ * or «nessuno: aggiungili in Il mio piano»; what was left out is said after («1 escluso: manca l'età»).
  */
 export function describeFlowsRow(effect: FlowsEffect): { value: string | null; caption: string } {
   const excluded = effect.excluded.length > 0 ? `${plural(effect.excluded.length, 'escluso', 'esclusi')}: ${effect.excluded.map((flow) => flow.reason).join('; ')}` : null;
   if (effect.count === 0) {
-    return { value: null, caption: excluded ? `nessuno in uso · ${excluded}` : 'nessuno: aggiungili nei Parametri' };
+    return { value: null, caption: excluded ? `nessuno in uso · ${excluded}` : 'nessuno: aggiungili in Il mio piano' };
   }
   const { yearWithout, yearWith } = effect;
   const many = effect.count !== 1;

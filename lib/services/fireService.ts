@@ -1534,7 +1534,7 @@ export interface FireProjectionPensionBridge {
 export interface FireHonestInputs {
   /** The user's age today; without it the pensions cannot be dated and are left out, said so. */
   userAge?: number;
-  /** As saved in Coast FIRE › Ipotesi (gross monthly, months per year, start date or age). */
+  /** As saved in Il mio piano (gross monthly, months per year, start date or age). */
   pensions: CoastFirePensionInput[];
   taxBrackets: CoastFireTaxBracket[];
   /** Today's basis and rate of the portfolio the plan withdraws from; absent = tax not modelled. */

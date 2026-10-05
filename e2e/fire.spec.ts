@@ -33,6 +33,17 @@ async function gotoFire(page: Page): Promise<void> {
   await expect(page.getByRole('region', { name: 'Reddito passivo sostenibile' })).toBeVisible({ timeout: 30_000 });
 }
 
+/** Opens «Il mio piano» (the plan block above the tabs, closed by default once the plan is written; H1). */
+async function openPlan(page: Page) {
+  const trigger = page.getByRole('button', { name: /^Il mio piano/ });
+  await expect(trigger).toBeVisible();
+  if ((await trigger.getAttribute('data-state')) === 'closed') {
+    await trigger.click();
+  }
+  await expect(trigger).toHaveAttribute('data-state', 'open');
+  return trigger;
+}
+
 test('the verdict and the Traguardo render: a rule headline and a well-formed FIRE number', async ({ page }) => {
   await gotoFire(page);
 
@@ -99,16 +110,17 @@ test('the Scenari | Ventaglio | Distribuzione toggle swaps the projection inside
   await expect(distributionChart).toHaveCount(0);
 });
 
-test('the Parametri disclosure opens and closes, measured by height', async ({ page }) => {
+test('«Il mio piano» opens and closes above the tabs, measured by height, and the Parametri disclosure is gone', async ({ page }) => {
   await gotoFire(page);
 
-  // Radix stamps data-state + aria-controls on the trigger. The initial state depends on the
-  // account (config-first opens it when no SWR is saved), so the test drives a full cycle
-  // from whatever state it finds.
-  // The trigger's accessible name is its visible text (eyebrow + description), so «Anteprima non
-  // salvata» reaches a screen reader; the spec matches the eyebrow.
-  const trigger = page.getByRole('button', { name: /^Parametri/ });
+  // Radix stamps data-state + aria-controls on the trigger. The initial state depends on the account (the block opens
+  // by itself only while the plan is not written), so the test drives a full cycle from whatever state it finds.
+  // The trigger's accessible name is its visible text (eyebrow + state), so «Anteprima non salvata» reaches a
+  // screen reader; the spec matches the eyebrow.
+  const trigger = page.getByRole('button', { name: /^Il mio piano/ });
   await expect(trigger).toBeVisible();
+  // § 15 RP6 (T13): the Calcolatore's own «Parametri» disclosure no longer exists.
+  await expect(page.getByRole('button', { name: /^Parametri/ })).toHaveCount(0);
   const contentId = await trigger.getAttribute('aria-controls');
   expect(contentId).toBeTruthy();
   const content = page.locator(`[id="${contentId}"]`);
@@ -124,12 +136,12 @@ test('the Parametri disclosure opens and closes, measured by height', async ({ p
   }
   await expect(trigger).toHaveAttribute('data-state', 'open');
   await expect.poll(measuredHeight).toBeGreaterThan(100);
-  // Open panel really contains the SWR input and the scenario parameters.
+  // Open panel really contains the SWR input and the plan's expenses (empty = from the Cashflow); the residence switch is gone (D4).
   await expect(page.getByLabel('Safe Withdrawal Rate (%)')).toBeVisible();
-  // D5: the plan's expenses are typed here (empty = from the Cashflow); the residence switch is gone (D4).
   await expect(page.getByLabel(/Spesa del piano/)).toBeVisible();
   await expect(page.getByLabel('Includi casa di abitazione nel FIRE')).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Parametri degli scenari' })).toBeVisible();
+  // Every field says where it acts (RP1).
+  await expect(page.getByText('Agisce su: Calcolatore, Coast FIRE, What If', { exact: false }).first()).toBeVisible();
 
   // Close: the content collapses to (near) zero height or unmounts entirely.
   await trigger.click();
@@ -142,24 +154,29 @@ test('the Parametri disclosure opens and closes, measured by height', async ({ p
   await expect.poll(measuredHeight).toBeGreaterThan(100);
 });
 
-test('the pension-lock switch in Base di calcolo persists and is reflected in the verdict', async ({ page }) => {
+test('the pension-lock switch in «Il mio piano» previews, saves with the plan and persists', async ({ page }) => {
   await gotoFire(page);
+  await openPlan(page);
 
   const lockSwitch = page.getByRole('switch', { name: 'Considera il fondo pensione come capitale bloccato fino allo sblocco' });
   await expect(lockSwitch).toBeVisible();
   const initial = (await lockSwitch.getAttribute('aria-checked')) === 'true';
 
-  // Flip, and expect the saved-state toast (the switch saves on change).
+  // Flip: it is a PREVIEW (the trigger carries the unsaved dot), saved by «Salva il piano» with every other plan field.
   await lockSwitch.click();
-  await expect(page.getByText(initial ? 'Fondo pensione considerato disponibile' : 'Fondo pensione considerato bloccato')).toBeVisible({ timeout: 10_000 });
   await expect(lockSwitch).toHaveAttribute('aria-checked', String(!initial));
+  await expect(page.getByRole('button', { name: /^Il mio piano/ })).toContainText('Anteprima non salvata');
+  await page.getByRole('button', { name: 'Salva il piano' }).click();
+  await expect(page.getByText('Piano FIRE salvato')).toBeVisible({ timeout: 10_000 });
 
   // The setting survives a reload: it was written, not previewed.
   await page.reload();
   await expect(page.getByRole('region', { name: 'Reddito passivo sostenibile' })).toBeVisible({ timeout: 30_000 });
+  await openPlan(page);
   await expect(page.getByRole('switch', { name: 'Considera il fondo pensione come capitale bloccato fino allo sblocco' })).toHaveAttribute('aria-checked', String(!initial));
 
   // Restore the fixture's state so the Coast spec reads what it seeded.
   await page.getByRole('switch', { name: 'Considera il fondo pensione come capitale bloccato fino allo sblocco' }).click();
-  await expect(page.getByText(initial ? 'Fondo pensione considerato bloccato' : 'Fondo pensione considerato disponibile')).toBeVisible({ timeout: 10_000 });
+  await page.getByRole('button', { name: 'Salva il piano' }).click();
+  await expect(page.getByText('Piano FIRE salvato')).toBeVisible({ timeout: 10_000 });
 });

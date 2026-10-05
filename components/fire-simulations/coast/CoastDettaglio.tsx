@@ -4,7 +4,7 @@
  * «Dettaglio», below the grid behind a disclosure: what explains the Coast number rather than
  * answering the page's question, at the tile's cadence — Fasi di copertura (6) beside Al target
  * e a regime (6), Impatto delle pensioni (12, only with a pension) and Come leggere il Coast
- * FIRE (12: the automatic interpretation of this case, then the standing explainer). Closed by
+ * FIRE (12: the automatic interpretation of this case, then the standing explainer) and, since 2026-10-05, Modello della pensione (12: the four steps from gross nominal to net real, moved here from the Ipotesi disclosure that «Il mio piano» replaced, § 15 RP6). Closed by
  * default: the verdict and the three tiles already answer «posso smettere di versare?».
  *
  * Nothing is computed or fetched here: every figure is a field of the base scenario the tab
@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { CoastFIREPensionBreakdown } from '@/lib/services/fireService';
 import type { Narrative } from '@/lib/utils/narrative';
-import { formatAgeYears, formatYearCount, HOW_TO_READ_READING, type CoastCoverageStep, type CoastScenarioMetrics } from '@/lib/utils/coastFireView';
+import { formatAgeYears, formatYearCount, HOW_TO_READ_READING, PENSION_MODEL_READING, type CoastCoverageStep, type CoastScenarioMetrics } from '@/lib/utils/coastFireView';
 import { cachedFormatCurrencyEUR, formatDate } from '@/lib/utils/formatters';
 import { toDate } from '@/lib/utils/dateHelpers';
 import { cn } from '@/lib/utils';
@@ -196,6 +196,26 @@ export function CoastDettaglio({
             </div>
           )}
 
+          {/* Modello della pensione (12) — text unchanged since the Ipotesi disclosure */}
+          <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
+            <Tile eyebrow="Modello della pensione" reading={PENSION_MODEL_READING} ariaLabel="Modello della pensione">
+              <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-[13px] leading-[1.5] text-muted-foreground desktop:grid-cols-2">
+                <p>
+                  <strong className="font-semibold text-foreground">Importo lordo mensile.</strong> Stima dell&apos;importo alla decorrenza, in euro di quell&apos;anno (nominale futuro).
+                </p>
+                <p>
+                  <strong className="font-semibold text-foreground">Deflazione.</strong> Il lordo nominale diventa potere d&apos;acquisto ai prezzi di oggi con l&apos;inflazione dello scenario.
+                </p>
+                <p>
+                  <strong className="font-semibold text-foreground">IRPEF.</strong> Imposta sul lordo annuo reale con gli scaglioni di Impostazioni › Simulazioni; il netto reale è ciò che abbatte il fabbisogno.
+                </p>
+                <p>
+                  <strong className="font-semibold text-foreground">Decorrenza.</strong> Prima di quella data la pensione non riduce nulla: il portafoglio copre da solo.
+                </p>
+              </div>
+            </Tile>
+          </div>
+
           {/* Come leggere il Coast FIRE (12) */}
           <div className={cn(TILE_CELL_CLASS, 'tablet:col-span-2 desktop:col-span-12')}>
             <Tile eyebrow="Come leggere il Coast FIRE" reading={HOW_TO_READ_READING} ariaLabel="Come leggere il Coast FIRE">
@@ -210,14 +230,14 @@ export function CoastDettaglio({
                   dovrebbe bastare, per capitalizzazione composta, a coprire il capitale richiesto al target.
                 </p>
                 <p>
-                  <strong className="font-semibold text-foreground">Spese usate.</strong> Il target si basa sulla spesa del piano (Parametri del Calcolatore) o, se vuota, sulle spese del Cashflow.
+                  <strong className="font-semibold text-foreground">Spese usate.</strong> Il target si basa sulla spesa del piano (Il mio piano) o, se vuota, sulle spese del Cashflow.
                 </p>
                 <p>
                   <strong className="font-semibold text-foreground">Pensione statale.</strong> Ogni importo è un lordo mensile nominale futuro, deflazionato con l&apos;inflazione dello scenario e convertito in
                   netto reale con l&apos;IRPEF progressiva.
                 </p>
                 <p>
-                  <strong className="font-semibold text-foreground">Fondo pensione bloccato.</strong> Con il vincolo attivo (lo switch è nella Base di calcolo del Calcolatore) il fondo esce dal patrimonio di oggi e
+                  <strong className="font-semibold text-foreground">Fondo pensione bloccato.</strong> Con il vincolo attivo (lo switch è in Il mio piano) il fondo esce dal patrimonio di oggi e
                   rientra allo sblocco al suo valore attuale; il capitale richiesto al target è al netto di quel rientro.
                 </p>
               </div>

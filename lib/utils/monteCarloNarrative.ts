@@ -198,7 +198,7 @@ export function buildMonteCarloVerdict(input: MonteCarloVerdictInput): PageVerdi
     return {
       headline: 'Simulazione non ancora eseguita.',
       tone: 'neutral',
-      sentence: [prose('Premi Esegui simulazione nella tessera Parametri: i tre scenari girano insieme.')],
+      sentence: [prose('Premi Prova nella tessera Parametri: i tre scenari girano insieme.')],
     };
   }
 
@@ -370,7 +370,7 @@ export function describeSpesaHeroAside(cell: SustainableWithdrawal): string | nu
 
 // ─── Parametri ────────────────────────────────────────────────────────────────
 
-export const PARAMETRI_ASIDE = 'esplorazione, non salvata · le ipotesi di mercato stanno in Impostazioni';
+export const PARAMETRI_ASIDE = 'una prova, non si salva · le ipotesi di mercato stanno in Impostazioni';
 
 /**
  * «Parti da 488.600 € — il patrimonio senza i 31.400 € del fondo pensione bloccato — e prelevi
@@ -520,7 +520,7 @@ export interface ParametriFooterInput {
 }
 
 export function describeParametriFooter(input: ParametriFooterInput): Narrative {
-  if (input.stale) return [prose("I risultati sopra usano i parametri dell'ultima esecuzione: premi Esegui simulazione per aggiornarli.")];
+  if (input.stale) return [prose("I risultati sopra usano i parametri dell'ultima esecuzione: premi Prova per aggiornarli.")];
   return [prose('Ultima esecuzione con questi parametri · '), figure((input.simulations * 3).toLocaleString('it-IT')), prose(' traiettorie, '), figure(input.simulations.toLocaleString('it-IT')), prose(' per scenario.')];
 }
 

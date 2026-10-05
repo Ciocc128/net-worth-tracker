@@ -38,8 +38,8 @@ test('without cashflow the four tiles keep their question and only the Traguardo
   await expect(page.getByRole('region', { name: 'Base di calcolo del FIRE' }).getByRole('link')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Scenari di mercato' }).getByRole('link')).toHaveCount(0);
 
-  // The settings stay reachable from the empty state.
-  await expect(page.getByRole('button', { name: /^Parametri/ })).toBeVisible();
+  // The plan stays reachable from the empty state (it sits above the tabs).
+  await expect(page.getByRole('button', { name: /^Il mio piano/ })).toBeVisible();
 
   // No figure is invented: no euro amount in the Traguardo or the Scenari tile.
   await expect(traguardo.getByText(/\d\s?€/)).toHaveCount(0);

@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
-import { getSettings } from '@/lib/services/assetAllocationService';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { getGoalData } from '@/lib/services/goalService';
 import { resolveFireAssumptions, type FireAssumptions } from '@/lib/utils/fireAssumptions';
 
@@ -25,19 +25,13 @@ export interface UseFireAssumptionsResult {
  * `lockedAssetIds`: the funds the pension lock keeps closed (memoise it in the caller: its identity keys the result).
  * `withCashflow`: also read the Cashflow (the SAME `['annualCashflowData', ownerId]` query the tabs make), so
  * the result carries the plan's `expenses` (RP6) — the tabs that run a plan ask for it, the Settings tile does not.
- * `emergencyFund`: a PREVIEW of the emergency fund in euro (§ 14, RE1) typed in the Calcolatore's Parametri and not saved yet;
- * `null` = the field emptied (no fund), absent = the saved one. A preview also silences the legacy share (RE5).
  */
-export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false, emergencyFund }: { withCashflow?: boolean; emergencyFund?: number | null } = {}): UseFireAssumptionsResult {
+export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false }: { withCashflow?: boolean } = {}): UseFireAssumptionsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
-  const settingsQuery = useQuery({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): a typed fund or expense is previewed here too.
+  const settingsQuery = useFireSettings();
   const assetsQuery = useQuery({
     queryKey: ['assets', ownerId],
     queryFn: () => getAllAssets(ownerId!),
@@ -63,10 +57,10 @@ export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withC
   const assets = assetsQuery.data;
   const goalData = goalQuery.data;
   const cashflowData = withCashflow ? cashflowQuery.data : undefined;
-  const ready = settingsQuery.isSuccess && assetsQuery.isSuccess && (!withCashflow || cashflowQuery.isSuccess);
+  const ready = !settingsQuery.isLoading && !settingsQuery.isError && assetsQuery.isSuccess && (!withCashflow || cashflowQuery.isSuccess);
   const assumptions = useMemo(
-    () => (ready ? resolveFireAssumptions({ settings: emergencyFund === undefined || !settings ? settings : { ...settings, fireEmergencyFund: emergencyFund ?? undefined, fireCashToInvestPct: undefined }, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
-    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData, emergencyFund],
+    () => (ready ? resolveFireAssumptions({ settings, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
+    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData],
   );
   return {
     assumptions,

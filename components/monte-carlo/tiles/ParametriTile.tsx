@@ -7,7 +7,7 @@
  * capital with the two «Usa» shortcuts and the read-only pension row, the horizon, the
  * withdrawal, the simulation count) and the Allocazione (seven class weights with their sum, what
  * stays outside the simulation, and the DECLARATION of the market assumptions: they are edited in
- * Impostazioni › Simulazioni, never here — The Declaration-Tile Rule). One action row: Esegui, and
+ * Impostazioni › Simulazioni, never here — The Declaration-Tile Rule). One action row: Prova (the run is a try-out, never saved: «Salva il piano» is the plan block's), and
  * the footer that says whether the figures above still match what is typed (`describeParametriFooter`).
  *
  * The form is owned by the tab as strings (`MonteCarloForm`), the way FireParametri's is: a
@@ -16,6 +16,7 @@
 
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
+import { useFirePlan } from '@/lib/hooks/useFirePlan';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { MonteCarloPlan } from '@/lib/utils/monteCarloSummary';
 import { type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
@@ -89,7 +90,6 @@ interface ParametriTileProps {
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 
 const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
-const FLOWS_HREF = '/dashboard/fire-simulations?tab=fire';
 
 export function ParametriTile({
   reading,
@@ -116,6 +116,7 @@ export function ParametriTile({
   stale,
   className,
 }: ParametriTileProps) {
+  const firePlan = useFirePlan();
   return (
     <Tile eyebrow="Parametri" aside={aside} reading={reading} ariaLabel="Parametri della simulazione" className={className}>
       <div className="mt-3.5 grid grid-cols-1 gap-5 desktop:grid-cols-12">
@@ -161,9 +162,9 @@ export function ParametriTile({
             </div>
             {capital && !(start.mode === 'fire' && start.fireCapital !== null) && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
             <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">{flowsNote}.</p>
-            <Link href={FLOWS_HREF} className="inline-flex min-h-11 items-center text-[11px] text-foreground underline underline-offset-2 desktop:min-h-0">
-              Modifica nel Calcolatore › Parametri
-            </Link>
+            <button type="button" onClick={() => firePlan?.focusField('flussi')} className="inline-flex min-h-11 items-center text-[11px] text-foreground underline underline-offset-2 desktop:min-h-0">
+              Modifica in Il mio piano
+            </button>
             {plan.inflows.map((inflow) => (
               <NarrativeText key={inflow.yearOffset} segments={describePensionInflowRow(inflow)} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
             ))}
@@ -201,7 +202,7 @@ export function ParametriTile({
               <NarrativeText key={`${pension.yearOffset}-${pension.annualNetToday}`} segments={describeStatePensionRow(pension)} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
             ))}
             {plan.statePensions.length === 0 && (
-              <p className="text-[11px] leading-[1.4] text-muted-foreground">Pensioni statali: nessuna datata in Coast FIRE › Ipotesi (serve l&apos;età), il prelievo resta intero.</p>
+              <p className="text-[11px] leading-[1.4] text-muted-foreground">Pensioni statali: nessuna datata in Il mio piano (serve l&apos;età), il prelievo resta intero.</p>
             )}
             <NarrativeText segments={describeWithdrawalTaxRow(plan.withdrawalTax)} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
           </div>
@@ -235,7 +236,7 @@ export function ParametriTile({
 
       <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
         <Button type="button" onClick={onRun} disabled={!canRun || isRunning} className="h-9 w-full sm:w-auto">
-          {isRunning ? 'Simulazione in corso…' : 'Esegui simulazione'}
+          {isRunning ? 'Simulazione in corso…' : 'Prova'}
         </Button>
         <NarrativeText segments={footer} className={cn('text-[11px] leading-[1.4] sm:ml-auto sm:text-right', stale ? 'text-warning-foreground' : 'text-muted-foreground')} figureClassName="font-medium" />
       </div>

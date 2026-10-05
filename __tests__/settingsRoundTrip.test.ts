@@ -481,3 +481,38 @@ describe('setSettings — scrittura, ramo senza targets (merge: true)', () => {
     }
   );
 });
+
+// H1 (doc/fire-ipotesi/README.md § 15, T8/T9): «Il mio piano» writes ALL its fields with ONE setSettings; the IRPEF brackets are
+// written from Impostazioni › Simulazioni and must survive the plan's save (it never sends them).
+describe('«Il mio piano» — il salvataggio unico', () => {
+  const PLAN_STORED = {
+    userAge: 45,
+    coastFireRetirementAge: 60,
+    withdrawalRate: 3.5,
+    plannedAnnualExpenses: 25_200,
+    fireEmergencyFund: 30_000,
+    fireCashToInvestPct: 35,
+    coastFireCustomExpenses: 29_000,
+    coastFireTaxBrackets: [{ id: 'b1', upTo: 28_000, rate: 23 }, { id: 'b2', upTo: null, rate: 43 }],
+  };
+
+  it('scrive i dieci campi del piano in un solo setDoc, toglie i vuoti e lascia stare gli scaglioni', async () => {
+    const { buildPlanPayload, planFormFromSettings } = await import('@/lib/utils/firePlan');
+    vi.mocked(getDoc).mockResolvedValue({ exists: () => true, data: () => PLAN_STORED } as never);
+    const form = { ...planFormFromSettings({ ...PLAN_STORED, targets: TARGETS } as AssetAllocationSettings), plannedExpenses: '', respectPensionLock: true, ritaLongUnemployment: true, inpsRetirementAge: '65' };
+    const { payload } = buildPlanPayload(form, { derivedFund: undefined, currentYear: 2026 });
+    vi.mocked(setDoc).mockClear();
+
+    await setSettings('user-1', { targets: TARGETS, ...payload } as AssetAllocationSettings);
+
+    expect(vi.mocked(setDoc)).toHaveBeenCalledTimes(1);
+    const written = writtenPayload();
+    expect(written).toMatchObject({ userAge: 45, coastFireRetirementAge: 60, withdrawalRate: 3.5, fireEmergencyFund: 30_000, respectPensionLockInFire: true, pensionRitaLongUnemployment: true, pensionInpsRetirementAge: 65, fireDatedFlows: [] });
+    // spesa svuotata, quota legacy e spesa Coast di prima: tolte (RE5, D5)
+    expect(written).not.toHaveProperty('plannedAnnualExpenses');
+    expect(written).not.toHaveProperty('fireCashToInvestPct');
+    expect(written).not.toHaveProperty('coastFireCustomExpenses');
+    // T9: gli scaglioni non sono del piano
+    expect(written.coastFireTaxBrackets).toEqual(PLAN_STORED.coastFireTaxBrackets);
+  });
+});

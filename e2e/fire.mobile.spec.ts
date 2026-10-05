@@ -6,7 +6,7 @@
  * seconda la segnalò l'owner, come scorrimento orizzontale della pagina su mobile. Nessun test
  * poteva vederla: Vitest non ha un motore di layout, e `fire.spec.ts` gira a 1440px, dove la
  * griglia usa il suo template esplicito e il difetto non esiste. Dal 2026-08-25 il tab è una
- * griglia di tessere: la spec apre le due disclosure (Parametri, Dettaglio) e il Ventaglio, così
+ * griglia di tessere: la spec apre le due disclosure (Il mio piano, Dettaglio) e il Ventaglio, così
  * misura anche i grafici Recharts dentro le tessere.
  *
  * PERCHÉ SI MISURA `main` E NON IL DOCUMENTO: la shell della dashboard monta la pagina dentro
@@ -23,7 +23,7 @@
 import { test, expect } from '@playwright/test';
 
 /** Le disclosure del tab: contenuto che l'owner aprirà, quindi contenuto da misurare. */
-const DISCLOSURES = [/^Parametri/, /^Dettaglio/] as const;
+const DISCLOSURES = [/^Il mio piano/, /^Dettaglio/] as const;
 
 test('il tab Calcolatore FIRE non scorre in orizzontale a 390px', async ({ page }) => {
   await page.goto('/dashboard/fire-simulations', { waitUntil: 'load' });

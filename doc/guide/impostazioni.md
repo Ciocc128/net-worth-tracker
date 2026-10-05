@@ -79,6 +79,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   («142 voci da importare, 6 righe scartate, 3 categorie da creare») and the grant list are stated in words before the
   controls, like every other tile.
 
+> **H1 (2026-10-05)**: `userAge` is no longer written by the Settings page (declared in FIRE › «Il mio piano»); the IRPEF brackets (`coastFireTaxBrackets`) are edited in `components/settings/TaxBracketsTile.tsx`; «Parametri del piano» stays read-only. doc/guide/fire.md § H1.
+
 ## Settings — the FIVE places
 - A new setting must be added to all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
   `assetAllocationService.getSettings`, **BOTH** write chains in `setSettings` (the `targets` branch uses `setDoc` with

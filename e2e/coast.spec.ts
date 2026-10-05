@@ -27,6 +27,17 @@ async function gotoCoast(page: Page): Promise<void> {
   await expect(page.getByRole('region', { name: 'Verdetto sul Coast FIRE' })).toBeVisible({ timeout: 30_000 });
 }
 
+/** Opens «Il mio piano» (the plan block above the tabs, closed by default once the plan is written; H1). */
+async function openPlan(page: Page) {
+  const trigger = page.getByRole('button', { name: /^Il mio piano/ });
+  await expect(trigger).toBeVisible();
+  if ((await trigger.getAttribute('data-state')) === 'closed') {
+    await trigger.click();
+  }
+  await expect(trigger).toHaveAttribute('data-state', 'open');
+  return trigger;
+}
+
 test('the verdict answers the question and the Traguardo carries a formatted shortfall', async ({ page }) => {
   await gotoCoast(page);
 
@@ -108,16 +119,14 @@ test('the Scenari tile ranks the three Coast numbers, base in the middle', async
   expect(numbers[1]).toBeGreaterThan(numbers[2]);
 });
 
-test('the Ipotesi disclosure opens on the form and closes, measured by height', async ({ page }) => {
+test('Coast FIRE reads «Il mio piano» and has no Ipotesi disclosure of its own', async ({ page }) => {
   await gotoCoast(page);
 
-  // Radix stamps data-state + aria-controls on the trigger. A collapsed CSS region can still be
-  // "visible" to Playwright, so the collapse is asserted by measuring the content height.
-  const trigger = page.getByRole('button', { name: /^Ipotesi/ }).first();
+  // § 15 RP6 (T13): the Ipotesi disclosure moved into the plan block above the tabs.
+  await expect(page.getByRole('button', { name: /^Ipotesi/ })).toHaveCount(0);
+
+  const trigger = page.getByRole('button', { name: /^Il mio piano/ });
   await expect(trigger).toBeVisible();
-  // The assumptions are declared on the closed trigger.
-  await expect(trigger).toContainText('35 anni → target 60');
-  await expect(trigger).toContainText('2 pensioni statali');
   const contentId = await trigger.getAttribute('aria-controls');
   expect(contentId).toBeTruthy();
   const content = page.locator(`[id="${contentId}"]`);
@@ -128,17 +137,38 @@ test('the Ipotesi disclosure opens on the form and closes, measured by height', 
   };
 
   // Normalize to open: the seeded fixture has an age saved, so it starts collapsed.
-  if ((await trigger.getAttribute('data-state')) === 'closed') {
-    await trigger.click();
-  }
-  await expect(trigger).toHaveAttribute('data-state', 'open');
+  await openPlan(page);
   await expect.poll(measuredHeight).toBeGreaterThan(100);
-  await expect(page.getByLabel('Età target Coast FIRE')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Pensioni statali' }).getByLabel('Decorrenza')).toHaveCount(2);
+  await expect(page.getByLabel('Età attuale')).toHaveValue('35');
+  await expect(page.getByLabel('Età obiettivo')).toHaveValue('60');
+  await expect(page.getByRole('region', { name: 'Il mio piano: pensioni' }).getByLabel('Decorrenza')).toHaveCount(2);
+  // The pension model moved into the Dettaglio of the tab.
+  await page.getByRole('button', { name: /^Dettaglio/ }).first().click();
+  await expect(page.getByRole('region', { name: 'Modello della pensione' })).toBeVisible();
 
   await trigger.click();
   await expect(trigger).toHaveAttribute('data-state', 'closed');
   await expect.poll(measuredHeight).toBeLessThan(1);
+});
+
+test('a preview typed in «Il mio piano» survives a tab switch and «Annulla» takes it back (RP3, T7)', async ({ page }) => {
+  await gotoCoast(page);
+  await openPlan(page);
+  const spesa = page.getByLabel(/Spesa del piano/);
+  const saved = await spesa.inputValue();
+  await spesa.fill('31234');
+  await expect(page.getByRole('button', { name: /^Il mio piano/ })).toContainText('Anteprima non salvata');
+
+  // The draft belongs to the page: it is still there after a trip to the Calcolatore and back.
+  await page.getByRole('tab', { name: /Calcolatore FIRE/ }).click();
+  await expect(page.getByRole('region', { name: 'Reddito passivo sostenibile' })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('tab', { name: 'Coast FIRE' }).click();
+  await expect(page.getByLabel(/Spesa del piano/)).toHaveValue('31234');
+  await expect(page.getByRole('button', { name: /^Il mio piano/ })).toContainText('Anteprima non salvata');
+
+  await page.getByRole('button', { name: 'Annulla' }).click();
+  await expect(page.getByLabel(/Spesa del piano/)).toHaveValue(saved);
+  await expect(page.getByRole('button', { name: /^Il mio piano/ })).not.toContainText('Anteprima non salvata');
 });
 
 test('the projection tooltip names the pension-fund step at the unlock year', async ({ page }) => {
