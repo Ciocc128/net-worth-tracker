@@ -28,7 +28,7 @@ export function ProjectionDettaglio() {
 
       <CollapsibleContent className="pt-1">
         <Tile eyebrow="Come si calcola" ariaLabel="Come si calcola la proiezione">
-          <div className="mt-3 grid grid-cols-1 gap-5 text-[13px] leading-[1.5] text-muted-foreground desktop:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-5 text-[13px] leading-[1.5] text-muted-foreground desktop:grid-cols-3">
             {PROJECTION_EXPLAINER.map((block) => (
               <div key={block.title}>
                 <p className="mb-1 font-medium text-foreground">{block.title}</p>

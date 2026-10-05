@@ -31,6 +31,7 @@ import {
 import { resolveGainShare } from '@/lib/utils/withdrawalTax';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
 import { buildFlowSchedule, type DatedFlowsInput, type ResolvedFlow } from '@/lib/utils/datedFlows';
+import { buildFireThresholdSeries } from '@/lib/utils/projectionSummary';
 import type { FIREProjectionResult } from '@/types/assets';
 import type {
   WhatIfAdjustedInputs,
@@ -255,7 +256,9 @@ function runBaseProjection(
   netWorth: number,
   annualExpenses: number,
   annualSavings: number,
-  flows: DatedFlowsInput | undefined
+  flows: DatedFlowsInput | undefined,
+  // T6 (RN6): walk exactly this many years (the Proiezione's threshold series); absent = the What If's horizon, as before.
+  years?: number
 ): FIREProjectionResult | null {
   if (netWorth < 0 || annualExpenses <= 0 || baseline.withdrawalRate <= 0) return null;
   return calculateFIREProjection(
@@ -264,11 +267,12 @@ function runBaseProjection(
     annualSavings,
     baseline.withdrawalRate,
     baseline.scenarios,
-    WHAT_IF_HORIZON_YEARS,
+    years ?? WHAT_IF_HORIZON_YEARS,
     resolveBridge(baseline),
     honestFor(baseline, netWorth),
     baseline.indexSavings ?? false,
-    flows
+    flows,
+    years
   );
 }
 
@@ -299,11 +303,26 @@ export function baseYearsToFIREWithFlows(baseline: WhatIfBaseline, flows: DatedF
  * The saved plan's Base walk and its FIRE year, as the What If's «prima» reads them (T5, § 12.7.2): «Dopo il FIRE» starts its
  * simulation from this very projection, so the three surfaces agree on the year. Null `projection` = the plan cannot run.
  */
-export function runBaselineProjection(baseline: WhatIfBaseline): { projection: FIREProjectionResult | null; yearsToFIRE: number | null } {
+export function runBaselineProjection(
+  baseline: WhatIfBaseline,
+  options?: { years?: number }
+): { projection: FIREProjectionResult | null; yearsToFIRE: number | null; fireNumberToday: number } {
   const flows = baseline.flows && baseline.flows.resolved.length > 0 ? baseline.flows : undefined;
   const metrics = resolveFireMetrics(baseline, baseline.netWorth, baseline.annualExpenses, flows);
-  const projection = runBaseProjection(baseline, baseline.netWorth, baseline.annualExpenses, baseline.annualSavings, flows);
-  return { projection, yearsToFIRE: resolveYearsToFIRE(metrics, projection, !!flows) };
+  // T6 (RN6): with `years` the walk runs exactly that long, past the FIRE years; without it, identical to before.
+  const projection = runBaseProjection(baseline, baseline.netWorth, baseline.annualExpenses, baseline.annualSavings, flows, options?.years);
+  return { projection, yearsToFIRE: resolveYearsToFIRE(metrics, projection, !!flows), fireNumberToday: metrics.fireNumber };
+}
+
+/**
+ * T6 (RN1–RN2, RN6): the Calcolatore's FIRE number of every year in today's euros, `years + 1` values (0…years): year 0 is
+ * the requirement of today (`resolveFireMetrics`), year t the Base row's `baseFireNumber` of the walk — the line the
+ * Calcolatore's Ventaglio calls «Target FIRE» — over `(1 + π_b)^t`. Null when the plan cannot run (RN4).
+ */
+export function resolveProjectionFireSeries(baseline: WhatIfBaseline, years: number): number[] | null {
+  const { projection, fireNumberToday } = runBaselineProjection(baseline, { years });
+  if (!projection) return null;
+  return buildFireThresholdSeries(fireNumberToday, projection.yearlyData.map((row) => row.baseFireNumber), baseline.scenarios.base.inflationRate, years);
 }
 
 /**

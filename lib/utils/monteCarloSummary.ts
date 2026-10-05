@@ -61,7 +61,7 @@ export interface FinalPercentiles {
   p90: number;
 }
 
-/** One bin of a final-value histogram; the Proiezione's Distribuzione still draws it (`FinalValueBars`). */
+/** One bin of a final-value histogram (the Monte Carlo's distribution). */
 export interface HistogramBin {
   from: number;
   to: number;

@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import type { FireCapital } from '@/lib/utils/fireCapital';
 import { describeCapitalBreakdown } from '@/lib/utils/fireAssumptionsNarrative';
 import { Button } from '@/components/ui/button';
+import { ASIDE_TOGGLE_OFF_CLASS, ASIDE_TOGGLE_ON_CLASS } from '@/components/ui/aside-toggle';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
@@ -60,6 +61,11 @@ interface ParametriTileProps {
   savingsHint: string;
   /** Under the threshold field. */
   thresholdHint: string;
+  /** § 13: the threshold is the Calcolatore's FIRE number (the seed is pressed, the field empty); false = a typed figure or none. */
+  thresholdIsFire: boolean;
+  /** The seed «Numero FIRE» and its placeholder («oggi 606.961 €, poi anno per anno»); null with no plan that runs: no seed. */
+  fireThresholdPlaceholder: string | null;
+  onUseFireThreshold: () => void;
   marketDeclaration: Narrative;
   /** K1 (§ 11.6): the page's capital, for the line under «Capitale iniziale»; null while unread. */
   capital: FireCapital | null;
@@ -75,6 +81,8 @@ interface ParametriTileProps {
 }
 
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
+/** The seed's size is `WeightsFields`' (AsideToggle's pressed look, the 44px touch floor, 32px on a pointer). */
+const SEED_CLASS = 'h-11 rounded-md border px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring desktop:h-8 desktop:px-2.5';
 const HINT_CLASS = 'mt-1 text-[11px] leading-[1.4] text-muted-foreground';
 const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
 
@@ -93,6 +101,9 @@ export function ParametriTile({
   liquidNetWorth,
   savingsHint,
   thresholdHint,
+  thresholdIsFire,
+  fireThresholdPlaceholder,
+  onUseFireThreshold,
   marketDeclaration,
   capital,
   flowsNote,
@@ -160,7 +171,22 @@ export function ParametriTile({
               <Label htmlFor="pr-threshold" className="text-[13px]">
                 Soglia (€ di oggi)
               </Label>
-              <Input id="pr-threshold" type="text" inputMode="decimal" value={form.threshold} onChange={(e) => onFormChange({ threshold: e.target.value })} className={CONTROL_CLASS} />
+              <Input
+                id="pr-threshold"
+                type="text"
+                inputMode="decimal"
+                value={form.threshold}
+                placeholder={thresholdIsFire && fireThresholdPlaceholder ? fireThresholdPlaceholder : undefined}
+                onChange={(e) => onFormChange({ threshold: e.target.value })}
+                className={CONTROL_CLASS}
+              />
+              {fireThresholdPlaceholder !== null && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className={cn(SEED_CLASS, thresholdIsFire ? ASIDE_TOGGLE_ON_CLASS : ASIDE_TOGGLE_OFF_CLASS)} onClick={onUseFireThreshold} aria-pressed={thresholdIsFire}>
+                    Numero FIRE
+                  </button>
+                </div>
+              )}
               <p className={HINT_CLASS}>{thresholdHint}</p>
             </div>
             <div>

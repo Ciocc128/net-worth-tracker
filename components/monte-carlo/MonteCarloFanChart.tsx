@@ -30,12 +30,15 @@ interface MonteCarloFanChartProps {
   zeroLine?: boolean;
   /** A neutral dashed line at a value (Proiezione's threshold) — a target, not a loss, so never the destructive token. */
   referenceLine?: { value: number; label: string };
+  /** The same neutral dashed line as a SERIES on the percentiles' years (Proiezione's moving threshold): `values[t]` at year t. */
+  referenceSeries?: { values: readonly number[]; label: string };
   /** The calendar year the tab's horizon sits at: a faint vertical guide. */
   markedCalendarYear?: number | null;
 }
 
 interface FanRow {
   calendarYear: number;
+  reference?: number;
   band1090: [number, number];
   band2575: [number, number];
   p10: number;
@@ -49,9 +52,11 @@ interface FanTooltipProps {
   active?: boolean;
   payload?: readonly { payload?: FanRow }[];
   label?: string | number;
+  /** The moving threshold's name, when the chart draws one: it gets a row of its own. */
+  referenceLabel?: string;
 }
 
-function FanTooltip({ active, payload, label }: FanTooltipProps) {
+function FanTooltip({ active, payload, label, referenceLabel }: FanTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
@@ -62,6 +67,7 @@ function FanTooltip({ active, payload, label }: FanTooltipProps) {
     ['25° percentile', row.p25],
     ['10° percentile', row.p10],
   ];
+  if (referenceLabel && row.reference !== undefined) rows.push([referenceLabel, row.reference]);
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-sm shadow-sm">
       <p className="font-semibold text-foreground">{label}</p>
@@ -79,7 +85,20 @@ function FanTooltip({ active, payload, label }: FanTooltipProps) {
   );
 }
 
-export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel, zeroLine = true, referenceLine, markedCalendarYear = null }: MonteCarloFanChartProps) {
+/** The name of the dashed series, printed once above its first point (a series has no `ReferenceLine` label). */
+function renderSeriesLabel(text: string) {
+  function SeriesLabel({ x, y, index }: { x?: number | string; y?: number | string; index?: number }) {
+    if (index !== 0 || typeof x !== 'number' || typeof y !== 'number') return null;
+    return (
+      <text x={x + 6} y={y - 6} fill="var(--muted-foreground)" fontSize={11}>
+        {text}
+      </text>
+    );
+  }
+  return SeriesLabel;
+}
+
+export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalendarYear, height, ariaLabel, zeroLine = true, referenceLine, referenceSeries, markedCalendarYear = null }: MonteCarloFanChartProps) {
   const fanColor = SCENARIO_COLOR.base;
 
   const rows = useMemo<FanRow[]>(
@@ -93,8 +112,9 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
         p50: point.p50,
         p75: point.p75,
         p90: point.p90,
+        ...(referenceSeries && referenceSeries.values[point.year] !== undefined ? { reference: referenceSeries.values[point.year] } : {}),
       })),
-    [percentiles, startCalendarYear],
+    [percentiles, startCalendarYear, referenceSeries],
   );
 
   return (
@@ -103,7 +123,7 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="calendarYear" tick={CHART_TICK_STYLE} tickMargin={6} />
         <YAxis width={64} tickFormatter={(value) => formatCurrencyCompact(Number(value))} tick={CHART_TICK_STYLE} />
-        <Tooltip content={FanTooltip} />
+        <Tooltip content={<FanTooltip referenceLabel={referenceSeries?.label} />} />
         <Area dataKey="band1090" name="10°–90° percentile" stroke="none" fill={fanColor} fillOpacity={0.1} isAnimationActive={false} activeDot={false} />
         <Area dataKey="band2575" name="25°–75° percentile" stroke="none" fill={fanColor} fillOpacity={0.18} isAnimationActive={false} activeDot={false} />
         {unlockCalendarYear !== null && <ReferenceLine x={unlockCalendarYear} stroke="var(--muted-foreground)" strokeOpacity={0.6} strokeDasharray="2 3" />}
@@ -111,6 +131,9 @@ export function MonteCarloFanChart({ percentiles, startCalendarYear, unlockCalen
         <Line dataKey="p50" name="Mediana" stroke={fanColor} strokeWidth={2.5} dot={false} animationDuration={800} animationEasing="ease-out" />
         {/* The capital exhausted: a fact with a sign, so the loss token is the one honest colour here. */}
         {zeroLine && <ReferenceLine y={0} stroke="var(--destructive)" strokeDasharray="3 3" />}
+        {referenceSeries && (
+          <Line dataKey="reference" name={referenceSeries.label} stroke="var(--muted-foreground)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} activeDot={false} isAnimationActive={false} legendType="none" label={renderSeriesLabel(referenceSeries.label)} />
+        )}
         {referenceLine && (
           <ReferenceLine y={referenceLine.value} ifOverflow="extendDomain" stroke="var(--muted-foreground)" strokeDasharray="4 3" label={{ value: referenceLine.label, position: 'insideTopLeft', fill: 'var(--muted-foreground)', fontSize: 11 }} />
         )}
