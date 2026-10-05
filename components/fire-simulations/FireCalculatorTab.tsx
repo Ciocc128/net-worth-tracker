@@ -203,8 +203,9 @@ function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
     targetAge: String(settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE),
     // The Coast FIRE «spesa personalizzata» of before D5 shows here until the next save moves it.
     plannedExpenses: (settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses)?.toString() ?? '',
-    // K1 (RK4): the share of the cash outside the portfolio the tabs invest; absent = 0.
-    cashToInvestPct: String(settings?.fireCashToInvestPct ?? 0),
+    // § 14: the emergency fund in euro; empty = none. A legacy share with no fund is derived at read (RE5, `fundDerived`).
+    emergencyFund: settings?.fireEmergencyFund !== undefined ? String(settings.fireEmergencyFund) : '',
+    fundDerived: settings?.fireEmergencyFund === undefined && settings?.fireCashToInvestPct !== undefined,
     // § 12 (F1): the dated flows, edited as a preview in Parametri.
     datedFlows: settings?.fireDatedFlows ?? [],
     inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
@@ -302,10 +303,17 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // rates on the per-class assumptions of Impostazioni › Simulazioni — never typed here. While the
   // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  // K1: the share of the cash to invest is PREVIEWED from the typed field until saved, like the SWR and the expenses.
-  const parsedCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
-  const previewCashToInvestPct = formSettled && Number.isFinite(parsedCashToInvestPct) && parsedCashToInvestPct >= 0 && parsedCashToInvestPct <= 100 ? parsedCashToInvestPct : undefined;
-  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true, cashToInvestPct: previewCashToInvestPct });
+  // § 14: the emergency fund is PREVIEWED from the typed field until saved, like the SWR and the expenses: a number, null for an
+  // emptied field (no fund), undefined while the saved reading stands (not settled, invalid, or the legacy share still derived, RE5).
+  const parsedEmergencyFund = Number.parseFloat(form.emergencyFund.replace(',', '.'));
+  const previewEmergencyFund: number | null | undefined = !formSettled || form.fundDerived
+    ? undefined
+    : form.emergencyFund.trim() === ''
+      ? null
+      : Number.isFinite(parsedEmergencyFund) && parsedEmergencyFund >= 0
+        ? parsedEmergencyFund
+        : undefined;
+  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true, emergencyFund: previewEmergencyFund });
   const scenarios = useMemo<FIREProjectionScenarios>(() => savedAssumptions?.scenarios ?? getDefaultScenarios(), [savedAssumptions]);
 
   // RP6: the plan's expenses, PREVIEWED from the typed field until saved (empty = from the Cashflow) like the SWR is;
@@ -318,7 +326,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   );
   const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(planSource, cashflowData) : null), [cashflowData, planSource]);
   // § 12 (F1): the dated flows, PREVIEWED from the form until saved, placed on the calendar with the age and the linked mortgages.
-  const { resolved: resolvedFlows, excluded: excludedFlows, goalFlows, mortgages: mortgageOptions } = useFireDatedFlows(formSettled ? form.datedFlows : undefined, { lockedAssetIds: assumptionLockedIds, cashToInvestPct: previewCashToInvestPct });
+  const { resolved: resolvedFlows, excluded: excludedFlows, goalFlows, mortgages: mortgageOptions } = useFireDatedFlows(formSettled ? form.datedFlows : undefined, { lockedAssetIds: assumptionLockedIds, emergencyFund: previewEmergencyFund });
   const flowsInput = useMemo<FireFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
     [resolvedFlows, expenses?.origin],
@@ -393,7 +401,8 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     form.withdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
     form.targetAge !== settingsForm(settings).targetAge ||
     form.plannedExpenses !== settingsForm(settings).plannedExpenses ||
-    form.cashToInvestPct !== settingsForm(settings).cashToInvestPct ||
+    form.emergencyFund !== settingsForm(settings).emergencyFund ||
+    form.fundDerived !== settingsForm(settings).fundDerived ||
     JSON.stringify(form.datedFlows) !== JSON.stringify(settingsForm(settings).datedFlows) ||
     form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
     ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
@@ -825,9 +834,18 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       toast.error('Inserisci una spesa del piano sopra 0, o lasciala vuota per leggerla dal Cashflow');
       return;
     }
-    const newCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
-    if (!(Number.isFinite(newCashToInvestPct) && newCashToInvestPct >= 0 && newCashToInvestPct <= 100)) {
-      toast.error('Inserisci una quota di liquidità da investire tra 0 e 100');
+    // § 14 (RE5, RE6): empty = no fund (the field is removed); a legacy share still derived is fixed here, in euro, to the euro.
+    const typedFund = form.emergencyFund.trim();
+    const derivedFund = assumptions?.capital?.cashToInvest.fund;
+    const newEmergencyFund = form.fundDerived
+      ? derivedFund === null || derivedFund === undefined
+        ? undefined
+        : Math.round(derivedFund)
+      : typedFund === ''
+        ? undefined
+        : Math.round(Number.parseFloat(typedFund.replace(',', '.')));
+    if (newEmergencyFund !== undefined && !(Number.isFinite(newEmergencyFund) && newEmergencyFund >= 0)) {
+      toast.error('Inserisci un fondo di emergenza da 0 in su, o lascialo vuoto');
       return;
     }
     const newTargetAge = parseOptionalInteger(form.targetAge);
@@ -846,7 +864,9 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       // Undefined removes the field (empty = from the Cashflow); the Coast FIRE «spesa personalizzata» of before D5
       // is moved into this field by the form's seed, so it is dropped here.
       plannedAnnualExpenses: newPlannedExpenses,
-      fireCashToInvestPct: newCashToInvestPct,
+      // The legacy share is cleared in the same update (RE5): the fund replaces it.
+      fireEmergencyFund: newEmergencyFund,
+      fireCashToInvestPct: undefined,
       fireDatedFlows: form.datedFlows,
       coastFireCustomExpenses: undefined,
       pensionInpsRetirementAge: newInpsAge,

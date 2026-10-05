@@ -84,6 +84,7 @@ const STORED_SETTINGS = {
   transferFeeCategoryId: 'cat-fee',
   transferFeeSubCategoryId: 'sub-fee',
   plannedAnnualExpenses: 31_000,
+  fireEmergencyFund: 24_000,
   fireCashToInvestPct: 35,
   fireDatedFlows: STORED_DATED_FLOWS,
   coastFireCustomExpenses: 29_000,
@@ -164,9 +165,10 @@ describe('getSettings — lettura', () => {
     expect(settings?.coastFireCustomExpenses).toBe(29_000);
   });
 
-  it('K13: returns the share of the cash to invest instead of dropping it', async () => {
+  it('E17: returns the emergency fund and the legacy share (RE5 reads it) instead of dropping them', async () => {
     const settings = await getSettings('user-1');
 
+    expect(settings?.fireEmergencyFund).toBe(24_000);
     expect(settings?.fireCashToInvestPct).toBe(35);
     expect(settings?.fireDatedFlows).toEqual(STORED_DATED_FLOWS);
   });
@@ -265,6 +267,8 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['transferFeeSubCategoryId', 'sub-fee'],
     // D5: the plan's expenses are cleared by an empty field (= «dal Cashflow»), the legacy Coast figure by the migration.
     ['plannedAnnualExpenses', 31_000],
+    ['fireEmergencyFund', 24_000],
+    ['fireCashToInvestPct', 35],
     ['coastFireCustomExpenses', 29_000],
   ])('drops %s from the payload when it is cleared', async (field, stored) => {
     vi.mocked(getDoc).mockResolvedValue({
@@ -291,6 +295,7 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
     ['transferFeeCategoryId', 'cat-fee'],
     ['transferFeeSubCategoryId', 'sub-fee'],
     ['plannedAnnualExpenses', 31_000],
+    ['fireEmergencyFund', 24_000],
     ['fireCashToInvestPct', 35],
     ['fireDatedFlows', STORED_DATED_FLOWS],
     ['coastFireCustomExpenses', 29_000],
@@ -306,15 +311,36 @@ describe('setSettings — scrittura, ramo con targets (setDoc senza merge)', () 
   });
 });
 
-// K13 (doc/fire-ipotesi/README.md § 11.8): the share is written by the Calcolatore's save in both branches; 0 and 100 are values, not absences.
-describe('fireCashToInvestPct — la quota di liquidità da investire', () => {
-  it.each([0, 50, 100])('is written as %s in both branches', async (value) => {
-    await setSettings('user-1', { targets: TARGETS, fireCashToInvestPct: value } as AssetAllocationSettings);
-    expect(writtenPayload().fireCashToInvestPct).toBe(value);
+// E13 / E17 (doc/fire-ipotesi/README.md § 14.8): the emergency fund is written by the Calcolatore's save in both branches; 0 is a value, not an absence;
+// the legacy share is only cleared (the save after the RE5 conversion sends it undefined).
+describe('fireEmergencyFund — il fondo di emergenza in euro', () => {
+  it.each([0, 30_000])('is written as %s in both branches', async (value) => {
+    await setSettings('user-1', { targets: TARGETS, fireEmergencyFund: value } as AssetAllocationSettings);
+    expect(writtenPayload().fireEmergencyFund).toBe(value);
 
     vi.mocked(setDoc).mockClear();
-    await setSettings('user-1', { fireCashToInvestPct: value } as AssetAllocationSettings);
-    expect(writtenPayload().fireCashToInvestPct).toBe(value);
+    await setSettings('user-1', { fireEmergencyFund: value } as AssetAllocationSettings);
+    expect(writtenPayload().fireEmergencyFund).toBe(value);
+  });
+
+  it('is cleared by an empty field: omitted in the setDoc branch, deleteField() in the merge branch', async () => {
+    await setSettings('user-1', { targets: TARGETS, fireEmergencyFund: undefined } as AssetAllocationSettings);
+    expect(writtenPayload()).not.toHaveProperty('fireEmergencyFund');
+
+    vi.mocked(setDoc).mockClear();
+    await setSettings('user-1', { fireEmergencyFund: undefined } as AssetAllocationSettings);
+    expect(writtenPayload().fireEmergencyFund).toBe(DELETE_SENTINEL);
+  });
+
+  it('E13: the save after the conversion writes the fund and deletes the legacy share in both branches', async () => {
+    await setSettings('user-1', { targets: TARGETS, fireEmergencyFund: 30_000, fireCashToInvestPct: undefined } as AssetAllocationSettings);
+    expect(writtenPayload().fireEmergencyFund).toBe(30_000);
+    expect(writtenPayload()).not.toHaveProperty('fireCashToInvestPct');
+
+    vi.mocked(setDoc).mockClear();
+    await setSettings('user-1', { fireEmergencyFund: 30_000, fireCashToInvestPct: undefined } as AssetAllocationSettings);
+    expect(writtenPayload().fireEmergencyFund).toBe(30_000);
+    expect(writtenPayload().fireCashToInvestPct).toBe(DELETE_SENTINEL);
   });
 });
 

@@ -641,7 +641,7 @@ export function describeBaseAside(base: Pick<FireBase, 'referenceYear' | 'isAnnu
 }
 
 export function describeBaseFooter(): Narrative {
-  return [prose('Il capitale è il portafoglio più la liquidità da investire che scegli in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.')];
+  return [prose('Il capitale è il portafoglio più la liquidità che resta oltre il fondo di emergenza che indichi in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.')];
 }
 
 /** The caption under the pension-lock switch: what is locked, until when, and by which rule. */

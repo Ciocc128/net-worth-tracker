@@ -28,7 +28,7 @@ import type { MortgageOption } from '@/lib/hooks/useFireDatedFlows';
 import { FireDatedFlowsSection } from '@/components/fire-simulations/FireDatedFlowsSection';
 import type { FireAssumptions, FireScenarioKey } from '@/lib/utils/fireAssumptions';
 import { formatPercentage } from '@/lib/services/chartService';
-import { describeCashToInvest } from '@/lib/utils/fireAssumptionsNarrative';
+import { describeEmergencyFund } from '@/lib/utils/fireAssumptionsNarrative';
 import type { Narrative } from '@/lib/utils/narrative';
 import { describeImpostazioni, describePersonalSwr, describeScenarioParams, formatRate } from '@/lib/utils/fireNarrative';
 import { isValidAge, parseOptionalInteger } from '@/lib/utils/coastFireView';
@@ -54,8 +54,10 @@ export interface FireSettingsForm {
   targetAge: string;
   /** The plan's yearly expenses, typed; empty = read from the Cashflow (doc/fire-ipotesi/README.md D5). */
   plannedExpenses: string;
-  /** K1: the share (0–100) of the cash outside the portfolio that enters the capital, typed; absent saved = 0. */
-  cashToInvestPct: string;
+  /** § 14: the emergency fund in euro, typed; empty = none set (all the cash outside the portfolio stays out). */
+  emergencyFund: string;
+  /** RE5: a legacy share is saved and no fund yet; the field shows the fund derived from it until the user types. */
+  fundDerived: boolean;
   /** § 12: the dated flows, edited as a preview; saved with the rest. */
   datedFlows: DatedFlow[];
   inpsRetirementAge: string;
@@ -124,8 +126,11 @@ export function FireParametri({
   const parsedPlannedExpenses = Number.parseFloat(form.plannedExpenses.replace(',', '.'));
   const plannedExpensesInvalid = form.plannedExpenses.trim() !== '' && !(Number.isFinite(parsedPlannedExpenses) && parsedPlannedExpenses > 0);
   const cashToInvest = assumptions?.capital?.cashToInvest ?? null;
-  const parsedCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
-  const cashToInvestInvalid = form.cashToInvestPct.trim() === '' || !(Number.isFinite(parsedCashToInvestPct) && parsedCashToInvestPct >= 0 && parsedCashToInvestPct <= 100);
+  const annualExpense = assumptions?.expenses?.annual ?? null;
+  // RE6: empty is fine (no fund); typed, it must be an amount from 0 up.
+  const parsedEmergencyFund = Number.parseFloat(form.emergencyFund.replace(',', '.'));
+  const emergencyFundInvalid = !form.fundDerived && form.emergencyFund.trim() !== '' && !(Number.isFinite(parsedEmergencyFund) && parsedEmergencyFund >= 0);
+  const emergencyFundValue = form.fundDerived ? String(Math.round(cashToInvest?.fund ?? 0)) : form.emergencyFund;
   const parsedInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
   const inpsAgeInvalid = form.inpsRetirementAge.trim() !== '' && !(Number.isFinite(parsedInpsAge) && parsedInpsAge >= 60 && parsedInpsAge <= 75);
 
@@ -254,33 +259,33 @@ export function FireParametri({
                   </p>
                 </div>
 
-                {/* K1 (§ 11.6): only when some cash sits outside the portfolio; otherwise the line says there is none. */}
+                {/* § 14.6: always shown, a fund typed can exceed the cash outside the portfolio (RE3). */}
                 <div className="border-t border-border pt-3.5">
-                  {cashToInvest && cashToInvest.total > 0 ? (
-                    <>
-                      <Label htmlFor="cashToInvestPct" className="text-[13px]">
-                        Liquidità da investire (%)
-                      </Label>
-                      <Input
-                        id="cashToInvestPct"
-                        type="number"
-                        inputMode="decimal"
-                        step="5"
-                        min="0"
-                        max="100"
-                        value={form.cashToInvestPct}
-                        onChange={(e) => onFormChange({ cashToInvestPct: e.target.value })}
-                        aria-invalid={cashToInvestInvalid || undefined}
-                        aria-describedby="cashToInvestPct-help"
-                        className={cn(CONTROL_CLASS, 'w-[160px]')}
-                      />
-                      <p id="cashToInvestPct-help" className={cn('mt-1 text-[11px] leading-[1.4]', cashToInvestInvalid ? 'text-destructive' : 'text-muted-foreground')}>
-                        {cashToInvestInvalid ? 'Serve una quota tra 0 e 100.' : describeCashToInvest(cashToInvest)}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[13px] text-muted-foreground">Nessuna liquidità fuori dal portafoglio.</p>
-                  )}
+                  <Label htmlFor="emergencyFund" className="text-[13px]">
+                    Fondo di emergenza (€)
+                  </Label>
+                  <Input
+                    id="emergencyFund"
+                    type="number"
+                    inputMode="decimal"
+                    step="1000"
+                    min="0"
+                    placeholder="nessuno"
+                    value={emergencyFundValue}
+                    onChange={(e) => onFormChange({ emergencyFund: e.target.value, fundDerived: false })}
+                    aria-invalid={emergencyFundInvalid || undefined}
+                    aria-describedby="emergencyFund-help"
+                    className={cn(CONTROL_CLASS, 'w-[160px]')}
+                  />
+                  <p
+                    id="emergencyFund-help"
+                    className={cn(
+                      'mt-1 text-[11px] leading-[1.4]',
+                      emergencyFundInvalid ? 'text-destructive' : cashToInvest && cashToInvest.fundShortfall > 0 ? 'text-warning-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {emergencyFundInvalid ? 'Serve un importo da 0 in su, oppure lascia vuoto.' : cashToInvest ? describeEmergencyFund(cashToInvest, annualExpense) : 'Nessuna liquidità fuori dal portafoglio.'}
+                  </p>
                 </div>
 
                 <FireDatedFlowsSection

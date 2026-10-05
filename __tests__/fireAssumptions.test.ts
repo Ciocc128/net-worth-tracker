@@ -4,7 +4,7 @@ import { MONTE_CARLO_CLASSES, monteCarloClassRecord, type MonteCarloClass } from
 import { buildPortfolioScenarios, portfolioCompoundReturn, realReturn, resolveFireAssumptions, resolveFireCapital, resolvePlanExpenses } from '@/lib/utils/fireAssumptions';
 import { portfolioCost, resolveClassCosts } from '@/lib/utils/fireCosts';
 import { weightsForFireCapital } from '@/lib/utils/monteCarloWeights';
-import { describeCashToInvest, describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
+import { describeEmergencyFund, describeFundMonths, describeFireAssumptions } from '@/lib/utils/fireAssumptionsNarrative';
 import { narrativeToText } from '@/lib/utils/narrative';
 import { calculateFIREProjection } from '@/lib/services/fireService';
 import { runAccumulationSimulation } from '@/lib/services/monteCarloService';
@@ -138,7 +138,7 @@ describe('resolveFireCapital (RP5, A12)', () => {
   it('A12: the capital is the seven classes; crypto and real estate are declared outside', () => {
     const capital = resolveFireCapital(portfolio, valueOf, {});
     expect(capital.total).toBe(300_000);
-    expect(capital.outside).toEqual({ realestate: 200_000, crypto: 50_000, cash: 0, otherExcluded: 0 });
+    expect(capital.outside).toEqual({ realestate: 200_000, crypto: 50_000, cash: 0, otherExcluded: 0, cashIsFund: false });
   });
 
   it('A12: the line says it, Immobili first', () => {
@@ -336,7 +336,7 @@ describe('recurring costs in the rates (RC4)', () => {
 
 // ─── K1: patrimonio e portafoglio (doc/fire-ipotesi/README.md § 11) ──────────────────────────
 
-describe('K1: the portfolio, the cash to invest and the capital of the tabs', () => {
+describe('K1 + EF1: the portfolio, the cash outside it, the emergency fund and the capital of the tabs', () => {
   const noTargets = { targets: {} } as never;
   const targets7030 = { targets: { equity: { targetPercentage: 70 }, bonds: { targetPercentage: 30 }, cash: { targetPercentage: 0 } } };
   const cash = (id: string, value: number, extra: Partial<Asset> = {}) => asset(id, 'cash', value, { type: 'cash', ...extra });
@@ -349,8 +349,12 @@ describe('K1: the portfolio, the cash to invest and the capital of the tabs', ()
     asset('casa', 'realestate', 250_000, { allocationRole: 'excluded' }),
     ...extra,
   ];
+  // The legacy share (RE5): read only to derive the fund, so `resolve(q)` is the capital of K1 with the fund equivalent to q.
   const resolve = (pct: number | undefined, settings: Record<string, unknown> = targets7030, assets: Asset[] = example()) =>
     resolveFireAssumptions({ settings: { ...settings, fireCashToInvestPct: pct } as never, assets, assetValue: valueOf });
+  // § 14 (RE1): the fund in euro; undefined = not set.
+  const withFund = (fund: number | undefined, settings: Record<string, unknown> = targets7030, assets: Asset[] = example()) =>
+    resolveFireAssumptions({ settings: { ...settings, fireEmergencyFund: fund } as never, assets, assetValue: valueOf });
 
   it('K2: N, C, C_in, P, X, E, L', () => {
     const { capital } = resolve(0);
@@ -360,14 +364,103 @@ describe('K1: the portfolio, the cash to invest and the capital of the tabs', ()
     expect(capital!.cashToInvest.total).toBeCloseTo(60_000, 2);
   });
 
-  it('K3: the capital is P + q·L for q = 0 / 50 / 100', () => {
-    expect(resolve(0).capital!.total).toBeCloseTo(400_000, 2);
-    expect(resolve(50).capital!.total).toBeCloseTo(430_000, 2);
-    expect(resolve(100).capital!.total).toBeCloseTo(460_000, 2);
-    expect(resolve(undefined).capital!.total).toBeCloseTo(400_000, 2);
+  it('K3 (rewritten with the equivalent fund, § 14.9): the capital is P + max(0, L − F) for F = 60.000 / 30.000 / 0', () => {
+    expect(withFund(60_000).capital!.total).toBeCloseTo(400_000, 2);
+    expect(withFund(30_000).capital!.total).toBeCloseTo(430_000, 2);
+    expect(withFund(0).capital!.total).toBeCloseTo(460_000, 2);
+  });
+
+  it('E1: F = 30.000 — U = 30.000, capital 430.000, outside 30.000, weights 70/30', () => {
+    const result = withFund(30_000);
+    const { capital } = result;
+    near(capital!.cashToInvest.used, 30_000, 0.01);
+    near(capital!.total, 430_000, 0.01);
+    near(capital!.outside.cash, 30_000, 0.01);
+    expect(result.weights).toEqual(weights({ equity: 70, bonds: 30 }));
+  });
+
+  it('E2: F = 0 — everything outside the portfolio enters', () => {
+    const { capital } = withFund(0);
+    near(capital!.cashToInvest.used, 60_000, 0.01);
+    near(capital!.total, 460_000, 0.01);
+    near(capital!.outside.cash, 0, 0.01);
+  });
+
+  it('E3: no fund set (and no legacy share) — nothing enters, all the cash stays out', () => {
+    const { capital } = withFund(undefined);
+    near(capital!.cashToInvest.used, 0, 0.01);
+    near(capital!.total, 400_000, 0.01);
+    near(capital!.outside.cash, 60_000, 0.01);
+    expect(capital!.cashToInvest.fund).toBeNull();
+  });
+
+  it('E4: the fund is a fixed sum — the accounts rise by 4.000 and all of it enters', () => {
+    const raised = example().map((a) => (a.id === 'deposito' ? cash('deposito', 49_000, { allocationRole: 'excluded' }) : a));
+    const { capital } = withFund(30_000, targets7030, raised);
+    near(capital!.cashToInvest.total, 64_000, 0.01);
+    near(capital!.cashToInvest.used, 34_000, 0.01);
+    near(capital!.total, 434_000, 0.01);
+    near(capital!.outside.cash, 30_000, 0.01);
+  });
+
+  it('E5: a fund above L enters nothing, the portfolio stays whole and the shortfall is declared (RE3)', () => {
+    const { capital } = withFund(80_000);
+    near(capital!.cashToInvest.used, 0, 0.01);
+    near(capital!.total, 400_000, 0.01);
+    near(capital!.cashToInvest.fundShortfall, 20_000, 0.01);
+    near(capital!.outside.cash, 60_000, 0.01);
+  });
+
+  it('E6: the tax profile and the liquid part with F = 30.000 are those of K8 / K9', () => {
+    const { capital } = withFund(30_000);
+    near(capital!.taxProfile!.basisToday, 340_000, 0.01);
+    near(1 - capital!.taxProfile!.basisToday / 430_000, 90_000 / 430_000, 1e-4);
+    near(capital!.liquid, 430_000, 0.01);
+  });
+
+  it('E7: a credit card excluded lowers L, and so U (F = 30.000)', () => {
+    const { capital } = withFund(30_000, targets7030, example([cash('carta', -2_000, { allocationRole: 'excluded' })]));
+    near(capital!.cashToInvest.used, 28_000, 0.01);
+    near(capital!.total, 428_000, 0.01);
+  });
+
+  it('E8: the fund takes from L only, never from the Liquidità the target keeps in (D-E2)', () => {
+    const assets = [asset('azioni', 'equity', 280_000), asset('obbl', 'bonds', 120_000), cash('conto', 60_000)];
+    const { capital } = withFund(10_000, { targets: { equity: { targetPercentage: 63 }, bonds: { targetPercentage: 27 }, cash: { targetPercentage: 10 } } }, assets);
+    near(capital!.cashToInvest.used, 5_555.56, 0.01);
+    near(capital!.total, 450_000, 0.01);
+    near(capital!.portfolio, 444_444.44, 0.01);
+  });
+
+  it('E9: a fixed-amount Liquidità target with F = 10.000 — U = 30.000, capital 450.000', () => {
+    const assets = [asset('azioni', 'equity', 280_000), asset('obbl', 'bonds', 120_000), cash('conto', 60_000)];
+    const settings = { targets: { equity: { targetPercentage: 70 }, bonds: { targetPercentage: 30 }, cash: { targetPercentage: 0, useFixedAmount: true, fixedAmount: 20_000 } } };
+    const result = withFund(10_000, settings, assets);
+    near(result.capital!.cashToInvest.used, 30_000, 0.01);
+    near(result.capital!.total, 450_000, 0.01);
+    // w_cash 20.000 / 450.000 = 4,4444%, Azioni 66,8889%, Obbligazioni 28,6667% before the integer normaliser (4 / 67 / 29 after)
+    expect(result.weights.cash).toBe(4);
+    expect(result.weights.equity).toBe(67);
+    expect(result.weights.bonds).toBe(29);
+  });
+
+  it('E11: a legacy share q with no fund saved derives F = (1 − q)·L, and the capital is the one of K1', () => {
+    for (const [q, fund, total] of [[50, 30_000, 430_000], [0, 60_000, 400_000], [100, 0, 460_000]] as const) {
+      const { capital } = resolve(q);
+      near(capital!.cashToInvest.fund!, fund, 0.01);
+      near(capital!.total, total, 0.01);
+      expect(capital!.cashToInvest.fundFromPct).toBe(q);
+    }
     // out of [0, 100] is clamped, never read as a bigger capital
-    expect(resolve(250).capital!.total).toBeCloseTo(460_000, 2);
-    expect(resolve(-5).capital!.total).toBeCloseTo(400_000, 2);
+    near(resolve(250).capital!.total, 460_000, 0.01);
+    near(resolve(-5).capital!.total, 400_000, 0.01);
+    expect(resolve(undefined).capital!.cashToInvest.fund).toBeNull();
+  });
+
+  it('E12: with both saved the fund wins and the legacy share is ignored', () => {
+    const result = resolveFireAssumptions({ settings: { ...targets7030, fireEmergencyFund: 25_000, fireCashToInvestPct: 50 } as never, assets: example(), assetValue: valueOf });
+    near(result.capital!.total, 435_000, 0.01);
+    expect(result.capital!.cashToInvest.fundFromPct).toBeNull();
   });
 
   it('K4: the weights are the pure targets whatever q (no dilution), and the rates follow', () => {
@@ -413,13 +506,13 @@ describe('K1: the portfolio, the cash to invest and the capital of the tabs', ()
     expect(capital!.cashToInvest.total).toBeCloseTo(58_000, 2);
   });
 
-  it('K8: the tax profile of the capital with q = 50', () => {
+  it('K8 (legacy share 50): the tax profile of the capital', () => {
     const profile = resolve(50).capital!.taxProfile!;
     expect(profile.basisToday).toBeCloseTo(340_000, 2);
     expect(1 - profile.basisToday / 430_000).toBeCloseTo(90_000 / 430_000, 6);
   });
 
-  it('K9: the liquid part with q = 50', () => {
+  it('K9 (legacy share 50): the liquid part', () => {
     expect(resolve(50).capital!.liquid).toBeCloseTo(430_000, 2);
   });
 
@@ -448,38 +541,66 @@ describe('K1: the portfolio, the cash to invest and the capital of the tabs', ()
     expect(result.capital!.netWorth).toBeCloseTo(740_000, 2);
   });
 
-  it('K12: the line is the same in every tab and says portfolio, cash used and what is outside', () => {
-    expect(text({ settings: { ...targets7030, fireCashToInvestPct: 50 } as never, assets: example(), assetValue: valueOf })).toContain(
-      ' · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+  it('K12 / E14 / E15: the line is the same in every tab and says portfolio, cash entering beyond the fund and what is outside', () => {
+    expect(text({ settings: { ...targets7030, fireEmergencyFund: 30_000 } as never, assets: example(), assetValue: valueOf })).toContain(
+      ' · capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €)',
     );
-    expect(text({ settings: { ...targets7030, fireCashToInvestPct: 0 } as never, assets: example(), assetValue: valueOf })).toContain(
+    expect(text({ settings: targets7030 as never, assets: example(), assetValue: valueOf })).toContain(
       ' · capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
+    );
+    // a fund above L: the entry is the cash that is really there
+    expect(text({ settings: { ...targets7030, fireEmergencyFund: 80_000 } as never, assets: example(), assetValue: valueOf })).toContain(
+      ' · capitale 400.000 € (portafoglio; fuori: fondo di emergenza 60.000 €, Immobili 250.000 €, Crypto 10.000 €)',
     );
   });
 
   it('other excluded instruments (not Liquidità) stay out and are declared, never invested', () => {
-    const result = resolve(100, targets7030, example([asset('azione-fuori', 'equity', 5_000, { allocationRole: 'excluded' })]));
+    const result = withFund(0, targets7030, example([asset('azione-fuori', 'equity', 5_000, { allocationRole: 'excluded' })]));
     expect(result.capital!.total).toBeCloseTo(460_000, 2);
     expect(result.capital!.outside.otherExcluded).toBeCloseTo(5_000, 2);
-    expect(text({ settings: { ...targets7030, fireCashToInvestPct: 100 } as never, assets: example([asset('azione-fuori', 'equity', 5_000, { allocationRole: 'excluded' })]), assetValue: valueOf })).toContain('Altri strumenti esclusi 5000 €');
+    expect(text({ settings: { ...targets7030, fireEmergencyFund: 0 } as never, assets: example([asset('azione-fuori', 'equity', 5_000, { allocationRole: 'excluded' })]), assetValue: valueOf })).toContain('Altri strumenti esclusi 5000 €');
   });
 
-  it('describeCashToInvest says where the cash comes from', () => {
-    expect(describeCashToInvest(resolve(50).capital!.cashToInvest).replace(/\u00a0/g, ' ')).toBe(
-      '60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): ne entrano 30.000 € nei pesi target.',
+  it('E16: describeEmergencyFund says where the cash comes from, what stays as fund (in months) and what enters', () => {
+    const say = (cash: Parameters<typeof describeEmergencyFund>[0], expense?: number) => describeEmergencyFund(cash, expense).replace(/\u00a0/g, ' ');
+    expect(say(withFund(30_000).capital!.cashToInvest, 36_000)).toBe(
+      '60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): 30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target.',
     );
+    // no plan expense: no months
+    expect(say(withFund(30_000).capital!.cashToInvest)).toBe(
+      '60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): 30.000 € restano come fondo, e 30.000 € entrano nei pesi target.',
+    );
+    expect(say(withFund(0).capital!.cashToInvest, 36_000)).toBe('60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): entrano tutti nei pesi target.');
+    expect(say(withFund(undefined).capital!.cashToInvest)).toBe('60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): senza un fondo indicato restano tutti fuori.');
+    expect(say(withFund(80_000).capital!.cashToInvest, 36_000)).toBe(
+      'Il fondo supera di 20.000 € la liquidità fuori dal portafoglio (60.000 €): non entra niente nel capitale e il fondo non è coperto.',
+    );
+    expect(say(resolve(50).capital!.cashToInvest, 36_000)).toBe(
+      '60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): 30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target. Calcolato dalla quota del 50% salvata prima: salva per fissarlo in euro.',
+    );
+    const noCash = withFund(undefined, targets7030, [asset('azioni', 'equity', 100_000)]).capital!.cashToInvest;
+    expect(say(noCash)).toBe('Nessuna liquidità fuori dal portafoglio.');
   });
 
-  it('RK6: the recurring costs read the shares — an excluded cash account pays no duty at q = 0, and does at q = 100', () => {
+  it('E10: the months of the fund — one decimal, «,0» dropped, none without a fund or a plan expense', () => {
+    expect(describeFundMonths(30_000, 36_000)).toBe('10 mesi');
+    expect(describeFundMonths(30_000, 35_000)).toBe('10,3 mesi');
+    expect(describeFundMonths(3_000, 36_000)).toBe('1 mese');
+    expect(describeFundMonths(30_000, undefined)).toBeNull();
+    expect(describeFundMonths(30_000, 0)).toBeNull();
+    expect(describeFundMonths(null, 36_000)).toBeNull();
+  });
+
+  it('RK6: the recurring costs read the shares — an excluded cash account pays no duty with no fund set, and does with F = 0', () => {
     const settings = { ...targets7030, stampDutyEnabled: true, stampDutyRate: 0.2 };
     // Only the ETFs pay at q = 0 (the included account is excess, the deposit is out): the cash class is not held.
-    const q0 = resolve(0, settings).costs!.byClass;
+    const q0 = withFund(undefined, settings).costs!.byClass;
     expect(q0.cash.held).toBe(false);
-    expect(resolve(100, settings).costs!.byClass.cash.held).toBe(true);
+    expect(withFund(0, settings).costs!.byClass.cash.held).toBe(true);
   });
 
-  it('K14: at zero volatility the Ventaglio is the Base curve, starting from the capital of RK4', () => {
-    const result = resolve(50);
+  it('K14 / E18: at zero volatility the Ventaglio is the Base curve, starting from the capital of RE1', () => {
+    const result = withFund(30_000);
     const base = zeroVol(result.market.scenarios.base);
     const w = result.weights;
     const g = portfolioCompoundReturn(w, base, correlations, 2);

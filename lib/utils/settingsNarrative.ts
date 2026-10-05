@@ -222,6 +222,16 @@ export function describePlanParameters(input: PlanParametersInput): Narrative {
   return segments;
 }
 
+/**
+ * § 14.6, the «Fondo di emergenza» row of Parametri del piano: the saved euro amount, «non impostato» (all the cash outside the
+ * portfolio stays out), or — a legacy share saved and no fund yet — the one thing the user still has to do (RE5).
+ */
+export function describeEmergencyFundDeclaration(fund: number | undefined, legacyPct: number | undefined): string {
+  if (fund !== undefined) return euro(fund);
+  if (legacyPct !== undefined) return `da fissare nel Calcolatore (quota salvata ${pctTrim(legacyPct)})`;
+  return 'non impostato · la liquidità fuori dal portafoglio resta fuori';
+}
+
 export interface AssistantPreferencesInput {
   responseStyle?: 'balanced' | 'concise' | 'deep';
   memoryEnabled?: boolean;

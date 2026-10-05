@@ -25,10 +25,10 @@ export interface UseFireAssumptionsResult {
  * `lockedAssetIds`: the funds the pension lock keeps closed (memoise it in the caller: its identity keys the result).
  * `withCashflow`: also read the Cashflow (the SAME `['annualCashflowData', ownerId]` query the tabs make), so
  * the result carries the plan's `expenses` (RP6) — the tabs that run a plan ask for it, the Settings tile does not.
- * `cashToInvestPct`: a PREVIEW of the share of the cash to invest (K1, RK4) typed in the Calcolatore's Parametri and not saved yet;
- * absent = the saved one.
+ * `emergencyFund`: a PREVIEW of the emergency fund in euro (§ 14, RE1) typed in the Calcolatore's Parametri and not saved yet;
+ * `null` = the field emptied (no fund), absent = the saved one. A preview also silences the legacy share (RE5).
  */
-export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false, cashToInvestPct }: { withCashflow?: boolean; cashToInvestPct?: number } = {}): UseFireAssumptionsResult {
+export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withCashflow = false, emergencyFund }: { withCashflow?: boolean; emergencyFund?: number | null } = {}): UseFireAssumptionsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
 
@@ -65,8 +65,8 @@ export function useFireAssumptions(lockedAssetIds?: ReadonlySet<string>, { withC
   const cashflowData = withCashflow ? cashflowQuery.data : undefined;
   const ready = settingsQuery.isSuccess && assetsQuery.isSuccess && (!withCashflow || cashflowQuery.isSuccess);
   const assumptions = useMemo(
-    () => (ready ? resolveFireAssumptions({ settings: cashToInvestPct === undefined || !settings ? settings : { ...settings, fireCashToInvestPct: cashToInvestPct }, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
-    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData, cashToInvestPct],
+    () => (ready ? resolveFireAssumptions({ settings: emergencyFund === undefined || !settings ? settings : { ...settings, fireEmergencyFund: emergencyFund ?? undefined, fireCashToInvestPct: undefined }, assets, lockedAssetIds, goalData: goalDriven ? goalData : null, assetValue: calculateAssetValue, cashflowData }) : null),
+    [ready, settings, assets, lockedAssetIds, goalDriven, goalData, cashflowData, emergencyFund],
   );
   return {
     assumptions,

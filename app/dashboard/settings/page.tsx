@@ -153,6 +153,7 @@ import {
   describeMonteCarloCorrelations,
   describePerformanceBase,
   describePlanParameters,
+  describeEmergencyFundDeclaration,
   describeTargetProblem,
   describeThemeMode,
   describeUnsavedChanges,
@@ -652,6 +653,7 @@ export default function SettingsPage() {
   const [planParams, setPlanParams] = useState<{
     withdrawalRate?: number;
     plannedAnnualExpenses?: number;
+    fireEmergencyFund?: number;
     fireCashToInvestPct?: number;
     fireDatedFlowsCount: number;
     pensionInpsRetirementAge?: number;
@@ -884,6 +886,7 @@ export default function SettingsPage() {
         setPlanParams({
           withdrawalRate: settingsData.withdrawalRate,
           plannedAnnualExpenses: settingsData.plannedAnnualExpenses,
+          fireEmergencyFund: settingsData.fireEmergencyFund,
           fireCashToInvestPct: settingsData.fireCashToInvestPct,
           fireDatedFlowsCount: settingsData.fireDatedFlows?.length ?? 0,
           pensionInpsRetirementAge: settingsData.pensionInpsRetirementAge,
@@ -1658,6 +1661,7 @@ export default function SettingsPage() {
         goalDrivenAllocationEnabled,
         withdrawalRate: settingsData?.withdrawalRate,
         plannedAnnualExpenses: settingsData?.plannedAnnualExpenses,
+        fireEmergencyFund: settingsData?.fireEmergencyFund,
         fireCashToInvestPct: settingsData?.fireCashToInvestPct,
         fireDatedFlows: settingsData?.fireDatedFlows,
         targets,
@@ -2889,8 +2893,8 @@ export default function SettingsPage() {
                       />
                     )}
                     <DeclarationRow
-                      label="Liquidità da investire"
-                      value={`${pctLabel(planParams.fireCashToInvestPct ?? 0)}${planParams.fireCashToInvestPct === undefined ? ' · predefinita' : ''}`}
+                      label="Fondo di emergenza"
+                      value={describeEmergencyFundDeclaration(planParams.fireEmergencyFund, planParams.fireCashToInvestPct)}
                     />
                     <DeclarationRow label="Flussi nel tempo" value={describeFlowsDeclaration(planParams.fireDatedFlowsCount)} mono={planParams.fireDatedFlowsCount > 0} />
                     <DeclarationRow
