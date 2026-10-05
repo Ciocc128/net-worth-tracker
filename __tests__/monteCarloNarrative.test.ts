@@ -387,7 +387,7 @@ describe('T5 — Dopo il FIRE: partenza, euro di oggi, righe di Parametri', () =
     expect(plain(verdict.sentence)).toContain(
       'Smettendo nel 2031 (a 45 anni) con 812.000 € di oggi, nel 63% delle 10.000 simulazioni il capitale regge fino a 90 anni (2076); nel caso mediano chiudi con 640.000 € di oggi, nel 10% peggiore i soldi finiscono entro il 2058 (72 anni). Per restare al 90% potresti prelevare fino a 27.300 € l\'anno di oggi',
     );
-    expect(plain(verdict.sentence).indexOf('Per restare al 90%')).toBeLessThan(plain(verdict.sentence).indexOf('Nello scenario orso'));
+    expect(plain(verdict.sentence).indexOf('Per restare al 90%')).toBeLessThan(plain(verdict.sentence).indexOf('Nello scenario bear'));
   });
 
   it('from today the start is «Smettendo oggi con 700.000 €»; without a start the sentence is the one of before', () => {
