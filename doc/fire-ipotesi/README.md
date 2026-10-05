@@ -1968,8 +1968,8 @@ contato e uno no, l'effetto sul FIRE, la banda, il versamento per 9 casi su 10, 
 
 > Aggiunta il 05/10/2026 (thread «spec», card Todoist «FEAT FIRE: fondo di emergenza in euro al posto di «liquidità da
 > investire» in percentuale», primo punto dell'ordine delle card FEAT FIRE approvato dal proprietario lo stesso giorno).
-> Il rovesciamento del campo è deciso dal proprietario nella card (05/10); le decisioni D-E1–D-E7 sono proposte del
-> thread, da confermare. **Sostituisce RK4 e la parte di RK6 che legge `q`** (§ 11.5), **D-P3 e D-P5** (§ 11.7) e la
+> Il rovesciamento del campo è deciso dal proprietario nella card (05/10); le decisioni D-E1–D-E7, proposte dal
+> thread, sono confermate dal proprietario lo stesso giorno. **Sostituisce RK4 e la parte di RK6 che legge `q`** (§ 11.5), **D-P3 e D-P5** (§ 11.7) e la
 > scomposizione del capitale di § 11.6. RK1–RK3, RK5, RK7 e RK8 restano come sono. Base di codice: commit `9839c3f`
 > (`main` del fork, merge della PR #61).
 
@@ -2103,13 +2103,13 @@ salvataggio) o il vuoto (= non impostato, cancella il campo come `plannedAnnualE
 | # | Stato | Decisione | Alternative scartate e motivo |
 | --- | --- | --- | --- |
 | D-E0 | **Presa** (05/10/2026, proprietario, nella card) | Il campo si rovescia: non più la quota da investire ma **quanta liquidità resta fuori, in euro**; liquidità nel capitale = liquidità fuori dal portafoglio − fondo, minimo zero, con un avviso se il fondo non è coperto. Sostituisce D-P3. | La quota di K1 (va riscritta a ogni movimento del conto: lo stesso motivo per cui D-P3 aveva scartato gli euro, rovesciato perché il fondo, a differenza del versamento, è una cifra stabile). |
-| D-E1 | Proposta | Si salva l'**importo in euro**; i mesi di spesa del piano sono solo un aiuto scritto accanto (RE4). | Mesi di spesa salvati (il fondo cambierebbe da solo quando cambia la spesa del Cashflow o una spesa del piano scritta per prova); due campi collegati (due verità per un numero). |
-| D-E2 | Proposta | Il fondo si prende **solo** dalla liquidità fuori dal portafoglio (`L`), mai dalla Liquidità che il target tiene dentro (`C_in`). | Dalla liquidità totale `C + E` (taglierebbe la Liquidità del target: pesi diversi dai target, ipotesi RP1 non più coerenti con il capitale). Chi considera fondo la Liquidità del target scrive 0. |
-| D-E3 | Proposta | **Non impostato = tutta la liquidità fuori resta fuori** (U = 0), come la quota 0% di oggi. | Non impostato = 0 € (investe tutto senza che l'utente lo abbia scelto: il difetto che D-P5 evitava); un valore predefinito di 6 mesi di spesa (un numero che l'utente non ha scelto, nascosto nel capitale). |
-| D-E4 | Proposta | **Conversione derivata alla lettura, fissata al primo salvataggio dei Parametri** (RE5), con la riga che lo chiede. | Scrittura automatica all'apertura della pagina (una scrittura dentro una lettura, da bloccare in demo e da proteggere da due schede aperte); uno script una tantum (strumento in più per un solo account); nessuna conversione (la scelta salvata si perde e il capitale cambia senza avviso). |
-| D-E5 | Proposta | Nome «**Fondo di emergenza**». | «Liquidità da tenere fuori» (descrive il meccanismo ma non lo scopo, e l'utente pensa al fondo). |
-| D-E6 | Proposta | Il campo resta dov'è oggi (Parametri del Calcolatore), letto da tutte le schede; lo sposta la card «Il mio piano». | Spostarlo qui in Impostazioni o in «Il mio piano» (anticipa una spec non ancora scritta). |
-| D-E7 | Proposta | Fondo **oltre** `L`: capitale = portafoglio, avviso nei Parametri, nessun effetto sui calcoli. | Togliere lo scoperto dal portafoglio (simula una vendita che l'utente non ha deciso, e sposta l'anno FIRE per un avviso). |
+| D-E1 | **Presa** (05/10/2026, proprietario) | Si salva l'**importo in euro**; i mesi di spesa del piano sono solo un aiuto scritto accanto (RE4). | Mesi di spesa salvati (il fondo cambierebbe da solo quando cambia la spesa del Cashflow o una spesa del piano scritta per prova); due campi collegati (due verità per un numero). |
+| D-E2 | **Presa** (05/10/2026, proprietario) | Il fondo si prende **solo** dalla liquidità fuori dal portafoglio (`L`), mai dalla Liquidità che il target tiene dentro (`C_in`). | Dalla liquidità totale `C + E` (taglierebbe la Liquidità del target: pesi diversi dai target, ipotesi RP1 non più coerenti con il capitale). Chi considera fondo la Liquidità del target scrive 0. |
+| D-E3 | **Presa** (05/10/2026, proprietario) | **Non impostato = tutta la liquidità fuori resta fuori** (U = 0), come la quota 0% di oggi. | Non impostato = 0 € (investe tutto senza che l'utente lo abbia scelto: il difetto che D-P5 evitava); un valore predefinito di 6 mesi di spesa (un numero che l'utente non ha scelto, nascosto nel capitale). |
+| D-E4 | **Presa** (05/10/2026, proprietario) | **Conversione derivata alla lettura, fissata al primo salvataggio dei Parametri** (RE5), con la riga che lo chiede. | Scrittura automatica all'apertura della pagina (una scrittura dentro una lettura, da bloccare in demo e da proteggere da due schede aperte); uno script una tantum (strumento in più per un solo account); nessuna conversione (la scelta salvata si perde e il capitale cambia senza avviso). |
+| D-E5 | **Presa** (05/10/2026, proprietario) | Nome «**Fondo di emergenza**». | «Liquidità da tenere fuori» (descrive il meccanismo ma non lo scopo, e l'utente pensa al fondo). |
+| D-E6 | **Presa** (05/10/2026, proprietario) | Il campo resta dov'è oggi (Parametri del Calcolatore), letto da tutte le schede; lo sposta la card «Il mio piano». | Spostarlo qui in Impostazioni o in «Il mio piano» (anticipa una spec non ancora scritta). |
+| D-E7 | **Presa** (05/10/2026, proprietario) | Fondo **oltre** `L`: capitale = portafoglio, avviso nei Parametri, nessun effetto sui calcoli. | Togliere lo scoperto dal portafoglio (simula una vendita che l'utente non ha deciso, e sposta l'anno FIRE per un avviso). |
 
 ### 14.8 Criteri di accettazione (valori di riferimento verificabili)
 
