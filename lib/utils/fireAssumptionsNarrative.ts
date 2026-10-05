@@ -30,12 +30,12 @@ function describeWeights(assumptions: FireAssumptions): Narrative {
 const euro = (value: number): string => cachedFormatCurrencyEUR(Math.round(value), true);
 
 /**
- * «Liquidità 30.000 €, Immobili 250.000 €, Crypto 10.000 €» — what the plan's capital leaves out (RK8); null when
+ * «fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €» — what the plan's capital leaves out (RK8); null when
  * nothing is left out. The cash not invested and the other excluded instruments come first: they are the owner's to decide.
  */
 export function describeOutsideCapital(outside: FireCapital['outside']): string | null {
   const parts: string[] = [];
-  if (Math.round(outside.cash) > 0) parts.push(`Liquidità ${euro(outside.cash)}`);
+  if (Math.round(outside.cash) > 0) parts.push(`${outside.cashIsFund ? 'fondo di emergenza' : 'Liquidità'} ${euro(outside.cash)}`);
   if (Math.round(outside.otherExcluded) > 0) parts.push(`Altri strumenti esclusi ${euro(outside.otherExcluded)}`);
   for (const cls of MONTE_CARLO_EXCLUDED_CLASSES) if (outside[cls] > 0) parts.push(`${MONTE_CARLO_EXCLUDED_LABELS[cls]} ${euro(outside[cls])}`);
   return parts.length > 0 ? parts.join(', ') : null;
@@ -69,27 +69,53 @@ export function costsLackStampDuty(assumptions: FireAssumptions): boolean {
 }
 
 /**
- * K1 (§ 11.6): «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità da investire; fuori: Liquidità 30.000 €, Immobili 250.000 €)».
- * With nothing of the cash entering: «capitale 400.000 € (portafoglio; fuori: …)». Shared by the six tabs and the two Parametri tiles.
+ * §§ 11.6 and 14.6: «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €)».
+ * With nothing of the cash entering: «capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, …)». Shared by the six tabs and the two Parametri tiles.
  */
 export function describeCapitalBreakdown(capital: FireCapital): string {
   const outside = describeOutsideCapital(capital.outside);
-  const used = Math.round(capital.cashToInvest.used) > 0 ? ` ${euro(capital.portfolio)} + ${euro(capital.cashToInvest.used)} di liquidità da investire` : '';
+  const used = Math.round(capital.cashToInvest.used) > 0 ? ` ${euro(capital.portfolio)} + ${euro(capital.cashToInvest.used)} di liquidità oltre il fondo` : '';
   const head = used ? `portafoglio${used}` : 'portafoglio';
   return `(${head}${outside ? `; fuori: ${outside}` : ''})`;
 }
 
+/** RE4: «10 mesi», «10,3 mesi», «1 mese» — one decimal, «,0» dropped; null without a fund or a plan expense. */
+export function describeFundMonths(fund: number | null, annualExpense: number | null | undefined): string | null {
+  if (fund === null || !(fund > 0) || annualExpense === null || annualExpense === undefined || !(annualExpense > 0)) return null;
+  const months = Math.round((fund / (annualExpense / 12)) * 10) / 10;
+  const text = Number.isInteger(months) ? String(months) : String(months).replace('.', ',');
+  return `${text} ${months === 1 ? 'mese' : 'mesi'}`;
+}
+
 /**
- * K1 (§ 11.6), under the «Liquidità da investire» field: «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €):
- * ne entrano 30.000 € nei pesi target». The parts that are zero are left out.
+ * § 14.6, under the «Fondo di emergenza» field: «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €):
+ * 30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target.» The parts that are zero are left out;
+ * `annualExpense` is the plan's (RP6) for the months, absent = no months.
  */
-export function describeCashToInvest(cash: FireCapital['cashToInvest']): string {
+export function describeEmergencyFund(cash: FireCapital['cashToInvest'], annualExpense?: number | null): string {
+  if (cash.total <= 0 && cash.fund === null) return 'Nessuna liquidità fuori dal portafoglio.';
+  if (cash.fundShortfall > 0) {
+    return `Il fondo supera di ${euro(cash.fundShortfall)} la liquidità fuori dal portafoglio (${euro(cash.total)}): non entra niente nel capitale e il fondo non è coperto.`;
+  }
   const parts: string[] = [];
   if (Math.round(cash.excludedAccounts) !== 0) parts.push(`conti esclusi ${euro(cash.excludedAccounts)}`);
   if (Math.round(cash.overTarget) > 0) parts.push(`oltre il target ${euro(cash.overTarget)}`);
   const where = parts.length > 0 ? ` (${parts.join(', ')})` : '';
-  return `${euro(cash.total)} fuori dal portafoglio${where}: ne entrano ${euro(cash.used)} nei pesi target.`;
+  const head = `${euro(cash.total)} fuori dal portafoglio${where}`;
+  const kept = cash.total - cash.used;
+  let body: string;
+  if (cash.fund === null) body = 'senza un fondo indicato restano tutti fuori.';
+  else if (Math.round(cash.used) === 0) body = `restano tutti come fondo${monthsClause(cash.fund, annualExpense)}.`;
+  else if (Math.round(kept) === 0) body = 'entrano tutti nei pesi target.';
+  else body = `${euro(kept)} restano come fondo${monthsClause(kept, annualExpense)}, e ${euro(cash.used)} entrano nei pesi target.`;
+  const derived = cash.fundFromPct !== null ? ` Calcolato dalla quota del ${formatPercentage(Math.round(cash.fundFromPct * 10) / 10, 0)} salvata prima: salva per fissarlo in euro.` : '';
+  return `${head}: ${body}${derived}`;
 }
+
+const monthsClause = (fund: number, annualExpense: number | null | undefined): string => {
+  const months = describeFundMonths(fund, annualExpense);
+  return months ? `, pari a ${months} della spesa del piano` : '';
+};
 
 function describeCapital(capital: FireCapital): Narrative {
   return [prose(' · capitale '), figure(euro(capital.total)), prose(` ${describeCapitalBreakdown(capital)}`)];

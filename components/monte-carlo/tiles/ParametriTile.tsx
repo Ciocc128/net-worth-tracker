@@ -7,7 +7,7 @@
  * capital with the two «Usa» shortcuts and the read-only pension row, the horizon, the
  * withdrawal, the simulation count) and the Allocazione (seven class weights with their sum, what
  * stays outside the simulation, and the DECLARATION of the market assumptions: they are edited in
- * Impostazioni › Simulazioni, never here — The Declaration-Tile Rule). One action row: Esegui, and
+ * Impostazioni › Simulazioni, never here — The Declaration-Tile Rule). One action row: Prova (the run is a try-out, never saved: «Salva il piano» is the plan block's), and
  * the footer that says whether the figures above still match what is typed (`describeParametriFooter`).
  *
  * The form is owned by the tab as strings (`MonteCarloForm`), the way FireParametri's is: a
@@ -16,6 +16,7 @@
 
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
+import { useFirePlan } from '@/lib/hooks/useFirePlan';
 import type { Narrative } from '@/lib/utils/narrative';
 import type { MonteCarloPlan } from '@/lib/utils/monteCarloSummary';
 import { type MonteCarloClass } from '@/lib/constants/monteCarloClasses';
@@ -31,6 +32,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tile, TILE_SUB_EYEBROW_CLASS } from '@/components/ui/tile';
 import { NarrativeText } from '@/components/ui/narrative-text';
+import { SegmentedPill, type SegmentedPillOption } from '@/components/ui/segmented-pill';
+import type { StartMode } from '@/lib/utils/monteCarloNarrative';
 
 export interface MonteCarloForm {
   initialPortfolio: string;
@@ -64,6 +67,17 @@ interface ParametriTileProps {
   capital: FireCapital | null;
   /** § 12: the dated flows the run reads, one read-only line under the capital (`describeSimulationFlowsRow`); edited in the Calcolatore. */
   flowsNote: string;
+  /**
+   * T5 (§ 12.6, DF2): «Quando smetto». `selector` is absent when the Calcolatore has no FIRE year (DF6: the run starts today and `note`
+   * says why); `fireCapital` is the Base capital at the FIRE year in today's euros — the shortcut of the capital field in «Al FIRE» mode.
+   */
+  start: {
+    mode: StartMode;
+    options: ReadonlyArray<SegmentedPillOption<StartMode>> | null;
+    onModeChange: (mode: StartMode) => void;
+    note: Narrative;
+    fireCapital: number | null;
+  };
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
@@ -76,7 +90,6 @@ interface ParametriTileProps {
 const CONTROL_CLASS = 'mt-1 h-9 font-mono tabular-nums transition-[border-color,background-color,box-shadow] duration-200 focus-visible:ring-2 focus-visible:ring-primary/25 motion-reduce:transition-none';
 
 const MARKET_SETTINGS_HREF = '/dashboard/settings?tab=simulazioni';
-const FLOWS_HREF = '/dashboard/fire-simulations?tab=fire';
 
 export function ParametriTile({
   reading,
@@ -95,6 +108,7 @@ export function ParametriTile({
   marketDeclaration,
   capital,
   flowsNote,
+  start,
   onRun,
   canRun,
   isRunning,
@@ -102,6 +116,7 @@ export function ParametriTile({
   stale,
   className,
 }: ParametriTileProps) {
+  const firePlan = useFirePlan();
   return (
     <Tile eyebrow="Parametri" aside={aside} reading={reading} ariaLabel="Parametri della simulazione" className={className}>
       <div className="mt-3.5 grid grid-cols-1 gap-5 desktop:grid-cols-12">
@@ -110,8 +125,16 @@ export function ParametriTile({
           <p className={TILE_SUB_EYEBROW_CLASS}>Piano</p>
 
           <div>
+            <p className="text-[13px] font-medium text-foreground">Quando smetto</p>
+            {start.options && (
+              <SegmentedPill options={start.options} value={start.mode} onChange={start.onModeChange} layoutId="mc-start-mode" ariaLabel="Quando smetto" semantics="radio" className="mt-1.5" optionClassName="min-h-11 desktop:min-h-0" />
+            )}
+            <NarrativeText segments={start.note} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
+          </div>
+
+          <div>
             <Label htmlFor="mc-initialPortfolio" className="text-[13px]">
-              Patrimonio iniziale (€)
+              Capitale iniziale (€)
             </Label>
             <Input
               id="mc-initialPortfolio"
@@ -122,18 +145,26 @@ export function ParametriTile({
               className={CONTROL_CLASS}
             />
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(totalNetWorth) })}>
-                Totale · {cachedFormatCurrencyEUR(totalNetWorth, true)}
-              </Button>
-              <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(liquidNetWorth) })}>
-                Liquido · {cachedFormatCurrencyEUR(liquidNetWorth, true)}
-              </Button>
+              {start.mode === 'fire' && start.fireCapital !== null ? (
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(start.fireCapital as number) })}>
+                  Al FIRE · {cachedFormatCurrencyEUR(start.fireCapital, true)}
+                </Button>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(totalNetWorth) })}>
+                    Totale · {cachedFormatCurrencyEUR(totalNetWorth, true)}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => onFormChange({ initialPortfolio: formatInputAmount(liquidNetWorth) })}>
+                    Liquido · {cachedFormatCurrencyEUR(liquidNetWorth, true)}
+                  </Button>
+                </>
+              )}
             </div>
-            {capital && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
+            {capital && !(start.mode === 'fire' && start.fireCapital !== null) && <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">Capitale {describeCapitalBreakdown(capital)}.</p>}
             <p className="mt-2 text-[11px] leading-[1.4] text-muted-foreground">{flowsNote}.</p>
-            <Link href={FLOWS_HREF} className="inline-flex min-h-11 items-center text-[11px] text-foreground underline underline-offset-2 desktop:min-h-0">
-              Modifica nel Calcolatore › Parametri
-            </Link>
+            <button type="button" onClick={() => firePlan?.focusField('flussi')} className="inline-flex min-h-11 items-center text-[11px] text-foreground underline underline-offset-2 desktop:min-h-0">
+              Modifica in Il mio piano
+            </button>
             {plan.inflows.map((inflow) => (
               <NarrativeText key={inflow.yearOffset} segments={describePensionInflowRow(inflow)} className="mt-2 text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
             ))}
@@ -171,7 +202,7 @@ export function ParametriTile({
               <NarrativeText key={`${pension.yearOffset}-${pension.annualNetToday}`} segments={describeStatePensionRow(pension)} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
             ))}
             {plan.statePensions.length === 0 && (
-              <p className="text-[11px] leading-[1.4] text-muted-foreground">Pensioni statali: nessuna datata in Coast FIRE › Ipotesi (serve l&apos;età), il prelievo resta intero.</p>
+              <p className="text-[11px] leading-[1.4] text-muted-foreground">Pensioni statali: nessuna datata in Il mio piano (serve l&apos;età), il prelievo resta intero.</p>
             )}
             <NarrativeText segments={describeWithdrawalTaxRow(plan.withdrawalTax)} className="text-[11px] leading-[1.4] text-muted-foreground" figureClassName="font-medium" />
           </div>
@@ -205,7 +236,7 @@ export function ParametriTile({
 
       <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
         <Button type="button" onClick={onRun} disabled={!canRun || isRunning} className="h-9 w-full sm:w-auto">
-          {isRunning ? 'Simulazione in corso…' : 'Esegui simulazione'}
+          {isRunning ? 'Simulazione in corso…' : 'Prova'}
         </Button>
         <NarrativeText segments={footer} className={cn('text-[11px] leading-[1.4] sm:ml-auto sm:text-right', stale ? 'text-warning-foreground' : 'text-muted-foreground')} figureClassName="font-medium" />
       </div>

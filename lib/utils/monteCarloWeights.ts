@@ -193,11 +193,11 @@ export interface FirePortfolioLeg {
 }
 
 export interface FireCapitalWeightsInput {
-  /** The capital of the tabs (RK4): `P + q·L`. */
+  /** The capital of the tabs (RE1): `P + U`. */
   capital: number;
   /** `C_in` (RK2): the Liquidità that sits in the portfolio. */
   cashIn: number;
-  /** `q·L` (RK4): the cash entering at year 0 on the target weights. */
+  /** `U` (RE1): the cash entering at year 0 on the target weights. */
   cashToInvest: number;
   /** The legs of the portfolio, Liquidità included. */
   legs: readonly FirePortfolioLeg[];

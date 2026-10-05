@@ -43,6 +43,7 @@ import {
   describeImport,
   describePerformanceBase,
   describePlanParameters,
+  describeEmergencyFundDeclaration,
   describeSharing,
   describeTargetProblem,
   describeThemeMode,
@@ -1040,5 +1041,15 @@ describe('describeMonteCarloCorrelations', () => {
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 0, correctedPairCount: 0 }))).toContain('Valori predefiniti');
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 4, correctedPairCount: 0 }))).toContain('Modificate 4 coppie su 21');
     expect(narrativeToText(describeMonteCarloCorrelations({ editedPairCount: 4, correctedPairCount: 3 }))).toContain('ne ha adattate 3');
+  });
+});
+
+describe('describeEmergencyFundDeclaration (§ 14.6)', () => {
+  it('says the saved amount, the absence, or the conversion still to fix', () => {
+    const say = (fund: number | undefined, pct: number | undefined) => describeEmergencyFundDeclaration(fund, pct).replace(/\u00a0/g, ' ');
+    expect(say(30_000, undefined)).toBe('30.000 €');
+    expect(say(0, 50)).toBe('0 €');
+    expect(say(undefined, undefined)).toBe('non impostato · la liquidità fuori dal portafoglio resta fuori');
+    expect(say(undefined, 50)).toBe('da fissare nel Calcolatore (quota salvata 50%)');
   });
 });

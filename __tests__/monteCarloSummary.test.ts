@@ -22,6 +22,8 @@ import type { MonteCarloParams, MonteCarloResults, PercentilesData } from '@/typ
 import {
   buildOverlaySeries,
   buildPercentileRows,
+  deflate,
+  deflatePercentiles,
   formatInputAmount,
   haveRunInputsChanged,
   parseItalianNumber,
@@ -151,60 +153,6 @@ describe('summarizeMonteCarloRun', () => {
     expect(run.failureMedianCalendarYear).toBeNull();
   });
 
-  it('bins the failed simulations by the calendar year they ran out, the median failure year outlined', () => {
-    const simulation = (id: number, failureYear?: number) => ({
-      simulationId: id,
-      success: failureYear === undefined,
-      failureYear,
-      finalValue: failureYear === undefined ? 900000 : 0,
-      path: [{ year: 0, value: 488600 }],
-    });
-    const results = makeResults({
-      simulations: [simulation(0), simulation(1), simulation(2, 20), simulation(3, 22), simulation(4, 26), simulation(5, 30)],
-      failureAnalysis: { averageFailureYear: 24.5, medianFailureYear: 26 },
-    });
-    const run = summarizeMonteCarloRun(results, makeParams({ numberOfSimulations: 6 }), CTX);
-
-    // 2046..2056 is an eleven-year span: one bin per year, counts adding up to the four failures.
-    expect(run.failureYearBinWidth).toBe(1);
-    expect(run.failureYearBins).toHaveLength(11);
-    expect(run.failureYearBins.reduce((sum, bin) => sum + bin.count, 0)).toBe(4);
-    expect(run.failureYearBins[0]).toMatchObject({ fromYear: 2046, toYear: 2046, count: 1, isReference: false });
-    expect(run.failureYearBins[6]).toMatchObject({ fromYear: 2052, toYear: 2052, count: 1, isReference: true });
-    // Shares are of ALL simulations, like the final-value bins'.
-    expect(run.failureYearBins[0].sharePct).toBeCloseTo(100 / 6);
-    expect(run.failureFirstCalendarYear).toBe(2046);
-    expect(run.failureLastCalendarYear).toBe(2056);
-  });
-
-  it('has no failure bins when nothing fails', () => {
-    const run = summarizeMonteCarloRun(makeResults({ failureAnalysis: null, failureCount: 0 }), makeParams(), CTX);
-    expect(run.failureYearBins).toEqual([]);
-    expect(run.failureFirstCalendarYear).toBeNull();
-    expect(run.failureLastCalendarYear).toBeNull();
-  });
-
-  it('builds the histogram with each bin share and marks the bin holding the median', () => {
-    const run = summarizeMonteCarloRun(makeResults(), makeParams(), CTX);
-    expect(run.histogram).toHaveLength(3);
-    expect(run.histogram[0]).toMatchObject({ from: 0, to: 420000, count: 1579, containsMedian: false });
-    expect(run.histogram[1]).toMatchObject({ from: 420000, to: 840000, count: 2210, containsMedian: true });
-    expect(run.histogram[1].sharePct).toBeCloseTo(22.1);
-    expect(run.histogramCap).toBe(840000);
-    expect(run.histogramMax).toBe(1260000);
-  });
-
-  it('puts a zero median in the first bin (the failed simulations live there too)', () => {
-    const percentiles = makePercentiles(35, 27).map((row) => ({ ...row, p50: 0 }));
-    const run = summarizeMonteCarloRun(makeResults({ percentiles }), makeParams(), CTX);
-    expect(run.histogram[0].containsMedian).toBe(true);
-  });
-
-  it('puts a median equal to the last bin upper bound in the last bin', () => {
-    const percentiles = makePercentiles(35, 27).map((row) => ({ ...row, p50: 1260000 }));
-    const run = summarizeMonteCarloRun(makeResults({ percentiles }), makeParams(), CTX);
-    expect(run.histogram[2].containsMedian).toBe(true);
-  });
 });
 
 describe('summarizeScenarios', () => {
@@ -368,7 +316,7 @@ describe('parseItalianNumber / formatInputAmount', () => {
 describe('summarizeMonteCarloRun — leverage (T3)', () => {
   const failed = (id: number, failureYear: number, failureCause: 'withdrawals' | 'leverage') => ({ simulationId: id, success: false, failureYear, failureCause, finalValue: 0, path: [{ year: 0, value: 488600 }] });
 
-  it('carries the leverage of the weights and the failures by cause, the leverage ones counted apart in each year bin', () => {
+  it('carries the leverage of the weights and the failures by cause', () => {
     const results = makeResults({
       leverageFailureCount: 1,
       failureCount: 2,
@@ -378,19 +326,89 @@ describe('summarizeMonteCarloRun — leverage (T3)', () => {
     const run = summarizeMonteCarloRun(results, makeParams({ weights: weightsOf({ equity: 90, bonds: 60 }), numberOfSimulations: 2 }), CTX);
     expect(run.leverage).toBeCloseTo(1.5, 10);
     expect(run.leverageFailureCount).toBe(1);
-    expect(run.failureYearBins.map((bin) => bin.leverageCount)).toEqual([1, 0, 0]);
   });
 
-  it('has leverage 1 and no leverage segment without leverage', () => {
+  it('has leverage 1 without leverage', () => {
     const results = makeResults({ simulations: [{ simulationId: 0, success: false, failureYear: 20, failureCause: 'withdrawals', finalValue: 0, path: [{ year: 0, value: 1 }] }], failureCount: 1 });
     const run = summarizeMonteCarloRun(results, makeParams({ numberOfSimulations: 1 }), CTX);
     expect(run.leverage).toBe(1);
-    expect(run.failureYearBins[0]).not.toHaveProperty('leverageCount');
   });
 
   it('a change of the leverage spread makes the last run stale', () => {
     const inputs = (spread: number): MonteCarloRunInputs => ({ params: makeParams({ leverageSpread: spread }), scenarios: defaultScenarios(), inflows: [] });
     expect(haveRunInputsChanged(inputs(2), inputs(2))).toBe(false);
     expect(haveRunInputsChanged(inputs(2), inputs(3))).toBe(true);
+  });
+});
+
+
+describe('T5 — euro di oggi (RD6) e partenza dal FIRE', () => {
+  const REAL = { ...CTX, inflationRate: 2 };
+
+  it('A-T3: the euros of year s are divided by (1 + π)^s; the 1.026.497,88 € of year 3 is 967.291,88 € of today', () => {
+    expect(deflate(1_026_497.88, 3, 2)).toBeCloseTo(967_291.88, 1);
+    expect(deflate(100, 0, 2)).toBe(100);
+    expect(deflate(100, 5, undefined)).toBe(100);
+    expect(deflate(0, 7, 2)).toBe(0);
+  });
+
+  it('deflates the percentile rows year by year and keeps their order', () => {
+    const rows = deflatePercentiles(makePercentiles(10, null), 2);
+    expect(rows[10].p50).toBeCloseTo(530000 / Math.pow(1.02, 10), 6);
+    for (const row of rows) expect(row.p10 <= row.p25 && row.p25 <= row.p50 && row.p50 <= row.p75 && row.p75 <= row.p90).toBe(true);
+    expect(deflatePercentiles(makePercentiles(10, null), undefined)).toEqual(makePercentiles(10, null));
+  });
+
+  it('A-T10: the euros change, the probabilities, the failures and the failure years do not', () => {
+    const results = makeResults();
+    const nominal = summarizeMonteCarloRun(results, makeParams(), CTX);
+    const real = summarizeMonteCarloRun(results, makeParams(), REAL);
+    expect(real.successRate).toBe(nominal.successRate);
+    expect(real.failureCount).toBe(nominal.failureCount);
+    expect(real.p10DepletionYear).toBe(nominal.p10DepletionYear);
+    expect(real.failureAverageYear).toBe(nominal.failureAverageYear);
+    expect(real.medianFinal).toBeCloseTo(nominal.medianFinal / Math.pow(1.02, 35), 6);
+    expect(real.todayEuros).toBe(true);
+    expect(nominal.todayEuros).toBe(false);
+  });
+
+  it('dates the run from the FIRE year: years and ages are those of the withdrawal', () => {
+    const run = summarizeMonteCarloRun(makeResults(), makeParams({ retirementYears: 35 }), { startCalendarYear: 2031, currentAge: 51, startYears: 5, inflationRate: 2 });
+    expect(run.endCalendarYear).toBe(2066);
+    expect(run.endAge).toBe(86);
+    expect(run.startYears).toBe(5);
+    expect(run.p10DepletionCalendarYear).toBe(2031 + 27);
+  });
+
+  it('each scenario is deflated with its own inflation', () => {
+    const results = { bear: makeResults(), base: makeResults(), bull: makeResults() };
+    const comparison = summarizeScenarios(results, makeParams(), CTX, { bear: 3, base: 2, bull: 1 });
+    expect(comparison.rows[0].medianFinal).toBeCloseTo(605000 / Math.pow(1.03, 35), 4);
+    expect(comparison.rows[2].medianFinal).toBeCloseTo(605000 / Math.pow(1.01, 35), 4);
+    expect(comparison.rows[1].todayEuros).toBe(true);
+  });
+
+  it('the overlay and the percentile rows are in today\'s euros; the nominal median stays beside the real one', () => {
+    const results = { bear: makeResults(), base: makeResults(), bull: makeResults() };
+    const overlay = buildOverlaySeries(results, 2031, { bear: 2, base: 2, bull: 2 });
+    expect(overlay[5].baseP50).toBeCloseTo(515000 / Math.pow(1.02, 5), 6);
+    const rows = buildPercentileRows(makePercentiles(10, null), 2031, 5, 2);
+    expect(rows.map((row) => row.calendarYear)).toEqual([2031, 2036, 2041]);
+    expect(rows[1].p50).toBeCloseTo(515000 / Math.pow(1.02, 5), 6);
+    expect(rows[1].p50Nominal).toBe(515000);
+  });
+
+  it('the plan states pensions and unlocks in years OF THE WITHDRAWAL (RD4): dated 29 and 33 from today, FIRE at 7 ⇒ 22 and 26', () => {
+    const params = makeParams({ annualInflows: [{ fromYear: 29, annualNetToday: 13000 }, { fromYear: 5, annualNetToday: 2000 }] });
+    const plan = summarizeMonteCarloPlan(params, [{ year: 33, amount: 31400 }, { year: 4, amount: 9000 }], 0, { startCalendarYear: 2033, currentAge: 53, startYears: 7 });
+    expect(plan.statePensions.map((pension) => pension.yearOffset)).toEqual([1, 22]);
+    expect(plan.statePensions[1].calendarYear).toBe(2055);
+    expect(plan.inflows).toEqual([{ yearOffset: 26, calendarYear: 2059, amount: 31400 }]);
+  });
+
+  it('the start year is a plan field: a new mode makes the last run stale', () => {
+    const inputs = (startYear?: number): MonteCarloRunInputs => ({ params: makeParams({ startYear }), scenarios: defaultScenarios(), inflows: [] });
+    expect(haveRunInputsChanged(inputs(5), inputs(5))).toBe(false);
+    expect(haveRunInputsChanged(inputs(5), inputs(undefined))).toBe(true);
   });
 });

@@ -572,7 +572,7 @@ export interface FireBase {
   isAnnualized: boolean;
   /** RP5: what stays outside the plan's capital, EUR — real estate (the residence included) and crypto. */
   outsideCapital: FireCapital['outside'];
-  /** RP6: where the expenses come from — typed in Parametri (`settings`) or read off the Cashflow. */
+  /** RP6: where the expenses come from — typed in Il mio piano (`settings`) or read off the Cashflow. */
   planExpensesOrigin: 'settings' | 'cashflow';
   /** The pensions and the tax, considered or declared absent — the tile's two last rows. */
   honest?: FireTargetHonest;
@@ -620,10 +620,10 @@ export function describeBase(base: FireBase): Narrative {
 export function describePensionRow(honest: FireTargetHonest, currentYear: number): { value: string | null; caption: string } {
   if (honest.pensionsConsidered && honest.pensionStartCalendarYear !== null) {
     const when = honest.pensionStartCalendarYear <= currentYear ? 'già in corso' : `dal ${honest.pensionStartCalendarYear}`;
-    return { value: cachedFormatCurrencyEUR(Math.round(honest.pensionNetAnnual), true), caption: honest.pensionCount > 1 ? `${honest.pensionCount} pensioni, nette l'anno, l'ultima ${when} · da Coast FIRE › Ipotesi` : `netti l'anno, ${when} · da Coast FIRE › Ipotesi` };
+    return { value: cachedFormatCurrencyEUR(Math.round(honest.pensionNetAnnual), true), caption: honest.pensionCount > 1 ? `${honest.pensionCount} pensioni, nette l'anno, l'ultima ${when} · da Il mio piano` : `netti l'anno, ${when} · da Il mio piano` };
   }
-  if (honest.pensionsSkipped === 'no-age') return { value: null, caption: "non considerate: manca l'età in Coast FIRE › Ipotesi" };
-  return { value: null, caption: 'nessuna in Coast FIRE › Ipotesi: il numero le esclude' };
+  if (honest.pensionsSkipped === 'no-age') return { value: null, caption: "non considerate: manca l'età in Il mio piano" };
+  return { value: null, caption: 'nessuna in Il mio piano: il numero le esclude' };
 }
 
 /** The Tasse sui prelievi row: the rate on today's gain share, or why it is not estimated. */
@@ -641,7 +641,7 @@ export function describeBaseAside(base: Pick<FireBase, 'referenceYear' | 'isAnnu
 }
 
 export function describeBaseFooter(): Narrative {
-  return [prose('Il capitale è il portafoglio più la liquidità da investire che scegli in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.')];
+  return [prose('Il capitale è il portafoglio più la liquidità che resta oltre il fondo di emergenza che indichi in Il mio piano; SWR, spesa del piano e regola RITA si modificano lì.')];
 }
 
 /** The caption under the pension-lock switch: what is locked, until when, and by which rule. */
@@ -884,9 +884,9 @@ export type TargetAgeFigures = Extract<TargetAgeSummary, { kind: 'figures' }>;
 export function describeTargetAge(summary: TargetAgeSummary): Narrative {
   switch (summary.kind) {
     case 'no-age':
-      return [prose("Serve la tua età: scrivila in Coast FIRE › Ipotesi.")];
+      return [prose("Serve la tua età: scrivila in Il mio piano.")];
     case 'passed':
-      return [prose("Età obiettivo già raggiunta o passata: scrivine una più avanti nei Parametri.")];
+      return [prose("Età obiettivo già raggiunta o passata: scrivine una più avanti in Il mio piano.")];
     case 'already-fire':
       return [prose("Sei già FIRE: l'età obiettivo non serve.")];
     case 'figures':
@@ -921,7 +921,7 @@ export function describeTargetAgeFooter(): Narrative {
 /** «Come si calcola»: RS6–RS9 in words, one paragraph each. */
 export function describeTargetAgeMethod(): string[] {
   return [
-    "Gli anni all'età obiettivo sono la differenza tra l'età obiettivo e la tua età (Coast FIRE › Ipotesi): senza la tua età non c'è cifra.",
+    "Gli anni all'età obiettivo sono la differenza tra l'età obiettivo e la tua età (Il mio piano): senza la tua età non c'è cifra.",
     "Il risparmio nel base è il più piccolo importo, arrotondato per eccesso a 100 €, con cui il cammino del Base raggiunge lo stesso numero FIRE del verdetto entro quell'età: il risparmio cresce ogni anno con l'inflazione, quindi la cifra è in euro di oggi.",
     "Per 9 percorsi su 10 è il risparmio con cui il Ventaglio (stessi percorsi, stesso seme) porta il 90% delle simulazioni al FIRE entro l'età obiettivo. Non scende sotto il risparmio di oggi: cerca solo un extra.",
     "La spesa massima del piano è la più alta, arrotondata per difetto a 100 €, con cui il Base arriva al FIRE entro l'età obiettivo tenendo il risparmio di oggi; è la spesa da pensionato, non quella del Cashflow di oggi.",

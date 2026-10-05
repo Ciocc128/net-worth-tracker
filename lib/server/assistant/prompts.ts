@@ -240,7 +240,12 @@ export function formatBundleForPrompt(
   // The periodic email prints its own allocation blocks, measured with the pages' rules (roles,
   // leverage, effective targets, market apart from purchases — F1b): it omits these four so the
   // model never reads two allocations. The assistant keeps them as they are.
-  options: { omitAllocation?: boolean } = {}
+  options: {
+    omitAllocation?: boolean;
+    // The periodic email with the 50/30/20 roles on (`spendingRolesEnabled`) reads the spending
+    // by role INSTEAD of by type (owner's call, 2026-10-05). The assistant never passes it.
+    spendingRoles?: Array<{ label: string; amount: number }>;
+  } = {}
 ): string {
   const { netWorth, cashflow, allocationChanges, dataQuality, currentSnapshot } = bundle;
 
@@ -276,9 +281,18 @@ export function formatBundleForPrompt(
   const shareOfExpenses = (value: number): string =>
     totalExpenses !== 0 ? share((value / totalExpenses) * 100) : share(0);
 
-  // Coarse-grained view first, so the model has the Fisse/Variabili/Debiti mix in mind
-  // before it reads the long category list.
-  if (bundle.expensesByType.length > 0) {
+  // Coarse-grained view first, so the model has the Fisse/Variabili/Debiti mix (or the email's
+  // 50/30/20 roles) in mind before it reads the long category list.
+  if (options.spendingRoles && options.spendingRoles.length > 0) {
+    lines.push('--- SPESE PER RUOLO (50/30/20) ---');
+    for (const entry of options.spendingRoles) {
+      // The roles arrive as positive outflows; the bundle signs its outflows like `totalExpenses`
+      // (negative), and a share against it must keep that sign or it prints «(-63,9%)».
+      const signed = totalExpenses < 0 ? -Math.abs(entry.amount) : Math.abs(entry.amount);
+      lines.push(`${entry.label}: ${eur(signed)} (${shareOfExpenses(signed)})`);
+    }
+    lines.push('');
+  } else if (bundle.expensesByType.length > 0) {
     lines.push('--- SPESE PER TIPO ---');
     for (const entry of bundle.expensesByType) {
       lines.push(`${entry.label}: ${eur(entry.total)} (${shareOfExpenses(entry.total)})`);
@@ -625,10 +639,10 @@ export function buildEmailPeriodicFormatContract(periodType: EmailPeriodicPeriod
     '# Formato della risposta',
     'Struttura la risposta in markdown con queste sezioni, in questo ordine:',
     '1. **In sintesi** — 2-3 frasi sul risultato complessivo del periodo; se i dati includono un piazzamento Hall of Fame, citalo (non inventare la posizione)',
-    "2. **Patrimonio e investimenti** — come si è mosso il patrimonio: usa il blocco DA COSA VIENE LA VARIAZIONE già calcolato (risparmio, mercato, tasse, mutuo, versamenti al fondo pensione, altre variazioni) senza ricalcolarlo, cita il rendimento del periodo con la sua base, distingui per classe il mercato dagli acquisti e dalle vendite, commenta l'allocazione sul portafoglio allocato e il suo scostamento dai target, e cita gli obiettivi di investimento solo se il blocco relativo ne contiene",
+    "2. **Patrimonio e investimenti** — come si è mosso il patrimonio: usa il blocco DA COSA VIENE LA VARIAZIONE già calcolato (risparmio, mercato, tasse, mutuo, versamenti al fondo pensione, altre variazioni) senza ricalcolarlo, cita il rendimento del periodo con la sua base, distingui per classe il mercato dagli acquisti e dalle vendite, commenta l'allocazione sul portafoglio allocato e il suo scostamento dai target, e cita gli obiettivi di investimento solo se il blocco relativo ne contiene; se ricevi il contesto macro, collega il mercato del periodo a uno o due fatti del periodo, citandoli",
     '3. **Rispetto al periodo precedente** — cosa è cambiato rispetto al periodo precedente, citando i numeri del blocco di confronto fornito',
     "4. **Confronto con l'anno precedente** — confronto anno su anno citando i numeri forniti; se il periodo è annuale e questo confronto coincide con quello del punto 3 (i dati te lo segnalano esplicitamente), unisci le due sezioni e dillo",
-    "5. **Entrate e spese: di quanto e perché** — quantifica l'aumento o la diminuzione di entrate e spese e ipotizza le cause più probabili basandoti sui dati per categoria e sottocategoria; commenta il mix per tipo (Fisse/Variabili/Debiti) quando rilevante",
+    "5. **Entrate e spese: di quanto e perché** — quantifica l'aumento o la diminuzione di entrate e spese e ipotizza le cause più probabili basandoti sui dati per categoria e sottocategoria; commenta il mix delle spese quando rilevante, per tipo (Fisse/Variabili/Debiti) o per ruolo (Necessità/Desideri/Risparmi), secondo il blocco che ricevi",
     "6. **Azioni o attenzioni** — 1-2 osservazioni pratiche per l'investitore",
     '',
     "I blocchi delle spese per categoria e sottocategoria e delle entrate per categoria sono ESAUSTIVI: una voce che non c'è ha avuto importo zero nel periodo — dillo come \"nessuna spesa registrata\", non come dato mancante. L'unica eccezione sono le righe di omissione dichiarate esplicitamente nel testo dei dati.",

@@ -105,7 +105,7 @@ describe('tile readings', () => {
   });
 
   it('footers: stale vs fresh, gross values and the threshold line', () => {
-    expect(narrativeToText(describeProjectionFooter({ stale: true, simulations: 10_000 }))).toContain('premi Esegui per aggiornarli');
+    expect(narrativeToText(describeProjectionFooter({ stale: true, simulations: 10_000 }))).toContain('premi Prova per aggiornarli');
     expect(narrativeToText(describeProjectionFooter({ stale: false, simulations: 10_000 }))).toContain('30.000 traiettorie');
     const footer = narrativeToText(describeVentaglioFooter(3.04, 800_000));
     expect(footer).toContain('3,04%');

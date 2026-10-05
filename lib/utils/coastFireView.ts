@@ -1251,9 +1251,11 @@ export function resolveCoastIncompleteReason(
   return kind ? INCOMPLETE_REASON[kind] : null;
 }
 
-/** The ONE action of the empty state: a page that records the missing thing, or a field of the Ipotesi. */
-/** `tab`: the action lives on another tab of the page (the plan expense is typed in Calcolatore › Parametri). */
-export type CoastEmptyAction = { label: string; href: string } | { label: string; fieldId: string } | { label: string; tab: 'fire' };
+/**
+ * The ONE action of the empty state: a page that records the missing thing, or a field of «Il mio piano» (`piano`: the
+ * field `FIRE_PLAN_FIELD_IDS` names, opened and focused in the block above the tabs, § 15 RP6).
+ */
+export type CoastEmptyAction = { label: string; href: string } | { label: string; piano: 'eta' | 'eta-obiettivo' | 'spesa' };
 
 export interface CoastEmptyTiles {
   traguardo: string;
@@ -1266,7 +1268,7 @@ export interface CoastEmptyTiles {
 /**
  * What each tile says when the projection cannot run: every tile keeps its eyebrow and says
  * why it cannot answer, and ONLY the Traguardo offers the action — a page for the patrimonio,
- * the Ipotesi field for everything the form owns (the ids are the form's own).
+ * the plan's field for everything «Il mio piano» owns.
  */
 export function describeCoastEmptyTiles(kind: CoastEmptyKind): CoastEmptyTiles {
   switch (kind) {
@@ -1282,21 +1284,21 @@ export function describeCoastEmptyTiles(kind: CoastEmptyKind): CoastEmptyTiles {
         traguardo: 'Il numero Coast FIRE parte dalle spese annue: nell\'ultimo anno completo non ce ne sono, e nessuna cifra personalizzata le sostituisce.',
         afflussi: 'Gli afflussi riducono le spese che il portafoglio deve coprire: senza spese non c\'è un fabbisogno da ridurre.',
         scenari: 'Ogni scenario sconta le spese al suo rendimento reale: senza spese non c\'è un numero Coast FIRE.',
-        action: { label: 'Indica la spesa nei Parametri del Calcolatore', tab: 'fire' },
+        action: { label: 'Indica la spesa in Il mio piano', piano: 'spesa' },
       };
     case 'no-age':
       return {
         traguardo: 'Serve la tua età attuale: dice quanti anni ha il capitale per crescere da solo fino al target.',
         afflussi: 'Gli afflussi si collocano negli anni tra oggi e il target: senza la tua età non hanno un calendario.',
         scenari: 'Ogni scenario sconta il capitale richiesto sugli anni che restano: senza la tua età non ci sono anni da contare.',
-        action: { label: 'Inserisci l\'età nelle Ipotesi', fieldId: 'coastCurrentAge' },
+        action: { label: 'Inserisci l\'età in Il mio piano', piano: 'eta' },
       };
     case 'no-retirement-age':
       return {
         traguardo: 'Serve l\'età target Coast FIRE: è il momento in cui il capitale deve bastare.',
         afflussi: 'Gli afflussi si leggono rispetto al target: senza un\'età target non si sa cosa viene dopo.',
         scenari: 'Ogni scenario sconta il capitale richiesto fino al target: senza un\'età target non c\'è un orizzonte.',
-        action: { label: 'Inserisci l\'età target nelle Ipotesi', fieldId: 'coastRetirementAge' },
+        action: { label: 'Inserisci l\'età obiettivo in Il mio piano', piano: 'eta-obiettivo' },
       };
   }
 }

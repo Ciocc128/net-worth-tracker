@@ -24,10 +24,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
-import { getSettings } from '@/lib/services/assetAllocationService';
 import { getAnnualCashflowData } from '@/lib/services/fireService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
@@ -133,12 +133,8 @@ export function ProjectionTab() {
     enabled: !!user && !!ownerId,
     staleTime: 300000,
   });
-  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
+  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
   // The Cashflow, for the yearly saving (the Calcolatore's `annualSavings`): the SAME key `useFireAssumptions` reads.
   const { data: cashflowData, isLoading: isLoadingCashflow } = useQuery({
     queryKey: ['annualCashflowData', ownerId],
@@ -180,7 +176,7 @@ export function ProjectionTab() {
   const capital = assumptions?.capital ?? null;
   // § 12 (RF10): the saved dated flows. The Proiezione has no FIRE: a flow anchored to it does not exist here, the recurring ones
   // change the saving while it is paid, the lumps land every year.
-  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows(undefined, { lockedAssetIds: lockedAssetIds });
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows({ lockedAssetIds: lockedAssetIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
@@ -507,7 +503,7 @@ export function ProjectionTab() {
             footer={
               lastRun
                 ? describeProjectionFooter({ stale, simulations: lastRun.inputs.simulations })
-                : [{ text: canRun ? 'Premi Esegui per lanciare i tre scenari.' : 'Completa il piano: capitale maggiore di zero e allocazione tra 100% e 300%.' }]
+                : [{ text: canRun ? 'Premi Prova per lanciare i tre scenari.' : 'Completa il piano: capitale maggiore di zero e allocazione tra 100% e 300%.' }]
             }
             stale={stale}
           />

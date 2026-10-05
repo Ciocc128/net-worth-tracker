@@ -16,25 +16,24 @@
  * took two rows until 2026-09-22 and ended 190px above its own footer (measured); putting it at
  * 3 columns beside Reddito passivo moved the void into Reddito (173px, measured the same day).
  * Base is the tallest tile, so it takes the first row ALONE, wide enough to set its rows beside
- * its lock block; Reddito passivo and Scenari are within 30px of each other and share the second.
+ * the rows; Reddito passivo and Scenari are within 30px of each other and share the second.
  * The Traguardo's chart is the one element that can be any height, and it takes the slack.
  *
- * Below the grid, two disclosures: «Parametri» (the SWR, the residence rule, the RITA details and
- * the scenarios' parameters — config-first: open only while no SWR is saved, reopening on an
- * unsaved edit) and «Dettaglio» (the historical runway, the cashflow history, the explainer).
+ * Below the grid, one disclosure: «Dettaglio» (the historical runway, the cashflow history, the
+ * explainer). The settings the tab runs on are NOT here since 2026-10-05: they are «Il mio piano», the
+ * block above the tabs (doc/fire-ipotesi/README.md § 15), and this tab reads them like the other five —
+ * the saved ones with the plan's unsaved edits laid over them (`useFireSettings`).
  *
- * The page has NO period axis — a FIRE plan is read today, on the last full year's cashflow. Its
- * one live control is the pension-lock switch in the Base di calcolo tile, which SAVES on change
- * (the canvas's proposal): it changes which capital counts, so it sits beside the figure it moves.
- * The Scenari | Ventaglio switch in the Traguardo's aside is that tile's scope, not an axis.
+ * The page has NO period axis — a FIRE plan is read today, on the last full year's cashflow. The tab
+ * has no live control of its own: the pension-lock switch is in «Il mio piano» too, and the Base di
+ * calcolo tile only reads what it does. The Scenari | Ventaglio switch in the Traguardo's aside is
+ * that tile's scope, not an axis.
  *
  * Data flow (unchanged from the previous IA — presentation over the same pure functions):
  * 1. settings + assets + annualCashflowData queries (independent, staleTime 5min);
- * 2. fireData query (depends on assets + settings — gated by `enabled`);
+ * 2. fireData query (depends on assets + the SAVED rate — gated by `enabled`);
  * 3. the metrics, the deterministic projection and the fan inputs derived client-side via
  *    useMemo, so preview edits (SWR, RITA controls, scenario params) are instant.
- * `respectPensionLockInFire` governs the WHOLE FIRE page (Coast, What If, Monte Carlo read the
- * saved setting), which is one more reason the switch persists at once.
  *
  * No component computes a figure or writes a sentence: numbers come from
  * lib/utils/fireSummary.ts (over fireService / pensionUnlock / monteCarloService), words from
@@ -44,16 +43,13 @@
  * Celebration Badge), and its five hexes were the tab's only colours outside the theme.
  */
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
-import { useDemoMode } from '@/lib/hooks/useDemoMode';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
 import { resolveGainShare } from '@/lib/utils/withdrawalTax';
 import { getItalyYear } from '@/lib/utils/dateHelpers';
-import { getDefaultTargets, getSettings, setSettings } from '@/lib/services/assetAllocationService';
 import { DEFAULT_INPS_RETIREMENT_AGE, resolvePensionLockState, resolveRitaUnlockAge } from '@/lib/utils/pensionUnlock';
 import {
   calculateCoastFireNetRealAnnualPension,
@@ -73,10 +69,9 @@ import {
 } from '@/lib/services/fireService';
 import { runAccumulationSimulation, type AccumulationSimulationParams } from '@/lib/services/monteCarloService';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
-import { solvePersonalSwr, resolvePersonalSwrHorizon } from '@/lib/utils/sustainableWithdrawal';
 import { summarizeTargetAge, yearsToTargetAge, type FireWalk } from '@/lib/utils/fireTargetAge';
-import { isValidAge, parseOptionalInteger } from '@/lib/utils/coastFireView';
-import { DEFAULT_COAST_RETIREMENT_AGE } from '@/lib/hooks/useCoastFireSettingsDraft';
+import { DEFAULT_FIRE_TARGET_AGE } from '@/lib/utils/firePlan';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { resolveLeverCap, solveSavingsForTail, summarizeFireYearDistribution, summarizeRetirementSurvival } from '@/lib/utils/fireDistribution';
 import {
   formatAllocationLabel,
@@ -99,10 +94,8 @@ import {
   describeFireDistributionMethod,
   describeFireYearDistribution,
   describeLock,
-  describeParametri,
   describePassiveIncome,
   describeRetirementSurvival,
-  describeRitaPreview,
   describeRunway,
   describeScenarios,
   describeScenariosFooter,
@@ -115,11 +108,9 @@ import {
   type FireBase,
   type ProjectionView,
 } from '@/lib/utils/fireNarrative';
-import type { Settings } from '@/types/settings';
 import type { FIREProjectionScenarios } from '@/types/assets';
 import { useFireDatedFlows } from '@/lib/hooks/useFireDatedFlows';
 import { buildFlowSchedule, lumpMarkersOf } from '@/lib/utils/datedFlows';
-import { validateDatedFlows } from '@/lib/utils/datedFlowValidation';
 import type { FlowsEffect } from '@/lib/utils/datedFlowsNarrative';
 import { cn } from '@/lib/utils';
 import { PageVerdict } from '@/components/ui/page-verdict';
@@ -137,7 +128,6 @@ import { BaseDiCalcoloTile } from '@/components/fire-simulations/tiles/BaseDiCal
 import { RedditoPassivoTile } from '@/components/fire-simulations/tiles/RedditoPassivoTile';
 import { ScenariTile } from '@/components/fire-simulations/tiles/ScenariTile';
 import { EtaObiettivoTile } from '@/components/fire-simulations/tiles/EtaObiettivoTile';
-import { FireParametri, type FireSettingsForm } from '@/components/fire-simulations/FireParametri';
 import { FireDettaglio } from '@/components/fire-simulations/FireDettaglio';
 import { FIREProjectionChart } from '@/components/fire-simulations/FIREProjectionChart';
 import { FireFanChart } from '@/components/fire-simulations/FireFanChart';
@@ -196,45 +186,16 @@ function calculateDisplayedRunwayDelta(latestValue: number | null | undefined, c
   return roundRunwayYears(roundRunwayYears(latestValue) - roundRunwayYears(comparisonValue));
 }
 
-function settingsForm(settings: Settings | null | undefined): FireSettingsForm {
-  return {
-    withdrawalRate: (settings?.withdrawalRate ?? 4.0).toString(),
-    // D-E1: the one target age of the page, Coast FIRE's.
-    targetAge: String(settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE),
-    // The Coast FIRE «spesa personalizzata» of before D5 shows here until the next save moves it.
-    plannedExpenses: (settings?.plannedAnnualExpenses ?? settings?.coastFireCustomExpenses)?.toString() ?? '',
-    // K1 (RK4): the share of the cash outside the portfolio the tabs invest; absent = 0.
-    cashToInvestPct: String(settings?.fireCashToInvestPct ?? 0),
-    // § 12 (F1): the dated flows, edited as a preview in Parametri.
-    datedFlows: settings?.fireDatedFlows ?? [],
-    inpsRetirementAge: (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString(),
-    ritaLongUnemployment: settings?.pensionRitaLongUnemployment ?? false,
-  };
-}
-
 export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } = {}) {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
-  const isDemo = useDemoMode();
-  const queryClient = useQueryClient();
 
-  // ─── Form state (preview until saved) ────────────────────────────────────────
-  const [form, setForm] = useState<FireSettingsForm>(() => settingsForm(null));
-  const [respectPensionLockIn, setRespectPensionLockIn] = useState<boolean>(false);
-  const [parametriOpen, setParametriOpen] = useState<boolean>(false);
-  // True once the form has been seeded from the saved settings: until then a typed «empty» would be read as «from the Cashflow».
-  const [formSettled, setFormSettled] = useState<boolean>(false);
   const [view, setView] = useState<ProjectionView>('scenari');
 
-  const onFormChange = useCallback((patch: Partial<FireSettingsForm>) => setForm((prev) => ({ ...prev, ...patch })), []);
-
   // ─── Queries ─────────────────────────────────────────────────────────────────
-  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery<Settings | null>({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here, and every figure below
+  // reads the same plan the other five tabs do. `saved` is the stored document, for the one query that must not refetch while typing.
+  const { data: settings, saved: savedSettings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
 
   const { data: assets, isLoading: isLoadingAssets, isError: assetsError } = useQuery({
     queryKey: ['assets', ownerId],
@@ -251,36 +212,14 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   });
   const annualSavings = cashflowData?.annualSavings ?? 0;
 
-  const withdrawalRate = settings?.withdrawalRate ?? 4.0;
-
-  // Sync form state when settings load or change (runs once data has loaded — even when the user
-  // has no settings doc yet — so temp state always settles to the saved-or-default values). The
-  // form is re-seeded only when the SAVED values it edits change: the lock switch saves on its own
-  // and refetches the doc, and a refetch that changed nothing the form edits must not wipe a typed
-  // SWR (the review of 2026-08-25 caught exactly that). The lock state follows every refetch.
-  const lastSyncedFormRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (isLoadingSettings) return;
-    const timer = setTimeout(() => {
-      const next = settingsForm(settings);
-      const key = JSON.stringify(next);
-      if (lastSyncedFormRef.current !== key) {
-        lastSyncedFormRef.current = key;
-        setForm(next);
-      }
-      setFormSettled(true);
-      setRespectPensionLockIn(settings?.respectPensionLockInFire ?? false);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [isLoadingSettings, settings]);
+  const previewWithdrawalRate = settings?.withdrawalRate ?? 4.0;
+  // The saved rate keys the history query: typing in the plan must not refetch it.
+  const withdrawalRate = savedSettings?.withdrawalRate ?? 4.0;
 
   // ─── Pension lock (preview inputs: the RITA controls update the estimate instantly) ─────
-  const parsedInpsRetirementAge = Number.parseInt(form.inpsRetirementAge, 10);
-  const previewInpsRetirementAge =
-    Number.isFinite(parsedInpsRetirementAge) && parsedInpsRetirementAge >= 60 && parsedInpsRetirementAge <= 75
-      ? parsedInpsRetirementAge
-      : (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE);
-  const ritaLongUnemployment = form.ritaLongUnemployment;
+  const respectPensionLockIn = settings?.respectPensionLockInFire ?? false;
+  const previewInpsRetirementAge = settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE;
+  const ritaLongUnemployment = settings?.pensionRitaLongUnemployment ?? false;
   const userAge = settings?.userAge;
 
   // Locked pension capital (unlock resolved by pensionUnlock.ts: per-fund override > RITA rule
@@ -302,23 +241,13 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // rates on the per-class assumptions of Impostazioni › Simulazioni — never typed here. While the
   // data loads the skeleton is shown, so the neutral defaults below are never read as numbers.
   const assumptionLockedIds = useMemo(() => new Set((pensionLockState?.funds ?? []).filter((info) => info.isLocked).map((info) => info.fund.id)), [pensionLockState]);
-  // K1: the share of the cash to invest is PREVIEWED from the typed field until saved, like the SWR and the expenses.
-  const parsedCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
-  const previewCashToInvestPct = formSettled && Number.isFinite(parsedCashToInvestPct) && parsedCashToInvestPct >= 0 && parsedCashToInvestPct <= 100 ? parsedCashToInvestPct : undefined;
-  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true, cashToInvestPct: previewCashToInvestPct });
+  const { assumptions: savedAssumptions } = useFireAssumptions(assumptionLockedIds, { withCashflow: true });
   const scenarios = useMemo<FIREProjectionScenarios>(() => savedAssumptions?.scenarios ?? getDefaultScenarios(), [savedAssumptions]);
 
-  // RP6: the plan's expenses, PREVIEWED from the typed field until saved (empty = from the Cashflow) like the SWR is;
-  // the «Ipotesi usate» line below carries the previewed figure too, so the line never says what the numbers do not.
-  const parsedPlannedExpenses = Number.parseFloat(form.plannedExpenses.replace(',', '.'));
-  const previewPlannedExpenses = Number.isFinite(parsedPlannedExpenses) && parsedPlannedExpenses > 0 ? parsedPlannedExpenses : undefined;
-  const planSource = useMemo(
-    () => (formSettled ? { plannedAnnualExpenses: previewPlannedExpenses } : { plannedAnnualExpenses: settings?.plannedAnnualExpenses, coastFireCustomExpenses: settings?.coastFireCustomExpenses }),
-    [formSettled, previewPlannedExpenses, settings?.plannedAnnualExpenses, settings?.coastFireCustomExpenses],
-  );
-  const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(planSource, cashflowData) : null), [cashflowData, planSource]);
-  // § 12 (F1): the dated flows, PREVIEWED from the form until saved, placed on the calendar with the age and the linked mortgages.
-  const { resolved: resolvedFlows, excluded: excludedFlows, goalFlows, mortgages: mortgageOptions } = useFireDatedFlows(formSettled ? form.datedFlows : undefined, { lockedAssetIds: assumptionLockedIds, cashToInvestPct: previewCashToInvestPct });
+  // RP6: the plan's expenses (the typed one is already over `settings`, RP3; empty = from the Cashflow).
+  const expenses = useMemo(() => (cashflowData ? resolvePlanExpenses(settings ?? {}, cashflowData) : null), [cashflowData, settings]);
+  // § 12 (F1): the dated flows, placed on the calendar with the age and the linked mortgages (the plan's preview included).
+  const { resolved: resolvedFlows, excluded: excludedFlows } = useFireDatedFlows({ lockedAssetIds: assumptionLockedIds });
   const flowsInput = useMemo<FireFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow: (expenses?.origin ?? 'cashflow') === 'cashflow' } : undefined),
     [resolvedFlows, expenses?.origin],
@@ -384,47 +313,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   });
   const chartData = useMemo(() => fireData?.chartData ?? [], [fireData]);
   const rawRunwayData = useMemo(() => fireData?.runwayData ?? [], [fireData]);
-
-  // Preview values: update instantly from temp state without persisting
-  const parsedPreviewWithdrawalRate = Number.parseFloat(form.withdrawalRate);
-  const previewWithdrawalRate =
-    Number.isFinite(parsedPreviewWithdrawalRate) && parsedPreviewWithdrawalRate > 0 ? parsedPreviewWithdrawalRate : withdrawalRate;
-  const hasUnsavedChanges =
-    form.withdrawalRate !== (settings?.withdrawalRate ?? 4.0).toString() ||
-    form.targetAge !== settingsForm(settings).targetAge ||
-    form.plannedExpenses !== settingsForm(settings).plannedExpenses ||
-    form.cashToInvestPct !== settingsForm(settings).cashToInvestPct ||
-    JSON.stringify(form.datedFlows) !== JSON.stringify(settingsForm(settings).datedFlows) ||
-    form.inpsRetirementAge !== (settings?.pensionInpsRetirementAge ?? DEFAULT_INPS_RETIREMENT_AGE).toString() ||
-    ritaLongUnemployment !== (settings?.pensionRitaLongUnemployment ?? false);
-
-  // Decide the panel's initial state ONCE, after the form has settled to match saved settings
-  // (hasUnsavedChanges === false ⇒ temp state has been seeded). Collapsed when a withdrawal rate
-  // is already saved, open for config-first users. Waiting for the settled state avoids the
-  // transient first-render mismatch (temp '4.0' vs saved '4') popping the panel open.
-  const hasSeededSettingsRef = useRef(false);
-  const savedWithdrawalRate = settings?.withdrawalRate;
-  useEffect(() => {
-    if (hasSeededSettingsRef.current || isLoadingSettings || hasUnsavedChanges) return;
-    if (savedWithdrawalRate != null) {
-      hasSeededSettingsRef.current = true;
-      return;
-    }
-    // The flag is set INSIDE the timer: under StrictMode's double-invoke the first timer is
-    // cleared before it fires, and a flag set synchronously would leave the panel closed for good.
-    const timer = setTimeout(() => {
-      hasSeededSettingsRef.current = true;
-      setParametriOpen(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [isLoadingSettings, hasUnsavedChanges, savedWithdrawalRate]);
-
-  // After seeding, reopen if a genuine unsaved edit appears (keeps the preview state visible).
-  useEffect(() => {
-    if (!hasSeededSettingsRef.current || !hasUnsavedChanges) return;
-    const timer = setTimeout(() => setParametriOpen(true), 0);
-    return () => clearTimeout(timer);
-  }, [hasUnsavedChanges]);
 
   // ─── The numbers (pure layer over the existing engines) ──────────────────────
   // The metrics on the PREVIEW withdrawal rate, with the bridge override when the lock is on:
@@ -617,11 +505,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   // The age is PREVIEWED from the typed field until saved, like the SWR: a typed age that is not valid
   // (not above today's age, past 100) falls back to the saved one. RS7/RS9 re-walk the SAME deterministic
   // projection the verdict names, changing only the saving or the plan's expenses.
-  const parsedTypedTargetAge = parseOptionalInteger(form.targetAge);
-  const previewTargetAge =
-    isValidAge(parsedTypedTargetAge) && (userAge === undefined || parsedTypedTargetAge > userAge)
-      ? parsedTypedTargetAge
-      : (settings?.coastFireRetirementAge ?? DEFAULT_COAST_RETIREMENT_AGE);
+  const previewTargetAge = settings?.coastFireRetirementAge ?? DEFAULT_FIRE_TARGET_AGE;
   const fireWalk = useCallback<FireWalk>(
     (savings, planExpenses) =>
       calculateFIREProjection(currentNetWorth, planExpenses, savings, previewWithdrawalRate, scenarios, PROJECTION_HORIZON_YEARS, projectionBridge, honest, true, flowsInput).baseYearsToFIRE,
@@ -678,32 +562,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
       tail,
     });
   }, [deferredTargetAgeRequest]);
-
-  // RS5: the personal SWR, only while the Parametri are open, from a deferred request (≈0,4 s at 30 years, ≈0,65 s at
-  // 60 on the cloud container): the panel paints first and the figure lands after, and typing the age does not stall.
-  const savedMarket = savedAssumptions?.market;
-  const savedWeights = savedAssumptions?.weights;
-  const savedCostPct = savedAssumptions?.cost?.total;
-  const personalSwrHorizon = resolvePersonalSwrHorizon(previewTargetAge);
-  const personalSwrRequest = useMemo(
-    () => (parametriOpen && savedMarket && savedWeights ? { market: savedMarket, weights: savedWeights, costPct: savedCostPct, horizonYears: personalSwrHorizon } : null),
-    [parametriOpen, savedMarket, savedWeights, savedCostPct, personalSwrHorizon],
-  );
-  const deferredPersonalSwrRequest = useDeferredValue(personalSwrRequest);
-  const personalSwr = useMemo(
-    () =>
-      deferredPersonalSwrRequest
-        ? solvePersonalSwr({
-            weights: deferredPersonalSwrRequest.weights,
-            market: deferredPersonalSwrRequest.market.scenarios.base,
-            correlations: deferredPersonalSwrRequest.market.correlations,
-            leverageSpread: deferredPersonalSwrRequest.market.leverageSpread,
-            costPct: deferredPersonalSwrRequest.costPct,
-            horizonYears: deferredPersonalSwrRequest.horizonYears,
-          })
-        : null,
-    [deferredPersonalSwrRequest],
-  );
 
   const displayedRunwayData = useMemo(() => {
     const targetYearsOfExpenses = previewWithdrawalRate > 0 ? 100 / previewWithdrawalRate : null;
@@ -782,91 +640,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
     [currentNetWorth, target, timeline, annualSavings, previewWithdrawalRate, passiveIncome, lock, honestSummary],
   );
 
-  // ─── Mutations ───────────────────────────────────────────────────────────────
-  // Every write spreads the cached `settings`, which can lag a lock save by one refetch: the lock
-  // state is the source of truth for that field, so each write restates it.
-  const settingsMutation = useMutation({
-    mutationFn: (newSettings: Partial<Settings>) =>
-      setSettings(ownerId!, {
-        ...settings,
-        targets: settings?.targets || getDefaultTargets(),
-        respectPensionLockInFire: respectPensionLockIn,
-        ...newSettings,
-      }),
-    onSuccess: () => {
-      toast.success('Impostazioni FIRE salvate con successo');
-      queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
-    },
-    onError: (error) => {
-      console.error('Error saving FIRE settings:', error);
-      toast.error('Errore nel salvataggio delle impostazioni FIRE');
-    },
-  });
-
-  // The pension-lock switch persists at once: optimistic flip, reverted with a toast on failure.
-  const lockMutation = useMutation({
-    mutationFn: (active: boolean) =>
-      setSettings(ownerId!, { ...settings, targets: settings?.targets || getDefaultTargets(), respectPensionLockInFire: active }),
-    onMutate: (active) => setRespectPensionLockIn(active),
-    onSuccess: (_, active) => {
-      toast.success(active ? 'Fondo pensione considerato bloccato' : 'Fondo pensione considerato disponibile');
-      // Awaited: the switch stays disabled until the refetched doc carries the new value.
-      return queryClient.invalidateQueries({ queryKey: ['settings', ownerId] });
-    },
-    onError: (error, active) => {
-      console.error('Error saving the pension lock:', error);
-      setRespectPensionLockIn(!active);
-      toast.error('Errore nel salvataggio del vincolo sul fondo pensione');
-    },
-  });
-
-  const handleSaveSettings = () => {
-    const newWR = parseFloat(form.withdrawalRate);
-    if (Number.isNaN(newWR) || newWR <= 0 || newWR > 100) {
-      toast.error('Inserisci un SWR valido, sopra 0 e fino a 100');
-      return;
-    }
-    const newInpsAge = Number.parseInt(form.inpsRetirementAge, 10);
-    if (!Number.isFinite(newInpsAge) || newInpsAge < 60 || newInpsAge > 75) {
-      toast.error("Inserisci un'età pensione INPS valida tra 60 e 75");
-      return;
-    }
-    // The plan's expenses are optional (empty = from the Cashflow); typed, they must be a positive amount.
-    const typedExpenses = form.plannedExpenses.trim();
-    const newPlannedExpenses = typedExpenses === '' ? undefined : Number.parseFloat(typedExpenses.replace(',', '.'));
-    if (newPlannedExpenses !== undefined && !(Number.isFinite(newPlannedExpenses) && newPlannedExpenses > 0)) {
-      toast.error('Inserisci una spesa del piano sopra 0, o lasciala vuota per leggerla dal Cashflow');
-      return;
-    }
-    const newCashToInvestPct = Number.parseFloat(form.cashToInvestPct.replace(',', '.'));
-    if (!(Number.isFinite(newCashToInvestPct) && newCashToInvestPct >= 0 && newCashToInvestPct <= 100)) {
-      toast.error('Inserisci una quota di liquidità da investire tra 0 e 100');
-      return;
-    }
-    const newTargetAge = parseOptionalInteger(form.targetAge);
-    if (!isValidAge(newTargetAge) || (userAge !== undefined && newTargetAge <= userAge)) {
-      toast.error(userAge !== undefined ? `Inserisci un'età obiettivo sopra la tua (${userAge}) e fino a 100` : "Inserisci un'età obiettivo tra 18 e 100");
-      return;
-    }
-    const flowsProblem = validateDatedFlows(form.datedFlows, currentYearForFan);
-    if (flowsProblem) {
-      toast.error(flowsProblem);
-      return;
-    }
-    settingsMutation.mutate({
-      withdrawalRate: newWR,
-      coastFireRetirementAge: newTargetAge,
-      // Undefined removes the field (empty = from the Cashflow); the Coast FIRE «spesa personalizzata» of before D5
-      // is moved into this field by the form's seed, so it is dropped here.
-      plannedAnnualExpenses: newPlannedExpenses,
-      fireCashToInvestPct: newCashToInvestPct,
-      fireDatedFlows: form.datedFlows,
-      coastFireCustomExpenses: undefined,
-      pensionInpsRetirementAge: newInpsAge,
-      pensionRitaLongUnemployment: ritaLongUnemployment,
-    });
-  };
-
   // ─── Loading ─────────────────────────────────────────────────────────────────
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
@@ -885,38 +658,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
   if (isLoadingSettings || isLoadingAssets || isLoadingCashflow || (currentNetWorth > 0 && isLoadingFIRE)) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
-
-  // ─── Shared pieces ───────────────────────────────────────────────────────────
-  const parametri = (
-    <FireParametri
-      open={parametriOpen}
-      onOpenChange={setParametriOpen}
-      description={describeParametri({
-        swr: previewWithdrawalRate,
-        plannedExpenses: previewPlannedExpenses ?? null,
-        lockActive: respectPensionLockIn,
-        inpsRetirementAge: previewInpsRetirementAge,
-        ritaUnlockAge,
-        scenarios,
-      })}
-      form={form}
-      onFormChange={onFormChange}
-      hasUnsavedChanges={hasUnsavedChanges}
-      isSaving={settingsMutation.isPending}
-      isDemo={isDemo}
-      onSave={handleSaveSettings}
-      onReset={() => setForm(settingsForm(settings))}
-      ritaPreview={describeRitaPreview({
-        ritaUnlockAge,
-        unlockCalendarYear: userAge !== undefined && ritaUnlockAge > userAge ? currentYear + (ritaUnlockAge - userAge) : null,
-        alreadyUnlockable: userAge !== undefined && ritaUnlockAge <= userAge,
-      })}
-      assumptions={assumptions}
-      userAge={userAge}
-      personalSwr={personalSwr}
-      flows={{ excluded: excludedFlows, mortgages: mortgageOptions, pensions: honest.pensions, goalFlows, currentYear: currentYearForFan }}
-    />
-  );
 
   const dettaglio = (
     <FireDettaglio
@@ -989,8 +730,7 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             </Tile>
           </div>
         </div>
-        {parametri}
-        {dettaglio}
+          {dettaglio}
       </div>
     );
   }
@@ -1070,9 +810,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
             base={base}
             lock={lock}
             lockCaption={describeLock(lock)}
-            onLockChange={(active) => lockMutation.mutate(active)}
-            lockDisabled={isDemo || lockMutation.isPending}
-            lockDisabledReason={isDemo ? 'non modificabile in demo' : null}
             footer={describeBaseFooter()}
             currentYear={currentYear}
           />
@@ -1105,7 +842,6 @@ export function FireCalculatorTab({ onOpenCoast }: { onOpenCoast?: () => void } 
         </div>
       </div>
 
-      {parametri}
       {dettaglio}
     </div>
   );

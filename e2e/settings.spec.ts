@@ -63,7 +63,9 @@ test('età e risk-free stanno nella tessera della formula, non in un altro tab',
   await openSettings(page);
 
   const autoCalc = page.locator('section[aria-label="Auto-calcolo Azioni / Obbligazioni"]');
-  await expect(autoCalc.locator('#userAge')).toBeVisible();
+  // D-T5: the age is DECLARED here (one editor, FIRE › Il mio piano), the risk-free rate is typed.
+  await expect(autoCalc.locator('#userAge')).toHaveCount(0);
+  await expect(autoCalc.getByRole('link', { name: 'FIRE › Il mio piano' })).toBeVisible();
   await expect(autoCalc.locator('#riskFreeRate')).toBeVisible();
   // The seed has an age and no rate: the reading names the ONE missing input, here.
   await expect(autoCalc).toContainText('manca il risk-free rate, qui sotto');

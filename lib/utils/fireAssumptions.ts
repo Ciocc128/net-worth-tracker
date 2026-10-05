@@ -151,7 +151,7 @@ export function portfolioCompoundReturn(
 export { realReturn };
 
 export interface ResolveFireAssumptionsInput {
-  settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled' | 'plannedAnnualExpenses' | 'coastFireCustomExpenses' | 'stampDutyEnabled' | 'stampDutyRate' | 'checkingAccountSubCategory' | 'fireCashToInvestPct'> | null | undefined;
+  settings: Pick<AssetAllocationSettings, 'monteCarloMarket' | 'monteCarloScenarios' | 'targets' | 'goalBasedInvestingEnabled' | 'goalDrivenAllocationEnabled' | 'plannedAnnualExpenses' | 'coastFireCustomExpenses' | 'stampDutyEnabled' | 'stampDutyRate' | 'checkingAccountSubCategory' | 'fireEmergencyFund' | 'fireCashToInvestPct'> | null | undefined;
   assets: readonly Asset[] | null | undefined;
   /** The funds the pension lock keeps closed: outside the weights' base (RK). */
   lockedAssetIds?: ReadonlySet<string>;
@@ -241,6 +241,7 @@ export function resolveFireAssumptions(input: ResolveFireAssumptionsInput): Fire
         lockedAssetIds: input.lockedAssetIds,
         goldSubCategory: market.goldSubCategory,
         targets,
+        emergencyFund: input.settings?.fireEmergencyFund,
         cashToInvestPct: input.settings?.fireCashToInvestPct,
       })
     : undefined;

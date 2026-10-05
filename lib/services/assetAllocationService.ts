@@ -88,7 +88,7 @@ function serializeIdealAllocation(
 /**
  * Get allocation settings for a user
  *
- * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses, fireCashToInvestPct,
+ * Includes: targets, userAge, riskFreeRate, withdrawalRate, plannedAnnualExpenses, fireEmergencyFund, fireCashToInvestPct,
  * coastFireRetirementAge, coastFirePensions, coastFireTaxBrackets,
  * includePrimaryResidenceInFIRE, dividendIncomeCategoryId, dividendIncomeSubCategoryId,
  * transferFeeCategoryId, transferFeeSubCategoryId
@@ -118,6 +118,7 @@ export async function getSettings(
       riskFreeRate: data.riskFreeRate,
       withdrawalRate: data.withdrawalRate,
       plannedAnnualExpenses: data.plannedAnnualExpenses,
+      fireEmergencyFund: data.fireEmergencyFund,
       fireCashToInvestPct: data.fireCashToInvestPct,
       fireDatedFlows: data.fireDatedFlows,
       coastFireRetirementAge: data.coastFireRetirementAge,
@@ -241,8 +242,21 @@ export async function setSettings(
           delete docData.plannedAnnualExpenses;
         }
       }
-      if (settings.fireCashToInvestPct !== undefined) {
-        docData.fireCashToInvestPct = settings.fireCashToInvestPct;
+      // The emergency fund (§ 14) is USER-CLEARABLE like the plan's expenses; the legacy share (RE5) is cleared
+      // the same way at the first Parametri save: present and undefined removes the field.
+      if ('fireEmergencyFund' in settings) {
+        if (settings.fireEmergencyFund !== undefined) {
+          docData.fireEmergencyFund = settings.fireEmergencyFund;
+        } else {
+          delete docData.fireEmergencyFund;
+        }
+      }
+      if ('fireCashToInvestPct' in settings) {
+        if (settings.fireCashToInvestPct !== undefined) {
+          docData.fireCashToInvestPct = settings.fireCashToInvestPct;
+        } else {
+          delete docData.fireCashToInvestPct;
+        }
       }
       if (settings.fireDatedFlows !== undefined) {
         docData.fireDatedFlows = settings.fireDatedFlows;
@@ -472,8 +486,15 @@ export async function setSettings(
         docData.plannedAnnualExpenses =
           settings.plannedAnnualExpenses !== undefined ? settings.plannedAnnualExpenses : deleteField();
       }
-      if (settings.fireCashToInvestPct !== undefined) {
-        docData.fireCashToInvestPct = settings.fireCashToInvestPct;
+      // Both are clearable here (merge: true keeps a stale value when the key is omitted): the fund when emptied,
+      // the legacy share at the first Parametri save after the RE5 conversion.
+      if ('fireEmergencyFund' in settings) {
+        docData.fireEmergencyFund =
+          settings.fireEmergencyFund !== undefined ? settings.fireEmergencyFund : deleteField();
+      }
+      if ('fireCashToInvestPct' in settings) {
+        docData.fireCashToInvestPct =
+          settings.fireCashToInvestPct !== undefined ? settings.fireCashToInvestPct : deleteField();
       }
       if (settings.fireDatedFlows !== undefined) {
         docData.fireDatedFlows = settings.fireDatedFlows;

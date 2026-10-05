@@ -296,6 +296,17 @@ export function baseYearsToFIREWithFlows(baseline: WhatIfBaseline, flows: DatedF
 }
 
 /**
+ * The saved plan's Base walk and its FIRE year, as the What If's «prima» reads them (T5, § 12.7.2): «Dopo il FIRE» starts its
+ * simulation from this very projection, so the three surfaces agree on the year. Null `projection` = the plan cannot run.
+ */
+export function runBaselineProjection(baseline: WhatIfBaseline): { projection: FIREProjectionResult | null; yearsToFIRE: number | null } {
+  const flows = baseline.flows && baseline.flows.resolved.length > 0 ? baseline.flows : undefined;
+  const metrics = resolveFireMetrics(baseline, baseline.netWorth, baseline.annualExpenses, flows);
+  const projection = runBaseProjection(baseline, baseline.netWorth, baseline.annualExpenses, baseline.annualSavings, flows);
+  return { projection, yearsToFIRE: resolveYearsToFIRE(metrics, projection, !!flows) };
+}
+
+/**
  * Compute the before/after impact of a scenario on the traditional FIRE plan and, when
  * Coast FIRE is configured, on the Coast FIRE plan. The two walks it runs are returned as
  * `projections`, so the chart draws the same series the years were read from.

@@ -156,13 +156,31 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   OpenRouter: 4000/6000/6000/8000 per period, 1500 for the weekly email) and the text the room of the contract's word
   limit twice over (`words × 1,8 × 2`); `maxTokens` is their sum (5800 for the monthly). The `[ai-usage]` line logs
   `reasoning` when the provider reports it: that is where F2 measures what each candidate really costs, and where a
-  budget gets revised. **There is no web search since 2026-09-28**: the layer has no tools, and the macro context arrives
-  from the Wiki in F5 (doc/ai-open-models-wiki.md § 5.4); until then `includeMacroContext` only changes the prompt's
-  wording (it was off on the owner's account anyway).
+  budget gets revised. **There is no web search since 2026-09-28**: the layer has no tools; the macro context comes from
+  the vault (F5, below). `includeMacroContext` is the assistant's web-search switch and plays no part in the email.
+- **The vault in the prompt — for its owner only** (F5, 2026-10-05, doc/ai-open-models-wiki.md § 5.4;
+  `lib/utils/emailWiki.ts`, `lib/server/wiki/wikiReader.ts`). Retrieval is BY DATE: a monthly email reads
+  `wiki/macro/mesi/<YYYY-MM>.md`, a quarter, a semester or a year the window's month pages, every one
+  `wiki/principi/_digest.md`. The rules and the digest close the SYSTEM block, the macro pages close the USER message
+  after the data — never inside `buildEmailDataSections`, so the vault's `dati/` stays the data alone. Gate:
+  `WIKI_EXPORT_UID` must be the email's user (the digest is personal) and the vault settings must exist; the token is
+  `WIKI_GITHUB_TOKEN`, no cache, no ETag. A semester and a year get each month CUT BY CODE (`MACRO_DEPTH`: the 2 most
+  recent facts per area, the 8 most recent theses, the index table). **Each rule travels with its block**: no macro page,
+  no macro rule; no digest, no principle rule — the prompt never names a block it did not send, and a month without a
+  page is named as such. Every failed read is an absent page; one `[emailWiki]` line logs which months and whether the
+  digest arrived, never their text. Measured on the mirror: a monthly prompt goes from ~6.300 to ~11.000 real tokens,
+  a quarter to ~19.000; the output budget did not move.
+- **With `spendingRolesEnabled` the spending splits by 50/30/20 role, not by type** (owner's call, 2026-10-05): the
+  «Spese per categoria» footer and the prompt's `--- SPESE PER RUOLO (50/30/20) ---` block, which REPLACES `--- SPESE PER
+  TIPO ---` through `formatBundleForPrompt`'s email-only `spendingRoles` option (the assistant never passes it, like
+  `omitAllocation`). Base: the OUTFLOWS (`summarizeSpendingByRole`), so Risparmi is the rows classified as saving, never
+  the surplus — that is the Flusso's reading on income, a different question. A row with no type has no role either and
+  joins «Da classificare»; the role is resolved from TODAY's categories, as on Analisi. The bundle signs outflows negative,
+  and a role row is signed like them: a positive amount over a negative total printed «(-63,9%)» on the first mirror run.
 
 ## The vault and TheBull (F3, doc/ai-open-models-wiki.md § 5)
 
-Not an email yet — F5 puts its month pages in the periodic prompt — but the same cron and the same provider layer.
+Not an email — F5 puts its month pages in the periodic prompt (above) — but the same cron and the same provider layer.
 
 - **Files**: `lib/utils/thebullParse.ts` (the template read by code: cleaning rule, sections, index table, readings,
   episodes), `lib/utils/wikiMacro.ts` (extraction contract, the quote check, the pages, `log.md`),
@@ -264,5 +282,12 @@ PDF half seen from inside the section, this is the recipe for both surfaces.
   path. The one F1 had, a step of its collaudo, read only € and %. And a flagged figure is not a wrong one: every model
   computes shares and sums the prompt does not contain, most of them right (doc/ai-open-models-wiki.md § 7.2). A
   comment that slips in production reaches the inbox as written.
+- **Only the vault's owner gets the Wiki** (F5): an email to any other user, the shared account included, has no macro
+  block and no Principles, and says nothing about them — by design (`WIKI_EXPORT_UID`), not a failed read. A period
+  whose months have no page (everything before July 2026) gets the Principles alone.
+- **A macro figure can come back with the wrong subject** (F5 collaudo, 2026-10-05): on the Q3 2026 dry run GLM cited a
+  decoy fact («indice fenicottero… +3,7%») as «Bloomberg Euro momentum», fusing it with the name of other facts. Still a
+  macro figure, never the portfolio's, but the rule «with its subject» did not hold; nothing checks it in production —
+  F6's second round adds «every macro fact cited exists in the page».
 
 - **Fuori dal DOM restano tre punti ciechi**: le email non rispecchiano i cinque temi nominati (scelta — si leggono su una scheda bianca); «un hex sta solo in `printTokens`» è documentato ma **non applicato da un linter**; e `@react-pdf/renderer` scarta in SILENZIO ogni carattere fuori da WinAnsi (`pdfSafeText` copre U+2212; frecce, simboli ed emoji no). Le tre superfici si verificano solo renderizzandole, e **nessuna di quelle verifiche è nella suite**. doc/guide/email-pdf.md. (moved from `CLAUDE.md` → Known Issues on 2026-09-19)

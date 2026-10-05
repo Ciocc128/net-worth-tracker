@@ -13,7 +13,9 @@
 > schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
 > della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026, la § 10 (P1 spesa sostenibile e P2 età
 > obiettivo, task S1 ed E1) lo stesso giorno, la § 11 (patrimonio e portafoglio, task K1) lo stesso giorno: sostituisce RP5; la § 12 (P4 + P5, flussi datati, task
-> F1–F3) e la § 13 (P8, obiettivi nel FIRE e con incertezza, task O1 e O2) lo stesso giorno.
+> F1–F3) e la § 13 (P8, obiettivi nel FIRE e con incertezza, task O1 e O2) lo stesso giorno; la § 14 (fondo di emergenza in
+> euro, task EF1) il 05/10/2026: sostituisce RK4; la § 15 (testa di pagina: «Il mio piano», «Ipotesi usate» in chip, Base di
+> calcolo a scalare, task H1 e H2) lo stesso giorno.
 
 ---
 
@@ -1111,6 +1113,8 @@ scelta dell'utente.
 
 ### 11.5 Regole di calcolo
 
+> **Dal 05/10/2026 RK4 è sostituita da RE1 (§ 14)**: non più una quota da investire ma un fondo di emergenza in euro.
+
 Notazione: per ogni strumento non bloccato e per ogni gamba (`legsOf`, la composizione se c'è) nelle sette classi,
 `m` = valore di mercato della gamba (`calculateAssetValue × quota`), `role` = `resolveAllocationRole(asset)`.
 Crypto e immobili restano fuori come oggi (RK di `doc/montecarlo/`).
@@ -1958,3 +1962,570 @@ contato e uno no, l'effetto sul FIRE, la banda, il versamento per 9 casi su 10, 
 | Un obiettivo contato e un flusso scritto a mano per la stessa spesa la contano due volte. | La riga dell'obiettivo in «Flussi nel tempo» lo rende visibile accanto agli altri. |
 | `useFireDatedFlows` legge una query in più su ogni scheda FIRE. | La stessa chiave della scheda Obiettivi (`['goalData', ownerId]`), in cache di React Query. |
 | L'estrazione del baseline del What If cambia un risultato. | Test di What If identici prima e dopo (O1). |
+
+---
+
+## 14. Fondo di emergenza in euro — la liquidità che resta fuori (task EF1)
+
+> Aggiunta il 05/10/2026 (thread «spec», card Todoist «FEAT FIRE: fondo di emergenza in euro al posto di «liquidità da
+> investire» in percentuale», primo punto dell'ordine delle card FEAT FIRE approvato dal proprietario lo stesso giorno).
+> Il rovesciamento del campo è deciso dal proprietario nella card (05/10); le decisioni D-E1–D-E7, proposte dal
+> thread, sono confermate dal proprietario lo stesso giorno. **Sostituisce RK4 e la parte di RK6 che legge `q`** (§ 11.5), **D-P3 e D-P5** (§ 11.7) e la
+> scomposizione del capitale di § 11.6. RK1–RK3, RK5, RK7 e RK8 restano come sono. Base di codice: commit `9839c3f`
+> (`main` del fork, merge della PR #61).
+
+### 14.1 Obiettivo
+
+K1 chiede all'utente **quale quota** della liquidità fuori dal portafoglio investire. Ma la quota segue il saldo dei
+conti: ogni stipendio e ogni spesa cambiano gli euro che restano fuori, mentre l'utente ha in mente una cifra fissa,
+il fondo di emergenza, che cresce con le esigenze di spesa e non con il patrimonio. Il campo si rovescia: l'utente
+dice **quanti euro tengo fuori**, e tutto il resto della liquidità fuori dal portafoglio entra nel capitale.
+
+### 14.2 Stato di partenza (verificato nel codice, 05/10/2026)
+
+| Dove | Oggi |
+| --- | --- |
+| `lib/utils/fireCapital.ts:141-145` (`resolveFireCapitalDetail`) | `q = clampPct(cashToInvestPct)/100`, `used = q·L`, `factor = q` (la quota di ogni gamba Liquidità fuori dal portafoglio che entra, RK6) |
+| `FireCashToInvest` (`fireCapital.ts:23`) | `{ total: L, used, pct, excludedAccounts: E, overTarget: X }`; `outside.cash = L − used` |
+| `lib/utils/fireAssumptions.ts:244` | passa `settings.fireCashToInvestPct` a `resolveFireCapitalDetail` |
+| `lib/hooks/useFireAssumptions.ts:31,68`, `useFireDatedFlows.ts:48,74` | anteprima `cashToInvestPct` non salvata, sovrapposta alle impostazioni |
+| `components/fire-simulations/FireParametri.tsx:257-283` | campo «Liquidità da investire (%)», solo con `L > 0`; sotto `describeCashToInvest` |
+| `components/fire-simulations/FireCalculatorTab.tsx:207,306-308,321,396,828-849` | form, anteprima, «modificato», salvataggio di `fireCashToInvestPct` |
+| `lib/utils/fireAssumptionsNarrative.ts:36-42,74-92` | `describeOutsideCapital` («Liquidità 30.000 €»), `describeCapitalBreakdown` («portafoglio 400.000 € + 30.000 € di liquidità da investire»), `describeCashToInvest` |
+| `lib/services/assetAllocationService.ts:91,121,244,475`, `types/assets.ts:130,378` | lettura e scrittura nei due rami; scritto solo se definito (non cancellabile) |
+| `app/dashboard/settings/page.tsx:655,887,1661,2891-2894` | riga «Liquidità da investire» in «Parametri del piano», «0% · predefinita» se assente |
+| `__tests__/fireAssumptions.test.ts`, `settingsRoundTrip.test.ts` (K13, righe 87, 170, 294, 310) | i test di K1 sulla quota |
+
+### 14.3 Perimetro
+
+**Incluso**
+- Il fondo di emergenza in euro (`fireEmergencyFund`) al posto della quota (RE1–RE3), letto dalla stessa funzione di
+  K1; anteprima nei Parametri del Calcolatore fino a «Salva», come oggi la quota.
+- I mesi di spesa del piano accanto all'importo, come aiuto (RE4).
+- La conversione del valore salvato in percentuale (RE5).
+- L'avviso quando il fondo supera la liquidità fuori dal portafoglio (RE3).
+- I testi: riga «Ipotesi usate» e Parametri di Monte Carlo e Proiezione (`describeCapitalBreakdown`), aiuto del campo,
+  riga di Impostazioni › Parametri del piano (§ 14.6).
+
+**Escluso**
+- Lo spostamento del campo in «Il mio piano»: lo fa la card «FEAT FIRE: «Il mio piano», centro unico dei parametri
+  delle schede» (punto 3 dell'ordine). Qui il campo resta dov'è.
+- Un fondo preso dalla Liquidità che sta **dentro** il portafoglio per il suo target (D-E2).
+- Un fondo che cresce da solo nel tempo nei motori (con l'inflazione o con la spesa): il fondo è una sottrazione
+  all'anno 0, come la quota di oggi (D-P7 invariata).
+- Il fondo nel What If (un evento «spendo il fondo») e negli Obiettivi: invariati.
+- Lo storico runway del Calcolatore: fatti, invariato.
+
+### 14.4 Casi d'uso
+
+1. **Il proprietario fissa il suo fondo.** Conti esclusi 45.000 €, eccedenza inclusa 15.000 € (`L` = 60.000 €).
+   Scrive 30.000 € nel campo: ne restano fuori 30.000 € e 30.000 € entrano nei pesi target. Il mese dopo i conti
+   valgono 64.000 €: il fondo resta 30.000 €, nel capitale entrano 34.000 € senza toccare il campo.
+2. **Tutto investito.** Fondo 0 €: tutta la liquidità fuori dal portafoglio entra nel capitale (la quota 100% di oggi).
+3. **Fondo non coperto.** Fondo 80.000 € con `L` = 60.000 €: non entra niente, il capitale è il portafoglio, e i
+   Parametri avvisano che mancano 20.000 € al fondo. Il portafoglio non viene toccato.
+4. **Nessun fondo indicato.** Campo vuoto: tutta la liquidità fuori dal portafoglio resta fuori, come la quota 0% di
+   oggi; la riga lo dice.
+5. **Chi aveva salvato una quota.** Quota 50% con `L` = 60.000 € il giorno in cui apre la pagina: il campo mostra
+   30.000 € e chiede di salvare per fissarlo; il capitale è subito lo stesso di prima.
+
+### 14.5 Regole di calcolo
+
+Notazione di § 11.5 (`P`, `C_in`, `X`, `E`, `L = max(0, X + E)`). `F` = `fireEmergencyFund` in euro, `≥ 0`, oppure
+**non impostato**.
+
+**RE1 — Liquidità che entra** (sostituisce RK4):
+
+```
+F impostato:       U = max(0, L − F)
+F non impostato:   U = 0                       // tutta L resta fuori (D-E3)
+capitale = P + U
+fuori (liquidità) = L − U                      // = min(F, L) con F impostato, = L senza
+```
+
+Il fondo si prende **solo** da `L`, mai da `C_in` (D-E2): la Liquidità del target resta nel portafoglio e nei pesi.
+
+**RE2 — Ripartizione sulle gambe** (sostituisce la parte di RK6 che legge `q`): `U` si distribuisce sulle gambe che
+formano `X + E` in proporzione a ciò che ciascuna aggiunge, come oggi `q·L`, con il fattore
+
+```
+factor = U / L   se L > 0,   altrimenti 0
+```
+
+al posto di `q` in `entering` (`fireCapital.ts:149-155`). Profilo fiscale, parte liquida e costi ricorrenti leggono
+le stesse quote `s_a` di RK6: niente cambia per loro oltre al fattore. RK5 (pesi) riceve `U` come oggi riceve `q·L`.
+
+**RE3 — Fondo non coperto.** Con `F > L` (F impostato): `U = 0`, il capitale è `P`, `scoperto = F − L`. È solo una
+dichiarazione: nessun calcolo cambia, il portafoglio non si riduce (D-E7).
+
+**RE4 — Mesi di spesa.** `mesi = F / (S / 12)`, con `S` la spesa annua del piano (`resolvePlanExpenses`, la stessa
+della riga «Ipotesi usate»). Una cifra decimale, «,0» tolto («10 mesi», «10,3 mesi»). Senza spesa (`S` assente o 0) o
+senza `F` i mesi non si scrivono. Solo testo: non si salvano e non entrano nei calcoli (D-E1).
+
+**RE5 — Conversione della quota salvata.** Se `fireEmergencyFund` è assente e `fireCashToInvestPct` = `q` è presente:
+
+```
+F = (1 − q/100) · L          // L di oggi, alla lettura
+```
+
+e il capitale di RE1 è identico a quello di RK4 con la stessa `q`. Il valore è **derivato** finché l'utente non salva
+i Parametri del Calcolatore: il salvataggio scrive `fireEmergencyFund` (arrotondato all'euro) e **cancella**
+`fireCashToInvestPct` nello stesso aggiornamento. Fino ad allora segue il saldo come la quota di oggi, e il campo lo
+dice (§ 14.6, D-E4). Con `fireEmergencyFund` presente `fireCashToInvestPct` è ignorato. Il codice di lettura di
+`fireCashToInvestPct` resta solo per questa conversione.
+
+**RE6 — Validazione.** Il campo accetta un importo `≥ 0` (virgola o punto decimale, arrotondato all'euro al
+salvataggio) o il vuoto (= non impostato, cancella il campo come `plannedAnnualExpenses`). Negativo o non numerico:
+«Serve un importo da 0 in su, oppure lascia vuoto.» e «Salva» disattivato come per la spesa.
+
+### 14.6 Cosa vede l'utente
+
+- **Parametri del Calcolatore**: il campo «Fondo di emergenza (€)» al posto di «Liquidità da investire (%)», sempre
+  visibile (anche con `L` = 0, perché un fondo scritto può essere scoperto). Segnaposto «nessuno». Sotto, una riga:
+  - `F` impostato e coperto: «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €):
+    30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target.»
+  - `F` = 0: «… : entrano tutti nei pesi target.»
+  - `F` non impostato: «… : senza un fondo indicato restano tutti fuori.»
+  - scoperto: «Il fondo supera di 20.000 € la liquidità fuori dal portafoglio (60.000 €): non entra niente nel capitale
+    e il fondo non è coperto.» in colore di avviso (`text-warning` del tema, non `destructive`: non è un errore).
+  - `L` = 0 e `F` non impostato: «Nessuna liquidità fuori dal portafoglio.»
+  - convertito (RE5), in coda alla riga: «Calcolato dalla quota del 50% salvata prima: salva per fissarlo in euro.»
+  Le parti a zero si tolgono come oggi; i mesi solo con la spesa del piano nota (RE4).
+- **Riga «Ipotesi usate»** (sei schede) e **Parametri di Monte Carlo e Proiezione**: «capitale 430.000 € (portafoglio
+  400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto
+  10.000 €)». Senza `F`: «capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, …)», come oggi con quota 0%.
+  Con `F` scoperto la voce è la liquidità che c'è davvero: «fondo di emergenza 60.000 €» (l'avviso sta nei Parametri).
+- **Impostazioni › Parametri del piano**: riga «Fondo di emergenza» con «30.000 €», «non impostato · la liquidità fuori
+  dal portafoglio resta fuori», oppure, prima del primo salvataggio dopo la conversione, «da fissare nel Calcolatore
+  (quota salvata 50%)». Sola lettura, come le altre righe.
+
+### 14.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-E0 | **Presa** (05/10/2026, proprietario, nella card) | Il campo si rovescia: non più la quota da investire ma **quanta liquidità resta fuori, in euro**; liquidità nel capitale = liquidità fuori dal portafoglio − fondo, minimo zero, con un avviso se il fondo non è coperto. Sostituisce D-P3. | La quota di K1 (va riscritta a ogni movimento del conto: lo stesso motivo per cui D-P3 aveva scartato gli euro, rovesciato perché il fondo, a differenza del versamento, è una cifra stabile). |
+| D-E1 | **Presa** (05/10/2026, proprietario) | Si salva l'**importo in euro**; i mesi di spesa del piano sono solo un aiuto scritto accanto (RE4). | Mesi di spesa salvati (il fondo cambierebbe da solo quando cambia la spesa del Cashflow o una spesa del piano scritta per prova); due campi collegati (due verità per un numero). |
+| D-E2 | **Presa** (05/10/2026, proprietario) | Il fondo si prende **solo** dalla liquidità fuori dal portafoglio (`L`), mai dalla Liquidità che il target tiene dentro (`C_in`). | Dalla liquidità totale `C + E` (taglierebbe la Liquidità del target: pesi diversi dai target, ipotesi RP1 non più coerenti con il capitale). Chi considera fondo la Liquidità del target scrive 0. |
+| D-E3 | **Presa** (05/10/2026, proprietario) | **Non impostato = tutta la liquidità fuori resta fuori** (U = 0), come la quota 0% di oggi. | Non impostato = 0 € (investe tutto senza che l'utente lo abbia scelto: il difetto che D-P5 evitava); un valore predefinito di 6 mesi di spesa (un numero che l'utente non ha scelto, nascosto nel capitale). |
+| D-E4 | **Presa** (05/10/2026, proprietario) | **Conversione derivata alla lettura, fissata al primo salvataggio dei Parametri** (RE5), con la riga che lo chiede. | Scrittura automatica all'apertura della pagina (una scrittura dentro una lettura, da bloccare in demo e da proteggere da due schede aperte); uno script una tantum (strumento in più per un solo account); nessuna conversione (la scelta salvata si perde e il capitale cambia senza avviso). |
+| D-E5 | **Presa** (05/10/2026, proprietario) | Nome «**Fondo di emergenza**». | «Liquidità da tenere fuori» (descrive il meccanismo ma non lo scopo, e l'utente pensa al fondo). |
+| D-E6 | **Presa** (05/10/2026, proprietario) | Il campo resta dov'è oggi (Parametri del Calcolatore), letto da tutte le schede; lo sposta la card «Il mio piano». | Spostarlo qui in Impostazioni o in «Il mio piano» (anticipa una spec non ancora scritta). |
+| D-E7 | **Presa** (05/10/2026, proprietario) | Fondo **oltre** `L`: capitale = portafoglio, avviso nei Parametri, nessun effetto sui calcoli. | Togliere lo scoperto dal portafoglio (simula una vendita che l'utente non ha deciso, e sposta l'anno FIRE per un avviso). |
+
+### 14.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Esempio comune di § 11.8 (ETF azionario 280.000 € con costo 200.000 €, ETF obbligazionario 120.000 € con costo
+110.000 €, conto incluso 15.000 €, conto deposito escluso 45.000 €, crypto 10.000 €, casa 250.000 €, target 70/30/0,
+nessun costo, nessun fondo bloccato), quindi `P` = 400.000, `X` = 15.000, `E` = 45.000, `L` = 60.000. Spesa del piano
+36.000 €/anno da Impostazioni, salvo dove detto. Tolleranza ± 0,01 € sugli importi, ± 0,0001 punti sulle percentuali.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| E1 | RE1, `F` = 30.000 | `U` = 30.000, capitale 430.000 €, fuori 30.000 €, pesi 70/30 (come K3/K4 con `q` = 50) |
+| E2 | RE1, `F` = 0 | `U` = 60.000, capitale 460.000 €, fuori 0 |
+| E3 | RE1, `F` non impostato (e `fireCashToInvestPct` assente) | `U` = 0, capitale 400.000 €, fuori 60.000 € |
+| E4 | RE1, `F` = 30.000, conti saliti a `E` = 49.000 (`L` = 64.000) | `U` = 34.000, capitale 434.000 €, fuori 30.000 € |
+| E5 | RE3, `F` = 80.000 | `U` = 0, capitale 400.000 €, scoperto 20.000 €, fuori 60.000 € |
+| E6 | RE2, `F` = 30.000 | costo fiscale 340.000 €, quota plusvalenze 90.000 / 430.000 = 20,93% (uguale a K8); parte liquida 430.000 € (uguale a K9) |
+| E7 | RE1 con K7 (carta esclusa −2.000 €, `E` = 43.000, `L` = 58.000), `F` = 30.000 | `U` = 28.000, capitale 428.000 € |
+| E8 | RE1 con K5 (target Liquidità 10%, conto incluso 60.000 €, niente esclusi: `C_in` = 44.444,44, `X` = 15.555,56), `F` = 10.000 | `U` = 5.555,56, capitale 450.000,00 €; il fondo non tocca `C_in` (D-E2) |
+| E9 | RE1 + RK5 con K6 (Liquidità a importo fisso 20.000 €, conto incluso 60.000 €: `X` = 40.000), `F` = 10.000 | `U` = 30.000, capitale 450.000 €, `w_cash` = 4,4444%, Azioni 66,8889%, Obbligazioni 28,6667% (prima di `normalise`) |
+| E10 | RE4 | `F` = 30.000, spesa 36.000 → «10 mesi»; spesa 35.000 → «10,3 mesi»; spesa assente → nessun mese nel testo |
+| E11 | RE5, quota salvata 50 / 0 / 100, `L` = 60.000, fondo assente | `F` derivato 30.000 / 60.000 / 0 €; capitale 430.000 / 400.000 / 460.000 € (uguale a K3) |
+| E12 | RE5, fondo 25.000 e quota 50 entrambi salvati | vale il fondo: capitale 435.000 € |
+| E13 | RE5, salvataggio dei Parametri dopo la conversione (quota 50) | payload con `fireEmergencyFund` = 30000 e senza `fireCashToInvestPct` nei due rami (cancellato con `deleteField()` nel ramo merge, omesso nel ramo `setDoc`) |
+| E14 | § 14.6, riga «Ipotesi usate», `F` = 30.000 | «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €)», uguale nelle sei schede e nei due tile Parametri |
+| E15 | § 14.6, riga senza `F` | «capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, Immobili 250.000 €, Crypto 10.000 €)» |
+| E16 | § 14.6, aiuto del campo, `F` = 30.000 | «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): 30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target.» |
+| E17 | Round-trip (`settingsRoundTrip`) | `fireEmergencyFund` attraversa le cinque sedi; 0 è un valore, non un'assenza; il vuoto lo cancella in entrambi i rami; negativo rifiutato nei Parametri (RE6) |
+| E18 | Coerenza (K14, A17) | a volatilità 0 il Ventaglio coincide con la curva Base partendo dal capitale di RE1 |
+
+### 14.9 Task EF1 — Fondo di emergenza in euro (thread «impl», Sonnet 5.5)
+
+**Moduli**
+- `types/assets.ts`: `fireEmergencyFund?: number` (EUR, `≥ 0`, assente = non impostato); `fireCashToInvestPct` resta,
+  commentato «legacy: read only by the RE5 conversion».
+- `lib/utils/fireCapital.ts`: `FireCapitalOptions` riceve `emergencyFund?: number | null` e tiene `cashToInvestPct` per
+  RE5; `FireCashToInvest` diventa `{ total: L, used: U, fund: F | null, fundShortfall, fundFromPct: q | null,
+  excludedAccounts, overTarget }` (il nome del tipo può restare, o diventare `FireOutsideCash`: lo sceglie l'impl).
+  RE1–RE3 e RE5 in `resolveFireCapitalDetail`, il fattore di RE2 al posto di `q`.
+- `lib/utils/fireAssumptions.ts`: passa `fireEmergencyFund` e `fireCashToInvestPct` alle opzioni.
+- `lib/hooks/useFireAssumptions.ts`, `useFireDatedFlows.ts`: l'anteprima diventa `emergencyFund` (numero, o `null` =
+  campo vuoto).
+- `lib/utils/fireAssumptionsNarrative.ts`: `describeOutsideCapital`, `describeCapitalBreakdown`, e `describeCashToInvest`
+  rinominata (per esempio `describeEmergencyFund`) con i casi di § 14.6 e i mesi di RE4 (riceve la spesa annua).
+- `components/fire-simulations/FireParametri.tsx`, `FireCalculatorTab.tsx`: il campo, l'anteprima, «modificato»,
+  il salvataggio (RE5: scrive il fondo e cancella la quota).
+- `lib/services/assetAllocationService.ts`: `fireEmergencyFund` cancellabile come `plannedAnnualExpenses` nei due rami;
+  `fireCashToInvestPct` cancellabile (chiave presente e `undefined`).
+- Impostazioni: le cinque sedi (`doc/guide/impostazioni.md` § Settings — the FIVE places), la riga di § 14.6 in
+  «Parametri del piano» (`describePlanParameters`).
+
+**Test** — `__tests__/fireAssumptions.test.ts` (o un nuovo `fireCapital.test.ts`): E1–E9, E11, E12, E18; i test di K1
+sulla quota (K3, K8, K9, K12) si riscrivono con il fondo equivalente, dichiarandolo nella PR;
+`fireAssumptionsNarrative.test.ts`: E10, E14–E16; `settingsRoundTrip.test.ts`: E13, E17 (i casi K13 della quota si
+tolgono, resta la sola cancellazione).
+
+**Documentazione** (stessa PR): `doc/guide/fire.md` (§ K1: RK4 → RE1, il blind spot di riga 372 riscritto: «senza un
+fondo indicato la liquidità fuori dal portafoglio non conta»), `fire-monte-carlo.md`, `fire-proiezione.md`,
+`doc/guide/impostazioni.md` (riga 106), `CLAUDE.md`, `doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`; in questo
+dossier una nota in testa a § 11.5 («RK4 sostituita da RE1, § 14»).
+
+**Criterio di fine**: E1–E18 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+`TZ=Europe/Rome npx vitest run`. Le spec Playwright di FIRE che leggono la riga del capitale o il campo dei Parametri
+e la verifica sui dati reali (`npm run mirror:seed`: la conversione della quota salvata del proprietario, E11) si
+fanno in un thread sul computer del proprietario.
+
+### 14.10 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Il capitale cambia senza che l'utente lo sappia al momento della conversione. | RE5 dà lo stesso capitale della quota (E11) finché non si salva; la riga del campo chiede di salvare. |
+| Un fondo grande lasciato da un periodo con più liquidità resta scoperto in silenzio. | L'avviso di RE3 nei Parametri; la riga «Ipotesi usate» mostra il fondo che c'è davvero. |
+| Due campi salvati per lo stesso concetto (quota e fondo) dopo la migrazione. | Il salvataggio cancella la quota (E13); con il fondo presente la quota è ignorata (E12). |
+| Merge con upstream su `fireCapital.ts`. | Il modulo è solo del fork (K1); voce in `fork-scelte-ui.md` già presente, si aggiorna. |
+
+---
+
+## 15. Testa di pagina — «Il mio piano», «Ipotesi usate» in chip, Base di calcolo senza doppioni (task H1, H2)
+
+> Aggiunta il 05/10/2026 (thread «spec», terzo punto dell'ordine delle card FEAT FIRE approvato dal proprietario lo
+> stesso giorno). Copre tre card Todoist: «FEAT FIRE: «Il mio piano», centro unico dei parametri delle schede», «FEAT
+> FIRE: riga «Ipotesi usate» in chip, capitale su una riga sua» e «FEAT FIRE: Base di calcolo senza doppioni, input solo
+> in «Ipotesi usate»». Le proposte delle card sono decise dal proprietario (05/10, D-T0); le decisioni D-T1–D-T9, proposte dal
+> thread, sono **confermate dal proprietario** lo stesso giorno. È presentazione e luogo dei campi: **nessuna regola di calcolo cambia**, salvo
+> la scomposizione del numero FIRE in passi (RB1), che riusa `resolveFireRequirement` così com'è. Base di codice: commit
+> `8a23a3f` (`main` del fork, merge della PR #66, T5 «Dopo il FIRE»).
+
+### 15.1 Obiettivo
+
+Oggi chi apre la pagina FIRE non sa dove scrivere un'ipotesi né su quali schede agisce: i campi del piano stanno in tre
+luoghi (Parametri del Calcolatore, Ipotesi del Coast, Parametri di Dopo il FIRE e Proiezione), l'età obiettivo si
+scrive in due, la riga «Ipotesi usate» è una frase da 300 caratteri e la Base di calcolo ripete capitale e spesa. La
+testa di pagina diventa una sola: **un posto dove si scrive il piano** («Il mio piano», in testa alla pagina), **una
+riga che dice su cosa gira la scheda** («Ipotesi usate», in chip), **una tessera che mostra il calcolo** (Base di
+calcolo, a passi fino al numero FIRE).
+
+### 15.2 Stato di partenza (verificato nel codice, 05/10/2026)
+
+| Dove | Oggi |
+| --- | --- |
+| `app/dashboard/fire-simulations/page.tsx:51` | `useState<TabValue>('fire')`: la pagina ignora `?tab=`, quindi i link `?tab=coast`, `?tab=montecarlo` di Impostazioni e dei tile Parametri (`FLOWS_HREF`) aprono sempre il Calcolatore. Le schede sono `TabsContent` di Radix: la scheda lasciata si smonta e perde ciò che non è salvato. |
+| `components/fire-simulations/FireParametri.tsx` | disclosure «Parametri» sotto la griglia del Calcolatore: tessera Impostazioni (SWR + SWR personale, età obiettivo, spesa del piano, fondo di emergenza, flussi nel tempo, età INPS e RITA) con «Salva», tessera Scenari in sola lettura (tre scenari, link a Impostazioni › Simulazioni). |
+| `components/fire-simulations/FireCalculatorTab.tsx:199-216, 296-330, 395-404, 819` | la bozza (`FireSettingsForm`) vive nella scheda: anteprima di SWR, spesa, fondo e flussi solo nel Calcolatore; `handleSaveSettings` scrive i campi del form. |
+| `FireCalculatorTab.tsx:805`, `tiles/BaseDiCalcoloTile.tsx` | l'interruttore «Fondo pensione bloccato» (`respectPensionLockInFire`) sta nella Base di calcolo e si salva al cambio, da solo. |
+| `components/fire-simulations/coast/CoastIpotesi.tsx`, `lib/hooks/useCoastFireSettingsDraft.ts` | disclosure «Ipotesi» del Coast con un suo «Salva ipotesi»: Profilo (età attuale `userAge`, età target `coastFireRetirementAge` — lo stesso campo dell'età obiettivo del Calcolatore —, spesa, SWR e capitale dichiarati), Pensioni statali, Scaglioni IRPEF, Modello della pensione (sola spiegazione). |
+| `app/dashboard/settings/page.tsx:3108` | Impostazioni › Allocazione › «Auto-calcolo Azioni / Obbligazioni» scrive anch'esso `userAge`: due editor dello stesso campo. |
+| `app/dashboard/settings/page.tsx:2884-2921` | «Parametri del piano», sola lettura, con i link a «FIRE › Calcolatore → Parametri» e «Coast FIRE → Ipotesi». |
+| `components/fire-simulations/FireAssumptionsRow.tsx`, `lib/utils/fireAssumptionsNarrative.ts:128` | una frase sola (`describeFireAssumptions`): pesi · Base (reale), Orso, Toro · inflazione · leva · costi · spesa · capitale con la scomposizione · numero di flussi; link «Modifica in Impostazioni» e «Attiva il bollo». Uguale nelle sei schede; negli Obiettivi senza flussi. |
+| `tiles/BaseDiCalcoloTile.tsx`, `lib/utils/fireNarrative.ts:564-617` | righe Capitale del piano, Spese annue, Risparmio annuo, SWR, Pensioni statali, Tasse sui prelievi, Flussi nel tempo («spostano il FIRE dal 2033 al 2031»), più l'interruttore; lettura «Calcolato su 412.500 € di capitale, spese di … e un SWR del 4%». |
+| `lib/services/fireService.ts:1621` (`resolveFireRequirement`) | il numero FIRE di oggi in una chiamata: spesa ÷ SWR, lordizzato per le tasse, meno le pensioni dalla loro partenza, con il fondo bloccato in arrivo allo sblocco, più l'aggiustamento dei flussi (RF5, con pavimento a 0). |
+| `components/monte-carlo/tiles/ParametriTile.tsx:237`, `components/projection/tiles/ParametriTile.tsx:202` | bottoni «Esegui simulazione» ed «Esegui»; il form non si salva. |
+
+**Chi legge quale campo** (letto nei `components/fire-simulations/*Tab.tsx` e in `useWhatIfBaseline`, che dà a Dopo il
+FIRE e agli Obiettivi l'anno FIRE del Calcolatore):
+
+| Campo salvato | Calcolatore | Coast | What If | Dopo il FIRE | Proiezione | Obiettivi |
+| --- | --- | --- | --- | --- | --- | --- |
+| `userAge` (età attuale) | sì | sì | sì | sì (orizzonte a 90 anni) | sì (età nelle Tappe) | sì |
+| `coastFireRetirementAge` (età obiettivo) | sì (Età obiettivo) | sì (età target) | sì (blocco Coast del Delta) | — | — | — |
+| `plannedAnnualExpenses` (spesa) | sì | sì | sì | sì (prelievo) | sì (soglia) | sì (Effetto sul FIRE) |
+| `withdrawalRate` (SWR) | sì | sì | sì | sì (anno FIRE di partenza) | sì (soglia) | sì (Effetto sul FIRE) |
+| `fireEmergencyFund` (fondo) | sì | sì | sì | sì | sì | sì (capitale) |
+| `fireDatedFlows` (flussi) | sì | sì | sì | sì | sì | solo Effetto sul FIRE |
+| `coastFirePensions` (pensioni statali) | sì | sì | sì | sì | — | solo Effetto sul FIRE |
+| `pensionInpsRetirementAge`, `pensionRitaLongUnemployment` | con il vincolo attivo, in tutte le schede | | | | | |
+| `respectPensionLockInFire` (vincolo) | sì | sì | sì | sì | sì | sì |
+| `coastFireTaxBrackets` (scaglioni IRPEF) | sì | sì | sì | sì | — | — |
+
+### 15.3 Perimetro
+
+**Incluso**
+- «Il mio piano»: un blocco della pagina che raccoglie **tutti** i campi salvati del piano (15.5), con una bozza sola
+  letta in anteprima da tutte le schede e un solo «Salva» (RP1–RP7).
+- Le regole di legge fuori dalla pagina: gli scaglioni IRPEF in Impostazioni › Simulazioni (RP8).
+- Le prove: Dopo il FIRE e Proiezione tengono i loro Parametri, il bottone diventa «Prova» (RP9).
+- Spariscono i Parametri del Calcolatore e le Ipotesi del Coast; il Modello della pensione va nel Dettaglio del Coast.
+- La pagina legge `?tab=` e `?piano=` (RP10).
+- «Ipotesi usate» in chip con il capitale su una riga sua (RC1–RC5).
+- La Base di calcolo come scalare del numero FIRE, senza capitale e spesa ripetuti (RB1–RB4).
+- Impostazioni: «Parametri del piano» rimanda a «Il mio piano»; l'età dell'auto-calcolo diventa una dichiarazione (D-T5).
+
+**Escluso**
+- Ogni regola di calcolo (capitale, spesa, flussi, scenari, motori): invariate.
+- Le ipotesi di mercato (sette classi × tre scenari, correlazioni): restano in Impostazioni › Simulazioni (D1).
+- I TER: restano sullo strumento; il bollo resta in Impostazioni › Allocazione › Costi.
+- Gli interventi dentro le singole schede dei passi 4–9 dell'ordine (Traguardo, Reddito passivo, Età obiettivo,
+  Sensibilità, What If, Proiezione, Coast › Afflussi e Traguardo, Milestone, numero FIRE unico). In particolare la riga
+  «nessun afflusso» del Coast (card «Coast › Afflussi») non si decide qui.
+- L'evento del What If: è l'input della scheda (The Input Tile Rule), non un campo del piano.
+- Un avviso all'uscita dalla pagina con modifiche non salvate (oggi non c'è; resta così).
+
+### 15.4 Casi d'uso
+
+1. **Provo una spesa più alta e guardo il Monte Carlo.** Apro «Il mio piano», scrivo 30.000 € al posto di 25.200 €,
+   passo a «Dopo il FIRE»: la riga Ipotesi usate dice «Spesa 30.000 €», il prelievo proposto nei Parametri è 30.000 €, la
+   corsa è dichiarata da rifare (The Stale-Run Rule). Il trigger di «Il mio piano» ha il punto «Anteprima non salvata».
+   Annullo: tutto torna come prima, in tutte le schede.
+2. **Cambio l'età obiettivo una volta sola.** Oggi la scrivo nel Calcolatore o nel Coast; domani solo in «Il mio
+   piano», che dice «agisce su: Calcolatore, Coast FIRE, What If».
+3. **Aggiungo una pensione statale.** Nel Coast non c'è più la disclosure Ipotesi: il Coast vuoto dice «Aggiungi le
+   pensioni in Il mio piano» e il link apre il blocco con il fuoco sul campo.
+4. **Aggiorno gli scaglioni IRPEF dopo una legge di bilancio.** Impostazioni › Simulazioni, tessera «Scaglioni IRPEF»,
+   un solo «Salva» della pagina.
+5. **Leggo su cosa gira la scheda.** Riga Capitale, poi quattro chip: tocco «Costi 0,36%» e leggo TER e bollo, con il
+   link per attivare il bollo.
+6. **Capisco il numero FIRE.** La Base di calcolo parte da «spesa ÷ SWR = 720.000 €», toglie o aggiunge tasse, pensioni,
+   fondo bloccato e flussi, e chiude su 606.961 €: la somma torna all'euro.
+
+### 15.5 Regole
+
+#### «Il mio piano» (task H1)
+
+**RP1 — I campi e il loro posto.** Ogni campo salvato che la pagina legge sta in uno e un solo posto:
+
+| Campo | Gruppo | Dove si scrive | Schede su cui agisce (riga «agisce su») |
+| --- | --- | --- | --- |
+| Età attuale (`userAge`) | Piano | Il mio piano › Tu | tutte |
+| Età obiettivo (`coastFireRetirementAge`) | Piano | Il mio piano › Tu | Calcolatore, Coast FIRE, What If |
+| Spesa del piano (`plannedAnnualExpenses`) | Piano | Il mio piano › Spesa e prelievo | tutte |
+| SWR (`withdrawalRate`), con lo SWR personale e «Usa» | Piano | Il mio piano › Spesa e prelievo | tutte |
+| Fondo di emergenza (`fireEmergencyFund`) | Piano | Il mio piano › Spesa e prelievo | tutte |
+| Flussi nel tempo (`fireDatedFlows`) | Piano | Il mio piano › Flussi nel tempo | tutte (negli Obiettivi solo l'Effetto sul FIRE) |
+| Pensioni statali (`coastFirePensions`) | Piano | Il mio piano › Pensioni | Calcolatore, Coast FIRE, What If, Dopo il FIRE (negli Obiettivi solo l'Effetto sul FIRE) |
+| Vincolo del fondo pensione (`respectPensionLockInFire`) | Piano | Il mio piano › Pensioni (D-T4) | tutte |
+| Età pensione INPS, disoccupazione ≥ 24 mesi (`pensionInpsRetirementAge`, `pensionRitaLongUnemployment`) | Piano | Il mio piano › Pensioni | tutte, con il vincolo attivo |
+| Scaglioni IRPEF (`coastFireTaxBrackets`) | Regola di legge | Impostazioni › Simulazioni (RP8) | Calcolatore, Coast FIRE, What If, Dopo il FIRE |
+| Bollo (`stampDutyEnabled`, `stampDutyRate`) | Regola di legge | Impostazioni › Allocazione › Costi (invariato) | tutte (nei rendimenti netti) |
+| Ipotesi di mercato e correlazioni (`monteCarloMarket`) | Ipotesi di mercato | Impostazioni › Simulazioni (invariato, D1) | tutte |
+| Allocazione target, TER, casa nel patrimonio FIRE | fuori dal piano | dove sono oggi (Impostazioni › Allocazione, strumento, Impostazioni › Preferenze) | invariato |
+| Capitale, prelievo, anni, orizzonte, soglia, pesi, simulazioni di Dopo il FIRE e Proiezione | Prova | Parametri della scheda (RP9) | la scheda |
+
+La colonna «agisce su» è testo fisso del campo, scritto sotto l'etichetta («Agisce su: tutte le schede»; «Agisce su:
+Calcolatore, Coast FIRE, What If»), con i nomi delle schede come nella barra.
+
+**RP2 — Forma (D-T1).** «Il mio piano» sta tra l'intestazione della pagina e la barra delle schede, fuori dai
+`TabsContent`, quindi uguale e già aperto o chiuso in ogni scheda. Chiuso, è una riga-trigger alta almeno 44 px:
+eyebrow «Il mio piano», lo stato («salvato nel profilo», oppure il punto ambra «Anteprima non salvata» come oggi nei
+Parametri), il chevron. Nessuna cifra nella riga: le cifre stanno in «Ipotesi usate» (RC1), una riga sotto. Aperto, sono
+quattro tessere (griglia di 12 colonne: Tu 4 · Spesa e prelievo 8 · Flussi nel tempo 12 · Pensioni 12; tablet due
+colonne, telefono una, nell'ordine scritto) e una fila d'azione in fondo: «Salva il piano», «Annulla» (solo con
+modifiche), «non modificabile in demo». Ogni tessera ha la lettura di stato di The Declaration-Tile Rule (per esempio
+Tu: «45 anni oggi, obiettivo 60»).
+
+**RP3 — Una bozza della pagina (D-T2).** La bozza dei campi Piano vive nella pagina (un hook o un contesto, per
+esempio `useFirePlanDraft`, che sostituisce `FireSettingsForm` del Calcolatore e la parte Profilo/Pensioni di
+`useCoastFireSettingsDraft`). Finché non si salva, **ogni scheda legge la bozza** al posto del salvato: `useFireAssumptions`,
+`useFireDatedFlows`, `useWhatIfBaseline` e la scheda Coast ricevono la bozza come oggi il Calcolatore passa
+`emergencyFund` e i flussi in anteprima. La bozza sopravvive al cambio di scheda; la perde solo il ricaricamento della
+pagina. Un valore non valido in bozza non entra nell'anteprima (vale il salvato) ed è detto al campo con
+`aria-invalid`, come oggi.
+
+**RP4 — Un salvataggio.** «Salva il piano» scrive in un solo `setSettings` tutti i campi Piano di RP1 (anche il
+vincolo, D-T4), con le stesse regole di oggi: vuoto = campo cancellato per spesa e fondo (§ 14, RE6), la quota legacy
+cancellata (RE5), le pensioni normalizzate (`normalizeCoastFirePensions`). Disattivato con un campo non valido o in
+demo. Dopo il salvataggio la bozza si riallinea al salvato (stessa regola di oggi: si risemina solo se cambiano i
+valori salvati che edita).
+
+**RP5 — Apertura da sola.** Il blocco si apre da solo una volta per visita, quando il piano non è ancora scritto:
+nessuno SWR salvato, nessuna età attuale salvata, oppure una pensione incompleta (le regole di oggi del Calcolatore e
+del Coast, riunite). Una volta deciso non si riapre da solo (un `useRef`, come oggi).
+
+**RP6 — Cosa resta nelle schede.** Il Calcolatore perde la disclosure «Parametri» (FireParametri): la tessera Scenari
+in sola lettura non si sposta, perché i tre rendimenti stanno nel chip Rendimenti (RC3). Il Coast perde la disclosure
+«Ipotesi»: Profilo e Pensioni vanno in «Il mio piano», gli Scaglioni in Impostazioni, il Modello della pensione diventa
+una tessera del Dettaglio del Coast (testo invariato, `PENSION_MODEL_READING`). Le azioni degli stati vuoti che oggi
+aprono quelle disclosure (Coast: «apri le Ipotesi e metti il fuoco sul campo») aprono «Il mio piano» con il fuoco sul
+campo (RP10). Il resto delle schede non cambia.
+
+**RP7 — Impostazioni › Preferenze › «Parametri del piano».** Resta in sola lettura; il piede diventa un link solo,
+«FIRE › Il mio piano» (`/dashboard/fire-simulations?piano=aperto`).
+
+**RP8 — Scaglioni IRPEF in Impostazioni › Simulazioni (D-T6).** Una tessera «Scaglioni IRPEF» (aside «sul lordo annuo
+reale», lettura come oggi `describeScaglioni`), con l'editor di oggi spostato, sotto il «Salva» unico della pagina
+(The Declaration-Tile Rule: niente secondo bottone). `coastFireTaxBrackets` attraversa le sedi di
+`doc/guide/impostazioni.md` § Settings — the FIVE places. Nella pagina FIRE gli scaglioni sono dichiarati dove servono
+(Base di calcolo, riga delle tasse e delle pensioni: «scaglioni IRPEF da Impostazioni › Simulazioni»).
+
+**RP9 — Le prove.** I Parametri di Dopo il FIRE e della Proiezione restano nella scheda, non si salvano, e il bottone
+diventa **«Prova»** (era «Esegui simulazione» / «Esegui»), con aside «non si salva». Il form parte dalla bozza del piano
+(spesa, capitale, anno FIRE), e se la bozza cambia dopo una corsa vale The Stale-Run Rule come oggi.
+
+**RP10 — Indirizzi.** La pagina legge `?tab=<fire|coast|whatif|montecarlo|proiezione|goals>` (scheda iniziale) e
+`?piano=aperto` o `?piano=<campo>` (apre «Il mio piano» e mette il fuoco sul campo: `eta`, `eta-obiettivo`, `spesa`,
+`swr`, `fondo`, `flussi`, `pensioni`, `vincolo`). Da dentro la pagina gli stessi link aprono il blocco senza
+ricaricare. I link oggi rotti (`?tab=coast`, `?tab=montecarlo`, `FLOWS_HREF`) passano a funzionare; `FLOWS_HREF`
+diventa `?piano=flussi`.
+
+#### «Ipotesi usate» in chip (task H2)
+
+**RC1 — Due righe.** In testa a ogni scheda, sopra il verdetto, come oggi:
+- **riga Capitale**: eyebrow «Ipotesi usate», poi «Capitale **430.000 €**» e la scomposizione di oggi
+  (`describeCapitalBreakdown`, § 14.6) in corpo minore: «portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo;
+  fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €». Sul telefono la scomposizione va a capo
+  sotto la cifra.
+- **riga dei chip**, nell'ordine: Rendimenti · Costi · Spesa · Flussi.
+
+**RC2 — Il chip.** Un bottone a pillola (altezza 44 px al tocco, 28 px da desktop) con etichetta e cifra in mono; al
+clic o al tocco apre un popover con il dettaglio in frase e il link al luogo dove si cambia. Il chip non filtra e non
+seleziona nulla: è una dichiarazione con il suo dettaglio.
+
+**RC3 — Il contenuto.**
+
+| Chip | Etichetta | Popover | Link |
+| --- | --- | --- | --- |
+| Rendimenti | «Rendimento Base 8,3% · reale 5,1%» | origine dei pesi («Portafoglio target» / «di oggi» / «60/40 predefinito»), Orso e Toro, inflazione, leva se > 1 | «Modifica in Impostazioni › Simulazioni» |
+| Costi | «Costi 0,36%»; «Nessun costo» | i tre casi di § 9 (TER e bollo, solo uno, nessuno) | «Attiva il bollo» se spento (`costsLackStampDuty`), «Impostazioni › Allocazione» |
+| Spesa | «Spesa 25.200 €» | origine («spesa del piano, da Il mio piano» / «dal Cashflow 2025, annualizzato» / «nessuna spesa nel Cashflow») | «Il mio piano» (`?piano=spesa`) |
+| Flussi | «Flussi 4»; «Flussi: nessuno» | l'elenco dei flussi in uso (nome, anno, importo) e gli esclusi con il motivo | «Il mio piano» (`?piano=flussi`) |
+
+I testi riusano le funzioni di oggi di `fireAssumptionsNarrative.ts` spezzate per gruppo; la frase unica
+`describeFireAssumptions` sparisce. La riga è **la stessa in ogni scheda** per gli stessi dati (§ 4.2), con una sola
+eccezione: negli Obiettivi il chip Flussi dice «Flussi: solo nell'Effetto sul FIRE», perché gli obiettivi non li
+leggono (oggi la loro assenza sembra un'omissione).
+
+**RC4 — Anteprima.** Con una bozza non salvata (RP3) i chip mostrano la bozza; nessun segno in più sui chip (il punto
+ambra sta sul trigger di «Il mio piano», una riga sopra).
+
+**RC5 — Stati.** Durante il caricamento la riga non c'è (come oggi: `assumptions` null); un errore di lettura lo
+dicono già le schede. Nessun chip con «—».
+
+#### Base di calcolo senza doppioni (task H2)
+
+**RB1 — Lo scalare del numero FIRE.** La tessera mostra il numero FIRE di oggi come somma di passi, in quest'ordine
+fisso. Ogni passo è la differenza tra due chiamate successive di `resolveFireRequirement`, ciascuna con un ingrediente
+in più (scomposizione telescopica): la somma dei passi è il numero FIRE per costruzione.
+
+```
+R0 = spesa ÷ SWR                                       (nessun ingrediente)
+R1 = R0 con le tasse sui prelievi (honest.withdrawalTax, gainShare)
+R2 = R1 con le pensioni statali  (honest.pensions, userAge)
+R3 = R2 con il fondo bloccato    (bridge)
+R4 = R3 con i flussi datati      (flows)               = numero FIRE (requirementToday.withBridge.requirement)
+
+passo tasse = R1 − R0 · passo pensioni = R2 − R1 · passo fondo bloccato = R3 − R2 · passo flussi = R4 − R3
+```
+
+L'ordine attribuisce le interazioni al passo che viene dopo (le pensioni si leggono al netto delle tasse già messe,
+i flussi dopo tutto il resto, come RF5 già fa); è dichiarato nel Dettaglio. Il pavimento a 0 di RF5 resta dentro R4.
+
+**RB2 — Arrotondamento.** Ogni riga si stampa all'euro come differenza dei **cumulati arrotondati**
+(`round(R_i) − round(R_{i−1})`), così le righe stampate sommano esattamente al numero stampato.
+
+**RB3 — Le righe.** In testa, in corpo minore: «Capitale e spesa: vedi Ipotesi usate.» Poi:
+
+| Riga | Valore | Didascalia |
+| --- | --- | --- |
+| Spesa ÷ SWR | `round(R0)` | «25.200 € l'anno ÷ 3,5%» (la spesa compare qui solo come termine del calcolo) |
+| Tasse sui prelievi | passo con segno | «26% sulla plusvalenza, 20% del portafoglio» · se fuori: «—» e il motivo di oggi (`describeTaxRow`) |
+| Pensioni statali | passo con segno | «13.000 € netti l'anno dal 2060, scaglioni IRPEF da Impostazioni › Simulazioni» · se fuori: «—» e il motivo (`describePensionRow`) |
+| Fondo pensione bloccato | passo con segno | «45.000 € fino al 2041 (RITA)» · vincolo spento: «—», «vincolo spento in Il mio piano» |
+| Flussi nel tempo | passo con segno | «4 flussi: spostano il FIRE dal 2033 al 2031» (`describeFlowsRow`) · nessuno: «—», «nessuno in Il mio piano» |
+| **Numero FIRE** | `round(R4)` | — (riga in grassetto, separata da un filetto) |
+| Risparmio annuo | come oggi | «2.400 € al mese» — non entra nel numero, muove l'anno: sotto il totale, separata |
+
+Una riga che non entra mostra «—» (The Absence-Has-Three-Names Rule), mai «0 €». Le cifre dei passi sono in mono,
+con il segno; non si colorano (non sono guadagni o perdite dell'utente, ma termini di un calcolo). Spariscono le righe
+Capitale del piano, Spese annue e SWR; l'interruttore del vincolo va in «Il mio piano» (D-T4).
+
+**RB4 — Lettura e aside.** La lettura diventa una frase sul calcolo, non sugli input: «Il numero FIRE parte da 720.000 €
+(spesa ÷ SWR); tasse, pensioni e flussi lo portano a 606.961 €.», nominando solo i passi diversi da zero. L'aside resta
+l'origine del risparmio («risparmio dal cashflow 2025, annualizzato»).
+
+### 15.6 Cosa vede l'utente
+
+- In testa alla pagina, sotto il titolo: la riga «Il mio piano ˅». Aperta: Tu (età attuale, età obiettivo) · Spesa e
+  prelievo (spesa del piano, SWR con «Usa 3,7%», fondo di emergenza con la riga di § 14.6) · Flussi nel tempo (l'elenco
+  e «Aggiungi flusso», come oggi) · Pensioni (le pensioni statali, il vincolo del fondo, età INPS e RITA con
+  l'anteprima dello sblocco); sotto ogni campo «Agisce su: …»; in fondo «Salva il piano».
+- In ogni scheda, sopra il verdetto: «IPOTESI USATE · Capitale 430.000 €  portafoglio 400.000 € + …» e la fila
+  [Rendimento Base 8,3% · reale 5,1%] [Costi 0,36%] [Spesa 25.200 €] [Flussi 4].
+- Calcolatore: niente più «Parametri» sotto la griglia; la Base di calcolo è lo scalare di RB3.
+- Coast: niente più «Ipotesi» sotto la griglia; il Dettaglio guadagna «Modello della pensione».
+- Dopo il FIRE e Proiezione: «Prova» al posto di «Esegui».
+- Impostazioni › Simulazioni: la tessera Scaglioni IRPEF. Impostazioni › Allocazione › Auto-calcolo: «Età 45 · si
+  modifica in FIRE › Il mio piano» (riga dichiarata, D-T5). Impostazioni › Preferenze › Parametri del piano: un link solo.
+
+### 15.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-T0 | **Presa** (05/10/2026, proprietario, nelle tre card) | Un centro unico **in pagina**, diviso per natura: Piano salvato in «Il mio piano», regole di legge in Impostazioni, prove nella scheda con «Prova»; ogni campo dice su quali schede agisce. «Ipotesi usate» in chip con il capitale su una riga sua, unica sede degli input mostrati; la Base di calcolo diventa la tessera del calcolo con un rimando alla riga. | Il centro in Impostazioni (un luogo solo ma senza anteprima dell'effetto); la riga che rimanda alla Base di calcolo (la tessera sta in una scheda, la riga in sei). |
+| D-T1 | **Presa** (05/10/2026, proprietario) | «Il mio piano» è una **disclosure della pagina tra intestazione e barra delle schede**, chiusa di default, senza cifre nel trigger (RP2). | (b) pannello aperto da un bottone nella riga Ipotesi usate di ogni scheda (sei copie dello stesso blocco, lo stato aperto da tenere in pagina comunque); (c) dialogo o drawer (`ResponsiveModal`: copre le schede e toglie l'anteprima, il motivo per cui D-T0 ha scartato Impostazioni); (d) sempre aperto (spinge il verdetto sotto la piega in ogni scheda); (e) cifre nel trigger (ripete la riga Ipotesi usate una riga sotto). |
+| D-T2 | **Presa** (05/10/2026, proprietario) | **Una bozza della pagina, letta in anteprima da tutte le schede** e conservata al cambio di scheda; un solo «Salva il piano» (RP3, RP4). | Anteprima solo nel Calcolatore (le altre schede direbbero cifre diverse dalla riga aperta sopra di loro); salvataggio a ogni campo (perde il «provo prima di salvare» che le card vogliono e scrive a ogni tasto). |
+| D-T3 | **Presa** (05/10/2026, proprietario) | Il Piano contiene **età attuale, età obiettivo, spesa, SWR, fondo, flussi, pensioni statali, vincolo e regola RITA** (RP1). I tre scenari **non** si scrivono lì: sono dichiarati nel chip Rendimenti e si cambiano in Impostazioni › Simulazioni. | Scenari modificabili in «Il mio piano» (la card li elencava, ma sono 21 numeri e una matrice che vivono già in Impostazioni › Simulazioni, D1: un secondo editor); pensioni statali come «regola» in Impostazioni (sono un dato della persona, non una legge). |
+| D-T4 | **Presa** (05/10/2026, proprietario) | L'interruttore del **vincolo del fondo pensione** va in «Il mio piano» e si salva con il resto; la Base di calcolo ne mostra solo l'effetto (riga «Fondo pensione bloccato»). | Resta nella Base di calcolo con salvataggio al cambio (come dice la card: ma agisce su sei schede da una sola, ed è l'unico campo del piano che si salverebbe da solo). |
+| D-T5 | **Presa** (05/10/2026, proprietario) | **L'età attuale si scrive solo in «Il mio piano»**; in Impostazioni › Allocazione › Auto-calcolo diventa una riga dichiarata con il link. | Due editor come oggi (Coast e Impostazioni: due vie di scrittura per un campo, The Declaration-Tile Rule); owner Impostazioni e dichiarata nel piano (l'età serve a quasi ogni cifra della pagina FIRE, l'auto-calcolo ne è un uso secondario). |
+| D-T6 | **Presa** (05/10/2026, proprietario) | **Scaglioni IRPEF in Impostazioni › Simulazioni**, sotto il Salva della pagina; il Modello della pensione nel Dettaglio del Coast (RP6, RP8). | Impostazioni › Preferenze (servono solo alle simulazioni FIRE); restare nel Coast (una regola di legge tra le ipotesi del piano, il motivo della card). |
+| D-T7 | **Presa** (05/10/2026, proprietario) | Bottone **«Prova»** con aside «non si salva» in Dopo il FIRE e Proiezione (RP9). | «Esegui simulazione» com'è (non dice la differenza con «Salva il piano», che la card chiede di dire sul bottone). |
+| D-T8 | **Presa** (05/10/2026, proprietario) | **Chip con popover**: quattro chip (Rendimenti, Costi, Spesa, Flussi) sotto la riga Capitale; pesi, Orso/Toro, inflazione, leva e dettagli dei costi nel popover (RC1–RC3). | Chip senza dettaglio e il resto in una seconda riga (torna lunga); un chip anche per pesi e inflazione (sei-sette chip, la riga torna una frase); un chip SWR (lo SWR è un termine del calcolo e sta nella Base di calcolo e in «Il mio piano»). |
+| D-T9 | **Presa** (05/10/2026, proprietario) | **Base di calcolo a scalare telescopico** nell'ordine spesa ÷ SWR → tasse → pensioni → fondo bloccato → flussi = numero FIRE, all'euro (RB1–RB3). | Effetti indipendenti di ogni ingrediente (più «giusti» uno per uno, ma non sommano al numero); una riga sola «pensioni, tasse e vincolo» (somma, ma non dice quale pesa). |
+
+### 15.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Valori calcolati con `resolveFireRequirement` sul commit `8a23a3f` (scenario Base 7% nominale, inflazione 2%; spesa
+30.000 € l'anno; SWR 4%; età 40; il 15/06/2026). Flussi = l'insieme F10 di § 12.9 (mutuo 9.600 € fisso per 9 anni nel
+Cashflow, eredità 100.000 € fissa all'anno 10, part-time 9.600 € indicizzato per 10 anni dal FIRE, figlio 6.000 €
+indicizzato dagli anni 2–21), spesa dal Cashflow. Tasse: aliquota 26%, quota di plusvalenza 20%. Pensione: INPS 1.500 €
+lordi × 13 da 67 anni, scaglioni IRPEF predefiniti. Fondo bloccato: 50.000 € con sblocco tra 22 anni. Tolleranza
+± 0,01 € sui cumulati, esatta sulle righe stampate.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| T1 | RB1, nessun ingrediente | una riga Spesa ÷ SWR 750.000 €, le altre «—», numero FIRE 750.000 € |
+| T2 | RB1, solo flussi F10 | Spesa ÷ SWR 750.000 €, Flussi −208.123 €, numero FIRE 541.877 € (uguale a F10 di § 12.9: 541.877,22) |
+| T3 | RB1, tutti gli ingredienti: cumulati | R0 750.000,00 · R1 791.139,24 · R2 621.834,86 · R3 571.834,86 · R4 359.340,39 |
+| T4 | RB2, righe stampate del caso T3 | 750.000 · +41.139 · −169.304 · −50.000 · −212.495 · numero FIRE 359.340 €; somma delle righe = 359.340 |
+| T5 | RB1, coerenza | R4 = `requirementToday.withBridge.requirement` del Calcolatore negli stessi dati (± 0,01 €), in ogni combinazione di ingredienti |
+| T6 | RP3, anteprima | spesa scritta 30.000 € in «Il mio piano», non salvata: chip Spesa «Spesa 30.000 €» in tutte e sei le schede; prelievo proposto nei Parametri di Dopo il FIRE 30.000 €; «Annulla» riporta il salvato ovunque |
+| T7 | RP3, cambio di scheda | bozza scritta nel Calcolatore, apro Coast e torno: la bozza c'è ancora, il punto ambra pure |
+| T8 | RP4, salvataggio | un solo `setSettings` con `withdrawalRate`, `coastFireRetirementAge`, `userAge`, `plannedAnnualExpenses`, `fireEmergencyFund`, `fireDatedFlows`, `coastFirePensions`, `respectPensionLockInFire`, `pensionInpsRetirementAge`, `pensionRitaLongUnemployment`; vuoti e legacy come § 14 (E13, E17) |
+| T9 | RP8 | `coastFireTaxBrackets` scritto da Impostazioni › Simulazioni attraversa le cinque sedi (`settingsRoundTrip`); la pagina FIRE non lo scrive più |
+| T10 | RP10 | `?tab=coast` apre il Coast; `?piano=flussi` apre «Il mio piano» con il fuoco su «Aggiungi flusso»; `?tab=montecarlo&piano=spesa` apre Dopo il FIRE con il blocco aperto sul campo spesa |
+| T11 | RC3 | sul caso § 14.8 (E14) la riga Capitale dice «Capitale 430.000 €» e la scomposizione di E14; i chip dicono la spesa e i flussi della scheda; negli Obiettivi «Flussi: solo nell'Effetto sul FIRE» |
+| T12 | RP1 | ogni campo di «Il mio piano» ha la riga «Agisce su» della tabella RP1, parola per parola |
+| T13 | RP6 | nel DOM della pagina non esistono più i trigger «Parametri» del Calcolatore e «Ipotesi» del Coast; gli id dei campi spostati sono unici nella pagina |
+
+### 15.9 Task
+
+**H1 — «Il mio piano» (thread «impl», Sonnet 5.5).** RP1–RP10, D-T1–D-T7.
+- Nuovi: `components/fire-simulations/plan/FirePlanBlock.tsx` (la disclosure e le quattro tessere; riusa i campi di
+  `FireParametri.tsx`, `FireDatedFlowsSection.tsx` e l'editor delle pensioni di `CoastIpotesi.tsx`),
+  `lib/hooks/useFirePlanDraft.ts` (bozza, validazione, «modificato», salvataggio, contesto per le schede), le righe
+  «Agisce su» come costante pura in `lib/utils/firePlan.ts` con il suo test.
+- Modificati: `app/dashboard/fire-simulations/page.tsx` (blocco, `?tab=`, `?piano=`), `FireCalculatorTab.tsx` (via il
+  form e FireParametri, legge la bozza), `CoastFireTab.tsx` e `useCoastFireSettingsDraft.ts` (resta solo ciò che non è
+  piano, o sparisce), `coast/CoastDettaglio.tsx` (Modello della pensione), `useFireAssumptions.ts`,
+  `useFireDatedFlows.ts`, `useWhatIfBaseline.ts` (ricevono la bozza), i due `ParametriTile.tsx` («Prova», `FLOWS_HREF`),
+  `app/dashboard/settings/page.tsx` (Scaglioni in Simulazioni, età dichiarata, piede di Parametri del piano) con le
+  cinque sedi.
+- Test: `firePlan.test.ts` (T12), `settingsRoundTrip.test.ts` (T8, T9); e2e `e2e/fire*.spec.ts`, `coast*.spec.ts`,
+  `settings*.spec.ts` aggiornati per i campi spostati (T6, T7, T10, T13), da eseguire sul computer del proprietario.
+
+**H2 — Chip e Base di calcolo (thread «impl», Sonnet 5.5) — dopo H1.** RC1–RC5, RB1–RB4, D-T8, D-T9.
+- `lib/utils/fireAssumptionsNarrative.ts`: `describeFireAssumptions` sostituita da funzioni per chip
+  (`describeReturnsChip`, `describeCostsChip`, `describeExpensesChip`, `describeFlowsChip` o nomi equivalenti) e dal loro
+  dettaglio; `FireAssumptionsRow.tsx` riscritto (riga Capitale + chip con `Popover`).
+- `lib/utils/fireBaseLedger.ts` (nuovo, puro): i cinque cumulati di RB1 e le righe di RB2 da `resolveFireRequirement`;
+  `fireNarrative.ts` (`describeBase` di RB4, righe); `tiles/BaseDiCalcoloTile.tsx` riscritta senza interruttore.
+- Test: `fireBaseLedger.test.ts` (T1–T5), `fireAssumptionsNarrative.test.ts` (T11), `fireNarrative.test.ts` (RB4).
+
+**Documentazione** (in ciascuna task, per la sua parte): `doc/guide/fire.md` (testa di pagina, Base di calcolo, blind
+spot dei link `?tab=` risolto), `fire-coast.md`, `fire-monte-carlo.md`, `fire-proiezione.md`, `doc/guide/impostazioni.md`
+(Scaglioni, età, Parametri del piano), `DESIGN.md` (una regola nominata per il blocco del piano sopra le schede, per
+esempio «The One-Plan Rule»: i campi salvati di una pagina a schede stanno in un blocco solo sopra le schede, letto in
+anteprima da tutte), `CLAUDE.md`, `doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`.
+
+**Criterio di fine** di ciascuna: i suoi T verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts
+__tests__`, `TZ=Europe/Rome npx vitest run`. Le spec Playwright e la verifica sui dati reali (`npm run mirror:seed`) si
+fanno in un thread sul computer del proprietario.
+
+### 15.10 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| La bozza in pagina tocca quattro hook e sei schede: un'anteprima che arriva a una scheda e non a un'altra. | T6 su tutte e sei; un solo punto di ingresso (`useFirePlanDraft`) e nessuna scheda che legga `settings` per i campi Piano. |
+| Gli e2e del Calcolatore e del Coast cercano campi dentro «Parametri» e «Ipotesi». | H1 li aggiorna nella stessa PR; T13 impedisce id doppi. |
+| Lo scalare dipende dall'ordine: un utente legge «pensioni −169.304 €» come effetto assoluto. | L'ordine è fisso e scritto nel Dettaglio (RB1); i passi non sono colorati. |
+| Il blocco aperto spinge in basso il verdetto. | Chiuso di default, si apre da solo solo con il piano vuoto (RP5). |
+| Conflitto con i passi 4–9 dell'ordine, che toccano le stesse schede. | Questi task vanno prima (ordine approvato); le card successive partono dalla testa nuova. |

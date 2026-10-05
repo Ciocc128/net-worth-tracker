@@ -1,21 +1,23 @@
 'use client';
 
 /**
- * FIRE › MONTE CARLO — a verdict over tiles (2026-08-26)
+ * FIRE › DOPO IL FIRE (Monte Carlo) — a verdict over tiles (2026-08-26, T5 2026-10-05)
  *
- * The tab answers «quanto è probabile?» before it shows a number: a rule-generated verdict
+ * T5 (doc/montecarlo/README.md § 12): the tab starts at the FIRE year the Calcolatore finds on the SAVED plan (`useWhatIfBaseline`,
+ * `runBaselineProjection`, `resolveFireStart`), with the Base capital of that year in today's euros, or «Oggi» as before; every
+ * figure is in today's euros (RD6). The tab answers «dopo il FIRE il capitale regge, e quanto posso prelevare?» before it shows a number: a rule-generated verdict
  * (`buildMonteCarloVerdict` in lib/utils/monteCarloNarrative.ts) reads the base scenario's run —
  * the share of simulations in which the capital holds to the horizon, the median final value,
  * the year the worst tenth runs out, the bear and bull probabilities, the pension bridge — over a
  * 12-column grid of tiles that each answer one question with a reading line above their figures.
  *
- *   Desktop (12 col): Probabilità(5) | Distribuzione(4) | Scenari a confronto(3)
- *                     Spesa sostenibile(12)
+ *   Desktop (12 col): Spesa sostenibile(12)
+ *                     Probabilità(8) | Scenari a confronto(4)
  *                     Parametri(12)
- *   Mobile (1 col):   Probabilità → Spesa sostenibile → Distribuzione → Scenari → Parametri
+ *   Mobile (1 col):   Spesa sostenibile → Probabilità → Scenari → Parametri
  *
  * ONE run = the three scenarios (Bear · Base · Bull) with the plan's shared inputs; the verdict,
- * Probabilità and Distribuzione read Base, the Scenari tile reads all three. The old
+ * Probabilità read Base, the Scenari tile reads all three. The old
  * «Simulazione singola | Confronto scenari» toggle is gone with the mode it switched: the single
  * form's market parameters ARE the Base scenario's. The run is automatic once the auto-filled
  * plan settles (the Ventaglio's precedent) and explicit afterwards: while the typed inputs differ
@@ -37,10 +39,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { calculateAssetValue, getAllAssets } from '@/lib/services/assetService';
-import { getSettings } from '@/lib/services/assetAllocationService';
+import { useWhatIfBaseline } from '@/lib/hooks/useWhatIfBaseline';
+import { runBaselineProjection } from '@/lib/services/whatIfService';
+import { defaultWithdrawalYears, resolveFireStart } from '@/lib/utils/fireStart';
 import { createSeededRandom } from '@/lib/utils/seededRandom';
 import { portfolioCost } from '@/lib/utils/fireCosts';
 import { buildScenarioParams, runMonteCarloSimulation, type AnnualInflow } from '@/lib/services/monteCarloService';
@@ -56,6 +61,7 @@ import { summarizeLock } from '@/lib/utils/fireSummary';
 import {
   buildOverlaySeries,
   buildPercentileRows,
+  deflatePercentiles,
   formatInputAmount,
   haveRunInputsChanged,
   parseItalianNumber,
@@ -67,12 +73,9 @@ import {
 } from '@/lib/utils/monteCarloSummary';
 import {
   buildMonteCarloVerdict,
-  describeDistribuzione,
-  describeDistribuzioneAside,
-  describeDistribuzioneFooter,
-  describeEsaurimento,
-  describeEsaurimentoFooter,
-  type DistributionView,
+  describeFireStartRow,
+  START_MODE_LABELS,
+  type StartMode,
   describeMarketDeclaration,
   describeParametri,
   describeParametriFooter,
@@ -109,21 +112,19 @@ import { describeReadFailure, resolveSurfaceState } from '@/lib/utils/statesNarr
 import { MonteCarloFanChart } from '@/components/monte-carlo/MonteCarloFanChart';
 import { MonteCarloDettaglio } from '@/components/monte-carlo/MonteCarloDettaglio';
 import { ProbabilitaTile } from '@/components/monte-carlo/tiles/ProbabilitaTile';
-import { DistribuzioneTile } from '@/components/monte-carlo/tiles/DistribuzioneTile';
 import { SpesaSostenibileTile } from '@/components/monte-carlo/tiles/SpesaSostenibileTile';
 import { ScenariConfrontoTile } from '@/components/monte-carlo/tiles/ScenariConfrontoTile';
 import { ParametriTile, type MonteCarloForm } from '@/components/monte-carlo/tiles/ParametriTile';
+import type { SegmentedPillOption } from '@/components/ui/segmented-pill';
 
 /** The grid's geometry, for the skeleton: the same spans as the tiles below. */
 const SKELETON_CELLS: TileSkeletonCell[] = [
-  { span: 5, lines: 14 },
-  { span: 4, lines: 10 },
-  { span: 3, lines: 9 },
   { span: 12, lines: 8 },
+  { span: 8, lines: 14 },
+  { span: 4, lines: 9 },
   { span: 12, lines: 10 },
 ];
 
-const DEFAULT_RETIREMENT_YEARS = 30;
 const DEFAULT_SIMULATIONS = DEFAULT_MONTE_CARLO_SIMULATIONS;
 const DEFAULT_WITHDRAWAL = 30000;
 
@@ -157,12 +158,13 @@ export function MonteCarloTab() {
     staleTime: 300000,
   });
 
-  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useQuery({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): «Il mio piano» is previewed here.
+  const { data: settings, isLoading: isLoadingSettings, isError: settingsError } = useFireSettings();
+
+  // T5 (DF2): the saved plan's Base walk — the same «prima» as the What If's and the Obiettivi's «Effetto sul FIRE» — gives the FIRE year.
+  const whatIf = useWhatIfBaseline();
+  const { baseline, hasBaseline, isLoadingSettings: isLoadingBaselineSettings, isLoadingAssets: isLoadingBaselineAssets, isLoadingCashflow, isLoadingFlows: isLoadingBaselineFlows, cashflowError } = whatIf;
+  const baselineLoading = isLoadingBaselineSettings || isLoadingBaselineAssets || isLoadingCashflow || isLoadingBaselineFlows;
 
   // ─── The pension lock (governs the whole FIRE page) ──────────────────────────
   // With the lock on, the locked funds leave the starting portfolio and re-enter the simulation
@@ -198,7 +200,7 @@ export function MonteCarloTab() {
   const capital = assumptions?.capital ?? null;
   // § 12 (RF8): the saved dated flows, read as «if I stop today» — a FIRE-anchored one opens in year 1 + its delay. The plan's
   // expenses come from the Cashflow unless typed in Impostazioni (D-F6): that decides whether a flow «already in the Cashflow» is inside them.
-  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows(undefined, { lockedAssetIds: lockedAssetIds });
+  const { resolved: resolvedFlows, excluded: excludedFlows, isLoading: isLoadingFlows } = useFireDatedFlows({ lockedAssetIds: lockedAssetIds });
   const planExpensesFromCashflow = (assumptions?.expenses?.origin ?? 'cashflow') === 'cashflow';
   const datedFlows = useMemo<DatedFlowsInput | undefined>(
     () => (resolvedFlows.length > 0 ? { resolved: resolvedFlows, planExpensesFromCashflow } : undefined),
@@ -220,7 +222,22 @@ export function MonteCarloTab() {
 
   const currentYear = getItalyYear();
   const currentAge = settings?.userAge ?? null;
-  const ctx = useMemo(() => ({ startCalendarYear: currentYear, currentAge }), [currentYear, currentAge]);
+  const baseInflationPct = scenarios.base.inflationRate;
+  // RD1–RD2: the FIRE year and the Base capital of that year; «today» with the reason when there is none (DF6).
+  const fireStart = useMemo(() => {
+    if (baselineLoading) return null;
+    const { projection, yearsToFIRE } = runBaselineProjection(baseline);
+    return resolveFireStart({ projection, yearsToFIRE, hasBaseline, baseInflationRate: baseInflationPct, currentYear, currentAge });
+  }, [baselineLoading, baseline, hasBaseline, baseInflationPct, currentYear, currentAge]);
+  const [startChoice, setStartChoice] = useState<StartMode>('fire');
+  const startMode: StartMode = fireStart?.kind === 'fire' ? startChoice : 'today';
+  const startYears = startMode === 'fire' && fireStart?.kind === 'fire' ? fireStart.years : 0;
+  /** The context of a run that started `years` from today: dates, ages and the inflation its euros are deflated with (RD6). */
+  const contextFor = useCallback(
+    (years: number) => ({ startCalendarYear: currentYear + years, currentAge: currentAge === null ? null : currentAge + years, startYears: years, inflationRate: baseInflationPct }),
+    [currentYear, currentAge, baseInflationPct],
+  );
+  const ctx = useMemo(() => contextFor(startYears), [contextFor, startYears]);
   const ritaUnlockAge = resolveRitaUnlockAge({ pensionInpsRetirementAge: settings?.pensionInpsRetirementAge, pensionRitaLongUnemployment: settings?.pensionRitaLongUnemployment });
   const lock = useMemo(() => summarizeLock(pensionLockState, { currentYear, ritaUnlockAge }), [pensionLockState, currentYear, ritaUnlockAge]);
 
@@ -228,8 +245,11 @@ export function MonteCarloTab() {
   const [form, setForm] = useState<MonteCarloForm | null>(null);
   // Where the weights come from (R6); typing in a weight field makes them «a mano».
   const [weightsOrigin, setWeightsOrigin] = useState<WeightsOrigin>('targets');
+  // RD5: the horizon follows the start mode until the user types it.
+  const yearsTouchedRef = useRef(false);
   const onFormChange = useCallback((patch: Partial<MonteCarloForm>) => {
     if (patch.weights) setWeightsOrigin('edited');
+    if (patch.retirementYears !== undefined) yearsTouchedRef.current = true;
     setForm((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
   const applySeed = useCallback((seed: typeof targetSeed, origin: WeightsOrigin) => {
@@ -260,15 +280,17 @@ export function MonteCarloTab() {
   // Deferred so the effect body itself sets no state (react-hooks/set-state-in-effect).
   const didSeedRef = useRef(false);
   useEffect(() => {
-    if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets || !assumptions) return;
+    if (didSeedRef.current || isLoadingAssets || isLoadingSettings || !assets || !assumptions || !fireStart) return;
     const timer = setTimeout(() => {
       didSeedRef.current = true;
       // The seed: the targets of Allocazione, else the portfolio held today (the Parametri line says which).
       const weights = assumptions.weights;
       setWeightsOrigin(assumptions.weightsOrigin === 'targets' ? 'targets' : 'holdings');
+      const seedYears = fireStart.kind === 'fire' ? fireStart.years : 0;
       setForm({
-        initialPortfolio: formatInputAmount(totalNetWorth),
-        retirementYears: String(DEFAULT_RETIREMENT_YEARS),
+        // The first run is «Al FIRE» when the Calcolatore has a FIRE year (RD2: the Base capital of that year, today's euros).
+        initialPortfolio: formatInputAmount(fireStart.kind === 'fire' ? fireStart.capitalToday : totalNetWorth),
+        retirementYears: String(defaultWithdrawalYears(currentAge, seedYears)),
         // RP6 (D5): the same expenses as the other tabs; the old 30.000 € stands in only while there are none anywhere.
         annualWithdrawal: String(Math.round(assumptions.expenses?.annual ?? 0) || DEFAULT_WITHDRAWAL),
         numberOfSimulations: String(DEFAULT_SIMULATIONS),
@@ -276,7 +298,26 @@ export function MonteCarloTab() {
       });
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, assumptions]);
+  }, [isLoadingAssets, isLoadingSettings, assets, settings, totalNetWorth, assumptions, fireStart, currentAge]);
+
+  // Changing «Quando smetto» re-seeds the capital (and the horizon, unless typed): a value typed by hand wins only until the mode changes.
+  const onStartModeChange = useCallback(
+    (mode: StartMode) => {
+      if (!fireStart) return;
+      setStartChoice(mode);
+      const years = mode === 'fire' && fireStart.kind === 'fire' ? fireStart.years : 0;
+      setForm((prev) =>
+        prev
+          ? {
+              ...prev,
+              initialPortfolio: formatInputAmount(years > 0 && fireStart.kind === 'fire' ? fireStart.capitalToday : totalNetWorth),
+              retirementYears: yearsTouchedRef.current ? prev.retirementYears : String(defaultWithdrawalYears(currentAge, years)),
+            }
+          : prev,
+      );
+    },
+    [fireStart, totalNetWorth, currentAge],
+  );
 
   // ─── The params the run reads (numbers from the strings) ─────────────────────
   const params = useMemo<MonteCarloParams | null>(() => {
@@ -285,7 +326,7 @@ export function MonteCarloTab() {
     return {
       portfolioSource: 'total',
       initialPortfolio,
-      retirementYears: parseIntField(form.retirementYears, DEFAULT_RETIREMENT_YEARS),
+      retirementYears: parseIntField(form.retirementYears, defaultWithdrawalYears(currentAge, startYears)),
       weights: monteCarloClassRecord((cls) => parseFloatField(form.weights[cls])),
       annualWithdrawal: Math.round(parseFloatField(form.annualWithdrawal)),
       withdrawalAdjustment: 'inflation',
@@ -301,11 +342,14 @@ export function MonteCarloTab() {
       numberOfSimulations: Math.min(50000, Math.max(1000, parseIntField(form.numberOfSimulations, DEFAULT_SIMULATIONS))),
       capitalInflows: pensionInflows.length > 0 ? pensionInflows : undefined,
       annualInflows: statePensionInflows.length > 0 ? statePensionInflows : undefined,
-      // The typed capital keeps the portfolio's gain share: basis = capital × (1 − gain share).
-      withdrawalTax: taxProfile ? { basisToday: initialPortfolio * (1 - taxProfile.gainShare), rate: taxProfile.rate } : undefined,
+      // The typed capital keeps the gain share of the capital it stands for: today's, or (RD3) the Base's at the FIRE year.
+      withdrawalTax: taxProfile
+        ? { basisToday: initialPortfolio * (1 - (startYears > 0 && fireStart?.kind === 'fire' && fireStart.gainShare !== null ? fireStart.gainShare : taxProfile.gainShare)), rate: taxProfile.rate }
+        : undefined,
       flows: datedFlows,
+      ...(startYears > 0 ? { startYear: startYears } : {}),
     };
-  }, [form, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, statePensionInflows, taxProfile, datedFlows]);
+  }, [form, scenarios, market.correlations, market.leverageSpread, assumptions?.costs, pensionInflows, statePensionInflows, taxProfile, datedFlows, startYears, fireStart, currentAge]);
 
   const allocationSum = params ? MONTE_CARLO_CLASSES.reduce((sum, cls) => sum + params.weights[cls], 0) : 0;
   const runnable = !!params && params.initialPortfolio > 0 && params.annualWithdrawal > 0;
@@ -319,8 +363,6 @@ export function MonteCarloTab() {
   // ─── The run: the three scenarios in one go ──────────────────────────────────
   const [lastRun, setLastRun] = useState<MonteCarloRunState | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  // The Distribuzione tile's view (final values | the year the money runs out): the tile's scope.
-  const [distributionView, setDistributionView] = useState<DistributionView>('finali');
 
   const runScenarios = useCallback((inputs: MonteCarloRunInputs) => {
     setIsRunning(true);
@@ -376,13 +418,18 @@ export function MonteCarloTab() {
 
   // ─── The numbers (pure layer over the results) ───────────────────────────────
   const runParams = lastRun?.inputs.params ?? null;
-  const run = useMemo(() => (lastRun && runParams ? summarizeMonteCarloRun(lastRun.results.base, runParams, ctx) : null), [lastRun, runParams, ctx]);
-  const comparison = useMemo(() => (lastRun && runParams ? summarizeScenarios(lastRun.results, runParams, ctx) : null), [lastRun, runParams, ctx]);
-  const overlay = useMemo(() => (lastRun ? buildOverlaySeries(lastRun.results, ctx.startCalendarYear) : []), [lastRun, ctx.startCalendarYear]);
-  const percentileRows = useMemo(() => (lastRun ? buildPercentileRows(lastRun.results.base.percentiles, ctx.startCalendarYear) : []), [lastRun, ctx.startCalendarYear]);
+  // The shown run keeps ITS start: a mode changed since is a stale input, not a different reading of the figures (The Stale-Run Rule).
+  const runStartYears = runParams?.startYear ?? 0;
+  const runCtx = useMemo(() => contextFor(runStartYears), [contextFor, runStartYears]);
+  const scenarioInflation = useMemo(() => (lastRun ? { bear: lastRun.inputs.scenarios.bear.inflationRate, base: lastRun.inputs.scenarios.base.inflationRate, bull: lastRun.inputs.scenarios.bull.inflationRate } : null), [lastRun]);
+  const run = useMemo(() => (lastRun && runParams ? summarizeMonteCarloRun(lastRun.results.base, runParams, { ...runCtx, inflationRate: scenarioInflation?.base }) : null), [lastRun, runParams, runCtx, scenarioInflation]);
+  const comparison = useMemo(() => (lastRun && runParams && scenarioInflation ? summarizeScenarios(lastRun.results, runParams, runCtx, scenarioInflation) : null), [lastRun, runParams, runCtx, scenarioInflation]);
+  const overlay = useMemo(() => (lastRun && scenarioInflation ? buildOverlaySeries(lastRun.results, runCtx.startCalendarYear, scenarioInflation) : []), [lastRun, runCtx.startCalendarYear, scenarioInflation]);
+  const percentileRows = useMemo(() => (lastRun && scenarioInflation ? buildPercentileRows(lastRun.results.base.percentiles, runCtx.startCalendarYear, 5, scenarioInflation.base) : []), [lastRun, runCtx.startCalendarYear, scenarioInflation]);
+  const fanPercentiles = useMemo(() => (lastRun && scenarioInflation ? deflatePercentiles(lastRun.results.base.percentiles, scenarioInflation.base) : []), [lastRun, scenarioInflation]);
   // The plan as typed (the Parametri reading) and the plan the shown results ran on (the Dettaglio).
   const typedPlan = useMemo(() => (params ? summarizeMonteCarloPlan(params, pensionInflows, pensionLockedValue, ctx) : null), [params, pensionInflows, pensionLockedValue, ctx]);
-  const runPlan = useMemo(() => (runParams && lastRun ? summarizeMonteCarloPlan(runParams, lastRun.inputs.inflows, pensionLockedValue, ctx) : null), [runParams, lastRun, pensionLockedValue, ctx]);
+  const runPlan = useMemo(() => (runParams && lastRun ? summarizeMonteCarloPlan(runParams, lastRun.inputs.inflows, pensionLockedValue, runCtx) : null), [runParams, lastRun, pensionLockedValue, runCtx]);
   const stale = !!lastRun && !!currentInputs && haveRunInputsChanged(lastRun.inputs, currentInputs);
 
   // S1: the nine figures were computed with the run (on its own factors), so they are the LAST run's — never the typed inputs' (Stale-Run).
@@ -394,13 +441,20 @@ export function MonteCarloTab() {
 
   // ─── The words (pure layer) ───────────────────────────────────────────────────
   const unleveragedSuccessRate = lastRun?.results.unleveragedBase?.successRate ?? null;
-  const verdict = useMemo(() => buildMonteCarloVerdict({ runnable, run, scenarios: comparison, lock, unleveragedSuccessRate, sustainable: sustainableVerdictInput }), [runnable, run, comparison, lock, unleveragedSuccessRate, sustainableVerdictInput]);
+  const verdictStart = useMemo(
+    () => (runParams ? { atFire: runStartYears > 0, calendarYear: runCtx.startCalendarYear, age: runCtx.currentAge, capital: runParams.initialPortfolio } : null),
+    [runParams, runStartYears, runCtx],
+  );
+  const verdict = useMemo(
+    () => buildMonteCarloVerdict({ runnable, run, scenarios: comparison, lock, unleveragedSuccessRate, sustainable: sustainableVerdictInput, start: verdictStart }),
+    [runnable, run, comparison, lock, unleveragedSuccessRate, sustainableVerdictInput, verdictStart],
+  );
 
   // ─── Loading: until the seeded plan has run once ─────────────────────────────
   const awaitingFirstRun = runnable && canRun && !lastRun;
   // A failed read comes BEFORE the wait: these queries default to undefined, and a plan built
   // on a base that was never read is a number with nothing behind it.
-  if (resolveSurfaceState({ loading: isLoadingAssets || isLoadingSettings || isLoadingAssumptions, failed: assetsError || settingsError || assumptionsError }) === 'failed') {
+  if (resolveSurfaceState({ loading: isLoadingAssets || isLoadingSettings || isLoadingAssumptions || baselineLoading, failed: assetsError || settingsError || assumptionsError || cashflowError }) === 'failed') {
     return (
       <ErrorNotice
         className="max-w-[920px]"
@@ -412,35 +466,52 @@ export function MonteCarloTab() {
     );
   }
 
-  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || isLoadingFlows || !form || !params || !typedPlan || awaitingFirstRun) {
+  if (isLoadingAssets || isLoadingSettings || isLoadingAssumptions || isLoadingFlows || baselineLoading || !fireStart || !form || !params || !typedPlan || awaitingFirstRun) {
     return <TileGridSkeleton cells={SKELETON_CELLS} />;
   }
 
-  const unlockOnPlot = lock.active && lock.lockedValue > 0 && lock.unlockCalendarYear !== null && run !== null && lock.unlockCalendarYear <= run.endCalendarYear ? lock.unlockCalendarYear : null;
+  // RD4: a fund that unlocks at or before the FIRE year is already in the capital the run starts from — no step on the plot.
+  const unlockOnPlot =
+    lock.active && lock.lockedValue > 0 && lock.unlockCalendarYear !== null && run !== null && lock.unlockCalendarYear <= run.endCalendarYear && (runStartYears === 0 || lock.unlockCalendarYear > run.startCalendarYear)
+      ? lock.unlockCalendarYear
+      : null;
+  const startOptions: ReadonlyArray<SegmentedPillOption<StartMode>> | null =
+    fireStart.kind === 'fire'
+      ? [
+          { value: 'fire', label: START_MODE_LABELS.fire(fireStart) },
+          { value: 'today', label: START_MODE_LABELS.today(fireStart) },
+        ]
+      : null;
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
       <div className="pt-1">
         <FireAssumptionsRow assumptions={assumptionsWithFlows} />
-        <PageVerdict verdict={verdict} ariaLabel="Verdetto sul Monte Carlo" />
+        <PageVerdict verdict={verdict} ariaLabel="Verdetto su Dopo il FIRE" />
       </div>
 
       {/* Tablet (768-1439): every tile full width, in the phone's order. */}
       <div className="grid grid-cols-1 gap-3 tablet:grid-cols-2 desktop:grid-cols-12">
+        {sustainable && runParams && (
+          <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears)} aside={SPESA_ASIDE} summary={sustainable} />
+          </div>
+        )}
+
         {run && lastRun && (
-          <div className={cn(TILE_CELL_CLASS, 'order-1 tablet:col-span-2 desktop:order-none desktop:col-span-5')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-8')}>
             <ProbabilitaTile
               reading={describeProbabilita(run)}
               aside={describeProbabilitaAside(run)}
               run={run}
               chart={
                 <MonteCarloFanChart
-                  percentiles={lastRun.results.base.percentiles}
-                  startCalendarYear={ctx.startCalendarYear}
+                  percentiles={fanPercentiles}
+                  startCalendarYear={run.startCalendarYear}
                   unlockCalendarYear={unlockOnPlot}
                   height="100%"
-                  ariaLabel={`Ventaglio del piano di prelievo, scenario base: bande dei percentili 10–90 e 25–75 e mediana delle ${run.simulations.toLocaleString('it-IT')} simulazioni fino al ${run.endCalendarYear}; la linea tratteggiata in basso è il capitale esaurito.`}
+                  ariaLabel={`Ventaglio del piano di prelievo in euro di oggi, scenario base: bande dei percentili 10–90 e 25–75 e mediana delle ${run.simulations.toLocaleString('it-IT')} simulazioni dal ${run.startCalendarYear} al ${run.endCalendarYear}; la linea tratteggiata in basso è il capitale esaurito.`}
                 />
               }
               footer={describeProbabilitaFooter(run, lock)}
@@ -448,21 +519,8 @@ export function MonteCarloTab() {
           </div>
         )}
 
-        {run && (
-          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
-            <DistribuzioneTile
-              reading={distributionView === 'esaurimento' && run.failureCount > 0 ? describeEsaurimento(run) : describeDistribuzione(run)}
-              aside={describeDistribuzioneAside(run)}
-              run={run}
-              view={distributionView}
-              onViewChange={setDistributionView}
-              footer={distributionView === 'esaurimento' && run.failureCount > 0 ? describeEsaurimentoFooter(run) : describeDistribuzioneFooter(run)}
-            />
-          </div>
-        )}
-
         {comparison && (
-          <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-3')}>
+          <div className={cn(TILE_CELL_CLASS, 'order-3 tablet:col-span-2 desktop:order-none desktop:col-span-4')}>
             <ScenariConfrontoTile
               reading={describeScenari(comparison)}
               aside={SCENARI_ASIDE}
@@ -472,13 +530,7 @@ export function MonteCarloTab() {
           </div>
         )}
 
-        {sustainable && runParams && (
-          <div className={cn(TILE_CELL_CLASS, 'order-2 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
-            <SpesaSostenibileTile reading={describeSpesaSostenibile(sustainable, runParams.retirementYears)} aside={SPESA_ASIDE} summary={sustainable} />
-          </div>
-        )}
-
-        <div className={cn(TILE_CELL_CLASS, 'order-5 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
+        <div className={cn(TILE_CELL_CLASS, 'order-4 tablet:col-span-2 desktop:order-none desktop:col-span-12')}>
           <ParametriTile
             reading={describeParametri(typedPlan)}
             aside={PARAMETRI_ASIDE}
@@ -495,6 +547,13 @@ export function MonteCarloTab() {
             liquidNetWorth={liquidNetWorth}
             marketDeclaration={describeMarketDeclaration(market, leverage)}
             capital={capital}
+            start={{
+              mode: startMode,
+              options: startOptions,
+              onModeChange: onStartModeChange,
+              note: describeFireStartRow(fireStart, startMode, currentYear),
+              fireCapital: fireStart.kind === 'fire' ? fireStart.capitalToday : null,
+            }}
             flowsNote={describeSimulationFlowsRow({ count: resolvedFlows.length, excluded: excludedFlows, fireAnchored: resolvedFlows.filter((flow) => flow.anchor === 'fire').length, view: 'monteCarlo' })}
             onRun={handleRun}
             canRun={canRun}
@@ -502,7 +561,7 @@ export function MonteCarloTab() {
             footer={
               lastRun
                 ? describeParametriFooter({ stale, simulations: lastRun.inputs.params.numberOfSimulations })
-                : [{ text: canRun ? 'Premi Esegui simulazione per lanciare i tre scenari.' : 'Completa il piano: patrimonio e prelievo maggiori di zero, allocazione tra 100% e 300%, da 1 a 60 anni.' }]
+                : [{ text: canRun ? 'Premi Prova per lanciare i tre scenari.' : 'Completa il piano: patrimonio e prelievo maggiori di zero, allocazione tra 100% e 300%, da 1 a 60 anni.' }]
             }
             stale={stale}
           />

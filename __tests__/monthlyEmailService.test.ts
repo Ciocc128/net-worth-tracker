@@ -571,6 +571,61 @@ describe('buildEmailAiPrompt', () => {
     // Same period type → byte-identical system, so the prefix never varies per user.
     expect(a).toBe(b);
   });
+
+  // F5 (doc/ai-open-models-wiki.md § 5.4): the Wiki closes both blocks, and is absent without it.
+  describe('with the Wiki', () => {
+    const wiki = {
+      principles: '## Allocazione e leva\n\n- Mai spostare pesi per motivi di mercato, regola del fenicottero.',
+      months: [{ month: '2026-09', page: '## Fatti\n\n### Tassi\n\n- Un fatto da ornitorinco. (W39)' }],
+      missingMonths: [],
+      depth: 'full' as const,
+    };
+    const prompt = (w: typeof wiki | null) =>
+      buildEmailAiPrompt(makeMonthlyData({ month: 9, year: 2026 }), makeComparison(), makeBundle(), makePreferences(), [], w);
+
+    it('puts the rules and the digest at the END of the system block, after the format contract', () => {
+      const { system } = prompt(wiki);
+      expect(system.startsWith(prompt(null).system)).toBe(true);
+      expect(system).toContain("# Contesto macro e principi dell'investitore");
+      expect(system).toContain('orientano il GIUDIZIO, non i NUMERI');
+      expect(system).toContain('fenicottero');
+      expect(system).not.toContain('ornitorinco');
+    });
+
+    it('puts the macro AFTER the period data in the user message, never in the data sections', () => {
+      const { userContent } = prompt(wiki);
+      const macroAt = userContent.indexOf('--- CONTESTO MACRO (newsletter TheBull, settembre 2026) ---');
+      expect(macroAt).toBeGreaterThan(userContent.indexOf('=== DATI FINANZIARI'));
+      expect(macroAt).toBeGreaterThan(userContent.indexOf('--- CONFRONTO COL PERIODO PRECEDENTE'));
+      expect(userContent).toContain('ornitorinco');
+      expect(userContent).not.toContain('fenicottero');
+    });
+
+    it('without the Wiki promises nothing: no rule, no block — only the conditional line of the contract', () => {
+      const { system, userContent } = prompt(null);
+      expect(system).not.toContain('PRINCIPI');
+      expect(system).not.toContain('# Contesto macro');
+      expect(system).toContain('se ricevi il contesto macro');
+      expect(userContent).not.toContain('CONTESTO MACRO');
+    });
+  });
+
+  it('with the 50/30/20 roles reads the spending by role INSTEAD of by type', () => {
+    const roles = [
+      { bucket: 'need' as const, label: 'Necessità', amount: 4000 },
+      { bucket: 'want' as const, label: 'Desideri', amount: 2000 },
+      { bucket: 'unclassified' as const, label: 'Da classificare', amount: 1000 },
+    ];
+    const withRoles = buildEmailAiPrompt(makeMonthlyData({ expensesByRole: roles }), makeComparison(), makeBundle(), makePreferences(), []);
+    expect(withRoles.userContent).toContain('--- SPESE PER RUOLO (50/30/20) ---');
+    // Signed like the bundle's outflows (−7.000 €), so the share is a share, never «(-57,1%)».
+    expect(withRoles.userContent).toMatch(/Necessità: -4000\s€ \(57,1%\)/);
+    expect(withRoles.userContent).not.toContain('--- SPESE PER TIPO ---');
+
+    const without = buildEmailAiPrompt(makeMonthlyData({ expensesByRole: null }), makeComparison(), makeBundle(), makePreferences(), []);
+    expect(without.userContent).toContain('--- SPESE PER TIPO ---');
+    expect(without.userContent).not.toContain('SPESE PER RUOLO');
+  });
 });
 
 // ─── resolveEmailPeriodRange ──────────────────────────────────────────────────
@@ -1198,6 +1253,26 @@ describe('generateEmailHtml', () => {
     expect(html).not.toContain('Non classificate');
   });
 
+  it('with the 50/30/20 roles the expense footer splits by role instead of by type', () => {
+    const html = textOf(
+      generateEmailHtml(
+        makeMonthlyData({
+          totalExpenses: 2000,
+          expensesByType: [{ type: 'fixed', label: 'Spese Fisse', amount: 1500 }],
+          expensesByRole: [
+            { bucket: 'need', label: 'Necessità', amount: 1200 },
+            { bucket: 'unclassified', label: 'Da classificare', amount: 800 },
+          ],
+        }),
+      ),
+    );
+    expect(html).toContain('Necessità');
+    expect(html).toContain('Da classificare');
+    expect(html).toContain('60,0%');
+    expect(html).not.toContain('Spese Fisse');
+    expect(html).not.toContain('Non classificate');
+  });
+
   it('places the AI comment second — under the verdict, never in its place', () => {
     const html = generateEmailHtml(makeMonthlyData({ aiComment: 'Il mese chiude con un fenicottero.' }));
     const verdictAt = html.indexOf('Marzo è cresciuto');
@@ -1262,6 +1337,40 @@ describe('buildMonthlyEmailData', () => {
     collectionMocks['monthly-snapshots'] = { empty: true, docs: [] };
     const result = await buildMonthlyEmailData('user-1', 2025, 3);
     expect(result).toBeNull();
+  });
+
+  it('splits the outflows by 50/30/20 role only with spendingRolesEnabled, from the categories', async () => {
+    collectionMocks['monthly-snapshots'] = {
+      empty: false,
+      docs: [{ data: () => ({ totalNetWorth: 100, liquidNetWorth: 50, byAssetClass: {} }) }],
+    };
+    collectionMocks['expenses'] = {
+      docs: [
+        { id: 'e1', data: () => ({ amount: -600, type: 'fixed', categoryId: 'c-casa', categoryName: 'Casa' }) },
+        { id: 'e2', data: () => ({ amount: -100, type: 'variable', categoryId: 'c-cene', categoryName: 'Cene' }) },
+        { id: 'e3', data: () => ({ amount: -50, categoryName: 'Importata' }) },
+      ],
+    };
+    collectionMocks['dividends'] = { docs: [] };
+    collectionMocks['expenseCategories'] = {
+      docs: [
+        { id: 'c-casa', data: () => ({ type: 'fixed', spendingRole: 'need', subCategories: [] }) },
+        { id: 'c-cene', data: () => ({ type: 'variable', spendingRole: 'want' }) },
+      ],
+    };
+
+    // The roles off: the type split only.
+    expect((await buildMonthlyEmailData('user-1', 2025, 3))!.expensesByRole).toBeNull();
+
+    // `mockBudgetDoc` answers every `.doc().get()`, the settings document included.
+    mockBudgetDoc = { exists: true, data: () => ({ spendingRolesEnabled: true }) };
+    const result = await buildMonthlyEmailData('user-1', 2025, 3);
+    expect(result!.expensesByRole).toEqual([
+      { bucket: 'need', label: 'Necessità', amount: 600 },
+      { bucket: 'want', label: 'Desideri', amount: 100 },
+      // The untyped imported row has no role either.
+      { bucket: 'unclassified', label: 'Da classificare', amount: 50 },
+    ]);
   });
 
   it('returns aggregated data when snapshot exists', async () => {
@@ -1670,6 +1779,62 @@ describe('buildAndSendForPeriod — AI comment through the provider layer', () =
     expect(body.messages[0].role).toBe('system');
     expect(htmlSent()).toContain('Commento AI');
     expect(htmlSent()).toContain('fenicottero');
+  });
+
+  describe("the Wiki for the vault's owner (F5)", () => {
+    const vaultFile = (text: string) =>
+      new Response(JSON.stringify({ encoding: 'base64', content: Buffer.from(text).toString('base64') }), { status: 200 });
+    const comment = () =>
+      new Response(
+        JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'Commento.' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+        { status: 200 }
+      );
+    const providerBody = () => JSON.parse(fetchMock.mock.calls.find(([url]) => String(url).includes('openrouter'))![1].body);
+
+    beforeEach(() => {
+      process.env.OPENROUTER_API_KEY = 'or-test';
+      process.env.WIKI_EXPORT_UID = 'user-1';
+      process.env.WIKI_GITHUB_TOKEN = 'gh-test';
+      process.env.WIKI_GITHUB_REPO = 'owner/finance-wiki';
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      delete process.env.WIKI_EXPORT_UID;
+      delete process.env.WIKI_GITHUB_TOKEN;
+      delete process.env.WIKI_GITHUB_REPO;
+    });
+
+    it('reads the month page and the digest by date, and both reach the model', async () => {
+      fetchMock.mockImplementation(async (url: string) => {
+        if (url.includes('/contents/wiki/principi/_digest.md')) return vaultFile('# Principi\n\n## Tema\n\n- Regola del fenicottero.\n');
+        if (url.includes('/contents/wiki/macro/mesi/2025-03.md')) return vaultFile('# Macro — 2025-03\n\n## Fatti\n\n### Tassi\n\n- Fatto da ornitorinco. (W10)\n');
+        if (url.includes('api.github.com')) return new Response('', { status: 404 });
+        return comment();
+      });
+      expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
+      const gets = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.includes('api.github.com'));
+      expect(gets).toHaveLength(2);
+      const body = providerBody();
+      expect(body.messages[0].content).toContain('Regola del fenicottero.');
+      expect(body.messages[1].content).toContain('--- CONTESTO MACRO (newsletter TheBull, marzo 2025) ---');
+      expect(body.messages[1].content).toContain('Fatto da ornitorinco.');
+      expect(htmlSent()).toContain('Commento AI');
+    });
+
+    it('a vault that does not answer costs the block, never the comment', async () => {
+      fetchMock.mockImplementation(async (url: string) => (url.includes('api.github.com') ? new Response('boom', { status: 500 }) : comment()));
+      expect(await buildAndSendForPeriod('user-1', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
+      const body = providerBody();
+      expect(body.messages[0].content).not.toContain('PRINCIPI');
+      expect(body.messages[1].content).not.toContain('CONTESTO MACRO');
+      expect(htmlSent()).toContain('Commento AI');
+    });
+
+    it("another user's email never reads the vault", async () => {
+      fetchMock.mockImplementation(async () => comment());
+      expect(await buildAndSendForPeriod('user-2', ['a@b.com'], 'monthly', 2025, 3)).toBe(true);
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('api.github.com'))).toBe(false);
+    });
   });
 
   it('a provider error still sends the email, without the comment', async () => {

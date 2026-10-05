@@ -439,10 +439,10 @@ describe('describeBase with the honest inputs', () => {
 describe('describePensionRow and describeTaxRow', () => {
   it('print the value and the caption in each of the three states', () => {
     const rowText = (row: { value: string | null; caption: string }) => ({ value: flat(row.value), caption: row.caption });
-    expect(rowText(describePensionRow(honest(), 2026))).toEqual({ value: '13.000 €', caption: "netti l'anno, dal 2060 · da Coast FIRE › Ipotesi" });
-    expect(rowText(describePensionRow(honest({ pensionCount: 2, pensionStartCalendarYear: 2020 }), 2026))).toEqual({ value: '13.000 €', caption: "2 pensioni, nette l'anno, l'ultima già in corso · da Coast FIRE › Ipotesi" });
-    expect(describePensionRow(honest({ pensionsConsidered: false, pensionsSkipped: 'no-age' }), 2026)).toEqual({ value: null, caption: "non considerate: manca l'età in Coast FIRE › Ipotesi" });
-    expect(describePensionRow(NO_HONEST, 2026)).toEqual({ value: null, caption: 'nessuna in Coast FIRE › Ipotesi: il numero le esclude' });
+    expect(rowText(describePensionRow(honest(), 2026))).toEqual({ value: '13.000 €', caption: "netti l'anno, dal 2060 · da Il mio piano" });
+    expect(rowText(describePensionRow(honest({ pensionCount: 2, pensionStartCalendarYear: 2020 }), 2026))).toEqual({ value: '13.000 €', caption: "2 pensioni, nette l'anno, l'ultima già in corso · da Il mio piano" });
+    expect(describePensionRow(honest({ pensionsConsidered: false, pensionsSkipped: 'no-age' }), 2026)).toEqual({ value: null, caption: "non considerate: manca l'età in Il mio piano" });
+    expect(describePensionRow(NO_HONEST, 2026)).toEqual({ value: null, caption: 'nessuna in Il mio piano: il numero le esclude' });
     expect(describeTaxRow(honest())).toEqual({ value: '26%', caption: 'sul 45% di plusvalenza latente oggi · dentro il numero' });
     expect(describeTaxRow(NO_HONEST)).toEqual({ value: null, caption: 'non stimate: nessun PMC in euro nel portafoglio' });
   });
@@ -485,7 +485,7 @@ describe('describeBase', () => {
   });
 
   it('footer: where the capital comes from and where the settings live (D4, D5)', () => {
-    expect(plain(describeBaseFooter())).toBe('Il capitale è il portafoglio più la liquidità da investire che scegli in Parametri; SWR, spesa del piano e regola RITA si modificano in Parametri.');
+    expect(plain(describeBaseFooter())).toBe('Il capitale è il portafoglio più la liquidità che resta oltre il fondo di emergenza che indichi in Il mio piano; SWR, spesa del piano e regola RITA si modificano lì.');
   });
 });
 
@@ -646,7 +646,7 @@ describe('describeTargetAge (E1)', () => {
     expect(plain(describeTargetAge({ ...figures, tail: { kind: 'unavailable' }, maxExpenses: null }))).not.toContain('9 percorsi su 10');
   });
   it('the states without figures', () => {
-    expect(plain(describeTargetAge({ kind: 'no-age' }))).toBe('Serve la tua età: scrivila in Coast FIRE › Ipotesi.');
+    expect(plain(describeTargetAge({ kind: 'no-age' }))).toBe('Serve la tua età: scrivila in Il mio piano.');
     expect(plain(describeTargetAge({ kind: 'passed', targetAge: 40 }))).toContain('già raggiunta o passata');
     expect(plain(describeTargetAge({ kind: 'already-fire' }))).toBe('Sei già FIRE: l\'età obiettivo non serve.');
   });

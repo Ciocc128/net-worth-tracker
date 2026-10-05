@@ -79,6 +79,8 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   («142 voci da importare, 6 righe scartate, 3 categorie da creare») and the grant list are stated in words before the
   controls, like every other tile.
 
+> **H1 (2026-10-05)**: `userAge` is no longer written by the Settings page (declared in FIRE › «Il mio piano»); the IRPEF brackets (`coastFireTaxBrackets`) are edited in `components/settings/TaxBracketsTile.tsx`; «Parametri del piano» stays read-only. doc/guide/fire.md § H1.
+
 ## Settings — the FIVE places
 - A new setting must be added to all five or it silently disappears: the type (`types/assets.ts`), the read mapping in
   `assetAllocationService.getSettings`, **BOTH** write chains in `setSettings` (the `targets` branch uses `setDoc` with
@@ -103,7 +105,7 @@ Moved here from `CLAUDE.md` → *Key Files* on 2026-09-19.
   (the weights of `useFireAssumptions`, from the SAVED targets) and prints «Il portafoglio target rende (composto): Bear · Base · Bull» with
   `portfolioCompoundReturn` over the DRAFT, so a typed CAGR moves it at once. Read-only: it saves nothing.
 - **`fireDatedFlows`** (F1, 2026-10-04, doc/fire-ipotesi/README.md § 12): the dated flows of the FIRE plan (at most 20), typed in FIRE › Calcolatore › Parametri › «Flussi nel tempo», saved by its «Salva» (plain write in both `setSettings` chains; an empty list is a value, absent = none), declared read-only in «Parametri del piano» («Flussi nel tempo»: «4» / «nessuno»). The settings page's own save re-passes it with the other FIRE fields; `settingsRoundTrip` carries it in `STORED_SETTINGS`.
-- **`fireCashToInvestPct`** (K1, 2026-10-04, doc/fire-ipotesi/README.md § 11): the share (0–100) of the cash outside the portfolio the FIRE tabs invest at year 0; typed in FIRE › Calcolatore › Parametri, saved by its «Salva», declared read-only in «Parametri del piano» («Liquidità da investire»: «0% · predefinita» until a value is saved). NOT clearable: `0` is a value (plain write in both `setSettings` chains, like `withdrawalRate`); `settingsRoundTrip` carries it in `STORED_SETTINGS`.
+- **`fireEmergencyFund`** (EF1, 2026-10-05, doc/fire-ipotesi/README.md § 14): the EUR (≥ 0) of the cash outside the portfolio the FIRE tabs keep out; typed in FIRE › Calcolatore › Parametri, saved by its «Salva», declared read-only in «Parametri del piano» («Fondo di emergenza»: the amount, «non impostato · …», or «da fissare nel Calcolatore (quota salvata 50%)»). USER-CLEARABLE like `plannedAnnualExpenses` (omitted in the `setDoc` chain, `deleteField()` in the merge chain); `0` is a value. The legacy **`fireCashToInvestPct`** (K1) is read ONLY by the RE5 conversion and is cleared (same two mechanisms) by the Calcolatore's first save; `settingsRoundTrip` carries both in `STORED_SETTINGS`.
 - **`plannedAnnualExpenses` is the plan's expenses and CLEARABLE** (2026-10-03, doc/fire-ipotesi/README.md D5): typed in FIRE › Calcolatore › Parametri («Spesa del piano»,
   empty = from the Cashflow), never from Impostazioni (the «Parametri del piano» tile only declares it). Both `setSettings` chains guard it with
   `'plannedAnnualExpenses' in settings` (`delete docData.…` in the `targets` chain, `deleteField()` in the merge one), and so for the legacy

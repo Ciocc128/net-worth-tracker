@@ -105,6 +105,8 @@ import { ExpenseCategory, ExpenseType, EXPENSE_TYPE_LABELS } from '@/types/expen
 import { Asset } from '@/types/assets';
 import { getAllAssets, calculateAssetValue } from '@/lib/services/assetService';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
+import { TaxBracketsTile } from '@/components/settings/TaxBracketsTile';
+import { buildTaxBracketSnapshotKey, parseTaxBracketDrafts, toTaxBracketDrafts, type CoastFireTaxBracketDraft } from '@/lib/utils/coastFireView';
 import { MonteCarloMarketTile, type MonteCarloMarketDraft } from '@/components/settings/MonteCarloMarketTile';
 import { MonteCarloCorrelationsTile, type CorrectionsByIndex } from '@/components/settings/MonteCarloCorrelationsTile';
 import { changedPairs, correctUpperTriangle } from '@/lib/utils/correlationMatrix';
@@ -153,6 +155,7 @@ import {
   describeMonteCarloCorrelations,
   describePerformanceBase,
   describePlanParameters,
+  describeEmergencyFundDeclaration,
   describeTargetProblem,
   describeThemeMode,
   describeUnsavedChanges,
@@ -652,6 +655,7 @@ export default function SettingsPage() {
   const [planParams, setPlanParams] = useState<{
     withdrawalRate?: number;
     plannedAnnualExpenses?: number;
+    fireEmergencyFund?: number;
     fireCashToInvestPct?: number;
     fireDatedFlowsCount: number;
     pensionInpsRetirementAge?: number;
@@ -758,6 +762,9 @@ export default function SettingsPage() {
   const [marketDraft, setMarketDraft] = useState<MonteCarloMarketDraft | null>(null);
   const [marketOrigin, setMarketOrigin] = useState<MonteCarloMarketOrigin>('default');
   const [marketBaselineKey, setMarketBaselineKey] = useState('');
+  // Simulazioni › Scaglioni IRPEF (RP8): the brackets the state pensions' net is computed with, edited here since 2026-10-05 (they lived in Coast FIRE).
+  const [taxBracketDrafts, setTaxBracketDrafts] = useState<CoastFireTaxBracketDraft[]>([]);
+  const [taxBracketsBaselineKey, setTaxBracketsBaselineKey] = useState('');
   // The pairs the last Save adapted to keep the correlation matrix valid (R5), marked until the next Save.
   const [correlationCorrections, setCorrelationCorrections] = useState<CorrectionsByIndex>({});
   // The portfolio's commodity sub-categories (shared cache with every page that reads the assets): the choices for «Oro».
@@ -884,6 +891,7 @@ export default function SettingsPage() {
         setPlanParams({
           withdrawalRate: settingsData.withdrawalRate,
           plannedAnnualExpenses: settingsData.plannedAnnualExpenses,
+          fireEmergencyFund: settingsData.fireEmergencyFund,
           fireCashToInvestPct: settingsData.fireCashToInvestPct,
           fireDatedFlowsCount: settingsData.fireDatedFlows?.length ?? 0,
           pensionInpsRetirementAge: settingsData.pensionInpsRetirementAge,
@@ -908,6 +916,9 @@ export default function SettingsPage() {
       setMarketDraft(loadedMarketDraft);
       setMarketOrigin(resolvedMarket.origin);
       setMarketBaselineKey(marketSnapshotKey(loadedMarketDraft));
+      const loadedBrackets = toTaxBracketDrafts(settingsData?.coastFireTaxBrackets);
+      setTaxBracketDrafts(loadedBrackets);
+      setTaxBracketsBaselineKey(buildTaxBracketSnapshotKey(parseTaxBracketDrafts(loadedBrackets)));
 
       // Load cash fixed amount settings if available
       const cashTargetData = targets['cash'];
@@ -1577,6 +1588,7 @@ export default function SettingsPage() {
       }
     }
 
+    const taxBracketsPayload = taxBracketsDirty ? parseTaxBracketDrafts(taxBracketDrafts) : null;
     // Simulazioni: written only when the tab holds edits, so a Save elsewhere never turns the
     // defaults (or a migrated legacy field) into a saved market behind the reader's back.
     let marketPayload: ReturnType<typeof toMonteCarloMarketSettings> | null = null;
@@ -1646,7 +1658,8 @@ export default function SettingsPage() {
       });
 
       await setSettings(ownerId, {
-        userAge,
+        // `userAge` is NOT written from here (RP, D-T5): the age is typed in FIRE › Il mio piano, and a copy loaded
+        // with this page would overwrite a newer one.
         riskFreeRate,
         // Persist the toggle state explicitly so disabling it survives a page reload.
         // Without this field, the toggle was re-derived from age+rate presence on load,
@@ -1658,6 +1671,7 @@ export default function SettingsPage() {
         goalDrivenAllocationEnabled,
         withdrawalRate: settingsData?.withdrawalRate,
         plannedAnnualExpenses: settingsData?.plannedAnnualExpenses,
+        fireEmergencyFund: settingsData?.fireEmergencyFund,
         fireCashToInvestPct: settingsData?.fireCashToInvestPct,
         fireDatedFlows: settingsData?.fireDatedFlows,
         targets,
@@ -1691,6 +1705,8 @@ export default function SettingsPage() {
         familyMembers: parseFamilyMemberDrafts(familyMemberDrafts),
         idealAllocation,
         ...(marketPayload ? { monteCarloMarket: marketPayload } : {}),
+        // The IRPEF brackets: written only when the tab holds edits to them, like the market.
+        ...(taxBracketsPayload ? { coastFireTaxBrackets: taxBracketsPayload } : {}),
       });
       toast.success('Impostazioni salvate');
       if (marketPayload && marketDraft && correctedCorrelations) {
@@ -1707,6 +1723,7 @@ export default function SettingsPage() {
       }
       // The allocation baseline is captured from what was WRITTEN (the cleaned tree), so a
       // dropped empty row does not leave the tab marked as unsaved.
+      if (taxBracketsPayload) setTaxBracketsBaselineKey(buildTaxBracketSnapshotKey(taxBracketsPayload));
       setAllocationBaselineKey(buildAllocationSnapshotKey(cleanedStates));
       setGeneralBaselineKey(generalSnapshotKey);
       setDividendBaselineKey(dividendSnapshotKey);
@@ -1956,7 +1973,6 @@ export default function SettingsPage() {
   // memoization). Three small JSON.stringify calls per render cost less than the comparison.
   const buildAllocationSnapshotKey = (states: Record<AssetClass, AssetClassState>) =>
     JSON.stringify({
-      userAge: userAge ?? null,
       riskFreeRate: riskFreeRate ?? null,
       autoCalculate,
       cashUseFixedAmount,
@@ -2036,6 +2052,7 @@ export default function SettingsPage() {
     return MONTE_CARLO_CLASSES.filter((cls) => byClass[cls] > 0);
   })();
   const marketDirty = marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey;
+  const taxBracketsDirty = taxBracketsBaselineKey.length > 0 && buildTaxBracketSnapshotKey(parseTaxBracketDrafts(taxBracketDrafts)) !== taxBracketsBaselineKey;
 
   // One dirty flag per tab that has fields «Salva» writes — each snapshot holds the fields of
   // the tab that EDITS them (doc/guide/impostazioni.md § Settings — the FIVE places).
@@ -2044,7 +2061,7 @@ export default function SettingsPage() {
     generale: generalBaselineKey.length > 0 && generalSnapshotKey !== generalBaselineKey,
     spese: speseBaselineKey.length > 0 && speseSnapshotKey !== speseBaselineKey,
     dividendi: dividendBaselineKey.length > 0 && dividendSnapshotKey !== dividendBaselineKey,
-    simulazioni: marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey,
+    simulazioni: (marketBaselineKey.length > 0 && marketSnapshotKey(marketDraft) !== marketBaselineKey) || taxBracketsDirty,
   };
   const settingsTabs = SETTINGS_TABS.map((tab) => ({ ...tab, unsaved: unsavedByTab[tab.value as SettingsTabId] ?? false }));
   const unsavedSentence = describeUnsavedChanges(settingsTabs.filter((tab) => tab.unsaved).map((tab) => tab.label));
@@ -2889,8 +2906,8 @@ export default function SettingsPage() {
                       />
                     )}
                     <DeclarationRow
-                      label="Liquidità da investire"
-                      value={`${pctLabel(planParams.fireCashToInvestPct ?? 0)}${planParams.fireCashToInvestPct === undefined ? ' · predefinita' : ''}`}
+                      label="Fondo di emergenza"
+                      value={describeEmergencyFundDeclaration(planParams.fireEmergencyFund, planParams.fireCashToInvestPct)}
                     />
                     <DeclarationRow label="Flussi nel tempo" value={describeFlowsDeclaration(planParams.fireDatedFlowsCount)} mono={planParams.fireDatedFlowsCount > 0} />
                     <DeclarationRow
@@ -2905,13 +2922,9 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Si modificano dove agiscono:{' '}
-                    <Link href="/dashboard/fire-simulations?tab=fire" className={TILE_FOOTER_ACTION_CLASS}>
-                      FIRE › Calcolatore → Parametri
-                    </Link>
-                    {' '}e{' '}
-                    <Link href="/dashboard/fire-simulations?tab=coast" className={TILE_FOOTER_ACTION_CLASS}>
-                      Coast FIRE → Ipotesi
+                    Si modificano in{' '}
+                    <Link href="/dashboard/fire-simulations?piano=aperto" className={TILE_FOOTER_ACTION_CLASS}>
+                      FIRE › Il mio piano
                     </Link>
                     .
                   </div>
@@ -3099,24 +3112,21 @@ export default function SettingsPage() {
                 })}
               >
                 <div className="mt-1 flex flex-col divide-y divide-border">
+                  {/* D-T5: the age has ONE editor, FIRE › Il mio piano (it moves almost every figure of the FIRE page);
+                      here it is declared, with the way to change it. */}
                   <div className="flex items-center justify-between gap-4 py-3">
                     <div className="min-w-0">
-                      <Label htmlFor="userAge" className="text-[13px] font-medium">Età</Label>
-                      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">In anni compiuti</p>
+                      <p className="text-[13px] font-medium text-foreground">Età</p>
+                      <p className="mt-0.5 text-[11px] leading-[1.4] text-muted-foreground">
+                        Si modifica in{' '}
+                        <Link href="/dashboard/fire-simulations?piano=eta" className={TILE_FOOTER_ACTION_CLASS}>
+                          FIRE › Il mio piano
+                        </Link>
+                      </p>
                     </div>
-                    <Input
-                      id="userAge"
-                      type="number"
-                      min="0"
-                      max="120"
-                      value={userAge || ''}
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value) : undefined;
-                        setUserAge(value);
-                      }}
-                      placeholder="anni"
-                      className={cn('w-24 shrink-0 text-right font-mono', interactiveControlClass)}
-                    />
+                    <span className={cn('shrink-0 text-right font-mono text-[14px] tabular-nums', userAge === undefined && 'text-muted-foreground')}>
+                      {userAge === undefined ? '—' : `${userAge} anni`}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3">
                     <div className="min-w-0">
@@ -4172,6 +4182,9 @@ export default function SettingsPage() {
                   disabled={isDemo}
                 />
               </div>
+              <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-8')}>
+                <TaxBracketsTile brackets={taxBracketDrafts} onChange={setTaxBracketDrafts} disabled={isDemo} />
+              </div>
               <div className={cn(TILE_CELL_CLASS, 'desktop:col-span-4 desktop:col-start-9 desktop:row-start-1')}>
                 <Tile
                   eyebrow="Dove si usano"
@@ -4183,11 +4196,11 @@ export default function SettingsPage() {
                     <DeclarationRow label="Fuori dalla simulazione" value="Immobili e crypto" mono={false} />
                   </div>
                   <div className="mt-auto border-t border-border pt-3 text-[11px] leading-[1.45] text-muted-foreground">
-                    Il piano (capitale, prelievo, pesi) si imposta in{' '}
-                    <Link href="/dashboard/fire-simulations?tab=montecarlo" className={TILE_FOOTER_ACTION_CLASS}>
-                      FIRE › Monte Carlo
+                    Il piano (età, spesa, SWR, pensioni) si imposta in{' '}
+                    <Link href="/dashboard/fire-simulations?piano=aperto" className={TILE_FOOTER_ACTION_CLASS}>
+                      FIRE › Il mio piano
                     </Link>
-                    . Qui salvi solo le ipotesi di mercato, con il «Salva» della pagina.
+                    . Qui salvi le ipotesi di mercato e le regole di legge, con il «Salva» della pagina.
                   </div>
                 </Tile>
               </div>

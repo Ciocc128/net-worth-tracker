@@ -2,7 +2,7 @@
 
 /**
  * The dated flows of the FIRE plan, resolved for the page (doc/fire-ipotesi/README.md § 12, RF1): the saved list (or the
- * Calcolatore's unsaved `draft`, the PREVIEW until «Salva»), placed on the calendar with the user's age and the mortgages
+ * plan's unsaved one, the PREVIEW until «Salva il piano»), placed on the calendar with the user's age and the mortgages
  * of Patrimonio. The queries are the page's own (`['settings', ownerId]`, `['assets', ownerId]`) plus the instalments
  * the «Mutuo» tile reads, so the tabs share React Query's cache.
  */
@@ -11,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveAccount } from '@/contexts/ActiveAccountContext';
 import { getAllAssets } from '@/lib/services/assetService';
-import { getSettings } from '@/lib/services/assetAllocationService';
+import { useFireSettings } from '@/lib/hooks/useFirePlan';
 import { calculateAssetValue } from '@/lib/services/assetService';
 import { getGoalData } from '@/lib/services/goalService';
 import { useFireAssumptions } from '@/lib/hooks/useFireAssumptions';
@@ -29,7 +29,7 @@ export interface MortgageOption {
 }
 
 export interface UseFireDatedFlowsResult {
-  /** The list in use: the draft if given, else the saved one. */
+  /** The list in use: the plan's draft if any, else the saved one. */
   flows: DatedFlow[];
   /** The saved flows resolved, then the goals' (RO1). */
   resolved: ResolvedFlow[];
@@ -44,19 +44,13 @@ export interface UseFireDatedFlowsResult {
 export interface UseFireDatedFlowsOptions {
   /** The funds the pension lock keeps closed, like the tab's `useFireAssumptions` (memoised by the caller): the goals' capital reads them. */
   lockedAssetIds?: ReadonlySet<string>;
-  /** The Calcolatore's unsaved share of the cash to invest (K1), a preview like `draft`. */
-  cashToInvestPct?: number;
 }
 
-export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds, cashToInvestPct }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
+export function useFireDatedFlows({ lockedAssetIds }: UseFireDatedFlowsOptions = {}): UseFireDatedFlowsResult {
   const { user } = useAuth();
   const { ownerId } = useActiveAccount();
-  const settingsQuery = useQuery({
-    queryKey: ['settings', ownerId],
-    queryFn: () => getSettings(ownerId!),
-    enabled: !!user && !!ownerId,
-    staleTime: 300000,
-  });
+  // The saved settings with the plan's draft over them (RP3): the flows listed in «Il mio piano» are previewed here.
+  const settingsQuery = useFireSettings();
   const assetsQuery = useQuery({
     queryKey: ['assets', ownerId],
     queryFn: () => getAllAssets(ownerId!),
@@ -71,7 +65,7 @@ export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds
     enabled: !!user && !!ownerId && goalsEnabled,
     staleTime: 300000,
   });
-  const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds, { cashToInvestPct });
+  const { assumptions, isLoading: assumptionsLoading } = useFireAssumptions(lockedAssetIds);
   const legShare = assumptions?.legShare;
   const propertyIds = useMemo(() => (assets ?? []).filter((asset) => asset.type === 'realestate' && asset.assetClass === 'realestate').map((asset) => asset.id), [assets]);
   const instalmentsQuery = useMortgageInstalments(ownerId, propertyIds);
@@ -92,7 +86,7 @@ export function useFireDatedFlows(draft?: readonly DatedFlow[], { lockedAssetIds
 
   const savedFlows = settingsQuery.data?.fireDatedFlows;
   const userAge = settingsQuery.data?.userAge;
-  const flows = useMemo<DatedFlow[]>(() => [...(draft ?? savedFlows ?? [])], [draft, savedFlows]);
+  const flows = useMemo<DatedFlow[]>(() => [...(savedFlows ?? [])], [savedFlows]);
   const { resolved, excluded } = useMemo(() => {
     const map = new Map(mortgages.map((option) => [option.propertyId, option.source]));
     return resolveDatedFlows(flows, { currentYear: getItalyYear(), userAge, mortgages: map });

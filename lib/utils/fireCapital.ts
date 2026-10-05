@@ -5,7 +5,9 @@
  *        `C` = their Liquidità legs. `excluded` instruments are not portfolio.
  *   RK2  `C_in` = the Liquidità the target keeps in the portfolio; `P = N + C_in`; `X = C − C_in` the excess.
  *   RK3  `L = max(0, X + E)`: the cash to invest, `E` the Liquidità legs of the `excluded` instruments.
- *   RK4  capital = `P + q·L`, `q` the user's share (`fireCashToInvestPct`, default 0).
+ *   RE1  (§ 14, replaces RK4) capital = `P + U`, `U = max(0, L − F)`, `F` the emergency fund in euro
+ *        (`fireEmergencyFund`); no fund set = `U = 0`, all of `L` stays out. A fund above `L` enters nothing (RE3).
+ *   RE5  a legacy `fireCashToInvestPct` = `q` with no fund saved reads as `F = (1 − q/100)·L`, today's `L`.
  *   RK6  every instrument enters the capital with a share `s`: the tax profile, the liquid part and the
  *        recurring costs read the same shares.
  *   RK8  the net worth, for context; what stays out is declared, never simulated.
@@ -19,14 +21,18 @@ import { suggestIsLiquid } from './assetLiquidity';
 import { legMonteCarloClass, modelledClassTargets, type FireCapitalWeightsInput, type FirePortfolioLeg } from './monteCarloWeights';
 import { resolvePortfolioTaxProfile, type WithdrawalTaxProfile } from './withdrawalTax';
 
-/** RK3–RK4: the cash outside the portfolio and the part of it that enters the capital. */
+/** RK3, RE1–RE3: the cash outside the portfolio, the fund kept out of it and the part that enters the capital. */
 export interface FireCashToInvest {
-  /** `L`: the cash that could be invested, EUR. */
+  /** `L`: the cash outside the portfolio, EUR. */
   total: number;
-  /** `q·L`: what enters the capital, EUR. */
+  /** `U = max(0, L − F)`: what enters the capital, EUR. */
   used: number;
-  /** `q`, percent (0–100). */
-  pct: number;
+  /** `F`: the emergency fund, EUR; null = none set (all of `L` stays out). */
+  fund: number | null;
+  /** RE3: `F − L` when the fund exceeds the cash outside the portfolio, else 0. */
+  fundShortfall: number;
+  /** RE5: the legacy share `q` (percent) the fund was derived from; null when the fund is the saved one or absent. */
+  fundFromPct: number | null;
   /** `E`: the Liquidità of the accounts excluded from the allocation, EUR (a negative balance reduces it). */
   excludedAccounts: number;
   /** `X`: the Liquidità of the included accounts beyond the target, EUR. */
@@ -34,7 +40,7 @@ export interface FireCashToInvest {
 }
 
 export interface FireCapital {
-  /** The capital of the tabs: `P + q·L` (RK4). */
+  /** The capital of the tabs: `P + U` (RE1). */
   total: number;
   /** The part of it held in liquid assets. */
   liquid: number;
@@ -46,7 +52,7 @@ export interface FireCapital {
   /** RK8: the net worth of the Patrimonio page, EUR. */
   netWorth: number;
   /** What the plan does not count, EUR: real estate (the residence included), crypto, the cash not invested, the other excluded instruments. */
-  outside: { realestate: number; crypto: number; cash: number; otherExcluded: number };
+  outside: { realestate: number; crypto: number; cash: number; otherExcluded: number; /** The cash left out is the emergency fund the user set (the text says «fondo di emergenza», not «Liquidità»). */ cashIsFund?: boolean };
   /** The cost basis behind the capital, for the tax on the sales; null when no instrument has one. */
   taxProfile: WithdrawalTaxProfile | null;
 }
@@ -56,7 +62,9 @@ export interface FireCapitalOptions {
   goldSubCategory?: string | null;
   /** The EFFECTIVE targets of Allocazione (`resolveEffectiveTargets`); null = none, the weights come from the holdings. */
   targets?: AssetAllocationTarget | null;
-  /** `fireCashToInvestPct`, percent; absent = 0, out of [0, 100] is clamped. */
+  /** `fireEmergencyFund`, EUR (≥ 0); absent or null = no fund set, all the cash outside the portfolio stays out (RE1). */
+  emergencyFund?: number | null;
+  /** Legacy `fireCashToInvestPct`, percent (clamped to [0, 100]); read ONLY when no fund is set, to derive it (RE5). */
   cashToInvestPct?: number | null;
 }
 
@@ -77,9 +85,9 @@ interface CapitalLeg {
   included: boolean;
 }
 
-const clampPct = (value: number | null | undefined): number => (value !== undefined && value !== null && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0);
+const isNumber = (value: number | null | undefined): value is number => value !== undefined && value !== null && Number.isFinite(value);
 
-/** RK1–RK6 in one pass: the capital, the inputs of RK5 and the shares of RK6. */
+/** RK1–RK3, RE1–RE5 and RK6 in one pass: the capital, the inputs of RK5 and the shares of RK6. */
 export function resolveFireCapitalDetail(assets: readonly Asset[], valueOf: (asset: Asset) => number, options: FireCapitalOptions = {}): FireCapitalDetail {
   const legs: CapitalLeg[] = [];
   const outside = { realestate: 0, crypto: 0, cash: 0, otherExcluded: 0 };
@@ -136,13 +144,20 @@ export function resolveFireCapitalDetail(assets: readonly Asset[], valueOf: (ass
   const P = N + cashIn;
   const X = C > 0 ? C - cashIn : 0;
 
-  // RK3–RK4
+  // RK3, RE1–RE3, RE5
   const L = Math.max(0, X + E);
-  const q = clampPct(options.cashToInvestPct) / 100;
-  const used = q * L;
+  let fund: number | null = null;
+  let fundFromPct: number | null = null;
+  if (isNumber(options.emergencyFund)) fund = Math.max(0, options.emergencyFund);
+  else if (isNumber(options.cashToInvestPct)) {
+    fundFromPct = Math.min(100, Math.max(0, options.cashToInvestPct));
+    fund = (1 - fundFromPct / 100) * L;
+  }
+  const used = fund === null ? 0 : Math.max(0, L - fund);
+  const fundShortfall = fund !== null && fund > L ? fund - L : 0;
   const total = P + used;
-  // `used` spread over the legs that make `X + E` in proportion to what each one adds to it.
-  const factor = X + E > 0 ? q : 0;
+  // RE2: `used` spread over the legs that make `X + E` in proportion to what each one adds to it.
+  const factor = L > 0 ? used / L : 0;
 
   // RK6: the amount of each leg in the capital.
   const entering = (leg: CapitalLeg): number => {
@@ -184,9 +199,9 @@ export function resolveFireCapitalDetail(assets: readonly Asset[], valueOf: (ass
       liquid,
       illiquid: Math.max(0, total - liquid),
       portfolio: P,
-      cashToInvest: { total: L, used, pct: q * 100, excludedAccounts: E, overTarget: X },
+      cashToInvest: { total: L, used, fund, fundShortfall, fundFromPct, excludedAccounts: E, overTarget: X },
       netWorth,
-      outside: { realestate: outside.realestate, crypto: outside.crypto, cash: L - used, otherExcluded },
+      outside: { realestate: outside.realestate, crypto: outside.crypto, cash: L - used, otherExcluded, cashIsFund: fund !== null },
       taxProfile,
     },
     weightsInput: { capital: total, cashIn, cashToInvest: used, legs: portfolioLegs },
