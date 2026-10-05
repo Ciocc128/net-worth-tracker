@@ -13,7 +13,8 @@
 > schede», proposta P0), decisioni D1–D3 confermate dal proprietario il 03/10/2026 nella conversazione di progetto, D4–D8 nel thread
 > della spec lo stesso giorno. La § 9 (P6, costi ricorrenti, task C1) è stata aggiunta il 04/10/2026, la § 10 (P1 spesa sostenibile e P2 età
 > obiettivo, task S1 ed E1) lo stesso giorno, la § 11 (patrimonio e portafoglio, task K1) lo stesso giorno: sostituisce RP5; la § 12 (P4 + P5, flussi datati, task
-> F1–F3) e la § 13 (P8, obiettivi nel FIRE e con incertezza, task O1 e O2) lo stesso giorno.
+> F1–F3) e la § 13 (P8, obiettivi nel FIRE e con incertezza, task O1 e O2) lo stesso giorno; la § 14 (fondo di emergenza in
+> euro, task EF1) il 05/10/2026: sostituisce RK4.
 
 ---
 
@@ -1111,6 +1112,8 @@ scelta dell'utente.
 
 ### 11.5 Regole di calcolo
 
+> **Dal 05/10/2026 RK4 è sostituita da RE1 (§ 14)**: non più una quota da investire ma un fondo di emergenza in euro.
+
 Notazione: per ogni strumento non bloccato e per ogni gamba (`legsOf`, la composizione se c'è) nelle sette classi,
 `m` = valore di mercato della gamba (`calculateAssetValue × quota`), `role` = `resolveAllocationRole(asset)`.
 Crypto e immobili restano fuori come oggi (RK di `doc/montecarlo/`).
@@ -1958,3 +1961,225 @@ contato e uno no, l'effetto sul FIRE, la banda, il versamento per 9 casi su 10, 
 | Un obiettivo contato e un flusso scritto a mano per la stessa spesa la contano due volte. | La riga dell'obiettivo in «Flussi nel tempo» lo rende visibile accanto agli altri. |
 | `useFireDatedFlows` legge una query in più su ogni scheda FIRE. | La stessa chiave della scheda Obiettivi (`['goalData', ownerId]`), in cache di React Query. |
 | L'estrazione del baseline del What If cambia un risultato. | Test di What If identici prima e dopo (O1). |
+
+---
+
+## 14. Fondo di emergenza in euro — la liquidità che resta fuori (task EF1)
+
+> Aggiunta il 05/10/2026 (thread «spec», card Todoist «FEAT FIRE: fondo di emergenza in euro al posto di «liquidità da
+> investire» in percentuale», primo punto dell'ordine delle card FEAT FIRE approvato dal proprietario lo stesso giorno).
+> Il rovesciamento del campo è deciso dal proprietario nella card (05/10); le decisioni D-E1–D-E7, proposte dal
+> thread, sono confermate dal proprietario lo stesso giorno. **Sostituisce RK4 e la parte di RK6 che legge `q`** (§ 11.5), **D-P3 e D-P5** (§ 11.7) e la
+> scomposizione del capitale di § 11.6. RK1–RK3, RK5, RK7 e RK8 restano come sono. Base di codice: commit `9839c3f`
+> (`main` del fork, merge della PR #61).
+
+### 14.1 Obiettivo
+
+K1 chiede all'utente **quale quota** della liquidità fuori dal portafoglio investire. Ma la quota segue il saldo dei
+conti: ogni stipendio e ogni spesa cambiano gli euro che restano fuori, mentre l'utente ha in mente una cifra fissa,
+il fondo di emergenza, che cresce con le esigenze di spesa e non con il patrimonio. Il campo si rovescia: l'utente
+dice **quanti euro tengo fuori**, e tutto il resto della liquidità fuori dal portafoglio entra nel capitale.
+
+### 14.2 Stato di partenza (verificato nel codice, 05/10/2026)
+
+| Dove | Oggi |
+| --- | --- |
+| `lib/utils/fireCapital.ts:141-145` (`resolveFireCapitalDetail`) | `q = clampPct(cashToInvestPct)/100`, `used = q·L`, `factor = q` (la quota di ogni gamba Liquidità fuori dal portafoglio che entra, RK6) |
+| `FireCashToInvest` (`fireCapital.ts:23`) | `{ total: L, used, pct, excludedAccounts: E, overTarget: X }`; `outside.cash = L − used` |
+| `lib/utils/fireAssumptions.ts:244` | passa `settings.fireCashToInvestPct` a `resolveFireCapitalDetail` |
+| `lib/hooks/useFireAssumptions.ts:31,68`, `useFireDatedFlows.ts:48,74` | anteprima `cashToInvestPct` non salvata, sovrapposta alle impostazioni |
+| `components/fire-simulations/FireParametri.tsx:257-283` | campo «Liquidità da investire (%)», solo con `L > 0`; sotto `describeCashToInvest` |
+| `components/fire-simulations/FireCalculatorTab.tsx:207,306-308,321,396,828-849` | form, anteprima, «modificato», salvataggio di `fireCashToInvestPct` |
+| `lib/utils/fireAssumptionsNarrative.ts:36-42,74-92` | `describeOutsideCapital` («Liquidità 30.000 €»), `describeCapitalBreakdown` («portafoglio 400.000 € + 30.000 € di liquidità da investire»), `describeCashToInvest` |
+| `lib/services/assetAllocationService.ts:91,121,244,475`, `types/assets.ts:130,378` | lettura e scrittura nei due rami; scritto solo se definito (non cancellabile) |
+| `app/dashboard/settings/page.tsx:655,887,1661,2891-2894` | riga «Liquidità da investire» in «Parametri del piano», «0% · predefinita» se assente |
+| `__tests__/fireAssumptions.test.ts`, `settingsRoundTrip.test.ts` (K13, righe 87, 170, 294, 310) | i test di K1 sulla quota |
+
+### 14.3 Perimetro
+
+**Incluso**
+- Il fondo di emergenza in euro (`fireEmergencyFund`) al posto della quota (RE1–RE3), letto dalla stessa funzione di
+  K1; anteprima nei Parametri del Calcolatore fino a «Salva», come oggi la quota.
+- I mesi di spesa del piano accanto all'importo, come aiuto (RE4).
+- La conversione del valore salvato in percentuale (RE5).
+- L'avviso quando il fondo supera la liquidità fuori dal portafoglio (RE3).
+- I testi: riga «Ipotesi usate» e Parametri di Monte Carlo e Proiezione (`describeCapitalBreakdown`), aiuto del campo,
+  riga di Impostazioni › Parametri del piano (§ 14.6).
+
+**Escluso**
+- Lo spostamento del campo in «Il mio piano»: lo fa la card «FEAT FIRE: «Il mio piano», centro unico dei parametri
+  delle schede» (punto 3 dell'ordine). Qui il campo resta dov'è.
+- Un fondo preso dalla Liquidità che sta **dentro** il portafoglio per il suo target (D-E2).
+- Un fondo che cresce da solo nel tempo nei motori (con l'inflazione o con la spesa): il fondo è una sottrazione
+  all'anno 0, come la quota di oggi (D-P7 invariata).
+- Il fondo nel What If (un evento «spendo il fondo») e negli Obiettivi: invariati.
+- Lo storico runway del Calcolatore: fatti, invariato.
+
+### 14.4 Casi d'uso
+
+1. **Il proprietario fissa il suo fondo.** Conti esclusi 45.000 €, eccedenza inclusa 15.000 € (`L` = 60.000 €).
+   Scrive 30.000 € nel campo: ne restano fuori 30.000 € e 30.000 € entrano nei pesi target. Il mese dopo i conti
+   valgono 64.000 €: il fondo resta 30.000 €, nel capitale entrano 34.000 € senza toccare il campo.
+2. **Tutto investito.** Fondo 0 €: tutta la liquidità fuori dal portafoglio entra nel capitale (la quota 100% di oggi).
+3. **Fondo non coperto.** Fondo 80.000 € con `L` = 60.000 €: non entra niente, il capitale è il portafoglio, e i
+   Parametri avvisano che mancano 20.000 € al fondo. Il portafoglio non viene toccato.
+4. **Nessun fondo indicato.** Campo vuoto: tutta la liquidità fuori dal portafoglio resta fuori, come la quota 0% di
+   oggi; la riga lo dice.
+5. **Chi aveva salvato una quota.** Quota 50% con `L` = 60.000 € il giorno in cui apre la pagina: il campo mostra
+   30.000 € e chiede di salvare per fissarlo; il capitale è subito lo stesso di prima.
+
+### 14.5 Regole di calcolo
+
+Notazione di § 11.5 (`P`, `C_in`, `X`, `E`, `L = max(0, X + E)`). `F` = `fireEmergencyFund` in euro, `≥ 0`, oppure
+**non impostato**.
+
+**RE1 — Liquidità che entra** (sostituisce RK4):
+
+```
+F impostato:       U = max(0, L − F)
+F non impostato:   U = 0                       // tutta L resta fuori (D-E3)
+capitale = P + U
+fuori (liquidità) = L − U                      // = min(F, L) con F impostato, = L senza
+```
+
+Il fondo si prende **solo** da `L`, mai da `C_in` (D-E2): la Liquidità del target resta nel portafoglio e nei pesi.
+
+**RE2 — Ripartizione sulle gambe** (sostituisce la parte di RK6 che legge `q`): `U` si distribuisce sulle gambe che
+formano `X + E` in proporzione a ciò che ciascuna aggiunge, come oggi `q·L`, con il fattore
+
+```
+factor = U / L   se L > 0,   altrimenti 0
+```
+
+al posto di `q` in `entering` (`fireCapital.ts:149-155`). Profilo fiscale, parte liquida e costi ricorrenti leggono
+le stesse quote `s_a` di RK6: niente cambia per loro oltre al fattore. RK5 (pesi) riceve `U` come oggi riceve `q·L`.
+
+**RE3 — Fondo non coperto.** Con `F > L` (F impostato): `U = 0`, il capitale è `P`, `scoperto = F − L`. È solo una
+dichiarazione: nessun calcolo cambia, il portafoglio non si riduce (D-E7).
+
+**RE4 — Mesi di spesa.** `mesi = F / (S / 12)`, con `S` la spesa annua del piano (`resolvePlanExpenses`, la stessa
+della riga «Ipotesi usate»). Una cifra decimale, «,0» tolto («10 mesi», «10,3 mesi»). Senza spesa (`S` assente o 0) o
+senza `F` i mesi non si scrivono. Solo testo: non si salvano e non entrano nei calcoli (D-E1).
+
+**RE5 — Conversione della quota salvata.** Se `fireEmergencyFund` è assente e `fireCashToInvestPct` = `q` è presente:
+
+```
+F = (1 − q/100) · L          // L di oggi, alla lettura
+```
+
+e il capitale di RE1 è identico a quello di RK4 con la stessa `q`. Il valore è **derivato** finché l'utente non salva
+i Parametri del Calcolatore: il salvataggio scrive `fireEmergencyFund` (arrotondato all'euro) e **cancella**
+`fireCashToInvestPct` nello stesso aggiornamento. Fino ad allora segue il saldo come la quota di oggi, e il campo lo
+dice (§ 14.6, D-E4). Con `fireEmergencyFund` presente `fireCashToInvestPct` è ignorato. Il codice di lettura di
+`fireCashToInvestPct` resta solo per questa conversione.
+
+**RE6 — Validazione.** Il campo accetta un importo `≥ 0` (virgola o punto decimale, arrotondato all'euro al
+salvataggio) o il vuoto (= non impostato, cancella il campo come `plannedAnnualExpenses`). Negativo o non numerico:
+«Serve un importo da 0 in su, oppure lascia vuoto.» e «Salva» disattivato come per la spesa.
+
+### 14.6 Cosa vede l'utente
+
+- **Parametri del Calcolatore**: il campo «Fondo di emergenza (€)» al posto di «Liquidità da investire (%)», sempre
+  visibile (anche con `L` = 0, perché un fondo scritto può essere scoperto). Segnaposto «nessuno». Sotto, una riga:
+  - `F` impostato e coperto: «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €):
+    30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target.»
+  - `F` = 0: «… : entrano tutti nei pesi target.»
+  - `F` non impostato: «… : senza un fondo indicato restano tutti fuori.»
+  - scoperto: «Il fondo supera di 20.000 € la liquidità fuori dal portafoglio (60.000 €): non entra niente nel capitale
+    e il fondo non è coperto.» in colore di avviso (`text-warning` del tema, non `destructive`: non è un errore).
+  - `L` = 0 e `F` non impostato: «Nessuna liquidità fuori dal portafoglio.»
+  - convertito (RE5), in coda alla riga: «Calcolato dalla quota del 50% salvata prima: salva per fissarlo in euro.»
+  Le parti a zero si tolgono come oggi; i mesi solo con la spesa del piano nota (RE4).
+- **Riga «Ipotesi usate»** (sei schede) e **Parametri di Monte Carlo e Proiezione**: «capitale 430.000 € (portafoglio
+  400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto
+  10.000 €)». Senza `F`: «capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, …)», come oggi con quota 0%.
+  Con `F` scoperto la voce è la liquidità che c'è davvero: «fondo di emergenza 60.000 €» (l'avviso sta nei Parametri).
+- **Impostazioni › Parametri del piano**: riga «Fondo di emergenza» con «30.000 €», «non impostato · la liquidità fuori
+  dal portafoglio resta fuori», oppure, prima del primo salvataggio dopo la conversione, «da fissare nel Calcolatore
+  (quota salvata 50%)». Sola lettura, come le altre righe.
+
+### 14.7 Decisioni
+
+| # | Stato | Decisione | Alternative scartate e motivo |
+| --- | --- | --- | --- |
+| D-E0 | **Presa** (05/10/2026, proprietario, nella card) | Il campo si rovescia: non più la quota da investire ma **quanta liquidità resta fuori, in euro**; liquidità nel capitale = liquidità fuori dal portafoglio − fondo, minimo zero, con un avviso se il fondo non è coperto. Sostituisce D-P3. | La quota di K1 (va riscritta a ogni movimento del conto: lo stesso motivo per cui D-P3 aveva scartato gli euro, rovesciato perché il fondo, a differenza del versamento, è una cifra stabile). |
+| D-E1 | **Presa** (05/10/2026, proprietario) | Si salva l'**importo in euro**; i mesi di spesa del piano sono solo un aiuto scritto accanto (RE4). | Mesi di spesa salvati (il fondo cambierebbe da solo quando cambia la spesa del Cashflow o una spesa del piano scritta per prova); due campi collegati (due verità per un numero). |
+| D-E2 | **Presa** (05/10/2026, proprietario) | Il fondo si prende **solo** dalla liquidità fuori dal portafoglio (`L`), mai dalla Liquidità che il target tiene dentro (`C_in`). | Dalla liquidità totale `C + E` (taglierebbe la Liquidità del target: pesi diversi dai target, ipotesi RP1 non più coerenti con il capitale). Chi considera fondo la Liquidità del target scrive 0. |
+| D-E3 | **Presa** (05/10/2026, proprietario) | **Non impostato = tutta la liquidità fuori resta fuori** (U = 0), come la quota 0% di oggi. | Non impostato = 0 € (investe tutto senza che l'utente lo abbia scelto: il difetto che D-P5 evitava); un valore predefinito di 6 mesi di spesa (un numero che l'utente non ha scelto, nascosto nel capitale). |
+| D-E4 | **Presa** (05/10/2026, proprietario) | **Conversione derivata alla lettura, fissata al primo salvataggio dei Parametri** (RE5), con la riga che lo chiede. | Scrittura automatica all'apertura della pagina (una scrittura dentro una lettura, da bloccare in demo e da proteggere da due schede aperte); uno script una tantum (strumento in più per un solo account); nessuna conversione (la scelta salvata si perde e il capitale cambia senza avviso). |
+| D-E5 | **Presa** (05/10/2026, proprietario) | Nome «**Fondo di emergenza**». | «Liquidità da tenere fuori» (descrive il meccanismo ma non lo scopo, e l'utente pensa al fondo). |
+| D-E6 | **Presa** (05/10/2026, proprietario) | Il campo resta dov'è oggi (Parametri del Calcolatore), letto da tutte le schede; lo sposta la card «Il mio piano». | Spostarlo qui in Impostazioni o in «Il mio piano» (anticipa una spec non ancora scritta). |
+| D-E7 | **Presa** (05/10/2026, proprietario) | Fondo **oltre** `L`: capitale = portafoglio, avviso nei Parametri, nessun effetto sui calcoli. | Togliere lo scoperto dal portafoglio (simula una vendita che l'utente non ha deciso, e sposta l'anno FIRE per un avviso). |
+
+### 14.8 Criteri di accettazione (valori di riferimento verificabili)
+
+Esempio comune di § 11.8 (ETF azionario 280.000 € con costo 200.000 €, ETF obbligazionario 120.000 € con costo
+110.000 €, conto incluso 15.000 €, conto deposito escluso 45.000 €, crypto 10.000 €, casa 250.000 €, target 70/30/0,
+nessun costo, nessun fondo bloccato), quindi `P` = 400.000, `X` = 15.000, `E` = 45.000, `L` = 60.000. Spesa del piano
+36.000 €/anno da Impostazioni, salvo dove detto. Tolleranza ± 0,01 € sugli importi, ± 0,0001 punti sulle percentuali.
+
+| # | Caso | Valore atteso |
+| --- | --- | --- |
+| E1 | RE1, `F` = 30.000 | `U` = 30.000, capitale 430.000 €, fuori 30.000 €, pesi 70/30 (come K3/K4 con `q` = 50) |
+| E2 | RE1, `F` = 0 | `U` = 60.000, capitale 460.000 €, fuori 0 |
+| E3 | RE1, `F` non impostato (e `fireCashToInvestPct` assente) | `U` = 0, capitale 400.000 €, fuori 60.000 € |
+| E4 | RE1, `F` = 30.000, conti saliti a `E` = 49.000 (`L` = 64.000) | `U` = 34.000, capitale 434.000 €, fuori 30.000 € |
+| E5 | RE3, `F` = 80.000 | `U` = 0, capitale 400.000 €, scoperto 20.000 €, fuori 60.000 € |
+| E6 | RE2, `F` = 30.000 | costo fiscale 340.000 €, quota plusvalenze 90.000 / 430.000 = 20,93% (uguale a K8); parte liquida 430.000 € (uguale a K9) |
+| E7 | RE1 con K7 (carta esclusa −2.000 €, `E` = 43.000, `L` = 58.000), `F` = 30.000 | `U` = 28.000, capitale 428.000 € |
+| E8 | RE1 con K5 (target Liquidità 10%, conto incluso 60.000 €, niente esclusi: `C_in` = 44.444,44, `X` = 15.555,56), `F` = 10.000 | `U` = 5.555,56, capitale 450.000,00 €; il fondo non tocca `C_in` (D-E2) |
+| E9 | RE1 + RK5 con K6 (Liquidità a importo fisso 20.000 €, conto incluso 60.000 €: `X` = 40.000), `F` = 10.000 | `U` = 30.000, capitale 450.000 €, `w_cash` = 4,4444%, Azioni 66,8889%, Obbligazioni 28,6667% (prima di `normalise`) |
+| E10 | RE4 | `F` = 30.000, spesa 36.000 → «10 mesi»; spesa 35.000 → «10,3 mesi»; spesa assente → nessun mese nel testo |
+| E11 | RE5, quota salvata 50 / 0 / 100, `L` = 60.000, fondo assente | `F` derivato 30.000 / 60.000 / 0 €; capitale 430.000 / 400.000 / 460.000 € (uguale a K3) |
+| E12 | RE5, fondo 25.000 e quota 50 entrambi salvati | vale il fondo: capitale 435.000 € |
+| E13 | RE5, salvataggio dei Parametri dopo la conversione (quota 50) | payload con `fireEmergencyFund` = 30000 e senza `fireCashToInvestPct` nei due rami (cancellato con `deleteField()` nel ramo merge, omesso nel ramo `setDoc`) |
+| E14 | § 14.6, riga «Ipotesi usate», `F` = 30.000 | «capitale 430.000 € (portafoglio 400.000 € + 30.000 € di liquidità oltre il fondo; fuori: fondo di emergenza 30.000 €, Immobili 250.000 €, Crypto 10.000 €)», uguale nelle sei schede e nei due tile Parametri |
+| E15 | § 14.6, riga senza `F` | «capitale 400.000 € (portafoglio; fuori: Liquidità 60.000 €, Immobili 250.000 €, Crypto 10.000 €)» |
+| E16 | § 14.6, aiuto del campo, `F` = 30.000 | «60.000 € fuori dal portafoglio (conti esclusi 45.000 €, oltre il target 15.000 €): 30.000 € restano come fondo, pari a 10 mesi della spesa del piano, e 30.000 € entrano nei pesi target.» |
+| E17 | Round-trip (`settingsRoundTrip`) | `fireEmergencyFund` attraversa le cinque sedi; 0 è un valore, non un'assenza; il vuoto lo cancella in entrambi i rami; negativo rifiutato nei Parametri (RE6) |
+| E18 | Coerenza (K14, A17) | a volatilità 0 il Ventaglio coincide con la curva Base partendo dal capitale di RE1 |
+
+### 14.9 Task EF1 — Fondo di emergenza in euro (thread «impl», Sonnet 5.5)
+
+**Moduli**
+- `types/assets.ts`: `fireEmergencyFund?: number` (EUR, `≥ 0`, assente = non impostato); `fireCashToInvestPct` resta,
+  commentato «legacy: read only by the RE5 conversion».
+- `lib/utils/fireCapital.ts`: `FireCapitalOptions` riceve `emergencyFund?: number | null` e tiene `cashToInvestPct` per
+  RE5; `FireCashToInvest` diventa `{ total: L, used: U, fund: F | null, fundShortfall, fundFromPct: q | null,
+  excludedAccounts, overTarget }` (il nome del tipo può restare, o diventare `FireOutsideCash`: lo sceglie l'impl).
+  RE1–RE3 e RE5 in `resolveFireCapitalDetail`, il fattore di RE2 al posto di `q`.
+- `lib/utils/fireAssumptions.ts`: passa `fireEmergencyFund` e `fireCashToInvestPct` alle opzioni.
+- `lib/hooks/useFireAssumptions.ts`, `useFireDatedFlows.ts`: l'anteprima diventa `emergencyFund` (numero, o `null` =
+  campo vuoto).
+- `lib/utils/fireAssumptionsNarrative.ts`: `describeOutsideCapital`, `describeCapitalBreakdown`, e `describeCashToInvest`
+  rinominata (per esempio `describeEmergencyFund`) con i casi di § 14.6 e i mesi di RE4 (riceve la spesa annua).
+- `components/fire-simulations/FireParametri.tsx`, `FireCalculatorTab.tsx`: il campo, l'anteprima, «modificato»,
+  il salvataggio (RE5: scrive il fondo e cancella la quota).
+- `lib/services/assetAllocationService.ts`: `fireEmergencyFund` cancellabile come `plannedAnnualExpenses` nei due rami;
+  `fireCashToInvestPct` cancellabile (chiave presente e `undefined`).
+- Impostazioni: le cinque sedi (`doc/guide/impostazioni.md` § Settings — the FIVE places), la riga di § 14.6 in
+  «Parametri del piano» (`describePlanParameters`).
+
+**Test** — `__tests__/fireAssumptions.test.ts` (o un nuovo `fireCapital.test.ts`): E1–E9, E11, E12, E18; i test di K1
+sulla quota (K3, K8, K9, K12) si riscrivono con il fondo equivalente, dichiarandolo nella PR;
+`fireAssumptionsNarrative.test.ts`: E10, E14–E16; `settingsRoundTrip.test.ts`: E13, E17 (i casi K13 della quota si
+tolgono, resta la sola cancellazione).
+
+**Documentazione** (stessa PR): `doc/guide/fire.md` (§ K1: RK4 → RE1, il blind spot di riga 372 riscritto: «senza un
+fondo indicato la liquidità fuori dal portafoglio non conta»), `fire-monte-carlo.md`, `fire-proiezione.md`,
+`doc/guide/impostazioni.md` (riga 106), `CLAUDE.md`, `doc/guide/fork-scelte-ui.md`, `Draft Release Temp.md`; in questo
+dossier una nota in testa a § 11.5 («RK4 sostituita da RE1, § 14»).
+
+**Criterio di fine**: E1–E18 verdi; `npx tsc --noEmit`, `npx eslint app components lib types e2e scripts __tests__`,
+`TZ=Europe/Rome npx vitest run`. Le spec Playwright di FIRE che leggono la riga del capitale o il campo dei Parametri
+e la verifica sui dati reali (`npm run mirror:seed`: la conversione della quota salvata del proprietario, E11) si
+fanno in un thread sul computer del proprietario.
+
+### 14.10 Rischi
+
+| Rischio | Mitigazione |
+| --- | --- |
+| Il capitale cambia senza che l'utente lo sappia al momento della conversione. | RE5 dà lo stesso capitale della quota (E11) finché non si salva; la riga del campo chiede di salvare. |
+| Un fondo grande lasciato da un periodo con più liquidità resta scoperto in silenzio. | L'avviso di RE3 nei Parametri; la riga «Ipotesi usate» mostra il fondo che c'è davvero. |
+| Due campi salvati per lo stesso concetto (quota e fondo) dopo la migrazione. | Il salvataggio cancella la quota (E13); con il fondo presente la quota è ignorata (E12). |
+| Merge con upstream su `fireCapital.ts`. | Il modulo è solo del fork (K1); voce in `fork-scelte-ui.md` già presente, si aggiorna. |
